@@ -91,44 +91,33 @@ Archived context:
 
 ## Active Handoff
 
-**Status:** 🔴 RE-DEPLOY REQUIRED — Key-loading diagnostics (commit `b9bfd195`)
+**Status:** 🔍 DIAGNOSTICS COMPLETE — Keys ARE loading, 401 root cause still unknown
 
-**What we've tried (none worked):**
+**Deploy results (on `cloud.kimball.home`, commit `fd8f0cd7`):**
 
-1. `ValidateIssuerSigningKey = false` + `IssuerSigningKeys` (commit `d6bb6fce`) → still 401
-2. Deterministic `RsaSecurityKey.KeyId` from RSA modulus hash (commit `c1025e75`) → still 401
-3. `IssuerSigningKeyResolver` returning all keys regardless of `kid` + `ComputeRsaKeyId` (commit `80285e5f`) → still 401
+- Full `--force` deploy, 14/14 modules, 15/15 targets succeeded
+- Health: 200 ✅
+- Files module host startup log:
+  ```
+  Files module host: DOTNETCLOUD_DATA_DIR=/var/lib/dotnetcloud, oidcKeysDir=/var/lib/dotnetcloud/oidc-keys
+  Loaded 1 signing key(s) from /var/lib/dotnetcloud/oidc-keys: o5lq3CGB...
+  ```
+- **Keys ARE accessible and loading** — no permissions issue, no missing directory
 
-**Investigation finding:** The Core.Server YARP proxy routes have **no `RequireAuthorization()`** — auth is NOT validated before forwarding to the module host. The `Authorization: Bearer` header is forwarded verbatim. The 401 comes **entirely from the Files module host's JwtBearer handler**.
+**What's been tried (all deploy+verify'd, still 401):**
 
-**Suspected root cause:** The Files module host process may not be able to access `/var/lib/dotnetcloud/oidc-keys/` (permissions, wrong path, or directory doesn't exist). If `LoadAllKeys` returns 0 keys, `IssuerSigningKeys` is null and ALL tokens are rejected regardless of kid matching or resolver logic.
+1. `ValidateIssuerSigningKey = false` + `IssuerSigningKeys`
+2. Deterministic `RsaSecurityKey.KeyId` from RSA modulus hash
+3. `IssuerSigningKeyResolver` returning all keys regardless of `kid` + `ComputeRsaKeyId`
 
-**New diagnostics (commit `b9bfd195`):** The Files module host now logs at startup:
+**Suspicion:** Core.Server OpenIddict may use a different `KeyId` format than what `LoadAllKeys` + deterministic `ComputeRsaKeyId` produces. Even with `IssuerSigningKeyResolver` returning all keys and `ValidateIssuerSigningKey = false`, JwtBearer still rejects. Possibly a `TokenValidationParameters` issue or the JWT doesn't pass `ValidateLifetime`/other checks.
 
-```
-Files module host: DOTNETCLOUD_DATA_DIR=/var/lib/dotnetcloud, oidcKeysDir=/var/lib/dotnetcloud/oidc-keys
-Loaded 1 signing key(s) from /var/lib/dotnetcloud/oidc-keys: AbCdEf123...
-```
-
-Or if no keys:
-
-```
-FATAL: No OpenIddict signing keys found in /var/lib/dotnetcloud/oidc-keys. JWT Bearer token validation will fail for ALL requests. Does the directory exist? Does this process have read access?
-```
-
-**Deploy (on `cloud.kimball.home`):**
+**Next: `mint-OptiPlex-7010` should test again with fresh SyncTray to confirm nothing has changed, then investigate further.**
 
 ```bash
-git checkout fix/files-module-bearer-auth
-git pull
-sudo ./scripts/deploy.sh --force
+git checkout fix/files-module-bearer-auth && git pull
+dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj
 ```
-
-**Then check Files module host logs for:**
-
-- `Files module host: DOTNETCLOUD_DATA_DIR=...` → is the path correct?
-- `Loaded N signing key(s)` → is N > 0?
-- If N = 0, check: `ls -la /var/lib/dotnetcloud/oidc-keys/` and permissions
 
 **Client version:** 0.3.9-alpha
 **Server build:** 0.3.12
