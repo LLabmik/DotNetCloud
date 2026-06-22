@@ -824,6 +824,13 @@ public class Program
         // CORS
         app.UseCors(CorsConfiguration.PolicyName);
 
+        // Branch internal gRPC requests (module introspection, lifecycle, etc.) into a
+        // dedicated pipeline that bypasses HTTP-specific middleware. gRPC uses cleartext
+        // HTTP/2 on a dedicated port and must NOT be redirected to HTTPS.
+        app.MapWhen(
+            ctx => ctx.Request.ContentType?.StartsWith("application/grpc", StringComparison.OrdinalIgnoreCase) == true,
+            grpcApp => ((WebApplication)grpcApp).MapModuleGrpcServices());
+
         // Redirect HTTP→HTTPS for browser traffic, but NOT for internal gRPC
         // calls (modules use cleartext HTTP/2 on the gRPC port).
         app.UseWhen(
