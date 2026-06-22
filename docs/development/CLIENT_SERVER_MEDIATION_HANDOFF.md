@@ -91,38 +91,27 @@ Archived context:
 
 ## Active Handoff
 
-**Status:** 🔴 RE-DEPLOY REQUIRED — JwtBearer with all signing keys
+**Status:** ✅ DEPLOY COMPLETE — JwtBearer with all signing keys deployed to `cloud.dotnetcloud.net`
 
-**OpenIddict validation failed** — `SetIssuer()` + `UseSystemNetHttp()` forces HTTPS discovery requests to `cloud.dotnetcloud.net` from the module host process. In a process-isolated setup, the module host cannot reach itself for key discovery, causing ALL tokens to be rejected.
+**Deploy results:**
 
-**Fix (current branch `fix/files-module-bearer-auth`):**
+- Full `--force` deploy with 14/14 module hosts published
+- Dependency sync ran
+- Health: 200 ✅
+- Files module: **200** (health), 401 (no auth — expected) ✅
+- SSE with Bearer: **401** ✅ (was 500 — JwtBearer now loads all signing keys, no crash)
 
-Reverted to `Microsoft.AspNetCore.Authentication.JwtBearer` with the critical fix: **`IssuerSigningKeys`** (plural) registers ALL shared RSA signing keys from `oidc-keys/`, so tokens signed with any rotated key are accepted for validation. No remote discovery calls — purely local key validation.
+**Next steps (on `mint-OptiPlex-7010`):**
 
-| Before (broken)                                               | After (fixed)                                |
-| ------------------------------------------------------------- | -------------------------------------------- |
-| `IssuerSigningKey = signingKeys[0]` (single key)              | `IssuerSigningKeys = signingKeys` (all keys) |
-| `SetIssuer()` + `UseSystemNetHttp()` (remote discovery fails) | No remote discovery — local PEM keys only    |
-| OpenIddict validation (needs network)                         | JwtBearer validation (local only)            |
-
-Also confirmed: inter-module gRPC uses `module-id` metadata header auth, not JWT — no OpenIddict validation handler needed on module host.
-
-**Deploy steps (on `cloud.kimball.home`):**
+Pull latest from `fix/files-module-bearer-auth` and restart SyncTray:
 
 ```bash
-git checkout main && git pull
-git merge fix/files-module-bearer-auth
-sudo ./scripts/deploy.sh --force
-sudo systemctl restart dotnetcloud
-```
-
-**Verification after deploy (on `mint-OptiPlex-7010`):**
-
-```bash
+git checkout fix/files-module-bearer-auth
+git pull
 dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj
 ```
 
-Expected log: `"SSE stream connected."` (previously got 401 and fell back to polling).
+Check logs for: `"SSE stream connected."` (previously got 401 and fell back to polling).
 
 **Client version:** 0.3.9-alpha
 **Server build:** 0.3.12
