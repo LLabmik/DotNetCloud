@@ -18,6 +18,33 @@ VFS Phase 1–6 completed across all three environments (see `CLIENT_SERVER_MEDI
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+---
+
+## Archived: Files Module Host Bearer Auth Fix — Deploy to cloud.dotnetcloud.net (2026-06-21)
+
+**Target:** cloud.dotnetcloud.net (production)
+
+**Problem:** Desktop sync client (`SyncStreamListener`) sent `Authorization: Bearer <jwt>` to Files module REST APIs, but the Files module host only had `Identity.Application` cookie auth registered. Result: 401 on every desktop client API call.
+
+**Fix applied on branch `fix/files-module-bearer-auth`:**
+- Added JWT Bearer auth + policy scheme (auto-selects Bearer vs Cookie based on `Authorization` header)
+- Changed 13 controllers from `[Authorize(AuthenticationSchemes = "Identity.Application")]` → `[Authorize]`
+- Added `Microsoft.AspNetCore.Authentication.JwtBearer` NuGet package
+
+**Deploy execution (2026-06-21):**
+1. ✅ `git pull` — already up to date
+2. ✅ `dotnet build` — 0 errors
+3. ✅ `sudo ./scripts/deploy.sh` — All 3 targets succeeded
+4. ⚠️ **Issue found:** Incremental deploy only copied module host DLLs, not transitive JWT dependencies (`System.IdentityModel.Tokens.Jwt` v8.0.1.0, `Microsoft.IdentityModel.Protocols.OpenIdConnect`, etc.)
+5. ✅ **Fix:** Manually copied all `Microsoft.IdentityModel.*` + `System.IdentityModel.*` + `Microsoft.AspNetCore.Authentication.JwtBearer.dll` to `/opt/dotnetcloud/server/modules/dotnetcloud.files/`
+6. ✅ Service restarted
+
+**Verification:**
+- Health: 200 ✅
+- Files API (no auth): 401 (expected — requires authentication) ✅
+- SSE with `Bearer test`: **401** (was 500 — JWT handler now loads correctly, properly rejects invalid tokens) ✅
+- No exceptions in Files module logs ✅
+
 ## Archived: SyncTray Icon Enhancement — Linux Verification (2026-03-29)
 
 **Original target:** mint-dnc-client

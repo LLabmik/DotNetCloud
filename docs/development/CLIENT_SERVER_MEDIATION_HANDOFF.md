@@ -91,40 +91,27 @@ Archived context:
 
 ## Active Handoff
 
-**Status:** 🔴 SERVER-SIDE DEPLOY REQUIRED — deploy `main` to `cloud.kimball.home`
+**Status:** ✅ DEPLOY COMPLETE — Files module Bearer auth fix deployed to `cloud.dotnetcloud.net`
 
-**Problem:** Desktop sync client (`SyncStreamListener`) sends `Authorization: Bearer <jwt>` to SSE endpoint `api/v1/files/sync/stream` and all other Files module REST APIs. The Files module host only had `Identity.Application` cookie auth registered — no Bearer token handler. Result: 401 on every desktop client API call to the Files module (SSE, device-cursor, changes, etc.). Client falls back to polling but push-based sync is broken.
+**Summary:**
+1. ✅ `dotnet build` — 0 errors
+2. ✅ `sudo ./scripts/deploy.sh` — All 3 targets succeeded
+3. ⚠️ Incremental publish missed transitive JWT dependencies — manually copied `Microsoft.IdentityModel.*` + `System.IdentityModel.*` assemblies to module directory
+4. ✅ Service restarted and healthy (health: 200)
+5. ✅ Files module: no-auth returns 401 (expected), SSE with `Bearer test` returns 401 (was 500 — JWT handler now loads correctly)
 
-**Fix applied on branch `fix/files-module-bearer-auth` (commit pending):**
+**Next steps (on `mint-OptiPlex-7010`):**
 
-**Files changed (14 files):**
-
-| File                                                                                     | Change                                                                                                         |
-| ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `Directory.Packages.props`                                                               | Added `Microsoft.AspNetCore.Authentication.JwtBearer` 10.0.3                                                   |
-| `src/Modules/Files/DotNetCloud.Modules.Files.Host/DotNetCloud.Modules.Files.Host.csproj` | Added `PackageReference` for JwtBearer                                                                         |
-| `src/Modules/Files/DotNetCloud.Modules.Files.Host/Program.cs`                            | Added JWT Bearer auth + policy scheme (auto-selects Bearer vs Cookie based on `Authorization` header)          |
-| 13 controller files in `.../Controllers/*.cs`                                            | Changed `[Authorize(AuthenticationSchemes = "Identity.Application")]` → `[Authorize]` (uses new policy scheme) |
-
-**Deploy steps (on `cloud.kimball.home`):**
-
-1. `git pull` on `main`
-2. `dotnet build src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj -c Release`
-3. `sudo ./scripts/deploy.sh` (rebuilds and deploys all modules including the Files module host)
-4. Restart the service: `sudo systemctl restart dotnetcloud`
-5. Verify the Files module is running: `curl -sk https://cloud.dotnetcloud.net/api/v1/files/` (should return 200, not 401)
-6. Verify SSE stream accepts Bearer tokens: `curl -sk -H "Authorization: Bearer <token>" https://cloud.dotnetcloud.net/api/v1/files/sync/stream` (should return `text/event-stream`, not 401)
-
-**Verification on client side (`mint-OptiPlex-7010`):**
-
-After deploy completes, restart the SyncTray client on this machine:
+Restart the SyncTray client to verify SSE stream connects:
 
 ```bash
 cd /home/benk/Repos/DotNetCloud
 dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj
 ```
 
-Check logs for: `"SSE stream connected."` (was previously getting 401 and falling back to polling).
+Check logs for: `"SSE stream connected."` (previously getting 401 and falling back to polling).
 
-**Client version:** 0.3.9-alpha (built locally, connects to `https://cloud.dotnetcloud.net`)
-**Server update available:** Client auto-detected 0.3.12 — deploy will also push the latest server build.
+**Client version:** 0.3.9-alpha
+**Server build:** 0.3.12
+
+**Note:** Module host deploy script does not update transitive dependency assemblies. Future NuGet dependency additions to module hosts may require manual assembly copy to the module directory if not handled by the publish step.
