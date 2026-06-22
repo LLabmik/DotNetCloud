@@ -97,49 +97,33 @@ Archived context:
 
 **Fix:** Removed the explicit audience check in `src/Core/DotNetCloud.Core.Server/Grpc/Services/TokenIntrospectionServiceImpl.cs`. JWT-level audience validation was already disabled. Scope-based auth suffices.
 
-**Tests (mint-OptiPlex-7010):** Build 0 errors, full suite 0 failures.
+**Pre-merge validation:** Build 0 errors. Full test suite 0 failures.
 
 ---
 
-### ACTIONS FOR `cloud.kimball.home` (DO THESE NOW):
+### YOUR ACTIONS (do these now, in order):
 
-**Step 1 — Checkout and pull:**
-
+**1. Checkout and pull:**
 ```bash
 git checkout fix/files-module-bearer-auth && git pull
 ```
 
-**Step 2 — Build (verify it compiles):**
-
+**2. Build:**
 ```bash
 dotnet build
 ```
 
-**Step 3 — Publish:**
-
+**3. Publish:**
 ```bash
 dotnet publish -c Release
 ```
 
-**Step 4 — Restart the DotNetCloud service:**
-_(use your normal restart procedure — systemctl, supervisorctl, or whatever manages the dotnet process)_
+**4. Restart the DotNetCloud service** using your normal procedure.
 
-**Step 5 — Verify health:**
-
+**5. Verify health:**
 ```bash
 curl -sk https://localhost:5443/health
 ```
+Must return HTTP 200.
 
-Expected: HTTP 200
-
-**Step 6 — Report back** so `mint-OptiPlex-7010` can test SSE.
-
----
-
-**Post-deploy test (mint-OptiPlex-7010, AFTER server confirms restart):**
-
-```bash
-dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj
-```
-
-Expected: `"SSE stream connected."`
+**6. Update this handoff** with your results and push.
