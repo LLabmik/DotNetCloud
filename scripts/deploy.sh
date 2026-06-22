@@ -483,7 +483,7 @@ fi
 # compile. With `set -e`, a failed build exits here — the live service is left
 # running untouched.
 # ============================================================================
-TOTAL_STEPS=6
+TOTAL_STEPS=7
 if $VERIFY; then ((TOTAL_STEPS++)); fi
 
 START_TIME=$(date +%s)
@@ -655,6 +655,38 @@ else
     done
 
     log "Module hosts: $publish_success published, $publish_failures failed."
+
+    # Phase 4b: Sync transitive dependency assemblies for each published module
+    #
+    # dotnet publish --no-build copies the module host assembly and its direct
+    # NuGet package outputs, but may not reliably update ALL transitive .dll
+    # files (e.g. Microsoft.IdentityModel.* when adding JwtBearer auth). This
+    # step rsyncs the complete build output directory over the module directory
+    # to catch any new/updated dependency assemblies that publish missed.
+    #
+    # We skip .pdb files (debug symbols are not deployed) and .config files
+    # (module host config is managed separately).
+    log "Syncing dependency assemblies..."
+    for module in "${PUBLISHED_MODULES[@]}"; do
+        module_lower=$(echo "$module" | tr '[:upper:]' '[:lower:]')
+        build_dir="$REPO_ROOT/src/Modules/$module/DotNetCloud.Modules.$module.Host/bin/$CONFIG/net10.0"
+        out_dir="$MODULES_DIR/dotnetcloud.$module_lower"
+
+        if [ ! -d "$build_dir" ]; then
+            log "  ⚠ Build output not found for $module — skipping dependency sync."
+            continue
+        fi
+
+        if ! $DRY_RUN; then
+            # rsync all .dll and .json files, skip .pdb, .config, .xml
+            rsync -a --checksum \
+                --include="*.dll" --include="*.json" \
+                --exclude="*.pdb" --exclude="*.config" --exclude="*.xml" \
+                --exclude="*.nuspec" --exclude="*.pri" --exclude="*.rsp" \
+                "$build_dir/" "$out_dir/" 2>/dev/null || true
+        fi
+    done
+    log "  Dependency sync complete."
 fi
 
 # ============================================================================
