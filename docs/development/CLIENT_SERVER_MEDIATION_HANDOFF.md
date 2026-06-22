@@ -91,6 +91,8 @@ Archived context:
 
 ## Active Handoff
 
+**Target machine:** `cloud.kimball.home` (production server — `https://cloud.dotnetcloud.net/`)
+
 **Status:** 🔧 FIX APPLIED (needs deploy) — Token introspection audience check removed
 
 **Root cause:** `TokenIntrospectionServiceImpl.IntrospectToken()` rejected all bearer tokens because OpenIddict sets `aud` to the issuer URL, not module IDs like `"dotnetcloud.files"`.
@@ -99,9 +101,11 @@ Archived context:
 
 **Pre-merge validation:** Build 0 errors. Full test suite 0 failures.
 
+**Client-side verification (mint-OptiPlex-7010, 2026-06-22):** SyncTray client built and ran against `cloud.dotnetcloud.net`. Token refresh succeeds (`POST /connect/token` → 200), but API calls return 401 (`error="invalid_token"`) — confirming the fix has NOT been deployed yet. Client itself operates correctly (token refresh, tray icon, sync engine init, graceful SSE→polling fallback).
+
 ---
 
-### YOUR ACTIONS (do these now, in order):
+### YOUR ACTIONS (do these now, in order, on `cloud.kimball.home`):
 
 **1. Checkout and pull:**
 
@@ -131,4 +135,6 @@ curl -sk https://localhost:5443/health
 
 Must return HTTP 200.
 
-**6. Update this handoff** with your results and push.
+**6. Verify the fix:** On `mint-OptiPlex-7010`, restart the SyncTray client and confirm API calls no longer return 401.
+
+**7. Update this handoff** with your results and push.
