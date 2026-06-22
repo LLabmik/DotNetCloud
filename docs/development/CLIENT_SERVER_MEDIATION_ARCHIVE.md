@@ -4105,3 +4105,58 @@ Pivoted to `WebApplicationFactory<Program>` in-process integration tests:
 - `SyncEngine.WaitForFileStabilityAsync()` — pre-upload stability check (1s delay, size comparison)
 - `SyncEngine` catch handler for `FileStillGrowingException` — defers upload without consuming retry budget
 - `SyncEngineTests` — unit tests covering stability check scenarios
+
+---
+
+## Archived: Files Module Bearer Auth — All JwtBearer Debugging Attempts (2026-06-21/22)
+
+All attempts to fix JWT Bearer validation on the Files module host via local key-loading + JwtBearer. None resolved the 401 `invalid_token` error. Ultimately replaced by the token introspection architecture.
+
+### Attempt 1: JwtBearer with single signing key (commit `2d0de3b2`)
+
+- Added JWT Bearer auth + policy scheme with `Microsoft.AspNetCore.Authentication.JwtBearer`
+- Used `IssuerSigningKey` (singular) — only first key
+- **Result:** 401 on valid tokens if key rotation created a newer key
+
+### Attempt 2: OpenIddict Validation (commits `b45b1691`, `e2896d99`)
+
+- Replaced JwtBearer with `OpenIddict.Validation.AspNetCore` + `UseLocalServer` + `UseSystemNetHttp`
+- Process-isolated module host couldn't reach `cloud.dotnetcloud.net` for OIDC discovery
+- **Result:** All tokens rejected
+
+### Attempt 3: JwtBearer + ValidateIssuerSigningKey=false (commit `d6bb6fce`)
+
+- Re-added JwtBearer with `IssuerSigningKeys` (plural) + `ValidateIssuerSigningKey = false`
+- `RsaSecurityKey.KeyId` auto-generated from PEM doesn't match OpenIddict's JWT `kid`
+- **Result:** Still 401 — `JsonWebTokenHandler` can't find key by kid match
+
+### Attempt 4: Deterministic RsaSecurityKey.KeyId (commit `c1025e75`)
+
+- `SetDeterministicKeyId(key)` using `RsaSecurityKey.Parameters.Modulus`
+- Used `RsaSecurityKey.Parameters` which may not be populated at runtime
+- **Result:** Still 401 — silently failed, KeyIds didn't match
+
+### Attempt 5: ComputeRsaKeyId + IssuerSigningKeyResolver (commit `80285e5f`)
+
+- `ComputeRsaKeyId(rsa)` using `RSA.ExportParameters(false)` — more reliable
+- `IssuerSigningKeyResolver` returns ALL keys regardless of kid
+- **Result:** Still 401 — even trying all keys, signature verification fails
+
+### Diagnostics: Key-loading logging (commit `b9bfd195`)
+
+- Added verbose logging to confirm keys are loading
+- Confirmed: `DOTNETCLOUD_DATA_DIR=/var/lib/dotnetcloud`, `Loaded 1 signing key(s)`
+- Keys ARE accessible — not a permissions issue
+
+### Root cause conclusion
+
+After 5 deploy attempts with different JwtBearer configurations all returning `invalid_token`, and confirming keys load correctly, the conclusion is that JwtBearer in a process-isolated module host cannot reliably validate OpenIddict tokens. The root cause is likely a mismatch in token serialization, algorithm negotiation, or header format between OpenIddict's `JsonWebTokenHandler` and JwtBearer's handler that cannot be resolved through configuration alone.
+
+### Solution: Token Introspection Architecture (commits pending)
+
+Replaced all JwtBearer local-key-validation with OAuth2-standard token introspection:
+
+- Files.Host calls Core.Server's `TokenIntrospection` gRPC service to validate tokens
+- Core.Server validates via OpenIddict (has signing keys in DI)
+- No key sharing, no kid matching, no RSA concerns
+- See current `CLIENT_SERVER_MEDIATION_HANDOFF.md` Active Handoff for deploy instructions

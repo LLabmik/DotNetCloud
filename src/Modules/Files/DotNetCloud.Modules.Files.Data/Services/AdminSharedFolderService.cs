@@ -465,6 +465,14 @@ internal sealed class AdminSharedFolderService : IAdminSharedFolderService
         // same database and are accessible from any module's DbContext.
         var groups = await QueryGroupsDirectAsync(normalizedGroupIds, cancellationToken);
 
+        // Fall back to IGroupDirectory if direct DB query returned no results
+        // (e.g. when CoreDbContext is not available or group is not in the DB).
+        if (groups.Count == 0 && _groupDirectory is not null)
+        {
+            _logger.LogDebug("Direct group query returned no results, falling back to IGroupDirectory");
+            groups = await QueryGroupsViaDirectoryAsync(normalizedGroupIds, cancellationToken);
+        }
+
         var foundIds = groups.Select(g => g.Id).ToHashSet();
         foreach (var groupId in normalizedGroupIds)
         {
@@ -528,6 +536,33 @@ internal sealed class AdminSharedFolderService : IAdminSharedFolderService
             groups.Count, groupIds.Length);
 
         return groups;
+    }
+
+    /// <summary>
+    /// Queries group metadata via <see cref="IGroupDirectory"/> (gRPC or mock).
+    /// Used as a fallback when <see cref="QueryGroupsDirectAsync"/> returns no results,
+    /// e.g. when CoreDbContext is not available or in test scenarios.
+    /// </summary>
+    private async Task<List<GroupInfo>> QueryGroupsViaDirectoryAsync(Guid[] groupIds, CancellationToken ct)
+    {
+        var results = new List<GroupInfo>();
+        if (_groupDirectory is null)
+            return results;
+
+        foreach (var groupId in groupIds)
+        {
+            try
+            {
+                var info = await _groupDirectory.GetGroupAsync(groupId, ct);
+                if (info is not null)
+                    results.Add(info);
+            }
+            catch
+            {
+                // Group not found — skip, validation will catch it below
+            }
+        }
+        return results;
     }
 
     private async Task<IReadOnlyDictionary<Guid, GroupInfo>> LoadGroupMetadataAsync(IEnumerable<Guid> groupIds, CancellationToken cancellationToken)

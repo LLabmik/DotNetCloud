@@ -1,5 +1,5 @@
 using DotNetCloud.Core.Auth.Authorization;
-using DotNetCloud.Core.Auth.Security;
+using DotNetCloud.Core.Auth.Introspection;
 using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Events;
@@ -13,11 +13,9 @@ using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -49,40 +47,14 @@ builder.Services.AddDataProtection()
     .SetApplicationName("DotNetCloud")
     .PersistKeysToFileSystem(new DirectoryInfo(dpKeysPath));
 
-// Load shared OpenIddict signing keys for JWT Bearer token validation.
-// These keys are the same ones used by Core.Server to sign access tokens,
-// stored in the shared oidc-keys directory.
-var dataRoot = Environment.GetEnvironmentVariable("DOTNETCLOUD_DATA_DIR");
-var oidcKeysDir = Path.Combine(
-    !string.IsNullOrWhiteSpace(dataRoot) ? dataRoot : AppContext.BaseDirectory,
-    "oidc-keys");
-using var keyLoggerFactory = LoggerFactory.Create(b => b.AddConsole());
-var keyLogger = keyLoggerFactory.CreateLogger("DotNetCloud.OidcKeys");
+// Register token introspection client (replaces local JWT key validation).
+// Bearer tokens are validated by calling Core.Server's TokenIntrospection gRPC service.
+builder.Services.AddTokenIntrospection();
 
-keyLogger.LogInformation("Files module host: DOTNETCLOUD_DATA_DIR={DataDir}, oidcKeysDir={OidcDir}",
-    dataRoot ?? "(null)", oidcKeysDir);
-
-var signingKeys = OidcKeyManager.LoadAllKeys(oidcKeysDir, OidcKeyManager.SigningKeyPrefix, keyLogger);
-
-if (signingKeys.Count == 0)
-{
-    keyLogger.LogError("FATAL: No OpenIddict signing keys found in {OidcKeysDir}. " +
-        "JWT Bearer token validation will fail for ALL requests. " +
-        "Does the directory exist? Does this process have read access?", oidcKeysDir);
-}
-else
-{
-    keyLogger.LogInformation("Loaded {Count} signing key(s) from {Dir}: {KeyIds}",
-        signingKeys.Count, oidcKeysDir,
-        string.Join(", ", signingKeys.Select(k => k.KeyId)));
-}
-
-// Authentication: supports both cookie (browser/Blazor) and Bearer JWT (desktop/mobile).
+// Authentication: supports both cookie (browser/Blazor) and introspection (desktop/mobile).
 // A policy scheme automatically routes to the correct handler based on the request.
-// Uses raw JwtBearer handler (not OpenIddict validation) to avoid requiring the module
-// host to make HTTPS discovery requests to cloud.dotnetcloud.net, which can fail in
-// a process-isolated setup. All shared RSA signing keys from oidc-keys/ are registered
-// via IssuerSigningKeys so tokens signed with any rotated key are accepted.
+// The introspection handler validates bearer tokens by calling Core.Server's
+// TokenIntrospection gRPC service — no local signing keys needed.
 builder.Services.AddAuthentication(options =>
     {
         options.DefaultScheme = "DotNetCloud.Module";
@@ -121,32 +93,10 @@ builder.Services.AddAuthentication(options =>
             return Task.CompletedTask;
         };
     })
-    .AddJwtBearer("Bearer", options =>
-    {
-        // Using IssuerSigningKeyResolver (not IssuerSigningKeys) so the handler
-        // receives all loaded keys regardless of JWT kid header match. Each key
-        // is tried in order until one successfully verifies the token signature.
-        // This avoids the kid-matching problem where RsaSecurityKey.KeyId from
-        // PEM loading differs from OpenIddict's kid in the JWT header.
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = false,
-            ValidateAudience = false,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = false,
-            IssuerSigningKeyResolver = (token, securityToken, kid, parameters) =>
-            {
-                keyLogger.LogInformation(
-                    "JWT key resolver: token kid={Kid}, returning {Count} signing key(s).",
-                    kid ?? "(none)", signingKeys.Count);
-                return signingKeys;
-            },
-        };
-        options.MapInboundClaims = false;
-    })
+    .AddIntrospection(IntrospectionAuthenticationExtensions.SchemeName)
     .AddPolicyScheme("DotNetCloud.Module", "DotNetCloud.Module", options =>
     {
-        // Route to JwtBearer handler for requests with Authorization: Bearer header
+        // Route to introspection handler for requests with Authorization: Bearer header
         // (desktop/mobile clients). Route to Cookie handler for browser/Blazor requests.
         options.ForwardDefaultSelector = context =>
         {
@@ -154,7 +104,7 @@ builder.Services.AddAuthentication(options =>
                 && auth.Count > 0
                 && auth[0]?.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) == true)
             {
-                return "Bearer";
+                return IntrospectionAuthenticationExtensions.SchemeName;
             }
             return "Identity.Application";
         };

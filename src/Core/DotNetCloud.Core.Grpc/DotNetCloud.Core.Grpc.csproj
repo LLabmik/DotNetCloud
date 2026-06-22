@@ -21,6 +21,7 @@
   <ItemGroup>
     <Protobuf Include="Protos\module_lifecycle.proto" GrpcServices="Both" />
     <Protobuf Include="Protos\module_capabilities.proto" GrpcServices="Both" />
+    <Protobuf Include="Protos\token_introspection.proto" GrpcServices="Both" />
   </ItemGroup>
 
   <ItemGroup>

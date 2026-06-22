@@ -19,6 +19,7 @@ internal sealed class DesktopStartupManager : IDesktopStartupManager
     private readonly Func<string?> _launcherIconPathProvider;
     private readonly string _autostartDirectory;
     private readonly string _applicationsDirectory;
+    private readonly string _systemDesktopDirectory;
     private readonly Func<bool> _isLinux;
 
     public DesktopStartupManager(
@@ -27,6 +28,7 @@ internal sealed class DesktopStartupManager : IDesktopStartupManager
         Func<string?>? launcherIconPathProvider = null,
         string? autostartDirectory = null,
         string? applicationsDirectory = null,
+        string? systemDesktopDirectory = null,
         Func<bool>? isLinux = null)
     {
         _logger = logger;
@@ -34,6 +36,7 @@ internal sealed class DesktopStartupManager : IDesktopStartupManager
         _launcherIconPathProvider = launcherIconPathProvider ?? ResolveLauncherIconPath;
         _autostartDirectory = autostartDirectory ?? ResolveAutostartDirectory();
         _applicationsDirectory = applicationsDirectory ?? ResolveApplicationsDirectory();
+        _systemDesktopDirectory = systemDesktopDirectory ?? "/usr/local/share/applications";
         _isLinux = isLinux ?? OperatingSystem.IsLinux;
     }
 
@@ -88,7 +91,7 @@ internal sealed class DesktopStartupManager : IDesktopStartupManager
 
         // If a system-wide .desktop file already exists (e.g. from .deb install),
         // skip creating a user-session copy to avoid orphaned entries on uninstall.
-        var systemDesktopPath = Path.Combine("/usr/local/share/applications", LinuxDesktopFileName);
+        var systemDesktopPath = Path.Combine(_systemDesktopDirectory, LinuxDesktopFileName);
         if (File.Exists(systemDesktopPath))
         {
             _logger.LogDebug(

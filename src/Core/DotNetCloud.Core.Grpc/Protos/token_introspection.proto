@@ -1,0 +1,64 @@
+syntax = "proto3";
+
+option csharp_namespace = "DotNetCloud.Core.Grpc.TokenIntrospection";
+
+package dotnetcloud.token_introspection;
+
+// TokenIntrospection service: hosted by the core server.
+// Module hosts call this service to validate bearer tokens received
+// from clients before processing REST API requests. This is the
+// OAuth2-compliant introspection pattern — resource servers (module
+// hosts) validate tokens by asking the authorization server (Core.Server).
+service TokenIntrospection {
+  // Validates a bearer token and returns the authenticated user's claims
+  // scoped to the calling module's declared capabilities.
+  rpc IntrospectToken (IntrospectTokenRequest) returns (IntrospectTokenResponse);
+}
+
+message IntrospectTokenRequest {
+  // The raw JWT bearer token to validate.
+  string token = 1;
+
+  // The module ID making the introspection request.
+  // The service verifies this against the gRPC caller identity.
+  string caller_module_id = 2;
+
+  // The required audience the token must contain for this module.
+  // If the token's audience does not include this value, introspection
+  // returns active=false even if the token is otherwise valid.
+  string required_audience = 3;
+}
+
+message IntrospectTokenResponse {
+  // Whether the token is currently valid (not expired, not revoked).
+  bool active = 1;
+
+  // The subject (user ID) extracted from the token.
+  string sub = 2;
+
+  // The username / display name of the authenticated user.
+  string username = 3;
+
+  // The user's email address, if available.
+  string email = 4;
+
+  // The scopes granted by this token, filtered to only those the
+  // calling module has declared in its manifest.
+  repeated string scopes = 5;
+
+  // All claims from the validated token as key-value pairs.
+  // Includes standard claims (sub, name, email) and custom claims.
+  repeated ClaimEntry claims = 6;
+
+  // If active is false, a human-readable reason (e.g., "token expired",
+  // "audience mismatch", "module not authorized").
+  string error_description = 7;
+}
+
+message ClaimEntry {
+  // The claim type (e.g., "sub", "email", "scope", "role").
+  string type = 1;
+
+  // The claim value.
+  string value = 2;
+}

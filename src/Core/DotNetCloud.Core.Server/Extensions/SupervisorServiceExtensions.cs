@@ -56,6 +56,7 @@ internal static class SupervisorServiceExtensions
 
         // Register gRPC services
         services.AddSingleton<CoreCapabilitiesServiceImpl>();
+        services.AddSingleton<TokenIntrospectionServiceImpl>();
 
         // Register process supervisor as both IProcessSupervisor and IHostedService
         services.AddSingleton<ProcessSupervisor>();
@@ -107,6 +108,7 @@ internal static class SupervisorServiceExtensions
     public static WebApplication MapModuleGrpcServices(this WebApplication app)
     {
         app.MapGrpcService<CoreCapabilitiesServiceImpl>();
+        app.MapGrpcService<TokenIntrospectionServiceImpl>();
         return app;
     }
 }
