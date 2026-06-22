@@ -13,11 +13,9 @@ using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -66,6 +64,25 @@ if (signingKeys.Count == 0)
         "JWT Bearer authentication will not be available for this module.", oidcKeysDir);
 }
 
+// Register OpenIddict validation for JWT Bearer token support.
+// Uses the shared RSA signing keys from oidc-keys/ to validate tokens
+// issued by Core.Server's OpenIddict server.
+builder.Services.AddOpenIddict()
+    .AddValidation(options =>
+    {
+        options.SetIssuer("https://cloud.dotnetcloud.net/");
+
+        // Register the shared signing keys for local JWT validation.
+        // This allows the module to validate tokens without calling
+        // Core.Server's introspection endpoint on every request.
+        foreach (var key in signingKeys)
+        {
+            options.AddSigningKey(key);
+        }
+
+        options.UseAspNetCore();
+    });
+
 // Authentication: supports both cookie (browser/Blazor) and Bearer JWT (desktop/mobile).
 // A policy scheme automatically routes to the correct handler based on the request.
 builder.Services.AddAuthentication(options =>
@@ -106,31 +123,17 @@ builder.Services.AddAuthentication(options =>
             return Task.CompletedTask;
         };
     })
-    .AddJwtBearer("Bearer", options =>
-    {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = false,
-            ValidateAudience = false,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = signingKeys.Count > 0,
-            IssuerSigningKey = signingKeys.Count > 0 ? signingKeys[0] : null,
-        };
-        // Preserve original JWT claim names (e.g., "sub" instead of ClaimTypes.NameIdentifier)
-        // so GetAuthenticatedCaller() can find claims via either name.
-        options.MapInboundClaims = false;
-    })
     .AddPolicyScheme("DotNetCloud.Module", "DotNetCloud.Module", options =>
     {
-        // Route to Bearer handler for requests with Authorization header (desktop/mobile clients).
-        // Route to Cookie handler for browser/Blazor requests.
+        // Route to OpenIddict validation for requests with Authorization: Bearer header
+        // (desktop/mobile clients). Route to Cookie handler for browser/Blazor requests.
         options.ForwardDefaultSelector = context =>
         {
             if (context.Request.Headers.TryGetValue("Authorization", out var auth)
                 && auth.Count > 0
                 && auth[0]?.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) == true)
             {
-                return "Bearer";
+                return "OpenIddict.Validation.AspNetCore";
             }
             return "Identity.Application";
         };
