@@ -58,12 +58,23 @@ var oidcKeysDir = Path.Combine(
     "oidc-keys");
 using var keyLoggerFactory = LoggerFactory.Create(b => b.AddConsole());
 var keyLogger = keyLoggerFactory.CreateLogger("DotNetCloud.OidcKeys");
+
+keyLogger.LogInformation("Files module host: DOTNETCLOUD_DATA_DIR={DataDir}, oidcKeysDir={OidcDir}",
+    dataRoot ?? "(null)", oidcKeysDir);
+
 var signingKeys = OidcKeyManager.LoadAllKeys(oidcKeysDir, OidcKeyManager.SigningKeyPrefix, keyLogger);
 
 if (signingKeys.Count == 0)
 {
-    keyLogger.LogWarning("No OpenIddict signing keys found in {OidcKeysDir}. " +
-        "JWT Bearer authentication will not be available for this module.", oidcKeysDir);
+    keyLogger.LogError("FATAL: No OpenIddict signing keys found in {OidcKeysDir}. " +
+        "JWT Bearer token validation will fail for ALL requests. " +
+        "Does the directory exist? Does this process have read access?", oidcKeysDir);
+}
+else
+{
+    keyLogger.LogInformation("Loaded {Count} signing key(s) from {Dir}: {KeyIds}",
+        signingKeys.Count, oidcKeysDir,
+        string.Join(", ", signingKeys.Select(k => k.KeyId)));
 }
 
 // Authentication: supports both cookie (browser/Blazor) and Bearer JWT (desktop/mobile).
