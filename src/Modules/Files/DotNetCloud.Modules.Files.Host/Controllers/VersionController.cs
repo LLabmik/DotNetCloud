@@ -9,7 +9,7 @@ namespace DotNetCloud.Modules.Files.Host.Controllers;
 /// REST API controller for file version management.
 /// </summary>
 [Route("api/v1/files/{nodeId:guid}/versions")]
-[Authorize(AuthenticationSchemes = "Identity.Application")]
+[Authorize]
 public class VersionController : FilesControllerBase
 {
     private readonly IVersionService _versionService;

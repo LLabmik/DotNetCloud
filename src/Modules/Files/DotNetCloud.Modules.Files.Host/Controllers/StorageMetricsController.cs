@@ -8,7 +8,7 @@ namespace DotNetCloud.Modules.Files.Host.Controllers;
 /// REST API controller for storage usage and deduplication metrics.
 /// </summary>
 [Route("api/v1/files/storage")]
-[Authorize(AuthenticationSchemes = "Identity.Application")]
+[Authorize]
 public class StorageMetricsController : FilesControllerBase
 {
     private readonly IStorageMetricsService _metricsService;

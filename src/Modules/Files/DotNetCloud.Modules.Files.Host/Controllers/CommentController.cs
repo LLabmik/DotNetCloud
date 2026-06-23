@@ -9,7 +9,7 @@ namespace DotNetCloud.Modules.Files.Host.Controllers;
 /// REST API controller for file/folder comment operations.
 /// </summary>
 [Route("api/v1/files")]
-[Authorize(AuthenticationSchemes = "Identity.Application")]
+[Authorize]
 public class CommentController : FilesControllerBase
 {
     private readonly ICommentService _commentService;

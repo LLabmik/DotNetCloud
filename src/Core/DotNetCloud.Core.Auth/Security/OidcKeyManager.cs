@@ -51,7 +51,8 @@ public static class OidcKeyManager
             logger?.LogInformation("Generated new OpenIddict RSA key at {KeyFile}.", filePath);
         }
 
-        return new RsaSecurityKey(rsa);
+        var key = new RsaSecurityKey(rsa) { KeyId = ComputeRsaKeyId(rsa) };
+        return key;
     }
 
     /// <summary>
@@ -79,7 +80,8 @@ public static class OidcKeyManager
                 var pem = File.ReadAllText(file);
                 var rsa = RSA.Create();
                 rsa.ImportFromPem(pem);
-                keys.Add(new RsaSecurityKey(rsa));
+                var key = new RsaSecurityKey(rsa) { KeyId = ComputeRsaKeyId(rsa) };
+                keys.Add(key);
                 logger?.LogTrace("Loaded OpenIddict key from {KeyFile}.", file);
             }
             catch (Exception ex)
@@ -121,7 +123,8 @@ public static class OidcKeyManager
         SetSecureFilePermissions(filePath);
 
         logger?.LogInformation("Generated rotated OpenIddict key at {KeyFile}.", filePath);
-        return new RsaSecurityKey(rsa);
+        var rotatedKey = new RsaSecurityKey(rsa) { KeyId = ComputeRsaKeyId(rsa) };
+        return rotatedKey;
     }
 
     /// <summary>
@@ -200,6 +203,20 @@ public static class OidcKeyManager
 
         var age = DateTime.UtcNow - File.GetLastWriteTimeUtc(newest);
         return age >= rotationInterval;
+    }
+
+    /// <summary>
+    /// Computes a deterministic <see cref="SecurityKey.KeyId"/> from an <see cref="RSA"/> key's
+    /// public modulus. Same RSA key → same modulus → same KeyId across all processes.
+    /// This allows process-isolated module hosts to match the JWT <c>kid</c> header set by
+    /// OpenIddict on Core.Server, which uses the <c>SecurityKey.KeyId</c> as the <c>kid</c>.
+    /// </summary>
+    private static string ComputeRsaKeyId(RSA rsa)
+    {
+        var parameters = rsa.ExportParameters(false);
+        return parameters.Modulus is { Length: > 0 } modulus
+            ? Base64UrlEncoder.Encode(SHA256.HashData(modulus))
+            : Guid.NewGuid().ToString("N"); // fallback — shouldn't happen
     }
 
     private static void SetSecureFilePermissions(string filePath)

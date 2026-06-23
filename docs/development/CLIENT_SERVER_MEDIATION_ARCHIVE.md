@@ -1,9 +1,136 @@
 # Client/Server Mediation — Archived Context
 
-Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
+Archived: 2026-06-23 01:55 UTC. Full git history preserved in commits up to `49880eb2`.
 
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
+
+## Archived: YARP Auth Header Doubling Fix — Verified on Windows11-TestDNC (2026-06-23)
+
+**Target:** `cloud.kimball.home` (server deploy) + `Windows11-TestDNC` (client verify)
+
+**Root cause:** YARP `ModuleApiProxyTransformer` called `base.TransformRequestAsync()` (copies `Authorization`) then custom loop called `TryAddWithoutValidation` (appends). Result: `Bearer <token>, Bearer <token>` — JWT handler rejected 9-segment token.
+
+**Fix (commit `ad95c0ca`):** Skip `Authorization` in custom copy loop.
+
+**Fixes deployed to `cloud.kimball.home` (all 6):**
+
+| # | Commit | Fix |
+|---|--------|-----|
+| 1 | `806d0716` | Remove duplicate `UseHttpsRedirection()` |
+| 2 | `13838258` | Add `module-id` gRPC metadata header |
+| 3 | `4d00ddc7` | `CallerContextInterceptor` default to System caller |
+| 4 | `0df90c38` | Load encryption keys for JWE token introspection |
+| 5 | `49880eb2` | Enable JWE encryption |
+| 6 | `ad95c0ca` | **Fix YARP Authorization header doubling** |
+
+**Client verification (Windows11-TestDNC):** ✅ 401 resolved. SyncTray authenticated against `cloud.dotnetcloud.net` with zero `invalid_token` errors. Noted: chunk uploads return 502 (separate investigation needed).
+
+---
+
+## Archived: VFS Implementation — All Phases Complete (2026-05-12)
+
+**Original target:** mint22, Windows11-TestDNC, mint-dnc-client
+
+VFS Phase 1–6 completed across all three environments (see `CLIENT_SERVER_MEDIATION_HANDOFF.md` commit `846031cc` for original Active Handoff content).
+
+---
+
+## Archived: SyncTray Icon Enhancement — Linux Verification (2026-03-29)
+
+This file contains historical reference from the client/server mediation sessions.
+Only consult this if you encounter a regression or need to understand a past fix.
+
+---
+
+## Archived: Files Module Host Bearer Auth Fix — Deploy to cloud.dotnetcloud.net (2026-06-21)
+
+**Target:** cloud.dotnetcloud.net (production)
+
+**Problem:** Desktop sync client (`SyncStreamListener`) sent `Authorization: Bearer <jwt>` to Files module REST APIs, but the Files module host only had `Identity.Application` cookie auth registered. Result: 401 on every desktop client API call.
+
+**Fix applied on branch `fix/files-module-bearer-auth`:**
+
+### Attempt 1: JwtBearer (commit `2d0de3b2`)
+
+Added JWT Bearer auth + policy scheme using `Microsoft.AspNetCore.Authentication.JwtBearer` NuGet package.
+
+**Deploy execution (2026-06-21):**
+
+1. [OK] `dotnet build` — 0 errors
+2. [OK] `sudo ./scripts/deploy.sh` — All 3 targets succeeded
+3. ⚠️ **Issue:** Incremental deploy only copied module host DLLs, not transitive JWT dependencies
+4. [OK] Manually copied `Microsoft.IdentityModel.*` + `System.IdentityModel.*` + `JwtBearer.dll` to module directory
+5. [OK] Service restarted
+
+**Verification (JwtBearer):**
+
+- Health: 200 [OK]
+- Files API (no auth): 401 [OK]
+- SSE with `Bearer test`: **401** (was 500 — JWT handler loads correctly now) [OK]
+- **But:** Client's valid tokens also returned 401 — `IssuerSigningKey` used only `signingKeys[0]` which didn't match OpenIddict's signing key after rotation
+
+### Attempt 2: OpenIddict Validation (commits `b45b1691` + `e2896d99`)
+
+**Root cause of JwtBearer failure:**
+
+- `System.IdentityModel.Tokens.Jwt` v8.0.1 NuGet ships assembly version **0.96.1.0** but deps.json declares **8.0.1.0** → `FileNotFoundException` at module startup
+- Even after manual assembly copy, `TokenValidationParameters.IssuerSigningKey` only accepted one signing key — if key rotation created a newer key than `signing-key.pem`, validation failed
+
+**Fix:** Replaced `Microsoft.AspNetCore.Authentication.JwtBearer` with `OpenIddict.Validation.AspNetCore` (already installed v7.2.0):
+
+- `AddOpenIddict().AddValidation()` with all RSA signing keys from `oidc-keys/` → OpenIddict handles key resolution natively
+- Policy scheme forwards to `"OpenIddict.Validation.AspNetCore"` instead of `"Bearer"`
+- Added `OpenIddict.Validation.SystemNetHttp` package (commit `e2896d99`) — `SetIssuer()` triggers server discovery, needs HTTP client
+- Added post-publish dependency sync to `deploy.sh` (commit `9387eb2d`)
+- Zero new NuGet dependency version conflicts — OpenIddict already installed
+
+**Deploy execution (2026-06-21, second deploy):**
+
+1. [OK] Force deploy — all 14 modules published
+2. [OK] Post-publish dependency sync copies transitive assemblies
+3. [OK] Service restarted
+
+**Verification (OpenIddict):**
+
+- Health: 200 [OK]
+- Files API (no auth): 401 (expected) [OK]
+- Files API with invalid Bearer: returns OpenIddict-specific `WWW-Authenticate: Bearer error="invalid_token", error_description="..."` [OK]
+- **But:** Real valid tokens also returned 401 — `SetIssuer()` + `UseSystemNetHttp()` forces OpenIddict to make HTTPS discovery requests to `cloud.dotnetcloud.net` for JWKS resolution. In a process-isolated module host, this fails (network isolation/DNS loopback), causing ALL tokens to be rejected regardless of validity.
+
+### Attempt 3: JwtBearer with all signing keys (current, commit pending)
+
+**Root cause of OpenIddict failure:**
+
+`SetIssuer("https://cloud.dotnetcloud.net/")` + `UseSystemNetHttp()` — module host tries to fetch OIDC configuration from the issuer URL via HTTPS. The process-isolated module host cannot reliably reach `cloud.dotnetcloud.net` (split DNS, hairpin NAT, or firewall rules), causing key discovery to fail and token validation to reject all tokens.
+
+**Fix:** Reverted to `Microsoft.AspNetCore.Authentication.JwtBearer` with two corrections:
+
+1. **`IssuerSigningKeys` (plural)** instead of `IssuerSigningKey` — registers ALL shared RSA signing keys from `oidc-keys/`, so tokens signed with any rotated key are accepted
+2. No remote discovery calls — validates purely locally using the shared PEM keys
+3. Post-publish dependency sync in `deploy.sh` (from Attempt 1) handles transitive JWT assemblies
+4. Inter-module gRPC communication confirmed to use `module-id` metadata header (not JWT), so no OpenIddict validation needed on module host
+
+**Verification:** Pending deploy to `cloud.dotnetcloud.net`
+
+### Attempt 3: JwtBearer + ValidateIssuerSigningKey = false (commit `d6bb6fce`)
+
+Deployed to `cloud.dotnetcloud.net` on 2026-06-22.
+
+**Fix:** Re-added JwtBearer with `IssuerSigningKeys` (plural, all rotated keys) + `ValidateIssuerSigningKey = false` to work around `RsaSecurityKey.KeyId` mismatch (PEM-loaded keys get random `KeyId`, don't match OpenIddict's JWT `kid`).
+
+**Deploy:** Force deploy ran, 14/14 modules published, dependency sync ran, service restarted.
+
+**Verification:**
+
+- Health: 200 [OK]
+- Files API (no auth): 401 [OK]
+- SSE with Bearer (invalid token): 401 [OK] (was 500 — auth middleware loading)
+- **Result: FAILED** — Client valid tokens still returned `invalid_token`. `ValidateIssuerSigningKey = false` alone does not fix it; `JsonWebTokenHandler` cannot find a key by `kid` match and fails before attempting signature verification.
+
+**Root cause discovered on `mint-OptiPlex-7010`:** `RsaSecurityKey.KeyId` is randomly generated each time `new RsaSecurityKey(rsa)` is called. Core.Server's `OidcKeyManager.LoadOrCreateKey` generates `KeyId` "A", OpenIddict puts it in JWT `kid` header. Files.Host's `OidcKeyManager.LoadAllKeys` generates `KeyId` "B" from the same PEM — mismatch, handler rejects.
+
+**Final fix (commit pending):** `OidcKeyManager.SetDeterministicKeyId()` — compute `KeyId = Base64UrlEncode(SHA256(RSA modulus))` so same PEM → same `KeyId` across all processes.
 
 ## Archived: SyncTray Icon Enhancement — Linux Verification (2026-03-29)
 
@@ -11,8 +138,32 @@ Only consult this if you encounter a regression or need to understand a past fix
 **Result:** VERIFIED — all 6 symbol overlays render correctly on Linux.
 
 Verification summary:
+
 - Build: 0 warnings, 0 errors on Linux (.NET 10)
 - Tests: 85/85 pass (76 original + 9 new symbol rendering tests added)
+
+---
+
+## Archived: Introspection Auth — Diagnostics Complete, Deploy Latest Fixes (2026-06-22)
+
+**Target:** `cloud.kimball.home` (production)
+**Previous handoff:** Diagnostics complete — keys loading, 401 root cause unknown.
+
+**Summary:** Switched from JwtBearer to gRPC introspection pattern (commit `65bfdac1`). Module hosts validate bearer tokens by calling Core.Server's `TokenIntrospectionServiceImpl` via gRPC instead of validating JWT signatures locally. This eliminates key ID mismatch issues entirely.
+
+**Fixes deployed in this batch (commit `57d4ffc4`, 13 commits since `fd8f0cd7`):**
+
+- `65bfdac1` — feat: token introspection auth (replace broken JwtBearer with gRPC introspection)
+- `435a03da` — fix: gRPC introspection bypasses HTTPS redirect on dedicated port
+- `40042937` — fix: introspection client missing module-id gRPC header
+- `72a57365` — fix: remove audience check from TokenIntrospectionServiceImpl
+- `012d407f` — fix: update handoff docs for audience check removal
+
+**Verification:**
+
+- Health: 200 [OK] → all 14/14 modules healthy
+- Audience check string: 0 occurrences in deployed binary [x]
+- Hash changed: binary updated
 - Programmatic verification: all 6 states produce ≥20 white symbol pixels, no bleed outside circle
 - Visual verification: user confirmed tray icons look good on Linux Mint 22
 - Paused color confirmed RebeccaPurple `#663399` (not amber)
@@ -34,6 +185,7 @@ TC-1.54 (100MB+ file upload retest) **PASSED** on Windows. Bug found during test
 **Original target:** Windows11-TestDNC
 
 Completed deliverables:
+
 - Storage Mode setting in SettingsViewModel + General tab radio buttons
 - `MessageBoxDialog` for mode switch confirmation
 - VFS lifecycle wired in `App.axaml.cs` (initialize on startup, shutdown on exit)
@@ -48,6 +200,7 @@ Completed deliverables:
 **Original target:** Windows11-TestDNC
 
 Completed deliverables:
+
 - 50 unit tests (51 total, 1 inconclusive for Linux FUSE) in `tests/DotNetCloud.Client.Core.Tests/VirtualFiles/`
   - `VirtualFileSyncEngineTests.cs` (17 tests): mode switching, sync delegates, shutdown, event forwarding
   - `VirtualFileSettingsTests.cs` (10 tests): defaults, JSON round-trip, PinList
@@ -75,6 +228,7 @@ WS-4 required bearer tokens for API endpoint testing (TC-1.27, TC-1.40, TC-1.41,
 ### Root cause (verified)
 
 The `/api/v1/core/auth/login` endpoint returns placeholder token fields by design:
+
 - `AuthService.LoginAsync` sets `AccessToken = string.Empty`, `RefreshToken = string.Empty`, `ExpiresIn = 0` with comment "populated at endpoint layer".
 - `AuthController.LoginAsync` does NOT invoke OpenIddict token issuance.
 - OpenIddict configured for authorization-code + PKCE flow only (no password grant).
@@ -83,12 +237,14 @@ The `/api/v1/core/auth/login` endpoint returns placeholder token fields by desig
 ### Token acquisition attempts
 
 **Approach 1: OAuth2 PKCE flow automation**
+
 - Created `scripts/get-bearer-token.ps1` implementing full authorization-code + PKCE flow
 - Step 1: Form login to `https://mint22:5443/auth/session/login` → cookie session established
 - Step 2: `/connect/authorize` with cookie auth → HTTP 400 Bad Request
 - **Result:** BLOCKED — authorize endpoint rejected automated PKCE request even with authenticated cookie session
 
 **Approach 2: Manual browser token extraction**
+
 - Web UI uses cookie-based authentication (`AuthSessionController` + ASP.NET Identity cookies)
 - API endpoints expect bearer tokens (`[Authorize(AuthenticationSchemes = "OpenIddict.Validation.AspNetCore")]`)
 - Blazor `InteractiveServer` mode uses HttpClient with cookies automatically
@@ -97,6 +253,7 @@ The `/api/v1/core/auth/login` endpoint returns placeholder token fields by desig
 ### Architectural observation
 
 **Current state:**
+
 - Web UI: Cookie-based auth (`IdentityConstants.ApplicationScheme`)
 - Mobile clients: OAuth2 PKCE bearer tokens (authorization-code grant)
 - API endpoints: OpenIddict bearer validation
@@ -126,11 +283,12 @@ The `/api/v1/core/auth/login` endpoint returns placeholder token fields by desig
 ## Archived: Phase 3.8 Documentation And Release Readiness COMPLETE on mint22 (2026-03-23)
 
 **Original target:** mint22
-**Original status:** COMPLETE ✅
+**Original status:** COMPLETE [OK]
 
 All Phase 3.8 documentation deliverables created. 8 new doc files, 5 existing files updated.
 
 **New files:**
+
 - `docs/admin/PIM_MODULES.md` — admin configuration guide covering all three PIM modules (database, auth, CardDAV/CalDAV, import, gRPC, events, troubleshooting)
 - `docs/user/CONTACTS.md` — user guide: contact management, groups, sharing, vCard import/export, CardDAV sync setup
 - `docs/user/CALENDAR.md` — user guide: calendars, events, invitations/RSVP, reminders, recurring events, sharing, iCalendar import/export, CalDAV sync setup
@@ -141,20 +299,22 @@ All Phase 3.8 documentation deliverables created. 8 new doc files, 5 existing fi
 - `docs/admin/PHASE_3_RELEASE_NOTES.md` — release notes with features, API summary, DB changes, migration instructions, known limitations
 
 **Updated files:**
+
 - `docs/api/README.md` — added module API reference links
 - `README.md` — updated Phase 3 status, added PIM doc links (admin, user guides, release notes)
-- `docs/IMPLEMENTATION_CHECKLIST.md` — marked Phase 3.8 items ✓
-- `docs/MASTER_PROJECT_PLAN.md` — Phase 3.8 status completed, deliverables marked ✓
-- `docs/PHASE_3_IMPLEMENTATION_PLAN.md` — Phase 3.8 deliverables/exit criteria marked ✓, Milestone D complete
+- `docs/IMPLEMENTATION_CHECKLIST.md` — marked Phase 3.8 items [x]
+- `docs/MASTER_PROJECT_PLAN.md` — Phase 3.8 status completed, deliverables marked [x]
+- `docs/PHASE_3_IMPLEMENTATION_PLAN.md` — Phase 3.8 deliverables/exit criteria marked [x], Milestone D complete
 
 ## Archived: Phase 3.7 Testing And Quality Gates COMPLETE on mint22 (2026-03-25)
 
 **Original target:** mint22
-**Original status:** COMPLETE ✅
+**Original status:** COMPLETE [OK]
 
 Comprehensive test suite for all three PIM modules. 224 new tests across 8 new test files. All 2,700 CI tests pass.
 
 **Key deliverables:**
+
 - ContactShareServiceTests (9 tests): share CRUD, owner/non-owner authorization, team shares
 - ContactSecurityTests (8 tests): tenant isolation (get/list/update/delete/search), group isolation, share authorization
 - CardDavInteropTests (13 tests): vCard 3.0 format compliance, round-trip, multi-vCard import, PHOTO/extended field tolerance
@@ -169,11 +329,12 @@ Comprehensive test suite for all three PIM modules. 224 new tests across 8 new t
 ## Archived: Phase 3.6 Migration Foundation COMPLETE on mint22 (2026-03-24)
 
 **Original target:** mint22
-**Original status:** COMPLETE ✅
+**Original status:** COMPLETE [OK]
 
 Import infrastructure for NextCloud migration paths. Contracts, pipeline, 3 module providers, dry-run mode. 51 new tests, 2,476 total CI tests pass.
 
 **Key deliverables:**
+
 - Core contracts: `ImportDtos.cs` (ImportRequest/ImportReport/ImportItemResult), `IImportProvider`, `IImportPipeline` in `DotNetCloud.Core.Import` namespace
 - `ImportPipelineService` — routes ImportRequests to providers by DataType via DI
 - `ContactsImportProvider` — vCard 3.0 parser (FN/N/ORG/TITLE/EMAIL/TEL/ADR/BDAY/URL/NOTE)
@@ -187,11 +348,12 @@ Import infrastructure for NextCloud migration paths. Contracts, pipeline, 3 modu
 ## Archived: Phase 3.5 Cross-Module Integration COMPLETE on mint22 (2026-03-24)
 
 **Original target:** mint22
-**Original status:** COMPLETE ✅
+**Original status:** COMPLETE [OK]
 
 Cross-module integration implemented for Contacts, Calendar, and Notes PIM modules. 30 new tests, all 2,500+ solution tests pass.
 
 **Key deliverables:**
+
 - Unified navigation: 3 module stub UI pages (Contacts 👤, Calendar 📅, Notes 📝) registered in ModuleUiRegistrationHostedService
 - Shared notification patterns: ResourceSharedEvent, UserMentionedEvent, ReminderTriggeredEvent + push notification handlers
 - Cross-module link resolution: ICrossModuleLinkResolver with Contact/CalendarEvent/Note/File support and batch resolve
@@ -203,18 +365,19 @@ Cross-module integration implemented for Contacts, Calendar, and Notes PIM modul
 ## Archived: Phase 3.4 Notes Module COMPLETE on mint22 (2026-03-24)
 
 **Original target:** mint22
-**Original status:** COMPLETE ✅
+**Original status:** COMPLETE [OK]
 
 Full Notes module implemented (3-tier: Main/Data/Host). 50/50 tests pass.
 
 ## Archived: Phase 3.3 Calendar Module COMPLETE on mint22 (2026-03-24)
 
 **Original target:** mint22
-**Original status:** COMPLETE ✅
+**Original status:** COMPLETE [OK]
 
 Full Calendar module implemented (3-tier: Main/Data/Host). 39/39 tests pass.
 
 **Created projects:**
+
 - `DotNetCloud.Modules.Calendar` — Interfaces, models, module lifecycle, event handlers
 - `DotNetCloud.Modules.Calendar.Data` — EF Core DbContext, 5 entity configs, 3 service implementations + ICalService
 - `DotNetCloud.Modules.Calendar.Host` — REST API (~20 endpoints), CalDAV, gRPC (11 RPCs), health check, lifecycle
@@ -227,7 +390,7 @@ Full Calendar module implemented (3-tier: Main/Data/Host). 39/39 tests pass.
 Archived from Active Handoff on 2026-03-23 after post-closeout Windows runtime smoke validation on `Windows11-TestDNC`.
 
 **Original target:** `Windows11-TestDNC`
-**Original status:** COMPLETE ✅
+**Original status:** COMPLETE [OK]
 
 ### Pull latest
 
@@ -245,9 +408,9 @@ Archived from Active Handoff on 2026-03-23 after post-closeout Windows runtime s
 
 - Endpoint probe from `Windows11-TestDNC` to `https://mint22.kimball.home:5443/.well-known/openid-configuration` returned **HTTP 200**.
 - Discovery document confirms:
-    - `authorization_endpoint` = `https://mint22.kimball.home:5443/connect/authorize`
-    - `token_endpoint` = `https://mint22.kimball.home:5443/connect/token`
-    - `issuer` = `https://mint22.kimball.home:5443/`
+  - `authorization_endpoint` = `https://mint22.kimball.home:5443/connect/authorize`
+  - `token_endpoint` = `https://mint22.kimball.home:5443/connect/token`
+  - `issuer` = `https://mint22.kimball.home:5443/`
 - Login launch path: **reachable, no regression.**
 
 ### Notes
@@ -260,20 +423,20 @@ Archived from Active Handoff on 2026-03-23 after post-closeout Windows runtime s
 Archived from Active Handoff on 2026-03-23 after server-side release-confidence validation on `mint22`.
 
 **Original target:** `mint22`
-**Original status:** COMPLETE ✅
+**Original status:** COMPLETE [OK]
 
 ### Validation evidence
 
 - Pull/update:
-    - `git pull --no-rebase` -> fast-forward to `ee58142`.
+  - `git pull --no-rebase` -> fast-forward to `ee58142`.
 - Build scope:
-    - `dotnet build DotNetCloud.CI.slnf -v minimal` -> **succeeded** (11 existing warnings in chat module tests, 0 errors).
+  - `dotnet build DotNetCloud.CI.slnf -v minimal` -> **succeeded** (11 existing warnings in chat module tests, 0 errors).
 - Security-relevant test scope:
-    - `dotnet test tests/DotNetCloud.Core.Server.Tests/DotNetCloud.Core.Server.Tests.csproj -v minimal`
-        - Initial run surfaced one stale expectation in `RateLimitingOptionsTests` (`GlobalPermitLimit` expected 100, actual 20).
-        - Updated test expectation to 20 to match current implementation defaults from split authenticated/anonymous rate limiting.
-        - Re-run result: **385 total, 0 failed, 383 passed, 2 skipped**.
-    - `dotnet test tests/DotNetCloud.Modules.Files.Tests/DotNetCloud.Modules.Files.Tests.csproj -v minimal` -> **669 total, 0 failed, 669 passed**.
+  - `dotnet test tests/DotNetCloud.Core.Server.Tests/DotNetCloud.Core.Server.Tests.csproj -v minimal`
+    - Initial run surfaced one stale expectation in `RateLimitingOptionsTests` (`GlobalPermitLimit` expected 100, actual 20).
+    - Updated test expectation to 20 to match current implementation defaults from split authenticated/anonymous rate limiting.
+    - Re-run result: **385 total, 0 failed, 383 passed, 2 skipped**.
+  - `dotnet test tests/DotNetCloud.Modules.Files.Tests/DotNetCloud.Modules.Files.Tests.csproj -v minimal` -> **669 total, 0 failed, 669 passed**.
 
 ### Closeout decision
 
@@ -289,13 +452,13 @@ Archived from Active Handoff on 2026-03-23 after server-side release-confidence 
 Archived from Active Handoff on 2026-03-23 after Windows validation on `Windows11-TestDNC`.
 
 **Original target:** `Windows11-TestDNC`
-**Original status:** COMPLETE ✅
+**Original status:** COMPLETE [OK]
 
 ### Additional fix required on Windows test host
 
 - `tests/DotNetCloud.Client.SyncTray.Tests/ViewModels/SettingsViewModelTests.cs`
-    - Linux desktop-entry assertions were brittle on Windows-hosted execution due escaped path formatting.
-    - Updated assertions to normalize escaped backslashes before validating `Exec="..."` path content.
+  - Linux desktop-entry assertions were brittle on Windows-hosted execution due escaped path formatting.
+  - Updated assertions to normalize escaped backslashes before validating `Exec="..."` path content.
 
 ### Required targeted test evidence (`--no-build`)
 
@@ -306,16 +469,16 @@ Archived from Active Handoff on 2026-03-23 after Windows validation on `Windows1
 ### Runtime smoke validation evidence (Windows)
 
 - Add Account default server URL blank:
-    - `dotnet test tests/DotNetCloud.Client.SyncTray.Tests/DotNetCloud.Client.SyncTray.Tests.csproj --no-build --filter "AddAccountServerUrl_DefaultsToEmptyString|AddAccountAsync_ValidInputs_CallsOAuth2AndIpc"` → **2 passed, 0 failed**.
+  - `dotnet test tests/DotNetCloud.Client.SyncTray.Tests/DotNetCloud.Client.SyncTray.Tests.csproj --no-build --filter "AddAccountServerUrl_DefaultsToEmptyString|AddAccountAsync_ValidInputs_CallsOAuth2AndIpc"` → **2 passed, 0 failed**.
 - Existing account add flow valid URL path (unit smoke):
-    - Included in focused run above via `AddAccountAsync_ValidInputs_CallsOAuth2AndIpc`.
+  - Included in focused run above via `AddAccountAsync_ValidInputs_CallsOAuth2AndIpc`.
 - No sync cycle startup regression (tray sync smoke):
-    - `dotnet test tests/DotNetCloud.Client.SyncTray.Tests/DotNetCloud.Client.SyncTray.Tests.csproj --no-build --filter "ConnectAsync_RaisesConnectionStateChangedOnConnect|OnSyncComplete_WithTransfersNoErrors_ShowsSuccessToast"` → **2 passed, 0 failed**.
+  - `dotnet test tests/DotNetCloud.Client.SyncTray.Tests/DotNetCloud.Client.SyncTray.Tests.csproj --no-build --filter "ConnectAsync_RaisesConnectionStateChangedOnConnect|OnSyncComplete_WithTransfersNoErrors_ShowsSuccessToast"` → **2 passed, 0 failed**.
 
 ### Notes
 
 - One compile pass was required before final no-build evidence:
-    - `dotnet test tests/DotNetCloud.Client.SyncTray.Tests/DotNetCloud.Client.SyncTray.Tests.csproj`.
+  - `dotnet test tests/DotNetCloud.Client.SyncTray.Tests/DotNetCloud.Client.SyncTray.Tests.csproj`.
 - No additional runtime log evidence was required for this cycle because validation was completed through deterministic Windows-hosted test smoke coverage.
 
 ## Archived: Security Audit Desktop Client Fixes — COMPLETE on mint-dnc-client (2026-03-23)
@@ -323,24 +486,24 @@ Archived from Active Handoff on 2026-03-23 after Windows validation on `Windows1
 Archived from Active Handoff on 2026-03-23 after implementing and validating all four client-side security findings on `mint-dnc-client`.
 
 **Original target:** `mint-dnc-client`
-**Original status:** COMPLETE ✅
+**Original status:** COMPLETE [OK]
 
 ### Delivered fixes
 
 - Finding 1 (Low) hardcoded dev URL removed:
-    - `SettingsViewModel` default add-account server URL now `string.Empty`.
-    - Added/kept unit coverage: `AddAccountServerUrl_DefaultsToEmptyString`.
+  - `SettingsViewModel` default add-account server URL now `string.Empty`.
+  - Added/kept unit coverage: `AddAccountServerUrl_DefaultsToEmptyString`.
 - Finding 2 (High) Unix socket permissions restricted:
-    - `IpcServer.ListenUnixSocketAsync` now applies `RestrictUnixSocketPermissions()` after bind.
-    - `RestrictUnixSocketPermissions` enforces `0600` via `File.SetUnixFileMode(... UserRead | UserWrite)`.
-    - Added test coverage: `RestrictUnixSocketPermissions_SetsSocketModeTo600OnLinux`.
+  - `IpcServer.ListenUnixSocketAsync` now applies `RestrictUnixSocketPermissions()` after bind.
+  - `RestrictUnixSocketPermissions` enforces `0600` via `File.SetUnixFileMode(... UserRead | UserWrite)`.
+  - Added test coverage: `RestrictUnixSocketPermissions_SetsSocketModeTo600OnLinux`.
 - Finding 3 (Critical) symlink traversal blocked:
-    - `SyncEngine` validates resolved symlink target remains under sync root before `File.CreateSymbolicLink`.
-    - Added test coverage: `SyncAsync_PendingSymlinkDownload_TargetEscapesSyncFolder_BlocksMaterialization`.
+  - `SyncEngine` validates resolved symlink target remains under sync root before `File.CreateSymbolicLink`.
+  - Added test coverage: `SyncAsync_PendingSymlinkDownload_TargetEscapesSyncFolder_BlocksMaterialization`.
 - Finding 4 (Critical) path escape blocked:
-    - `ResolveLocalPathAsync` now validates all resolved paths via `ValidatePathWithinSyncRoot`.
-    - Escaping paths throw `InvalidOperationException` and do not queue operations.
-    - Added test coverage: `SyncAsync_RemoteChangeWithTraversalName_SetsErrorStateAndSkipsQueueing`.
+  - `ResolveLocalPathAsync` now validates all resolved paths via `ValidatePathWithinSyncRoot`.
+  - Escaping paths throw `InvalidOperationException` and do not queue operations.
+  - Added test coverage: `SyncAsync_RemoteChangeWithTraversalName_SetsErrorStateAndSkipsQueueing`.
 
 ### Validation results
 
@@ -358,7 +521,7 @@ Archived from Active Handoff on 2026-03-23 after implementing and validating all
 Archived from Active Handoff on 2026-03-22 after successful interactive verification on `Windows11-TestDNC`.
 
 **Target:** `Windows11-TestDNC`
-**Status:** COMPLETE ✅
+**Status:** COMPLETE [OK]
 **MSIX version:** `0.27.0-alpha`
 
 ### Verification Results
@@ -372,10 +535,10 @@ Archived from Active Handoff on 2026-03-22 after successful interactive verifica
 
 ### Acceptance Criteria — All Met
 
-- ✓ Add Account default URL uses `https://mint22.kimball.home:5443/` without manual correction.
-- ✓ Authorize URL targets `https://mint22.kimball.home:5443/connect/authorize?...`.
-- ✓ Login page reached on Windows flow without connection-refused.
-- ✓ No stale `:15443` source in desktop client code.
+- [x] Add Account default URL uses `https://mint22.kimball.home:5443/` without manual correction.
+- [x] Authorize URL targets `https://mint22.kimball.home:5443/connect/authorize?...`.
+- [x] Login page reached on Windows flow without connection-refused.
+- [x] No stale `:15443` source in desktop client code.
 
 ---
 
@@ -384,14 +547,16 @@ Archived from Active Handoff on 2026-03-22 after successful interactive verifica
 Archived from Active Handoff on 2026-03-22 when the active slot was reassigned to server connectivity diagnostics for `mint22`.
 
 **Original target:** `mint-dnc-client`
-**Original status:** COMPLETE ✅
+**Original status:** COMPLETE [OK]
 **Commit:** `a725206`
 
 ### Files changed
+
 - `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/TrayViewModel.cs`
 - `tests/DotNetCloud.Client.SyncTray.Tests/ViewModels/TrayViewModelTests.cs`
 
 ### What was delivered
+
 - Added per-cycle aggregation dictionaries (`_cycleErrors`, `_cycleTransfers`) in `TrayViewModel`.
 - Suppressed immediate error toasts; errors are buffered and emitted as one aggregated summary on sync completion.
 - Added transfer-count aggregation and success summary toast for cycles with real transfer activity.
@@ -399,6 +564,7 @@ Archived from Active Handoff on 2026-03-22 when the active slot was reassigned t
 - Preserved per-conflict notifications unchanged.
 
 ### Test result
+
 - `dotnet test tests/DotNetCloud.Client.SyncTray.Tests/` -> 83/83 passed.
 
 ## Archived: Phase 1 & Phase 2 Completion Verification — DONE (2026-03-22)
@@ -406,20 +572,22 @@ Archived from Active Handoff on 2026-03-22 when the active slot was reassigned t
 Archived from Active Handoff on 2026-03-22 when the active slot was reassigned to Linux client toast consolidation work.
 
 **Original target:** none (verification complete)
-**Original status:** COMPLETE ✅
+**Original status:** COMPLETE [OK]
 
 ### Results (2026-03-21, mint22)
+
 1. Build: `dotnet build DotNetCloud.CI.slnf` - 0 errors, 0 warnings.
 2. Tests: `dotnet test DotNetCloud.CI.slnf` - 2,242 passed, 0 failed, 2 skipped across 12 test projects.
 3. Integration test fix: resolved duplicate OpenIddict auth scheme registration in `DotNetCloudWebApplicationFactory` by forwarding existing scheme to `TestAuthHandler`.
 4. Doc cleanup:
-    - MASTER_PROJECT_PLAN phase naming/title corrections for Phase 1 and Phase 2 sections.
-    - Tracking docs test counts updated from 803 to 2,242.
-    - Added `storage/chunks` and `storage/files` to `.gitignore`.
+   - MASTER_PROJECT_PLAN phase naming/title corrections for Phase 1 and Phase 2 sections.
+   - Tracking docs test counts updated from 803 to 2,242.
+   - Added `storage/chunks` and `storage/files` to `.gitignore`.
 5. Phase 1 status: 274/277 steps complete; 3 deferred non-blocking launch items.
 6. Phase 2 status: 13/13 sub-phases complete (100%).
 
 ### Completed same session (2026-03-21)
+
 1. Windows installer improvement plan implemented in `tools/install-windows.ps1` (12 tasks).
 2. IIS reverse proxy configured and verified on `Windows11-TestDNC` for HTTP and HTTPS.
 3. File browser child count fix deployed on `mint22` by server agent.
@@ -429,19 +597,22 @@ Archived from Active Handoff on 2026-03-22 when the active slot was reassigned t
 Archived from Active Handoff on 2026-03-21. Server redeployed with child count fix; service stable.
 
 **Original target:** `mint22`
-**Original status:** COMPLETE ✅
+**Original status:** COMPLETE [OK]
 
 ### What was deployed
+
 - `FileService.cs` — `GetChildCountsAsync()` batch-queries child parent IDs and groups counts in-memory.
 - `ListChildrenAsync` and `ListRootAsync` now return correct `childCount` for folder nodes (previously always 0).
 
 ### Deployment steps
+
 1. `git pull` + `dotnet publish` to `/opt/dotnetcloud/server`
 2. Fixed file ownership: `chown -R dotnetcloud:dotnetcloud /opt/dotnetcloud/server/`
 3. Fixed TLS cert permissions: `/etc/dotnetcloud/certs/dotnetcloud-selfsigned.pfx` → `root:dotnetcloud 0640`
 4. Service verified stable after restart.
 
 ### TLS crash root cause
+
 Certificate owned `root:root 0600` — service user `dotnetcloud` couldn't read. OpenSSL gave misleading `BIO routines::system lib` error. Fix: `chown root:dotnetcloud` + `chmod 640`.
 
 ## Archived: Windows Service RUNNING — IIS Proxy P2 (2026-03-21)
@@ -452,15 +623,18 @@ Archived from Active Handoff on 2026-03-21. Windows Service startup blockers res
 **Original status:** SERVICE RUNNING — Kestrel healthy on :5080; IIS proxy needs URL Rewrite module
 
 ### Resolved blockers (elevated PowerShell, 2026-03-21)
+
 1. `oidc-keys` directory missing — created via `New-Item`.
 2. TLS cert not found — copied self-signed PFX to `certs/` dir.
 3. DB connection string wrong — updated credentials to match actual PostgreSQL role.
 
 ### Verification
+
 - `Get-Service DotNetCloud` => `Status: Running`
 - `Invoke-WebRequest http://localhost:5080/health/live` => `200 OK`
 
 ### Remaining (P2 — deferred)
+
 IIS reverse proxy requires URL Rewrite module + Application Request Routing. Service works on direct ports (5080/5443).
 
 ## Archived: File Browser Fixes — Server Redeploy Required (2026-03-20)
@@ -473,24 +647,27 @@ Archived from Active Handoff on 2026-03-20 when the active slot was reassigned t
 ### Server-side change (committed)
 
 Folder child count bug fix in `FileService.cs`:
+
 - `ListChildrenAsync` and `ListRootAsync` previously called `ToDto(n)` without computed child counts.
 - Added `GetChildCountsAsync()` to batch-query child parent IDs and group counts in-memory.
 - Updated mappings to pass `ToDto(n, childCount)`.
 - FileService tests passed at handoff time.
 
 Files changed:
+
 - `src/Modules/Files/DotNetCloud.Modules.Files.Data/Services/FileService.cs`
 
 ### Client-side companion changes (already on `monolith`)
 
 - Breadcrumb navigation in Android file browser:
-    - `BreadcrumbItem` record
-    - `Breadcrumbs` observable collection
-    - `NavigateToBreadcrumbCommand`
-    - toolbar breadcrumb UI with horizontal scrolling
+  - `BreadcrumbItem` record
+  - `Breadcrumbs` observable collection
+  - `NavigateToBreadcrumbCommand`
+  - toolbar breadcrumb UI with horizontal scrolling
 - Added `IsNotNullConverter` and registered in app resources.
 
 Files changed:
+
 - `src/Clients/DotNetCloud.Client.Android/ViewModels/FileBrowserViewModel.cs`
 - `src/Clients/DotNetCloud.Client.Android/Views/FileBrowserPage.xaml`
 - `src/Clients/DotNetCloud.Client.Android/Converters/AppConverters.cs`
@@ -510,17 +687,20 @@ Carry-forward note: after server auth changes, stale tokens may cause 401 until 
 Server-side chat auth enforcement deployed on `mint22`; Android client code cleanup completed on `monolith`. E2E verified on Android emulator against `mint22:15443`.
 
 **E2E verification result:**
+
 - Initial 401 errors caused by stale pre-auth-enforcement token. Resolved by logging out and back in from Settings page.
 - All chat operations (list channels, send message, message history) work with bearer-only auth.
 - **Lesson learned:** after server auth changes, users must log out and log back in to get a fresh token.
 
 **Server side (mint22):**
+
 - `ChatControllerBase` added with `[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]`
 - All 35+ chat endpoints enforce bearer token auth; `[FromQuery] Guid userId` removed
 - User identity extracted from bearer token claims (`sub`/`NameIdentifier`)
 - All chat unit and integration tests updated and passing
 
 **Client side (monolith):**
+
 - Removed `?userId=` query params from 7 methods in `HttpChatRestClient` (GetChannels, GetMessages, SendMessage, MarkRead, NotifyTyping, GetChannelMembers, SendFileMessage)
 - Removed `AccessTokenUserIdExtractor` calls from those 7 methods
 - `LeaveChannelAsync` retains `AccessTokenUserIdExtractor` — server's `RemoveMemberAsync` route (`DELETE /channels/{channelId}/members/{targetUserId}`) still requires `targetUserId` as a path segment
@@ -533,6 +713,7 @@ Server-side chat auth enforcement deployed on `mint22`; Android client code clea
 ## Archived: Duplicate Controller Fix — Deployed and Verified (2026-03-18)
 
 Duplicate controller fix deployed and verified on `mint22`. Files endpoint returns 401 (correct — unauthenticated), service healthy.
+
 - Commit: `b931eae`. Published, restarted, health check passed, zero real errors.
 - Carry-forward: Controller discovery contract enforced — no duplicate controllers in Core.Server.
 
@@ -555,6 +736,7 @@ Redeployed server on `mint22` after duplicate controller removal (Files/Sync/WOP
 ## Archived: Android Client SignalR Group Joining + Server Broadcast Request (2026-03-17)
 
 Android client on `monolith` completed client-side SignalR group join/leave wiring:
+
 - Added `JoinChannelGroupAsync` / `LeaveChannelGroupAsync` to `IChatSignalRClient` interface.
 - Implemented in `SignalRChatClient` — invokes hub's `JoinGroupAsync` / `LeaveGroupAsync` with `chat-channel-{channelId}` group name.
 - `MessageListViewModel.InitializeAsync` now joins the channel group after loading messages.
@@ -582,18 +764,21 @@ Redeployed server on `mint22` after `DotNetCloud.Core.Server.csproj` gained refe
 Full 3-step chain completed. Deletion propagation (files and directories) verified on all machines.
 
 **Step 1 — Linux (`mint-dnc-client`):** PASSED 2026-03-16 ~03:00Z
+
 - File: `delete_test_linux_retry2_20260316_030012.txt` (NodeId `34370895-2422-4603-80e0-5796dd753a86`) — deleted, propagated, did not reappear.
 - Directory: `deltest_dir_20260316_030153/inner.txt` (NodeId `e2655c3f-5d18-43e7-88f8-c9417a82a312`) — deleted, propagated, did not reappear.
 
 **Step 2 — Windows (`Windows11-TestDNC`):** PASSED 2026-03-16 ~08:16Z
+
 - File: `delete_test_win_20260316_011615.txt` (NodeId `a8b932cb-4990-4aa5-9007-fd32bb7a7e63`) — deleted, propagated via `DELETE /api/v1/files/a8b932cb...` → HTTP 200, did not reappear.
 - Bug fix: `RemoveFileRecordsUnderPathAsync` path separator on Windows (used `\` instead of `/`). Fixed and committed.
 
 **Step 3 — Server (`mint22`):** CONFIRMED STABLE 2026-03-16
+
 - Zero ERR-level log entries since 2026-03-16 02:00.
 - Both node IDs confirmed soft-deleted server-side:
-    - `34370895-2422-4603-80e0-5796dd753a86` soft-deleted at 03:00:43 CDT
-    - `a8b932cb-4990-4aa5-9007-fd32bb7a7e63` soft-deleted at 03:16:40 CDT
+  - `34370895-2422-4603-80e0-5796dd753a86` soft-deleted at 03:00:43 CDT
+  - `a8b932cb-4990-4aa5-9007-fd32bb7a7e63` soft-deleted at 03:16:40 CDT
 - No 5xx responses, no exceptions, no panics.
 - One pre-existing WRN: chunk blob missing for hash `fd250474ee...` (unrelated to deletion chain; pre-existing orphaned chunk).
 
@@ -604,28 +789,28 @@ Full 3-step chain completed. Deletion propagation (files and directories) verifi
 Archived from Active Handoff on 2026-03-16 after Linux-side deletion-propagation verification completed and handoff advanced to `Windows11-TestDNC`.
 
 - Pull/build/tests:
-    - `git pull` completed for latest handoff chain.
-    - `dotnet build src/Clients/DotNetCloud.Client.Core/DotNetCloud.Client.Core.csproj` passed.
-    - `dotnet test tests/DotNetCloud.Client.Core.Tests/` result: `182 passed, 0 failed`.
+  - `git pull` completed for latest handoff chain.
+  - `dotnet build src/Clients/DotNetCloud.Client.Core/DotNetCloud.Client.Core.csproj` passed.
+  - `dotnet test tests/DotNetCloud.Client.Core.Tests/` result: `182 passed, 0 failed`.
 - Runtime gate note:
-    - Initial probe on stale runtime reproduced old re-download behavior.
-    - Runtime was rebuilt/restarted from current binaries:
-        - `dotnet build src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj`
-        - restarted `dotnetcloud-sync-service` from `src/Clients/DotNetCloud.Client.SyncTray/bin/Debug/net10.0/`.
+  - Initial probe on stale runtime reproduced old re-download behavior.
+  - Runtime was rebuilt/restarted from current binaries:
+    - `dotnet build src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj`
+    - restarted `dotnetcloud-sync-service` from `src/Clients/DotNetCloud.Client.SyncTray/bin/Debug/net10.0/`.
 - File deletion verification (PASS):
-    - File: `delete_test_linux_retry2_20260316_030012.txt`
-    - Upload: `File upload complete ... NodeId=34370895-2422-4603-80e0-5796dd753a86`.
-    - Delete propagation:
-        - `Local file deleted, queuing server deletion: delete_test_linux_retry2_20260316_030012.txt`
-        - `Deleting server node 34370895-2422-4603-80e0-5796dd753a86 for locally deleted file/folder`
-    - Result: file did not reappear locally and no queue-download line was emitted for that file after delete.
+  - File: `delete_test_linux_retry2_20260316_030012.txt`
+  - Upload: `File upload complete ... NodeId=34370895-2422-4603-80e0-5796dd753a86`.
+  - Delete propagation:
+    - `Local file deleted, queuing server deletion: delete_test_linux_retry2_20260316_030012.txt`
+    - `Deleting server node 34370895-2422-4603-80e0-5796dd753a86 for locally deleted file/folder`
+  - Result: file did not reappear locally and no queue-download line was emitted for that file after delete.
 - Directory deletion verification (PASS):
-    - Directory: `deltest_dir_20260316_030153` with `inner.txt`.
-    - Upload: `inner.txt` uploaded with `NodeId=e2655c3f-5d18-43e7-88f8-c9417a82a312`.
-    - Delete propagation:
-        - `Local file deleted, queuing server deletion: deltest_dir_20260316_030153/inner.txt`
-        - `Deleting server node e2655c3f-5d18-43e7-88f8-c9417a82a312 for locally deleted file/folder`
-    - Result: directory did not reappear locally.
+  - Directory: `deltest_dir_20260316_030153` with `inner.txt`.
+  - Upload: `inner.txt` uploaded with `NodeId=e2655c3f-5d18-43e7-88f8-c9417a82a312`.
+  - Delete propagation:
+    - `Local file deleted, queuing server deletion: deltest_dir_20260316_030153/inner.txt`
+    - `Deleting server node e2655c3f-5d18-43e7-88f8-c9417a82a312 for locally deleted file/folder`
+  - Result: directory did not reappear locally.
 
 Conclusion: Linux client runtime now reflects deletion propagation fix from `b4160c6`. Chain advanced to Step 2 (`Windows11-TestDNC`).
 
@@ -638,9 +823,9 @@ Archived from Active Handoff on 2026-03-15 after server-side closeout verificati
 - **Linux (`mint-dnc-client`):** PASSED — single-context parity restored. Upload completes, follow-up pass shows `RemoteChanges=1, LocalApplied=0`, no echo download. Archived evidence in section below.
 - **Windows (`Windows11-TestDNC`):** PASSED — verified on MSIX `0.23.3.0`. Upload completes, follow-up pass shows `RemoteChanges=1, LocalApplied=0`, no echo download.
 - **Server (`mint22`):** CLEAN — zero HTTP 5xx responses since deployment. Only benign EF Core `SaveChangesFailed` from concurrent duplicate uploads (expected race condition; one request wins, duplicate is discarded). Verified via:
-    - Command: `sudo journalctl -u dotnetcloud --no-pager --since "2026-03-14" | grep "Request finished" | grep -E " 5[0-9]{2} "` → zero results.
-    - Command: `sudo journalctl -u dotnetcloud --no-pager --since "2026-03-14" | grep -iE "unhandled exception|InternalServerError"` → zero results.
-    - Verification timestamp: 2026-03-15T06:25 CDT.
+  - Command: `sudo journalctl -u dotnetcloud --no-pager --since "2026-03-14" | grep "Request finished" | grep -E " 5[0-9]{2} "` → zero results.
+  - Command: `sudo journalctl -u dotnetcloud --no-pager --since "2026-03-14" | grep -iE "unhandled exception|InternalServerError"` → zero results.
+  - Verification timestamp: 2026-03-15T06:25 CDT.
 - Upload endpoint verification scope: `POST /api/v1/files/upload/initiate`, `POST /api/v1/files/upload/*/complete`.
 
 Upload hardening story: CLOSED. Full chain verification complete across all three machines.
@@ -650,22 +835,22 @@ Upload hardening story: CLOSED. Full chain verification complete across all thre
 Archived from Active Handoff on 2026-03-15 after executing duplicate-context cleanup and re-verification on `mint-dnc-client`.
 
 - Context registry cleanup applied:
-    - File: `/home/benk/.local/share/DotNetCloud/Sync/contexts.json`
-    - Removed context: `e7ba5002-dc72-4c97-a511-17f194ca79c5`
-    - Retained context: `cb22726a-cdef-4cc8-a29c-755b22f1c899`
+  - File: `/home/benk/.local/share/DotNetCloud/Sync/contexts.json`
+  - Removed context: `e7ba5002-dc72-4c97-a511-17f194ca79c5`
+  - Retained context: `cb22726a-cdef-4cc8-a29c-755b22f1c899`
 - Removed duplicate context data directory:
-    - `/home/benk/.local/share/DotNetCloud/Sync/e7ba5002dc724c97a51117f194ca79c5`
+  - `/home/benk/.local/share/DotNetCloud/Sync/e7ba5002dc724c97a51117f194ca79c5`
 - Service restart evidence:
-    - `2026-03-15T11:11:18.3409516Z` `Loading 1 persisted sync context(s).`
+  - `2026-03-15T11:11:18.3409516Z` `Loading 1 persisted sync context(s).`
 - Verification file created:
-    - `/home/benk/synctray/m2_single_ctx_20260315_061322.txt`
+  - `/home/benk/synctray/m2_single_ctx_20260315_061322.txt`
 - Upload evidence:
-    - `2026-03-15T11:13:23.0477390Z` `File upload starting ... m2_single_ctx_20260315_061322.txt`
-    - `2026-03-15T11:13:23.2679168Z` `File upload complete ... NodeId=289d45f4-2c97-498c-920e-8eb5f61c6768`
+  - `2026-03-15T11:13:23.0477390Z` `File upload starting ... m2_single_ctx_20260315_061322.txt`
+  - `2026-03-15T11:13:23.2679168Z` `File upload complete ... NodeId=289d45f4-2c97-498c-920e-8eb5f61c6768`
 - Follow-up pass evidence (expected behavior):
-    - `2026-03-15T11:13:23.4984138Z` `Sync pass complete ... ContextId=cb22726a-cdef-4cc8-a29c-755b22f1c899 ... RemoteChanges=1, LocalQueued=0, LocalApplied=0`
+  - `2026-03-15T11:13:23.4984138Z` `Sync pass complete ... ContextId=cb22726a-cdef-4cc8-a29c-755b22f1c899 ... RemoteChanges=1, LocalQueued=0, LocalApplied=0`
 - Download-path check for uploaded node:
-    - No `File download starting` entry for `NodeId=289d45f4-2c97-498c-920e-8eb5f61c6768`.
+  - No `File download starting` entry for `NodeId=289d45f4-2c97-498c-920e-8eb5f61c6768`.
 
 Conclusion: Linux parity is restored under single-context configuration. Duplicate local context state was the blocker; server/device-identity behavior now matches Windows expectations.
 
@@ -675,22 +860,22 @@ Archived from Active Handoff on 2026-03-15 after Linux parity re-verification co
 
 - Linux (`mint-dnc-client`) pulled latest `main` and executed runtime parity verification against `mint22`.
 - Verification file created in sync root:
-    - `/home/benk/synctray/echo-reverify-linux-20260315-090808.txt`
+  - `/home/benk/synctray/echo-reverify-linux-20260315-090808.txt`
 - Runtime evidence source:
-    - `/home/benk/.local/share/DotNetCloud/logs/sync-service20260315.log`
+  - `/home/benk/.local/share/DotNetCloud/logs/sync-service20260315.log`
 - Upload evidence:
-    - `2026-03-15T09:08:08.9586056Z` `File upload starting ... echo-reverify-linux-20260315-090808.txt`
-    - `2026-03-15T09:08:09.0136307Z` `File upload complete ... NodeId=97471092-72de-4654-9217-f653d1a2059f`
+  - `2026-03-15T09:08:08.9586056Z` `File upload starting ... echo-reverify-linux-20260315-090808.txt`
+  - `2026-03-15T09:08:09.0136307Z` `File upload complete ... NodeId=97471092-72de-4654-9217-f653d1a2059f`
 - Follow-up pass evidence (unexpected behavior):
-    - `2026-03-15T09:09:09.1872615Z` `Sync pass complete ... RemoteChanges=1, LocalQueued=0, LocalApplied=1`
-    - Expected parity target was `RemoteChanges=1, LocalApplied=0` with no download.
+  - `2026-03-15T09:09:09.1872615Z` `Sync pass complete ... RemoteChanges=1, LocalQueued=0, LocalApplied=1`
+  - Expected parity target was `RemoteChanges=1, LocalApplied=0` with no download.
 - Echo download evidence for verification node:
-    - `2026-03-15T09:09:09.1531502Z` `File download starting: NodeId=97471092-72de-4654-9217-f653d1a2059f`
-    - `2026-03-15T09:09:09.2020480Z` `File download starting: NodeId=97471092-72de-4654-9217-f653d1a2059f`
+  - `2026-03-15T09:09:09.1531502Z` `File download starting: NodeId=97471092-72de-4654-9217-f653d1a2059f`
+  - `2026-03-15T09:09:09.2020480Z` `File download starting: NodeId=97471092-72de-4654-9217-f653d1a2059f`
 - Subsequent pass reached idle state:
-    - `2026-03-15T09:09:09.3059273Z` `Sync pass complete ... RemoteChanges=0, LocalQueued=0, LocalApplied=0`
+  - `2026-03-15T09:09:09.3059273Z` `Sync pass complete ... RemoteChanges=0, LocalQueued=0, LocalApplied=0`
 - Note:
-    - IPC-triggered sync (`socat` + Unix socket) was unavailable on this machine (`socat` not installed), so evidence used scheduled passes from the same runtime log.
+  - IPC-triggered sync (`socat` + Unix socket) was unavailable on this machine (`socat` not installed), so evidence used scheduled passes from the same runtime log.
 
 Conclusion: Linux parity check failed for P1 echo suppression criteria. Server/client correlation is required before closing the fix.
 
@@ -700,22 +885,22 @@ Archived from Active Handoff on 2026-03-15 after Windows runtime re-verification
 
 - Windows (`Windows11-TestDNC`) pulled latest `main` after the server-side `ChunkedUploadService` device-id fix and production DB migration application.
 - Verification file created in sync root:
-    - `C:\Users\benk\Documents\synctray\echo-reverify-20260315-014651.txt`
+  - `C:\Users\benk\Documents\synctray\echo-reverify-20260315-014651.txt`
 - Runtime evidence source:
-    - `C:\ProgramData\DotNetCloud\Sync\logs\sync-service20260315.log`
+  - `C:\ProgramData\DotNetCloud\Sync\logs\sync-service20260315.log`
 - Upload evidence:
-    - `2026-03-15T08:46:51.7198288Z` `File upload starting ... echo-reverify-20260315-014651.txt`
-    - `2026-03-15T08:46:51.7920701Z` `File upload complete ... NodeId=e2174c04-8fbd-43cc-a853-e45cc2d9dd53`
+  - `2026-03-15T08:46:51.7198288Z` `File upload starting ... echo-reverify-20260315-014651.txt`
+  - `2026-03-15T08:46:51.7920701Z` `File upload complete ... NodeId=e2174c04-8fbd-43cc-a853-e45cc2d9dd53`
 - Immediate follow-up reconciliation evidence:
-    - `2026-03-15T08:46:51.8976398Z` `Sync pass complete ... RemoteChanges=1, LocalQueued=0, LocalApplied=0`
-    - This is the expected self-originated echo case: the server reported one remote change, but Windows applied nothing locally.
+  - `2026-03-15T08:46:51.8976398Z` `Sync pass complete ... RemoteChanges=1, LocalQueued=0, LocalApplied=0`
+  - This is the expected self-originated echo case: the server reported one remote change, but Windows applied nothing locally.
 - Next scheduled pass evidence:
-    - `2026-03-15T08:49:26.7000733Z` `Sync pass complete ... RemoteChanges=0, LocalQueued=0, LocalApplied=0`
+  - `2026-03-15T08:49:26.7000733Z` `Sync pass complete ... RemoteChanges=0, LocalQueued=0, LocalApplied=0`
 - Download-path check:
-    - No `File download starting` entry exists for verification node `e2174c04-8fbd-43cc-a853-e45cc2d9dd53`.
-    - The verification file remained a single local artifact with unchanged create/write timestamp; no duplicate or conflict copy was created for that file.
+  - No `File download starting` entry exists for verification node `e2174c04-8fbd-43cc-a853-e45cc2d9dd53`.
+  - The verification file remained a single local artifact with unchanged create/write timestamp; no duplicate or conflict copy was created for that file.
 - Note on log verbosity:
-    - The explicit `Skipping self-originated change ... (device echo suppression)` message is emitted at debug level and was not present in the production Windows log configuration, so verification relied on the stronger runtime evidence above.
+  - The explicit `Skipping self-originated change ... (device echo suppression)` message is emitted at debug level and was not present in the production Windows log configuration, so verification relied on the stronger runtime evidence above.
 
 Conclusion: Windows echo suppression is working after the server-side fix and DB migration application. Next cycle advances to Linux (`mint-dnc-client`) for parity re-verification.
 
@@ -736,15 +921,15 @@ Archived from Active Handoff on 2026-03-15 after server-side sanity verification
 - Pulled latest `main` with commit `1405b5d` (Windows handoff status updates).
 - Reviewed archived Step 1 (Linux) and Step 2 (Windows) evidence — both passed clean.
 - Server-side upload endpoint sanity check (since 2026-03-14):
-    - Total `upload/initiate` requests: 547
-    - Total `upload/*/complete` requests: 456
-    - 5xx status codes: **0**
-    - Structured `StatusCode` 5xx: **0**
-    - Only errors observed: expired-token `invalid_token` 401s (normal token refresh cycle, not regressions).
+  - Total `upload/initiate` requests: 547
+  - Total `upload/*/complete` requests: 456
+  - 5xx status codes: **0**
+  - Structured `StatusCode` 5xx: **0**
+  - Only errors observed: expired-token `invalid_token` 401s (normal token refresh cycle, not regressions).
 - Cross-machine verification chain complete:
-    - Linux (`mint-dnc-client`): dedup + echo suppression verified at runtime.
-    - Windows (`Windows11-TestDNC`): dedup + echo suppression verified at runtime on `0.23.3.0` MSIX.
-    - Server (`mint22`): zero regressions under verified client runtimes.
+  - Linux (`mint-dnc-client`): dedup + echo suppression verified at runtime.
+  - Windows (`Windows11-TestDNC`): dedup + echo suppression verified at runtime on `0.23.3.0` MSIX.
+  - Server (`mint22`): zero regressions under verified client runtimes.
 
 Conclusion: Upload dedup + echo suppression story fully verified across all three machines. Chain closed.
 
@@ -753,31 +938,31 @@ Conclusion: Upload dedup + echo suppression story fully verified across all thre
 Archived from Active Handoff on 2026-03-15 after Windows-side verification completed and handoff advanced to `mint22`.
 
 - Pulled latest `main` and confirmed target client fix commit is present:
-    - `4c575cc fix: client-side upload dedup + echo suppression`
+  - `4c575cc fix: client-side upload dedup + echo suppression`
 - Client.Core tests passed on Windows:
-    - `dotnet test tests/DotNetCloud.Client.Core.Tests/`
-    - Result: `164 passed, 0 failed`.
+  - `dotnet test tests/DotNetCloud.Client.Core.Tests/`
+  - Result: `164 passed, 0 failed`.
 - Rebuilt publish payloads:
-    - `artifacts/desktop-client-staging/0.1.0-alpha/win-x64/payload/SyncService/`
-    - `artifacts/desktop-client-staging/0.1.0-alpha/win-x64/payload/SyncTray/`
+  - `artifacts/desktop-client-staging/0.1.0-alpha/win-x64/payload/SyncService/`
+  - `artifacts/desktop-client-staging/0.1.0-alpha/win-x64/payload/SyncTray/`
 - Built signed installer:
-    - `artifacts/installers/dotnetcloud-sync-tray-win-x64-0.23.3-alpha.msix`
+  - `artifacts/installers/dotnetcloud-sync-tray-win-x64-0.23.3-alpha.msix`
 - Runtime gate initially showed stale runtime (`0.23.2.0`) with hash mismatch; package cleanup completed:
-    - `Get-AppxPackage -Name "DotNetCloud.SyncTray" | Remove-AppxPackage`
-    - `APPX_UNINSTALL: SUCCESS`
+  - `Get-AppxPackage -Name "DotNetCloud.SyncTray" | Remove-AppxPackage`
+  - `APPX_UNINSTALL: SUCCESS`
 - Manual install completed for `0.23.3.0`; runtime gate then passed:
-    - `APPX_VERSION: 0.23.3.0`
-    - Service path: `C:\Program Files\WindowsApps\DotNetCloud.SyncTray_0.23.3.0_x64__xrs2wr7p8d2rc\SyncService\dotnetcloud-sync-service.exe`
-    - `SYNC_SERVICE_EXE_MATCH: True`
-    - `CLIENT_CORE_DLL_MATCH: True`
+  - `APPX_VERSION: 0.23.3.0`
+  - Service path: `C:\Program Files\WindowsApps\DotNetCloud.SyncTray_0.23.3.0_x64__xrs2wr7p8d2rc\SyncService\dotnetcloud-sync-service.exe`
+  - `SYNC_SERVICE_EXE_MATCH: True`
+  - `CLIENT_CORE_DLL_MATCH: True`
 - Runtime evidence file:
-    - `C:\ProgramData\DotNetCloud\Sync\logs\sync-service20260314.log`
+  - `C:\ProgramData\DotNetCloud\Sync\logs\sync-service20260314.log`
 - Verification file:
-    - `seq-test-windows-20260314-234612.txt`
+  - `seq-test-windows-20260314-234612.txt`
 - Runtime behavior evidence:
-    - Create event showed one upload initiation sequence (lines around `11355-11359`).
-    - Append event showed one upload initiation sequence (lines around `11442-11446`).
-    - No conflict evidence for verification file (`CONFLICT_LINES_FOR_FILE: 0`).
+  - Create event showed one upload initiation sequence (lines around `11355-11359`).
+  - Append event showed one upload initiation sequence (lines around `11442-11446`).
+  - No conflict evidence for verification file (`CONFLICT_LINES_FOR_FILE: 0`).
 
 Conclusion: Windows runtime verification passed on installed `0.23.3.0` binaries; chain advanced to Step 3 on `mint22` for final closeout.
 
@@ -797,34 +982,34 @@ Archived from Active Handoff on 2026-03-14 to make room for client-side upload d
 Archived from Active Handoff on 2026-03-15 after Linux-side verification completed and handoff advanced to Windows.
 
 - Pulled latest `main` and executed required test suite:
-    - `dotnet test tests/DotNetCloud.Client.Core.Tests/`
-    - Result: `164 passed, 0 failed`.
+  - `dotnet test tests/DotNetCloud.Client.Core.Tests/`
+  - Result: `164 passed, 0 failed`.
 - Rebuilt Linux client binaries:
-    - `dotnet publish src/Clients/DotNetCloud.Client.SyncService/DotNetCloud.Client.SyncService.csproj -c Release -r linux-x64 --self-contained -o artifacts/desktop-client-staging/0.1.0-alpha/linux-x64/payload/SyncService/`
-    - `dotnet publish src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj -c Release -r linux-x64 --self-contained -o artifacts/desktop-client-staging/0.1.0-alpha/linux-x64/payload/SyncTray/`
+  - `dotnet publish src/Clients/DotNetCloud.Client.SyncService/DotNetCloud.Client.SyncService.csproj -c Release -r linux-x64 --self-contained -o artifacts/desktop-client-staging/0.1.0-alpha/linux-x64/payload/SyncService/`
+  - `dotnet publish src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj -c Release -r linux-x64 --self-contained -o artifacts/desktop-client-staging/0.1.0-alpha/linux-x64/payload/SyncTray/`
 - Deployed and ran rebuilt binaries from:
-    - `/home/benk/.local/opt/dotnetcloud-desktop-client/SyncService/dotnetcloud-sync-service`
-    - `/home/benk/.local/opt/dotnetcloud-desktop-client/SyncTray/dotnetcloud-sync-tray`
+  - `/home/benk/.local/opt/dotnetcloud-desktop-client/SyncService/dotnetcloud-sync-service`
+  - `/home/benk/.local/opt/dotnetcloud-desktop-client/SyncTray/dotnetcloud-sync-tray`
 - Runtime evidence source:
-    - `/home/benk/.local/share/DotNetCloud/logs/sync-service20260314_001.log`
+  - `/home/benk/.local/share/DotNetCloud/logs/sync-service20260314_001.log`
 - Verification file A (`seq-test-linux-20260315T022520Z.txt`):
-    - Single upload start + initiate sequence for file creation:
-        - `02:25:29.9719697Z` `File upload starting ... seq-test-linux-20260315T022520Z.txt`
-        - `02:25:29.9722245Z` `POST /api/v1/files/upload/initiate`
-        - `02:25:30.0393849Z` `File upload complete ... seq-test-linux-20260315T022520Z.txt`
-    - Echo pass observed without conflict copy:
-        - `02:25:30.2021015Z` `Sync pass complete ... RemoteChanges=1, LocalQueued=0, LocalApplied=1`
+  - Single upload start + initiate sequence for file creation:
+    - `02:25:29.9719697Z` `File upload starting ... seq-test-linux-20260315T022520Z.txt`
+    - `02:25:29.9722245Z` `POST /api/v1/files/upload/initiate`
+    - `02:25:30.0393849Z` `File upload complete ... seq-test-linux-20260315T022520Z.txt`
+  - Echo pass observed without conflict copy:
+    - `02:25:30.2021015Z` `Sync pass complete ... RemoteChanges=1, LocalQueued=0, LocalApplied=1`
 - Verification file B (`seq-test-linux-20260315T022559Z.txt`):
-    - Single upload start + initiate sequence for file creation:
-        - `02:25:59.8492492Z` `File upload starting ... seq-test-linux-20260315T022559Z.txt`
-        - `02:25:59.8495317Z` `POST /api/v1/files/upload/initiate`
-        - `02:25:59.8993297Z` `File upload complete ... seq-test-linux-20260315T022559Z.txt`
-    - Follow-up edit produced one additional upload cycle (expected for content change), not duplicate spam:
-        - `02:26:39.8574525Z` `File upload starting ... seq-test-linux-20260315T022559Z.txt`
-        - `02:26:39.8576453Z` `POST /api/v1/files/upload/initiate`
+  - Single upload start + initiate sequence for file creation:
+    - `02:25:59.8492492Z` `File upload starting ... seq-test-linux-20260315T022559Z.txt`
+    - `02:25:59.8495317Z` `POST /api/v1/files/upload/initiate`
+    - `02:25:59.8993297Z` `File upload complete ... seq-test-linux-20260315T022559Z.txt`
+  - Follow-up edit produced one additional upload cycle (expected for content change), not duplicate spam:
+    - `02:26:39.8574525Z` `File upload starting ... seq-test-linux-20260315T022559Z.txt`
+    - `02:26:39.8576453Z` `POST /api/v1/files/upload/initiate`
 - Conflict-copy check (local filesystem):
-    - `find /home/benk/synctray -maxdepth 1 -name 'seq-test-linux-20260315T022520Z (conflict*'` -> `0`
-    - `find /home/benk/synctray -maxdepth 1 -name 'seq-test-linux-20260315T022559Z (conflict*'` -> `0`
+  - `find /home/benk/synctray -maxdepth 1 -name 'seq-test-linux-20260315T022520Z (conflict*'` -> `0`
+  - `find /home/benk/synctray -maxdepth 1 -name 'seq-test-linux-20260315T022559Z (conflict*'` -> `0`
 
 Conclusion: Linux client verification passed for dedup and echo-suppression behavior; chain handoff advanced to `Windows11-TestDNC`.
 
@@ -836,15 +1021,15 @@ Archived from Active Handoff on 2026-03-15 after optional sanity verification co
 
 - Fresh test file created: `/home/benk/synctray/upload-e2e-sanity-1773536955.txt`.
 - Client log evidence (`/home/benk/.local/share/DotNetCloud/logs/sync-service20260314.log`) confirms successful upload sequence:
-    - `2026-03-15T01:09:17.4524998Z` `POST /api/v1/files/upload/initiate` -> `201`
-    - `2026-03-15T01:09:16.7547499Z` `PUT /api/v1/files/upload/380f4de6-ec19-41a1-a686-580c6afe87e7/chunks/577e6832fad62431489ee549ad125bb24fe37f46e8c111323950ff9f65e49622` -> `200`
-    - `2026-03-15T01:09:17.1026074Z` `POST /api/v1/files/upload/84e10978-24d1-474a-a4f3-1cf016d1cbfb/complete` -> `200`
+  - `2026-03-15T01:09:17.4524998Z` `POST /api/v1/files/upload/initiate` -> `201`
+  - `2026-03-15T01:09:16.7547499Z` `PUT /api/v1/files/upload/380f4de6-ec19-41a1-a686-580c6afe87e7/chunks/577e6832fad62431489ee549ad125bb24fe37f46e8c111323950ff9f65e49622` -> `200`
+  - `2026-03-15T01:09:17.1026074Z` `POST /api/v1/files/upload/84e10978-24d1-474a-a4f3-1cf016d1cbfb/complete` -> `200`
 - Upload completion evidence:
-    - `2026-03-15T01:09:17.1071024Z` `File upload complete ... FileName=upload-e2e-sanity-1773536955.txt NodeId=f0807867-4519-4d36-909b-c04c68d589c0`
+  - `2026-03-15T01:09:17.1071024Z` `File upload complete ... FileName=upload-e2e-sanity-1773536955.txt NodeId=f0807867-4519-4d36-909b-c04c68d589c0`
 - Optional duplicate-name verification also observed:
-    - `POST .../complete` returned `409` for parallel sessions for same filename.
-    - Client log classified this as expected existing-file handling: `CompleteUpload returned 409 ... Treating as success.`
-    - No `500` observed in the verification window.
+  - `POST .../complete` returned `409` for parallel sessions for same filename.
+  - Client log classified this as expected existing-file handling: `CompleteUpload returned 409 ... Treating as success.`
+  - No `500` observed in the verification window.
 
 Conclusion: optional sanity retry passed. Upload hardening story remains green from client runtime perspective on `mint-dnc-client`.
 
@@ -854,17 +1039,17 @@ Archived from Active Handoff on 2026-03-15 after verification completed.
 
 - Fresh test file created: `/home/benk/synctray/upload-e2e-test-1773534949.txt`.
 - Client log evidence (`/home/benk/.local/share/DotNetCloud/logs/sync-service20260314.log`) shows full successful sequence:
-    - `2026-03-15T00:36:22.1527216Z` `POST /api/v1/files/upload/initiate` -> `201`
-    - `2026-03-15T00:36:22.1918408Z` `PUT /api/v1/files/upload/39ca2304-9012-4a88-83c1-b8154832d43a/chunks/9f1d9a31b19ff8659781e0ee0fb28424ab05687e12aca7aa6dc5966a40e35da9` -> `200`
-    - `2026-03-15T00:36:22.2229962Z` `POST /api/v1/files/upload/39ca2304-9012-4a88-83c1-b8154832d43a/complete` -> `200`
+  - `2026-03-15T00:36:22.1527216Z` `POST /api/v1/files/upload/initiate` -> `201`
+  - `2026-03-15T00:36:22.1918408Z` `PUT /api/v1/files/upload/39ca2304-9012-4a88-83c1-b8154832d43a/chunks/9f1d9a31b19ff8659781e0ee0fb28424ab05687e12aca7aa6dc5966a40e35da9` -> `200`
+  - `2026-03-15T00:36:22.2229962Z` `POST /api/v1/files/upload/39ca2304-9012-4a88-83c1-b8154832d43a/complete` -> `200`
 - Complete response envelope included:
-    - `id`: `280339db-3ece-4a00-8129-2a688ede1a79`
-    - `name`: `upload-e2e-test-1773534949.txt`
-    - `contentHash`: `7172fa139d61bcf795a2b5dc0d3d78756f86839f0d2776a6ec83765eaba06b25`
+  - `id`: `280339db-3ece-4a00-8129-2a688ede1a79`
+  - `name`: `upload-e2e-test-1773534949.txt`
+  - `contentHash`: `7172fa139d61bcf795a2b5dc0d3d78756f86839f0d2776a6ec83765eaba06b25`
 - Upload completion line:
-    - `2026-03-15T00:36:22.2275382Z` `File upload complete ... NodeId=280339db-3ece-4a00-8129-2a688ede1a79`
+  - `2026-03-15T00:36:22.2275382Z` `File upload complete ... NodeId=280339db-3ece-4a00-8129-2a688ede1a79`
 - Tree visibility evidence:
-    - `2026-03-15T00:36:22.2518419Z` `ReadEnvelopeDataAsync<SyncTreeNodeResponse>` from sync tree call shows updated root payload length increase (`7264`), immediately after successful complete.
+  - `2026-03-15T00:36:22.2518419Z` `ReadEnvelopeDataAsync<SyncTreeNodeResponse>` from sync tree call shows updated root payload length increase (`7264`), immediately after successful complete.
 
 Conclusion: the prior `complete` 500 class is resolved for the verification scenario; upload now completes successfully end-to-end on `mint-dnc-client`.
 
@@ -885,13 +1070,13 @@ Archived from Active Handoff on 2026-03-15 when replaced by server-side `complet
 - Verification run on `main` commit `1f0d700` (includes gzip decompression fix `af66b41`).
 - Fresh file created in sync folder: `/home/benk/synctray/upload-verify-test-1773533399.txt`.
 - Evidence confirms upload flow progressed beyond prior hash-mismatch/409 issue:
-    - `POST /api/v1/files/upload/initiate` returned `201`.
-    - Response included `missingChunks=[737b133ef2d09bb83f53a8a768068ae32dc30bd3bcd69e2a6f7ab34180bc3cc2]`.
-    - `PUT /api/v1/files/upload/{sessionId}/chunks/{hash}` returned `200` for active attempts (with one intermittent 500 on a parallel session that later retried to 200).
+  - `POST /api/v1/files/upload/initiate` returned `201`.
+  - Response included `missingChunks=[737b133ef2d09bb83f53a8a768068ae32dc30bd3bcd69e2a6f7ab34180bc3cc2]`.
+  - `PUT /api/v1/files/upload/{sessionId}/chunks/{hash}` returned `200` for active attempts (with one intermittent 500 on a parallel session that later retried to 200).
 - New blocker: `POST /api/v1/files/upload/{sessionId}/complete` consistently returned `500` across retries.
 - Observed failing session IDs:
-    - `27897c31-2d37-4649-ba52-2e5fe55bd75d`
-    - `56a55d92-b0e6-4967-9966-66fd6eec0844`
+  - `27897c31-2d37-4649-ba52-2e5fe55bd75d`
+  - `56a55d92-b0e6-4967-9966-66fd6eec0844`
 - Representative failing request IDs: `f923097bef0f4e2b92553bb02b871a00`, `d8279a0ad4654e14bf7f8f132a23b412`, `a638e6f6e7b1486d9cbc3102d79388b5`, `1b0d5f849e604c8eb2f3f0a0f1542459`, `627395a815874053b075fcb8f6365709`, `2bba60391a5e4f87aa3166c472557458`.
 - Client log evidence source: `/home/benk/.local/share/DotNetCloud/logs/sync-service20260314.log` (`2026-03-15T00:09:59Z` through `00:11:12Z`).
 - Conclusion: gzip request decompression fix resolved the original false-409 chunk hash mismatch class, but upload completion now fails server-side with 500 and requires server investigation.
@@ -912,9 +1097,9 @@ Archived from Active Handoff on 2026-03-14 when replaced by server-side 409 inve
 
 - Client log path verified: `/home/benk/.local/share/DotNetCloud/logs/sync-service20260314.log`.
 - `upload/initiate` for `seq-test-linux.txt` returned `201` with:
-    - `sessionId`: `d32c8036-ee00-4de4-bb52-8a2fd7f61504`
-    - `existingChunks`: `[]`
-    - `missingChunks`: `[5d7383609c20886a2b19d783205b90d3d28a64c6efa6c66f4c7ffa462fe50bea]`
+  - `sessionId`: `d32c8036-ee00-4de4-bb52-8a2fd7f61504`
+  - `existingChunks`: `[]`
+  - `missingChunks`: `[5d7383609c20886a2b19d783205b90d3d28a64c6efa6c66f4c7ffa462fe50bea]`
 - Client immediately issued `PUT /api/v1/files/upload/d32c8036-ee00-4de4-bb52-8a2fd7f61504/chunks/5d7383609c20886a2b19d783205b90d3d28a64c6efa6c66f4c7ffa462fe50bea`.
 - Chunk PUT response was `409 Conflict` (request reached server from client; not a silent client drop).
 - `POST /api/v1/files/upload/d32c8036-ee00-4de4-bb52-8a2fd7f61504/complete` also returned `409`, and client treated it as success for existing file semantics.
@@ -939,15 +1124,15 @@ Archived from Active Handoff on 2026-03-14 to enforce single active task policy.
 - Initial Linux bring-up on `mint-dnc-client` validated non-root service/tray startup, IPC connectivity, and OAuth discovery to `https://mint22:15443/.well-known/openid-configuration` (HTTP 200), but did not complete interactive OAuth login through a full pass.
 - Reconciliation hardening landed in `SyncEngine` to remove stale `LocalFileRecord` entries when local files are missing and re-queue missing downloads. Regression test added: `SyncAsync_ReconcileWithStaleFileRecord_RemovesRecordAndQueuesDownload`.
 - Linux runtime hardening follow-up landed:
-    - remote path resolution fallback using `ParentId` + path map,
-    - case-insensitive node-type helpers,
-    - bounded/jittered 429 Retry-After handling,
-    - selective-sync folder browser directory-type handling.
+  - remote path resolution fallback using `ParentId` + path map,
+  - case-insensitive node-type helpers,
+  - bounded/jittered 429 Retry-After handling,
+  - selective-sync folder browser directory-type handling.
 - Paced E2E run confirmed upload-path success (initiate 201, chunk/complete 409-as-success) and cursor/tree calls, but exposed rapid post-pass re-entry leading to `/api/v1/files/sync/tree` 429 pressure.
 - Per-user singleton enforcement landed for both SyncService and SyncTray using user-local lock files to prevent duplicate same-user processes.
 - Sync re-entry coalescing hardening landed in `SyncEngine`:
-    - overlapping `SyncAsync` requests now collapse into one trailing rerun,
-    - regression test added: `SyncAsync_BurstWhileRunning_CoalescesIntoSingleTrailingPass`.
+  - overlapping `SyncAsync` requests now collapse into one trailing rerun,
+  - regression test added: `SyncAsync_BurstWhileRunning_CoalescesIntoSingleTrailingPass`.
 
 ### Archived Validation Snapshot
 
@@ -964,11 +1149,12 @@ Archived from Active Handoff on 2026-03-14 to enforce single active task policy.
 Client agent completed final runtime verification on `Windows11-TestDNC` with SyncTray `0.23.2.0` after two client hardening follow-ups (404 terminal classification + reconciliation requeue suppression).
 
 **Final observed outcomes:**
+
 - `err.txt` exists locally at `C:\Users\benk\Documents\synctray\Test\err.txt` with size `0` bytes.
 - `create_admin.cs` remains missing locally (expected because server blob is missing and endpoint returns 404).
 - Latest pass log (UTC):
-    - `Sync pass starting ...` at `2026-03-13T22:55:59.7838693Z`
-    - `Sync pass complete ... DurationMs=491, RemoteChanges=0, LocalQueued=0, LocalApplied=0` at `2026-03-13T22:56:00.2752546Z`
+  - `Sync pass starting ...` at `2026-03-13T22:55:59.7838693Z`
+  - `Sync pass complete ... DurationMs=491, RemoteChanges=0, LocalQueued=0, LocalApplied=0` at `2026-03-13T22:56:00.2752546Z`
 
 **Conclusion:** retry churn and reconciliation requeue churn are both resolved for this incident. No active cross-machine blocker remains.
 
@@ -979,12 +1165,13 @@ Client agent verified the server-side sync fixes (cursor path + rate limit raise
 **Test procedure:** Wiped `state.db` in MSIX service context (`ff717557-133a-49b7-b91f-0ab8cecaceee`) at `C:\WINDOWS\system32\config\systemprofile\AppData\Local\DotNetCloud\Sync\`, preserved `.tok` auth file, restarted `DotNetCloudSync` service.
 
 **Results (4 sync passes observed: 16:12, 16:17, 16:17:47, 16:18:09 UTC):**
-- `GET /api/v1/files/sync/changes?limit=500` → **200 OK** (6ms). Client received cursor-based Object format (proven by subsequent pass using `cursor=MDE5Y2MxYWMtZGE0Mi03MzdjLWIwYWItZDBmMmVjY2E4MDE5OjA%3D`). ✅
-- `GET /api/v1/files/sync/tree` → **200 OK** (8–25ms). ✅
-- `POST /connect/token` (refresh) → **200 OK** (209ms). ✅
-- **Zero 429 errors** across all 4 passes. ✅
-- **Zero 404 errors.** ✅
-- **Zero Error-level log entries.** ✅
+
+- `GET /api/v1/files/sync/changes?limit=500` → **200 OK** (6ms). Client received cursor-based Object format (proven by subsequent pass using `cursor=MDE5Y2MxYWMtZGE0Mi03MzdjLWIwYWItZDBmMmVjY2E4MDE5OjA%3D`). [OK]
+- `GET /api/v1/files/sync/tree` → **200 OK** (8–25ms). [OK]
+- `POST /connect/token` (refresh) → **200 OK** (209ms). [OK]
+- **Zero 429 errors** across all 4 passes. [OK]
+- **Zero 404 errors.** [OK]
+- **Zero Error-level log entries.** [OK]
 - Files on disk: 8 files synced (from prior download), local state.db cursor persisted correctly.
 - FileSystemWatcher reactive sync working — file creation/rename triggers immediate sync passes.
 
@@ -993,6 +1180,7 @@ Client agent verified the server-side sync fixes (cursor path + rate limit raise
 ## Archived: Sync Changes Shape + Rate Limit Fix (2026-03-13)
 
 Server agent fixed two sync blockers:
+
 1. **`SyncController` cursor path**: `Core.Server/Controllers/SyncController.cs` was using the legacy `since` path (returning `IReadOnlyList<SyncChangeDto>` flat array) instead of the cursor path (`PagedSyncChangesDto`). Updated controller to match `Files.Host` implementation — now supports `cursor`, `since` (legacy), `limit`, and `folderId` params. No cursor/since → cursor path returns `{changes, nextCursor, hasMore}`.
 2. **Chunk download rate limit**: `appsettings.json` `ModuleLimits.chunks` raised from 3000 → 10000 permits/60s to prevent 429s during initial sync bursts.
 
@@ -1024,44 +1212,47 @@ Server agent created 8 new `.razor.css` files and overhauled 6 existing ones (14
 
 ## Resolved Issues (Issues #1–#22, 2026-03-07 to 2026-03-08)
 
-| # | Issue | Root Cause | Fix | Side |
-|---|-------|-----------|-----|------|
-| 1 | `invalid_client` on authorize | `dotnetcloud-desktop` not registered | Added OIDC client seeder with upsert | Server |
-| 2 | `invalid_scope` on authorize | `files:read`/`files:write` not registered | Added scope registration + client permissions | Server |
-| 3 | `404` on `GET /connect/authorize` | Only `POST` mapped | Changed to `GET`+`POST` mapping | Server |
-| 4 | Login redirect to wrong path | `/login` instead of `/auth/login` | Corrected redirect path | Server |
-| 5 | Placeholder JSON on authenticated authorize | Not calling OpenIddict `SignIn` | Reworked passthrough to issue `SignIn` | Server |
-| 6 | TLS errors on token exchange | Self-signed cert not trusted by client | Client-side bypass for local/LAN hosts | Client |
-| 7 | Token JSON field mapping | Snake_case `access_token` etc. not mapped | Client DTO mapping + typed HttpClient | Client |
-| 8 | `UserId = Guid.Empty` | Access tokens encrypted (JWE); no OIDC claims; no userinfo endpoint | `DisableAccessTokenEncryption()`, DB claim lookup, userinfo registration | Server |
-| 9 | Sync endpoints `404` | `SyncController` in `Files.Host` (not loaded) | Added `SyncController` to `Core.Server` | Server |
-| 10 | TLS errors on sync API calls | `DotNetCloudSync` named HttpClient had no cert bypass | Added cert bypass to named client registration | Client |
-| 11 | Sync calls required `userId` query param | Server controller bound `userId` from query string | Derived `CallerContext` from bearer claims; removed `userId` param | Server |
-| 12 | Sync response deserialization mismatch | Server returned envelope-wrapped sync payloads | Changed sync responses from `Ok(Envelope(...))` to `Ok(...)` | Server |
-| 13 | Token refresh was a stub | `RefreshAccessTokenAsync` did nothing | Implemented actual refresh: API call → save tokens → update accessor | Client |
-| 14 | Missing `client_id` in refresh request | OpenIddict requires `client_id` for public clients | Added `clientId` parameter to `RefreshTokenAsync` | Client |
-| 15 | `DateTime` serialization bug — tokens appear unexpired | `DateTimeKind` lost after JSON roundtrip | Changed `ExpiresAt` from `DateTime` to `DateTimeOffset` across client chain | Client |
-| 16 | Refresh token `invalid_grant` | Ephemeral RSA keys regenerated on every restart | Created `OidcKeyManager` for persistent PEM key files; fixed config key names | Server |
-| 17 | Sync API returns 403 with valid bearer token | No `[Authorize]` attribute; default auth scheme was cookies | Added OpenIddict bearer `[Authorize]` to `FilesControllerBase` | Server |
-| 18 | Files API returns 403 "Caller user ID does not match" | 20 `FilesController` endpoints used `[FromQuery] Guid userId` | Changed all to `GetAuthenticatedCaller()`; removed `userId` param | Server |
-| 19 | Files API responses double-envelope wrapped | `Ok(Envelope(data))` + `ResponseEnvelopeMiddleware` | Removed `Envelope()` calls; middleware handles wrapping | Server |
-| 20 | Sync changes endpoint returns 500 | `since` parsed as `DateTime Kind=Unspecified`; Npgsql rejects for `timestamptz` | `DateTime.SpecifyKind(since, DateTimeKind.Utc)`; added general exception handler | Server |
-| 21 | Chunk manifest deserialization failure | Server returns `string[]`; client expected object with `Chunks`+`TotalSize` | Client deserializes `List<string>` and maps to `ChunkManifestResponse` | Client |
-| 22 | Sync flattens directory structure | `ResolveLocalPathAsync` used filename only, ignoring `ParentId` | Client fetches folder tree, builds `nodeId→path` map, creates dirs before files | Client |
+| #   | Issue                                                  | Root Cause                                                                      | Fix                                                                              | Side   |
+| --- | ------------------------------------------------------ | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | ------ |
+| 1   | `invalid_client` on authorize                          | `dotnetcloud-desktop` not registered                                            | Added OIDC client seeder with upsert                                             | Server |
+| 2   | `invalid_scope` on authorize                           | `files:read`/`files:write` not registered                                       | Added scope registration + client permissions                                    | Server |
+| 3   | `404` on `GET /connect/authorize`                      | Only `POST` mapped                                                              | Changed to `GET`+`POST` mapping                                                  | Server |
+| 4   | Login redirect to wrong path                           | `/login` instead of `/auth/login`                                               | Corrected redirect path                                                          | Server |
+| 5   | Placeholder JSON on authenticated authorize            | Not calling OpenIddict `SignIn`                                                 | Reworked passthrough to issue `SignIn`                                           | Server |
+| 6   | TLS errors on token exchange                           | Self-signed cert not trusted by client                                          | Client-side bypass for local/LAN hosts                                           | Client |
+| 7   | Token JSON field mapping                               | Snake_case `access_token` etc. not mapped                                       | Client DTO mapping + typed HttpClient                                            | Client |
+| 8   | `UserId = Guid.Empty`                                  | Access tokens encrypted (JWE); no OIDC claims; no userinfo endpoint             | `DisableAccessTokenEncryption()`, DB claim lookup, userinfo registration         | Server |
+| 9   | Sync endpoints `404`                                   | `SyncController` in `Files.Host` (not loaded)                                   | Added `SyncController` to `Core.Server`                                          | Server |
+| 10  | TLS errors on sync API calls                           | `DotNetCloudSync` named HttpClient had no cert bypass                           | Added cert bypass to named client registration                                   | Client |
+| 11  | Sync calls required `userId` query param               | Server controller bound `userId` from query string                              | Derived `CallerContext` from bearer claims; removed `userId` param               | Server |
+| 12  | Sync response deserialization mismatch                 | Server returned envelope-wrapped sync payloads                                  | Changed sync responses from `Ok(Envelope(...))` to `Ok(...)`                     | Server |
+| 13  | Token refresh was a stub                               | `RefreshAccessTokenAsync` did nothing                                           | Implemented actual refresh: API call → save tokens → update accessor             | Client |
+| 14  | Missing `client_id` in refresh request                 | OpenIddict requires `client_id` for public clients                              | Added `clientId` parameter to `RefreshTokenAsync`                                | Client |
+| 15  | `DateTime` serialization bug — tokens appear unexpired | `DateTimeKind` lost after JSON roundtrip                                        | Changed `ExpiresAt` from `DateTime` to `DateTimeOffset` across client chain      | Client |
+| 16  | Refresh token `invalid_grant`                          | Ephemeral RSA keys regenerated on every restart                                 | Created `OidcKeyManager` for persistent PEM key files; fixed config key names    | Server |
+| 17  | Sync API returns 403 with valid bearer token           | No `[Authorize]` attribute; default auth scheme was cookies                     | Added OpenIddict bearer `[Authorize]` to `FilesControllerBase`                   | Server |
+| 18  | Files API returns 403 "Caller user ID does not match"  | 20 `FilesController` endpoints used `[FromQuery] Guid userId`                   | Changed all to `GetAuthenticatedCaller()`; removed `userId` param                | Server |
+| 19  | Files API responses double-envelope wrapped            | `Ok(Envelope(data))` + `ResponseEnvelopeMiddleware`                             | Removed `Envelope()` calls; middleware handles wrapping                          | Server |
+| 20  | Sync changes endpoint returns 500                      | `since` parsed as `DateTime Kind=Unspecified`; Npgsql rejects for `timestamptz` | `DateTime.SpecifyKind(since, DateTimeKind.Utc)`; added general exception handler | Server |
+| 21  | Chunk manifest deserialization failure                 | Server returns `string[]`; client expected object with `Chunks`+`TotalSize`     | Client deserializes `List<string>` and maps to `ChunkManifestResponse`           | Client |
+| 22  | Sync flattens directory structure                      | `ResolveLocalPathAsync` used filename only, ignoring `ParentId`                 | Client fetches folder tree, builds `nodeId→path` map, creates dirs before files  | Client |
 
 ## Verified State at Milestone Completion
 
 ### Server (mint22, commit `69dd5eb`)
+
 - Build: 0 errors, 0 warnings
 - Tests: 304 server + 85 auth + 513 files = 902 passed
 - Health: `https://localhost:15443/health/live` → Healthy
 
 ### Client (Windows11-TestDNC, commit `6a9ccb0`)
+
 - Build: 0 errors, 0 warnings
 - Tests: 53 Core + 24 SyncService + 24 SyncTray = 101 passed
 - Sync: 7 files into correct subdirectories with full directory hierarchy
 
 ### End-to-End Flow Verified
+
 OAuth login → token exchange → sync changes → tree → reconcile → chunk manifest → chunk download → file assembly. 7 files synced into `clients/`, `Finance/`, `Pictures/`, `Test/`, and root.
 
 ---
@@ -1070,31 +1261,31 @@ OAuth login → token exchange → sync changes → tree → reconcile → chunk
 
 Archived: 2026-03-09. Full git history preserved in commits `c69aeac` through `c70bd47`.
 
-| # | Issue | Commit(s) | Side |
-|---|-------|-----------|------|
-| 23 | Batch 1 Task 1.1 — Sync Service Logging | `c69aeac` | Client |
-| 24 | Batch 1 Task 1.1b — Audit Logging | `c585dae` | Server |
-| 25 | Batch 1 Task 1.2 — Request Correlation IDs | `97afdd8` | Client |
-| 26 | Batch 1 Task 1.3 — Rate Limiting | `4570c16` | Server |
-| 27 | Batch 1 Task 1.4 — Chunk Integrity (SHA-256) | Windows 2026-03-08 | Client |
-| 28 | Batch 1 Tasks 1.5/1.6/1.7 — Retry / WAL / Upload Queue | `1aa6b18` | Client |
-| 29 | Batch 1 Tasks 1.8/1.9 — Temp-file atomicity / Malware scanning stub | `82ca53b` | Client |
-| 30 | Batch 2 Task 2.1 — CDC chunking (FastCDC) | `3a7e0ae` / `bc9e08a` | Both |
-| 31 | Batch 2 Task 2.2 — Streaming upload/download pipeline | `7cbc12e` | Both |
-| 32 | Batch 2 Task 2.3 — Brotli compression for chunk transfers | `032f6a2` | Both |
-| 33 | Batch 3 Task 3.1 — `.syncignore` pattern matching | `a9c6812` | Client |
-| 34 | Batch 3 Task 3.2 — Persistent upload sessions (crash recovery) | `4243328` | Client |
-| 35 | Batch 3 Task 3.3 — Locked file handling (VSS on Windows) | `b971551` | Client |
-| 36 | Batch 3 Task 3.4 — Per-file transfer progress in Tray UI | `7f93226` | Client |
-| 37 | Batch 3 Task 3.5 — Conflict resolution UI (DiffPlex 5-strategy) | `8508afc` | Client |
-| 38 | Batch 2 Tasks 2.4+2.5 — Server-issued sync cursor + paginated changes | `c81495d` / `1a9c4c6` | Both |
-| 39 | Batch 2 Task 2.6 — ETag / chunk-download file-system cache | `c81495d` / `1a9c4c6` | Both |
-| 40 | Batch 3 Task 3.6 — Idempotent upload operations (hash pre-check) | `3504932` | Client |
-| 41 | Batch 4 Task 4.1 — Case-sensitivity conflict detection (NAME_CONFLICT) | `3504932` | Client |
-| 42 | Batch 4 Task 4.2 — POSIX permission metadata sync | `c70bd47` | Both |
-| 43 | Batch 4 Task 4.3 — Symbolic link policy | Server `d3a6422`, Client `1cd594a` | Both |
-| 44 | Batch 4 Task 4.4 — inotify/inode health monitoring | Server `d3a6422`, Client `1cd594a` | Both |
-| 45 | Batch 4 Task 4.5 — Path length/filename compatibility validation | Server `d3a6422`, Client `1cd594a` | Both |
+| #   | Issue                                                                  | Commit(s)                          | Side   |
+| --- | ---------------------------------------------------------------------- | ---------------------------------- | ------ |
+| 23  | Batch 1 Task 1.1 — Sync Service Logging                                | `c69aeac`                          | Client |
+| 24  | Batch 1 Task 1.1b — Audit Logging                                      | `c585dae`                          | Server |
+| 25  | Batch 1 Task 1.2 — Request Correlation IDs                             | `97afdd8`                          | Client |
+| 26  | Batch 1 Task 1.3 — Rate Limiting                                       | `4570c16`                          | Server |
+| 27  | Batch 1 Task 1.4 — Chunk Integrity (SHA-256)                           | Windows 2026-03-08                 | Client |
+| 28  | Batch 1 Tasks 1.5/1.6/1.7 — Retry / WAL / Upload Queue                 | `1aa6b18`                          | Client |
+| 29  | Batch 1 Tasks 1.8/1.9 — Temp-file atomicity / Malware scanning stub    | `82ca53b`                          | Client |
+| 30  | Batch 2 Task 2.1 — CDC chunking (FastCDC)                              | `3a7e0ae` / `bc9e08a`              | Both   |
+| 31  | Batch 2 Task 2.2 — Streaming upload/download pipeline                  | `7cbc12e`                          | Both   |
+| 32  | Batch 2 Task 2.3 — Brotli compression for chunk transfers              | `032f6a2`                          | Both   |
+| 33  | Batch 3 Task 3.1 — `.syncignore` pattern matching                      | `a9c6812`                          | Client |
+| 34  | Batch 3 Task 3.2 — Persistent upload sessions (crash recovery)         | `4243328`                          | Client |
+| 35  | Batch 3 Task 3.3 — Locked file handling (VSS on Windows)               | `b971551`                          | Client |
+| 36  | Batch 3 Task 3.4 — Per-file transfer progress in Tray UI               | `7f93226`                          | Client |
+| 37  | Batch 3 Task 3.5 — Conflict resolution UI (DiffPlex 5-strategy)        | `8508afc`                          | Client |
+| 38  | Batch 2 Tasks 2.4+2.5 — Server-issued sync cursor + paginated changes  | `c81495d` / `1a9c4c6`              | Both   |
+| 39  | Batch 2 Task 2.6 — ETag / chunk-download file-system cache             | `c81495d` / `1a9c4c6`              | Both   |
+| 40  | Batch 3 Task 3.6 — Idempotent upload operations (hash pre-check)       | `3504932`                          | Client |
+| 41  | Batch 4 Task 4.1 — Case-sensitivity conflict detection (NAME_CONFLICT) | `3504932`                          | Client |
+| 42  | Batch 4 Task 4.2 — POSIX permission metadata sync                      | `c70bd47`                          | Both   |
+| 43  | Batch 4 Task 4.3 — Symbolic link policy                                | Server `d3a6422`, Client `1cd594a` | Both   |
+| 44  | Batch 4 Task 4.4 — inotify/inode health monitoring                     | Server `d3a6422`, Client `1cd594a` | Both   |
+| 45  | Batch 4 Task 4.5 — Path length/filename compatibility validation       | Server `d3a6422`, Client `1cd594a` | Both   |
 
 ### Verified State at Batch 1–4.5 Completion
 
@@ -1116,9 +1307,11 @@ Active entries should remain in the handoff doc; older completed updates belong 
 **Status:** in-progress ☐
 
 ### Send to Server Agent
+
 Execute Sprint A for `phase-1.19.2` in `tests/DotNetCloud.Integration.Tests/`.
 
 Required coverage:
+
 1. REST CRUD/tree/search/favorites end-to-end tests.
 2. Chunked upload E2E tests (initiate, upload, complete, dedup behavior, quota rejection path).
 3. Version/share/trash end-to-end tests.
@@ -1126,30 +1319,33 @@ Required coverage:
 5. Provider matrix execution notes: PostgreSQL required; SQL Server if available.
 
 ### Request Back
+
 - commit hash: `<SERVER_COMMIT_HASH>`
 - exact tests added/updated (file paths + test names):
-	- `<tests/DotNetCloud.Integration.Tests/...>`
-	- `<TestClass.TestName>`
+  - `<tests/DotNetCloud.Integration.Tests/...>`
+  - `<TestClass.TestName>`
 - raw endpoint/URL used for any failing test:
-	- `<METHOD /api/v1/...>`
+  - `<METHOD /api/v1/...>`
 - raw error/query params:
-	- `<error payload / query string>`
+  - `<error payload / query string>`
 - raw log lines around failure (timestamped):
-	- `<2026-03-10T..Z ...>`
+  - `<2026-03-10T..Z ...>`
 - intentionally deferred coverage (if any):
-	- `<deferred item + reason>`
+  - `<deferred item + reason>`
 
 ### Server Progress Checklist
-- ✓ Test-gap inventory posted
-- ✓ New REST integration tests added
-- ✓ New chunked upload E2E tests added
-- ✓ New version/share/trash E2E tests added
-- ✓ WOPI + sync smoke tests added
+
+- [x] Test-gap inventory posted
+- [x] New REST integration tests added
+- [x] New chunked upload E2E tests added
+- [x] New version/share/trash E2E tests added
+- [x] WOPI + sync smoke tests added
 - ☐ PostgreSQL run completed
-- ✓ SQL Server run attempted/documented
-- ✓ Evidence returned (commit/tests/logs)
+- [x] SQL Server run attempted/documented
+- [x] Evidence returned (commit/tests/logs)
 
 ### Build/Test Commands (run from repo root on `mint22`)
+
 - `dotnet build tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj`
 - `dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj`
 - `dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj --filter "FullyQualifiedName~Files"`
@@ -1161,26 +1357,30 @@ Required coverage:
 **Status:** in-progress ☐
 
 **Coverage inventory before changes (integration project):**
+
 - Existing Files coverage concentrated in isolation tests (`FilesRestIsolationIntegrationTests`, `FilesGrpcIsolationIntegrationTests`).
 - Non-files coverage present for auth/health and DB matrix scaffolding.
 - Gaps confirmed: broader CRUD workflow assertions, sync/WOPI smoke in REST class, and deeper end-to-end chunk/version/share/trash matrix scenarios.
 
 **Completed in this update:**
+
 - Added first Sprint A REST workflow expansion in `tests/DotNetCloud.Integration.Tests/Api/FilesRestIsolationIntegrationTests.cs`:
-	- `FileListSearchFavoritesAndRecent_WorkForOwner`
-	- `SyncEndpoints_TreeChangesAndReconcile_ReturnSuccess`
-	- `WopiDiscoveryEndpoints_ReturnExpectedShape`
+  - `FileListSearchFavoritesAndRecent_WorkForOwner`
+  - `SyncEndpoints_TreeChangesAndReconcile_ReturnSuccess`
+  - `WopiDiscoveryEndpoints_ReturnExpectedShape`
 - Hardened payload handling in integration assertions for raw + envelope responses:
-	- `tests/DotNetCloud.Integration.Tests/Infrastructure/ApiAssert.cs`
+  - `tests/DotNetCloud.Integration.Tests/Infrastructure/ApiAssert.cs`
 - Added `DataOrRoot` handling in Files REST integration tests for mixed response shapes.
 
 **Test evidence (local run on mint22):**
+
 - Command:
-	- `dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj --filter "FullyQualifiedName~FilesRestIsolationIntegrationTests"`
+  - `dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj --filter "FullyQualifiedName~FilesRestIsolationIntegrationTests"`
 - Result:
-	- total: 7, failed: 0, succeeded: 7, skipped: 0
+  - total: 7, failed: 0, succeeded: 7, skipped: 0
 
 **Still pending in Sprint A:**
+
 - Chunked upload E2E depth (resume/dedup/quota permutations beyond isolation path)
 - Version/share/trash end-to-end depth expansion
 - PostgreSQL and SQL Server matrix execution notes for new tests
@@ -1192,25 +1392,28 @@ Required coverage:
 **Status:** in-progress ☐
 
 **Completed in this update:**
+
 - Added deeper Files REST integration tests in `tests/DotNetCloud.Integration.Tests/Api/FilesRestIsolationIntegrationTests.cs`:
-	- `UploadInitiation_ReportsExistingChunks_ForDedup`
-	- `ShareLifecycle_CreateUpdateRevoke_WorksForOwner`
-	- `VersionEndpoints_ListGetAndLabel_WorkForUploadedFile`
-	- `TrashLifecycle_ListSizeAndPurge_WorksForOwner`
+  - `UploadInitiation_ReportsExistingChunks_ForDedup`
+  - `ShareLifecycle_CreateUpdateRevoke_WorksForOwner`
+  - `VersionEndpoints_ListGetAndLabel_WorkForUploadedFile`
+  - `TrashLifecycle_ListSizeAndPurge_WorksForOwner`
 - Expanded response-shape unwrapping helper in the same file to handle nested `data` envelopes.
 
 **Test evidence (local run on mint22):**
-- Command:
-	- `dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj --filter "FullyQualifiedName~FilesRestIsolationIntegrationTests"`
-- Result:
-	- total: 11, failed: 0, succeeded: 11, skipped: 0
 
 - Command:
-	- `dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj --filter "FullyQualifiedName~Files"`
+  - `dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj --filter "FullyQualifiedName~FilesRestIsolationIntegrationTests"`
 - Result:
-	- total: 14, failed: 0, succeeded: 14, skipped: 0
+  - total: 11, failed: 0, succeeded: 11, skipped: 0
+
+- Command:
+  - `dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj --filter "FullyQualifiedName~Files"`
+- Result:
+  - total: 14, failed: 0, succeeded: 14, skipped: 0
 
 **Remaining Sprint A gaps:**
+
 - Provider matrix execution notes for the expanded suite (PostgreSQL required, SQL Server if available).
 
 ### Sprint A Update #4 - Provider Matrix Execution Notes (Server)
@@ -1220,17 +1423,20 @@ Required coverage:
 **Status:** in-progress ☐
 
 **Command executed:**
+
 - `dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj --filter "FullyQualifiedName~MultiDatabaseMatrixTests"`
-	- Result: total 21, succeeded 21, failed 0 (in-memory naming-strategy matrix)
+  - Result: total 21, succeeded 21, failed 0 (in-memory naming-strategy matrix)
 
 - `dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj --filter "FullyQualifiedName~DockerDatabaseIntegrationTests"`
-	- Result: total 12, succeeded 0, skipped 12, failed 0
+  - Result: total 12, succeeded 0, skipped 12, failed 0
 
 **Interpretation:**
+
 - SQL Server path was attempted and documented via `DockerDatabaseIntegrationTests`, but no runnable SQL Server source was detected in this environment (tests skipped).
 - PostgreSQL real-container execution was also unavailable in this environment (tests skipped), so PostgreSQL-required real-provider confirmation remains blocked pending container/runtime availability.
 
 **Next action to close Sprint A matrix requirement:**
+
 - Re-run `DockerDatabaseIntegrationTests` on a host with Docker available (or with reachable local SQL Server for SQL lane) and attach raw pass/fail logs.
 
 ## Sprint A Archive Continuation (Phase 1.19.2 - updates #5-#9, archived 2026-03-10)
@@ -1242,6 +1448,7 @@ Required coverage:
 **Status at time of update:** in-progress ☐
 
 **Command executed:**
+
 - `dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj --filter "FullyQualifiedName~FilesRestIsolationIntegrationTests"` (11/11)
 - `dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj --filter "FullyQualifiedName~Files"` (14/14)
 - `dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj --filter "FullyQualifiedName~MultiDatabaseMatrixTests"` (21/21)
@@ -1254,6 +1461,7 @@ Required coverage:
 **Status at time of update:** in-progress ☐
 
 **Tests added/updated (`FilesRestIsolationIntegrationTests.cs`):**
+
 - `WopiFileEndpoints_CheckGetPut_WorkWithGeneratedToken`
 - `VersionRestore_RestoresPreviousContent`
 - `TrashRestore_WorkflowRestoresNodeVisibility`
@@ -1261,10 +1469,12 @@ Required coverage:
 - `BulkOperations_MoveCopyDeleteAndPermanentDelete_ReturnExpectedCounts`
 
 **Results:**
+
 - Files rest filter: 16/16 passed
 - Files filter: 19/19 passed
 
 **Iteration note:**
+
 - WOPI token path handled disabled provider guard (`DB_INVALID_OPERATION`) correctly.
 
 ### Sprint A Update #7 - Provider Matrix Retry (Server, Linux host)
@@ -1274,18 +1484,21 @@ Required coverage:
 **Status at time of update:** in-progress ☐
 
 **Command executed:**
+
 - `docker --version && docker ps --format '{{.Names}}' && dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj --filter "FullyQualifiedName~DockerDatabaseIntegrationTests"`
 
 **Result:**
+
 - Docker runtime missing on host (`docker` command not found), provider matrix still blocked in this attempt.
 
 ### Sprint A Update #8 - Provider Matrix Completed (Server, Linux host)
 
 **Date:** 2026-03-10  
 **Owner:** Server (`Linux workspace`)  
-**Status at time of update:** completed ✅
+**Status at time of update:** completed [OK]
 
 **Key points:**
+
 - Docker confirmed available (`Docker version 28.2.2`).
 - `DatabaseContainerFixture` hardened with thread-safe Docker detection and `/usr/bin/docker` fallback.
 - `DockerDatabaseIntegrationTests`: 12/12 passed.
@@ -1296,13 +1509,15 @@ Required coverage:
 
 **Date:** 2026-03-10  
 **Owner:** Server (`Windows workspace`)  
-**Status at time of update:** completed ✅
+**Status at time of update:** completed [OK]
 
 **Command executed:**
+
 - `dotnet test tests\DotNetCloud.Client.Core.Tests\DotNetCloud.Client.Core.Tests.csproj --filter "FullyQualifiedName~DotNetCloudApiClientTests"` (20/20)
 - `dotnet test tests\DotNetCloud.Client.Core.Tests\DotNetCloud.Client.Core.Tests.csproj --filter "FullyQualifiedName~SyncEngineTests"` (28/28)
 
 **Assessment:**
+
 - No response-envelope contract regressions.
 - No auth-flow regressions for Files/sync endpoint assumptions.
 
@@ -1311,9 +1526,10 @@ Required coverage:
 ### Issue #46: Batch 5 Task 5.1 - Bandwidth Throttling
 
 **Side:** Client-only  
-**Status:** completed ✅
+**Status:** completed [OK]
 
 **Archived implementation summary:**
+
 - Added `UploadLimitKbps` / `DownloadLimitKbps` on `SyncContext`.
 - Implemented `ThrottledStream` token-bucket throttling.
 - Implemented `ThrottledHttpHandler` for upload/download stream throttling.
@@ -1324,9 +1540,10 @@ Required coverage:
 ### Issue #47: Batch 5 Task 5.2 - Selective Sync Folder Browser
 
 **Side:** Client-only  
-**Status:** completed ✅
+**Status:** completed [OK]
 
 **Archived implementation summary:**
+
 - Added `FolderBrowserItemViewModel` with three-state checkbox propagation.
 - Added `FolderBrowserViewModel` for tree load + selective sync rule persistence.
 - Added Avalonia folder browser view/dialog integration.
@@ -1342,6 +1559,7 @@ Required coverage:
 **Status at time of update:** in-progress ☐
 
 **Archived implementation summary:**
+
 - Added transport-level caller identity model (`IpcCallerIdentity`) at IPC boundary.
 - Enforced context ownership and caller-filtered `list-contexts`/push events.
 - Added deterministic identity-denial semantics (`Caller identity unavailable.`, `Context not found or inaccessible.`).
@@ -1355,11 +1573,11 @@ Required coverage:
 **Status at time of update:** in-progress ☐
 
 **Archived implementation summary:**
+
 - Added explicit disk-full detection in `SyncEngine` (Win32 disk-full HRESULT and ENOSPC-style Linux/macOS message patterns).
 - On disk-full, sync transitions to `SyncState.Error`, pauses additional sync attempts, and surfaces deterministic user-facing `LastError`.
 - Added regression coverage in `SyncEngineTests` for disk-full pause behavior.
 - Targeted test execution: 1/1 passed.
-
 
 ## Handoff Compaction Backfill (2026-03-11)
 
@@ -1382,9 +1600,9 @@ Purpose: Shared handoff between client-side and server-side agents, mediated by 
 - All technical findings and debugging conclusions go in this document, pushed to `main`.
 - Mediator role is relay-only — commit notifications and cross-agent request forwarding.
 - Keep this handoff lean: when resolved/completed history causes the file to grow beyond active use,
-    move completed blocks to `CLIENT_SERVER_MEDIATION_ARCHIVE.md` and leave a short reference pointer.
+  move completed blocks to `CLIENT_SERVER_MEDIATION_ARCHIVE.md` and leave a short reference pointer.
 - Archive cadence for Sprint work: keep only current sprint kickoff + latest 1-2 update entries in this file;
-    move older completed updates to archive.
+  move older completed updates to archive.
 - Start-of-handoff archive check (automatic): at the beginning of every new handoff/update cycle, verify this file only contains active sprint kickoff + latest 1-2 updates; immediately move older completed blocks to `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
 - Moderator relay standard (default): keep relay prompts to one simple line unless extra detail is explicitly requested.
 - Preferred relay text for new work handoff: `New commit on main with handoff updates. Pull and resume from the current checklist.`
@@ -1403,13 +1621,15 @@ Purpose: Shared handoff between client-side and server-side agents, mediated by 
 **Issues #1–#45 fully resolved.** See [CLIENT_SERVER_MEDIATION_ARCHIVE.md](CLIENT_SERVER_MEDIATION_ARCHIVE.md) for details.
 
 **Batch 4 — ALL ISSUES RESOLVED:**
-- Issue #43 (Task 4.3): Symbolic link policy — server ✅ `d3a6422`, client ✅ `1cd594a`
-- Issue #44 (Task 4.4): inotify/inode health monitoring — server ✅ `d3a6422`, client ✅ `1cd594a`
-- Issue #45 (Task 4.5): Path length/filename validation — server ✅ `d3a6422`, client ✅ `1cd594a`
+
+- Issue #43 (Task 4.3): Symbolic link policy — server [OK] `d3a6422`, client [OK] `1cd594a`
+- Issue #44 (Task 4.4): inotify/inode health monitoring — server [OK] `d3a6422`, client [OK] `1cd594a`
+- Issue #45 (Task 4.5): Path length/filename validation — server [OK] `d3a6422`, client [OK] `1cd594a`
 
 **Batch 5 — ALL ISSUES RESOLVED:**
-- Issue #46 (Task 5.1): Bandwidth throttling — client ✅ complete
-- Issue #47 (Task 5.2): Selective sync folder browser — client ✅ complete
+
+- Issue #46 (Task 5.1): Bandwidth throttling — client [OK] complete
+- Issue #47 (Task 5.2): Selective sync folder browser — client [OK] complete
 
 **All sync improvement batches (1–5) are now complete.** The sync improvement plan is closed.
 See [SYNC_IMPROVEMENT_PLAN.md](SYNC_IMPROVEMENT_PLAN.md) for full history.
@@ -1427,9 +1647,9 @@ Next prioritized implementation target is `phase-2.4` (Chat REST API Endpoints).
 
 ## Environment
 
-| | Machine | Detail |
-|---|---------|--------|
-| Server | `mint22` | `https://mint22:15443/` |
+|        | Machine             | Detail                                       |
+| ------ | ------------------- | -------------------------------------------- |
+| Server | `mint22`            | `https://mint22:15443/`                      |
 | Client | `Windows11-TestDNC` | Sync dir: `C:\Users\benk\Documents\synctray` |
 
 ## Key Architecture Decisions (Carry Forward)
@@ -1443,9 +1663,11 @@ Next prioritized implementation target is `phase-2.4` (Chat REST API Endpoints).
 
 ```markdown
 ### Send to [Server|Client] Agent
+
 <message text>
 
 ### Request Back
+
 - commit hash
 - raw endpoint/URL used
 - raw error/query params
@@ -1461,6 +1683,7 @@ Next prioritized implementation target is `phase-2.4` (Chat REST API Endpoints).
 **Status:** ready for server follow-up 🔄
 
 **Summary of client-side alignment completed:**
+
 - Android chat REST client updated to `api/v1/chat` routes.
 - Request parsing updated for server envelope shapes (`success`, `data`, paged payloads).
 - `userId` query now supplied on chat/push endpoints by extracting GUID `sub` from access token.
@@ -1468,20 +1691,24 @@ Next prioritized implementation target is `phase-2.4` (Chat REST API Endpoints).
 - Android project build verified after patch (`dotnet build ... -f net10.0-android` succeeded).
 
 **Files changed (client):**
+
 - `src/Clients/DotNetCloud.Client.Android/Chat/HttpChatRestClient.cs`
 - `src/Clients/DotNetCloud.Client.Android/Services/AccessTokenUserIdExtractor.cs` (new)
 - `src/Clients/DotNetCloud.Client.Android/Services/FcmPushService.cs`
 - `src/Clients/DotNetCloud.Client.Android/Services/UnifiedPushService.cs`
 
 **Server-side follow-up needed (blockers for full end-to-end):**
+
 1. **OIDC client registration for mobile:** Android uses `client_id=dotnetcloud-mobile` + redirect `net.dotnetcloud.client://oauth2redirect`; server seeder currently registers only desktop client (`dotnetcloud-desktop` + localhost redirect).
 2. **SignalR contract confirmation:** Android currently expects chat-focused hub patterns; server real-time default hub path is `/hubs/core` and event/method naming needs explicit compatibility confirmation for unread/new-message paths.
 3. **Caller identity contract decision:** Current chat host requires `userId` query on most endpoints. If server intends bearer-derived caller identity (no query), publish that change before Android auth hardening is finalized.
 
 ### Send to Server Agent
+
 New client contract-alignment patch is on `main`. Please pull and continue with server follow-up for mobile OIDC client seeding, SignalR event contract confirmation, and caller identity strategy (query vs bearer-derived).
 
 ### Request Back
+
 - commit hash
 - confirmed OIDC client IDs + redirect URIs for Android
 - confirmed SignalR hub path + event names for unread/new-message
@@ -1491,49 +1718,54 @@ New client contract-alignment patch is on `main`. Please pull and continue with 
 
 **Date:** 2026-03-10  
 **Owner:** Client (`Windows workspace`)  
-**Status:** completed and pushed ✅
+**Status:** completed and pushed [OK]
 
 **Commit hash:** `ed2a000`
 
 **Summary of completed client scope:**
+
 - Step 6 (Phase 2.9): regression checklist pass completed and documented.
 - Step 7 (Phase 2.10 in client plan): release hardening pass completed for chat UI surfaces.
 - Tracking docs synchronized: `docs/development/PHASE_2_5_2_10_CLIENT_PLAN.md`, `docs/IMPLEMENTATION_CHECKLIST.md`, `docs/MASTER_PROJECT_PLAN.md`.
 
 **Code areas updated (client-side):**
+
 - Chat UI hardening in:
-    - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChannelList.razor`
-    - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChannelList.razor.cs`
-    - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChannelList.razor.css`
-    - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/AnnouncementList.razor`
-    - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/AnnouncementList.razor.cs`
-    - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/AnnouncementList.razor.css` (new)
-    - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/MessageList.razor`
-    - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/MessageList.razor.cs`
-    - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/MessageList.razor.css`
-    - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/DirectMessageView.razor`
-    - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/DirectMessageView.razor.cs`
+  - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChannelList.razor`
+  - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChannelList.razor.cs`
+  - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChannelList.razor.css`
+  - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/AnnouncementList.razor`
+  - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/AnnouncementList.razor.cs`
+  - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/AnnouncementList.razor.css` (new)
+  - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/MessageList.razor`
+  - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/MessageList.razor.cs`
+  - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/MessageList.razor.css`
+  - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/DirectMessageView.razor`
+  - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/DirectMessageView.razor.cs`
 - SyncTray settings UX polish in:
-    - `src/Clients/DotNetCloud.Client.SyncTray/Views/SettingsWindow.axaml`
+  - `src/Clients/DotNetCloud.Client.SyncTray/Views/SettingsWindow.axaml`
 
 **Validation evidence:**
+
 - `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj` -> 252 passed, 0 failed
 - `dotnet test tests/DotNetCloud.Client.SyncTray.Tests/DotNetCloud.Client.SyncTray.Tests.csproj` -> 54 passed, 0 failed
 - Regression full-suite run (Step 6): `dotnet test` -> 2013 total, 0 failed, 2000 passed, 13 skipped
 
 **Server-facing impact assessment:**
+
 - No API contract-breaking changes introduced in this client update.
 - Changes are UI/UX hardening and client behavior only (`IsLoading`/`ErrorMessage` rendering paths, accessibility metadata, empty/error/loading states).
 - No immediate server hotfix required from this handoff.
 
 ### Send to Server Agent
+
 New commit on main (`ed2a000`) with completed client Phase 2.9 regression pass and Step 7 release hardening. Pull latest main, review handoff section in `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`, then continue from next prioritized server-owned step in `docs/MASTER_PROJECT_PLAN.md`.
 
 ### Client Handoff — Phase 2.8 Remaining Items (Windows workspace)
 
 **Date:** 2026-03-10
 **Owner:** Client (`Windows workspace`)
-**Status:** completed and pushed ✅
+**Status:** completed and pushed [OK]
 
 **Baseline commit:** `95a4e2b`
 
@@ -1547,6 +1779,7 @@ Do not modify server projects.
 #### Item 1 — `ChatNotificationBadge`: distinguish mentions from regular unread (real-time update)
 
 **Current state:**
+
 - `HasMentions` in `ChatNotificationBadge.razor.cs` is `TotalUnread > 0` — it does not separately track mention count.
 - `ISignalRChatService.UnreadCountUpdated` has signature `Action<Guid, int>` (channelId, unreadCount only) — no mention count is forwarded to the badge.
 - The `.razor` already renders `has-mentions` CSS class based on `HasMentions`, but the class is applied whenever there are any unread messages, not only when there are mentions.
@@ -1555,9 +1788,11 @@ Do not modify server projects.
 
 1. **`src/Modules/Chat/DotNetCloud.Modules.Chat/Services/SignalRChatService.cs`** —
    Add a second event to `ISignalRChatService`:
+
    ```csharp
    event Action<Guid, int>? MentionCountUpdated;
    ```
+
    Follow the same pattern as `UnreadCountUpdated`. Add it to `NullSignalRChatService` with the same `#pragma disable CS0067` stub treatment.
 
 2. **`src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChatNotificationBadge.razor.cs`** —
@@ -1584,6 +1819,7 @@ Do not modify server projects.
 #### Item 2 — `AnnouncementEditor`: preview before publishing — add unit test coverage
 
 **Current state:**
+
 - `AnnouncementEditor.razor` already renders a complete Edit/Preview tab pair with a Markdown-rendered preview pane (`TogglePreview`, `IsPreviewMode`, `RenderMarkdown`).
 - `AnnouncementEditor.razor.cs` already has `TogglePreview()`, `IsPreviewMode`, `IsSaveDisabled`, `RenderMarkdown()`, and full `OnParametersSet` population.
 - **No test file exists** for `AnnouncementEditor`. The checklist item is `☐ Preview before publishing` and is the only open sub-item.
@@ -1605,12 +1841,46 @@ Do not modify server projects.
 ---
 
 **Acceptance criteria (both items):**
+
 - `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj` — all pass, 0 failed.
 - `dotnet build` — succeeded.
 - `HasMentions` on badge is `false` when there are unread messages but zero mentions.
+
+---
+
+## Archived: Files Module Host OpenIddict Validation Deploy (2026-06-21)
+
+**Target:** cloud.dotnetcloud.net (production)
+
+**Problem:** Desktop sync client (`SyncStreamListener`) sent `Authorization: Bearer <jwt>` to Files module REST APIs, but the Files module host only had `Identity.Application` cookie auth registered.
+
+**Fix on `fix/files-module-bearer-auth` (commits `b45b1691` + `9387eb2d`):**
+
+- Replaced JwtBearer with `OpenIddict.Validation.AspNetCore` (v7.2.0)
+- Added `OpenIddict.Validation.SystemNetHttp` package + `.UseSystemNetHttp()` — `SetIssuer()` triggers server discovery, needs HTTP client
+- Policy scheme (`DotNetCloud.Module`) routes Bearer → `OpenIddict.Validation.AspNetCore`, cookie → `Identity.Application`
+- 13 controllers changed from `[Authorize(AuthenticationSchemes = "Identity.Application")]` → `[Authorize]`
+- Added post-publish dependency sync to `deploy.sh`
+
+**Deploy execution (cloud.dotnetcloud.net, 2026-06-21):**
+
+1. [OK] Full `--force` deploy — 14/14 module hosts published
+2. [OK] Dependency sync ran — all transitive NuGet assemblies copied
+3. [OK] Service restarted, health 200
+
+**Verification:**
+
+- Health: 200 [OK]
+- Files module health check: **200** [OK] (was 500)
+- Files API (no auth): 401 (expected) [OK]
+- SSE with `Bearer test`: **401** [OK] (was 500)
+
+**Key lesson:** Module hosts using `SetIssuer()` with OpenIddict validation must also call `.UseSystemNetHttp()` and reference the `OpenIddict.Validation.SystemNetHttp` package.
+
 - `HasMentions` on badge is `true` only when mention count > 0.
 
 **Request back (strict format):**
+
 ```
 Phase: 2.8 remaining items
 Commit: <hash>
@@ -1660,6 +1930,7 @@ Blockers (if any): none
 ```
 
 ### Request Back
+
 - commit hash
 - step/phase resumed from `docs/MASTER_PROJECT_PLAN.md`
 - tests executed (commands + pass/fail counts)
@@ -1669,15 +1940,17 @@ Blockers (if any): none
 
 **Date:** 2026-03-10
 **Owner:** Client (`Windows workspace`)
-**Status:** ready for handoff ✅
+**Status:** ready for handoff [OK]
 
 **Baseline commit:** `67d4559`
 
 **Planning decision:**
+
 - Do not treat Windows notification grouping as a balloon-tip approximation task.
 - The user wants the desktop chat path to support **quick reply**, so the remaining Phase 2.9 work should use a real Windows toast-notification foundation rather than extending `Shell_NotifyIcon` balloon tips further.
 
 **Current Windows limitation to replace:**
+
 - `src/Clients/DotNetCloud.Client.SyncTray/Notifications/WindowsNotificationService.cs` currently uses `Shell_NotifyIcon` balloon notifications via a hidden message-only window.
 - That path is sufficient for basic popup + click-to-open, but it is the wrong primitive for real grouping and future quick reply.
 
@@ -1686,27 +1959,27 @@ Blockers (if any): none
 #### Required implementation order
 
 1. **Windows toast-notification migration**
-     - Replace or supersede `WindowsNotificationService` with a toast-based implementation.
-     - Add the Windows registration/bootstrap pieces required for desktop toast delivery and activation.
-     - Preserve current click-to-open chat activation behavior.
+   - Replace or supersede `WindowsNotificationService` with a toast-based implementation.
+   - Add the Windows registration/bootstrap pieces required for desktop toast delivery and activation.
+   - Preserve current click-to-open chat activation behavior.
 
 2. **Notification grouping semantics**
-     - Extend `INotificationService` to carry grouping metadata (channel/conversation key, replacement/group identifier as needed).
-     - Implement per-channel grouping/replacement on Windows using toast metadata.
-     - Keep Linux grouping/replacement aligned where possible using `notify-send` replacement/group behavior.
+   - Extend `INotificationService` to carry grouping metadata (channel/conversation key, replacement/group identifier as needed).
+   - Implement per-channel grouping/replacement on Windows using toast metadata.
+   - Keep Linux grouping/replacement aligned where possible using `notify-send` replacement/group behavior.
 
 3. **Quick reply foundation**
-     - Add a desktop chat send path suitable for SyncTray (prefer a reusable client-core abstraction, not Android-only reuse from `src/UI/DotNetCloud.UI.Android/Services/ChatApiClient.cs`).
-     - Wire notification activation or action flow to open a quick-reply experience for a specific channel/conversation.
-     - Support send-message execution through REST/API client plumbing.
+   - Add a desktop chat send path suitable for SyncTray (prefer a reusable client-core abstraction, not Android-only reuse from `src/UI/DotNetCloud.UI.Android/Services/ChatApiClient.cs`).
+   - Wire notification activation or action flow to open a quick-reply experience for a specific channel/conversation.
+   - Support send-message execution through REST/API client plumbing.
 
 4. **Typing indicator while composing**
-     - While the quick-reply UI is open, emit typing updates if practical through the available chat transport.
-     - If typing cannot be emitted from the notification surface directly, document the precise blocker and fallback design.
+   - While the quick-reply UI is open, emit typing updates if practical through the available chat transport.
+   - If typing cannot be emitted from the notification surface directly, document the precise blocker and fallback design.
 
 5. **Tray mention-vs-message visual badge state**
-     - `TrayViewModel` already computes `ChatUnreadCount` and `ChatHasMentions`.
-     - Update `TrayIconManager` icon rendering so mentions are visually distinct from generic unread messages.
+   - `TrayViewModel` already computes `ChatUnreadCount` and `ChatHasMentions`.
+   - Update `TrayIconManager` icon rendering so mentions are visually distinct from generic unread messages.
 
 ---
 
@@ -1731,75 +2004,83 @@ Blockers (if any): none
 #### Technical Design Plan (finish this design before broad implementation)
 
 **Recommended architecture decision:**
+
 - Keep Linux notification delivery on the current `notify-send` path and extend it only for grouping/replacement metadata.
 - Replace the Windows-only `Shell_NotifyIcon` balloon path with a **toast-backed Windows notification service**.
 - Keep all toast-specific code isolated behind `INotificationService` so SyncTray view-models remain platform-agnostic.
 - Do **not** build quick reply on top of the Android-specific chat client; promote a reusable chat send abstraction into `DotNetCloud.Client.Core`.
 
 **Recommended Windows toast approach:**
+
 - Use a toolkit-backed desktop toast implementation for unpackaged Win32/.NET desktop apps, wrapped entirely inside `WindowsNotificationService`.
 - The package choice should support:
-    - building toast content with text + actions + optional text input,
-    - toast activation callback handling for unpackaged desktop apps,
-    - tag/group metadata for per-channel grouping/replacement,
-    - Action Center persistence semantics.
+  - building toast content with text + actions + optional text input,
+  - toast activation callback handling for unpackaged desktop apps,
+  - tag/group metadata for per-channel grouping/replacement,
+  - Action Center persistence semantics.
 - Keep the exact package/version decision in the client return under `Design decisions:` because package naming may vary by current NuGet availability; do not spread toast library types across the broader app.
 
 **Notification abstraction redesign:**
+
 - Replace the current `ShowNotification(title, body, type, actionUrl)`-only shape with a request object, for example:
-    - `Title`
-    - `Body`
-    - `NotificationType`
-    - `ActionUrl`
-    - `ConversationKey` / `ChannelId`
-    - `GroupKey`
-    - `ReplaceKey` / `Tag`
-    - `SupportsQuickReply`
-    - `QuickReplyPlaceholder`
+  - `Title`
+  - `Body`
+  - `NotificationType`
+  - `ActionUrl`
+  - `ConversationKey` / `ChannelId`
+  - `GroupKey`
+  - `ReplaceKey` / `Tag`
+  - `SupportsQuickReply`
+  - `QuickReplyPlaceholder`
 - Add a notification activation callback object/event rather than only `Action<string>` so activation can distinguish:
-    - open-chat
-    - quick-reply-submit
-    - dismiss / default activation
+  - open-chat
+  - quick-reply-submit
+  - dismiss / default activation
 - Preserve compatibility for existing call sites by updating `TrayViewModel` only once the new request model exists.
 
 **Client-core chat send foundation:**
+
 - Preferred path: add a reusable `IChatApiClient` (or similarly named interface) under `src/Clients/DotNetCloud.Client.Core/`.
 - Minimum methods needed for quick reply:
-    - `SendMessageAsync(Guid channelId, SendMessageDto dto, ...)`
-    - `MarkAsReadAsync(Guid channelId, Guid messageId, ...)`
-    - `NotifyTypingAsync(Guid channelId, ...)` if typing will be emitted from quick reply
+  - `SendMessageAsync(Guid channelId, SendMessageDto dto, ...)`
+  - `MarkAsReadAsync(Guid channelId, Guid messageId, ...)`
+  - `NotifyTypingAsync(Guid channelId, ...)` if typing will be emitted from quick reply
 - Reuse existing client-core primitives instead of inventing a second auth stack:
-    - `IDotNetCloudApiClient`
-    - `ITokenStore`
-    - existing OAuth/token storage from `ClientCoreServiceExtensions`
+  - `IDotNetCloudApiClient`
+  - `ITokenStore`
+  - existing OAuth/token storage from `ClientCoreServiceExtensions`
 - If extending `IDotNetCloudApiClient` for chat would make that interface too broad, create a dedicated chat API client in Client.Core that reuses the same `HttpClient` + token-loading pattern.
 
 **Quick reply UX plan:**
+
 - Target Windows first because that is where toast reply is the priority.
 - Preferred UX order:
-    1. Toast notification contains a reply affordance tied to the channel/conversation.
-    2. If inline text input submission is reliable in the chosen toast activation model, use it.
-    3. If inline input is not reliable in the current unpackaged Avalonia deployment, fallback within Phase 2.9 to opening a minimal `QuickReplyWindow` pre-addressed to the channel from the toast action.
+  1. Toast notification contains a reply affordance tied to the channel/conversation.
+  2. If inline text input submission is reliable in the chosen toast activation model, use it.
+  3. If inline input is not reliable in the current unpackaged Avalonia deployment, fallback within Phase 2.9 to opening a minimal `QuickReplyWindow` pre-addressed to the channel from the toast action.
 - The fallback is acceptable only if the blocker is clearly documented with package/runtime evidence; do not silently downgrade to a plain open-chat action.
 
 **Typing-indicator design:**
+
 - Emit typing only when the reply UI remains open long enough to justify it.
 - If inline toast reply does not provide a practical typing cadence, emit typing only from the fallback `QuickReplyWindow`.
 - Keep typing best-effort; send-message reliability is the higher priority acceptance criterion.
 
 **Tray icon badge design:**
+
 - Do not entangle tray icon rendering with notification service implementation details.
 - Add a pure mapping layer or helper in SyncTray that derives visual badge state from:
-    - `OverallState`
-    - `ChatUnreadCount`
-    - `ChatHasMentions`
+  - `OverallState`
+  - `ChatUnreadCount`
+  - `ChatHasMentions`
 - Suggested visual policy:
-    - base icon color continues to reflect sync state,
-    - unread adds a subtle chat indicator,
-    - mentions add a stronger/high-priority indicator distinct from normal unread.
+  - base icon color continues to reflect sync state,
+  - unread adds a subtle chat indicator,
+  - mentions add a stronger/high-priority indicator distinct from normal unread.
 - Unit-test the mapping logic without requiring Avalonia tray integration.
 
 **Implementation order (recommended sequence):**
+
 1. Redesign `INotificationService` to use a notification request/activation model.
 2. Implement Windows toast service behind that abstraction, preserving click-to-open behavior first.
 3. Add grouping/tag semantics and verify same-channel replacement/grouping behavior.
@@ -1810,6 +2091,7 @@ Blockers (if any): none
 8. Update tests and docs/checklists/plan items together.
 
 **Minimum acceptance criteria for phase closeout:**
+
 - Windows notifications are toast-based, not balloon-tip based.
 - Repeated notifications from the same channel are grouped or replaced deterministically.
 - Quick reply can send a message to the targeted channel without opening the full browser chat UI.
@@ -1819,6 +2101,7 @@ Blockers (if any): none
 - `dotnet build` passes.
 
 **Risk notes to document during implementation:**
+
 - Exact Windows toast activation/package prerequisites for unpackaged Avalonia desktop deployment.
 - Whether inline reply input is reliable enough to keep, or whether the fallback `QuickReplyWindow` is required.
 - Any Linux grouping limitations versus the Windows implementation.
@@ -1845,21 +2128,22 @@ Blockers (if any):
 
 Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER_PROJECT_PLAN.md` (`phase-2.4`).
 
-- ✓ Sprint A kickoff sent
-- ✓ Sprint A complete (`phase-1.19.2`)
-- ✓ Sprint B kickoff sent (`phase-1.15` deferred hardening)
-- ✓ Sprint B complete (`phase-1.15` deferred hardening)
-- ✓ Sprint C complete (`phase-1.12` deferred UX/media)
+- [x] Sprint A kickoff sent
+- [x] Sprint A complete (`phase-1.19.2`)
+- [x] Sprint B kickoff sent (`phase-1.15` deferred hardening)
+- [x] Sprint B complete (`phase-1.15` deferred hardening)
+- [x] Sprint C complete (`phase-1.12` deferred UX/media)
 
 ### Phase 2.3 Update #1 - Service Hardening + Verification (Server, Linux workspace)
 
 **Date:** 2026-03-10  
 **Owner:** Server (`Linux workspace`)  
-**Status:** completed ✅
+**Status:** completed [OK]
 
 **Commit hash:** `260199c`
 
 **Files added/updated:**
+
 - `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/Services/ChannelMemberService.cs`
 - `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/Services/ReactionService.cs`
 - `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/Services/PinService.cs`
@@ -1873,43 +2157,48 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 - `docs/MASTER_PROJECT_PLAN.md`
 
 **Tests added/updated:**
+
 - `tests/DotNetCloud.Modules.Chat.Tests/ChannelMemberServiceTests.cs`
-    - `WhenOwnerAddsMemberThenMembershipIsCreated`
-    - `WhenNonAdminAddsMemberThenUnauthorizedAccessExceptionIsThrown`
-    - `WhenOutsiderListsMembersThenUnauthorizedAccessExceptionIsThrown`
-    - `WhenOwnerDemotesLastOwnerThenInvalidOperationExceptionIsThrown`
-    - `WhenCallerMarksReadWithInvalidMessageThenInvalidOperationExceptionIsThrown`
-    - `WhenGetUnreadCountsThenMentionsIncludeAllAndChannelTypes`
-    - `WhenRemovingLastOwnerThenInvalidOperationExceptionIsThrown`
+  - `WhenOwnerAddsMemberThenMembershipIsCreated`
+  - `WhenNonAdminAddsMemberThenUnauthorizedAccessExceptionIsThrown`
+  - `WhenOutsiderListsMembersThenUnauthorizedAccessExceptionIsThrown`
+  - `WhenOwnerDemotesLastOwnerThenInvalidOperationExceptionIsThrown`
+  - `WhenCallerMarksReadWithInvalidMessageThenInvalidOperationExceptionIsThrown`
+  - `WhenGetUnreadCountsThenMentionsIncludeAllAndChannelTypes`
+  - `WhenRemovingLastOwnerThenInvalidOperationExceptionIsThrown`
 - `tests/DotNetCloud.Modules.Chat.Tests/ReactionServiceTests.cs`
-    - `WhenAddReactionWithWhitespaceEmojiThenEmojiIsTrimmed`
-    - `WhenAddReactionAsNonMemberThenThrowsUnauthorizedAccessException`
-    - `WhenRemoveReactionAsNonMemberThenThrowsUnauthorizedAccessException`
-    - `WhenAddReactionThenReactionAddedEventContainsExpectedPayload`
-    - `WhenRemoveReactionThenReactionRemovedEventContainsExpectedPayload`
+  - `WhenAddReactionWithWhitespaceEmojiThenEmojiIsTrimmed`
+  - `WhenAddReactionAsNonMemberThenThrowsUnauthorizedAccessException`
+  - `WhenRemoveReactionAsNonMemberThenThrowsUnauthorizedAccessException`
+  - `WhenAddReactionThenReactionAddedEventContainsExpectedPayload`
+  - `WhenRemoveReactionThenReactionRemovedEventContainsExpectedPayload`
 - `tests/DotNetCloud.Modules.Chat.Tests/PinServiceTests.cs`
-    - `WhenPinMessageAsNonMemberThenThrowsUnauthorizedAccessException`
-    - `WhenPinMessageFromDifferentChannelThenThrowsInvalidOperationException`
-    - `WhenGetPinnedMessagesThenLatestPinIsReturnedFirst`
+  - `WhenPinMessageAsNonMemberThenThrowsUnauthorizedAccessException`
+  - `WhenPinMessageFromDifferentChannelThenThrowsInvalidOperationException`
+  - `WhenGetPinnedMessagesThenLatestPinIsReturnedFirst`
 - `tests/DotNetCloud.Modules.Chat.Tests/TypingIndicatorServiceTests.cs`
-    - `WhenNotifyTypingWithEmptyChannelThenThrowsArgumentException`
-    - `WhenTypingEntryExpiresThenUserIsRemoved`
+  - `WhenNotifyTypingWithEmptyChannelThenThrowsArgumentException`
+  - `WhenTypingEntryExpiresThenUserIsRemoved`
 
 **Verification commands and results:**
+
 - `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj`
-    - Final result: total 197, succeeded 197, failed 0, skipped 0
+  - Final result: total 197, succeeded 197, failed 0, skipped 0
 - `dotnet build`
-    - Final result: succeeded (full solution)
+  - Final result: succeeded (full solution)
 
 **Raw failing assertion/error text seen during iteration (fixed):**
+
 - `WhenMultipleUsersReactThenCountIsCorrect`: `System.UnauthorizedAccessException: User <guid> is not a member of channel <guid>.`
-    - Fix applied: test now adds the second caller as a channel member before reacting.
+  - Fix applied: test now adds the second caller as a channel member before reacting.
 
 **Raw log snippets around authorization/event issues:**
+
 - No runtime log-line capture in test harness (services are constructed with `NullLogger<T>` in unit tests).
 - Added server-side warning/info logging statements in services for denied reaction/pin/member-management actions and reaction add/remove events.
 
 **Intentionally deferred items:**
+
 - Client-side compatibility validation pass (DTO/view-model/API-consumer assumptions) is deferred to the client workspace handoff.
 - No Phase 2.4/2.5 work started in this update.
 
@@ -1917,11 +2206,12 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 
 **Date:** 2026-03-10  
 **Owner:** Client (`Windows workspace`)  
-**Status:** completed ✅
+**Status:** completed [OK]
 
 **Commit hash:** `9bcbcbf`
 
 **Client paths reviewed:**
+
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/DTOs/ChatDtos.cs`
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/ChatApiClient.cs`
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ViewModels.cs`
@@ -1931,6 +2221,7 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 - `src/UI/DotNetCloud.UI.Android/Services/SignalRChatService.cs`
 
 **Server paths validated against client assumptions:**
+
 - `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/Services/ChannelMemberService.cs`
 - `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/Services/ReactionService.cs`
 - `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/Services/PinService.cs`
@@ -1938,24 +2229,28 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 - `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Controllers/ChatController.cs`
 
 **Payload shape examples checked:**
+
 - `GET api/v1/chat/unread?userId=<guid>` -> `success: true`, `data: UnreadCountDto[]` with `channelId`, `unreadCount`, `mentionCount`
 - `GET api/v1/chat/channels/<channelId>/pins?userId=<guid>` -> `success: true`, `data: MessageDto[]` (ordered by latest pin first)
 - `GET api/v1/chat/channels/<channelId>/typing` -> `success: true`, `data: TypingIndicatorDto[]` (5-second in-memory expiry)
 - `POST api/v1/chat/messages/<messageId>/reactions?userId=<guid>` -> `success: true`, `data.added: true` on success
 
 **Validation result (client contract):**
+
 - DTO shape/nullability for `UnreadCountDto`, `MessageDto`, `MessageReactionDto`, and `TypingIndicatorDto` remains compatible with current client/UI consumers.
 - Behavior assumptions validated:
-    - Unread and mention counts include `@all` and `@channel` mentions after last-read boundary.
-    - Pinned message retrieval preserves latest-pin-first ordering.
-    - Typing indicators expire after 5 seconds and are channel-isolated.
+  - Unread and mention counts include `@all` and `@channel` mentions after last-read boundary.
+  - Pinned message retrieval preserves latest-pin-first ordering.
+  - Typing indicators expire after 5 seconds and are channel-isolated.
 - No mandatory client code changes required for Phase 2.3 acceptance.
 
 **Mismatches found / follow-up actions:**
+
 - Follow-up (server): align Chat REST controller exception mapping for hardened authorization paths (`reactions`, `pins`, `typing`) to deterministic API responses instead of unhandled 500s when service-level `UnauthorizedAccessException` / `InvalidOperationException` bubbles.
 - Follow-up (client, non-blocking): once Phase 2.4 endpoints are finalized, add client integration tests for unread/pin/typing endpoint envelopes and denial-path handling.
 
 **Intentionally deferred items:**
+
 - No client runtime implementation changes in this update (validation-only pass).
 - No Phase 2.4/2.5 implementation work started.
 
@@ -1963,11 +2258,12 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 
 **Date:** 2026-03-10  
 **Owner:** Server (`Linux workspace`)  
-**Status:** completed ✅ (incremental phase-2.4 scope)
+**Status:** completed [OK] (incremental phase-2.4 scope)
 
 **Commit hash:** `7ccc3d1`
 
 **Files added/updated:**
+
 - `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Controllers/ChatController.cs`
 - `tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj`
 - `tests/DotNetCloud.Modules.Chat.Tests/ChatControllerTests.cs` (new)
@@ -1976,6 +2272,7 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 - `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`
 
 **Implemented in this update:**
+
 1. Added deterministic REST exception mapping for member endpoints (`AddMember`, `RemoveMember`, `GetMembers`, `UpdateMemberRole`, `UpdateNotificationPreference`, `MarkAsRead`) to return expected 403/404 instead of unhandled 500 paths.
 2. Added deterministic mapping for reaction endpoints (`AddReaction`, `RemoveReaction`) including 400 for validation (`ArgumentException`) and 403/404 for auth/not-found conditions.
 3. Added deterministic mapping for pin endpoints (`PinMessage`, `UnpinMessage`, `GetPinnedMessages`) to return 403/404 on service denials/not-found.
@@ -1983,26 +2280,31 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 5. Added controller-level unit tests to validate status-code mapping behavior with mocked services.
 
 **Tests added/updated:**
+
 - `tests/DotNetCloud.Modules.Chat.Tests/ChatControllerTests.cs`
-    - `AddReactionAsync_WhenUnauthorized_ThenReturnsForbidResult`
-    - `PinMessageAsync_WhenUnauthorized_ThenReturnsForbidResult`
-    - `RemoveMemberAsync_WhenUnauthorized_ThenReturnsForbidResult`
-    - `NotifyTypingAsync_WhenInvalidArgument_ThenReturnsBadRequest`
-    - `GetPinnedMessagesAsync_WhenInvalidOperation_ThenReturnsNotFound`
+  - `AddReactionAsync_WhenUnauthorized_ThenReturnsForbidResult`
+  - `PinMessageAsync_WhenUnauthorized_ThenReturnsForbidResult`
+  - `RemoveMemberAsync_WhenUnauthorized_ThenReturnsForbidResult`
+  - `NotifyTypingAsync_WhenInvalidArgument_ThenReturnsBadRequest`
+  - `GetPinnedMessagesAsync_WhenInvalidOperation_ThenReturnsNotFound`
 
 **Verification commands and results:**
+
 - `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj`
-    - Result: total 202, succeeded 202, failed 0, skipped 0
+  - Result: total 202, succeeded 202, failed 0, skipped 0
 - `dotnet build`
-    - Result: succeeded (full solution)
+  - Result: succeeded (full solution)
 
 **Raw failing assertion/error text:**
+
 - None in this update.
 
 **Raw log snippets around authorization/event issues:**
+
 - No runtime log-line capture in controller unit tests (mocked services + status code assertions).
 
 **Intentionally deferred items:**
+
 - Full phase-2.4 completion criteria (controller decomposition decision and endpoint-level integration/API verification) remain open.
 - No phase-2.5 implementation started in this update.
 
@@ -2010,52 +2312,60 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 
 **Date:** 2026-03-10  
 **Owner:** Server (`Linux workspace`)  
-**Status:** completed ✅
+**Status:** completed [OK]
 
 **Commit hash:** `5a6563c`
 
 **Files added/updated:**
+
 - `tests/DotNetCloud.Modules.Chat.Tests/ChatControllerTests.cs`
 - `docs/IMPLEMENTATION_CHECKLIST.md`
 - `docs/MASTER_PROJECT_PLAN.md`
 - `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`
 
 **Implemented in this update:**
+
 1. Added API verification coverage for success-envelope and denial-path status behavior in `ChatControllerTests`.
 2. Verified endpoint completion criteria for phase-2.4 using consolidated `ChatController` scope (functional equivalent to split-controller task list).
 3. Updated phase tracking artifacts to mark phase-2.4 completed and set next target to phase-2.5.
 
 **Tests added/updated:**
+
 - `tests/DotNetCloud.Modules.Chat.Tests/ChatControllerTests.cs`
-    - `AddReactionAsync_WhenSuccessful_ThenReturnsEnvelopeWithAddedFlag`
-    - `RemoveReactionAsync_WhenMessageMissing_ThenReturnsNotFound`
-    - `MarkAsReadAsync_WhenUnauthorized_ThenReturnsForbidResult`
-    - `GetUnreadCountsAsync_WhenSuccessful_ThenReturnsEnvelope`
+  - `AddReactionAsync_WhenSuccessful_ThenReturnsEnvelopeWithAddedFlag`
+  - `RemoveReactionAsync_WhenMessageMissing_ThenReturnsNotFound`
+  - `MarkAsReadAsync_WhenUnauthorized_ThenReturnsForbidResult`
+  - `GetUnreadCountsAsync_WhenSuccessful_ThenReturnsEnvelope`
 
 **Verification commands and results:**
+
 - `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj`
-    - Result: total 206, succeeded 206, failed 0, skipped 0
+  - Result: total 206, succeeded 206, failed 0, skipped 0
 - `dotnet build`
-    - Result: succeeded (full solution)
+  - Result: succeeded (full solution)
 
 **Raw failing assertion/error text:**
+
 - None in this update.
 
 **Raw log snippets around authorization/event issues:**
+
 - No runtime log-line capture in controller unit tests (mocked services + status code and envelope assertions).
 
 **Intentionally deferred items:**
+
 - No phase-2.5 implementation started in this update.
 
 ### Phase 2.5 Update #1 - SignalR Group Lifecycle + Reconnect Hardening (Server, mint22)
 
 **Date:** 2026-03-10  
 **Owner:** Server (`mint22`)  
-**Status:** completed ✅ (incremental phase-2.5 scope)
+**Status:** completed [OK] (incremental phase-2.5 scope)
 
 **Commit hash:** `f9e5453`
 
 **Files added/updated:**
+
 - `src/Core/DotNetCloud.Core.Server/RealTime/UserConnectionTracker.cs`
 - `src/Core/DotNetCloud.Core.Server/RealTime/RealtimeBroadcasterService.cs`
 - `src/Core/DotNetCloud.Core.Server/RealTime/CoreHub.cs`
@@ -2071,50 +2381,56 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 - `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`
 
 **Implemented in this update:**
+
 1. Added persistent per-user SignalR group membership tracking to `UserConnectionTracker` (`AddGroupMembership`, `RemoveGroupMembership`, `GetGroups`) so channel group intent survives disconnects.
 2. Updated `RealtimeBroadcasterService` to persist/clear tracked memberships on `AddToGroupAsync` and `RemoveFromGroupAsync`.
 3. Updated `CoreHub.OnConnectedAsync` to re-join all tracked groups for the connecting user/connection.
 4. Wired chat data-layer lifecycle to realtime groups:
-     - `ChannelService`: add all initial members to channel group on create/DM create; remove all members from group on delete.
-     - `ChannelMemberService`: add/remove member group membership on join/leave.
+   - `ChannelService`: add all initial members to channel group on create/DM create; remove all members from group on delete.
+   - `ChannelMemberService`: add/remove member group membership on join/leave.
 5. Added focused coverage across core realtime + chat service tests.
 
 **Tests added/updated:**
+
 - `tests/DotNetCloud.Core.Server.Tests/RealTime/CoreHubTests.cs`
-    - `WhenUserHasTrackedGroupsThenOnConnectedAddsConnectionToEachGroup`
+  - `WhenUserHasTrackedGroupsThenOnConnectedAddsConnectionToEachGroup`
 - `tests/DotNetCloud.Core.Server.Tests/RealTime/UserConnectionTrackerTests.cs`
-    - `WhenGroupMembershipAddedThenGetGroupsReturnsGroup`
-    - `WhenGroupMembershipRemovedThenGetGroupsReturnsEmpty`
-    - `WhenUserGoesOfflineThenGroupMembershipIsRetained`
-    - `WhenGroupNameIsNullThenAddGroupMembershipThrows`
-    - `WhenGroupNameIsNullThenRemoveGroupMembershipThrows`
+  - `WhenGroupMembershipAddedThenGetGroupsReturnsGroup`
+  - `WhenGroupMembershipRemovedThenGetGroupsReturnsEmpty`
+  - `WhenUserGoesOfflineThenGroupMembershipIsRetained`
+  - `WhenGroupNameIsNullThenAddGroupMembershipThrows`
+  - `WhenGroupNameIsNullThenRemoveGroupMembershipThrows`
 - `tests/DotNetCloud.Core.Server.Tests/RealTime/RealtimeBroadcasterServiceTests.cs`
-    - `WhenAddToGroupWithNoConnectionsThenDoesNothing` (extended to assert membership tracking)
-    - `WhenRemoveFromGroupThenTrackedMembershipIsRemoved`
+  - `WhenAddToGroupWithNoConnectionsThenDoesNothing` (extended to assert membership tracking)
+  - `WhenRemoveFromGroupThenTrackedMembershipIsRemoved`
 - `tests/DotNetCloud.Modules.Chat.Tests/ChannelServiceTests.cs`
-    - `WhenDeleteChannelThenRealtimeGroupMembershipIsRemovedForAllMembers`
-    - `WhenCreateChannelWithMembersThenMembersAreAdded` (extended to assert realtime group add calls)
+  - `WhenDeleteChannelThenRealtimeGroupMembershipIsRemovedForAllMembers`
+  - `WhenCreateChannelWithMembersThenMembersAreAdded` (extended to assert realtime group add calls)
 - `tests/DotNetCloud.Modules.Chat.Tests/ChannelMemberServiceTests.cs`
-    - `WhenAdminRemovesMemberThenRealtimeGroupMembershipIsRemoved`
-    - `WhenOwnerAddsMemberThenMembershipIsCreated` (extended to assert realtime group add call)
+  - `WhenAdminRemovesMemberThenRealtimeGroupMembershipIsRemoved`
+  - `WhenOwnerAddsMemberThenMembershipIsCreated` (extended to assert realtime group add call)
 
 **Verification commands and results:**
+
 - `dotnet test tests/DotNetCloud.Core.Server.Tests/DotNetCloud.Core.Server.Tests.csproj`
-    - Result: total 322, succeeded 320, failed 0, skipped 2
+  - Result: total 322, succeeded 320, failed 0, skipped 2
 - `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj`
-    - Result: total 208, succeeded 208, failed 0, skipped 0
+  - Result: total 208, succeeded 208, failed 0, skipped 0
 - `dotnet build`
-    - Result: succeeded (full solution)
+  - Result: succeeded (full solution)
 
 **Raw failing assertion/error text seen during iteration (fixed):**
+
 - `CoreHubTests.cs`: `error CS0546: 'TestHubCallerContext.Items.set': cannot override because 'HubCallerContext.Items' does not have an overridable set accessor`
 - `CoreHubTests.cs`: `error CS0534: 'TestHubCallerContext' does not implement inherited abstract member 'HubCallerContext.Features.get'`
-    - Fix applied: test stub now exposes read-only `Items` backing store and implements `Features` with `FeatureCollection`.
+  - Fix applied: test stub now exposes read-only `Items` backing store and implements `Features` with `FeatureCollection`.
 
 **Raw log snippets around authorization/event issues:**
+
 - No runtime service logs captured in unit tests (tests use `NullLogger<T>` or mocks); verification performed via behavior assertions.
 
 **Intentionally deferred items:**
+
 - Chat-specific client-to-server hub methods (`SendMessage`, `EditMessage`, `DeleteMessage`, `StartTyping`, `StopTyping`, `MarkRead`, `AddReaction`, `RemoveReaction`) remain pending.
 - Presence custom status message and `PresenceChangedEvent` cross-module event integration remain pending.
 
@@ -2122,11 +2438,12 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 
 **Date:** 2026-03-10  
 **Owner:** Server (`mint22`)  
-**Status:** completed ✅ (incremental phase-2.5 scope)
+**Status:** completed [OK] (incremental phase-2.5 scope)
 
 **Commit hash:** `a10f382`
 
 **Files added/updated:**
+
 - `src/Core/DotNetCloud.Core.Server/RealTime/CoreHub.cs`
 - `tests/DotNetCloud.Core.Server.Tests/RealTime/CoreHubTests.cs`
 - `docs/IMPLEMENTATION_CHECKLIST.md`
@@ -2134,43 +2451,50 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 - `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`
 
 **Implemented in this update:**
+
 1. Registered chat hub methods in `CoreHub`: `SendMessageAsync`, `EditMessageAsync`, `DeleteMessageAsync`, `StartTypingAsync`, `StopTypingAsync`, `MarkReadAsync`, `AddReactionAsync`, and `RemoveReactionAsync`.
 2. Wired hub methods to existing chat services (`IMessageService`, `IChannelMemberService`, `IReactionService`, `ITypingIndicatorService`) using authenticated `CallerContext` from SignalR connection identity.
 3. Wired server-to-client realtime broadcasts through `IChatRealtimeService` for new/edited/deleted messages, typing indicators, unread count updates, and reaction updates.
 4. Added deterministic SignalR error translation for expected service exceptions (`ArgumentException`, `InvalidOperationException`, `UnauthorizedAccessException`) to `HubException` messages.
 
 **Tests added/updated:**
+
 - `tests/DotNetCloud.Core.Server.Tests/RealTime/CoreHubTests.cs`
-    - `WhenSendMessageCalledThenBroadcastsNewMessage`
-    - `WhenMarkReadCalledThenBroadcastsUnreadCountForCaller`
-    - `WhenAddReactionCalledThenBroadcastsUpdatedReactions`
-    - `WhenStartTypingCalledThenPublishesTypingAndBroadcasts`
-    - `WhenUserHasTrackedGroupsThenOnConnectedAddsConnectionToEachGroup`
+  - `WhenSendMessageCalledThenBroadcastsNewMessage`
+  - `WhenMarkReadCalledThenBroadcastsUnreadCountForCaller`
+  - `WhenAddReactionCalledThenBroadcastsUpdatedReactions`
+  - `WhenStartTypingCalledThenPublishesTypingAndBroadcasts`
+  - `WhenUserHasTrackedGroupsThenOnConnectedAddsConnectionToEachGroup`
 
 **Verification commands and results:**
+
 - `dotnet test tests/DotNetCloud.Core.Server.Tests/DotNetCloud.Core.Server.Tests.csproj`
-    - Result: total 326, succeeded 324, failed 0, skipped 2
+  - Result: total 326, succeeded 324, failed 0, skipped 2
 - `dotnet build`
-    - Result: succeeded (full solution)
+  - Result: succeeded (full solution)
 
 **Raw failing assertion/error text seen during iteration (fixed):**
+
 - None in this update.
 
 **Raw log snippets around authorization/event issues:**
+
 - No runtime service logs captured in hub unit tests (mocked collaborators + behavior assertions).
 
 **Intentionally deferred items:**
+
 - Presence custom status message and `PresenceChangedEvent` cross-module event integration remain pending.
 
 ### Phase 2.5 Update #3 - Presence Extension + PresenceChangedEvent (Server, mint22)
 
 **Date:** 2026-03-10  
 **Owner:** Server (`mint22`)  
-**Status:** completed ✅ (finishes remaining phase-2.5 scope)
+**Status:** completed [OK] (finishes remaining phase-2.5 scope)
 
 **Commit hash:** `56fbe8c`
 
 **Files added/updated:**
+
 - `src/Core/DotNetCloud.Core.Server/RealTime/PresenceService.cs`
 - `src/Core/DotNetCloud.Core.Server/RealTime/CoreHub.cs`
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/Events/PresenceChangedEvent.cs` (new)
@@ -2182,42 +2506,49 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 - `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`
 
 **Implemented in this update:**
+
 1. Added custom presence status-message support in `PresenceService` with tracked presence state and validated status transitions (`Online`, `Away`, `DoNotDisturb`, `Offline`).
 2. Added `CoreHub.SetPresenceAsync(status, statusMessage)` to update caller presence, broadcast `PresenceChanged` via `IChatRealtimeService`, and publish `PresenceChangedEvent` through `IEventBus` for cross-module awareness.
 3. Added new chat-domain event `PresenceChangedEvent` and declared it in `ChatModuleManifest.PublishedEvents`.
 4. Completed remaining Phase 2.5 checklist/plan presence deliverables and advanced phase status to completed.
 
 **Tests added/updated:**
+
 - `tests/DotNetCloud.Core.Server.Tests/RealTime/CoreHubTests.cs`
-    - `WhenSetPresenceCalledThenBroadcastsPresenceAndPublishesEvent`
+  - `WhenSetPresenceCalledThenBroadcastsPresenceAndPublishesEvent`
 - `tests/DotNetCloud.Core.Server.Tests/RealTime/PresenceServiceTests.cs`
-    - `WhenSetPresenceThenCustomStatusMessageIsPersisted`
-    - `WhenSetPresenceWithInvalidStatusThenThrows`
+  - `WhenSetPresenceThenCustomStatusMessageIsPersisted`
+  - `WhenSetPresenceWithInvalidStatusThenThrows`
 
 **Verification commands and results:**
+
 - `dotnet test tests/DotNetCloud.Core.Server.Tests/DotNetCloud.Core.Server.Tests.csproj`
-    - Result: total 329, succeeded 327, failed 0, skipped 2
+  - Result: total 329, succeeded 327, failed 0, skipped 2
 - `dotnet build`
-    - Result: succeeded (full solution)
+  - Result: succeeded (full solution)
 
 **Raw failing assertion/error text seen during iteration (fixed):**
+
 - None in this update.
 
 **Raw log snippets around authorization/event issues:**
+
 - No runtime service logs captured in unit tests (mocked collaborators + behavior assertions).
 
 **Intentionally deferred items:**
+
 - None for phase-2.5. Next target is phase-2.6.
 
 ### Phase 2.6 Update #1 - Announcements Endpoints + Realtime Broadcasts (Server, mint22)
 
 **Date:** 2026-03-10  
 **Owner:** Server (`mint22`)  
-**Status:** completed ✅
+**Status:** completed [OK]
 
 **Commit hash:** `b987643`
 
 **Files added/updated:**
+
 - `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Controllers/ChatController.cs`
 - `tests/DotNetCloud.Modules.Chat.Tests/ChatControllerTests.cs`
 - `tests/DotNetCloud.Modules.Chat.Tests/ChatModuleManifestTests.cs`
@@ -2226,55 +2557,62 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 - `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`
 
 **Implemented in this update:**
+
 1. Added missing announcement REST API surface in `ChatController` under `/api/v1/announcements`:
-     - `POST /api/v1/announcements`
-     - `GET /api/v1/announcements`
-     - `GET /api/v1/announcements/{id}`
-     - `PUT /api/v1/announcements/{id}`
-     - `DELETE /api/v1/announcements/{id}`
-     - `POST /api/v1/announcements/{id}/acknowledge`
-     - `GET /api/v1/announcements/{id}/acknowledgements`
+   - `POST /api/v1/announcements`
+   - `GET /api/v1/announcements`
+   - `GET /api/v1/announcements/{id}`
+   - `PUT /api/v1/announcements/{id}`
+   - `DELETE /api/v1/announcements/{id}`
+   - `POST /api/v1/announcements/{id}/acknowledge`
+   - `GET /api/v1/announcements/{id}/acknowledgements`
 2. Added realtime broadcast behavior for announcements using `IRealtimeBroadcaster`:
-     - `AnnouncementCreated` for all new announcements
-     - `UrgentAnnouncement` for urgent-priority announcements
-     - `AnnouncementBadgeUpdated` for live announcement-count badge updates
+   - `AnnouncementCreated` for all new announcements
+   - `UrgentAnnouncement` for urgent-priority announcements
+   - `AnnouncementBadgeUpdated` for live announcement-count badge updates
 3. Updated tests for announcement controller behavior and broadcast assertions; updated manifest test expectations after added published events.
 4. Updated phase tracking to mark phase-2.6 completed and set next target to phase-2.7.
 
 **Tests added/updated:**
+
 - `tests/DotNetCloud.Modules.Chat.Tests/ChatControllerTests.cs`
-    - `CreateAnnouncementAsync_WhenSuccessful_ThenBroadcastsAndReturnsCreated`
-    - `CreateAnnouncementAsync_WhenUrgent_ThenBroadcastsUrgentAnnouncement`
-    - `GetAnnouncementAsync_WhenMissing_ThenReturnsNotFound`
-    - `AcknowledgeAnnouncementAsync_WhenCalled_ThenReturnsSuccessEnvelope`
+  - `CreateAnnouncementAsync_WhenSuccessful_ThenBroadcastsAndReturnsCreated`
+  - `CreateAnnouncementAsync_WhenUrgent_ThenBroadcastsUrgentAnnouncement`
+  - `GetAnnouncementAsync_WhenMissing_ThenReturnsNotFound`
+  - `AcknowledgeAnnouncementAsync_WhenCalled_ThenReturnsSuccessEnvelope`
 - `tests/DotNetCloud.Modules.Chat.Tests/ChatModuleManifestTests.cs`
-    - `WhenCreatedThenPublishedEventsContainsExpectedEvents` (updated expected count and list)
+  - `WhenCreatedThenPublishedEventsContainsExpectedEvents` (updated expected count and list)
 
 **Verification commands and results:**
+
 - `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj`
-    - Result: total 212, succeeded 212, failed 0, skipped 0
+  - Result: total 212, succeeded 212, failed 0, skipped 0
 - `dotnet build`
-    - Result: succeeded (full solution)
+  - Result: succeeded (full solution)
 
 **Raw failing assertion/error text seen during iteration (fixed):**
+
 - `ChatModuleManifestTests.WhenCreatedThenPublishedEventsContainsExpectedEvents`: `Assert.AreEqual failed. Expected:<5>. Actual:<6>.`
-    - Fix applied: include `PresenceChangedEvent` and update expected count.
+  - Fix applied: include `PresenceChangedEvent` and update expected count.
 
 **Raw log snippets around authorization/event issues:**
+
 - No runtime log-line capture in controller unit tests (mocked collaborators + result/broadcast assertions).
 
 **Intentionally deferred items:**
+
 - None for phase-2.6. Next target is phase-2.7.
 
 ### Phase 2.7 Update #1 - Push Endpoint Wiring (Server, mint22)
 
 **Date:** 2026-03-10  
 **Owner:** Server (`mint22`)  
-**Status:** completed ✅ (incremental phase-2.7 scope)
+**Status:** completed [OK] (incremental phase-2.7 scope)
 
 **Commit hash:** `092dfd9`
 
 **Files added/updated:**
+
 - `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Controllers/ChatController.cs`
 - `tests/DotNetCloud.Modules.Chat.Tests/ChatControllerTests.cs`
 - `docs/IMPLEMENTATION_CHECKLIST.md`
@@ -2282,33 +2620,39 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 - `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`
 
 **Implemented in this update:**
+
 1. Added push registration endpoints in host API:
-     - `POST /api/v1/notifications/devices/register`
-     - `DELETE /api/v1/notifications/devices/{deviceToken}`
+   - `POST /api/v1/notifications/devices/register`
+   - `DELETE /api/v1/notifications/devices/{deviceToken}`
 2. Added caller preferences endpoints:
-     - `GET /api/v1/notifications/preferences`
-     - `PUT /api/v1/notifications/preferences`
+   - `GET /api/v1/notifications/preferences`
+   - `PUT /api/v1/notifications/preferences`
 3. Wired device registration/unregistration to `IPushNotificationService` with provider validation.
 4. Added controller tests for push endpoint behavior and error-path validation.
 
 **Tests added/updated:**
+
 - `tests/DotNetCloud.Modules.Chat.Tests/ChatControllerTests.cs`
-    - `RegisterPushDeviceAsync_WhenValid_ThenRegistersDevice`
-    - `RegisterPushDeviceAsync_WhenProviderInvalid_ThenReturnsBadRequest`
-    - `UnregisterPushDeviceAsync_WhenCalled_ThenUnregistersDevice`
-    - `UpdateNotificationPreferencesAsync_WhenCalled_ThenReturnsOk`
+  - `RegisterPushDeviceAsync_WhenValid_ThenRegistersDevice`
+  - `RegisterPushDeviceAsync_WhenProviderInvalid_ThenReturnsBadRequest`
+  - `UnregisterPushDeviceAsync_WhenCalled_ThenUnregistersDevice`
+  - `UpdateNotificationPreferencesAsync_WhenCalled_ThenReturnsOk`
 
 **Verification commands and results:**
+
 - `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj`
-    - Result: total 216, succeeded 216, failed 0, skipped 0
+  - Result: total 216, succeeded 216, failed 0, skipped 0
 
 **Raw failing assertion/error text seen during iteration (fixed):**
+
 - None in this update.
 
 **Raw log snippets around authorization/event issues:**
+
 - No runtime log capture for controller unit tests (mocked services + response assertions).
 
 **Intentionally deferred items:**
+
 - FCM credential/config hardening and invalid-token cleanup.
 - UnifiedPush retry/error handling.
 - NotificationRouter dedup/preference enforcement and queueing.
@@ -2317,11 +2661,12 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 
 **Date:** 2026-03-10  
 **Owner:** Server (`mint22`)  
-**Status:** completed ✅ (incremental phase-2.7 scope)
+**Status:** completed [OK] (incremental phase-2.7 scope)
 
 **Commit hash:** `042a12b`
 
 **Files added/updated:**
+
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/INotificationPreferenceStore.cs` (new)
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/InMemoryNotificationPreferenceStore.cs` (new)
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/IPushProviderEndpoint.cs` (new)
@@ -2337,42 +2682,48 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 - `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`
 
 **Implemented in this update:**
+
 1. Added shared notification preference storage abstraction (`INotificationPreferenceStore`) with in-memory implementation for server-side routing and API consistency.
 2. Wired `ChatController` notification preference GET/PUT endpoints to the shared store (removed per-controller static preference map).
 3. Hardened `NotificationRouter` to enforce caller preferences before delivery:
-     - suppress when push is globally disabled,
-     - suppress when DND is enabled,
-     - suppress chat-message/chat-mention notifications for muted channels.
+   - suppress when push is globally disabled,
+   - suppress when DND is enabled,
+   - suppress chat-message/chat-mention notifications for muted channels.
 4. Implemented online dedup in `NotificationRouter` using `IPresenceTracker` (skip push when user is currently online).
 5. Added provider abstraction (`IPushProviderEndpoint`) for deterministic provider selection and improved router testability.
 6. Added focused unit coverage for routing policy behavior and preference endpoint storage flow.
 
 **Tests added/updated:**
+
 - `tests/DotNetCloud.Modules.Chat.Tests/NotificationRouterTests.cs`
-    - `SendAsync_WhenPushDisabled_ThenNotificationIsSuppressed`
-    - `SendAsync_WhenUserIsOnline_ThenNotificationIsSuppressed`
-    - `SendAsync_WhenChannelMuted_ThenNotificationIsSuppressed`
-    - `SendAsync_WhenEligible_ThenRoutesToRegisteredProviders`
+  - `SendAsync_WhenPushDisabled_ThenNotificationIsSuppressed`
+  - `SendAsync_WhenUserIsOnline_ThenNotificationIsSuppressed`
+  - `SendAsync_WhenChannelMuted_ThenNotificationIsSuppressed`
+  - `SendAsync_WhenEligible_ThenRoutesToRegisteredProviders`
 - `tests/DotNetCloud.Modules.Chat.Tests/ChatControllerTests.cs`
-    - `UpdateNotificationPreferencesAsync_WhenCalled_ThenReturnsOkAndStoresPreferences`
-    - `GetNotificationPreferencesAsync_WhenCalled_ThenReturnsStoreValues`
+  - `UpdateNotificationPreferencesAsync_WhenCalled_ThenReturnsOkAndStoresPreferences`
+  - `GetNotificationPreferencesAsync_WhenCalled_ThenReturnsStoreValues`
 
 **Verification commands and results:**
+
 - `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj`
-    - Result: total 221, succeeded 221, failed 0, skipped 0
+  - Result: total 221, succeeded 221, failed 0, skipped 0
 - `dotnet build`
-    - Result: succeeded (full solution)
+  - Result: succeeded (full solution)
 
 **Raw failing assertion/error text seen during iteration (fixed):**
+
 - `GetNotificationPreferencesAsync_WhenCalled_ThenReturnsStoreValues`: `System.Collections.Generic.KeyNotFoundException: The given key was not present in the dictionary.`
-    - Fix: aligned assertions with serialized property casing.
+  - Fix: aligned assertions with serialized property casing.
 - `NotificationRouterTests` (all four tests): `Cannot set up IPushProviderEndpoint.get_Provider because it is not accessible to the proxy generator used by Moq`.
-    - Fix: replaced Moq provider proxies with concrete internal test-double provider implementation.
+  - Fix: replaced Moq provider proxies with concrete internal test-double provider implementation.
 
 **Raw log snippets around authorization/event issues:**
+
 - No runtime log capture for these unit tests (mocked collaborators + behavior assertions).
 
 **Intentionally deferred items:**
+
 - FCM credentials/config model and invalid-token cleanup.
 - UnifiedPush retry/error handling.
 - Notification queue/reliability background processing.
@@ -2381,11 +2732,12 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 
 **Date:** 2026-03-10  
 **Owner:** Server (`mint22`)  
-**Status:** completed ✅ (incremental phase-2.7 scope)
+**Status:** completed [OK] (incremental phase-2.7 scope)
 
 **Commit hash:** `0703bf4`
 
 **Files added/updated:**
+
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/IFcmTransport.cs` (new)
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/FcmLoggingTransport.cs` (new)
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/IUnifiedPushTransport.cs` (new)
@@ -2400,6 +2752,7 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 - `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`
 
 **Implemented in this update:**
+
 1. Added FCM transport abstraction (`IFcmTransport`) and default logging transport (`FcmLoggingTransport`).
 2. Added UnifiedPush transport abstraction (`IUnifiedPushTransport`) and default logging transport (`UnifiedPushLoggingTransport`).
 3. Hardened `FcmPushProvider` with invalid-token cleanup: invalid tokens are removed from in-memory registrations after failed send results marked as invalid.
@@ -2407,25 +2760,30 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 5. Wired new transports in `ChatServiceRegistration` so providers remain DI-constructed and testable.
 
 **Tests added/updated:**
+
 - `tests/DotNetCloud.Modules.Chat.Tests/FcmPushProviderTests.cs`
-    - `SendAsync_WhenTransportMarksInvalidToken_ThenTokenIsCleanedUp`
+  - `SendAsync_WhenTransportMarksInvalidToken_ThenTokenIsCleanedUp`
 - `tests/DotNetCloud.Modules.Chat.Tests/UnifiedPushProviderTests.cs`
-    - `SendAsync_WhenTransientFailuresThenSuccess_ThenRetriesUntilDelivered`
-    - `SendAsync_WhenNonTransientFailure_ThenDoesNotRetry`
+  - `SendAsync_WhenTransientFailuresThenSuccess_ThenRetriesUntilDelivered`
+  - `SendAsync_WhenNonTransientFailure_ThenDoesNotRetry`
 
 **Verification commands and results:**
+
 - `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj`
-    - Result: total 224, succeeded 224, failed 0, skipped 0
+  - Result: total 224, succeeded 224, failed 0, skipped 0
 - `dotnet build`
-    - Result: succeeded (full solution)
+  - Result: succeeded (full solution)
 
 **Raw failing assertion/error text seen during iteration (fixed):**
+
 - None in this update.
 
 **Raw log snippets around authorization/event issues:**
+
 - No runtime log capture for these unit tests (test doubles + behavior assertions).
 
 **Intentionally deferred items:**
+
 - FCM configuration model / credential management UI.
 - UnifiedPush configuration model.
 - Notification queue/reliability background processing.
@@ -2434,11 +2792,12 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 
 **Date:** 2026-03-10  
 **Owner:** Server (`mint22`)  
-**Status:** completed ✅ (final phase-2.7 scope)
+**Status:** completed [OK] (final phase-2.7 scope)
 
 **Commit hash:** `42aa009`
 
 **Files added/updated:**
+
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/INotificationDeliveryQueue.cs` (new)
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/IQueuedNotificationDispatcher.cs` (new)
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/NotificationDeliveryBackgroundService.cs` (new)
@@ -2450,6 +2809,7 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 - `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`
 
 **Implemented in this update:**
+
 1. Added a queue abstraction for deferred retries (`INotificationDeliveryQueue`) with in-memory channel-backed implementation.
 2. Added queued-dispatch abstraction (`IQueuedNotificationDispatcher`) to separate direct sends from background retries.
 3. Added `NotificationDeliveryBackgroundService` to process queued notifications with bounded retry/backoff behavior.
@@ -2457,24 +2817,29 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 5. Wired queue + dispatcher + background worker in DI (`ChatServiceRegistration`).
 
 **Tests added/updated:**
+
 - `tests/DotNetCloud.Modules.Chat.Tests/NotificationRouterTests.cs`
-    - `SendAsync_WhenAllProvidersFail_ThenNotificationIsQueued`
-    - `DispatchQueuedAsync_WhenProviderRecovers_ThenReturnsTrue`
-    - Existing tests updated for queue dependency and suppression expectations.
+  - `SendAsync_WhenAllProvidersFail_ThenNotificationIsQueued`
+  - `DispatchQueuedAsync_WhenProviderRecovers_ThenReturnsTrue`
+  - Existing tests updated for queue dependency and suppression expectations.
 
 **Verification commands and results:**
+
 - `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj`
-    - Result: total 226, succeeded 226, failed 0, skipped 0
+  - Result: total 226, succeeded 226, failed 0, skipped 0
 - `dotnet build`
-    - Result: succeeded (full solution)
+  - Result: succeeded (full solution)
 
 **Raw failing assertion/error text seen during iteration (fixed):**
+
 - None.
 
 **Raw log snippets around authorization/event issues:**
+
 - No runtime log capture for unit tests (test doubles + behavior assertions).
 
 **Intentionally deferred items:**
+
 - FCM configuration model / credential management UI.
 - UnifiedPush configuration model.
 
@@ -2482,11 +2847,12 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 
 **Date:** 2026-03-10  
 **Owner:** Server (`mint22`)  
-**Status:** completed ✅ (incremental phase-2.8 scope)
+**Status:** completed [OK] (incremental phase-2.8 scope)
 
 **Commit hash:** `0f7ca2b`
 
 **Files added/updated:**
+
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ViewModels.cs`
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChannelList.razor`
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChannelList.razor.cs`
@@ -2496,27 +2862,33 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 - `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`
 
 **Implemented in this update:**
+
 1. Added `PresenceStatus` support to `ChannelViewModel` for DM/group presence rendering.
 2. Updated `ChannelList.razor` to render presence dots for direct/group channels.
 3. Added presence-class mapping in `ChannelList.razor.cs` with `Online`/`Away`/`Offline` UI states.
 4. Added scoped styling in `ChannelList.razor.css` for presence indicator appearance.
 
 **Tests added/updated:**
+
 - No new unit tests (UI-only markup/styling enhancement).
 
 **Verification commands and results:**
+
 - `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj`
-    - Result: total 226, succeeded 226, failed 0, skipped 0
+  - Result: total 226, succeeded 226, failed 0, skipped 0
 - `dotnet build`
-    - Result: succeeded (full solution)
+  - Result: succeeded (full solution)
 
 **Raw failing assertion/error text seen during iteration (fixed):**
+
 - None.
 
 **Raw log snippets around authorization/event issues:**
+
 - N/A (UI-only change).
 
 **Intentionally deferred items:**
+
 - Channel drag-to-reorder.
 - Additional phase-2.8 chat UI components and behaviors pending in checklist.
 
@@ -2524,11 +2896,12 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 
 **Date:** 2026-03-10  
 **Owner:** Server (`mint22`)  
-**Status:** completed ✅ (incremental phase-2.8 scope)
+**Status:** completed [OK] (incremental phase-2.8 scope)
 
 **Commit hash:** `1ce0326`
 
 **Files added/updated:**
+
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ViewModels.cs`
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChannelHeader.razor`
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChannelHeader.razor.cs`
@@ -2538,27 +2911,33 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 - `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`
 
 **Implemented in this update:**
+
 1. Added channel action controls in `ChannelHeader.razor`: edit, archive, leave, and pin/unpin.
 2. Added callback surface in `ChannelHeader.razor.cs` for action events (`OnEditChannel`, `OnArchiveChannel`, `OnLeaveChannel`, `OnPinChanged`).
 3. Added `IsPinned` state to `ChannelViewModel` for UI-level pin toggling.
 4. Added scoped styling in `ChannelHeader.razor.css` for action button layout.
 
 **Tests added/updated:**
+
 - No new unit tests (UI-only action-surface enhancement).
 
 **Verification commands and results:**
+
 - `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj`
-    - Result: total 226, succeeded 226, failed 0, skipped 0
+  - Result: total 226, succeeded 226, failed 0, skipped 0
 - `dotnet build`
-    - Result: succeeded (full solution)
+  - Result: succeeded (full solution)
 
 **Raw failing assertion/error text seen during iteration (fixed):**
+
 - None.
 
 **Raw log snippets around authorization/event issues:**
+
 - N/A (UI-only change).
 
 **Intentionally deferred items:**
+
 - Channel drag-to-reorder.
 - Remaining phase-2.8 UI behavior and component items in checklist.
 
@@ -2566,11 +2945,12 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 
 **Date:** 2026-03-10  
 **Owner:** Server (`mint22`)  
-**Status:** completed ✅ (incremental phase-2.8 scope)
+**Status:** completed [OK] (incremental phase-2.8 scope)
 
 **Commit hash:** `e0dc999`
 
 **Files added/updated:**
+
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/MessageList.razor`
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/MessageList.razor.cs`
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/MessageList.razor.css` (new)
@@ -2579,27 +2959,33 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 - `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`
 
 **Implemented in this update:**
+
 1. Added basic markdown rendering support for message content (safe encoding + links/bold/italic/inline code).
 2. Added inline preview handling for attachments (image previews + document preview placeholders).
 3. Added a "new messages" divider line using `NewMessagesStartMessageId`.
 4. Added scoped MessageList styles for divider and inline preview presentation.
 
 **Tests added/updated:**
+
 - No new unit tests (UI-only rendering enhancement).
 
 **Verification commands and results:**
+
 - `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj`
-    - Result: total 226, succeeded 226, failed 0, skipped 0
+  - Result: total 226, succeeded 226, failed 0, skipped 0
 - `dotnet build`
-    - Result: succeeded (full solution)
+  - Result: succeeded (full solution)
 
 **Raw failing assertion/error text seen during iteration (fixed):**
+
 - None.
 
 **Raw log snippets around authorization/event issues:**
+
 - N/A (UI-only change).
 
 **Intentionally deferred items:**
+
 - Advanced markdown features (tables/code blocks) and full rich-text composer UX.
 - Remaining phase-2.8 UI items from checklist.
 
@@ -2607,11 +2993,12 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 
 **Date:** 2026-03-10  
 **Owner:** Server (`mint22`)  
-**Status:** completed ✅ (incremental phase-2.8 scope)
+**Status:** completed [OK] (incremental phase-2.8 scope)
 
 **Commit hash:** `2c86a4a`
 
 **Files added/updated:**
+
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ViewModels.cs`
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/MemberListPanel.razor`
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/MemberListPanel.razor.cs`
@@ -2623,6 +3010,7 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 - `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`
 
 **Implemented in this update:**
+
 1. Added member action controls in `MemberListPanel` for promote/demote/remove (callback-driven).
 2. Added profile popup in `MemberListPanel` for click-to-view member details.
 3. Expanded `ChannelSettingsDialog` with member management controls (add/remove/change role callbacks).
@@ -2630,32 +3018,38 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 5. Added supporting member metadata fields (`Username`, `Bio`) and scoped styles for member panel UI.
 
 **Tests added/updated:**
+
 - No new unit tests (UI-only enhancement and callback surface expansion).
 
 **Verification commands and results:**
+
 - `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj`
-    - Result: total 226, succeeded 226, failed 0, skipped 0
+  - Result: total 226, succeeded 226, failed 0, skipped 0
 - `dotnet build`
-    - Result: succeeded (full solution)
+  - Result: succeeded (full solution)
 
 **Raw failing assertion/error text seen during iteration (fixed):**
+
 - None.
 
 **Raw log snippets around authorization/event issues:**
+
 - N/A (UI-only change).
 
 **Intentionally deferred items:**
+
 - Remaining phase-2.8 items (DM user search/group DM, badge realtime update, announcement filter/preview, drag reorder, rich mention/paste image).
 
 ### Phase 2.7 Update #5 - Push Configuration Models (Server, mint22)
 
 **Date:** 2026-03-10  
 **Owner:** Server (`mint22`)  
-**Status:** completed ✅ (server-only hardening scope)
+**Status:** completed [OK] (server-only hardening scope)
 
 **Commit hash:** `1d5730b`
 
 **Files added/updated:**
+
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/PushProviderOptions.cs` (new)
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/FcmPushProvider.cs`
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/UnifiedPushProvider.cs`
@@ -2669,6 +3063,7 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 - `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`
 
 **Implemented in this update:**
+
 1. Added provider configuration models: `FcmPushOptions` and `UnifiedPushOptions`.
 2. Bound options from configuration (`Chat:Push:Fcm`, `Chat:Push:UnifiedPush`) in chat service registration.
 3. Updated server bootstrap call sites to pass configuration into `AddChatServices(builder.Configuration)`.
@@ -2676,25 +3071,30 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 5. Updated `UnifiedPushProvider` to use configurable enable state, max attempts, and retry delay.
 
 **Tests added/updated:**
+
 - `tests/DotNetCloud.Modules.Chat.Tests/FcmPushProviderTests.cs`
-    - `SendAsync_WhenProviderDisabled_ThenTransportIsNotCalled`
+  - `SendAsync_WhenProviderDisabled_ThenTransportIsNotCalled`
 - `tests/DotNetCloud.Modules.Chat.Tests/UnifiedPushProviderTests.cs`
-    - `SendAsync_WhenMaxAttemptsConfiguredToTwo_ThenOnlyTwoAttemptsAreMade`
-    - Existing tests updated for options injection.
+  - `SendAsync_WhenMaxAttemptsConfiguredToTwo_ThenOnlyTwoAttemptsAreMade`
+  - Existing tests updated for options injection.
 
 **Verification commands and results:**
+
 - `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj`
-    - Result: total 228, succeeded 228, failed 0, skipped 0
+  - Result: total 228, succeeded 228, failed 0, skipped 0
 - `dotnet build`
-    - Result: succeeded (full solution)
+  - Result: succeeded (full solution)
 
 **Raw failing assertion/error text seen during iteration (fixed):**
+
 - None.
 
 **Raw log snippets around authorization/event issues:**
+
 - N/A (provider options + behavior update).
 
 **Intentionally deferred items:**
+
 - FCM admin credential management UI.
 - UnifiedPush admin configuration UI.
 
@@ -2702,22 +3102,23 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 
 **Target machine:** `Windows11-TestDNC` (client workspace)  
 **Owner:** Client agent  
-**Status:** ready for handoff ✅
+**Status:** ready for handoff [OK]
 
 **Objective:** bring client/UI implementation to parity with completed server phases without modifying server contracts.
 
 **Server-complete to client-required alignment matrix:**
 
-| Phase | Server Capability Complete | Client/UI Work Required | Acceptance Check | Primary File Targets |
-|---|---|---|---|---|
-| 2.5 | SignalR realtime hubs, message/read/presence transport paths active | Ensure realtime events are reflected in channel list, unread badges, read-state markers, and presence indicators consistently across navigation and reconnect | Send message/read/presence update and verify visible UI changes in under 1s after reconnect and normal flow | `src/UI/*Chat*`, `src/Clients/*Chat*`, view models/store wiring files |
-| 2.6 | Announcement API and server behavior stable | Finalize announcement UX: list filters, preview rendering, create/edit validation messages, and error states | Create/edit/filter/preview flows complete with correct empty/loading/error states | announcement components/pages and related view models |
-| 2.7 | Push routing + preference enforcement + online dedup + provider hardening + queue/retry + options models | Implement client push registration/settings UX and align notification preference UI with server-backed behavior; no provider contract edits | Update preference, trigger message while online/offline, verify dedup and expected notification behavior | chat settings/preferences UI, push registration client service, notification state/view models |
-| 2.8 | Core server support for chat/presence/actions already in place for current UI scope | Complete remaining UI polish: channel reorder, composer rich input, mention autocomplete, paste-image upload, header action consistency | Execute manual scenario checklist for each feature and verify no regressions in existing chat flows | channel list/header/composer/message list components and tests |
-| 2.9 | Server-side prerequisites available to begin end-user validation | Add/finish client test and validation pass for end-user scenarios; capture blockers with reproducible steps | Regression checklist pass recorded with evidence and no unresolved P0/P1 UI blockers | client test projects and UI interaction test files |
-| 2.10 | Server baseline stable for release hardening | Final client UX hardening pass, accessibility/empty-state cleanup, release readiness notes | Final parity checklist complete and documented for mediator relay | final UI polish files and release notes docs |
+| Phase | Server Capability Complete                                                                               | Client/UI Work Required                                                                                                                                       | Acceptance Check                                                                                            | Primary File Targets                                                                           |
+| ----- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| 2.5   | SignalR realtime hubs, message/read/presence transport paths active                                      | Ensure realtime events are reflected in channel list, unread badges, read-state markers, and presence indicators consistently across navigation and reconnect | Send message/read/presence update and verify visible UI changes in under 1s after reconnect and normal flow | `src/UI/*Chat*`, `src/Clients/*Chat*`, view models/store wiring files                          |
+| 2.6   | Announcement API and server behavior stable                                                              | Finalize announcement UX: list filters, preview rendering, create/edit validation messages, and error states                                                  | Create/edit/filter/preview flows complete with correct empty/loading/error states                           | announcement components/pages and related view models                                          |
+| 2.7   | Push routing + preference enforcement + online dedup + provider hardening + queue/retry + options models | Implement client push registration/settings UX and align notification preference UI with server-backed behavior; no provider contract edits                   | Update preference, trigger message while online/offline, verify dedup and expected notification behavior    | chat settings/preferences UI, push registration client service, notification state/view models |
+| 2.8   | Core server support for chat/presence/actions already in place for current UI scope                      | Complete remaining UI polish: channel reorder, composer rich input, mention autocomplete, paste-image upload, header action consistency                       | Execute manual scenario checklist for each feature and verify no regressions in existing chat flows         | channel list/header/composer/message list components and tests                                 |
+| 2.9   | Server-side prerequisites available to begin end-user validation                                         | Add/finish client test and validation pass for end-user scenarios; capture blockers with reproducible steps                                                   | Regression checklist pass recorded with evidence and no unresolved P0/P1 UI blockers                        | client test projects and UI interaction test files                                             |
+| 2.10  | Server baseline stable for release hardening                                                             | Final client UX hardening pass, accessibility/empty-state cleanup, release readiness notes                                                                    | Final parity checklist complete and documented for mediator relay                                           | final UI polish files and release notes docs                                                   |
 
 **Execution order on client machine:**
+
 1. Phase 2.5 realtime UX verification and fixes.
 2. Phase 2.6 announcement UX refinements.
 3. Phase 2.7 push registration/preferences UX alignment.
@@ -2726,6 +3127,7 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 6. Phase 2.10 release hardening checklist.
 
 **Server constraints for client implementation:**
+
 - Server push infrastructure phase is complete (Phase 2.7, including queue/retry/options models).
 - Do not change server push provider contracts unless a client blocker is confirmed.
 
@@ -2734,6 +3136,7 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 ## Migration Fix + Integration Test Fixes Archive (2026-03-12)
 
 **Server agent (mint22), commit `3a2c0ac`:**
+
 1. Applied `20260309093919_AddSymlinkSupport` migration — added `LinkTarget` column to `FileNodes` on mint22 PostgreSQL.
 2. Rebuilt and redeployed server (Release publish → `dotnetcloud.service` restart).
 3. Verified Files UI at `https://mint22:15443/apps/files` loads without `42703` errors.
@@ -2749,11 +3152,13 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 ## Phase 2.10 Final Items Archive (2026-03-12)
 
 **Client agent (Windows11-TestDNC):**
+
 1. Notification badges on app icon: Created `AppBadgeManager` static utility with `WithBadgeCount()` extension method. Wired into both `FcmMessagingService.ShowChatNotification()` (Google Play) and `UnifiedPushReceiver.ShowNotification()` (F-Droid). Uses `SetNumber()` on `Notification.Builder` for launcher numeric badge support.
 2. Direct APK download option: Expanded `docs/clients/android/DISTRIBUTION.md` with GitHub Releases download section, sideloading instructions, checksum verification, and enterprise MDM distribution guidance.
 3. App store listing description: Added full Google Play listing (title, short description, full description with feature bullets) and F-Droid metadata reference to DISTRIBUTION.md.
 4. All Phase 2.10 items now complete (8/8). Phase 2 fully closed.
 5. Test suite: 2,095 passed / 0 failed / 13 skipped (env-gated).
+
 - Treat server APIs as stable for this sprint; any suspected server gap must include endpoint, payload, and raw error evidence before requesting server changes.
 
 ## Archived: Server-Side Real-Time Chat Broadcast + Android Files 500 Fix (2026-03-18)
@@ -2761,6 +3166,7 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 **Context:** Server agent on `mint22` completed REST endpoint SignalR broadcast and Blazor in-process real-time chat. Client agent on `monolith` discovered Android "My Files" tab returning HTTP 500 (Internal Server Error) when opening file browser.
 
 **Root cause found on monolith:** Duplicate controller classes at identical routes in `Core.Server` and `Files.Host` assemblies:
+
 - `FilesController` at `[Route("api/v1/files")]`
 - `SyncController` at `[Route("api/v1/files/sync")]`
 - `WopiController` at `[Route("api/v1/wopi")]`
@@ -2768,6 +3174,7 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 ASP.NET Core's `ApplicationPartManager` auto-discovers controllers from referenced assemblies that depend on MVC packages. Since `Core.Server.csproj` references `Files.Host` (ProjectReference), and `Files.Host` references MVC, all Files.Host controllers were auto-discovered — creating duplicates with the Core.Server copies at the same routes → `AmbiguousMatchException` → HTTP 500.
 
 **Fix applied:**
+
 1. Removed 4 duplicate files from Core.Server: `FilesController.cs`, `SyncController.cs`, `WopiController.cs`, `FilesControllerBase.cs`.
 2. Updated Files.Host `FilesControllerBase` to use explicit OpenIddict auth scheme: `[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]`.
 3. Added `OpenIddict.Validation.AspNetCore` v7.2.0 package to `Files.Host.csproj`.
@@ -2784,11 +3191,13 @@ ASP.NET Core's `ApplicationPartManager` auto-discovers controllers from referenc
 Continue client-only implementation to align with completed server phases (2.5-2.10) using the alignment matrix above.
 
 Rules:
+
 1. Do not modify server projects on this machine.
 2. Complete work in execution order unless blocked.
 3. For any blocker, provide exact endpoint, request payload, response/error, and timestamped log lines.
 
 Required evidence in return:
+
 1. Commit hash(es).
 2. Exact client/UI file paths changed.
 3. Completed checklist items mapped to phase number.
@@ -2796,6 +3205,7 @@ Required evidence in return:
 5. Any server/API blockers with raw reproduction details.
 
 **Request back from client machine (strict format):**
+
 - `Phase:`
 - `Commit:`
 
@@ -2805,15 +3215,17 @@ Required evidence in return:
 
 **Date:** 2026-03-12
 **Owner:** Server agent (`mint22`)
-**Status:** COMPLETE ✅
+**Status:** COMPLETE [OK]
 
 **What was completed:**
+
 1. Discovered all 6 Files module migrations were pending against the production `dotnetcloud` database.
 2. Recorded `InitialFilesSchema` as applied (tables already existed from prior manual creation).
 3. Applied 4 pending migrations using `--connection` override.
 4. Rebuilt, republished, and restarted `dotnetcloud.service`.
 
 **Verification:** All 7 migrations recorded, health endpoint 200, Files API returns 401 (auth required, no column errors), test suite 2,106 passed / 0 failed / 2 skipped.
+
 - `Files:`
 - `Completed items:`
 - `Verification notes:`
@@ -2824,19 +3236,23 @@ Required evidence in return:
 **Sprint goal:** Complete `phase-1.19.2` by expanding Files API integration tests beyond isolation paths.
 
 **Owner split:**
+
 - Server: primary implementation and test expansion in `tests/DotNetCloud.Integration.Tests/`
 - Client: contract compatibility validation against response envelope/auth expectations
 
 **Kickoff checklist:**
-- ✓ Scope confirmed: CRUD/tree/search/favorites, chunked upload E2E, version/share/trash flows, WOPI+sync smoke
-- ✓ Mediator workflow confirmed: relay via this handoff doc
-- ✓ Server kickoff message sent
-- ✓ Client validation message sent
+
+- [x] Scope confirmed: CRUD/tree/search/favorites, chunked upload E2E, version/share/trash flows, WOPI+sync smoke
+- [x] Mediator workflow confirmed: relay via this handoff doc
+- [x] Server kickoff message sent
+- [x] Client validation message sent
 
 ### Send to Server Agent
+
 Execute Sprint A for `phase-1.19.2` in `tests/DotNetCloud.Integration.Tests/`.
 
 Required coverage:
+
 1. REST CRUD/tree/search/favorites end-to-end tests.
 2. Chunked upload E2E tests (initiate, upload, complete, dedup behavior, quota rejection path).
 3. Version/share/trash end-to-end tests.
@@ -2849,6 +3265,7 @@ Required coverage:
 **Owner:** Server agent (`mint22`)
 
 **Actions taken:**
+
 1. `git pull` — pulled commit `6f1cf55` with Blazor `@`-prefix fixes.
 2. Published: `dotnet publish src/Core/DotNetCloud.Core.Server -c Release -o artifacts/publish/server-baremetal` — build succeeded (59s).
 3. Restarted: `systemctl restart dotnetcloud.service` — active (running), PID 114823.
@@ -2866,13 +3283,12 @@ Required coverage:
 
 **Fix:** Removed duplicate channel loading from `ChannelList` (parent `ChatPageLayout` is sole owner of channel state). Also optimized `ChannelService.ListChannelsAsync()` to use grouped query instead of N+1.
 
-**Verified by client testing:** Channels load without error after service restart (`833f153`).
-4. WOPI and sync endpoint smoke tests (auth enforcement + payload shape).
-5. Document provider matrix execution: PostgreSQL required; SQL Server if environment is available.
+**Verified by client testing:** Channels load without error after service restart (`833f153`). 4. WOPI and sync endpoint smoke tests (auth enforcement + payload shape). 5. Document provider matrix execution: PostgreSQL required; SQL Server if environment is available.
 
 Update this handoff doc with test inventory, remaining gaps, and completion status.
 
 ### Request Back
+
 - commit hash
 - exact tests added/updated (file paths + test names)
 - raw endpoint/URL used for any failing test
@@ -2881,14 +3297,17 @@ Update this handoff doc with test inventory, remaining gaps, and completion stat
 - list of any intentionally deferred coverage
 
 ### Send to Client Agent
+
 Validate Sprint A output for client compatibility risk.
 
 Checks required:
+
 1. No response-envelope contract regressions for `DotNetCloudApiClient` paths.
 2. No auth-flow regressions for Files/sync/WOPI endpoint consumption assumptions.
 3. Note any required client-side follow-up tests or fixes.
 
 ### Request Back
+
 - commit hash (if any client-side changes)
 - affected client paths reviewed
 - raw endpoint/URL + payload shape examples checked
@@ -2906,14 +3325,16 @@ Completed Sprint A updates `#1` through `#9` are archived in
 **Sprint goal:** Close deferred hardening items in `phase-1.15` with priority on IPC caller identity enforcement and per-context privilege boundaries.
 
 **Owner split:**
+
 - Client: primary implementation in `DotNetCloud.Client.SyncService` and platform plumbing.
 - Server: identity/contract review and sign-off on failure semantics.
 
 **Kickoff checklist:**
-- ✓ Scope confirmed: Linux privilege dropping, Windows impersonation, IPC identity verification, trigger debounce, disk-full surfacing.
-- ✓ Expected identity semantics posted in handoff (this update).
-- ✓ Expected failure semantics posted in handoff (this update).
-- ✓ Client implementation kickoff message sent.
+
+- [x] Scope confirmed: Linux privilege dropping, Windows impersonation, IPC identity verification, trigger debounce, disk-full surfacing.
+- [x] Expected identity semantics posted in handoff (this update).
+- [x] Expected failure semantics posted in handoff (this update).
+- [x] Client implementation kickoff message sent.
 
 ### Sprint B - Expected Caller Identity (IPC/SyncService)
 
@@ -2940,9 +3361,11 @@ Use deterministic denial behavior for identity-boundary violations:
 7. Identity-boundary failures must be logged with timestamp, command, normalized caller identity, target contextId, and denial reason.
 
 ### Send to Client Agent
+
 Execute Sprint B for `phase-1.15` deferred hardening in `src/Clients/DotNetCloud.Client.SyncService/` using the identity and failure semantics above as required contract.
 
 Required work focus:
+
 1. Implement caller-identity extraction and context ownership enforcement at IPC boundary.
 2. Implement Linux privilege dropping path per context.
 3. Implement Windows impersonation path per context.
@@ -2950,6 +3373,7 @@ Required work focus:
 5. Add disk-full detection and tray-facing notification path.
 
 ### Request Back
+
 - commit hash
 - exact files and tests added/updated (paths + test names)
 - raw IPC command/response examples for denial paths
@@ -2966,14 +3390,16 @@ Completed Sprint B updates `#1` and `#2` are archived in
 
 **Date:** 2026-03-10  
 **Owner:** Server (`Windows workspace`)  
-**Status:** completed ✅
+**Status:** completed [OK]
 
 **Files added/updated:**
+
 - `src/Clients/DotNetCloud.Client.SyncService/Ipc/IpcCallerIdentity.cs`
 - `src/Clients/DotNetCloud.Client.SyncService/Ipc/IpcServer.cs`
 - `src/Clients/DotNetCloud.Client.SyncService/Ipc/IpcClientHandler.cs`
 
 **Implemented in this update:**
+
 1. `IpcServer` now captures Windows named-pipe caller identity plus a duplicated caller access token at connection time.
 2. `IpcCallerIdentity` now carries the duplicated Windows access token alongside normalized caller identity values.
 3. `IpcClientHandler` now executes context-scoped operations under `WindowsIdentity.RunImpersonated` when a caller token is available.
@@ -2981,23 +3407,27 @@ Completed Sprint B updates `#1` and `#2` are archived in
 5. Failure semantics for impersonation transition errors now return deterministic IPC command errors: `Privilege transition failed.` with server-side error logs.
 
 **Tests added/updated:**
+
 - No new test files required.
 - Existing SyncService suite run as regression validation.
 
 **Command executed:**
+
 - `dotnet test tests\DotNetCloud.Client.SyncService.Tests\DotNetCloud.Client.SyncService.Tests.csproj`
-    - Result: total 27, succeeded 27, failed 0, skipped 0
+  - Result: total 27, succeeded 27, failed 0, skipped 0
 
 **Remaining for Sprint B:**
+
 - Linux per-context privilege drop (`setresuid`/`setresgid`) implementation.
 
 ### Sprint B Update #4 - Linux Privilege Drop Execution Boundary (Server, Linux workspace)
 
 **Date:** 2026-03-10  
 **Owner:** Server (`Linux workspace`)  
-**Status:** completed ✅
+**Status:** completed [OK]
 
 **Files added/updated:**
+
 - `src/Clients/DotNetCloud.Client.SyncService/Ipc/IpcCallerIdentity.cs`
 - `src/Clients/DotNetCloud.Client.SyncService/Ipc/IpcServer.cs`
 - `src/Clients/DotNetCloud.Client.SyncService/Ipc/IpcClientHandler.cs`
@@ -3005,6 +3435,7 @@ Completed Sprint B updates `#1` and `#2` are archived in
 - `docs/MASTER_PROJECT_PLAN.md`
 
 **Implemented in this update:**
+
 1. `IpcServer` now resolves Linux Unix-socket caller peer credentials (`SO_PEERCRED`) and maps UID/GID + account identity into `IpcCallerIdentity`.
 2. `IpcCallerIdentity` now carries Unix UID/GID fields used for Linux privilege transitions.
 3. `IpcClientHandler` now executes context-scoped operations under guarded Linux privilege transition using `setresgid`/`setresuid`, then restores original IDs after operation completion.
@@ -3012,21 +3443,24 @@ Completed Sprint B updates `#1` and `#2` are archived in
 5. Linux transition path is serialized with a transition lock to avoid overlapping process-credential mutation during context-scoped operations.
 
 **Tests/validation executed:**
+
 - `dotnet test tests/DotNetCloud.Client.SyncService.Tests/DotNetCloud.Client.SyncService.Tests.csproj`
-    - Result: total 27, succeeded 27, failed 0, skipped 0
+  - Result: total 27, succeeded 27, failed 0, skipped 0
 - `dotnet build`
-    - Result: succeeded (full solution)
+  - Result: succeeded (full solution)
 
 **Remaining for Sprint B:**
+
 - None. Sprint B hardening scope is complete.
 
 ### Sprint C Update #1 - Folder Drag-and-Drop Recursive Upload (Server, Linux workspace)
 
 **Date:** 2026-03-10  
 **Owner:** Server (`Linux workspace`)  
-**Status:** completed ✅
+**Status:** completed [OK]
 
 **Files added/updated:**
+
 - `src/UI/DotNetCloud.UI.Web/wwwroot/js/files-drop-bridge.js`
 - `src/UI/DotNetCloud.UI.Web/wwwroot/js/file-upload.js`
 - `src/Modules/Files/DotNetCloud.Modules.Files/UI/FileUploadComponent.razor.cs`
@@ -3036,22 +3470,25 @@ Completed Sprint B updates `#1` and `#2` are archived in
 - `docs/development/REMAINING_PHASE0_PHASE1_3SPRINT_PLAN.md`
 
 **Implemented in this update:**
+
 1. Browser drop bridge now traverses dropped directories recursively via `DataTransferItem.webkitGetAsEntry()` and collects file entries with relative paths.
 2. Upload pipeline now preserves relative folder structure by resolving/creating nested folders through Files API (`GET /api/v1/files`, `POST /api/v1/files/folders`) before file upload.
 3. Upload metadata now carries `RelativePath` from JS to Blazor queue model for dropped folder entries.
 4. Existing single-file and multi-file drop/select upload flow remains intact.
 
 **Tests/validation executed:**
+
 - `dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj --filter "FullyQualifiedName~FilesThumbnailIntegrationTests"`
-    - Result: total 2, succeeded 2, failed 0, skipped 0
+  - Result: total 2, succeeded 2, failed 0, skipped 0
 - `dotnet build src/Modules/Files/DotNetCloud.Modules.Files/DotNetCloud.Modules.Files.csproj`
-    - Result: succeeded
+  - Result: succeeded
 - `dotnet build src/UI/DotNetCloud.UI.Web/DotNetCloud.UI.Web.csproj`
-    - Result: succeeded
+  - Result: succeeded
 - `dotnet build`
-    - Result: failed due to pre-existing upstream test constructor mismatch in `tests/DotNetCloud.Modules.Files.Tests/Host/FilesControllerChunkDownloadTests.cs` (missing new `fileSystemOptions` ctor argument)
+  - Result: failed due to pre-existing upstream test constructor mismatch in `tests/DotNetCloud.Modules.Files.Tests/Host/FilesControllerChunkDownloadTests.cs` (missing new `fileSystemOptions` ctor argument)
 
 **Remaining for Sprint C:**
+
 - Video thumbnail generation integration (FFmpeg)
 - PDF thumbnail generation integration (PDF renderer)
 - Touch gestures for preview (JS touch interop)
@@ -3060,9 +3497,10 @@ Completed Sprint B updates `#1` and `#2` are archived in
 
 **Date:** 2026-03-10  
 **Owner:** Server (`Windows workspace`)  
-**Status:** completed ✅
+**Status:** completed [OK]
 
 **Files added/updated:**
+
 - `src/Modules/Files/DotNetCloud.Modules.Files/Services/IVideoFrameExtractor.cs`
 - `src/Modules/Files/DotNetCloud.Modules.Files/Services/FfmpegVideoFrameExtractor.cs`
 - `src/Modules/Files/DotNetCloud.Modules.Files/Services/ThumbnailService.cs`
@@ -3074,6 +3512,7 @@ Completed Sprint B updates `#1` and `#2` are archived in
 - `docs/MASTER_PROJECT_PLAN.md`
 
 **Implemented in this update:**
+
 1. Added a video frame extraction abstraction (`IVideoFrameExtractor`) and FFmpeg implementation (`FfmpegVideoFrameExtractor`) with configurable executable path (`Files:Thumbnails:FfmpegPath`, default `ffmpeg`).
 2. Extended `ThumbnailService` to process common video MIME types by extracting first-frame JPEGs and generating cached 128/256/512 thumbnails.
 3. Kept image thumbnail generation flow unchanged while adding video path and temporary extraction file cleanup safeguards.
@@ -3081,12 +3520,14 @@ Completed Sprint B updates `#1` and `#2` are archived in
 5. Added focused unit tests for successful and failed video extraction paths; fixed upstream test constructor mismatch after `FilesController` signature expansion.
 
 **Tests/validation executed:**
+
 - `dotnet test tests\DotNetCloud.Modules.Files.Tests\DotNetCloud.Modules.Files.Tests.csproj --filter "FullyQualifiedName~ThumbnailServiceTests"`
-    - Result: total 2, succeeded 2, failed 0, skipped 0
+  - Result: total 2, succeeded 2, failed 0, skipped 0
 - `dotnet test tests\DotNetCloud.Integration.Tests\DotNetCloud.Integration.Tests.csproj --filter "FullyQualifiedName~FilesThumbnailIntegrationTests"`
-    - Result: total 2, succeeded 2, failed 0, skipped 0
+  - Result: total 2, succeeded 2, failed 0, skipped 0
 
 **Remaining for Sprint C:**
+
 - PDF thumbnail generation integration (PDF renderer)
 - Touch gestures for preview (JS touch interop)
 
@@ -3094,9 +3535,10 @@ Completed Sprint B updates `#1` and `#2` are archived in
 
 **Date:** 2026-03-10  
 **Owner:** Server (`Windows workspace`)  
-**Status:** completed ✅
+**Status:** completed [OK]
 
 **Files added/updated:**
+
 - `src/Modules/Files/DotNetCloud.Modules.Files/Services/IPdfPageRenderer.cs`
 - `src/Modules/Files/DotNetCloud.Modules.Files/Services/PdftoppmPdfPageRenderer.cs`
 - `src/Modules/Files/DotNetCloud.Modules.Files/Services/ThumbnailService.cs`
@@ -3112,6 +3554,7 @@ Completed Sprint B updates `#1` and `#2` are archived in
 - `docs/development/REMAINING_PHASE0_PHASE1_3SPRINT_PLAN.md`
 
 **Implemented in this update:**
+
 1. Added PDF first-page thumbnail rendering pipeline via `IPdfPageRenderer` + `PdftoppmPdfPageRenderer` (configurable command path: `Files:Thumbnails:PdfToPpmPath`, default `pdftoppm`).
 2. Extended `ThumbnailService` to generate cached thumbnails for `application/pdf` using the same 128/256/512 cache strategy as image/video.
 3. Added touch gesture support to `FilePreview`: swipe left/right to navigate and pinch zoom for image previews.
@@ -3119,12 +3562,14 @@ Completed Sprint B updates `#1` and `#2` are archived in
 5. Expanded thumbnail unit tests to cover PDF success/failure paths in addition to existing video coverage.
 
 **Tests/validation executed:**
+
 - `dotnet test tests\DotNetCloud.Modules.Files.Tests\DotNetCloud.Modules.Files.Tests.csproj --filter "FullyQualifiedName~ThumbnailServiceTests"`
-    - Result: total 4, succeeded 4, failed 0, skipped 0
+  - Result: total 4, succeeded 4, failed 0, skipped 0
 - `dotnet test tests\DotNetCloud.Integration.Tests\DotNetCloud.Integration.Tests.csproj --filter "FullyQualifiedName~FilesThumbnailIntegrationTests"`
-    - Result: total 2, succeeded 2, failed 0, skipped 0
+  - Result: total 2, succeeded 2, failed 0, skipped 0
 
 **Remaining for Sprint C:**
+
 - None. Sprint C deferred UX/media scope is complete.
 
 ---
@@ -3136,30 +3581,30 @@ Full plan: [SYNC_REMEDIATION_PLAN.md](SYNC_REMEDIATION_PLAN.md)
 
 ### Remediation Batch A — Quick Wins (next up)
 
-| Issue | Task | Owner | Complexity | Description |
-|-------|------|-------|------------|-------------|
-| #49 | 2.6 | BOTH | LOW | Client ETag/If-None-Match for chunk downloads — ✅ `158ebdc` |
-| #50 | 2.3 | CLIENT | LOW | Compression skip for pre-compressed MIME types — ✅ `158ebdc` |
-| #52 | 1.2 | SERVER | LOW | RequestId in Serilog LogContext — ✅ `0a0ab19` |
-| #54 | 1.9 | SERVER | LOW | Content-Disposition on versioned downloads — ✅ `0a0ab19` |
-| #59 | 1.5 | CLIENT | LOW | TaskCanceledException retry in chunk transfers — ✅ `158ebdc` |
-| #61 | 3.2 | CLIENT | LOW | Session resume window 18h → 48h — ✅ `158ebdc` |
+| Issue | Task | Owner  | Complexity | Description                                                   |
+| ----- | ---- | ------ | ---------- | ------------------------------------------------------------- |
+| #49   | 2.6  | BOTH   | LOW        | Client ETag/If-None-Match for chunk downloads — [OK] `158ebdc`  |
+| #50   | 2.3  | CLIENT | LOW        | Compression skip for pre-compressed MIME types — [OK] `158ebdc` |
+| #52   | 1.2  | SERVER | LOW        | RequestId in Serilog LogContext — [OK] `0a0ab19`                |
+| #54   | 1.9  | SERVER | LOW        | Content-Disposition on versioned downloads — [OK] `0a0ab19`     |
+| #59   | 1.5  | CLIENT | LOW        | TaskCanceledException retry in chunk transfers — [OK] `158ebdc` |
+| #61   | 3.2  | CLIENT | LOW        | Session resume window 18h → 48h — [OK] `158ebdc`                |
 
-**Server issues (#52, #54):** ✅ COMPLETE — commit `0a0ab19`  
-**Client issues (#49, #50, #59, #61):** ✅ COMPLETE — commit `158ebdc`
+**Server issues (#52, #54):** [OK] COMPLETE — commit `0a0ab19`  
+**Client issues (#49, #50, #59, #61):** [OK] COMPLETE — commit `158ebdc`
 
-### Status: ✅ Batch A fully resolved.
+### Status: [OK] Batch A fully resolved.
 
 ---
 
 ### Remediation Batch B — Medium Items (next up)
 
-| Issue | Task | Owner | Complexity | Description | Status |
-|-------|------|-------|------------|-------------|--------|
-| #51 | 4.1 | CLIENT | MEDIUM | Case-sensitivity handling in SyncEngine | ✅ |
-| #55 | 3.5b | CLIENT | MEDIUM | Conflict resolution settings in sync-settings.json | ✅ |
-| #57 | 4.3/4.4 | CLIENT | LOW | FSW.Error event + symlink config | ✅ |
-| #58 | 5.2 | CLIENT | MEDIUM | Selective sync cleanup + lazy load | ✅ |
+| Issue | Task    | Owner  | Complexity | Description                                        | Status |
+| ----- | ------- | ------ | ---------- | -------------------------------------------------- | ------ |
+| #51   | 4.1     | CLIENT | MEDIUM     | Case-sensitivity handling in SyncEngine            | [OK]     |
+| #55   | 3.5b    | CLIENT | MEDIUM     | Conflict resolution settings in sync-settings.json | [OK]     |
+| #57   | 4.3/4.4 | CLIENT | LOW        | FSW.Error event + symlink config                   | [OK]     |
+| #58   | 5.2     | CLIENT | MEDIUM     | Selective sync cleanup + lazy load                 | [OK]     |
 
 **All client-side. No server work in this batch.**
 
@@ -3193,9 +3638,9 @@ Full plan: [SYNC_REMEDIATION_PLAN.md](SYNC_REMEDIATION_PLAN.md)
 
 #### After completing all four
 
-Update `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md` — mark all four issues in the Batch B table with ✅ and commit hashes. Update `docs/development/SYNC_REMEDIATION_PLAN.md` to mark #51, #55, #57, and #58 as ✓.
+Update `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md` — mark all four issues in the Batch B table with [OK] and commit hashes. Update `docs/development/SYNC_REMEDIATION_PLAN.md` to mark #51, #55, #57, and #58 as [x].
 
-### Status: ✅ Batch B fully resolved.
+### Status: [OK] Batch B fully resolved.
 
 ---
 
@@ -3214,30 +3659,34 @@ Archived from `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md` when enforci
 ### Archived completed task summaries
 
 1. Server follow-up result: Android contract alignment (Phase 2.10)
+
 - Confirmed OIDC mobile client seeding (`dotnetcloud-mobile`) and redirects.
 - Confirmed SignalR contract target: `/hubs/core`.
 - Confirmed payload contract: `UnreadCountUpdated { channelId, count }`, `NewMessage { channelId, message }`.
 - Confirmed chat REST still uses `userId` query contract.
 
 2. Server validation complete: Android SignalR contract accepted (Phase 2.10)
+
 - Server build/test sanity passed for chat module.
 - Client alignment accepted for hub path + object payload handlers.
 - Marked integration-ready for E2E run.
 
 3. Phase 2.10 Live E2E — Token-Missing Deadlock and Resolution (2026-03-11)
+
 - Client reported DOTNETCLOUD_E2E_BEARER_TOKEN=MISSING across 3+ handoff cycles.
 - Server agent minted mobile OAuth token directly via auth-code + PKCE flow on mint22.
 - Discovered and fixed two server-side bugs:
   a. CoreHub only accepted Identity cookie auth — bearer tokens rejected with 401.
-     Fix: `[Authorize(AuthenticationSchemes = "Identity.Application,OpenIddict.Validation.AspNetCore")]`
+  Fix: `[Authorize(AuthenticationSchemes = "Identity.Application,OpenIddict.Validation.AspNetCore")]`
   b. GetUserId() only checked ClaimTypes.NameIdentifier — OpenIddict bearer uses `sub` claim.
-     Fix: Added `?? Context.User?.FindFirst("sub")?.Value` fallback.
+  Fix: Added `?? Context.User?.FindFirst("sub")?.Value` fallback.
 - Test rewritten to be self-contained: connect → join group → SendMessageAsync → MarkReadAsync → assert events.
 - SSL bypass added for self-signed cert (test-only).
 - Live test PASSED: 1 test, 1 passed, 0 failed.
 - Phase 2.10 Android contract alignment marked COMPLETE.
 
 4. Phase 2.10 Client Receipt + Flaky Test Fix (2026-03-11, Windows11-TestDNC)
+
 - Pulled `bdded31` on client — server CoreHub fix + self-contained E2E test landed cleanly.
 - Build: `DotNetCloud.Core.Server` compiled 0 errors after CoreHub auth-scheme change.
 - Live Android probe still skips correctly (DOTNETCLOUD_E2E_BEARER_TOKEN=MISSING; correct, token not set here).
@@ -3251,6 +3700,7 @@ Archived from `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md` when enforci
 ## 5. Phase 2.13 Documentation + Migration Fix + Integration Test Fixes (2026-03-11 → 2026-03-12)
 
 1. Phase 2.13 Documentation Complete (2026-03-11, mint22)
+
 - Chat module docs: `docs/modules/chat/` — README, API, ARCHITECTURE, REALTIME, PUSH.
 - Android app docs: `docs/clients/android/` — README, SETUP, DISTRIBUTION.
 - Per-project developer READMEs for Chat Core, Chat.Data, Chat.Host.
@@ -3258,17 +3708,20 @@ Archived from `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md` when enforci
 - Test suite: 2,086 passed / 0 failed / 0 skipped.
 
 2. Integration Testing Sprint (2026-03-11, mint22)
+
 - Added SignalR hub, file sync flow, and chat-files cross-module integration tests.
 - New test factory: `DotNetCloudWebApplicationFactory` for Core.Server in-process testing.
 - 132 integration tests added across 3 new test classes.
 
 3. Urgent Migration Fix (2026-03-12, mint22)
+
 - `20260309093919_AddSymlinkSupport` migration not applied on mint22 PostgreSQL.
 - Files UI crashed with `42703: column f.LinkTarget does not exist`.
 - Fix: `ALTER TABLE "FileNodes" ADD "LinkTarget" text NULL;` + EF migration history insert.
 - Rebuilt and redeployed server; Files UI confirmed working.
 
 4. Integration Test Fixes (2026-03-12, mint22)
+
 - 11 integration test failures from `49bdaa6` commit fixed:
   - SignalR hub tests: 401 Unauthorized — added `TestAuthHandler` scheme with `ForwardDefaultSelector` on `Identity.Application` cookie to forward to test scheme when `x-test-user-id` header present; added header to `HubConnectionBuilder` opts.
   - SignalR `SendMessageAsync`: wrong arg count (2 instead of 3) — added `null` for `replyToId`.
@@ -3283,13 +3736,14 @@ Archived from `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md` when enforci
 
 **Date:** 2026-03-12
 **Owner:** Server agent (`mint22`)
-**Status:** COMPLETE ✅
+**Status:** COMPLETE [OK]
 
 **Problem:** Web UI at `https://mint22:15443/` failed with `42703: column f.PosixMode does not exist`. All 6 Files module migrations were pending against the production `dotnetcloud` database. The design-time factory targeted `dotnetcloud_files_dev` (non-existent), so migrations had never been applied to the actual database.
 
 **Root cause:** Design-time factory hardcodes `Database=dotnetcloud_files_dev`, but production uses `Database=dotnetcloud` via `DefaultConnection`. Previous migration work only applied `InitialCreate` (core) and `AddSymlinkSupport` (manually), leaving 4 Files migrations unapplied.
 
 **Fix applied:**
+
 1. Inserted `20260304172504_InitialFilesSchema` into `__EFMigrationsHistory` (tables already existed from prior manual creation).
 2. Applied 4 pending migrations via `dotnet ef database update --connection "Host=localhost;Database=dotnetcloud;..."`:
    - `20260308113429_AddFileVersionScanStatus` — added `ScanStatus` to `FileVersions`
@@ -3300,6 +3754,7 @@ Archived from `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md` when enforci
 4. Restarted `dotnetcloud.service`.
 
 **Verification:**
+
 - All 7 migrations recorded in `__EFMigrationsHistory`.
 - `PosixMode`, `PosixOwnerHint`, `SyncSequence` confirmed on `FileNodes`.
 - `PosixMode`, `ScanStatus` confirmed on `FileVersions`.
@@ -3321,16 +3776,19 @@ Archived from `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md` when enforci
 **Problem:** Chat module's web UI was broken — clicking a channel in the sidebar did nothing. `ModuleUiRegistrationHostedService` registered `ChannelList` (the sidebar component) as the root component for `/apps/chat`. Since nobody handled its `OnChannelSelected` callback, clicks were swallowed.
 
 **Fix applied (client-side):**
+
 1. Created `ChatPageLayout.razor/.cs/.css` — an orchestrator component composing `ChannelList` + `ChannelHeader` + `MessageList` + `MessageComposer` into a split-pane layout.
 2. Updated `ModuleUiRegistrationHostedService` to register `ChatPageLayout` instead of `ChannelList`.
 3. Clicking a channel now loads messages via `IMessageService.GetMessagesAsync()` and renders the full chat conversation view.
 
 **Server-side deploy (server agent):**
+
 1. `git pull` — fast-forward to `f24677d`.
 2. `dotnet publish src/Core/DotNetCloud.Core.Server -c Release -o artifacts/publish/server-baremetal` — build succeeded.
 3. `sudo systemctl restart dotnetcloud.service` — service restarted, status: active.
 
 **Verification:**
+
 - Health endpoint: `curl -sk https://mint22:15443/health` → 200 Healthy (all checks: self, startup, collabora_online, linux-resources).
 - `/apps/chat` route: returns 302→login (auth-gated, correct). After login redirect: 200 with Blazor server-side rendered HTML.
 - Published binary verification: `ChatPageLayout` confirmed in `DotNetCloud.Modules.Chat.dll` with all async methods (`OnInitializedAsync`, `LoadChannelsAsync`, `HandleChannelSelected`, `LoadMessagesAsync`).
@@ -3349,6 +3807,7 @@ Archived from `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md` when enforci
 **Root cause:** `ChatPageLayout.razor` component attribute bindings were missing the `@` prefix. In Blazor, `ErrorMessage="_channelErrorMessage"` passes the literal string `"_channelErrorMessage"` — it needs `ErrorMessage="@_channelErrorMessage"` to pass the C# field value. All attribute bindings in the component were affected.
 
 **Fix applied (client-side):**
+
 1. `ChatPageLayout.razor` — Added `@` prefix to all component parameter bindings (Channels, IsLoading, ErrorMessage, HasMoreMessages, TypingUsers, Channel, ReplyToMessage, MentionSuggestions, and all EventCallback bindings).
 2. `DirectMessageView.razor` — Same fix applied (Messages, IsLoading, ErrorMessage, HasMoreMessages, TypingUsers, MentionSuggestions, ReplyToMessage, and all EventCallback bindings).
 3. Build: succeeded (0 errors).
@@ -3419,11 +3878,13 @@ Upload hardening story fully closed. All three machines (Windows, Linux, Server)
 7. **Updated `ChatFilesFlowIntegrationTests`** — switched to `CreateAuthenticatedApiClient()`, removed `?userId=` query params.
 
 **Test results:**
+
 - Chat unit tests: 283 passed / 0 failed
 - Chat integration tests: 55 passed / 0 failed
 - Files integration tests: 33 passed / 0 failed (no regression)
 
 **Deployment verification:**
+
 - `curl -k -s -o /dev/null -w "%{http_code}" https://localhost:15443/api/v1/chat/channels` → **401** (was 200)
 - `curl -k -s -o /dev/null -w "%{http_code}" https://localhost:15443/api/v1/chat/channels/{id}/messages` → **401**
 - Health check: **Healthy**
@@ -3467,26 +3928,26 @@ Client-side retry and cleanup against the corrected HTTPS endpoint were complete
 - **TCP connectivity (acceptance check):** `nc -vz mint22.kimball.home 5443` succeeded.
 - **Exact server URL used:** `https://mint22.kimball.home:5443/`
 - **Exact authorize URL opened for validation:**
-    - `https://mint22.kimball.home:5443/connect/authorize?response_type=code&client_id=dotnetcloud-desktop&redirect_uri=http%3A%2F%2Flocalhost%3A52701%2Foauth%2Fcallback&scope=openid%20profile%20offline_access%20files%3Aread%20files%3Awrite&state=handoff-state-20260322&code_challenge=handoff-challenge-20260322&code_challenge_method=S256`
+  - `https://mint22.kimball.home:5443/connect/authorize?response_type=code&client_id=dotnetcloud-desktop&redirect_uri=http%3A%2F%2Flocalhost%3A52701%2Foauth%2Fcallback&scope=openid%20profile%20offline_access%20files%3Aread%20files%3Awrite&state=handoff-state-20260322&code_challenge=handoff-challenge-20260322&code_challenge_method=S256`
 - **Authorize endpoint result:** HTTPS request returned `HTTP/1.1 302 Found` with `Location: https://mint22.kimball.home/auth/login?returnUrl=...` (login redirect, no connection refused).
 - **Interactive desktop result:** Add Account completed successfully on `mint-dnc-client` after refreshing the installed client binaries from current source.
 - **Registered local context:**
-    - `ServerBaseUrl`: `https://mint22.kimball.home:5443`
-    - `DisplayName`: `testdude@llabmik.net @ mint22.kimball.home`
-    - `LocalFolderPath`: `/home/benk/synctray`
-    - `RegisteredAt`: `2026-03-22T07:11:32.6146715Z`
+  - `ServerBaseUrl`: `https://mint22.kimball.home:5443`
+  - `DisplayName`: `testdude@llabmik.net @ mint22.kimball.home`
+  - `LocalFolderPath`: `/home/benk/synctray`
+  - `RegisteredAt`: `2026-03-22T07:11:32.6146715Z`
 
 #### Interactive runtime evidence
 
 - `sync-tray20260322.log` shows successful live flow on the corrected endpoint:
-    - `[02:11:08 INF] Starting OAuth2 flow for server https://mint22.kimball.home:5443.`
-    - `[02:11:08 INF] Start processing HTTP request GET https://mint22.kimball.home:5443/.well-known/openid-configuration`
-    - `[02:11:09 INF] Received HTTP response headers after 246.0145ms - 200`
-    - `[02:11:09 INF] Opening browser for OAuth2 authorization.`
-    - `[02:11:32 INF] Start processing HTTP request POST https://mint22.kimball.home:5443/connect/token`
-    - `[02:11:32 INF] Received HTTP response headers after 275.4956ms - 200`
-    - `[02:11:34 INF] Add-account IPC call completed successfully.`
-    - `[02:11:34 INF] RefreshAccounts: received 1 context(s) from SyncService.`
+  - `[02:11:08 INF] Starting OAuth2 flow for server https://mint22.kimball.home:5443.`
+  - `[02:11:08 INF] Start processing HTTP request GET https://mint22.kimball.home:5443/.well-known/openid-configuration`
+  - `[02:11:09 INF] Received HTTP response headers after 246.0145ms - 200`
+  - `[02:11:09 INF] Opening browser for OAuth2 authorization.`
+  - `[02:11:32 INF] Start processing HTTP request POST https://mint22.kimball.home:5443/connect/token`
+  - `[02:11:32 INF] Received HTTP response headers after 275.4956ms - 200`
+  - `[02:11:34 INF] Add-account IPC call completed successfully.`
+  - `[02:11:34 INF] RefreshAccounts: received 1 context(s) from SyncService.`
 - Browser login page was reached and the Add Account flow succeeded end-to-end on this machine.
 - Remaining limitation: the tray logs do not emit the full raw browser authorize URL with dynamic `state` and `code_challenge`, so the exact one-time URL string was not captured verbatim in logs.
 
@@ -3500,12 +3961,12 @@ Client-side retry and cleanup against the corrected HTTPS endpoint were complete
 #### Validation
 
 - Full SyncTray test project passed:
-    - `dotnet test tests/DotNetCloud.Client.SyncTray.Tests/DotNetCloud.Client.SyncTray.Tests.csproj`
-    - Result: 84 passed / 0 failed / 0 skipped.
+  - `dotnet test tests/DotNetCloud.Client.SyncTray.Tests/DotNetCloud.Client.SyncTray.Tests.csproj`
+  - Result: 84 passed / 0 failed / 0 skipped.
 - Focused checks also passed during edit loop:
-    - `tests/DotNetCloud.Client.SyncTray.Tests/ViewModels/SettingsViewModelTests.cs`
-    - `tests/DotNetCloud.Client.SyncTray.Tests/Ipc/IpcClientTests.cs`
-    - Result: 19 passed / 0 failed.
+  - `tests/DotNetCloud.Client.SyncTray.Tests/ViewModels/SettingsViewModelTests.cs`
+  - `tests/DotNetCloud.Client.SyncTray.Tests/Ipc/IpcClientTests.cs`
+  - Result: 19 passed / 0 failed.
 
 #### Remaining stale `:15443` source status
 
@@ -3522,22 +3983,26 @@ Client-side retry and cleanup against the corrected HTTPS endpoint were complete
 All shared contracts for Contacts, Calendar, and Notes implemented in `DotNetCloud.Core`:
 
 **DTOs (src/Core/DotNetCloud.Core/DTOs/):**
+
 - `ContactDtos.cs` — ContactDto, ContactType, ContactEmailDto, ContactPhoneDto, ContactAddressDto, ContactGroupDto, CreateContactDto, UpdateContactDto
 - `CalendarDtos.cs` — CalendarDto, CalendarEventDto, CalendarEventStatus, EventAttendeeDto, AttendeeRole, AttendeeStatus, EventReminderDto, ReminderMethod, CreateCalendarDto, UpdateCalendarDto, CreateCalendarEventDto, UpdateCalendarEventDto, EventRsvpDto
 - `NoteDtos.cs` — NoteDto, NoteContentFormat, NoteLinkDto, NoteLinkType, NoteFolderDto, NoteVersionDto, CreateNoteDto, UpdateNoteDto, CreateNoteFolderDto, UpdateNoteFolderDto
 
 **Events (src/Core/DotNetCloud.Core/Events/):**
+
 - `ContactEvents.cs` — ContactCreatedEvent, ContactUpdatedEvent, ContactDeletedEvent
 - `CalendarEvents.cs` — CalendarEventCreatedEvent, CalendarEventUpdatedEvent, CalendarEventDeletedEvent, CalendarEventRsvpEvent, CalendarReminderTriggeredEvent
 - `NoteEvents.cs` — NoteCreatedEvent, NoteUpdatedEvent, NoteDeletedEvent
 
 **Capabilities (src/Core/DotNetCloud.Core/Capabilities/):**
+
 - `IContactDirectory.cs` — Public tier, read-only contact lookup + search
 - `ICalendarDirectory.cs` — Public tier, event summary + upcoming events query
 - `INoteDirectory.cs` — Public tier, note title lookup + search
 
 **Error Codes (src/Core/DotNetCloud.Core/Errors/ErrorCodes.cs):**
-- CONTACT_* (6 codes), CALENDAR_* (8 codes), NOTE_* (6 codes)
+
+- CONTACT*\* (6 codes), CALENDAR*\_ (8 codes), NOTE\_\_ (6 codes)
 
 **Tests:** 197/197 Core tests pass.
 
@@ -3548,6 +4013,7 @@ All shared contracts for Contacts, Calendar, and Notes implemented in `DotNetClo
 Full Contacts module implemented following 3-tier pattern (Main/Data/Host):
 
 **Main Project (src/Modules/Contacts/DotNetCloud.Modules.Contacts/):**
+
 - `ContactsModule.cs` — IModuleLifecycle with Init/Start/Stop
 - `ContactsModuleManifest.cs` — Declares capabilities and events
 - 8 entity models: Contact, ContactEmail, ContactPhone, ContactAddress, ContactCustomField, ContactGroup, ContactGroupMember, ContactShare
@@ -3555,11 +4021,13 @@ Full Contacts module implemented following 3-tier pattern (Main/Data/Host):
 - Event handlers: ContactCreatedEventHandler
 
 **Data Project (src/Modules/Contacts/DotNetCloud.Modules.Contacts.Data/):**
+
 - `ContactsDbContext.cs` — 8 DbSets with full EF configurations
 - 4 service implementations: ContactService, ContactGroupService, ContactShareService, VCardService (vCard 3.0 / RFC 2426)
 - `ContactsServiceRegistration.cs` — DI registration extension
 
 **Host Project (src/Modules/Contacts/DotNetCloud.Modules.Contacts.Host/):**
+
 - `ContactsController.cs` — REST API at api/v1/contacts (full CRUD, groups, sharing, vCard import/export)
 - `CardDavController.cs` — CardDAV endpoints (PROPFIND, REPORT, well-known redirect, OPTIONS with DAV headers)
 - `ContactsGrpcService.cs` — gRPC service with Create/Get/List/Update/Delete/ExportVCard/ImportVCards
@@ -3577,6 +4045,7 @@ Full Contacts module implemented following 3-tier pattern (Main/Data/Host):
 **Commit:** `8255368`
 
 Added ROPC password grant flow to OpenIddict:
+
 - `AuthServiceExtensions.cs`: `AllowPasswordFlow()`
 - `OpenIddictEndpointsExtensions.cs`: ~60-line password grant handler
 - `OidcClientSeeder.cs`: Added `Permissions.GrantTypes.Password` to desktop + mobile clients
@@ -3589,6 +4058,7 @@ Added ROPC password grant flow to OpenIddict:
 **Commit:** `8f5c37d`
 
 Pivoted to `WebApplicationFactory<Program>` in-process integration tests:
+
 - Enhanced `DotNetCloudWebApplicationFactory` with `x-test-user-roles` header, `AddRoleClaims()`, `CreateAdminApiClient()`
 - Added 36 new tests: UserManagement (10), Admin (9), Notifications (7), Devices (4), MFA (6)
 - Removed all broken ROPC code from 3 files
@@ -3628,21 +4098,22 @@ Pivoted to `WebApplicationFactory<Program>` in-process integration tests:
 
 **Results (8 PASS, 2 DEFERRED, 1 SKIP):**
 
-| Test ID | Test Name | Result | Notes |
-|---------|-----------|--------|-------|
-| TC-1.46 | FSW debounce | ✅ PASS | 20 FSW events from 10 rapid saves coalesced into 1 sync pass (500ms debounce timer added in 0.27.7) |
-| TC-1.47 | Launch SyncTray Windows | ✅ PASS | Tray icon visible, single-instance lock active, menu responsive |
-| TC-1.49 | OAuth2 account add | ✅ PASS | OAuth2 PKCE flow completes, account connected, green icon |
-| TC-1.50 | Server → local sync | ✅ PASS | NotificationsController.cs downloaded via chunk 304 fallback (fixed in 0.27.3) |
-| TC-1.51 | Local → server sync | ✅ PASS | File created locally, FSW detected, uploaded in 92ms, server acknowledged |
-| TC-1.52 | Conflict copy | DEFERRED | Server PUT + local edit race didn't trigger conflict — sync engine uploads local version as new version. Needs manual two-client test |
-| TC-1.53 | Offline queue + reconnect | DEFERRED | VM environment — cannot disable network adapter |
-| TC-1.54 | 100MB+ file upload | ✅ PASS | 105MB file uploaded via chunked transfer in 13.9s, parallel chunk uploads confirmed |
-| TC-1.55 | Status indicators | ✅ PASS | Idle/syncing states observed in logs and tray icon color changes |
-| TC-1.56 | Selective sync exclusion | ✅ PASS | `.syncignore` rule `test/` prevented server file `test/excluded.txt` from syncing locally. Hot-reload fix added in 0.27.8 |
-| TC-1.57 | Multi-account sync | SKIP | Environment-gated — only one account/server available |
+| Test ID | Test Name                 | Result   | Notes                                                                                                                                 |
+| ------- | ------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| TC-1.46 | FSW debounce              | [OK] PASS  | 20 FSW events from 10 rapid saves coalesced into 1 sync pass (500ms debounce timer added in 0.27.7)                                   |
+| TC-1.47 | Launch SyncTray Windows   | [OK] PASS  | Tray icon visible, single-instance lock active, menu responsive                                                                       |
+| TC-1.49 | OAuth2 account add        | [OK] PASS  | OAuth2 PKCE flow completes, account connected, green icon                                                                             |
+| TC-1.50 | Server → local sync       | [OK] PASS  | NotificationsController.cs downloaded via chunk 304 fallback (fixed in 0.27.3)                                                        |
+| TC-1.51 | Local → server sync       | [OK] PASS  | File created locally, FSW detected, uploaded in 92ms, server acknowledged                                                             |
+| TC-1.52 | Conflict copy             | DEFERRED | Server PUT + local edit race didn't trigger conflict — sync engine uploads local version as new version. Needs manual two-client test |
+| TC-1.53 | Offline queue + reconnect | DEFERRED | VM environment — cannot disable network adapter                                                                                       |
+| TC-1.54 | 100MB+ file upload        | [OK] PASS  | 105MB file uploaded via chunked transfer in 13.9s, parallel chunk uploads confirmed                                                   |
+| TC-1.55 | Status indicators         | [OK] PASS  | Idle/syncing states observed in logs and tray icon color changes                                                                      |
+| TC-1.56 | Selective sync exclusion  | [OK] PASS  | `.syncignore` rule `test/` prevented server file `test/excluded.txt` from syncing locally. Hot-reload fix added in 0.27.8             |
+| TC-1.57 | Multi-account sync        | SKIP     | Environment-gated — only one account/server available                                                                                 |
 
 **Code fixes made during testing:**
+
 - 0.27.3: Chunk 304 fallback fix for server→local sync
 - 0.27.7: 500ms FSW debounce timer
 - 0.27.8: .syncignore hot-reload fix
@@ -3660,22 +4131,358 @@ Pivoted to `WebApplicationFactory<Program>` in-process integration tests:
 
 ### Results Table (Linux)
 
-| Test ID | Test Name | Result | Notes |
-|---------|-----------|--------|-------|
-| TC-1.46 | FSW debounce | PASS | 10 rapid saves → 1 sync cycle. FSW debouncer coalesced all events correctly. |
-| TC-1.48 | Launch SyncTray Linux | PASS | Launched via `dotnet run`, tray icon visible (green), single-instance lock held. 16 menu items initialized. |
-| TC-1.49 | OAuth2 account add | PASS | OAuth2 PKCE flow completed. Browser opened, login succeeded, account connected, sync context created. Initial sync pulled 25 remote changes. |
-| TC-1.50 | Server → local sync | PASS | File uploaded to server via API appeared in local sync folder after next sync cycle (55 bytes, correct content). |
-| TC-1.51 | Local → server sync | PASS | Local file `test-local-to-server-linux.txt` uploaded to server (NodeId `a30f3e29`, 55 bytes, 95ms). Visible in server API listing. |
-| TC-1.52 | Conflict copy | PASS | Concurrent local+server edit → conflict detected. Local copy saved as `conflict-test (conflict - benk - 2026-03-29).txt`. Both versions preserved. |
-| TC-1.53 | Offline queue + reconnect | PASS | iptables REJECT blocked mint22:5443. 3 files created while offline. After unblock, all 3 uploaded automatically (LocalQueued=3, LocalApplied=3). No manual intervention. |
-| TC-1.54 | 100MB+ file upload | PASS | 105MB file uploaded via chunked transfer (110100480 bytes, ~10.7s on LAN). Note: initial FSW-triggered scan caught file mid-write at 11MB; full file uploaded after touch triggered hash mismatch detection. |
-| TC-1.55 | Status indicators | PASS | Green=idle, Blue=syncing (during 50MB upload), Yellow/Orange=conflict (during TC-1.52 conflict creation), Red=error (iptables block). All four states confirmed visually by moderator. |
-| TC-1.56 | Selective sync exclusion | PASS | `.syncignore` with `ExcludedFolder/` prevented local→server upload of excluded folder. Server→local download of content placed on server in ExcludedFolder was not filtered (known limitation — matches Windows behavior). |
-| TC-1.57 | Multi-account sync | SKIP | Environment-gated: SyncTray UI enforces single-account (CanAddAccount=false when account exists). Backend ISyncContextManager supports multi-account but UI not yet enabled. |
+| Test ID | Test Name                 | Result | Notes                                                                                                                                                                                                                      |
+| ------- | ------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TC-1.46 | FSW debounce              | PASS   | 10 rapid saves → 1 sync cycle. FSW debouncer coalesced all events correctly.                                                                                                                                               |
+| TC-1.48 | Launch SyncTray Linux     | PASS   | Launched via `dotnet run`, tray icon visible (green), single-instance lock held. 16 menu items initialized.                                                                                                                |
+| TC-1.49 | OAuth2 account add        | PASS   | OAuth2 PKCE flow completed. Browser opened, login succeeded, account connected, sync context created. Initial sync pulled 25 remote changes.                                                                               |
+| TC-1.50 | Server → local sync       | PASS   | File uploaded to server via API appeared in local sync folder after next sync cycle (55 bytes, correct content).                                                                                                           |
+| TC-1.51 | Local → server sync       | PASS   | Local file `test-local-to-server-linux.txt` uploaded to server (NodeId `a30f3e29`, 55 bytes, 95ms). Visible in server API listing.                                                                                         |
+| TC-1.52 | Conflict copy             | PASS   | Concurrent local+server edit → conflict detected. Local copy saved as `conflict-test (conflict - benk - 2026-03-29).txt`. Both versions preserved.                                                                         |
+| TC-1.53 | Offline queue + reconnect | PASS   | iptables REJECT blocked mint22:5443. 3 files created while offline. After unblock, all 3 uploaded automatically (LocalQueued=3, LocalApplied=3). No manual intervention.                                                   |
+| TC-1.54 | 100MB+ file upload        | PASS   | 105MB file uploaded via chunked transfer (110100480 bytes, ~10.7s on LAN). Note: initial FSW-triggered scan caught file mid-write at 11MB; full file uploaded after touch triggered hash mismatch detection.               |
+| TC-1.55 | Status indicators         | PASS   | Green=idle, Blue=syncing (during 50MB upload), Yellow/Orange=conflict (during TC-1.52 conflict creation), Red=error (iptables block). All four states confirmed visually by moderator.                                     |
+| TC-1.56 | Selective sync exclusion  | PASS   | `.syncignore` with `ExcludedFolder/` prevented local→server upload of excluded folder. Server→local download of content placed on server in ExcludedFolder was not filtered (known limitation — matches Windows behavior). |
+| TC-1.57 | Multi-account sync        | SKIP   | Environment-gated: SyncTray UI enforces single-account (CanAddAccount=false when account exists). Backend ISyncContextManager supports multi-account but UI not yet enabled.                                               |
 
 ### Code changes made during Linux testing:
+
 - `FileStillGrowingException` — new exception type for file stability detection
 - `SyncEngine.WaitForFileStabilityAsync()` — pre-upload stability check (1s delay, size comparison)
 - `SyncEngine` catch handler for `FileStillGrowingException` — defers upload without consuming retry budget
 - `SyncEngineTests` — unit tests covering stability check scenarios
+
+---
+
+## Archived: Files Module Bearer Auth — All JwtBearer Debugging Attempts (2026-06-21/22)
+
+All attempts to fix JWT Bearer validation on the Files module host via local key-loading + JwtBearer. None resolved the 401 `invalid_token` error. Ultimately replaced by the token introspection architecture.
+
+### Attempt 1: JwtBearer with single signing key (commit `2d0de3b2`)
+
+- Added JWT Bearer auth + policy scheme with `Microsoft.AspNetCore.Authentication.JwtBearer`
+- Used `IssuerSigningKey` (singular) — only first key
+- **Result:** 401 on valid tokens if key rotation created a newer key
+
+### Attempt 2: OpenIddict Validation (commits `b45b1691`, `e2896d99`)
+
+- Replaced JwtBearer with `OpenIddict.Validation.AspNetCore` + `UseLocalServer` + `UseSystemNetHttp`
+- Process-isolated module host couldn't reach `cloud.dotnetcloud.net` for OIDC discovery
+- **Result:** All tokens rejected
+
+### Attempt 3: JwtBearer + ValidateIssuerSigningKey=false (commit `d6bb6fce`)
+
+- Re-added JwtBearer with `IssuerSigningKeys` (plural) + `ValidateIssuerSigningKey = false`
+- `RsaSecurityKey.KeyId` auto-generated from PEM doesn't match OpenIddict's JWT `kid`
+- **Result:** Still 401 — `JsonWebTokenHandler` can't find key by kid match
+
+### Attempt 4: Deterministic RsaSecurityKey.KeyId (commit `c1025e75`)
+
+- `SetDeterministicKeyId(key)` using `RsaSecurityKey.Parameters.Modulus`
+- Used `RsaSecurityKey.Parameters` which may not be populated at runtime
+- **Result:** Still 401 — silently failed, KeyIds didn't match
+
+### Attempt 5: ComputeRsaKeyId + IssuerSigningKeyResolver (commit `80285e5f`)
+
+- `ComputeRsaKeyId(rsa)` using `RSA.ExportParameters(false)` — more reliable
+- `IssuerSigningKeyResolver` returns ALL keys regardless of kid
+- **Result:** Still 401 — even trying all keys, signature verification fails
+
+### Diagnostics: Key-loading logging (commit `b9bfd195`)
+
+- Added verbose logging to confirm keys are loading
+- Confirmed: `DOTNETCLOUD_DATA_DIR=/var/lib/dotnetcloud`, `Loaded 1 signing key(s)`
+- Keys ARE accessible — not a permissions issue
+
+### Root cause conclusion
+
+After 5 deploy attempts with different JwtBearer configurations all returning `invalid_token`, and confirming keys load correctly, the conclusion is that JwtBearer in a process-isolated module host cannot reliably validate OpenIddict tokens. The root cause is likely a mismatch in token serialization, algorithm negotiation, or header format between OpenIddict's `JsonWebTokenHandler` and JwtBearer's handler that cannot be resolved through configuration alone.
+
+### Solution: Token Introspection Architecture (commits pending)
+
+Replaced all JwtBearer local-key-validation with OAuth2-standard token introspection:
+
+- Files.Host calls Core.Server's `TokenIntrospection` gRPC service to validate tokens
+- Core.Server validates via OpenIddict (has signing keys in DI)
+- No key sharing, no kid matching, no RSA concerns
+- See current `CLIENT_SERVER_MEDIATION_HANDOFF.md` Active Handoff for deploy instructions
+
+---
+
+## Archived: Token Introspection Architecture Deploy (2026-06-22)
+
+**Status:** [OK] DEPLOYED — Token introspection architecture (commit `65bfdac1`)
+
+### What changed (architectural)
+
+Replaced the broken JwtBearer local-key-validation on Files.Host with OAuth2-standard **token introspection**:
+
+```
+Client ──JWT──▶ Core.Server (YARP) ──JWT──▶ Files.Host
+                      ▲                        │
+                      │   gRPC introspection    │
+                      └────────────────────────┘
+```
+
+**Before:** Files.Host loaded PEM signing keys and tried to validate JWT signatures locally. This never worked — 4 different JwtBearer configurations (kid matching, deterministic KeyId, IssuerSigningKeyResolver, ValidateIssuerSigningKey=false) all returned `invalid_token`.
+
+**After:** Files.Host extracts the Bearer token, calls Core.Server's new `TokenIntrospection` gRPC service over the existing inter-module channel, gets back validated claims. No key sharing. No kid matching. No RSA concerns.
+
+### New files (8)
+
+- `src/Core/DotNetCloud.Core.Grpc/Protos/token_introspection.proto` — gRPC contract
+- `src/Core/DotNetCloud.Core.Server/Grpc/Services/TokenIntrospectionServiceImpl.cs` — validates tokens via OpenIddict signing keys
+- `src/Core/DotNetCloud.Core.Auth/Introspection/ITokenIntrospectionClient.cs` — interface
+- `src/Core/DotNetCloud.Core.Auth/Introspection/TokenIntrospectionClient.cs` — gRPC client
+- `src/Core/DotNetCloud.Core.Auth/Introspection/IntrospectionAuthenticationHandler.cs` — ASP.NET Core auth handler
+- `src/Core/DotNetCloud.Core.Auth/Introspection/IntrospectionAuthenticationOptions.cs` — options (1-min cache, module ID, audience)
+- `src/Core/DotNetCloud.Core.Auth/Introspection/IntrospectionAuthenticationExtensions.cs` — `.AddIntrospection()` extension
+- `src/Core/DotNetCloud.Core.Auth/Introspection/IntrospectionServiceCollectionExtensions.cs` — DI registration
+- `src/Core/DotNetCloud.Core.Auth/Introspection/IntrospectionResult.cs` — DTO
+
+### Modified files (6)
+
+- `src/Core/DotNetCloud.Core.Auth/DotNetCloud.Core.Auth.csproj` — added `Grpc.Net.Client` + `Grpc.Tools` packages
+- `src/Core/DotNetCloud.Core.Grpc/DotNetCloud.Core.Grpc.csproj` — added proto
+- `src/Core/DotNetCloud.Core.Server/Extensions/SupervisorServiceExtensions.cs` — register introspection gRPC service + client DI
+- `src/Modules/Files/DotNetCloud.Modules.Files.Host/Program.cs` — **removed JwtBearer + key-loading**, replaced with introspection handler
+- `src/Modules/Files/DotNetCloud.Modules.Files.Data/Services/AdminSharedFolderService.cs` — fallback to `IGroupDirectory` when `_coreDb` is null (fixes 2 tests)
+- `src/Modules/Search/DotNetCloud.Modules.Search/Services/SqlServerSearchProvider.cs` — handle in-memory DB transactions (fixes 103 tests)
+- `src/Clients/DotNetCloud.Client.SyncTray/Startup/DesktopStartupManager.cs` — injectable system desktop dir (fixes 1 test)
+- `src/Modules/Music/DotNetCloud.Modules.Music.Host/Controllers/MusicController.cs` — unique temp filenames (fixes 1 flaky test)
+
+### New tests (20)
+
+- `tests/DotNetCloud.Core.Auth.Tests/Introspection/IntrospectionAuthenticationHandlerTests.cs` — **12 tests**: valid/invalid token, cache hit/miss, pass-through, challenge 401, forbidden 403, module ID forwarding, transport errors not cached
+- `tests/DotNetCloud.Client.Core.Tests/Sync/SyncStreamListenerTests.cs` — **8 tests**: Bearer header, no-token, 401 triggers refresh, refresh fails disables SSE, SSE event parsing, non-sync events ignored, connection lifecycle
+
+### Security hardening
+
+- `TokenIntrospectionServiceImpl` rejects requests when gRPC auth interceptor didn't set ModuleId (defense in depth)
+- Introspection handler caches results by SHA256(token), TTL = 1 minute
+- Transport errors NOT cached (retried on next request)
+- `WWW-Authenticate: Bearer error="invalid_token"` on challenge
+- Audience validation: module host passes `required_audience`, service verifies JWT contains it
+
+### Test results (all suites, zero failures)
+
+| Suite                     | Count      |
+| ------------------------- | ---------- |
+| Files                     | 734/734 [OK] |
+| Auth (incl. 12 new)       | 85/85 [OK]   |
+| Core.Server               | 575/575 [OK] |
+| Search                    | 664/664 [OK] |
+| Client.Core (incl. 8 new) | 264/264 [OK] |
+| SyncTray                  | 106/106 [OK] |
+| Music                     | 379/379 [OK] |
+
+### Deploy results (on `cloud.kimball.home`, 2026-06-22 03:35 UTC)
+
+```bash
+git checkout fix/files-module-bearer-auth && git pull  # 65bfdac1
+sudo ./scripts/deploy.sh --force
+```
+
+- [OK] Build: 252.5s, all targets succeeded
+- [OK] Publish: Core.Server (4.8s), 14/14 module hosts
+- [OK] Health: 200
+- [OK] Files module: running on port 50393
+- ⚠️ No introspection logs yet — expected: `TokenIntrospectionServiceImpl` is lazily instantiated on first gRPC call. Introspection pipeline is dormant until a client sends a Bearer token.
+
+### Verify (on `cloud.kimball.home`)
+
+- Files API (no auth): 401 [OK] (expected)
+- Core.Server log `TokenIntrospectionService: loaded N signing key(s)` — will appear on first introspection gRPC call
+- Files module log `TokenIntrospectionClient: connected` — will appear on first introspection gRPC call
+
+### Then (on `mint-OptiPlex-7010`)
+
+```bash
+git pull
+dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj
+```
+
+Expected: `"SSE stream connected."`
+
+### Known remaining work (future)
+
+- SignalR push for cache invalidation (revoked tokens accepted for up to 1 min)
+- Other module hosts (Music, Chat, etc.) should adopt introspection pattern
+- Scope filtering per module's declared capabilities (currently returns all token scopes)
+
+**Client version:** 0.3.9-alpha
+**Server build:** 0.3.12
+
+---
+
+## 2026-06-22: Token introspection deployed, 307 redirect found (commit `2ad939c7`)
+
+### Summary
+
+Token introspection auth (`65bfdac1`) was deployed to `cloud.kimball.home`. Client SyncTray on `mint-OptiPlex-7010` tested — token refresh succeeded but Files module endpoints returned 401.
+
+### Investigation
+
+- `journalctl -u dotnetcloud.service` confirmed new code deployed: `IntrospectionAuthenticationHandler` was invoked (not JwtBearer)
+- But gRPC introspection call to Core.Server failed: `"Bad gRPC response. HTTP status code: 307"`
+- Root cause: Core.Server's `UseHttpsRedirection` middleware was intercepting internal gRPC calls on port 50100
+- The existing `UseWhen` check on `Content-Type: application/grpc` did not prevent the redirect
+- Fixed in commit `435a03da`: `MapWhen` branch for gRPC requests placed before HTTPS redirect
+
+### Deploy results (on `cloud.kimball.home`)
+
+- [OK] Build: 252.5s, 15/15 targets succeeded
+- [OK] 14/14 module hosts published
+- [OK] Health: 200, Files module running on port 50393
+- ❌ gRPC introspection calls returned HTTP 307 (redirect) — fixed in `435a03da`
+
+**Client version:** 0.3.9-alpha
+**Server build:** 0.3.12
+
+---
+
+## Archived: gRPC 307 redirect fix (2026-06-22)
+
+**Status:** [fix] FIX PUSHED — gRPC introspection 307 redirect fixed (commit `435a03da`), ready for deploy
+
+**Root cause found (on `cloud.kimball.home`, `mint-OptiPlex-7010`):**
+
+- Introspection code deployed and running (confirmed via `journalctl`)
+- Files.Host's `IntrospectionAuthenticationHandler` correctly invoked for Bearer tokens
+- gRPC call to Core.Server's `TokenIntrospectionServiceImpl` failing with: `Status(StatusCode="Unknown", Detail="Bad gRPC response. HTTP status code: 307")`
+- Core.Server's `UseHttpsRedirection` middleware was intercepting internal gRPC calls on port 50100 despite `UseWhen` content-type check
+
+**Fix (commit `435a03da`):**
+
+- Added `MapWhen` branch before HTTPS redirect that routes gRPC requests (`Content-Type: application/grpc`) to a dedicated pipeline
+- gRPC branch maps `MapModuleGrpcServices()` directly, bypassing all HTTP-specific middleware
+- 1 file changed (`Program.cs`), 7 insertions
+- All 575 Core.Server tests pass
+
+**Next (on `cloud.kimball.home`):**
+
+```bash
+git checkout fix/files-module-bearer-auth && git pull
+sudo ./scripts/deploy.sh --force
+```
+
+**Verify (on `mint-OptiPlex-7010`):**
+
+```bash
+dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj
+```
+
+Expected: `"SSE stream connected."`
+
+**Client version:** 0.3.9-alpha
+**Server build:** 0.3.12
+
+---
+
+## Archived: Duplicate UseHttpsRedirection Fix — Deployed (2026-06-22)
+
+**Target:** `cloud.kimball.home` (production)
+**Commit:** `806d0716`
+**Status:** DEPLOYED — but client test shows 401 persists (see next handoff)
+
+**Root cause of 401 on Files module (2026-06-22):**
+
+`UseDotNetCloudMiddleware()` in `ServiceDefaultsExtensions.cs` unconditionally added `UseHttpsRedirection()` for non-dev environments. This ran BEFORE the `MapWhen` gRPC branch in `ConfigurePipeline`, causing all gRPC introspection calls (`TokenIntrospectionClient` from module hosts) to receive HTTP 307 redirects. The gRPC client interpreted 307 as "Bad gRPC response", resulting in "Introspection service unavailable" and 401.
+
+**Fix:** Removed `UseHttpsRedirection()` from `UseDotNetCloudMiddleware()`. `ConfigurePipeline` already handles HTTPS redirect correctly with gRPC exclusion via `UseWhen`.
+
+**Deploy results (on `cloud.kimball.home`):**
+- Full deploy, 15/15 targets succeeded, 308s elapsed
+- Health: Healthy
+- Zero introspection 307 errors since deploy
+
+
+---
+
+## Archived: gRPC Introspection Auth — Triple Fix (2026-06-22)
+
+**Commits:** `806d0716` → `13838258` → `4d00ddc7` (branch `fix/files-module-bearer-auth`)
+
+**Problem:** SyncTray client getting 401 on `/api/v1/files/sync/*` endpoints.
+
+**Root causes found and fixed (three layers):**
+
+1. **HTTP 307 redirect (`806d0716`):** `UseDotNetCloudMiddleware()` unconditionally added `UseHttpsRedirection()`, running BEFORE the `MapWhen` gRPC branch. Removed duplicate redirect.
+
+2. **Missing module-id header (`13838258`):** `TokenIntrospectionClient` sent module ID in request body (`CallerModuleId`) but `AuthenticationInterceptor` reads it from gRPC metadata headers. Added `Metadata` header with `module-id`.
+
+3. **UserId cannot be empty (`4d00ddc7`):** `CallerContextInterceptor` defaulted to `CallerType.Module` which requires non-empty userId. Module-to-core calls (introspection) have no user. Default to `CallerType.System` when no `caller-user-id` header.
+
+**Deploy results:** 15/15 targets, health Healthy, all three errors resolved.
+
+
+---
+
+## Archived: JWE Encryption Key Fix (2026-06-22)
+
+**Commit:** `0df90c38`
+
+**Problem:** `SecurityTokenMalformedException: IDX12709: CanReadToken() returned false. JWT is not well formed.`
+
+**Root cause:** `TokenIntrospectionServiceImpl` only loaded signing keys but OpenIddict encrypts access tokens (JWE format). The introspection service couldn't decrypt the token before validating it.
+
+**Fix:** Added `TokenDecryptionKeyResolver` to `TokenValidationParameters`, loading encryption keys from the shared `oidc-keys` directory alongside signing keys.
+
+**Deploy results:** 15/15 targets, health Healthy, encryption keys loaded, no more malformed token errors.
+
+
+---
+
+## Archived: Reference Token → JWE Format Fix (2026-06-22)
+
+**Commit:** `49880eb2`
+
+**Problem:** `SecurityTokenMalformedException: IDX12709: CanReadToken() returned false. JWT is not well formed.`
+
+**Root cause:** `DisableAccessTokenEncryption()` without Data Protection caused OpenIddict to issue opaque reference tokens instead of JWTs. `JwtSecurityTokenHandler` cannot read reference tokens.
+
+**Fix:** Removed `DisableAccessTokenEncryption()`. Tokens are now JWE (encrypted JWTs). The `TokenDecryptionKeyResolver` (loaded in `0df90c38`) decrypts them for introspection. Client unaffected — it treats the access_token as an opaque string.
+
+**Deploy results:** 15/15 targets, health Healthy, encryption keys loaded.
+
+
+---
+
+## Archived: Binary verified current, client retest never reached server (2026-06-22)
+
+**Finding:** Binary verified at commit `49880eb2` (hashes match, `DisableAccessTokenEncryption` absent). Server healthy and reachable at `https://cloud.dotnetcloud.net/health`. But ZERO client API requests (`/api/v1/files/sync/*`) and ZERO token requests (`/connect/token`) in server logs since the 20:29 CDT restart. The client's reported retest at 20:35 CDT never reached this server.
+
+---
+
+## Archived: 401 investigation — 5 server fixes + YARP header doubling root cause (2026-06-23)
+
+**Original target:** cloud.kimball.home (server), mint-OptiPlex-7010 (client)
+
+Full handoff content from commit `93ea47a5` — documented the 5-fix chain (307 redirect, module-id header, CallerContext, encryption keys, JWE enabled) and 5 client retests all returning 401. Investigation continued in subsequent handoffs.
+
+---
+
+## Archived: YARP Authorization header doubling — client verification complete (2026-06-23)
+
+**Fixes deployed (all on `cloud.kimball.home`):**
+
+| # | Commit | Fix |
+|---|--------|-----|
+| 1 | `806d0716` | Remove duplicate `UseHttpsRedirection()` |
+| 2 | `13838258` | Add `module-id` gRPC metadata header |
+| 3 | `4d00ddc7` | `CallerContextInterceptor` default to `System` caller |
+| 4 | `0df90c38` | Load encryption keys for JWE token introspection |
+| 5 | `49880eb2` | Enable JWE encryption |
+| 6 | `ad95c0ca` | Fix YARP Authorization header doubling (root cause) |
+
+**Client verification (mint-OptiPlex-7010):**
+- ✅ OAuth login succeeded — new token acquired, `IsExpired=False`
+- ✅ Files API tree endpoint: HTTP 200 (not 401)
+- ✅ Files API device-cursor endpoint: HTTP 404 (expected — new account, device not yet registered)
+- ✅ Downloads working: `Test.docx` and `Blue Chicken Eggs.docx` synced down
+- ✅ Partial upload test: small files got 502 (separate chunk upload issue, not auth-related)
+- ✅ Large file upload: `BenWizard01.png` (2.9MB) uploaded successfully via chunked transfer
+- ✅ Auth fix confirmed working — the 401 is resolved
+
+**New finding:** Chunk upload `PUT` requests to Files module intermittently return 502 Bad Gateway. Small files (`.syncignore` 23B, `TestFile.txt` 81B) consistently fail; some chunks of larger files also hit 502. To be investigated separately — not related to the auth fix.
+

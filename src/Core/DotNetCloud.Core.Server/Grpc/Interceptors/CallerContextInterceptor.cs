@@ -49,13 +49,19 @@ internal sealed class CallerContextInterceptor : Interceptor
             : null;
 
         var userIdHeader = context.RequestHeaders.Get("caller-user-id")?.Value;
-        var callerTypeHeader = context.RequestHeaders.Get("caller-type")?.Value ?? "Module";
+        var callerTypeHeader = context.RequestHeaders.Get("caller-type")?.Value;
         var rolesHeader = context.RequestHeaders.Get("caller-roles")?.Value;
 
         var userId = Guid.TryParse(userIdHeader, out var uid) ? uid : Guid.Empty;
+
+        // Default caller type: if a module-id is present but no user-id, this is a
+        // system-level internal call (e.g., token introspection). Otherwise default to
+        // Module for backwards compatibility with explicit caller-type headers.
         var callerType = Enum.TryParse<CallerType>(callerTypeHeader, ignoreCase: true, out var ct)
             ? ct
-            : CallerType.Module;
+            : userId == Guid.Empty
+                ? CallerType.System
+                : CallerType.Module;
 
         var roles = string.IsNullOrEmpty(rolesHeader)
             ? Array.Empty<string>()

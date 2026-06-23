@@ -11,7 +11,6 @@ using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Models;
 using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.Modules.Files.Options;
-using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.Modules.Search.Client;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;

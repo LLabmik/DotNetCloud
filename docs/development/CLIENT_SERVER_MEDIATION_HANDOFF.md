@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 20260512 (VFS all phases complete — IDLE; manual E2E testing remains)
+Last updated: 2026-06-23 01:19 UTC (Auth fix verified — 401 resolved, Windows11-TestDNC verification complete)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -16,9 +16,49 @@ Archived context:
 **Agent autonomy (CRITICAL):**
 
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
-- Agents pull the latest `main`, read the **Active Handoff** section, and execute the work described there independently.
-- All actionable items, blockers, and technical details go directly in this document (committed to `main`).
+- Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
+- All actionable items, blockers, and technical details go directly in this document.
+- **Current active branch:** `main`
 - No moderator involvement in technical decisions, code reviews, or work coordination.
+
+**Role separation (MANDATORY):**
+
+- **Client code** (`src/Clients/`, `src/UI/`) is handled ONLY by client machines (`mint-OptiPlex-7010`, `Windows11-TestDNC`, `mint-dnc-client`, `monolith`).
+- **Server code** (`src/Core/`, `src/Modules/`) is handled ONLY by server machines (`cloud.kimball.home`, `mint22`).
+- Each agent ONLY executes actions in the block matching their machine name (from the Environment table).
+- If no action block matches your machine, the handoff is not for you — relay it to the moderator.
+- Never cross role boundaries: a client agent never deploys server code, a server agent never builds client apps.
+
+**Active Handoff format (MANDATORY):**
+
+Every Active Handoff MUST use per-machine action blocks. Actions are grouped by the machine that executes them, using the exact machine names from the Environment table.
+
+```markdown
+## Active Handoff
+
+**Summary:** [one-line description of what's happening]
+
+[Context/background — what changed, why, relevant commits]
+
+---
+
+### Server Actions — `cloud.kimball.home`
+
+- [ ] Action 1 with exact commands
+- [ ] Action 2
+
+### Client Actions — `mint-OptiPlex-7010`
+
+- [ ] Action 1 with exact commands
+- [ ] Action 2
+```
+
+**Critical rules:**
+- Each agent ONLY executes actions in the block matching their machine name (from the Environment table).
+- If no action block matches your machine, the handoff is not for you — relay it to the moderator.
+- Always include exact commands (ready to copy-paste).
+- Mark blocks with `✓` when complete; update status inline.
+- One handoff may have 1 or 2 action blocks depending on workflow stage.
 
 **Handoff management:**
 
@@ -32,7 +72,7 @@ Archived context:
 - OAuth contract check (MANDATORY when auth is involved): verify `client_id`, `redirect_uri`, and requested scopes exactly match server-registered OpenIddict client permissions before requesting cross-machine retries.
 - Secret handling rule (MANDATORY): never commit raw bearer tokens/refresh tokens; share token acquisition steps and sanitized outputs only.
 - Moderator relays a short "check for updates" message to the other machine.
-- Moderator handoff prompt rule (MANDATORY): every ready-to-relay message must explicitly state the target machine name (for example: `mint22`, `mint-dnc-client`, `Windows11-TestDNC`).
+- Moderator handoff prompt rule (MANDATORY): every ready-to-relay message must explicitly state the target machine name (for example: `cloud.kimball.home`, `mint-dnc-client`, `Windows11-TestDNC`).
 - Other agent pulls latest, reads the handoff, and takes action without asking questions.
 
 **Document maintenance:**
@@ -52,8 +92,9 @@ Archived context:
 
 ## Current Status
 
+- YARP auth header doubling fix: deployed, verified server-side (`cloud.kimball.home`), verified client-side (`Windows11-TestDNC`) — 401 resolved.
 - All prior Phase 2, chat, pre-Linux sync remediation, SyncTray icon enhancement work is complete and archived.
-- VFS Phase 1 (server-side prerequisites) complete on `mint22`.
+- VFS Phase 1 (server-side prerequisites) complete on `cloud.kimball.home`.
 - VFS Phase 2 (core abstraction layer) complete on `Windows11-TestDNC`.
 - VFS Phase 3 (Windows Cloud Filter API) complete on `Windows11-TestDNC`.
 - VFS Phase 4 (Linux FUSE) complete on `mint-dnc-client`:
@@ -71,16 +112,18 @@ Archived context:
 
 ## Environment
 
-| Role           | Machine             | Detail                                                                             |
-| -------------- | ------------------- | ---------------------------------------------------------------------------------- |
-| Server         | `mint22`            | `https://mint22:5443/`                                                             |
-| Client         | `Windows11-TestDNC` | Sync dir: `C:\Users\benk\Documents\synctray`                                       |
-| Client         | `mint-dnc-client`   | Linux Mint 22 validation host for desktop sync client implementation + E2E testing |
-| Android Client | `monolith`          | Android MAUI app development + emulator testing (Windows 11)                       |
+| Role           | Machine              | Detail                                                                             |
+| -------------- | -------------------- | ---------------------------------------------------------------------------------- |
+| Server         | `cloud.kimball.home` | `https://cloud.dotnetcloud.net/` (production)                                      |
+| Server         | `mint22`             | `https://mint22:5443/` (dev)                                                       |
+| Client         | `Windows11-TestDNC`  | Sync dir: `C:\Users\benk\Documents\synctray`                                       |
+| Client         | `mint-dnc-client`    | Linux Mint 22 validation host for desktop sync client implementation + E2E testing |
+| Client         | `mint-OptiPlex-7010` | This machine — production client connected to `cloud.dotnetcloud.net`              |
+| Android Client | `monolith`           | Android MAUI app development + emulator testing (Windows 11)                       |
 
 ## Key Carry-Forward Contracts
 
-- Auth: OpenIddict bearer on files/sync endpoints via `FilesControllerBase` `[Authorize(AuthenticationSchemes = "OpenIddict.Validation.AspNetCore")]`.
+- Auth: Files module host uses a policy scheme (`DotNetCloud.Module`) that auto-selects between `OpenIddict.Validation.AspNetCore` (JWT Bearer) and `Identity.Application` (cookie) based on the `Authorization` header. Controllers use plain `[Authorize]`. All module hosts must follow this pattern.
 - API envelope: middleware wraps responses; clients should unwrap via envelope helpers.
 - Sync flow: changes -> tree -> reconcile -> chunk manifest -> chunk download -> file assembly.
 - Desktop OAuth constant: `OAuthConstants.ClientId = "dotnetcloud-desktop"`.
@@ -89,39 +132,5 @@ Archived context:
 
 ## Active Handoff
 
-**Status:** IDLE — all VFS implementation phases complete (2026-05-12)
+**Status:** ℹ️ No active handoff. All prior tasks archived.
 
-**Completed phases:**
-
-- VFS Phase 1 (server-side prerequisites) — `mint22`
-- VFS Phase 2 (core abstraction layer) — `Windows11-TestDNC`
-- VFS Phase 3 (Windows Cloud Filter API) — `Windows11-TestDNC`
-- VFS Phase 4 (Linux FUSE filesystem) — `mint-dnc-client`
-- VFS Phase 5 (SyncTray UI integration) — `Windows11-TestDNC`
-- VFS Phase 6 (testing & validation) — `Windows11-TestDNC`
-
-**Remaining work:** Manual E2E tests (Steps 6.2-6.4 in `docs/VIRTUAL_FILE_SYNCING_PLAN.md`) require cross-machine coordination. Not yet scheduled.
-
-- Update `scripts/install.sh` with FUSE dependency
-
-**Reference files (already on main):**
-
-- `src/Clients/DotNetCloud.Client.Core/VirtualFiles/IVirtualFileProvider.cs` — interface
-- `src/Clients/DotNetCloud.Client.Core/VirtualFiles/VirtualFileSyncEngine.cs` — engine wrapper
-- `src/Clients/DotNetCloud.Client.Core/VirtualFiles/VirtualFileSettings.cs` — settings
-- `src/Clients/DotNetCloud.Client.Core/VirtualFiles/LruCacheManager.cs` — cache (created in Phase 6)
-- `src/Clients/DotNetCloud.Client.Core/Platform/Windows/CloudFilterSyncProvider.cs` — reference implementation
-- `tests/DotNetCloud.Client.Core.Tests/VirtualFiles/FuseSyncFilesystemTests.cs` — contract tests
-
-**Pre-commit checklist:**
-
-- Run `dotnet build` — must succeed with 0 errors
-- Run `dotnet test tests/DotNetCloud.Client.Core.Tests/` — all tests must pass
-- Run `dotnet test tests/DotNetCloud.Client.Client.SyncTray.Tests/` — all tests must pass
-- Delete any unexpected untracked files before committing
-
-**Post-completion:**
-
-- Update `docs/VIRTUAL_FILE_SYNCING_PLAN.md` — mark Phase 4 deliverables ✓
-- Update `docs/IMPLEMENTATION_CHECKLIST.md` — mark Phase 4 checkboxes ✓
-- Update `docs/MASTER_PROJECT_PLAN.md` — update VFS Phase 4 status + deliverables

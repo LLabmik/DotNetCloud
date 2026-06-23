@@ -195,9 +195,9 @@ public static class AuthServiceExtensions
                     "Loaded {SigningKeyCount} signing key(s) and {EncryptionKeyCount} encryption key(s) from {OidcKeysDir}.",
                     signingKeys.Count, encryptionKeys.Count, oidcKeysDir);
 
-                // Disable access token encryption so clients can read JWT claims directly.
-                // Without this, access tokens are JWE (encrypted) and clients cannot decode them.
-                options.DisableAccessTokenEncryption();
+                // Access tokens are encrypted (JWE) using the shared RSA encryption keys.
+                // The gRPC introspection service uses TokenDecryptionKeyResolver to decrypt them.
+                // Clients receive the raw JWE token string and send it in the Authorization header.
 
                 options.UseAspNetCore()
                     .EnableTokenEndpointPassthrough()

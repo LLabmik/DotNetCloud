@@ -408,6 +408,7 @@ public sealed class SettingsViewModelTests
                 NullLogger<DesktopStartupManager>.Instance,
                 trayExecutablePathProvider: () => trayExecutablePath,
                 applicationsDirectory: applicationsDir,
+                systemDesktopDirectory: tempDir, // ensure system-wide check doesn't interfere
                 isLinux: () => true);
 
             var created = startupManager.TryEnsureApplicationLauncher();

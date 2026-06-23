@@ -11,6 +11,7 @@ using DotNetCloud.Core.Security;
 using DotNetCloud.Core.Schema.Services;
 using DotNetCloud.Core.Server.Configuration;
 using DotNetCloud.Core.Server.Extensions;
+using DotNetCloud.Core.Server.Grpc.Services;
 using DotNetCloud.Core.Server.HealthChecks;
 using DotNetCloud.Core.Server.Initialization;
 using DotNetCloud.Core.Server.Middleware;
@@ -824,6 +825,21 @@ public class Program
         // CORS
         app.UseCors(CorsConfiguration.PolicyName);
 
+        // Branch internal gRPC requests (module introspection, lifecycle, etc.) into a
+        // dedicated pipeline that bypasses HTTP-specific middleware. gRPC uses cleartext
+        // HTTP/2 on a dedicated port and must NOT be redirected to HTTPS.
+        app.MapWhen(
+            ctx => ctx.Request.ContentType?.StartsWith("application/grpc", StringComparison.OrdinalIgnoreCase) == true,
+            grpcApp =>
+            {
+                grpcApp.UseRouting();
+                grpcApp.UseEndpoints(endpoints =>
+                {
+                    endpoints.MapGrpcService<CoreCapabilitiesServiceImpl>();
+                    endpoints.MapGrpcService<TokenIntrospectionServiceImpl>();
+                });
+            });
+
         // Redirect HTTP→HTTPS for browser traffic, but NOT for internal gRPC
         // calls (modules use cleartext HTTP/2 on the gRPC port).
         app.UseWhen(
@@ -1125,20 +1141,21 @@ public class Program
         {
             await base.TransformRequestAsync(httpContext, proxyRequest, destinationPrefix, cancellationToken);
 
-            // Copy all request headers so the module host receives auth cookies, etc.
-            var hasCookie = false;
+            // Copy request headers NOT already handled by base.TransformRequestAsync.
+            // HttpTransformer copies standard request headers by default. Our loop using
+            // TryAddWithoutValidation appends (doesn't replace) — so any header the base
+            // transformer already copied gets a SECOND value. Skip Authorization to prevent
+            // "Bearer <token>, Bearer <token>" doubling that breaks JWT parsing in modules.
             foreach (var header in httpContext.Request.Headers)
             {
                 if (string.Equals(header.Key, "Host", StringComparison.OrdinalIgnoreCase))
                     continue;
-                if (string.Equals(header.Key, "Cookie", StringComparison.OrdinalIgnoreCase))
-                    hasCookie = true;
+                if (string.Equals(header.Key, "Authorization", StringComparison.OrdinalIgnoreCase))
+                    continue; // base transformer already copied this
                 proxyRequest.Headers.TryAddWithoutValidation(header.Key, header.Value.ToArray());
             }
 
             proxyRequest.Headers.TryAddWithoutValidation("X-Forwarded-Proto", "https");
-            Console.Error.WriteLine($"[YARP-PROXY] Forwarding {httpContext.Request.Path} → {destinationPrefix}. HasCookie={hasCookie}, HeaderCount={httpContext.Request.Headers.Count}");
-            Console.Error.Flush();
         }
     }
 

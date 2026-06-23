@@ -200,14 +200,14 @@ public class MusicController : MusicControllerBase
             return NotFound(ErrorEnvelope(ErrorCodes.TrackNotFound, "Album has no downloadable tracks."));
 
         var timestamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
-        var randomToken = Guid.CreateVersion7().ToString("N")[..8];
+        var randomToken = Guid.NewGuid().ToString("N")[..8];
         var safeArtistName = string.Join("_", album.ArtistName.Split(Path.GetInvalidFileNameChars())).Replace(' ', '_');
         var safeAlbumName = string.Join("_", album.Title.Split(Path.GetInvalidFileNameChars())).Replace(' ', '_');
         var tempPath = Path.Combine(Path.GetTempPath(), $"dotnetcloud-album-{albumId:N}-{timestamp}-{randomToken}.zip");
 
         try
         {
-            await using (var zipStream = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, FileOptions.Asynchronous))
+            await using (var zipStream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, FileOptions.Asynchronous))
             using (var archive = new ZipArchive(zipStream, ZipArchiveMode.Create, leaveOpen: false))
             {
                 foreach (var track in validTracks)
@@ -249,7 +249,9 @@ public class MusicController : MusicControllerBase
         }
         catch
         {
-            try { if (System.IO.File.Exists(tempPath)) System.IO.File.Delete(tempPath); } catch { /* best-effort */ }
+            try
+            { if (System.IO.File.Exists(tempPath)) System.IO.File.Delete(tempPath); }
+            catch { /* best-effort */ }
             throw;
         }
     }

@@ -9,7 +9,7 @@ namespace DotNetCloud.Modules.Files.Host.Controllers;
 /// REST API controller for bulk file operations.
 /// </summary>
 [Route("api/v1/files/bulk")]
-[Authorize(AuthenticationSchemes = "Identity.Application")]
+[Authorize]
 public class BulkController : FilesControllerBase
 {
     private readonly IFileService _fileService;
