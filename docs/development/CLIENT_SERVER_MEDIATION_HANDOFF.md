@@ -130,65 +130,47 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Status:** ❌ STILL 401 — three server fixes deployed (`4d00ddc7`) but client still gets `invalid_token`
+**Status:** ✅ DEPLOYED — four server-side fixes for Files module 401 (commits `806d0716` → `13838258` → `4d00ddc7` → `0df90c38`)
 
-**Client test results (`mint-OptiPlex-7010`, 2026-06-22 19:10 UTC):**
+**What was fixed on the server:**
+1. Removed duplicate `UseHttpsRedirection()` that redirected gRPC introspection to HTTPS (307)
+2. Added `module-id` gRPC metadata header so `AuthenticationInterceptor` accepts the call
+3. Fixed `CallerContextInterceptor` to use `CallerType.System` for module-to-core calls
+4. **Added encryption key loading — tokens are JWE (encrypted), introspection now decrypts before validating**
 
-| Step | Result |
-|------|--------|
-| Build SyncTray | 0 errors ✅ |
-| Token state on load | Not expired, can refresh ✅ |
-| `GET device-cursor` | **401** `error="invalid_token"` ❌ |
-| SSE stream connect | **401** (3 attempts, fell back to polling) ❌ |
-| Token refresh (`POST /connect/token`) | 200 OK, new expiry 01:10:12 ✅ |
-| Retry SSE after refresh | **401** — fresh token rejected ❌ |
+**Deploy results (on `cloud.kimball.home`):**
+- Full deploy, 15/15 targets succeeded, 304s
+- Health: Healthy
+- Encryption keys loaded (1 signing + 1 encryption)
+- No introspection errors in server logs
 
-**Error:** `WWW-Authenticate: Bearer error="invalid_token", error_description="The token is invalid or expired."`
+---
 
-**Pattern:** Token refresh works perfectly. The refreshed token is immediately rejected by Files API and SSE. This is NOT a client-side issue — the client is sending validly-refreshed bearer tokens.
+### Client Actions — `mint-OptiPlex-7010`
 
-**The three server fixes so far (not sufficient):**
-1. `806d0716` — removed duplicate `UseHttpsRedirection()` (307s gone)
-2. `13838258` — added `module-id` gRPC metadata header
-3. `4d00ddc7` — `CallerContextInterceptor` defaults to System caller
+**Your task:** Build and run SyncTray against this server to verify the 401 is resolved.
 
-**What remains unclear:** Is the deployed binary actually running commit `4d00ddc7`? Or is there a fourth validation issue in the introspection/auth pipeline that rejects valid tokens?
+```bash
+git checkout fix/files-module-bearer-auth && git pull
+dotnet build src/Clients/DotNetCloud.Client.SyncTray/
+dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj
+```
+
+**Verify:**
+- `GET /api/v1/files/sync/device-cursor` → 200 OK (NOT 401)
+- `GET /api/v1/files/sync/stream` → SSE stream connects (NOT 401)
+
+**If it works:** Update this handoff, set Status to ✅ RESOLVED, archive, and we're done.
+
+**If it still fails:** Collect the exact error message and stack trace, then hand back to server with a new Active Handoff.
 
 ---
 
 ### Server Actions — `cloud.kimball.home`
 
-- [ ] **Verify the running binary IS commit `4d00ddc7`:**
-  ```bash
-  git checkout fix/files-module-bearer-auth && git pull
-  git log --oneline -3
-  # Confirm HEAD is 4d00ddc7
-  
-  # Check deploy timestamp vs service restart
-  systemctl show dotnetcloud --property=ActiveEnterTimestamp
-  stat /opt/dotnetcloud/publish/DotNetCloud.Core.Server.dll | grep Modify
-  # ActiveEnterTimestamp MUST be AFTER Modify
-  ```
-- [ ] **Check server-side introspection logs in real time** while a client connects:
-  ```bash
-  journalctl -u dotnetcloud -f | grep -i "introspect\|invalid_token\|inactive\|claims"
-  # Watch this while client sends requests — look for introspection result (active=true/false)
-  ```
-- [ ] **Manually introspect a real token** to see what the server thinks:
-  ```bash
-  # Get a token (use real credentials — the client's refresh token flow proves these work)
-  curl -sk -X POST https://localhost:5443/connect/token \
-    -d "grant_type=refresh_token&refresh_token=<real-refresh-token>&client_id=dotnetcloud-desktop"
-  # Introspect the resulting access_token via gRPC or the introspection endpoint
-  ```
-- [ ] **Check if token scope includes the Files API:**
-  - Does the token have `scope=api` or the required scope for Files endpoints?
-  - Check OpenIddict client configuration for `dotnetcloud-desktop` — are the right scopes/permissions granted?
-- [ ] **If binary is stale:** redeploy immediately:
-  ```bash
-  dotnet build -c Release
-  dotnet publish -c Release
-  sudo ./scripts/deploy.sh
-  systemctl restart dotnetcloud
-  ```
-- [ ] **Update this handoff** with findings and push.
+**Only if the client reports a NEW error:**
+
+- [ ] Pull latest and investigate
+- [ ] Fix, deploy, archive, and update this handoff
+
+**Server build:** 0.3.12 (commit `0df90c38`)

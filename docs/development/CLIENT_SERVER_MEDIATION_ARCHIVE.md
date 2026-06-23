@@ -4391,3 +4391,18 @@ Expected: `"SSE stream connected."`
 3. **UserId cannot be empty (`4d00ddc7`):** `CallerContextInterceptor` defaulted to `CallerType.Module` which requires non-empty userId. Module-to-core calls (introspection) have no user. Default to `CallerType.System` when no `caller-user-id` header.
 
 **Deploy results:** 15/15 targets, health Healthy, all three errors resolved.
+
+
+---
+
+## Archived: JWE Encryption Key Fix (2026-06-22)
+
+**Commit:** `0df90c38`
+
+**Problem:** `SecurityTokenMalformedException: IDX12709: CanReadToken() returned false. JWT is not well formed.`
+
+**Root cause:** `TokenIntrospectionServiceImpl` only loaded signing keys but OpenIddict encrypts access tokens (JWE format). The introspection service couldn't decrypt the token before validating it.
+
+**Fix:** Added `TokenDecryptionKeyResolver` to `TokenValidationParameters`, loading encryption keys from the shared `oidc-keys` directory alongside signing keys.
+
+**Deploy results:** 15/15 targets, health Healthy, encryption keys loaded, no more malformed token errors.
