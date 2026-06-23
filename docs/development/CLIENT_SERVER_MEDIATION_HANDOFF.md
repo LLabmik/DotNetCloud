@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-23 17:25 UTC (429 fix verified — handoff to client for X-Device-Id duplication)
+Last updated: 2026-06-23 17:51 UTC (X-Device-Id fix deployed — handoff to Windows11-TestDNC for client verification)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -93,7 +93,7 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 ## Current Status
 
 - YARP auth header doubling fix: deployed, verified server-side (`cloud.kimball.home`), verified client-side (`Windows11-TestDNC`) — 401 resolved.
-- X-Device-Id header duplication fix: committed (skip device identity headers in `ModuleApiProxyTransformer`). Pending deploy on `cloud.kimball.home`.
+- X-Device-Id header duplication fix: deployed on `cloud.kimball.home` (commit `d1dd3746`). Service restarted, all 14 modules healthy.
 - All prior Phase 2, chat, pre-Linux sync remediation, SyncTray icon enhancement work is complete and archived.
 - VFS Phase 1 (server-side prerequisites) complete on `cloud.kimball.home`.
 - VFS Phase 2 (core abstraction layer) complete on `Windows11-TestDNC`.
@@ -124,4 +124,20 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-No active handoff. All tasks completed.
+**Summary:** ✅ X-Device-Id header duplication fix deployed on `cloud.kimball.home`. Needs verification on Windows SyncTray client that sync runs without 401/502 errors and device identity headers are single-valued.
+
+**What changed:** `ModuleApiProxyTransformer` now skips `X-Device-Id`, `X-Device-Name`, `X-Device-Platform`, and `X-Client-Version` in its header copy loop (same pattern as the existing `Authorization` skip). These headers were being duplicated (appended twice with comma separator), causing `DeviceIdentityFilter` to log invalid GUID warnings.
+
+**Deployed at:** `d1dd3746` — Core.Server restarted 17:51 UTC. All 14 modules healthy.
+
+---
+
+### Client Actions — `Windows11-TestDNC`
+
+- [ ] `git pull` on `main`
+- [ ] Build SyncTray client (`dotnet build src/Clients/DotNetCloud.Client.Desktop/` from workspace root)
+- [ ] Run a full sync cycle and confirm:
+  - No `X-Device-Id` duplication warnings in server logs
+  - No 401 errors (auth header doubling already fixed previously)
+  - Sync completes successfully (files download/upload without errors)
+- [ ] Verify in server logs: `sudo journalctl -u dotnetcloud | grep -i "deviceidentity"` on `cloud.kimball.home` should show clean GUID parses (single value, no comma)
