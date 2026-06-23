@@ -23,7 +23,17 @@ Only consult this if you encounter a regression or need to understand a past fix
 - Files.Host DLL hash verified against build output ✅
 - Zero 502 errors ✅
 
-**Next:** Relay to `mint-OptiPlex-7010` for SyncTray testing.
+**Client verification (mint-OptiPlex-7010, 2026-06-23):**
+- SyncTray built and launched ✅
+- Auth, SSE stream, sync engine started ✅
+- **REGRESSION: All chunk uploads return 502** ❌
+- Every chunk across all files (6 files, 1-252 chunks each) fails with 502
+- 3 retry attempts per chunk all fail
+- GET sync/tree and GET sync/changes work fine (200)
+- Only `PUT .../chunks/{hash}` is affected
+- This is a server-side regression in the chunk upload handler
+
+**Next:** Relay to `cloud.kimball.home` for 502 chunk upload investigation.
 
 ---
 
