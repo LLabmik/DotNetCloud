@@ -4428,3 +4428,12 @@ Expected: `"SSE stream connected."`
 ## Archived: Binary verified current, client retest never reached server (2026-06-22)
 
 **Finding:** Binary verified at commit `49880eb2` (hashes match, `DisableAccessTokenEncryption` absent). Server healthy and reachable at `https://cloud.dotnetcloud.net/health`. But ZERO client API requests (`/api/v1/files/sync/*`) and ZERO token requests (`/connect/token`) in server logs since the 20:29 CDT restart. The client's reported retest at 20:35 CDT never reached this server.
+
+---
+
+## Archived: 401 investigation — 5 server fixes + YARP header doubling root cause (2026-06-23)
+
+**Original target:** cloud.kimball.home (server), mint-OptiPlex-7010 (client)
+
+Full handoff content from commit `93ea47a5` — documented the 5-fix chain (307 redirect, module-id header, CallerContext, encryption keys, JWE enabled) and 5 client retests all returning 401. Investigation continued in subsequent handoffs.
+

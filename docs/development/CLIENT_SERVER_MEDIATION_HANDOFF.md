@@ -131,95 +131,60 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-> **🔴 MACHINE TARGET: `cloud.kimball.home` (SERVER) ONLY.**
-> If your hostname is `mint-OptiPlex-7010`, `Windows11-TestDNC`, `mint-dnc-client`, or `monolith` — **STOP. This handoff is NOT for you.** Relay to moderator.
+> **MACHINE TARGET: `mint-OptiPlex-7010` (CLIENT)**
+> If your hostname is `cloud.kimball.home`, `mint22`, `Windows11-TestDNC`, `mint-dnc-client`, or `monolith` — **STOP. This handoff is NOT for you.** Relay to moderator.
 
-**Status:** ❌ STILL 401 — Files API rejects tokens as `invalid_token`. Client has retested 5 times across 5 server fixes. Server MUST run local introspection test before ANY further client retests.
-
-**Decisive question (server must answer this):** Does `curl -k https://localhost:5443/api/v1/files/sync/device-cursor` with a fresh token return 200 or 401? If 200 locally but 401 from remote client, it's a proxy/routing issue. If 401 locally too, the deploy is broken or the fix is incomplete.
+**Status:** ✅ FIXED — Files API now accepts tokens. SyncTray retest needed.
 
 ---
 
-### Complete fix chain (all deployed to `cloud.kimball.home`)
+### Root cause: YARP proxy double-copying Authorization header
 
-| # | Commit | What was fixed | Why it mattered |
-|---|--------|---------------|-----------------|
-| 1 | `806d0716` | Remove duplicate `UseHttpsRedirection()` in `UseDotNetCloudMiddleware()` | gRPC introspection calls were getting HTTP 307 redirects instead of reaching the introspection endpoint |
-| 2 | `13838258` | Add `module-id` gRPC metadata header to `TokenIntrospectionClient` | Files module introspection calls weren't attributed to the Files module, causing auth failure |
-| 3 | `4d00ddc7` | `CallerContextInterceptor` defaults to `System` caller for module-to-core calls | Was throwing on null UserId when modules called core services via gRPC |
-| 4 | `0df90c38` | Load encryption keys for JWE token introspection | Encryption keys existed on disk but weren't being loaded into the key ring at startup |
-| 5 | `49880eb2` | Enable JWE token encryption (remove `DisableAccessTokenEncryption`) | Opaque reference tokens were incompatible with introspection — tokens must be JWE-encrypted JWTs |
-
----
-
-### Client retest history (`mint-OptiPlex-7010`)
-
-All 5 client retests returned **401 `invalid_token`** from the Files API, including the latest test (2026-06-23 01:55 UTC) which used a **fresh OAuth authorization-code grant** (not a refresh token). The OAuth flow itself succeeds — tokens are issued — but the Files API rejects them on every call.
-
-| Retest | After fix # | Result |
-|--------|------------|--------|
-| 1 | 1 (307 redirect) | 401 |
-| 2 | 2 (module-id header) | 401 |
-| 3 | 3 (CallerContext) | 401 |
-| 4 | 4 (encryption keys) | 401 |
-| 5 | 5 (JWE enabled) | 401 |
-
-**This disproves the theory that client requests aren't reaching the server.** The OAuth callback, token endpoint, and Files API are all reachable. The server issues tokens and then rejects them at introspection.
-
----
-
-### ⚠️ NO CLIENT ACTIONS — this handoff is SERVER-ONLY
-
-**There is no Client Actions block in this handoff.** If you are looking for client actions, you are reading the wrong section, the wrong file, or the wrong branch. The client (`mint-OptiPlex-7010`) has retested 5 times. There is nothing for the client to do. Do NOT ask the client to retest, run SyncTray, or run `dotnet run`. The ONLY action is for the server to run the local curl test below.
+The YARP `ModuleApiProxyTransformer` in `Program.cs` calls `base.TransformRequestAsync()` which copies all standard request headers (including `Authorization`). Then a custom loop iterates headers again calling `TryAddWithoutValidation` — which **appends** (doesn't replace). Result: the Authorization header arrived at the Files module as:
 
 ```
-curl -k https://localhost:5443/api/v1/files/sync/device-cursor -H "Authorization: Bearer <token>"
+Bearer <token>, Bearer <token>
 ```
-returns **200 OK**.
+
+A 1744-char JWE token became 3504 chars with 9 segments (instead of 5). `JwtSecurityTokenHandler` rejected it as `IDX12741: JWT must have three segments (JWS) or five segments (JWE)`.
+
+**Fix (commit `ad95c0ca`):** Skip `Authorization` in the custom copy loop since the base transformer already forwards it.
+
+### Complete fix chain (all deployed)
+
+| # | Commit | Fix |
+|---|--------|-----|
+| 1 | `806d0716` | Remove duplicate `UseHttpsRedirection()` — gRPC introspection was getting HTTP 307 |
+| 2 | `13838258` | Add `module-id` gRPC metadata header to `TokenIntrospectionClient` |
+| 3 | `4d00ddc7` | `CallerContextInterceptor` default to `System` caller for module-to-core calls |
+| 4 | `0df90c38` | Load encryption keys for JWE token introspection |
+| 5 | `49880eb2` | Enable JWE encryption (remove `DisableAccessTokenEncryption`) |
+| 6 | `ad95c0ca` | **Fix YARP Authorization header doubling** ← THIS WAS THE ROOT CAUSE |
+
+Fixes 1-5 were necessary prerequisites. Fix 6 is what actually resolved the 401.
+
+### Verification (server-side)
+
+- ✅ Client credentials token: gRPC introspection receives correct 5-segment token
+- ✅ User token (OAuth): 404 Device Not Found — auth succeeded, controller processed request
+- ✅ REST introspection: `active: true`
+- ✅ Zero `IDX12741` errors in server logs
+- ✅ Server running commit `ad95c0ca` on `cloud.kimball.home`
 
 ---
 
-### Server Actions — `cloud.kimball.home`
+### Client Actions — `mint-OptiPlex-7010`
 
-- [ ] **🔴 STEP 1: Test introspection locally on the server (MANDATORY before anything else)**
+The client requires **NO code changes**. The fix is entirely server-side. The client already sends correctly formatted `Authorization: Bearer <token>` headers.
+
+- [ ] **STEP 1: Pull latest from this branch**
   ```bash
-  # Get a token locally
-  TOKEN=$(curl -sk -X POST https://localhost:5443/connect/token \
-    -d "grant_type=password&username=<user>&password=<pass>&client_id=dotnetcloud-desktop&scope=api" \
-    | jq -r '.access_token')
-
-  echo "Token: ${TOKEN:0:20}..."
-
-  # Call Files API locally
-  curl -sk -w "\nHTTP %{http_code}\n" -H "Authorization: Bearer $TOKEN" \
-    "https://localhost:5443/api/v1/files/sync/device-cursor?deviceId=test"
-
-  # Also test introspection endpoint directly
-  curl -sk -w "\nHTTP %{http_code}\n" -X POST https://localhost:5443/connect/introspect \
-    -d "token=$TOKEN" | jq .
+  git checkout fix/files-module-bearer-auth && git pull
   ```
-  **Report the HTTP status codes and the introspection response (`active`: true or false).**
-
-- [ ] **STEP 2: Check introspection logs**
+- [ ] **STEP 2: Build and run SyncTray**
   ```bash
-  journalctl -u dotnetcloud --since "10 minutes ago" | grep -i "introspect\|decrypt\|JWE\|invalid_token\|active\|encrypt" | tail -50
+  dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj
   ```
+- [ ] **STEP 3: Verify Files API works** — should see successful sync, not 401
+- [ ] **STEP 4: Update this handoff** with test results and push
 
-- [ ] **STEP 3: Verify encryption keys are loaded**
-  ```bash
-  ls -la /opt/dotnetcloud/oidc-keys/
-  # Should show both signing AND encryption keys
-  # Check startup logs for key loading:
-  journalctl -u dotnetcloud --since "1 hour ago" | grep -i "key\|encrypt\|signing" | tail -20
-  ```
-
-- [ ] **STEP 4: If local test ALSO fails with 401** — the deploy is stale. Do a clean deploy:
-  ```bash
-  sudo systemctl stop dotnetcloud
-  rm -rf /opt/dotnetcloud/publish/*
-  # Republish from source and redeploy
-  sudo systemctl start dotnetcloud
-  # Then re-run STEP 1
-  ```
-
-- [ ] **STEP 5: Update this handoff** with the local test results and push. Do NOT ask the client to retest until you can confirm local 200.
