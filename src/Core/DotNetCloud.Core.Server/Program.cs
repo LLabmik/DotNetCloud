@@ -1141,20 +1141,21 @@ public class Program
         {
             await base.TransformRequestAsync(httpContext, proxyRequest, destinationPrefix, cancellationToken);
 
-            // Copy all request headers so the module host receives auth cookies, etc.
-            var hasCookie = false;
+            // Copy request headers NOT already handled by base.TransformRequestAsync.
+            // HttpTransformer copies standard request headers by default. Our loop using
+            // TryAddWithoutValidation appends (doesn't replace) — so any header the base
+            // transformer already copied gets a SECOND value. Skip Authorization to prevent
+            // "Bearer <token>, Bearer <token>" doubling that breaks JWT parsing in modules.
             foreach (var header in httpContext.Request.Headers)
             {
                 if (string.Equals(header.Key, "Host", StringComparison.OrdinalIgnoreCase))
                     continue;
-                if (string.Equals(header.Key, "Cookie", StringComparison.OrdinalIgnoreCase))
-                    hasCookie = true;
+                if (string.Equals(header.Key, "Authorization", StringComparison.OrdinalIgnoreCase))
+                    continue; // base transformer already copied this
                 proxyRequest.Headers.TryAddWithoutValidation(header.Key, header.Value.ToArray());
             }
 
             proxyRequest.Headers.TryAddWithoutValidation("X-Forwarded-Proto", "https");
-            Console.Error.WriteLine($"[YARP-PROXY] Forwarding {httpContext.Request.Path} → {destinationPrefix}. HasCookie={hasCookie}, HeaderCount={httpContext.Request.Headers.Count}");
-            Console.Error.Flush();
         }
     }
 
