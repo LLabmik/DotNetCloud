@@ -59,8 +59,20 @@ public interface ILocalStateDb
     /// <summary>Inserts or updates a file sync record.</summary>
     Task UpsertFileRecordAsync(string dbPath, LocalFileRecord record, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Inserts or updates multiple file sync records in a single transaction.
+    /// Significantly faster than calling <see cref="UpsertFileRecordAsync"/> individually
+    /// when processing large batch scans.
+    /// </summary>
+    Task UpsertFileRecordsBatchAsync(string dbPath, IReadOnlyList<LocalFileRecord> records, CancellationToken cancellationToken = default);
+
     /// <summary>Removes a file sync record by local path.</summary>
     Task RemoveFileRecordAsync(string dbPath, string localPath, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Removes multiple file sync records by local path in a single transaction.
+    /// </summary>
+    Task RemoveFileRecordsBatchAsync(string dbPath, IReadOnlyList<string> localPaths, CancellationToken cancellationToken = default);
 
     /// <summary>Removes all file sync records whose <c>LocalPath</c> starts with the given folder path.
     /// Used to clean up child records after a folder-level server cascade delete.</summary>
@@ -70,6 +82,12 @@ public interface ILocalStateDb
 
     /// <summary>Queues a pending operation.</summary>
     Task QueueOperationAsync(string dbPath, PendingOperationRecord operation, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Queues multiple pending operations in a single transaction with dedup checks.
+    /// Significantly faster than calling <see cref="QueueOperationAsync"/> individually.
+    /// </summary>
+    Task QueueOperationsBatchAsync(string dbPath, IReadOnlyList<PendingOperationRecord> operations, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets pending operations that are eligible to run now, ordered by queue time.

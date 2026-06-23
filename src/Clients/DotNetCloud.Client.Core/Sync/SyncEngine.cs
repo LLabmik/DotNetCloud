@@ -470,7 +470,15 @@ public sealed class SyncEngine : ISyncEngine
                 if (record.NodeId != Guid.Empty && !serverNodeIds.Contains(record.NodeId))
                 {
                     var contentChanged = true; // Assume modified unless proven otherwise
-                    if (!string.IsNullOrEmpty(record.ContentHash))
+
+                    // Fast path: if local mtime hasn't changed since last sync, the file
+                    // content cannot have changed — skip the expensive full-file hash.
+                    var currentMtime = File.GetLastWriteTimeUtc(localPath);
+                    if (currentMtime == record.LocalModifiedAt)
+                    {
+                        contentChanged = false;
+                    }
+                    else if (!string.IsNullOrEmpty(record.ContentHash))
                     {
                         try
                         {
@@ -523,30 +531,45 @@ public sealed class SyncEngine : ISyncEngine
             else if (serverFilesByRelPath.TryGetValue(relativePath, out var serverNode))
             {
                 // File exists on server but not tracked locally (e.g. after state.db reset).
-                // Compare content hashes — if identical, just record it; if different, queue update.
-                var localHash = await ComputeFileHashAsync(localPath, cancellationToken);
-                if (string.Equals(localHash, serverNode.ContentHash, StringComparison.OrdinalIgnoreCase))
+                // Fast path: if the file size differs from the server record, the content
+                // has definitely changed — queue an update without the expensive full-file hash.
+                var localSize = new FileInfo(localPath).Length;
+                if (localSize != serverNode.Size)
                 {
-                    // Identical — record in state DB without uploading.
                     _logger.LogDebug(
-                        "Local file matches server (hash match), recording without upload: {RelPath}", relativePath);
-                    await _stateDb.UpsertFileRecordAsync(context.StateDatabasePath, new LocalFileRecord
-                    {
-                        LocalPath = localPath,
-                        NodeId = serverNode.NodeId,
-                        ContentHash = localHash,
-                        LastSyncedAt = DateTime.UtcNow,
-                        LocalModifiedAt = File.GetLastWriteTimeUtc(localPath),
-                    }, cancellationToken);
-                }
-                else
-                {
-                    // Different content — queue an update (not a new file).
-                    _logger.LogDebug(
-                        "Local file differs from server, queuing update upload: {RelPath}", relativePath);
+                        "Local file size differs from server ({LocalSize} vs {ServerSize}), queuing update: {RelPath}",
+                        localSize, serverNode.Size, relativePath);
                     await _stateDb.QueueOperationAsync(context.StateDatabasePath,
                         new PendingUpload { LocalPath = localPath, NodeId = serverNode.NodeId }, cancellationToken);
                     queued++;
+                }
+                else
+                {
+                    // Sizes match — compare content hashes to avoid unnecessary uploads.
+                    var localHash = await ComputeFileHashAsync(localPath, cancellationToken);
+                    if (string.Equals(localHash, serverNode.ContentHash, StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Identical — record in state DB without uploading.
+                        _logger.LogDebug(
+                            "Local file matches server (hash match), recording without upload: {RelPath}", relativePath);
+                        await _stateDb.UpsertFileRecordAsync(context.StateDatabasePath, new LocalFileRecord
+                        {
+                            LocalPath = localPath,
+                            NodeId = serverNode.NodeId,
+                            ContentHash = localHash,
+                            LastSyncedAt = DateTime.UtcNow,
+                            LocalModifiedAt = File.GetLastWriteTimeUtc(localPath),
+                        }, cancellationToken);
+                    }
+                    else
+                    {
+                        // Different content — queue an update (not a new file).
+                        _logger.LogDebug(
+                            "Local file differs from server, queuing update upload: {RelPath}", relativePath);
+                        await _stateDb.QueueOperationAsync(context.StateDatabasePath,
+                            new PendingUpload { LocalPath = localPath, NodeId = serverNode.NodeId }, cancellationToken);
+                        queued++;
+                    }
                 }
             }
             else
