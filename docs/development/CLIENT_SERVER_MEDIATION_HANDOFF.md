@@ -124,17 +124,4 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** 🐛 `X-Device-Id` header duplication — root cause found and fixed. Needs deployment on `cloud.kimball.home`.
-
-**Root cause:** `ModuleApiProxyTransformer.TransformRequestAsync()` in `Core.Server/Program.cs` (lines 1146-1159) copies all request headers in a loop using `TryAddWithoutValidation`. `base.TransformRequestAsync()` already copies standard headers (including `X-Device-Id`). The loop then appends a second value via `TryAddWithoutValidation`. The `Authorization` header was already skipped for this same reason, but device identity headers were not.
-
-**Fix committed:** Added `X-Device-Id`, `X-Device-Name`, `X-Device-Platform`, `X-Client-Version` to the skip list in `ModuleApiProxyTransformer`.
-
-**Build:** 0 errors on `mint-OptiPlex-7010`.
-
----
-
-### Server Actions — `cloud.kimball.home`
-
-- [ ] Deploy: restart Core.Server with the fix
-- [ ] Verify: check `DeviceIdentityFilter` server logs for clean GUID parse after a sync run
+No active handoff. All tasks completed.

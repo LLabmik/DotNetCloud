@@ -1,6 +1,16 @@
 # Client/Server Mediation — Archived Context
 
-Archived: 2026-06-23 17:25 UTC. Full git history preserved in commits up to `3fa9e0df`.
+Archived: 2026-06-23 17:51 UTC. Full git history preserved in commits up to `d1dd3746`.
+
+## Archived: X-Device-Id Header Duplication — Deployed (2026-06-23)
+
+**Target:** cloud.kimball.home (server deploy)
+
+**Fix committed at `d1dd3746`:** Added `X-Device-Id`, `X-Device-Name`, `X-Device-Platform`, `X-Client-Version` to the header skip list in `ModuleApiProxyTransformer`.
+
+**Deploy:** ✅ All 15 targets succeeded. Service restarted at 17:51 UTC. All 14 modules healthy.
+
+**Verification:** Service healthy. DeviceIdentityFilter log check requires client sync traffic to confirm clean GUID parse.
 
 ## Archived: X-Device-Id Header Duplication — YARP Proxy Transformer (2026-06-23)
 
