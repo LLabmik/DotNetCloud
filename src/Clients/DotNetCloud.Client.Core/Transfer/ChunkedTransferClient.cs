@@ -20,7 +20,7 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
     public const int DefaultChunkSize = 4 * 1024 * 1024;
 
     /// <summary>Maximum concurrent chunk transfers.</summary>
-    public int MaxConcurrency { get; set; } = 4;
+    public int MaxConcurrency { get; set; } = 8;
 
     /// <summary>
     /// Directory used to cache downloaded chunks by hash. Chunks are content-addressed
@@ -423,8 +423,8 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
     private const int ChunkDownloadMaxAttempts = 3;
     private const int ChunkUploadMaxRetries = 3;
 
-    /// <summary>Bounded channel capacity: limits peak memory to ~32 MB (8 × 4 MB avg).</summary>
-    private const int ChannelCapacity = 8;
+    /// <summary>Bounded channel capacity: limits peak memory to ~64 MB (16 × 4 MB avg).</summary>
+    private const int ChannelCapacity = 16;
 
     /// <summary>Maximum age of an upload session eligible for crash resumption. Aligned with server cleanup window (48 h).</summary>
     private static readonly TimeSpan SessionResumeWindow = TimeSpan.FromHours(48);
