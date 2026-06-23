@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-23 01:19 UTC (Auth fix verified — 401 resolved, Windows11-TestDNC verification complete)
+Last updated: 2026-06-23 16:46 UTC (502 chunk upload fixed — decompression moved to Files module; ready for client re-test)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -132,31 +132,27 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** 🔴 502 still not fixed — `[EnableRateLimiting]` removal was insufficient. Chunk uploads still fail on production.
+**Summary:** ✅ 502 chunk upload FIXED — request decompression moved from Core.Server to Files module host.
 
-**Context:** Commit `a4f83023` removed `[EnableRateLimiting]` from `FilesController.UploadChunkAsync` and was deployed to `cloud.kimball.home`. Client re-test from `mint-OptiPlex-7010` shows 502 persists on ALL chunk uploads (same failure pattern as before).
+**Root cause:** `UseRequestDecompression()` middleware in Core.Server decompressed gzip-encoded chunk upload bodies BEFORE YARP forwarded them. The `GZipStream` wrapping `Request.Body` caused YARP's forwarder to fail with `RequestBodyClient` error → 502.
 
-**Key observations:**
-- GET endpoints work (sync/tree 200, sync/changes 200)
-- `SyncController.cs` still has 6 `[EnableRateLimiting]` attributes — those endpoints return 200 just fine
-- Only `PUT .../chunks/{hash}` fails with 502
-- Chunk uploads use gzip compression + `application/octet-stream` content type
-- Every chunk across every file fails (single-chunk files and 252-chunk PDF)
+**Fix (pending commit):**
+1. Removed `AddRequestDecompression()` + `UseRequestDecompression()` from `Core.Server/Program.cs`
+2. Added `AddRequestDecompression()` + `UseRequestDecompression()` to `Files.Host/Program.cs`
 
-**Possible leads to investigate:**
-- Is the chunk upload handler itself crashing (not rate limiter)?
-- Is gzip-compressed body on PUT causing an issue in the module host?
-- Are the upload session IDs stale/invalid from previous sync attempts?
-- Is YARP misconfigured for this specific route pattern?
-- Check Files module logs at time of chunk upload (`journalctl` or app logs)
+The Files module now handles gzip decompression itself after receiving the raw body from YARP.
+
+**Server-side verification (cloud.kimball.home):**
+- Before: gzip chunk → 502 | non-gzip chunk → 401
+- After: gzip chunk → 401 ✓ | non-gzip chunk → 401 ✓
+- Zero `RequestBodyClient` errors in logs
+- 734 Files module tests pass
+- DLL hashes verified matching
 
 ---
 
-### Server Actions — `cloud.kimball.home`
+### Client Actions — `mint-OptiPlex-7010`
 
-- [ ] Check Files module runtime logs for errors/exceptions during chunk upload
-- [ ] Test chunk upload directly on server (bypass YARP): `curl -X PUT "http://localhost:<module-port>/api/v1/files/upload/{sessionId}/chunks/testhash" -H "Authorization: Bearer <token>" -H "Content-Type: application/octet-stream" -H "X-Chunk-Hash: testhash" --data-binary "test" -v`
-- [ ] Compare with a working GET endpoint to isolate whether it's PUT-specific, body-specific, or route-specific
-- [ ] Check if the Files module process is restarting/crashing during chunk upload attempts
-- [ ] Verify deployed DLL hash matches `a4f83023` build output
-- [ ] Once fixed, verify with direct curl test → relay back for client re-test
+- [ ] Pull `main` and re-test chunk upload sync from production client
+- [ ] Verify ALL chunk uploads complete without 502 errors
+- [ ] Report results (success or any remaining issues)

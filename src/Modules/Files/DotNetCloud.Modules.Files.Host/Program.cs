@@ -188,6 +188,10 @@ else
     builder.Services.AddSearchFtsClient(builder.Configuration);
 }
 
+// Request decompression — handles gzip-compressed chunk upload bodies from
+// desktop/mobile clients that use Content-Encoding: gzip on chunk PUT requests.
+builder.Services.AddRequestDecompression();
+
 // gRPC
 builder.Services.AddGrpc();
 
@@ -223,6 +227,10 @@ app.UseDeveloperExceptionPage();
 // Map gRPC services
 app.MapGrpcService<FilesGrpcService>();
 app.MapGrpcService<FilesLifecycleService>();
+
+// Request decompression — handles gzip-compressed chunk upload bodies from
+// desktop/mobile clients that use Content-Encoding: gzip on chunk PUT requests.
+app.UseRequestDecompression();
 
 // Map REST API controllers
 // Trust X-Forwarded-Proto from the YARP proxy so __Host- cookies work over HTTP.

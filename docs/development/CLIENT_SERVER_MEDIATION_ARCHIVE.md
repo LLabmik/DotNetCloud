@@ -1,6 +1,44 @@
 # Client/Server Mediation — Archived Context
 
-Archived: 2026-06-23 14:50 UTC. Full git history preserved in commits up to `5e7851f9`.
+Archived: 2026-06-23 16:46 UTC. Full git history preserved in commits up to `f6bbcdf4`.
+
+## Archived: 502 Chunk Upload Fix — Request Decompression Moved to Files Module (2026-06-23)
+
+**Target:** cloud.kimball.home (server fix)
+
+**Root cause:** `UseRequestDecompression()` middleware in Core.Server was decompressing gzip-encoded chunk upload bodies BEFORE YARP forwarded them to the Files module. The GZipStream wrapping `Request.Body` caused YARP's forwarder to fail with `RequestBodyClient` error → 502 for ALL gzip-encoded chunk uploads. Non-gzip uploads (without `Content-Encoding: gzip`) worked fine.
+
+**Fix (commits pending):**
+1. Removed `builder.Services.AddRequestDecompression()` + `app.UseRequestDecompression()` from `Core.Server/Program.cs`
+2. Added `builder.Services.AddRequestDecompression()` + `app.UseRequestDecompression()` to `Files.Host/Program.cs`
+
+The Files module now decompresses gzip bodies itself, after YARP has forwarded the raw body.
+
+**Verification:**
+- Before fix: gzip chunk → 502, non-gzip chunk → 401 ✓
+- After fix: gzip chunk → 401 ✓, non-gzip chunk → 401 ✓
+- No more `RequestBodyClient` errors in logs
+- 734 Files module tests pass
+- Deploy: 15/15 targets succeeded, 290s
+
+**Next:** Client re-test from `mint-OptiPlex-7010` needed.
+
+---
+
+## Previous: 502 still not fixed — Rate Limiting removal insufficient (2026-06-23)
+
+**Target:** cloud.kimball.home (investigation following failed fix)
+
+**Root cause investigation:** After deploying commit `a4f83023` (removed `[EnableRateLimiting]` from `FilesController.UploadChunkAsync`), 502 persisted. Investigation revealed:
+- GET endpoints work (sync/tree 200, sync/changes 200)
+- Only `PUT .../chunks/{hash}` fails with 502
+- Chunk uploads use gzip compression + `application/octet-stream` content type
+- YARP error: `RequestBodyClient` — body forwarding failed
+- Files module: `OperationCanceledException` in `FilesController.UploadChunkAsync`
+
+**Confirmed:** `UseRequestDecompression()` in Core.Server was the root cause (see archived fix above).
+
+---
 
 ## Archived: 502 Regression Fix — Removed Rate Limiting Attribute from Module Controller (2026-06-23)
 
