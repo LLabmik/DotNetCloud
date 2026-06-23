@@ -4421,3 +4421,10 @@ Expected: `"SSE stream connected."`
 **Fix:** Removed `DisableAccessTokenEncryption()`. Tokens are now JWE (encrypted JWTs). The `TokenDecryptionKeyResolver` (loaded in `0df90c38`) decrypts them for introspection. Client unaffected — it treats the access_token as an opaque string.
 
 **Deploy results:** 15/15 targets, health Healthy, encryption keys loaded.
+
+
+---
+
+## Archived: Binary verified current, client retest never reached server (2026-06-22)
+
+**Finding:** Binary verified at commit `49880eb2` (hashes match, `DisableAccessTokenEncryption` absent). Server healthy and reachable at `https://cloud.dotnetcloud.net/health`. But ZERO client API requests (`/api/v1/files/sync/*`) and ZERO token requests (`/connect/token`) in server logs since the 20:29 CDT restart. The client's reported retest at 20:35 CDT never reached this server.

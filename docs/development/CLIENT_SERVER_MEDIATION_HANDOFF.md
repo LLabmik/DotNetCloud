@@ -130,58 +130,45 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Status:** ❌ STILL 401 — five server fixes deployed (`49880eb2`) including JWE token format, client still gets `invalid_token`
+**Status:** ⚠️ SERVER READY — binary verified current (`49880eb2`), healthy, reachable. Client retest did NOT reach server.
 
-**Client retest results (`mint-OptiPlex-7010`, 2026-06-23 01:35 UTC / 2026-06-22 20:35 CDT):**
+**Server verification results:**
+- Binary: hashes match, `DisableAccessTokenEncryption` absent ✅
+- Service start: 20:29 CDT, after DLL modified ✅
+- Health: Healthy at `https://cloud.dotnetcloud.net/health` ✅
+- DNS: `cloud.dotnetcloud.net` → 63.230.41.84 ✅
+- Ports 5443 (HTTPS) and 5080 (HTTP) listening ✅
 
-| Step | Result |
-|------|--------|
-| Build SyncTray | 0 errors ✅ |
-| Token state on load | Not expired, can refresh ✅ |
-| `GET device-cursor` | **401** `error="invalid_token"` ❌ |
-| SSE stream connect | **401** (3 attempts, fell back to polling) ❌ |
-| Token refresh (`POST /connect/token`) | 200 OK, new expiry 02:35:02 ✅ |
-| Retry SSE after refresh | **401** — fresh token rejected ❌ |
+**But:** ZERO client API requests to `/api/v1/files/sync/*` since restart. ZERO token requests to `/connect/token`. The reported retest at 20:35 CDT never reached this server.
 
-**All five server fixes (none observed to have any effect):**
-1. `806d0716` — removed duplicate `UseHttpsRedirection()`
-2. `13838258` — added `module-id` gRPC metadata header
-3. `4d00ddc7` — `CallerContextInterceptor` defaults to System caller
-4. `0df90c38` — encryption key loading for JWE decryption
-5. `49880eb2` — removed `DisableAccessTokenEncryption()`, tokens now JWE
+---
 
-**⚠️ CRITICAL: The deployed binary on `cloud.kimball.home` is almost certainly STALE.** Five separate fixes spanning different code paths have all produced identical 401 results. The most likely explanation is that the deploy script succeeds but the service isn't actually running the new binaries.
+### Client Actions — `mint-OptiPlex-7010`
+
+**Verify your SyncTray is connecting to `https://cloud.dotnetcloud.net`:**
+
+```bash
+curl -sk https://cloud.dotnetcloud.net/health
+# Should return {"status":"Healthy",...}
+
+curl -sk https://cloud.dotnetcloud.net/connect/token   -d "grant_type=refresh_token"   -d "client_id=dotnetcloud-desktop"   -d "refresh_token=<your-refresh-token>"
+# Should return 200 with new access_token
+```
+
+**Then retest SyncTray normally:**
+```bash
+git checkout fix/files-module-bearer-auth && git pull
+dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj
+```
+
+**If it works:** ✅ RESOLVED, archive, done.
+
+**If it fails:** Collect the EXACT error and hand back to server.
 
 ---
 
 ### Server Actions — `cloud.kimball.home`
 
-- [ ] **🔴 MANDATORY FIRST STEP: Prove the binary is current**
-  ```bash
-  # Check service restart time vs binary modification time
-  systemctl show dotnetcloud --property=ActiveEnterTimestamp
-  stat /opt/dotnetcloud/publish/DotNetCloud.Core.Server.dll | grep Modify
-  # ActiveEnterTimestamp MUST be AFTER Modify timestamp
-  
-  # Check git commit embedded in binary
-  strings /opt/dotnetcloud/publish/DotNetCloud.Core.Server.dll | grep -E "49880eb2|DisableAccessTokenEncryption" | head -5
-  # If no results, the binary is NOT commit 49880eb2
-  ```
-- [ ] **If binary is stale:** Manually stop the service, verify no lingering process, redeploy, then start:
-  ```bash
-  systemctl stop dotnetcloud
-  pgrep -a dotnetcloud  # should be empty
-  dotnet publish -c Release
-  sudo ./scripts/deploy.sh
-  systemctl start dotnetcloud
-  systemctl show dotnetcloud --property=ActiveEnterTimestamp
-  ```
-- [ ] **Test locally on the server** before handing back:
-  ```bash
-  TOKEN=$(curl -sk -X POST https://localhost:5443/connect/token \
-    -d "grant_type=password&username=<user>&password=<pass>&client_id=dotnetcloud-desktop&scope=api" \
-    | jq -r '.access_token')
-  curl -sk -H "Authorization: Bearer $TOKEN" https://localhost:5443/api/v1/files/sync/device-cursor?deviceId=test
-  # Should return 200, not 401
-  ```
-- [ ] **Update this handoff** with binary verification evidence and push.
+**Only if client reports NEW error:** Investigate, fix, deploy, archive, handoff.
+
+**Server build:** 0.3.12 (commit `49880eb2`)
