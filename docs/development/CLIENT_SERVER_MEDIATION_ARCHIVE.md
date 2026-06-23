@@ -1,9 +1,31 @@
 # Client/Server Mediation — Archived Context
 
-Archived: 2026-06-23 01:55 UTC. Full git history preserved in commits up to `49880eb2`.
+Archived: 2026-06-23 14:50 UTC. Full git history preserved in commits up to `5e7851f9`.
 
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
+
+## Archived: SyncTray Performance Branch Deploy — cloud.kimball.home (2026-06-23)
+
+**Target:** `cloud.kimball.home` (server deploy)
+
+**Summary:** Deployed `perf/synctray-scan-and-transfer-speedups` branch (10 commits, 15 files) containing:
+
+- **Rate limit config:** `upload-chunks` 300→1200/min, `sync-changes` 60→120/min
+- **N+1 tree fix:** `GetFolderTreeAsync` loads all user nodes in 1 query, builds tree in-memory
+- **Batch chunk refcount:** `ChunkReferenceHelper.IncrementBatchAsync` — single UPDATE instead of per-chunk
+- **502 fix (critical):** Added `[EnableRateLimiting("module-upload-chunks")]` to `UploadChunkAsync`. Eliminated triple memory copy per chunk.
+
+**Deploy results (commit `5e7851f9`):**
+- 15/15 targets succeeded, 331s elapsed
+- Health: Healthy ✅ (all 14 modules)
+- Rate limits verified in deployed `appsettings.json` ✅
+- Files.Host DLL hash verified against build output ✅
+- Zero 502 errors ✅
+
+**Next:** Relay to `mint-OptiPlex-7010` for SyncTray testing.
+
+---
 
 ## Archived: YARP Auth Header Doubling Fix — Verified on Windows11-TestDNC (2026-06-23)
 

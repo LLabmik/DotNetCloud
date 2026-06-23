@@ -132,27 +132,27 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** Deploy SyncTray performance improvements — server-side rate limits, N+1 tree fix, batch chunk refcount, 502 fix (missing rate limit attribute + memory copies).
+**Status:** ✅ DEPLOYED — `perf/synctray-scan-and-transfer-speedups` deployed to `cloud.kimball.home` (commit `5e7851f9`)
 
-**Context:** Branch `perf/synctray-scan-and-transfer-speedups` contains 10 commits across 15 files covering:
+**Deploy results:**
+- 15/15 targets succeeded, 331s elapsed
+- Health: Healthy ✅ (all 14 modules running)
+- Rate limits verified in deployed `appsettings.json`: `upload-chunks` 1200/min, `sync-changes` 120/min ✅
+- Files.Host DLL hash verified against build output ✅
+- Zero 502 errors ✅
 
-- **Rate limit config:** `upload-chunks` 300→1200/min, `sync-changes` 60→120/min (`appsettings.json`)
-- **N+1 tree fix:** `GetFolderTreeAsync` now loads all user nodes in 1 query, builds tree in-memory (`SyncService.cs`)
-- **Batch chunk refcount:** `ChunkReferenceHelper.IncrementBatchAsync` — single UPDATE instead of per-chunk (`ChunkReferenceHelper.cs`, `ChunkedUploadService.cs`)
-- **502 fix (critical):** Added missing `[EnableRateLimiting("module-upload-chunks")]` to `UploadChunkAsync` controller action. Eliminated triple memory copy per chunk (MemoryStream + ToArray + storage engine ToArray = ~12MB per concurrent 4MB chunk). Controller now reads body into single buffer via Content-Length. Storage engine writes via `FileStream.WriteAsync(ReadOnlyMemory<byte>)`. (`FilesController.cs`, `LocalFileStorageEngine.cs`)
+**Next: Test SyncTray from `mint-OptiPlex-7010` against this server.**
 
-Full details: `docs/SYNCTRAY_PERFORMANCE_IMPROVEMENTS.md`
+```bash
+# On mint-OptiPlex-7010:
+git fetch && git checkout perf/synctray-scan-and-transfer-speedups && git pull
+dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj
+```
 
-Tests: 1,279 pass (Client.Core 264, SyncTray 106, Modules.Files 734, Core.Data 175).
+Key things to verify:
+- Chunk uploads no longer return 502
+- Sync completes end-to-end
+- Tree endpoint performance (single query instead of N+1)
+- Rate limits not causing unnecessary throttling
 
----
-
-### Server Actions — `cloud.kimball.home`
-
-- [ ] `git fetch && git checkout perf/synctray-scan-and-transfer-speedups`
-- [ ] `dotnet build src/Core/DotNetCloud.Core.Server/ -c Release`
-- [ ] Deploy and restart the server (publish to `/var/dnc/` or equivalent)
-- [ ] Verify chunk uploads no longer return 502 — check server logs for `EnableRateLimiting` activation on `module-upload-chunks`
-- [ ] Verify tree endpoint returns in 1 query instead of recursive — check DB query log for single `SELECT ... FROM FileNodes WHERE OwnerId = ...`
-- [ ] Update `appsettings.json` rate limits in deployed config if the publish process doesn't pick up source config
-
+**Server build:** 0.3.12 (commit `5e7851f9`)
