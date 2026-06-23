@@ -4406,3 +4406,18 @@ Expected: `"SSE stream connected."`
 **Fix:** Added `TokenDecryptionKeyResolver` to `TokenValidationParameters`, loading encryption keys from the shared `oidc-keys` directory alongside signing keys.
 
 **Deploy results:** 15/15 targets, health Healthy, encryption keys loaded, no more malformed token errors.
+
+
+---
+
+## Archived: Reference Token → JWE Format Fix (2026-06-22)
+
+**Commit:** `49880eb2`
+
+**Problem:** `SecurityTokenMalformedException: IDX12709: CanReadToken() returned false. JWT is not well formed.`
+
+**Root cause:** `DisableAccessTokenEncryption()` without Data Protection caused OpenIddict to issue opaque reference tokens instead of JWTs. `JwtSecurityTokenHandler` cannot read reference tokens.
+
+**Fix:** Removed `DisableAccessTokenEncryption()`. Tokens are now JWE (encrypted JWTs). The `TokenDecryptionKeyResolver` (loaded in `0df90c38`) decrypts them for introspection. Client unaffected — it treats the access_token as an opaque string.
+
+**Deploy results:** 15/15 targets, health Healthy, encryption keys loaded.

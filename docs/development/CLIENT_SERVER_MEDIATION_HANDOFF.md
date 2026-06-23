@@ -130,56 +130,43 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Status:** ❌ STILL 401 — four server fixes deployed (`0df90c38`) including JWE encryption keys, client still gets `invalid_token`
+**Status:** 🔄 READY FOR RETEST — all five server fixes deployed (`49880eb2`), tokens now JWE format
 
-**Client test results (`mint-OptiPlex-7010`, 2026-06-22 20:12 UTC):**
+**What was fixed on the server (all five):**
+1. Removed duplicate `UseHttpsRedirection()` that redirected gRPC introspection to HTTPS (307)
+2. Added `module-id` gRPC metadata header for `AuthenticationInterceptor`
+3. Fixed `CallerContextInterceptor` — module-to-core calls use `CallerType.System`
+4. Added `TokenDecryptionKeyResolver` to load encryption keys
+5. **Removed `DisableAccessTokenEncryption()` — tokens now JWE (encrypted JWTs) instead of opaque references**
 
-| Step | Result |
-|------|--------|
-| Build SyncTray | 0 errors ✅ |
-| Token (expired, auto-refresh) | 200 OK, new expiry 02:12:02 ✅ |
-| `GET device-cursor` with fresh token | **401** `error="invalid_token"` ❌ |
-| SSE stream with fresh token | **401** (3 attempts, fell back to polling) ❌ |
-| Second token refresh after SSE 401 | 200 OK ✅ |
-| Retry SSE after second refresh | **401** ❌ |
+**Why fix #5 matters:** Without it, OpenIddict issued opaque reference tokens (not JWTs). `JwtSecurityTokenHandler` can't read them → `SecurityTokenMalformedException`. With JWE, the introspection service decrypts and validates the token properly.
 
-**The four server fixes so far (none sufficient):**
-1. `806d0716` — removed duplicate `UseHttpsRedirection()`
-2. `13838258` — added `module-id` gRPC metadata header
-3. `4d00ddc7` — `CallerContextInterceptor` defaults to System caller
-4. `0df90c38` — encryption key loading for JWE token decryption
+**Note:** The 20:12 UTC client test was BEFORE fix #5 was deployed. A retest is required.
 
-**Critical observation:** The server claims encryption keys are loaded and deployed. But the token is STILL rejected. One of these must be true:
-- The deployed binary is NOT commit `0df90c38` (stale deploy)
-- The encryption key loaded doesn't match the one used to encrypt tokens
-- Something else in the validation chain still fails after decryption
+---
+
+### Client Actions — `mint-OptiPlex-7010`
+
+**Your task:** Pull latest, rebuild SyncTray, and test against `cloud.dotnetcloud.net`.
+
+```bash
+git checkout fix/files-module-bearer-auth && git pull
+dotnet build src/Clients/DotNetCloud.Client.SyncTray/
+dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj
+```
+
+**Verify:**
+- `GET /api/v1/files/sync/device-cursor` → 200 OK
+- `GET /api/v1/files/sync/stream` → SSE stream connects
+
+**If it works:** Set Status to ✅ RESOLVED, archive, done.
+
+**If it still fails:** Collect the exact error, hand back to server.
 
 ---
 
 ### Server Actions — `cloud.kimball.home`
 
-- [ ] **Verify the deployed binary IS commit `0df90c38`:**
-  ```bash
-  systemctl show dotnetcloud --property=ActiveEnterTimestamp
-  stat /opt/dotnetcloud/publish/DotNetCloud.Core.Server.dll | grep Modify
-  # ActiveEnterTimestamp MUST be AFTER Modify
-  ```
-- [ ] **Verify encryption key is loaded** in the Files module host:
-  ```bash
-  journalctl -u dotnetcloud --since "1 hour ago" | grep -i "encrypt\|decrypt\|jwe\|encryption.key" | tail -20
-  ```
-- [ ] **Manually introspect a real client token** to see what the introspection service returns:
-  - Does introspection return `active=true` or `active=false`?
-  - If `active=false`, what's the error? Decryption failure? Signature failure? Expired?
-- [ ] **Test the Files API directly from the server** with a manually-acquired token:
-  ```bash
-  # Get a token
-  TOKEN=$(curl -sk -X POST https://localhost:5443/connect/token \
-    -d "grant_type=password&username=<user>&password=<pass>&client_id=dotnetcloud-desktop&scope=api" \
-    | jq -r '.access_token')
-  # Call Files API
-  curl -sk -H "Authorization: Bearer $TOKEN" https://localhost:5443/api/v1/files/sync/device-cursor?deviceId=test
-  # If this works locally but client still gets 401, it's a deployment/network issue
-  ```
-- [ ] **If binary is stale or deploy incomplete:** rebuild and redeploy.
-- [ ] **Update this handoff** with findings and push.
+**Only if the client reports a NEW error:** Investigate, fix, deploy, archive, and update this handoff.
+
+**Server build:** 0.3.12 (commit `49880eb2`)
