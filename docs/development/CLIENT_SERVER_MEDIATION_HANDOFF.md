@@ -16,8 +16,9 @@ Archived context:
 **Agent autonomy (CRITICAL):**
 
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
-- Agents pull the latest `main`, read the **Active Handoff** section, and execute the work described there independently.
-- All actionable items, blockers, and technical details go directly in this document (committed to `main`).
+- Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
+- All actionable items, blockers, and technical details go directly in this document.
+- **Current active branch:** `fix/files-module-bearer-auth` (do NOT pull `main` — the handoff on `main` is stale VFS content from May).
 - No moderator involvement in technical decisions, code reviews, or work coordination.
 
 **Role separation (MANDATORY):**
