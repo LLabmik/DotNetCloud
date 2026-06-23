@@ -131,6 +131,9 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
+> **🔴 MACHINE TARGET: `cloud.kimball.home` (SERVER) ONLY.**
+> If your hostname is `mint-OptiPlex-7010`, `Windows11-TestDNC`, `mint-dnc-client`, or `monolith` — **STOP. This handoff is NOT for you.** Relay to moderator.
+
 **Status:** ❌ STILL 401 — Files API rejects tokens as `invalid_token`. Client has retested 5 times across 5 server fixes. Server MUST run local introspection test before ANY further client retests.
 
 **Decisive question (server must answer this):** Does `curl -k https://localhost:5443/api/v1/files/sync/device-cursor` with a fresh token return 200 or 401? If 200 locally but 401 from remote client, it's a proxy/routing issue. If 401 locally too, the deploy is broken or the fix is incomplete.
@@ -167,7 +170,7 @@ All 5 client retests returned **401 `invalid_token`** from the Files API, includ
 
 ### ⚠️ NO CLIENT ACTIONS — this handoff is SERVER-ONLY
 
-There is no client action block. The client has retested 5 times. Do NOT ask the client to retest until the server can confirm locally that:
+**There is no Client Actions block in this handoff.** If you are looking for client actions, you are reading the wrong section, the wrong file, or the wrong branch. The client (`mint-OptiPlex-7010`) has retested 5 times. There is nothing for the client to do. Do NOT ask the client to retest, run SyncTray, or run `dotnet run`. The ONLY action is for the server to run the local curl test below.
 
 ```
 curl -k https://localhost:5443/api/v1/files/sync/device-cursor -H "Authorization: Bearer <token>"
