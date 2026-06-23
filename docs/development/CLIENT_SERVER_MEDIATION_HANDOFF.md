@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 20260622 (Client re-test: 401 STILL persists after triple server fix — token refresh works, API rejects fresh tokens)
+Last updated: 20260622 (Client re-test #4: 401 still persists after encryption key fix — four fixes not sufficient)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -130,47 +130,56 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Status:** ✅ DEPLOYED — four server-side fixes for Files module 401 (commits `806d0716` → `13838258` → `4d00ddc7` → `0df90c38`)
+**Status:** ❌ STILL 401 — four server fixes deployed (`0df90c38`) including JWE encryption keys, client still gets `invalid_token`
 
-**What was fixed on the server:**
-1. Removed duplicate `UseHttpsRedirection()` that redirected gRPC introspection to HTTPS (307)
-2. Added `module-id` gRPC metadata header so `AuthenticationInterceptor` accepts the call
-3. Fixed `CallerContextInterceptor` to use `CallerType.System` for module-to-core calls
-4. **Added encryption key loading — tokens are JWE (encrypted), introspection now decrypts before validating**
+**Client test results (`mint-OptiPlex-7010`, 2026-06-22 20:12 UTC):**
 
-**Deploy results (on `cloud.kimball.home`):**
-- Full deploy, 15/15 targets succeeded, 304s
-- Health: Healthy
-- Encryption keys loaded (1 signing + 1 encryption)
-- No introspection errors in server logs
+| Step | Result |
+|------|--------|
+| Build SyncTray | 0 errors ✅ |
+| Token (expired, auto-refresh) | 200 OK, new expiry 02:12:02 ✅ |
+| `GET device-cursor` with fresh token | **401** `error="invalid_token"` ❌ |
+| SSE stream with fresh token | **401** (3 attempts, fell back to polling) ❌ |
+| Second token refresh after SSE 401 | 200 OK ✅ |
+| Retry SSE after second refresh | **401** ❌ |
 
----
+**The four server fixes so far (none sufficient):**
+1. `806d0716` — removed duplicate `UseHttpsRedirection()`
+2. `13838258` — added `module-id` gRPC metadata header
+3. `4d00ddc7` — `CallerContextInterceptor` defaults to System caller
+4. `0df90c38` — encryption key loading for JWE token decryption
 
-### Client Actions — `mint-OptiPlex-7010`
-
-**Your task:** Build and run SyncTray against this server to verify the 401 is resolved.
-
-```bash
-git checkout fix/files-module-bearer-auth && git pull
-dotnet build src/Clients/DotNetCloud.Client.SyncTray/
-dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj
-```
-
-**Verify:**
-- `GET /api/v1/files/sync/device-cursor` → 200 OK (NOT 401)
-- `GET /api/v1/files/sync/stream` → SSE stream connects (NOT 401)
-
-**If it works:** Update this handoff, set Status to ✅ RESOLVED, archive, and we're done.
-
-**If it still fails:** Collect the exact error message and stack trace, then hand back to server with a new Active Handoff.
+**Critical observation:** The server claims encryption keys are loaded and deployed. But the token is STILL rejected. One of these must be true:
+- The deployed binary is NOT commit `0df90c38` (stale deploy)
+- The encryption key loaded doesn't match the one used to encrypt tokens
+- Something else in the validation chain still fails after decryption
 
 ---
 
 ### Server Actions — `cloud.kimball.home`
 
-**Only if the client reports a NEW error:**
-
-- [ ] Pull latest and investigate
-- [ ] Fix, deploy, archive, and update this handoff
-
-**Server build:** 0.3.12 (commit `0df90c38`)
+- [ ] **Verify the deployed binary IS commit `0df90c38`:**
+  ```bash
+  systemctl show dotnetcloud --property=ActiveEnterTimestamp
+  stat /opt/dotnetcloud/publish/DotNetCloud.Core.Server.dll | grep Modify
+  # ActiveEnterTimestamp MUST be AFTER Modify
+  ```
+- [ ] **Verify encryption key is loaded** in the Files module host:
+  ```bash
+  journalctl -u dotnetcloud --since "1 hour ago" | grep -i "encrypt\|decrypt\|jwe\|encryption.key" | tail -20
+  ```
+- [ ] **Manually introspect a real client token** to see what the introspection service returns:
+  - Does introspection return `active=true` or `active=false`?
+  - If `active=false`, what's the error? Decryption failure? Signature failure? Expired?
+- [ ] **Test the Files API directly from the server** with a manually-acquired token:
+  ```bash
+  # Get a token
+  TOKEN=$(curl -sk -X POST https://localhost:5443/connect/token \
+    -d "grant_type=password&username=<user>&password=<pass>&client_id=dotnetcloud-desktop&scope=api" \
+    | jq -r '.access_token')
+  # Call Files API
+  curl -sk -H "Authorization: Bearer $TOKEN" https://localhost:5443/api/v1/files/sync/device-cursor?deviceId=test
+  # If this works locally but client still gets 401, it's a deployment/network issue
+  ```
+- [ ] **If binary is stale or deploy incomplete:** rebuild and redeploy.
+- [ ] **Update this handoff** with findings and push.
