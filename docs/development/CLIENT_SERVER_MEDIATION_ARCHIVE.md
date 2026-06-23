@@ -4437,3 +4437,29 @@ Expected: `"SSE stream connected."`
 
 Full handoff content from commit `93ea47a5` — documented the 5-fix chain (307 redirect, module-id header, CallerContext, encryption keys, JWE enabled) and 5 client retests all returning 401. Investigation continued in subsequent handoffs.
 
+---
+
+## Archived: YARP Authorization header doubling — client verification complete (2026-06-23)
+
+**Fixes deployed (all on `cloud.kimball.home`):**
+
+| # | Commit | Fix |
+|---|--------|-----|
+| 1 | `806d0716` | Remove duplicate `UseHttpsRedirection()` |
+| 2 | `13838258` | Add `module-id` gRPC metadata header |
+| 3 | `4d00ddc7` | `CallerContextInterceptor` default to `System` caller |
+| 4 | `0df90c38` | Load encryption keys for JWE token introspection |
+| 5 | `49880eb2` | Enable JWE encryption |
+| 6 | `ad95c0ca` | Fix YARP Authorization header doubling (root cause) |
+
+**Client verification (mint-OptiPlex-7010):**
+- ✅ OAuth login succeeded — new token acquired, `IsExpired=False`
+- ✅ Files API tree endpoint: HTTP 200 (not 401)
+- ✅ Files API device-cursor endpoint: HTTP 404 (expected — new account, device not yet registered)
+- ✅ Downloads working: `Test.docx` and `Blue Chicken Eggs.docx` synced down
+- ✅ Partial upload test: small files got 502 (separate chunk upload issue, not auth-related)
+- ✅ Large file upload: `BenWizard01.png` (2.9MB) uploaded successfully via chunked transfer
+- ✅ Auth fix confirmed working — the 401 is resolved
+
+**New finding:** Chunk upload `PUT` requests to Files module intermittently return 502 Bad Gateway. Small files (`.syncignore` 23B, `TestFile.txt` 81B) consistently fail; some chunks of larger files also hit 502. To be investigated separately — not related to the auth fix.
+

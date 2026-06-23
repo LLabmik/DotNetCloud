@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-23 01:55 UTC (Fresh OAuth login: token acquired successfully, still rejected 401 by Files API)
+Last updated: 2026-06-23 01:19 UTC (Auth fix verified — 401 resolved)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -18,7 +18,7 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
-- **Current active branch:** `fix/files-module-bearer-auth` (do NOT pull `main` — the handoff on `main` is stale VFS content from May).
+- **Current active branch:** `main`
 - No moderator involvement in technical decisions, code reviews, or work coordination.
 
 **Role separation (MANDATORY):**
@@ -131,60 +131,5 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-> **MACHINE TARGET: `mint-OptiPlex-7010` (CLIENT)**
-> If your hostname is `cloud.kimball.home`, `mint22`, `Windows11-TestDNC`, `mint-dnc-client`, or `monolith` — **STOP. This handoff is NOT for you.** Relay to moderator.
-
-**Status:** ✅ FIXED — Files API now accepts tokens. SyncTray retest needed.
-
----
-
-### Root cause: YARP proxy double-copying Authorization header
-
-The YARP `ModuleApiProxyTransformer` in `Program.cs` calls `base.TransformRequestAsync()` which copies all standard request headers (including `Authorization`). Then a custom loop iterates headers again calling `TryAddWithoutValidation` — which **appends** (doesn't replace). Result: the Authorization header arrived at the Files module as:
-
-```
-Bearer <token>, Bearer <token>
-```
-
-A 1744-char JWE token became 3504 chars with 9 segments (instead of 5). `JwtSecurityTokenHandler` rejected it as `IDX12741: JWT must have three segments (JWS) or five segments (JWE)`.
-
-**Fix (commit `ad95c0ca`):** Skip `Authorization` in the custom copy loop since the base transformer already forwards it.
-
-### Complete fix chain (all deployed)
-
-| # | Commit | Fix |
-|---|--------|-----|
-| 1 | `806d0716` | Remove duplicate `UseHttpsRedirection()` — gRPC introspection was getting HTTP 307 |
-| 2 | `13838258` | Add `module-id` gRPC metadata header to `TokenIntrospectionClient` |
-| 3 | `4d00ddc7` | `CallerContextInterceptor` default to `System` caller for module-to-core calls |
-| 4 | `0df90c38` | Load encryption keys for JWE token introspection |
-| 5 | `49880eb2` | Enable JWE encryption (remove `DisableAccessTokenEncryption`) |
-| 6 | `ad95c0ca` | **Fix YARP Authorization header doubling** ← THIS WAS THE ROOT CAUSE |
-
-Fixes 1-5 were necessary prerequisites. Fix 6 is what actually resolved the 401.
-
-### Verification (server-side)
-
-- ✅ Client credentials token: gRPC introspection receives correct 5-segment token
-- ✅ User token (OAuth): 404 Device Not Found — auth succeeded, controller processed request
-- ✅ REST introspection: `active: true`
-- ✅ Zero `IDX12741` errors in server logs
-- ✅ Server running commit `ad95c0ca` on `cloud.kimball.home`
-
----
-
-### Client Actions — `mint-OptiPlex-7010`
-
-The client requires **NO code changes**. The fix is entirely server-side. The client already sends correctly formatted `Authorization: Bearer <token>` headers.
-
-- [ ] **STEP 1: Pull latest from this branch**
-  ```bash
-  git checkout fix/files-module-bearer-auth && git pull
-  ```
-- [ ] **STEP 2: Build and run SyncTray**
-  ```bash
-  dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj
-  ```
-- [ ] **STEP 3: Verify Files API works** — should see successful sync, not 401
-- [ ] **STEP 4: Update this handoff** with test results and push
+No active handoff. All tasks complete.
 
