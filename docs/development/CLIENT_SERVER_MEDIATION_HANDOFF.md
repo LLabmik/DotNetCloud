@@ -130,49 +130,92 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Status:** ❌ STILL 401 — fresh OAuth authorization-code login produces token, Files API rejects it as `invalid_token`
+**Status:** ❌ STILL 401 — Files API rejects tokens as `invalid_token`. Client has retested 5 times across 5 server fixes. Server MUST run local introspection test before ANY further client retests.
 
-**Client retest results (`mint-OptiPlex-7010`, 2026-06-23 01:55 UTC / 2026-06-22 20:55 CDT):**
+**Decisive question (server must answer this):** Does `curl -k https://localhost:5443/api/v1/files/sync/device-cursor` with a fresh token return 200 or 401? If 200 locally but 401 from remote client, it's a proxy/routing issue. If 401 locally too, the deploy is broken or the fix is incomplete.
 
-| Step | Result |
-|------|--------|
-| OAuth login flow (fresh grant, not refresh) | ✅ Authorization successful |
-| Token acquired via OAuth callback | ✅ Token received |
-| "Choose Folders to Sync" — loads folder tree | **401** `invalid_token` ❌ |
-| `GET device-cursor` with fresh token | **401** `invalid_token` ❌ |
-| SSE stream with fresh token | **401** (3 attempts, polling fallback) ❌ |
+---
 
-**This disproves the server's theory that requests weren't reaching the server.** The OAuth callback (`http://localhost:52701/oauth/callback?...&iss=https://cloud.dotnetcloud.net/`) reached the server and returned a token. The token endpoint was reached. The Files API was reached. The server is simply rejecting valid tokens.
+### Complete fix chain (all deployed to `cloud.kimball.home`)
 
-**Five server fixes deployed, none sufficient.** The token issuance pipeline works. The token validation pipeline (introspection) is rejecting the tokens. The server MUST investigate why introspection returns `active=false` for tokens it just issued.
+| # | Commit | What was fixed | Why it mattered |
+|---|--------|---------------|-----------------|
+| 1 | `806d0716` | Remove duplicate `UseHttpsRedirection()` in `UseDotNetCloudMiddleware()` | gRPC introspection calls were getting HTTP 307 redirects instead of reaching the introspection endpoint |
+| 2 | `13838258` | Add `module-id` gRPC metadata header to `TokenIntrospectionClient` | Files module introspection calls weren't attributed to the Files module, causing auth failure |
+| 3 | `4d00ddc7` | `CallerContextInterceptor` defaults to `System` caller for module-to-core calls | Was throwing on null UserId when modules called core services via gRPC |
+| 4 | `0df90c38` | Load encryption keys for JWE token introspection | Encryption keys existed on disk but weren't being loaded into the key ring at startup |
+| 5 | `49880eb2` | Enable JWE token encryption (remove `DisableAccessTokenEncryption`) | Opaque reference tokens were incompatible with introspection — tokens must be JWE-encrypted JWTs |
+
+---
+
+### Client retest history (`mint-OptiPlex-7010`)
+
+All 5 client retests returned **401 `invalid_token`** from the Files API, including the latest test (2026-06-23 01:55 UTC) which used a **fresh OAuth authorization-code grant** (not a refresh token). The OAuth flow itself succeeds — tokens are issued — but the Files API rejects them on every call.
+
+| Retest | After fix # | Result |
+|--------|------------|--------|
+| 1 | 1 (307 redirect) | 401 |
+| 2 | 2 (module-id header) | 401 |
+| 3 | 3 (CallerContext) | 401 |
+| 4 | 4 (encryption keys) | 401 |
+| 5 | 5 (JWE enabled) | 401 |
+
+**This disproves the theory that client requests aren't reaching the server.** The OAuth callback, token endpoint, and Files API are all reachable. The server issues tokens and then rejects them at introspection.
+
+---
+
+### ⚠️ NO CLIENT ACTIONS — this handoff is SERVER-ONLY
+
+There is no client action block. The client has retested 5 times. Do NOT ask the client to retest until the server can confirm locally that:
+
+```
+curl -k https://localhost:5443/api/v1/files/sync/device-cursor -H "Authorization: Bearer <token>"
+```
+returns **200 OK**.
 
 ---
 
 ### Server Actions — `cloud.kimball.home`
 
-- [ ] **🔴 MANDATORY: Test introspection locally on the server**
+- [ ] **🔴 STEP 1: Test introspection locally on the server (MANDATORY before anything else)**
   ```bash
-  # Get a token using the same grant the client uses
+  # Get a token locally
   TOKEN=$(curl -sk -X POST https://localhost:5443/connect/token \
     -d "grant_type=password&username=<user>&password=<pass>&client_id=dotnetcloud-desktop&scope=api" \
     | jq -r '.access_token')
-  
-  # Call Files API locally — does it work server-side?
-  curl -sk -H "Authorization: Bearer $TOKEN" \
+
+  echo "Token: ${TOKEN:0:20}..."
+
+  # Call Files API locally
+  curl -sk -w "\nHTTP %{http_code}\n" -H "Authorization: Bearer $TOKEN" \
     "https://localhost:5443/api/v1/files/sync/device-cursor?deviceId=test"
-  # If this returns 200 locally but 401 remotely, it's a routing/proxy issue
-  # If this ALSO returns 401, the fix isn't actually deployed
+
+  # Also test introspection endpoint directly
+  curl -sk -w "\nHTTP %{http_code}\n" -X POST https://localhost:5443/connect/introspect \
+    -d "token=$TOKEN" | jq .
   ```
-- [ ] **Check introspection logs** for token validation details:
+  **Report the HTTP status codes and the introspection response (`active`: true or false).**
+
+- [ ] **STEP 2: Check introspection logs**
   ```bash
-  journalctl -u dotnetcloud --since "10 minutes ago" | grep -i "introspect\|decrypt\|JWE\|invalid_token\|active" | tail -40
-  # Look for: "active=false" or decryption errors or key not found
+  journalctl -u dotnetcloud --since "10 minutes ago" | grep -i "introspect\|decrypt\|JWE\|invalid_token\|active\|encrypt" | tail -50
   ```
-- [ ] **Verify encryption key match:** Does the key used to encrypt tokens (at issuance) match the key loaded for decryption (at introspection)?
+
+- [ ] **STEP 3: Verify encryption keys are loaded**
   ```bash
-  # List loaded keys
   ls -la /opt/dotnetcloud/oidc-keys/
-  # Check if an encryption key exists (not just signing key)
+  # Should show both signing AND encryption keys
+  # Check startup logs for key loading:
+  journalctl -u dotnetcloud --since "1 hour ago" | grep -i "key\|encrypt\|signing" | tail -20
   ```
-- [ ] **If local test ALSO fails with 401:** The deploy is broken. Stop the service, delete publish output, republish from scratch, redeploy, restart.
-- [ ] **Update this handoff** with findings and push.
+
+- [ ] **STEP 4: If local test ALSO fails with 401** — the deploy is stale. Do a clean deploy:
+  ```bash
+  sudo systemctl stop dotnetcloud
+  rm -rf /opt/dotnetcloud/publish/*
+  # Republish from source and redeploy
+  sudo systemctl start dotnetcloud
+  # Then re-run STEP 1
+  ```
+
+- [ ] **STEP 5: Update this handoff** with the local test results and push. Do NOT ask the client to retest until you can confirm local 200.
