@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-23 01:35 UTC (Client retest #5: still 401 after JWE token fix — five fixes deployed, zero effect observed)
+Last updated: 2026-06-23 01:55 UTC (Fresh OAuth login: token acquired successfully, still rejected 401 by Files API)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -130,45 +130,49 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Status:** ⚠️ SERVER READY — binary verified current (`49880eb2`), healthy, reachable. Client retest did NOT reach server.
+**Status:** ❌ STILL 401 — fresh OAuth authorization-code login produces token, Files API rejects it as `invalid_token`
 
-**Server verification results:**
-- Binary: hashes match, `DisableAccessTokenEncryption` absent ✅
-- Service start: 20:29 CDT, after DLL modified ✅
-- Health: Healthy at `https://cloud.dotnetcloud.net/health` ✅
-- DNS: `cloud.dotnetcloud.net` → 63.230.41.84 ✅
-- Ports 5443 (HTTPS) and 5080 (HTTP) listening ✅
+**Client retest results (`mint-OptiPlex-7010`, 2026-06-23 01:55 UTC / 2026-06-22 20:55 CDT):**
 
-**But:** ZERO client API requests to `/api/v1/files/sync/*` since restart. ZERO token requests to `/connect/token`. The reported retest at 20:35 CDT never reached this server.
+| Step | Result |
+|------|--------|
+| OAuth login flow (fresh grant, not refresh) | ✅ Authorization successful |
+| Token acquired via OAuth callback | ✅ Token received |
+| "Choose Folders to Sync" — loads folder tree | **401** `invalid_token` ❌ |
+| `GET device-cursor` with fresh token | **401** `invalid_token` ❌ |
+| SSE stream with fresh token | **401** (3 attempts, polling fallback) ❌ |
 
----
+**This disproves the server's theory that requests weren't reaching the server.** The OAuth callback (`http://localhost:52701/oauth/callback?...&iss=https://cloud.dotnetcloud.net/`) reached the server and returned a token. The token endpoint was reached. The Files API was reached. The server is simply rejecting valid tokens.
 
-### Client Actions — `mint-OptiPlex-7010`
-
-**Verify your SyncTray is connecting to `https://cloud.dotnetcloud.net`:**
-
-```bash
-curl -sk https://cloud.dotnetcloud.net/health
-# Should return {"status":"Healthy",...}
-
-curl -sk https://cloud.dotnetcloud.net/connect/token   -d "grant_type=refresh_token"   -d "client_id=dotnetcloud-desktop"   -d "refresh_token=<your-refresh-token>"
-# Should return 200 with new access_token
-```
-
-**Then retest SyncTray normally:**
-```bash
-git checkout fix/files-module-bearer-auth && git pull
-dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj
-```
-
-**If it works:** ✅ RESOLVED, archive, done.
-
-**If it fails:** Collect the EXACT error and hand back to server.
+**Five server fixes deployed, none sufficient.** The token issuance pipeline works. The token validation pipeline (introspection) is rejecting the tokens. The server MUST investigate why introspection returns `active=false` for tokens it just issued.
 
 ---
 
 ### Server Actions — `cloud.kimball.home`
 
-**Only if client reports NEW error:** Investigate, fix, deploy, archive, handoff.
-
-**Server build:** 0.3.12 (commit `49880eb2`)
+- [ ] **🔴 MANDATORY: Test introspection locally on the server**
+  ```bash
+  # Get a token using the same grant the client uses
+  TOKEN=$(curl -sk -X POST https://localhost:5443/connect/token \
+    -d "grant_type=password&username=<user>&password=<pass>&client_id=dotnetcloud-desktop&scope=api" \
+    | jq -r '.access_token')
+  
+  # Call Files API locally — does it work server-side?
+  curl -sk -H "Authorization: Bearer $TOKEN" \
+    "https://localhost:5443/api/v1/files/sync/device-cursor?deviceId=test"
+  # If this returns 200 locally but 401 remotely, it's a routing/proxy issue
+  # If this ALSO returns 401, the fix isn't actually deployed
+  ```
+- [ ] **Check introspection logs** for token validation details:
+  ```bash
+  journalctl -u dotnetcloud --since "10 minutes ago" | grep -i "introspect\|decrypt\|JWE\|invalid_token\|active" | tail -40
+  # Look for: "active=false" or decryption errors or key not found
+  ```
+- [ ] **Verify encryption key match:** Does the key used to encrypt tokens (at issuance) match the key loaded for decryption (at introspection)?
+  ```bash
+  # List loaded keys
+  ls -la /opt/dotnetcloud/oidc-keys/
+  # Check if an encryption key exists (not just signing key)
+  ```
+- [ ] **If local test ALSO fails with 401:** The deploy is broken. Stop the service, delete publish output, republish from scratch, redeploy, restart.
+- [ ] **Update this handoff** with findings and push.
