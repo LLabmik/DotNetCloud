@@ -443,6 +443,10 @@ public sealed class SyncEngine : ISyncEngine
         }
 
         var queued = 0;
+        var pendingUpserts = new List<LocalFileRecord>();
+        var pendingQueues = new List<PendingOperationRecord>();
+        var pendingRemoves = new List<string>();
+
         foreach (var localPath in localFiles)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -498,9 +502,8 @@ public sealed class SyncEngine : ISyncEngine
                         _logger.LogInformation(
                             "Tracked file {RelPath} (NodeId={NodeId}) no longer on server but content was modified. Will re-upload as new file.",
                             relativePath, record.NodeId);
-                        await _stateDb.RemoveFileRecordAsync(context.StateDatabasePath, localPath, cancellationToken);
-                        await _stateDb.QueueOperationAsync(context.StateDatabasePath,
-                            new PendingUpload { LocalPath = localPath }, cancellationToken);
+                        pendingRemoves.Add(localPath);
+                        pendingQueues.Add(new PendingUpload { LocalPath = localPath });
                         queued++;
                     }
                     else
@@ -512,7 +515,7 @@ public sealed class SyncEngine : ISyncEngine
                         try
                         {
                             File.Delete(localPath);
-                            await _stateDb.RemoveFileRecordAsync(context.StateDatabasePath, localPath, cancellationToken);
+                            pendingRemoves.Add(localPath);
                         }
                         catch (IOException ex)
                         {
@@ -524,8 +527,7 @@ public sealed class SyncEngine : ISyncEngine
 
                 _logger.LogDebug(
                     "Local file modified since last sync, queuing upload: {RelPath}", relativePath);
-                await _stateDb.QueueOperationAsync(context.StateDatabasePath,
-                    new PendingUpload { LocalPath = localPath, NodeId = record.NodeId }, cancellationToken);
+                pendingQueues.Add(new PendingUpload { LocalPath = localPath, NodeId = record.NodeId });
                 queued++;
             }
             else if (serverFilesByRelPath.TryGetValue(relativePath, out var serverNode))
@@ -539,8 +541,7 @@ public sealed class SyncEngine : ISyncEngine
                     _logger.LogDebug(
                         "Local file size differs from server ({LocalSize} vs {ServerSize}), queuing update: {RelPath}",
                         localSize, serverNode.Size, relativePath);
-                    await _stateDb.QueueOperationAsync(context.StateDatabasePath,
-                        new PendingUpload { LocalPath = localPath, NodeId = serverNode.NodeId }, cancellationToken);
+                    pendingQueues.Add(new PendingUpload { LocalPath = localPath, NodeId = serverNode.NodeId });
                     queued++;
                 }
                 else
@@ -552,22 +553,21 @@ public sealed class SyncEngine : ISyncEngine
                         // Identical — record in state DB without uploading.
                         _logger.LogDebug(
                             "Local file matches server (hash match), recording without upload: {RelPath}", relativePath);
-                        await _stateDb.UpsertFileRecordAsync(context.StateDatabasePath, new LocalFileRecord
+                        pendingUpserts.Add(new LocalFileRecord
                         {
                             LocalPath = localPath,
                             NodeId = serverNode.NodeId,
                             ContentHash = localHash,
                             LastSyncedAt = DateTime.UtcNow,
                             LocalModifiedAt = File.GetLastWriteTimeUtc(localPath),
-                        }, cancellationToken);
+                        });
                     }
                     else
                     {
                         // Different content — queue an update (not a new file).
                         _logger.LogDebug(
                             "Local file differs from server, queuing update upload: {RelPath}", relativePath);
-                        await _stateDb.QueueOperationAsync(context.StateDatabasePath,
-                            new PendingUpload { LocalPath = localPath, NodeId = serverNode.NodeId }, cancellationToken);
+                        pendingQueues.Add(new PendingUpload { LocalPath = localPath, NodeId = serverNode.NodeId });
                         queued++;
                     }
                 }
@@ -582,8 +582,7 @@ public sealed class SyncEngine : ISyncEngine
                 // Server-side deletions are handled exclusively through the change feed
                 // (HandleRemoteDeletionAsync) and reverse reconciliation of tracked records.
                 _logger.LogDebug("New local file detected, queuing upload: {RelPath}", relativePath);
-                await _stateDb.QueueOperationAsync(context.StateDatabasePath,
-                    new PendingUpload { LocalPath = localPath }, cancellationToken);
+                pendingQueues.Add(new PendingUpload { LocalPath = localPath });
                 queued++;
             }
         }
@@ -592,6 +591,14 @@ public sealed class SyncEngine : ISyncEngine
             _logger.LogInformation(
                 "Local scan queued {Count} new/modified file(s) for upload in context {ContextId}.",
                 queued, context.Id);
+
+        // Flush accumulated DB operations in batch for performance.
+        if (pendingUpserts.Count > 0)
+            await _stateDb.UpsertFileRecordsBatchAsync(context.StateDatabasePath, pendingUpserts, cancellationToken);
+        if (pendingRemoves.Count > 0)
+            await _stateDb.RemoveFileRecordsBatchAsync(context.StateDatabasePath, pendingRemoves, cancellationToken);
+        if (pendingQueues.Count > 0)
+            await _stateDb.QueueOperationsBatchAsync(context.StateDatabasePath, pendingQueues, cancellationToken);
 
         // ── Stale directory cleanup ─────────────────────────────────────────
         // Walk local directories bottom-up. Remove empty directories that don't exist
