@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 20260622 (Client re-test #4: 401 still persists after encryption key fix — four fixes not sufficient)
+Last updated: 2026-06-23 01:35 UTC (Client retest #5: still 401 after JWE token fix — five fixes deployed, zero effect observed)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -130,43 +130,58 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Status:** 🔄 READY FOR RETEST — all five server fixes deployed (`49880eb2`), tokens now JWE format
+**Status:** ❌ STILL 401 — five server fixes deployed (`49880eb2`) including JWE token format, client still gets `invalid_token`
 
-**What was fixed on the server (all five):**
-1. Removed duplicate `UseHttpsRedirection()` that redirected gRPC introspection to HTTPS (307)
-2. Added `module-id` gRPC metadata header for `AuthenticationInterceptor`
-3. Fixed `CallerContextInterceptor` — module-to-core calls use `CallerType.System`
-4. Added `TokenDecryptionKeyResolver` to load encryption keys
-5. **Removed `DisableAccessTokenEncryption()` — tokens now JWE (encrypted JWTs) instead of opaque references**
+**Client retest results (`mint-OptiPlex-7010`, 2026-06-23 01:35 UTC / 2026-06-22 20:35 CDT):**
 
-**Why fix #5 matters:** Without it, OpenIddict issued opaque reference tokens (not JWTs). `JwtSecurityTokenHandler` can't read them → `SecurityTokenMalformedException`. With JWE, the introspection service decrypts and validates the token properly.
+| Step | Result |
+|------|--------|
+| Build SyncTray | 0 errors ✅ |
+| Token state on load | Not expired, can refresh ✅ |
+| `GET device-cursor` | **401** `error="invalid_token"` ❌ |
+| SSE stream connect | **401** (3 attempts, fell back to polling) ❌ |
+| Token refresh (`POST /connect/token`) | 200 OK, new expiry 02:35:02 ✅ |
+| Retry SSE after refresh | **401** — fresh token rejected ❌ |
 
-**Note:** The 20:12 UTC client test was BEFORE fix #5 was deployed. A retest is required.
+**All five server fixes (none observed to have any effect):**
+1. `806d0716` — removed duplicate `UseHttpsRedirection()`
+2. `13838258` — added `module-id` gRPC metadata header
+3. `4d00ddc7` — `CallerContextInterceptor` defaults to System caller
+4. `0df90c38` — encryption key loading for JWE decryption
+5. `49880eb2` — removed `DisableAccessTokenEncryption()`, tokens now JWE
 
----
-
-### Client Actions — `mint-OptiPlex-7010`
-
-**Your task:** Pull latest, rebuild SyncTray, and test against `cloud.dotnetcloud.net`.
-
-```bash
-git checkout fix/files-module-bearer-auth && git pull
-dotnet build src/Clients/DotNetCloud.Client.SyncTray/
-dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj
-```
-
-**Verify:**
-- `GET /api/v1/files/sync/device-cursor` → 200 OK
-- `GET /api/v1/files/sync/stream` → SSE stream connects
-
-**If it works:** Set Status to ✅ RESOLVED, archive, done.
-
-**If it still fails:** Collect the exact error, hand back to server.
+**⚠️ CRITICAL: The deployed binary on `cloud.kimball.home` is almost certainly STALE.** Five separate fixes spanning different code paths have all produced identical 401 results. The most likely explanation is that the deploy script succeeds but the service isn't actually running the new binaries.
 
 ---
 
 ### Server Actions — `cloud.kimball.home`
 
-**Only if the client reports a NEW error:** Investigate, fix, deploy, archive, and update this handoff.
-
-**Server build:** 0.3.12 (commit `49880eb2`)
+- [ ] **🔴 MANDATORY FIRST STEP: Prove the binary is current**
+  ```bash
+  # Check service restart time vs binary modification time
+  systemctl show dotnetcloud --property=ActiveEnterTimestamp
+  stat /opt/dotnetcloud/publish/DotNetCloud.Core.Server.dll | grep Modify
+  # ActiveEnterTimestamp MUST be AFTER Modify timestamp
+  
+  # Check git commit embedded in binary
+  strings /opt/dotnetcloud/publish/DotNetCloud.Core.Server.dll | grep -E "49880eb2|DisableAccessTokenEncryption" | head -5
+  # If no results, the binary is NOT commit 49880eb2
+  ```
+- [ ] **If binary is stale:** Manually stop the service, verify no lingering process, redeploy, then start:
+  ```bash
+  systemctl stop dotnetcloud
+  pgrep -a dotnetcloud  # should be empty
+  dotnet publish -c Release
+  sudo ./scripts/deploy.sh
+  systemctl start dotnetcloud
+  systemctl show dotnetcloud --property=ActiveEnterTimestamp
+  ```
+- [ ] **Test locally on the server** before handing back:
+  ```bash
+  TOKEN=$(curl -sk -X POST https://localhost:5443/connect/token \
+    -d "grant_type=password&username=<user>&password=<pass>&client_id=dotnetcloud-desktop&scope=api" \
+    | jq -r '.access_token')
+  curl -sk -H "Authorization: Bearer $TOKEN" https://localhost:5443/api/v1/files/sync/device-cursor?deviceId=test
+  # Should return 200, not 401
+  ```
+- [ ] **Update this handoff** with binary verification evidence and push.
