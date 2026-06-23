@@ -2,6 +2,19 @@
 
 Archived: 2026-06-23 17:25 UTC. Full git history preserved in commits up to `3fa9e0df`.
 
+## Archived: X-Device-Id Header Duplication — YARP Proxy Transformer (2026-06-23)
+
+**Target:** mint-OptiPlex-7010 (client investigation) → server-side fix
+
+**Root cause:** `ModuleApiProxyTransformer.TransformRequestAsync()` in `Core.Server/Program.cs` copies request headers in a loop using `TryAddWithoutValidation`, which **appends** header values. `base.TransformRequestAsync()` already copies `X-Device-Id` from the incoming request. The loop then calls `TryAddWithoutValidation("X-Device-Id", value)` again, producing: `"d3e04fa5-..., d3e04fa5-..."`. `Authorization` was already skipped for the same reason, but the device identity headers (`X-Device-Id`, `X-Device-Name`, `X-Device-Platform`, `X-Client-Version`) were not in the skip list.
+
+**Fix applied:**
+1. Added `X-Device-Id`, `X-Device-Name`, `X-Device-Platform`, `X-Client-Version` to the header skip list in `ModuleApiProxyTransformer`, matching the existing `Authorization` skip pattern.
+
+**Build:** 0 errors.
+
+**To deploy:** Restart Core.Server on `cloud.kimball.home`.
+
 ## Archived: 429 Rate Limiting Investigation — `module-upload-chunks` Policy Never Applied (2026-06-23)
 
 **Target:** cloud.kimball.home (server investigation + fix)

@@ -1153,6 +1153,14 @@ public class Program
                     continue;
                 if (string.Equals(header.Key, "Authorization", StringComparison.OrdinalIgnoreCase))
                     continue; // base transformer already copied this
+                if (string.Equals(header.Key, "X-Device-Id", StringComparison.OrdinalIgnoreCase))
+                    continue; // base transformer already copied this
+                if (string.Equals(header.Key, "X-Device-Name", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                if (string.Equals(header.Key, "X-Device-Platform", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                if (string.Equals(header.Key, "X-Client-Version", StringComparison.OrdinalIgnoreCase))
+                    continue;
                 proxyRequest.Headers.TryAddWithoutValidation(header.Key, header.Value.ToArray());
             }
 

@@ -93,22 +93,14 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 ## Current Status
 
 - YARP auth header doubling fix: deployed, verified server-side (`cloud.kimball.home`), verified client-side (`Windows11-TestDNC`) — 401 resolved.
+- X-Device-Id header duplication fix: committed (skip device identity headers in `ModuleApiProxyTransformer`). Pending deploy on `cloud.kimball.home`.
 - All prior Phase 2, chat, pre-Linux sync remediation, SyncTray icon enhancement work is complete and archived.
 - VFS Phase 1 (server-side prerequisites) complete on `cloud.kimball.home`.
 - VFS Phase 2 (core abstraction layer) complete on `Windows11-TestDNC`.
 - VFS Phase 3 (Windows Cloud Filter API) complete on `Windows11-TestDNC`.
-- VFS Phase 4 (Linux FUSE) complete on `mint-dnc-client`:
-  - `FuseSyncFilesystem : IVirtualFileProvider` with mount/unmount lifecycle
-  - `DotNetCloudFuseOperations : IFuseOperations` with all FUSE callbacks
-  - `LruCacheManager` wired into FUSE read path
-  - DI registration: `FuseSyncFilesystem` on Linux
-  - Build: 0 errors (CI solution filter). Tests: 253/254 Client.Core pass, 106/106 SyncTray pass.
+- VFS Phase 4 (Linux FUSE) complete on `mint-dnc-client`.
 - VFS Phase 5 (SyncTray UI Integration) complete on `Windows11-TestDNC` (archived).
-- VFS Phase 6 (Testing & Validation) complete on `Windows11-TestDNC`:
-  - 50+ unit tests across all VFS components
-  - `LruCacheManager` class created + DI registered
-  - Windows/Linux/E2E test scenarios documented
-  - Build: 0 errors. Tests: Core 435, Client.Core 253/254, SyncTray 106.
+- VFS Phase 6 (Testing & Validation) complete on `Windows11-TestDNC`.
 
 ## Environment
 
@@ -132,34 +124,17 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** 🐛 `X-Device-Id` header duplication — client sends two identical GUIDs (comma-separated), causing `DeviceIdentityFilter` to reject device auto-registration.
+**Summary:** 🐛 `X-Device-Id` header duplication — root cause found and fixed. Needs deployment on `cloud.kimball.home`.
 
-**Context:** During the 429 rate limiting investigation, server logs showed:
+**Root cause:** `ModuleApiProxyTransformer.TransformRequestAsync()` in `Core.Server/Program.cs` (lines 1146-1159) copies all request headers in a loop using `TryAddWithoutValidation`. `base.TransformRequestAsync()` already copies standard headers (including `X-Device-Id`). The loop then appends a second value via `TryAddWithoutValidation`. The `Authorization` header was already skipped for this same reason, but device identity headers were not.
 
-```
-DeviceIdentityFilter: X-Device-Id header present but not a valid GUID:
-'d3e04fa5-aae1-474e-a40f-7054b2c059a4, d3e04fa5-aae1-474e-a40f-7054b2c059a4'
-```
+**Fix committed:** Added `X-Device-Id`, `X-Device-Name`, `X-Device-Platform`, `X-Client-Version` to the skip list in `ModuleApiProxyTransformer`.
 
-The same GUID appears twice with a comma separator. This means `X-Device-Id` is being appended (not replaced) somewhere in the client's HTTP pipeline, or two DelegatingHandlers are both setting it.
-
-The `DeviceIdentityHandler` (client-side) sets it via `TryAddWithoutValidation`. The YARP proxy on Core.Server forwards the header to the Files module host. Something is causing it to duplicate.
-
-**Impact:** Minor — uploads work fine, `PerDevice` rate limiting still partitions (malformed key is unique per device), but device auto-registration in `DeviceIdentityFilter` silently fails.
-
-**Sync test result:** ✅ Zero 429 errors on `cloud.dotnetcloud.net` after rate limiting fix.
+**Build:** 0 errors on `mint-OptiPlex-7010`.
 
 ---
 
 ### Server Actions — `cloud.kimball.home`
 
-- [x] 429 rate limiting fix deployed and verified — complete
-
-### Client Actions — `mint-OptiPlex-7010`
-
-- [ ] Determine where `X-Device-Id` is being set twice in the HTTP pipeline
-  - Check `DeviceIdentityHandler.SendAsync` — is it being called twice?
-  - Check if any other handler or the HTTP client itself also adds the header
-  - Check if YARP proxy on client side (if any) adds it
-- [ ] Fix: ensure `X-Device-Id` is set exactly once (use `Set` instead of `TryAddWithoutValidation`, or deduplicate)
-- [ ] Verify fix: run sync and check `DeviceIdentityFilter` server logs for clean GUID parse
+- [ ] Deploy: restart Core.Server with the fix
+- [ ] Verify: check `DeviceIdentityFilter` server logs for clean GUID parse after a sync run
