@@ -130,59 +130,45 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Status:** ❌ 401 PERSISTS — client test on `mint-OptiPlex-7010` still gets `invalid_token` after server deploy
+**Status:** ✅ DEPLOYED — three server-side fixes for Files module 401 (commits `806d0716` → `13838258` → `4d00ddc7`)
 
-**What the server deployed (commit `806d0716`):**
-- Removed duplicate `UseHttpsRedirection()` from `UseDotNetCloudMiddleware()`
-- gRPC introspection now works (no more 307 redirects)
+**What was fixed on the server:**
+1. Removed duplicate `UseHttpsRedirection()` that redirected gRPC introspection to HTTPS (307)
+2. Added `module-id` gRPC metadata header so `AuthenticationInterceptor` accepts the call
+3. Fixed `CallerContextInterceptor` to use `CallerType.System` for module-to-core calls (no userId required)
 
-**Client test results (`mint-OptiPlex-7010`, 2026-06-22):**
-- Branch: `fix/files-module-bearer-auth` at `2bd07dc8`
-- Build: 0 errors ✅
-- Token refresh: `POST /connect/token` → **200 OK** ✅
-- API call: `GET api/v1/files/sync/device-cursor` → **401 `error="invalid_token"`** ❌
-- SSE stream: **401 on 3 consecutive attempts**, fell back to polling ❌
-- Token is NOT expired: `ExpiresAt=06/23/2026 00:36:43 +00:00`
+**Deploy results (on `cloud.kimball.home`):**
+- Full deploy, 15/15 targets succeeded
+- Health: Healthy
+- No more introspection errors in server logs
 
-**Key observation:** The 307 redirect issue IS fixed (no more "Bad gRPC response"). But the server is still rejecting tokens as `invalid_token` even immediately after a successful refresh. This suggests the token introspection itself is returning "inactive" or there's another validation layer rejecting the token.
+---
+
+### Client Actions — `mint-OptiPlex-7010`
+
+**Your task:** Build and run SyncTray against this server to verify the 401 is resolved.
+
+```bash
+git checkout fix/files-module-bearer-auth && git pull
+dotnet build src/Clients/DotNetCloud.Client.SyncTray/
+dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj
+```
+
+**Verify:**
+- `GET /api/v1/files/sync/device-cursor` → 200 OK (NOT 401)
+- `GET /api/v1/files/sync/stream` → SSE stream connects (NOT 401)
+
+**If it works:** Update this handoff, set Status to ✅ RESOLVED, archive, and we're done.
+
+**If it still fails with 401 or another error:** Collect the exact error message and stack trace from SyncTray output, then hand back to server with a new Active Handoff describing what failed.
 
 ---
 
 ### Server Actions — `cloud.kimball.home`
 
-- [ ] **Pull latest and check server logs for introspection results:**
-  ```bash
-  git checkout fix/files-module-bearer-auth && git pull
-  journalctl -u dotnetcloud --since "10 minutes ago" | grep -i "introspect\|invalid_token\|audience\|claims\|inactive" | tail -40
-  ```
-- [ ] **Verify the deployed binary IS commit `806d0716`:**
-  ```bash
-  strings /opt/dotnetcloud/publish/DotNetCloud.Core.ServiceDefaults.dll | grep -i "UseHttpsRedirection" | head -5
-  # Should return ZERO results — if it finds UseHttpsRedirection, old binary is live
-  ```
-- [ ] **Check if service was restarted AFTER deploy:**
-  ```bash
-  systemctl show dotnetcloud --property=ActiveEnterTimestamp
-  stat /opt/dotnetcloud/publish/DotNetCloud.Core.ServiceDefaults.dll | grep Modify
-  # ActiveEnterTimestamp MUST be AFTER Modify timestamp
-  ```
-- [ ] **Test introspection directly on the server:**
-  ```bash
-  # Get a token using the desktop client credentials
-  curl -sk -X POST https://localhost:5443/connect/token \
-    -d "grant_type=password&username=<test-user>&password=<password>&client_id=dotnetcloud-desktop&scope=api offline_access"
-  # Copy the access_token from the response, then introspect it
-  # Check if the Files module's introspection endpoint returns active=true
-  ```
-- [ ] **Check the Files module host logs** for token validation errors:
-  ```bash
-  journalctl -u dotnetcloud --since "10 minutes ago" | grep -i "files.*auth\|files.*401\|files.*token" | tail -20
-  ```
-- [ ] **If binary is stale:** rebuild, republish, and redeploy:
-  ```bash
-  dotnet build -c Release
-  dotnet publish -c Release
-  sudo ./scripts/deploy.sh
-  systemctl restart dotnetcloud
-  ```
-- [ ] **Update this handoff** with findings and push.
+**Only if the client reports a NEW error** (not the three already fixed):
+
+- [ ] Pull latest and check server logs for the new error
+- [ ] Fix, deploy, and update this handoff
+
+**Server build:** 0.3.12 (commit `4d00ddc7`)

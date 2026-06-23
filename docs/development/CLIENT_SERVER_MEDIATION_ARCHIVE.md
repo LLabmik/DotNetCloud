@@ -4372,3 +4372,22 @@ Expected: `"SSE stream connected."`
 - Full deploy, 15/15 targets succeeded, 308s elapsed
 - Health: Healthy
 - Zero introspection 307 errors since deploy
+
+
+---
+
+## Archived: gRPC Introspection Auth — Triple Fix (2026-06-22)
+
+**Commits:** `806d0716` → `13838258` → `4d00ddc7` (branch `fix/files-module-bearer-auth`)
+
+**Problem:** SyncTray client getting 401 on `/api/v1/files/sync/*` endpoints.
+
+**Root causes found and fixed (three layers):**
+
+1. **HTTP 307 redirect (`806d0716`):** `UseDotNetCloudMiddleware()` unconditionally added `UseHttpsRedirection()`, running BEFORE the `MapWhen` gRPC branch. Removed duplicate redirect.
+
+2. **Missing module-id header (`13838258`):** `TokenIntrospectionClient` sent module ID in request body (`CallerModuleId`) but `AuthenticationInterceptor` reads it from gRPC metadata headers. Added `Metadata` header with `module-id`.
+
+3. **UserId cannot be empty (`4d00ddc7`):** `CallerContextInterceptor` defaulted to `CallerType.Module` which requires non-empty userId. Module-to-core calls (introspection) have no user. Default to `CallerType.System` when no `caller-user-id` header.
+
+**Deploy results:** 15/15 targets, health Healthy, all three errors resolved.
