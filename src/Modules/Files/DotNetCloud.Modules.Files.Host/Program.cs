@@ -16,6 +16,8 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.RateLimiting;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -192,6 +194,51 @@ else
 // desktop/mobile clients that use Content-Encoding: gzip on chunk PUT requests.
 builder.Services.AddRequestDecompression();
 
+// Rate limiting — policies must be registered so [EnableRateLimiting] attributes on
+// controllers don't throw 502. Actual enforcement happens in Core.Server's YARP proxy;
+// these use the same config values for consistency.
+builder.Services.AddRateLimiter(limiterOptions =>
+{
+    limiterOptions.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    // Load module rate limits from config (same section as Core.Server)
+    var rateLimitSection = builder.Configuration.GetSection("RateLimiting:ModuleLimits");
+
+    void AddModulePolicy(string moduleName, string policyName)
+    {
+        var config = rateLimitSection.GetSection(moduleName);
+        var permitLimit = config.GetValue<int?>("PermitLimit") ?? 100;
+        var windowSeconds = config.GetValue<int?>("WindowSeconds") ?? 60;
+        var perDevice = config.GetValue<bool?>("PerDevice") ?? false;
+
+        limiterOptions.AddPolicy(policyName, context =>
+        {
+            var userId = context.User?.FindFirst("sub")?.Value ?? "anonymous";
+            var partitionKey = perDevice
+                ? $"{moduleName}:{userId}:{context.Request.Headers["X-Device-Id"].FirstOrDefault() ?? "no-device"}"
+                : $"{moduleName}:{userId}";
+
+            return RateLimitPartition.GetFixedWindowLimiter(
+                partitionKey: partitionKey,
+                factory: _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = permitLimit,
+                    Window = TimeSpan.FromSeconds(windowSeconds),
+                    QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                    QueueLimit = 0
+                });
+        });
+    }
+
+    AddModulePolicy("sync-changes", "module-sync-changes");
+    AddModulePolicy("sync-tree", "module-sync-tree");
+    AddModulePolicy("sync-reconcile", "module-sync-reconcile");
+    AddModulePolicy("sync-stream", "module-sync-stream");
+    AddModulePolicy("upload-initiate", "module-upload-initiate");
+    AddModulePolicy("upload-chunks", "module-upload-chunks");
+    AddModulePolicy("download", "module-download");
+});
+
 // gRPC
 builder.Services.AddGrpc();
 
@@ -239,6 +286,9 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
     ForwardedHeaders = ForwardedHeaders.XForwardedProto,
     KnownProxies = { System.Net.IPAddress.Loopback, System.Net.IPAddress.IPv6Loopback },
 });
+// Rate limiting middleware (after auth, before controllers)
+app.UseRateLimiter();
+
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

@@ -1,6 +1,27 @@
 # Client/Server Mediation — Archived Context
 
-Archived: 2026-06-23 16:46 UTC. Full git history preserved in commits up to `f6bbcdf4`.
+Archived: 2026-06-23 17:25 UTC. Full git history preserved in commits up to `3fa9e0df`.
+
+## Archived: 429 Rate Limiting Investigation — `module-upload-chunks` Policy Never Applied (2026-06-23)
+
+**Target:** cloud.kimball.home (server investigation + fix)
+
+**Root cause:** The `upload-chunks` rate limiter policy (`module-upload-chunks`) was registered in `Core.Server`'s DI but **never applied** via `[EnableRateLimiting]` on any controller. Commit `a4f83023` had removed the attribute because the Files module host (separate process) didn't have rate limiting middleware, causing 502 errors. This meant chunk uploads fell back to the **global limiter** (10,000 req/60s shared across ALL API endpoints for the user — sync changes, tree, reconcile, SSE, uploads, etc.).
+
+**Additional findings:**
+- ✅ No reverse proxy (nginx/Cloudflare) — ruled out
+- ✅ Zero 429 errors in server journal today
+- 🐛 `X-Device-Id` header duplicated (sent twice with comma) — `DeviceIdentityFilter` logs invalid GUID warning
+
+**Fix applied:**
+1. Changed `upload-chunks` PermitLimit from 1200 → **2400** (40 chunks/sec per device)
+2. Added `AddRateLimiter()` with all module policies (`module-sync-*`, `module-upload-*`, `module-download`) to `Files.Host/Program.cs`, reading config from same `RateLimiting:ModuleLimits` section
+3. Added `app.UseRateLimiter()` to Files module host middleware pipeline
+4. Added `[EnableRateLimiting("module-upload-chunks")]` to `UploadChunkAsync` endpoint in `FilesController.cs`
+5. Added `[EnableRateLimiting("module-upload-initiate")]` to `InitiateUploadAsync` endpoint
+6. SyncController's existing `[EnableRateLimiting("module-sync-*")]` attributes now also work correctly
+
+**Build:** 0 errors. **Tests:** 7/7 RateLimiting tests pass.
 
 ## Archived: 502 Chunk Upload Fix — Request Decompression Moved to Files Module (2026-06-23)
 

@@ -1,4 +1,5 @@
 using DotNetCloud.Core.DTOs.Search;
+using Microsoft.AspNetCore.RateLimiting;
 using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Options;
 using DotNetCloud.Modules.Files.Services;
@@ -327,6 +328,7 @@ public class FilesController : FilesControllerBase
     /// Initiates a chunked upload session.
     /// </summary>
     [HttpPost("upload/initiate")]
+    [EnableRateLimiting("module-upload-initiate")]
     public Task<IActionResult> InitiateUploadAsync([FromBody] InitiateUploadDto dto) => ExecuteAsync(async () =>
     {
         var caller = GetAuthenticatedCaller();
@@ -340,6 +342,7 @@ public class FilesController : FilesControllerBase
     /// Uploads a single chunk.
     /// </summary>
     [HttpPut("upload/{sessionId:guid}/chunks/{chunkHash}")]
+    [EnableRateLimiting("module-upload-chunks")]
     public Task<IActionResult> UploadChunkAsync(Guid sessionId, string chunkHash) => ExecuteAsync(async () =>
     {
         // Read body directly into a single buffer — avoids MemoryStream + ToArray() double copy.

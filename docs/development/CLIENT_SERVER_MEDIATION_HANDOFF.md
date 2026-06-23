@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-23 15:15 UTC (429 rate limiting — needs server investigation)
+Last updated: 2026-06-23 17:25 UTC (429 fix verified — handoff to client for X-Device-Id duplication)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -118,7 +118,7 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 | Server         | `mint22`             | `https://mint22:5443/` (dev)                                                       |
 | Client         | `Windows11-TestDNC`  | Sync dir: `C:\Users\benk\Documents\synctray`                                       |
 | Client         | `mint-dnc-client`    | Linux Mint 22 validation host for desktop sync client implementation + E2E testing |
-| Client         | `mint-OptiPlex-7010` | This machine — production client connected to `cloud.dotnetcloud.net`              |
+| Client         | `mint-OptiPlex-7010` | production client connected to `cloud.dotnetcloud.net`              |
 | Android Client | `monolith`           | Android MAUI app development + emulator testing (Windows 11)                       |
 
 ## Key Carry-Forward Contracts
@@ -132,41 +132,34 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** 🔴 Chunk uploads hit 429 (Too Many Requests) during initial sync — rate limiting configuration needs server-side investigation.
+**Summary:** 🐛 `X-Device-Id` header duplication — client sends two identical GUIDs (comma-separated), causing `DeviceIdentityFilter` to reject device auto-registration.
 
-**Context:** After the 502 fix was verified, the client also hits 429 errors during chunk upload sync. During a single sync pass, ~252 chunk upload requests for a 1.17GB file triggered 429 responses from the server after ~32 seconds of activity.
+**Context:** During the 429 rate limiting investigation, server logs showed:
 
-**Client-side findings (mint-OptiPlex-7010):**
-- 429 errors start after ~32 seconds of chunk upload activity
-- Most chunks return 409 (content-addressable dedup — already on server)
-- Even 409s count against rate limits (middleware runs before controller)
-- `MaxConcurrency` is 8 parallel uploads
-- Token is valid + refreshed — auth is fine
-- `X-Device-Id` header is being sent (per-device partitioning)
-- Client-side fix applied: 429 now retried with backoff alongside 5xx (but this is a band-aid — sync should not be rate-limited at all)
-
-**Server-side rate limiting config (from `appsettings.json`):**
-```json
-"GlobalPermitLimit": 100,        // anonymous: 100 req/60s
-"AuthenticatedPermitLimit": 10000, // authenticated: 10,000 req/60s
-"upload-chunks": { "PermitLimit": 1200, "WindowSeconds": 60, "PerDevice": true }
+```
+DeviceIdentityFilter: X-Device-Id header present but not a valid GUID:
+'d3e04fa5-aae1-474e-a40f-7054b2c059a4, d3e04fa5-aae1-474e-a40f-7054b2c059a4'
 ```
 
-**Hypothesis:** Rates should be sufficient for 252 chunks over 32s, suggesting the bottleneck may be:
-1. An infrastructure-level rate limiter (Cloudflare, nginx reverse proxy) on `cloud.dotnetcloud.net`
-2. The global limiter (not per-device) exhausting the shared 10,000/60s bucket across all routes including SSE, tree, changes, etc.
-3. The `upload-chunks` module limiter potentially not matching the chunk upload route (check `[EnableRateLimiting]` attribute application)
+The same GUID appears twice with a comma separator. This means `X-Device-Id` is being appended (not replaced) somewhere in the client's HTTP pipeline, or two DelegatingHandlers are both setting it.
+
+The `DeviceIdentityHandler` (client-side) sets it via `TryAddWithoutValidation`. The YARP proxy on Core.Server forwards the header to the Files module host. Something is causing it to duplicate.
+
+**Impact:** Minor — uploads work fine, `PerDevice` rate limiting still partitions (malformed key is unique per device), but device auto-registration in `DeviceIdentityFilter` silently fails.
+
+**Sync test result:** ✅ Zero 429 errors on `cloud.dotnetcloud.net` after rate limiting fix.
 
 ---
 
 ### Server Actions — `cloud.kimball.home`
 
-- [ ] Check production reverse proxy (nginx/Cloudflare) for rate limiting rules that may be stricter than ASP.NET config
-- [ ] Verify that `upload-chunks` module rate limiter policy is actually applied to the chunk upload endpoint via `[EnableRateLimiting("module-upload-chunks")]`
-- [ ] Consider exempting authenticated first-party sync traffic from rate limiting entirely, or raising limits significantly for sync endpoints
-- [ ] Check production logs for `X-RateLimit-Remaining` / `Retry-After` headers to identify which limiter is being hit
-- [ ] Run: `journalctl -u dotnetcloud --since "15:10 UTC" --until "15:12 UTC" | grep -i "ratelimit\|429\|RateLimit"` on the server
+- [x] 429 rate limiting fix deployed and verified — complete
 
 ### Client Actions — `mint-OptiPlex-7010`
 
-- [ ] Client-side 429 retry fix already applied (retries with backoff alongside 5xx) — wait for server resolution
+- [ ] Determine where `X-Device-Id` is being set twice in the HTTP pipeline
+  - Check `DeviceIdentityHandler.SendAsync` — is it being called twice?
+  - Check if any other handler or the HTTP client itself also adds the header
+  - Check if YARP proxy on client side (if any) adds it
+- [ ] Fix: ensure `X-Device-Id` is set exactly once (use `Set` instead of `TryAddWithoutValidation`, or deduplicate)
+- [ ] Verify fix: run sync and check `DeviceIdentityFilter` server logs for clean GUID parse
