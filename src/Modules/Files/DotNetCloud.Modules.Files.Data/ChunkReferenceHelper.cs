@@ -44,7 +44,8 @@ internal static class ChunkReferenceHelper
     /// </summary>
     public static async Task IncrementBatchAsync(FilesDbContext db, IReadOnlyList<Guid> chunkIds, CancellationToken cancellationToken = default)
     {
-        if (chunkIds.Count == 0) return;
+        if (chunkIds.Count == 0)
+            return;
 
         if (IsInMemoryProvider(db))
         {

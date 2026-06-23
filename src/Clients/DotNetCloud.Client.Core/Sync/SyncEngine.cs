@@ -1206,6 +1206,9 @@ public sealed class SyncEngine : ISyncEngine
 
     private const int MaxOperationRetries = 10;
 
+    /// <summary>Maximum number of pending operations to process concurrently during ApplyLocalChangesAsync.</summary>
+    private const int MaxParallelOperations = 3;
+
     private async Task<int> ApplyLocalChangesAsync(SyncContext context, SyncTreeNodeResponse serverTree, CancellationToken cancellationToken)
     {
         var pendingOps = await _stateDb.GetPendingOperationsAsync(context.StateDatabasePath, cancellationToken);
@@ -1215,72 +1218,64 @@ public sealed class SyncEngine : ISyncEngine
         var folderPathMap = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
         BuildFolderPathMap(serverTree, "", folderPathMap);
 
-        foreach (var op in pendingOps)
+        var parallelOptions = new ParallelOptions
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            MaxDegreeOfParallelism = MaxParallelOperations,
+            CancellationToken = cancellationToken,
+        };
+
+        await Parallel.ForEachAsync(pendingOps, parallelOptions, async (op, ct) =>
+        {
             try
             {
-                await ExecutePendingOperationAsync(context, op, folderPathMap, cancellationToken);
-                await _stateDb.RemoveOperationAsync(context.StateDatabasePath, op.Id, cancellationToken);
-                completedOperations++;
+                await ExecutePendingOperationAsync(context, op, folderPathMap, ct);
+                await _stateDb.RemoveOperationAsync(context.StateDatabasePath, op.Id, ct);
+                Interlocked.Increment(ref completedOperations);
             }
             catch (NameConflictException ncEx)
             {
-                // Issue #41: case-sensitivity conflict — move to failed immediately, no retry.
                 _logger.LogWarning(
                     "Case-sensitivity conflict for '{FileName}': {Message}. Operation {OpId} moved to failed queue.",
                     op is PendingUpload u ? Path.GetFileName(u.LocalPath) : string.Empty,
                     ncEx.Message, op.Id);
-                await _stateDb.MoveToFailedAsync(context.StateDatabasePath, op, ncEx.Message, cancellationToken);
+                await _stateDb.MoveToFailedAsync(context.StateDatabasePath, op, ncEx.Message, ct);
             }
             catch (FileStillGrowingException growEx)
             {
-                // File is still being written — defer without consuming the retry budget.
                 _logger.LogInformation(
                     "Deferring upload of {Path} — file size changed during stability check ({InitialSize} → {FinalSize} bytes). Will retry in 5 seconds. (Operation {OpId})",
                     growEx.FilePath, growEx.InitialSize, growEx.FinalSize, op.Id);
-
-                // Schedule a short retry without incrementing RetryCount.
                 await _stateDb.UpdateOperationRetryAsync(
                     context.StateDatabasePath, op.Id, op.RetryCount,
-                    DateTime.UtcNow.AddSeconds(5), growEx.Message, cancellationToken);
+                    DateTime.UtcNow.AddSeconds(5), growEx.Message, ct);
             }
             catch (FileModifiedDuringUploadException modEx)
             {
-                // File changed between Pass 1 (metadata) and Pass 2 (data) — defer without consuming retry budget.
                 _logger.LogWarning(
                     "Deferring upload of {Path} — file modified between upload passes (size: {OriginalSize} → {CurrentSize} bytes). Will retry in 5 seconds. (Operation {OpId})",
                     modEx.FilePath, modEx.OriginalSize, modEx.CurrentSize, op.Id);
-
-                // Schedule a short retry without incrementing RetryCount.
                 await _stateDb.UpdateOperationRetryAsync(
                     context.StateDatabasePath, op.Id, op.RetryCount,
-                    DateTime.UtcNow.AddSeconds(5), modEx.Message, cancellationToken);
+                    DateTime.UtcNow.AddSeconds(5), modEx.Message, ct);
             }
             catch (LockedFileException lockEx)
             {
-                // Locked files are not sync failures — defer without consuming the retry budget.
                 _logger.LogWarning(
                     "Skipping {Path} — file is locked by another process. Will retry automatically in 2 minutes. (Operation {OpId})",
                     lockEx.FilePath, op.Id);
-
-                // Update SyncStateTag to "Deferred" if there is an existing file record.
                 var deferRecord = await _stateDb.GetFileRecordAsync(
-                    context.StateDatabasePath, lockEx.FilePath, cancellationToken);
+                    context.StateDatabasePath, lockEx.FilePath, ct);
                 if (deferRecord is not null)
                 {
                     deferRecord.SyncStateTag = "Deferred";
-                    await _stateDb.UpsertFileRecordAsync(context.StateDatabasePath, deferRecord, cancellationToken);
+                    await _stateDb.UpsertFileRecordAsync(context.StateDatabasePath, deferRecord, ct);
                 }
-
-                // Schedule a short retry without incrementing RetryCount.
                 await _stateDb.UpdateOperationRetryAsync(
                     context.StateDatabasePath, op.Id, op.RetryCount,
-                    DateTime.UtcNow.AddMinutes(2), lockEx.Message, cancellationToken);
+                    DateTime.UtcNow.AddMinutes(2), lockEx.Message, ct);
             }
             catch (PathTooLongException ptlEx)
             {
-                // Issue #45: path exceeds OS limit — mark as PathTooLong and skip permanently.
                 var opPath = op switch
                 {
                     PendingUpload u => u.LocalPath,
@@ -1290,58 +1285,51 @@ public sealed class SyncEngine : ISyncEngine
                 _logger.LogWarning(ptlEx,
                     "sync.path_too_long {LocalPath} — skipping permanently. Operation {OpId} moved to failed queue.",
                     opPath, op.Id);
-
                 if (opPath is not null)
                 {
                     if (OperatingSystem.IsWindows())
                         _logger.LogWarning(
                             "Windows long-path support is not enabled. Set HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem\\LongPathsEnabled=1 (requires admin, then reboot).");
-
-                    var ptlRecord = await _stateDb.GetFileRecordAsync(context.StateDatabasePath, opPath, cancellationToken);
+                    var ptlRecord = await _stateDb.GetFileRecordAsync(context.StateDatabasePath, opPath, ct);
                     if (ptlRecord is not null)
                     {
                         ptlRecord.SyncStateTag = "PathTooLong";
-                        await _stateDb.UpsertFileRecordAsync(context.StateDatabasePath, ptlRecord, cancellationToken);
+                        await _stateDb.UpsertFileRecordAsync(context.StateDatabasePath, ptlRecord, ct);
                     }
                 }
-
-                await _stateDb.MoveToFailedAsync(context.StateDatabasePath, op, ptlEx.Message, cancellationToken);
+                await _stateDb.MoveToFailedAsync(context.StateDatabasePath, op, ptlEx.Message, ct);
             }
             catch (HttpRequestException httpEx) when (
                 op is PendingDownload &&
                 IsNotFoundHttp(httpEx))
             {
-                // Remote node/content is missing: retries are not useful for this download operation.
                 _logger.LogWarning(httpEx,
                     "Download operation {OpId} failed with 404 Not Found. Moving to failed queue without retry.",
                     op.Id);
-                await _stateDb.MoveToFailedAsync(context.StateDatabasePath, op, httpEx.Message, cancellationToken);
+                await _stateDb.MoveToFailedAsync(context.StateDatabasePath, op, httpEx.Message, ct);
             }
             catch (HttpRequestException httpEx) when (
                 op is PendingDelete &&
                 IsNotFoundHttp(httpEx))
             {
-                // Server node already deleted (e.g. cascade from parent folder delete).
-                // Treat as successful — clean up local state.
                 _logger.LogInformation(
                     "Delete operation {OpId} — server node already gone (404). Cleaning up local state.",
                     op.Id);
                 var del = (PendingDelete)op;
-                await _stateDb.RemoveFileRecordAsync(context.StateDatabasePath, del.LocalPath, cancellationToken);
-                await _stateDb.RemoveFileRecordsUnderPathAsync(context.StateDatabasePath, del.LocalPath, cancellationToken);
-                await _stateDb.RemoveOperationAsync(context.StateDatabasePath, op.Id, cancellationToken);
-                completedOperations++;
+                await _stateDb.RemoveFileRecordAsync(context.StateDatabasePath, del.LocalPath, ct);
+                await _stateDb.RemoveFileRecordsUnderPathAsync(context.StateDatabasePath, del.LocalPath, ct);
+                await _stateDb.RemoveOperationAsync(context.StateDatabasePath, op.Id, ct);
+                Interlocked.Increment(ref completedOperations);
             }
             catch (Exception ex)
             {
                 var newRetryCount = op.RetryCount + 1;
-
                 if (newRetryCount >= MaxOperationRetries)
                 {
                     _logger.LogError(ex,
                         "Operation {OpId} ({Type}) permanently failed after {RetryCount} attempts. Moving to failed queue.",
                         op.Id, op.OperationType, newRetryCount);
-                    await _stateDb.MoveToFailedAsync(context.StateDatabasePath, op, ex.Message, cancellationToken);
+                    await _stateDb.MoveToFailedAsync(context.StateDatabasePath, op, ex.Message, ct);
                 }
                 else
                 {
@@ -1350,10 +1338,15 @@ public sealed class SyncEngine : ISyncEngine
                         "Operation {OpId} ({Type}) failed (attempt {RetryCount}/{MaxRetries}). Next retry at {NextRetryAt}.",
                         op.Id, op.OperationType, newRetryCount, MaxOperationRetries, nextRetryAt);
                     await _stateDb.UpdateOperationRetryAsync(
-                        context.StateDatabasePath, op.Id, newRetryCount, nextRetryAt, ex.Message, cancellationToken);
+                        context.StateDatabasePath, op.Id, newRetryCount, nextRetryAt, ex.Message, ct);
                 }
             }
-        }
+        });
+
+        if (completedOperations > 0)
+            _logger.LogInformation(
+                "Applied {Count} local change(s) in context {ContextId}.",
+                completedOperations, context.Id);
 
         return completedOperations;
     }
