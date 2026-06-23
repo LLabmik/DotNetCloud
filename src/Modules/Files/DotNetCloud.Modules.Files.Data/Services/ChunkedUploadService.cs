@@ -366,12 +366,14 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
                 };
                 _db.FileVersions.Add(version);
 
-                // Create version-chunk mappings and increment refcounts
+                // Create version-chunk mappings and collect chunk IDs for batched refcount increment.
                 var chunkSizes = session.ChunkSizesManifest is not null
                     ? JsonSerializer.Deserialize<List<int>>(session.ChunkSizesManifest)!
                     : null;
 
                 long byteOffset = 0;
+                var chunkIds = new List<Guid>(manifest.Count);
+                var chunkEntities = new List<FileChunk>(manifest.Count);
                 for (var i = 0; i < manifest.Count; i++)
                 {
                     var chunk = await _db.FileChunks
@@ -391,13 +393,17 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
                     });
 
                     byteOffset += chunkSize;
+                    chunkIds.Add(chunk.Id);
+                    chunkEntities.Add(chunk);
+                }
 
-                    // Atomic increment via raw SQL — avoids EF in-memory read-modify-write race.
-                    await ChunkReferenceHelper.IncrementAsync(_db, chunk.Id, cancellationToken);
+                // Batch increment all chunk refcounts in a single DB round-trip.
+                await ChunkReferenceHelper.IncrementBatchAsync(_db, chunkIds, cancellationToken);
 
-                    // When using a real DB (not InMemory), detach the chunk so EF doesn't
-                    // overwrite the atomically-set value on SaveChangesAsync.
-                    if (!ChunkReferenceHelper.IsInMemoryProvider(_db))
+                // Detach all chunk entities so EF doesn't overwrite the atomically-set values.
+                if (!ChunkReferenceHelper.IsInMemoryProvider(_db))
+                {
+                    foreach (var chunk in chunkEntities)
                         _db.Entry(chunk).State = EntityState.Detached;
                 }
 

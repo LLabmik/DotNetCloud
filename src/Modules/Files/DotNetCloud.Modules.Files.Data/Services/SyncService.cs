@@ -258,28 +258,29 @@ internal sealed class SyncService : ISyncService
     {
         ArgumentNullException.ThrowIfNull(caller);
 
-        if (folderId.HasValue)
-        {
-            var folder = await _db.FileNodes
-                .AsNoTracking()
-                .FirstOrDefaultAsync(n => n.Id == folderId.Value && n.OwnerId == caller.UserId, cancellationToken)
-                ?? throw new NotFoundException("FileNode", folderId.Value);
-
-            return await BuildTreeNodeAsync(folder, caller.UserId, metadataOnly, cancellationToken);
-        }
-
-        // Build a virtual root containing all root-level nodes
-        var rootNodes = await _db.FileNodes
+        // Load all nodes for the user in a single query, then build the tree in memory.
+        // This eliminates the recursive per-folder DB queries (N+1) in the old BuildTreeNodeAsync.
+        var allNodes = await _db.FileNodes
             .AsNoTracking()
-            .Where(n => n.OwnerId == caller.UserId && n.ParentId == null)
+            .Where(n => n.OwnerId == caller.UserId)
             .OrderBy(n => n.NodeType)
             .ThenBy(n => n.Name)
             .ToListAsync(cancellationToken);
 
-        var children = new List<SyncTreeNodeDto>();
-        foreach (var node in rootNodes)
+        if (folderId.HasValue)
         {
-            children.Add(await BuildTreeNodeAsync(node, caller.UserId, metadataOnly, cancellationToken));
+            var folder = allNodes.FirstOrDefault(n => n.Id == folderId.Value)
+                ?? throw new NotFoundException("FileNode", folderId.Value);
+
+            return BuildTreeInMemory(allNodes, folder, metadataOnly);
+        }
+
+        // Build virtual root from all root-level nodes.
+        var children = new List<SyncTreeNodeDto>();
+        var rootNodes = allNodes.Where(n => n.ParentId == null).ToList();
+        foreach (var root in rootNodes)
+        {
+            children.Add(BuildTreeInMemory(allNodes, root, metadataOnly));
         }
 
         return new SyncTreeNodeDto
@@ -409,22 +410,15 @@ internal sealed class SyncService : ISyncService
         return new SyncReconcileResultDto { Actions = actions };
     }
 
-    private async Task<SyncTreeNodeDto> BuildTreeNodeAsync(FileNode node, Guid ownerId, bool metadataOnly, CancellationToken cancellationToken)
+    private static SyncTreeNodeDto BuildTreeInMemory(IReadOnlyList<FileNode> allNodes, FileNode node, bool metadataOnly)
     {
         var children = new List<SyncTreeNodeDto>();
 
         if (node.NodeType == FileNodeType.Folder)
         {
-            var childNodes = await _db.FileNodes
-                .AsNoTracking()
-                .Where(n => n.ParentId == node.Id && n.OwnerId == ownerId)
-                .OrderBy(n => n.NodeType)
-                .ThenBy(n => n.Name)
-                .ToListAsync(cancellationToken);
-
-            foreach (var child in childNodes)
+            foreach (var child in allNodes.Where(n => n.ParentId == node.Id))
             {
-                children.Add(await BuildTreeNodeAsync(child, ownerId, metadataOnly, cancellationToken));
+                children.Add(BuildTreeInMemory(allNodes, child, metadataOnly));
             }
         }
 

@@ -38,6 +38,35 @@ internal static class ChunkReferenceHelper
     }
 
     /// <summary>
+    /// Atomically increments reference counts on multiple chunks in a single UPDATE statement.
+    /// Use this instead of calling <see cref="IncrementAsync"/> in a loop to eliminate
+    /// per-chunk DB round-trips during upload completion.
+    /// </summary>
+    public static async Task IncrementBatchAsync(FilesDbContext db, IReadOnlyList<Guid> chunkIds, CancellationToken cancellationToken = default)
+    {
+        if (chunkIds.Count == 0) return;
+
+        if (IsInMemoryProvider(db))
+        {
+            var chunks = await db.FileChunks.Where(c => chunkIds.Contains(c.Id)).ToListAsync(cancellationToken);
+            foreach (var chunk in chunks)
+            {
+                chunk.ReferenceCount++;
+                chunk.LastReferencedAt = DateTime.UtcNow;
+            }
+            return;
+        }
+
+        await db.FileChunks
+            .Where(c => chunkIds.Contains(c.Id))
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(c => c.ReferenceCount, c => c.ReferenceCount + 1)
+                    .SetProperty(c => c.LastReferencedAt, _ => DateTime.UtcNow),
+                cancellationToken);
+    }
+
+    /// <summary>
     /// Atomically decrements the reference count on a chunk by its database ID,
     /// clamping at zero to prevent negative counts.
     /// </summary>
