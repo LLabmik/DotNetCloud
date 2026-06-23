@@ -589,6 +589,7 @@ Additionally, the Android client has its own `ApplicationDisplayVersion` in `/sr
 **Problem:** The `read_file` tool reads from the VS Code **editor document buffer**, NOT from disk. If a file is open in the editor and is modified externally (e.g., by `python3`, `sed`, or git operations writing directly to the file), `read_file` will return **stale/cached content** from the editor buffer.
 
 **Symptoms:**
+
 - `read_file` shows old content that doesn't match `git show HEAD:path` or `cat path`
 - `git show` and `sed`/`cat` show the correct latest content
 - The file is open in the VS Code editor
@@ -609,7 +610,7 @@ workbench.action.files.revert
 # Use git to read the committed version
 git show HEAD:path/to/file
 
-# Use cat/sed to read from disk directly  
+# Use cat/sed to read from disk directly
 cat path/to/file
 sed -n '10,30p' path/to/file
 ```
