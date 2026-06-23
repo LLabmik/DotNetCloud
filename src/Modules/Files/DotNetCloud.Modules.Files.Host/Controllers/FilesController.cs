@@ -5,7 +5,6 @@ using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.Modules.Search.Client;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -341,7 +340,6 @@ public class FilesController : FilesControllerBase
     /// Uploads a single chunk.
     /// </summary>
     [HttpPut("upload/{sessionId:guid}/chunks/{chunkHash}")]
-    [EnableRateLimiting("module-upload-chunks")]
     public Task<IActionResult> UploadChunkAsync(Guid sessionId, string chunkHash) => ExecuteAsync(async () =>
     {
         // Read body directly into a single buffer — avoids MemoryStream + ToArray() double copy.
