@@ -34,7 +34,7 @@ Archived context:
 Every Active Handoff MUST use per-machine action blocks. Actions are grouped by the machine that executes them, using the exact machine names from the Environment table.
 
 ```markdown
-## Active Handoff
+### Active Handoff
 
 **Summary:** [one-line description of what's happening]
 
@@ -132,28 +132,31 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Status:** ✅ FIXED — 502 regression resolved. [EnableRateLimiting] removed from Files module controller (commit a4f83023)
+**Summary:** 🔴 502 still not fixed — `[EnableRateLimiting]` removal was insufficient. Chunk uploads still fail on production.
 
-**Root cause:** [EnableRateLimiting("module-upload-chunks")] was on FilesController.UploadChunkAsync in the Files module host. Rate limiting policies only exist in Core.Server, not module hosts. Module threw on missing policy → YARP returned 502.
+**Context:** Commit `a4f83023` removed `[EnableRateLimiting]` from `FilesController.UploadChunkAsync` and was deployed to `cloud.kimball.home`. Client re-test from `mint-OptiPlex-7010` shows 502 persists on ALL chunk uploads (same failure pattern as before).
 
-**Fix:** Removed the attribute. Rate limiting is already handled at Core.Server YARP level.
+**Key observations:**
+- GET endpoints work (sync/tree 200, sync/changes 200)
+- `SyncController.cs` still has 6 `[EnableRateLimiting]` attributes — those endpoints return 200 just fine
+- Only `PUT .../chunks/{hash}` fails with 502
+- Chunk uploads use gzip compression + `application/octet-stream` content type
+- Every chunk across every file fails (single-chunk files and 252-chunk PDF)
 
-**Deploy results:**
-- 2/2 targets, 105s elapsed
-- Health: Healthy ✅ (14 modules)
+**Possible leads to investigate:**
+- Is the chunk upload handler itself crashing (not rate limiter)?
+- Is gzip-compressed body on PUT causing an issue in the module host?
+- Are the upload session IDs stale/invalid from previous sync attempts?
+- Is YARP misconfigured for this specific route pattern?
+- Check Files module logs at time of chunk upload (`journalctl` or app logs)
 
-**Next: Re-test SyncTray from mint-OptiPlex-7010.**
+---
 
-```bash
-# On mint-OptiPlex-7010:
-git fetch && git checkout perf/synctray-scan-and-transfer-speedups && git pull
-dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj
-```
+### Server Actions — `cloud.kimball.home`
 
-Verify:
-- Chunk uploads return 200 (no more 502)
-- Sync completes end-to-end
-- Tree endpoint performance (single query vs N+1)
-- Rate limits not causing throttling
-
-**Server build:** 0.3.12 (commit a4f83023)
+- [ ] Check Files module runtime logs for errors/exceptions during chunk upload
+- [ ] Test chunk upload directly on server (bypass YARP): `curl -X PUT "http://localhost:<module-port>/api/v1/files/upload/{sessionId}/chunks/testhash" -H "Authorization: Bearer <token>" -H "Content-Type: application/octet-stream" -H "X-Chunk-Hash: testhash" --data-binary "test" -v`
+- [ ] Compare with a working GET endpoint to isolate whether it's PUT-specific, body-specific, or route-specific
+- [ ] Check if the Files module process is restarting/crashing during chunk upload attempts
+- [ ] Verify deployed DLL hash matches `a4f83023` build output
+- [ ] Once fixed, verify with direct curl test → relay back for client re-test

@@ -15,7 +15,9 @@ Archived: 2026-06-23 14:50 UTC. Full git history preserved in commits up to `5e7
 - Health: Healthy (14 modules)
 - Fix deployed to /opt/dotnetcloud/server/modules/dotnetcloud.files/
 
-**Next:** Relay to mint-OptiPlex-7010 for re-test.
+**Client re-test (mint-OptiPlex-7010, 2026-06-23):** ❌ Fix did NOT resolve the 502. All chunk uploads still fail with 502 across all files and retries. GET endpoints (sync/tree, sync/changes) continue to work fine. The `[EnableRateLimiting]` removal alone was insufficient — a different root cause is still active.
+
+**Additional finding:** `SyncController.cs` still has 6 `[EnableRateLimiting]` attributes on sync endpoints, yet those endpoints return 200. This suggests the rate limiting theory may be incomplete — there may be another issue specific to the chunk upload handler or gzip-compressed PUT requests.
 
 ---
 
@@ -51,7 +53,21 @@ Only consult this if you encounter a regression or need to understand a past fix
 - Only `PUT .../chunks/{hash}` is affected
 - This is a server-side regression in the chunk upload handler
 
-**Next:** Relay to `cloud.kimball.home` for 502 chunk upload investigation.
+**Server fix attempt (commit `a4f83023`):** Removed `[EnableRateLimiting("module-upload-chunks")]` from FilesController.UploadChunkAsync. Deployed 2/2 targets, 105s. Health: Healthy ✅.
+
+**Re-test from mint-OptiPlex-7010 (2026-06-23 10:25 UTC):** ❌ 502s persist identically. The `[EnableRateLimiting]` removal did NOT fix the issue.
+
+**Key discoveries:**
+1. Commit `51846e85` (the breaking change) had THREE changes, not one:
+   - Added `[EnableRateLimiting]` to FilesController.UploadChunkAsync
+   - Changed body reading from MemoryStream+CopyToAsync+ToArray() to manual buffer read
+   - Changed LocalFileStorageEngine.WriteChunkAsync from byte[] to ReadOnlyMemory<byte>
+2. Only the rate limiting attribute was reverted — the body reading and storage engine changes remain
+3. SyncController in the SAME assembly uses `[EnableRateLimiting]` without issues (GET works)
+4. Files module host has NO `UseRateLimiter()` or `AddRateLimiter()` — rate limiting is not configured
+5. 502 is immediate (same-second failure), not a timeout — suggests connection rejection
+
+**Next:** Relay to `cloud.kimball.home` for deeper investigation.
 
 ---
 
