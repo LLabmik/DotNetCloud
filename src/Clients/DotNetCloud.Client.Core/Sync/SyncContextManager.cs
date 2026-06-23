@@ -601,7 +601,8 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
             _loggerFactory.CreateLogger<SyncEngine>(),
             streamListener)
         {
-            DeviceId = deviceId
+            DeviceId = deviceId,
+            InitialSyncOnStartup = true
         };
 
         return (engine, conflictResolver, stateDb, apiClient, selectiveSync);

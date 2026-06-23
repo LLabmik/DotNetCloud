@@ -69,6 +69,13 @@ public sealed class SyncEngine : ISyncEngine
     /// </summary>
     internal TimeSpan FileStabilityDelay { get; set; } = TimeSpan.FromSeconds(1);
 
+    /// <summary>
+    /// When <see langword="true"/>, triggers an initial sync pass immediately after
+    /// <see cref="StartAsync"/> completes initialization. Defaults to <see langword="false"/>
+    /// so existing unit tests are unaffected.
+    /// </summary>
+    public bool InitialSyncOnStartup { get; set; }
+
     /// <inheritdoc/>
     public event EventHandler<SyncStatusChangedEventArgs>? StatusChanged;
 
@@ -193,6 +200,28 @@ public sealed class SyncEngine : ISyncEngine
             context.Id, context.LocalFolderPath);
 
         SetState(SyncState.Idle, context);
+
+        // Initial sync pass immediately after startup to catch up on any changes
+        // missed while the engine was offline.
+        if (InitialSyncOnStartup)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    _logger.LogDebug("Triggering initial sync pass for context {ContextId}.", context.Id);
+                    await SyncAsync(context, cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    _logger.LogDebug("Initial sync pass cancelled for context {ContextId}.", context.Id);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Initial sync pass failed for context {ContextId}.", context.Id);
+                }
+            }, cancellationToken);
+        }
     }
 
     /// <inheritdoc/>

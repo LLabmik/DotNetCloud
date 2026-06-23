@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-23 16:46 UTC (502 chunk upload fixed — decompression moved to Files module; ready for client re-test)
+Last updated: 2026-06-23 15:15 UTC (429 rate limiting — needs server investigation)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -132,34 +132,41 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** ✅ 502 chunk upload FIXED — verified on production client (mint-OptiPlex-7010).
+**Summary:** 🔴 Chunk uploads hit 429 (Too Many Requests) during initial sync — rate limiting configuration needs server-side investigation.
 
-**Root cause:** `UseRequestDecompression()` middleware in Core.Server decompressed gzip-encoded chunk upload bodies BEFORE YARP forwarded them. The `GZipStream` wrapping `Request.Body` caused YARP's forwarder to fail with `RequestBodyClient` error → 502.
+**Context:** After the 502 fix was verified, the client also hits 429 errors during chunk upload sync. During a single sync pass, ~252 chunk upload requests for a 1.17GB file triggered 429 responses from the server after ~32 seconds of activity.
 
-**Fix:**
-1. Removed `AddRequestDecompression()` + `UseRequestDecompression()` from `Core.Server/Program.cs`
-2. Added `AddRequestDecompression()` + `UseRequestDecompression()` to `Files.Host/Program.cs`
+**Client-side findings (mint-OptiPlex-7010):**
+- 429 errors start after ~32 seconds of chunk upload activity
+- Most chunks return 409 (content-addressable dedup — already on server)
+- Even 409s count against rate limits (middleware runs before controller)
+- `MaxConcurrency` is 8 parallel uploads
+- Token is valid + refreshed — auth is fine
+- `X-Device-Id` header is being sent (per-device partitioning)
+- Client-side fix applied: 429 now retried with backoff alongside 5xx (but this is a band-aid — sync should not be rate-limited at all)
 
-The Files module now handles gzip decompression itself after receiving the raw body from YARP.
+**Server-side rate limiting config (from `appsettings.json`):**
+```json
+"GlobalPermitLimit": 100,        // anonymous: 100 req/60s
+"AuthenticatedPermitLimit": 10000, // authenticated: 10,000 req/60s
+"upload-chunks": { "PermitLimit": 1200, "WindowSeconds": 60, "PerDevice": true }
+```
 
-**Server-side verification (cloud.kimball.home):**
-- Before: gzip chunk → 502 | non-gzip chunk → 401
-- After: gzip chunk → 401 ✓ | non-gzip chunk → 401 ✓
-- Zero `RequestBodyClient` errors in logs
-- 734 Files module tests pass
-- DLL hashes verified matching
-
-**Client-side verification (mint-OptiPlex-7010):**
-- Pulled main (40587319), ran SyncTray against cloud.dotnetcloud.net
-- All chunk uploads completed — **zero 502 errors**
-- Small files: uploaded/skipped (409 already-exists) successfully
-- Large PDF (1.17GB, 252 chunks): all chunks 409 (pre-existing) — pipeline healthy
-- No `RequestBodyClient` errors, no unexpected failures
+**Hypothesis:** Rates should be sufficient for 252 chunks over 32s, suggesting the bottleneck may be:
+1. An infrastructure-level rate limiter (Cloudflare, nginx reverse proxy) on `cloud.dotnetcloud.net`
+2. The global limiter (not per-device) exhausting the shared 10,000/60s bucket across all routes including SSE, tree, changes, etc.
+3. The `upload-chunks` module limiter potentially not matching the chunk upload route (check `[EnableRateLimiting]` attribute application)
 
 ---
 
-### ✓ Client Actions — `mint-OptiPlex-7010` (COMPLETE)
+### Server Actions — `cloud.kimball.home`
 
-- ✓ Pulled `main` and re-tested chunk upload sync from production client
-- ✓ All chunk uploads complete — zero 502 errors
-- ✓ Results: **success** — 502 chunk upload fix verified on production
+- [ ] Check production reverse proxy (nginx/Cloudflare) for rate limiting rules that may be stricter than ASP.NET config
+- [ ] Verify that `upload-chunks` module rate limiter policy is actually applied to the chunk upload endpoint via `[EnableRateLimiting("module-upload-chunks")]`
+- [ ] Consider exempting authenticated first-party sync traffic from rate limiting entirely, or raising limits significantly for sync endpoints
+- [ ] Check production logs for `X-RateLimit-Remaining` / `Retry-After` headers to identify which limiter is being hit
+- [ ] Run: `journalctl -u dotnetcloud --since "15:10 UTC" --until "15:12 UTC" | grep -i "ratelimit\|429\|RateLimit"` on the server
+
+### Client Actions — `mint-OptiPlex-7010`
+
+- [ ] Client-side 429 retry fix already applied (retries with backoff alongside 5xx) — wait for server resolution

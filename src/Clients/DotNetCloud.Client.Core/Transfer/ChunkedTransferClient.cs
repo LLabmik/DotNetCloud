@@ -241,7 +241,7 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
                         }
                         catch (HttpRequestException ex) when (
                             attempt < ChunkUploadMaxRetries &&
-                            (ex.StatusCode is null || (int)ex.StatusCode >= 500))
+                            (ex.StatusCode is null || (int)ex.StatusCode >= 500 || (int)ex.StatusCode == 429))
                         {
                             var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt - 1))
                                         + TimeSpan.FromMilliseconds(Random.Shared.Next(0, 500));
@@ -302,8 +302,8 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
             {
                 // Server returned 409 — file with this name already exists.
                 // Treat as success: the file is already on the server.
-                _logger.LogWarning(
-                    "CompleteUpload returned 409 for {FileName} — file already exists on server. Treating as success.",
+                _logger.LogInformation(
+                    "CompleteUpload 409 for {FileName} — file already exists (dedup).",
                     fileName);
 
                 // Clean up the upload session tracking.
