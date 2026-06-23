@@ -132,5 +132,27 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Status:** ℹ️ No active handoff. All prior tasks archived.
+**Summary:** Deploy SyncTray performance improvements — server-side rate limits, N+1 tree fix, batch chunk refcount, 502 fix (missing rate limit attribute + memory copies).
+
+**Context:** Branch `perf/synctray-scan-and-transfer-speedups` contains 10 commits across 15 files covering:
+
+- **Rate limit config:** `upload-chunks` 300→1200/min, `sync-changes` 60→120/min (`appsettings.json`)
+- **N+1 tree fix:** `GetFolderTreeAsync` now loads all user nodes in 1 query, builds tree in-memory (`SyncService.cs`)
+- **Batch chunk refcount:** `ChunkReferenceHelper.IncrementBatchAsync` — single UPDATE instead of per-chunk (`ChunkReferenceHelper.cs`, `ChunkedUploadService.cs`)
+- **502 fix (critical):** Added missing `[EnableRateLimiting("module-upload-chunks")]` to `UploadChunkAsync` controller action. Eliminated triple memory copy per chunk (MemoryStream + ToArray + storage engine ToArray = ~12MB per concurrent 4MB chunk). Controller now reads body into single buffer via Content-Length. Storage engine writes via `FileStream.WriteAsync(ReadOnlyMemory<byte>)`. (`FilesController.cs`, `LocalFileStorageEngine.cs`)
+
+Full details: `docs/SYNCTRAY_PERFORMANCE_IMPROVEMENTS.md`
+
+Tests: 1,279 pass (Client.Core 264, SyncTray 106, Modules.Files 734, Core.Data 175).
+
+---
+
+### Server Actions — `cloud.kimball.home`
+
+- [ ] `git fetch && git checkout perf/synctray-scan-and-transfer-speedups`
+- [ ] `dotnet build src/Core/DotNetCloud.Core.Server/ -c Release`
+- [ ] Deploy and restart the server (publish to `/var/dnc/` or equivalent)
+- [ ] Verify chunk uploads no longer return 502 — check server logs for `EnableRateLimiting` activation on `module-upload-chunks`
+- [ ] Verify tree endpoint returns in 1 query instead of recursive — check DB query log for single `SELECT ... FROM FileNodes WHERE OwnerId = ...`
+- [ ] Update `appsettings.json` rate limits in deployed config if the publish process doesn't pick up source config
 
