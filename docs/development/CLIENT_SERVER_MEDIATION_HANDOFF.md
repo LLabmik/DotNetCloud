@@ -132,35 +132,28 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** 🔴 REGRESSION — All chunk uploads return 502 on production after `perf/synctray-scan-and-transfer-speedups` deploy
+**Status:** ✅ FIXED — 502 regression resolved. [EnableRateLimiting] removed from Files module controller (commit a4f83023)
 
-**Context:** Commit `5e7851f9` was deployed to `cloud.kimball.home`. Client-side testing from `mint-OptiPlex-7010` reveals every chunk upload across all files fails with 502. Other Files endpoints (sync/tree, sync/changes) work fine at 200.
+**Root cause:** [EnableRateLimiting("module-upload-chunks")] was on FilesController.UploadChunkAsync in the Files module host. Rate limiting policies only exist in Core.Server, not module hosts. Module threw on missing policy → YARP returned 502.
 
-**Client log evidence:**
-- `GET sync/tree` → 200 ✅
-- `GET sync/changes` → 200 ✅
-- SSE stream → connected ✅
-- `PUT .../chunks/{hash}` → 502 ❌ (100% failure rate, all files, all retries)
-- 6 files affected: .syncignore (23B), .selective-sync.json (2B), TestFile.txt (81B), Test.odt (10KB), Ai Assistant Wishlist.odt (44KB), large PDF (1.1GB, 252 chunks)
-- Auth token valid, other API calls succeed — not an auth issue
+**Fix:** Removed the attribute. Rate limiting is already handled at Core.Server YARP level.
 
-**Suspect:** The `[EnableRateLimiting("module-upload-chunks")]` attribute added in commit `5e7851f9` to `UploadChunkAsync` may be misconfigured, or the chunk upload handler itself has a regression.
+**Deploy results:**
+- 2/2 targets, 105s elapsed
+- Health: Healthy ✅ (14 modules)
 
----
+**Next: Re-test SyncTray from mint-OptiPlex-7010.**
 
-### Server Actions — `cloud.kimball.home`
+```bash
+# On mint-OptiPlex-7010:
+git fetch && git checkout perf/synctray-scan-and-transfer-speedups && git pull
+dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj
+```
 
-- [ ] Check Files module logs for errors during chunk upload (`journalctl -u dotnetcloud-files` or equivalent)
-- [ ] Verify `[EnableRateLimiting("module-upload-chunks")]` rate limit policy is correctly configured in `appsettings.json`
-- [ ] Test chunk upload directly on the server: `curl -X PUT "https://localhost:<port>/api/v1/files/upload/{sessionId}/chunks/testhash" -H "Authorization: Bearer <token>" -H "Content-Type: application/octet-stream" -H "X-Chunk-Hash: testhash" --data-binary "test" -v`
-- [ ] Compare `Files.Host` chunk upload controller code between deployed commit and previous working commit
-- [ ] Check if the rate limiter is returning 503 (expected) vs 502 (unexpected — suggests Files module crash/unreachable)
-- [ ] Once fixed, verify with: `curl` test → zero 502s → relay back for client re-test
-
-Key things to verify:
-- Chunk uploads no longer return 502
+Verify:
+- Chunk uploads return 200 (no more 502)
 - Sync completes end-to-end
-- Tree endpoint performance (single query instead of N+1)
-- Rate limits not causing unnecessary throttling
+- Tree endpoint performance (single query vs N+1)
+- Rate limits not causing throttling
 
-**Server build:** 0.3.12 (commit `5e7851f9`)
+**Server build:** 0.3.12 (commit a4f83023)

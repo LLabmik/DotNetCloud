@@ -2,6 +2,24 @@
 
 Archived: 2026-06-23 14:50 UTC. Full git history preserved in commits up to `5e7851f9`.
 
+## Archived: 502 Regression Fix — Removed Rate Limiting Attribute from Module Controller (2026-06-23)
+
+**Target:** cloud.kimball.home (server fix)
+
+**Root cause:** [EnableRateLimiting("module-upload-chunks")] was added to FilesController.UploadChunkAsync in the Files module host. But the rate limiting middleware and named policies only exist in Core.Server, not in the module host process. When the Files module processed a chunk upload, ASP.NET tried to apply the non-existent policy → exception → YARP saw dead backend → 502 for ALL chunk uploads.
+
+**Fix (commit a4f83023):** Removed [EnableRateLimiting("module-upload-chunks")] and unused using Microsoft.AspNetCore.RateLimiting from FilesController.cs. Rate limiting is already handled at the Core.Server YARP level.
+
+**Deploy results:**
+- Deploy: 2/2 targets, 105s
+- Health: Healthy (14 modules)
+- Fix deployed to /opt/dotnetcloud/server/modules/dotnetcloud.files/
+
+**Next:** Relay to mint-OptiPlex-7010 for re-test.
+
+---
+
+
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
