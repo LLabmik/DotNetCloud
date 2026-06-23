@@ -321,13 +321,17 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
                 await _stateDb.DeleteActiveUploadSessionAsync(stateDatabasePath, capturedSessionId, cancellationToken);
 
             uploadTimer.Stop();
+            var throughputMbps = uploadTimer.Elapsed.TotalSeconds > 0
+                ? fileSize / uploadTimer.Elapsed.TotalSeconds / (1024.0 * 1024.0)
+                : 0;
 
             _logger.LogInformation(
-                "File upload complete: FileName={FileName}, NodeId={NodeId}, FileSize={FileSize}, DurationMs={DurationMs}.",
+                "File upload complete: FileName={FileName}, NodeId={NodeId}, FileSize={FileSize}, DurationMs={DurationMs}, ThroughputMbps={Throughput:F1}.",
                 fileName,
                 result.Id,
                 fileSize,
-                uploadTimer.ElapsedMilliseconds);
+                uploadTimer.ElapsedMilliseconds,
+                throughputMbps);
 
             return new UploadResult(result.Id, result.ContentHash);
         }
@@ -389,12 +393,16 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
             }
 
             downloadTimer.Stop();
+            var dlThroughputMbps = downloadTimer.Elapsed.TotalSeconds > 0
+                ? manifest.TotalSize / downloadTimer.Elapsed.TotalSeconds / (1024.0 * 1024.0)
+                : 0;
 
             _logger.LogInformation(
-                "File download complete: NodeId={NodeId}, FileSize={FileSize}, DurationMs={DurationMs}.",
+                "File download complete: NodeId={NodeId}, FileSize={FileSize}, DurationMs={DurationMs}, ThroughputMbps={Throughput:F1}.",
                 nodeId,
                 manifest.TotalSize,
-                downloadTimer.ElapsedMilliseconds);
+                downloadTimer.ElapsedMilliseconds,
+                dlThroughputMbps);
 
             return stream;
         }

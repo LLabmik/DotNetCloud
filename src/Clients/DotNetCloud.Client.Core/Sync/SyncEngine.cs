@@ -414,6 +414,8 @@ public sealed class SyncEngine : ISyncEngine
     /// </summary>
     private async Task<int> ScanLocalDirectoryAsync(SyncContext context, SyncTreeNodeResponse serverTree, CancellationToken cancellationToken)
     {
+        var scanStopwatch = Stopwatch.StartNew();
+
         // Build a lookup of all tracked file records for O(1) path checks.
         var allRecords = await _stateDb.GetAllFileRecordsAsync(context.StateDatabasePath, cancellationToken);
         var trackedByPath = allRecords.ToDictionary(r => r.LocalPath, StringComparer.OrdinalIgnoreCase);
@@ -422,14 +424,14 @@ public sealed class SyncEngine : ISyncEngine
         var queuedPaths = await _stateDb.GetPendingUploadPathsAsync(context.StateDatabasePath, cancellationToken);
 
         // Build a lookup of server files by relative path for dedup against the remote tree.
-        // This prevents re-uploading files the server already has (e.g. after state.db reset).
         var serverFilesByRelPath = new Dictionary<string, SyncTreeNodeResponse>(StringComparer.OrdinalIgnoreCase);
         BuildServerFileMap(serverTree, "", serverFilesByRelPath);
 
-        // Build a set of all server NodeIds (files + folders) to detect stale tracked records
-        // whose NodeId no longer exists on the server (i.e., remotely deleted).
+        // Build a set of all server NodeIds (files + folders) to detect stale tracked records.
         var serverNodeIds = new HashSet<Guid>();
         CollectAllServerNodeIds(serverTree, serverNodeIds);
+
+        var dbFetchMs = scanStopwatch.ElapsedMilliseconds;
 
         IEnumerable<string> localFiles;
         try
@@ -441,6 +443,8 @@ public sealed class SyncEngine : ISyncEngine
             _logger.LogWarning("Local sync folder {Path} not found during scan.", context.LocalFolderPath);
             return 0;
         }
+
+        var fileEnumerationMs = scanStopwatch.ElapsedMilliseconds;
 
         var queued = 0;
         var pendingUpserts = new List<LocalFileRecord>();
@@ -600,6 +604,8 @@ public sealed class SyncEngine : ISyncEngine
         if (pendingQueues.Count > 0)
             await _stateDb.QueueOperationsBatchAsync(context.StateDatabasePath, pendingQueues, cancellationToken);
 
+        var scanLoopMs = scanStopwatch.ElapsedMilliseconds;
+
         // ── Stale directory cleanup ─────────────────────────────────────────
         // Walk local directories bottom-up. Remove empty directories that don't exist
         // on the server. Non-empty directories are left alone — their files will be
@@ -727,6 +733,12 @@ public sealed class SyncEngine : ISyncEngine
                 new PendingDelete { LocalPath = record.LocalPath, NodeId = record.NodeId }, cancellationToken);
             queued++;
         }
+
+        scanStopwatch.Stop();
+        _logger.LogInformation(
+            "ScanLocalDirectory [{ContextId}]: {QueuedCount} queued, {TotalMs}ms total (dbFetch={DbFetchMs}ms, scanLoop={ScanLoopMs}ms, fileEnum={FileEnumMs}ms, totalFiles={FileCount})",
+            context.Id, queued, scanStopwatch.ElapsedMilliseconds, dbFetchMs, scanLoopMs - dbFetchMs, fileEnumerationMs - dbFetchMs,
+            allRecords.Count + queued);
 
         return queued;
     }
