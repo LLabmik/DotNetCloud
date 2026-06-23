@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.IO.Compression;
 using System.Net;
 using System.Net.Http.Headers;
@@ -17,9 +18,15 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
     private const int BaseDelayMs = 500;
     private const int MaxRateLimitDelaySeconds = 60;
 
+    /// <summary>Fraction of rate-limit budget below which we pre-emptively throttle.</summary>
+    private const double RateLimitPreemptThreshold = 0.2;
+
     private readonly HttpClient _http;
     private readonly ILogger<DotNetCloudApiClient> _logger;
     private static ILogger<DotNetCloudApiClient>? _staticLogger;
+
+    /// <summary>Per-endpoint rate-limit budget tracking for proactive throttling.</summary>
+    private readonly ConcurrentDictionary<string, RateLimitBudget> _rateBudgets = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Access token injected per-request.</summary>
     public string? AccessToken { get; set; }
@@ -458,6 +465,18 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
         for (var attempt = 0; attempt <= MaxRetries; attempt++)
         {
             using var request = requestFactory();
+            var bucket = GetRateLimitBucket(request.RequestUri!);
+
+            // Proactively throttle if we're near the rate limit (based on previous responses).
+            if (attempt == 0 && _rateBudgets.TryGetValue(bucket, out var budget)
+                && budget.Remaining <= budget.Limit * RateLimitPreemptThreshold)
+            {
+                var waitMs = Math.Max(50, (int)(budget.ResetIn.TotalMilliseconds * 0.5));
+                _logger.LogDebug("Proactive rate-limit throttle for '{Bucket}': {Remaining}/{Limit} remaining. Waiting {WaitMs}ms.",
+                    bucket, budget.Remaining, budget.Limit, waitMs);
+                await Task.Delay(waitMs, cancellationToken);
+            }
+
             HttpResponseMessage response;
             try
             {
@@ -469,6 +488,9 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
                 await DelayAsync(attempt, null, cancellationToken);
                 continue;
             }
+
+            // Update rate-limit budget from response headers.
+            UpdateRateLimitBudget(bucket, response);
 
             // Handle rate limiting
             if (response.StatusCode == HttpStatusCode.TooManyRequests)
@@ -591,4 +613,57 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
         var jitterMs = Random.Shared.Next(50, 251);
         return capped + TimeSpan.FromMilliseconds(jitterMs);
     }
+
+    // ── Proactive rate-limit tracking ───────────────────────────────────────
+
+    /// <summary>Extracts a rate-limit bucket key from the request URI based on the API endpoint pattern.</summary>
+    private static string GetRateLimitBucket(Uri requestUri)
+    {
+        var path = requestUri.IsAbsoluteUri ? requestUri.AbsolutePath : requestUri.OriginalString;
+        // Group by endpoint category: upload/chunks, sync/changes, sync/tree, etc.
+        if (path.Contains("/upload/") && path.Contains("/chunks/"))
+            return "upload-chunks";
+        if (path.Contains("/upload/initiate"))
+            return "upload-initiate";
+        if (path.Contains("/upload/") && path.Contains("/complete"))
+            return "upload-complete";
+        if (path.Contains("/sync/changes"))
+            return "sync-changes";
+        if (path.Contains("/sync/tree"))
+            return "sync-tree";
+        if (path.Contains("/sync/stream"))
+            return "sync-stream";
+        if (path.Contains("/download"))
+            return "download";
+        // Default bucket for other endpoints.
+        return "default";
+    }
+
+    /// <summary>Parses rate-limit headers from the response and updates the budget tracker.</summary>
+    private void UpdateRateLimitBudget(string bucket, HttpResponseMessage response)
+    {
+        if (!int.TryParse(GetHeaderValue(response, "X-RateLimit-Remaining"), out var remaining))
+            return;
+        if (!int.TryParse(GetHeaderValue(response, "X-RateLimit-Limit"), out var limit) || limit <= 0)
+            limit = remaining > 0 ? remaining * 2 : 100; // Fallback estimate
+
+        var resetIn = TimeSpan.FromSeconds(60); // Default window
+        if (int.TryParse(GetHeaderValue(response, "X-RateLimit-Reset"), out var resetEpoch) && resetEpoch > 0)
+        {
+            var resetTime = DateTimeOffset.FromUnixTimeSeconds(resetEpoch);
+            resetIn = resetTime - DateTimeOffset.UtcNow;
+            if (resetIn <= TimeSpan.Zero)
+                resetIn = TimeSpan.FromSeconds(60);
+        }
+
+        _rateBudgets[bucket] = new RateLimitBudget(limit, remaining, resetIn);
+    }
+
+    private static string? GetHeaderValue(HttpResponseMessage response, string headerName)
+    {
+        return response.Headers.TryGetValues(headerName, out var values) ? values.FirstOrDefault() : null;
+    }
+
+    /// <summary>Tracks remaining rate-limit budget for a specific endpoint category.</summary>
+    private readonly record struct RateLimitBudget(int Limit, int Remaining, TimeSpan ResetIn);
 }
