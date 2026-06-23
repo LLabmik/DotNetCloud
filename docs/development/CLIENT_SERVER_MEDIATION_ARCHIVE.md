@@ -5,6 +5,29 @@ Archived: 2026-06-23 01:55 UTC. Full git history preserved in commits up to `498
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: YARP Auth Header Doubling Fix — Verified on Windows11-TestDNC (2026-06-23)
+
+**Target:** `cloud.kimball.home` (server deploy) + `Windows11-TestDNC` (client verify)
+
+**Root cause:** YARP `ModuleApiProxyTransformer` called `base.TransformRequestAsync()` (copies `Authorization`) then custom loop called `TryAddWithoutValidation` (appends). Result: `Bearer <token>, Bearer <token>` — JWT handler rejected 9-segment token.
+
+**Fix (commit `ad95c0ca`):** Skip `Authorization` in custom copy loop.
+
+**Fixes deployed to `cloud.kimball.home` (all 6):**
+
+| # | Commit | Fix |
+|---|--------|-----|
+| 1 | `806d0716` | Remove duplicate `UseHttpsRedirection()` |
+| 2 | `13838258` | Add `module-id` gRPC metadata header |
+| 3 | `4d00ddc7` | `CallerContextInterceptor` default to System caller |
+| 4 | `0df90c38` | Load encryption keys for JWE token introspection |
+| 5 | `49880eb2` | Enable JWE encryption |
+| 6 | `ad95c0ca` | **Fix YARP Authorization header doubling** |
+
+**Client verification (Windows11-TestDNC):** ✅ 401 resolved. SyncTray authenticated against `cloud.dotnetcloud.net` with zero `invalid_token` errors. Noted: chunk uploads return 502 (separate investigation needed).
+
+---
+
 ## Archived: VFS Implementation — All Phases Complete (2026-05-12)
 
 **Original target:** mint22, Windows11-TestDNC, mint-dnc-client

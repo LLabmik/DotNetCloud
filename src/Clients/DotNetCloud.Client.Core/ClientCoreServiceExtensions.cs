@@ -3,7 +3,9 @@ using DotNetCloud.Client.Core.Auth;
 using DotNetCloud.Client.Core.Conflict;
 using DotNetCloud.Client.Core.LocalState;
 using DotNetCloud.Client.Core.Platform;
+#if !WINDOWS_BUILD
 using DotNetCloud.Client.Core.Platform.Linux;
+#endif
 using DotNetCloud.Client.Core.Platform.Windows;
 using DotNetCloud.Client.Core.SelectiveSync;
 using DotNetCloud.Client.Core.Services;
@@ -72,8 +74,10 @@ public static class ClientCoreServiceExtensions
         // Platform-specific IVirtualFileProvider
         if (OperatingSystem.IsWindows())
             services.AddSingleton<IVirtualFileProvider, CloudFilterSyncProvider>();
+#if !WINDOWS_BUILD
         else if (OperatingSystem.IsLinux())
             services.AddSingleton<IVirtualFileProvider, FuseSyncFilesystem>();
+#endif
         else
             services.AddSingleton<IVirtualFileProvider, NoOpVirtualFileProvider>(); // macOS stub
 

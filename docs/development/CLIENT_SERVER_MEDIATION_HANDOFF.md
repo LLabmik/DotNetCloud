@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-23 01:19 UTC (Auth fix verified — 401 resolved)
+Last updated: 2026-06-23 01:19 UTC (Auth fix verified — 401 resolved, Windows11-TestDNC verification complete)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -92,6 +92,7 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Current Status
 
+- YARP auth header doubling fix: deployed, verified server-side (`cloud.kimball.home`), verified client-side (`Windows11-TestDNC`) — 401 resolved.
 - All prior Phase 2, chat, pre-Linux sync remediation, SyncTray icon enhancement work is complete and archived.
 - VFS Phase 1 (server-side prerequisites) complete on `cloud.kimball.home`.
 - VFS Phase 2 (core abstraction layer) complete on `Windows11-TestDNC`.
@@ -131,61 +132,5 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-> **MACHINE TARGET: `Windows11-TestDNC` (CLIENT)**
-> If your hostname is `cloud.kimball.home`, `mint22`, `mint-OptiPlex-7010`, `mint-dnc-client`, or `monolith` — **STOP. This handoff is NOT for you.** Relay to moderator.
-
-**Status:** ✅ FIXED — Files API now accepts tokens. Windows SyncTray verification needed.
-
----
-
-### Root cause: YARP proxy double-copying Authorization header
-
-The YARP `ModuleApiProxyTransformer` in `Program.cs` calls `base.TransformRequestAsync()` which copies all standard request headers (including `Authorization`). Then a custom loop iterates headers again calling `TryAddWithoutValidation` — which **appends** (doesn't replace). Result: the Authorization header arrived at the Files module as:
-
-```
-Bearer <token>, Bearer <token>
-```
-
-A 1744-char JWE token became 3504 chars with 9 segments (instead of 5). `JwtSecurityTokenHandler` rejected it as `IDX12741: JWT must have three segments (JWS) or five segments (JWE)`.
-
-**Fix (commit `ad95c0ca`):** Skip `Authorization` in the custom copy loop since the base transformer already forwards it.
-
-### Complete fix chain (all deployed to `cloud.kimball.home`)
-
-| # | Commit | Fix |
-|---|--------|-----|
-| 1 | `806d0716` | Remove duplicate `UseHttpsRedirection()` — gRPC introspection was getting HTTP 307 |
-| 2 | `13838258` | Add `module-id` gRPC metadata header to `TokenIntrospectionClient` |
-| 3 | `4d00ddc7` | `CallerContextInterceptor` default to `System` caller for module-to-core calls |
-| 4 | `0df90c38` | Load encryption keys for JWE token introspection |
-| 5 | `49880eb2` | Enable JWE encryption (remove `DisableAccessTokenEncryption`) |
-| 6 | `ad95c0ca` | **Fix YARP Authorization header doubling** ← THIS WAS THE ROOT CAUSE |
-
-Fixes 1-5 were necessary prerequisites. Fix 6 is what actually resolved the 401.
-
-### Verification (server-side, `cloud.kimball.home`)
-
-- ✅ Client credentials token: gRPC introspection receives correct 5-segment token
-- ✅ User token (OAuth): 404 Device Not Found — auth succeeded, controller processed request
-- ✅ REST introspection: `active: true`
-- ✅ Zero `IDX12741` errors in server logs
-- ✅ Server running commit `ad95c0ca`
-
----
-
-### Client Actions — `Windows11-TestDNC`
-
-The client requires **NO code changes**. The fix is entirely server-side. The client already sends correctly formatted `Authorization: Bearer <token>` headers.
-
-- [ ] **STEP 1: Pull latest from this branch**
-  ```powershell
-  git checkout fix/files-module-bearer-auth
-  git pull
-  ```
-- [ ] **STEP 2: Build and run SyncTray**
-  ```powershell
-  dotnet run --project src\Clients\DotNetCloud.Client.SyncTray\DotNetCloud.Client.SyncTray.csproj
-  ```
-- [ ] **STEP 3: Verify Files API works** — should see successful sync, not 401
-- [ ] **STEP 4: Update this handoff** with test results and push
+**Status:** ℹ️ No active handoff. All prior tasks archived.
 
