@@ -23,9 +23,9 @@ internal sealed class TokenIntrospectionServiceImpl : TokenIntrospection.TokenIn
     {
         _logger = logger;
 
-        // Load signing keys from the shared oidc-keys directory.
+        // Load signing and encryption keys from the shared oidc-keys directory.
         // On Core.Server this is always available — it's the same directory
-        // OpenIddict uses for signing.
+        // OpenIddict uses for signing and encryption.
         var dataRoot = Environment.GetEnvironmentVariable("DOTNETCLOUD_DATA_DIR");
         var oidcKeysDir = Path.Combine(
             !string.IsNullOrWhiteSpace(dataRoot) ? dataRoot : AppContext.BaseDirectory,
@@ -34,9 +34,12 @@ internal sealed class TokenIntrospectionServiceImpl : TokenIntrospection.TokenIn
         var signingKeys = OidcKeyManager.LoadAllKeys(
             oidcKeysDir, OidcKeyManager.SigningKeyPrefix, logger);
 
+        var encryptionKeys = OidcKeyManager.LoadAllKeys(
+            oidcKeysDir, OidcKeyManager.EncryptionKeyPrefix, logger);
+
         _logger.LogInformation(
-            "TokenIntrospectionService: loaded {Count} signing key(s) from {Dir}",
-            signingKeys.Count, oidcKeysDir);
+            "TokenIntrospectionService: loaded {SigningCount} signing key(s) and {EncryptionCount} encryption key(s) from {Dir}",
+            signingKeys.Count, encryptionKeys.Count, oidcKeysDir);
 
         _validationParameters = new TokenValidationParameters
         {
@@ -45,6 +48,8 @@ internal sealed class TokenIntrospectionServiceImpl : TokenIntrospection.TokenIn
             ValidateLifetime = true,
             ValidateIssuerSigningKey = false,
             IssuerSigningKeyResolver = (token, securityToken, kid, parameters) => signingKeys,
+            TokenDecryptionKeyResolver = (token, securityToken, kid, parameters) =>
+                encryptionKeys.Count > 0 ? encryptionKeys : null,
         };
     }
 
