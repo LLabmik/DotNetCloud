@@ -4,24 +4,30 @@ Archived: 2026-06-23 16:46 UTC. Full git history preserved in commits up to `f6b
 
 ## Archived: 502 Chunk Upload Fix — Request Decompression Moved to Files Module (2026-06-23)
 
-**Target:** cloud.kimball.home (server fix)
+**Target:** cloud.kimball.home (server fix) → mint-OptiPlex-7010 (client verification)
 
 **Root cause:** `UseRequestDecompression()` middleware in Core.Server was decompressing gzip-encoded chunk upload bodies BEFORE YARP forwarded them to the Files module. The GZipStream wrapping `Request.Body` caused YARP's forwarder to fail with `RequestBodyClient` error → 502 for ALL gzip-encoded chunk uploads. Non-gzip uploads (without `Content-Encoding: gzip`) worked fine.
 
-**Fix (commits pending):**
+**Fix (commit 40587319):**
 1. Removed `builder.Services.AddRequestDecompression()` + `app.UseRequestDecompression()` from `Core.Server/Program.cs`
 2. Added `builder.Services.AddRequestDecompression()` + `app.UseRequestDecompression()` to `Files.Host/Program.cs`
 
 The Files module now decompresses gzip bodies itself, after YARP has forwarded the raw body.
 
-**Verification:**
+**Server-side verification (cloud.kimball.home):**
 - Before fix: gzip chunk → 502, non-gzip chunk → 401 ✓
 - After fix: gzip chunk → 401 ✓, non-gzip chunk → 401 ✓
 - No more `RequestBodyClient` errors in logs
 - 734 Files module tests pass
 - Deploy: 15/15 targets succeeded, 290s
 
-**Next:** Client re-test from `mint-OptiPlex-7010` needed.
+**Client-side verification (mint-OptiPlex-7010):**
+- Pulled main (40587319), ran SyncTray against cloud.dotnetcloud.net
+- All chunk uploads completed — **zero 502 errors**
+- Small files: uploaded/skipped (409 already-exists) successfully
+- Large PDF (1.17GB, 252 chunks): all chunks 409 (pre-existing) — pipeline healthy
+- No `RequestBodyClient` errors, no unexpected failures
+- **Result: ✅ SUCCESS — 502 fix fully verified**
 
 ---
 

@@ -132,11 +132,11 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** ✅ 502 chunk upload FIXED — request decompression moved from Core.Server to Files module host.
+**Summary:** ✅ 502 chunk upload FIXED — verified on production client (mint-OptiPlex-7010).
 
 **Root cause:** `UseRequestDecompression()` middleware in Core.Server decompressed gzip-encoded chunk upload bodies BEFORE YARP forwarded them. The `GZipStream` wrapping `Request.Body` caused YARP's forwarder to fail with `RequestBodyClient` error → 502.
 
-**Fix (pending commit):**
+**Fix:**
 1. Removed `AddRequestDecompression()` + `UseRequestDecompression()` from `Core.Server/Program.cs`
 2. Added `AddRequestDecompression()` + `UseRequestDecompression()` to `Files.Host/Program.cs`
 
@@ -149,10 +149,17 @@ The Files module now handles gzip decompression itself after receiving the raw b
 - 734 Files module tests pass
 - DLL hashes verified matching
 
+**Client-side verification (mint-OptiPlex-7010):**
+- Pulled main (40587319), ran SyncTray against cloud.dotnetcloud.net
+- All chunk uploads completed — **zero 502 errors**
+- Small files: uploaded/skipped (409 already-exists) successfully
+- Large PDF (1.17GB, 252 chunks): all chunks 409 (pre-existing) — pipeline healthy
+- No `RequestBodyClient` errors, no unexpected failures
+
 ---
 
-### Client Actions — `mint-OptiPlex-7010`
+### ✓ Client Actions — `mint-OptiPlex-7010` (COMPLETE)
 
-- [ ] Pull `main` and re-test chunk upload sync from production client
-- [ ] Verify ALL chunk uploads complete without 502 errors
-- [ ] Report results (success or any remaining issues)
+- ✓ Pulled `main` and re-tested chunk upload sync from production client
+- ✓ All chunk uploads complete — zero 502 errors
+- ✓ Results: **success** — 502 chunk upload fix verified on production
