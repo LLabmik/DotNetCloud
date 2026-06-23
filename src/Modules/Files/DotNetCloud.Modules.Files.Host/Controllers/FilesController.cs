@@ -351,7 +351,8 @@ public class FilesController : FilesControllerBase
         while (offset < contentLength)
         {
             var read = await Request.Body.ReadAsync(buffer.AsMemory(offset), HttpContext.RequestAborted);
-            if (read == 0) break;
+            if (read == 0)
+                break;
             offset += read;
         }
 
