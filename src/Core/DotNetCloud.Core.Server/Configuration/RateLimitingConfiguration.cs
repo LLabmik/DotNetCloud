@@ -130,6 +130,19 @@ public static class RateLimitingConfiguration
                 }
 
                 var isAuthenticated = context.User?.Identity?.IsAuthenticated == true;
+                var hasSub = context.User?.FindFirst("sub")?.Value;
+                var hasAuthHeader = context.Request.Headers.ContainsKey("Authorization");
+                var hasCookie = context.Request.Cookies.ContainsKey(".AspNetCore.Identity.Application");
+
+                // Diagnostic: log partition key selection for all upload API requests (Debug level)
+                if (context.Request.Path.StartsWithSegments("/api/v1/files/upload"))
+                {
+                    var diagLogger = context.RequestServices.GetRequiredService<ILoggerFactory>()
+                        .CreateLogger("RateLimitingDiagnostic");
+                    diagLogger.LogDebug(
+                        "RateLimiter partition: Path={Path}, IsAuth={IsAuth}, HasSub={HasSub}, HasAuthHeader={HasAuthHeader}, HasIdentityCookie={HasCookie}",
+                        context.Request.Path, isAuthenticated, hasSub != null, hasAuthHeader, hasCookie);
+                }
 
                 if (isAuthenticated)
                 {
@@ -228,6 +241,16 @@ public static class RateLimitingConfiguration
 
                 var clientIp = GetClientIpAddress(context.HttpContext);
                 var now = DateTimeOffset.UtcNow;
+
+                // Diagnostic: log EVERY 429 so we can see which limiter is triggering
+                var rejectLogger = context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>()
+                    .CreateLogger("RateLimitingDiagnostic");
+                rejectLogger.LogWarning(
+                    "RateLimiter REJECTED 429: Path={Path}, ClientIp={ClientIp}, UserAuth={IsAuth}, UserSub={Sub}, Limiter=GlobalLimiter",
+                    context.HttpContext.Request.Path,
+                    clientIp,
+                    context.HttpContext.User?.Identity?.IsAuthenticated,
+                    context.HttpContext.User?.FindFirst("sub")?.Value);
 
                 // Track violations and escalate the retry delay.
                 // Each violation within 10 minutes doubles the delay (60s, 120s, 240s, 480s, capped at 900s).
