@@ -1114,7 +1114,9 @@ public class Program
                     var sanitizedPath = httpContext.Request.Path.ToString()
                         .Replace("\r", " ", StringComparison.Ordinal)
                         .Replace("\n", " ", StringComparison.Ordinal);
+                    var errorFeature = httpContext.GetForwarderErrorFeature();
                     logger.LogWarning(
+                        errorFeature?.Exception,
                         "Module API proxy failure for {Path} → {Module} ({Destination}): {Error}",
                         sanitizedPath, moduleId, destinationPrefix, error);
                     httpContext.Response.StatusCode = StatusCodes.Status502BadGateway;
