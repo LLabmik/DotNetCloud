@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-23 23:16 UTC (Windows11-TestDNC: gRPC streaming upload architecture implemented. Server deploy needed.)
+Last updated: 2026-06-24 01:33 UTC (cloud.kimball.home: Server deployed with FilesUploadStreamService. Ready for Windows11-TestDNC test.)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -92,13 +92,11 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Current Status
 
+- ✅ **gRPC streaming upload deployed** — `FilesUploadStreamService` mapped, responds `"Authentication required."` (not UNIMPLEMENTED). All 14/14 modules healthy.
 - ✅ **YARP 502 fix verified** — zero 502 errors during large file upload (previous session). Server deployed (19/19 Healthy).
 - ✅ **429 fix** verified on `Windows11-TestDNC`.
 - ✅ **Client resilience improved**: `ChunkUploadMaxRetries` 3→6, 502-specific backoff, 404-on-resume cleanup for stale sessions.
 - ✅ **Server cleanup**: 62 orphaned upload sessions + 237 orphaned chunk blobs cleaned.
-- ✅ **CorrelationIdHandler logging improved**: Now logs response body on 409 so error messages are visible.
-- 🔴 **NEW: RequestDecompression not deployed to production Files.Host** — Client sends `Content-Encoding: gzip` on chunk PUTs. Production Files.Host appears to be running a build without `UseRequestDecompression()`. Server receives compressed bytes → SHA-256 hash of compressed data ≠ declared chunk hash → `ValidationException("Uploaded data does not match the declared chunk hash.")` → mapped to 409. Client treats 409 as dedup success → chunk never stored → CompleteUpload finds missing chunks → 409. **Infinite upload loop.**
-- 🔴 **YARP 502 errors recurring** — Some chunk uploads during the re-upload cycle hit 502 again. Possible cause: without decompression, YARP is struggling with gzip body sizes as before.
 - All prior Phase 2, chat, pre-Linux sync remediation, SyncTray icon enhancement, VFS work complete and archived.
 
 ## Environment
@@ -123,41 +121,30 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** gRPC streaming upload architecture implemented. Clients now upload via gRPC (no YARP, no Content-Encoding). Server needs to rebuild + deploy Core.Server with new `FilesUploadStreamService`.
+**Summary:** gRPC streaming upload deployed on server. Windows11-TestDNC needs to pull, rebuild SyncTray with client fix (see `64b06c85` for chunk retry fix), and test full upload flow via gRPC.
 
-**Architecture change:**
-- **Before:** Client → HTTPS (gzip) → YARP → HTTP/2 → Files.Host (502, 409, retry hell)
-- **After:** Client → gRPC (bearer token) → Core.Server `FilesUploadStreamService` → gRPC → Files.Host
-- **Fallback:** If gRPC fails (server not deployed), client falls back to existing HTTP path
+**Build note:** Fixed namespace resolution issue in `FilesUploadStreamService.cs` — added `using Grpc.Net.Client;` and removed fully-qualified `Grpc.Net.Client.GrpcChannel` to avoid conflict with `DotNetCloud.Core.Server.Grpc` namespace.
 
-**Files changed:**
-- `files_service.proto` — added `UploadFileStream` client-streaming RPC + messages
-- `Core.Server.csproj` — Files proto `GrpcServices="Both"` (generates server base class)
-- `Program.cs` — `MapGrpcService<FilesUploadStreamService>()` in gRPC pipeline
-- `FilesUploadStreamService.cs` (NEW) — proxy: extracts user from JWT, delegates to Files.Host via unary gRPC
-- `DotNetCloud.Client.Core.csproj` — added Grpc.Net.Client + Google.Protobuf + Grpc.Tools + proto reference
-- `IDotNetCloudApiClient.cs` — added `UploadFileStreamAsync`
-- `UploadStreamTypes.cs` (NEW) — `UploadStreamMetadata`, `UploadStreamChunk`
-- `DotNetCloudApiClient.cs` — `UploadFileStreamAsync` implementation with permissive SSL
-- `ChunkedTransferClient.cs` — gRPC primary path with HTTP fallback on `RpcException`
-
-**Client behavior:** SyncTray tries gRPC first. On `RpcException` (UNIMPLEMENTED while server not deployed), logs warning and falls back to HTTP chunked upload. Once server deploys, gRPC becomes the primary path.
-
-**What this eliminates:** No YARP proxy for file data. No GZip Content-Encoding. No hash mismatch 409s. No 502 retry loops. gRPC handles binary data and compression natively.
+**Verification:**
+- ✅ Server deployed with commit `96d91c64`
+- ✅ `dotnetcloud.files.FilesService.UploadFileStream` listed via grpcurl
+- ✅ gRPC call returns `"Authentication required."` (not UNIMPLEMENTED)
+- ✅ 14/14 modules healthy
 
 ---
 
 ### Server Actions — `cloud.kimball.home`
 
-- [ ] Pull `perf/synctray-scan-and-transfer-speedups`
-- [ ] `dotnet build src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj -c Release`
-- [ ] Deploy new Core.Server binary to production
-- [ ] Verify `FilesUploadStreamService` is mapped: check logs for "FilesUploadStreamService" on startup
-- [ ] Verify health: 19/19 modules healthy
-- [ ] Test: gRPC call to `UploadFileStream` returns 200 (not UNIMPLEMENTED)
+- ✓ Pull `perf/synctray-scan-and-transfer-speedups`
+- ✓ `dotnet build src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj -c Release` (fixed `using Grpc.Net.Client`)
+- ✓ Deploy new Core.Server binary to production — `sudo ./scripts/deploy.sh` (all 15 targets succeeded)
+- ✓ Verify `FilesUploadStreamService` is mapped: `grpcurl -proto files_service.proto localhost:5443 list dotnetcloud.files.FilesService` → `UploadFileStream` listed
+- ✓ Verify health: 14/14 modules healthy
+- ✓ Test: `grpcurl -d '{"metadata":...}' ... dotnetcloud.files.FilesService/UploadFileStream` → `{"errorMessage": "Authentication required."}` (not UNIMPLEMENTED)
 
 ### Client Actions — `Windows11-TestDNC`
 
 - ✓ Client code implemented and builds
-- [ ] After server deploy: pull, rebuild, retry upload — should use gRPC path
+- [ ] **Pull latest** (`96d91c64`), rebuild SyncTray Release
+- [ ] Retry upload — should use gRPC path (fallback to HTTP on `RpcException`)
 - [ ] Verify files appear on `cloud.dotnetcloud.net`

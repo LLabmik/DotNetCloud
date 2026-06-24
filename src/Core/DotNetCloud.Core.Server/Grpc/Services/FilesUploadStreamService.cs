@@ -1,6 +1,7 @@
 using DotNetCloud.Modules.Files.Host.Protos;
 using DotNetCloud.Core.Server.Grpc.Clients;
 using Grpc.Core;
+using Grpc.Net.Client;
 using Microsoft.Extensions.Logging;
 using System.IdentityModel.Tokens.Jwt;
 
@@ -30,14 +31,14 @@ public sealed class FilesUploadStreamService : FilesService.FilesServiceBase
         InitiateUploadResponse? session = null;
         InitiateUploadRequest? metadata = null;
         FilesService.FilesServiceClient? client = null;
-        Grpc.Net.Client.GrpcChannel? channel = null;
+        GrpcChannel? channel = null;
 
         try
         {
             var address = _endpointProvider.GetEndpoint("dotnetcloud.files");
-            channel = Grpc.Net.Client.GrpcChannel.ForAddress(
+            channel = GrpcChannel.ForAddress(
                 address,
-                new Grpc.Net.Client.GrpcChannelOptions
+                new GrpcChannelOptions
                 {
                     UnsafeUseInsecureChannelCallCredentials = true,
                     HttpHandler = new SocketsHttpHandler
