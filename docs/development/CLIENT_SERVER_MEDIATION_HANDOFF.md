@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-23 17:11 UTC (Windows11-TestDNC: large file upload blocked by 429 rate limiting — handoff to server)
+Last updated: 2026-06-23 19:30 UTC (Windows11-TestDNC: 429 fix verified, CompleteUpload 409 + 502 YARP issues found — handoff to server)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -96,6 +96,10 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 - X-Device-Id header duplication fix: deployed on `cloud.kimball.home` (commit `d1dd3746`). Service restarted, all 14 modules healthy.
 - X-Device-Id fix verified on `Windows11-TestDNC`: SyncTray connects to `cloud.dotnetcloud.net` successfully, no 401/502 errors, no X-Device-Id warnings. (Archived.)
 - Large file upload 429 rate limiting: **root cause found and fixed** on `cloud.kimball.home` (commit `73babfe5`). Core.Server's default auth scheme only handled cookies — Bearer token requests were anonymous, falling to IP-based 100 req/60s global limit. Added policy scheme (`DotNetCloud.Policy`) forwarding Bearer tokens to OpenIddict validation. Verified with diagnostic logging.
+- **429 fix verified on `Windows11-TestDNC`:** SyncTray with client-side mitigations (sequential chunks, coordinated backoff, active session guard, empty NodeId cleanup, ListChildrenAsync URL fix) tested against `cloud.dotnetcloud.net`. **No 429 errors occurred** during large file (1.17 GB PDF) upload. ✅ Rate limiting fix is working end-to-end.
+- **Secondary issues found during verification:**
+  - **502 Bad Gateway (YARP):** Transient 502 errors from reverse proxy during chunk uploads. Client retries (3× exponential backoff) recover successfully. Not a client bug — YARP/reverse proxy infrastructure issue on `cloud.dotnetcloud.net`.
+  - **CompleteUpload 409 → Guid.Empty:** After all chunks uploaded, `CompleteUpload` returns HTTP 409 (server's `ChunkedUploadService` throws `NameConflictException` for case-insensitive name conflict or `InvalidOperationException` for expired session). Client's 409 handler calls `ListChildrenAsync(parentFolderId=e0504d16-83fd-4be7-8b3c-40fab83f63cd)` but cannot find the file in the response. Stores `Guid.Empty` locally. Sync pass ends with `LocalQueued=4`. **Needs server-side investigation.**
 - All prior Phase 2, chat, pre-Linux sync remediation, SyncTray icon enhancement work is complete and archived.
 - VFS Phase 1 (server-side prerequisites) complete on `cloud.kimball.home`.
 - VFS Phase 2 (core abstraction layer) complete on `Windows11-TestDNC`.
@@ -126,23 +130,78 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** ✅ 429 rate limit root cause found and fixed on `cloud.kimball.home` (commit `73babfe5`). Needs client verification on `Windows11-TestDNC`.
+**Summary:** 🔴 Large file (1.17 GB PDF) upload — chunks upload without 429s ✅, but `CompleteUpload` returns HTTP 409 and client stores `Guid.Empty`. File not visible on server. Also, transient 502 Bad Gateway from YARP during chunk uploads. Handing off to server for investigation.
 
-**Root cause:** Core.Server's `UseAuthentication()` only handled cookie auth (`Identity.Application` scheme, the default from `AddIdentity()`). Bearer token requests from SyncTray appeared as anonymous — `OpenIddict.Validation.AspNetCore` was registered but not part of the default authenticate scheme. The global rate limiter then used IP-based partitioning (100 req/60s), not per-user (10,000 req/60s). At ~1 chunk/sec + sync tree + reconcile calls, 100 req/min was easily exceeded → 429s.
+**Client verification results (Windows11-TestDNC, branch `perf/synctray-scan-and-transfer-speedups`):**
 
-**Fix (commit `73babfe5`):** Added `DotNetCloud.Policy` scheme in `AuthServiceExtensions.cs` that forwards Bearer token requests to `OpenIddict.Validation.AspNetCore` and cookie requests to `Identity.Application`. Set as `DefaultAuthenticateScheme` so `UseAuthentication()` and the rate limiter correctly identify authenticated Bearer token users.
+| Check | Result | Details |
+|-------|--------|---------|
+| 429 errors | ✅ **None** | Rate limiting fix works. Zero 429s during entire upload. |
+| Chunk upload | ✅ **All uploaded** | Sequential single-chunk uploads, all chunks either uploaded or content-addressed dedup (409). |
+| 502 Bad Gateway | ⚠️ **Transient** | One chunk (`632798c386...`) got 2× 502 on retries, recovered on 3rd attempt. Client retry mechanism (3× exponential backoff with jitter) works correctly. |
+| CompleteUpload | ❌ **409 Conflict** | Server returns 409. `ChunkedUploadService` only returns 409 for `NameConflictException` (case-insensitive name conflict) or `InvalidOperationException` (expired session). |
+| NodeId lookup | ❌ **Guid.Empty** | Client's 409 handler calls `ListChildrenAsync(parentFolderId=e0504d16-83fd-4be7-8b3c-40fab83f63cd)` — response body is 3338 bytes (other files present) but the large PDF is NOT in the listing. Stores `Guid.Empty`. |
+| File on server | ❌ **Not visible** | User confirmed file does not appear on `cloud.dotnetcloud.net` web UI. |
+| Sync pass result | ⚠️ `LocalQueued=4` | 4 items remain queued. `Guid.Empty` recovery path in SyncEngine (lines 526–575) will retry lookup on next pass but will likely fail again. |
 
-**Deploy status:** ✅ Deployed to `cloud.kimball.home`. All 14 modules healthy. Diagnostic logging (Debug level) confirms forwarding works.
+**Client-side investigation summary:**
+
+1. **502 Bad Gateway (YARP):** `UploadChunkAsync` (`DotNetCloudApiClient.cs` line 222) calls `EnsureSuccessStatusCode()` directly (no retry in the API client itself). Retry is handled by the consumer loop in `ChunkedTransferClient.cs` (lines 251–256) which catches `HttpRequestException` with StatusCode ≥ 500 and retries up to 3× with exponential backoff (`3^(n-1)` + up to 1s jitter). The 502s are a **YARP/reverse proxy infrastructure issue** on `cloud.dotnetcloud.net` — the client handles them correctly with recovery.
+
+2. **CompleteUpload 409 behavior:** The server's `ChunkedUploadService.CompleteUploadAsync` (`src/Modules/Files/DotNetCloud.Modules.Files.Data/Services/ChunkedUploadService.cs` lines 228–494) returns HTTP 409 ONLY in these scenarios:
+   - `NameConflictException` (line 321) → 409 with error code `FILE_NAME_CONFLICT` — a case-insensitive name match exists (`n.Name.ToLower() == session.FileName.ToLower() && n.Name != session.FileName`). `EnforceCaseInsensitiveUniqueness` must be enabled.
+   - `InvalidOperationException` (via `GetActiveSessionAsync`) → 409 with error code `INVALID_OPERATION` — upload session expired/invalid.
+   - **Exact name match** (line 295–310) is treated as a **version update** (200 OK, no conflict). Content-addressable dedup is handled at Initiate time, not Complete time.
+
+3. **Client 409 handler** (`ChunkedTransferClient.cs` lines 322–369): After catching `HttpRequestException` with StatusCode 409, it calls `ListChildrenAsync(parentFolderId)` and does a case-insensitive lookup (`StringComparison.OrdinalIgnoreCase`). The parent folder `e0504d16-83fd-4be7-8b3c-40fab83f63cd` is correctly resolved via `EnsureParentFolderAsync`. The file should be found if it exists in that folder — but it's not there.
+
+4. **Likely cause:** The file's chunks were uploaded during a prior session (before the 429 auth fix) but `CompleteUpload` never succeeded due to 429s. The chunks exist as orphaned blobs on the server. When the current session calls `CompleteUpload`, the server detects the content-addressable chunks already exist but no `FileNode` was ever created. However, the server's 409 response suggests a name/expiry conflict rather than chunk dedup.
+
+**Actions needed — server side:**
+
+---
+
+### Server Actions — `cloud.kimball.home` or `mint22`
+
+**Problem 1: Investigate CompleteUpload 409 for large PDF**
+
+Check what is causing the 409 on CompleteUpload for `bb-The.Art.Of.Dejah.Thoris.And.The.Worlds.Of.Mars.Vol.2.HC.pdf`:
+
+- [ ] Check server journal for the 409: `sudo journalctl -u dotnetcloud --since "2026-06-23 19:15" | grep -i "conflict\|409\|CompleteUpload\|NameConflict\|InvalidOperation\|bb-The.Art"`
+- [ ] Determine which exception path produces the 409:
+  - `NameConflictException` → check if a file with same name (different case) exists in parent folder `e0504d16-83fd-4be7-8b3c-40fab83f63cd`
+  - `InvalidOperationException` → check if the upload session expired or was already completed
+  - Direct DB query: `psql -d dotnetcloud -c "SELECT id, name, parent_id FROM file_nodes WHERE parent_id = 'e0504d16-83fd-4be7-8b3c-40fab83f63cd' AND name ILIKE '%Dejah%Thoris%';"`
+- [ ] Check if orphaned upload sessions exist: `psql -d dotnetcloud -c "SELECT id, file_name, created_at, status FROM upload_sessions WHERE file_name ILIKE '%Dejah%Thoris%' ORDER BY created_at DESC;"`
+- [ ] Verify the upload session `019ef713-da2e-7daf-b9ae-83bb806f5459` status: `psql -d dotnetcloud -c "SELECT id, file_name, status, target_file_node_id, created_at FROM upload_sessions WHERE id = '019ef713-da2e-7daf-b9ae-83bb806f5459';"`
+
+**Problem 2: Investigate 502 Bad Gateway during chunk uploads**
+
+- [ ] Check YARP/reverse proxy logs for the 502 errors: `sudo journalctl -u dotnetcloud --since "2026-06-23 19:18" | grep "502\|BadGateway\|upstream\|connection refused\|timeout"`
+- [ ] Verify YARP destination health: `curl -s -o /dev/null -w "%{http_code}" https://cloud.dotnetcloud.net/health`
+- [ ] Check if YARP destinations are all responsive: `sudo journalctl -u dotnetcloud | grep "Destination\|health\|unhealthy|failed"`
+
+**Fix options (once root cause is identified):**
+
+- If `NameConflictException`: Either delete the conflicting file, adjust `EnforceCaseInsensitiveUniqueness`, or improve server error response to include the existing NodeId.
+- If `InvalidOperationException`: Extend session timeout or auto-create node when orphans are detected.
+- If orphaned chunks without node: Consider modifying `CompleteUploadAsync` to handle the case where chunks exist but no FileNode was created — either create the node on dedup match or return a more descriptive error.
+- For 502: Investigate YARP connection pooling, timeout settings, or module host availability.
+
+**Verification:** After server fix, relay back to `Windows11-TestDNC` to:
+1. Rebuild and run SyncTray
+2. Trigger re-sync (the file's `Guid.Empty` record should trigger a fresh upload or resolve via the recovery path)
+3. Confirm file appears on server
+4. Confirm subsequent sync passes show `0 queued`
 
 ---
 
 ### Client Actions — `Windows11-TestDNC`
 
-- [ ] `git pull` on `perf/synctray-scan-and-transfer-speedups`
-- [ ] Build SyncTray: `dotnet build src\Clients\DotNetCloud.Client.SyncTray\DotNetCloud.Client.SyncTray.csproj -c Release`
-- [ ] Upload a large file (1+ GB) and confirm:
-  - No 429 errors during chunk upload
-  - Upload completes successfully
-  - File appears correctly on server (web UI or API)
-- [ ] Check server logs for clean rate limiter partition: `sudo journalctl -u dotnetcloud --since "10 min ago" | grep "RateLimitingDiagnostic"` should show `IsAuth=True, HasSub=True` for upload requests
-- [ ] Verify subsequent sync passes show `0 queued` (no re-upload loops)
+- [✓] `git pull` on `perf/synctray-scan-and-transfer-speedups` — done
+- [✓] Build SyncTray Release — done (build succeeded)
+- [✓] Verify no 429 errors — **confirmed: zero 429s** ✅
+- [✓] Verify chunk uploads complete — **all chunks uploaded** ✅
+- [✗] File appears correctly on server — **❌ not visible** — blocked by server-side 409 issue
+- [✗] Verify subsequent sync passes — **blocked** — `LocalQueued=4`, `Guid.Empty` stored
+- [✗] Check server rate limiter logs — **blocked** — server access required

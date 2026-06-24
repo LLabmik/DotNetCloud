@@ -48,6 +48,16 @@ Archived: 2026-06-23 17:11 UTC. Full git history preserved in commits up to chan
 3. Added `app.UseRateLimiter()` to Files module host middleware pipeline
 4. Added `[EnableRateLimiting("module-upload-chunks")]` to `UploadChunkAsync` endpoint in `FilesController.cs`
 5. Added `[EnableRateLimiting("module-upload-initiate")]` to `InitiateUploadAsync` endpoint
+
+## Archived: 429 Root Cause — Auth Scheme Fix + Client Verification (2026-06-23)
+
+**Target:** cloud.kimball.home (server) → Windows11-TestDNC (client verification)
+
+**Root cause:** Core.Server's `UseAuthentication()` only handled cookie auth (`Identity.Application` scheme, the default from `AddIdentity()`). Bearer token requests from SyncTray appeared as anonymous — `OpenIddict.Validation.AspNetCore` was registered but not part of the default authenticate scheme. The global rate limiter then used IP-based partitioning (100 req/60s), not per-user (10,000 req/60s). At ~1 chunk/sec + sync tree + reconcile calls, 100 req/min was easily exceeded → 429s.
+
+**Fix (commit `73babfe5`):** Added `DotNetCloud.Policy` scheme in `AuthServiceExtensions.cs` that forwards Bearer token requests to `OpenIddict.Validation.AspNetCore` and cookie requests to `Identity.Application`. Set as `DefaultAuthenticateScheme` so `UseAuthentication()` and the rate limiter correctly identify authenticated Bearer token users.
+
+**Client verification (Windows11-TestDNC):** ✅ No 429 errors during large file (1.17 GB PDF) upload. All chunks uploaded sequentially. Rate limiting fix confirmed working end-to-end.
 6. SyncController's existing `[EnableRateLimiting("module-sync-*")]` attributes now also work correctly
 
 **Build:** 0 errors. **Tests:** 7/7 RateLimiting tests pass.
