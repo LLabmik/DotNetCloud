@@ -1071,6 +1071,14 @@ public class Program
             AllowAutoRedirect = false,
             UseCookies = false,
             EnableMultipleHttp2Connections = true,
+            // Prevent stale HTTP/2 connections: force reconnection every 2 minutes
+            // to avoid "Connection reset by peer" / "Request timed out" errors from
+            // long-lived connections that outlast the backend's keep-alive settings.
+            PooledConnectionLifetime = TimeSpan.FromMinutes(2),
+            // Close idle connections after 30 seconds to free resources on the backend.
+            PooledConnectionIdleTimeout = TimeSpan.FromSeconds(30),
+            // Limit connection attempts so a dead backend doesn't hang the proxy indefinitely.
+            ConnectTimeout = TimeSpan.FromSeconds(10),
         };
         // Module hosts are configured for HTTP/2 (gRPC). Force HTTP/2 for REST proxy.
         handler.SslOptions.RemoteCertificateValidationCallback = static (_, _, _, _) => true;

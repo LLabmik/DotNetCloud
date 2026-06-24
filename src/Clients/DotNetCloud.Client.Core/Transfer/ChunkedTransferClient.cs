@@ -262,7 +262,20 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
                         }
                         catch (HttpRequestException ex) when (
                             attempt < ChunkUploadMaxRetries &&
-                            (ex.StatusCode is null || (int)ex.StatusCode >= 500 || (int)ex.StatusCode == 429))
+                            ex.StatusCode == System.Net.HttpStatusCode.BadGateway)
+                        {
+                            // YARP reverse proxy errors — use longer backoff since the
+                            // proxy may need time to recover or reconnect to the backend.
+                            var delay = TimeSpan.FromSeconds(Math.Pow(4, attempt - 1))
+                                        + TimeSpan.FromMilliseconds(Random.Shared.Next(0, 2000));
+                            _logger.LogWarning(ex,
+                                "Chunk {Hash} upload attempt {Attempt}/{MaxAttempts} failed (502 Bad Gateway). Retrying in {DelayMs}ms.",
+                                chunk.Hash, attempt, ChunkUploadMaxRetries, (int)delay.TotalMilliseconds);
+                            await Task.Delay(delay, cancellationToken);
+                        }
+                        catch (HttpRequestException ex) when (
+                            attempt < ChunkUploadMaxRetries &&
+                            (ex.StatusCode is null || ((int)ex.StatusCode >= 500 && (int)ex.StatusCode != 502) || (int)ex.StatusCode == 429))
                         {
                             if (ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
                                 Interlocked.Exchange(ref _lastRateLimitTicks, DateTime.UtcNow.Ticks);
@@ -273,6 +286,23 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
                                 "Chunk {Hash} upload attempt {Attempt}/{MaxAttempts} failed. Retrying in {DelayMs}ms.",
                                 chunk.Hash, attempt, ChunkUploadMaxRetries, (int)delay.TotalMilliseconds);
                             await Task.Delay(delay, cancellationToken);
+                        }
+                        catch (HttpRequestException ex) when (
+                            ex.StatusCode == System.Net.HttpStatusCode.NotFound &&
+                            existingSession is not null)
+                        {
+                            // The resumed upload session was cleaned up on the server
+                            // (e.g. server maintenance, orphan cleanup). Delete local
+                            // session record so the next sync pass starts fresh instead
+                            // of retrying a dead session.
+                            _logger.LogWarning(
+                                "Upload session {SessionId} no longer exists on server (404). " +
+                                "Cleaning up local session record so file is re-uploaded fresh.",
+                                capturedSessionId);
+                            if (_stateDb is not null && stateDatabasePath is not null)
+                                await _stateDb.DeleteActiveUploadSessionAsync(
+                                    stateDatabasePath, capturedSessionId, cancellationToken);
+                            throw;
                         }
                         catch (TaskCanceledException ex) when (
                             attempt < ChunkUploadMaxRetries &&
@@ -477,8 +507,8 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
 
     // ── Private helpers ─────────────────────────────────────────────────────
 
-    private const int ChunkDownloadMaxAttempts = 3;
-    private const int ChunkUploadMaxRetries = 3;
+    private const int ChunkDownloadMaxAttempts = 6;
+    private const int ChunkUploadMaxRetries = 6;
 
     /// <summary>Bounded channel capacity: limits peak memory to ~64 MB (16 × 4 MB avg).</summary>
     private const int ChannelCapacity = 16;

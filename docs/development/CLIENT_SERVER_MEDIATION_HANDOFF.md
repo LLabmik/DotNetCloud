@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-23 19:30 UTC (Windows11-TestDNC: 429 fix verified, CompleteUpload 409 + 502 YARP issues found — handoff to server)
+Last updated: 2026-06-23 20:35 UTC (Windows11-TestDNC: YARP 502 root cause found — stale HTTP/2 connections. Fixed on both client and server. Needs server deploy.)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -98,6 +98,9 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 - UploadSessionDto now includes `TotalChunks`, `ReceivedChunks`, `Status` for easy progress tracking.
 - YARP 502 logging improved to capture ForwarderError exceptions for future diagnosis.
 - All orphaned upload sessions (62) and chunk blobs (237) cleaned from server.
+- **YARP 502 root cause found and fixed**: `SocketsHttpHandler` in `MapModuleApiProxies` had no `PooledConnectionLifetime` — HTTP/2 connections to module hosts went stale on the backend while YARP still held them as valid. When YARP reused a stale connection, it failed → 502 Bad Gateway. Fixed by adding `PooledConnectionLifetime=2min`, `PooledConnectionIdleTimeout=30s`, `ConnectTimeout=10s`.
+- **Client-side 502 resilience improved**: `ChunkUploadMaxRetries` 3→6, new 502-specific catch block with longer backoff (`4^(n-1)` instead of `3^(n-1)`), 502 excluded from generic 5xx handler.
+- **Client-side 404-on-resume fix**: When a resumed upload session returns 404 (server cleaned it), the client now deletes the local session record so the next sync pass starts a fresh `InitiateUpload` instead of retrying a dead session forever.
 - All prior Phase 2, chat, pre-Linux sync remediation, SyncTray icon enhancement work is complete and archived.
 - VFS Phase 1-6 complete.
 
@@ -123,41 +126,35 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** ✅ Server-side investigation complete. Database and blob storage cleaned. UploadSessionDto enhanced. Ready for client to retry large file upload.
+**Summary:** 🔴 Large file upload blocked by YARP 502 Bad Gateway. Root cause found (stale HTTP/2 connections in proxy) and fixed on both client and server. Server needs to deploy YARP fix, then client can retry.
 
-**Server-side findings and actions (cloud.kimball.home):**
+**Root cause of 502:** The `SocketsHttpHandler` in `MapModuleApiProxies` (`src/Core/DotNetCloud.Core.Server/Program.cs`) had no `PooledConnectionLifetime` set. HTTP/2 connections to module hosts (e.g. Files module) could go stale on the backend side while YARP's `HttpMessageInvoker` still held them as valid in the connection pool. When YARP tried to reuse a stale connection, it failed immediately → 502 Bad Gateway. The errors were intermittent because connections became stale at different times. Once stale, ALL subsequent requests through that connection failed.
 
-### CompleteUpload 409 — Root Cause
+**Server-side fix (committed):**
+- Added `PooledConnectionLifetime = TimeSpan.FromMinutes(2)` — forces HTTP/2 connection refresh before they go stale on the backend
+- Added `PooledConnectionIdleTimeout = TimeSpan.FromSeconds(30)` — closes idle connections faster
+- Added `ConnectTimeout = TimeSpan.FromSeconds(10)` — prevents hanging on dead backends
 
-The 409 was NOT a name conflict or expired session. It was missing chunks:
-- Upload session `019ef713-da2e-7daf-b9ae-83bb806f5459` had 252 total chunks but only **237 received** (15 missing)
-- `ChunkedUploadService.CompleteUploadAsync` verifies all chunks exist in `FileChunks` table → found 15 missing → threw `ValidationException` → controller maps to 409 Conflict
-- The missing chunks were likely lost during the 502/429 issues in the prior upload attempt
+**Client-side fixes (committed):**
+- `ChunkUploadMaxRetries` 3→6, `ChunkDownloadMaxAttempts` 3→6
+- New 502-specific catch block with longer backoff: `4^(n-1)` (1s, 4s, 16s, 64s, 256s) + up to 2s jitter — gives YARP time to establish a fresh connection
+- 502 excluded from generic 5xx retry handler so it gets independent backoff
+- 404-on-resume cleanup: when a resumed session returns 404 (server cleaned it up), the client deletes the local session record so the next sync pass starts a fresh `InitiateUpload` instead of retrying the dead session forever
 
-### Server Cleanup (completed)
-- ✅ Deleted all 11 upload sessions for `bb-The.Art.Of.Dejah.Thoris...pdf`
-- ✅ Deleted 237 orphaned `FileChunks` (ReferenceCount=0) and their blob files
-- ✅ Deleted all 62 remaining InProgress/Expired sessions across all users
-- ✅ Server is clean: 17 Completed sessions, 27 active chunks (other files), 0 orphans
-
-### UploadSessionDto Enhancement (deployed `23882b50`)
-- ✅ `GET /api/v1/files/upload/{sessionId}` now returns `TotalChunks`, `ReceivedChunks`, `Status`
-- Clients can now easily track upload progress without parsing hash lists
-
-### YARP 502 Logging (deployed `23882b50`)
-- ✅ Module API proxy now logs `ForwarderError` exception details on failure
-- If 502s recur, the journal will show the specific error (RequestTimedOut, RequestBodyDestination, etc.)
+**What's needed to complete verification:**
 
 ---
 
+### Server Actions — `cloud.kimball.home`
+
+- [ ] Deploy Program.cs changes (YARP connection lifetime fix)
+- [ ] Restart Core.Server: `sudo systemctl restart dotnetcloud`
+- [ ] Verify health: `curl -s -o /dev/null -w "%{http_code}" https://cloud.dotnetcloud.net/health`
+- [ ] Confirm all 14 modules healthy
+
 ### Client Actions — `Windows11-TestDNC`
 
-- [ ] `git pull` on `perf/synctray-scan-and-transfer-speedups`
-- [ ] Build SyncTray Release
-- [ ] Run SyncTray — the `Guid.Empty` recovery path in SyncEngine should trigger a fresh upload
-- [ ] Large file should upload cleanly (no leftover state, no dedup)
+- [ ] After server deploys, rebuild and run SyncTray
+- [ ] Upload large file — should complete without 502 errors (or with brief 502s that client retries through)
 - [ ] Verify file appears on `cloud.dotnetcloud.net`
 - [ ] Verify subsequent sync passes show `0 queued`
-- [ ] If upload issues recur, check session status via `GET /api/v1/files/upload/{sessionId}` — now includes `TotalChunks`, `ReceivedChunks`, `Status`
-
-**Note:** If `InitiateUpload` returns a session with `ExistingChunks > 0`, those chunks are from OTHER completed files (content-addressed dedup) and are safe to skip. The 237 orphaned chunks for this specific file have been deleted.
