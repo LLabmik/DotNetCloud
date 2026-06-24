@@ -123,43 +123,29 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** 🔴 CompleteUpload 409 root cause found — production Files.Host is missing `UseRequestDecompression()`. Server needs to verify and deploy fix.
+**Summary:** ✅ CompleteUpload 409 root cause found and fixed. Server decompression verified working. Client now retries chunk upload without compression on hash mismatch. Windows11-TestDNC needs to pull, rebuild, retry.
 
-**Root cause (re-discovered):** This exact issue was diagnosed and fixed in an earlier handoff cycle (see CLIENT_SERVER_MEDIATION_ARCHIVE.md "gzip request decompression fix"). The fix was:
-1. Remove `UseRequestDecompression()` from `Core.Server/Program.cs` (was causing YARP 502)
-2. Add `UseRequestDecompression()` to `Files.Host/Program.cs`
+**Root cause:** Client sends chunk bodies with `Content-Encoding: gzip`. The client's retry loop treated ALL chunk PUT 409s as "chunk already exists — dedup" and broke out. When decompression wasn't working on the server (stale deployment), the server hashed the compressed bytes → mismatch → 409 → chunk never stored → CompleteUpload failed → 409 → client stored `Guid.Empty`. Infinite loop.
 
-The code IS in git (`src/Modules/Files/DotNetCloud.Modules.Files.Host/Program.cs` line ~169 + ~279), but the production deployment (`cloud.dotnetcloud.net`) appears to be running a build that doesn't include it.
+**Server fixes (deployed on `cloud.kimball.home`):**
+- Decompression middleware `UseRequestDecompression()` in Files.Host — deployed and verified working (tested with gzip-compressed chunk through YARP → 201 Created)
+- `InitiateUploadAsync`: `ReferenceCount > 0` filter prevents orphaned chunks from being reported as existing
+- `CompleteUploadAsync`: Updates `ReceivedChunks` to actual count before throwing (session state stays accurate)
+- DB cleaned: 0 sessions, 0 orphaned chunks
+- YARP connection lifetime fix deployed
 
-**Evidence from Windows11-TestDNC:**
-
-- Added response body logging to `CorrelationIdHandler.cs` for 409 responses
-- Chunk upload 409 body: `{"code":"VALIDATION_ERROR","message":"Validation failed: ChunkHash. Uploaded data does not match the declared chunk hash."}`
-- CompleteUpload 409 body: `{"code":"VALIDATION_ERROR","message":"Validation failed: Chunks. Missing 1 chunk(s). Upload them before completing."}`
-- Client sends `Content-Encoding: gzip` on chunk PUTs; without server decompression, SHA-256 is computed on gzipped bytes → hash mismatch
-- YARP 502 errors also recurring during re-upload — consistent with missing decompression fix
-- **The previous `def196b6` fix (ReferenceCount>0 filter + ReceivedChunks update) was correct but couldn't help because chunks were never stored in the first place**
-
-**What's needed:**
-
-1. Server: Verify the production Files.Host binary includes `UseRequestDecompression()`
-2. Server: If missing, rebuild and redeploy Files.Host with the fix
-3. Client: After server fix, retry upload and verify
-
-**Client-side improvement (optional):** The `CorrelationIdHandler` now logs 409 response bodies, which will help future debugging. The chunk upload 409 handler in `ChunkedTransferClient.cs` should ideally distinguish between "hash mismatch" (retry without compression) and "chunk already exists" (dedup — skip), but this is secondary to the server fix.
+**Client fix (committed `64b06c85`, needs build on Windows11-TestDNC):**
+- `UploadChunkAsync` now reads 409 response body. On "hash mismatch" → retries WITHOUT compression. On true dedup → treats as uploaded (unchanged). Max 2 attempts.
 
 ---
 
 ### Server Actions — `cloud.kimball.home`
 
-- [ ] Verify production Files.Host deployment includes `UseRequestDecompression()` middleware
-- [ ] Check running build: `docker exec <files-container> cat /app/Program.cs | grep -i decompression`
-- [ ] If missing: rebuild Files.Host with current `main` (which includes the fix) and redeploy
-- [ ] Verify 19/19 health after redeploy
-- [ ] Confirm chunk uploads return 200 (not 409) with gzip-compressed payloads
+All server fixes deployed and verified. No pending server work.
 
 ### Client Actions — `Windows11-TestDNC`
 
-- [ ] Wait for server to confirm decompression is deployed
-- [ ] After confirmation: pull, rebuild, retry upload
+- [ ] Pull `perf/synctray-scan-and-transfer-speedups` (`64b06c85`)
+- [ ] Rebuild SyncTray Release
+- [ ] Retry upload — should now succeed in one pass
 - [ ] Verify files appear on `cloud.dotnetcloud.net`
