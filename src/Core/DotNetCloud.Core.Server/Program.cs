@@ -838,6 +838,7 @@ public class Program
                 {
                     endpoints.MapGrpcService<CoreCapabilitiesServiceImpl>();
                     endpoints.MapGrpcService<TokenIntrospectionServiceImpl>();
+                    endpoints.MapGrpcService<FilesUploadStreamService>();
                 });
             });
 

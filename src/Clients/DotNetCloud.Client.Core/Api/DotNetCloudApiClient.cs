@@ -4,6 +4,10 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using DotNetCloud.Client.Core.Auth;
+using DotNetCloud.Modules.Files.Host.Protos;
+using Grpc.Core;
+using Grpc.Net.Client;
 using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Client.Core.Api;
@@ -261,6 +265,102 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
         var node = await PostJsonAsync<FileNodeResponse>($"api/v1/files/upload/{sessionId}/complete", new { }, cancellationToken)
                   ?? throw new InvalidOperationException("Server returned null for upload completion.");
         return new CompleteUploadResponse { Node = node };
+    }
+
+    /// <inheritdoc/>
+    public async Task<FileNodeResponse> UploadFileStreamAsync(
+        UploadStreamMetadata metadata,
+        IAsyncEnumerable<UploadStreamChunk> chunks,
+        CancellationToken cancellationToken = default)
+    {
+        var baseUrl = _http.BaseAddress?.ToString()
+            ?? throw new InvalidOperationException("HttpClient.BaseAddress is null.");
+
+        using var channel = GrpcChannel.ForAddress(baseUrl, new GrpcChannelOptions
+        {
+            HttpHandler = new SocketsHttpHandler
+            {
+                EnableMultipleHttp2Connections = true,
+                ConnectTimeout = TimeSpan.FromSeconds(10),
+                SslOptions = OAuthHttpClientHandlerFactory.CreatePermissiveSslOptions(),
+            }
+        });
+
+        var client = new FilesService.FilesServiceClient(channel);
+        var callOptions = new CallOptions(
+            headers: GetGrpcHeaders(),
+            cancellationToken: cancellationToken);
+
+        using var call = client.UploadFileStream(callOptions);
+
+        // First message: metadata
+        var initReq = new InitiateUploadRequest
+        {
+            FileName = metadata.FileName,
+            ParentId = metadata.ParentId?.ToString() ?? string.Empty,
+            TotalSize = metadata.TotalSize,
+            MimeType = metadata.MimeType ?? string.Empty,
+        };
+        initReq.ChunkHashes.AddRange(metadata.ChunkHashes);
+        if (metadata.ChunkSizes is { Count: > 0 })
+            initReq.ChunkSizes.AddRange(metadata.ChunkSizes);
+        if (metadata.PosixMode.HasValue)
+            initReq.PosixMode = metadata.PosixMode.Value;
+        if (!string.IsNullOrEmpty(metadata.PosixOwnerHint))
+            initReq.PosixOwnerHint = metadata.PosixOwnerHint;
+
+        await call.RequestStream.WriteAsync(new UploadFileStreamRequest
+        {
+            Metadata = initReq
+        });
+
+        // Stream chunks
+        await foreach (var chunk in chunks.WithCancellation(cancellationToken))
+        {
+            await call.RequestStream.WriteAsync(new UploadFileStreamRequest
+            {
+                Chunk = new UploadChunkRequest
+                {
+                    ChunkHash = chunk.Hash,
+                    ChunkData = Google.Protobuf.ByteString.CopyFrom(chunk.Data)
+                }
+            });
+        }
+
+        await call.RequestStream.CompleteAsync();
+
+        var response = await call.ResponseAsync;
+
+        if (!response.Success)
+        {
+            throw new InvalidOperationException(
+                $"Upload failed: {response.ErrorMessage}");
+        }
+
+        return new FileNodeResponse
+        {
+            Id = Guid.TryParse(response.Node.Id, out var id) ? id : Guid.Empty,
+            Name = response.Node.Name,
+            NodeType = response.Node.NodeType,
+            MimeType = string.IsNullOrEmpty(response.Node.MimeType) ? null : response.Node.MimeType,
+            Size = response.Node.Size,
+            ParentId = string.IsNullOrEmpty(response.Node.ParentId) ? null : Guid.Parse(response.Node.ParentId),
+            OwnerId = string.IsNullOrEmpty(response.Node.OwnerId) ? Guid.Empty : Guid.Parse(response.Node.OwnerId),
+            CurrentVersion = response.Node.CurrentVersion,
+            ContentHash = string.IsNullOrEmpty(response.Node.ContentHash) ? null : response.Node.ContentHash,
+            CreatedAt = string.IsNullOrEmpty(response.Node.CreatedAt) ? default : DateTime.Parse(response.Node.CreatedAt),
+            UpdatedAt = string.IsNullOrEmpty(response.Node.UpdatedAt) ? default : DateTime.Parse(response.Node.UpdatedAt),
+            PosixMode = response.Node.HasPosixMode ? response.Node.PosixMode : null,
+            PosixOwnerHint = string.IsNullOrEmpty(response.Node.PosixOwnerHint) ? null : response.Node.PosixOwnerHint,
+        };
+    }
+
+    private Metadata GetGrpcHeaders()
+    {
+        var headers = new Metadata();
+        if (AccessToken is not null)
+            headers.Add("Authorization", $"Bearer {AccessToken}");
+        return headers;
     }
 
     // ── Download Operations ─────────────────────────────────────────────────

@@ -82,6 +82,10 @@ service FilesService {
   // Scans virtual file nodes for media files matching the given media type.
   // Returns discovered file candidates without performing indexing.
   rpc ScanMediaFolders (ScanMediaFoldersRequest) returns (ScanMediaFoldersResponse);
+
+  // Client-streaming file upload: first message carries metadata (InitiateUploadRequest),
+  // subsequent messages carry chunk data. Server assembles and completes on stream close.
+  rpc UploadFileStream (stream UploadFileStreamRequest) returns (UploadFileStreamResponse);
 }
 
 // --- Scan Media Folders ---
@@ -469,4 +473,22 @@ message SearchableDocument {
   string created_at = 9;
   string updated_at = 10;
   map<string, string> metadata = 11;
+}
+
+// --- Client-Streaming Upload ---
+
+// First message in the UploadFileStream: carries upload metadata and starts the session.
+// Subsequent messages carry chunk data. The server assembles and completes on stream close.
+message UploadFileStreamRequest {
+  oneof payload {
+    InitiateUploadRequest metadata = 1;
+    UploadChunkRequest chunk = 2;
+  }
+}
+
+message UploadFileStreamResponse {
+  bool success = 1;
+  string error_message = 2;
+  FileNodeMessage node = 3;
+  string session_id = 4;
 }

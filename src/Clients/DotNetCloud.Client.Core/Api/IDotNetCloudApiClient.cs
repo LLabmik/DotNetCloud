@@ -53,6 +53,15 @@ public interface IDotNetCloudApiClient
     /// <summary>Completes a chunked upload session.</summary>
     Task<CompleteUploadResponse> CompleteUploadAsync(Guid sessionId, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Streaming gRPC file upload. Sends metadata, then streams chunks.
+    /// Eliminates YARP proxy, Content-Encoding, and hash mismatch issues.
+    /// </summary>
+    Task<FileNodeResponse> UploadFileStreamAsync(
+        UploadStreamMetadata metadata,
+        IAsyncEnumerable<UploadStreamChunk> chunks,
+        CancellationToken cancellationToken = default);
+
     // ── Download Operations ─────────────────────────────────────────────────
 
     /// <summary>Downloads the current version of a file as a stream.</summary>

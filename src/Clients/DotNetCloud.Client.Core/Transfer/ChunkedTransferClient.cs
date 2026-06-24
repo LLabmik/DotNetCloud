@@ -6,6 +6,7 @@ using System.Threading.Channels;
 using DotNetCloud.Client.Core.Api;
 using DotNetCloud.Client.Core.LocalState;
 using DotNetCloud.Client.Core.Platform;
+using Grpc.Core;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 
@@ -195,6 +196,41 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
                 }
             }
 
+            // Use gRPC streaming upload — no YARP proxy, no GZip Content-Encoding, no hash mismatches.
+            try
+            {
+                var streamMetadata = new Api.UploadStreamMetadata
+                {
+                    FileName = fileName,
+                    ParentId = parentFolderId,
+                    TotalSize = fileSize,
+                    MimeType = mimeType,
+                    ChunkHashes = metadata.Select(m => m.Hash).ToList(),
+                    ChunkSizes = metadata.Select(m => m.Size).ToList(),
+                    PosixMode = posixMode,
+                    PosixOwnerHint = posixOwnerHint,
+                };
+
+                fileStream.Seek(0, SeekOrigin.Begin);
+                var grpcResult = await _api.UploadFileStreamAsync(
+                    streamMetadata,
+                    StreamChunksAsync(fileStream, cancellationToken),
+                    cancellationToken);
+
+                uploadTimer.Stop();
+                _logger.LogInformation(
+                    "File upload complete (gRPC): FileName={FileName}, NodeId={NodeId}, FileSize={FileSize}, DurationMs={DurationMs}.",
+                    fileName, grpcResult.Id, fileSize, uploadTimer.ElapsedMilliseconds);
+                return new UploadResult(grpcResult.Id, grpcResult.ContentHash);
+            }
+            catch (RpcException gex)
+            {
+                _logger.LogWarning(gex,
+                    "gRPC upload failed for {File}, falling back to HTTP chunked upload.", fileName);
+                // Fall through to legacy HTTP path below.
+            }
+
+            // ── Legacy HTTP chunked upload (fallback) ──
             // Pass 2: re-read file via CDC, feed chunks into bounded channel.
             // Peak memory: ChannelCapacity × avg chunk size ≈ 32 MB.
             fileStream.Seek(0, SeekOrigin.Begin);
@@ -949,4 +985,20 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
     }
 
     private record ChunkMetadata(string Hash, int Size);
+
+    private static async IAsyncEnumerable<UploadStreamChunk> StreamChunksAsync(
+        Stream stream,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var index = 0;
+        await foreach (var chunk in ChunkFileAsync(stream, cancellationToken))
+        {
+            yield return new UploadStreamChunk
+            {
+                Hash = chunk.Hash,
+                Data = chunk.Data,
+                Index = index++
+            };
+        }
+    }
 }

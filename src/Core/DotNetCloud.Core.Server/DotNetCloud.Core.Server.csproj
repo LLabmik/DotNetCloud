@@ -100,7 +100,7 @@
               GrpcServices="Client"
               Link="Protos\chat_service.proto" />
     <Protobuf Include="..\..\Modules\Files\DotNetCloud.Modules.Files.Host\Protos\files_service.proto"
-              GrpcServices="Client"
+              GrpcServices="Both"
               Link="Protos\files_service.proto" />
     <Protobuf Include="..\..\Modules\Notes\DotNetCloud.Modules.Notes.Host\Protos\notes_service.proto"
               GrpcServices="Client"
