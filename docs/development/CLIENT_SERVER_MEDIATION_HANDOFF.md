@@ -95,7 +95,7 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 - YARP auth header doubling fix: deployed, verified server-side (`cloud.kimball.home`), verified client-side (`Windows11-TestDNC`) — 401 resolved.
 - X-Device-Id header duplication fix: deployed on `cloud.kimball.home` (commit `d1dd3746`). Service restarted, all 14 modules healthy.
 - X-Device-Id fix verified on `Windows11-TestDNC`: SyncTray connects to `cloud.dotnetcloud.net` successfully, no 401/502 errors, no X-Device-Id warnings. (Archived.)
-- Large file upload blocked by HTTP 429 rate limiting: investigated on `Windows11-TestDNC`. Client-side fixes applied (sequential chunk uploads, coordinated backoff, active session guard, empty NodeId cleanup, ListChildrenAsync URL fix). **Root cause is server-side — rate limiter hits even sequential single-chunk uploads.**
+- Large file upload 429 rate limiting: **root cause found and fixed** on `cloud.kimball.home` (commit `73babfe5`). Core.Server's default auth scheme only handled cookies — Bearer token requests were anonymous, falling to IP-based 100 req/60s global limit. Added policy scheme (`DotNetCloud.Policy`) forwarding Bearer tokens to OpenIddict validation. Verified with diagnostic logging.
 - All prior Phase 2, chat, pre-Linux sync remediation, SyncTray icon enhancement work is complete and archived.
 - VFS Phase 1 (server-side prerequisites) complete on `cloud.kimball.home`.
 - VFS Phase 2 (core abstraction layer) complete on `Windows11-TestDNC`.
@@ -126,51 +126,23 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** 🔴 Large file upload (1.17 GB PDF) blocked by HTTP 429 rate limiting on `cloud.dotnetcloud.net`. Chunk uploads fail with 429 even at sequential single-chunk rate. Client-side mitigations applied — root cause is server-side.
+**Summary:** ✅ 429 rate limit root cause found and fixed on `cloud.kimball.home` (commit `73babfe5`). Needs client verification on `Windows11-TestDNC`.
 
-**Client-side fixes already applied on `Windows11-TestDNC` (committed to `perf/synctray-scan-and-transfer-speedups`):**
+**Root cause:** Core.Server's `UseAuthentication()` only handled cookie auth (`Identity.Application` scheme, the default from `AddIdentity()`). Bearer token requests from SyncTray appeared as anonymous — `OpenIddict.Validation.AspNetCore` was registered but not part of the default authenticate scheme. The global rate limiter then used IP-based partitioning (100 req/60s), not per-user (10,000 req/60s). At ~1 chunk/sec + sync tree + reconcile calls, 100 req/min was easily exceeded → 429s.
 
-1. **`SyncEngine.cs` — Active upload session guard**: `ScanLocalDirectoryAsync` checks for existing `ActiveUploadSessionRecord` before queueing an upload, preventing duplicate uploads when a new sync pass starts while a large file is still uploading from the previous pass.
+**Fix (commit `73babfe5`):** Added `DotNetCloud.Policy` scheme in `AuthServiceExtensions.cs` that forwards Bearer token requests to `OpenIddict.Validation.AspNetCore` and cookie requests to `Identity.Application`. Set as `DefaultAuthenticateScheme` so `UseAuthentication()` and the rate limiter correctly identify authenticated Bearer token users.
 
-2. **`SyncEngine.cs` — Server-side existence check**: Before queueing a "genuinely new" file for upload, calls `ListChildrenAsync(parentFolderId)` for a fresh server check. If the file exists on the server, compares size+hash — if match, records locally without upload; if differs, queues as update with existing NodeId.
-
-3. **`SyncEngine.cs` — Empty NodeId stale record cleanup**: When a tracked file has `NodeId == Guid.Empty` (from a previous CompleteUpload 409), queries the server via `ListChildrenAsync`. If file exists, updates the record. If not, removes stale record and re-queues for upload.
-
-4. **`ChunkedTransferClient.cs` — Sequential chunk uploads**: `MaxConcurrency` reduced from 8 → 1. Concurrent chunk uploads competed for bandwidth and overwhelmed the server's rate limiter.
-
-5. **`ChunkedTransferClient.cs` — Coordinated 10s rate-limit cooldown**: After any consumer gets a 429, all consumers wait 10 seconds before the next chunk attempt, preventing cascading rate-limit failures.
-
-6. **`ChunkedTransferClient.cs` — Stronger retry backoff**: Changed from `2^(n-1)` (1s, 2s, 4s) to `3^(n-1)` (1s, 3s, 9s) with up to 1s jitter.
-
-7. **`ChunkedTransferClient.cs` — 409 CompleteUpload lookup**: When CompleteUpload returns 409 (unique constraint violation), calls `ListChildrenAsync` to find the existing node's NodeId and ContentHash, returning them instead of `Guid.Empty`.
-
-8. **`DotNetCloudApiClient.cs` — Fixed `ListChildrenAsync` URL**: Was calling `api/v1/files/{folderId}/children` (path param, 404) — corrected to `api/v1/files?parentId={folderId}` (query param) matching the actual server route.
-
-**Client-side fixes NOT requiring server changes have all been tested: builds pass, 484 tests pass.**
-
----
-
-### Server Actions — `cloud.kimball.home`
-
-**Problem:** Chunk uploads to `cloud.dotnetcloud.net` return HTTP 429 even at sequential single-chunk rates. The global rate limiter (10,000 req/60s for authenticated users) should be more than enough for ~1 req/s, but 429s still occur.
-
-**Investigation needed:**
-
-- [ ] Check rate limiter partition keys — verify the SyncTray client's Bearer token contains a valid `sub` claim. If `sub` is missing, the rate limiter falls back to IP-based limiting (global: 100 req/60s = 1.67 req/s), which would explain 429s at ~1 chunk/s.
-- [ ] Verify `module-upload-chunks` per-device policy (2,400/60s) is actually being applied. Previous archive entry shows this was fixed, but confirm the `[EnableRateLimiting("module-upload-chunks")]` attribute is on the Files controller's `UploadChunkAsync` endpoint and that the module host has `AddRateLimiter()` configured.
-- [ ] Check production server logs: `sudo journalctl -u dotnetcloud | grep "429\|RateLimit\|rate.limit"` to identify which rate limiter policy is being hit.
-- [ ] Verify the `retry-after` header in 429 responses to determine the rate limit window and remaining budget.
-- [ ] If rate limiting is working as configured, consider exempting upload chunk endpoints from the global rate limiter or increasing the authenticated permit limit further.
-- [ ] Check infrastructure (YARP proxy, load balancer) for additional connection limits or rate limiting.
-
-**Verification:** After fix, deploy and restart Core.Server. Confirm a 1+ GB file upload completes without 429 errors from the SyncTray client.
+**Deploy status:** ✅ Deployed to `cloud.kimball.home`. All 14 modules healthy. Diagnostic logging (Debug level) confirms forwarding works.
 
 ---
 
 ### Client Actions — `Windows11-TestDNC`
 
-- [ ] After server-side rate limit fix is deployed, rebuild SyncTray (`dotnet build src\Clients\DotNetCloud.Client.SyncTray\DotNetCloud.Client.SyncTray.csproj -c Release`)
-- [ ] Run SyncTray and confirm large file upload completes without 429 errors
-- [ ] Verify file appears correctly on the server (check via web UI or API)
-- [ ] Verify local state DB has correct NodeId (no `Guid.Empty` entries)
-- [ ] Check that subsequent sync passes show `0 queued` (no re-upload loops)
+- [ ] `git pull` on `perf/synctray-scan-and-transfer-speedups`
+- [ ] Build SyncTray: `dotnet build src\Clients\DotNetCloud.Client.SyncTray\DotNetCloud.Client.SyncTray.csproj -c Release`
+- [ ] Upload a large file (1+ GB) and confirm:
+  - No 429 errors during chunk upload
+  - Upload completes successfully
+  - File appears correctly on server (web UI or API)
+- [ ] Check server logs for clean rate limiter partition: `sudo journalctl -u dotnetcloud --since "10 min ago" | grep "RateLimitingDiagnostic"` should show `IsAuth=True, HasSub=True` for upload requests
+- [ ] Verify subsequent sync passes show `0 queued` (no re-upload loops)
