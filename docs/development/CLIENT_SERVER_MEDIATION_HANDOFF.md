@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-23 20:35 UTC (Windows11-TestDNC: YARP 502 root cause found — stale HTTP/2 connections. Fixed on both client and server. Needs server deploy.)
+Last updated: 2026-06-23 20:51 UTC (Windows11-TestDNC: YARP 502 fix verified — zero 502 errors. 🔴 NEW: CompleteUpload 409 — chunks upload, file node not created.)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -92,17 +92,12 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Current Status
 
-- 429 fix verified on `Windows11-TestDNC` — zero 429 errors end-to-end. ✅
-- 429 fix deployed and verified on `cloud.kimball.home`.
-- CompleteUpload 409 root cause found: missing chunks (237/252 received). Server cleaned.
-- UploadSessionDto now includes `TotalChunks`, `ReceivedChunks`, `Status` for easy progress tracking.
-- YARP 502 logging improved to capture ForwarderError exceptions for future diagnosis.
-- All orphaned upload sessions (62) and chunk blobs (237) cleaned from server.
-- **YARP 502 root cause found and fixed**: `SocketsHttpHandler` in `MapModuleApiProxies` had no `PooledConnectionLifetime` — HTTP/2 connections to module hosts went stale on the backend while YARP still held them as valid. When YARP reused a stale connection, it failed → 502 Bad Gateway. Fixed by adding `PooledConnectionLifetime=2min`, `PooledConnectionIdleTimeout=30s`, `ConnectTimeout=10s`.
-- **Client-side 502 resilience improved**: `ChunkUploadMaxRetries` 3→6, new 502-specific catch block with longer backoff (`4^(n-1)` instead of `3^(n-1)`), 502 excluded from generic 5xx handler.
-- **Client-side 404-on-resume fix**: When a resumed upload session returns 404 (server cleaned it), the client now deletes the local session record so the next sync pass starts a fresh `InitiateUpload` instead of retrying a dead session forever.
-- All prior Phase 2, chat, pre-Linux sync remediation, SyncTray icon enhancement work is complete and archived.
-- VFS Phase 1-6 complete.
+- ✅ **YARP 502 fix VERIFIED** — zero 502 errors during large file upload. Server deployed (19/19 Healthy), client rebuilt with `88b951a3`.
+- ✅ **429 fix** verified on `Windows11-TestDNC` — zero 429 errors end-to-end. Deployed on `cloud.kimball.home`.
+- ✅ **Client resilience improved**: `ChunkUploadMaxRetries` 3→6, 502-specific backoff, 404-on-resume cleanup for stale sessions.
+- ✅ **Server cleanup**: 62 orphaned upload sessions + 237 orphaned chunk blobs cleaned.
+- 🔴 **NEW: CompleteUpload 409 issue** — Chunks upload successfully (zero 502s) but `CompleteUpload` returns 409 and file node never created in parent folder. ALL uploaded files (PDF + 4 small ODTs) affected. Files not visible on `cloud.dotnetcloud.net`. Server-side investigation needed.
+- All prior Phase 2, chat, pre-Linux sync remediation, SyncTray icon enhancement, VFS work complete and archived.
 
 ## Environment
 
@@ -126,35 +121,46 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** 🔴 Large file upload blocked by YARP 502 Bad Gateway. Root cause found (stale HTTP/2 connections in proxy) and fixed on both client and server. Server needs to deploy YARP fix, then client can retry.
+**Summary:** 🔴 YARP 502 fix verified (0 errors) but ALL file uploads fail at `CompleteUpload` — returns 409 and file node never created. Files not visible on server. Server-side investigation needed.
 
-**Root cause of 502:** The `SocketsHttpHandler` in `MapModuleApiProxies` (`src/Core/DotNetCloud.Core.Server/Program.cs`) had no `PooledConnectionLifetime` set. HTTP/2 connections to module hosts (e.g. Files module) could go stale on the backend side while YARP's `HttpMessageInvoker` still held them as valid in the connection pool. When YARP tried to reuse a stale connection, it failed immediately → 502 Bad Gateway. The errors were intermittent because connections became stale at different times. Once stale, ALL subsequent requests through that connection failed.
+**Context:** On 2026-06-23 at ~20:49 UTC, Windows11-TestDNC ran SyncTray Release with YARP fix deployed on `cloud.kimball.home`. Results:
 
-**Server-side fix (committed):**
-- Added `PooledConnectionLifetime = TimeSpan.FromMinutes(2)` — forces HTTP/2 connection refresh before they go stale on the backend
-- Added `PooledConnectionIdleTimeout = TimeSpan.FromSeconds(30)` — closes idle connections faster
-- Added `ConnectTimeout = TimeSpan.FromSeconds(10)` — prevents hanging on dead backends
+**✅ YARP fix verified — zero 502 errors:**
+- Server: 19/19 modules Healthy, YARP `PooledConnectionLifetime` fix deployed
+- Client rebuilt with `88b951a3` (retry improvements + 502 resilience)
+- During upload of 1.17 GB PDF (252 chunks at 4 MB each), the client resumed session `019ef7a8-1b90-7fce-aaec-62f8974f6736` and uploaded **51 new chunks** (~200 MB) via HTTP PUT to the Files module through YARP — **zero 502 errors**.
 
-**Client-side fixes (committed):**
-- `ChunkUploadMaxRetries` 3→6, `ChunkDownloadMaxAttempts` 3→6
-- New 502-specific catch block with longer backoff: `4^(n-1)` (1s, 4s, 16s, 64s, 256s) + up to 2s jitter — gives YARP time to establish a fresh connection
-- 502 excluded from generic 5xx retry handler so it gets independent backoff
-- 404-on-resume cleanup: when a resumed session returns 404 (server cleaned it up), the client deletes the local session record so the next sync pass starts a fresh `InitiateUpload` instead of retrying the dead session forever
+**🔴 CompleteUpload 409 — ALL 5 files affected:**
+- 4 small ODT files (Test.odt, Test2.odt, Test3.odt, Checkbook Register - 2026.ods): All chunks dedup'd (HTTP 409 expected), CompleteUpload returned 409, file node not found in parent folder → stored `Guid.Empty`.
+- 1 large PDF (bb-The.Art.Of.Dejah.Thoris.And.The.Worlds.Of.Mars.Vol.2.HC.pdf): 51 new chunks uploaded successfully (HTTP 200, no 409s on individual chunks), then `CompleteUpload` returned 409. Lookup by filename in parent folder failed → stored `Guid.Empty`.
+- Web UI (`cloud.dotnetcloud.net/apps/files`) shows Documents folder with only old files. None of the newly uploaded files visible.
 
-**What's needed to complete verification:**
+**Client behavior on CompleteUpload 409 (ChunkedTransferClient.cs ~line 352):**
+```csharp
+catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Conflict)
+{
+    // Deletes local upload session tracking
+    // Lists children of parent folder by name (case-insensitive)
+    // If found → stores existing NodeId
+    // If not found → stores Guid.Empty (sync engine reconciles later)
+}
+```
+
+The client correctly handles the 409 but the file node genuinely doesn't exist on the server. The chunk blobs are stored (content-addressable storage), but CompleteUpload never created the file node in the parent folder.
+
+**Hypothesis:** The `CompleteUpload` endpoint on the server returns 409 (Conflict) instead of 201 (Created) even when the session wasn't previously completed. The 409 might indicate the session was already marked complete (from a previous attempt that was interrupted before the client recorded the NodeId), or the endpoint has a logic error when handling sessions that were resumed after a server restart/cleanup.
+
+**Server-side investigation needed:**
 
 ---
 
 ### Server Actions — `cloud.kimball.home`
 
-- ✓ Deploy Program.cs changes (YARP connection lifetime fix) — `88b951a3`
-- ✓ Restart Core.Server: `sudo systemctl restart dotnetcloud`
-- ✓ Verify health: 200 OK
-- ✓ Confirm all 14 modules healthy (19/19 entries Healthy)
+- [ ] **Investigate CompleteUpload 409 behavior**: Check `CompleteUpload` endpoint in Files module. Why does it return 409 when all chunks are present? Is it returning 409 because the session was already marked complete? Or is there a content-hash collision? Look at server-side logs from ~20:50 UTC for `CompleteUpload` calls on session `019ef7a8-1b90-7fce-aaec-62f8974f6736`.
+- [ ] **Check if file nodes exist**: Query the files database for any file nodes created around 20:49-20:51 UTC in the Documents folder (parentId `e0504d16-83fd-4be7-8b3c-40fab83f63cd`). Are there orphaned file nodes without parent linkage? Or was the node genuinely never created?
+- [ ] **Test CompleteUpload directly**: Send a manual `POST` to `api/v1/files/upload/{sessionId}/complete` for a known-good session and check the response.
+- [ ] **Fix if needed**: If the 409 response is incorrect, update the CompleteUpload endpoint to return 201 with the created file node when chunks are successfully assembled. If the 409 is correct (file already exists), ensure the response body includes the existing node's ID so the client can record it without an additional lookup.
 
 ### Client Actions — `Windows11-TestDNC`
 
-- [ ] After server deploys, rebuild and run SyncTray
-- [ ] Upload large file — should complete without 502 errors (or with brief 502s that client retries through)
-- [ ] Verify file appears on `cloud.dotnetcloud.net`
-- [ ] Verify subsequent sync passes show `0 queued`
+- ☐ Completed verification tasks. Awaiting server-side fix. No further client action until CompleteUpload is fixed on the server.

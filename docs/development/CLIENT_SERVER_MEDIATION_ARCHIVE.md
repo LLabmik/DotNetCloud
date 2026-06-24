@@ -4656,3 +4656,23 @@ Full handoff content from commit `93ea47a5` — documented the 5-fix chain (307 
 
 **New finding:** Chunk upload `PUT` requests to Files module intermittently return 502 Bad Gateway. Small files (`.syncignore` 23B, `TestFile.txt` 81B) consistently fail; some chunks of larger files also hit 502. To be investigated separately — not related to the auth fix.
 
+
+---
+
+## Archived: YARP 502 — stale HTTP/2 connections (2026-06-23)
+
+**Commits:** `88b951a3` (branch `perf/synctray-scan-and-transfer-speedups`)
+
+**Problem:** Chunk upload PUT requests to Files module intermittently returned 502 Bad Gateway.
+
+**Root cause:** `SocketsHttpHandler` in `MapModuleApiProxies` had no `PooledConnectionLifetime` — HTTP/2 connections went stale on the backend while YARP held them as valid.
+
+**Server fix (88b951a3):** Added `PooledConnectionLifetime=2min`, `PooledConnectionIdleTimeout=30s`, `ConnectTimeout=10s` to SocketsHttpHandler in Program.cs.
+
+**Client fix (88b951a3):** `ChunkUploadMaxRetries` 3→6, new 502-specific catch block with longer backoff (`4^(n-1)`), 502 excluded from generic 5xx handler. Also added 404-on-resume cleanup for stale sessions.
+
+**Verification (Windows11-TestDNC, 2026-06-23):**
+- ✅ Server deployed, 19/19 modules Healthy
+- ✅ Zero 502 errors during large file upload (51 chunks, ~200 MB uploaded in one pass)
+- ❌ NEW ISSUE: CompleteUpload returns 409 and file node not created in parent folder — see Active Handoff
+
