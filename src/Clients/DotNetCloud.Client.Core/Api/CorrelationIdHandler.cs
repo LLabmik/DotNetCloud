@@ -34,9 +34,11 @@ public sealed class CorrelationIdHandler : DelegatingHandler
 
         if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
         {
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
             _logger.LogInformation(
-                "API call 409 (expected — content-addressable dedup). RequestId={RequestId}",
-                requestId);
+                "API call 409 (Conflict). RequestId={RequestId}, Body={Body}",
+                requestId,
+                body.Length > 500 ? body[..500] + "..." : body);
         }
         else if (!response.IsSuccessStatusCode && response.StatusCode != System.Net.HttpStatusCode.NotModified)
         {

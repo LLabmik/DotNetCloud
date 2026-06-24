@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-23 20:51 UTC (Windows11-TestDNC: YARP 502 fix verified — zero 502 errors. 🔴 NEW: CompleteUpload 409 — chunks upload, file node not created.)
+Last updated: 2026-06-23 21:31 UTC (Windows11-TestDNC: CompleteUpload 409 root cause found — server missing RequestDecompression in production. Handing back to server.)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -92,11 +92,13 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Current Status
 
-- ✅ **YARP 502 fix VERIFIED** — zero 502 errors during large file upload. Server deployed (19/19 Healthy), client rebuilt with `88b951a3`.
-- ✅ **429 fix** verified on `Windows11-TestDNC` — zero 429 errors end-to-end. Deployed on `cloud.kimball.home`.
+- ✅ **YARP 502 fix verified** — zero 502 errors during large file upload (previous session). Server deployed (19/19 Healthy).
+- ✅ **429 fix** verified on `Windows11-TestDNC`.
 - ✅ **Client resilience improved**: `ChunkUploadMaxRetries` 3→6, 502-specific backoff, 404-on-resume cleanup for stale sessions.
 - ✅ **Server cleanup**: 62 orphaned upload sessions + 237 orphaned chunk blobs cleaned.
-- 🔴 **NEW: CompleteUpload 409 issue** — Chunks upload successfully (zero 502s) but `CompleteUpload` returns 409 and file node never created in parent folder. ALL uploaded files (PDF + 4 small ODTs) affected. Files not visible on `cloud.dotnetcloud.net`. Server-side investigation needed.
+- ✅ **CorrelationIdHandler logging improved**: Now logs response body on 409 so error messages are visible.
+- 🔴 **NEW: RequestDecompression not deployed to production Files.Host** — Client sends `Content-Encoding: gzip` on chunk PUTs. Production Files.Host appears to be running a build without `UseRequestDecompression()`. Server receives compressed bytes → SHA-256 hash of compressed data ≠ declared chunk hash → `ValidationException("Uploaded data does not match the declared chunk hash.")` → mapped to 409. Client treats 409 as dedup success → chunk never stored → CompleteUpload finds missing chunks → 409. **Infinite upload loop.**
+- 🔴 **YARP 502 errors recurring** — Some chunk uploads during the re-upload cycle hit 502 again. Possible cause: without decompression, YARP is struggling with gzip body sizes as before.
 - All prior Phase 2, chat, pre-Linux sync remediation, SyncTray icon enhancement, VFS work complete and archived.
 
 ## Environment
@@ -121,34 +123,43 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** 🔴 CompleteUpload 409 root cause found and fixed server-side. Server cleaned. Client needs to retry upload.
+**Summary:** 🔴 CompleteUpload 409 root cause found — production Files.Host is missing `UseRequestDecompression()`. Server needs to verify and deploy fix.
 
-**Root cause:** Our previous cleanup deleted 237 orphaned `FileChunks` DB records + blobs, but the upload session `019EF7A8` (created before cleanup) still had `ReceivedChunks=237`. When `CompleteUploadAsync` queried `FileChunks` for all 252 manifest hashes, only 45 existed → threw `ValidationException("Missing 207 chunk(s)")` → mapped to 409 Conflict. The `ReceivedChunks` counter was stale.
+**Root cause (re-discovered):** This exact issue was diagnosed and fixed in an earlier handoff cycle (see CLIENT_SERVER_MEDIATION_ARCHIVE.md "gzip request decompression fix"). The fix was:
+1. Remove `UseRequestDecompression()` from `Core.Server/Program.cs` (was causing YARP 502)
+2. Add `UseRequestDecompression()` to `Files.Host/Program.cs`
 
-**Server fix (committed `def196b6`, deployed):**
-- `InitiateUploadAsync`: Added `ReferenceCount > 0` filter to existing-chunk query. Orphaned chunks (RefCount=0) will no longer be reported as "existing" to clients.
-- `CompleteUploadAsync`: When chunks are missing, updates `session.ReceivedChunks` to actual count and saves before throwing. Session state stays accurate for subsequent `GetSession`/`InitiateUpload` calls.
+The code IS in git (`src/Modules/Files/DotNetCloud.Modules.Files.Host/Program.cs` line ~169 + ~279), but the production deployment (`cloud.dotnetcloud.net`) appears to be running a build that doesn't include it.
 
-**Server cleanup:**
-- 25 InProgress sessions deleted
-- 45 orphaned `FileChunks` (RefCount=0) + their blobs deleted
-- Clean state: 0 sessions, 0 orphaned chunks
+**Evidence from Windows11-TestDNC:**
 
-**What client needs to do:** The server fix prevents stale session state going forward. The client should retry the upload — the next `InitiateUpload` will correctly identify only genuinely existing chunks, all missing chunks will be uploaded, and `CompleteUpload` should succeed.
+- Added response body logging to `CorrelationIdHandler.cs` for 409 responses
+- Chunk upload 409 body: `{"code":"VALIDATION_ERROR","message":"Validation failed: ChunkHash. Uploaded data does not match the declared chunk hash."}`
+- CompleteUpload 409 body: `{"code":"VALIDATION_ERROR","message":"Validation failed: Chunks. Missing 1 chunk(s). Upload them before completing."}`
+- Client sends `Content-Encoding: gzip` on chunk PUTs; without server decompression, SHA-256 is computed on gzipped bytes → hash mismatch
+- YARP 502 errors also recurring during re-upload — consistent with missing decompression fix
+- **The previous `def196b6` fix (ReferenceCount>0 filter + ReceivedChunks update) was correct but couldn't help because chunks were never stored in the first place**
 
-**Optional client improvement:** The client's 409 handler (ChunkedTransferClient.cs ~line 355) treats ALL 409s as name conflicts. If chunks go missing between upload and CompleteUpload, the client gives up with `Guid.Empty`. Consider calling `GET api/v1/files/upload/{sessionId}` on 409 to check if session is still InProgress with missing chunks, then re-upload and retry.
+**What's needed:**
+
+1. Server: Verify the production Files.Host binary includes `UseRequestDecompression()`
+2. Server: If missing, rebuild and redeploy Files.Host with the fix
+3. Client: After server fix, retry upload and verify
+
+**Client-side improvement (optional):** The `CorrelationIdHandler` now logs 409 response bodies, which will help future debugging. The chunk upload 409 handler in `ChunkedTransferClient.cs` should ideally distinguish between "hash mismatch" (retry without compression) and "chunk already exists" (dedup — skip), but this is secondary to the server fix.
 
 ---
 
 ### Server Actions — `cloud.kimball.home`
 
-- ✓ Root cause found: stale session with 237 ReceivedChunks but only 45 actual chunks
-- ✓ Server fix: `ReferenceCount > 0` filter + session state update on missing chunks
-- ✓ DB cleaned: 25 sessions + 45 orphaned chunks deleted
-- ✓ Deployed and healthy
+- [ ] Verify production Files.Host deployment includes `UseRequestDecompression()` middleware
+- [ ] Check running build: `docker exec <files-container> cat /app/Program.cs | grep -i decompression`
+- [ ] If missing: rebuild Files.Host with current `main` (which includes the fix) and redeploy
+- [ ] Verify 19/19 health after redeploy
+- [ ] Confirm chunk uploads return 200 (not 409) with gzip-compressed payloads
 
 ### Client Actions — `Windows11-TestDNC`
 
-- [ ] Pull `perf/synctray-scan-and-transfer-speedups`, rebuild, and retry upload
-- [ ] Files should upload successfully — server now correctly identifies existing chunks
+- [ ] Wait for server to confirm decompression is deployed
+- [ ] After confirmation: pull, rebuild, retry upload
 - [ ] Verify files appear on `cloud.dotnetcloud.net`
