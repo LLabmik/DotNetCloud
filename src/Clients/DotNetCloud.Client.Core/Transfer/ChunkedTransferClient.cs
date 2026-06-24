@@ -31,6 +31,14 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
     /// </summary>
     public string ChunkCacheDirectory { get; set; } = Path.Combine(Path.GetTempPath(), "dnc-chunk-cache");
 
+    /// <summary>
+    /// When true, attempts gRPC client-streaming upload before falling back to HTTP chunked upload.
+    /// Disabled by default for backward compatibility with unit tests that mock <see cref="IDotNetCloudApiClient"/>
+    /// but do not set up <c>UploadFileStreamAsync</c>. Enable in production when the server has
+    /// <c>FilesUploadStreamService</c> deployed.
+    /// </summary>
+    public bool EnableGrpcStreaming { get; set; }
+
     private readonly IDotNetCloudApiClient _api;
     private readonly ILocalStateDb? _stateDb;
     private readonly ILogger<ChunkedTransferClient> _logger;
@@ -197,37 +205,41 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
             }
 
             // Use gRPC streaming upload — no YARP proxy, no GZip Content-Encoding, no hash mismatches.
-            try
+            if (EnableGrpcStreaming)
             {
-                var streamMetadata = new Api.UploadStreamMetadata
+                try
                 {
-                    FileName = fileName,
-                    ParentId = parentFolderId,
-                    TotalSize = fileSize,
-                    MimeType = mimeType,
-                    ChunkHashes = metadata.Select(m => m.Hash).ToList(),
-                    ChunkSizes = metadata.Select(m => m.Size).ToList(),
-                    PosixMode = posixMode,
-                    PosixOwnerHint = posixOwnerHint,
-                };
+                    var streamMetadata = new Api.UploadStreamMetadata
+                    {
+                        FileName = fileName,
+                        ParentId = parentFolderId,
+                        TotalSize = fileSize,
+                        MimeType = mimeType,
+                        ChunkHashes = metadata.Select(m => m.Hash).ToList(),
+                        ChunkSizes = metadata.Select(m => m.Size).ToList(),
+                        PosixMode = posixMode,
+                        PosixOwnerHint = posixOwnerHint,
+                    };
 
-                fileStream.Seek(0, SeekOrigin.Begin);
-                var grpcResult = await _api.UploadFileStreamAsync(
-                    streamMetadata,
-                    StreamChunksAsync(fileStream, cancellationToken),
-                    cancellationToken);
+                    fileStream.Seek(0, SeekOrigin.Begin);
+                    var grpcResult = await _api.UploadFileStreamAsync(
+                        streamMetadata,
+                        StreamChunksAsync(fileStream, cancellationToken),
+                        cancellationToken);
 
-                uploadTimer.Stop();
-                _logger.LogInformation(
-                    "File upload complete (gRPC): FileName={FileName}, NodeId={NodeId}, FileSize={FileSize}, DurationMs={DurationMs}.",
-                    fileName, grpcResult.Id, fileSize, uploadTimer.ElapsedMilliseconds);
-                return new UploadResult(grpcResult.Id, grpcResult.ContentHash);
-            }
-            catch (RpcException gex)
-            {
-                _logger.LogWarning(gex,
-                    "gRPC upload failed for {File}, falling back to HTTP chunked upload.", fileName);
-                // Fall through to legacy HTTP path below.
+                    uploadTimer.Stop();
+                    _logger.LogInformation(
+                        "File upload complete (gRPC): FileName={FileName}, NodeId={NodeId}, FileSize={FileSize}, DurationMs={DurationMs}.",
+                        fileName, grpcResult.Id, fileSize, uploadTimer.ElapsedMilliseconds);
+                    return new UploadResult(grpcResult.Id, grpcResult.ContentHash);
+                }
+                catch (RpcException gex)
+                {
+                    _logger.LogWarning(gex,
+                        "gRPC upload failed for {File}: StatusCode={StatusCode}, Detail={Detail}. Falling back to HTTP chunked upload.",
+                        fileName, gex.StatusCode, gex.Status.Detail);
+                    // Fall through to legacy HTTP path below.
+                }
             }
 
             // ── Legacy HTTP chunked upload (fallback) ──

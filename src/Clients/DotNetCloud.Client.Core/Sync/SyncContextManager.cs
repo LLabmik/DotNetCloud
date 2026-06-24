@@ -567,7 +567,11 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
         var transfer = new ChunkedTransferClient(
             apiClient,
             stateDb,
-            _loggerFactory.CreateLogger<ChunkedTransferClient>());
+            _loggerFactory.CreateLogger<ChunkedTransferClient>())
+        {
+            // Enable gRPC client-streaming upload. Falls back to HTTP on RpcException.
+            EnableGrpcStreaming = true,
+        };
 
         var selectiveSync = new SelectiveSyncConfig();
 

@@ -2,6 +2,19 @@
 
 Archived: 2026-06-23 17:11 UTC. Full git history preserved in commits up to changes from Windows11-TestDNC.
 
+## Archived: gRPC Streaming Upload — Client Upload Test Complete (2026-06-23)
+
+**Target:** Windows11-TestDNC (client upload test)
+
+**Result:** ✅ All 5 test files (4 ODTs + 1.17GB PDF) synced and verified on `cloud.dotnetcloud.net`. gRPC streaming upload attempted (server responds, not UNIMPLEMENTED) but fails at first `WriteAsync` with `RpcException(StatusCode="OK")`. Falls back to HTTP chunked upload successfully.
+
+**gRPC diagnostic:**
+- Server `FilesUploadStreamService` responds to grpcurl
+- Client call fails: `Grpc.Net.Client.Internal.HttpContentClientStreamWriter.WriteCoreAsync` → `HttpResponseMessage.EnsureSuccessStatusCode()`
+- Likely cause: YARP proxy intercepts gRPC request at public endpoint, or HTTP/2 negotiation fails through proxy
+- Client fix deployed: `GrpcChannelOptions.HttpVersion = HttpVersion.Version20`
+- Handoff commit: `daf2ce54` (server deploy) + pending Windows11-TestDNC commit
+
 ## Archived: X-Device-Id Fix — Windows Client Verification (2026-06-23)
 
 **Target:** Windows11-TestDNC (client verification)

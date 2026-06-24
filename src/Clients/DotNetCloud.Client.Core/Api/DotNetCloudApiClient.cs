@@ -276,6 +276,9 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
         var baseUrl = _http.BaseAddress?.ToString()
             ?? throw new InvalidOperationException("HttpClient.BaseAddress is null.");
 
+        // Create a dedicated SocketsHttpHandler for gRPC streaming (bypasses the
+        // CorrelationIdHandler pipeline used by REST calls). HTTP/2 is required
+        // by gRPC — GrpcChannel.ForAddress handles this via ALPN on HTTPS.
         using var channel = GrpcChannel.ForAddress(baseUrl, new GrpcChannelOptions
         {
             HttpHandler = new SocketsHttpHandler
@@ -283,7 +286,9 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
                 EnableMultipleHttp2Connections = true,
                 ConnectTimeout = TimeSpan.FromSeconds(10),
                 SslOptions = OAuthHttpClientHandlerFactory.CreatePermissiveSslOptions(),
-            }
+            },
+            // gRPC requires HTTP/2. Ensure the channel negotiates HTTP/2 via ALPN.
+            HttpVersion = HttpVersion.Version20,
         });
 
         var client = new FilesService.FilesServiceClient(channel);

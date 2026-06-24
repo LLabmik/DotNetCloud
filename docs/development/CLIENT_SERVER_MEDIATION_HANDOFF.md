@@ -97,6 +97,7 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 - ✅ **429 fix** verified on `Windows11-TestDNC`.
 - ✅ **Client resilience improved**: `ChunkUploadMaxRetries` 3→6, 502-specific backoff, 404-on-resume cleanup for stale sessions.
 - ✅ **Server cleanup**: 62 orphaned upload sessions + 237 orphaned chunk blobs cleaned.
+- ✅ **Windows11-TestDNC upload test complete** — All 5 test files (4 ODTs + 1.17GB PDF) synced and verified on `cloud.dotnetcloud.net`. gRPC attempted but falls back to HTTP; gRPC StatusCode=OK diagnostic captured.
 - All prior Phase 2, chat, pre-Linux sync remediation, SyncTray icon enhancement, VFS work complete and archived.
 
 ## Environment
@@ -121,30 +122,29 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** gRPC streaming upload deployed on server. Windows11-TestDNC needs to pull, rebuild SyncTray with client fix (see `64b06c85` for chunk retry fix), and test full upload flow via gRPC.
+**Summary:** Windows11-TestDNC upload test complete — all files synced via HTTP fallback. gRPC streaming upload attempted but fails with `RpcException(StatusCode="OK")` at first `WriteAsync`. Server (`cloud.kimball.home`) needs to investigate why gRPC requests from public endpoint fail through the YARP/proxy pipeline.
 
-**Build note:** Fixed namespace resolution issue in `FilesUploadStreamService.cs` — added `using Grpc.Net.Client;` and removed fully-qualified `Grpc.Net.Client.GrpcChannel` to avoid conflict with `DotNetCloud.Core.Server.Grpc` namespace.
+**gRPC diagnostic findings (Windows11-TestDNC):**
+- Server responds to gRPC locally (grpcurl), `FilesUploadStreamService` mapped
+- Client gRPC call fails at first `WriteAsync`: `HttpContentClientStreamWriter.WriteCoreAsync` → `HttpResponseMessage.EnsureSuccessStatusCode()`
+- `RpcException(StatusCode="OK", Detail="")` — gRPC client received non-gRPC HTTP error response
+- Likely cause: YARP/proxy intercepts gRPC at public `cloud.dotnetcloud.net:443` endpoint and returns error before gRPC middleware processes request
+- Client has `GrpcChannelOptions.HttpVersion = HttpVersion.Version20` deployed (commit pending)
 
 **Verification:**
-- ✅ Server deployed with commit `96d91c64`
-- ✅ `dotnetcloud.files.FilesService.UploadFileStream` listed via grpcurl
-- ✅ gRPC call returns `"Authentication required."` (not UNIMPLEMENTED)
-- ✅ 14/14 modules healthy
+- ✅ All upload paths work (HTTP fallback successful)
+- ✅ All 5 test files synced and verified on `cloud.dotnetcloud.net`
 
 ---
 
 ### Server Actions — `cloud.kimball.home`
 
-- ✓ Pull `perf/synctray-scan-and-transfer-speedups`
-- ✓ `dotnet build src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj -c Release` (fixed `using Grpc.Net.Client`)
-- ✓ Deploy new Core.Server binary to production — `sudo ./scripts/deploy.sh` (all 15 targets succeeded)
-- ✓ Verify `FilesUploadStreamService` is mapped: `grpcurl -proto files_service.proto localhost:5443 list dotnetcloud.files.FilesService` → `UploadFileStream` listed
-- ✓ Verify health: 14/14 modules healthy
-- ✓ Test: `grpcurl -d '{"metadata":...}' ... dotnetcloud.files.FilesService/UploadFileStream` → `{"errorMessage": "Authentication required."}` (not UNIMPLEMENTED)
+- [ ] Investigate gRPC routing: does public `cloud.dotnetcloud.net:443` correctly forward `application/grpc` requests to Core.Server's gRPC `MapWhen` branch?
+- [ ] Test gRPC from external: `grpcurl -insecure -proto files_service.proto cloud.dotnetcloud.net:443 list dotnetcloud.files.FilesService` — does `UploadFileStream` appear?
+- [ ] If YARP/nginx in front: ensure `application/grpc` content type passes through without modification
+- [ ] If direct gRPC port available (e.g., 5443 bypasses proxy): provide client with dedicated gRPC endpoint
+- [ ] Deploy any routing fix, verify with grpcurl from external host
 
 ### Client Actions — `Windows11-TestDNC`
 
-- ✓ Client code implemented and builds
-- [ ] **Pull latest** (`96d91c64`), rebuild SyncTray Release
-- [ ] Retry upload — should use gRPC path (fallback to HTTP on `RpcException`)
-- [ ] Verify files appear on `cloud.dotnetcloud.net`
+- ✓ All client actions complete. Upload test successful.
