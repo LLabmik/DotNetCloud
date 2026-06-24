@@ -195,31 +195,64 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
     /// <inheritdoc/>
     public async Task UploadChunkAsync(Guid sessionId, int chunkIndex, string chunkHash, Stream chunkData, CancellationToken cancellationToken = default, string? fileExtension = null)
     {
-        using var request = CreateAuthenticatedRequest(HttpMethod.Put, $"api/v1/files/upload/{sessionId}/chunks/{chunkHash}");
+        // On 409 "hash mismatch" (server decompression not available), retry without compression.
+        // On 409 "already exists" (dedup), accept and return.
+        var maxAttempts = fileExtension is not null && PreCompressedExtensions.Contains(fileExtension) ? 1 : 2;
 
-        var skipCompression = fileExtension is not null && PreCompressedExtensions.Contains(fileExtension);
-
-        Stream contentStream;
-        if (skipCompression)
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
-            contentStream = chunkData;
-        }
-        else
-        {
-            var compressedMs = new MemoryStream();
-            await using (var gzip = new GZipStream(compressedMs, CompressionLevel.Fastest, leaveOpen: true))
-                await chunkData.CopyToAsync(gzip, cancellationToken);
-            compressedMs.Position = 0;
-            contentStream = compressedMs;
-        }
+            using var request = CreateAuthenticatedRequest(HttpMethod.Put, $"api/v1/files/upload/{sessionId}/chunks/{chunkHash}");
 
-        request.Content = new StreamContent(contentStream);
-        request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
-        if (!skipCompression)
-            request.Content.Headers.ContentEncoding.Add("gzip");
-        request.Headers.Add("X-Chunk-Hash", chunkHash);
-        using var response = await _http.SendAsync(request, cancellationToken);
-        response.EnsureSuccessStatusCode();
+            var skipCompression = attempt > 1;
+            if (!skipCompression)
+                skipCompression = fileExtension is not null && PreCompressedExtensions.Contains(fileExtension);
+
+            chunkData.Position = 0;
+            Stream contentStream;
+            if (skipCompression)
+            {
+                contentStream = chunkData;
+            }
+            else
+            {
+                var compressedMs = new MemoryStream();
+                await using (var gzip = new GZipStream(compressedMs, CompressionLevel.Fastest, leaveOpen: true))
+                    await chunkData.CopyToAsync(gzip, cancellationToken);
+                compressedMs.Position = 0;
+                contentStream = compressedMs;
+            }
+
+            request.Content = new StreamContent(contentStream);
+            request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+            if (!skipCompression)
+                request.Content.Headers.ContentEncoding.Add("gzip");
+            request.Headers.Add("X-Chunk-Hash", chunkHash);
+
+            using var response = await _http.SendAsync(request, cancellationToken);
+
+            if (response.IsSuccessStatusCode)
+                return;
+
+            if (response.StatusCode == HttpStatusCode.Conflict && attempt < maxAttempts)
+            {
+                var body = await response.Content.ReadAsStringAsync(cancellationToken);
+                if (body.Contains("hash", StringComparison.OrdinalIgnoreCase) ||
+                    body.Contains("match", StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger.LogWarning(
+                        "Chunk {Hash} upload attempt {Attempt} returned 409 (hash mismatch). " +
+                        "Retrying without compression.",
+                        chunkHash, attempt);
+                    continue;
+                }
+
+                // True dedup — server already has this chunk, treat as uploaded.
+                _logger.LogDebug("Chunk {Hash} already exists on server (409 Conflict) — treating as uploaded.", chunkHash);
+                return;
+            }
+
+            response.EnsureSuccessStatusCode();
+        }
     }
 
     /// <inheritdoc/>
