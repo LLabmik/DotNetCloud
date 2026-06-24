@@ -147,10 +147,10 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ### Server Actions — `cloud.kimball.home`
 
-- [ ] Deploy Program.cs changes (YARP connection lifetime fix)
-- [ ] Restart Core.Server: `sudo systemctl restart dotnetcloud`
-- [ ] Verify health: `curl -s -o /dev/null -w "%{http_code}" https://cloud.dotnetcloud.net/health`
-- [ ] Confirm all 14 modules healthy
+- ✓ Deploy Program.cs changes (YARP connection lifetime fix) — `88b951a3`
+- ✓ Restart Core.Server: `sudo systemctl restart dotnetcloud`
+- ✓ Verify health: 200 OK
+- ✓ Confirm all 14 modules healthy (19/19 entries Healthy)
 
 ### Client Actions — `Windows11-TestDNC`
 
