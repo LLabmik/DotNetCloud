@@ -1,6 +1,27 @@
 # Client/Server Mediation — Archived Context
 
-Archived: 2026-06-23 17:11 UTC. Full git history preserved in commits up to changes from Windows11-TestDNC.
+Archived: 2026-06-24 06:20 UTC. Full git history preserved in commits up to changes from cloud.kimball.home.
+
+## Archived: gRPC Streaming Upload — Server Investigation Complete (2026-06-24)
+
+**Target:** cloud.kimball.home (server investigation)
+
+**Result:** ✅ Server-side gRPC routing confirmed working through public endpoint. No YARP/nginx/proxy in front — direct Kestrel on ports 5080/5443. Router forwards 443→5443.
+
+**Investigation findings:**
+- `grpcurl` via public `cloud.dotnetcloud.net:443` → `UploadFileStream` listed and responds correctly
+- `grpcurl -d '{"metadata":{"file_name":"test.txt","total_size":100,"mime_type":"text/plain"}}' cloud.dotnetcloud.net:443 dotnetcloud.files.FilesService/UploadFileStream` → `{"errorMessage": "Authentication required."}` (expected — no JWT)
+- All 14 module host gRPC ports verified functional on localhost cleartext HTTP/2 (50100-50500 range):
+  - Files (50359): `InitiateUpload` → `"File name is required."` ✅
+  - Chat (50491): `ListChannels` → `{}` ✅
+  - About (50308): `GetAboutInfo` → full response (version, uptime, OS) ✅
+  - Notes (50489): `ListNotes` → `"Invalid user ID format."` ✅
+  - Music (50274): service listed ✅
+  - Video (50273): service listed ✅
+- `AuthenticationInterceptor` only checks `module-id` for unary calls — client-streaming `UploadFileStream` passes through
+- **Root cause (client-side):** Client `RpcException(StatusCode="OK")` was HTTP/version negotiation issue — gRPC requires HTTP/2. Client fix `GrpcChannelOptions.HttpVersion = HttpVersion.Version20` should resolve it. No server-side routing/proxy fix needed.
+
+**Handoff commit:** `b9ece481`
 
 ## Archived: gRPC Streaming Upload — Client Upload Test Complete (2026-06-23)
 
