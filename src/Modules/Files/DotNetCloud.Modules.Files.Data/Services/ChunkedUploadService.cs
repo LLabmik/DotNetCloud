@@ -78,7 +78,7 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         // where the record exists but the data was lost/never written.
         var candidateChunks = await _db.FileChunks
             .AsNoTracking()
-            .Where(c => dto.ChunkHashes.Contains(c.ChunkHash))
+            .Where(c => dto.ChunkHashes.Contains(c.ChunkHash) && c.ReferenceCount > 0)
             .Select(c => new { c.ChunkHash, c.StoragePath })
             .ToListAsync(cancellationToken);
 
@@ -233,6 +233,11 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         if (availableHashes.Count != manifest.Count)
         {
             var missing = manifest.Except(availableHashes).ToList();
+            // Update session to reflect reality — prevents stale ReceivedChunks from
+            // misleading clients after orphaned chunks are garbage-collected.
+            session.ReceivedChunks = availableHashes.Count;
+            session.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync(cancellationToken);
             throw new Core.Errors.ValidationException("Chunks", $"Missing {missing.Count} chunk(s). Upload them before completing.");
         }
 
