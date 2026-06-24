@@ -452,6 +452,12 @@ public sealed class SyncEngine : ISyncEngine
         // Build a set of paths already queued for upload to avoid duplicates.
         var queuedPaths = await _stateDb.GetPendingUploadPathsAsync(context.StateDatabasePath, cancellationToken);
 
+        // Build a set of paths with active upload sessions (in-progress uploads).
+        // If a file is currently being uploaded, don't queue another upload.
+        var activeUploadPaths = (await _stateDb.GetActiveUploadSessionsAsync(context.StateDatabasePath, cancellationToken))
+            .Select(s => s.LocalPath)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         // Build a lookup of server files by relative path for dedup against the remote tree.
         var serverFilesByRelPath = new Dictionary<string, SyncTreeNodeResponse>(StringComparer.OrdinalIgnoreCase);
         BuildServerFileMap(serverTree, "", serverFilesByRelPath);
@@ -459,6 +465,11 @@ public sealed class SyncEngine : ISyncEngine
         // Build a set of all server NodeIds (files + folders) to detect stale tracked records.
         var serverNodeIds = new HashSet<Guid>();
         CollectAllServerNodeIds(serverTree, serverNodeIds);
+
+        // Build a mapping of server folder relative paths → NodeId for resolving
+        // parent folder IDs when checking server file existence via ListChildrenAsync.
+        var serverFolderPaths = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
+        BuildFolderPathMap(serverTree, "", serverFolderPaths);
 
         var dbFetchMs = scanStopwatch.ElapsedMilliseconds;
 
@@ -496,11 +507,83 @@ public sealed class SyncEngine : ISyncEngine
             if (queuedPaths.Contains(localPath))
                 continue;
 
+            // Skip if this file is currently being uploaded (active upload session).
+            // Prevents duplicate uploads when a new sync pass starts while a large
+            // file upload from the previous pass is still in progress.
+            if (activeUploadPaths.Contains(localPath))
+            {
+                _logger.LogDebug(
+                    "Skipping {RelPath} — upload already in progress (active session exists).",
+                    relativePath);
+                continue;
+            }
+
             if (trackedByPath.TryGetValue(localPath, out var record))
             {
                 // Known file — only re-queue if modified since last sync.
                 if (!IsLocallyModified(record, localPath))
+                {
+                    // If the file has an empty NodeId (e.g. a previous upload got 409
+                    // and stored Guid.Empty), it may actually exist on the server.
+                    // Check via ListChildrenAsync and update the record if found.
+                    if (record.NodeId == Guid.Empty)
+                    {
+                        var fileName = Path.GetFileName(localPath);
+                        var parentRelDir = Path.GetDirectoryName(relativePath);
+                        Guid? parentNodeId = null;
+                        if (!string.IsNullOrEmpty(parentRelDir)
+                            && serverFolderPaths.TryGetValue(parentRelDir, out var resolvedParentId))
+                        {
+                            parentNodeId = resolvedParentId;
+                        }
+
+                        try
+                        {
+                            var children = await _api.ListChildrenAsync(parentNodeId, cancellationToken);
+                            var serverChild = children.FirstOrDefault(c =>
+                                string.Equals(c.Name, fileName, StringComparison.OrdinalIgnoreCase));
+
+                            if (serverChild is not null)
+                            {
+                                _logger.LogInformation(
+                                    "Stale record for {RelPath} has empty NodeId but file exists on server (NodeId={NodeId}). Updating record.",
+                                    relativePath, serverChild.Id);
+                                pendingUpserts.Add(new LocalFileRecord
+                                {
+                                    LocalPath = localPath,
+                                    NodeId = serverChild.Id,
+                                    ContentHash = serverChild.ContentHash,
+                                    LastSyncedAt = DateTime.UtcNow,
+                                    LocalModifiedAt = File.GetLastWriteTimeUtc(localPath),
+                                });
+                            }
+                            else
+                            {
+                                // File not on server — remove stale record so the file
+                                // falls through to the new-upload path on next scan.
+                                _logger.LogInformation(
+                                    "Stale record for {RelPath} has empty NodeId and file not found on server. Removing stale record.",
+                                    relativePath);
+                                pendingRemoves.Add(localPath);
+                                // Queue upload as a genuinely new file.
+                                pendingQueues.Add(new PendingUpload { LocalPath = localPath });
+                                queued++;
+                            }
+                        }
+                        catch (Exception ex) when (ex is not OperationCanceledException)
+                        {
+                            _logger.LogDebug(ex,
+                                "Could not ListChildrenAsync to resolve empty NodeId for {RelPath}. " +
+                                "Removing stale record to re-evaluate on next sync pass.",
+                                relativePath);
+                            pendingRemoves.Add(localPath);
+                            // Queue upload so the file gets another chance.
+                            pendingQueues.Add(new PendingUpload { LocalPath = localPath });
+                            queued++;
+                        }
+                    }
                     continue;
+                }
 
                 // If the tracked NodeId no longer exists on the server, the file was
                 // remotely deleted. Check content hash to decide whether to keep or delete.
@@ -607,16 +690,84 @@ public sealed class SyncEngine : ISyncEngine
             }
             else
             {
-                // File exists locally, not tracked, not on server → genuinely new file.
-                // Always queue for upload. We never delete untracked local files based on
-                // timestamp heuristics — filesystem timestamps (mtime, ctime, birth time)
-                // are unreliable indicators of when a file appeared in the sync folder
-                // (e.g., `cp` preserves timestamps from the source on many filesystems).
-                // Server-side deletions are handled exclusively through the change feed
-                // (HandleRemoteDeletionAsync) and reverse reconciliation of tracked records.
-                _logger.LogDebug("New local file detected, queuing upload: {RelPath}", relativePath);
-                pendingQueues.Add(new PendingUpload { LocalPath = localPath });
-                queued++;
+                // File exists locally, not tracked, not found in cached server tree.
+                // Do a fresh server-side check by listing the parent folder's children
+                // via ListChildrenAsync. This catches files that already exist on the
+                // server but were missed by the cached tree (e.g., tree fetched before
+                // a concurrent upload completed in a previous sync pass).
+                var fileName = Path.GetFileName(localPath);
+                var parentRelDir = Path.GetDirectoryName(relativePath);
+                Guid? parentNodeId = null;
+                if (!string.IsNullOrEmpty(parentRelDir)
+                    && serverFolderPaths.TryGetValue(parentRelDir, out var resolvedParentId))
+                {
+                    parentNodeId = resolvedParentId;
+                }
+
+                FileNodeResponse? serverChild = null;
+                try
+                {
+                    var children = await _api.ListChildrenAsync(parentNodeId, cancellationToken);
+                    serverChild = children.FirstOrDefault(c =>
+                        string.Equals(c.Name, fileName, StringComparison.OrdinalIgnoreCase));
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger.LogDebug(ex,
+                        "Could not ListChildrenAsync for parent {ParentId} to verify {RelPath}. Proceeding as new file.",
+                        parentNodeId, relativePath);
+                }
+
+                if (serverChild is not null)
+                {
+                    // File exists on server — compare size and hash to determine
+                    // whether the content is the same or the user modified it locally.
+                    var localSize = new FileInfo(localPath).Length;
+                    if (localSize == serverChild.Size)
+                    {
+                        var localHash = await ComputeFileHashAsync(localPath, cancellationToken);
+                        if (string.Equals(localHash, serverChild.ContentHash, StringComparison.OrdinalIgnoreCase))
+                        {
+                            // Identical — record in state DB without uploading.
+                            _logger.LogInformation(
+                                "Local file matches server (direct check, hash match), recording without upload: {RelPath}",
+                                relativePath);
+                            pendingUpserts.Add(new LocalFileRecord
+                            {
+                                LocalPath = localPath,
+                                NodeId = serverChild.Id,
+                                ContentHash = localHash,
+                                LastSyncedAt = DateTime.UtcNow,
+                                LocalModifiedAt = File.GetLastWriteTimeUtc(localPath),
+                            });
+                        }
+                        else
+                        {
+                            // Sizes match but hashes differ — user edited the file locally.
+                            _logger.LogInformation(
+                                "Local file differs from server (direct check, hash mismatch), queuing update upload: {RelPath}",
+                                relativePath);
+                            pendingQueues.Add(new PendingUpload { LocalPath = localPath, NodeId = serverChild.Id });
+                            queued++;
+                        }
+                    }
+                    else
+                    {
+                        // Size differs — content definitely changed locally.
+                        _logger.LogInformation(
+                            "Local file size differs from server ({LocalSize} vs {ServerSize}) (direct check), queuing update upload: {RelPath}",
+                            localSize, serverChild.Size, relativePath);
+                        pendingQueues.Add(new PendingUpload { LocalPath = localPath, NodeId = serverChild.Id });
+                        queued++;
+                    }
+                }
+                else
+                {
+                    // Confirmed: file doesn't exist on server → genuinely new file.
+                    _logger.LogDebug("New local file detected (confirmed via server check), queuing upload: {RelPath}", relativePath);
+                    pendingQueues.Add(new PendingUpload { LocalPath = localPath });
+                    queued++;
+                }
             }
         }
 
@@ -641,8 +792,7 @@ public sealed class SyncEngine : ISyncEngine
         // uploaded as new files (if untracked) or handled by reverse reconciliation
         // (if tracked with stale NodeIds). We never delete non-empty directories based
         // on timestamp heuristics since filesystem timestamps are unreliable.
-        var serverFolderPaths = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
-        BuildFolderPathMap(serverTree, "", serverFolderPaths);
+        // Note: serverFolderPaths was already built earlier in this method and is reused here.
 
         try
         {

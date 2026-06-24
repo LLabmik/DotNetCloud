@@ -98,8 +98,8 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
     public async Task<IReadOnlyList<FileNodeResponse>> ListChildrenAsync(Guid? folderId, CancellationToken cancellationToken = default)
     {
         var path = folderId.HasValue
-            ? $"api/v1/files/{folderId}/children"
-            : "api/v1/files/root/children";
+            ? $"api/v1/files?parentId={folderId}"
+            : "api/v1/files";
         return await GetAsync<List<FileNodeResponse>>(path, cancellationToken) ?? [];
     }
 

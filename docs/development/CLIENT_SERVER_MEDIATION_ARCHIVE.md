@@ -1,6 +1,12 @@
 # Client/Server Mediation — Archived Context
 
-Archived: 2026-06-23 17:51 UTC. Full git history preserved in commits up to `d1dd3746`.
+Archived: 2026-06-23 17:11 UTC. Full git history preserved in commits up to changes from Windows11-TestDNC.
+
+## Archived: X-Device-Id Fix — Windows Client Verification (2026-06-23)
+
+**Target:** Windows11-TestDNC (client verification)
+
+**Result:** ✅ SyncTray connects to `cloud.dotnetcloud.net` successfully. No 401/502 errors. No X-Device-Id duplication warnings. Auth fix holding. Sync cycle completes with envelope responses HTTP 200.
 
 ## Archived: X-Device-Id Header Duplication — Deployed (2026-06-23)
 

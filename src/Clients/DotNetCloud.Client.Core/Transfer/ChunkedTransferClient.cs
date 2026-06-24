@@ -19,8 +19,10 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
     /// <summary>Default chunk size: 4 MB.</summary>
     public const int DefaultChunkSize = 4 * 1024 * 1024;
 
-    /// <summary>Maximum concurrent chunk transfers.</summary>
-    public int MaxConcurrency { get; set; } = 8;
+    /// <summary>Maximum concurrent chunk transfers. Set to 1 for sequential uploads
+    /// — concurrent chunk uploads compete for the same network connection and trigger
+    /// server-side rate limiting (HTTP 429).</summary>
+    public int MaxConcurrency { get; set; } = 1;
 
     /// <summary>
     /// Directory used to cache downloaded chunks by hash. Chunks are content-addressed
@@ -225,6 +227,25 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
                     var uploadAttempts = 0;
                     for (var attempt = 1; attempt <= ChunkUploadMaxRetries; attempt++)
                     {
+                        // Rate-limit backoff: if any consumer hit a 429 recently, wait
+                        // until a full cooldown window (10s) has elapsed since the last 429.
+                        // This prevents the next chunk from immediately hitting the rate
+                        // limit again when the server's sliding window hasn't reset.
+                        var lastRateLimit = new DateTime(Interlocked.Read(ref _lastRateLimitTicks));
+                        if (lastRateLimit > DateTime.MinValue)
+                        {
+                            var elapsed = DateTime.UtcNow - lastRateLimit;
+                            var cooldown = TimeSpan.FromSeconds(10);
+                            if (elapsed < cooldown)
+                            {
+                                var wait = cooldown - elapsed;
+                                _logger.LogDebug(
+                                    "Rate-limit cooldown: waiting {DelayMs}ms before chunk {Hash} attempt {Attempt} (last 429 was {ElapsedMs}ms ago).",
+                                    (int)wait.TotalMilliseconds, chunk.Hash, attempt, (int)elapsed.TotalMilliseconds);
+                                await Task.Delay(wait, cancellationToken);
+                            }
+                        }
+
                         uploadAttempts = attempt;
                         try
                         {
@@ -243,8 +264,11 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
                             attempt < ChunkUploadMaxRetries &&
                             (ex.StatusCode is null || (int)ex.StatusCode >= 500 || (int)ex.StatusCode == 429))
                         {
-                            var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt - 1))
-                                        + TimeSpan.FromMilliseconds(Random.Shared.Next(0, 500));
+                            if (ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+                                Interlocked.Exchange(ref _lastRateLimitTicks, DateTime.UtcNow.Ticks);
+
+                            var delay = TimeSpan.FromSeconds(Math.Pow(3, attempt - 1))
+                                        + TimeSpan.FromMilliseconds(Random.Shared.Next(0, 1000));
                             _logger.LogWarning(ex,
                                 "Chunk {Hash} upload attempt {Attempt}/{MaxAttempts} failed. Retrying in {DelayMs}ms.",
                                 chunk.Hash, attempt, ChunkUploadMaxRetries, (int)delay.TotalMilliseconds);
@@ -300,10 +324,11 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
             }
             catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Conflict)
             {
-                // Server returned 409 — file with this name already exists.
-                // Treat as success: the file is already on the server.
+                // Server returned 409 — the file name already exists in this folder
+                // (unique constraint violation from a concurrent upload completing first).
+                // Look up the existing node on the server so we can store its real NodeId.
                 _logger.LogInformation(
-                    "CompleteUpload 409 for {FileName} — file already exists (dedup).",
+                    "CompleteUpload 409 for {FileName} — looking up existing node on server.",
                     fileName);
 
                 // Clean up the upload session tracking.
@@ -312,7 +337,31 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
 
                 uploadTimer.Stop();
 
-                // Return empty GUID — caller should look up the existing node if needed.
+                try
+                {
+                    var children = await _api.ListChildrenAsync(parentFolderId, cancellationToken);
+                    var existing = children.FirstOrDefault(c =>
+                        string.Equals(c.Name, fileName, StringComparison.OrdinalIgnoreCase));
+
+                    if (existing is not null)
+                    {
+                        _logger.LogInformation(
+                            "CompleteUpload 409 for {FileName} — found existing node {NodeId}. Recording without upload.",
+                            fileName, existing.Id);
+                        return new UploadResult(existing.Id, existing.ContentHash);
+                    }
+
+                    _logger.LogWarning(
+                        "CompleteUpload 409 for {FileName} — could not find existing node in parent folder. Storing empty NodeId.",
+                        fileName);
+                }
+                catch (Exception listEx) when (listEx is not OperationCanceledException)
+                {
+                    _logger.LogWarning(listEx,
+                        "CompleteUpload 409 for {FileName} — failed to look up existing node. Storing empty NodeId.",
+                        fileName);
+                }
+
                 return new UploadResult(existingNodeId ?? Guid.Empty, null);
             }
 
@@ -433,6 +482,13 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
 
     /// <summary>Bounded channel capacity: limits peak memory to ~64 MB (16 × 4 MB avg).</summary>
     private const int ChannelCapacity = 16;
+
+    /// <summary>
+    /// Timestamp of the last HTTP 429 (Too Many Requests) response. Used by all consumers
+    /// to coordinate backoff — when one consumer hits a rate limit, others wait before
+    /// sending their next chunk to reduce collective pressure on the server.
+    /// </summary>
+    private long _lastRateLimitTicks;
 
     /// <summary>Maximum age of an upload session eligible for crash resumption. Aligned with server cleanup window (48 h).</summary>
     private static readonly TimeSpan SessionResumeWindow = TimeSpan.FromHours(48);
