@@ -121,46 +121,34 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** 🔴 YARP 502 fix verified (0 errors) but ALL file uploads fail at `CompleteUpload` — returns 409 and file node never created. Files not visible on server. Server-side investigation needed.
+**Summary:** 🔴 CompleteUpload 409 root cause found and fixed server-side. Server cleaned. Client needs to retry upload.
 
-**Context:** On 2026-06-23 at ~20:49 UTC, Windows11-TestDNC ran SyncTray Release with YARP fix deployed on `cloud.kimball.home`. Results:
+**Root cause:** Our previous cleanup deleted 237 orphaned `FileChunks` DB records + blobs, but the upload session `019EF7A8` (created before cleanup) still had `ReceivedChunks=237`. When `CompleteUploadAsync` queried `FileChunks` for all 252 manifest hashes, only 45 existed → threw `ValidationException("Missing 207 chunk(s)")` → mapped to 409 Conflict. The `ReceivedChunks` counter was stale.
 
-**✅ YARP fix verified — zero 502 errors:**
-- Server: 19/19 modules Healthy, YARP `PooledConnectionLifetime` fix deployed
-- Client rebuilt with `88b951a3` (retry improvements + 502 resilience)
-- During upload of 1.17 GB PDF (252 chunks at 4 MB each), the client resumed session `019ef7a8-1b90-7fce-aaec-62f8974f6736` and uploaded **51 new chunks** (~200 MB) via HTTP PUT to the Files module through YARP — **zero 502 errors**.
+**Server fix (committed `def196b6`, deployed):**
+- `InitiateUploadAsync`: Added `ReferenceCount > 0` filter to existing-chunk query. Orphaned chunks (RefCount=0) will no longer be reported as "existing" to clients.
+- `CompleteUploadAsync`: When chunks are missing, updates `session.ReceivedChunks` to actual count and saves before throwing. Session state stays accurate for subsequent `GetSession`/`InitiateUpload` calls.
 
-**🔴 CompleteUpload 409 — ALL 5 files affected:**
-- 4 small ODT files (Test.odt, Test2.odt, Test3.odt, Checkbook Register - 2026.ods): All chunks dedup'd (HTTP 409 expected), CompleteUpload returned 409, file node not found in parent folder → stored `Guid.Empty`.
-- 1 large PDF (bb-The.Art.Of.Dejah.Thoris.And.The.Worlds.Of.Mars.Vol.2.HC.pdf): 51 new chunks uploaded successfully (HTTP 200, no 409s on individual chunks), then `CompleteUpload` returned 409. Lookup by filename in parent folder failed → stored `Guid.Empty`.
-- Web UI (`cloud.dotnetcloud.net/apps/files`) shows Documents folder with only old files. None of the newly uploaded files visible.
+**Server cleanup:**
+- 25 InProgress sessions deleted
+- 45 orphaned `FileChunks` (RefCount=0) + their blobs deleted
+- Clean state: 0 sessions, 0 orphaned chunks
 
-**Client behavior on CompleteUpload 409 (ChunkedTransferClient.cs ~line 352):**
-```csharp
-catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Conflict)
-{
-    // Deletes local upload session tracking
-    // Lists children of parent folder by name (case-insensitive)
-    // If found → stores existing NodeId
-    // If not found → stores Guid.Empty (sync engine reconciles later)
-}
-```
+**What client needs to do:** The server fix prevents stale session state going forward. The client should retry the upload — the next `InitiateUpload` will correctly identify only genuinely existing chunks, all missing chunks will be uploaded, and `CompleteUpload` should succeed.
 
-The client correctly handles the 409 but the file node genuinely doesn't exist on the server. The chunk blobs are stored (content-addressable storage), but CompleteUpload never created the file node in the parent folder.
-
-**Hypothesis:** The `CompleteUpload` endpoint on the server returns 409 (Conflict) instead of 201 (Created) even when the session wasn't previously completed. The 409 might indicate the session was already marked complete (from a previous attempt that was interrupted before the client recorded the NodeId), or the endpoint has a logic error when handling sessions that were resumed after a server restart/cleanup.
-
-**Server-side investigation needed:**
+**Optional client improvement:** The client's 409 handler (ChunkedTransferClient.cs ~line 355) treats ALL 409s as name conflicts. If chunks go missing between upload and CompleteUpload, the client gives up with `Guid.Empty`. Consider calling `GET api/v1/files/upload/{sessionId}` on 409 to check if session is still InProgress with missing chunks, then re-upload and retry.
 
 ---
 
 ### Server Actions — `cloud.kimball.home`
 
-- [ ] **Investigate CompleteUpload 409 behavior**: Check `CompleteUpload` endpoint in Files module. Why does it return 409 when all chunks are present? Is it returning 409 because the session was already marked complete? Or is there a content-hash collision? Look at server-side logs from ~20:50 UTC for `CompleteUpload` calls on session `019ef7a8-1b90-7fce-aaec-62f8974f6736`.
-- [ ] **Check if file nodes exist**: Query the files database for any file nodes created around 20:49-20:51 UTC in the Documents folder (parentId `e0504d16-83fd-4be7-8b3c-40fab83f63cd`). Are there orphaned file nodes without parent linkage? Or was the node genuinely never created?
-- [ ] **Test CompleteUpload directly**: Send a manual `POST` to `api/v1/files/upload/{sessionId}/complete` for a known-good session and check the response.
-- [ ] **Fix if needed**: If the 409 response is incorrect, update the CompleteUpload endpoint to return 201 with the created file node when chunks are successfully assembled. If the 409 is correct (file already exists), ensure the response body includes the existing node's ID so the client can record it without an additional lookup.
+- ✓ Root cause found: stale session with 237 ReceivedChunks but only 45 actual chunks
+- ✓ Server fix: `ReferenceCount > 0` filter + session state update on missing chunks
+- ✓ DB cleaned: 25 sessions + 45 orphaned chunks deleted
+- ✓ Deployed and healthy
 
 ### Client Actions — `Windows11-TestDNC`
 
-- ☐ Completed verification tasks. Awaiting server-side fix. No further client action until CompleteUpload is fixed on the server.
+- [ ] Pull `perf/synctray-scan-and-transfer-speedups`, rebuild, and retry upload
+- [ ] Files should upload successfully — server now correctly identifies existing chunks
+- [ ] Verify files appear on `cloud.dotnetcloud.net`
