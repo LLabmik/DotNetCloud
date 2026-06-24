@@ -1,3 +1,5 @@
+using DotNetCloud.Modules.Files.Models;
+
 namespace DotNetCloud.Modules.Files.DTOs;
 
 /// <summary>
@@ -165,6 +167,15 @@ public sealed record UploadSessionDto
 {
     /// <summary>Upload session ID.</summary>
     public required Guid SessionId { get; init; }
+
+    /// <summary>Total number of chunks in the upload.</summary>
+    public int TotalChunks { get; init; }
+
+    /// <summary>Number of chunks received so far.</summary>
+    public int ReceivedChunks { get; init; }
+
+    /// <summary>Current session status.</summary>
+    public UploadSessionStatus Status { get; init; }
 
     /// <summary>List of chunk hashes the server already has (skip upload for these).</summary>
     public IReadOnlyList<string> ExistingChunks { get; init; } = [];

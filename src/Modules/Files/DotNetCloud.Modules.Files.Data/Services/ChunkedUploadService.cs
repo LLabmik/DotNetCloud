@@ -134,6 +134,9 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         return new UploadSessionDto
         {
             SessionId = session.Id,
+            TotalChunks = session.TotalChunks,
+            ReceivedChunks = session.ReceivedChunks,
+            Status = session.Status,
             ExistingChunks = existingHashes,
             MissingChunks = missingHashes,
             ExpiresAt = session.ExpiresAt
@@ -577,6 +580,9 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         return new UploadSessionDto
         {
             SessionId = session.Id,
+            TotalChunks = session.TotalChunks,
+            ReceivedChunks = session.ReceivedChunks,
+            Status = session.Status,
             ExistingChunks = existingHashes,
             MissingChunks = manifest.Where(h => !existingSet.Contains(h)).ToList(),
             ExpiresAt = session.ExpiresAt
