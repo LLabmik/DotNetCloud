@@ -29,6 +29,19 @@ public sealed class FilesUploadStreamService : FilesService.FilesServiceBase
         IAsyncStreamReader<UploadFileStreamRequest> requestStream,
         ServerCallContext context)
     {
+        // TEMPORARY DEBUG: Log all HTTP headers at the gRPC handler entry point
+        // to diagnose why Authorization header isn't being found.
+        var httpContext = context.GetHttpContext();
+        var logger = httpContext.RequestServices.GetRequiredService<ILogger<FilesUploadStreamService>>();
+        logger.LogInformation("GRPC-DEBUG: ContentType={ContentType}", httpContext.Request.ContentType);
+        logger.LogInformation("GRPC-DEBUG: All headers: {Headers}",
+            string.Join(", ", httpContext.Request.Headers.Select(h => $"{h.Key}={h.Value}")));
+        logger.LogInformation("GRPC-DEBUG: Auth header: {AuthHeader}",
+            httpContext.Request.Headers["Authorization"].FirstOrDefault() ?? "(null)");
+        logger.LogInformation("GRPC-DEBUG: User.Identity.Name={Name}, IsAuthenticated={IsAuth}",
+            httpContext.User?.Identity?.Name ?? "(null)",
+            httpContext.User?.Identity?.IsAuthenticated ?? false);
+
         InitiateUploadResponse? session = null;
         InitiateUploadRequest? metadata = null;
         FilesService.FilesServiceClient? client = null;

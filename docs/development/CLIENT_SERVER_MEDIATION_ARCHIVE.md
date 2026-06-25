@@ -8,6 +8,15 @@ Archived: 2026-06-24 20:47 UTC. Full git history preserved in commits up to chan
 
 **Result:** ❌ Server-side `GetUserIdFromContext` fix did NOT resolve the issue. `"Authentication required."` persists despite client `tokenPresent=true`. Server needs debug logging to inspect headers at the gRPC handler entry point.
 
+**Server actions completed (cloud.kimball.home) — Round 2:**
+- ✓ Temporary debug logging added to `FilesUploadStreamService.UploadFileStream` to log all HTTP headers, auth header, ContentType, and user identity at handler entry point
+- ✓ Middleware ordering verified — `UseAuthentication()` + `UseAuthorization()` correctly placed inside gRPC `MapWhen` branch before `UseEndpoints()`
+- ✓ Middleware pipeline analyzed — no middleware strips the `Authorization` header before the gRPC branch
+- ✓ Deployed and hash-verified (deploy commit: `2353d4e68285`, all 15 targets succeeded)
+- ✓ All 14/14 modules healthy post-deploy
+
+**Next:** Windows11-TestDNC to re-test gRPC upload and capture server-side debug logs to determine why `Authorization` header is not reaching the gRPC handler.
+
 **Server actions completed (cloud.kimball.home):**
 - ✓ `GetUserIdFromContext` changed from `context.RequestHeaders` to `context.GetHttpContext().Request.Headers["Authorization"]`
 - ✓ `UseAuthentication()` + `UseAuthorization()` added to gRPC `MapWhen` pipeline

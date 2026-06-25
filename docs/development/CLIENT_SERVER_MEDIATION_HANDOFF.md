@@ -101,7 +101,8 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 - ✅ **Windows11-TestDNC gRPC diagnostics complete** — Rebuilt SyncTray with `HttpVersionPolicy.RequestVersionExact`, broad gRPC exception catch, and auth passed as HTTP default header. gRPC transport connects successfully (no more `RpcException`), but server's `GetUserIdFromContext` does not find the `Authorization` header. Files upload successfully via HTTP fallback. All 17 files in sync with zero errors.
 - ✅ **Server-side gRPC investigation complete** — No YARP/nginx/proxy in front. gRPC routing through public `cloud.dotnetcloud.net:443` verified working. All 14 module host gRPC endpoints functional. Client `RpcException(StatusCode="OK")` was HTTP/2 negotiation issue — server side is clean.
 - ✅ **Server-side auth fix deployed** — `GetUserIdFromContext` changed from `context.RequestHeaders` to `context.GetHttpContext().Request.Headers["Authorization"]`. `UseAuthentication()` + `UseAuthorization()` added to gRPC `MapWhen` pipeline. Deployed and hash-verified.
-- ❌ **Windows11-TestDNC verification: gRPC auth still fails** — Despite server fix, `"Authentication required."` persists. Client log confirms `tokenPresent=true` at the time of gRPC call. HTTP fallback works. The `Authorization` header is still not reaching `GetUserIdFromContext` via `GetHttpContext().Request.Headers`. Server-side debug logging needed in `FilesUploadStreamService` to inspect headers at the handler.
+- ❌ **Windows11-TestDNC verification: gRPC auth still fails** — Despite server fix, `"Authentication required."` persists. Client log confirms `tokenPresent=true` at the time of gRPC call. HTTP fallback works. The `Authorization` header is still not reaching `GetUserIdFromContext` via `GetHttpContext().Request.Headers`. Server-side debug logging added and deployed.
+- ✅ **Round 2 server-side investigation complete** — Debug logging added to `FilesUploadStreamService.UploadFileStream` (logs all headers, auth header, ContentType, User identity). Middleware ordering verified correct. No middleware strips `Authorization` before gRPC branch. Deployed and hash-verified. All 14/14 modules healthy.
 - All prior Phase 2, chat, pre-Linux sync remediation, SyncTray icon enhancement, VFS work complete and archived.
 
 ## Environment
@@ -126,58 +127,44 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** Windows11-TestDNC verified server-side gRPC auth fix — still fails. Despite `GetUserIdFromContext` being changed to read from `context.GetHttpContext().Request.Headers["Authorization"]`, the server continues to return `"Authentication required."`. Client confirms `tokenPresent=true` at time of gRPC call. The `Authorization` header is not reaching the gRPC handler's `HttpContext` even after `UseAuthentication()` + `UseAuthorization()` were added to the pipeline. Server needs to add temporary debug logging in `FilesUploadStreamService` to inspect `GetHttpContext().Request.Headers` at the handler entry point.
+**Summary:** Server-side debug logging deployed to `FilesUploadStreamService`. Windows11-TestDNC needs to re-test gRPC upload and inspect the server-side `GRPC-DEBUG` log entries to determine why the `Authorization` header is not reaching the gRPC handler.
 
-**Windows11-TestDNC verification results:**
-- ✅ Pulled latest from `perf/synctray-scan-and-transfer-speedups`
-- ✅ `EnableGrpcStreaming` default changed to `true` in `ChunkedTransferClient` (redundant with `SyncContextManager` setting, but ensures all consumers use gRPC)
-- ✅ SyncTray rebuilt and published to `C:\Users\benk\synctray-bin\`
-- ✅ Test file created, sync detected, gRPC upload attempted
-- ✅ `[20:46:54 INF] gRPC UploadFileStream: baseUrl=https://cloud.dotnetcloud.net/, tokenPresent=true` — auth token present on client
-- ❌ `[20:46:54 WRN] gRPC upload failed for grpc-test-file.txt: Upload failed: Authentication required.` — server still rejects
-- ✅ HTTP fallback works — file uploaded successfully via HTTP chunked upload
-- ✅ All 18 files in sync (17 existing + 1 test file), test file cleaned up
+**What changed on the server (cloud.kimball.home):**
+- ✓ Temporary debug logging added at the top of `UploadFileStream` in `FilesUploadStreamService` — logs `ContentType`, all HTTP headers, auth header value, and `User.Identity` info
+- ✓ Middleware ordering verified — `UseAuthentication()` + `UseAuthorization()` correctly placed inside gRPC `MapWhen` branch before `UseEndpoints()`
+- ✓ Full middleware pipeline analyzed — no middleware strips the `Authorization` header before it reaches the gRPC branch
+- ✓ `FilesUploadStreamService` is in `Core.Server` (not `Files.Host`) — confirmed correct deployment
+- ✓ Deployed and hash-verified — deployed DLL hash matches publish output
+- ✓ All 14/14 modules healthy post-deploy
+- ⬜ `grpcurl` test TBD (requires JWT token acquisition — not yet done)
 
-**Key diagnostic evidence:**
-```
-[20:46:54 INF] gRPC UploadFileStream: baseUrl=https://cloud.dotnetcloud.net/, tokenPresent=true
-[20:46:54 WRN] gRPC upload failed for grpc-test-file.txt: Upload failed: Authentication required.. Falling back to HTTP chunked upload.
-System.InvalidOperationException: Upload failed: Authentication required.
-   at DotNetCloud.Client.Core.Api.DotNetCloudApiClient.UploadFileStreamAsync(...)
-   at DotNetCloud.Client.Core.Transfer.ChunkedTransferClient.UploadAsync(...)
-```
+**Key findings from investigation:**
+1. The `GetUserIdFromContext` fix (reading from `GetHttpContext().Request.Headers["Authorization"]`) IS deployed and hash-verified
+2. The middleware ordering inside the gRPC `MapWhen` branch is correct (`UseRouting` → `UseAuthentication` → `UseAuthorization` → endpoints)
+3. None of the middleware running before the gRPC `MapWhen` branch (ForwardedHeaders, ResponseCompression, RequestCorrelation, SecurityHeaders, GlobalExceptionHandler, CORS, etc.) strips or modifies the `Authorization` header
+4. The `Authorization` header should be arriving via HTTP/2 HEADERS frame — but something is preventing it from being visible to `GetHttpContext().Request.Headers`
 
-The client's `InvalidOperationException` with message `"Authentication required."` originates from the server's `FilesUploadStreamService` — the gRPC handler itself returns this error because `GetUserIdFromContext` cannot find the `Authorization` header.
-
-**Possible explanations for why the fix didn't work:**
-1. The deployed binary may still be stale — the `MapWhen` pipeline change might not have been picked up
-2. `GetHttpContext().Request.Headers["Authorization"]` might still be empty at the point `GetUserIdFromContext` runs (before middleware populates it)
-3. The gRPC `MapWhen` branch might not be going through `UseAuthentication()` despite being added — check middleware ordering
-4. The `FilesUploadStreamService` is in `Files.Host` module, not `Core.Server` — maybe the module's publish output was not deployed
+**What debug logging will reveal:**
+The server now logs at `Information` level with prefix `GRPC-DEBUG:`:
+- `GRPC-DEBUG: ContentType=...` — confirms gRPC content type matching
+- `GRPC-DEBUG: All headers: ...` — complete list of headers arriving at handler
+- `GRPC-DEBUG: Auth header: ...` — the raw `Authorization` header value (or `(null)`)
+- `GRPC-DEBUG: User.Identity.Name=..., IsAuthenticated=...` — whether `UseAuthentication()` populated the user
 
 ---
 
 ### Server Actions — `cloud.kimball.home`
 
-- ❌ **Server-side auth fix did NOT resolve the issue** — `"Authentication required."` persists
-- [ ] **Add temporary debug logging in `FilesUploadStreamService`** at the handler entry point:
-  ```csharp
-  var httpContext = context.GetHttpContext();
-  var logger = httpContext.RequestServices.GetRequiredService<ILogger<FilesUploadStreamService>>();
-  logger.LogInformation("gRPC request headers: {Headers}", string.Join(", ", httpContext.Request.Headers.Select(h => $"{h.Key}={h.Value}")));
-  logger.LogInformation("gRPC auth header: {AuthHeader}", httpContext.Request.Headers["Authorization"].FirstOrDefault() ?? "(null)");
-  logger.LogInformation("gRPC user identity: {Identity}, IsAuthenticated: {IsAuth}", httpContext.User?.Identity?.Name ?? "(null)", httpContext.User?.Identity?.IsAuthenticated ?? false);
-  ```
-- [ ] **Verify middleware ordering** — ensure `UseAuthentication()` runs BEFORE the gRPC endpoint in the `MapWhen` pipeline
-- [ ] **Verify deployment** — confirm `Files.Host` module DLL was actually replaced (not just `Core.Server`)
-- [ ] **Test with grpcurl from server machine** using a known-good JWT:
-  ```bash
-  grpcurl -insecure -H "Authorization: Bearer <token>" localhost:50359 dotnetcloud.files.FilesService/UploadFileStream
-  ```
-- [ ] Once fixed, deploy and relay to `Windows11-TestDNC` for re-verification
+- ✓ Debug logging added and deployed
+- ✓ Middleware ordering verified
+- ✓ Deployment hash-verified
+- [ ] Wait for Windows11-TestDNC verification results — check server logs for `GRPC-DEBUG` entries after client runs a gRPC test
+- [ ] Based on findings, determine root cause and fix
 
 ### Client Actions — `Windows11-TestDNC`
 
-- ✓ Server-side auth fix verification complete — gRPC still fails with `"Authentication required."`
-- ✓ `EnableGrpcStreaming = true` default set in `ChunkedTransferClient`
-- ✓ Findings documented — awaiting server-side debug logging deployment
+- [ ] Pull latest from `perf/synctray-scan-and-transfer-speedups`
+- [ ] Rebuild SyncTray and test gRPC upload again
+- [ ] After test, provide the **server-side log output** showing the `GRPC-DEBUG:` entries (from `cloud.dotnetcloud.net` server logs)
+  - Key data points needed: Does `ContentType` contain `application/grpc`? Is `Authorization` header present in the full headers list? Is `User.Identity.IsAuthenticated` true?
+- [ ] Document findings and relay back to cloud.kimball.home
