@@ -38,6 +38,36 @@ Archived: 2026-06-24 23:30 UTC. Full git history preserved in commits up to chan
 
 **Result:** ✅ Root cause identified. The JWT tokens are JWE-encrypted. `JwtSecurityTokenHandler.ReadJwtToken()` cannot read inner claims from JWE tokens — `jwt.Subject` is always `null`. HTTP fallback works.
 
+---
+
+## Archived: Windows11-TestDNC GRPC-AUTH-DEBUG Complete — Downstream Module gRPC Auth (2026-06-24)
+
+**Target:** Windows11-TestDNC (client verification) → cloud.kimball.home (server fix)
+
+**Result:** ✅ `sub` claim IS present. `GetUserIdFromContext` works correctly (`FindFirst("sub")` returns `587d777a-4793-4248-2184-08deb47250fa`). Root cause shifted: downstream gRPC call from Core.Server → Files module host has `UnsafeUseInsecureChannelCallCredentials = true` — no credentials forwarded. Files module gRPC `InitiateUpload` rejects unauthenticated caller.
+
+**What happened:**
+- ✓ Pulled latest commit `f93eddbd` (GRPC-AUTH-DEBUG logging added)
+- ✓ Rebuilt SyncTray Release — build succeeded
+- ✓ Started SyncTray, created test file `Test.txt` in `C:\Users\benk\synctray`
+- ✓ Local log: `gRPC UploadFileStream: baseUrl=https://cloud.dotnetcloud.net/, tokenPresent=true`
+- ✓ Server log: 3 GRPC-AUTH-DEBUG entries at 01:44:19, 01:44:23, 01:44:29
+- ✓ **GRPC-AUTH-DEBUG output:**
+  ```
+  IsAuthenticated=True, AuthenticationType=AuthenticationTypes.Federation, ClaimCount=23
+  sub=587d777a-4793-4248-2184-08deb47250fa  ← PRESENT
+  NameIdentifier=(not found)                 ← absent but irrelevant
+  ```
+- ✓ Server log shows InitiateUpload gRPC call to files module → 200 (0.7563ms)
+- ✓ No `UploadFileStream failed` error log on server — the catch block never ran
+- ✓ Client caught `InvalidOperationException("Upload failed: Authentication is required.")` — from `ResponseEnvelopeMiddleware.cs:340` (401 mapping)
+- ✓ HTTP fallback succeeded — file uploaded and verified
+
+**Root cause:**
+`GetUserIdFromContext` returns the user ID correctly. But the downstream gRPC call to the Files module host (`client.InitiateUploadAsync()` via gRPC channel with `UnsafeUseInsecureChannelCallCredentials = true`) is rejected because the Files module's gRPC endpoint requires authentication. The error `"Authentication is required."` propagates as `session.ErrorMessage` from the module's response.
+
+**Handoff:** `f93eddbd` — New handoff for cloud.kimball.home. Pull and check Active Handoff. Need to fix downstream gRPC auth forwarding from Core.Server to Files module host.
+
 **Client actions completed (Windows11-TestDNC):**
 - ✓ Pulled latest (`169012b0`), rebuilt SyncTray — build succeeded
 - ✓ Created test file `grpc-test-grpc-debug.txt`, sync triggered gRPC upload attempt

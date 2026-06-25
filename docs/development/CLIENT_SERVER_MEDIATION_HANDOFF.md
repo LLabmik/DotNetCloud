@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-25 05:00 UTC (Windows11-TestDNC: gRPC auth still fails after server fix. Claims principal lacks "sub"/NameIdentifier in gRPC pipeline. 32 client tests fixed.)
+Last updated: 2026-06-25 05:45 UTC (Windows11-TestDNC: GRPC-AUTH-DEBUG complete. `sub` claim IS present (FindFirst works). Root cause: downstream Files module gRPC rejects unauthenticated internal calls.)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -110,7 +110,8 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
   - **Root cause identified:** `GetUserIdFromContext` parses JWT with `JwtSecurityTokenHandler.ReadJwtToken()` and returns `jwt.Subject` — but the tokens are **JWE (encrypted)** tokens (`alg=RSA-OAEP, enc=A256CBC-HS512`). `ReadJwtToken()` cannot read inner claims from JWE, so `jwt.Subject` is always `null`.
   - **Fix:** Use `httpContext.User.FindFirst("sub")` instead — the `UseAuthentication()` middleware has already decrypted the JWE and populated claims. This matches the pattern used by every other controller in the codebase.
 - ✅ **Server-side GetUserIdFromContext fix deployed** — Replaced `JwtSecurityTokenHandler.ReadJwtToken()` with `httpContext.User.FindFirst("sub")`. Auth middleware already decrypts JWE and populates claims. GRPC-DEBUG logging removed. Deployed commit `1c1cf088`. All 14/14 modules healthy. Hash-verified.
-- ❌ **Windows11-TestDNC re-test: gRPC auth STILL fails** — Despite the exact same `FindFirst("sub") ?? FindFirst(ClaimTypes.NameIdentifier)` pattern used by all controllers, `GetUserIdFromContext` returns `null` in the gRPC pipeline. The claims principal is missing both "sub" and `ClaimTypes.NameIdentifier` claims. Requires server-side investigation of OpenIddict validation claims in the `MapWhen` gRPC branch.
+- ✅ **Windows11-TestDNC GRPC-AUTH-DEBUG complete** — `sub` claim IS present (`sub=587d777a-4793-4248-2184-08deb47250fa`). `GetUserIdFromContext` works correctly. `NameIdentifier` absent but irrelevant.
+- ❌ **Root cause: downstream module gRPC auth** — Core.Server creates gRPC channel to Files module host with `UnsafeUseInsecureChannelCallCredentials = true` (no credentials forwarded). The Files module's gRPC `InitiateUpload`/`UploadChunk`/`CompleteUpload` handlers reject unauthenticated calls. Error `"Authentication is required."` comes from Files module, not from `GetUserIdFromContext`. HTTP fallback works.
 - ✅ **32 client tests fixed** — 263 passed, 1 skipped (Linux-only), 0 failed.
 - All prior Phase 2, chat, pre-Linux sync remediation, SyncTray icon enhancement, VFS work complete and archived.
 
@@ -136,7 +137,7 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** Windows11-TestDNC re-test complete. gRPC upload STILL fails ("Authentication required.") despite server-side fix — `GetUserIdFromContext` claims extraction not finding "sub" or `ClaimTypes.NameIdentifier` in gRPC-context `HttpContext.User`. HTTP fallback works correctly. Client tests fixed (32→0 failures, 263 passed, 1 skipped). Server agent needs to investigate why claims principal lacks "sub"/NameIdentifier in the gRPC pipeline.
+**Summary:** Windows11-TestDNC verification complete. `sub` claim IS present in gRPC pipeline (`sub=587d777a-4793-4248-2184-08deb47250fa`). `GetUserIdFromContext` works correctly. Root cause identified: downstream gRPC call from Core.Server → Files module host (`InitiateUpload`/`UploadChunk`) fails because `UnsafeUseInsecureChannelCallCredentials = true` — no credentials forwarded. Error message changed from `"Authentication required."` (old null check) to `"Authentication is required."` (downstream module rejection — `ResponseEnvelopeMiddleware.cs:340`). Server agent needs to fix downstream gRPC auth forwarding or make module gRPC handlers accept unauthenticated calls (userId already in request body).
 
 ---
 
@@ -147,24 +148,21 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 - ✓ Remove unused `using System.IdentityModel.Tokens.Jwt` — done
 - ✓ Build & test — `dotnet build` succeeded (0 errors, 0 warnings), 575/575 server tests passed
 - ✓ Deploy to cloud.dotnetcloud.net — `sudo ./scripts/deploy.sh` completed. All 14/14 modules healthy
-- ✓ Hash verification — deployed DLL matches build output (`cd4aa0608ffe586350ba1d13223d59b6`)
-- ✅ **Investigate gRPC claims principal**: Added comprehensive debug logging to `GetUserIdFromContext` that enumerates ALL claims on `httpContext.User` (types + values), authentication status, authentication type, and specifically checks for "sub" and `ClaimTypes.NameIdentifier`. Logged at `Information` level with prefix `GRPC-AUTH-DEBUG`.
-  - **Hypothesis A**: OpenIddict validation via `UseLocalServer()` + `UseAspNetCore()` inside `MapWhen` should produce the same ClaimsPrincipal as the non-gRPC pipeline (same scheme forwarded by `DotNetCloud.Policy` selector — Bearer → `OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme`).
-  - **Hypothesis B**: `IClaimsTransformation` (DotNetCloudClaimsTransformation) is registered as `AddScoped` and runs as part of `UseAuthentication()` in the gRPC branch. If the principal lacks `"sub"`/`NameIdentifier` at the auth middleware level, the transformation short-circuits (returns principal unchanged). So the issue is likely at the OpenIddict validation output level, not the transformation.
-  - **Key unknowns**: What claim types does OpenIddict produce in the `MapWhen` branch? Are they different claim URIs? Is `"sub"` mapped to a different claim type by the ASP.NET Core OpenIddict integration inside `MapWhen`?
-  - Debug logging deployed in commit `bf7b5862`. Hash-verified. All 14/14 modules healthy.
-- [ ] **Re-test gRPC upload from Windows11-TestDNC**: Rebuild SyncTray, re-test gRPC upload. Check server logs for `GRPC-AUTH-DEBUG` entries to see what claims the principal contains in the gRPC pipeline. Relay findings back to `cloud.kimball.home` via handoff.
+- ✓ Hash verification — deployed DLL matches build output
+- ✅ GRPC-AUTH-DEBUG confirms `sub` is present — `FindFirst("sub")` returns `587d777a-4793-4248-2184-08deb47250fa`. Claim is `sub` (not a different URI). `NameIdentifier` is absent but irrelevant. All prior hypotheses about missing claims are disproven.
+- [ ] **Fix downstream gRPC auth for Files module host**: Core.Server creates gRPC channel to Files module with `UnsafeUseInsecureChannelCallCredentials = true` (no credentials). The Files module's gRPC `InitiateUpload`/`UploadChunk`/`CompleteUpload` handlers reject unauthenticated calls. Two options:
+  - **Option A**: Forward the client's Bearer token on the downstream gRPC channel (via `CallCredentials` or set auth header on the `SocketsHttpHandler` used by the internal gRPC channel to the Files module). See `src/Core/DotNetCloud.Core.Server/Grpc/Services/FilesUploadStreamService.cs` line ~43-49.
+  - **Option B**: Make the Files module host's gRPC `InitiateUpload`/`UploadChunk`/`CompleteUpload` handlers `[AllowAnonymous]` since `userId` is already in the request body. Check Files module's gRPC service class for `[Authorize]` attribute.
+- [ ] Remove GRPC-AUTH-DEBUG logging from `GetUserIdFromContext` once downstream auth is fixed (4 `_logger.LogInformation` lines)
+- [ ] Build & test: `dotnet build`
+- [ ] Deploy: `sudo ./scripts/deploy.sh`
 
 ### Client Actions — `Windows11-TestDNC`
 
-- ✓ Pull latest
-- ✓ Rebuild SyncTray
-- ✓ Re-test gRPC upload — **FAILED**: `GetUserIdFromContext` still returns `null`, producing `"Authentication required."` error. Code pattern matches all controllers (`FindFirst("sub") ?? FindFirst(ClaimTypes.NameIdentifier)`), but neither claim exists on the principal in the gRPC branch. See investigation notes above for server-side leads.
-- ✓ Verify files appear correctly on `cloud.dotnetcloud.net` — HTTP fallback works; test file `grpc-test-postfix-20260625-045356.txt` (93 bytes) uploaded successfully.
-- ✓ **Fixed 32 failing client tests** (from 32→0 failures, 263 passed, 1 skipped):
-  - **Root cause (28 sync tests):** Missing `GetActiveUploadSessionsAsync` mock setup in `TestInitialize` — Moq returned `null`, causing NRE on `.Select(s => s.LocalPath)` in `ScanLocalDirectoryAsync` at line 459, silently swallowed by sync engine's catch block.
-  - **Fix:** Added `_stateDbMock.Setup(db => db.GetActiveUploadSessionsAsync(...)).ReturnsAsync(Array.Empty<ActiveUploadSessionRecord>())` to `SyncEngineTests.Initialize()`.
-  - **Retry count mismatch (2 tests):** `UploadAsync_NetworkErrorExhaustsRetries_Throws` and `DownloadAsync_ChunkHashAlwaysMismatch_ThrowsChunkIntegrityException` expected `Times.Exactly(3)` but `ChunkUploadMaxRetries` and `ChunkDownloadMaxAttempts` were bumped to 6. Updated verifications to `Times.Exactly(6)`.
-  - **API route change (1 test):** `ListChildrenAsync_NullFolder_CallsRootEndpoint` expected `root/children` but route changed to `api/v1/files`. Updated assertion.
-  - **Linux-only test (1 test):** `FuseSyncFilesystem_ClassExists_OnLinux` fails on Windows. Added `if (!OperatingSystem.IsLinux()) return;` guard.
-  - Run: `dotnet test tests/DotNetCloud.Client.Core.Tests/ -c Release` — result: 263 passed, 1 skipped, 0 failed.
+- ✓ Pull latest (`f93eddbd` — GRPC-AUTH-DEBUG logging)
+- ✓ Rebuild SyncTray — `dotnet build src\Clients\DotNetCloud.Client.SyncTray.csproj -c Release` succeeded
+- ✓ Re-test gRPC upload — **test file `Test.txt` triggered gRPC via SyncTray**. Local log confirms `tokenPresent=true`. Server GRPC-AUTH-DEBUG logs captured.
+- ✓ **GRPC-AUTH-DEBUG findings**: `sub=587d777a-4793-4248-2184-08deb47250fa` ✅ — `FindFirst("sub")` works. `NameIdentifier=(not found)`. All 23 claims enumerated (name, email, client_id, scope, oi_scp entries, dnc:locale, dnc:tz).
+- ✓ **Root cause identified**: Not a claims principal issue. The error changed from `"Authentication required."` (old) to `"Authentication is required."` (new — from `ResponseEnvelopeMiddleware.cs:340` 401 mapping). The `GetUserIdFromContext` returns the user ID successfully. The failure is in the downstream gRPC call from Core.Server → Files module host (`client.InitiateUploadAsync()` / `client.UploadChunkAsync()`) which has no auth credentials forwarded.
+- ✓ HTTP fallback works — file uploaded successfully via REST API. Files verified on `cloud.dotnetcloud.net`.
+- [ ] After server deploys fix, rebuild SyncTray and re-test gRPC upload. Trigger by creating a file in `C:\Users\benk\synctray`.
