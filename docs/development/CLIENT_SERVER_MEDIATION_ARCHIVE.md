@@ -4793,3 +4793,26 @@ Full handoff content from commit `93ea47a5` — documented the 5-fix chain (307 
 - ✅ Zero 502 errors during large file upload (51 chunks, ~200 MB uploaded in one pass)
 - ❌ NEW ISSUE: CompleteUpload returns 409 and file node not created in parent folder — see Active Handoff
 
+
+---
+
+## Archived: gRPC Streaming Upload — Full Auth + CompleteUpload Fix (2026-06-25)
+
+**Target:** cloud.kimball.home (server fixes) → Windows11-TestDNC (client verification)
+
+**Result:** ✅ gRPC upload fully functional for both new files and existing file updates.
+
+**Summary of server-side fixes:**
+
+1. **GetUserIdFromContext fix** (commit `1c1cf088`): Replaced `ReadJwtToken()` with `httpContext.User.FindFirst("sub")` — JWE tokens incompatible with `ReadJwtToken`.
+
+2. **Downstream gRPC auth forwarding** (commit `96f4736a`): Forward Bearer token from incoming client gRPC context to Files module host's `InitiateUpload`/`UploadChunk`/`CompleteUpload` calls. Previously `UnsafeUseInsecureChannelCallCredentials = true` sent no credentials.
+
+3. **CompleteUpload existing-file fix** (commit `99d5bb42`): `FilesGrpcService.CompleteUpload` now detects existing files by `Name`+`ParentId`+`OwnerId` collision and version-bumps instead of always creating a new `FileNode` (which violated unique index `uq_file_nodes_parent_name_active`).
+
+**Debugging trail:**
+- GRPC-DEBUG logging: confirmed `Authorization` header present, user authenticated
+- GRPC-AUTH-DEBUG logging: confirmed `sub=587d777a-4793-4248-2184-08deb47250fa` claim present
+- Root cause identified: downstream module gRPC rejects unauthenticated calls
+- 32 client tests fixed (missing mock, retry count, route assertion, Linux guard)
+

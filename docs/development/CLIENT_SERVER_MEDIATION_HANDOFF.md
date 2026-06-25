@@ -92,30 +92,9 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Current Status
 
-- ✅ **gRPC streaming upload deployed** — `FilesUploadStreamService` mapped, responds `"Authentication required."` (not UNIMPLEMENTED). All 14/14 modules healthy.
-- ✅ **YARP 502 fix verified** — zero 502 errors during large file upload (previous session). Server deployed (19/19 Healthy).
-- ✅ **429 fix** verified on `Windows11-TestDNC`.
-- ✅ **Client resilience improved**: `ChunkUploadMaxRetries` 3→6, 502-specific backoff, 404-on-resume cleanup for stale sessions.
-- ✅ **Server cleanup**: 62 orphaned upload sessions + 237 orphaned chunk blobs cleaned.
-- ✅ **Windows11-TestDNC upload test complete** — All 5 test files (4 ODTs + 1.17GB PDF) synced and verified on `cloud.dotnetcloud.net`. gRPC attempted but falls back to HTTP; gRPC StatusCode=OK diagnostic captured.
-- ✅ **Windows11-TestDNC gRPC diagnostics complete** — Rebuilt SyncTray with `HttpVersionPolicy.RequestVersionExact`, broad gRPC exception catch, and auth passed as HTTP default header. gRPC transport connects successfully (no more `RpcException`), but server's `GetUserIdFromContext` does not find the `Authorization` header. Files upload successfully via HTTP fallback. All 17 files in sync with zero errors.
-- ✅ **Server-side gRPC investigation complete** — No YARP/nginx/proxy in front. gRPC routing through public `cloud.dotnetcloud.net:443` verified working. All 14 module host gRPC endpoints functional. Client `RpcException(StatusCode="OK")` was HTTP/2 negotiation issue — server side is clean.
-- ✅ **Server-side auth fix deployed** — `GetUserIdFromContext` changed from `context.RequestHeaders` to `context.GetHttpContext().Request.Headers["Authorization"]`. `UseAuthentication()` + `UseAuthorization()` added to gRPC `MapWhen` pipeline. Deployed and hash-verified.
-- ❌ **Windows11-TestDNC verification: gRPC auth still fails** — Despite server fix, `"Authentication required."` persists. Client log confirms `tokenPresent=true` at the time of gRPC call. HTTP fallback works. The `Authorization` header is still not reaching `GetUserIdFromContext` via `GetHttpContext().Request.Headers`. Server-side debug logging added and deployed.
-- ✅ **Round 2 server-side investigation complete** — Debug logging added to `FilesUploadStreamService.UploadFileStream` (logs all headers, auth header, ContentType, User identity). Middleware ordering verified correct. No middleware strips `Authorization` before gRPC branch. Deployed and hash-verified. All 14/14 modules healthy.
-- ✅ **Windows11-TestDNC verification with GRPC-DEBUG logs complete** — Debug logs reveal:
-  - `ContentType=application/grpc` ✅ — gRPC content type matches correctly
-  - `Authorization=Bearer <JWE>` ✅ — Auth header IS present in HTTP/2 headers
-  - `User.Identity.Name=Ben Kimball, IsAuthenticated=True` ✅ — Auth middleware IS authenticating the user successfully
-  - **Root cause identified:** `GetUserIdFromContext` parses JWT with `JwtSecurityTokenHandler.ReadJwtToken()` and returns `jwt.Subject` — but the tokens are **JWE (encrypted)** tokens (`alg=RSA-OAEP, enc=A256CBC-HS512`). `ReadJwtToken()` cannot read inner claims from JWE, so `jwt.Subject` is always `null`.
-  - **Fix:** Use `httpContext.User.FindFirst("sub")` instead — the `UseAuthentication()` middleware has already decrypted the JWE and populated claims. This matches the pattern used by every other controller in the codebase.
-- ✅ **Server-side GetUserIdFromContext fix deployed** — Replaced `JwtSecurityTokenHandler.ReadJwtToken()` with `httpContext.User.FindFirst("sub")`. Auth middleware already decrypts JWE and populates claims. GRPC-DEBUG logging removed. Deployed commit `1c1cf088`. All 14/14 modules healthy. Hash-verified.
-- ✅ **Windows11-TestDNC GRPC-AUTH-DEBUG complete** — `sub` claim IS present (`sub=587d777a-4793-4248-2184-08deb47250fa`). `GetUserIdFromContext` works correctly. `NameIdentifier` absent but irrelevant.
-- ❌ **Root cause: downstream module gRPC auth** — Core.Server creates gRPC channel to Files module host with `UnsafeUseInsecureChannelCallCredentials = true` (no credentials forwarded). The Files module's gRPC `InitiateUpload`/`UploadChunk`/`CompleteUpload` handlers reject unauthenticated calls. Error `"Authentication is required."` comes from Files module, not from `GetUserIdFromContext`. HTTP fallback works.
-- ✅ **32 client tests fixed** — 263 passed, 1 skipped (Linux-only), 0 failed.
 - ✅ **Downstream gRPC auth fix deployed** — `FilesUploadStreamService.cs` now extracts the `Authorization` header from the incoming client gRPC context and forwards it as metadata to the Files module host's `InitiateUploadAsync`/`UploadChunkAsync`/`CompleteUploadAsync` calls. GRPC-AUTH-DEBUG logging removed. Deployed and hash-verified (`b2e2a317`). All modules healthy (files: Healthy).
 - ✅ **gRPC CompleteUpload existing-file fix deployed** — `FilesGrpcService.CompleteUpload` now detects existing files by `Name`+`ParentId`+`OwnerId` collision and version-bumps (updates `Size`, `ContentHash`, `StoragePath`, `CurrentVersion++`) instead of always creating a new `FileNode`. Quota delta calculated correctly (full size for new, delta for update). Previously crashed with `DbUpdateException` (unique index `uq_file_nodes_parent_name_active` violation) on existing-file update. Build: 0 errors, 0 warnings. Tests: 0 failed (734 Files tests passed). Deployed and hash-verified. All 14/14 modules healthy.
-- All prior Phase 2, chat, pre-Linux sync remediation, SyncTray icon enhancement, VFS work complete and archived.
+- All prior Phase 2, chat, pre-Linux sync remediation, SyncTray icon enhancement, VFS work, gRPC auth debugging, and YARP 502 fix work complete and archived.
 
 ## Environment
 
