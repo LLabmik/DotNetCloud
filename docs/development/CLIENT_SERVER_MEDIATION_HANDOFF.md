@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-24 23:47 UTC (cloud.kimball.home: GetUserIdFromContext fixed — replaced ReadJwtToken with claims-based pattern. Deployed and hash-verified. Windows11-TestDNC needs re-test.)
+Last updated: 2026-06-25 05:00 UTC (Windows11-TestDNC: gRPC auth still fails after server fix. Claims principal lacks "sub"/NameIdentifier in gRPC pipeline. 32 client tests fixed.)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -110,6 +110,8 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
   - **Root cause identified:** `GetUserIdFromContext` parses JWT with `JwtSecurityTokenHandler.ReadJwtToken()` and returns `jwt.Subject` — but the tokens are **JWE (encrypted)** tokens (`alg=RSA-OAEP, enc=A256CBC-HS512`). `ReadJwtToken()` cannot read inner claims from JWE, so `jwt.Subject` is always `null`.
   - **Fix:** Use `httpContext.User.FindFirst("sub")` instead — the `UseAuthentication()` middleware has already decrypted the JWE and populated claims. This matches the pattern used by every other controller in the codebase.
 - ✅ **Server-side GetUserIdFromContext fix deployed** — Replaced `JwtSecurityTokenHandler.ReadJwtToken()` with `httpContext.User.FindFirst("sub")`. Auth middleware already decrypts JWE and populates claims. GRPC-DEBUG logging removed. Deployed commit `1c1cf088`. All 14/14 modules healthy. Hash-verified.
+- ❌ **Windows11-TestDNC re-test: gRPC auth STILL fails** — Despite the exact same `FindFirst("sub") ?? FindFirst(ClaimTypes.NameIdentifier)` pattern used by all controllers, `GetUserIdFromContext` returns `null` in the gRPC pipeline. The claims principal is missing both "sub" and `ClaimTypes.NameIdentifier` claims. Requires server-side investigation of OpenIddict validation claims in the `MapWhen` gRPC branch.
+- ✅ **32 client tests fixed** — 263 passed, 1 skipped (Linux-only), 0 failed.
 - All prior Phase 2, chat, pre-Linux sync remediation, SyncTray icon enhancement, VFS work complete and archived.
 
 ## Environment
@@ -134,7 +136,7 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** Server fix deployed — `GetUserIdFromContext` now uses `httpContext.User.FindFirst("sub")` instead of `JwtSecurityTokenHandler.ReadJwtToken()`. GRPC-DEBUG logging removed. Ready for Windows11-TestDNC re-test.
+**Summary:** Windows11-TestDNC re-test complete. gRPC upload STILL fails ("Authentication required.") despite server-side fix — `GetUserIdFromContext` claims extraction not finding "sub" or `ClaimTypes.NameIdentifier` in gRPC-context `HttpContext.User`. HTTP fallback works correctly. Client tests fixed (32→0 failures, 263 passed, 1 skipped). Server agent needs to investigate why claims principal lacks "sub"/NameIdentifier in the gRPC pipeline.
 
 ---
 
@@ -146,18 +148,22 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 - ✓ Build & test — `dotnet build` succeeded (0 errors, 0 warnings), 575/575 server tests passed
 - ✓ Deploy to cloud.dotnetcloud.net — `sudo ./scripts/deploy.sh` completed. All 14/14 modules healthy
 - ✓ Hash verification — deployed DLL matches build output (`cd4aa0608ffe586350ba1d13223d59b6`)
+- [ ] **Investigate gRPC claims principal**: Add debug logging to `GetUserIdFromContext` to enumerate all claims available on `httpContext.User` (claim types and values). The auth middleware authenticates the user (confirmed `IsAuthenticated=True` in prior GRPC-DEBUG), but neither `"sub"` nor `ClaimTypes.NameIdentifier` is found. Investigate whether OpenIddict validation via `MapWhen` gRPC branch produces different claim types than the controller pipeline.
+  - Check: Is `UseLocalServer()` + `UseAspNetCore()` inside `MapWhen` producing the same `ClaimsPrincipal` as the non-gRPC pipeline?
+  - Check: Does `IClaimsTransformation` (DotNetCloudClaimsTransformation) run inside the gRPC `MapWhen` branch's `UseAuthentication()`?
+  - **Do NOT remove debug logging** — commit and deploy so Windows11-TestDNC can capture the output in a subsequent re-test.
+- [ ] If root cause identified, fix `GetUserIdFromContext` and re-deploy.
 
 ### Client Actions — `Windows11-TestDNC`
 
-- [ ] Pull latest (`26221032`)
-- [ ] Rebuild SyncTray
-- [ ] Re-test gRPC upload to confirm `GetUserIdFromContext` fix resolves the `"Authentication required."` error
-- [ ] If successful, verify files appear correctly on `cloud.dotnetcloud.net`
-- [ ] **Investigate and fix 33 failing client tests** (pre-existing, observed during `dotnet test DotNetCloud.CI.slnf -c Release`):
-  - All 33 failures in `DotNetCloud.Client.Core.Tests.dll` (231 passed, 33 failed)
-  - Named examples seen:
-    - `SyncAsync_ReverseReconciliation_LocallyModifiedFile_KeepsAndReUploads` — `Moq.MockException: Expected invocation once, but was 0 times: db => db.QueueOperationsBatchAsync`
-    - `SyncAsync_UntrackedFilesNotOnServer_QueuedForUpload` — `Moq.MockException: Expected invocation once, but was 0 times: db => db.QueueOperationsBatchAsync`
-    - `ListChildrenAsync_NullFolder_CallsRootEndpoint` — `StringAssert.Contains failed: '/api/v1/files' does not contain 'root/children'`
-  - Likely causes: API route changes or sync engine refactors that didn't update mock expectations
-  - Run: `dotnet test tests/DotNetCloud.Client.Core.Tests/ -c Release` to reproduce
+- ✓ Pull latest
+- ✓ Rebuild SyncTray
+- ✓ Re-test gRPC upload — **FAILED**: `GetUserIdFromContext` still returns `null`, producing `"Authentication required."` error. Code pattern matches all controllers (`FindFirst("sub") ?? FindFirst(ClaimTypes.NameIdentifier)`), but neither claim exists on the principal in the gRPC branch. See investigation notes above for server-side leads.
+- ✓ Verify files appear correctly on `cloud.dotnetcloud.net` — HTTP fallback works; test file `grpc-test-postfix-20260625-045356.txt` (93 bytes) uploaded successfully.
+- ✓ **Fixed 32 failing client tests** (from 32→0 failures, 263 passed, 1 skipped):
+  - **Root cause (28 sync tests):** Missing `GetActiveUploadSessionsAsync` mock setup in `TestInitialize` — Moq returned `null`, causing NRE on `.Select(s => s.LocalPath)` in `ScanLocalDirectoryAsync` at line 459, silently swallowed by sync engine's catch block.
+  - **Fix:** Added `_stateDbMock.Setup(db => db.GetActiveUploadSessionsAsync(...)).ReturnsAsync(Array.Empty<ActiveUploadSessionRecord>())` to `SyncEngineTests.Initialize()`.
+  - **Retry count mismatch (2 tests):** `UploadAsync_NetworkErrorExhaustsRetries_Throws` and `DownloadAsync_ChunkHashAlwaysMismatch_ThrowsChunkIntegrityException` expected `Times.Exactly(3)` but `ChunkUploadMaxRetries` and `ChunkDownloadMaxAttempts` were bumped to 6. Updated verifications to `Times.Exactly(6)`.
+  - **API route change (1 test):** `ListChildrenAsync_NullFolder_CallsRootEndpoint` expected `root/children` but route changed to `api/v1/files`. Updated assertion.
+  - **Linux-only test (1 test):** `FuseSyncFilesystem_ClassExists_OnLinux` fails on Windows. Added `if (!OperatingSystem.IsLinux()) return;` guard.
+  - Run: `dotnet test tests/DotNetCloud.Client.Core.Tests/ -c Release` — result: 263 passed, 1 skipped, 0 failed.

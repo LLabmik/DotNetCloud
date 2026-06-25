@@ -165,8 +165,8 @@ public class ChunkedTransferClientTests
         catch (HttpRequestException ex) { caught = ex; }
         Assert.IsNotNull(caught, "Expected HttpRequestException but none was thrown.");
 
-        // Should have been called ChunkUploadMaxRetries (3) times
-        apiMock.Verify(a => a.UploadChunkAsync(sessionId, 0, It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()), Times.Exactly(3));
+        // Should have been called ChunkUploadMaxRetries (6) times
+        apiMock.Verify(a => a.UploadChunkAsync(sessionId, 0, It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()), Times.Exactly(6));
     }
 
     [TestMethod]
@@ -313,8 +313,8 @@ public class ChunkedTransferClientTests
 
         Assert.IsNotNull(caught, "Expected ChunkIntegrityException but none was thrown.");
 
-        // Should have retried 3 times
-        apiMock.Verify(a => a.DownloadChunkByHashAsync(chunkHash, It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Exactly(3));
+        // Should have retried 6 times
+        apiMock.Verify(a => a.DownloadChunkByHashAsync(chunkHash, It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Exactly(6));
     }
 
     // ── CDC chunking ────────────────────────────────────────────────────────

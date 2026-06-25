@@ -59,6 +59,8 @@ public class SyncEngineTests
             .ReturnsAsync([]);
         _stateDbMock.Setup(db => db.GetPendingUploadPathsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new HashSet<string>());
+        _stateDbMock.Setup(db => db.GetActiveUploadSessionsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<ActiveUploadSessionRecord>());
         _stateDbMock.Setup(db => db.GetPendingDeleteNodeIdsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new HashSet<Guid>());
         _stateDbMock.Setup(db => db.UpdateCheckpointAsync(It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
