@@ -3,7 +3,6 @@ using DotNetCloud.Core.Server.Grpc.Clients;
 using Grpc.Core;
 using Grpc.Net.Client;
 using Microsoft.Extensions.Logging;
-using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
 
 namespace DotNetCloud.Core.Server.Grpc.Services;
@@ -29,19 +28,6 @@ public sealed class FilesUploadStreamService : FilesService.FilesServiceBase
         IAsyncStreamReader<UploadFileStreamRequest> requestStream,
         ServerCallContext context)
     {
-        // TEMPORARY DEBUG: Log all HTTP headers at the gRPC handler entry point
-        // to diagnose why Authorization header isn't being found.
-        var httpContext = context.GetHttpContext();
-        var logger = httpContext.RequestServices.GetRequiredService<ILogger<FilesUploadStreamService>>();
-        logger.LogInformation("GRPC-DEBUG: ContentType={ContentType}", httpContext.Request.ContentType);
-        logger.LogInformation("GRPC-DEBUG: All headers: {Headers}",
-            string.Join(", ", httpContext.Request.Headers.Select(h => $"{h.Key}={h.Value}")));
-        logger.LogInformation("GRPC-DEBUG: Auth header: {AuthHeader}",
-            httpContext.Request.Headers["Authorization"].FirstOrDefault() ?? "(null)");
-        logger.LogInformation("GRPC-DEBUG: User.Identity.Name={Name}, IsAuthenticated={IsAuth}",
-            httpContext.User?.Identity?.Name ?? "(null)",
-            httpContext.User?.Identity?.IsAuthenticated ?? false);
-
         InitiateUploadResponse? session = null;
         InitiateUploadRequest? metadata = null;
         FilesService.FilesServiceClient? client = null;
@@ -288,30 +274,13 @@ public sealed class FilesUploadStreamService : FilesService.FilesServiceBase
 
     private static string? GetUserIdFromContext(ServerCallContext context)
     {
-        // Read the Authorization header from the HTTP context, NOT from context.RequestHeaders.
-        // When the client sets Authorization via HttpClient.DefaultRequestHeaders, it becomes
-        // an HTTP/2 HEADERS frame header, NOT gRPC metadata. context.RequestHeaders only
-        // exposes gRPC metadata entries, so the Authorization header is invisible there.
-        // It IS available via context.GetHttpContext().Request.Headers["Authorization"].
+        // Use the already-authenticated HttpContext.User to extract the user ID.
+        // The UseAuthentication() middleware has already decrypted the JWE token
+        // and populated the User principal with claims. Do NOT manually parse the
+        // JWT — tokens are JWE (encrypted) and JwtSecurityTokenHandler.ReadJwtToken()
+        // cannot read inner claims from encrypted tokens.
         var httpContext = context.GetHttpContext();
-        var authHeader = httpContext.Request.Headers["Authorization"].FirstOrDefault();
-        if (authHeader is not null &&
-            authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
-        {
-            var token = authHeader["Bearer ".Length..];
-            try
-            {
-                var handler = new JwtSecurityTokenHandler();
-                if (handler.CanReadToken(token))
-                {
-                    var jwt = handler.ReadJwtToken(token);
-                    return jwt.Subject;
-                }
-            }
-            catch
-            {
-            }
-        }
-        return null;
+        return httpContext.User?.FindFirst("sub")?.Value
+            ?? httpContext.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
     }
 }
