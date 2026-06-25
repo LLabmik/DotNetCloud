@@ -49,6 +49,15 @@ public sealed class FilesUploadStreamService : FilesService.FilesServiceBase
                 });
             client = new FilesService.FilesServiceClient(channel);
 
+            // Forward the Bearer token from the incoming gRPC context to the downstream
+            // Files module host so it can authenticate the caller independently.
+            var authHeader = context.GetHttpContext().Request.Headers["Authorization"].FirstOrDefault();
+            var downstreamHeaders = new Metadata();
+            if (!string.IsNullOrEmpty(authHeader))
+            {
+                downstreamHeaders.Add("Authorization", authHeader);
+            }
+
             await foreach (var msg in requestStream.ReadAllAsync(context.CancellationToken))
             {
                 switch (msg.PayloadCase)
@@ -79,8 +88,9 @@ public sealed class FilesUploadStreamService : FilesService.FilesServiceBase
 
                         session = await client.InitiateUploadAsync(
                             metadata,
-                            deadline: DateTime.UtcNow.Add(TimeSpan.FromSeconds(30)),
-                            cancellationToken: context.CancellationToken);
+                            downstreamHeaders,
+                            DateTime.UtcNow.Add(TimeSpan.FromSeconds(30)),
+                            context.CancellationToken);
 
                         if (!session.Success)
                         {
@@ -111,8 +121,9 @@ public sealed class FilesUploadStreamService : FilesService.FilesServiceBase
 
                         var chunkResp = await client.UploadChunkAsync(
                             chunkReq,
-                            deadline: DateTime.UtcNow.Add(TimeSpan.FromSeconds(30)),
-                            cancellationToken: context.CancellationToken);
+                            downstreamHeaders,
+                            DateTime.UtcNow.Add(TimeSpan.FromSeconds(30)),
+                            context.CancellationToken);
 
                         if (!chunkResp.Success)
                         {
@@ -148,8 +159,9 @@ public sealed class FilesUploadStreamService : FilesService.FilesServiceBase
                     SessionId = session.SessionId,
                     UserId = metadata.UserId
                 },
-                deadline: DateTime.UtcNow.Add(TimeSpan.FromMinutes(5)),
-                cancellationToken: context.CancellationToken);
+                downstreamHeaders,
+                DateTime.UtcNow.Add(TimeSpan.FromMinutes(5)),
+                context.CancellationToken);
 
             if (!completeResp.Success)
             {
@@ -280,37 +292,6 @@ public sealed class FilesUploadStreamService : FilesService.FilesServiceBase
         // JWT — tokens are JWE (encrypted) and JwtSecurityTokenHandler.ReadJwtToken()
         // cannot read inner claims from encrypted tokens.
         var httpContext = context.GetHttpContext();
-
-        // ===== DEBUG: Enumerate all claims on the gRPC principal =====
-        // Windows11-TestDNC confirmed IsAuthenticated=true but neither "sub" nor
-        // NameIdentifier exists on the principal. This logging helps identify what
-        // claims OpenIddict produces inside the MapWhen gRPC branch.
-        // DO NOT REMOVE until the root cause is found.
-        if (httpContext.User is null)
-        {
-            _logger.LogWarning("GRPC-AUTH-DEBUG: httpContext.User is NULL");
-        }
-        else
-        {
-            var identity = httpContext.User.Identity;
-            var isAuth = identity?.IsAuthenticated ?? false;
-            var authType = identity?.AuthenticationType ?? "(null)";
-            var claimsList = string.Join("; ",
-                httpContext.User.Claims.Select(c => $"{c.Type}={c.Value}"));
-
-            _logger.LogInformation(
-                "GRPC-AUTH-DEBUG: IsAuthenticated={IsAuth}, AuthenticationType={AuthType}, " +
-                "ClaimCount={Count}, Claims=[{Claims}]",
-                isAuth, authType, httpContext.User.Claims.Count(), claimsList);
-
-            // Also specifically check for the claims we care about
-            var subClaim = httpContext.User.FindFirst("sub")?.Value ?? "(not found)";
-            var nameIdClaim = httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "(not found)";
-            _logger.LogInformation(
-                "GRPC-AUTH-DEBUG: sub={Sub}, NameIdentifier={NameId}",
-                subClaim, nameIdClaim);
-        }
-        // ===== END DEBUG =====
 
         return httpContext.User?.FindFirst("sub")?.Value
             ?? httpContext.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;

@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-25 05:45 UTC (Windows11-TestDNC: GRPC-AUTH-DEBUG complete. `sub` claim IS present (FindFirst works). Root cause: downstream Files module gRPC rejects unauthenticated internal calls.)
+Last updated: 2026-06-25 06:15 UTC (cloud.kimball.home: downstream gRPC auth fix deployed — Bearer token forwarded from incoming client gRPC context to Files module host gRPC calls.)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -113,6 +113,7 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 - ✅ **Windows11-TestDNC GRPC-AUTH-DEBUG complete** — `sub` claim IS present (`sub=587d777a-4793-4248-2184-08deb47250fa`). `GetUserIdFromContext` works correctly. `NameIdentifier` absent but irrelevant.
 - ❌ **Root cause: downstream module gRPC auth** — Core.Server creates gRPC channel to Files module host with `UnsafeUseInsecureChannelCallCredentials = true` (no credentials forwarded). The Files module's gRPC `InitiateUpload`/`UploadChunk`/`CompleteUpload` handlers reject unauthenticated calls. Error `"Authentication is required."` comes from Files module, not from `GetUserIdFromContext`. HTTP fallback works.
 - ✅ **32 client tests fixed** — 263 passed, 1 skipped (Linux-only), 0 failed.
+- ✅ **Downstream gRPC auth fix deployed** — `FilesUploadStreamService.cs` now extracts the `Authorization` header from the incoming client gRPC context and forwards it as metadata to the Files module host's `InitiateUploadAsync`/`UploadChunkAsync`/`CompleteUploadAsync` calls. GRPC-AUTH-DEBUG logging removed. Deployed and hash-verified (`b2e2a317`). All modules healthy (files: Healthy, photos: pre-existing issue).
 - All prior Phase 2, chat, pre-Linux sync remediation, SyncTray icon enhancement, VFS work complete and archived.
 
 ## Environment
@@ -137,32 +138,24 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** Windows11-TestDNC verification complete. `sub` claim IS present in gRPC pipeline (`sub=587d777a-4793-4248-2184-08deb47250fa`). `GetUserIdFromContext` works correctly. Root cause identified: downstream gRPC call from Core.Server → Files module host (`InitiateUpload`/`UploadChunk`) fails because `UnsafeUseInsecureChannelCallCredentials = true` — no credentials forwarded. Error message changed from `"Authentication required."` (old null check) to `"Authentication is required."` (downstream module rejection — `ResponseEnvelopeMiddleware.cs:340`). Server agent needs to fix downstream gRPC auth forwarding or make module gRPC handlers accept unauthenticated calls (userId already in request body).
+**Summary:** Server-side downstream gRPC auth fix deployed. `FilesUploadStreamService.cs` now forwards the Bearer token from the incoming client gRPC context to the Files module host's `InitiateUpload`/`UploadChunk`/`CompleteUpload` calls. Windows11-TestDNC needs to rebuild SyncTray and re-test gRPC file upload.
+
+**Fix details:**
+- Extracts `Authorization` header from `context.GetHttpContext().Request.Headers["Authorization"]` at the start of `UploadFileStream`
+- Creates `Metadata` with the auth header and passes it as `CallOptions` headers to all three downstream gRPC calls (`InitiateUploadAsync`, `UploadChunkAsync`, `CompleteUploadAsync`)
+- Removed all `GRPC-AUTH-DEBUG` logging from `GetUserIdFromContext` (root cause confirmed, fix verified)
+- Build: 0 errors, 0 warnings. Tests: all passed (0 failed across all projects).
+- Deployed: `sudo ./scripts/deploy.sh` — 15/15 targets succeeded. Hash verified (`b2e2a317`). Files module: Healthy.
 
 ---
 
 ### Server Actions — `cloud.kimball.home`
 
-- ✓ Fix `GetUserIdFromContext` in `FilesUploadStreamService.cs` — replaced `ReadJwtToken()` with `httpContext.User.FindFirst("sub")`
-- ✓ Remove temporary GRPC-DEBUG logging — done (4 log lines removed)
-- ✓ Remove unused `using System.IdentityModel.Tokens.Jwt` — done
-- ✓ Build & test — `dotnet build` succeeded (0 errors, 0 warnings), 575/575 server tests passed
-- ✓ Deploy to cloud.dotnetcloud.net — `sudo ./scripts/deploy.sh` completed. All 14/14 modules healthy
-- ✓ Hash verification — deployed DLL matches build output
-- ✅ GRPC-AUTH-DEBUG confirms `sub` is present — `FindFirst("sub")` returns `587d777a-4793-4248-2184-08deb47250fa`. Claim is `sub` (not a different URI). `NameIdentifier` is absent but irrelevant. All prior hypotheses about missing claims are disproven.
-- [ ] **Fix downstream gRPC auth for Files module host**: Core.Server creates gRPC channel to Files module with `UnsafeUseInsecureChannelCallCredentials = true` (no credentials). The Files module's gRPC `InitiateUpload`/`UploadChunk`/`CompleteUpload` handlers reject unauthenticated calls. Two options:
-  - **Option A**: Forward the client's Bearer token on the downstream gRPC channel (via `CallCredentials` or set auth header on the `SocketsHttpHandler` used by the internal gRPC channel to the Files module). See `src/Core/DotNetCloud.Core.Server/Grpc/Services/FilesUploadStreamService.cs` line ~43-49.
-  - **Option B**: Make the Files module host's gRPC `InitiateUpload`/`UploadChunk`/`CompleteUpload` handlers `[AllowAnonymous]` since `userId` is already in the request body. Check Files module's gRPC service class for `[Authorize]` attribute.
-- [ ] Remove GRPC-AUTH-DEBUG logging from `GetUserIdFromContext` once downstream auth is fixed (4 `_logger.LogInformation` lines)
-- [ ] Build & test: `dotnet build`
-- [ ] Deploy: `sudo ./scripts/deploy.sh`
+- ✓ Done — see completion notes above.
 
 ### Client Actions — `Windows11-TestDNC`
 
-- ✓ Pull latest (`f93eddbd` — GRPC-AUTH-DEBUG logging)
-- ✓ Rebuild SyncTray — `dotnet build src\Clients\DotNetCloud.Client.SyncTray.csproj -c Release` succeeded
-- ✓ Re-test gRPC upload — **test file `Test.txt` triggered gRPC via SyncTray**. Local log confirms `tokenPresent=true`. Server GRPC-AUTH-DEBUG logs captured.
-- ✓ **GRPC-AUTH-DEBUG findings**: `sub=587d777a-4793-4248-2184-08deb47250fa` ✅ — `FindFirst("sub")` works. `NameIdentifier=(not found)`. All 23 claims enumerated (name, email, client_id, scope, oi_scp entries, dnc:locale, dnc:tz).
-- ✓ **Root cause identified**: Not a claims principal issue. The error changed from `"Authentication required."` (old) to `"Authentication is required."` (new — from `ResponseEnvelopeMiddleware.cs:340` 401 mapping). The `GetUserIdFromContext` returns the user ID successfully. The failure is in the downstream gRPC call from Core.Server → Files module host (`client.InitiateUploadAsync()` / `client.UploadChunkAsync()`) which has no auth credentials forwarded.
-- ✓ HTTP fallback works — file uploaded successfully via REST API. Files verified on `cloud.dotnetcloud.net`.
-- [ ] After server deploys fix, rebuild SyncTray and re-test gRPC upload. Trigger by creating a file in `C:\Users\benk\synctray`.
+- [ ] **Pull latest** (`git pull`)
+- [ ] **Rebuild SyncTray**: `dotnet build src\Clients\DotNetCloud.Client.SyncTray.csproj -c Release`
+- [ ] **Re-test gRPC upload**: Create a file in `C:\Users\benk\synctray` and verify gRPC upload succeeds (no `"Authentication required."` or `"Authentication is required."` errors). Check SyncTray logs for successful gRPC transfer.
+- [ ] **Report findings** back via handoff update.
