@@ -6,6 +6,7 @@ using DotNetCloud.Modules.Files.Data.Services;
 using DotNetCloud.Modules.Files.Events;
 using DotNetCloud.Modules.Files.Host.Protos;
 using DotNetCloud.Modules.Files.Models;
+using DotNetCloud.Modules.Files.Services;
 using Grpc.Core;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -22,15 +23,21 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
 {
     private readonly FilesDbContext _db;
     private readonly IEventBus _eventBus;
+    private readonly IFileStorageEngine _storageEngine;
     private readonly ILogger<FilesGrpcService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FilesGrpcService"/> class.
     /// </summary>
-    public FilesGrpcService(FilesDbContext db, IEventBus eventBus, ILogger<FilesGrpcService> logger)
+    public FilesGrpcService(
+        FilesDbContext db,
+        IEventBus eventBus,
+        IFileStorageEngine storageEngine,
+        ILogger<FilesGrpcService> logger)
     {
         _db = db;
         _eventBus = eventBus;
+        _storageEngine = storageEngine;
         _logger = logger;
     }
 
@@ -639,6 +646,13 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
 
         if (existingChunk is not null)
         {
+            // Ghost chunk: DB record exists but blob is missing on disk. Re-write it.
+            if (!await _storageEngine.ExistsAsync(existingChunk.StoragePath, context.CancellationToken))
+            {
+                _logger.LogWarning("Re-writing ghost chunk blob for hash {ChunkHash}", request.ChunkHash[..12]);
+                await _storageEngine.WriteChunkAsync(existingChunk.StoragePath, request.ChunkData.ToByteArray(), context.CancellationToken);
+            }
+
             await ChunkReferenceHelper.IncrementAsync(_db, existingChunk.Id, context.CancellationToken);
             if (!ChunkReferenceHelper.IsInMemoryProvider(_db))
                 _db.Entry(existingChunk).State = EntityState.Detached;
@@ -647,6 +661,8 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
         {
             // Store chunk to disk (content-addressable path)
             var storagePath = $"chunks/{request.ChunkHash[..2]}/{request.ChunkHash[2..4]}/{request.ChunkHash}";
+
+            await _storageEngine.WriteChunkAsync(storagePath, request.ChunkData.ToByteArray(), context.CancellationToken);
 
             var chunk = new FileChunk
             {
