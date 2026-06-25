@@ -149,7 +149,15 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ### Client Actions — `Windows11-TestDNC`
 
-- [ ] Pull latest (`1c1cf088`)
+- [ ] Pull latest (`26221032`)
 - [ ] Rebuild SyncTray
 - [ ] Re-test gRPC upload to confirm `GetUserIdFromContext` fix resolves the `"Authentication required."` error
 - [ ] If successful, verify files appear correctly on `cloud.dotnetcloud.net`
+- [ ] **Investigate and fix 33 failing client tests** (pre-existing, observed during `dotnet test DotNetCloud.CI.slnf -c Release`):
+  - All 33 failures in `DotNetCloud.Client.Core.Tests.dll` (231 passed, 33 failed)
+  - Named examples seen:
+    - `SyncAsync_ReverseReconciliation_LocallyModifiedFile_KeepsAndReUploads` — `Moq.MockException: Expected invocation once, but was 0 times: db => db.QueueOperationsBatchAsync`
+    - `SyncAsync_UntrackedFilesNotOnServer_QueuedForUpload` — `Moq.MockException: Expected invocation once, but was 0 times: db => db.QueueOperationsBatchAsync`
+    - `ListChildrenAsync_NullFolder_CallsRootEndpoint` — `StringAssert.Contains failed: '/api/v1/files' does not contain 'root/children'`
+  - Likely causes: API route changes or sync engine refactors that didn't update mock expectations
+  - Run: `dotnet test tests/DotNetCloud.Client.Core.Tests/ -c Release` to reproduce
