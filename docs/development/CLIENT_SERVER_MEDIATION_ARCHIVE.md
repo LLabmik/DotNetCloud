@@ -1,5 +1,28 @@
 # Client/Server Mediation — Archived Context
 
+Archived: 2026-06-24 20:47 UTC. Full git history preserved in commits up to changes from Windows11-TestDNC.
+
+## Archived: gRPC Streaming Upload — Server Auth Fix + Client Verification (2026-06-24)
+
+**Target:** cloud.kimball.home (server fix) → Windows11-TestDNC (client verification)
+
+**Result:** ❌ Server-side `GetUserIdFromContext` fix did NOT resolve the issue. `"Authentication required."` persists despite client `tokenPresent=true`. Server needs debug logging to inspect headers at the gRPC handler entry point.
+
+**Server actions completed (cloud.kimball.home):**
+- ✓ `GetUserIdFromContext` changed from `context.RequestHeaders` to `context.GetHttpContext().Request.Headers["Authorization"]`
+- ✓ `UseAuthentication()` + `UseAuthorization()` added to gRPC `MapWhen` pipeline
+- ✓ Deployed and hash-verified
+
+**Client verification completed (Windows11-TestDNC):**
+- ✓ Pulled latest, rebuilt SyncTray with `EnableGrpcStreaming = true` (default)
+- ✓ gRPC attempted — `tokenPresent=true` confirmed in client log
+- ❌ Server still returns `"Authentication required."`
+- ✓ HTTP fallback works — all files uploaded successfully
+
+**Handoff commit:** (pending)
+
+---
+
 Archived: 2026-06-24 06:20 UTC. Full git history preserved in commits up to changes from cloud.kimball.home.
 
 ## Archived: gRPC Streaming Upload — Server Investigation Complete (2026-06-24)

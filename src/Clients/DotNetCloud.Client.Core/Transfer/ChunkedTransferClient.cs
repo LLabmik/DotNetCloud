@@ -33,11 +33,10 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
 
     /// <summary>
     /// When true, attempts gRPC client-streaming upload before falling back to HTTP chunked upload.
-    /// Disabled by default for backward compatibility with unit tests that mock <see cref="IDotNetCloudApiClient"/>
-    /// but do not set up <c>UploadFileStreamAsync</c>. Enable in production when the server has
-    /// <c>FilesUploadStreamService</c> deployed.
+    /// Enabled by default — gRPC streaming is deployed and working on <c>cloud.dotnetcloud.net</c>.
+    /// Falls back to HTTP chunked upload on any <see cref="RpcException"/>.
     /// </summary>
-    public bool EnableGrpcStreaming { get; set; }
+    public bool EnableGrpcStreaming { get; set; } = true;
 
     private readonly IDotNetCloudApiClient _api;
     private readonly ILocalStateDb? _stateDb;
