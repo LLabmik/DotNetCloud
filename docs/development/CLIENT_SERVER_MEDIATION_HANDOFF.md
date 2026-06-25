@@ -148,11 +148,12 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 - ✓ Build & test — `dotnet build` succeeded (0 errors, 0 warnings), 575/575 server tests passed
 - ✓ Deploy to cloud.dotnetcloud.net — `sudo ./scripts/deploy.sh` completed. All 14/14 modules healthy
 - ✓ Hash verification — deployed DLL matches build output (`cd4aa0608ffe586350ba1d13223d59b6`)
-- [ ] **Investigate gRPC claims principal**: Add debug logging to `GetUserIdFromContext` to enumerate all claims available on `httpContext.User` (claim types and values). The auth middleware authenticates the user (confirmed `IsAuthenticated=True` in prior GRPC-DEBUG), but neither `"sub"` nor `ClaimTypes.NameIdentifier` is found. Investigate whether OpenIddict validation via `MapWhen` gRPC branch produces different claim types than the controller pipeline.
-  - Check: Is `UseLocalServer()` + `UseAspNetCore()` inside `MapWhen` producing the same `ClaimsPrincipal` as the non-gRPC pipeline?
-  - Check: Does `IClaimsTransformation` (DotNetCloudClaimsTransformation) run inside the gRPC `MapWhen` branch's `UseAuthentication()`?
-  - **Do NOT remove debug logging** — commit and deploy so Windows11-TestDNC can capture the output in a subsequent re-test.
-- [ ] If root cause identified, fix `GetUserIdFromContext` and re-deploy.
+- ✅ **Investigate gRPC claims principal**: Added comprehensive debug logging to `GetUserIdFromContext` that enumerates ALL claims on `httpContext.User` (types + values), authentication status, authentication type, and specifically checks for "sub" and `ClaimTypes.NameIdentifier`. Logged at `Information` level with prefix `GRPC-AUTH-DEBUG`.
+  - **Hypothesis A**: OpenIddict validation via `UseLocalServer()` + `UseAspNetCore()` inside `MapWhen` should produce the same ClaimsPrincipal as the non-gRPC pipeline (same scheme forwarded by `DotNetCloud.Policy` selector — Bearer → `OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme`).
+  - **Hypothesis B**: `IClaimsTransformation` (DotNetCloudClaimsTransformation) is registered as `AddScoped` and runs as part of `UseAuthentication()` in the gRPC branch. If the principal lacks `"sub"`/`NameIdentifier` at the auth middleware level, the transformation short-circuits (returns principal unchanged). So the issue is likely at the OpenIddict validation output level, not the transformation.
+  - **Key unknowns**: What claim types does OpenIddict produce in the `MapWhen` branch? Are they different claim URIs? Is `"sub"` mapped to a different claim type by the ASP.NET Core OpenIddict integration inside `MapWhen`?
+  - Debug logging deployed in commit `bf7b5862`. Hash-verified. All 14/14 modules healthy.
+- [ ] **Re-test gRPC upload from Windows11-TestDNC**: Rebuild SyncTray, re-test gRPC upload. Check server logs for `GRPC-AUTH-DEBUG` entries to see what claims the principal contains in the gRPC pipeline. Relay findings back to `cloud.kimball.home` via handoff.
 
 ### Client Actions — `Windows11-TestDNC`
 
