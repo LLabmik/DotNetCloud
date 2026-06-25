@@ -276,24 +276,37 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
         var baseUrl = _http.BaseAddress?.ToString()
             ?? throw new InvalidOperationException("HttpClient.BaseAddress is null.");
 
-        // Create a dedicated SocketsHttpHandler for gRPC streaming (bypasses the
-        // CorrelationIdHandler pipeline used by REST calls). HTTP/2 is required
-        // by gRPC — GrpcChannel.ForAddress handles this via ALPN on HTTPS.
+        // Create a dedicated channel for gRPC streaming. Using a fresh SocketsHttpHandler
+        // bypasses the CorrelationIdHandler pipeline used by REST calls. HTTP/2 is
+        // required by gRPC — force it with HttpVersion and HttpVersionPolicy.
+        // Auth is set as a default request header on the HttpClient (NOT as gRPC metadata)
+        // because the server-side GetUserIdFromContext reads from HTTP/2 request headers,
+        // not from gRPC CallOptions metadata.
+        var httpHandler = new SocketsHttpHandler
+        {
+            EnableMultipleHttp2Connections = true,
+            ConnectTimeout = TimeSpan.FromSeconds(10),
+            SslOptions = OAuthHttpClientHandlerFactory.CreatePermissiveSslOptions(),
+        };
+        var httpClient = new HttpClient(httpHandler, disposeHandler: true);
+        if (AccessToken is not null)
+        {
+            httpClient.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", AccessToken);
+        }
         using var channel = GrpcChannel.ForAddress(baseUrl, new GrpcChannelOptions
         {
-            HttpHandler = new SocketsHttpHandler
-            {
-                EnableMultipleHttp2Connections = true,
-                ConnectTimeout = TimeSpan.FromSeconds(10),
-                SslOptions = OAuthHttpClientHandlerFactory.CreatePermissiveSslOptions(),
-            },
-            // gRPC requires HTTP/2. Ensure the channel negotiates HTTP/2 via ALPN.
+            HttpClient = httpClient,
+            DisposeHttpClient = true,
             HttpVersion = HttpVersion.Version20,
+            HttpVersionPolicy = HttpVersionPolicy.RequestVersionExact,
         });
 
+        _logger.LogInformation(
+            "gRPC UploadFileStream: baseUrl={BaseUrl}, tokenPresent={TokenPresent}",
+            baseUrl, AccessToken is not null);
         var client = new FilesService.FilesServiceClient(channel);
         var callOptions = new CallOptions(
-            headers: GetGrpcHeaders(),
             cancellationToken: cancellationToken);
 
         using var call = client.UploadFileStream(callOptions);

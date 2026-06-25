@@ -233,11 +233,11 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
                         fileName, grpcResult.Id, fileSize, uploadTimer.ElapsedMilliseconds);
                     return new UploadResult(grpcResult.Id, grpcResult.ContentHash);
                 }
-                catch (RpcException gex)
+                catch (Exception gex)
                 {
                     _logger.LogWarning(gex,
-                        "gRPC upload failed for {File}: StatusCode={StatusCode}, Detail={Detail}. Falling back to HTTP chunked upload.",
-                        fileName, gex.StatusCode, gex.Status.Detail);
+                        "gRPC upload failed for {File}: {Message}. Falling back to HTTP chunked upload.",
+                        fileName, gex.Message);
                     // Fall through to legacy HTTP path below.
                 }
             }
