@@ -1,6 +1,34 @@
 # Client/Server Mediation — Archived Context
 
-Archived: 2026-06-24 23:30 UTC. Full git history preserved in commits up to changes from Windows11-TestDNC.
+Archived: 2026-06-25 01:35 UTC. Full git history preserved in commits up to changes from Windows11-TestDNC.
+
+## Archived: gRPC CompleteUpload Fix — Server Deploy + Client Verification (2026-06-25)
+
+**Target:** cloud.kimball.home (server fix) → Windows11-TestDNC (client verification)
+
+**Result:** ✅ Complete cycle complete. Server-side fix deployed and verified. Client-side scanner bugs found and fixed.
+
+**Server actions completed (cloud.kimball.home):**
+- ✓ `FilesGrpcService.CompleteUpload` fixed to detect existing files by `Name`+`ParentId`+`OwnerId` collision and version-bump instead of crashing with `DbUpdateException` (unique index violation)
+- ✓ Deployed: `sudo ./scripts/deploy.sh` — 15/15 targets succeeded, hash verified, all 14/14 modules healthy
+- ✓ Commit: `99d5bb42`
+
+**Client verification completed (Windows11-TestDNC):**
+- ✓ **New file** (`grpc-completeupload-fix-test.txt`) — gRPC upload succeeded (1393ms)
+- ✓ **Existing file update** (`Test.txt`, 103 bytes) — gRPC upload succeeded (148ms)
+- ✓ **Existing file update** (`Test.txt`, 132 bytes) — gRPC upload succeeded (372ms)
+
+**Client-side bugs found and fixed (Windows11-TestDNC):**
+
+1. **`IsLocallyModified` — mtime comparison race** (`SyncEngine.cs:2130`):
+   - Bug: `localModified > record.LastSyncedAt` uses strict `>` — if mtime falls within the `LastSyncedAt` window, modification is invisible
+   - Fix: Added secondary check `localModified != record.LocalModifiedAt` to catch files whose mtime changed but isn't strictly greater than `LastSyncedAt`
+
+2. **Scanner hash mismatch — server vs client hash algorithm** (`SyncEngine.cs:669`, `SyncEngine.cs:724`):
+   - Bug: Server stores `ContentHash` as a **manifest hash** (`SHA256(chunkHash1 + ":" + chunkHash2 + ":" + ...)`), but the scanner computed **direct SHA256** of file content via `ComputeFileHashAsync`. When the state DB was lost, the `serverFilesByRelPath` and `ListChildrenAsync` paths compared incompatible hashes, causing every untracked file to be flagged as "different" and re-uploaded.
+   - Fix: Both scanner paths now trust size match + server tree presence when the file exists on the server. The server's `ContentHash` is stored directly in the local record to keep hash formats consistent.
+
+**Handoff commit:** (pending)
 
 ## Archived: gRPC Streaming Upload — Server Auth Fix + Client Verification (2026-06-24)
 

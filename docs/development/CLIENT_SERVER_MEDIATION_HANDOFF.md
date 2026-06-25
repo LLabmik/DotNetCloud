@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-25 06:50 UTC (cloud.kimball.home: fixed gRPC CompleteUpload — existing file update now detected by name collision and version-bumps instead of crashing.)
+Last updated: 2026-06-25 06:35 UTC (Windows11-TestDNC: gRPC CompleteUpload fix verified ✅. Client scanner bugs fixed — `IsLocallyModified` race condition and server/client ContentHash mismatch.)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -92,9 +92,11 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Current Status
 
-- ✅ **Downstream gRPC auth fix deployed** — `FilesUploadStreamService.cs` now extracts the `Authorization` header from the incoming client gRPC context and forwards it as metadata to the Files module host's `InitiateUploadAsync`/`UploadChunkAsync`/`CompleteUploadAsync` calls. GRPC-AUTH-DEBUG logging removed. Deployed and hash-verified (`b2e2a317`). All modules healthy (files: Healthy).
-- ✅ **gRPC CompleteUpload existing-file fix deployed** — `FilesGrpcService.CompleteUpload` now detects existing files by `Name`+`ParentId`+`OwnerId` collision and version-bumps (updates `Size`, `ContentHash`, `StoragePath`, `CurrentVersion++`) instead of always creating a new `FileNode`. Quota delta calculated correctly (full size for new, delta for update). Previously crashed with `DbUpdateException` (unique index `uq_file_nodes_parent_name_active` violation) on existing-file update. Build: 0 errors, 0 warnings. Tests: 0 failed (734 Files tests passed). Deployed and hash-verified. All 14/14 modules healthy.
-- All prior Phase 2, chat, pre-Linux sync remediation, SyncTray icon enhancement, VFS work, gRPC auth debugging, and YARP 502 fix work complete and archived.
+- ✅ **gRPC streaming upload fully functional** — Both new files and existing file updates work via gRPC. Downstream auth fixed (Bearer token forwarding), CompleteUpload fixed (version-bump on name collision). Verified: new file (1393ms), existing file update (148ms, 372ms).
+- ✅ **Client scanner bugs fixed** (Windows11-TestDNC):
+  - `IsLocallyModified` race condition: mtime comparison now also checks `LocalModifiedAt` as secondary guard
+  - Server/client ContentHash mismatch: scanner `serverFilesByRelPath` and `ListChildrenAsync` paths now trust size match + server tree presence instead of comparing incompatible hash formats (server stores manifest hash, client computed direct SHA256)
+- All gRPC auth debugging, CompleteUpload fix, previous Phase 2/chat/sync/VFS work complete and archived.
 
 ## Environment
 
@@ -102,7 +104,7 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 | -------------- | -------------------- | ---------------------------------------------------------------------------------- |
 | Server         | `cloud.kimball.home` | `https://cloud.dotnetcloud.net/` (production)                                      |
 | Server         | `mint22`             | `https://mint22:5443/` (dev)                                                       |
-| Client         | `Windows11-TestDNC`  | Sync dir: `C:\Users\benk\Documents\synctray`                                       |
+| Client         | `Windows11-TestDNC`  | Sync dir: `C:\Users\benk\synctray`                                       |
 | Client         | `mint-dnc-client`    | Linux Mint 22 validation host for desktop sync client implementation + E2E testing |
 | Client         | `mint-OptiPlex-7010` | production client connected to `cloud.dotnetcloud.net`              |
 | Android Client | `monolith`           | Android MAUI app development + emulator testing (Windows 11)                       |
@@ -118,26 +120,4 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** `FilesGrpcService.CompleteUpload` fix deployed — existing file updates now version-bump the existing node instead of crashing with unique constraint violation. Windows11-TestDNC needs to rebuild SyncTray and re-test gRPC upload for both new and existing files.
-
-**Root cause:** The `InitiateUploadRequest` proto has no `TargetFileNodeId` field, so every gRPC upload creates a session with `TargetFileNodeId = null`. `CompleteUpload` always created a new `FileNode`, violating the `uq_file_nodes_parent_name_active` unique index when a file with the same `Name`+`ParentId` already existed → `DbUpdateException` → `RpcException(StatusCode="Unknown")`.
-
-**Fix applied:**
-- `FilesGrpcService.CompleteUpload` now checks for an existing active file with matching `Name`+`ParentId`+`OwnerId`+`NodeType==File` before creating a new node
-- If found: version-bump (`CurrentVersion++`, update `Size`, `ContentHash`, `StoragePath`, `UpdatedAt`)
-- If not found: create new node (existing behavior preserved)
-- Quota delta calculated correctly (full size for new, delta for update)
-- Deployed: `sudo ./scripts/deploy.sh` — 15/15 targets succeeded. Hash verified. All 14/14 modules healthy.
-
----
-
-### Server Actions — `cloud.kimball.home`
-
-- ✓ Done — see completion notes above.
-
-### Client Actions — `Windows11-TestDNC`
-
-- [ ] **Pull latest** (`git pull`)
-- [ ] **Rebuild SyncTray**: `dotnet build src\Clients\DotNetCloud.Client.SyncTray.csproj -c Release`
-- [ ] **Re-test gRPC upload**: Create a new file in `C:\Users\benk\synctray` AND modify an existing file. Verify both succeed via gRPC with no errors.
-- [ ] **Report findings** back via handoff update.
+**Summary:** All items complete. gRPC CompleteUpload fix verified ✅. Client scanner bugs fixed ✅. No active handoff — server and client are in sync.

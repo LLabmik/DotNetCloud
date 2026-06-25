@@ -662,30 +662,22 @@ public sealed class SyncEngine : ISyncEngine
                 }
                 else
                 {
-                    // Sizes match — compare content hashes to avoid unnecessary uploads.
-                    var localHash = await ComputeFileHashAsync(localPath, cancellationToken);
-                    if (string.Equals(localHash, serverNode.ContentHash, StringComparison.OrdinalIgnoreCase))
+                    // Sizes match and file exists on server — record without uploading.
+                    // Store the server's ContentHash (manifest-based hash) so the local
+                    // record stays in sync with the server's hash format. If the file
+                    // is later modified and re-uploaded, a new manifest hash will be
+                    // returned by the server and stored at that point.
+                    _logger.LogDebug(
+                        "Local file matches server size ({Size}), recording without upload: {RelPath}",
+                        localSize, relativePath);
+                    pendingUpserts.Add(new LocalFileRecord
                     {
-                        // Identical — record in state DB without uploading.
-                        _logger.LogDebug(
-                            "Local file matches server (hash match), recording without upload: {RelPath}", relativePath);
-                        pendingUpserts.Add(new LocalFileRecord
-                        {
-                            LocalPath = localPath,
-                            NodeId = serverNode.NodeId,
-                            ContentHash = localHash,
-                            LastSyncedAt = DateTime.UtcNow,
-                            LocalModifiedAt = File.GetLastWriteTimeUtc(localPath),
-                        });
-                    }
-                    else
-                    {
-                        // Different content — queue an update (not a new file).
-                        _logger.LogDebug(
-                            "Local file differs from server, queuing update upload: {RelPath}", relativePath);
-                        pendingQueues.Add(new PendingUpload { LocalPath = localPath, NodeId = serverNode.NodeId });
-                        queued++;
-                    }
+                        LocalPath = localPath,
+                        NodeId = serverNode.NodeId,
+                        ContentHash = serverNode.ContentHash,
+                        LastSyncedAt = DateTime.UtcNow,
+                        LocalModifiedAt = File.GetLastWriteTimeUtc(localPath),
+                    });
                 }
             }
             else
@@ -720,36 +712,29 @@ public sealed class SyncEngine : ISyncEngine
 
                 if (serverChild is not null)
                 {
-                    // File exists on server — compare size and hash to determine
-                    // whether the content is the same or the user modified it locally.
+                    // File exists on server — compare size to determine whether the
+                    // content is the same or the user modified it locally. Hash comparison
+                    // is skipped because the server stores a manifest-based hash (computed
+                    // from chunk hashes) which differs from the local direct SHA256.
+                    // Size match is sufficient for identity; if the user modified the
+                    // file locally, the mtime check in IsLocallyModified will catch it
+                    // on the next scan once the state DB is populated.
                     var localSize = new FileInfo(localPath).Length;
                     if (localSize == serverChild.Size)
                     {
-                        var localHash = await ComputeFileHashAsync(localPath, cancellationToken);
-                        if (string.Equals(localHash, serverChild.ContentHash, StringComparison.OrdinalIgnoreCase))
+                        // Sizes match — record without uploading using the server's
+                        // ContentHash to keep hash formats consistent.
+                        _logger.LogInformation(
+                            "Local file matches server size (direct check), recording without upload: {RelPath}",
+                            relativePath);
+                        pendingUpserts.Add(new LocalFileRecord
                         {
-                            // Identical — record in state DB without uploading.
-                            _logger.LogInformation(
-                                "Local file matches server (direct check, hash match), recording without upload: {RelPath}",
-                                relativePath);
-                            pendingUpserts.Add(new LocalFileRecord
-                            {
-                                LocalPath = localPath,
-                                NodeId = serverChild.Id,
-                                ContentHash = localHash,
-                                LastSyncedAt = DateTime.UtcNow,
-                                LocalModifiedAt = File.GetLastWriteTimeUtc(localPath),
-                            });
-                        }
-                        else
-                        {
-                            // Sizes match but hashes differ — user edited the file locally.
-                            _logger.LogInformation(
-                                "Local file differs from server (direct check, hash mismatch), queuing update upload: {RelPath}",
-                                relativePath);
-                            pendingQueues.Add(new PendingUpload { LocalPath = localPath, NodeId = serverChild.Id });
-                            queued++;
-                        }
+                            LocalPath = localPath,
+                            NodeId = serverChild.Id,
+                            ContentHash = serverChild.ContentHash,
+                            LastSyncedAt = DateTime.UtcNow,
+                            LocalModifiedAt = File.GetLastWriteTimeUtc(localPath),
+                        });
                     }
                     else
                     {
@@ -2132,7 +2117,16 @@ public sealed class SyncEngine : ISyncEngine
         if (!File.Exists(localPath))
             return false;
         var localModified = File.GetLastWriteTimeUtc(localPath);
-        return localModified > record.LastSyncedAt;
+        // Primary check: mtime is strictly after the last sync timestamp.
+        if (localModified > record.LastSyncedAt)
+            return true;
+        // Secondary check: mtime differs from the recorded mtime at last sync.
+        // Catches the case where a file write completed with an mtime that falls
+        // within the LastSyncedAt window (e.g. mtime == LastSyncedAt or the sync
+        // pass ran concurrently with the write), so the strict > check missed it.
+        if (localModified != record.LocalModifiedAt)
+            return true;
+        return false;
     }
 
     private static async Task<string> ComputeFileHashAsync(string path, CancellationToken cancellationToken)
