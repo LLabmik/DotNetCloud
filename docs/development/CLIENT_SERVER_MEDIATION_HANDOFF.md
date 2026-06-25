@@ -103,6 +103,12 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 - ✅ **Server-side auth fix deployed** — `GetUserIdFromContext` changed from `context.RequestHeaders` to `context.GetHttpContext().Request.Headers["Authorization"]`. `UseAuthentication()` + `UseAuthorization()` added to gRPC `MapWhen` pipeline. Deployed and hash-verified.
 - ❌ **Windows11-TestDNC verification: gRPC auth still fails** — Despite server fix, `"Authentication required."` persists. Client log confirms `tokenPresent=true` at the time of gRPC call. HTTP fallback works. The `Authorization` header is still not reaching `GetUserIdFromContext` via `GetHttpContext().Request.Headers`. Server-side debug logging added and deployed.
 - ✅ **Round 2 server-side investigation complete** — Debug logging added to `FilesUploadStreamService.UploadFileStream` (logs all headers, auth header, ContentType, User identity). Middleware ordering verified correct. No middleware strips `Authorization` before gRPC branch. Deployed and hash-verified. All 14/14 modules healthy.
+- ✅ **Windows11-TestDNC verification with GRPC-DEBUG logs complete** — Debug logs reveal:
+  - `ContentType=application/grpc` ✅ — gRPC content type matches correctly
+  - `Authorization=Bearer <JWE>` ✅ — Auth header IS present in HTTP/2 headers
+  - `User.Identity.Name=Ben Kimball, IsAuthenticated=True` ✅ — Auth middleware IS authenticating the user successfully
+  - **Root cause identified:** `GetUserIdFromContext` parses JWT with `JwtSecurityTokenHandler.ReadJwtToken()` and returns `jwt.Subject` — but the tokens are **JWE (encrypted)** tokens (`alg=RSA-OAEP, enc=A256CBC-HS512`). `ReadJwtToken()` cannot read inner claims from JWE, so `jwt.Subject` is always `null`.
+  - **Fix:** Use `httpContext.User.FindFirst("sub")` instead — the `UseAuthentication()` middleware has already decrypted the JWE and populated claims. This matches the pattern used by every other controller in the codebase.
 - All prior Phase 2, chat, pre-Linux sync remediation, SyncTray icon enhancement, VFS work complete and archived.
 
 ## Environment
@@ -127,44 +133,68 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** Server-side debug logging deployed to `FilesUploadStreamService`. Windows11-TestDNC needs to re-test gRPC upload and inspect the server-side `GRPC-DEBUG` log entries to determine why the `Authorization` header is not reaching the gRPC handler.
+**Summary:** Root cause identified — `GetUserIdFromContext` fails on JWE-encrypted tokens. `JwtSecurityTokenHandler.ReadJwtToken()` cannot read inner claims from JWE (encrypted) tokens, so `jwt.Subject` is always `null`. The auth middleware (`UseAuthentication()`) has already decrypted the JWE and populated `httpContext.User` with claims — `GetUserIdFromContext` should use `httpContext.User.FindFirst("sub")` instead.
 
-**What changed on the server (cloud.kimball.home):**
-- ✓ Temporary debug logging added at the top of `UploadFileStream` in `FilesUploadStreamService` — logs `ContentType`, all HTTP headers, auth header value, and `User.Identity` info
-- ✓ Middleware ordering verified — `UseAuthentication()` + `UseAuthorization()` correctly placed inside gRPC `MapWhen` branch before `UseEndpoints()`
-- ✓ Full middleware pipeline analyzed — no middleware strips the `Authorization` header before it reaches the gRPC branch
-- ✓ `FilesUploadStreamService` is in `Core.Server` (not `Files.Host`) — confirmed correct deployment
-- ✓ Deployed and hash-verified — deployed DLL hash matches publish output
-- ✓ All 14/14 modules healthy post-deploy
-- ⬜ `grpcurl` test TBD (requires JWT token acquisition — not yet done)
+**Windows11-TestDNC verification complete:**
+- ✓ Pulled latest (`169012b0`), rebuilt SyncTray — build succeeded
+- ✓ Created test file `grpc-test-grpc-debug.txt`, ran sync — gRPC upload attempted
+- ✓ Client log: `tokenPresent=true`, fallback to HTTP succeeded
+- ✓ Server `GRPC-DEBUG` logs fetched via SSH (cloud.kimball.home):
+  - `ContentType=application/grpc` — gRPC routing works
+  - `Authorization=Bearer <JWE>` — auth header IS present in HTTP/2 headers
+  - `User.Identity.Name=Ben Kimball, IsAuthenticated=True` — auth middleware works
+- ✓ **Root cause identified:** See below
 
-**Key findings from investigation:**
-1. The `GetUserIdFromContext` fix (reading from `GetHttpContext().Request.Headers["Authorization"]`) IS deployed and hash-verified
-2. The middleware ordering inside the gRPC `MapWhen` branch is correct (`UseRouting` → `UseAuthentication` → `UseAuthorization` → endpoints)
-3. None of the middleware running before the gRPC `MapWhen` branch (ForwardedHeaders, ResponseCompression, RequestCorrelation, SecurityHeaders, GlobalExceptionHandler, CORS, etc.) strips or modifies the `Authorization` header
-4. The `Authorization` header should be arriving via HTTP/2 HEADERS frame — but something is preventing it from being visible to `GetHttpContext().Request.Headers`
+**Root cause: JWE token + ReadJwtToken incompatibility**
 
-**What debug logging will reveal:**
-The server now logs at `Information` level with prefix `GRPC-DEBUG:`:
-- `GRPC-DEBUG: ContentType=...` — confirms gRPC content type matching
-- `GRPC-DEBUG: All headers: ...` — complete list of headers arriving at handler
-- `GRPC-DEBUG: Auth header: ...` — the raw `Authorization` header value (or `(null)`)
-- `GRPC-DEBUG: User.Identity.Name=..., IsAuthenticated=...` — whether `UseAuthentication()` populated the user
+The `GetUserIdFromContext` method at `FilesUploadStreamService.cs:291` calls:
+```csharp
+var handler = new JwtSecurityTokenHandler();
+if (handler.CanReadToken(token)) {
+    var jwt = handler.ReadJwtToken(token);
+    return jwt.Subject;  // ← Always null for JWE tokens!
+}
+```
+
+The tokens issued by the server are **JWE (JSON Web Encryption)** tokens, not JWS (signed) tokens. The token header shows:
+```
+{"alg":"RSA-OAEP","enc":"A256CBC-HS512","kid":"7BFXo9zhz7DSmH3KeWfWyW-zLTT5C_J7GnsTS7K7wNY","typ":"at+jwt","cty":"JWT"}
+```
+
+`JwtSecurityTokenHandler.ReadJwtToken()` is designed for JWS (signed) tokens. When given a JWE token, it reads only the **outer encryption envelope** — the inner claims payload is encrypted and inaccessible. Therefore `jwt.Subject` is always `null`.
+
+Meanwhile, `UseAuthentication()` middleware (OpenIddict validation) has **already decrypted the JWE** and populated `httpContext.User` with the full claims. This is confirmed by:
+```
+GRPC-DEBUG: User.Identity.Name=Ben Kimball, IsAuthenticated=True
+```
+
+The fix: replace the manual JWT parsing with the standard codebase pattern used by every controller:
+```csharp
+httpContext.User?.FindFirst("sub")?.Value
+    ?? httpContext.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+```
 
 ---
 
 ### Server Actions — `cloud.kimball.home`
 
-- ✓ Debug logging added and deployed
-- ✓ Middleware ordering verified
-- ✓ Deployment hash-verified
-- [ ] Wait for Windows11-TestDNC verification results — check server logs for `GRPC-DEBUG` entries after client runs a gRPC test
-- [ ] Based on findings, determine root cause and fix
+- [ ] Fix `GetUserIdFromContext` in `src/Core/DotNetCloud.Core.Server/Grpc/Services/FilesUploadStreamService.cs`:
+  - Replace `var handler = new JwtSecurityTokenHandler(); ... return jwt.Subject;` with the standard claims-based pattern:
+  ```csharp
+  var httpContext = context.GetHttpContext();
+  var subClaim = httpContext.User?.FindFirst("sub")?.Value
+      ?? httpContext.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+  if (subClaim is not null) return subClaim;
+  ```
+- [ ] Optionally remove the temporary GRPC-DEBUG logging after fix is verified
+- [ ] Deploy to cloud.dotnetcloud.net (dotnet build, deploy.sh)
+- [ ] Verify with grpcurl using a real JWT token, or wait for Windows11-TestDNC re-test
 
 ### Client Actions — `Windows11-TestDNC`
 
-- [ ] Pull latest from `perf/synctray-scan-and-transfer-speedups`
-- [ ] Rebuild SyncTray and test gRPC upload again
-- [ ] After test, provide the **server-side log output** showing the `GRPC-DEBUG:` entries (from `cloud.dotnetcloud.net` server logs)
-  - Key data points needed: Does `ContentType` contain `application/grpc`? Is `Authorization` header present in the full headers list? Is `User.Identity.IsAuthenticated` true?
-- [ ] Document findings and relay back to cloud.kimball.home
+- ✓ Pulled latest (`169012b0`) — done
+- ✓ Rebuilt SyncTray — done
+- ✓ Tested gRPC upload — done (`tokenPresent=true`, server debug logs captured)
+- ✓ Provided server-side GRPC-DEBUG log output — done
+- ✓ Root cause identified and documented — done
+- [ ] After server fix is deployed, re-test gRPC upload to confirm fix

@@ -1,6 +1,6 @@
 # Client/Server Mediation — Archived Context
 
-Archived: 2026-06-24 20:47 UTC. Full git history preserved in commits up to changes from Windows11-TestDNC.
+Archived: 2026-06-24 23:30 UTC. Full git history preserved in commits up to changes from Windows11-TestDNC.
 
 ## Archived: gRPC Streaming Upload — Server Auth Fix + Client Verification (2026-06-24)
 
@@ -29,6 +29,27 @@ Archived: 2026-06-24 20:47 UTC. Full git history preserved in commits up to chan
 - ✓ HTTP fallback works — all files uploaded successfully
 
 **Handoff commit:** (pending)
+
+---
+
+## Archived: Windows11-TestDNC Verification — GRPC-DEBUG Root Cause Found (2026-06-24)
+
+**Target:** Windows11-TestDNC (client verification) → cloud.kimball.home (server fix)
+
+**Result:** ✅ Root cause identified. The JWT tokens are JWE-encrypted. `JwtSecurityTokenHandler.ReadJwtToken()` cannot read inner claims from JWE tokens — `jwt.Subject` is always `null`. HTTP fallback works.
+
+**Client actions completed (Windows11-TestDNC):**
+- ✓ Pulled latest (`169012b0`), rebuilt SyncTray — build succeeded
+- ✓ Created test file `grpc-test-grpc-debug.txt`, sync triggered gRPC upload attempt
+- ✓ Client log confirmed `tokenPresent=true`
+- ✓ Server `GRPC-DEBUG` logs fetched via SSH from `cloud.kimball.home`:
+  - `ContentType=application/grpc` ✅
+  - `Authorization=Bearer <JWE>` present in headers ✅
+  - `User.Identity.Name=Ben Kimball, IsAuthenticated=True` ✅
+- ✓ **Root cause:** `GetUserIdFromContext` manually parses JWT via `ReadJwtToken().Subject` which always returns null for JWE tokens. Auth middleware has already decrypted the JWE — should use `httpContext.User.FindFirst("sub")` instead (standard codebase pattern).
+- ✓ Documented findings in handoff and relayed to cloud.kimball.home
+
+**Next:** Server agent (`cloud.kimball.home`) to fix `GetUserIdFromContext` to use `User.FindFirst("sub")` and deploy.
 
 ---
 
