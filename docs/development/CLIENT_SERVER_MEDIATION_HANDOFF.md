@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-25 06:20 UTC (Windows11-TestDNC: gRPC auth fix verified for new files. Existing file CompleteUpload throws unhandled exception in FilesGrpcService.)
+Last updated: 2026-06-25 06:50 UTC (cloud.kimball.home: fixed gRPC CompleteUpload — existing file update now detected by name collision and version-bumps instead of crashing.)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -113,7 +113,8 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 - ✅ **Windows11-TestDNC GRPC-AUTH-DEBUG complete** — `sub` claim IS present (`sub=587d777a-4793-4248-2184-08deb47250fa`). `GetUserIdFromContext` works correctly. `NameIdentifier` absent but irrelevant.
 - ❌ **Root cause: downstream module gRPC auth** — Core.Server creates gRPC channel to Files module host with `UnsafeUseInsecureChannelCallCredentials = true` (no credentials forwarded). The Files module's gRPC `InitiateUpload`/`UploadChunk`/`CompleteUpload` handlers reject unauthenticated calls. Error `"Authentication is required."` comes from Files module, not from `GetUserIdFromContext`. HTTP fallback works.
 - ✅ **32 client tests fixed** — 263 passed, 1 skipped (Linux-only), 0 failed.
-- ✅ **Downstream gRPC auth fix deployed** — `FilesUploadStreamService.cs` now extracts the `Authorization` header from the incoming client gRPC context and forwards it as metadata to the Files module host's `InitiateUploadAsync`/`UploadChunkAsync`/`CompleteUploadAsync` calls. GRPC-AUTH-DEBUG logging removed. Deployed and hash-verified (`b2e2a317`). All modules healthy (files: Healthy, photos: pre-existing issue).
+- ✅ **Downstream gRPC auth fix deployed** — `FilesUploadStreamService.cs` now extracts the `Authorization` header from the incoming client gRPC context and forwards it as metadata to the Files module host's `InitiateUploadAsync`/`UploadChunkAsync`/`CompleteUploadAsync` calls. GRPC-AUTH-DEBUG logging removed. Deployed and hash-verified (`b2e2a317`). All modules healthy (files: Healthy).
+- ✅ **gRPC CompleteUpload existing-file fix deployed** — `FilesGrpcService.CompleteUpload` now detects existing files by `Name`+`ParentId`+`OwnerId` collision and version-bumps (updates `Size`, `ContentHash`, `StoragePath`, `CurrentVersion++`) instead of always creating a new `FileNode`. Quota delta calculated correctly (full size for new, delta for update). Previously crashed with `DbUpdateException` (unique index `uq_file_nodes_parent_name_active` violation) on existing-file update. Build: 0 errors, 0 warnings. Tests: 0 failed (734 Files tests passed). Deployed and hash-verified. All 14/14 modules healthy.
 - All prior Phase 2, chat, pre-Linux sync remediation, SyncTray icon enhancement, VFS work complete and archived.
 
 ## Environment
@@ -138,30 +139,26 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** gRPC auth fix verified — new file upload succeeds via gRPC. Existing file update fails at `FilesGrpcService.CompleteUpload` (unhandled exception). Server agent needs to fix the gRPC CompleteUpload handler for the update-existing-file code path.
+**Summary:** `FilesGrpcService.CompleteUpload` fix deployed — existing file updates now version-bump the existing node instead of crashing with unique constraint violation. Windows11-TestDNC needs to rebuild SyncTray and re-test gRPC upload for both new and existing files.
 
-**Auth fix verified:**
-- Bearer token forwarding from Core.Server → Files module host works correctly
-- `InitiateUpload` and `UploadChunk` both succeed (200) for both new and existing files
-- gRPC streaming upload for **new files** is fully functional
+**Root cause:** The `InitiateUploadRequest` proto has no `TargetFileNodeId` field, so every gRPC upload creates a session with `TargetFileNodeId = null`. `CompleteUpload` always created a new `FileNode`, violating the `uq_file_nodes_parent_name_active` unique index when a file with the same `Name`+`ParentId` already existed → `DbUpdateException` → `RpcException(StatusCode="Unknown")`.
 
-**Remaining issue:**
-- `CompleteUpload` in `FilesGrpcService.CompleteUpload` throws `RpcException(StatusCode="Unknown", Detail="Exception was thrown by handler.")` when updating an existing file
-- REST API CompleteUpload controller handles this correctly (HTTP fallback works)
-- Bug is specific to the gRPC CompleteUpload handler in the Files module, not in Core.Server
+**Fix applied:**
+- `FilesGrpcService.CompleteUpload` now checks for an existing active file with matching `Name`+`ParentId`+`OwnerId`+`NodeType==File` before creating a new node
+- If found: version-bump (`CurrentVersion++`, update `Size`, `ContentHash`, `StoragePath`, `UpdatedAt`)
+- If not found: create new node (existing behavior preserved)
+- Quota delta calculated correctly (full size for new, delta for update)
+- Deployed: `sudo ./scripts/deploy.sh` — 15/15 targets succeeded. Hash verified. All 14/14 modules healthy.
 
 ---
 
 ### Server Actions — `cloud.kimball.home`
 
-- ✓ Done — downstream gRPC auth fix deployed. Bearer token forwarded to Files module host. All 15/15 targets succeeded.
+- ✓ Done — see completion notes above.
 
 ### Client Actions — `Windows11-TestDNC`
 
-- ✓ **Pull latest** (`git pull`) — pulled commit `96f4736a` (server-side fix).
-- ✓ **Rebuild SyncTray** — no rebuild needed (server-side change only).
-- ✓ **Re-test gRPC upload** — two files tested:
-  - **`grpc-fix-test.txt` (new file)** — ✅ **gRPC upload SUCCESS!** 27 bytes, 1467ms. All three downstream gRPC calls (InitiateUpload → UploadChunk → CompleteUpload) returned 200. No auth errors.
-  - **`Test.txt` (existing file update)** — ❌ gRPC InitiateUpload ✅, UploadChunk ✅, but **CompleteUpload failed**: `RpcException(StatusCode="Unknown", Detail="Exception was thrown by handler.")` in `DotNetCloud.Modules.Files.Host.Services.FilesGrpcService.CompleteUpload`. HTTP fallback succeeded via REST API.
-- ✓ **Auth fix works** — Bearer token forwarding resolves the "Authentication is required." error. 🎉
-- ❌ **New bug found**: `FilesGrpcService.CompleteUpload` throws an unhandled exception when updating an existing file (CompleteUpload for new files works fine). The REST API `CompleteUpload` controller handles this correctly, so the bug is specific to the gRPC handler code path.
+- [ ] **Pull latest** (`git pull`)
+- [ ] **Rebuild SyncTray**: `dotnet build src\Clients\DotNetCloud.Client.SyncTray.csproj -c Release`
+- [ ] **Re-test gRPC upload**: Create a new file in `C:\Users\benk\synctray` AND modify an existing file. Verify both succeed via gRPC with no errors.
+- [ ] **Report findings** back via handoff update.

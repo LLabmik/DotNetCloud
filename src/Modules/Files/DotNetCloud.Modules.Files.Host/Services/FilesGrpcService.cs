@@ -722,31 +722,75 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
             depth = 0;
         }
 
-        // Create the file node
-        var fileNode = new FileNode
+        // ── Check for existing file with same name+parent → version bump ──
+        // The gRPC InitiateUploadRequest proto does not include TargetFileNodeId,
+        // so every upload appears as a new-file creation. Detect existing files by
+        // name collision so updates don't violate the unique index or create orphans.
+        FileNode? existingNode = null;
+        if (session.TargetParentId.HasValue)
         {
-            Name = session.FileName,
-            NodeType = FileNodeType.File,
-            MimeType = session.MimeType,
-            Size = session.TotalSize,
-            ParentId = session.TargetParentId,
-            OwnerId = userId,
-            ContentHash = combinedHash,
-            StoragePath = storagePath,
-            CurrentVersion = 1,
-            Depth = depth
-        };
-        fileNode.MaterializedPath = string.IsNullOrEmpty(materializedPath)
-            ? $"/{fileNode.Id}"
-            : $"{materializedPath}/{fileNode.Id}";
+            existingNode = await _db.FileNodes
+                .Where(n => n.ParentId == session.TargetParentId.Value
+                    && n.Name == session.FileName
+                    && n.NodeType == FileNodeType.File
+                    && n.OwnerId == userId)
+                .FirstOrDefaultAsync(context.CancellationToken);
+        }
+        else
+        {
+            existingNode = await _db.FileNodes
+                .Where(n => n.OwnerId == userId
+                    && n.ParentId == null
+                    && n.Name == session.FileName
+                    && n.NodeType == FileNodeType.File)
+                .FirstOrDefaultAsync(context.CancellationToken);
+        }
 
-        _db.FileNodes.Add(fileNode);
+        FileNode fileNode;
+        int newVersionNumber;
+        long quotaDelta;
 
-        // Create version 1
+        if (existingNode is not null)
+        {
+            // ── Update existing node (version bump) ──
+            quotaDelta = session.TotalSize - existingNode.Size;
+            existingNode.Size = session.TotalSize;
+            existingNode.ContentHash = combinedHash;
+            existingNode.StoragePath = storagePath;
+            existingNode.CurrentVersion++;
+            existingNode.UpdatedAt = DateTime.UtcNow;
+            newVersionNumber = existingNode.CurrentVersion;
+            fileNode = existingNode;
+        }
+        else
+        {
+            // ── Create new file node ──
+            fileNode = new FileNode
+            {
+                Name = session.FileName,
+                NodeType = FileNodeType.File,
+                MimeType = session.MimeType,
+                Size = session.TotalSize,
+                ParentId = session.TargetParentId,
+                OwnerId = userId,
+                ContentHash = combinedHash,
+                StoragePath = storagePath,
+                CurrentVersion = 1,
+                Depth = depth
+            };
+            fileNode.MaterializedPath = string.IsNullOrEmpty(materializedPath)
+                ? $"/{fileNode.Id}"
+                : $"{materializedPath}/{fileNode.Id}";
+            _db.FileNodes.Add(fileNode);
+            newVersionNumber = 1;
+            quotaDelta = session.TotalSize;
+        }
+
+        // Create a FileVersion record
         var version = new FileVersion
         {
             FileNodeId = fileNode.Id,
-            VersionNumber = 1,
+            VersionNumber = newVersionNumber,
             Size = session.TotalSize,
             ContentHash = combinedHash,
             StoragePath = storagePath,
@@ -776,15 +820,18 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
         session.Status = UploadSessionStatus.Completed;
         session.UpdatedAt = DateTime.UtcNow;
 
-        // Update user quota
-        var quota = await _db.FileQuotas
-            .FirstOrDefaultAsync(q => q.UserId == userId, context.CancellationToken);
-
-        if (quota is not null)
+        // Update user quota (use delta for update case, full size for new file)
+        if (quotaDelta != 0)
         {
-            quota.UsedBytes += session.TotalSize;
-            quota.LastCalculatedAt = DateTime.UtcNow;
-            quota.UpdatedAt = DateTime.UtcNow;
+            var quota = await _db.FileQuotas
+                .FirstOrDefaultAsync(q => q.UserId == userId, context.CancellationToken);
+
+            if (quota is not null)
+            {
+                quota.UsedBytes += quotaDelta;
+                quota.LastCalculatedAt = DateTime.UtcNow;
+                quota.UpdatedAt = DateTime.UtcNow;
+            }
         }
 
         await _db.SaveChangesAsync(context.CancellationToken);
