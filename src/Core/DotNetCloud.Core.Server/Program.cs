@@ -834,6 +834,11 @@ public class Program
             grpcApp =>
             {
                 grpcApp.UseRouting();
+                // Authentication and authorization middleware MUST run inside the gRPC branch.
+                // Without these, the framework never validates the JWT for gRPC requests and
+                // HttpContext.User is never populated.
+                grpcApp.UseAuthentication();
+                grpcApp.UseAuthorization();
                 grpcApp.UseEndpoints(endpoints =>
                 {
                     endpoints.MapGrpcService<CoreCapabilitiesServiceImpl>();

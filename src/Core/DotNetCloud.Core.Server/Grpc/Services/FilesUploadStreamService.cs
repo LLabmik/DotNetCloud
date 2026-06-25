@@ -4,6 +4,7 @@ using Grpc.Core;
 using Grpc.Net.Client;
 using Microsoft.Extensions.Logging;
 using System.IdentityModel.Tokens.Jwt;
+using System.Linq;
 
 namespace DotNetCloud.Core.Server.Grpc.Services;
 
@@ -274,24 +275,28 @@ public sealed class FilesUploadStreamService : FilesService.FilesServiceBase
 
     private static string? GetUserIdFromContext(ServerCallContext context)
     {
-        foreach (var entry in context.RequestHeaders)
+        // Read the Authorization header from the HTTP context, NOT from context.RequestHeaders.
+        // When the client sets Authorization via HttpClient.DefaultRequestHeaders, it becomes
+        // an HTTP/2 HEADERS frame header, NOT gRPC metadata. context.RequestHeaders only
+        // exposes gRPC metadata entries, so the Authorization header is invisible there.
+        // It IS available via context.GetHttpContext().Request.Headers["Authorization"].
+        var httpContext = context.GetHttpContext();
+        var authHeader = httpContext.Request.Headers["Authorization"].FirstOrDefault();
+        if (authHeader is not null &&
+            authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
         {
-            if (string.Equals(entry.Key, "authorization", StringComparison.OrdinalIgnoreCase) &&
-                entry.Value.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+            var token = authHeader["Bearer ".Length..];
+            try
             {
-                var token = entry.Value["Bearer ".Length..];
-                try
+                var handler = new JwtSecurityTokenHandler();
+                if (handler.CanReadToken(token))
                 {
-                    var handler = new JwtSecurityTokenHandler();
-                    if (handler.CanReadToken(token))
-                    {
-                        var jwt = handler.ReadJwtToken(token);
-                        return jwt.Subject;
-                    }
+                    var jwt = handler.ReadJwtToken(token);
+                    return jwt.Subject;
                 }
-                catch
-                {
-                }
+            }
+            catch
+            {
             }
         }
         return null;

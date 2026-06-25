@@ -146,13 +146,22 @@ Token is present on the client side (including after being set as `HttpClient.De
 
 ---
 
+---
+
 ### Server Actions — `cloud.kimball.home`
 
-- [ ] Investigate why `Authorization` header (sent as HTTP/2 default header by gRPC client) is not visible in `FilesUploadStreamService.GetUserIdFromContext(ServerCallContext context)`
-- [ ] Verify `context.RequestHeaders` contents at runtime (add debug logging or use `grpcurl` with `-authority` flag)
-- [ ] Test with `grpcurl -insecure -authority cloud.dotnetcloud.net -rpc-header "Authorization: Bearer <token>" ...` to confirm auth header reaches the handler
-- [ ] Consider adding `app.UseAuthentication()` to the gRPC `MapWhen` pipeline (currently only has `UseRouting` + `UseEndpoints`) so the JWT is validated by the framework before reaching the service
+- ✓ **Investigated root cause** — `Authorization` header sent via `HttpClient.DefaultRequestHeaders` becomes an HTTP/2 HEADERS frame header, NOT gRPC metadata. `ServerCallContext.RequestHeaders` only exposes gRPC metadata entries, so the header was invisible there. It IS available via `context.GetHttpContext().Request.Headers["Authorization"]`.
+- ✓ **Fixed `GetUserIdFromContext`** — changed from iterating `context.RequestHeaders` to reading `context.GetHttpContext().Request.Headers["Authorization"].FirstOrDefault()`
+- ✓ **Added `UseAuthentication()` + `UseAuthorization()`** to the gRPC `MapWhen` pipeline in `Program.cs` (previously only had `UseRouting` + `UseEndpoints`)
+- ✓ **Deployed to production** — `sudo ./scripts/deploy.sh` completed successfully, all 14/14 modules healthy
+- ✓ **Hash-verified** — deployed `DotNetCloud.Core.Server.dll` matches build output (same timestamp: 22:29:45)
 
 ### Client Actions — `Windows11-TestDNC`
 
-- ✓ All client-side actions complete. SyncTray rebuilt with gRPC improvements. Files sync via HTTP fallback while server-side auth is investigated.
+**Ready for client verification.** Server-side gRPC auth fix is live on `cloud.dotnetcloud.net`. Rebuild SyncTray and test gRPC streaming upload:
+
+1. Pull latest from `perf/synctray-scan-and-transfer-speedups`
+2. Rebuild SyncTray
+3. Enable `EnableGrpcStreaming = true` in `ChunkedTransferClient`
+4. Run upload test — gRPC upload should now authenticate successfully (no more `"Authentication required."`)
+5. If gRPC still fails, enable debug logging in `FilesUploadStreamService` temporarily to inspect the headers at the server
