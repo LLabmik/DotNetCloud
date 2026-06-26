@@ -1575,14 +1575,22 @@ public sealed class SyncEngine : ISyncEngine
                 nodeId, localRecord.LocalPath);
         }
 
-        // Update the tracking record with the new path
-        localRecord.LocalPath = expectedLocalPath;
-        localRecord.LastSyncedAt = DateTime.UtcNow;
-        localRecord.LocalModifiedAt = File.Exists(expectedLocalPath)
+        // Update the tracking record with the new path.
+        // Use UpdateFileRecordPathAsync (lookup by NodeId) instead of
+        // UpsertFileRecordAsync (lookup by LocalPath) to avoid a UNIQUE
+        // constraint violation on FileRecords.Id — the old LocalPath still
+        // exists in the DB, so an upsert-by-LocalPath would not find the
+        // existing row and would attempt an INSERT with the original row Id.
+        var localModifiedAt = File.Exists(expectedLocalPath)
             ? File.GetLastWriteTimeUtc(expectedLocalPath)
             : default;
-        await _stateDb.UpsertFileRecordAsync(
-            context.StateDatabasePath, localRecord, cancellationToken);
+        await _stateDb.UpdateFileRecordPathAsync(
+            context.StateDatabasePath,
+            nodeId,
+            expectedLocalPath,
+            localRecord.ContentHash,
+            localModifiedAt,
+            cancellationToken);
 
         return true;
     }

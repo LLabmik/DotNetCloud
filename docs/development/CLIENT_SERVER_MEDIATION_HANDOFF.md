@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-26 21:35 UTC (Server-side rename API verification complete — web UI rename, server logs, and DB all confirmed working. Ready to relay to Windows 11 for remote rename client testing.)
+Last updated: 2026-06-26 14:40 UTC (Test Case 2 verified on Windows11-TestDNC — remote rename propagated to local SyncTray, one bug found and fixed in TryHandleRemoteRenameAsync.)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -96,7 +96,8 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 - ✅ **gRPC streaming upload fully functional** — (archived)
 - ✅ **Client scanner bugs fixed** — (archived)
 - ✅ **Windows 11 rename/move sync tested** — Found and fixed 3 bugs in rename detection (hash mismatch, path mutation in catch, UNIQUE constraint violation). Rename now propagates to server correctly.
-- ⏳ **Tests 2-5** — Remote rename, batch conflict resolve, full-sync progress, and CRUD regression partially tested. Remaining tests gated by server-side access or multi-client setup.
+- ✅ **Test Case 2 (Remote rename from server)** — Verified on Windows11-TestDNC. SyncTray picks up remote renames via polling. One bug found and fixed (`UpsertFileRecordAsync` → `UpdateFileRecordPathAsync` in `TryHandleRemoteRenameAsync`).
+- ⏳ **Tests 3-5** — Batch conflict resolve, full-sync progress, CRUD edit/delete. Gated by multi-client setup or UI interaction.
 
 ## Environment
 
@@ -120,75 +121,65 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** Rename API verified end-to-end from server side — web UI rename, server logs, and database all confirmed. Server actions completed. Ready for client to pick up remote rename.
+**Summary:** Test Case 2 (remote rename from server) verified on Windows11-TestDNC. One new bug found and fixed in `TryHandleRemoteRenameAsync`. Remaining Test Cases 3-5 gated by multi-client setup or UI interaction.
 
-**Context:** Tested the 4 sync architecture improvements on Windows 11. Test 1 revealed 3 bugs in the rename detection code that were fixed on the client side. Tests 2-5 partially complete (gated by server-side rename or multi-client setup). Server verification of rename API completed on `cloud.kimball.home`.
+**Context:** Server renamed `crud-test.txt` → `renamed-from-webui.txt` via web UI. SyncTray detected the change in its polling cycle but crashed with `UNIQUE constraint failed: FileRecords.Id` — `TryHandleRemoteRenameAsync` used `UpsertFileRecordAsync` (lookup by LocalPath) after changing the path, so the old row was not found and an INSERT was attempted with the original auto-increment Id.
+
+**Fix:** Replaced `UpsertFileRecordAsync` with `UpdateFileRecordPathAsync` (lookup by NodeId) in `TryHandleRemoteRenameAsync` — same pattern already proven in `ScanLocalDirectoryAsync` local rename handling.
+
+**Result — All 3 checks passed on Windows11-TestDNC:**
+
+1. **File on disk:** `crud-test.txt` renamed to `renamed-from-webui.txt` ✓
+2. **Sync log:** No errors. `RemoteChanges=1`, `DurationMs=897` ✓
+3. **Sync pass complete:** Clean completion with ack to server ✓
 
 ---
 
 ### Client Actions — `Windows11-TestDNC` ✓
 
-**Setup:** ✓ Done (`9c089190`, branch `perf/synctray-scan-and-transfer-speedups`, built Release SyncTray)
+**Test Case 2 — Remote rename from server:** ✓ **Completed**
 
-**Test Case 1 — Rename/move sync:** ⚠️ **Fixed — now working**
+**Bug found — UNIQUE constraint violation in `TryHandleRemoteRenameAsync`:**
+`UpsertFileRecordAsync` looks up by `LocalPath`. After changing `localRecord.LocalPath` to the new path, the lookup couldn't find the old row and attempted `ctx.FileRecords.Add(record)` — INSERT with the original auto-increment `Id`, which already existed.
 
-Initial test failed. Found 3 bugs in `ScanLocalDirectoryAsync` rename detection:
-
-**Bug 1 — Hash mismatch (line 1982):** The upload completion code stored the server's manifest-based content hash (from `uploadResult.ContentHash`), but the rename detection code compared it against a locally-computed SHA256 (`ComputeFileHashAsync`). These two hashing methods produce different values for the same file content, so rename was never detected.
-
-**Fix:** Changed upload to always compute and store the local SHA256 hash (matching the download path which already did this).
-
-**Bug 2 — Path mutation in catch block (line ~994):** When the rename DB update threw an exception, `missing.LocalPath` had already been mutated to the new path before being added to `actualDeletions`. This caused the fallback delete+create to attempt deletion of the NEW filename (which didn't exist on server) instead of the OLD filename.
-
-**Fix:** Added `missing.LocalPath = Path.Combine(context.LocalFolderPath, missingRelPath)` to restore the original path before adding to `actualDeletions`.
-
-**Bug 3 — UNIQUE constraint violation on LocalPath (line ~987):** `UpsertFileRecordAsync` looks up records by `LocalPath` (which has a UNIQUE index). After changing the path to the new name, it couldn't find the record and tried to INSERT a new row, which collided with the existing old-path row.
-
-**Fix:** Added `UpdateFileRecordPathAsync(Guid nodeId, ...)` method to `ILocalStateDb`/`LocalStateDb` that updates the record by NodeId instead of LocalPath, bypassing the UNIQUE constraint issue.
-
-**Result:** After fixes, the log shows:
+**Fix in `SyncEngine.cs` line ~1604:** Changed from:
+```csharp
+localRecord.LocalPath = expectedLocalPath;
+localRecord.LastSyncedAt = DateTime.UtcNow;
+localRecord.LocalModifiedAt = File.Exists(expectedLocalPath) ? File.GetLastWriteTimeUtc(expectedLocalPath) : default;
+await _stateDb.UpsertFileRecordAsync(context.StateDatabasePath, localRecord, cancellationToken);
 ```
-[13:21:38 INF] Local rename detected: Test.txt → renamed.txt (NodeId=...).
-[13:21:38 INF] API call PUT ".../rename"
-[13:21:38 INF] Local rename detection: 1 rename(s) propagated to server in context "..."
+To:
+```csharp
+var localModifiedAt = File.Exists(expectedLocalPath) ? File.GetLastWriteTimeUtc(expectedLocalPath) : default;
+await _stateDb.UpdateFileRecordPathAsync(context.StateDatabasePath, nodeId, expectedLocalPath, localRecord.ContentHash, localModifiedAt, cancellationToken);
 ```
-Server API call succeeded, local state DB updated. No delete+create fallback.
 
-**Fix commit hash:** `03283d57` (4 files changed: `ILocalStateDb.cs`, `LocalStateDb.cs`, `SyncEngine.cs`, handoff doc)
+**Verification log:**
+```
+[14:37:57 INF] Remote rename/move detected: ...crud-test.txt → ...renamed-from-webui.txt (NodeId="019f0599-...").
+[14:37:58 INF] ScanLocalDirectory: 0 queued, 41ms total (totalFiles=24)
+[14:37:58 INF] Sync pass complete: DurationMs=897, RemoteChanges=1, LocalQueued=0, LocalApplied=0
+```
 
-**Test Case 2 — Remote rename from server:** ☐ Not tested (requires server web UI access from Windows11-TestDNC)
+**Fix commit:** `171600ea` (1 file changed: `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs`)
 
-**Test Case 3 — Batch resolve conflicts:** ☐ Not tested (requires triggering a conflict with another client)
+**Test Case 3 — Batch resolve conflicts:** ☐ Not tested (requires triggering a conflict with another client — needs `mint-dnc-client` or `mint-OptiPlex-7010`)
 
-**Test Case 4 — Full-sync progress:** ☐ Not tested (state DB was deleted multiple times during testing but progress window visibility not verified — gated by UI interaction from client machine)
+**Test Case 4 — Full-sync progress:** ☐ Not tested (gated by UI interaction from client machine)
 
 **Test Case 5 — Regression: basic CRUD sync:** ✓ **Create verified**
-- Created `crud-test.txt` → uploaded successfully via gRPC (`NodeId="019f0599-2c8d-786e-b95a-464db9dc9fd1"`, DurationMs=194)
-- Edit and delete not verified from Windows side
+- Created `crud-test.txt` → uploaded successfully
+- File was remotely renamed to `renamed-from-webui.txt` → rename propagated to local successfully
+- Edit and delete not yet verified from Windows side
 
 ---
 
-### Server Actions — `cloud.kimball.home` ✓
+### Next Steps
 
-**Client-side fixes applied.** No server code changes needed. The rename detection bug was entirely in the client-side state DB handling code.
+No server actions needed at this point. Remaining unverified tests (3-5) require either:
+- A second connected client to trigger conflicts (Test Case 3)
+- Manual UI observation on the client machine (Test Case 4)
+- Local edit/delete verification (Test Case 5 remaining items)
 
-**Verify rename API works end-to-end:** ✓ **Completed** — Renamed `crud-test.txt` → `renamed-from-webui.txt` via web UI right-click menu.
-
-**Result — All 3 checks passed:**
-
-1. **Web UI:** `renamed-from-webui.txt` appears in file listing (60 B, Jun 26) ✓
-2. **Server logs:**
-   ```
-   Jun 26 16:29:59 INF Node 019f0599-2c8d-786e-b95a-464db9dc9fd1 renamed to 'renamed-from-webui.txt'
-   ```
-3. **Database (SQL Server):**
-   ```
-   019F0599-2C8D-786E-B95A-464DB9DC9FD1 renamed-from-webui.txt  2026-06-26 21:29:59.565
-   ```
-
-**Conclusion:** The `RenameAsync` endpoint at `PUT .../rename` works correctly end-to-end:
-- Client-initiated renames (gRPC → HTTP) return 200 and persist (verified from earlier Windows 11 tests)
-- Web UI renames also succeed and persist
-- No server code changes needed
-
-**Next handoff suggestion:** This handoff is ready to relay to `Windows11-TestDNC` for Test Case 2 (remote rename from server) — verify a connected SyncTray client picks up the rename via polling/notification without re-downloading content.
+These can be picked up when a multi-client setup is available.
