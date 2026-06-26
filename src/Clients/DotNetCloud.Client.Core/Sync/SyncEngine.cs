@@ -1656,7 +1656,20 @@ public sealed class SyncEngine : ISyncEngine
             }
             catch { /* non-critical; strategies fall through gracefully */ }
 
-            baseContent = localRecord?.ContentHash is not null ? "(stored)" : null;
+            // Fetch the base (common ancestor) content for three-way merge.
+            // The server maintains version history; version N-1 is the content
+            // before the latest server-side edit.
+            try
+            {
+                var node = await _api.GetNodeAsync(change.NodeId, cancellationToken);
+                if (node.CurrentVersion >= 2)
+                {
+                    using var stream = await _api.DownloadVersionAsync(change.NodeId, node.CurrentVersion - 1, cancellationToken);
+                    using var reader = new StreamReader(stream);
+                    baseContent = await reader.ReadToEndAsync(cancellationToken);
+                }
+            }
+            catch { /* non-critical; strategies fall through gracefully */ }
 
             var outcome = await _conflictResolver.ResolveAsync(new ConflictInfo
             {
@@ -1671,6 +1684,7 @@ public sealed class SyncEngine : ISyncEngine
                 LocalUserId = context.UserId,
                 LocalContent = localContent,
                 ServerContent = serverContent,
+                BaseContent = baseContent,
             }, cancellationToken);
 
             switch (outcome)
