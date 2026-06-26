@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-26 14:51 UTC (Test Case 4 attempted on Windows11-TestDNC — device cursor prevented full re-sync. Relay to cloud.kimball.home for server-side verification + cursor reset.)
+Last updated: 2026-06-26 22:00 UTC (Server-side verification complete — CRUD confirmed, device cursor reset. Ready to relay to Windows11-TestDNC for TC4 re-test.)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -123,92 +123,77 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** Test Case 5 (CRUD) completed on Windows11-TestDNC. Test Case 4 (full-sync progress) remains gated by UI observation. Test Case 3 (batch conflict resolve) deferred until multi-client setup is available.
+**Summary:** Server-side verification complete — all TC5 CRUD operations confirmed, device cursor reset. Relay to Windows11-TestDNC for TC4 re-test.
 
 **Context:** All previous tests completed:
 - Test Case 1 (local rename): ✓ 3 bugs fixed, working
 - Test Case 2 (remote rename): ✓ 1 bug fixed, working
 - Test Case 3 (batch conflict resolve): ☐ Deferred — needs second client
-- Test Case 4 (full-sync progress): ☐ Gated — needs UI observation
+- Test Case 4 (full-sync progress): ⚠️ Needs re-test — cursor now reset
 - Test Case 5 (CRUD edit/delete/create): ✓ **All verified**
 
 ---
 
-### Client Actions — `Windows11-TestDNC` ✓
+### Server Actions — `cloud.kimball.home` ✓
 
-**Test Case 5 — Regression: CRUD edit and delete:** ✓ **All verified**
+**TC5a — Edit verified:** ✅
+```
+Server log: Upload completed: renamed-from-webui.txt (100 bytes) -> node 019f0599-2c8d-786e-b95a-464db9dc9fd1
+```
+File content grew from 60 B → 100 B. gRPC upload accepted by server.
 
-**5a — Edit:** ✓ **Propagated successfully**
-- Modified `renamed-from-webui.txt` (added text, file grew from 60 B to 100 B)
-- FileSystemWatcher triggered → sync pass initiated
-- gRPC upload: 384ms, NodeId preserved
+**TC5b — Delete verified:** ✅
 ```
-[14:43:52 INF] FileSystemWatcher trigger: ChangeType="Changed", Path=...renamed-from-webui.txt
-[14:43:53 INF] Local scan queued 1 new/modified file(s) for upload
-[14:43:54 INF] File upload starting: FileName=renamed-from-webui.txt, FileSize=100
-[14:43:54 INF] gRPC UploadFileStream: baseUrl=https://cloud.dotnetcloud.net/, tokenPresent=true
-[14:43:54 INF] File upload complete (gRPC): FileName=renamed-from-webui.txt, NodeId="019f0599-...", FileSize=100, DurationMs=384
-[14:43:56 INF] Sync pass complete: DurationMs=3277, RemoteChanges=0, LocalQueued=1, LocalApplied=1
+Server log: Node 019f0599-2c8d-786e-b95a-464db9dc9fd1 soft-deleted
+Server log: Request finished HTTP/2 DELETE ... - 200
 ```
+Web UI: `renamed-from-webui.txt` no longer in file listing. DELETE API returned 200.
 
-**5b — Delete:** ✓ **Propagated successfully**
-- Deleted `renamed-from-webui.txt` locally
-- Sync detected deletion → queued server delete → DELETE API called
+**TC5c — Create verified:** ✅
 ```
-[14:44:26 INF] Local file deleted, queuing server deletion: renamed-from-webui.txt (NodeId="019f0599-...")
-[14:44:26 INF] Deleting server node "019f0599-..." for locally deleted file/folder: renamed-from-webui.txt
-[14:44:26 INF] API call DELETE "https://cloud.dotnetcloud.net/api/v1/files/019f0599-..."
-[14:44:26 INF] Applied 1 local change(s)
-[14:44:26 INF] Sync pass complete: DurationMs=317, RemoteChanges=0, LocalQueued=1, LocalApplied=1
+Server log: Upload completed: crud-test-2.txt (72 bytes) -> node 019f05e4-a86b-74be-9acd-7bbd82dac181
 ```
-Subsequent pass confirmed server acked deletion (RemoteChanges=1, tree size changed from 8205 to 7900).
+Web UI: `crud-test-2.txt` (72 B, Jun 26) visible in file listing. gRPC upload successful.
 
-**5c — Create (re-verify):** ✓ **Uploaded successfully**
-- Created `crud-test-2.txt` (72 B)
-- FileSystemWatcher triggered → gRPC upload 108ms → new NodeId assigned
+**Device cursor reset:** ✅
 ```
-[14:44:57 INF] FileSystemWatcher trigger: ChangeType="Created", Path=...crud-test-2.txt
-[14:44:59 INF] File upload complete (gRPC): FileName=crud-test-2.txt, NodeId="019f05e4-...", FileSize=72, DurationMs=108
-[14:44:59 INF] Sync pass complete: DurationMs=1311, RemoteChanges=0, LocalQueued=1, LocalApplied=1
+Device WINDOWS11-DNC (1bc2f91b-8cd0-4032-9535-085907afb5db): cursor deleted from [core].[SyncDeviceCursors]
+Previous sequence=93, now 0 rows. Full re-sync will be forced on next connection.
 ```
 
-**Test Case 4 — Full-sync progress:** ⚠️ **Attempted — device cursor prevented full re-sync**
+**No server code changes needed.** All CRUD operations and API endpoints working correctly.
 
-Steps taken:
-1. Killed SyncTray process
-2. Deleted local state DB (`state.db`, `state.db-wal`, `state.db-shm`)
-3. Restarted SyncTray
+---
 
-Result:
-- Progress window opened but immediately showed "Up to date" / "No active transfers"
-- No progress bar or file count ever appeared
-- Log shows why:
-```
-[14:50:45 INF] Recovered server-side cursor for device "1bc2f91b-...": sequence=93.
-               Skipping full re-sync.
-```
+### Client Actions — `Windows11-TestDNC`
 
-The **device cursor** mechanism stores the last-known-change-sequence on the server per device. When the client reconnects (even with a wiped local DB), it recovers the cursor and skips the full re-sync because the server confirms no new changes exist since that sequence.
+**Test Case 4 — Full-sync progress (re-test):**
 
-**To properly test full-sync progress**, the device cursor for Windows11-TestDNC needs to be reset on the server side first.
+The device cursor for `WINDOWS11-DNC` has been deleted from the server database. The next time SyncTray connects, it will not find a saved cursor and will fall back to a full re-sync.
+
+1. **Prepare:** Ensure SyncTray is running on Windows 11 and connected.
+2. **Kill SyncTray** and **delete local state DB** again (`state.db`, `state.db-wal`, `state.db-shm`).
+3. **Restart SyncTray** — this time it should NOT skip the full re-sync (cursor was deleted).
+4. **Observe the progress window:**
+   - Does a progress bar or file count appear?
+   - Does it show meaningful progress (e.g., "Syncing 24 files...")?
+   - Does progress update as files process?
+   - Does it complete without errors?
+5. **Check the log** for the initial connection sequence — look for absence of "Recovered server-side cursor" message.
+6. **Report back:**
+   - Did the progress window show meaningful progress? (Y/N)
+   - How many files were processed?
+   - Duration of full sync?
+   - Any errors?
+
+**Test Case 5 — Regression CRUD:** ✓ Already verified by server.
 
 ---
 
 ### Next Steps
 
-**Current handoff:** Relay to `cloud.kimball.home` for server-side verification and cursor reset.
+**Current handoff:** Windows11-TestDNC — TC4 re-test (full-sync progress).
 
-**Server Actions — `cloud.kimball.home`:**
+**After TC4 complete:** Relay back to `cloud.kimball.home` for any server-side investigation if issues arise.
 
-1. **Verify TC5 edit propagated:** Check if `renamed-from-webui.txt` content grew from 60 B → 100 B (now includes "Edited by Windows11-TestDNC for TC5a.") via web UI or DB. NodeId=`019f0599-2c8d-786e-b95a-464db9dc9fd1`.
-2. **Verify TC5 delete propagated:** Confirm `renamed-from-webui.txt` is deleted from file listing (removed via DELETE API from Windows11-TestDNC).
-3. **Verify TC5 create propagated:** Check `crud-test-2.txt` (72 B) appears in file listing. NodeId=`019f05e4-a86b-74be-9acd-7bbd82dac181`.
-4. **Reset device cursor for Windows11-TestDNC** (device ID `1bc2f91b-8cd0-4032-9535-085907afb5db`) to enable full re-sync testing:
-   - Option A: Delete/update the device cursor record in the DB
-   - Option B: Clear the cursor via API if one exists
-5. If all server-side checks pass and cursor is reset, relay back to `Windows11-TestDNC` for TC4 re-test.
-6. If any server-side issues found with edit/delete/create, fix on server first.
-
-**Remaining deferred items:**
-- **Test Case 3** (batch conflict resolve) — needs multi-client setup (`mint-dnc-client` or `mint-OptiPlex-7010`)
-- **Test Case 4** (full-sync progress) — re-test after server-side cursor reset
+**Test Case 3** (batch conflict resolve) remains deferred until multi-client setup is available.
