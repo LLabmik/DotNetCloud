@@ -122,6 +122,18 @@ public sealed class SyncEngine : ISyncEngine
         await _stateDb.DeleteStaleActiveUploadSessionsAsync(
             context.StateDatabasePath, DateTime.UtcNow.AddHours(-48), cancellationToken);
 
+        // Clear all pending operations from a previous session. The initial sync
+        // pass will re-discover any files that still need upload/download/delete
+        // from the fresh server tree comparison and local file scan. This prevents
+        // stale operations (e.g. from a crash) from blocking file detection.
+        await _stateDb.ClearPendingOperationsAsync(context.StateDatabasePath, cancellationToken);
+
+        // Also clear active upload sessions from the previous session. Stale sessions
+        // (e.g. from a crashed process) block files from being detected as new during
+        // the local scan even when no tracking record exists. This is safe because
+        // the server-side upload TTL (24h) will eventually clean up orphaned chunks.
+        await _stateDb.ClearActiveUploadSessionsAsync(context.StateDatabasePath, cancellationToken);
+
         _syncIgnore.Initialize(context.LocalFolderPath);
 
         // Issue #44: check inotify watch limit on Linux before creating the watcher.
@@ -149,6 +161,7 @@ public sealed class SyncEngine : ISyncEngine
                 IncludeSubdirectories = true,
                 NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName
                                | NotifyFilters.LastWrite | NotifyFilters.Size,
+                InternalBufferSize = 64 * 1024, // 64KB max — prevents buffer overflow event loss
             };
 
             _watcher.Created += OnFileSystemChanged;
@@ -503,19 +516,23 @@ public sealed class SyncEngine : ISyncEngine
             if (!_selectiveSync.IsIncluded(context.Id, relativePath))
                 continue;
 
-            // Skip if an upload is already queued for this path.
+            // Skip if an upload is already queued for this path, UNLESS the file
+            // has no tracking record (e.g. remote-deleted-and-re-queued files whose
+            // record was removed but upload failed). In that case, treat as new file.
             if (queuedPaths.Contains(localPath))
-                continue;
-
-            // Skip if this file is currently being uploaded (active upload session).
-            // Prevents duplicate uploads when a new sync pass starts while a large
-            // file upload from the previous pass is still in progress.
-            if (activeUploadPaths.Contains(localPath))
             {
-                _logger.LogDebug(
-                    "Skipping {RelPath} — upload already in progress (active session exists).",
+                if (trackedByPath.ContainsKey(localPath))
+                {
+                    // File is tracked and already queued — skip to avoid duplicates.
+                    continue;
+                }
+                // No tracking record exists — the stale pending upload is orphaned.
+                // Remove it so this file can be re-queued as new.
+                _logger.LogInformation(
+                    "Removing stale pending upload for {RelPath} (no tracking record exists). Will re-queue.",
                     relativePath);
-                continue;
+                await _stateDb.RemovePendingOperationByPathAsync(
+                    context.StateDatabasePath, localPath, cancellationToken);
             }
 
             if (trackedByPath.TryGetValue(localPath, out var record))
@@ -523,6 +540,19 @@ public sealed class SyncEngine : ISyncEngine
                 // Known file — only re-queue if modified since last sync.
                 if (!IsLocallyModified(record, localPath))
                 {
+                    // Skip if this file is currently being uploaded (active upload session).
+                    // Prevents duplicate uploads when a sync pass starts while a large
+                    // file upload is still in progress. Only applies to unmodified files;
+                    // if the file was modified, the stale session is ignored so the
+                    // edit gets re-queued.
+                    if (activeUploadPaths.Contains(localPath))
+                    {
+                        _logger.LogDebug(
+                            "Skipping {RelPath} — upload already in progress (active session exists).",
+                            relativePath);
+                        continue;
+                    }
+
                     // If the file has an empty NodeId (e.g. a previous upload got 409
                     // and stored Guid.Empty), it may actually exist on the server.
                     // Check via ListChildrenAsync and update the record if found.

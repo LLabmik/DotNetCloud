@@ -39,6 +39,9 @@ public sealed class TrayViewModel : ViewModelBase
     private readonly Dictionary<string, ActiveTransferViewModel> _transfersById = [];
     private readonly ObservableCollection<ActiveTransferViewModel> _activeTransfers = [];
 
+    // Synchronization lock for thread-safe access to transfer tracking collections.
+    private readonly object _transferLock = new();
+
     // Chat unread aggregation keyed by channel ID.
     private readonly Dictionary<string, ChatUnreadCountUpdatedEventArgs> _chatUnreadByChannel =
         new(StringComparer.OrdinalIgnoreCase);
@@ -456,8 +459,11 @@ public sealed class TrayViewModel : ViewModelBase
             if (stateStr == "Syncing" && vm.State != "Syncing")
             {
                 // New sync cycle starting — reset per-cycle aggregation.
-                _cycleErrors.Remove(e.ContextId);
-                _cycleTransfers.Remove(e.ContextId);
+                lock (_transferLock)
+                {
+                    _cycleErrors.Remove(e.ContextId);
+                    _cycleTransfers.Remove(e.ContextId);
+                }
             }
 
             vm.State = stateStr;
@@ -489,8 +495,13 @@ public sealed class TrayViewModel : ViewModelBase
         }
 
         // Emit one aggregated end-of-cycle toast.
-        _cycleErrors.Remove(e.ContextId, out var cycleErrors);
-        _cycleTransfers.Remove(e.ContextId, out var cycleTransfers);
+        List<string>? cycleErrors;
+        (int Uploads, int Downloads) cycleTransfers;
+        lock (_transferLock)
+        {
+            _cycleErrors.Remove(e.ContextId, out cycleErrors);
+            _cycleTransfers.Remove(e.ContextId, out cycleTransfers);
+        }
         displayName ??= e.ContextId.ToString();
 
         if (cycleErrors is { Count: > 0 })
@@ -726,43 +737,53 @@ public sealed class TrayViewModel : ViewModelBase
     {
         var key = $"{e.ContextId}:{e.FileName}:{e.Direction}";
 
-        if (!_transfersById.TryGetValue(key, out var vm))
+        lock (_transferLock)
         {
-            vm = new ActiveTransferViewModel(e.ContextId, e.FileName, e.Direction);
-            _transfersById[key] = vm;
-            _activeTransfers.Add(vm);
-        }
+            if (!_transfersById.TryGetValue(key, out var vm))
+            {
+                vm = new ActiveTransferViewModel(e.ContextId, e.FileName, e.Direction);
+                _transfersById[key] = vm;
+                _activeTransfers.Add(vm);
+            }
 
-        vm.Update(e.BytesTransferred, e.TotalBytes, e.ChunksTransferred, e.TotalChunks, e.PercentComplete);
+            vm.Update(e.BytesTransferred, e.TotalBytes, e.ChunksTransferred, e.TotalChunks, e.PercentComplete);
+        }
     }
 
     private void OnTransferComplete(object? sender, ContextTransferCompleteEventArgs e)
     {
         var key = $"{e.ContextId}:{e.FileName}:{e.Direction}";
 
-        if (!_transfersById.TryGetValue(key, out var vm))
+        ActiveTransferViewModel? vm;
+        lock (_transferLock)
         {
-            // May arrive without prior progress event (small file, single chunk).
-            vm = new ActiveTransferViewModel(e.ContextId, e.FileName, e.Direction);
-            _transfersById[key] = vm;
-            _activeTransfers.Add(vm);
+            if (!_transfersById.TryGetValue(key, out vm))
+            {
+                // May arrive without prior progress event (small file, single chunk).
+                vm = new ActiveTransferViewModel(e.ContextId, e.FileName, e.Direction);
+                _transfersById[key] = vm;
+                _activeTransfers.Add(vm);
+            }
+
+            vm.MarkComplete(e.TotalBytes);
+
+            // Count towards the current cycle aggregation.
+            _cycleTransfers.TryGetValue(e.ContextId, out var counts);
+            if (e.Direction == "upload")
+                _cycleTransfers[e.ContextId] = (counts.Uploads + 1, counts.Downloads);
+            else
+                _cycleTransfers[e.ContextId] = (counts.Uploads, counts.Downloads + 1);
         }
-
-        vm.MarkComplete(e.TotalBytes);
-
-        // Count towards the current cycle aggregation.
-        _cycleTransfers.TryGetValue(e.ContextId, out var counts);
-        if (e.Direction == "upload")
-            _cycleTransfers[e.ContextId] = (counts.Uploads + 1, counts.Downloads);
-        else
-            _cycleTransfers[e.ContextId] = (counts.Uploads, counts.Downloads + 1);
 
         // Auto-dismiss after 5 seconds.
         _ = Task.Run(async () =>
         {
             await Task.Delay(TimeSpan.FromSeconds(5));
-            if (_transfersById.Remove(key))
-                _activeTransfers.Remove(vm);
+            lock (_transferLock)
+            {
+                if (_transfersById.Remove(key))
+                    _activeTransfers.Remove(vm);
+            }
         });
     }
 

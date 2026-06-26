@@ -101,6 +101,15 @@ public interface ILocalStateDb
     /// <summary>Removes a completed or cancelled operation.</summary>
     Task RemoveOperationAsync(string dbPath, int operationId, CancellationToken cancellationToken = default);
 
+    /// <summary>Removes all pending upload operations for the given local path.</summary>
+    Task RemovePendingOperationByPathAsync(string dbPath, string localPath, CancellationToken cancellationToken = default);
+
+    /// <summary>Clears all pending operations (uploads, downloads, deletes) — used on engine startup to prevent stale operations from blocking file detection after a crash.</summary>
+    Task ClearPendingOperationsAsync(string dbPath, CancellationToken cancellationToken = default);
+
+    /// <summary>Clears all active upload sessions — used on engine startup to prevent stale sessions from a crashed process from blocking file detection.</summary>
+    Task ClearActiveUploadSessionsAsync(string dbPath, CancellationToken cancellationToken = default);
+
     /// <summary>Updates retry metadata for a pending operation after a transient failure.</summary>
     Task UpdateOperationRetryAsync(string dbPath, int operationId, int retryCount, DateTime? nextRetryAt, string? lastError, CancellationToken cancellationToken = default);
 

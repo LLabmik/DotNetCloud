@@ -379,6 +379,20 @@ public sealed class LocalStateDb : ILocalStateDb
     }
 
     /// <inheritdoc/>
+    public async Task RemovePendingOperationByPathAsync(string dbPath, string localPath, CancellationToken cancellationToken = default)
+    {
+        await using var ctx = CreateContext(dbPath);
+        var rows = await ctx.PendingOperations
+            .Where(r => r.LocalPath == localPath)
+            .ToListAsync(cancellationToken);
+        if (rows.Count > 0)
+        {
+            ctx.PendingOperations.RemoveRange(rows);
+            await ctx.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    /// <inheritdoc/>
     public async Task UpdateOperationRetryAsync(
         string dbPath,
         int operationId,
@@ -546,6 +560,40 @@ public sealed class LocalStateDb : ILocalStateDb
     {
         await using var ctx = CreateContext(dbPath);
         return await ctx.ActiveUploadSessions.ToListAsync(cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task ClearPendingOperationsAsync(string dbPath, CancellationToken cancellationToken = default)
+    {
+        await using var ctx = CreateContext(dbPath);
+        var count = await ctx.PendingOperations.CountAsync(cancellationToken);
+        if (count > 0)
+        {
+            ctx.PendingOperations.RemoveRange(ctx.PendingOperations);
+            await ctx.SaveChangesAsync(cancellationToken);
+            _logger.LogInformation("Cleared {Count} stale pending operation(s) on engine startup from {DbPath}.", count, dbPath);
+        }
+        else
+        {
+            _logger.LogDebug("No pending operations to clear on engine startup from {DbPath}.", dbPath);
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task ClearActiveUploadSessionsAsync(string dbPath, CancellationToken cancellationToken = default)
+    {
+        await using var ctx = CreateContext(dbPath);
+        var count = await ctx.ActiveUploadSessions.CountAsync(cancellationToken);
+        if (count > 0)
+        {
+            ctx.ActiveUploadSessions.RemoveRange(ctx.ActiveUploadSessions);
+            await ctx.SaveChangesAsync(cancellationToken);
+            _logger.LogInformation("Cleared {Count} stale active upload session(s) on engine startup from {DbPath}.", count, dbPath);
+        }
+        else
+        {
+            _logger.LogInformation("No active upload sessions to clear on engine startup from {DbPath}.", dbPath);
+        }
     }
 
     /// <inheritdoc/>
