@@ -60,6 +60,14 @@ public interface ILocalStateDb
     Task UpsertFileRecordAsync(string dbPath, LocalFileRecord record, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Updates the local path for a file record identified by its server node ID.
+    /// Used by rename/move detection to update the tracked path without triggering
+    /// a UNIQUE constraint violation on the LocalPath column (which UpsertFileRecordAsync
+    /// would do since it looks up records by LocalPath).
+    /// </summary>
+    Task UpdateFileRecordPathAsync(string dbPath, Guid nodeId, string newLocalPath, string? contentHash, DateTime localModifiedAt, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Inserts or updates multiple file sync records in a single transaction.
     /// Significantly faster than calling <see cref="UpsertFileRecordAsync"/> individually
     /// when processing large batch scans.

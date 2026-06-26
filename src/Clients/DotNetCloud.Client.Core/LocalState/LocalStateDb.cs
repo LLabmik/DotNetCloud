@@ -173,6 +173,21 @@ public sealed class LocalStateDb : ILocalStateDb
     }
 
     /// <inheritdoc/>
+    public async Task UpdateFileRecordPathAsync(string dbPath, Guid nodeId, string newLocalPath, string? contentHash, DateTime localModifiedAt, CancellationToken cancellationToken = default)
+    {
+        await using var ctx = CreateContext(dbPath);
+        var record = await ctx.FileRecords.FirstOrDefaultAsync(r => r.NodeId == nodeId, cancellationToken);
+        if (record is not null)
+        {
+            record.LocalPath = newLocalPath;
+            record.ContentHash = contentHash;
+            record.LastSyncedAt = DateTime.UtcNow;
+            record.LocalModifiedAt = localModifiedAt;
+            await ctx.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    /// <inheritdoc/>
     public async Task UpsertFileRecordsBatchAsync(string dbPath, IReadOnlyList<LocalFileRecord> records, CancellationToken cancellationToken = default)
     {
         if (records.Count == 0)

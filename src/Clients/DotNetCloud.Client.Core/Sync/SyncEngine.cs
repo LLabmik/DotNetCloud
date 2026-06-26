@@ -978,19 +978,42 @@ public sealed class SyncEngine : ISyncEngine
                     await _stateDb.RemovePendingOperationByPathAsync(
                         context.StateDatabasePath, matchedNewPath, cancellationToken);
 
-                    // Update the tracking record with the new path
-                    missing.LocalPath = matchedNewPath;
-                    missing.LastSyncedAt = DateTime.UtcNow;
-                    missing.LocalModifiedAt = File.Exists(matchedNewPath)
+                    // Remove any stale tracking record at the target path before
+                    // updating the old record's path. This prevents UNIQUE constraint
+                    // violations when a previous delete+create cycle left a stale
+                    // FileRecord for the new path.
+                    var existingAtTarget = await _stateDb.GetFileRecordAsync(
+                        context.StateDatabasePath, matchedNewPath, cancellationToken);
+                    if (existingAtTarget is not null)
+                    {
+                        await _stateDb.RemoveFileRecordAsync(
+                            context.StateDatabasePath, matchedNewPath, cancellationToken);
+                    }
+
+                    // Update the existing record in-place by changing its LocalPath.
+                    // We CANNOT use UpsertFileRecordAsync here because it looks up
+                    // records by LocalPath (which has a UNIQUE index). Changing the
+                    // path would cause it to INSERT a new row, triggering a constraint
+                    // violation. UpdateFileRecordPathAsync updates by NodeId instead.
+                    var localModifiedAt = File.Exists(matchedNewPath)
                         ? File.GetLastWriteTimeUtc(matchedNewPath)
                         : default;
-                    await _stateDb.UpsertFileRecordAsync(
-                        context.StateDatabasePath, missing, cancellationToken);
+                    await _stateDb.UpdateFileRecordPathAsync(
+                        context.StateDatabasePath,
+                        missing.NodeId,
+                        matchedNewPath,
+                        missing.ContentHash,
+                        localModifiedAt,
+                        cancellationToken);
 
                     renameDetectedCount++;
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
+                    // Restore the original path before adding to actualDeletions,
+                    // since missing.LocalPath was changed to matchedNewPath above
+                    // and the fallback should delete the original path.
+                    missing.LocalPath = Path.Combine(context.LocalFolderPath, missingRelPath);
                     _logger.LogWarning(ex,
                         "Failed to propagate local rename {OldPath} → {NewPath} to server. " +
                         "Falling back to delete+create.",
@@ -1976,10 +1999,11 @@ public sealed class SyncEngine : ISyncEngine
                 TotalChunks = 0,
             });
 
-            // Use the content hash returned by the server (manifest hash) — avoids a
-            // redundant whole-file read that previously re-hashed the entire file.
-            var hash = uploadResult.ContentHash
-                ?? await ComputeFileHashAsync(upload.LocalPath, cancellationToken);
+            // Always compute the local SHA256 hash for rename detection compatibility.
+            // The server returns manifest-based hashes (computed from chunk hashes) which
+            // differ from direct SHA256 — using the server hash breaks rename detection
+            // (ScanLocalDirectoryAsync compares local SHA256 against stored ContentHash).
+            var hash = await ComputeFileHashAsync(upload.LocalPath, cancellationToken);
             await _stateDb.UpsertFileRecordAsync(context.StateDatabasePath, new LocalFileRecord
             {
                 LocalPath = upload.LocalPath,
