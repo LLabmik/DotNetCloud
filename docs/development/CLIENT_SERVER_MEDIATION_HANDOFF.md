@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-26 22:05 UTC (Archive cleanup — completed Server Actions moved to archive. Single active task: Windows11-TestDNC TC4 re-test.)
+Last updated: 2026-06-26 15:02 UTC (TC4 re-test failed on Windows11-TestDNC — device cursor still active. Relay back to cloud.kimball.home with correct device ID.)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -99,7 +99,7 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 - ✅ **Test Case 2 (Remote rename from server)** — Verified on Windows11-TestDNC. SyncTray picks up remote renames via polling. One bug found and fixed (`UpsertFileRecordAsync` → `UpdateFileRecordPathAsync` in `TryHandleRemoteRenameAsync`).
 - ✅ **Test Case 5 (CRUD edit/delete/create)** — Verified client-side and confirmed server-side. Archived.
 - ⏳ **Test Case 3** — Batch conflict resolve (needs multi-client).
-- ✅ **Test Case 4 (full-sync progress)** — Device cursor for WINDOWS11-DNC reset on server. Ready for re-test on Windows11-TestDNC.
+- ⚠️ **Test Case 4 (full-sync progress)** — Cursor re-test failed. Server may have reset wrong device ID. See Active Handoff.
 
 ## Environment
 
@@ -123,32 +123,42 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** Windows11-TestDNC — TC4 re-test (full-sync progress). Server-side cursor reset complete, CRUD verified and archived.
+**Summary:** TC4 re-test failed — device cursor still active on server. Relay to `cloud.kimball.home` for correct cursor reset.
 
-**Context:** Server verification (TC5 + cursor reset) completed and archived. See `CLIENT_SERVER_MEDIATION_ARCHIVE.md` for details. Remaining: Test Case 4 re-test with reset cursor.
+**Context:** Windows11-TestDNC killed SyncTray, wiped local state DB, and restarted. SyncTray still found a server-side cursor: `Recovered server-side cursor for device "1bc2f91b-...": sequence=103. Skipping full re-sync.`
 
 ---
 
-### Client Actions — `Windows11-TestDNC`
+### Client Actions — `Windows11-TestDNC` ✓
 
-**Test Case 4 — Full-sync progress (re-test):**
+**Test Case 4 — Full-sync progress (re-test):** ❌ **Failed — cursor not reset**
 
-The device cursor for `WINDOWS11-DNC` has been deleted from the server database. The next time SyncTray connects, it will not find a saved cursor and will fall back to a full re-sync.
+Steps taken:
+1. Killed SyncTray ✓
+2. Deleted local state DB (state.db, state.db-wal, state.db-shm) ✓
+3. Restarted SyncTray ✓
 
-1. **Kill SyncTray** and **delete local state DB** (`state.db`, `state.db-wal`, `state.db-shm`).
-2. **Restart SyncTray** — should NOT skip re-sync this time (cursor was deleted).
-3. **Observe the progress window:**
-   - Does a progress bar or file count appear?
-   - Does it show meaningful progress (e.g., "Syncing 24 files...")?
-   - Does progress update as files process?
-   - Does it complete without errors?
-4. **Check the log** for absence of "Recovered server-side cursor" message.
-5. **Report back:** Progress window? (Y/N), files processed count, duration, any errors?
+Result:
+- Progress window showed "Up to date" / "No active transfers" immediately — same as before
+- Log confirms cursor still active:
+```
+[15:01:53 INF] Recovered server-side cursor for device "1bc2f91b-8cd0-4032-9535-085907afb5db": sequence=103. Skipping full re-sync.
+```
+- Sequence went from 93 → 103 (more changes occurred), cursor was never deleted
+
+**Note:** The device ID string used in the previous handoff was `WINDOWS11-DNC`, but the actual device ID is `1bc2f91b-8cd0-4032-9535-085907afb5db`. The cursor reset may have targeted a different identifier.
 
 ---
 
 ### Next Steps
 
-**After TC4 complete:** Relay back to `cloud.kimball.home` for any server-side follow-up.
+**Handoff to `cloud.kimball.home`:**
+
+### Server Actions — `cloud.kimball.home`
+
+1. **Verify cursor for device `1bc2f91b-8cd0-4032-9535-085907afb5db`** in the `DeviceCursors` table (or equivalent). Check if it was actually deleted or if a different ID was targeted.
+2. **Delete the cursor** for device `1bc2f91b-8cd0-4032-9535-085907afb5db`.
+3. **Verify deletion** by querying the DB — confirm no cursor for that device remains.
+4. Relay back to `Windows11-TestDNC` for TC4 re-test.
 
 **Test Case 3** (batch conflict resolve) remains deferred until multi-client setup.
