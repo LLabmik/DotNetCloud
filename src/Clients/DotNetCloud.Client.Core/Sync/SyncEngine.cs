@@ -1637,6 +1637,27 @@ public sealed class SyncEngine : ISyncEngine
 
             // Both local and remote changed — run auto-resolution pipeline.
 
+            // Read local content and fetch server content for text-based strategies.
+            string? localContent = null;
+            string? serverContent = null;
+            string? baseContent = null;
+            try
+            {
+                if (File.Exists(localPath))
+                    localContent = await File.ReadAllTextAsync(localPath, cancellationToken);
+            }
+            catch { /* non-critical */ }
+
+            try
+            {
+                using var stream = await _api.DownloadAsync(change.NodeId, cancellationToken);
+                using var reader = new StreamReader(stream);
+                serverContent = await reader.ReadToEndAsync(cancellationToken);
+            }
+            catch { /* non-critical; strategies fall through gracefully */ }
+
+            baseContent = localRecord?.ContentHash is not null ? "(stored)" : null;
+
             var outcome = await _conflictResolver.ResolveAsync(new ConflictInfo
             {
                 LocalPath = localPath,
@@ -1645,9 +1666,11 @@ public sealed class SyncEngine : ISyncEngine
                 RemoteContentHash = change.ContentHash,
                 StateDatabasePath = context.StateDatabasePath,
                 LocalContentHash = localContentHash,
-                BaseContentHash = localRecord.ContentHash,
+                BaseContentHash = localRecord!.ContentHash,
                 LocalModifiedAt = File.Exists(localPath) ? File.GetLastWriteTimeUtc(localPath) : default,
                 LocalUserId = context.UserId,
+                LocalContent = localContent,
+                ServerContent = serverContent,
             }, cancellationToken);
 
             switch (outcome)
