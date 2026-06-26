@@ -4916,3 +4916,17 @@ Previous sequence=93, now 0 rows. Full re-sync will be forced on next connection
 
 **No server code changes needed.** All CRUD operations and API endpoints working correctly.
 
+---
+
+## Archived: TC4 Cursor Investigation — Root Cause Analysis (2026-06-26)
+
+**Target:** cloud.kimball.home (server-side cursor investigation) → Windows11-TestDNC (TC4 re-test).
+
+**Result:** ✅ Root cause identified — cursor was recreated by `AcknowledgeCursorAsync` during the full sync. Cursor re-deleted and confirmed.
+
+### Server Actions — Completed
+
+1. ✅ **Verified cursor deletion:** The cursor WAS correctly deleted the first time (`1bc2f91b-8cd0-4032-9535-085907afb5db`). The device ID `WINDOWS11-DNC` is the `DeviceName` column, not the `DeviceId` — the actual PK is the UUID.
+2. ✅ **Cursor deleted again** and confirmed 0 rows in `[core].[SyncDeviceCursors]`.
+3. ✅ **Root cause identified:** `AcknowledgeCursorAsync` recreates the cursor at the end of the full sync. This means the cursor will come back after the first full sync completes — which is by design for per-device tracking.
+

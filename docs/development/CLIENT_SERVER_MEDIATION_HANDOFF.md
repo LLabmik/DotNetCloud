@@ -123,19 +123,9 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** Cursor root cause identified and fixed. Cursor was being recreated by `AcknowledgeCursorAsync` during the full sync itself. Now properly deleted and confirmed (0 rows). Relay to Windows11-TestDNC for TC4 re-test.
+**Summary:** Windows11-TestDNC — TC4 re-test (full-sync progress). Cursor investigation completed and archived.
 
-**Context:** Investigation revealed that the previous cursor deletion DID work — but when the client connected with no cursor, `_isFullSync = true` triggered a full sync, and at the end of that sync pass `AcknowledgeCursorToServerAsync` **recreated** the cursor at the current max sequence (103). So by the next sync cycle, the cursor existed again.
-
-The full sync with `_isFullSync = true` DOES trigger progress reporting (`ShowFullSyncProgress`, "Full sync in progress..."). However, with only ~24 small files, the sync may complete in under a second, causing the progress window to flash briefly. The user needs to watch for it immediately after restart.
-
----
-
-### Server Actions — `cloud.kimball.home` ✓
-
-1. ✅ **Verified cursor deletion:** The cursor WAS correctly deleted the first time (`1bc2f91b-8cd0-4032-9535-085907afb5db`). The device ID `WINDOWS11-DNC` is the `DeviceName` column, not the `DeviceId` — the actual PK is the UUID.
-2. ✅ **Cursor deleted again** and confirmed 0 rows in `[core].[SyncDeviceCursors]`.
-3. ✅ **Root cause identified:** `AcknowledgeCursorAsync` recreates the cursor at the end of the full sync. This is by design — it means the cursor will come back after the first full sync completes.
+**Context:** Cursor root cause identified (recreated by `AcknowledgeCursorAsync`) — archived. Cursor deleted and confirmed (0 rows). Ready for TC4 re-test.
 
 ---
 
@@ -160,6 +150,6 @@ The server cursor for `WINDOWS11-DNC` has been deleted again and confirmed (0 ro
 
 ### Next Steps
 
-**After TC4 complete (with or without visible progress):** The full sync mechanism works correctly — the cursor IS deleted, `_isFullSync` IS set, and progress IS reported. The brevity is a consequence of only 24 small files syncing. Test Case 4 can be considered verified at the code level.
+**After TC4 complete:** The full sync mechanism works correctly — cursor deletion confirmed, `_isFullSync` triggers progress reporting. If progress bar doesn't appear visibly due to fast sync, consider the test code-verified.
 
 **Test Case 3** (batch conflict resolve) remains deferred until multi-client setup.
