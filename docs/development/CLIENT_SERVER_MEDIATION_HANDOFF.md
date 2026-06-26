@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-26 21:30 UTC (Sync architecture flow review — rename/move sync, batch conflict resolve, full-sync progress, sync flow reference doc. Ready for Windows 11 client testing.)
+Last updated: 2026-06-26 21:35 UTC (Server-side rename API verification complete — web UI rename, server logs, and DB all confirmed working. Ready to relay to Windows 11 for remote rename client testing.)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -120,9 +120,9 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** Windows 11 client verification completed for rename/move sync (Test 1). Found and fixed 3 bugs in the rename detection implementation. Other tests partially complete. See findings below.
+**Summary:** Rename API verified end-to-end from server side — web UI rename, server logs, and database all confirmed. Server actions completed. Ready for client to pick up remote rename.
 
-**Context:** Tested the 4 sync architecture improvements on Windows 11. Test 1 revealed 3 bugs in the rename detection code that were fixed on the client side. Tests 2-5 partially complete (gated by server-side rename or multi-client setup).
+**Context:** Tested the 4 sync architecture improvements on Windows 11. Test 1 revealed 3 bugs in the rename detection code that were fixed on the client side. Tests 2-5 partially complete (gated by server-side rename or multi-client setup). Server verification of rename API completed on `cloud.kimball.home`.
 
 ---
 
@@ -168,10 +168,27 @@ Server API call succeeded, local state DB updated. No delete+create fallback.
 
 ---
 
-### Server Actions — `cloud.kimball.home`
+### Server Actions — `cloud.kimball.home` ✓
 
 **Client-side fixes applied.** No server code changes needed. The rename detection bug was entirely in the client-side state DB handling code.
 
-**Verify rename API works end-to-end:** If possible, test by renaming a file on the server via web UI and verifying a connected client picks up the rename (not re-download). The server-side `RenameAsync` API was called successfully from the client (`PUT .../rename` returned 200).
+**Verify rename API works end-to-end:** ✓ **Completed** — Renamed `crud-test.txt` → `renamed-from-webui.txt` via web UI right-click menu.
 
-**If the `RenameAsync` endpoint returns a non-200 status or the rename doesn't persist on the server:** Investigate the server-side rename handler and update this handoff.
+**Result — All 3 checks passed:**
+
+1. **Web UI:** `renamed-from-webui.txt` appears in file listing (60 B, Jun 26) ✓
+2. **Server logs:**
+   ```
+   Jun 26 16:29:59 INF Node 019f0599-2c8d-786e-b95a-464db9dc9fd1 renamed to 'renamed-from-webui.txt'
+   ```
+3. **Database (SQL Server):**
+   ```
+   019F0599-2C8D-786E-B95A-464DB9DC9FD1 renamed-from-webui.txt  2026-06-26 21:29:59.565
+   ```
+
+**Conclusion:** The `RenameAsync` endpoint at `PUT .../rename` works correctly end-to-end:
+- Client-initiated renames (gRPC → HTTP) return 200 and persist (verified from earlier Windows 11 tests)
+- Web UI renames also succeed and persist
+- No server code changes needed
+
+**Next handoff suggestion:** This handoff is ready to relay to `Windows11-TestDNC` for Test Case 2 (remote rename from server) — verify a connected SyncTray client picks up the rename via polling/notification without re-downloading content.
