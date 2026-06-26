@@ -9,7 +9,9 @@ window.dotnetcloudFilePreview = window.dotnetcloudFilePreview || (function () {
         return await response.text();
     }
 
-    async function saveTextContent(url, text) {
+    async function saveTextContent(url) {
+        const textarea = document.querySelector('.preview-text-editor');
+        const text = textarea ? textarea.value : '';
         const response = await fetch(url, {
             method: "PUT",
             credentials: "include",

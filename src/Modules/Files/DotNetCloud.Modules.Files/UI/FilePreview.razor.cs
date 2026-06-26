@@ -183,7 +183,7 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
                 ? $"/api/v1/files/{DisplayNode.Id}/content"
                 : $"{ApiBaseUrl.TrimEnd('/')}/api/v1/files/{DisplayNode.Id}/content";
 
-            var success = await Js.InvokeAsync<bool>("dotnetcloudFilePreview.saveTextContent", url, _editableText);
+            var success = await Js.InvokeAsync<bool>("dotnetcloudFilePreview.saveTextContent", url);
             if (success)
             {
                 _textContent = _editableText;
