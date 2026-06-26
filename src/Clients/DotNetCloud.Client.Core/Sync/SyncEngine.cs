@@ -51,6 +51,9 @@ public sealed class SyncEngine : ISyncEngine
     private SyncState _state = SyncState.Idle;
     private string? _lastError;
     private bool _paused;
+    private bool _isFullSync;
+    private int _fullSyncTotalItems;
+    private int _fullSyncCompletedItems;
     private readonly SemaphoreSlim _syncLock = new(1, 1);
     private int _syncRerunRequested;
     private CancellationTokenSource? _fswDebounceCts;
@@ -257,20 +260,56 @@ public sealed class SyncEngine : ISyncEngine
 
         var runTrailingPass = false;
         var syncTimer = Stopwatch.StartNew();
+
+        // Reset full-sync progress counters at the start of each pass.
+        // _isFullSync is set by RecoverCursorFromServerAsync and persists for
+        // the duration of the full sync (which may span multiple passes).
+        _fullSyncTotalItems = 0;
+        _fullSyncCompletedItems = 0;
+
         try
         {
             _logger.LogInformation("Sync pass starting for context {ContextId}.", context.Id);
 
             SetState(SyncState.Syncing, context);
             await RefreshAccessTokenAsync(context, cancellationToken);
+
+            if (_isFullSync)
+                ReportFullSyncProgress(context, "Fetching server file list…", 0, 0);
+
             var (remoteChangesApplied, serverTree) = await ApplyRemoteChangesAsync(context, cancellationToken);
+
+            if (_isFullSync)
+                ReportFullSyncProgress(context, "Scanning local changes…", 0, 0);
+
             var localFilesQueued = await ScanLocalDirectoryAsync(context, serverTree, cancellationToken);
+
+            if (_isFullSync)
+            {
+                var pendingCount = await _stateDb.GetPendingOperationCountAsync(context.StateDatabasePath, cancellationToken);
+                _fullSyncTotalItems = pendingCount.Downloads + pendingCount.Uploads;
+                _fullSyncCompletedItems = 0;
+                if (_fullSyncTotalItems > 0)
+                    ReportFullSyncProgress(context, $"Syncing {_fullSyncTotalItems} files…", 0, _fullSyncTotalItems);
+            }
+
             var localOperationsApplied = await ApplyLocalChangesAsync(context, serverTree, cancellationToken);
             await _stateDb.UpdateCheckpointAsync(context.StateDatabasePath, DateTime.UtcNow, cancellationToken);
             await _stateDb.CheckpointWalAsync(context.StateDatabasePath, cancellationToken);
 
             // Acknowledge cursor to server for per-device tracking and recovery
             await AcknowledgeCursorToServerAsync(context, cancellationToken);
+
+            // If full sync is complete, notify and reset the flag
+            if (_isFullSync)
+            {
+                _logger.LogInformation("Full sync completed for context {ContextId}.", context.Id);
+                ReportFullSyncProgress(context, "Full sync complete", _fullSyncTotalItems, _fullSyncTotalItems);
+
+                // If the cursor was recovered from server mid-sync, the next pass
+                // will detect it and skip the full sync phase.
+                _isFullSync = false;
+            }
 
             SetState(SyncState.Idle, context);
             syncTimer.Stop();
@@ -503,6 +542,7 @@ public sealed class SyncEngine : ISyncEngine
         var pendingUpserts = new List<LocalFileRecord>();
         var pendingQueues = new List<PendingOperationRecord>();
         var pendingRemoves = new List<string>();
+        var newLocalPaths = new List<string>();
 
         foreach (var localPath in localFiles)
         {
@@ -780,6 +820,7 @@ public sealed class SyncEngine : ISyncEngine
                 {
                     // Confirmed: file doesn't exist on server → genuinely new file.
                     _logger.LogDebug("New local file detected (confirmed via server check), queuing upload: {RelPath}", relativePath);
+                    newLocalPaths.Add(localPath);
                     pendingQueues.Add(new PendingUpload { LocalPath = localPath });
                     queued++;
                 }
@@ -862,6 +903,111 @@ public sealed class SyncEngine : ISyncEngine
                 continue;
 
             missingFiles.Add(record);
+        }
+
+        // ── Local rename detection ──────────────────────────────────────────
+        // For each missing tracked file, check if a new local file appeared with
+        // the same content. If so, it was a local rename — call server rename API
+        // instead of delete+create.
+        var renameDetectedCount = 0;
+        if (newLocalPaths.Count > 0 && missingFiles.Count > 0)
+        {
+            var actualDeletions = new List<LocalFileRecord>();
+
+            foreach (var missing in missingFiles)
+            {
+                if (string.IsNullOrEmpty(missing.ContentHash))
+                {
+                    actualDeletions.Add(missing);
+                    continue;
+                }
+
+                // For each new local file, compute its hash and compare with the
+                // tracked record's stored content hash. Hash match = rename.
+                string? matchedNewPath = null;
+                foreach (var candidate in newLocalPaths)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    try
+                    {
+                        var candidateHash = await ComputeFileHashAsync(candidate, cancellationToken);
+                        if (string.Equals(candidateHash, missing.ContentHash, StringComparison.OrdinalIgnoreCase))
+                        {
+                            matchedNewPath = candidate;
+                            break;
+                        }
+                    }
+                    catch
+                    {
+                        // File may have been deleted/renamed during scan — skip
+                    }
+                }
+
+                if (matchedNewPath is null)
+                {
+                    actualDeletions.Add(missing);
+                    continue;
+                }
+
+                var missingRelPath = Path.GetRelativePath(context.LocalFolderPath, missing.LocalPath);
+                var newRelPath = Path.GetRelativePath(context.LocalFolderPath, matchedNewPath);
+
+                _logger.LogInformation(
+                    "Local rename detected: {OldPath} → {NewPath} (NodeId={NodeId}).",
+                    missingRelPath, newRelPath, missing.NodeId);
+
+                try
+                {
+                    var newFileName = Path.GetFileName(matchedNewPath);
+                    await _api.RenameAsync(missing.NodeId, newFileName, cancellationToken);
+
+                    // Also handle move (parent folder change) if needed
+                    var newParentDir = Path.GetDirectoryName(matchedNewPath);
+                    if (newParentDir is not null)
+                    {
+                        var newParentRelDir = Path.GetRelativePath(context.LocalFolderPath, newParentDir);
+                        if (!string.IsNullOrEmpty(newParentRelDir) &&
+                            serverFoldersByRelPath.TryGetValue(newParentRelDir, out var newParentNode))
+                        {
+                            await _api.MoveAsync(missing.NodeId, newParentNode.NodeId, cancellationToken);
+                        }
+                    }
+
+                    // Remove pending upload for the new path (the rename replaced it)
+                    await _stateDb.RemovePendingOperationByPathAsync(
+                        context.StateDatabasePath, matchedNewPath, cancellationToken);
+
+                    // Update the tracking record with the new path
+                    missing.LocalPath = matchedNewPath;
+                    missing.LastSyncedAt = DateTime.UtcNow;
+                    missing.LocalModifiedAt = File.Exists(matchedNewPath)
+                        ? File.GetLastWriteTimeUtc(matchedNewPath)
+                        : default;
+                    await _stateDb.UpsertFileRecordAsync(
+                        context.StateDatabasePath, missing, cancellationToken);
+
+                    renameDetectedCount++;
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger.LogWarning(ex,
+                        "Failed to propagate local rename {OldPath} → {NewPath} to server. " +
+                        "Falling back to delete+create.",
+                        missingRelPath, newRelPath);
+                    actualDeletions.Add(missing);
+                }
+            }
+
+            if (renameDetectedCount > 0)
+            {
+                _logger.LogInformation(
+                    "Local rename detection: {Count} rename(s) propagated to server in context {ContextId}.",
+                    renameDetectedCount, context.Id);
+            }
+
+            // Replace missingFiles with only the actual deletions (not renames)
+            missingFiles = actualDeletions;
         }
 
         // Phase 2: Detect deleted directories — queue a single folder-level delete
@@ -988,6 +1134,21 @@ public sealed class SyncEngine : ISyncEngine
                     _logger.LogDebug("Skipping ignored remote change {RelPath} for context {ContextId}.",
                         relativePathForIgnore, context.Id);
                     continue;
+                }
+
+                // ── Remote rename/move detection ──────────────────────────────────────
+                // If the server tree path for this NodeId differs from the local record's
+                // path, the file/folder was renamed or moved on the server. Rename locally
+                // instead of re-downloading content.
+                if (!change.IsDeleted && change.NodeId != Guid.Empty)
+                {
+                    var renameHandled = await TryHandleRemoteRenameAsync(
+                        context, change.NodeId, pathMap, cancellationToken);
+                    if (renameHandled)
+                    {
+                        appliedChanges++;
+                        continue;
+                    }
                 }
 
                 if (change.IsDeleted)
@@ -1307,6 +1468,100 @@ public sealed class SyncEngine : ISyncEngine
 
         await _stateDb.QueueOperationAsync(context.StateDatabasePath,
             new PendingDownload { LocalPath = localPath, NodeId = change.NodeId, LinkTarget = change.LinkTarget }, cancellationToken);
+    }
+
+    /// <summary>
+    /// Detects and applies remote renames/moves by comparing the server tree path
+    /// against the local record's tracked path for the given NodeId.
+    /// </summary>
+    /// <param name="context">The sync context.</param>
+    /// <param name="nodeId">The server-side NodeId to check.</param>
+    /// <param name="pathMap">The NodeId → relative-path map built from the server tree.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns><see langword="true"/> if a rename was detected and applied; <see langword="false"/> otherwise.</returns>
+    private async Task<bool> TryHandleRemoteRenameAsync(
+        SyncContext context,
+        Guid nodeId,
+        Dictionary<Guid, string> pathMap,
+        CancellationToken cancellationToken)
+    {
+        var localRecord = await _stateDb.GetFileRecordByNodeIdAsync(
+            context.StateDatabasePath, nodeId, cancellationToken);
+        if (localRecord is null)
+            return false; // Not tracked locally — not a local rename
+
+        if (!pathMap.TryGetValue(nodeId, out var serverRelPath))
+            return false; // Not in server tree — probably deleted
+
+        var expectedLocalPath = ValidatePathWithinSyncRoot(
+            context.LocalFolderPath,
+            Path.Combine(context.LocalFolderPath, serverRelPath));
+
+        var comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+
+        // Paths match — no rename needed
+        if (string.Equals(localRecord.LocalPath, expectedLocalPath, comparison))
+            return false;
+
+        _logger.LogInformation(
+            "Remote rename/move detected: {OldPath} → {NewPath} (NodeId={NodeId}).",
+            localRecord.LocalPath, expectedLocalPath, nodeId);
+
+        // Ensure the target parent directory exists
+        var newParentDir = Path.GetDirectoryName(expectedLocalPath);
+        if (newParentDir is not null)
+            Directory.CreateDirectory(newParentDir);
+
+        // Rename/move the local file or directory
+        if (File.Exists(localRecord.LocalPath))
+        {
+            File.Move(localRecord.LocalPath, expectedLocalPath);
+        }
+        else if (Directory.Exists(localRecord.LocalPath))
+        {
+            Directory.Move(localRecord.LocalPath, expectedLocalPath);
+
+            // For folder renames, also update all child records whose paths
+            // start with the old folder path.
+            var allRecords = await _stateDb.GetAllFileRecordsAsync(
+                context.StateDatabasePath, cancellationToken);
+            var childRecords = allRecords
+                .Where(r => r.LocalPath.StartsWith(
+                    localRecord.LocalPath + Path.DirectorySeparatorChar,
+                    comparison))
+                .ToList();
+
+            if (childRecords.Count > 0)
+            {
+                foreach (var child in childRecords)
+                {
+                    child.LocalPath = Path.Combine(expectedLocalPath,
+                        Path.GetRelativePath(localRecord.LocalPath, child.LocalPath));
+                }
+                await _stateDb.UpsertFileRecordsBatchAsync(
+                    context.StateDatabasePath, childRecords, cancellationToken);
+            }
+        }
+        else
+        {
+            // File/folder doesn't exist locally — just update the record
+            _logger.LogDebug(
+                "Remote rename/move for {NodeId}: local path {OldPath} does not exist. Updating record only.",
+                nodeId, localRecord.LocalPath);
+        }
+
+        // Update the tracking record with the new path
+        localRecord.LocalPath = expectedLocalPath;
+        localRecord.LastSyncedAt = DateTime.UtcNow;
+        localRecord.LocalModifiedAt = File.Exists(expectedLocalPath)
+            ? File.GetLastWriteTimeUtc(expectedLocalPath)
+            : default;
+        await _stateDb.UpsertFileRecordAsync(
+            context.StateDatabasePath, localRecord, cancellationToken);
+
+        return true;
     }
 
     private async Task HandleRemoteUpdateAsync(SyncContext context, string localPath, Api.SyncChangeResponse change, CancellationToken cancellationToken)
@@ -2580,6 +2835,10 @@ public sealed class SyncEngine : ISyncEngine
     /// </summary>
     private async Task RecoverCursorFromServerAsync(SyncContext context, CancellationToken cancellationToken)
     {
+        _isFullSync = false;
+        _fullSyncTotalItems = 0;
+        _fullSyncCompletedItems = 0;
+
         if (DeviceId is null)
             return;
 
@@ -2591,7 +2850,11 @@ public sealed class SyncEngine : ISyncEngine
 
             var serverCursor = await _api.GetDeviceCursorAsync(DeviceId.Value, cancellationToken);
             if (serverCursor?.Cursor is null)
-                return; // No server-side cursor — full sync is needed
+            {
+                _isFullSync = true;
+                _logger.LogInformation("No server-side cursor for device {DeviceId}. Full sync required.", DeviceId.Value);
+                return;
+            }
 
             await _stateDb.UpdateSyncCursorAsync(context.StateDatabasePath, serverCursor.Cursor, cancellationToken);
             _logger.LogInformation(
@@ -2600,6 +2863,7 @@ public sealed class SyncEngine : ISyncEngine
         }
         catch (Exception ex)
         {
+            _isFullSync = true;
             _logger.LogDebug(ex, "Server-side cursor recovery failed — will do full sync.");
         }
     }
@@ -2616,6 +2880,29 @@ public sealed class SyncEngine : ISyncEngine
         {
             Context = context,
             Status = new SyncStatus { State = state, LastError = _lastError },
+        });
+    }
+
+    /// <summary>
+    /// Fires a <see cref="StatusChanged"/> event with full-sync progress information.
+    /// Used during full re-sync to show meaningful progress to the user.
+    /// </summary>
+    private void ReportFullSyncProgress(SyncContext context, string phaseLabel, int completedItems, int totalItems)
+    {
+        _fullSyncCompletedItems = completedItems;
+        _fullSyncTotalItems = totalItems;
+
+        StatusChanged?.Invoke(this, new SyncStatusChangedEventArgs
+        {
+            Context = context,
+            Status = new SyncStatus
+            {
+                State = SyncState.Syncing,
+                IsFullSync = _isFullSync,
+                FullSyncPhaseLabel = phaseLabel,
+                FullSyncCompletedItems = completedItems,
+                FullSyncTotalItems = totalItems,
+            },
         });
     }
 }

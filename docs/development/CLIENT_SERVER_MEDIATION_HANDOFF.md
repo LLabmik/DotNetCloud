@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-25 06:35 UTC (Windows11-TestDNC: gRPC CompleteUpload fix verified ✅. Client scanner bugs fixed — `IsLocallyModified` race condition and server/client ContentHash mismatch.)
+Last updated: 2026-06-26 21:30 UTC (Sync architecture flow review — rename/move sync, batch conflict resolve, full-sync progress, sync flow reference doc. Ready for Windows 11 client testing.)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -92,11 +92,10 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Current Status
 
-- ✅ **gRPC streaming upload fully functional** — Both new files and existing file updates work via gRPC. Downstream auth fixed (Bearer token forwarding), CompleteUpload fixed (version-bump on name collision). Verified: new file (1393ms), existing file update (148ms, 372ms).
-- ✅ **Client scanner bugs fixed** (Windows11-TestDNC):
-  - `IsLocallyModified` race condition: mtime comparison now also checks `LocalModifiedAt` as secondary guard
-  - Server/client ContentHash mismatch: scanner `serverFilesByRelPath` and `ListChildrenAsync` paths now trust size match + server tree presence instead of comparing incompatible hash formats (server stores manifest hash, client computed direct SHA256)
-- All gRPC auth debugging, CompleteUpload fix, previous Phase 2/chat/sync/VFS work complete and archived.
+- ✅ **Sync architecture flow review implemented** — Explicit rename/move sync, batch conflict resolve, full-sync progress reporting, sync flow reference doc. All built and tested on server (0 errors, 1104 tests passing). See `docs/development/SYNC_FLOW_REFERENCE.md` for full sync flow documentation.
+- ✅ **gRPC streaming upload fully functional** — (archived)
+- ✅ **Client scanner bugs fixed** — (archived)
+- ⏳ **Windows 11 client verification pending** — See Active Handoff for test cases.
 
 ## Environment
 
@@ -120,4 +119,63 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** All items complete. gRPC CompleteUpload fix verified ✅. Client scanner bugs fixed ✅. No active handoff — server and client are in sync.
+**Summary:** Sync architecture flow review implemented on server (cloud). Ready for Windows 11 client verification. See `docs/development/SYNC_FLOW_REFERENCE.md` for the full sync flow reference.
+
+**Context:** Four sync architecture improvements implemented and tested on server:
+
+1. **Explicit rename/move sync** — `TryHandleRemoteRenameAsync` (receiver side: rename local file when server path differs) + `ScanLocalDirectoryAsync` rename detection (sender side: content-hash match → server RenameAsync instead of delete+create)
+2. **Batch conflict resolve** — "Resolve All" button in conflicts tab
+3. **Full-sync progress reporting** — Engine tracking + progress bar in SyncProgressWindow
+4. **Sync flow reference doc** — `docs/development/SYNC_FLOW_REFERENCE.md`
+
+All built and tested on server (0 errors, 1104 tests passing across 3 test projects). Need client-side validation.
+
+---
+
+### Client Actions — `Windows11-TestDNC`
+
+**Setup:**
+1. Pull latest from `perf/synctray-scan-and-transfer-speedups` (this branch)
+2. Build SyncTray: `dotnet build src\Clients\DotNetCloud.Client.SyncTray\DotNetCloud.Client.SyncTray.csproj -c Release`
+3. Stop running SyncTray if active
+4. Launch the newly built SyncTray and let initial sync complete
+
+**Test Case 1 — Rename/move sync:**
+1. On Windows 11, rename a file in the sync folder (e.g. `test.txt` → `renamed.txt`)
+2. Verify the file appears at the new name on the server (check via web UI or server file listing)
+3. On another client (e.g. Linux), verify the file appears with the new name — NOT a delete+create
+4. Repeat with moving a file to a subfolder
+
+**Test Case 2 — Remote rename from server:**
+1. Rename a file via server web UI
+2. On Windows 11, verify the local file is renamed to match (not re-downloaded)
+
+**Test Case 3 — Batch resolve conflicts:**
+1. Trigger a conflict (edit same file on two clients while offline)
+2. Open Settings → Conflicts tab
+3. Verify "Resolve All" button appears when conflicts exist
+4. Click "Resolve All" — verify all conflicts resolved with "keep-server"
+
+**Test Case 4 — Full-sync progress:**
+1. Delete (or rename) the local `state.db` file in the sync folder to force a full re-sync
+   - Location: check the sync settings for the DB path, or
+   - Stop SyncTray, delete `local_state.db` from the sync data directory, restart SyncTray
+2. Verify the Sync Progress window shows:
+   - "Full sync in progress" or similar phase label
+   - A progress bar indicating items completed vs total
+   - The phase label updating through "Fetching server file list…" → "Scanning local changes…" → "Syncing N files…"
+
+**Test Case 5 — Regression: basic CRUD sync:**
+1. Create a new file on Windows 11 → verify it appears on server and other clients
+2. Edit an existing file → verify changes propagate
+3. Delete a file → verify it's removed from server and other clients
+
+**Reporting:**
+- Document any failures with exact error messages / screenshots
+- Note any UX issues (progress bar not updating, missing labels, etc.)
+
+---
+
+### Server Actions — `cloud.kimball.home`
+
+No server-side changes needed. All changes are client-side. If server API issues are discovered during testing (e.g., `RenameAsync` returning unexpected errors), update this handoff with details.

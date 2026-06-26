@@ -28,4 +28,21 @@ public sealed class SyncStatus
 
     /// <summary>Bytes downloaded in the current sync pass.</summary>
     public long BytesDownloaded { get; init; }
+
+    // ── Full-sync progress fields ──────────────────────────────────────────
+
+    /// <summary>
+    /// When <see langword="true"/>, the engine is performing a full re-sync
+    /// (e.g. after local DB loss or extended offline period).
+    /// </summary>
+    public bool IsFullSync { get; init; }
+
+    /// <summary>Total number of items to process in the current full-sync phase.</summary>
+    public int FullSyncTotalItems { get; init; }
+
+    /// <summary>Number of items completed so far in the current full-sync phase.</summary>
+    public int FullSyncCompletedItems { get; init; }
+
+    /// <summary>Human-readable description of the current full-sync phase.</summary>
+    public string? FullSyncPhaseLabel { get; init; }
 }

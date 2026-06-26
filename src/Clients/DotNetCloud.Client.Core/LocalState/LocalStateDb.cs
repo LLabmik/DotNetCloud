@@ -655,6 +655,20 @@ public sealed class LocalStateDb : ILocalStateDb
         }
     }
 
+    /// <inheritdoc />
+    public async Task<int> BatchResolveConflictsAsync(string dbPath, string resolution, CancellationToken cancellationToken = default)
+    {
+        await using var ctx = CreateContext(dbPath);
+        var now = DateTime.UtcNow;
+        var count = await ctx.ConflictRecords
+            .Where(r => r.ResolvedAt == null)
+            .ExecuteUpdateAsync(
+                s => s.SetProperty(r => r.Resolution, resolution)
+                      .SetProperty(r => r.ResolvedAt, now),
+                cancellationToken);
+        return count;
+    }
+
     // ── Private helpers ─────────────────────────────────────────────────────
 
     private static string BuildConnectionString(string dbPath) =>

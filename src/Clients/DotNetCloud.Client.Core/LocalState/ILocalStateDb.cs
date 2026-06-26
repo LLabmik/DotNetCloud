@@ -172,4 +172,10 @@ public interface ILocalStateDb
     /// <paramref name="resolution"/> string, setting <c>ResolvedAt</c> to UTC now.
     /// </summary>
     Task ResolveConflictAsync(string dbPath, int conflictId, string resolution, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Marks all unresolved conflicts in the given database as resolved with the specified
+    /// <paramref name="resolution"/> string. Returns the number of conflicts resolved.
+    /// </summary>
+    Task<int> BatchResolveConflictsAsync(string dbPath, string resolution, CancellationToken cancellationToken = default);
 }

@@ -317,6 +317,31 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
     }
 
     /// <inheritdoc/>
+    public async Task<int> BatchResolveConflictsAsync(
+        string resolution, CancellationToken cancellationToken = default)
+    {
+        var total = 0;
+        foreach (var contextId in _contexts.Keys)
+        {
+            var running = await GetRunningContextAsync(contextId);
+            if (running?.StateDb is null)
+                continue;
+
+            var count = await running.StateDb.BatchResolveConflictsAsync(
+                running.SyncContext.StateDatabasePath, resolution, cancellationToken);
+            total += count;
+
+            if (count > 0)
+            {
+                _logger.LogInformation(
+                    "Batch-resolved {Count} conflict(s) for context {ContextId} with resolution '{Resolution}'.",
+                    count, contextId, resolution);
+            }
+        }
+        return total;
+    }
+
+    /// <inheritdoc/>
     public async Task UpdateBandwidthAsync(
         decimal uploadLimitKbps, decimal downloadLimitKbps,
         CancellationToken cancellationToken = default)

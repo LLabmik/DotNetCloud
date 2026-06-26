@@ -4824,6 +4824,43 @@ Full handoff content from commit `93ea47a5` — documented the 5-fix chain (307 
 
 ---
 
+## Archived: Sync Architecture Flow Review — Rename Sync + Conflict UX + Full-Sync Progress (2026-06-26)
+
+**Target:** Windows11-TestDNC (client verification)
+
+**Result:** ⏳ Pending Windows 11 client test.
+
+**Changes implemented (all client-side, branch `perf/synctray-scan-and-transfer-speedups`):**
+
+1. **Explicit rename/move sync** — Receiver side: `TryHandleRemoteRenameAsync` detects when server tree path differs from local tracked path and renames locally instead of re-downloading. Sender side: `ScanLocalDirectoryAsync` detects local renames by content-hash match and calls server `RenameAsync` + `MoveAsync` instead of delete+create.
+
+2. **Batch conflict resolve** — "Resolve All" button in Conflicts tab, plumbed through `ILocalStateDb.BatchResolveConflictsAsync` → `ISyncContextManager.BatchResolveConflictsAsync` → `SettingsViewModel.BatchResolveCommand`. All unresolved conflicts resolved with `"keep-server"` strategy in one click.
+
+3. **Full-sync progress reporting** — `SyncEngine` tracks `_isFullSync` flag during cursor recovery (set when no local/server cursor). `SyncStatus` extended with `IsFullSync`, `FullSyncTotalItems`, `FullSyncCompletedItems`, `FullSyncPhaseLabel`. Progress bar + phase label shown in `SyncProgressWindow` during full re-sync.
+
+4. **Sync flow reference documentation** — Created `docs/development/SYNC_FLOW_REFERENCE.md` with sequence diagrams, case-by-case analysis of all 13 sync cases, soft-delete lifecycle explanation, and verification matrix.
+
+**Files changed:**
+- `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs` — rename detection, full-sync tracking
+- `src/Clients/DotNetCloud.Client.Core/Sync/SyncStatus.cs` — progress fields
+- `src/Clients/DotNetCloud.Client.Core/Sync/SyncContextManager.cs` — batch resolve
+- `src/Clients/DotNetCloud.Client.Core/Sync/ISyncContextManager.cs` — batch resolve interface
+- `src/Clients/DotNetCloud.Client.Core/LocalState/ILocalStateDb.cs` — batch resolve interface
+- `src/Clients/DotNetCloud.Client.Core/LocalState/LocalStateDb.cs` — batch resolve SQL
+- `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/SettingsViewModel.cs` — batch resolve command
+- `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/SyncProgressViewModel.cs` — full-sync UI state
+- `src/Clients/DotNetCloud.Client.SyncTray/Views/SettingsWindow.axaml` — Resolve All button
+- `src/Clients/DotNetCloud.Client.SyncTray/Views/SyncProgressWindow.axaml` — progress bar
+- `docs/development/SYNC_FLOW_REFERENCE.md` — new sync flow documentation
+
+**Build & test results:**
+- `dotnet build` — 0 errors
+- `DotNetCloud.Client.Core.Tests` — 264 passed
+- `DotNetCloud.Modules.Files.Tests` — 734 passed
+- `DotNetCloud.Client.SyncTray.Tests` — 106 passed
+
+---
+
 ## Archived: gRPC Streaming Upload — Full Auth + CompleteUpload Fix (2026-06-25)
 
 **Target:** cloud.kimball.home (server fixes) → Windows11-TestDNC (client verification)

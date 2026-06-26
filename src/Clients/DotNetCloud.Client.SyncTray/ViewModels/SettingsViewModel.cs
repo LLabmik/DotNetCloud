@@ -216,6 +216,9 @@ public sealed class SettingsViewModel : ViewModelBase
         private set => SetProperty(ref _isLoadingConflicts, value);
     }
 
+    /// <summary>Whether there are any unresolved conflicts to batch-resolve.</summary>
+    public bool HasUnresolvedConflicts => _conflicts.Count > 0;
+
     /// <summary>Currently selected sub-tab index (0 = active, 1 = history).</summary>
     public int SelectedConflictsTab
     {
@@ -393,6 +396,9 @@ public sealed class SettingsViewModel : ViewModelBase
     /// <summary>Refreshes the active conflicts list from SyncService.</summary>
     public ICommand RefreshConflictsCommand { get; }
 
+    /// <summary>Batch-resolves all unresolved conflicts with the default resolution strategy.</summary>
+    public ICommand BatchResolveCommand { get; }
+
     /// <summary>Opens the folder browser for a specific account to configure selective sync.</summary>
     public ICommand ChooseFoldersCommand { get; }
 
@@ -433,6 +439,7 @@ public sealed class SettingsViewModel : ViewModelBase
         RemoveIgnorePatternCommand = new AsyncRelayCommand<string>(RemoveIgnorePatternAsync);
         EditSyncIgnoreFileCommand = new RelayCommand(OpenSyncIgnoreInEditor);
         RefreshConflictsCommand = new AsyncRelayCommand(RefreshConflictsAsync);
+        BatchResolveCommand = new AsyncRelayCommand(BatchResolveAsync);
         ChooseFoldersCommand = new AsyncRelayCommand<Guid>(ShowFolderBrowserForAccountAsync);
         OpenSyncFolderCommand = new RelayCommand<string>(OpenSyncFolder);
 
@@ -1002,6 +1009,38 @@ public sealed class SettingsViewModel : ViewModelBase
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to load conflicts.");
+        }
+        finally
+        {
+            IsLoadingConflicts = false;
+            OnPropertyChanged(nameof(HasUnresolvedConflicts));
+        }
+    }
+
+    /// <summary>
+    /// Batch-resolves all unresolved conflicts using the default "keep-server" strategy.
+    /// </summary>
+    private async Task BatchResolveAsync()
+    {
+        if (!HasUnresolvedConflicts)
+            return;
+
+        IsLoadingConflicts = true;
+        try
+        {
+            var count = await _syncManager.BatchResolveConflictsAsync("keep-server", CancellationToken.None);
+            _logger.LogInformation("Batch-resolved {Count} conflict(s).", count);
+
+            // Notify the tray VM to update the conflict count
+            for (var i = 0; i < count; i++)
+                _trayVm.OnConflictResolved();
+
+            // Refresh the conflict list to show the resolved state
+            await RefreshConflictsAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to batch-resolve conflicts.");
         }
         finally
         {
