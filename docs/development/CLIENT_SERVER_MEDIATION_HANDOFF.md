@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-26 22:00 UTC (Server-side verification complete — CRUD confirmed, device cursor reset. Ready to relay to Windows11-TestDNC for TC4 re-test.)
+Last updated: 2026-06-26 22:05 UTC (Archive cleanup — completed Server Actions moved to archive. Single active task: Windows11-TestDNC TC4 re-test.)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -97,9 +97,9 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 - ✅ **Client scanner bugs fixed** — (archived)
 - ✅ **Windows 11 rename/move sync tested** — Found and fixed 3 bugs in rename detection (hash mismatch, path mutation in catch, UNIQUE constraint violation). Rename now propagates to server correctly.
 - ✅ **Test Case 2 (Remote rename from server)** — Verified on Windows11-TestDNC. SyncTray picks up remote renames via polling. One bug found and fixed (`UpsertFileRecordAsync` → `UpdateFileRecordPathAsync` in `TryHandleRemoteRenameAsync`).
-- ✅ **Test Case 5 (CRUD edit/delete/create)** — Verified on Windows11-TestDNC. Edit (384ms gRPC upload), delete (DELETE API, 317ms), create (108ms gRPC upload) all propagated successfully.
+- ✅ **Test Case 5 (CRUD edit/delete/create)** — Verified client-side and confirmed server-side. Archived.
 - ⏳ **Test Case 3** — Batch conflict resolve (needs multi-client).
-- ⚠️ **Test Case 4 (full-sync progress)** — Attempted on Windows11-TestDNC. Device cursor recovery (`sequence=93`) prevented full re-sync. Progress window showed "Up to date" immediately — never exercised the progress UI path. Gated by server-side cursor reset.
+- ✅ **Test Case 4 (full-sync progress)** — Device cursor for WINDOWS11-DNC reset on server. Ready for re-test on Windows11-TestDNC.
 
 ## Environment
 
@@ -123,45 +123,9 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** Server-side verification complete — all TC5 CRUD operations confirmed, device cursor reset. Relay to Windows11-TestDNC for TC4 re-test.
+**Summary:** Windows11-TestDNC — TC4 re-test (full-sync progress). Server-side cursor reset complete, CRUD verified and archived.
 
-**Context:** All previous tests completed:
-- Test Case 1 (local rename): ✓ 3 bugs fixed, working
-- Test Case 2 (remote rename): ✓ 1 bug fixed, working
-- Test Case 3 (batch conflict resolve): ☐ Deferred — needs second client
-- Test Case 4 (full-sync progress): ⚠️ Needs re-test — cursor now reset
-- Test Case 5 (CRUD edit/delete/create): ✓ **All verified**
-
----
-
-### Server Actions — `cloud.kimball.home` ✓
-
-**TC5a — Edit verified:** ✅
-```
-Server log: Upload completed: renamed-from-webui.txt (100 bytes) -> node 019f0599-2c8d-786e-b95a-464db9dc9fd1
-```
-File content grew from 60 B → 100 B. gRPC upload accepted by server.
-
-**TC5b — Delete verified:** ✅
-```
-Server log: Node 019f0599-2c8d-786e-b95a-464db9dc9fd1 soft-deleted
-Server log: Request finished HTTP/2 DELETE ... - 200
-```
-Web UI: `renamed-from-webui.txt` no longer in file listing. DELETE API returned 200.
-
-**TC5c — Create verified:** ✅
-```
-Server log: Upload completed: crud-test-2.txt (72 bytes) -> node 019f05e4-a86b-74be-9acd-7bbd82dac181
-```
-Web UI: `crud-test-2.txt` (72 B, Jun 26) visible in file listing. gRPC upload successful.
-
-**Device cursor reset:** ✅
-```
-Device WINDOWS11-DNC (1bc2f91b-8cd0-4032-9535-085907afb5db): cursor deleted from [core].[SyncDeviceCursors]
-Previous sequence=93, now 0 rows. Full re-sync will be forced on next connection.
-```
-
-**No server code changes needed.** All CRUD operations and API endpoints working correctly.
+**Context:** Server verification (TC5 + cursor reset) completed and archived. See `CLIENT_SERVER_MEDIATION_ARCHIVE.md` for details. Remaining: Test Case 4 re-test with reset cursor.
 
 ---
 
@@ -171,29 +135,20 @@ Previous sequence=93, now 0 rows. Full re-sync will be forced on next connection
 
 The device cursor for `WINDOWS11-DNC` has been deleted from the server database. The next time SyncTray connects, it will not find a saved cursor and will fall back to a full re-sync.
 
-1. **Prepare:** Ensure SyncTray is running on Windows 11 and connected.
-2. **Kill SyncTray** and **delete local state DB** again (`state.db`, `state.db-wal`, `state.db-shm`).
-3. **Restart SyncTray** — this time it should NOT skip the full re-sync (cursor was deleted).
-4. **Observe the progress window:**
+1. **Kill SyncTray** and **delete local state DB** (`state.db`, `state.db-wal`, `state.db-shm`).
+2. **Restart SyncTray** — should NOT skip re-sync this time (cursor was deleted).
+3. **Observe the progress window:**
    - Does a progress bar or file count appear?
    - Does it show meaningful progress (e.g., "Syncing 24 files...")?
    - Does progress update as files process?
    - Does it complete without errors?
-5. **Check the log** for the initial connection sequence — look for absence of "Recovered server-side cursor" message.
-6. **Report back:**
-   - Did the progress window show meaningful progress? (Y/N)
-   - How many files were processed?
-   - Duration of full sync?
-   - Any errors?
-
-**Test Case 5 — Regression CRUD:** ✓ Already verified by server.
+4. **Check the log** for absence of "Recovered server-side cursor" message.
+5. **Report back:** Progress window? (Y/N), files processed count, duration, any errors?
 
 ---
 
 ### Next Steps
 
-**Current handoff:** Windows11-TestDNC — TC4 re-test (full-sync progress).
+**After TC4 complete:** Relay back to `cloud.kimball.home` for any server-side follow-up.
 
-**After TC4 complete:** Relay back to `cloud.kimball.home` for any server-side investigation if issues arise.
-
-**Test Case 3** (batch conflict resolve) remains deferred until multi-client setup is available.
+**Test Case 3** (batch conflict resolve) remains deferred until multi-client setup.

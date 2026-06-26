@@ -4881,3 +4881,38 @@ Full handoff content from commit `93ea47a5` — documented the 5-fix chain (307 
 - Root cause identified: downstream module gRPC rejects unauthenticated calls
 - 32 client tests fixed (missing mock, retry count, route assertion, Linux guard)
 
+---
+
+## Archived: Sync Architecture TC5 Server Verification + TC4 Cursor Reset (2026-06-26)
+
+**Target:** cloud.kimball.home (server verification) → relay back to Windows11-TestDNC for TC4 re-test.
+
+**Result:** ✅ All TC5 CRUD operations confirmed server-side. Device cursor reset for TC4.
+
+### Server Actions — Completed
+
+**TC5a — Edit verified:** ✅
+```
+Server log: Upload completed: renamed-from-webui.txt (100 bytes) -> node 019f0599-2c8d-786e-b95a-464db9dc9fd1
+```
+File content grew from 60 B → 100 B. gRPC upload accepted by server.
+
+**TC5b — Delete verified:** ✅
+```
+Server log: Node 019f0599-2c8d-786e-b95a-464db9dc9fd1 soft-deleted
+Server log: Request finished HTTP/2 DELETE ... - 200
+```
+Web UI: `renamed-from-webui.txt` no longer in file listing. DELETE API returned 200.
+
+**TC5c — Create verified:** ✅
+```
+Server log: Upload completed: crud-test-2.txt (72 bytes) -> node 019f05e4-a86b-74be-9acd-7bbd82dac181
+```
+Web UI: `crud-test-2.txt` (72 B, Jun 26) visible in file listing. gRPC upload successful.
+
+**Device cursor reset:** ✅
+Device WINDOWS11-DNC (`1bc2f91b-8cd0-4032-9535-085907afb5db`): cursor deleted from `[core].[SyncDeviceCursors]`.
+Previous sequence=93, now 0 rows. Full re-sync will be forced on next connection.
+
+**No server code changes needed.** All CRUD operations and API endpoints working correctly.
+
