@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-26 14:40 UTC (Test Case 2 verified on Windows11-TestDNC — remote rename propagated to local SyncTray, one bug found and fixed in TryHandleRemoteRenameAsync.)
+Last updated: 2026-06-26 21:50 UTC (Handoff to Windows11-TestDNC for Test Cases 4 and 5 — full-sync progress and CRUD edit/delete regression.)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -121,23 +121,63 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** Test Case 2 (remote rename from server) verified on Windows11-TestDNC. One new bug found and fixed in `TryHandleRemoteRenameAsync`. Remaining Test Cases 3-5 gated by multi-client setup or UI interaction.
+**Summary:** Test Cases 4 and 5 remaining items — verify full-sync progress reporting and CRUD edit/delete regression on Windows11-TestDNC. Test Case 3 (batch conflict resolve) deferred until multi-client setup is available.
 
-**Context:** Server renamed `crud-test.txt` → `renamed-from-webui.txt` via web UI. SyncTray detected the change in its polling cycle but crashed with `UNIQUE constraint failed: FileRecords.Id` — `TryHandleRemoteRenameAsync` used `UpsertFileRecordAsync` (lookup by LocalPath) after changing the path, so the old row was not found and an INSERT was attempted with the original auto-increment Id.
+**Context:** All previous tests completed:
+- Test Case 1 (local rename): ✓ 3 bugs fixed, working
+- Test Case 2 (remote rename): ✓ 1 bug fixed, working
+- Test Case 3 (batch conflict resolve): ☐ Deferred — needs second client
+- Test Case 4 (full-sync progress): ☐ Not tested
+- Test Case 5 (CRUD edit/delete): ☐ Edit and delete not yet verified
 
-**Fix:** Replaced `UpsertFileRecordAsync` with `UpdateFileRecordPathAsync` (lookup by NodeId) in `TryHandleRemoteRenameAsync` — same pattern already proven in `ScanLocalDirectoryAsync` local rename handling.
-
-**Result — All 3 checks passed on Windows11-TestDNC:**
-
-1. **File on disk:** `crud-test.txt` renamed to `renamed-from-webui.txt` ✓
-2. **Sync log:** No errors. `RemoteChanges=1`, `DurationMs=897` ✓
-3. **Sync pass complete:** Clean completion with ack to server ✓
+The server has a file `renamed-from-webui.txt` (60 B) in the root of the test user's home directory that can be used for edit/delete testing. The file content is simple text.
 
 ---
 
-### Client Actions — `Windows11-TestDNC` ✓
+### Client Actions — `Windows11-TestDNC`
 
-**Test Case 2 — Remote rename from server:** ✓ **Completed**
+**Test Case 4 — Full-sync progress reporting:**
+
+1. Open SyncTray GUI on Windows 11 and verify it is connected and synced.
+2. If the local state DB has been deleted/recreated recently, trigger a full re-sync:
+   - Either wait for the periodic full scan, or
+   - Delete the local state DB (`synctray\state\*.db`) to force a full re-sync on next sync cycle.
+3. During the full re-sync, observe the progress window/dialog. Verify:
+   - Progress shows total files to process (or a reasonable indication of progress)
+   - Progress updates as files are processed
+   - Progress completes without errors
+4. After full-sync completes, verify no unexpected errors in the log (`SyncTray.log` or console output).
+5. Report:
+   - Did the progress window appear? (Y/N)
+   - Did it show meaningful progress? (files count, percentage, or both?)
+   - Any errors during full sync?
+   - Duration of full sync?
+
+**Test Case 5 — Regression: CRUD edit and delete:**
+
+1. **Edit existing file:**
+   - Open `C:\Users\benk\synctray\renamed-from-webui.txt`
+   - Modify the content (add some text)
+   - Save the file
+   - Wait for the next sync cycle (or trigger manual scan)
+   - Verify the edit propagates to the server (check via web UI at `https://cloud.dotnetcloud.net/apps/files`)
+   - Check SyncTray log for upload confirmation
+
+2. **Delete existing file:**
+   - Delete `C:\Users\benk\synctray\renamed-from-webui.txt`
+   - Wait for the next sync cycle (or trigger manual scan)
+   - Verify the file is deleted from the server (check via web UI)
+   - Check SyncTray log for delete confirmation
+
+3. **Create new file (re-verify after all the state DB changes):**
+   - Create a new test file (e.g., `crud-test-2.txt`) with some content
+   - Wait for sync
+   - Verify it appears on the server via web UI
+
+4. Report:
+   - Edit: Did it propagate successfully? Duration?
+   - Delete: Did it propagate successfully? Duration?
+   - Create (re-verify): Did it upload successfully?
 
 **Bug found — UNIQUE constraint violation in `TryHandleRemoteRenameAsync`:**
 `UpsertFileRecordAsync` looks up by `LocalPath`. After changing `localRecord.LocalPath` to the new path, the lookup couldn't find the old row and attempted `ctx.FileRecords.Add(record)` — INSERT with the original auto-increment `Id`, which already existed.
@@ -177,9 +217,10 @@ await _stateDb.UpdateFileRecordPathAsync(context.StateDatabasePath, nodeId, expe
 
 ### Next Steps
 
-No server actions needed at this point. Remaining unverified tests (3-5) require either:
-- A second connected client to trigger conflicts (Test Case 3)
-- Manual UI observation on the client machine (Test Case 4)
-- Local edit/delete verification (Test Case 5 remaining items)
+**Current handoff:** Windows11-TestDNC — Test Cases 4 and 5.
 
-These can be picked up when a multi-client setup is available.
+**After completion, relay back to `cloud.kimball.home` for:**
+- Server-side verification that edit/delete propagated correctly (check via web UI + DB)
+- Any server-side fixes if the API doesn't handle edit/delete correctly
+
+**Test Case 3 deferred** until multi-client setup is available.
