@@ -154,7 +154,7 @@ Initial test failed. Found 3 bugs in `ScanLocalDirectoryAsync` rename detection:
 ```
 Server API call succeeded, local state DB updated. No delete+create fallback.
 
-**Fix commit hash:** `<commit-hash-here>` (3 files changed: `ILocalStateDb.cs`, `LocalStateDb.cs`, `SyncEngine.cs`)
+**Fix commit hash:** `03283d57` (4 files changed: `ILocalStateDb.cs`, `LocalStateDb.cs`, `SyncEngine.cs`, handoff doc)
 
 **Test Case 2 — Remote rename from server:** ☐ Not tested (requires server web UI access from Windows11-TestDNC)
 
