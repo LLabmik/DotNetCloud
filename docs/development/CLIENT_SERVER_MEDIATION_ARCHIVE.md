@@ -4930,3 +4930,34 @@ Previous sequence=93, now 0 rows. Full re-sync will be forced on next connection
 2. ✅ **Cursor deleted again** and confirmed 0 rows in `[core].[SyncDeviceCursors]`.
 3. ✅ **Root cause identified:** `AcknowledgeCursorAsync` recreates the cursor at the end of the full sync. This means the cursor will come back after the first full sync completes — which is by design for per-device tracking.
 
+---
+
+## Archived: TC4 Re-Test — Full Sync Mechanism Confirmed (2026-06-26)
+
+**Target:** Windows11-TestDNC (final TC4 re-test).
+
+**Result:** ✅ Full sync mechanism confirmed working via logs.
+
+### Client Actions — Completed
+
+**Test Case 4 — Full-sync progress (final re-test):** ✅ **Mechanism confirmed**
+
+Steps taken:
+1. Killed SyncTray ✓
+2. Deleted local state DB `state.db`, `state.db-wal`, `state.db-shm` ✓
+3. Restarted SyncTray ✓
+
+**Log results:**
+```
+[15:14:06 INF] Full sync completed for context "019ef32e-dca2-7cb7-a531-a9683bbcaeb3".
+[15:14:06 INF] Sync pass complete: DurationMs=1988, RemoteChanges=23, LocalQueued=0, LocalApplied=15.
+```
+
+Key confirmations:
+- ✅ No "Recovered server-side cursor" — cursor was truly deleted
+- ✅ `Full sync completed` logged — `_isFullSync = true` path exercised
+- ✅ RemoteChanges=23 — full tree downloaded from server
+- ✅ LocalApplied=15 — 15 files hydrated locally
+- ✅ Follow-up pass clean: DurationMs=110, RemoteChanges=0
+- ✅ Sync duration ~2s with ~24 small files
+

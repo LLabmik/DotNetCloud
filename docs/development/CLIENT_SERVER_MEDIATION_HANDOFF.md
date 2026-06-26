@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-26 15:14 UTC (TC4 re-test completed on Windows11-TestDNC — full sync mechanism confirmed working via logs.)
+Last updated: 2026-06-26 22:25 UTC (TC3 plan ready — server web UI as Client B. 4 conflict scenarios: identical, fast-forward, text merge, conflict copy + batch resolve.)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -98,8 +98,8 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 - ✅ **Windows 11 rename/move sync tested** — Found and fixed 3 bugs in rename detection (hash mismatch, path mutation in catch, UNIQUE constraint violation). Rename now propagates to server correctly.
 - ✅ **Test Case 2 (Remote rename from server)** — Verified on Windows11-TestDNC. SyncTray picks up remote renames via polling. One bug found and fixed (`UpsertFileRecordAsync` → `UpdateFileRecordPathAsync` in `TryHandleRemoteRenameAsync`).
 - ✅ **Test Case 5 (CRUD edit/delete/create)** — Verified client-side and confirmed server-side. Archived.
-- ⏳ **Test Case 3** — Batch conflict resolve (needs multi-client).
-- ✅ **Test Case 4 (full-sync progress)** — Full sync mechanism confirmed working. Cursor properly deleted, `_isFullSync = true` triggered, `Full sync completed` logged. UI observation missed (fast sync, ~2s).
+- ✅ **Test Case 4 (full-sync progress)** — Full sync mechanism confirmed working. Archived.
+- ⏳ **Test Case 3** — Batch conflict resolve. Plan ready — see Active Handoff.
 
 ## Environment
 
@@ -123,50 +123,89 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** TC4 re-test complete — full sync mechanism confirmed working via logs. All sync architecture tests (1-5) now verified or accounted for.
+**Summary:** Test Case 3 — Batch Conflict Resolve. Server web UI acts as Client B to trigger conflicts. Approach: edit file locally on Windows11-TestDNC while SyncTray is dead, then edit same file via web UI to create server-side change, then restart SyncTray → conflict detected on next sync.
 
-**Context:** Windows11-TestDNC performed final TC4 re-test with cursor properly deleted. Results below.
+**Context:** TC4 archived. All other tests complete. This is the last remaining sync architecture test.
 
 ---
 
-### Client Actions — `Windows11-TestDNC` ✓
+### Server Actions — `cloud.kimball.home`
 
-**Test Case 4 — Full-sync progress (final re-test):** ✅ **Mechanism confirmed**
+**Setup — Create test files via web UI:**
 
-Steps taken:
-1. Killed SyncTray ✓
-2. Deleted local state DB `state.db`, `state.db-wal`, `state.db-shm` ✓
-3. Restarted SyncTray ✓
-4. UI observation: ❌ Missed — SyncTray was started without asking user to open progress window first
+Create each file below via the web UI at `https://cloud.dotnetcloud.net/apps/files` using the "New File" button:
 
-**Log results — mechanism verified:**
-```
-[15:14:06 INF] Full sync completed for context "019ef32e-dca2-7cb7-a531-a9683bbcaeb3".
-[15:14:06 INF] Sync pass complete: DurationMs=1988, RemoteChanges=23, LocalQueued=0, LocalApplied=15.
-```
+1. **`tc3-identical.txt`** with content `Hello world`
+2. **`tc3-fastforward.txt`** with content `Base content`
+3. **`tc3-merge.txt`** with content:
+   ```
+   Line 1: alpha
+   Line 2: beta
+   Line 3: gamma
+   ```
+4. **`tc3-conflict.txt`** with content `Original content`
 
-Key confirmations:
-- ✅ **No "Recovered server-side cursor"** — cursor was truly deleted
-- ✅ **`Full sync completed`** logged — `_isFullSync = true` path exercised
-- ✅ **RemoteChanges=23** — full tree downloaded from server
-- ✅ **LocalApplied=15** — 15 files hydrated locally
-- ✅ **Follow-up pass clean** — DurationMs=110, RemoteChanges=0, LocalQueued=0, LocalApplied=0
-- ✅ **Sync duration ~2s** — with only ~24 small files, this is expected to be fast
+Wait for both files to sync to Windows11-TestDNC before proceeding.
 
-If UI observation is still desired, TC4 can be re-run with either:
-- A large test file (e.g., 100MB) added to sync folder before the test to slow down the sync
-- Or simply accept as code-verified since the `_isFullSync` path, cursor recovery bypass, and progress window visibility are all confirmed through logs
+---
+
+### Client Actions — `Windows11-TestDNC`
+
+**Test A1 — Identical Content (Strategy 1):**
+
+1. Verify `tc3-identical.txt` has synced locally with content `Hello world`
+2. **Kill SyncTray** (so local edits don't upload)
+3. Edit `tc3-identical.txt` → change content to `Modified same on both`
+4. **Server (`cloud.kimball.home`):** Edit `tc3-identical.txt` via web UI → same content: `Modified same on both`
+5. **Restart SyncTray**
+6. **Expected:** Auto-resolved (hashes match). No conflict. Report result.
+
+**Test A2 — Fast-Forward (Strategy 2):**
+
+1. Verify `tc3-fastforward.txt` has synced with content `Base content`
+2. **Kill SyncTray**
+3. Edit `tc3-fastforward.txt` → no change needed (leave as `Base content`)
+4. **Server (`cloud.kimball.home`):** Edit `tc3-fastforward.txt` via web UI → `Server changed this`
+5. **Restart SyncTray**
+6. **Expected:** Auto-resolved (local hash = base hash → fast-forward). Server version wins locally. Report result.
+
+**Test A3 — Non-Overlapping Text Merge (Strategy 3):**
+
+1. Verify `tc3-merge.txt` has synced with all 3 lines
+2. **Kill SyncTray**
+3. Edit `tc3-merge.txt` → change line 1 to `Line 1: alpha-modified`
+4. **Server (`cloud.kimball.home`):** Edit `tc3-merge.txt` via web UI → change line 3 to `Line 3: gamma-modified`
+5. **Restart SyncTray**
+6. **Expected:** DiffPlex three-way merge succeeds. Both edits survive. No conflict copy. Report result.
+
+**Test B1 — Conflict Copy (Strategy 5):**
+
+1. Verify `tc3-conflict.txt` has synced with content `Original content`
+2. **Kill SyncTray**
+3. Edit `tc3-conflict.txt` → change content to `Client A's version`
+4. **Server (`cloud.kimball.home`):** Edit `tc3-conflict.txt` via web UI → change content to `Server's version`
+5. **Restart SyncTray**
+6. **Expected:** Auto-resolution fails (same content area, different text). Conflict copy created named `tc3-conflict (conflict - ...).txt`. Conflict record saved in local state DB.
+7. **Check SyncTray Conflicts tab** — should show 1 unresolved conflict.
+
+**Test C1 — Batch Resolve:**
+
+1. With conflicts visible in SyncTray Conflicts tab, click **"Resolve All"** button
+2. **Expected:** All conflict records marked resolved with `"keep-server"`. Server version wins.
+3. Verify `tc3-conflict.txt` now contains `Server's version`
+4. Conflict copy `tc3-conflict (conflict - ...).txt` remains as a separate file
+5. Report: How many conflicts were batch-resolved? Did server version propagate correctly?
 
 ---
 
 ### Next Steps
 
-All 4 sync architecture test cases are now resolved:
-- ✅ **Test Case 1** — Local rename/move sync (3 bugs fixed, working)
-- ✅ **Test Case 2** — Remote rename from server (1 bug fixed, working)
-- ✅ **Test Case 4** — Full-sync progress (mechanism confirmed)
-- ✅ **Test Case 5** — CRUD edit/delete/create (verified client + server)
+**After TC3 complete:** All 5 sync architecture tests verified. Relay to `cloud.kimball.home` for final summary and archive.
 
-**Test Case 3** (batch conflict resolve) remains deferred until multi-client setup.
-
-No further server actions needed at this time.
+| Test | Description | Status |
+|------|-------------|--------|
+| TC1 | Local rename/move sync | ✅ 3 bugs fixed |
+| TC2 | Remote rename from server | ✅ 1 bug fixed |
+| TC3 | Batch conflict resolve | ☐ |
+| TC4 | Full-sync progress | ✅ Archived |
+| TC5 | CRUD edit/delete/create | ✅ Archived |
