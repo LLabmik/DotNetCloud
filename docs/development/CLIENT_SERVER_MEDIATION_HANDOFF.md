@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-27 17:40 UTC (UseExceptionHandler works — now getting JSON error body. Need server to check Chat module logs for actual exception in ListChannelsAsync)
+Last updated: 2026-06-27 17:50 UTC (All fixes deployed — IRealtimeBroadcaster null-object added, ready for Android client test)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -92,12 +92,7 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Current Status
 
-- 🔴 **Chat module still returns 500 — but now with JSON body** — `UseExceptionHandler()` fix is working. Android client now receives `{"success":false,"error":{"code":"INTERNAL_ERROR","message":"An unexpected error occurred."}}` instead of empty body. This means:
-  1. ✅ Auth is working (Bearer token accepted, request reaches controller)
-  2. ✅ `UseExceptionHandler()` catches exceptions properly (returns JSON)
-  3. ❌ **`ListChannelsAsync()` (or `GetAuthenticatedCaller()`) inside ChannelService is still throwing** — the actual exception is swallowed by `ExecuteAsync()` which returns generic `INTERNAL_ERROR`
-  4. Need server to check Chat module logs for the actual exception details
-- ✅ **OpenIddict.Validation.AspNetCore removed** — No longer conflicts with introspection scheme
+- ✅ **Chat module fixes deployed** — Three issues fixed: (1) `OpenIddict.Validation.AspNetCore` removed (conflicted with introspection), (2) `UseExceptionHandler()` added for production (returns JSON error envelope), (3) `NullRealtimeBroadcasterService` added (ChatController dependency was unresolvable in process-isolated module).
 - ✅ **Sync architecture** — All testing complete. See archive.
 - ✅ **Linux client validation** — Completed on mint-OptiPlex-7010. Archived.
 
@@ -123,39 +118,32 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** `UseExceptionHandler()` fix is working — now getting JSON error body. But `ListChannelsAsync()` is still throwing. Server needs to check Chat module logs for the actual exception.
+**Summary:** Root cause found and fixed — `IRealtimeBroadcaster` was not registered in Chat module DI. Null-object implementation added, deployed, and verified. Ready for Android client to test.
 
-**Background (2026-06-27, updated 17:40 UTC):** Android client (`monolith`) testing confirms:
+**Background (2026-06-27, updated 17:50 UTC):** Server-side investigation on `cloud.kimball.home` found the actual exception in the Chat module logs:
 
-- ✅ `UseExceptionHandler()` works — response body is now `{"success":false,"error":{"code":"INTERNAL_ERROR","message":"An unexpected error occurred."}}` (93 bytes, chunked encoding)
-- ✅ Auth works — Bearer token is accepted, request reaches Chat controller
-- ❌ `ListChannelsAsync()` still throws — the `ExecuteAsync()` wrapper (or `UseExceptionHandler()`) catches it and returns generic `INTERNAL_ERROR`
-- The actual exception is logged by the Chat module — need to check journalctl
+```
+System.InvalidOperationException: Unable to resolve service for type
+'DotNetCloud.Core.Capabilities.IRealtimeBroadcaster' while attempting to
+activate 'DotNetCloud.Modules.Chat.Host.Controllers.ChatController'.
+```
 
-**Key question:** What is the actual exception inside `ListChannelsAsync`?
-- `GetAuthenticatedCaller()` might fail if claims from introspection don't include `ClaimTypes.NameIdentifier` or `"sub"` in expected format
-- `EnsureDefaultPublicChannelForUserAsync()` might fail with DB access issue
-- `ChannelService.ListChannelsAsync()` might fail for some other reason
+**Root cause:** The ChatController constructor requires `IRealtimeBroadcaster` (used for announcement SignalR broadcasts), but this service is only registered in `Core.Server` (in-process SignalR). Since the Chat module runs as a process-isolated child, it couldn't resolve this dependency.
+
+**Fix:** Created `NullRealtimeBroadcasterService` (following the existing null-object pattern — `NullTracksActivitySignalRService`, `NullLiveKitService`, etc.) and registered it in `ChatServiceRegistration.cs`:
+
+```csharp
+services.AddSingleton<IRealtimeBroadcaster, NullRealtimeBroadcasterService>();
+```
+
+**Deploy:** `./scripts/deploy.sh` — Chat.Host published, all modules healthy
+**Verify:** `curl /api/v1/chat/channels` → 401 (correct), no errors in Chat module logs
 
 ---
 
-### Server Actions — `cloud.kimball.home`
-
-1. **Check Chat module logs** for the actual exception:
-   ```bash
-   # Look for exceptions during the Android client's requests (around 22:30-22:31 UTC)
-   sudo journalctl -u dotnetcloud-chat --since "2026-06-27 22:29:00" --until "2026-06-27 22:32:00" --no-pager
-   
-   # Or search for recent error entries
-   sudo journalctl -u dotnetcloud-chat --since "5 min ago" --no-pager | grep -i "error\|exception\|fail\|INTERNAL_ERROR\|ListChannels"
-   ```
-
-2. **Identify the exception type and message** — this will tell us what's wrong inside `ListChannelsAsync` or `GetAuthenticatedCaller()`
-
-3. **Fix the root cause** in `ChannelService.ListChannelsAsync()` or `GetAuthenticatedCaller()` claim handling
-
-4. **Redeploy** and verify
-
 ### Android Client Actions — `monolith`
 
-- ☐ After server fixes are deployed, test Chat tab again
+1. **Rebuild APK** on `monolith` (Windows 11) with latest server changes from `feature/chat-auth-bearer-token-support`
+2. **Install on emulator and test Chat tab**
+3. Expected: Chat tab loads channel list successfully (HTTP 200 with `{"success":true,"data":[...channel list...]}`)
+4. If still failing: capture full response body via logcat and relay back
