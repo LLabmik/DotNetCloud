@@ -281,6 +281,227 @@ public sealed class SyncProgressViewModelTests
         CollectionAssert.Contains(changedProperties, nameof(SyncProgressViewModel.SyncSummary));
     }
 
+    // ── StatusMessage states ──────────────────────────────────────────────
+
+    [TestMethod]
+    public async Task StatusMessage_WhenIdle_ReturnsUpToDate()
+    {
+        var (vm, trayVm, syncMock) = BuildVm();
+        var contextId = Guid.CreateVersion7();
+        await SeedAccountAsync(trayVm, syncMock, contextId, "Idle");
+        Assert.AreEqual("Everything is up to date.", vm.StatusMessage);
+    }
+
+    [TestMethod]
+    public async Task StatusGlyph_WhenIdle_ReturnsCheckmark()
+    {
+        var (vm, trayVm, syncMock) = BuildVm();
+        var contextId = Guid.CreateVersion7();
+        await SeedAccountAsync(trayVm, syncMock, contextId, "Idle");
+        Assert.AreEqual("✓", vm.StatusGlyph);
+    }
+
+    [TestMethod]
+    public async Task StatusSubMessage_WhenIdleNoLastSynced_ReturnsEmpty()
+    {
+        var (vm, trayVm, syncMock) = BuildVm();
+        var contextId = Guid.CreateVersion7();
+        await SeedAccountAsync(trayVm, syncMock, contextId, "Idle");
+        Assert.AreEqual("", vm.StatusSubMessage);
+    }
+
+    [TestMethod]
+    public async Task StatusMessage_WhenSyncingNoPhaseLabel_ReturnsPreparing()
+    {
+        var (vm, trayVm, syncMock) = BuildVm();
+        var contextId = Guid.CreateVersion7();
+
+        // Set OverallState to Syncing via SeedAccount with "Syncing" state.
+        await SeedAccountAsync(trayVm, syncMock, contextId, "Syncing");
+
+        Assert.AreEqual("Preparing to sync…", vm.StatusMessage);
+        Assert.AreEqual("⟳", vm.StatusGlyph);
+        Assert.AreEqual("Scanning for changes…", vm.StatusSubMessage);
+    }
+
+    [TestMethod]
+    public async Task StatusMessage_WhenSyncingWithPhaseLabel_ShowsPhase()
+    {
+        var (vm, trayVm, syncMock) = BuildVm();
+        var contextId = Guid.CreateVersion7();
+
+        await SeedAccountAsync(trayVm, syncMock, contextId, "Syncing");
+
+        // Simulate a SyncStatus update with a phase label.
+        vm.OnSyncStatusUpdated(new SyncStatus
+        {
+            State = SyncState.Syncing,
+            FullSyncPhaseLabel = "Fetching server file list…",
+        });
+
+        Assert.AreEqual("Fetching server file list…", vm.StatusMessage);
+    }
+
+    [TestMethod]
+    public async Task StatusMessage_WhenError_ReturnsErrorText()
+    {
+        var (vm, trayVm, syncMock) = BuildVm();
+        var contextId = Guid.CreateVersion7();
+
+        await SeedAccountAsync(trayVm, syncMock, contextId, "Syncing");
+
+        // Trigger sync error through the tray VM's event -> the progress VM subscribes.
+        syncMock.Raise(i => i.SyncError += null, syncMock.Object,
+            new SyncErrorEventArgs { ContextId = contextId, ErrorMessage = "Connection failed" });
+
+        Assert.AreEqual("Sync error", vm.StatusMessage);
+        Assert.AreEqual("✗", vm.StatusGlyph);
+    }
+
+    [TestMethod]
+    public async Task StatusMessage_WhenErrorAndErrorMessage_BannerVisible()
+    {
+        var (vm, trayVm, syncMock) = BuildVm();
+        var contextId = Guid.CreateVersion7();
+
+        await SeedAccountAsync(trayVm, syncMock, contextId, "Syncing");
+
+        syncMock.Raise(i => i.SyncError += null, syncMock.Object,
+            new SyncErrorEventArgs { ContextId = contextId, ErrorMessage = "Access denied" });
+
+        Assert.IsTrue(vm.IsBannerVisible);
+        Assert.IsTrue(vm.HasErrors);
+        Assert.IsFalse(vm.HasConflicts);
+    }
+
+    [TestMethod]
+    public async Task StatusMessage_WhenConflict_ReturnsConflictText()
+    {
+        var (vm, trayVm, syncMock) = BuildVm();
+        var contextId = Guid.CreateVersion7();
+        await SeedAccountAsync(trayVm, syncMock, contextId, "Idle");
+
+        // Simulate a conflict being detected — tray VM increases ConflictCount.
+        syncMock.Raise(i => i.ConflictDetected += null, syncMock.Object,
+            new SyncConflictDetectedEventArgs { ContextId = contextId, OriginalPath = "/test/file.txt", ConflictCopyPath = "/test/file.conflict.txt" });
+
+        Assert.AreEqual("Conflicts need attention", vm.StatusMessage);
+        Assert.AreEqual("⚠", vm.StatusGlyph);
+    }
+
+    [TestMethod]
+    public async Task StatusMessage_WhenPaused_ReturnsPausedText()
+    {
+        var (vm, trayVm, syncMock) = BuildVm();
+        var contextId = Guid.CreateVersion7();
+
+        await SeedAccountAsync(trayVm, syncMock, contextId, "Paused");
+
+        Assert.AreEqual("Sync paused", vm.StatusMessage);
+        Assert.AreEqual("⏸", vm.StatusGlyph);
+    }
+
+    [TestMethod]
+    public async Task PauseResumeText_WhenPaused_ReturnsResume()
+    {
+        var (vm, trayVm, syncMock) = BuildVm();
+        var contextId = Guid.CreateVersion7();
+
+        await SeedAccountAsync(trayVm, syncMock, contextId, "Paused");
+
+        Assert.AreEqual("Resume", vm.PauseResumeText);
+    }
+
+    [TestMethod]
+    public async Task ShowPauseResume_WhenSyncing_IsTrue()
+    {
+        var (vm, trayVm, syncMock) = BuildVm();
+        var contextId = Guid.CreateVersion7();
+        await SeedAccountAsync(trayVm, syncMock, contextId, "Syncing");
+        Assert.IsTrue(vm.ShowPauseResume);
+        Assert.IsFalse(vm.ShowSyncNow);
+    }
+
+    [TestMethod]
+    public async Task ShowPauseResume_WhenIdle_IsFalse()
+    {
+        var (vm, trayVm, syncMock) = BuildVm();
+        var contextId = Guid.CreateVersion7();
+        await SeedAccountAsync(trayVm, syncMock, contextId, "Idle");
+        Assert.IsFalse(vm.ShowPauseResume);
+        Assert.IsTrue(vm.ShowSyncNow);
+    }
+
+    [TestMethod]
+    public async Task ShowSyncNow_WhenPaused_IsTrue()
+    {
+        var (vm, trayVm, syncMock) = BuildVm();
+        var contextId = Guid.CreateVersion7();
+        await SeedAccountAsync(trayVm, syncMock, contextId, "Paused");
+        Assert.IsTrue(vm.ShowSyncNow);
+    }
+
+    [TestMethod]
+    public async Task SyncNowCommand_TriggersSync()
+    {
+        var (vm, trayVm, syncMock) = BuildVm();
+        var contextId = Guid.CreateVersion7();
+        await SeedAccountAsync(trayVm, syncMock, contextId, "Idle");
+
+        Assert.IsTrue(vm.SyncNowCommand.CanExecute(null));
+        vm.SyncNowCommand.Execute(null);
+        // Give the async command a moment to invoke.
+        await Task.Delay(100);
+
+        syncMock.Verify(s => s.SyncNowAsync(contextId), Times.Once);
+    }
+
+    // ── Footer tests ──────────────────────────────────────────────────────
+
+    [TestMethod]
+    public void FooterText_WhenSessionBytesPresent_IncludesTransferInfo()
+    {
+        var (vm, _, _) = BuildVm();
+
+        vm.OnSyncStatusUpdated(new SyncStatus
+        {
+            State = SyncState.Syncing,
+            BytesUploaded = 1_048_576,   // 1 MB
+            BytesDownloaded = 2_097_152, // 2 MB
+        });
+
+        var text = vm.FooterText;
+        StringAssert.Contains(text, "↑");
+        StringAssert.Contains(text, "↓");
+        StringAssert.Contains(text, "MB");
+    }
+
+    [TestMethod]
+    public void FooterText_WhenNoData_ReturnsEmpty()
+    {
+        var (vm, _, _) = BuildVm();
+        Assert.AreEqual("", vm.FooterText);
+    }
+
+    // ── OnSyncStatusUpdated ───────────────────────────────────────────────
+
+    [TestMethod]
+    public async Task SyncSummary_AfterSyncStatusUpdatedWithPhaseLabel_ReflectsPhase()
+    {
+        var (vm, trayVm, syncMock) = BuildVm();
+        var contextId = Guid.CreateVersion7();
+        await SeedAccountAsync(trayVm, syncMock, contextId, "Syncing");
+
+        vm.OnSyncStatusUpdated(new SyncStatus
+        {
+            State = SyncState.Syncing,
+            FullSyncPhaseLabel = "Scanning local changes…",
+        });
+
+        // SyncSummary should include the phase label since _fullSyncPhaseLabel was set.
+        StringAssert.Contains(vm.SyncSummary, "Scanning");
+    }
+
     // ── Dispose ───────────────────────────────────────────────────────────
 
     [TestMethod]

@@ -276,21 +276,32 @@ public sealed class SyncEngine : ISyncEngine
 
             if (_isFullSync)
                 ReportFullSyncProgress(context, "Fetching server file list…", 0, 0);
+            else
+                ReportPhaseProgress(context, "Fetching server file list…", 0, 0);
 
             var (remoteChangesApplied, serverTree) = await ApplyRemoteChangesAsync(context, cancellationToken);
 
             if (_isFullSync)
                 ReportFullSyncProgress(context, "Scanning local changes…", 0, 0);
+            else
+                ReportPhaseProgress(context, "Scanning local changes…", 0, 0);
 
             var localFilesQueued = await ScanLocalDirectoryAsync(context, serverTree, cancellationToken);
 
-            if (_isFullSync)
+            var pendingCount = await _stateDb.GetPendingOperationCountAsync(context.StateDatabasePath, cancellationToken);
+            var totalPending = pendingCount.Downloads + pendingCount.Uploads;
+            if (totalPending > 0)
             {
-                var pendingCount = await _stateDb.GetPendingOperationCountAsync(context.StateDatabasePath, cancellationToken);
-                _fullSyncTotalItems = pendingCount.Downloads + pendingCount.Uploads;
-                _fullSyncCompletedItems = 0;
-                if (_fullSyncTotalItems > 0)
-                    ReportFullSyncProgress(context, $"Syncing {_fullSyncTotalItems} files…", 0, _fullSyncTotalItems);
+                if (_isFullSync)
+                {
+                    _fullSyncTotalItems = totalPending;
+                    _fullSyncCompletedItems = 0;
+                    ReportFullSyncProgress(context, $"Syncing {totalPending} files…", 0, totalPending);
+                }
+                else
+                {
+                    ReportPhaseProgress(context, $"Syncing {totalPending} files…", 0, totalPending);
+                }
             }
 
             var localOperationsApplied = await ApplyLocalChangesAsync(context, serverTree, cancellationToken);
@@ -2997,6 +3008,28 @@ public sealed class SyncEngine : ISyncEngine
             {
                 State = SyncState.Syncing,
                 IsFullSync = _isFullSync,
+                FullSyncPhaseLabel = phaseLabel,
+                FullSyncCompletedItems = completedItems,
+                FullSyncTotalItems = totalItems,
+            },
+        });
+    }
+
+    /// <summary>
+    /// Fires a <see cref="StatusChanged"/> event with a phase label for the current sync pass.
+    /// Unlike <see cref="ReportFullSyncProgress"/>, this does not require <see cref="_isFullSync"/>
+    /// to be <see langword="true"/> and sets <see cref="SyncStatus.IsFullSync"/> to <see langword="false"/>,
+    /// making it suitable for reporting progress during regular (non-full) sync cycles.
+    /// </summary>
+    private void ReportPhaseProgress(SyncContext context, string phaseLabel, int completedItems, int totalItems)
+    {
+        StatusChanged?.Invoke(this, new SyncStatusChangedEventArgs
+        {
+            Context = context,
+            Status = new SyncStatus
+            {
+                State = SyncState.Syncing,
+                IsFullSync = false,
                 FullSyncPhaseLabel = phaseLabel,
                 FullSyncCompletedItems = completedItems,
                 FullSyncTotalItems = totalItems,

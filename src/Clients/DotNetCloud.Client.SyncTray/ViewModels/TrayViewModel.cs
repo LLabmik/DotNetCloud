@@ -451,6 +451,14 @@ public sealed class TrayViewModel : ViewModelBase
     // cross-thread marshal automatically, so no manual Dispatcher.UIThread.Post
     // is required.
 
+    /// <summary>
+    /// Raised when a <see cref="SyncProgress"/> event arrives from the sync engine,
+    /// carrying the full <see cref="SyncStatus"/> snapshot.
+    /// Subscribers (e.g. <see cref="SyncProgressViewModel"/>) use this to update
+    /// phase labels, session byte counts, and other progress-derived properties.
+    /// </summary>
+    public event Action<SyncStatus>? SyncStatusUpdated;
+
     private void OnSyncProgress(object? sender, SyncProgressEventArgs e)
     {
         if (_accounts.TryGetValue(e.ContextId, out var vm))
@@ -470,6 +478,9 @@ public sealed class TrayViewModel : ViewModelBase
             vm.PendingUploads = e.Status.PendingUploads;
             vm.PendingDownloads = e.Status.PendingDownloads;
         }
+
+        // Forward the full status snapshot to any subscribers (e.g. SyncProgressViewModel).
+        SyncStatusUpdated?.Invoke(e.Status);
 
         UpdateAggregateState();
     }
@@ -532,6 +543,11 @@ public sealed class TrayViewModel : ViewModelBase
         UpdateAggregateState();
     }
 
+    /// <summary>
+    /// Raised when a sync error occurs, carrying the error message.
+    /// </summary>
+    public event Action<string>? SyncErrorRaised;
+
     private void OnSyncError(object? sender, SyncErrorEventArgs e)
     {
         if (_accounts.TryGetValue(e.ContextId, out var vm))
@@ -545,6 +561,7 @@ public sealed class TrayViewModel : ViewModelBase
             errors.Add(e.ErrorMessage);
         }
 
+        SyncErrorRaised?.Invoke(e.ErrorMessage);
         UpdateAggregateState();
     }
 

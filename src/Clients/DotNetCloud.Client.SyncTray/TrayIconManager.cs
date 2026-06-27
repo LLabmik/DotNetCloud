@@ -365,7 +365,10 @@ public sealed class TrayIconManager : IDisposable
             return;
         }
 
-        var vm = new SyncProgressViewModel(_trayVm);
+        var vm = new SyncProgressViewModel(
+            _trayVm,
+            onOpenSettings: () => OpenSettingsWindow(conflictsTab: false),
+            onOpenConflicts: () => OpenSettingsWindow(conflictsTab: true));
         _syncProgressWindow = new SyncProgressWindow(vm);
         _syncProgressWindow.Closed += (_, _) =>
         {

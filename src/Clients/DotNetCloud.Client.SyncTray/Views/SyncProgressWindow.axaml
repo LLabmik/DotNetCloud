@@ -56,7 +56,8 @@
         </Style>
     </Window.Styles>
 
-    <DockPanel Margin="12">
+    <Grid RowDefinitions="*,Auto">
+        <DockPanel Grid.Row="0" Margin="12">
 
         <!-- Header -->
         <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
@@ -113,17 +114,71 @@
             </StackPanel>
         </Border>
 
-        <!-- Empty state -->
+        <!-- Error / conflict banner -->
+        <Border DockPanel.Dock="Top"
+                Background="#2D1111"
+                CornerRadius="6"
+                Padding="10,8"
+                Margin="0,0,0,10"
+                IsVisible="{Binding IsErrorBanner}">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="✗" FontSize="14" Foreground="#FF7B88" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding BannerMessage}"
+                           FontSize="11"
+                           Foreground="#FF7B88"
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis" />
+                <TextBlock Text="View Details"
+                           FontSize="11"
+                           Foreground="#64B5F6"
+                           TextDecorations="Underline"
+                           Cursor="Hand"
+                           VerticalAlignment="Center"
+                           Margin="4,0,0,0"
+                           PointerPressed="OnViewDetailsClicked" />
+            </StackPanel>
+        </Border>
+
+        <Border DockPanel.Dock="Top"
+                Background="#2D2611"
+                CornerRadius="6"
+                Padding="10,8"
+                Margin="0,0,0,10"
+                IsVisible="{Binding IsConflictBanner}">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="⚠" FontSize="14" Foreground="#FFC107" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding BannerMessage}"
+                           FontSize="11"
+                           Foreground="#FFC107"
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis" />
+                <TextBlock Text="Open Conflict Editor"
+                           FontSize="11"
+                           Foreground="#64B5F6"
+                           TextDecorations="Underline"
+                           Cursor="Hand"
+                           VerticalAlignment="Center"
+                           Margin="4,0,0,0"
+                           PointerPressed="OnOpenConflictsClicked" />
+            </StackPanel>
+        </Border>
+
+        <!-- State-aware empty state -->
         <StackPanel VerticalAlignment="Center"
                     HorizontalAlignment="Center"
                     IsVisible="{Binding !HasActiveTransfers}">
-            <TextBlock Text="No active transfers"
-                       FontSize="14"
-                       Foreground="#556688"
+            <TextBlock Text="{Binding StatusGlyph}"
+                       FontSize="36"
+                       Foreground="#8B9DC3"
                        HorizontalAlignment="Center" />
-            <TextBlock Text="Everything is up to date."
-                       FontSize="11"
-                       Foreground="#3D4F6B"
+            <TextBlock Text="{Binding StatusMessage}"
+                       FontSize="16"
+                       Foreground="#C8D2E8"
+                       HorizontalAlignment="Center"
+                       Margin="0,8,0,0" />
+            <TextBlock Text="{Binding StatusSubMessage}"
+                       FontSize="12"
+                       Foreground="#556688"
                        HorizontalAlignment="Center"
                        Margin="0,4,0,0" />
         </StackPanel>
@@ -198,4 +253,43 @@
         </ScrollViewer>
 
     </DockPanel>
+
+    <!-- Footer bar -->
+    <Border Grid.Row="1"
+            Background="#111823"
+            Padding="12,8"
+            Margin="12,0,12,12"
+            CornerRadius="6"
+            IsVisible="True">
+        <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Grid.Column="0"
+                       Text="{Binding FooterText}"
+                       FontSize="10"
+                       Foreground="#556688"
+                       VerticalAlignment="Center" />
+            <Button Grid.Column="1"
+                    Content="{Binding PauseResumeText}"
+                    Command="{Binding PauseResumeCommand}"
+                    FontSize="10"
+                    Padding="10,4"
+                    Background="#1A2333"
+                    Foreground="#8B9DC3"
+                    BorderBrush="#263247"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    IsVisible="{Binding ShowPauseResume}" />
+            <Button Grid.Column="1"
+                    Content="Sync Now"
+                    Command="{Binding SyncNowCommand}"
+                    FontSize="10"
+                    Padding="10,4"
+                    Background="#1A2333"
+                    Foreground="#64B5F6"
+                    BorderBrush="#2F86CE"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    IsVisible="{Binding ShowSyncNow}" />
+        </Grid>
+    </Border>
+    </Grid>
 </Window>
