@@ -44,6 +44,7 @@ public sealed class SyncProgressViewModel : ViewModelBase, IDisposable
         OpenSettingsCommand = new RelayCommand(OnOpenSettings);
         OpenConflictsCommand = new RelayCommand(OnOpenConflicts);
         PauseResumeCommand = new AsyncRelayCommand(OnPauseResumeAsync);
+        SyncNowCommand = new AsyncRelayCommand(OnSyncNow);
 
         UpdateDerivedProperties();
     }
@@ -249,8 +250,11 @@ public sealed class SyncProgressViewModel : ViewModelBase, IDisposable
         }
     }
 
-    /// <summary>Whether the pause/resume button should be shown.</summary>
-    public bool ShowPauseResume => true;
+    /// <summary>Whether the pause button should be shown (only while actively syncing).</summary>
+    public bool ShowPauseResume => _trayVm.OverallState == TrayState.Syncing;
+
+    /// <summary>Whether the Sync Now button should be shown (when idle or paused).</summary>
+    public bool ShowSyncNow => _trayVm.OverallState is TrayState.Idle or TrayState.Paused or TrayState.Offline or TrayState.Error;
 
     /// <summary>Text for the pause/resume button.</summary>
     public string PauseResumeText => _trayVm.IsPaused ? "Resume" : "Pause";
@@ -265,6 +269,9 @@ public sealed class SyncProgressViewModel : ViewModelBase, IDisposable
 
     /// <summary>Toggles between pause and resume.</summary>
     public ICommand PauseResumeCommand { get; }
+
+    /// <summary>Triggers an immediate sync pass.</summary>
+    public ICommand SyncNowCommand { get; }
 
     // ── SyncStatus update callback ────────────────────────────────────────
 
@@ -446,6 +453,12 @@ public sealed class SyncProgressViewModel : ViewModelBase, IDisposable
         RefreshStatusMessage();
     }
 
+
+    private async Task OnSyncNow()
+    {
+        await _trayVm.SyncNowAllAsync();
+        RefreshStatusMessage();
+    }
     /// <summary>
     /// Updates the full-sync progress from the engine's status.
     /// Called by the parent view when a <see cref="SyncStatus"/> update arrives

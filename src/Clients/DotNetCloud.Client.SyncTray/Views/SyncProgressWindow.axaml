@@ -278,6 +278,17 @@
                     BorderThickness="1"
                     CornerRadius="4"
                     IsVisible="{Binding ShowPauseResume}" />
+            <Button Grid.Column="1"
+                    Content="Sync Now"
+                    Command="{Binding SyncNowCommand}"
+                    FontSize="10"
+                    Padding="10,4"
+                    Background="#1A2333"
+                    Foreground="#64B5F6"
+                    BorderBrush="#2F86CE"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    IsVisible="{Binding ShowSyncNow}" />
         </Grid>
     </Border>
     </Grid>

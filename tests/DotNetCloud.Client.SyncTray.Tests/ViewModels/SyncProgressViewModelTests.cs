@@ -412,6 +412,50 @@ public sealed class SyncProgressViewModelTests
         Assert.AreEqual("Resume", vm.PauseResumeText);
     }
 
+    [TestMethod]
+    public async Task ShowPauseResume_WhenSyncing_IsTrue()
+    {
+        var (vm, trayVm, syncMock) = BuildVm();
+        var contextId = Guid.CreateVersion7();
+        await SeedAccountAsync(trayVm, syncMock, contextId, "Syncing");
+        Assert.IsTrue(vm.ShowPauseResume);
+        Assert.IsFalse(vm.ShowSyncNow);
+    }
+
+    [TestMethod]
+    public async Task ShowPauseResume_WhenIdle_IsFalse()
+    {
+        var (vm, trayVm, syncMock) = BuildVm();
+        var contextId = Guid.CreateVersion7();
+        await SeedAccountAsync(trayVm, syncMock, contextId, "Idle");
+        Assert.IsFalse(vm.ShowPauseResume);
+        Assert.IsTrue(vm.ShowSyncNow);
+    }
+
+    [TestMethod]
+    public async Task ShowSyncNow_WhenPaused_IsTrue()
+    {
+        var (vm, trayVm, syncMock) = BuildVm();
+        var contextId = Guid.CreateVersion7();
+        await SeedAccountAsync(trayVm, syncMock, contextId, "Paused");
+        Assert.IsTrue(vm.ShowSyncNow);
+    }
+
+    [TestMethod]
+    public async Task SyncNowCommand_TriggersSync()
+    {
+        var (vm, trayVm, syncMock) = BuildVm();
+        var contextId = Guid.CreateVersion7();
+        await SeedAccountAsync(trayVm, syncMock, contextId, "Idle");
+
+        Assert.IsTrue(vm.SyncNowCommand.CanExecute(null));
+        vm.SyncNowCommand.Execute(null);
+        // Give the async command a moment to invoke.
+        await Task.Delay(100);
+
+        syncMock.Verify(s => s.SyncNowAsync(contextId), Times.Once);
+    }
+
     // ── Footer tests ──────────────────────────────────────────────────────
 
     [TestMethod]
