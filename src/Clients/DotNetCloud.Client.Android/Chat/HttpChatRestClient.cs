@@ -37,13 +37,15 @@ internal sealed class HttpChatRestClient : IChatRestClient
         SetAuth(accessToken);
         var url = $"{serverBaseUrl.TrimEnd('/')}/api/v1/chat/channels";
         Log.Info("DotNetCloud", $"GetChannelsAsync CALLING {url}");
+        Log.Info("DotNetCloud", $"GetChannelsAsync Auth header: Bearer {accessToken[..Math.Min(20, accessToken.Length)]}... (len={accessToken.Length})");
         try
         {
             using var response = await _http.GetAsync(url, HttpCompletionOption.ResponseContentRead, ct).ConfigureAwait(false);
+            Log.Info("DotNetCloud", $"GetChannelsAsync RESPONSE: Status={(int)response.StatusCode}, Content-Length={response.Content.Headers.ContentLength?.ToString() ?? "null"}, Headers={string.Join("; ", response.Headers.Select(h => $"{h.Key}={string.Join(",", h.Value)}"))}");
             if (!response.IsSuccessStatusCode)
             {
                 var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-                Log.Error("DotNetCloud", $"GetChannelsAsync HTTP {(int)response.StatusCode} from {url}. Body: {body}");
+                Log.Error("DotNetCloud", $"GetChannelsAsync HTTP {(int)response.StatusCode} from {url}. Body='{body}' (len={body.Length})");
                 response.EnsureSuccessStatusCode(); // throw after logging body
             }
             var envelope = await response.Content.ReadFromJsonAsync<Envelope<List<ChannelSummaryDto>>>(JsonOpts, ct).ConfigureAwait(false);

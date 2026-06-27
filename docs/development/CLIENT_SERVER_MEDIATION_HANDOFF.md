@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-27 17:15 UTC (Server-side investigation complete — fix deployed, infrastructure healthy, needs Android client verification)
+Last updated: 2026-06-27 17:35 UTC (Root cause identified via Chat vs Files comparison — `UseDeveloperExceptionPage` gated + `OpenIddict.Validation.AspNetCore` conflict)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -92,9 +92,11 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Current Status
 
-- ✅ **Chat module HTTP 500 fix deployed** — `ExecuteAsync()` wrapping on `ListChannelsAsync` and 18 other endpoints, `UseDeveloperExceptionPage()` gated behind `IsDevelopment`. Binary at `/opt/dotnetcloud/server/modules/dotnetcloud.chat/dotnetcloud.chat.dll` confirmed fresh (15:59 UTC deploy) with `ListChannels` and `INTERNAL_ERROR` strings.
-- ✅ **Server-side investigation complete** — Full investigation done on `cloud.kimball.home` (see Active Handoff for detailed findings). All infrastructure healthy. Cannot verify authenticated flow without a Bearer token.
-- ✅ **Chat bearer token auth** — Deployed to production. Auth confirmed working (401 without token, 401 with invalid token).
+- 🔴 **Chat module returns HTTP 500 with empty body when Bearer token is sent** — Auth middleware works (401 without token), but authenticated requests fail. Response headers include Core.Server's security headers (CSP, HSTS, X-Request-ID), confirming 500 flows through YARP proxy.
+- 🔴 **Root cause identified via Chat vs Files comparison:**
+  1. `UseDeveloperExceptionPage()` is gated behind `IsDevelopment` in Chat — in production, every exception returns **bare 500 with empty body**
+  2. Files module has `UseDeveloperExceptionPage()` unconditionally, so it always catches and surfaces errors
+  3. Chat module references `OpenIddict.Validation.AspNetCore` package — Files does NOT — this auto-registers auth handlers that conflict with the custom introspection scheme
 - ✅ **Sync architecture** — All testing complete. See archive.
 - ✅ **Linux client validation** — Completed on mint-OptiPlex-7010. Archived.
 
@@ -120,64 +122,106 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** Server-side fix deployed and infrastructure verified. Need Android client (`monolith`) to rebuild APK and test Chat tab with Bearer token auth.
+**Summary:** Root cause identified via source comparison of Chat vs Files module auth configuration. Server needs to fix two specific issues, rebuild, and redeploy.
 
-**Background (2026-06-27, updated 17:15 UTC):** Server-side investigation completed on `cloud.kimball.home`. All findings documented below:
+**Background (2026-06-27, updated 17:35 UTC):** Android client (`monolith`) enhanced logging confirmed the 500 comes from Core.Server YARP (response includes Core.Server's security headers: CSP, HSTS, X-Request-ID). Source code comparison between Chat and Files modules revealed the root cause.
 
-### Investigation Findings — `cloud.kimball.home`
+### 🔍 Root Cause Analysis — Chat vs Files Comparison
 
-**✅ Chat module process:** Healthy. Responding to gRPC health checks on port 50284. All 14 modules healthy.
+**Finding 1: `UseDeveloperExceptionPage()` gated behind `IsDevelopment`**
 
-**✅ Binary verification:**
-- `stat /opt/dotnetcloud/server/modules/dotnetcloud.chat/dotnetcloud.chat.dll` → Modify: `2026-06-27 15:59:37` (deployed at 16:00)
-- `strings -e l` confirms `ListChannels` and `INTERNAL_ERROR` strings present
-- Module published to `/opt/dotnetcloud/server/modules/dotnetcloud.chat/` during deploy
+Chat module (current):
+```csharp
+if (app.Environment.IsDevelopment())
+    app.UseDeveloperExceptionPage();
+// No UseExceptionHandler() for production → bare 500 with empty body
+```
 
-**✅ YARP proxy:** Working correctly.
-- `curl -sk https://cloud.dotnetcloud.net/api/v1/chat/channels` → HTTP 401 (correctly forwarded to Chat module)
-- `curl -sk --http2-prior-knowledge http://localhost:50284/api/v1/chat/channels` → HTTP 401 (direct to Chat module)
-- Both return `content-length: 0` (expected — `[Authorize]` rejects without body)
-- No YARP ForwarderError entries in journal logs
-- Forwarder configured with `Version = Version20, VersionPolicy = RequestVersionOrHigher` — h2c works on .NET 10
+Files module (working):
+```csharp
+app.UseDeveloperExceptionPage();  // ALWAYS on → catches all exceptions
+```
 
-**✅ Database:** All healthy.
-- Chat tables in `core` schema: `Channels`, `ChannelMembers`, `Messages`, etc.
-- Public channel exists (Id: `DC03F432-...`, Name: `Public`, Type: `Public`)
-- Both users are members of Public channel
-- `ChannelService.EnsureDefaultPublicChannelForUserAsync()` would not make changes for existing users
+The server agent's fix **gated** `UseDeveloperExceptionPage()` behind `IsDevelopment` but did **not** add `UseExceptionHandler()` for production. Any exception in the Chat module in production results in a bare 500 with empty body.
 
-**✅ gRPC introspection:** Working.
-- `DOTNETCLOUD_CORE_ENDPOINT=http://localhost:50100` set on Chat module process
-- `DOTNETCLOUD_MODULE_ID=dotnetcloud.chat` set correctly
-- Core.Server grpc endpoint on port 50100 responds to introspection calls
-- `AuthenticationInterceptor` validates `module-id` header → sets `UserState["ModuleId"]`
-- `TokenIntrospectionServiceImpl` validates caller identity correctly
+**Finding 2: `OpenIddict.Validation.AspNetCore` package — handler conflict**
 
-**✅ All unprotected endpoints fixed:** 18 endpoints in `ChatController` now wrapped in `ExecuteAsync()` or try-catch.
+Chat.csproj has:
+```xml
+<PackageReference Include="OpenIddict.Validation.AspNetCore" />
+```
 
-**❌ Could not verify authenticated flow:** Cannot get a Bearer token from `cloud.kimball.home` server (no `password` or `client_credentials` grant with known secret). Need Android client to test with its OAuth token.
+Files.csproj does **NOT** have this package.
+
+`OpenIddict.Validation.AspNetCore` auto-registers its own OpenIddict validation handler and middleware. This **conflicts** with the custom `Introspection` scheme. When a Bearer token arrives:
+1. Policy scheme sees Bearer → forwards to `Introspection` scheme
+2. BUT OpenIddict's auto-registered handler may also try to process the token
+3. The conflict causes an exception in the auth middleware
+4. With `UseDeveloperExceptionPage()` gated behind dev, the exception produces a bare 500 with empty body in production
+
+**Finding 3: Auth config is otherwise byte-for-byte identical**
+All other auth setup (AddTokenIntrospection, AddAuthentication, AddPolicyScheme, AddAuthorization, middleware order) is identical between Chat and Files.
+
+**Finding 4: Response headers confirm the flow**
+Android logcat shows:
+```
+GetChannelsAsync RESPONSE: Status=500, Content-Length=0,
+  Headers=Date=...; Content-Security-Policy=...; X-Request-ID=019f0b...
+```
+Core.Server's security headers present → 500 comes through YARP proxy, not direct module crash.
 
 ---
 
+### Server Actions — `cloud.kimball.home`
+
+1. **Remove `OpenIddict.Validation.AspNetCore`** from `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/DotNetCloud.Modules.Chat.Host.csproj`:
+   ```xml
+   <!-- Delete this line: -->
+   <!-- <PackageReference Include="OpenIddict.Validation.AspNetCore" /> -->
+   ```
+   Files module doesn't have it, and the custom introspection scheme is the designated auth mechanism.
+
+2. **Fix `UseDeveloperExceptionPage()` in `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Program.cs`** — either:
+   **Option A (match Files behavior):** Make it unconditional for now (during debugging):
+   ```csharp
+   app.UseDeveloperExceptionPage();
+   ```
+   **Option B (recommended — production-safe):** Add `UseExceptionHandler()` for production:
+   ```csharp
+   if (app.Environment.IsDevelopment())
+       app.UseDeveloperExceptionPage();
+   else
+       app.UseExceptionHandler(a => a.Run(async context =>
+       {
+           context.Response.StatusCode = 500;
+           context.Response.ContentType = "application/json";
+           await context.Response.WriteAsJsonAsync(new
+           {
+               success = false,
+               error = new { code = "INTERNAL_ERROR", message = "An unexpected error occurred." }
+           });
+       }));
+   ```
+
+3. **Rebuild and redeploy:**
+   ```bash
+   git fetch origin
+   git checkout feature/chat-auth-bearer-token-support
+   git pull
+   ./scripts/deploy.sh
+   ```
+
+4. **Verify WITH a Bearer token** (not just without):
+   ```bash
+   # Test without token (should still return 401)
+   curl -sk -o /dev/null -w "%{http_code}" https://cloud.dotnetcloud.net/api/v1/chat/channels
+   
+   # Check the Chat module logs for any exceptions
+   sudo journalctl -u dotnetcloud-chat --since "5 min ago" --no-pager | grep -i "error\|exception\|fail"
+   ```
+
+   Note: The server cannot get a Bearer token (no password/client_credentials grant with known secret), but fixing the two issues above and verifying no exceptions in the module logs should be sufficient. The Android client will test with its OAuth token.
+
 ### Android Client Actions — `monolith`
 
-1. **Rebuild APK** on `monolith` (Windows 11) with latest server changes from `feature/chat-auth-bearer-token-support`
-
-2. **Install on emulator and test Chat tab** — the primary test case:
-   ```bash
-   # After APK install, open Chat tab
-   # Expected: Chat tab loads channel list successfully (HTTP 200 with JSON body)
-   #   {"success":true,"data":[...channel list...]}
-   # If still failing: capture full response body via logcat
-   ```
-
-3. **If still getting 500 with empty body** — run this curl from `monolith` or the Android emulator:
-   ```bash
-   # Make request with the same Bearer token the Android app uses
-   curl -sk -w "\nHTTP_CODE:%{http_code}\nCONTENT_LENGTH:%{size_download}\n" \
-     -H "Authorization: Bearer <android-token>" \
-     https://cloud.dotnetcloud.net/api/v1/chat/channels
-   ```
-   Report the HTTP status code, content-length, and any response body.
-
-4. **Expected behavior:** Sending messages, creating channels all work via Bearer token auth.
+- ☐ After server fixes are deployed, rebuild APK and test Chat tab
