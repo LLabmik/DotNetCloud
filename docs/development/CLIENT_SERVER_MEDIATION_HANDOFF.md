@@ -126,8 +126,11 @@ No active handoff. All Chat bearer token auth changes have been deployed to prod
 - ✅ Chat API returns 401 without auth (correctly secured)
 - ✅ Chat module binary timestamp: Jun 27 04:08 — confirmed running current build
 
-**Pending (requires `monolith` / Android emulator):**
-- ☐ Verify Android Chat tab loads channels successfully against production
+**Pending — next session (requires `monolith` / Android emulator):**
+- ☐ Investigate why Android Chat tab still can't reach chat module
+  - Android APK rebuilt with native logging (commit `aa734fc4` — includes `Directory.Packages.props` fix for SQLitePCLRaw.lib.e_sqlite3.android)
+  - Server-side auth fix deployed to `cloud.kimball.home` (policy scheme + introspection)
+  - Next step: capture logcat logs with `logcat -s "DotNetCloud"` while tapping Chat tab to see the actual HTTP error
 - ☐ Run associated server tests (`dotnet test`)
 
 See `CLIENT_SERVER_MEDIATION_ARCHIVE.md` for full deploy details.
