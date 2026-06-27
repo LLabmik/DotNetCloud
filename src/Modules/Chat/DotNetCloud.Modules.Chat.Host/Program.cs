@@ -164,8 +164,9 @@ builder.Services.AddHealthChecks()
 
 var app = builder.Build();
 
-// Show full exception details for debugging; remove in production.
-app.UseDeveloperExceptionPage();
+// Show full exception details only in development.
+if (app.Environment.IsDevelopment())
+    app.UseDeveloperExceptionPage();
 
 // --- Middleware ---
 

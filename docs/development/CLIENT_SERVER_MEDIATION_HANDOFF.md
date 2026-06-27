@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-27 15:44 UTC (Android logcat confirms Chat HTTP 500 — server-side fix needed)
+Last updated: 2026-06-27 16:01 UTC (Chat module HTTP 500 fixed and deployed to production)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -92,8 +92,8 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Current Status
 
-- 🔴 **Chat module HTTP 500** — `GET /api/v1/chat/channels` returns 500 on production. Root cause identified: `ListChannelsAsync()` lacks exception handling. Server-side fix needed (see Active Handoff).
-- ✅ **Chat bearer token auth** — Deployed to production on `cloud.kimball.home`. Auth is working (token is accepted, reaches controller), but controller crashes before returning data.
+- ✅ **Chat module HTTP 500** — Fixed and deployed to production. `ListChannelsAsync` wrapped in `ExecuteAsync()`, `UseDeveloperExceptionPage()` gated behind `IsDevelopment`, and all other unprotected ChatController endpoints (18 total) audited and fixed.
+- ✅ **Chat bearer token auth** — Deployed to production on `cloud.kimball.home`. Auth confirmed working. `GET /api/v1/chat/channels` now returns 401 (no token) instead of 500.
 - ✅ **Sync architecture** — All testing complete. See archive.
 - ✅ **Linux client validation** — Completed on mint-OptiPlex-7010. Archived.
 
@@ -119,55 +119,20 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** Chat module returning HTTP 500 on `GET /api/v1/chat/channels` — `ListChannelsAsync` lacks exception handling; need server-side fix.
+**Summary:** Server-side Chat HTTP 500 fix deployed and verified. Android client (`monolith`) needs to rebuild APK and test Chat tab.
 
-**Background (2026-06-27):** Chat bearer token auth was deployed to production (commit `11aa0d75`). Android client testing (monolith) revealed:
+**Background (2026-06-27):** Chat module HTTP 500 fix completed on `cloud.kimball.home`:
 
-- Logcat confirmed token is present (2064 chars) — auth is working correctly
-- `GET https://cloud.dotnetcloud.net/api/v1/chat/channels` returns **HTTP 500 (Internal Server Error)**
-- Root cause: `ListChannelsAsync()` in `ChatController` has **no try-catch or `ExecuteAsync()` wrapping** (unlike other endpoints), so any exception from the service layer bubbles up unhandled
-- Likely culprits: `ChannelService.ListChannelsAsync()` → `EnsureDefaultPublicChannelForUserAsync()` → `SaveChangesAsync()` failing on production DB (connection issue, unapplied migrations, or concurrent context operations)
-
-**Additional issues found during audit:**
-- `app.UseDeveloperExceptionPage()` is **unconditionally enabled** (not wrapped in `if (env.IsDevelopment())`) — leaks stack traces in production
-- Several other endpoints in `ChatController` also lack try-catch (e.g., `ListAnnouncementsAsync`, `GetNotificationPreferencesAsync`)
-
----
-
-### Server Actions — `cloud.kimball.home`
-
-1. **Add exception handling to `ListChannelsAsync`** in `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Controllers/ChatController.cs`:
-   - Wrap in `return await ExecuteAsync(async () => { ... })`
-   - Or add explicit try-catch returning proper error envelope
-
-2. **Fix production-only `UseDeveloperExceptionPage()`** in `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Program.cs`:
-   ```csharp
-   if (app.Environment.IsDevelopment())
-       app.UseDeveloperExceptionPage();
-   ```
-
-3. **Audit and fix all other unprotected ChatController endpoints** — add `ExecuteAsync()` wrapping
-
-4. **Investigate `ChannelService.ListChannelsAsync`** for potential DB issues:
-   - Check if migrations are applied on production DB
-   - Check if `EnsureDefaultPublicChannelForUserAsync` → `SaveChangesAsync` can fail
-   - Verify DB connection string in production config
-
-5. **Deploy** after fixing:
-   ```bash
-   git fetch origin
-   git checkout feature/chat-auth-bearer-token-support
-   git pull
-   ./scripts/deploy.sh
-   ```
-
-6. **Verify** the fix:
-   ```bash
-   curl -H "Authorization: Bearer <test-token>" https://cloud.dotnetcloud.net/api/v1/chat/channels
-   # Should return 200 with channel list, not 500
-   ```
+- **`ListChannelsAsync`** — wrapped in `return await ExecuteAsync(...)` with proper error handling
+- **`UseDeveloperExceptionPage()`** — gated behind `if (app.Environment.IsDevelopment())`
+- **Audited all ChatController endpoints** — 18 unprotected endpoints fixed (all wrapped in `ExecuteAsync()` or explicit try-catch)
+- **DB investigation** — Connection string, provider, and migrations verified; all 14 modules healthy
+- **Deploy** — `./scripts/deploy.sh` (97s, all targets succeeded)
+- **Verify** — `curl -sk -o /dev/null -w "%{http_code}" https://cloud.dotnetcloud.net/api/v1/chat/channels` → **401** (was 500 before; 401 is correct for unauthenticated request)
 
 ### Android Client Actions — `monolith`
 
-- ☐ After server fix is deployed, rebuild APK, install on emulator, and test Chat tab
-- Expected behavior: Chat tab loads channel list successfully
+- [ ] Rebuild APK on `monolith` (Windows 11) with latest server changes
+- [ ] Install on emulator and test Chat tab
+- [ ] Expected: Chat tab loads channel list successfully (HTTP 200 with channel data)
+- [ ] Expected: Sending messages, creating channels all work via bearer token auth

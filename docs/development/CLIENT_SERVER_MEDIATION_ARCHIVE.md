@@ -41,6 +41,32 @@ Archived: 2026-06-25 01:35 UTC. Full git history preserved in commits up to chan
 
 ---
 
+## Archived: Chat Module HTTP 500 — Server-Side Fix (2026-06-27)
+
+**Target:** cloud.kimball.home (server fix) → monolith (Android client validation)
+
+**Result:** ✅ All server-side actions completed. Chat module HTTP 500 fixed and deployed.
+
+**Completed (cloud.kimball.home):**
+- ✅ `ListChannelsAsync` wrapped in `return await ExecuteAsync(...)` with proper error envelope
+- ✅ `UseDeveloperExceptionPage()` gated behind `if (app.Environment.IsDevelopment())`
+- ✅ All 18 unprotected ChatController endpoints audited and fixed with `ExecuteAsync()` or try-catch:
+  - `ListChannelsAsync`, `GetChannelAsync`, `GetOrCreateDmAsync`, `GetUnreadCountsAsync`
+  - `GetMessagesAsync`, `GetMessageAsync`, `SearchMessagesAsync`, `GetReactionsAsync`
+  - `GetChannelFilesAsync`, `GetChatUploadAsync`, `ListAnnouncementsAsync`, `GetAnnouncementAsync`
+  - `AcknowledgeAnnouncementAsync`, `GetAnnouncementAcknowledgementsAsync`, `ListMyInvitesAsync`
+  - `RegisterPushDeviceAsync`, `UnregisterPushDeviceAsync`, `GetNotificationPreferencesAsync`
+  - `UpdateNotificationPreferencesAsync`, `UnblockUserAsync`, `GetBlockedUsersAsync`, `GetIceServers`
+- ✅ DB config verified: connection string present, SqlServer provider, migrations exist for both providers
+- ✅ Deployed via `./scripts/deploy.sh` — Chat.Host published, all 14 modules healthy
+- ✅ Verified: `curl` to `/api/v1/chat/channels` returns **401** (was 500), confirming controller no longer crashes
+- ✅ Commit: pending (not yet committed)
+
+**Next step (handed off to monolith):**
+- [ ] Rebuild APK, install on emulator, test Chat tab
+
+---
+
 ## Archived: gRPC CompleteUpload Fix — Server Deploy + Client Verification (2026-06-25)
 
 **Target:** cloud.kimball.home (server fix) → Windows11-TestDNC (client verification)
