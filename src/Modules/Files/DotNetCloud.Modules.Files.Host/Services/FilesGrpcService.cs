@@ -6,6 +6,7 @@ using DotNetCloud.Modules.Files.Data.Services;
 using DotNetCloud.Modules.Files.Events;
 using DotNetCloud.Modules.Files.Host.Protos;
 using DotNetCloud.Modules.Files.Models;
+using DotNetCloud.Modules.Files.Services;
 using Grpc.Core;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -22,15 +23,21 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
 {
     private readonly FilesDbContext _db;
     private readonly IEventBus _eventBus;
+    private readonly IFileStorageEngine _storageEngine;
     private readonly ILogger<FilesGrpcService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FilesGrpcService"/> class.
     /// </summary>
-    public FilesGrpcService(FilesDbContext db, IEventBus eventBus, ILogger<FilesGrpcService> logger)
+    public FilesGrpcService(
+        FilesDbContext db,
+        IEventBus eventBus,
+        IFileStorageEngine storageEngine,
+        ILogger<FilesGrpcService> logger)
     {
         _db = db;
         _eventBus = eventBus;
+        _storageEngine = storageEngine;
         _logger = logger;
     }
 
@@ -639,6 +646,13 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
 
         if (existingChunk is not null)
         {
+            // Ghost chunk: DB record exists but blob is missing on disk. Re-write it.
+            if (!await _storageEngine.ExistsAsync(existingChunk.StoragePath, context.CancellationToken))
+            {
+                _logger.LogWarning("Re-writing ghost chunk blob for hash {ChunkHash}", request.ChunkHash[..12]);
+                await _storageEngine.WriteChunkAsync(existingChunk.StoragePath, request.ChunkData.ToByteArray(), context.CancellationToken);
+            }
+
             await ChunkReferenceHelper.IncrementAsync(_db, existingChunk.Id, context.CancellationToken);
             if (!ChunkReferenceHelper.IsInMemoryProvider(_db))
                 _db.Entry(existingChunk).State = EntityState.Detached;
@@ -647,6 +661,8 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
         {
             // Store chunk to disk (content-addressable path)
             var storagePath = $"chunks/{request.ChunkHash[..2]}/{request.ChunkHash[2..4]}/{request.ChunkHash}";
+
+            await _storageEngine.WriteChunkAsync(storagePath, request.ChunkData.ToByteArray(), context.CancellationToken);
 
             var chunk = new FileChunk
             {
@@ -722,31 +738,75 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
             depth = 0;
         }
 
-        // Create the file node
-        var fileNode = new FileNode
+        // ── Check for existing file with same name+parent → version bump ──
+        // The gRPC InitiateUploadRequest proto does not include TargetFileNodeId,
+        // so every upload appears as a new-file creation. Detect existing files by
+        // name collision so updates don't violate the unique index or create orphans.
+        FileNode? existingNode = null;
+        if (session.TargetParentId.HasValue)
         {
-            Name = session.FileName,
-            NodeType = FileNodeType.File,
-            MimeType = session.MimeType,
-            Size = session.TotalSize,
-            ParentId = session.TargetParentId,
-            OwnerId = userId,
-            ContentHash = combinedHash,
-            StoragePath = storagePath,
-            CurrentVersion = 1,
-            Depth = depth
-        };
-        fileNode.MaterializedPath = string.IsNullOrEmpty(materializedPath)
-            ? $"/{fileNode.Id}"
-            : $"{materializedPath}/{fileNode.Id}";
+            existingNode = await _db.FileNodes
+                .Where(n => n.ParentId == session.TargetParentId.Value
+                    && n.Name == session.FileName
+                    && n.NodeType == FileNodeType.File
+                    && n.OwnerId == userId)
+                .FirstOrDefaultAsync(context.CancellationToken);
+        }
+        else
+        {
+            existingNode = await _db.FileNodes
+                .Where(n => n.OwnerId == userId
+                    && n.ParentId == null
+                    && n.Name == session.FileName
+                    && n.NodeType == FileNodeType.File)
+                .FirstOrDefaultAsync(context.CancellationToken);
+        }
 
-        _db.FileNodes.Add(fileNode);
+        FileNode fileNode;
+        int newVersionNumber;
+        long quotaDelta;
 
-        // Create version 1
+        if (existingNode is not null)
+        {
+            // ── Update existing node (version bump) ──
+            quotaDelta = session.TotalSize - existingNode.Size;
+            existingNode.Size = session.TotalSize;
+            existingNode.ContentHash = combinedHash;
+            existingNode.StoragePath = storagePath;
+            existingNode.CurrentVersion++;
+            existingNode.UpdatedAt = DateTime.UtcNow;
+            newVersionNumber = existingNode.CurrentVersion;
+            fileNode = existingNode;
+        }
+        else
+        {
+            // ── Create new file node ──
+            fileNode = new FileNode
+            {
+                Name = session.FileName,
+                NodeType = FileNodeType.File,
+                MimeType = session.MimeType,
+                Size = session.TotalSize,
+                ParentId = session.TargetParentId,
+                OwnerId = userId,
+                ContentHash = combinedHash,
+                StoragePath = storagePath,
+                CurrentVersion = 1,
+                Depth = depth
+            };
+            fileNode.MaterializedPath = string.IsNullOrEmpty(materializedPath)
+                ? $"/{fileNode.Id}"
+                : $"{materializedPath}/{fileNode.Id}";
+            _db.FileNodes.Add(fileNode);
+            newVersionNumber = 1;
+            quotaDelta = session.TotalSize;
+        }
+
+        // Create a FileVersion record
         var version = new FileVersion
         {
             FileNodeId = fileNode.Id,
-            VersionNumber = 1,
+            VersionNumber = newVersionNumber,
             Size = session.TotalSize,
             ContentHash = combinedHash,
             StoragePath = storagePath,
@@ -776,15 +836,18 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
         session.Status = UploadSessionStatus.Completed;
         session.UpdatedAt = DateTime.UtcNow;
 
-        // Update user quota
-        var quota = await _db.FileQuotas
-            .FirstOrDefaultAsync(q => q.UserId == userId, context.CancellationToken);
-
-        if (quota is not null)
+        // Update user quota (use delta for update case, full size for new file)
+        if (quotaDelta != 0)
         {
-            quota.UsedBytes += session.TotalSize;
-            quota.LastCalculatedAt = DateTime.UtcNow;
-            quota.UpdatedAt = DateTime.UtcNow;
+            var quota = await _db.FileQuotas
+                .FirstOrDefaultAsync(q => q.UserId == userId, context.CancellationToken);
+
+            if (quota is not null)
+            {
+                quota.UsedBytes += quotaDelta;
+                quota.LastCalculatedAt = DateTime.UtcNow;
+                quota.UpdatedAt = DateTime.UtcNow;
+            }
         }
 
         await _db.SaveChangesAsync(context.CancellationToken);

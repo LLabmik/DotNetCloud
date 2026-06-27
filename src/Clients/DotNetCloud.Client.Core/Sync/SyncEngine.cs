@@ -51,6 +51,9 @@ public sealed class SyncEngine : ISyncEngine
     private SyncState _state = SyncState.Idle;
     private string? _lastError;
     private bool _paused;
+    private bool _isFullSync;
+    private int _fullSyncTotalItems;
+    private int _fullSyncCompletedItems;
     private readonly SemaphoreSlim _syncLock = new(1, 1);
     private int _syncRerunRequested;
     private CancellationTokenSource? _fswDebounceCts;
@@ -68,6 +71,13 @@ public sealed class SyncEngine : ISyncEngine
     /// Exposed as internal for test overrides.
     /// </summary>
     internal TimeSpan FileStabilityDelay { get; set; } = TimeSpan.FromSeconds(1);
+
+    /// <summary>
+    /// When <see langword="true"/>, triggers an initial sync pass immediately after
+    /// <see cref="StartAsync"/> completes initialization. Defaults to <see langword="false"/>
+    /// so existing unit tests are unaffected.
+    /// </summary>
+    public bool InitialSyncOnStartup { get; set; }
 
     /// <inheritdoc/>
     public event EventHandler<SyncStatusChangedEventArgs>? StatusChanged;
@@ -115,6 +125,18 @@ public sealed class SyncEngine : ISyncEngine
         await _stateDb.DeleteStaleActiveUploadSessionsAsync(
             context.StateDatabasePath, DateTime.UtcNow.AddHours(-48), cancellationToken);
 
+        // Clear all pending operations from a previous session. The initial sync
+        // pass will re-discover any files that still need upload/download/delete
+        // from the fresh server tree comparison and local file scan. This prevents
+        // stale operations (e.g. from a crash) from blocking file detection.
+        await _stateDb.ClearPendingOperationsAsync(context.StateDatabasePath, cancellationToken);
+
+        // Also clear active upload sessions from the previous session. Stale sessions
+        // (e.g. from a crashed process) block files from being detected as new during
+        // the local scan even when no tracking record exists. This is safe because
+        // the server-side upload TTL (24h) will eventually clean up orphaned chunks.
+        await _stateDb.ClearActiveUploadSessionsAsync(context.StateDatabasePath, cancellationToken);
+
         _syncIgnore.Initialize(context.LocalFolderPath);
 
         // Issue #44: check inotify watch limit on Linux before creating the watcher.
@@ -142,6 +164,7 @@ public sealed class SyncEngine : ISyncEngine
                 IncludeSubdirectories = true,
                 NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName
                                | NotifyFilters.LastWrite | NotifyFilters.Size,
+                InternalBufferSize = 64 * 1024, // 64KB max — prevents buffer overflow event loss
             };
 
             _watcher.Created += OnFileSystemChanged;
@@ -193,6 +216,28 @@ public sealed class SyncEngine : ISyncEngine
             context.Id, context.LocalFolderPath);
 
         SetState(SyncState.Idle, context);
+
+        // Initial sync pass immediately after startup to catch up on any changes
+        // missed while the engine was offline.
+        if (InitialSyncOnStartup)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    _logger.LogDebug("Triggering initial sync pass for context {ContextId}.", context.Id);
+                    await SyncAsync(context, cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    _logger.LogDebug("Initial sync pass cancelled for context {ContextId}.", context.Id);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Initial sync pass failed for context {ContextId}.", context.Id);
+                }
+            }, cancellationToken);
+        }
     }
 
     /// <inheritdoc/>
@@ -215,20 +260,56 @@ public sealed class SyncEngine : ISyncEngine
 
         var runTrailingPass = false;
         var syncTimer = Stopwatch.StartNew();
+
+        // Reset full-sync progress counters at the start of each pass.
+        // _isFullSync is set by RecoverCursorFromServerAsync and persists for
+        // the duration of the full sync (which may span multiple passes).
+        _fullSyncTotalItems = 0;
+        _fullSyncCompletedItems = 0;
+
         try
         {
             _logger.LogInformation("Sync pass starting for context {ContextId}.", context.Id);
 
             SetState(SyncState.Syncing, context);
             await RefreshAccessTokenAsync(context, cancellationToken);
+
+            if (_isFullSync)
+                ReportFullSyncProgress(context, "Fetching server file list…", 0, 0);
+
             var (remoteChangesApplied, serverTree) = await ApplyRemoteChangesAsync(context, cancellationToken);
+
+            if (_isFullSync)
+                ReportFullSyncProgress(context, "Scanning local changes…", 0, 0);
+
             var localFilesQueued = await ScanLocalDirectoryAsync(context, serverTree, cancellationToken);
+
+            if (_isFullSync)
+            {
+                var pendingCount = await _stateDb.GetPendingOperationCountAsync(context.StateDatabasePath, cancellationToken);
+                _fullSyncTotalItems = pendingCount.Downloads + pendingCount.Uploads;
+                _fullSyncCompletedItems = 0;
+                if (_fullSyncTotalItems > 0)
+                    ReportFullSyncProgress(context, $"Syncing {_fullSyncTotalItems} files…", 0, _fullSyncTotalItems);
+            }
+
             var localOperationsApplied = await ApplyLocalChangesAsync(context, serverTree, cancellationToken);
             await _stateDb.UpdateCheckpointAsync(context.StateDatabasePath, DateTime.UtcNow, cancellationToken);
             await _stateDb.CheckpointWalAsync(context.StateDatabasePath, cancellationToken);
 
             // Acknowledge cursor to server for per-device tracking and recovery
             await AcknowledgeCursorToServerAsync(context, cancellationToken);
+
+            // If full sync is complete, notify and reset the flag
+            if (_isFullSync)
+            {
+                _logger.LogInformation("Full sync completed for context {ContextId}.", context.Id);
+                ReportFullSyncProgress(context, "Full sync complete", _fullSyncTotalItems, _fullSyncTotalItems);
+
+                // If the cursor was recovered from server mid-sync, the next pass
+                // will detect it and skip the full sync phase.
+                _isFullSync = false;
+            }
 
             SetState(SyncState.Idle, context);
             syncTimer.Stop();
@@ -414,6 +495,8 @@ public sealed class SyncEngine : ISyncEngine
     /// </summary>
     private async Task<int> ScanLocalDirectoryAsync(SyncContext context, SyncTreeNodeResponse serverTree, CancellationToken cancellationToken)
     {
+        var scanStopwatch = Stopwatch.StartNew();
+
         // Build a lookup of all tracked file records for O(1) path checks.
         var allRecords = await _stateDb.GetAllFileRecordsAsync(context.StateDatabasePath, cancellationToken);
         var trackedByPath = allRecords.ToDictionary(r => r.LocalPath, StringComparer.OrdinalIgnoreCase);
@@ -421,15 +504,26 @@ public sealed class SyncEngine : ISyncEngine
         // Build a set of paths already queued for upload to avoid duplicates.
         var queuedPaths = await _stateDb.GetPendingUploadPathsAsync(context.StateDatabasePath, cancellationToken);
 
+        // Build a set of paths with active upload sessions (in-progress uploads).
+        // If a file is currently being uploaded, don't queue another upload.
+        var activeUploadPaths = (await _stateDb.GetActiveUploadSessionsAsync(context.StateDatabasePath, cancellationToken))
+            .Select(s => s.LocalPath)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         // Build a lookup of server files by relative path for dedup against the remote tree.
-        // This prevents re-uploading files the server already has (e.g. after state.db reset).
         var serverFilesByRelPath = new Dictionary<string, SyncTreeNodeResponse>(StringComparer.OrdinalIgnoreCase);
         BuildServerFileMap(serverTree, "", serverFilesByRelPath);
 
-        // Build a set of all server NodeIds (files + folders) to detect stale tracked records
-        // whose NodeId no longer exists on the server (i.e., remotely deleted).
+        // Build a set of all server NodeIds (files + folders) to detect stale tracked records.
         var serverNodeIds = new HashSet<Guid>();
         CollectAllServerNodeIds(serverTree, serverNodeIds);
+
+        // Build a mapping of server folder relative paths → NodeId for resolving
+        // parent folder IDs when checking server file existence via ListChildrenAsync.
+        var serverFolderPaths = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
+        BuildFolderPathMap(serverTree, "", serverFolderPaths);
+
+        var dbFetchMs = scanStopwatch.ElapsedMilliseconds;
 
         IEnumerable<string> localFiles;
         try
@@ -442,7 +536,14 @@ public sealed class SyncEngine : ISyncEngine
             return 0;
         }
 
+        var fileEnumerationMs = scanStopwatch.ElapsedMilliseconds;
+
         var queued = 0;
+        var pendingUpserts = new List<LocalFileRecord>();
+        var pendingQueues = new List<PendingOperationRecord>();
+        var pendingRemoves = new List<string>();
+        var newLocalPaths = new List<string>();
+
         foreach (var localPath in localFiles)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -455,22 +556,119 @@ public sealed class SyncEngine : ISyncEngine
             if (!_selectiveSync.IsIncluded(context.Id, relativePath))
                 continue;
 
-            // Skip if an upload is already queued for this path.
+            // Skip if an upload is already queued for this path, UNLESS the file
+            // has no tracking record (e.g. remote-deleted-and-re-queued files whose
+            // record was removed but upload failed). In that case, treat as new file.
             if (queuedPaths.Contains(localPath))
-                continue;
+            {
+                if (trackedByPath.ContainsKey(localPath))
+                {
+                    // File is tracked and already queued — skip to avoid duplicates.
+                    continue;
+                }
+                // No tracking record exists — the stale pending upload is orphaned.
+                // Remove it so this file can be re-queued as new.
+                _logger.LogInformation(
+                    "Removing stale pending upload for {RelPath} (no tracking record exists). Will re-queue.",
+                    relativePath);
+                await _stateDb.RemovePendingOperationByPathAsync(
+                    context.StateDatabasePath, localPath, cancellationToken);
+            }
 
             if (trackedByPath.TryGetValue(localPath, out var record))
             {
                 // Known file — only re-queue if modified since last sync.
                 if (!IsLocallyModified(record, localPath))
+                {
+                    // Skip if this file is currently being uploaded (active upload session).
+                    // Prevents duplicate uploads when a sync pass starts while a large
+                    // file upload is still in progress. Only applies to unmodified files;
+                    // if the file was modified, the stale session is ignored so the
+                    // edit gets re-queued.
+                    if (activeUploadPaths.Contains(localPath))
+                    {
+                        _logger.LogDebug(
+                            "Skipping {RelPath} — upload already in progress (active session exists).",
+                            relativePath);
+                        continue;
+                    }
+
+                    // If the file has an empty NodeId (e.g. a previous upload got 409
+                    // and stored Guid.Empty), it may actually exist on the server.
+                    // Check via ListChildrenAsync and update the record if found.
+                    if (record.NodeId == Guid.Empty)
+                    {
+                        var fileName = Path.GetFileName(localPath);
+                        var parentRelDir = Path.GetDirectoryName(relativePath);
+                        Guid? parentNodeId = null;
+                        if (!string.IsNullOrEmpty(parentRelDir)
+                            && serverFolderPaths.TryGetValue(parentRelDir, out var resolvedParentId))
+                        {
+                            parentNodeId = resolvedParentId;
+                        }
+
+                        try
+                        {
+                            var children = await _api.ListChildrenAsync(parentNodeId, cancellationToken);
+                            var serverChild = children.FirstOrDefault(c =>
+                                string.Equals(c.Name, fileName, StringComparison.OrdinalIgnoreCase));
+
+                            if (serverChild is not null)
+                            {
+                                _logger.LogInformation(
+                                    "Stale record for {RelPath} has empty NodeId but file exists on server (NodeId={NodeId}). Updating record.",
+                                    relativePath, serverChild.Id);
+                                pendingUpserts.Add(new LocalFileRecord
+                                {
+                                    LocalPath = localPath,
+                                    NodeId = serverChild.Id,
+                                    ContentHash = serverChild.ContentHash,
+                                    LastSyncedAt = DateTime.UtcNow,
+                                    LocalModifiedAt = File.GetLastWriteTimeUtc(localPath),
+                                });
+                            }
+                            else
+                            {
+                                // File not on server — remove stale record so the file
+                                // falls through to the new-upload path on next scan.
+                                _logger.LogInformation(
+                                    "Stale record for {RelPath} has empty NodeId and file not found on server. Removing stale record.",
+                                    relativePath);
+                                pendingRemoves.Add(localPath);
+                                // Queue upload as a genuinely new file.
+                                pendingQueues.Add(new PendingUpload { LocalPath = localPath });
+                                queued++;
+                            }
+                        }
+                        catch (Exception ex) when (ex is not OperationCanceledException)
+                        {
+                            _logger.LogDebug(ex,
+                                "Could not ListChildrenAsync to resolve empty NodeId for {RelPath}. " +
+                                "Removing stale record to re-evaluate on next sync pass.",
+                                relativePath);
+                            pendingRemoves.Add(localPath);
+                            // Queue upload so the file gets another chance.
+                            pendingQueues.Add(new PendingUpload { LocalPath = localPath });
+                            queued++;
+                        }
+                    }
                     continue;
+                }
 
                 // If the tracked NodeId no longer exists on the server, the file was
                 // remotely deleted. Check content hash to decide whether to keep or delete.
                 if (record.NodeId != Guid.Empty && !serverNodeIds.Contains(record.NodeId))
                 {
                     var contentChanged = true; // Assume modified unless proven otherwise
-                    if (!string.IsNullOrEmpty(record.ContentHash))
+
+                    // Fast path: if local mtime hasn't changed since last sync, the file
+                    // content cannot have changed — skip the expensive full-file hash.
+                    var currentMtime = File.GetLastWriteTimeUtc(localPath);
+                    if (currentMtime == record.LocalModifiedAt)
+                    {
+                        contentChanged = false;
+                    }
+                    else if (!string.IsNullOrEmpty(record.ContentHash))
                     {
                         try
                         {
@@ -490,9 +688,8 @@ public sealed class SyncEngine : ISyncEngine
                         _logger.LogInformation(
                             "Tracked file {RelPath} (NodeId={NodeId}) no longer on server but content was modified. Will re-upload as new file.",
                             relativePath, record.NodeId);
-                        await _stateDb.RemoveFileRecordAsync(context.StateDatabasePath, localPath, cancellationToken);
-                        await _stateDb.QueueOperationAsync(context.StateDatabasePath,
-                            new PendingUpload { LocalPath = localPath }, cancellationToken);
+                        pendingRemoves.Add(localPath);
+                        pendingQueues.Add(new PendingUpload { LocalPath = localPath });
                         queued++;
                     }
                     else
@@ -504,7 +701,7 @@ public sealed class SyncEngine : ISyncEngine
                         try
                         {
                             File.Delete(localPath);
-                            await _stateDb.RemoveFileRecordAsync(context.StateDatabasePath, localPath, cancellationToken);
+                            pendingRemoves.Add(localPath);
                         }
                         catch (IOException ex)
                         {
@@ -516,52 +713,117 @@ public sealed class SyncEngine : ISyncEngine
 
                 _logger.LogDebug(
                     "Local file modified since last sync, queuing upload: {RelPath}", relativePath);
-                await _stateDb.QueueOperationAsync(context.StateDatabasePath,
-                    new PendingUpload { LocalPath = localPath, NodeId = record.NodeId }, cancellationToken);
+                pendingQueues.Add(new PendingUpload { LocalPath = localPath, NodeId = record.NodeId });
                 queued++;
             }
             else if (serverFilesByRelPath.TryGetValue(relativePath, out var serverNode))
             {
                 // File exists on server but not tracked locally (e.g. after state.db reset).
-                // Compare content hashes — if identical, just record it; if different, queue update.
-                var localHash = await ComputeFileHashAsync(localPath, cancellationToken);
-                if (string.Equals(localHash, serverNode.ContentHash, StringComparison.OrdinalIgnoreCase))
+                // Fast path: if the file size differs from the server record, the content
+                // has definitely changed — queue an update without the expensive full-file hash.
+                var localSize = new FileInfo(localPath).Length;
+                if (localSize != serverNode.Size)
                 {
-                    // Identical — record in state DB without uploading.
                     _logger.LogDebug(
-                        "Local file matches server (hash match), recording without upload: {RelPath}", relativePath);
-                    await _stateDb.UpsertFileRecordAsync(context.StateDatabasePath, new LocalFileRecord
-                    {
-                        LocalPath = localPath,
-                        NodeId = serverNode.NodeId,
-                        ContentHash = localHash,
-                        LastSyncedAt = DateTime.UtcNow,
-                        LocalModifiedAt = File.GetLastWriteTimeUtc(localPath),
-                    }, cancellationToken);
+                        "Local file size differs from server ({LocalSize} vs {ServerSize}), queuing update: {RelPath}",
+                        localSize, serverNode.Size, relativePath);
+                    pendingQueues.Add(new PendingUpload { LocalPath = localPath, NodeId = serverNode.NodeId });
+                    queued++;
                 }
                 else
                 {
-                    // Different content — queue an update (not a new file).
+                    // Sizes match and file exists on server — record without uploading.
+                    // Store the server's ContentHash (manifest-based hash) so the local
+                    // record stays in sync with the server's hash format. If the file
+                    // is later modified and re-uploaded, a new manifest hash will be
+                    // returned by the server and stored at that point.
                     _logger.LogDebug(
-                        "Local file differs from server, queuing update upload: {RelPath}", relativePath);
-                    await _stateDb.QueueOperationAsync(context.StateDatabasePath,
-                        new PendingUpload { LocalPath = localPath, NodeId = serverNode.NodeId }, cancellationToken);
-                    queued++;
+                        "Local file matches server size ({Size}), recording without upload: {RelPath}",
+                        localSize, relativePath);
+                    pendingUpserts.Add(new LocalFileRecord
+                    {
+                        LocalPath = localPath,
+                        NodeId = serverNode.NodeId,
+                        ContentHash = serverNode.ContentHash,
+                        LastSyncedAt = DateTime.UtcNow,
+                        LocalModifiedAt = File.GetLastWriteTimeUtc(localPath),
+                    });
                 }
             }
             else
             {
-                // File exists locally, not tracked, not on server → genuinely new file.
-                // Always queue for upload. We never delete untracked local files based on
-                // timestamp heuristics — filesystem timestamps (mtime, ctime, birth time)
-                // are unreliable indicators of when a file appeared in the sync folder
-                // (e.g., `cp` preserves timestamps from the source on many filesystems).
-                // Server-side deletions are handled exclusively through the change feed
-                // (HandleRemoteDeletionAsync) and reverse reconciliation of tracked records.
-                _logger.LogDebug("New local file detected, queuing upload: {RelPath}", relativePath);
-                await _stateDb.QueueOperationAsync(context.StateDatabasePath,
-                    new PendingUpload { LocalPath = localPath }, cancellationToken);
-                queued++;
+                // File exists locally, not tracked, not found in cached server tree.
+                // Do a fresh server-side check by listing the parent folder's children
+                // via ListChildrenAsync. This catches files that already exist on the
+                // server but were missed by the cached tree (e.g., tree fetched before
+                // a concurrent upload completed in a previous sync pass).
+                var fileName = Path.GetFileName(localPath);
+                var parentRelDir = Path.GetDirectoryName(relativePath);
+                Guid? parentNodeId = null;
+                if (!string.IsNullOrEmpty(parentRelDir)
+                    && serverFolderPaths.TryGetValue(parentRelDir, out var resolvedParentId))
+                {
+                    parentNodeId = resolvedParentId;
+                }
+
+                FileNodeResponse? serverChild = null;
+                try
+                {
+                    var children = await _api.ListChildrenAsync(parentNodeId, cancellationToken);
+                    serverChild = children.FirstOrDefault(c =>
+                        string.Equals(c.Name, fileName, StringComparison.OrdinalIgnoreCase));
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger.LogDebug(ex,
+                        "Could not ListChildrenAsync for parent {ParentId} to verify {RelPath}. Proceeding as new file.",
+                        parentNodeId, relativePath);
+                }
+
+                if (serverChild is not null)
+                {
+                    // File exists on server — compare size to determine whether the
+                    // content is the same or the user modified it locally. Hash comparison
+                    // is skipped because the server stores a manifest-based hash (computed
+                    // from chunk hashes) which differs from the local direct SHA256.
+                    // Size match is sufficient for identity; if the user modified the
+                    // file locally, the mtime check in IsLocallyModified will catch it
+                    // on the next scan once the state DB is populated.
+                    var localSize = new FileInfo(localPath).Length;
+                    if (localSize == serverChild.Size)
+                    {
+                        // Sizes match — record without uploading using the server's
+                        // ContentHash to keep hash formats consistent.
+                        _logger.LogInformation(
+                            "Local file matches server size (direct check), recording without upload: {RelPath}",
+                            relativePath);
+                        pendingUpserts.Add(new LocalFileRecord
+                        {
+                            LocalPath = localPath,
+                            NodeId = serverChild.Id,
+                            ContentHash = serverChild.ContentHash,
+                            LastSyncedAt = DateTime.UtcNow,
+                            LocalModifiedAt = File.GetLastWriteTimeUtc(localPath),
+                        });
+                    }
+                    else
+                    {
+                        // Size differs — content definitely changed locally.
+                        _logger.LogInformation(
+                            "Local file size differs from server ({LocalSize} vs {ServerSize}) (direct check), queuing update upload: {RelPath}",
+                            localSize, serverChild.Size, relativePath);
+                        pendingQueues.Add(new PendingUpload { LocalPath = localPath, NodeId = serverChild.Id });
+                        queued++;
+                    }
+                }
+                else
+                {
+                    // Confirmed: file doesn't exist on server → genuinely new file.
+                    _logger.LogDebug("New local file detected (confirmed via server check), queuing upload: {RelPath}", relativePath);
+                    newLocalPaths.Add(localPath);
+                    pendingQueues.Add(new PendingUpload { LocalPath = localPath });
+                    queued++;
+                }
             }
         }
 
@@ -570,14 +832,23 @@ public sealed class SyncEngine : ISyncEngine
                 "Local scan queued {Count} new/modified file(s) for upload in context {ContextId}.",
                 queued, context.Id);
 
+        // Flush accumulated DB operations in batch for performance.
+        if (pendingUpserts.Count > 0)
+            await _stateDb.UpsertFileRecordsBatchAsync(context.StateDatabasePath, pendingUpserts, cancellationToken);
+        if (pendingRemoves.Count > 0)
+            await _stateDb.RemoveFileRecordsBatchAsync(context.StateDatabasePath, pendingRemoves, cancellationToken);
+        if (pendingQueues.Count > 0)
+            await _stateDb.QueueOperationsBatchAsync(context.StateDatabasePath, pendingQueues, cancellationToken);
+
+        var scanLoopMs = scanStopwatch.ElapsedMilliseconds;
+
         // ── Stale directory cleanup ─────────────────────────────────────────
         // Walk local directories bottom-up. Remove empty directories that don't exist
         // on the server. Non-empty directories are left alone — their files will be
         // uploaded as new files (if untracked) or handled by reverse reconciliation
         // (if tracked with stale NodeIds). We never delete non-empty directories based
         // on timestamp heuristics since filesystem timestamps are unreliable.
-        var serverFolderPaths = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
-        BuildFolderPathMap(serverTree, "", serverFolderPaths);
+        // Note: serverFolderPaths was already built earlier in this method and is reused here.
 
         try
         {
@@ -632,6 +903,134 @@ public sealed class SyncEngine : ISyncEngine
                 continue;
 
             missingFiles.Add(record);
+        }
+
+        // ── Local rename detection ──────────────────────────────────────────
+        // For each missing tracked file, check if a new local file appeared with
+        // the same content. If so, it was a local rename — call server rename API
+        // instead of delete+create.
+        var renameDetectedCount = 0;
+        if (newLocalPaths.Count > 0 && missingFiles.Count > 0)
+        {
+            var actualDeletions = new List<LocalFileRecord>();
+
+            foreach (var missing in missingFiles)
+            {
+                if (string.IsNullOrEmpty(missing.ContentHash))
+                {
+                    actualDeletions.Add(missing);
+                    continue;
+                }
+
+                // For each new local file, compute its hash and compare with the
+                // tracked record's stored content hash. Hash match = rename.
+                string? matchedNewPath = null;
+                foreach (var candidate in newLocalPaths)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    try
+                    {
+                        var candidateHash = await ComputeFileHashAsync(candidate, cancellationToken);
+                        if (string.Equals(candidateHash, missing.ContentHash, StringComparison.OrdinalIgnoreCase))
+                        {
+                            matchedNewPath = candidate;
+                            break;
+                        }
+                    }
+                    catch
+                    {
+                        // File may have been deleted/renamed during scan — skip
+                    }
+                }
+
+                if (matchedNewPath is null)
+                {
+                    actualDeletions.Add(missing);
+                    continue;
+                }
+
+                var missingRelPath = Path.GetRelativePath(context.LocalFolderPath, missing.LocalPath);
+                var newRelPath = Path.GetRelativePath(context.LocalFolderPath, matchedNewPath);
+
+                _logger.LogInformation(
+                    "Local rename detected: {OldPath} → {NewPath} (NodeId={NodeId}).",
+                    missingRelPath, newRelPath, missing.NodeId);
+
+                try
+                {
+                    var newFileName = Path.GetFileName(matchedNewPath);
+                    await _api.RenameAsync(missing.NodeId, newFileName, cancellationToken);
+
+                    // Also handle move (parent folder change) if needed
+                    var newParentDir = Path.GetDirectoryName(matchedNewPath);
+                    if (newParentDir is not null)
+                    {
+                        var newParentRelDir = Path.GetRelativePath(context.LocalFolderPath, newParentDir);
+                        if (!string.IsNullOrEmpty(newParentRelDir) &&
+                            serverFoldersByRelPath.TryGetValue(newParentRelDir, out var newParentNode))
+                        {
+                            await _api.MoveAsync(missing.NodeId, newParentNode.NodeId, cancellationToken);
+                        }
+                    }
+
+                    // Remove pending upload for the new path (the rename replaced it)
+                    await _stateDb.RemovePendingOperationByPathAsync(
+                        context.StateDatabasePath, matchedNewPath, cancellationToken);
+
+                    // Remove any stale tracking record at the target path before
+                    // updating the old record's path. This prevents UNIQUE constraint
+                    // violations when a previous delete+create cycle left a stale
+                    // FileRecord for the new path.
+                    var existingAtTarget = await _stateDb.GetFileRecordAsync(
+                        context.StateDatabasePath, matchedNewPath, cancellationToken);
+                    if (existingAtTarget is not null)
+                    {
+                        await _stateDb.RemoveFileRecordAsync(
+                            context.StateDatabasePath, matchedNewPath, cancellationToken);
+                    }
+
+                    // Update the existing record in-place by changing its LocalPath.
+                    // We CANNOT use UpsertFileRecordAsync here because it looks up
+                    // records by LocalPath (which has a UNIQUE index). Changing the
+                    // path would cause it to INSERT a new row, triggering a constraint
+                    // violation. UpdateFileRecordPathAsync updates by NodeId instead.
+                    var localModifiedAt = File.Exists(matchedNewPath)
+                        ? File.GetLastWriteTimeUtc(matchedNewPath)
+                        : default;
+                    await _stateDb.UpdateFileRecordPathAsync(
+                        context.StateDatabasePath,
+                        missing.NodeId,
+                        matchedNewPath,
+                        missing.ContentHash,
+                        localModifiedAt,
+                        cancellationToken);
+
+                    renameDetectedCount++;
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    // Restore the original path before adding to actualDeletions,
+                    // since missing.LocalPath was changed to matchedNewPath above
+                    // and the fallback should delete the original path.
+                    missing.LocalPath = Path.Combine(context.LocalFolderPath, missingRelPath);
+                    _logger.LogWarning(ex,
+                        "Failed to propagate local rename {OldPath} → {NewPath} to server. " +
+                        "Falling back to delete+create.",
+                        missingRelPath, newRelPath);
+                    actualDeletions.Add(missing);
+                }
+            }
+
+            if (renameDetectedCount > 0)
+            {
+                _logger.LogInformation(
+                    "Local rename detection: {Count} rename(s) propagated to server in context {ContextId}.",
+                    renameDetectedCount, context.Id);
+            }
+
+            // Replace missingFiles with only the actual deletions (not renames)
+            missingFiles = actualDeletions;
         }
 
         // Phase 2: Detect deleted directories — queue a single folder-level delete
@@ -698,6 +1097,12 @@ public sealed class SyncEngine : ISyncEngine
             queued++;
         }
 
+        scanStopwatch.Stop();
+        _logger.LogInformation(
+            "ScanLocalDirectory [{ContextId}]: {QueuedCount} queued, {TotalMs}ms total (dbFetch={DbFetchMs}ms, scanLoop={ScanLoopMs}ms, fileEnum={FileEnumMs}ms, totalFiles={FileCount})",
+            context.Id, queued, scanStopwatch.ElapsedMilliseconds, dbFetchMs, scanLoopMs - dbFetchMs, fileEnumerationMs - dbFetchMs,
+            allRecords.Count + queued);
+
         return queued;
     }
 
@@ -752,6 +1157,21 @@ public sealed class SyncEngine : ISyncEngine
                     _logger.LogDebug("Skipping ignored remote change {RelPath} for context {ContextId}.",
                         relativePathForIgnore, context.Id);
                     continue;
+                }
+
+                // ── Remote rename/move detection ──────────────────────────────────────
+                // If the server tree path for this NodeId differs from the local record's
+                // path, the file/folder was renamed or moved on the server. Rename locally
+                // instead of re-downloading content.
+                if (!change.IsDeleted && change.NodeId != Guid.Empty)
+                {
+                    var renameHandled = await TryHandleRemoteRenameAsync(
+                        context, change.NodeId, pathMap, cancellationToken);
+                    if (renameHandled)
+                    {
+                        appliedChanges++;
+                        continue;
+                    }
                 }
 
                 if (change.IsDeleted)
@@ -1073,6 +1493,108 @@ public sealed class SyncEngine : ISyncEngine
             new PendingDownload { LocalPath = localPath, NodeId = change.NodeId, LinkTarget = change.LinkTarget }, cancellationToken);
     }
 
+    /// <summary>
+    /// Detects and applies remote renames/moves by comparing the server tree path
+    /// against the local record's tracked path for the given NodeId.
+    /// </summary>
+    /// <param name="context">The sync context.</param>
+    /// <param name="nodeId">The server-side NodeId to check.</param>
+    /// <param name="pathMap">The NodeId → relative-path map built from the server tree.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns><see langword="true"/> if a rename was detected and applied; <see langword="false"/> otherwise.</returns>
+    private async Task<bool> TryHandleRemoteRenameAsync(
+        SyncContext context,
+        Guid nodeId,
+        Dictionary<Guid, string> pathMap,
+        CancellationToken cancellationToken)
+    {
+        var localRecord = await _stateDb.GetFileRecordByNodeIdAsync(
+            context.StateDatabasePath, nodeId, cancellationToken);
+        if (localRecord is null)
+            return false; // Not tracked locally — not a local rename
+
+        if (!pathMap.TryGetValue(nodeId, out var serverRelPath))
+            return false; // Not in server tree — probably deleted
+
+        var expectedLocalPath = ValidatePathWithinSyncRoot(
+            context.LocalFolderPath,
+            Path.Combine(context.LocalFolderPath, serverRelPath));
+
+        var comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+
+        // Paths match — no rename needed
+        if (string.Equals(localRecord.LocalPath, expectedLocalPath, comparison))
+            return false;
+
+        _logger.LogInformation(
+            "Remote rename/move detected: {OldPath} → {NewPath} (NodeId={NodeId}).",
+            localRecord.LocalPath, expectedLocalPath, nodeId);
+
+        // Ensure the target parent directory exists
+        var newParentDir = Path.GetDirectoryName(expectedLocalPath);
+        if (newParentDir is not null)
+            Directory.CreateDirectory(newParentDir);
+
+        // Rename/move the local file or directory
+        if (File.Exists(localRecord.LocalPath))
+        {
+            File.Move(localRecord.LocalPath, expectedLocalPath);
+        }
+        else if (Directory.Exists(localRecord.LocalPath))
+        {
+            Directory.Move(localRecord.LocalPath, expectedLocalPath);
+
+            // For folder renames, also update all child records whose paths
+            // start with the old folder path.
+            var allRecords = await _stateDb.GetAllFileRecordsAsync(
+                context.StateDatabasePath, cancellationToken);
+            var childRecords = allRecords
+                .Where(r => r.LocalPath.StartsWith(
+                    localRecord.LocalPath + Path.DirectorySeparatorChar,
+                    comparison))
+                .ToList();
+
+            if (childRecords.Count > 0)
+            {
+                foreach (var child in childRecords)
+                {
+                    child.LocalPath = Path.Combine(expectedLocalPath,
+                        Path.GetRelativePath(localRecord.LocalPath, child.LocalPath));
+                }
+                await _stateDb.UpsertFileRecordsBatchAsync(
+                    context.StateDatabasePath, childRecords, cancellationToken);
+            }
+        }
+        else
+        {
+            // File/folder doesn't exist locally — just update the record
+            _logger.LogDebug(
+                "Remote rename/move for {NodeId}: local path {OldPath} does not exist. Updating record only.",
+                nodeId, localRecord.LocalPath);
+        }
+
+        // Update the tracking record with the new path.
+        // Use UpdateFileRecordPathAsync (lookup by NodeId) instead of
+        // UpsertFileRecordAsync (lookup by LocalPath) to avoid a UNIQUE
+        // constraint violation on FileRecords.Id — the old LocalPath still
+        // exists in the DB, so an upsert-by-LocalPath would not find the
+        // existing row and would attempt an INSERT with the original row Id.
+        var localModifiedAt = File.Exists(expectedLocalPath)
+            ? File.GetLastWriteTimeUtc(expectedLocalPath)
+            : default;
+        await _stateDb.UpdateFileRecordPathAsync(
+            context.StateDatabasePath,
+            nodeId,
+            expectedLocalPath,
+            localRecord.ContentHash,
+            localModifiedAt,
+            cancellationToken);
+
+        return true;
+    }
+
     private async Task HandleRemoteUpdateAsync(SyncContext context, string localPath, Api.SyncChangeResponse change, CancellationToken cancellationToken)
     {
         // Issue #51: case-conflict detection on case-insensitive filesystems.
@@ -1115,6 +1637,40 @@ public sealed class SyncEngine : ISyncEngine
 
             // Both local and remote changed — run auto-resolution pipeline.
 
+            // Read local content and fetch server content for text-based strategies.
+            string? localContent = null;
+            string? serverContent = null;
+            string? baseContent = null;
+            try
+            {
+                if (File.Exists(localPath))
+                    localContent = await File.ReadAllTextAsync(localPath, cancellationToken);
+            }
+            catch { /* non-critical */ }
+
+            try
+            {
+                using var stream = await _api.DownloadAsync(change.NodeId, cancellationToken);
+                using var reader = new StreamReader(stream);
+                serverContent = await reader.ReadToEndAsync(cancellationToken);
+            }
+            catch { /* non-critical; strategies fall through gracefully */ }
+
+            // Fetch the base (common ancestor) content for three-way merge.
+            // The server maintains version history; version N-1 is the content
+            // before the latest server-side edit.
+            try
+            {
+                var node = await _api.GetNodeAsync(change.NodeId, cancellationToken);
+                if (node.CurrentVersion >= 2)
+                {
+                    using var stream = await _api.DownloadVersionAsync(change.NodeId, node.CurrentVersion - 1, cancellationToken);
+                    using var reader = new StreamReader(stream);
+                    baseContent = await reader.ReadToEndAsync(cancellationToken);
+                }
+            }
+            catch { /* non-critical; strategies fall through gracefully */ }
+
             var outcome = await _conflictResolver.ResolveAsync(new ConflictInfo
             {
                 LocalPath = localPath,
@@ -1123,9 +1679,12 @@ public sealed class SyncEngine : ISyncEngine
                 RemoteContentHash = change.ContentHash,
                 StateDatabasePath = context.StateDatabasePath,
                 LocalContentHash = localContentHash,
-                BaseContentHash = localRecord.ContentHash,
+                BaseContentHash = localRecord!.ContentHash,
                 LocalModifiedAt = File.Exists(localPath) ? File.GetLastWriteTimeUtc(localPath) : default,
                 LocalUserId = context.UserId,
+                LocalContent = localContent,
+                ServerContent = serverContent,
+                BaseContent = baseContent,
             }, cancellationToken);
 
             switch (outcome)
@@ -1143,8 +1702,37 @@ public sealed class SyncEngine : ISyncEngine
                     await _stateDb.UpsertFileRecordAsync(context.StateDatabasePath, localRecord, cancellationToken);
                     break;
 
+                case Conflict.ConflictResolutionOutcome.ConflictCopyCreated:
+                    // A conflict copy was created from the local version. Download the server
+                    // version inline NOW — before the follow-up local scan runs — so the file
+                    // is present on disk and the scan doesn't see it as "deleted" (it was
+                    // renamed to the conflict copy). Queuing a PendingDownload is insufficient
+                    // because it runs in Parallel.ForEachAsync alongside the PendingDelete that
+                    // the local scan queues for the same NodeId — the delete wins and the
+                    // download gets 404.
+                    try
+                    {
+                        var downloadStream = await _transfer.DownloadAsync(change.NodeId, null, cancellationToken);
+                        Directory.CreateDirectory(Path.GetDirectoryName(localPath)!);
+                        await using var output = File.Create(localPath);
+                        await downloadStream.CopyToAsync(output, cancellationToken);
+                        var hash = await ComputeFileHashAsync(localPath, cancellationToken);
+                        localRecord!.ContentHash = hash;
+                        localRecord.SyncStateTag = "Synced";
+                        localRecord.LastSyncedAt = DateTime.UtcNow;
+                        localRecord.LocalModifiedAt = File.GetLastWriteTimeUtc(localPath);
+                        await _stateDb.UpsertFileRecordAsync(context.StateDatabasePath, localRecord, cancellationToken);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex,
+                            "Failed to download server version for conflict-resolved file {Path}. " +
+                            "Server version will be picked up on next sync cycle.",
+                            localPath);
+                    }
+                    break;
+
                     // AutoResolvedLocalWins: local file kept, will be re-queued for upload on next scan.
-                    // ConflictCopyCreated: server version will be downloaded on next sync cycle.
             }
         }
         else if (localRecord is null || localRecord.ContentHash != change.ContentHash)
@@ -1176,6 +1764,9 @@ public sealed class SyncEngine : ISyncEngine
 
     private const int MaxOperationRetries = 10;
 
+    /// <summary>Maximum number of pending operations to process concurrently during ApplyLocalChangesAsync.</summary>
+    private const int MaxParallelOperations = 3;
+
     private async Task<int> ApplyLocalChangesAsync(SyncContext context, SyncTreeNodeResponse serverTree, CancellationToken cancellationToken)
     {
         var pendingOps = await _stateDb.GetPendingOperationsAsync(context.StateDatabasePath, cancellationToken);
@@ -1185,72 +1776,64 @@ public sealed class SyncEngine : ISyncEngine
         var folderPathMap = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
         BuildFolderPathMap(serverTree, "", folderPathMap);
 
-        foreach (var op in pendingOps)
+        var parallelOptions = new ParallelOptions
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            MaxDegreeOfParallelism = MaxParallelOperations,
+            CancellationToken = cancellationToken,
+        };
+
+        await Parallel.ForEachAsync(pendingOps, parallelOptions, async (op, ct) =>
+        {
             try
             {
-                await ExecutePendingOperationAsync(context, op, folderPathMap, cancellationToken);
-                await _stateDb.RemoveOperationAsync(context.StateDatabasePath, op.Id, cancellationToken);
-                completedOperations++;
+                await ExecutePendingOperationAsync(context, op, folderPathMap, ct);
+                await _stateDb.RemoveOperationAsync(context.StateDatabasePath, op.Id, ct);
+                Interlocked.Increment(ref completedOperations);
             }
             catch (NameConflictException ncEx)
             {
-                // Issue #41: case-sensitivity conflict — move to failed immediately, no retry.
                 _logger.LogWarning(
                     "Case-sensitivity conflict for '{FileName}': {Message}. Operation {OpId} moved to failed queue.",
                     op is PendingUpload u ? Path.GetFileName(u.LocalPath) : string.Empty,
                     ncEx.Message, op.Id);
-                await _stateDb.MoveToFailedAsync(context.StateDatabasePath, op, ncEx.Message, cancellationToken);
+                await _stateDb.MoveToFailedAsync(context.StateDatabasePath, op, ncEx.Message, ct);
             }
             catch (FileStillGrowingException growEx)
             {
-                // File is still being written — defer without consuming the retry budget.
                 _logger.LogInformation(
                     "Deferring upload of {Path} — file size changed during stability check ({InitialSize} → {FinalSize} bytes). Will retry in 5 seconds. (Operation {OpId})",
                     growEx.FilePath, growEx.InitialSize, growEx.FinalSize, op.Id);
-
-                // Schedule a short retry without incrementing RetryCount.
                 await _stateDb.UpdateOperationRetryAsync(
                     context.StateDatabasePath, op.Id, op.RetryCount,
-                    DateTime.UtcNow.AddSeconds(5), growEx.Message, cancellationToken);
+                    DateTime.UtcNow.AddSeconds(5), growEx.Message, ct);
             }
             catch (FileModifiedDuringUploadException modEx)
             {
-                // File changed between Pass 1 (metadata) and Pass 2 (data) — defer without consuming retry budget.
                 _logger.LogWarning(
                     "Deferring upload of {Path} — file modified between upload passes (size: {OriginalSize} → {CurrentSize} bytes). Will retry in 5 seconds. (Operation {OpId})",
                     modEx.FilePath, modEx.OriginalSize, modEx.CurrentSize, op.Id);
-
-                // Schedule a short retry without incrementing RetryCount.
                 await _stateDb.UpdateOperationRetryAsync(
                     context.StateDatabasePath, op.Id, op.RetryCount,
-                    DateTime.UtcNow.AddSeconds(5), modEx.Message, cancellationToken);
+                    DateTime.UtcNow.AddSeconds(5), modEx.Message, ct);
             }
             catch (LockedFileException lockEx)
             {
-                // Locked files are not sync failures — defer without consuming the retry budget.
                 _logger.LogWarning(
                     "Skipping {Path} — file is locked by another process. Will retry automatically in 2 minutes. (Operation {OpId})",
                     lockEx.FilePath, op.Id);
-
-                // Update SyncStateTag to "Deferred" if there is an existing file record.
                 var deferRecord = await _stateDb.GetFileRecordAsync(
-                    context.StateDatabasePath, lockEx.FilePath, cancellationToken);
+                    context.StateDatabasePath, lockEx.FilePath, ct);
                 if (deferRecord is not null)
                 {
                     deferRecord.SyncStateTag = "Deferred";
-                    await _stateDb.UpsertFileRecordAsync(context.StateDatabasePath, deferRecord, cancellationToken);
+                    await _stateDb.UpsertFileRecordAsync(context.StateDatabasePath, deferRecord, ct);
                 }
-
-                // Schedule a short retry without incrementing RetryCount.
                 await _stateDb.UpdateOperationRetryAsync(
                     context.StateDatabasePath, op.Id, op.RetryCount,
-                    DateTime.UtcNow.AddMinutes(2), lockEx.Message, cancellationToken);
+                    DateTime.UtcNow.AddMinutes(2), lockEx.Message, ct);
             }
             catch (PathTooLongException ptlEx)
             {
-                // Issue #45: path exceeds OS limit — mark as PathTooLong and skip permanently.
                 var opPath = op switch
                 {
                     PendingUpload u => u.LocalPath,
@@ -1260,58 +1843,51 @@ public sealed class SyncEngine : ISyncEngine
                 _logger.LogWarning(ptlEx,
                     "sync.path_too_long {LocalPath} — skipping permanently. Operation {OpId} moved to failed queue.",
                     opPath, op.Id);
-
                 if (opPath is not null)
                 {
                     if (OperatingSystem.IsWindows())
                         _logger.LogWarning(
                             "Windows long-path support is not enabled. Set HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem\\LongPathsEnabled=1 (requires admin, then reboot).");
-
-                    var ptlRecord = await _stateDb.GetFileRecordAsync(context.StateDatabasePath, opPath, cancellationToken);
+                    var ptlRecord = await _stateDb.GetFileRecordAsync(context.StateDatabasePath, opPath, ct);
                     if (ptlRecord is not null)
                     {
                         ptlRecord.SyncStateTag = "PathTooLong";
-                        await _stateDb.UpsertFileRecordAsync(context.StateDatabasePath, ptlRecord, cancellationToken);
+                        await _stateDb.UpsertFileRecordAsync(context.StateDatabasePath, ptlRecord, ct);
                     }
                 }
-
-                await _stateDb.MoveToFailedAsync(context.StateDatabasePath, op, ptlEx.Message, cancellationToken);
+                await _stateDb.MoveToFailedAsync(context.StateDatabasePath, op, ptlEx.Message, ct);
             }
             catch (HttpRequestException httpEx) when (
                 op is PendingDownload &&
                 IsNotFoundHttp(httpEx))
             {
-                // Remote node/content is missing: retries are not useful for this download operation.
                 _logger.LogWarning(httpEx,
                     "Download operation {OpId} failed with 404 Not Found. Moving to failed queue without retry.",
                     op.Id);
-                await _stateDb.MoveToFailedAsync(context.StateDatabasePath, op, httpEx.Message, cancellationToken);
+                await _stateDb.MoveToFailedAsync(context.StateDatabasePath, op, httpEx.Message, ct);
             }
             catch (HttpRequestException httpEx) when (
                 op is PendingDelete &&
                 IsNotFoundHttp(httpEx))
             {
-                // Server node already deleted (e.g. cascade from parent folder delete).
-                // Treat as successful — clean up local state.
                 _logger.LogInformation(
                     "Delete operation {OpId} — server node already gone (404). Cleaning up local state.",
                     op.Id);
                 var del = (PendingDelete)op;
-                await _stateDb.RemoveFileRecordAsync(context.StateDatabasePath, del.LocalPath, cancellationToken);
-                await _stateDb.RemoveFileRecordsUnderPathAsync(context.StateDatabasePath, del.LocalPath, cancellationToken);
-                await _stateDb.RemoveOperationAsync(context.StateDatabasePath, op.Id, cancellationToken);
-                completedOperations++;
+                await _stateDb.RemoveFileRecordAsync(context.StateDatabasePath, del.LocalPath, ct);
+                await _stateDb.RemoveFileRecordsUnderPathAsync(context.StateDatabasePath, del.LocalPath, ct);
+                await _stateDb.RemoveOperationAsync(context.StateDatabasePath, op.Id, ct);
+                Interlocked.Increment(ref completedOperations);
             }
             catch (Exception ex)
             {
                 var newRetryCount = op.RetryCount + 1;
-
                 if (newRetryCount >= MaxOperationRetries)
                 {
                     _logger.LogError(ex,
                         "Operation {OpId} ({Type}) permanently failed after {RetryCount} attempts. Moving to failed queue.",
                         op.Id, op.OperationType, newRetryCount);
-                    await _stateDb.MoveToFailedAsync(context.StateDatabasePath, op, ex.Message, cancellationToken);
+                    await _stateDb.MoveToFailedAsync(context.StateDatabasePath, op, ex.Message, ct);
                 }
                 else
                 {
@@ -1320,10 +1896,15 @@ public sealed class SyncEngine : ISyncEngine
                         "Operation {OpId} ({Type}) failed (attempt {RetryCount}/{MaxRetries}). Next retry at {NextRetryAt}.",
                         op.Id, op.OperationType, newRetryCount, MaxOperationRetries, nextRetryAt);
                     await _stateDb.UpdateOperationRetryAsync(
-                        context.StateDatabasePath, op.Id, newRetryCount, nextRetryAt, ex.Message, cancellationToken);
+                        context.StateDatabasePath, op.Id, newRetryCount, nextRetryAt, ex.Message, ct);
                 }
             }
-        }
+        });
+
+        if (completedOperations > 0)
+            _logger.LogInformation(
+                "Applied {Count} local change(s) in context {ContextId}.",
+                completedOperations, context.Id);
 
         return completedOperations;
     }
@@ -1492,10 +2073,11 @@ public sealed class SyncEngine : ISyncEngine
                 TotalChunks = 0,
             });
 
-            // Use the content hash returned by the server (manifest hash) — avoids a
-            // redundant whole-file read that previously re-hashed the entire file.
-            var hash = uploadResult.ContentHash
-                ?? await ComputeFileHashAsync(upload.LocalPath, cancellationToken);
+            // Always compute the local SHA256 hash for rename detection compatibility.
+            // The server returns manifest-based hashes (computed from chunk hashes) which
+            // differ from direct SHA256 — using the server hash breaks rename detection
+            // (ScanLocalDirectoryAsync compares local SHA256 against stored ContentHash).
+            var hash = await ComputeFileHashAsync(upload.LocalPath, cancellationToken);
             await _stateDb.UpsertFileRecordAsync(context.StateDatabasePath, new LocalFileRecord
             {
                 LocalPath = upload.LocalPath,
@@ -1918,7 +2500,16 @@ public sealed class SyncEngine : ISyncEngine
         if (!File.Exists(localPath))
             return false;
         var localModified = File.GetLastWriteTimeUtc(localPath);
-        return localModified > record.LastSyncedAt;
+        // Primary check: mtime is strictly after the last sync timestamp.
+        if (localModified > record.LastSyncedAt)
+            return true;
+        // Secondary check: mtime differs from the recorded mtime at last sync.
+        // Catches the case where a file write completed with an mtime that falls
+        // within the LastSyncedAt window (e.g. mtime == LastSyncedAt or the sync
+        // pass ran concurrently with the write), so the strict > check missed it.
+        if (localModified != record.LocalModifiedAt)
+            return true;
+        return false;
     }
 
     private static async Task<string> ComputeFileHashAsync(string path, CancellationToken cancellationToken)
@@ -2342,6 +2933,10 @@ public sealed class SyncEngine : ISyncEngine
     /// </summary>
     private async Task RecoverCursorFromServerAsync(SyncContext context, CancellationToken cancellationToken)
     {
+        _isFullSync = false;
+        _fullSyncTotalItems = 0;
+        _fullSyncCompletedItems = 0;
+
         if (DeviceId is null)
             return;
 
@@ -2353,7 +2948,11 @@ public sealed class SyncEngine : ISyncEngine
 
             var serverCursor = await _api.GetDeviceCursorAsync(DeviceId.Value, cancellationToken);
             if (serverCursor?.Cursor is null)
-                return; // No server-side cursor — full sync is needed
+            {
+                _isFullSync = true;
+                _logger.LogInformation("No server-side cursor for device {DeviceId}. Full sync required.", DeviceId.Value);
+                return;
+            }
 
             await _stateDb.UpdateSyncCursorAsync(context.StateDatabasePath, serverCursor.Cursor, cancellationToken);
             _logger.LogInformation(
@@ -2362,6 +2961,7 @@ public sealed class SyncEngine : ISyncEngine
         }
         catch (Exception ex)
         {
+            _isFullSync = true;
             _logger.LogDebug(ex, "Server-side cursor recovery failed — will do full sync.");
         }
     }
@@ -2378,6 +2978,29 @@ public sealed class SyncEngine : ISyncEngine
         {
             Context = context,
             Status = new SyncStatus { State = state, LastError = _lastError },
+        });
+    }
+
+    /// <summary>
+    /// Fires a <see cref="StatusChanged"/> event with full-sync progress information.
+    /// Used during full re-sync to show meaningful progress to the user.
+    /// </summary>
+    private void ReportFullSyncProgress(SyncContext context, string phaseLabel, int completedItems, int totalItems)
+    {
+        _fullSyncCompletedItems = completedItems;
+        _fullSyncTotalItems = totalItems;
+
+        StatusChanged?.Invoke(this, new SyncStatusChangedEventArgs
+        {
+            Context = context,
+            Status = new SyncStatus
+            {
+                State = SyncState.Syncing,
+                IsFullSync = _isFullSync,
+                FullSyncPhaseLabel = phaseLabel,
+                FullSyncCompletedItems = completedItems,
+                FullSyncTotalItems = totalItems,
+            },
         });
     }
 }

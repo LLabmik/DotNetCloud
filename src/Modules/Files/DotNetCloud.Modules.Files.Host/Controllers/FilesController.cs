@@ -1,4 +1,5 @@
 using DotNetCloud.Core.DTOs.Search;
+using Microsoft.AspNetCore.RateLimiting;
 using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Options;
 using DotNetCloud.Modules.Files.Services;
@@ -327,6 +328,7 @@ public class FilesController : FilesControllerBase
     /// Initiates a chunked upload session.
     /// </summary>
     [HttpPost("upload/initiate")]
+    [EnableRateLimiting("module-upload-initiate")]
     public Task<IActionResult> InitiateUploadAsync([FromBody] InitiateUploadDto dto) => ExecuteAsync(async () =>
     {
         var caller = GetAuthenticatedCaller();
@@ -340,11 +342,22 @@ public class FilesController : FilesControllerBase
     /// Uploads a single chunk.
     /// </summary>
     [HttpPut("upload/{sessionId:guid}/chunks/{chunkHash}")]
+    [EnableRateLimiting("module-upload-chunks")]
     public Task<IActionResult> UploadChunkAsync(Guid sessionId, string chunkHash) => ExecuteAsync(async () =>
     {
-        using var ms = new MemoryStream();
-        await Request.Body.CopyToAsync(ms);
-        await _uploadService.UploadChunkAsync(sessionId, chunkHash, ms.ToArray(), GetAuthenticatedCaller());
+        // Read body directly into a single buffer — avoids MemoryStream + ToArray() double copy.
+        var contentLength = (int)(Request.ContentLength ?? 4 * 1024 * 1024);
+        var buffer = new byte[contentLength];
+        var offset = 0;
+        while (offset < contentLength)
+        {
+            var read = await Request.Body.ReadAsync(buffer.AsMemory(offset), HttpContext.RequestAborted);
+            if (read == 0)
+                break;
+            offset += read;
+        }
+
+        await _uploadService.UploadChunkAsync(sessionId, chunkHash, buffer.AsMemory(0, offset), GetAuthenticatedCaller());
         return Ok(new { uploaded = true });
     });
 

@@ -4,6 +4,7 @@ using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Files.Host.Protos;
 using DotNetCloud.Modules.Files.Host.Services;
 using DotNetCloud.Modules.Files.Models;
+using DotNetCloud.Modules.Files.Services;
 using Grpc.Core;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -25,7 +26,7 @@ public class FilesGrpcServiceSecurityTests
 
     private static FilesGrpcService CreateService(FilesDbContext db)
     {
-        return new FilesGrpcService(db, new Mock<IEventBus>().Object, NullLogger<FilesGrpcService>.Instance);
+        return new FilesGrpcService(db, new Mock<IEventBus>().Object, new Mock<IFileStorageEngine>().Object, NullLogger<FilesGrpcService>.Instance);
     }
 
     [TestMethod]

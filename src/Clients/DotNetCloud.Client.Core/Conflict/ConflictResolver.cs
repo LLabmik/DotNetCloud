@@ -52,18 +52,39 @@ public sealed class ConflictResolver : IConflictResolver
             return await CreateConflictCopyAsync(conflict, cancellationToken);
         }
 
-        // ── Strategy 1: Identical content (hash match) ─────────────────────
-        if (_settings.IsStrategyEnabled("identical") && !string.IsNullOrEmpty(conflict.LocalContentHash) &&
-            !string.IsNullOrEmpty(conflict.RemoteContentHash) &&
-            conflict.LocalContentHash.Equals(conflict.RemoteContentHash, StringComparison.OrdinalIgnoreCase))
+        // ── Strategy 1: Identical content (hash match or text match) ────────
+        if (_settings.IsStrategyEnabled("identical"))
         {
-            return await AutoResolveAsync(
-                conflict,
-                strategy: "Strategy 1 (identical content)",
-                resolution: "auto-identical",
-                outcome: ConflictResolutionOutcome.AutoResolvedIdentical,
-                conflictCopyPath: null,
-                cancellationToken);
+            // Check hash-based match first (fast path).
+            if (!string.IsNullOrEmpty(conflict.LocalContentHash) &&
+                !string.IsNullOrEmpty(conflict.RemoteContentHash) &&
+                conflict.LocalContentHash.Equals(conflict.RemoteContentHash, StringComparison.OrdinalIgnoreCase))
+            {
+                return await AutoResolveAsync(
+                    conflict,
+                    strategy: "Strategy 1 (identical content — hash match)",
+                    resolution: "auto-identical",
+                    outcome: ConflictResolutionOutcome.AutoResolvedIdentical,
+                    conflictCopyPath: null,
+                    cancellationToken);
+            }
+
+            // Fallback: compare actual content strings when available.
+            // The server stores a manifest-based hash (SHA256 of chunk hashes)
+            // which differs from the local direct SHA256 of file bytes, so hash
+            // comparisons alone cannot detect identical content for small files.
+            if (conflict.LocalContent is not null &&
+                conflict.ServerContent is not null &&
+                conflict.LocalContent == conflict.ServerContent)
+            {
+                return await AutoResolveAsync(
+                    conflict,
+                    strategy: "Strategy 1 (identical content — text match)",
+                    resolution: "auto-identical",
+                    outcome: ConflictResolutionOutcome.AutoResolvedIdentical,
+                    conflictCopyPath: null,
+                    cancellationToken);
+            }
         }
 
         // ── Strategy 2: One side unchanged (fast-forward) ──────────────────

@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-23 01:19 UTC (Auth fix verified — 401 resolved, Windows11-TestDNC verification complete)
+Last updated: 2026-06-27 00:50 UTC (Linux client validation complete — all 4 test cases passed on mint-OptiPlex-7010. Branch ready to merge to main.)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -18,7 +18,7 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
-- **Current active branch:** `main`
+- **Current active branch:** `perf/synctray-scan-and-transfer-speedups`
 - No moderator involvement in technical decisions, code reviews, or work coordination.
 
 **Role separation (MANDATORY):**
@@ -34,7 +34,7 @@ Archived context:
 Every Active Handoff MUST use per-machine action blocks. Actions are grouped by the machine that executes them, using the exact machine names from the Environment table.
 
 ```markdown
-## Active Handoff
+### Active Handoff
 
 **Summary:** [one-line description of what's happening]
 
@@ -92,23 +92,15 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Current Status
 
-- YARP auth header doubling fix: deployed, verified server-side (`cloud.kimball.home`), verified client-side (`Windows11-TestDNC`) — 401 resolved.
-- All prior Phase 2, chat, pre-Linux sync remediation, SyncTray icon enhancement work is complete and archived.
-- VFS Phase 1 (server-side prerequisites) complete on `cloud.kimball.home`.
-- VFS Phase 2 (core abstraction layer) complete on `Windows11-TestDNC`.
-- VFS Phase 3 (Windows Cloud Filter API) complete on `Windows11-TestDNC`.
-- VFS Phase 4 (Linux FUSE) complete on `mint-dnc-client`:
-  - `FuseSyncFilesystem : IVirtualFileProvider` with mount/unmount lifecycle
-  - `DotNetCloudFuseOperations : IFuseOperations` with all FUSE callbacks
-  - `LruCacheManager` wired into FUSE read path
-  - DI registration: `FuseSyncFilesystem` on Linux
-  - Build: 0 errors (CI solution filter). Tests: 253/254 Client.Core pass, 106/106 SyncTray pass.
-- VFS Phase 5 (SyncTray UI Integration) complete on `Windows11-TestDNC` (archived).
-- VFS Phase 6 (Testing & Validation) complete on `Windows11-TestDNC`:
-  - 50+ unit tests across all VFS components
-  - `LruCacheManager` class created + DI registered
-  - Windows/Linux/E2E test scenarios documented
-  - Build: 0 errors. Tests: Core 435, Client.Core 253/254, SyncTray 106.
+- ✅ **Sync architecture flow review implemented** — Explicit rename/move sync, batch conflict resolve, full-sync progress reporting, sync flow reference doc. All built and tested on server (0 errors, 1104 tests passing). See `docs/development/SYNC_FLOW_REFERENCE.md` for full sync flow documentation.
+- ✅ **Linux client validation (mint-OptiPlex-7010) completed** — All 4 test cases (CRUD, rename/move, conflict resolution, batch resolve) pass on Linux. 7 bug fixes from Windows11-TestDNC verified working on Linux. Branch `perf/synctray-scan-and-transfer-speedups` ready to merge to main.
+- ✅ **gRPC streaming upload fully functional** — (archived)
+- ✅ **Client scanner bugs fixed** — (archived)
+- ✅ **Windows 11 rename/move sync tested** — Found and fixed 3 bugs in rename detection (hash mismatch, path mutation in catch, UNIQUE constraint violation). Rename now propagates to server correctly.
+- ✅ **Test Case 2 (Remote rename from server)** — Verified on Windows11-TestDNC. SyncTray picks up remote renames via polling. One bug found and fixed (`UpsertFileRecordAsync` → `UpdateFileRecordPathAsync` in `TryHandleRemoteRenameAsync`).
+- ✅ **Test Case 5 (CRUD edit/delete/create)** — Verified client-side and confirmed server-side. Archived.
+- ✅ **Test Case 4 (full-sync progress)** — Full sync mechanism confirmed working. Archived.
+- ✅ **Test Case 3 (Batch conflict resolve)** — All 4 scenarios verified on Windows11-TestDNC. 3 bugs found and fixed (hash mismatch → text fallback in Strategy 1, placeholder base content in Strategy 3, missing ConflictCopyCreated download handler). See Active Handoff for full results.
 
 ## Environment
 
@@ -116,9 +108,9 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 | -------------- | -------------------- | ---------------------------------------------------------------------------------- |
 | Server         | `cloud.kimball.home` | `https://cloud.dotnetcloud.net/` (production)                                      |
 | Server         | `mint22`             | `https://mint22:5443/` (dev)                                                       |
-| Client         | `Windows11-TestDNC`  | Sync dir: `C:\Users\benk\Documents\synctray`                                       |
+| Client         | `Windows11-TestDNC`  | Sync dir: `C:\Users\benk\synctray`                                       |
 | Client         | `mint-dnc-client`    | Linux Mint 22 validation host for desktop sync client implementation + E2E testing |
-| Client         | `mint-OptiPlex-7010` | This machine — production client connected to `cloud.dotnetcloud.net`              |
+| Client         | `mint-OptiPlex-7010` | production client connected to `cloud.dotnetcloud.net`              |
 | Android Client | `monolith`           | Android MAUI app development + emulator testing (Windows 11)                       |
 
 ## Key Carry-Forward Contracts
@@ -132,5 +124,18 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Status:** ℹ️ No active handoff. All prior tasks archived.
+**Summary:** ✅ Linux client validation complete — all 4 test cases passed on `mint-OptiPlex-7010`. Branch `perf/synctray-scan-and-transfer-speedups` ready to merge to main. No further client or server actions needed for this cycle.
 
+**Context:** 7 bugs found and fixed across the sync architecture testing on Windows11-TestDNC. All fixes validated on both Windows (Windows11-TestDNC) and Linux (mint-OptiPlex-7010). Branch is ready for merge.
+
+---
+
+### All Actions Complete — `perf/synctray-scan-and-transfer-speedups`
+
+| Machine | Role | Status |
+|---------|------|--------|
+| `Windows11-TestDNC` | Client | ✅ All 5 test cases passed (TC1-TC5). 7 bugs found and fixed. |
+| `cloud.kimball.home` | Server | ✅ Cursor deleted, test files created, deployment verified. |
+| `mint-OptiPlex-7010` | Client | ✅ All 4 test cases passed (CRUD, rename/move, conflict, batch resolve). |
+
+**Next step:** Merge `perf/synctray-scan-and-transfer-speedups` → `main`.

@@ -635,9 +635,10 @@ public class Program
         builder.Services.Configure<GzipCompressionProviderOptions>(options =>
             options.Level = System.IO.Compression.CompressionLevel.Fastest);
 
-        // Add request decompression (handles Content-Encoding: gzip/br/deflate on incoming requests).
-        // Required because desktop/mobile clients gzip-compress chunk upload bodies.
-        builder.Services.AddRequestDecompression();
+        // Request decompression is handled by individual module hosts (e.g., Files module).
+        // Core.Server does NOT decompress — it proxies raw bodies to module hosts via YARP.
+        // Decompressing here would break YARP body forwarding (RequestBodyClient error).
+        // builder.Services.AddRequestDecompression(); // DISABLED — see above
 
         // Add rate limiting
         builder.Services.AddDotNetCloudRateLimiting(builder.Configuration!);
@@ -772,10 +773,10 @@ public class Program
         // Client advertises support via Accept-Encoding: br, gzip.
         app.UseResponseCompression();
 
-        // Request decompression — unwraps Content-Encoding (gzip, br, deflate) on incoming
-        // request bodies so controllers receive uncompressed data. Must be before any
-        // middleware that reads Request.Body (e.g. chunk upload hash validation).
-        app.UseRequestDecompression();
+        // Request decompression is handled by individual module hosts (e.g., Files module).
+        // Core.Server does NOT decompress — it proxies raw bodies to module hosts via YARP.
+        // Decompressing here would break YARP body forwarding (RequestBodyClient error).
+        // app.UseRequestDecompression(); // DISABLED — see above
 
         // Apply middleware (security headers, exception handler, request logging)
         app.UseDotNetCloudMiddleware(headers =>
@@ -833,10 +834,16 @@ public class Program
             grpcApp =>
             {
                 grpcApp.UseRouting();
+                // Authentication and authorization middleware MUST run inside the gRPC branch.
+                // Without these, the framework never validates the JWT for gRPC requests and
+                // HttpContext.User is never populated.
+                grpcApp.UseAuthentication();
+                grpcApp.UseAuthorization();
                 grpcApp.UseEndpoints(endpoints =>
                 {
                     endpoints.MapGrpcService<CoreCapabilitiesServiceImpl>();
                     endpoints.MapGrpcService<TokenIntrospectionServiceImpl>();
+                    endpoints.MapGrpcService<FilesUploadStreamService>();
                 });
             });
 
@@ -1070,6 +1077,14 @@ public class Program
             AllowAutoRedirect = false,
             UseCookies = false,
             EnableMultipleHttp2Connections = true,
+            // Prevent stale HTTP/2 connections: force reconnection every 2 minutes
+            // to avoid "Connection reset by peer" / "Request timed out" errors from
+            // long-lived connections that outlast the backend's keep-alive settings.
+            PooledConnectionLifetime = TimeSpan.FromMinutes(2),
+            // Close idle connections after 30 seconds to free resources on the backend.
+            PooledConnectionIdleTimeout = TimeSpan.FromSeconds(30),
+            // Limit connection attempts so a dead backend doesn't hang the proxy indefinitely.
+            ConnectTimeout = TimeSpan.FromSeconds(10),
         };
         // Module hosts are configured for HTTP/2 (gRPC). Force HTTP/2 for REST proxy.
         handler.SslOptions.RemoteCertificateValidationCallback = static (_, _, _, _) => true;
@@ -1113,7 +1128,9 @@ public class Program
                     var sanitizedPath = httpContext.Request.Path.ToString()
                         .Replace("\r", " ", StringComparison.Ordinal)
                         .Replace("\n", " ", StringComparison.Ordinal);
+                    var errorFeature = httpContext.GetForwarderErrorFeature();
                     logger.LogWarning(
+                        errorFeature?.Exception,
                         "Module API proxy failure for {Path} → {Module} ({Destination}): {Error}",
                         sanitizedPath, moduleId, destinationPrefix, error);
                     httpContext.Response.StatusCode = StatusCodes.Status502BadGateway;
@@ -1152,6 +1169,14 @@ public class Program
                     continue;
                 if (string.Equals(header.Key, "Authorization", StringComparison.OrdinalIgnoreCase))
                     continue; // base transformer already copied this
+                if (string.Equals(header.Key, "X-Device-Id", StringComparison.OrdinalIgnoreCase))
+                    continue; // base transformer already copied this
+                if (string.Equals(header.Key, "X-Device-Name", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                if (string.Equals(header.Key, "X-Device-Platform", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                if (string.Equals(header.Key, "X-Client-Version", StringComparison.OrdinalIgnoreCase))
+                    continue;
                 proxyRequest.Headers.TryAddWithoutValidation(header.Key, header.Value.ToArray());
             }
 

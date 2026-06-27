@@ -59,8 +59,28 @@ public interface ILocalStateDb
     /// <summary>Inserts or updates a file sync record.</summary>
     Task UpsertFileRecordAsync(string dbPath, LocalFileRecord record, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Updates the local path for a file record identified by its server node ID.
+    /// Used by rename/move detection to update the tracked path without triggering
+    /// a UNIQUE constraint violation on the LocalPath column (which UpsertFileRecordAsync
+    /// would do since it looks up records by LocalPath).
+    /// </summary>
+    Task UpdateFileRecordPathAsync(string dbPath, Guid nodeId, string newLocalPath, string? contentHash, DateTime localModifiedAt, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Inserts or updates multiple file sync records in a single transaction.
+    /// Significantly faster than calling <see cref="UpsertFileRecordAsync"/> individually
+    /// when processing large batch scans.
+    /// </summary>
+    Task UpsertFileRecordsBatchAsync(string dbPath, IReadOnlyList<LocalFileRecord> records, CancellationToken cancellationToken = default);
+
     /// <summary>Removes a file sync record by local path.</summary>
     Task RemoveFileRecordAsync(string dbPath, string localPath, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Removes multiple file sync records by local path in a single transaction.
+    /// </summary>
+    Task RemoveFileRecordsBatchAsync(string dbPath, IReadOnlyList<string> localPaths, CancellationToken cancellationToken = default);
 
     /// <summary>Removes all file sync records whose <c>LocalPath</c> starts with the given folder path.
     /// Used to clean up child records after a folder-level server cascade delete.</summary>
@@ -70,6 +90,12 @@ public interface ILocalStateDb
 
     /// <summary>Queues a pending operation.</summary>
     Task QueueOperationAsync(string dbPath, PendingOperationRecord operation, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Queues multiple pending operations in a single transaction with dedup checks.
+    /// Significantly faster than calling <see cref="QueueOperationAsync"/> individually.
+    /// </summary>
+    Task QueueOperationsBatchAsync(string dbPath, IReadOnlyList<PendingOperationRecord> operations, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets pending operations that are eligible to run now, ordered by queue time.
@@ -82,6 +108,15 @@ public interface ILocalStateDb
 
     /// <summary>Removes a completed or cancelled operation.</summary>
     Task RemoveOperationAsync(string dbPath, int operationId, CancellationToken cancellationToken = default);
+
+    /// <summary>Removes all pending upload operations for the given local path.</summary>
+    Task RemovePendingOperationByPathAsync(string dbPath, string localPath, CancellationToken cancellationToken = default);
+
+    /// <summary>Clears all pending operations (uploads, downloads, deletes) — used on engine startup to prevent stale operations from blocking file detection after a crash.</summary>
+    Task ClearPendingOperationsAsync(string dbPath, CancellationToken cancellationToken = default);
+
+    /// <summary>Clears all active upload sessions — used on engine startup to prevent stale sessions from a crashed process from blocking file detection.</summary>
+    Task ClearActiveUploadSessionsAsync(string dbPath, CancellationToken cancellationToken = default);
 
     /// <summary>Updates retry metadata for a pending operation after a transient failure.</summary>
     Task UpdateOperationRetryAsync(string dbPath, int operationId, int retryCount, DateTime? nextRetryAt, string? lastError, CancellationToken cancellationToken = default);
@@ -145,4 +180,10 @@ public interface ILocalStateDb
     /// <paramref name="resolution"/> string, setting <c>ResolvedAt</c> to UTC now.
     /// </summary>
     Task ResolveConflictAsync(string dbPath, int conflictId, string resolution, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Marks all unresolved conflicts in the given database as resolved with the specified
+    /// <paramref name="resolution"/> string. Returns the number of conflicts resolved.
+    /// </summary>
+    Task<int> BatchResolveConflictsAsync(string dbPath, string resolution, CancellationToken cancellationToken = default);
 }

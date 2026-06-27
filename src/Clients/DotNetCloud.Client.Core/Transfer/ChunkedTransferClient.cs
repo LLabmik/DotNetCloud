@@ -6,6 +6,7 @@ using System.Threading.Channels;
 using DotNetCloud.Client.Core.Api;
 using DotNetCloud.Client.Core.LocalState;
 using DotNetCloud.Client.Core.Platform;
+using Grpc.Core;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 
@@ -19,14 +20,23 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
     /// <summary>Default chunk size: 4 MB.</summary>
     public const int DefaultChunkSize = 4 * 1024 * 1024;
 
-    /// <summary>Maximum concurrent chunk transfers.</summary>
-    public int MaxConcurrency { get; set; } = 4;
+    /// <summary>Maximum concurrent chunk transfers. Set to 1 for sequential uploads
+    /// — concurrent chunk uploads compete for the same network connection and trigger
+    /// server-side rate limiting (HTTP 429).</summary>
+    public int MaxConcurrency { get; set; } = 1;
 
     /// <summary>
     /// Directory used to cache downloaded chunks by hash. Chunks are content-addressed
     /// so a cached chunk never expires. Set to a temp path for testing.
     /// </summary>
     public string ChunkCacheDirectory { get; set; } = Path.Combine(Path.GetTempPath(), "dnc-chunk-cache");
+
+    /// <summary>
+    /// When true, attempts gRPC client-streaming upload before falling back to HTTP chunked upload.
+    /// Enabled by default — gRPC streaming is deployed and working on <c>cloud.dotnetcloud.net</c>.
+    /// Falls back to HTTP chunked upload on any <see cref="RpcException"/>.
+    /// </summary>
+    public bool EnableGrpcStreaming { get; set; } = true;
 
     private readonly IDotNetCloudApiClient _api;
     private readonly ILocalStateDb? _stateDb;
@@ -193,6 +203,45 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
                 }
             }
 
+            // Use gRPC streaming upload — no YARP proxy, no GZip Content-Encoding, no hash mismatches.
+            if (EnableGrpcStreaming)
+            {
+                try
+                {
+                    var streamMetadata = new Api.UploadStreamMetadata
+                    {
+                        FileName = fileName,
+                        ParentId = parentFolderId,
+                        TotalSize = fileSize,
+                        MimeType = mimeType,
+                        ChunkHashes = metadata.Select(m => m.Hash).ToList(),
+                        ChunkSizes = metadata.Select(m => m.Size).ToList(),
+                        PosixMode = posixMode,
+                        PosixOwnerHint = posixOwnerHint,
+                    };
+
+                    fileStream.Seek(0, SeekOrigin.Begin);
+                    var grpcResult = await _api.UploadFileStreamAsync(
+                        streamMetadata,
+                        StreamChunksAsync(fileStream, cancellationToken),
+                        cancellationToken);
+
+                    uploadTimer.Stop();
+                    _logger.LogInformation(
+                        "File upload complete (gRPC): FileName={FileName}, NodeId={NodeId}, FileSize={FileSize}, DurationMs={DurationMs}.",
+                        fileName, grpcResult.Id, fileSize, uploadTimer.ElapsedMilliseconds);
+                    return new UploadResult(grpcResult.Id, grpcResult.ContentHash);
+                }
+                catch (Exception gex)
+                {
+                    _logger.LogWarning(gex,
+                        "gRPC upload failed for {File}: {Message}. Falling back to HTTP chunked upload.",
+                        fileName, gex.Message);
+                    // Fall through to legacy HTTP path below.
+                }
+            }
+
+            // ── Legacy HTTP chunked upload (fallback) ──
             // Pass 2: re-read file via CDC, feed chunks into bounded channel.
             // Peak memory: ChannelCapacity × avg chunk size ≈ 32 MB.
             fileStream.Seek(0, SeekOrigin.Begin);
@@ -225,6 +274,25 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
                     var uploadAttempts = 0;
                     for (var attempt = 1; attempt <= ChunkUploadMaxRetries; attempt++)
                     {
+                        // Rate-limit backoff: if any consumer hit a 429 recently, wait
+                        // until a full cooldown window (10s) has elapsed since the last 429.
+                        // This prevents the next chunk from immediately hitting the rate
+                        // limit again when the server's sliding window hasn't reset.
+                        var lastRateLimit = new DateTime(Interlocked.Read(ref _lastRateLimitTicks));
+                        if (lastRateLimit > DateTime.MinValue)
+                        {
+                            var elapsed = DateTime.UtcNow - lastRateLimit;
+                            var cooldown = TimeSpan.FromSeconds(10);
+                            if (elapsed < cooldown)
+                            {
+                                var wait = cooldown - elapsed;
+                                _logger.LogDebug(
+                                    "Rate-limit cooldown: waiting {DelayMs}ms before chunk {Hash} attempt {Attempt} (last 429 was {ElapsedMs}ms ago).",
+                                    (int)wait.TotalMilliseconds, chunk.Hash, attempt, (int)elapsed.TotalMilliseconds);
+                                await Task.Delay(wait, cancellationToken);
+                            }
+                        }
+
                         uploadAttempts = attempt;
                         try
                         {
@@ -241,14 +309,47 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
                         }
                         catch (HttpRequestException ex) when (
                             attempt < ChunkUploadMaxRetries &&
-                            (ex.StatusCode is null || (int)ex.StatusCode >= 500))
+                            ex.StatusCode == System.Net.HttpStatusCode.BadGateway)
                         {
-                            var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt - 1))
-                                        + TimeSpan.FromMilliseconds(Random.Shared.Next(0, 500));
+                            // YARP reverse proxy errors — use longer backoff since the
+                            // proxy may need time to recover or reconnect to the backend.
+                            var delay = TimeSpan.FromSeconds(Math.Pow(4, attempt - 1))
+                                        + TimeSpan.FromMilliseconds(Random.Shared.Next(0, 2000));
+                            _logger.LogWarning(ex,
+                                "Chunk {Hash} upload attempt {Attempt}/{MaxAttempts} failed (502 Bad Gateway). Retrying in {DelayMs}ms.",
+                                chunk.Hash, attempt, ChunkUploadMaxRetries, (int)delay.TotalMilliseconds);
+                            await Task.Delay(delay, cancellationToken);
+                        }
+                        catch (HttpRequestException ex) when (
+                            attempt < ChunkUploadMaxRetries &&
+                            (ex.StatusCode is null || ((int)ex.StatusCode >= 500 && (int)ex.StatusCode != 502) || (int)ex.StatusCode == 429))
+                        {
+                            if (ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+                                Interlocked.Exchange(ref _lastRateLimitTicks, DateTime.UtcNow.Ticks);
+
+                            var delay = TimeSpan.FromSeconds(Math.Pow(3, attempt - 1))
+                                        + TimeSpan.FromMilliseconds(Random.Shared.Next(0, 1000));
                             _logger.LogWarning(ex,
                                 "Chunk {Hash} upload attempt {Attempt}/{MaxAttempts} failed. Retrying in {DelayMs}ms.",
                                 chunk.Hash, attempt, ChunkUploadMaxRetries, (int)delay.TotalMilliseconds);
                             await Task.Delay(delay, cancellationToken);
+                        }
+                        catch (HttpRequestException ex) when (
+                            ex.StatusCode == System.Net.HttpStatusCode.NotFound &&
+                            existingSession is not null)
+                        {
+                            // The resumed upload session was cleaned up on the server
+                            // (e.g. server maintenance, orphan cleanup). Delete local
+                            // session record so the next sync pass starts fresh instead
+                            // of retrying a dead session.
+                            _logger.LogWarning(
+                                "Upload session {SessionId} no longer exists on server (404). " +
+                                "Cleaning up local session record so file is re-uploaded fresh.",
+                                capturedSessionId);
+                            if (_stateDb is not null && stateDatabasePath is not null)
+                                await _stateDb.DeleteActiveUploadSessionAsync(
+                                    stateDatabasePath, capturedSessionId, cancellationToken);
+                            throw;
                         }
                         catch (TaskCanceledException ex) when (
                             attempt < ChunkUploadMaxRetries &&
@@ -300,10 +401,11 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
             }
             catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Conflict)
             {
-                // Server returned 409 — file with this name already exists.
-                // Treat as success: the file is already on the server.
-                _logger.LogWarning(
-                    "CompleteUpload returned 409 for {FileName} — file already exists on server. Treating as success.",
+                // Server returned 409 — the file name already exists in this folder
+                // (unique constraint violation from a concurrent upload completing first).
+                // Look up the existing node on the server so we can store its real NodeId.
+                _logger.LogInformation(
+                    "CompleteUpload 409 for {FileName} — looking up existing node on server.",
                     fileName);
 
                 // Clean up the upload session tracking.
@@ -312,7 +414,31 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
 
                 uploadTimer.Stop();
 
-                // Return empty GUID — caller should look up the existing node if needed.
+                try
+                {
+                    var children = await _api.ListChildrenAsync(parentFolderId, cancellationToken);
+                    var existing = children.FirstOrDefault(c =>
+                        string.Equals(c.Name, fileName, StringComparison.OrdinalIgnoreCase));
+
+                    if (existing is not null)
+                    {
+                        _logger.LogInformation(
+                            "CompleteUpload 409 for {FileName} — found existing node {NodeId}. Recording without upload.",
+                            fileName, existing.Id);
+                        return new UploadResult(existing.Id, existing.ContentHash);
+                    }
+
+                    _logger.LogWarning(
+                        "CompleteUpload 409 for {FileName} — could not find existing node in parent folder. Storing empty NodeId.",
+                        fileName);
+                }
+                catch (Exception listEx) when (listEx is not OperationCanceledException)
+                {
+                    _logger.LogWarning(listEx,
+                        "CompleteUpload 409 for {FileName} — failed to look up existing node. Storing empty NodeId.",
+                        fileName);
+                }
+
                 return new UploadResult(existingNodeId ?? Guid.Empty, null);
             }
 
@@ -321,13 +447,17 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
                 await _stateDb.DeleteActiveUploadSessionAsync(stateDatabasePath, capturedSessionId, cancellationToken);
 
             uploadTimer.Stop();
+            var throughputMbps = uploadTimer.Elapsed.TotalSeconds > 0
+                ? fileSize / uploadTimer.Elapsed.TotalSeconds / (1024.0 * 1024.0)
+                : 0;
 
             _logger.LogInformation(
-                "File upload complete: FileName={FileName}, NodeId={NodeId}, FileSize={FileSize}, DurationMs={DurationMs}.",
+                "File upload complete: FileName={FileName}, NodeId={NodeId}, FileSize={FileSize}, DurationMs={DurationMs}, ThroughputMbps={Throughput:F1}.",
                 fileName,
                 result.Id,
                 fileSize,
-                uploadTimer.ElapsedMilliseconds);
+                uploadTimer.ElapsedMilliseconds,
+                throughputMbps);
 
             return new UploadResult(result.Id, result.ContentHash);
         }
@@ -389,12 +519,16 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
             }
 
             downloadTimer.Stop();
+            var dlThroughputMbps = downloadTimer.Elapsed.TotalSeconds > 0
+                ? manifest.TotalSize / downloadTimer.Elapsed.TotalSeconds / (1024.0 * 1024.0)
+                : 0;
 
             _logger.LogInformation(
-                "File download complete: NodeId={NodeId}, FileSize={FileSize}, DurationMs={DurationMs}.",
+                "File download complete: NodeId={NodeId}, FileSize={FileSize}, DurationMs={DurationMs}, ThroughputMbps={Throughput:F1}.",
                 nodeId,
                 manifest.TotalSize,
-                downloadTimer.ElapsedMilliseconds);
+                downloadTimer.ElapsedMilliseconds,
+                dlThroughputMbps);
 
             return stream;
         }
@@ -420,11 +554,18 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
 
     // ── Private helpers ─────────────────────────────────────────────────────
 
-    private const int ChunkDownloadMaxAttempts = 3;
-    private const int ChunkUploadMaxRetries = 3;
+    private const int ChunkDownloadMaxAttempts = 6;
+    private const int ChunkUploadMaxRetries = 6;
 
-    /// <summary>Bounded channel capacity: limits peak memory to ~32 MB (8 × 4 MB avg).</summary>
-    private const int ChannelCapacity = 8;
+    /// <summary>Bounded channel capacity: limits peak memory to ~64 MB (16 × 4 MB avg).</summary>
+    private const int ChannelCapacity = 16;
+
+    /// <summary>
+    /// Timestamp of the last HTTP 429 (Too Many Requests) response. Used by all consumers
+    /// to coordinate backoff — when one consumer hits a rate limit, others wait before
+    /// sending their next chunk to reduce collective pressure on the server.
+    /// </summary>
+    private long _lastRateLimitTicks;
 
     /// <summary>Maximum age of an upload session eligible for crash resumption. Aligned with server cleanup window (48 h).</summary>
     private static readonly TimeSpan SessionResumeWindow = TimeSpan.FromHours(48);
@@ -855,4 +996,20 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
     }
 
     private record ChunkMetadata(string Hash, int Size);
+
+    private static async IAsyncEnumerable<UploadStreamChunk> StreamChunksAsync(
+        Stream stream,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var index = 0;
+        await foreach (var chunk in ChunkFileAsync(stream, cancellationToken))
+        {
+            yield return new UploadStreamChunk
+            {
+                Hash = chunk.Hash,
+                Data = chunk.Data,
+                Index = index++
+            };
+        }
+    }
 }

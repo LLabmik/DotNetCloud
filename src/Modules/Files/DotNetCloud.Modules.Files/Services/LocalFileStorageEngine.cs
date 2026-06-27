@@ -42,7 +42,12 @@ public sealed class LocalFileStorageEngine : IFileStorageEngine
             Directory.CreateDirectory(directory);
         }
 
-        await File.WriteAllBytesAsync(fullPath, data.ToArray(), cancellationToken);
+        // Write directly from ReadOnlyMemory<byte> without copying to a new array.
+        // File.WriteAllBytesAsync would require ToArray() — use FileStream instead.
+        await using var fs = new FileStream(fullPath, FileMode.Create, FileAccess.Write,
+            FileShare.None, bufferSize: 4096, useAsync: true);
+        await fs.WriteAsync(data, cancellationToken);
+        await fs.FlushAsync(cancellationToken);
 
         // Verify the write completed fully — catches disk-full, truncation, filesystem errors.
         var writtenSize = new FileInfo(fullPath).Length;

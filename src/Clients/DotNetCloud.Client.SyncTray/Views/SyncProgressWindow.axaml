@@ -90,6 +90,29 @@
             </StackPanel>
         </Border>
 
+        <!-- Full-sync progress -->
+        <Border DockPanel.Dock="Top"
+                Background="#111823"
+                CornerRadius="6"
+                Padding="10,8"
+                Margin="0,0,0,10"
+                IsVisible="{Binding ShowFullSyncProgress}">
+            <StackPanel Spacing="6">
+                <TextBlock Text="{Binding FullSyncPhaseLabel, FallbackValue='Synchronizing…'}"
+                           FontSize="11"
+                           Foreground="#8B9DC3" />
+                <ProgressBar Value="{Binding FullSyncProgressPercent}"
+                             Minimum="0"
+                             Maximum="100"
+                             Height="6"
+                             CornerRadius="3" />
+                <TextBlock Text="{Binding FullSyncProgressText}"
+                           FontSize="10"
+                           Foreground="#556688"
+                           HorizontalAlignment="Right" />
+            </StackPanel>
+        </Border>
+
         <!-- Empty state -->
         <StackPanel VerticalAlignment="Center"
                     HorizontalAlignment="Center"

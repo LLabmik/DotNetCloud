@@ -66,7 +66,9 @@ public class DotNetCloudApiClientTests
 
         await apiClient.ListChildrenAsync(null);
 
-        StringAssert.Contains(capturedPath, "root/children");
+        // The route for listing root children changed from a dedicated endpoint
+        // (root/children) to the general files listing endpoint (api/v1/files).
+        StringAssert.Contains(capturedPath, "api/v1/files");
     }
 
     [TestMethod]

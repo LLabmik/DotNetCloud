@@ -78,7 +78,7 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         // where the record exists but the data was lost/never written.
         var candidateChunks = await _db.FileChunks
             .AsNoTracking()
-            .Where(c => dto.ChunkHashes.Contains(c.ChunkHash))
+            .Where(c => dto.ChunkHashes.Contains(c.ChunkHash) && c.ReferenceCount > 0)
             .Select(c => new { c.ChunkHash, c.StoragePath })
             .ToListAsync(cancellationToken);
 
@@ -134,6 +134,9 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         return new UploadSessionDto
         {
             SessionId = session.Id,
+            TotalChunks = session.TotalChunks,
+            ReceivedChunks = session.ReceivedChunks,
+            Status = session.Status,
             ExistingChunks = existingHashes,
             MissingChunks = missingHashes,
             ExpiresAt = session.ExpiresAt
@@ -230,6 +233,11 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         if (availableHashes.Count != manifest.Count)
         {
             var missing = manifest.Except(availableHashes).ToList();
+            // Update session to reflect reality — prevents stale ReceivedChunks from
+            // misleading clients after orphaned chunks are garbage-collected.
+            session.ReceivedChunks = availableHashes.Count;
+            session.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync(cancellationToken);
             throw new Core.Errors.ValidationException("Chunks", $"Missing {missing.Count} chunk(s). Upload them before completing.");
         }
 
@@ -366,12 +374,14 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
                 };
                 _db.FileVersions.Add(version);
 
-                // Create version-chunk mappings and increment refcounts
+                // Create version-chunk mappings and collect chunk IDs for batched refcount increment.
                 var chunkSizes = session.ChunkSizesManifest is not null
                     ? JsonSerializer.Deserialize<List<int>>(session.ChunkSizesManifest)!
                     : null;
 
                 long byteOffset = 0;
+                var chunkIds = new List<Guid>(manifest.Count);
+                var chunkEntities = new List<FileChunk>(manifest.Count);
                 for (var i = 0; i < manifest.Count; i++)
                 {
                     var chunk = await _db.FileChunks
@@ -391,13 +401,17 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
                     });
 
                     byteOffset += chunkSize;
+                    chunkIds.Add(chunk.Id);
+                    chunkEntities.Add(chunk);
+                }
 
-                    // Atomic increment via raw SQL — avoids EF in-memory read-modify-write race.
-                    await ChunkReferenceHelper.IncrementAsync(_db, chunk.Id, cancellationToken);
+                // Batch increment all chunk refcounts in a single DB round-trip.
+                await ChunkReferenceHelper.IncrementBatchAsync(_db, chunkIds, cancellationToken);
 
-                    // When using a real DB (not InMemory), detach the chunk so EF doesn't
-                    // overwrite the atomically-set value on SaveChangesAsync.
-                    if (!ChunkReferenceHelper.IsInMemoryProvider(_db))
+                // Detach all chunk entities so EF doesn't overwrite the atomically-set values.
+                if (!ChunkReferenceHelper.IsInMemoryProvider(_db))
+                {
+                    foreach (var chunk in chunkEntities)
                         _db.Entry(chunk).State = EntityState.Detached;
                 }
 
@@ -571,6 +585,9 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         return new UploadSessionDto
         {
             SessionId = session.Id,
+            TotalChunks = session.TotalChunks,
+            ReceivedChunks = session.ReceivedChunks,
+            Status = session.Status,
             ExistingChunks = existingHashes,
             MissingChunks = manifest.Where(h => !existingSet.Contains(h)).ToList(),
             ExpiresAt = session.ExpiresAt

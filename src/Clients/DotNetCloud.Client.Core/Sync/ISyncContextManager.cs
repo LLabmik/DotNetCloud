@@ -69,6 +69,12 @@ public interface ISyncContextManager
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Marks all unresolved conflicts across all contexts as resolved with the given
+    /// resolution string. Returns the total number of conflicts resolved.
+    /// </summary>
+    Task<int> BatchResolveConflictsAsync(string resolution, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Updates the global bandwidth throttle limits, persists them to <c>sync-settings.json</c>,
     /// and updates all registrations for newly created engines.
     /// </summary>

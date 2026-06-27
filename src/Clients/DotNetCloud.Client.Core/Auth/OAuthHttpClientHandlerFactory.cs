@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Security;
 using System.Net.Sockets;
+using System.Security.Cryptography.X509Certificates;
 
 namespace DotNetCloud.Client.Core.Auth;
 
@@ -11,31 +12,50 @@ namespace DotNetCloud.Client.Core.Auth;
 public static class OAuthHttpClientHandlerFactory
 {
     /// <summary>
-    /// Creates a handler that keeps strict TLS by default, but allows invalid certs
-    /// for local/self-hosted targets commonly used during LAN deployments.
+    /// Creates a pooled <see cref="SocketsHttpHandler"/> tuned for high-throughput scenarios
+    /// (16 connections per server, 10 min pool lifetime, HTTP/2, keepalive). The handler
+    /// allows self-signed certs for local/private hosts via <see cref="CreatePermissiveSslOptions"/>.
     /// </summary>
-    public static HttpMessageHandler CreateHandler()
+    public static SocketsHttpHandler CreatePooledHandler()
     {
-        var handler = new HttpClientHandler();
-        handler.AutomaticDecompression = System.Net.DecompressionMethods.All;
-        handler.ServerCertificateCustomValidationCallback = static (request, _, _, errors) =>
+        return new SocketsHttpHandler
+        {
+            AutomaticDecompression = System.Net.DecompressionMethods.All,
+            MaxConnectionsPerServer = 16,
+            PooledConnectionLifetime = TimeSpan.FromMinutes(10),
+            EnableMultipleHttp2Connections = true,
+            KeepAlivePingDelay = TimeSpan.FromSeconds(30),
+            SslOptions = CreatePermissiveSslOptions(),
+        };
+    }
+
+    /// <summary>
+    /// Creates <see cref="SslClientAuthenticationOptions"/> that enforces strict TLS
+    /// for public hosts but allows self-signed / invalid certs for local/private hosts.
+    /// </summary>
+    public static SslClientAuthenticationOptions CreatePermissiveSslOptions()
+    {
+        var sslOptions = new SslClientAuthenticationOptions();
+        sslOptions.RemoteCertificateValidationCallback = (_, _, _, errors) =>
         {
             if (errors == SslPolicyErrors.None)
-            {
                 return true;
-            }
 
-            var host = request?.RequestUri?.Host;
+            // SocketsHttpHandler sets TargetHost before the callback fires.
+            var host = sslOptions.TargetHost;
             if (string.IsNullOrWhiteSpace(host))
-            {
                 return false;
-            }
 
             return IsLocalOrPrivateHost(host);
         };
-
-        return handler;
+        return sslOptions;
     }
+
+    /// <summary>
+    /// Creates a handler that keeps strict TLS by default, but allows invalid certs
+    /// for local/self-hosted targets commonly used during LAN deployments.
+    /// </summary>
+    public static HttpMessageHandler CreateHandler() => CreatePooledHandler();
 
     private static bool IsLocalOrPrivateHost(string host)
     {

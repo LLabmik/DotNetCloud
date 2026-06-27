@@ -581,3 +581,38 @@ Additionally, the Android client has its own `ApplicationDisplayVersion` in `/sr
 1. `/Directory.Build.props` — central version properties
 2. `/src/Clients/DotNetCloud.Client.Android/DotNetCloud.Client.Android.csproj` — `ApplicationDisplayVersion`
 3. Any packaging scripts that hard-code a default version (e.g., `build-desktop-client-bundles.ps1`, `build-desktop-client-appimage.sh` — their `$Version` / `$VERSION` defaults)
+
+---
+
+## ⚠️ read_file Tool — Editor Buffer Cache (KNOWN ISSUE)
+
+**Problem:** The `read_file` tool reads from the VS Code **editor document buffer**, NOT from disk. If a file is open in the editor and is modified externally (e.g., by `python3`, `sed`, or git operations writing directly to the file), `read_file` will return **stale/cached content** from the editor buffer.
+
+**Symptoms:**
+
+- `read_file` shows old content that doesn't match `git show HEAD:path` or `cat path`
+- `git show` and `sed`/`cat` show the correct latest content
+- The file is open in the VS Code editor
+
+**Fix (before using read_file on potentially-stale files):**
+
+```
+# Option 1: Close the editor tab (preferred)
+workbench.action.closeActiveEditor
+
+# Option 2: Revert the file to reload from disk
+workbench.action.files.revert
+```
+
+**Reliable fallback when read_file seems wrong:**
+
+```bash
+# Use git to read the committed version
+git show HEAD:path/to/file
+
+# Use cat/sed to read from disk directly
+cat path/to/file
+sed -n '10,30p' path/to/file
+```
+
+**Prevention:** Always close the editor tab after externally modifying a file, or use `run_in_terminal` with `cat`/`sed`/`git show` as the primary read method for files that may have been modified externally.

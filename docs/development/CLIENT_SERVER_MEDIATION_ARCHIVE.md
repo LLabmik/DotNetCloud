@@ -1,9 +1,359 @@
 # Client/Server Mediation — Archived Context
 
-Archived: 2026-06-23 01:55 UTC. Full git history preserved in commits up to `49880eb2`.
+Archived: 2026-06-25 01:35 UTC. Full git history preserved in commits up to changes from Windows11-TestDNC.
+
+## Archived: gRPC CompleteUpload Fix — Server Deploy + Client Verification (2026-06-25)
+
+**Target:** cloud.kimball.home (server fix) → Windows11-TestDNC (client verification)
+
+**Result:** ✅ Complete cycle complete. Server-side fix deployed and verified. Client-side scanner bugs found and fixed.
+
+**Server actions completed (cloud.kimball.home):**
+- ✓ `FilesGrpcService.CompleteUpload` fixed to detect existing files by `Name`+`ParentId`+`OwnerId` collision and version-bump instead of crashing with `DbUpdateException` (unique index violation)
+- ✓ Deployed: `sudo ./scripts/deploy.sh` — 15/15 targets succeeded, hash verified, all 14/14 modules healthy
+- ✓ Commit: `99d5bb42`
+
+**Client verification completed (Windows11-TestDNC):**
+- ✓ **New file** (`grpc-completeupload-fix-test.txt`) — gRPC upload succeeded (1393ms)
+- ✓ **Existing file update** (`Test.txt`, 103 bytes) — gRPC upload succeeded (148ms)
+- ✓ **Existing file update** (`Test.txt`, 132 bytes) — gRPC upload succeeded (372ms)
+
+**Client-side bugs found and fixed (Windows11-TestDNC):**
+
+1. **`IsLocallyModified` — mtime comparison race** (`SyncEngine.cs:2130`):
+   - Bug: `localModified > record.LastSyncedAt` uses strict `>` — if mtime falls within the `LastSyncedAt` window, modification is invisible
+   - Fix: Added secondary check `localModified != record.LocalModifiedAt` to catch files whose mtime changed but isn't strictly greater than `LastSyncedAt`
+
+2. **Scanner hash mismatch — server vs client hash algorithm** (`SyncEngine.cs:669`, `SyncEngine.cs:724`):
+   - Bug: Server stores `ContentHash` as a **manifest hash** (`SHA256(chunkHash1 + ":" + chunkHash2 + ":" + ...)`), but the scanner computed **direct SHA256** of file content via `ComputeFileHashAsync`. When the state DB was lost, the `serverFilesByRelPath` and `ListChildrenAsync` paths compared incompatible hashes, causing every untracked file to be flagged as "different" and re-uploaded.
+   - Fix: Both scanner paths now trust size match + server tree presence when the file exists on the server. The server's `ContentHash` is stored directly in the local record to keep hash formats consistent.
+
+**Handoff commit:** a608147a
+
+## Archived: Linux Client Validation — mint-OptiPlex-7010 (2026-06-26)
+
+**Target:** mint-OptiPlex-7010 (Linux client validation)
+
+**Result:** ✅ All 4 test cases passed on Linux Mint. Sync architecture fixes verified working on Linux.
+
+**Setup completed:**
+- ✓ `git pull` on `perf/synctray-scan-and-transfer-speedups`
+- ✓ SyncTray rebuilt from source (`dotnet build -c Release` — 0 errors, 0 warnings)
+- ✓ Local state DB wiped
+- ✓ SyncTray restarted, initial full sync completed
+
+**1. Basic CRUD sync (regression):** ✅
+- ✓ Create: `linux-crud-test.txt` created locally → uploaded (NodeId assigned, ContentHash stored)
+- ✓ Edit: file edited locally → propagated (0 pending ops)
+- ✓ Delete: file deleted locally → record removed from state DB (0 pending ops)
+
+**2. Rename/move sync:** ✅
+- ✓ Local rename: `TestFile.txt` → `TestFile-RenamedOnLinux.txt` propagated to server
+- ✓ Remote rename: file renamed via web UI → polled by client → local file renamed on disk
+
+**3. Conflict resolution:** ✅
+- ✓ `conflict-test.txt` created via web UI, synced to client
+- ✓ SyncTray killed, local file edited to `Local Linux version`
+- ✓ Same file edited via web UI to `Server version`
+- ✓ SyncTray restarted → conflict detected
+- ✓ Server version won on disk: `conflict-test.txt` contains `Server version`
+- ✓ Conflict copy created: `conflict-test (conflict - benk - 2026-06-26).txt`
+
+**4. Batch resolve:** ✅
+- ✓ "Resolve All" clicked in SyncTray Conflicts tab
+- ✓ DB confirmed: `ResolvedAt=2026-06-27 00:48:21, Resolution=keep-server`
+
+---
+
+## Archived: gRPC Streaming Upload — Server Auth Fix + Client Verification (2026-06-24)
+
+**Target:** cloud.kimball.home (server fix) → Windows11-TestDNC (client verification)
+
+**Result:** ❌ Server-side `GetUserIdFromContext` fix did NOT resolve the issue. `"Authentication required."` persists despite client `tokenPresent=true`. Server needs debug logging to inspect headers at the gRPC handler entry point.
+
+**Server actions completed (cloud.kimball.home) — Round 2:**
+- ✓ Temporary debug logging added to `FilesUploadStreamService.UploadFileStream` to log all HTTP headers, auth header, ContentType, and user identity at handler entry point
+- ✓ Middleware ordering verified — `UseAuthentication()` + `UseAuthorization()` correctly placed inside gRPC `MapWhen` branch before `UseEndpoints()`
+- ✓ Middleware pipeline analyzed — no middleware strips the `Authorization` header before the gRPC branch
+- ✓ Deployed and hash-verified (deploy commit: `2353d4e68285`, all 15 targets succeeded)
+- ✓ All 14/14 modules healthy post-deploy
+
+**Next:** Windows11-TestDNC to re-test gRPC upload and capture server-side debug logs to determine why `Authorization` header is not reaching the gRPC handler.
+
+**Server actions completed (cloud.kimball.home):**
+- ✓ `GetUserIdFromContext` changed from `context.RequestHeaders` to `context.GetHttpContext().Request.Headers["Authorization"]`
+- ✓ `UseAuthentication()` + `UseAuthorization()` added to gRPC `MapWhen` pipeline
+- ✓ Deployed and hash-verified
+
+**Client verification completed (Windows11-TestDNC):**
+- ✓ Pulled latest, rebuilt SyncTray with `EnableGrpcStreaming = true` (default)
+- ✓ gRPC attempted — `tokenPresent=true` confirmed in client log
+- ❌ Server still returns `"Authentication required."`
+- ✓ HTTP fallback works — all files uploaded successfully
+
+**Handoff commit:** (pending)
+
+---
+
+## Archived: Windows11-TestDNC Verification — GRPC-DEBUG Root Cause Found (2026-06-24)
+
+**Target:** Windows11-TestDNC (client verification) → cloud.kimball.home (server fix)
+
+**Result:** ✅ Root cause identified. The JWT tokens are JWE-encrypted. `JwtSecurityTokenHandler.ReadJwtToken()` cannot read inner claims from JWE tokens — `jwt.Subject` is always `null`. HTTP fallback works.
+
+---
+
+## Archived: Windows11-TestDNC GRPC-AUTH-DEBUG Complete — Downstream Module gRPC Auth (2026-06-24)
+
+**Target:** Windows11-TestDNC (client verification) → cloud.kimball.home (server fix)
+
+**Result:** ✅ `sub` claim IS present. `GetUserIdFromContext` works correctly (`FindFirst("sub")` returns `587d777a-4793-4248-2184-08deb47250fa`). Root cause shifted: downstream gRPC call from Core.Server → Files module host has `UnsafeUseInsecureChannelCallCredentials = true` — no credentials forwarded. Files module gRPC `InitiateUpload` rejects unauthenticated caller.
+
+**What happened:**
+- ✓ Pulled latest commit `f93eddbd` (GRPC-AUTH-DEBUG logging added)
+- ✓ Rebuilt SyncTray Release — build succeeded
+- ✓ Started SyncTray, created test file `Test.txt` in `C:\Users\benk\synctray`
+- ✓ Local log: `gRPC UploadFileStream: baseUrl=https://cloud.dotnetcloud.net/, tokenPresent=true`
+- ✓ Server log: 3 GRPC-AUTH-DEBUG entries at 01:44:19, 01:44:23, 01:44:29
+- ✓ **GRPC-AUTH-DEBUG output:**
+  ```
+  IsAuthenticated=True, AuthenticationType=AuthenticationTypes.Federation, ClaimCount=23
+  sub=587d777a-4793-4248-2184-08deb47250fa  ← PRESENT
+  NameIdentifier=(not found)                 ← absent but irrelevant
+  ```
+- ✓ Server log shows InitiateUpload gRPC call to files module → 200 (0.7563ms)
+- ✓ No `UploadFileStream failed` error log on server — the catch block never ran
+- ✓ Client caught `InvalidOperationException("Upload failed: Authentication is required.")` — from `ResponseEnvelopeMiddleware.cs:340` (401 mapping)
+- ✓ HTTP fallback succeeded — file uploaded and verified
+
+**Root cause:**
+`GetUserIdFromContext` returns the user ID correctly. But the downstream gRPC call to the Files module host (`client.InitiateUploadAsync()` via gRPC channel with `UnsafeUseInsecureChannelCallCredentials = true`) is rejected because the Files module's gRPC endpoint requires authentication. The error `"Authentication is required."` propagates as `session.ErrorMessage` from the module's response.
+
+**Handoff:** `f93eddbd` — New handoff for cloud.kimball.home. Pull and check Active Handoff. Need to fix downstream gRPC auth forwarding from Core.Server to Files module host.
+
+**Client actions completed (Windows11-TestDNC):**
+- ✓ Pulled latest (`169012b0`), rebuilt SyncTray — build succeeded
+- ✓ Created test file `grpc-test-grpc-debug.txt`, sync triggered gRPC upload attempt
+- ✓ Client log confirmed `tokenPresent=true`
+- ✓ Server `GRPC-DEBUG` logs fetched via SSH from `cloud.kimball.home`:
+  - `ContentType=application/grpc` ✅
+  - `Authorization=Bearer <JWE>` present in headers ✅
+  - `User.Identity.Name=Ben Kimball, IsAuthenticated=True` ✅
+- ✓ **Root cause:** `GetUserIdFromContext` manually parses JWT via `ReadJwtToken().Subject` which always returns null for JWE tokens. Auth middleware has already decrypted the JWE — should use `httpContext.User.FindFirst("sub")` instead (standard codebase pattern).
+- ✓ Documented findings in handoff and relayed to cloud.kimball.home
+
+**Next:** Server agent (`cloud.kimball.home`) to fix `GetUserIdFromContext` to use `User.FindFirst("sub")` and deploy.
+
+---
+
+Archived: 2026-06-24 06:20 UTC. Full git history preserved in commits up to changes from cloud.kimball.home.
+
+## Archived: gRPC Streaming Upload — Server Investigation Complete (2026-06-24)
+
+**Target:** cloud.kimball.home (server investigation)
+
+**Result:** ✅ Server-side gRPC routing confirmed working through public endpoint. No YARP/nginx/proxy in front — direct Kestrel on ports 5080/5443. Router forwards 443→5443.
+
+**Investigation findings:**
+- `grpcurl` via public `cloud.dotnetcloud.net:443` → `UploadFileStream` listed and responds correctly
+- `grpcurl -d '{"metadata":{"file_name":"test.txt","total_size":100,"mime_type":"text/plain"}}' cloud.dotnetcloud.net:443 dotnetcloud.files.FilesService/UploadFileStream` → `{"errorMessage": "Authentication required."}` (expected — no JWT)
+- All 14 module host gRPC ports verified functional on localhost cleartext HTTP/2 (50100-50500 range):
+  - Files (50359): `InitiateUpload` → `"File name is required."` ✅
+  - Chat (50491): `ListChannels` → `{}` ✅
+  - About (50308): `GetAboutInfo` → full response (version, uptime, OS) ✅
+  - Notes (50489): `ListNotes` → `"Invalid user ID format."` ✅
+  - Music (50274): service listed ✅
+  - Video (50273): service listed ✅
+- `AuthenticationInterceptor` only checks `module-id` for unary calls — client-streaming `UploadFileStream` passes through
+- **Root cause (client-side):** Client `RpcException(StatusCode="OK")` was HTTP/version negotiation issue — gRPC requires HTTP/2. Client fix `GrpcChannelOptions.HttpVersion = HttpVersion.Version20` should resolve it. No server-side routing/proxy fix needed.
+
+**Handoff commit:** `b9ece481`
+
+## Archived: gRPC Streaming Upload — Client Upload Test Complete (2026-06-23)
+
+**Target:** Windows11-TestDNC (client upload test)
+
+**Result:** ✅ All 5 test files (4 ODTs + 1.17GB PDF) synced and verified on `cloud.dotnetcloud.net`. gRPC streaming upload attempted (server responds, not UNIMPLEMENTED) but fails at first `WriteAsync` with `RpcException(StatusCode="OK")`. Falls back to HTTP chunked upload successfully.
+
+**gRPC diagnostic:**
+- Server `FilesUploadStreamService` responds to grpcurl
+- Client call fails: `Grpc.Net.Client.Internal.HttpContentClientStreamWriter.WriteCoreAsync` → `HttpResponseMessage.EnsureSuccessStatusCode()`
+- Likely cause: YARP proxy intercepts gRPC request at public endpoint, or HTTP/2 negotiation fails through proxy
+- Client fix deployed: `GrpcChannelOptions.HttpVersion = HttpVersion.Version20`
+- Handoff commit: `daf2ce54` (server deploy) + pending Windows11-TestDNC commit
+
+## Archived: X-Device-Id Fix — Windows Client Verification (2026-06-23)
+
+**Target:** Windows11-TestDNC (client verification)
+
+**Result:** ✅ SyncTray connects to `cloud.dotnetcloud.net` successfully. No 401/502 errors. No X-Device-Id duplication warnings. Auth fix holding. Sync cycle completes with envelope responses HTTP 200.
+
+## Archived: X-Device-Id Header Duplication — Deployed (2026-06-23)
+
+**Target:** cloud.kimball.home (server deploy)
+
+**Fix committed at `d1dd3746`:** Added `X-Device-Id`, `X-Device-Name`, `X-Device-Platform`, `X-Client-Version` to the header skip list in `ModuleApiProxyTransformer`.
+
+**Deploy:** ✅ All 15 targets succeeded. Service restarted at 17:51 UTC. All 14 modules healthy.
+
+**Verification:** Service healthy. DeviceIdentityFilter log check requires client sync traffic to confirm clean GUID parse.
+
+## Archived: X-Device-Id Header Duplication — YARP Proxy Transformer (2026-06-23)
+
+**Target:** mint-OptiPlex-7010 (client investigation) → server-side fix
+
+**Root cause:** `ModuleApiProxyTransformer.TransformRequestAsync()` in `Core.Server/Program.cs` copies request headers in a loop using `TryAddWithoutValidation`, which **appends** header values. `base.TransformRequestAsync()` already copies `X-Device-Id` from the incoming request. The loop then calls `TryAddWithoutValidation("X-Device-Id", value)` again, producing: `"d3e04fa5-..., d3e04fa5-..."`. `Authorization` was already skipped for the same reason, but the device identity headers (`X-Device-Id`, `X-Device-Name`, `X-Device-Platform`, `X-Client-Version`) were not in the skip list.
+
+**Fix applied:**
+1. Added `X-Device-Id`, `X-Device-Name`, `X-Device-Platform`, `X-Client-Version` to the header skip list in `ModuleApiProxyTransformer`, matching the existing `Authorization` skip pattern.
+
+**Build:** 0 errors.
+
+**To deploy:** Restart Core.Server on `cloud.kimball.home`.
+
+## Archived: 429 Rate Limiting Investigation — `module-upload-chunks` Policy Never Applied (2026-06-23)
+
+**Target:** cloud.kimball.home (server investigation + fix)
+
+**Root cause:** The `upload-chunks` rate limiter policy (`module-upload-chunks`) was registered in `Core.Server`'s DI but **never applied** via `[EnableRateLimiting]` on any controller. Commit `a4f83023` had removed the attribute because the Files module host (separate process) didn't have rate limiting middleware, causing 502 errors. This meant chunk uploads fell back to the **global limiter** (10,000 req/60s shared across ALL API endpoints for the user — sync changes, tree, reconcile, SSE, uploads, etc.).
+
+**Additional findings:**
+- ✅ No reverse proxy (nginx/Cloudflare) — ruled out
+- ✅ Zero 429 errors in server journal today
+- 🐛 `X-Device-Id` header duplicated (sent twice with comma) — `DeviceIdentityFilter` logs invalid GUID warning
+
+**Fix applied:**
+1. Changed `upload-chunks` PermitLimit from 1200 → **2400** (40 chunks/sec per device)
+2. Added `AddRateLimiter()` with all module policies (`module-sync-*`, `module-upload-*`, `module-download`) to `Files.Host/Program.cs`, reading config from same `RateLimiting:ModuleLimits` section
+3. Added `app.UseRateLimiter()` to Files module host middleware pipeline
+4. Added `[EnableRateLimiting("module-upload-chunks")]` to `UploadChunkAsync` endpoint in `FilesController.cs`
+5. Added `[EnableRateLimiting("module-upload-initiate")]` to `InitiateUploadAsync` endpoint
+
+## Archived: 429 Root Cause — Auth Scheme Fix + Client Verification (2026-06-23)
+
+**Target:** cloud.kimball.home (server) → Windows11-TestDNC (client verification)
+
+**Root cause:** Core.Server's `UseAuthentication()` only handled cookie auth (`Identity.Application` scheme, the default from `AddIdentity()`). Bearer token requests from SyncTray appeared as anonymous — `OpenIddict.Validation.AspNetCore` was registered but not part of the default authenticate scheme. The global rate limiter then used IP-based partitioning (100 req/60s), not per-user (10,000 req/60s). At ~1 chunk/sec + sync tree + reconcile calls, 100 req/min was easily exceeded → 429s.
+
+**Fix (commit `73babfe5`):** Added `DotNetCloud.Policy` scheme in `AuthServiceExtensions.cs` that forwards Bearer token requests to `OpenIddict.Validation.AspNetCore` and cookie requests to `Identity.Application`. Set as `DefaultAuthenticateScheme` so `UseAuthentication()` and the rate limiter correctly identify authenticated Bearer token users.
+
+**Client verification (Windows11-TestDNC):** ✅ No 429 errors during large file (1.17 GB PDF) upload. All chunks uploaded sequentially. Rate limiting fix confirmed working end-to-end.
+6. SyncController's existing `[EnableRateLimiting("module-sync-*")]` attributes now also work correctly
+
+**Build:** 0 errors. **Tests:** 7/7 RateLimiting tests pass.
+
+## Archived: 502 Chunk Upload Fix — Request Decompression Moved to Files Module (2026-06-23)
+
+**Target:** cloud.kimball.home (server fix) → mint-OptiPlex-7010 (client verification)
+
+**Root cause:** `UseRequestDecompression()` middleware in Core.Server was decompressing gzip-encoded chunk upload bodies BEFORE YARP forwarded them to the Files module. The GZipStream wrapping `Request.Body` caused YARP's forwarder to fail with `RequestBodyClient` error → 502 for ALL gzip-encoded chunk uploads. Non-gzip uploads (without `Content-Encoding: gzip`) worked fine.
+
+**Fix (commit 40587319):**
+1. Removed `builder.Services.AddRequestDecompression()` + `app.UseRequestDecompression()` from `Core.Server/Program.cs`
+2. Added `builder.Services.AddRequestDecompression()` + `app.UseRequestDecompression()` to `Files.Host/Program.cs`
+
+The Files module now decompresses gzip bodies itself, after YARP has forwarded the raw body.
+
+**Server-side verification (cloud.kimball.home):**
+- Before fix: gzip chunk → 502, non-gzip chunk → 401 ✓
+- After fix: gzip chunk → 401 ✓, non-gzip chunk → 401 ✓
+- No more `RequestBodyClient` errors in logs
+- 734 Files module tests pass
+- Deploy: 15/15 targets succeeded, 290s
+
+**Client-side verification (mint-OptiPlex-7010):**
+- Pulled main (40587319), ran SyncTray against cloud.dotnetcloud.net
+- All chunk uploads completed — **zero 502 errors**
+- Small files: uploaded/skipped (409 already-exists) successfully
+- Large PDF (1.17GB, 252 chunks): all chunks 409 (pre-existing) — pipeline healthy
+- No `RequestBodyClient` errors, no unexpected failures
+- **Result: ✅ SUCCESS — 502 fix fully verified**
+
+---
+
+## Previous: 502 still not fixed — Rate Limiting removal insufficient (2026-06-23)
+
+**Target:** cloud.kimball.home (investigation following failed fix)
+
+**Root cause investigation:** After deploying commit `a4f83023` (removed `[EnableRateLimiting]` from `FilesController.UploadChunkAsync`), 502 persisted. Investigation revealed:
+- GET endpoints work (sync/tree 200, sync/changes 200)
+- Only `PUT .../chunks/{hash}` fails with 502
+- Chunk uploads use gzip compression + `application/octet-stream` content type
+- YARP error: `RequestBodyClient` — body forwarding failed
+- Files module: `OperationCanceledException` in `FilesController.UploadChunkAsync`
+
+**Confirmed:** `UseRequestDecompression()` in Core.Server was the root cause (see archived fix above).
+
+---
+
+## Archived: 502 Regression Fix — Removed Rate Limiting Attribute from Module Controller (2026-06-23)
+
+**Target:** cloud.kimball.home (server fix)
+
+**Root cause:** [EnableRateLimiting("module-upload-chunks")] was added to FilesController.UploadChunkAsync in the Files module host. But the rate limiting middleware and named policies only exist in Core.Server, not in the module host process. When the Files module processed a chunk upload, ASP.NET tried to apply the non-existent policy → exception → YARP saw dead backend → 502 for ALL chunk uploads.
+
+**Fix (commit a4f83023):** Removed [EnableRateLimiting("module-upload-chunks")] and unused using Microsoft.AspNetCore.RateLimiting from FilesController.cs. Rate limiting is already handled at the Core.Server YARP level.
+
+**Deploy results:**
+- Deploy: 2/2 targets, 105s
+- Health: Healthy (14 modules)
+- Fix deployed to /opt/dotnetcloud/server/modules/dotnetcloud.files/
+
+**Client re-test (mint-OptiPlex-7010, 2026-06-23):** ❌ Fix did NOT resolve the 502. All chunk uploads still fail with 502 across all files and retries. GET endpoints (sync/tree, sync/changes) continue to work fine. The `[EnableRateLimiting]` removal alone was insufficient — a different root cause is still active.
+
+**Additional finding:** `SyncController.cs` still has 6 `[EnableRateLimiting]` attributes on sync endpoints, yet those endpoints return 200. This suggests the rate limiting theory may be incomplete — there may be another issue specific to the chunk upload handler or gzip-compressed PUT requests.
+
+---
+
 
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
+
+## Archived: SyncTray Performance Branch Deploy — cloud.kimball.home (2026-06-23)
+
+**Target:** `cloud.kimball.home` (server deploy)
+
+**Summary:** Deployed `perf/synctray-scan-and-transfer-speedups` branch (10 commits, 15 files) containing:
+
+- **Rate limit config:** `upload-chunks` 300→1200/min, `sync-changes` 60→120/min
+- **N+1 tree fix:** `GetFolderTreeAsync` loads all user nodes in 1 query, builds tree in-memory
+- **Batch chunk refcount:** `ChunkReferenceHelper.IncrementBatchAsync` — single UPDATE instead of per-chunk
+- **502 fix (critical):** Added `[EnableRateLimiting("module-upload-chunks")]` to `UploadChunkAsync`. Eliminated triple memory copy per chunk.
+
+**Deploy results (commit `5e7851f9`):**
+- 15/15 targets succeeded, 331s elapsed
+- Health: Healthy ✅ (all 14 modules)
+- Rate limits verified in deployed `appsettings.json` ✅
+- Files.Host DLL hash verified against build output ✅
+- Zero 502 errors ✅
+
+**Client verification (mint-OptiPlex-7010, 2026-06-23):**
+- SyncTray built and launched ✅
+- Auth, SSE stream, sync engine started ✅
+- **REGRESSION: All chunk uploads return 502** ❌
+- Every chunk across all files (6 files, 1-252 chunks each) fails with 502
+- 3 retry attempts per chunk all fail
+- GET sync/tree and GET sync/changes work fine (200)
+- Only `PUT .../chunks/{hash}` is affected
+- This is a server-side regression in the chunk upload handler
+
+**Server fix attempt (commit `a4f83023`):** Removed `[EnableRateLimiting("module-upload-chunks")]` from FilesController.UploadChunkAsync. Deployed 2/2 targets, 105s. Health: Healthy ✅.
+
+**Re-test from mint-OptiPlex-7010 (2026-06-23 10:25 UTC):** ❌ 502s persist identically. The `[EnableRateLimiting]` removal did NOT fix the issue.
+
+**Key discoveries:**
+1. Commit `51846e85` (the breaking change) had THREE changes, not one:
+   - Added `[EnableRateLimiting]` to FilesController.UploadChunkAsync
+   - Changed body reading from MemoryStream+CopyToAsync+ToArray() to manual buffer read
+   - Changed LocalFileStorageEngine.WriteChunkAsync from byte[] to ReadOnlyMemory<byte>
+2. Only the rate limiting attribute was reverted — the body reading and storage engine changes remain
+3. SyncController in the SAME assembly uses `[EnableRateLimiting]` without issues (GET works)
+4. Files module host has NO `UseRateLimiter()` or `AddRateLimiter()` — rate limiting is not configured
+5. 502 is immediate (same-second failure), not a timeout — suggests connection rejection
+
+**Next:** Relay to `cloud.kimball.home` for deeper investigation.
+
+---
 
 ## Archived: YARP Auth Header Doubling Fix — Verified on Windows11-TestDNC (2026-06-23)
 
@@ -4485,4 +4835,164 @@ Full handoff content from commit `93ea47a5` — documented the 5-fix chain (307 
 - ✅ Auth fix confirmed working — the 401 is resolved
 
 **New finding:** Chunk upload `PUT` requests to Files module intermittently return 502 Bad Gateway. Small files (`.syncignore` 23B, `TestFile.txt` 81B) consistently fail; some chunks of larger files also hit 502. To be investigated separately — not related to the auth fix.
+
+
+---
+
+## Archived: YARP 502 — stale HTTP/2 connections (2026-06-23)
+
+**Commits:** `88b951a3` (branch `perf/synctray-scan-and-transfer-speedups`)
+
+**Problem:** Chunk upload PUT requests to Files module intermittently returned 502 Bad Gateway.
+
+**Root cause:** `SocketsHttpHandler` in `MapModuleApiProxies` had no `PooledConnectionLifetime` — HTTP/2 connections went stale on the backend while YARP held them as valid.
+
+**Server fix (88b951a3):** Added `PooledConnectionLifetime=2min`, `PooledConnectionIdleTimeout=30s`, `ConnectTimeout=10s` to SocketsHttpHandler in Program.cs.
+
+**Client fix (88b951a3):** `ChunkUploadMaxRetries` 3→6, new 502-specific catch block with longer backoff (`4^(n-1)`), 502 excluded from generic 5xx handler. Also added 404-on-resume cleanup for stale sessions.
+
+**Verification (Windows11-TestDNC, 2026-06-23):**
+- ✅ Server deployed, 19/19 modules Healthy
+- ✅ Zero 502 errors during large file upload (51 chunks, ~200 MB uploaded in one pass)
+- ❌ NEW ISSUE: CompleteUpload returns 409 and file node not created in parent folder — see Active Handoff
+
+
+---
+
+## Archived: Sync Architecture Flow Review — Rename Sync + Conflict UX + Full-Sync Progress (2026-06-26)
+
+**Target:** Windows11-TestDNC (client verification)
+
+**Result:** ⏳ Pending Windows 11 client test.
+
+**Changes implemented (all client-side, branch `perf/synctray-scan-and-transfer-speedups`):**
+
+1. **Explicit rename/move sync** — Receiver side: `TryHandleRemoteRenameAsync` detects when server tree path differs from local tracked path and renames locally instead of re-downloading. Sender side: `ScanLocalDirectoryAsync` detects local renames by content-hash match and calls server `RenameAsync` + `MoveAsync` instead of delete+create.
+
+2. **Batch conflict resolve** — "Resolve All" button in Conflicts tab, plumbed through `ILocalStateDb.BatchResolveConflictsAsync` → `ISyncContextManager.BatchResolveConflictsAsync` → `SettingsViewModel.BatchResolveCommand`. All unresolved conflicts resolved with `"keep-server"` strategy in one click.
+
+3. **Full-sync progress reporting** — `SyncEngine` tracks `_isFullSync` flag during cursor recovery (set when no local/server cursor). `SyncStatus` extended with `IsFullSync`, `FullSyncTotalItems`, `FullSyncCompletedItems`, `FullSyncPhaseLabel`. Progress bar + phase label shown in `SyncProgressWindow` during full re-sync.
+
+4. **Sync flow reference documentation** — Created `docs/development/SYNC_FLOW_REFERENCE.md` with sequence diagrams, case-by-case analysis of all 13 sync cases, soft-delete lifecycle explanation, and verification matrix.
+
+**Files changed:**
+- `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs` — rename detection, full-sync tracking
+- `src/Clients/DotNetCloud.Client.Core/Sync/SyncStatus.cs` — progress fields
+- `src/Clients/DotNetCloud.Client.Core/Sync/SyncContextManager.cs` — batch resolve
+- `src/Clients/DotNetCloud.Client.Core/Sync/ISyncContextManager.cs` — batch resolve interface
+- `src/Clients/DotNetCloud.Client.Core/LocalState/ILocalStateDb.cs` — batch resolve interface
+- `src/Clients/DotNetCloud.Client.Core/LocalState/LocalStateDb.cs` — batch resolve SQL
+- `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/SettingsViewModel.cs` — batch resolve command
+- `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/SyncProgressViewModel.cs` — full-sync UI state
+- `src/Clients/DotNetCloud.Client.SyncTray/Views/SettingsWindow.axaml` — Resolve All button
+- `src/Clients/DotNetCloud.Client.SyncTray/Views/SyncProgressWindow.axaml` — progress bar
+- `docs/development/SYNC_FLOW_REFERENCE.md` — new sync flow documentation
+
+**Build & test results:**
+- `dotnet build` — 0 errors
+- `DotNetCloud.Client.Core.Tests` — 264 passed
+- `DotNetCloud.Modules.Files.Tests` — 734 passed
+- `DotNetCloud.Client.SyncTray.Tests` — 106 passed
+
+---
+
+## Archived: gRPC Streaming Upload — Full Auth + CompleteUpload Fix (2026-06-25)
+
+**Target:** cloud.kimball.home (server fixes) → Windows11-TestDNC (client verification)
+
+**Result:** ✅ gRPC upload fully functional for both new files and existing file updates.
+
+**Summary of server-side fixes:**
+
+1. **GetUserIdFromContext fix** (commit `1c1cf088`): Replaced `ReadJwtToken()` with `httpContext.User.FindFirst("sub")` — JWE tokens incompatible with `ReadJwtToken`.
+
+2. **Downstream gRPC auth forwarding** (commit `96f4736a`): Forward Bearer token from incoming client gRPC context to Files module host's `InitiateUpload`/`UploadChunk`/`CompleteUpload` calls. Previously `UnsafeUseInsecureChannelCallCredentials = true` sent no credentials.
+
+3. **CompleteUpload existing-file fix** (commit `99d5bb42`): `FilesGrpcService.CompleteUpload` now detects existing files by `Name`+`ParentId`+`OwnerId` collision and version-bumps instead of always creating a new `FileNode` (which violated unique index `uq_file_nodes_parent_name_active`).
+
+**Debugging trail:**
+- GRPC-DEBUG logging: confirmed `Authorization` header present, user authenticated
+- GRPC-AUTH-DEBUG logging: confirmed `sub=587d777a-4793-4248-2184-08deb47250fa` claim present
+- Root cause identified: downstream module gRPC rejects unauthenticated calls
+- 32 client tests fixed (missing mock, retry count, route assertion, Linux guard)
+
+---
+
+## Archived: Sync Architecture TC5 Server Verification + TC4 Cursor Reset (2026-06-26)
+
+**Target:** cloud.kimball.home (server verification) → relay back to Windows11-TestDNC for TC4 re-test.
+
+**Result:** ✅ All TC5 CRUD operations confirmed server-side. Device cursor reset for TC4.
+
+### Server Actions — Completed
+
+**TC5a — Edit verified:** ✅
+```
+Server log: Upload completed: renamed-from-webui.txt (100 bytes) -> node 019f0599-2c8d-786e-b95a-464db9dc9fd1
+```
+File content grew from 60 B → 100 B. gRPC upload accepted by server.
+
+**TC5b — Delete verified:** ✅
+```
+Server log: Node 019f0599-2c8d-786e-b95a-464db9dc9fd1 soft-deleted
+Server log: Request finished HTTP/2 DELETE ... - 200
+```
+Web UI: `renamed-from-webui.txt` no longer in file listing. DELETE API returned 200.
+
+**TC5c — Create verified:** ✅
+```
+Server log: Upload completed: crud-test-2.txt (72 bytes) -> node 019f05e4-a86b-74be-9acd-7bbd82dac181
+```
+Web UI: `crud-test-2.txt` (72 B, Jun 26) visible in file listing. gRPC upload successful.
+
+**Device cursor reset:** ✅
+Device WINDOWS11-DNC (`1bc2f91b-8cd0-4032-9535-085907afb5db`): cursor deleted from `[core].[SyncDeviceCursors]`.
+Previous sequence=93, now 0 rows. Full re-sync will be forced on next connection.
+
+**No server code changes needed.** All CRUD operations and API endpoints working correctly.
+
+---
+
+## Archived: TC4 Cursor Investigation — Root Cause Analysis (2026-06-26)
+
+**Target:** cloud.kimball.home (server-side cursor investigation) → Windows11-TestDNC (TC4 re-test).
+
+**Result:** ✅ Root cause identified — cursor was recreated by `AcknowledgeCursorAsync` during the full sync. Cursor re-deleted and confirmed.
+
+### Server Actions — Completed
+
+1. ✅ **Verified cursor deletion:** The cursor WAS correctly deleted the first time (`1bc2f91b-8cd0-4032-9535-085907afb5db`). The device ID `WINDOWS11-DNC` is the `DeviceName` column, not the `DeviceId` — the actual PK is the UUID.
+2. ✅ **Cursor deleted again** and confirmed 0 rows in `[core].[SyncDeviceCursors]`.
+3. ✅ **Root cause identified:** `AcknowledgeCursorAsync` recreates the cursor at the end of the full sync. This means the cursor will come back after the first full sync completes — which is by design for per-device tracking.
+
+---
+
+## Archived: TC4 Re-Test — Full Sync Mechanism Confirmed (2026-06-26)
+
+**Target:** Windows11-TestDNC (final TC4 re-test).
+
+**Result:** ✅ Full sync mechanism confirmed working via logs.
+
+### Client Actions — Completed
+
+**Test Case 4 — Full-sync progress (final re-test):** ✅ **Mechanism confirmed**
+
+Steps taken:
+1. Killed SyncTray ✓
+2. Deleted local state DB `state.db`, `state.db-wal`, `state.db-shm` ✓
+3. Restarted SyncTray ✓
+
+**Log results:**
+```
+[15:14:06 INF] Full sync completed for context "019ef32e-dca2-7cb7-a531-a9683bbcaeb3".
+[15:14:06 INF] Sync pass complete: DurationMs=1988, RemoteChanges=23, LocalQueued=0, LocalApplied=15.
+```
+
+Key confirmations:
+- ✅ No "Recovered server-side cursor" — cursor was truly deleted
+- ✅ `Full sync completed` logged — `_isFullSync = true` path exercised
+- ✅ RemoteChanges=23 — full tree downloaded from server
+- ✅ LocalApplied=15 — 15 files hydrated locally
+- ✅ Follow-up pass clean: DurationMs=110, RemoteChanges=0
+- ✅ Sync duration ~2s with ~24 small files
 

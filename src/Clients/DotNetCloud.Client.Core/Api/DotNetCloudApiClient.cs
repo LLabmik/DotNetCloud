@@ -1,8 +1,13 @@
+using System.Collections.Concurrent;
 using System.IO.Compression;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using DotNetCloud.Client.Core.Auth;
+using DotNetCloud.Modules.Files.Host.Protos;
+using Grpc.Core;
+using Grpc.Net.Client;
 using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Client.Core.Api;
@@ -17,9 +22,15 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
     private const int BaseDelayMs = 500;
     private const int MaxRateLimitDelaySeconds = 60;
 
+    /// <summary>Fraction of rate-limit budget below which we pre-emptively throttle.</summary>
+    private const double RateLimitPreemptThreshold = 0.2;
+
     private readonly HttpClient _http;
     private readonly ILogger<DotNetCloudApiClient> _logger;
     private static ILogger<DotNetCloudApiClient>? _staticLogger;
+
+    /// <summary>Per-endpoint rate-limit budget tracking for proactive throttling.</summary>
+    private readonly ConcurrentDictionary<string, RateLimitBudget> _rateBudgets = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Access token injected per-request.</summary>
     public string? AccessToken { get; set; }
@@ -91,8 +102,8 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
     public async Task<IReadOnlyList<FileNodeResponse>> ListChildrenAsync(Guid? folderId, CancellationToken cancellationToken = default)
     {
         var path = folderId.HasValue
-            ? $"api/v1/files/{folderId}/children"
-            : "api/v1/files/root/children";
+            ? $"api/v1/files?parentId={folderId}"
+            : "api/v1/files";
         return await GetAsync<List<FileNodeResponse>>(path, cancellationToken) ?? [];
     }
 
@@ -188,31 +199,64 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
     /// <inheritdoc/>
     public async Task UploadChunkAsync(Guid sessionId, int chunkIndex, string chunkHash, Stream chunkData, CancellationToken cancellationToken = default, string? fileExtension = null)
     {
-        using var request = CreateAuthenticatedRequest(HttpMethod.Put, $"api/v1/files/upload/{sessionId}/chunks/{chunkHash}");
+        // On 409 "hash mismatch" (server decompression not available), retry without compression.
+        // On 409 "already exists" (dedup), accept and return.
+        var maxAttempts = fileExtension is not null && PreCompressedExtensions.Contains(fileExtension) ? 1 : 2;
 
-        var skipCompression = fileExtension is not null && PreCompressedExtensions.Contains(fileExtension);
-
-        Stream contentStream;
-        if (skipCompression)
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
-            contentStream = chunkData;
-        }
-        else
-        {
-            var compressedMs = new MemoryStream();
-            await using (var gzip = new GZipStream(compressedMs, CompressionLevel.Fastest, leaveOpen: true))
-                await chunkData.CopyToAsync(gzip, cancellationToken);
-            compressedMs.Position = 0;
-            contentStream = compressedMs;
-        }
+            using var request = CreateAuthenticatedRequest(HttpMethod.Put, $"api/v1/files/upload/{sessionId}/chunks/{chunkHash}");
 
-        request.Content = new StreamContent(contentStream);
-        request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
-        if (!skipCompression)
-            request.Content.Headers.ContentEncoding.Add("gzip");
-        request.Headers.Add("X-Chunk-Hash", chunkHash);
-        using var response = await _http.SendAsync(request, cancellationToken);
-        response.EnsureSuccessStatusCode();
+            var skipCompression = attempt > 1;
+            if (!skipCompression)
+                skipCompression = fileExtension is not null && PreCompressedExtensions.Contains(fileExtension);
+
+            chunkData.Position = 0;
+            Stream contentStream;
+            if (skipCompression)
+            {
+                contentStream = chunkData;
+            }
+            else
+            {
+                var compressedMs = new MemoryStream();
+                await using (var gzip = new GZipStream(compressedMs, CompressionLevel.Fastest, leaveOpen: true))
+                    await chunkData.CopyToAsync(gzip, cancellationToken);
+                compressedMs.Position = 0;
+                contentStream = compressedMs;
+            }
+
+            request.Content = new StreamContent(contentStream);
+            request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+            if (!skipCompression)
+                request.Content.Headers.ContentEncoding.Add("gzip");
+            request.Headers.Add("X-Chunk-Hash", chunkHash);
+
+            using var response = await _http.SendAsync(request, cancellationToken);
+
+            if (response.IsSuccessStatusCode)
+                return;
+
+            if (response.StatusCode == HttpStatusCode.Conflict && attempt < maxAttempts)
+            {
+                var body = await response.Content.ReadAsStringAsync(cancellationToken);
+                if (body.Contains("hash", StringComparison.OrdinalIgnoreCase) ||
+                    body.Contains("match", StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger.LogWarning(
+                        "Chunk {Hash} upload attempt {Attempt} returned 409 (hash mismatch). " +
+                        "Retrying without compression.",
+                        chunkHash, attempt);
+                    continue;
+                }
+
+                // True dedup — server already has this chunk, treat as uploaded.
+                _logger.LogDebug("Chunk {Hash} already exists on server (409 Conflict) — treating as uploaded.", chunkHash);
+                return;
+            }
+
+            response.EnsureSuccessStatusCode();
+        }
     }
 
     /// <inheritdoc/>
@@ -221,6 +265,120 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
         var node = await PostJsonAsync<FileNodeResponse>($"api/v1/files/upload/{sessionId}/complete", new { }, cancellationToken)
                   ?? throw new InvalidOperationException("Server returned null for upload completion.");
         return new CompleteUploadResponse { Node = node };
+    }
+
+    /// <inheritdoc/>
+    public async Task<FileNodeResponse> UploadFileStreamAsync(
+        UploadStreamMetadata metadata,
+        IAsyncEnumerable<UploadStreamChunk> chunks,
+        CancellationToken cancellationToken = default)
+    {
+        var baseUrl = _http.BaseAddress?.ToString()
+            ?? throw new InvalidOperationException("HttpClient.BaseAddress is null.");
+
+        // Create a dedicated channel for gRPC streaming. Using a fresh SocketsHttpHandler
+        // bypasses the CorrelationIdHandler pipeline used by REST calls. HTTP/2 is
+        // required by gRPC — force it with HttpVersion and HttpVersionPolicy.
+        // Auth is set as a default request header on the HttpClient (NOT as gRPC metadata)
+        // because the server-side GetUserIdFromContext reads from HTTP/2 request headers,
+        // not from gRPC CallOptions metadata.
+        var httpHandler = new SocketsHttpHandler
+        {
+            EnableMultipleHttp2Connections = true,
+            ConnectTimeout = TimeSpan.FromSeconds(10),
+            SslOptions = OAuthHttpClientHandlerFactory.CreatePermissiveSslOptions(),
+        };
+        var httpClient = new HttpClient(httpHandler, disposeHandler: true);
+        if (AccessToken is not null)
+        {
+            httpClient.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", AccessToken);
+        }
+        using var channel = GrpcChannel.ForAddress(baseUrl, new GrpcChannelOptions
+        {
+            HttpClient = httpClient,
+            DisposeHttpClient = true,
+            HttpVersion = HttpVersion.Version20,
+            HttpVersionPolicy = HttpVersionPolicy.RequestVersionExact,
+        });
+
+        _logger.LogInformation(
+            "gRPC UploadFileStream: baseUrl={BaseUrl}, tokenPresent={TokenPresent}",
+            baseUrl, AccessToken is not null);
+        var client = new FilesService.FilesServiceClient(channel);
+        var callOptions = new CallOptions(
+            cancellationToken: cancellationToken);
+
+        using var call = client.UploadFileStream(callOptions);
+
+        // First message: metadata
+        var initReq = new InitiateUploadRequest
+        {
+            FileName = metadata.FileName,
+            ParentId = metadata.ParentId?.ToString() ?? string.Empty,
+            TotalSize = metadata.TotalSize,
+            MimeType = metadata.MimeType ?? string.Empty,
+        };
+        initReq.ChunkHashes.AddRange(metadata.ChunkHashes);
+        if (metadata.ChunkSizes is { Count: > 0 })
+            initReq.ChunkSizes.AddRange(metadata.ChunkSizes);
+        if (metadata.PosixMode.HasValue)
+            initReq.PosixMode = metadata.PosixMode.Value;
+        if (!string.IsNullOrEmpty(metadata.PosixOwnerHint))
+            initReq.PosixOwnerHint = metadata.PosixOwnerHint;
+
+        await call.RequestStream.WriteAsync(new UploadFileStreamRequest
+        {
+            Metadata = initReq
+        });
+
+        // Stream chunks
+        await foreach (var chunk in chunks.WithCancellation(cancellationToken))
+        {
+            await call.RequestStream.WriteAsync(new UploadFileStreamRequest
+            {
+                Chunk = new UploadChunkRequest
+                {
+                    ChunkHash = chunk.Hash,
+                    ChunkData = Google.Protobuf.ByteString.CopyFrom(chunk.Data)
+                }
+            });
+        }
+
+        await call.RequestStream.CompleteAsync();
+
+        var response = await call.ResponseAsync;
+
+        if (!response.Success)
+        {
+            throw new InvalidOperationException(
+                $"Upload failed: {response.ErrorMessage}");
+        }
+
+        return new FileNodeResponse
+        {
+            Id = Guid.TryParse(response.Node.Id, out var id) ? id : Guid.Empty,
+            Name = response.Node.Name,
+            NodeType = response.Node.NodeType,
+            MimeType = string.IsNullOrEmpty(response.Node.MimeType) ? null : response.Node.MimeType,
+            Size = response.Node.Size,
+            ParentId = string.IsNullOrEmpty(response.Node.ParentId) ? null : Guid.Parse(response.Node.ParentId),
+            OwnerId = string.IsNullOrEmpty(response.Node.OwnerId) ? Guid.Empty : Guid.Parse(response.Node.OwnerId),
+            CurrentVersion = response.Node.CurrentVersion,
+            ContentHash = string.IsNullOrEmpty(response.Node.ContentHash) ? null : response.Node.ContentHash,
+            CreatedAt = string.IsNullOrEmpty(response.Node.CreatedAt) ? default : DateTime.Parse(response.Node.CreatedAt),
+            UpdatedAt = string.IsNullOrEmpty(response.Node.UpdatedAt) ? default : DateTime.Parse(response.Node.UpdatedAt),
+            PosixMode = response.Node.HasPosixMode ? response.Node.PosixMode : null,
+            PosixOwnerHint = string.IsNullOrEmpty(response.Node.PosixOwnerHint) ? null : response.Node.PosixOwnerHint,
+        };
+    }
+
+    private Metadata GetGrpcHeaders()
+    {
+        var headers = new Metadata();
+        if (AccessToken is not null)
+            headers.Add("Authorization", $"Bearer {AccessToken}");
+        return headers;
     }
 
     // ── Download Operations ─────────────────────────────────────────────────
@@ -458,6 +616,18 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
         for (var attempt = 0; attempt <= MaxRetries; attempt++)
         {
             using var request = requestFactory();
+            var bucket = GetRateLimitBucket(request.RequestUri!);
+
+            // Proactively throttle if we're near the rate limit (based on previous responses).
+            if (attempt == 0 && _rateBudgets.TryGetValue(bucket, out var budget)
+                && budget.Remaining <= budget.Limit * RateLimitPreemptThreshold)
+            {
+                var waitMs = Math.Max(50, (int)(budget.ResetIn.TotalMilliseconds * 0.5));
+                _logger.LogDebug("Proactive rate-limit throttle for '{Bucket}': {Remaining}/{Limit} remaining. Waiting {WaitMs}ms.",
+                    bucket, budget.Remaining, budget.Limit, waitMs);
+                await Task.Delay(waitMs, cancellationToken);
+            }
+
             HttpResponseMessage response;
             try
             {
@@ -469,6 +639,9 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
                 await DelayAsync(attempt, null, cancellationToken);
                 continue;
             }
+
+            // Update rate-limit budget from response headers.
+            UpdateRateLimitBudget(bucket, response);
 
             // Handle rate limiting
             if (response.StatusCode == HttpStatusCode.TooManyRequests)
@@ -591,4 +764,57 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
         var jitterMs = Random.Shared.Next(50, 251);
         return capped + TimeSpan.FromMilliseconds(jitterMs);
     }
+
+    // ── Proactive rate-limit tracking ───────────────────────────────────────
+
+    /// <summary>Extracts a rate-limit bucket key from the request URI based on the API endpoint pattern.</summary>
+    private static string GetRateLimitBucket(Uri requestUri)
+    {
+        var path = requestUri.IsAbsoluteUri ? requestUri.AbsolutePath : requestUri.OriginalString;
+        // Group by endpoint category: upload/chunks, sync/changes, sync/tree, etc.
+        if (path.Contains("/upload/") && path.Contains("/chunks/"))
+            return "upload-chunks";
+        if (path.Contains("/upload/initiate"))
+            return "upload-initiate";
+        if (path.Contains("/upload/") && path.Contains("/complete"))
+            return "upload-complete";
+        if (path.Contains("/sync/changes"))
+            return "sync-changes";
+        if (path.Contains("/sync/tree"))
+            return "sync-tree";
+        if (path.Contains("/sync/stream"))
+            return "sync-stream";
+        if (path.Contains("/download"))
+            return "download";
+        // Default bucket for other endpoints.
+        return "default";
+    }
+
+    /// <summary>Parses rate-limit headers from the response and updates the budget tracker.</summary>
+    private void UpdateRateLimitBudget(string bucket, HttpResponseMessage response)
+    {
+        if (!int.TryParse(GetHeaderValue(response, "X-RateLimit-Remaining"), out var remaining))
+            return;
+        if (!int.TryParse(GetHeaderValue(response, "X-RateLimit-Limit"), out var limit) || limit <= 0)
+            limit = remaining > 0 ? remaining * 2 : 100; // Fallback estimate
+
+        var resetIn = TimeSpan.FromSeconds(60); // Default window
+        if (int.TryParse(GetHeaderValue(response, "X-RateLimit-Reset"), out var resetEpoch) && resetEpoch > 0)
+        {
+            var resetTime = DateTimeOffset.FromUnixTimeSeconds(resetEpoch);
+            resetIn = resetTime - DateTimeOffset.UtcNow;
+            if (resetIn <= TimeSpan.Zero)
+                resetIn = TimeSpan.FromSeconds(60);
+        }
+
+        _rateBudgets[bucket] = new RateLimitBudget(limit, remaining, resetIn);
+    }
+
+    private static string? GetHeaderValue(HttpResponseMessage response, string headerName)
+    {
+        return response.Headers.TryGetValues(headerName, out var values) ? values.FirstOrDefault() : null;
+    }
+
+    /// <summary>Tracks remaining rate-limit budget for a specific endpoint category.</summary>
+    private readonly record struct RateLimitBudget(int Limit, int Remaining, TimeSpan ResetIn);
 }

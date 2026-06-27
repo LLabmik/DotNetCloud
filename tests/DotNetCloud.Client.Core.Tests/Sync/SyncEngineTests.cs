@@ -59,6 +59,8 @@ public class SyncEngineTests
             .ReturnsAsync([]);
         _stateDbMock.Setup(db => db.GetPendingUploadPathsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new HashSet<string>());
+        _stateDbMock.Setup(db => db.GetActiveUploadSessionsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<ActiveUploadSessionRecord>());
         _stateDbMock.Setup(db => db.GetPendingDeleteNodeIdsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new HashSet<Guid>());
         _stateDbMock.Setup(db => db.UpdateCheckpointAsync(It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
@@ -1528,7 +1530,7 @@ public class SyncEngineTests
             .Setup(db => db.GetPendingUploadPathsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new HashSet<string>());
         _stateDbMock
-            .Setup(db => db.QueueOperationAsync(It.IsAny<string>(), It.IsAny<PendingOperationRecord>(), It.IsAny<CancellationToken>()))
+            .Setup(db => db.QueueOperationsBatchAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<PendingOperationRecord>>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         // Act
@@ -1537,9 +1539,9 @@ public class SyncEngineTests
         await _engine.StopAsync();
 
         // Assert: a PendingUpload was queued for the new file.
-        _stateDbMock.Verify(db => db.QueueOperationAsync(
+        _stateDbMock.Verify(db => db.QueueOperationsBatchAsync(
             _context.StateDatabasePath,
-            It.Is<PendingUpload>(u => u.LocalPath == filePath && u.NodeId == null),
+            It.Is<IReadOnlyList<PendingOperationRecord>>(ops => ops.Count == 1 && ((PendingUpload)ops[0]).LocalPath == filePath && ((PendingUpload)ops[0]).NodeId == null),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -1567,7 +1569,7 @@ public class SyncEngineTests
             .Setup(db => db.GetPendingUploadPathsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new HashSet<string>());
         _stateDbMock
-            .Setup(db => db.QueueOperationAsync(It.IsAny<string>(), It.IsAny<PendingOperationRecord>(), It.IsAny<CancellationToken>()))
+            .Setup(db => db.QueueOperationsBatchAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<PendingOperationRecord>>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         // The file still exists on the server — server tree includes this node.
@@ -1586,9 +1588,9 @@ public class SyncEngineTests
         await _engine.StopAsync();
 
         // Assert: a PendingUpload was queued with the existing NodeId.
-        _stateDbMock.Verify(db => db.QueueOperationAsync(
+        _stateDbMock.Verify(db => db.QueueOperationsBatchAsync(
             _context.StateDatabasePath,
-            It.Is<PendingUpload>(u => u.LocalPath == filePath && u.NodeId == nodeId),
+            It.Is<IReadOnlyList<PendingOperationRecord>>(ops => ops.Count == 1 && ((PendingUpload)ops[0]).LocalPath == filePath && ((PendingUpload)ops[0]).NodeId == nodeId),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -2121,8 +2123,8 @@ public class SyncEngineTests
                 NodeType = "Folder",
             });
 
-        _stateDbMock.Setup(db => db.QueueOperationAsync(
-                It.IsAny<string>(), It.IsAny<PendingOperationRecord>(), It.IsAny<CancellationToken>()))
+        _stateDbMock.Setup(db => db.QueueOperationsBatchAsync(
+                It.IsAny<string>(), It.IsAny<IReadOnlyList<PendingOperationRecord>>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         await _engine.StartAsync(_context);
@@ -2135,15 +2137,15 @@ public class SyncEngineTests
         Assert.IsTrue(File.Exists(filePath), "Locally-modified file should be kept even when absent from server tree.");
 
         // Assert: a PendingUpload was queued (stale NodeId cleared, so new upload without old NodeId).
-        _stateDbMock.Verify(db => db.QueueOperationAsync(
+        _stateDbMock.Verify(db => db.QueueOperationsBatchAsync(
             _context.StateDatabasePath,
-            It.Is<PendingUpload>(u => u.LocalPath == filePath),
+            It.Is<IReadOnlyList<PendingOperationRecord>>(ops => ops.Any(o => ((PendingUpload)o).LocalPath == filePath)),
             It.IsAny<CancellationToken>()), Times.AtLeastOnce);
 
         // Assert: stale tracking record WAS removed (NodeId no longer on server, content genuinely changed).
-        _stateDbMock.Verify(db => db.RemoveFileRecordAsync(
+        _stateDbMock.Verify(db => db.RemoveFileRecordsBatchAsync(
             _context.StateDatabasePath,
-            filePath,
+            It.Is<IReadOnlyList<string>>(paths => paths.Contains(filePath)),
             It.IsAny<CancellationToken>()), Times.AtLeastOnce);
     }
 
@@ -2192,8 +2194,8 @@ public class SyncEngineTests
                 ],
             });
 
-        _stateDbMock.Setup(db => db.QueueOperationAsync(
-                It.IsAny<string>(), It.IsAny<PendingOperationRecord>(), It.IsAny<CancellationToken>()))
+        _stateDbMock.Setup(db => db.QueueOperationsBatchAsync(
+                It.IsAny<string>(), It.IsAny<IReadOnlyList<PendingOperationRecord>>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         await _engine.StartAsync(_context);
@@ -2206,14 +2208,14 @@ public class SyncEngineTests
         Assert.IsTrue(File.Exists(file1), "Untracked local file should not be deleted.");
         Assert.IsTrue(File.Exists(file2), "Untracked local file should not be deleted.");
 
-        // Assert: both files were queued for upload.
-        _stateDbMock.Verify(db => db.QueueOperationAsync(
+        // Assert: both files were queued for upload via batch.
+        _stateDbMock.Verify(db => db.QueueOperationsBatchAsync(
             _context.StateDatabasePath,
-            It.Is<PendingUpload>(u => u.LocalPath == file1),
+            It.Is<IReadOnlyList<PendingOperationRecord>>(ops => ops.OfType<PendingUpload>().Any(u => u.LocalPath == file1)),
             It.IsAny<CancellationToken>()), Times.Once);
-        _stateDbMock.Verify(db => db.QueueOperationAsync(
+        _stateDbMock.Verify(db => db.QueueOperationsBatchAsync(
             _context.StateDatabasePath,
-            It.Is<PendingUpload>(u => u.LocalPath == file2),
+            It.Is<IReadOnlyList<PendingOperationRecord>>(ops => ops.OfType<PendingUpload>().Any(u => u.LocalPath == file2)),
             It.IsAny<CancellationToken>()), Times.Once);
 
         // Music folder should still exist.

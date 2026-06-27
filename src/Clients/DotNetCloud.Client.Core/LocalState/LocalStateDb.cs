@@ -173,6 +173,67 @@ public sealed class LocalStateDb : ILocalStateDb
     }
 
     /// <inheritdoc/>
+    public async Task UpdateFileRecordPathAsync(string dbPath, Guid nodeId, string newLocalPath, string? contentHash, DateTime localModifiedAt, CancellationToken cancellationToken = default)
+    {
+        await using var ctx = CreateContext(dbPath);
+        var record = await ctx.FileRecords.FirstOrDefaultAsync(r => r.NodeId == nodeId, cancellationToken);
+        if (record is not null)
+        {
+            record.LocalPath = newLocalPath;
+            record.ContentHash = contentHash;
+            record.LastSyncedAt = DateTime.UtcNow;
+            record.LocalModifiedAt = localModifiedAt;
+            await ctx.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task UpsertFileRecordsBatchAsync(string dbPath, IReadOnlyList<LocalFileRecord> records, CancellationToken cancellationToken = default)
+    {
+        if (records.Count == 0)
+            return;
+        await using var ctx = CreateContext(dbPath);
+        for (int i = 0; i < records.Count; i++)
+        {
+            var record = records[i];
+            var existing = await ctx.FileRecords.FirstOrDefaultAsync(r => r.LocalPath == record.LocalPath, cancellationToken);
+            if (existing is null)
+            {
+                ctx.FileRecords.Add(record);
+            }
+            else
+            {
+                existing.NodeId = record.NodeId;
+                existing.ContentHash = record.ContentHash;
+                existing.LastSyncedAt = record.LastSyncedAt;
+                existing.LocalModifiedAt = record.LocalModifiedAt;
+                existing.SyncStateTag = record.SyncStateTag;
+                existing.PosixMode = record.PosixMode;
+                existing.LinkTarget = record.LinkTarget;
+            }
+        }
+        await ctx.SaveChangesAsync(cancellationToken);
+        _logger.LogDebug("Batch upserted {Count} file records in {DbPath}.", records.Count, dbPath);
+    }
+
+    /// <inheritdoc/>
+    public async Task RemoveFileRecordsBatchAsync(string dbPath, IReadOnlyList<string> localPaths, CancellationToken cancellationToken = default)
+    {
+        if (localPaths.Count == 0)
+            return;
+        await using var ctx = CreateContext(dbPath);
+        var existing = await ctx.FileRecords
+            .Where(r => localPaths.Contains(r.LocalPath))
+            .ToListAsync(cancellationToken);
+        if (existing.Count > 0)
+        {
+            ctx.FileRecords.RemoveRange(existing);
+            await ctx.SaveChangesAsync(cancellationToken);
+            _logger.LogDebug("Batch removed {Count} file records in {DbPath}.", existing.Count, dbPath);
+        }
+    }
+
+    /// <inheritdoc/>
     public async Task RemoveFileRecordsUnderPathAsync(string dbPath, string folderPath, CancellationToken cancellationToken = default)
     {
         await using var ctx = CreateContext(dbPath);
@@ -248,6 +309,57 @@ public sealed class LocalStateDb : ILocalStateDb
     }
 
     /// <inheritdoc/>
+    public async Task QueueOperationsBatchAsync(string dbPath, IReadOnlyList<PendingOperationRecord> operations, CancellationToken cancellationToken = default)
+    {
+        if (operations.Count == 0)
+            return;
+        await using var ctx = CreateContext(dbPath);
+
+        // Load existing pending paths/NodeIds for dedup in one query each.
+        var existingUploadPaths = await ctx.PendingOperations
+            .Where(r => r.OperationType == "Upload" && r.LocalPath != null)
+            .Select(r => r.LocalPath!)
+            .ToListAsync(cancellationToken);
+        var existingDownloadNodeIds = await ctx.PendingOperations
+            .Where(r => r.OperationType == "Download" && r.NodeId != null)
+            .Select(r => r.NodeId!.Value)
+            .ToListAsync(cancellationToken);
+        var existingDeleteNodeIds = await ctx.PendingOperations
+            .Where(r => r.OperationType == "Delete" && r.NodeId != null)
+            .Select(r => r.NodeId!.Value)
+            .ToListAsync(cancellationToken);
+
+        var uploadPaths = new HashSet<string>(existingUploadPaths, StringComparer.OrdinalIgnoreCase);
+        var downloadIds = new HashSet<Guid>(existingDownloadNodeIds);
+        var deleteIds = new HashSet<Guid>(existingDeleteNodeIds);
+
+        int added = 0;
+        for (int i = 0; i < operations.Count; i++)
+        {
+            var op = operations[i];
+            bool shouldSkip = op switch
+            {
+                PendingUpload u => !uploadPaths.Add(u.LocalPath),   // false = already present
+                PendingDownload d => !downloadIds.Add(d.NodeId),
+                PendingDelete d => !deleteIds.Add(d.NodeId),
+                _ => false,
+            };
+            if (!shouldSkip)
+            {
+                ctx.PendingOperations.Add(MapToRow(op));
+                added++;
+            }
+        }
+
+        if (added > 0)
+        {
+            await ctx.SaveChangesAsync(cancellationToken);
+            _logger.LogDebug("Batch queued {Count} operations (deduped from {Total}) in {DbPath}.",
+                added, operations.Count, dbPath);
+        }
+    }
+
+    /// <inheritdoc/>
     public async Task<IReadOnlyList<PendingOperationRecord>> GetPendingOperationsAsync(string dbPath, CancellationToken cancellationToken = default)
     {
         await using var ctx = CreateContext(dbPath);
@@ -277,6 +389,20 @@ public sealed class LocalStateDb : ILocalStateDb
         if (row is not null)
         {
             ctx.PendingOperations.Remove(row);
+            await ctx.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task RemovePendingOperationByPathAsync(string dbPath, string localPath, CancellationToken cancellationToken = default)
+    {
+        await using var ctx = CreateContext(dbPath);
+        var rows = await ctx.PendingOperations
+            .Where(r => r.LocalPath == localPath)
+            .ToListAsync(cancellationToken);
+        if (rows.Count > 0)
+        {
+            ctx.PendingOperations.RemoveRange(rows);
             await ctx.SaveChangesAsync(cancellationToken);
         }
     }
@@ -452,6 +578,40 @@ public sealed class LocalStateDb : ILocalStateDb
     }
 
     /// <inheritdoc/>
+    public async Task ClearPendingOperationsAsync(string dbPath, CancellationToken cancellationToken = default)
+    {
+        await using var ctx = CreateContext(dbPath);
+        var count = await ctx.PendingOperations.CountAsync(cancellationToken);
+        if (count > 0)
+        {
+            ctx.PendingOperations.RemoveRange(ctx.PendingOperations);
+            await ctx.SaveChangesAsync(cancellationToken);
+            _logger.LogInformation("Cleared {Count} stale pending operation(s) on engine startup from {DbPath}.", count, dbPath);
+        }
+        else
+        {
+            _logger.LogDebug("No pending operations to clear on engine startup from {DbPath}.", dbPath);
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task ClearActiveUploadSessionsAsync(string dbPath, CancellationToken cancellationToken = default)
+    {
+        await using var ctx = CreateContext(dbPath);
+        var count = await ctx.ActiveUploadSessions.CountAsync(cancellationToken);
+        if (count > 0)
+        {
+            ctx.ActiveUploadSessions.RemoveRange(ctx.ActiveUploadSessions);
+            await ctx.SaveChangesAsync(cancellationToken);
+            _logger.LogInformation("Cleared {Count} stale active upload session(s) on engine startup from {DbPath}.", count, dbPath);
+        }
+        else
+        {
+            _logger.LogInformation("No active upload sessions to clear on engine startup from {DbPath}.", dbPath);
+        }
+    }
+
+    /// <inheritdoc/>
     public async Task DeleteStaleActiveUploadSessionsAsync(string dbPath, DateTime olderThan, CancellationToken cancellationToken = default)
     {
         await using var ctx = CreateContext(dbPath);
@@ -508,6 +668,20 @@ public sealed class LocalStateDb : ILocalStateDb
             row.ResolvedAt = DateTime.UtcNow;
             await ctx.SaveChangesAsync(cancellationToken);
         }
+    }
+
+    /// <inheritdoc />
+    public async Task<int> BatchResolveConflictsAsync(string dbPath, string resolution, CancellationToken cancellationToken = default)
+    {
+        await using var ctx = CreateContext(dbPath);
+        var now = DateTime.UtcNow;
+        var count = await ctx.ConflictRecords
+            .Where(r => r.ResolvedAt == null)
+            .ExecuteUpdateAsync(
+                s => s.SetProperty(r => r.Resolution, resolution)
+                      .SetProperty(r => r.ResolvedAt, now),
+                cancellationToken);
+        return count;
     }
 
     // ── Private helpers ─────────────────────────────────────────────────────

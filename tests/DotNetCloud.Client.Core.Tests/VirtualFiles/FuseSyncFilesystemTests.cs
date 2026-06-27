@@ -23,6 +23,10 @@ public sealed class FuseSyncFilesystemTests
     [TestMethod]
     public void FuseSyncFilesystem_ClassExists_OnLinux()
     {
+        // This test validates Linux FUSE provider — skip on non-Linux.
+        if (!OperatingSystem.IsLinux())
+            return;
+
         // Verify the FuseSyncFilesystem type exists (Linux-only via conditional compilation).
         var fuseType = typeof(IVirtualFileProvider).Assembly.GetType(
             "DotNetCloud.Client.Core.Platform.Linux.FuseSyncFilesystem");

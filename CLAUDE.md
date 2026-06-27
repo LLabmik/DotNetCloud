@@ -122,3 +122,36 @@ Always use **targeted edits** (minimal context around changed lines) to preserve
 ## Development Environment
 
 This project is developed on **Windows 11**. When running shell commands in scripts or docs, prefer PowerShell syntax (`Get-Content`, `Get-ChildItem`, backslash paths). The Claude Code shell itself is bash and uses forward-slash paths.
+
+## ⚠️ read_file Tool — Editor Buffer Cache (KNOWN ISSUE)
+
+**Problem:** The `read_file` tool reads from the VS Code **editor document buffer**, NOT from disk. If a file is open in the editor and is modified externally (e.g., by `python3`, `sed`, or git operations writing directly to the file), `read_file` will return **stale/cached content** from the editor buffer.
+
+**Symptoms:**
+
+- `read_file` shows old content that doesn't match `git show HEAD:path` or `cat path`
+- `git show` and `sed`/`cat` show the correct latest content
+- The file is open in the VS Code editor
+
+**Fix (before using read_file on potentially-stale files):**
+
+```
+# Option 1: Close the editor tab (preferred)
+workbench.action.closeActiveEditor
+
+# Option 2: Revert the file to reload from disk
+workbench.action.files.revert
+```
+
+**Reliable fallback when read_file seems wrong:**
+
+```bash
+# Use git to read the committed version
+git show HEAD:path/to/file
+
+# Use cat/sed to read from disk directly
+cat path/to/file
+sed -n '10,30p' path/to/file
+```
+
+**Prevention:** Always close the editor tab after externally modifying a file, or use `run_in_terminal` with `cat`/`sed`/`git show` as the primary read method for files that may have been modified externally.

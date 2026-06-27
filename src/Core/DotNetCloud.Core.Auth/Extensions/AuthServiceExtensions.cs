@@ -211,6 +211,32 @@ public static class AuthServiceExtensions
                 options.UseAspNetCore();
             });
 
+        // Configure default authentication to support both cookies (browser/Blazor)
+        // and Bearer tokens (desktop/mobile clients via OpenIddict validation).
+        // Without this, Core.Server's middleware (including the global rate limiter)
+        // treats all Bearer token requests as anonymous because the default
+        // scheme only handles cookies. The rate limiter then falls back to
+        // IP-based limiting (100 req/60s) instead of per-user (10,000 req/60s),
+        // causing 429 errors on large file uploads from SyncTray clients.
+        services.PostConfigure<AuthenticationOptions>(options =>
+        {
+            options.DefaultAuthenticateScheme = "DotNetCloud.Policy";
+        });
+        services.AddAuthentication()
+            .AddPolicyScheme("DotNetCloud.Policy", "DotNetCloud.Policy", options =>
+            {
+                options.ForwardDefaultSelector = context =>
+                {
+                    if (context.Request.Headers.TryGetValue("Authorization", out var auth)
+                        && auth.Count > 0
+                        && auth[0]?.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) == true)
+                    {
+                        return OpenIddict.Validation.AspNetCore.OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme;
+                    }
+                    return IdentityConstants.ApplicationScheme;
+                };
+            });
+
         // -----------------------------------------------------------------
         // Claims transformation
         // -----------------------------------------------------------------

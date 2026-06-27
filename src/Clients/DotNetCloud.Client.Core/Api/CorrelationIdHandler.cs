@@ -32,7 +32,15 @@ public sealed class CorrelationIdHandler : DelegatingHandler
 
         var response = await base.SendAsync(request, cancellationToken);
 
-        if (!response.IsSuccessStatusCode && response.StatusCode != System.Net.HttpStatusCode.NotModified)
+        if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+        {
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+            _logger.LogInformation(
+                "API call 409 (Conflict). RequestId={RequestId}, Body={Body}",
+                requestId,
+                body.Length > 500 ? body[..500] + "..." : body);
+        }
+        else if (!response.IsSuccessStatusCode && response.StatusCode != System.Net.HttpStatusCode.NotModified)
         {
             _logger.LogError(
                 "API call failed. RequestId={RequestId}, Status={StatusCode}",
