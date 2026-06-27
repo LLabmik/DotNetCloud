@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-27 00:50 UTC (Linux client validation complete — all 4 test cases passed on mint-OptiPlex-7010. Branch ready to merge to main.)
+Last updated: 2026-06-27 03:45 UTC (Chat bearer token auth — deployed to feature/chat-auth-bearer-token-support)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -18,7 +18,7 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
-- **Current active branch:** `perf/synctray-scan-and-transfer-speedups`
+- **Current active branch:** `feature/chat-auth-bearer-token-support`
 - No moderator involvement in technical decisions, code reviews, or work coordination.
 
 **Role separation (MANDATORY):**
@@ -92,15 +92,9 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Current Status
 
-- ✅ **Sync architecture flow review implemented** — Explicit rename/move sync, batch conflict resolve, full-sync progress reporting, sync flow reference doc. All built and tested on server (0 errors, 1104 tests passing). See `docs/development/SYNC_FLOW_REFERENCE.md` for full sync flow documentation.
-- ✅ **Linux client validation (mint-OptiPlex-7010) completed** — All 4 test cases (CRUD, rename/move, conflict resolution, batch resolve) pass on Linux. 7 bug fixes from Windows11-TestDNC verified working on Linux. Branch `perf/synctray-scan-and-transfer-speedups` ready to merge to main.
-- ✅ **gRPC streaming upload fully functional** — (archived)
-- ✅ **Client scanner bugs fixed** — (archived)
-- ✅ **Windows 11 rename/move sync tested** — Found and fixed 3 bugs in rename detection (hash mismatch, path mutation in catch, UNIQUE constraint violation). Rename now propagates to server correctly.
-- ✅ **Test Case 2 (Remote rename from server)** — Verified on Windows11-TestDNC. SyncTray picks up remote renames via polling. One bug found and fixed (`UpsertFileRecordAsync` → `UpdateFileRecordPathAsync` in `TryHandleRemoteRenameAsync`).
-- ✅ **Test Case 5 (CRUD edit/delete/create)** — Verified client-side and confirmed server-side. Archived.
-- ✅ **Test Case 4 (full-sync progress)** — Full sync mechanism confirmed working. Archived.
-- ✅ **Test Case 3 (Batch conflict resolve)** — All 4 scenarios verified on Windows11-TestDNC. 3 bugs found and fixed (hash mismatch → text fallback in Strategy 1, placeholder base content in Strategy 3, missing ConflictCopyCreated download handler). See Active Handoff for full results.
+- 🔄 **Chat bearer token auth** — Active handoff. Chat module needs to support Bearer tokens for Android client. Branch: `feature/chat-auth-bearer-token-support`.
+- ✅ **Sync architecture** — All testing complete. See archive.
+- ✅ **Linux client validation** — Completed on mint-OptiPlex-7010. Archived.
 
 ## Environment
 
@@ -124,18 +118,68 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** ✅ Linux client validation complete — all 4 test cases passed on `mint-OptiPlex-7010`. Branch `perf/synctray-scan-and-transfer-speedups` ready to merge to main. No further client or server actions needed for this cycle.
+**Summary:** 🚀 Add bearer token auth support to Chat module — Android Chat tab currently returns 401 because Chat module only accepts cookie auth. Fix mirrors Files module pattern (policy scheme + introspection).
 
-**Context:** 7 bugs found and fixed across the sync architecture testing on Windows11-TestDNC. All fixes validated on both Windows (Windows11-TestDNC) and Linux (mint-OptiPlex-7010). Branch is ready for merge.
+**Context:** Android MAUI app's Chat tab shows "Your session has expired" because the Chat module only supports `Identity.Application` cookie auth. The Android client sends `Authorization: Bearer <token>` headers (same as Files module), but the Chat module has:
+1. No `AddTokenIntrospection()` / `AddIntrospection()` registered
+2. `[Authorize(AuthenticationSchemes = "Identity.Application")]` on `ChatControllerBase` — hardcodes cookie-only
+3. No `DotNetCloud.Core.Auth` project reference
+
+All changes committed to branch `feature/chat-auth-bearer-token-support` (commit `aa734fc4`).
+
+**Files changed (server-side):**
+- `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Program.cs` — Added policy scheme, introspection, permission handler
+- `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Controllers/ChatControllerBase.cs` — Changed `[Authorize(AuthenticationSchemes = "Identity.Application")]` to plain `[Authorize]`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/DotNetCloud.Modules.Chat.Host.csproj` — Added `DotNetCloud.Core.Auth` reference + `Microsoft.AspNetCore.Authentication.JwtBearer`
+
+**Also in this branch (Android client fixes, already deployed on monolith):**
+- Fix `SettingsViewModel` crash (`GetEntryAssembly` returns null on Android)
+- Fix login page Entry focus on Android (ScrollView/Border issue)
+- Add `WindowSoftInputMode.AdjustResize`
+- Add Android-native debug logging for chat API
 
 ---
 
-### All Actions Complete — `perf/synctray-scan-and-transfer-speedups`
+### Server Actions — `cloud.kimball.home`
 
-| Machine | Role | Status |
-|---------|------|--------|
-| `Windows11-TestDNC` | Client | ✅ All 5 test cases passed (TC1-TC5). 7 bugs found and fixed. |
-| `cloud.kimball.home` | Server | ✅ Cursor deleted, test files created, deployment verified. |
-| `mint-OptiPlex-7010` | Client | ✅ All 4 test cases passed (CRUD, rename/move, conflict, batch resolve). |
+1. **Switch to branch:**
+   ```bash
+   git fetch origin
+   git checkout feature/chat-auth-bearer-token-support
+   ```
 
-**Next step:** Merge `perf/synctray-scan-and-transfer-speedups` → `main`.
+2. **Build and deploy:**
+   ```bash
+   dotnet build src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj -c Release
+   ./scripts/deploy.sh
+   ```
+
+3. **Verify deployment:**
+   ```bash
+   # Check module health — all modules should show healthy
+   curl -s https://cloud.dotnetcloud.net/health | jq .
+   
+   # Test chat API directly with bearer token
+   TOKEN=$(curl -s -X POST https://cloud.dotnetcloud.net/connect/token \
+     -d "client_id=dotnetcloud-mobile" \
+     -d "grant_type=password" \
+     -d "username=..." \
+     -d "password=..." | jq -r '.access_token')
+   curl -s -H "Authorization: Bearer $TOKEN" https://cloud.dotnetcloud.net/api/v1/chat/channels
+   ```
+
+4. **Verify Blazor UI still works** — browse to https://cloud.dotnetcloud.net/chat and confirm channels load via cookie auth.
+
+---
+
+### Client Actions — `monolith` (Android)
+
+✅ Already deployed and tested on emulator. The Android client sends Bearer tokens — once the server is updated, the Chat tab should work. No client-side changes needed for the auth fix (already built into current APK).
+
+---
+
+### Verification
+
+- [ ] Chat API returns 200 with Bearer token auth
+- [ ] Blazor chat UI still works via cookie auth
+- [ ] `dotnet test` passes on server

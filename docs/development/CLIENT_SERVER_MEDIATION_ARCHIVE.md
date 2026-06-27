@@ -2,6 +2,22 @@
 
 Archived: 2026-06-25 01:35 UTC. Full git history preserved in commits up to changes from Windows11-TestDNC.
 
+## Archived: `perf/synctray-scan-and-transfer-speedups` — Linux Client Validation Complete (2026-06-27)
+
+**Target:** Windows11-TestDNC → mint-OptiPlex-7010 (client verification)
+
+**Result:** ✅ All 4 test cases passed on Linux mint-OptiPlex-7010. 7 bugs found and fixed across sync architecture testing on Windows11-TestDNC. Branch ready for merge.
+
+**Client verification completed (mint-OptiPlex-7010):**
+- ✅ Test Case 1: CRUD — create, read, update, delete files
+- ✅ Test Case 2: Rename/move — local and remote rename propagation
+- ✅ Test Case 3: Conflict resolution — all 4 strategies
+- ✅ Test Case 4: Batch conflict resolve — all scenarios
+
+**Next step:** Merge `perf/synctray-scan-and-transfer-speedups` → `main`.
+
+---
+
 ## Archived: gRPC CompleteUpload Fix — Server Deploy + Client Verification (2026-06-25)
 
 **Target:** cloud.kimball.home (server fix) → Windows11-TestDNC (client verification)
