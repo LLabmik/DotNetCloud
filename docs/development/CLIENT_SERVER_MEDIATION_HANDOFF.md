@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-26 17:22 UTC (TC3 complete — all 5 sync architecture tests verified. 4 bugs found and fixed across the testing process.)
+Last updated: 2026-06-26 22:30 UTC (Windows sync architecture fully verified. Relay to mint-OptiPlex-7010 for Linux client validation.)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -123,59 +123,47 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** All 5 sync architecture tests verified. 4 bugs found and fixed across the testing process. Branch `perf/synctray-scan-and-transfer-speedups` ready for merge.
+**Summary:** Windows 11 sync architecture fully verified (all 5 test cases). Relay to `mint-OptiPlex-7010` for Linux client validation. The fixes are already pushed and merged — pull latest, rebuild SyncTray, and run the CRUD regression.
 
-**TC3 (Batch Conflict Resolve) Results — All verified on Windows11-TestDNC:**
-
-### ✅ A1 — Identical Content (Strategy 1)
-- Both client and server changed file to `Modified same on both`
-- Bug found: Server uses manifest-based hash, client uses SHA256. Added **text content fallback** to Strategy 1.
-- Result: `AutoResolvedIdentical` — no conflict copy
-- Fix commit: `2f52d70a` (ConflictResolver.cs + SyncEngine.cs)
-
-### ✅ A2 — Fast-Forward (Strategy 2)
-- Client left file unchanged (`Base content`), server changed to `Server changed this`
-- Clean download, no conflict needed
-- Result: `Server changed this` on disk
-
-### ✅ A3 — Non-Overlapping Text Merge (Strategy 3)
-- Client changed line 1, server changed line 3
-- Bug found: BaseContent was placeholder `"(stored)"` instead of real content. Fixed server-side.
-- Result: `AutoResolvedLocalWins` — both edits merged via DiffPlex three-way merge
-- Fix commit: `6f294b27` (SyncEngine.cs — real base content)
-
-### ✅ B1 — Conflict Copy (Strategy 5)
-- Client changed to `Client A's version`, server to `Server's version` (same content area)
-- Bug found: ConflictCopyCreated switch case was missing — no server version download, caused 404 cycle
-- Result: Conflict copy created, server version downloaded inline
-- Fix commit: `6458fe2f` (SyncEngine.cs — inline download in ConflictCopyCreated case)
-
-### ✅ C1 — Batch Resolve
-- 1 unresolved conflict visible in SyncTray Conflicts tab
-- Clicked "Resolve All" → conflict marked `keep-server`
-- Result: `tc3-conflict.txt` = `Server's version`, conflict copy preserved with `Client A's version`
-
-### Bugs Found (TC3 testing)
-
-| # | Location | Symptom | Fix | Commit |
-|---|----------|---------|-----|--------|
-| 1 | ConflictResolver.cs | Strategy 1 hash mismatch (SHA256 vs manifest hash) | Added text content fallback to Strategy 1 | `2f52d70a` |
-| 2 | SyncEngine.cs | BaseContent was placeholder `"(stored)"` string | Populate real base content from server | `6f294b27` |
-| 3 | SyncEngine.cs | ConflictCopyCreated switch case missing | Added inline server version download | `6458fe2f` |
-| 4 | SyncEngine.cs | PendingDownload in Parallel.ForEachAsync conflicts with PendingDelete | Changed to direct inline download, not via queue | `6458fe2f` (iteration 2) |
+**Context:** 7 bugs found and fixed across the sync architecture testing on Windows11-TestDNC. All fixes are in `perf/synctray-scan-and-transfer-speedups`. Linux client needs to validate the same fixes work on Linux before the branch is merged to main.
 
 ---
 
-### Next Steps
+### Client Actions — `mint-OptiPlex-7010`
 
-**All sync architecture tests complete.** No further testing needed on `perf/synctray-scan-and-transfer-speedups`.
+**Setup:**
+1. On `cloud.kimball.home`: cursor for device `mint-OptiPlex-7010` will be deleted to force full re-sync
+2. On `mint-OptiPlex-7010`: `git pull`, rebuild SyncTray, wipe local state DB, restart
 
-| Test | Description | Status | Bugs Found |
-|------|-------------|--------|------------|
-| TC1 | Local rename/move sync | ✅ | 3 (hash mismatch, path mutation, UNIQUE constraint) |
-| TC2 | Remote rename from server | ✅ | 1 (UpsertFileRecordAsync by LocalPath) |
-| TC3 | Batch conflict resolve | ✅ | 3 (hash text fallback, base content, ConflictCopyCreated handler) |
-| TC4 | Full-sync progress | ✅ | 0 (cursor mechanism confirmed) |
-| TC5 | CRUD edit/delete/create | ✅ | 0 |
+**Verify these operations work correctly on Linux:**
 
-**Total: 7 bugs found and fixed across all sync architecture tests.**
+**1. Basic CRUD sync (regression):**
+- Create a new file (e.g., `linux-test.txt`) with some text
+- Verify it uploads and appears at `https://cloud.dotnetcloud.net/apps/files`
+- Edit the file locally, save, verify edit propagates
+- Delete the file locally, verify deletion propagates
+
+**2. Rename/move sync:**
+- Rename a synced file locally, wait for sync, verify name updates on server
+- Rename a file via the web UI, wait for client poll, verify local file renames
+
+**3. Conflict resolution:**
+- Create `conflict-test.txt` with content `Base content` (via web UI on server)
+- Wait for sync to client
+- Kill SyncTray, edit local file to `Local Linux version`
+- Edit same file via web UI to `Server version`
+- Restart SyncTray
+- **Expected:** Conflict copy created, server version wins on disk
+
+**4. Batch resolve:**
+- With conflict visible in SyncTray Conflicts tab, click "Resolve All"
+- **Expected:** Conflict marked resolved, server version stays
+
+---
+
+### Server Actions — `cloud.kimball.home`
+
+1. ✅ **Delete cursor** for `mint-OptiPlex-7010` device to force full re-sync:
+   - Find device ID: `/opt/mssql-tools18/bin/sqlcmd -S hyperdrive.kimball.home -d DotNetCloud -U dotnetcloud -C -I -Q "SELECT Id, DeviceName FROM [core].[SyncDevices] WHERE DeviceName LIKE '%mint%optiplex%' OR DeviceName LIKE '%OPTIPLEX%';"`
+   - Delete cursor: `/opt/mssql-tools18/bin/sqlcmd -S hyperdrive.kimball.home -d DotNetCloud -U dotnetcloud -C -I -Q "DELETE FROM [core].[SyncDeviceCursors] WHERE DeviceId = '<uuid>';"`
+2. Create `linux-test.txt`, `conflict-test.txt` with initial content via web UI when client is ready
