@@ -1702,8 +1702,17 @@ public sealed class SyncEngine : ISyncEngine
                     await _stateDb.UpsertFileRecordAsync(context.StateDatabasePath, localRecord, cancellationToken);
                     break;
 
+                case Conflict.ConflictResolutionOutcome.ConflictCopyCreated:
+                    // A conflict copy was created from the local version. Queue a download of
+                    // the server version so it replaces the original path on this sync pass.
+                    // Without this queue, the follow-up local scan sees the original file as
+                    // "deleted" (it was renamed to the conflict copy) and issues a DELETE API
+                    // call that wipes the server's edited version.
+                    await _stateDb.QueueOperationAsync(context.StateDatabasePath,
+                        new PendingDownload { LocalPath = localPath, NodeId = change.NodeId, PosixMode = change.PosixMode }, cancellationToken);
+                    break;
+
                     // AutoResolvedLocalWins: local file kept, will be re-queued for upload on next scan.
-                    // ConflictCopyCreated: server version will be downloaded on next sync cycle.
             }
         }
         else if (localRecord is null || localRecord.ContentHash != change.ContentHash)
