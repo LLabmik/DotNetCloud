@@ -1,3 +1,4 @@
+using Android.Util;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -35,8 +36,18 @@ internal sealed class HttpChatRestClient : IChatRestClient
     {
         SetAuth(accessToken);
         var url = $"{serverBaseUrl.TrimEnd('/')}/api/v1/chat/channels";
-        var envelope = await _http.GetFromJsonAsync<Envelope<List<ChannelSummaryDto>>>(url, JsonOpts, ct).ConfigureAwait(false);
-        return (envelope?.Data ?? []).Select(ToChannelSummary).ToList();
+        Log.Info("DotNetCloud", $"GetChannelsAsync CALLING {url}");
+        try
+        {
+            var envelope = await _http.GetFromJsonAsync<Envelope<List<ChannelSummaryDto>>>(url, JsonOpts, ct).ConfigureAwait(false);
+            Log.Info("DotNetCloud", $"GetChannelsAsync SUCCEEDED from {url}");
+            return (envelope?.Data ?? []).Select(ToChannelSummary).ToList();
+        }
+        catch (Exception ex)
+        {
+            Log.Error("DotNetCloud", $"GetChannelsAsync FAILED: {ex.GetType().Name}: {ex.Message}");
+            throw;
+        }
     }
 
     /// <inheritdoc />

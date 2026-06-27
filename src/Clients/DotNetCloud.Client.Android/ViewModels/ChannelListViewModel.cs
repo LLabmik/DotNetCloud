@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Android.Util;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DotNetCloud.Client.Android.Auth;
@@ -67,6 +68,7 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private async Task LoadChannelsAsync(CancellationToken ct)
     {
+        Log.Info("DotNetCloud", "LoadChannelsAsync STARTED");
         IsLoading = true;
         ErrorMessage = null;
 
@@ -75,6 +77,7 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
             // On cold start the first HTTP request may timeout while the connection pool
             // warms up. Retry silently so the error label never flashes before data arrives.
             var maxAttempts = HasCompletedInitialLoad ? 1 : 3;
+            Log.Info("DotNetCloud", $"LoadChannelsAsync: maxAttempts={maxAttempts}");
             Exception? lastException = null;
 
             for (var attempt = 1; attempt <= maxAttempts; attempt++)
@@ -103,8 +106,7 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
                 catch (Exception ex)
                 {
                     lastException = ex;
-                    if (attempt < maxAttempts)
-                        _logger.LogDebug(ex, "Initial load attempt {Attempt} of {MaxAttempts} failed; retrying.", attempt, maxAttempts);
+                    _logger.LogWarning(ex, "Chat channel load attempt {Attempt} of {MaxAttempts} failed: {Message}", attempt, maxAttempts, ex.Message);
                 }
             }
 
@@ -112,7 +114,10 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
             {
                 if (IsActive)
                 {
-                    _logger.LogError(lastException, "Failed to load channels.");
+                    var exceptionType = lastException.GetType().Name;
+                    var statusCode = lastException is HttpRequestException hre ? hre.StatusCode?.ToString() ?? "null" : "N/A";
+                    _logger.LogError(lastException, "Failed to load channels after {MaxAttempts} attempts. ExceptionType={ExceptionType}, StatusCode={StatusCode}.",
+                        maxAttempts, exceptionType, statusCode);
                     ErrorMessage = ApiExceptionHelper.GetUserFriendlyMessage(lastException);
                 }
                 else
@@ -160,9 +165,13 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
 
     private async Task<(string serverUrl, string token)> GetActiveCredentialsAsync(CancellationToken ct)
     {
+        Log.Info("DotNetCloud", "GetActiveCredentialsAsync: STARTED");
         var connection = _serverStore.GetActive()
                          ?? throw new InvalidOperationException("No active server connection.");
+        var sv = connection.ServerBaseUrl;
+        Log.Info("DotNetCloud", $"GetActiveCredentials: server={sv}");
         var token = await _tokenStore.GetAccessTokenAsync(connection.ServerBaseUrl, ct);
+        Log.Info("DotNetCloud", $"GetActiveCredentials: token={(token is not null ? "present" : "null")}, length={token?.Length ?? 0}");
         if (string.IsNullOrWhiteSpace(token))
             throw new InvalidOperationException("No access token found. Please log in again.");
         return (connection.ServerBaseUrl, token);
