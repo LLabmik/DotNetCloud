@@ -107,6 +107,7 @@ public static class ChatServiceRegistration
         // Real-time broadcasting (null-object in module-host mode — no in-process SignalR available).
         // The real IRealtimeBroadcaster lives in Core.Server's SignalR infrastructure.
         // Module hosts that need real-time broadcasts should use a gRPC-based broadcaster.
+        // The gRPC-based broadcaster (GrpcRealtimeBroadcaster) is registered in Chat.Host/Program.cs.
         services.AddSingleton<IRealtimeBroadcaster, NullRealtimeBroadcasterService>();
 
         return services;

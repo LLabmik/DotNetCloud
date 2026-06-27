@@ -140,7 +140,7 @@ internal sealed class MessageService : IMessageService
                 message.Id, channelId, caller.UserId, mentions, cancellationToken);
         }
 
-        return ToMessageDto(message);
+        return await ToMessageDtoAsync(message, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -198,7 +198,7 @@ internal sealed class MessageService : IMessageService
                 message.Id, message.ChannelId, caller.UserId, newMentions, cancellationToken);
         }
 
-        return ToMessageDto(message);
+        return await ToMessageDtoAsync(message, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -263,9 +263,13 @@ internal sealed class MessageService : IMessageService
             .Include(m => m.Mentions)
             .ToListAsync(cancellationToken);
 
+        var dtos = new List<MessageDto>(messages.Count);
+        foreach (var msg in messages)
+            dtos.Add(await ToMessageDtoAsync(msg, cancellationToken));
+
         return new PagedMessageResult
         {
-            Items = messages.Select(ToMessageDto).ToList(),
+            Items = dtos,
             Page = page,
             PageSize = pageSize,
             TotalItems = totalCount
@@ -293,9 +297,13 @@ internal sealed class MessageService : IMessageService
             .Include(m => m.Mentions)
             .ToListAsync(cancellationToken);
 
+        var dtos = new List<MessageDto>(messages.Count);
+        foreach (var msg in messages)
+            dtos.Add(await ToMessageDtoAsync(msg, cancellationToken));
+
         return new PagedMessageResult
         {
-            Items = messages.Select(ToMessageDto).ToList(),
+            Items = dtos,
             Page = page,
             PageSize = pageSize,
             TotalItems = totalCount
@@ -312,7 +320,7 @@ internal sealed class MessageService : IMessageService
             .Include(m => m.Mentions)
             .FirstOrDefaultAsync(m => m.Id == messageId, cancellationToken);
 
-        return message is null ? null : ToMessageDto(message);
+        return message is null ? null : await ToMessageDtoAsync(message, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -440,13 +448,21 @@ internal sealed class MessageService : IMessageService
         return mentions;
     }
 
-    private static MessageDto ToMessageDto(Message message)
+    private async Task<MessageDto> ToMessageDtoAsync(Message message, CancellationToken cancellationToken = default)
     {
+        var senderName = string.Empty;
+        if (_userDirectory is not null)
+        {
+            var names = await _userDirectory.GetDisplayNamesAsync(new[] { message.SenderUserId }, cancellationToken);
+            senderName = names.GetValueOrDefault(message.SenderUserId, string.Empty);
+        }
+
         return new MessageDto
         {
             Id = message.Id,
             ChannelId = message.ChannelId,
             SenderUserId = message.SenderUserId,
+            SenderName = senderName,
             Content = message.Content,
             Type = message.Type.ToString(),
             SentAt = message.SentAt,

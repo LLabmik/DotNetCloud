@@ -6,6 +6,7 @@ using DotNetCloud.Core.Server.Services;
 using Grpc.Core;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
+using System.Text.Json;
 
 namespace DotNetCloud.Core.Server.Grpc.Services;
 
@@ -227,6 +228,53 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
                 Success = false,
                 ErrorMessage = ex.Message
             };
+        }
+    }
+
+    /// <summary>
+    /// Broadcasts a real-time event to connected SignalR clients.
+    /// Called by process-isolated module hosts to push events (new messages,
+    /// typing indicators, etc.) through Core.Server's SignalR infrastructure.
+    /// </summary>
+    public override async Task<BroadcastRealtimeEventResponse> BroadcastRealtimeEvent(
+        BroadcastRealtimeEventRequest request, ServerCallContext context)
+    {
+        var moduleId = GetModuleId(context);
+        _logger.LogDebug(
+            "BroadcastRealtimeEvent: group={Group}, event={Event} from module {ModuleId}",
+            request.Group, request.EventName, moduleId);
+
+        try
+        {
+            var broadcaster = _serviceProvider.GetRequiredService<IRealtimeBroadcaster>();
+
+            if (!string.IsNullOrEmpty(request.TargetUserId)
+                && Guid.TryParse(request.TargetUserId, out var targetUserId))
+            {
+                // Per-user delivery
+                object? payload = null;
+                if (!string.IsNullOrEmpty(request.PayloadJson))
+                    payload = JsonSerializer.Deserialize<object>(request.PayloadJson);
+
+                await broadcaster.SendToUserAsync(targetUserId, request.EventName, payload ?? request.PayloadJson, context.CancellationToken);
+            }
+            else
+            {
+                // Group broadcast
+                object? payload = null;
+                if (!string.IsNullOrEmpty(request.PayloadJson))
+                    payload = JsonSerializer.Deserialize<object>(request.PayloadJson);
+
+                await broadcaster.BroadcastAsync(request.Group, request.EventName, payload ?? request.PayloadJson, context.CancellationToken);
+            }
+
+            return new BroadcastRealtimeEventResponse { Success = true };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "BroadcastRealtimeEvent failed for group={Group}, event={Event} from module {ModuleId}",
+                request.Group, request.EventName, moduleId);
+            return new BroadcastRealtimeEventResponse { Success = false };
         }
     }
 

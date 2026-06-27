@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-27 18:00 UTC (Chat working — archived fix history. Active handoff: add SenderName to MessageDto)
+Last updated: 2026-06-27 18:48 UTC (SenderName + real-time broadcasts + DbContext fix deployed. Ready for Android client test)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -92,8 +92,10 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Current Status
 
-- ✅ **Chat tab WORKING** — HTTP 200, channels list loads successfully on Android! See archive for full fix history.
-- 🔴 **SenderName missing from MessageDto** — Server's `MessageDto` only has `SenderUserId` (Guid), no `SenderName` property. Android client falls back to showing first 8 chars of GUID. Need to add `SenderName` to server-side DTO.
+- ✅ **SenderName added to MessageDto** — Android will now show display names instead of GUID fragments.
+- ✅ **gRPC-based real-time broadcaster deployed** — Blazor UI should receive live message updates from Android-sent messages.
+- ✅ **DbContext concurrency fixed** — Sequential processing replaces `Task.WhenAll` to prevent concurrent DbContext access.
+- ✅ **Chat tab WORKING** — HTTP 200, channels list loads successfully on Android.
 - ✅ **Sync architecture** — All testing complete. See archive.
 - ✅ **Linux client validation** — Completed on mint-OptiPlex-7010. Archived.
 
@@ -119,27 +121,24 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** Add `SenderName` to server's `MessageDto` so Android client can display user display names instead of GUID fragments.
+**Summary:** All server-side SenderName and real-time broadcast fixes deployed. Ready for Android client to rebuild APK and test.
 
-**Background (2026-06-27):** Chat tab works (HTTP 200). Sender names show as GUID fragments (e.g., `"1e6c0909"`) because the server's `MessageDto` only has `SenderUserId` (Guid) — no `SenderName` property at any layer (internal DTO, Core DTO, protobuf, REST API).
+**Background (2026-06-27):** Three server-side changes deployed:
 
-**Android fallback chain:**
-1. Look up in channel member list — works if members have display names
-2. Use server-provided `SenderName` — always empty, server doesn't send it
-3. **Fallback: first 8 chars of GUID** — this is what users see
+### ✅ Fixes Deployed
 
-**Fix needed:** Add `SenderName` to all DTO layers and populate it from the sender's display name when returning messages.
+1. **SenderName added to MessageDto** — `SenderName` property added to `MessageDto`, `ChatMessageDto`, and `chat_service.proto`. Populated in `MessageService.ToMessageDtoAsync()` via `IUserDirectory.GetDisplayNamesAsync()`. Android client should now see display names instead of GUID fragments.
+
+2. **gRPC-based real-time broadcaster** — Created `GrpcRealtimeBroadcaster` that forwards broadcasts from the process-isolated Chat module to Core.Server's SignalR infrastructure via the new `BroadcastRealtimeEvent` RPC on `CoreCapabilities` service. Replaces the null-object broadcaster. Blazor Chat UI should now receive real-time message notifications from Android-sent messages.
+
+3. **DbContext concurrency fix** — `Task.WhenAll` replaced with sequential `foreach` in `GetMessagesAsync`/`SearchMessagesAsync` to prevent concurrent DbContext access in the Blazor InteractiveServer circuit.
 
 ---
 
-### Server Actions — `cloud.kimball.home`
-
-1. **Add `SenderName` to `MessageDto`** in `src/Modules/Chat/DotNetCloud.Modules.Chat/DTOs/ChatDtos.cs`
-2. **Populate in `MessageService.ToMessageDto()`** in `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/Services/MessageService.cs` — resolve display name from `SenderUserId`
-3. **Add to Core's `ChatMessageDto`** in `src/Core/DotNetCloud.Core/DTOs/Chat/CoreChatDtos.cs`
-4. **Add to proto** in `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Protos/chat_service.proto`
-5. **Rebuild and deploy**
-
 ### Android Client Actions — `monolith`
 
-- ☐ After server fix deployed, rebuild APK and test
+1. **Rebuild APK** on `monolith` (Windows 11) with latest server changes from `feature/chat-auth-bearer-token-support`
+2. **Install on emulator and test Chat tab**
+3. **Verify sender names** — messages should show display names (e.g., "Ben Kimball") instead of GUID fragments
+4. **Verify real-time** — send a message from Android app, verify it appears in Blazor web UI without refresh
+5. If still failing: capture full response body via logcat and relay back

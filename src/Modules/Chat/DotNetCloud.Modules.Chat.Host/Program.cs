@@ -152,6 +152,10 @@ else
 // Register all chat business-logic services (Channel, Message, Reaction, Pin, Typing)
 builder.Services.AddChatServices(builder.Configuration);
 
+// Override the null-object IRealtimeBroadcaster with the gRPC-based implementation
+// that forwards broadcasts to Core.Server's SignalR infrastructure.
+builder.Services.AddSingleton<DotNetCloud.Core.Capabilities.IRealtimeBroadcaster, GrpcRealtimeBroadcaster>();
+
 // gRPC
 builder.Services.AddGrpc();
 
