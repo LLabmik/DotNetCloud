@@ -62,11 +62,8 @@ public class ExifMetadataExtractorTests
     public async Task ExtractAsync_BasicJpeg_ReturnsDimensions()
     {
         // Arrange
-        var filePath = Path.Combine(_tempDir, "basic.jpg");
-        using (var image = new Image<Rgba32>(800, 600))
-        {
-            await image.SaveAsJpegAsync(filePath);
-        }
+        var filePath = Path.Combine(AppContext.BaseDirectory, "Assets", "basic.jpg");
+        Assert.IsTrue(File.Exists(filePath), $"Test asset missing: {filePath}");
 
         // Act
         var result = await _extractor.ExtractAsync(filePath, "image/jpeg");
