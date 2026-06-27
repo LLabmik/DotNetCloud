@@ -28,7 +28,42 @@ Archived: 2026-06-25 01:35 UTC. Full git history preserved in commits up to chan
    - Bug: Server stores `ContentHash` as a **manifest hash** (`SHA256(chunkHash1 + ":" + chunkHash2 + ":" + ...)`), but the scanner computed **direct SHA256** of file content via `ComputeFileHashAsync`. When the state DB was lost, the `serverFilesByRelPath` and `ListChildrenAsync` paths compared incompatible hashes, causing every untracked file to be flagged as "different" and re-uploaded.
    - Fix: Both scanner paths now trust size match + server tree presence when the file exists on the server. The server's `ContentHash` is stored directly in the local record to keep hash formats consistent.
 
-**Handoff commit:** (pending)
+**Handoff commit:** a608147a
+
+## Archived: Linux Client Validation — mint-OptiPlex-7010 (2026-06-26)
+
+**Target:** mint-OptiPlex-7010 (Linux client validation)
+
+**Result:** ✅ All 4 test cases passed on Linux Mint. Sync architecture fixes verified working on Linux.
+
+**Setup completed:**
+- ✓ `git pull` on `perf/synctray-scan-and-transfer-speedups`
+- ✓ SyncTray rebuilt from source (`dotnet build -c Release` — 0 errors, 0 warnings)
+- ✓ Local state DB wiped
+- ✓ SyncTray restarted, initial full sync completed
+
+**1. Basic CRUD sync (regression):** ✅
+- ✓ Create: `linux-crud-test.txt` created locally → uploaded (NodeId assigned, ContentHash stored)
+- ✓ Edit: file edited locally → propagated (0 pending ops)
+- ✓ Delete: file deleted locally → record removed from state DB (0 pending ops)
+
+**2. Rename/move sync:** ✅
+- ✓ Local rename: `TestFile.txt` → `TestFile-RenamedOnLinux.txt` propagated to server
+- ✓ Remote rename: file renamed via web UI → polled by client → local file renamed on disk
+
+**3. Conflict resolution:** ✅
+- ✓ `conflict-test.txt` created via web UI, synced to client
+- ✓ SyncTray killed, local file edited to `Local Linux version`
+- ✓ Same file edited via web UI to `Server version`
+- ✓ SyncTray restarted → conflict detected
+- ✓ Server version won on disk: `conflict-test.txt` contains `Server version`
+- ✓ Conflict copy created: `conflict-test (conflict - benk - 2026-06-26).txt`
+
+**4. Batch resolve:** ✅
+- ✓ "Resolve All" clicked in SyncTray Conflicts tab
+- ✓ DB confirmed: `ResolvedAt=2026-06-27 00:48:21, Resolution=keep-server`
+
+---
 
 ## Archived: gRPC Streaming Upload — Server Auth Fix + Client Verification (2026-06-24)
 

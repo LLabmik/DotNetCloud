@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-26 22:30 UTC (Windows sync architecture fully verified. Relay to mint-OptiPlex-7010 for Linux client validation.)
+Last updated: 2026-06-27 00:50 UTC (Linux client validation complete — all 4 test cases passed on mint-OptiPlex-7010. Branch ready to merge to main.)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -93,6 +93,7 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 ## Current Status
 
 - ✅ **Sync architecture flow review implemented** — Explicit rename/move sync, batch conflict resolve, full-sync progress reporting, sync flow reference doc. All built and tested on server (0 errors, 1104 tests passing). See `docs/development/SYNC_FLOW_REFERENCE.md` for full sync flow documentation.
+- ✅ **Linux client validation (mint-OptiPlex-7010) completed** — All 4 test cases (CRUD, rename/move, conflict resolution, batch resolve) pass on Linux. 7 bug fixes from Windows11-TestDNC verified working on Linux. Branch `perf/synctray-scan-and-transfer-speedups` ready to merge to main.
 - ✅ **gRPC streaming upload fully functional** — (archived)
 - ✅ **Client scanner bugs fixed** — (archived)
 - ✅ **Windows 11 rename/move sync tested** — Found and fixed 3 bugs in rename detection (hash mismatch, path mutation in catch, UNIQUE constraint violation). Rename now propagates to server correctly.
@@ -123,47 +124,18 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** Windows 11 sync architecture fully verified (all 5 test cases). Relay to `mint-OptiPlex-7010` for Linux client validation. The fixes are already pushed and merged — pull latest, rebuild SyncTray, and run the CRUD regression.
+**Summary:** ✅ Linux client validation complete — all 4 test cases passed on `mint-OptiPlex-7010`. Branch `perf/synctray-scan-and-transfer-speedups` ready to merge to main. No further client or server actions needed for this cycle.
 
-**Context:** 7 bugs found and fixed across the sync architecture testing on Windows11-TestDNC. All fixes are in `perf/synctray-scan-and-transfer-speedups`. Linux client needs to validate the same fixes work on Linux before the branch is merged to main.
-
----
-
-### Client Actions — `mint-OptiPlex-7010`
-
-**Setup:**
-1. On `cloud.kimball.home`: cursor for device `mint-OptiPlex-7010` will be deleted to force full re-sync
-2. On `mint-OptiPlex-7010`: `git pull`, rebuild SyncTray, wipe local state DB, restart
-
-**Verify these operations work correctly on Linux:**
-
-**1. Basic CRUD sync (regression):**
-- Create a new file (e.g., `linux-test.txt`) with some text
-- Verify it uploads and appears at `https://cloud.dotnetcloud.net/apps/files`
-- Edit the file locally, save, verify edit propagates
-- Delete the file locally, verify deletion propagates
-
-**2. Rename/move sync:**
-- Rename a synced file locally, wait for sync, verify name updates on server
-- Rename a file via the web UI, wait for client poll, verify local file renames
-
-**3. Conflict resolution:**
-- Create `conflict-test.txt` with content `Base content` (via web UI on server)
-- Wait for sync to client
-- Kill SyncTray, edit local file to `Local Linux version`
-- Edit same file via web UI to `Server version`
-- Restart SyncTray
-- **Expected:** Conflict copy created, server version wins on disk
-
-**4. Batch resolve:**
-- With conflict visible in SyncTray Conflicts tab, click "Resolve All"
-- **Expected:** Conflict marked resolved, server version stays
+**Context:** 7 bugs found and fixed across the sync architecture testing on Windows11-TestDNC. All fixes validated on both Windows (Windows11-TestDNC) and Linux (mint-OptiPlex-7010). Branch is ready for merge.
 
 ---
 
-### Server Actions — `cloud.kimball.home`
+### All Actions Complete — `perf/synctray-scan-and-transfer-speedups`
 
-1. ✅ **Delete cursor** for `mint-OptiPlex-7010` device to force full re-sync:
-   - Find device ID: `/opt/mssql-tools18/bin/sqlcmd -S hyperdrive.kimball.home -d DotNetCloud -U dotnetcloud -C -I -Q "SELECT Id, DeviceName FROM [core].[SyncDevices] WHERE DeviceName LIKE '%mint%optiplex%' OR DeviceName LIKE '%OPTIPLEX%';"`
-   - Delete cursor: `/opt/mssql-tools18/bin/sqlcmd -S hyperdrive.kimball.home -d DotNetCloud -U dotnetcloud -C -I -Q "DELETE FROM [core].[SyncDeviceCursors] WHERE DeviceId = '<uuid>';"`
-2. Create `linux-test.txt`, `conflict-test.txt` with initial content via web UI when client is ready
+| Machine | Role | Status |
+|---------|------|--------|
+| `Windows11-TestDNC` | Client | ✅ All 5 test cases passed (TC1-TC5). 7 bugs found and fixed. |
+| `cloud.kimball.home` | Server | ✅ Cursor deleted, test files created, deployment verified. |
+| `mint-OptiPlex-7010` | Client | ✅ All 4 test cases passed (CRUD, rename/move, conflict, batch resolve). |
+
+**Next step:** Merge `perf/synctray-scan-and-transfer-speedups` → `main`.
