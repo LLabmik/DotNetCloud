@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-27 17:55 UTC (Chat tab working — HTTP 200. New issue: SenderName missing from MessageDto, shows GUID fragments)
+Last updated: 2026-06-27 18:00 UTC (Chat working — archived fix history. Active handoff: add SenderName to MessageDto)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -92,9 +92,8 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Current Status
 
-- ✅ **Chat tab WORKING** — HTTP 200, channels list loads successfully on Android!
-- 🔴 **SenderName missing from MessageDto** — Server's `MessageDto` only has `SenderUserId` (Guid), no `SenderName` property. Android client falls back to showing first 8 chars of GUID (e.g., `"1e6c0909"`). Need to add `SenderName` to server-side DTO.
-- ✅ **All three server fixes deployed** — OpenIddict package removed, UseExceptionHandler added, NullRealtimeBroadcasterService registered.
+- ✅ **Chat tab WORKING** — HTTP 200, channels list loads successfully on Android! See archive for full fix history.
+- 🔴 **SenderName missing from MessageDto** — Server's `MessageDto` only has `SenderUserId` (Guid), no `SenderName` property. Android client falls back to showing first 8 chars of GUID. Need to add `SenderName` to server-side DTO.
 - ✅ **Sync architecture** — All testing complete. See archive.
 - ✅ **Linux client validation** — Completed on mint-OptiPlex-7010. Archived.
 
@@ -120,45 +119,27 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** Chat tab working (HTTP 200)! New issue: sender names show as GUID fragments because server's `MessageDto` is missing `SenderName` property.
+**Summary:** Add `SenderName` to server's `MessageDto` so Android client can display user display names instead of GUID fragments.
 
-**Background (2026-06-27, updated 17:55 UTC):** Android client (`monolith`) confirmed:
+**Background (2026-06-27):** Chat tab works (HTTP 200). Sender names show as GUID fragments (e.g., `"1e6c0909"`) because the server's `MessageDto` only has `SenderUserId` (Guid) — no `SenderName` property at any layer (internal DTO, Core DTO, protobuf, REST API).
 
-- ✅ Chat tab loads channels and messages successfully — HTTP 200!
-- 🔴 Sender names show as GUID fragments (e.g., `"1e6c0909"`, `"587d777a"`) instead of user display names
-
-**Root cause analysis:** The server's `MessageDto` (in `src/Modules/Chat/DotNetCloud.Modules.Chat/DTOs/ChatDtos.cs`) only has `SenderUserId` (Guid) — there is **no `SenderName` property** at any layer:
-- `MessageDto` (internal module DTO) — no SenderName
-- `ChatMessageDto` (Core DTO) — no SenderName
-- `ChatMessageMessage` (protobuf) — no sender_name field
-- REST API returns messages WITHOUT sender display names
-
-The Android client's `ResolveSenderName()` tries:
-1. Look up in channel member list (`_memberLookup`) — works if members have display names set
-2. Use server-provided `SenderName` — always empty since server doesn't send it
+**Android fallback chain:**
+1. Look up in channel member list — works if members have display names
+2. Use server-provided `SenderName` — always empty, server doesn't send it
 3. **Fallback: first 8 chars of GUID** — this is what users see
 
-**Fix needed:** Add `SenderName` to server-side `MessageDto` and populate it when returning messages from the service layer.
+**Fix needed:** Add `SenderName` to all DTO layers and populate it from the sender's display name when returning messages.
 
 ---
 
 ### Server Actions — `cloud.kimball.home`
 
-1. **Add `SenderName` to `MessageDto`** in `src/Modules/Chat/DotNetCloud.Modules.Chat/DTOs/ChatDtos.cs`:
-   ```csharp
-   public required string SenderName { get; init; }
-   ```
-
-2. **Populate `SenderName` in `MessageService.ToMessageDto()`** in `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/Services/MessageService.cs`:
-   - Look up the sender's display name from `ChannelMembers` table or User lookup service
-   - The Message entity has `SenderUserId` — need to resolve to display name
-
-3. **Also add to Core's `ChatMessageDto`** in `src/Core/DotNetCloud.Core/DTOs/Chat/CoreChatDtos.cs`
-
-4. **Also add to proto** in `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Protos/chat_service.proto`
-
+1. **Add `SenderName` to `MessageDto`** in `src/Modules/Chat/DotNetCloud.Modules.Chat/DTOs/ChatDtos.cs`
+2. **Populate in `MessageService.ToMessageDto()`** in `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/Services/MessageService.cs` — resolve display name from `SenderUserId`
+3. **Add to Core's `ChatMessageDto`** in `src/Core/DotNetCloud.Core/DTOs/Chat/CoreChatDtos.cs`
+4. **Add to proto** in `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Protos/chat_service.proto`
 5. **Rebuild and deploy**
 
 ### Android Client Actions — `monolith`
 
-- ☐ After server fix is deployed, rebuild APK and test — sender names should now show user display names
+- ☐ After server fix deployed, rebuild APK and test

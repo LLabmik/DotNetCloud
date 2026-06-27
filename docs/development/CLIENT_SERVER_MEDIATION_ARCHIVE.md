@@ -5063,6 +5063,38 @@ Key confirmations:
 
 ---
 
+## Archived: Chat Module Bearer Token Auth & HTTP 500 Fix — Complete (2026-06-27)
+
+**Target:** monolith → cloud.kimball.home (Chat auth overhaul + 500 debugging cycle)
+
+**Result:** ✅ Chat tab working on Android (HTTP 200). Three server-side fixes deployed.
+
+### Cycle Summary
+
+1. **Chat bearer token auth deployed** — Added policy scheme + introspection to Chat module (mirrors Files module pattern)
+2. **HTTP 500 with empty body** — Android client got 500 with no response body
+3. **`UseExceptionHandler()` gated behind `IsDevelopment`** — Chat vs Files comparison revealed Chat module had no exception handler in production
+4. **`OpenIddict.Validation.AspNetCore` package conflict** — Present in Chat.csproj but NOT in Files.csproj; auto-registered auth handlers conflicted with custom introspection scheme
+5. **`IRealtimeBroadcaster` unresolvable** — ChatController needed this DI service which was only registered in Core.Server (in-process), not in the process-isolated Chat module
+
+### Fixes Applied
+
+1. ✅ `OpenIddict.Validation.AspNetCore` removed from Chat.csproj
+2. ✅ `UseExceptionHandler()` added for production (JSON error envelope)
+3. ✅ `NullRealtimeBroadcasterService` created and registered (follows existing null-object pattern)
+
+### Verification
+
+- Android Chat tab: HTTP 200, channels list loads successfully
+- All 14 modules healthy on `cloud.kimball.home`
+- Binary timestamps confirmed fresh after each deploy
+
+### Remaining
+
+- ☐ Add `SenderName` to server's `MessageDto` — currently only has `SenderUserId` (Guid), so Android shows GUID fragments instead of display names
+
+---
+
 ## Archived: Chat Bearer Token Auth — Production Deploy (2026-06-27)
 
 **Target:** cloud.kimball.home (server-side deploy of Chat bearer token auth).
