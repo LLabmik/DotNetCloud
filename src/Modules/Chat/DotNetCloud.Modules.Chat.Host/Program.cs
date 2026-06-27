@@ -167,6 +167,17 @@ var app = builder.Build();
 // Show full exception details only in development.
 if (app.Environment.IsDevelopment())
     app.UseDeveloperExceptionPage();
+else
+    app.UseExceptionHandler(a => a.Run(async context =>
+    {
+        context.Response.StatusCode = 500;
+        context.Response.ContentType = "application/json";
+        await context.Response.WriteAsJsonAsync(new
+        {
+            success = false,
+            error = new { code = "INTERNAL_ERROR", message = "An unexpected error occurred." }
+        });
+    }));
 
 // --- Middleware ---
 

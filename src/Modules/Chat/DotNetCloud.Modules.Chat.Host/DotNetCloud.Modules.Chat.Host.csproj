@@ -22,8 +22,7 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
-    <PackageReference Include="OpenIddict.Validation.AspNetCore" />
-  </ItemGroup>
+    </ItemGroup>
 
   <ItemGroup>
     <Protobuf Include="Protos\chat_service.proto" GrpcServices="Server" />
