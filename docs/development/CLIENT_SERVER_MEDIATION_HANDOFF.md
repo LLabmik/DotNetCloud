@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-27 17:50 UTC (All fixes deployed — IRealtimeBroadcaster null-object added, ready for Android client test)
+Last updated: 2026-06-27 17:55 UTC (Chat tab working — HTTP 200. New issue: SenderName missing from MessageDto, shows GUID fragments)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -92,7 +92,9 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Current Status
 
-- ✅ **Chat module fixes deployed** — Three issues fixed: (1) `OpenIddict.Validation.AspNetCore` removed (conflicted with introspection), (2) `UseExceptionHandler()` added for production (returns JSON error envelope), (3) `NullRealtimeBroadcasterService` added (ChatController dependency was unresolvable in process-isolated module).
+- ✅ **Chat tab WORKING** — HTTP 200, channels list loads successfully on Android!
+- 🔴 **SenderName missing from MessageDto** — Server's `MessageDto` only has `SenderUserId` (Guid), no `SenderName` property. Android client falls back to showing first 8 chars of GUID (e.g., `"1e6c0909"`). Need to add `SenderName` to server-side DTO.
+- ✅ **All three server fixes deployed** — OpenIddict package removed, UseExceptionHandler added, NullRealtimeBroadcasterService registered.
 - ✅ **Sync architecture** — All testing complete. See archive.
 - ✅ **Linux client validation** — Completed on mint-OptiPlex-7010. Archived.
 
@@ -118,32 +120,45 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** Root cause found and fixed — `IRealtimeBroadcaster` was not registered in Chat module DI. Null-object implementation added, deployed, and verified. Ready for Android client to test.
+**Summary:** Chat tab working (HTTP 200)! New issue: sender names show as GUID fragments because server's `MessageDto` is missing `SenderName` property.
 
-**Background (2026-06-27, updated 17:50 UTC):** Server-side investigation on `cloud.kimball.home` found the actual exception in the Chat module logs:
+**Background (2026-06-27, updated 17:55 UTC):** Android client (`monolith`) confirmed:
 
-```
-System.InvalidOperationException: Unable to resolve service for type
-'DotNetCloud.Core.Capabilities.IRealtimeBroadcaster' while attempting to
-activate 'DotNetCloud.Modules.Chat.Host.Controllers.ChatController'.
-```
+- ✅ Chat tab loads channels and messages successfully — HTTP 200!
+- 🔴 Sender names show as GUID fragments (e.g., `"1e6c0909"`, `"587d777a"`) instead of user display names
 
-**Root cause:** The ChatController constructor requires `IRealtimeBroadcaster` (used for announcement SignalR broadcasts), but this service is only registered in `Core.Server` (in-process SignalR). Since the Chat module runs as a process-isolated child, it couldn't resolve this dependency.
+**Root cause analysis:** The server's `MessageDto` (in `src/Modules/Chat/DotNetCloud.Modules.Chat/DTOs/ChatDtos.cs`) only has `SenderUserId` (Guid) — there is **no `SenderName` property** at any layer:
+- `MessageDto` (internal module DTO) — no SenderName
+- `ChatMessageDto` (Core DTO) — no SenderName
+- `ChatMessageMessage` (protobuf) — no sender_name field
+- REST API returns messages WITHOUT sender display names
 
-**Fix:** Created `NullRealtimeBroadcasterService` (following the existing null-object pattern — `NullTracksActivitySignalRService`, `NullLiveKitService`, etc.) and registered it in `ChatServiceRegistration.cs`:
+The Android client's `ResolveSenderName()` tries:
+1. Look up in channel member list (`_memberLookup`) — works if members have display names set
+2. Use server-provided `SenderName` — always empty since server doesn't send it
+3. **Fallback: first 8 chars of GUID** — this is what users see
 
-```csharp
-services.AddSingleton<IRealtimeBroadcaster, NullRealtimeBroadcasterService>();
-```
-
-**Deploy:** `./scripts/deploy.sh` — Chat.Host published, all modules healthy
-**Verify:** `curl /api/v1/chat/channels` → 401 (correct), no errors in Chat module logs
+**Fix needed:** Add `SenderName` to server-side `MessageDto` and populate it when returning messages from the service layer.
 
 ---
 
+### Server Actions — `cloud.kimball.home`
+
+1. **Add `SenderName` to `MessageDto`** in `src/Modules/Chat/DotNetCloud.Modules.Chat/DTOs/ChatDtos.cs`:
+   ```csharp
+   public required string SenderName { get; init; }
+   ```
+
+2. **Populate `SenderName` in `MessageService.ToMessageDto()`** in `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/Services/MessageService.cs`:
+   - Look up the sender's display name from `ChannelMembers` table or User lookup service
+   - The Message entity has `SenderUserId` — need to resolve to display name
+
+3. **Also add to Core's `ChatMessageDto`** in `src/Core/DotNetCloud.Core/DTOs/Chat/CoreChatDtos.cs`
+
+4. **Also add to proto** in `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Protos/chat_service.proto`
+
+5. **Rebuild and deploy**
+
 ### Android Client Actions — `monolith`
 
-1. **Rebuild APK** on `monolith` (Windows 11) with latest server changes from `feature/chat-auth-bearer-token-support`
-2. **Install on emulator and test Chat tab**
-3. Expected: Chat tab loads channel list successfully (HTTP 200 with `{"success":true,"data":[...channel list...]}`)
-4. If still failing: capture full response body via logcat and relay back
+- ☐ After server fix is deployed, rebuild APK and test — sender names should now show user display names
