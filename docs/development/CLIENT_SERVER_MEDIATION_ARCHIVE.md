@@ -18,6 +18,29 @@ Archived: 2026-06-25 01:35 UTC. Full git history preserved in commits up to chan
 
 ---
 
+## Archived: Chat Bearer Token Auth — Deployed to Production (2026-06-27)
+
+**Target:** monolith → cloud.kimball.home (server auth overhaul)
+
+**Result:** ✅ Auth changes deployed and secured Chat API (returns 401 without auth). However, `GET /api/v1/chat/channels` returns **500** — `ListChannelsAsync` lacks exception handling. Handed off for server-side fix.
+
+**Completed (monolith — code changes):**
+- ✅ Added `DotNetCloud.Core.Auth` project reference to Chat.Host.csproj
+- ✅ Added `Microsoft.AspNetCore.Authentication.JwtBearer` package
+- ✅ Added `AddTokenIntrospection()`, policy scheme resolution, `AddIntrospection()`, `AuthorizationPolicies.Configure()`, `PermissionAuthorizationHandler` to Chat.Host Program.cs
+- ✅ Changed `ChatControllerBase [Authorize(AuthenticationSchemes = "Identity.Application")]` to plain `[Authorize]`
+- ✅ Commit: `5d040145` (includes `Directory.Packages.props` fix for SQLitePCLRaw.lib.e_sqlite3.android)
+
+**Completed (cloud.kimball.home — deploy):**
+- ✅ Built and deployed Chat module with auth changes
+- ✅ All 13 modules healthy after deploy
+- ✅ Chat module binary timestamp: Jun 27 04:08 — confirmed running current build
+
+**Pending (handed off):**
+- ☐ Fix `ListChannelsAsync()` to use `ExecuteAsync()` wrapping to return proper error responses instead of 500
+
+---
+
 ## Archived: gRPC CompleteUpload Fix — Server Deploy + Client Verification (2026-06-25)
 
 **Target:** cloud.kimball.home (server fix) → Windows11-TestDNC (client verification)
