@@ -1703,13 +1703,33 @@ public sealed class SyncEngine : ISyncEngine
                     break;
 
                 case Conflict.ConflictResolutionOutcome.ConflictCopyCreated:
-                    // A conflict copy was created from the local version. Queue a download of
-                    // the server version so it replaces the original path on this sync pass.
-                    // Without this queue, the follow-up local scan sees the original file as
-                    // "deleted" (it was renamed to the conflict copy) and issues a DELETE API
-                    // call that wipes the server's edited version.
-                    await _stateDb.QueueOperationAsync(context.StateDatabasePath,
-                        new PendingDownload { LocalPath = localPath, NodeId = change.NodeId, PosixMode = change.PosixMode }, cancellationToken);
+                    // A conflict copy was created from the local version. Download the server
+                    // version inline NOW — before the follow-up local scan runs — so the file
+                    // is present on disk and the scan doesn't see it as "deleted" (it was
+                    // renamed to the conflict copy). Queuing a PendingDownload is insufficient
+                    // because it runs in Parallel.ForEachAsync alongside the PendingDelete that
+                    // the local scan queues for the same NodeId — the delete wins and the
+                    // download gets 404.
+                    try
+                    {
+                        var downloadStream = await _transfer.DownloadAsync(change.NodeId, null, cancellationToken);
+                        Directory.CreateDirectory(Path.GetDirectoryName(localPath)!);
+                        await using var output = File.Create(localPath);
+                        await downloadStream.CopyToAsync(output, cancellationToken);
+                        var hash = await ComputeFileHashAsync(localPath, cancellationToken);
+                        localRecord!.ContentHash = hash;
+                        localRecord.SyncStateTag = "Synced";
+                        localRecord.LastSyncedAt = DateTime.UtcNow;
+                        localRecord.LocalModifiedAt = File.GetLastWriteTimeUtc(localPath);
+                        await _stateDb.UpsertFileRecordAsync(context.StateDatabasePath, localRecord, cancellationToken);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex,
+                            "Failed to download server version for conflict-resolved file {Path}. " +
+                            "Server version will be picked up on next sync cycle.",
+                            localPath);
+                    }
                     break;
 
                     // AutoResolvedLocalWins: local file kept, will be re-queued for upload on next scan.
