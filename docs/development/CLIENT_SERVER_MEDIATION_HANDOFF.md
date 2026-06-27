@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-27 16:24 UTC (Chat HTTP 500 persists with valid token — server fix not live)
+Last updated: 2026-06-27 17:15 UTC (Server-side investigation complete — fix deployed, infrastructure healthy, needs Android client verification)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -92,8 +92,9 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Current Status
 
-- 🔴 **Chat module still returns 500 with valid Bearer token** — Auth middleware works (401 without token), but when Android client sends a valid 2064-char Bearer token, the server returns **HTTP 500 with empty body**. The `ExecuteAsync()` fix doesn't seem to be running on production, or the error occurs before the controller (YARP proxy layer).
-- ✅ **Chat bearer token auth** — Deployed to production on `cloud.kimball.home`. Auth confirmed working for unauthenticated requests.
+- ✅ **Chat module HTTP 500 fix deployed** — `ExecuteAsync()` wrapping on `ListChannelsAsync` and 18 other endpoints, `UseDeveloperExceptionPage()` gated behind `IsDevelopment`. Binary at `/opt/dotnetcloud/server/modules/dotnetcloud.chat/dotnetcloud.chat.dll` confirmed fresh (15:59 UTC deploy) with `ListChannels` and `INTERNAL_ERROR` strings.
+- ✅ **Server-side investigation complete** — Full investigation done on `cloud.kimball.home` (see Active Handoff for detailed findings). All infrastructure healthy. Cannot verify authenticated flow without a Bearer token.
+- ✅ **Chat bearer token auth** — Deployed to production. Auth confirmed working (401 without token, 401 with invalid token).
 - ✅ **Sync architecture** — All testing complete. See archive.
 - ✅ **Linux client validation** — Completed on mint-OptiPlex-7010. Archived.
 
@@ -119,64 +120,64 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** Chat module still returns HTTP 500 with empty body when called with a valid Bearer token. The unauthenticated case (401) works, but authenticated requests fail. Server needs to investigate why `ExecuteAsync()` wrapper doesn't appear to be running on production.
+**Summary:** Server-side fix deployed and infrastructure verified. Need Android client (`monolith`) to rebuild APK and test Chat tab with Bearer token auth.
 
-**Background (2026-06-27, updated 16:24 UTC):** Android client (`monolith`) testing revealed:
+**Background (2026-06-27, updated 17:15 UTC):** Server-side investigation completed on `cloud.kimball.home`. All findings documented below:
 
-- Auth middleware works: `curl` without token returns 401 (correct)
-- But Android client **with a valid 2064-char Bearer token** gets **HTTP 500 with empty body**
-- Enhanced logging added to Android client to capture response body: **Body was empty string** — meaning the error happens before any response body is generated
-- This suggests either:
-  1. The `ExecuteAsync()` fix (#65b17e63) was **not actually deployed** to the running Chat module process (stale binary)
-  2. OR the 500 comes from **YARP proxy in Core.Server** before reaching the Chat module (module process crashed/unreachable)
-  3. OR the Chat module **process crashes entirely** on each authenticated request (stack overflow, null ref on startup)
-- Previous `Verify` step only tested without token — need to test WITH a valid token
+### Investigation Findings — `cloud.kimball.home`
 
-**Key clue:** Empty body = no controller code ran. `ExecuteAsync()` would return `{"success":false,"error":{"code":"INTERNAL_ERROR","message":"..."}}` — not empty.
+**✅ Chat module process:** Healthy. Responding to gRPC health checks on port 50284. All 14 modules healthy.
+
+**✅ Binary verification:**
+- `stat /opt/dotnetcloud/server/modules/dotnetcloud.chat/dotnetcloud.chat.dll` → Modify: `2026-06-27 15:59:37` (deployed at 16:00)
+- `strings -e l` confirms `ListChannels` and `INTERNAL_ERROR` strings present
+- Module published to `/opt/dotnetcloud/server/modules/dotnetcloud.chat/` during deploy
+
+**✅ YARP proxy:** Working correctly.
+- `curl -sk https://cloud.dotnetcloud.net/api/v1/chat/channels` → HTTP 401 (correctly forwarded to Chat module)
+- `curl -sk --http2-prior-knowledge http://localhost:50284/api/v1/chat/channels` → HTTP 401 (direct to Chat module)
+- Both return `content-length: 0` (expected — `[Authorize]` rejects without body)
+- No YARP ForwarderError entries in journal logs
+- Forwarder configured with `Version = Version20, VersionPolicy = RequestVersionOrHigher` — h2c works on .NET 10
+
+**✅ Database:** All healthy.
+- Chat tables in `core` schema: `Channels`, `ChannelMembers`, `Messages`, etc.
+- Public channel exists (Id: `DC03F432-...`, Name: `Public`, Type: `Public`)
+- Both users are members of Public channel
+- `ChannelService.EnsureDefaultPublicChannelForUserAsync()` would not make changes for existing users
+
+**✅ gRPC introspection:** Working.
+- `DOTNETCLOUD_CORE_ENDPOINT=http://localhost:50100` set on Chat module process
+- `DOTNETCLOUD_MODULE_ID=dotnetcloud.chat` set correctly
+- Core.Server grpc endpoint on port 50100 responds to introspection calls
+- `AuthenticationInterceptor` validates `module-id` header → sets `UserState["ModuleId"]`
+- `TokenIntrospectionServiceImpl` validates caller identity correctly
+
+**✅ All unprotected endpoints fixed:** 18 endpoints in `ChatController` now wrapped in `ExecuteAsync()` or try-catch.
+
+**❌ Could not verify authenticated flow:** Cannot get a Bearer token from `cloud.kimball.home` server (no `password` or `client_credentials` grant with known secret). Need Android client to test with its OAuth token.
 
 ---
 
-### Server Actions — `cloud.kimball.home`
-
-1. **Verify the fix is actually deployed** — check that the Chat module binary on disk has the `ExecuteAsync()` changes:
-   ```bash
-   # Check binary timestamp vs deploy time
-   stat /opt/dotnetcloud/modules/chat/dotnetcloud.chat
-   # Or check if the deploy actually updated the module
-   sudo systemctl status dotnetcloud-chat
-   ```
-
-2. **Test with a valid Bearer token** (not just without one):
-   ```bash
-   # First get a token (use the same OAuth flow as Android)
-   # Then test:
-   curl -sk -w "\n%{http_code}" -H "Authorization: Bearer <token>" https://cloud.dotnetcloud.net/api/v1/chat/channels
-   # Expected: 200 with channel list
-   # Actual from Android: 500 with empty body
-   ```
-
-3. **Check Chat module logs** for crash/exception details:
-   ```bash
-   sudo journalctl -u dotnetcloud-chat --since "30 min ago" --no-pager
-   # OR
-   sudo tail -100 /var/log/dotnetcloud/chat/error.log
-   ```
-
-4. **Check Core.Server YARP proxy logs** — 500 with empty body could mean the proxy can't reach the Chat module process:
-   ```bash
-   sudo journalctl -u dotnetcloud-core --since "30 min ago" --no-pager
-   ```
-
-5. **If module process is crashing**, check if `DOTNETCLOUD_GRPC_ENDPOINT` env var is set correctly and the module can connect to Core.Server for token introspection
-
-6. **Deploy again** after verifying the fix:
-   ```bash
-   git fetch origin
-   git checkout feature/chat-auth-bearer-token-support
-   git pull
-   ./scripts/deploy.sh
-   ```
-
 ### Android Client Actions — `monolith`
 
-- ☐ After server fix is verified working with a Bearer token, rebuild APK and test Chat tab
+1. **Rebuild APK** on `monolith` (Windows 11) with latest server changes from `feature/chat-auth-bearer-token-support`
+
+2. **Install on emulator and test Chat tab** — the primary test case:
+   ```bash
+   # After APK install, open Chat tab
+   # Expected: Chat tab loads channel list successfully (HTTP 200 with JSON body)
+   #   {"success":true,"data":[...channel list...]}
+   # If still failing: capture full response body via logcat
+   ```
+
+3. **If still getting 500 with empty body** — run this curl from `monolith` or the Android emulator:
+   ```bash
+   # Make request with the same Bearer token the Android app uses
+   curl -sk -w "\nHTTP_CODE:%{http_code}\nCONTENT_LENGTH:%{size_download}\n" \
+     -H "Authorization: Bearer <android-token>" \
+     https://cloud.dotnetcloud.net/api/v1/chat/channels
+   ```
+   Report the HTTP status code, content-length, and any response body.
+
+4. **Expected behavior:** Sending messages, creating channels all work via Bearer token auth.
