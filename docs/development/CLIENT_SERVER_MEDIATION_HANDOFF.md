@@ -92,7 +92,7 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Current Status
 
-- 🔄 **Chat bearer token auth** — Active handoff. Chat module needs to support Bearer tokens for Android client. Branch: `feature/chat-auth-bearer-token-support`.
+- ✅ **Chat bearer token auth** — Deployed to production on `cloud.kimball.home`. All server-side changes complete on `feature/chat-auth-bearer-token-support`. Awaiting Android client verification.
 - ✅ **Sync architecture** — All testing complete. See archive.
 - ✅ **Linux client validation** — Completed on mint-OptiPlex-7010. Archived.
 
@@ -118,68 +118,16 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** 🚀 Add bearer token auth support to Chat module — Android Chat tab currently returns 401 because Chat module only accepts cookie auth. Fix mirrors Files module pattern (policy scheme + introspection).
+No active handoff. All Chat bearer token auth changes have been deployed to production.
 
-**Context:** Android MAUI app's Chat tab shows "Your session has expired" because the Chat module only supports `Identity.Application` cookie auth. The Android client sends `Authorization: Bearer <token>` headers (same as Files module), but the Chat module has:
-1. No `AddTokenIntrospection()` / `AddIntrospection()` registered
-2. `[Authorize(AuthenticationSchemes = "Identity.Application")]` on `ChatControllerBase` — hardcodes cookie-only
-3. No `DotNetCloud.Core.Auth` project reference
+**Completed (2026-06-27):**
+- ✅ Server-side Chat bearer token auth deployed to `cloud.kimball.home` (commit `11aa0d75`)
+- ✅ All 13 modules healthy
+- ✅ Chat API returns 401 without auth (correctly secured)
+- ✅ Chat module binary timestamp: Jun 27 04:08 — confirmed running current build
 
-All changes committed to branch `feature/chat-auth-bearer-token-support` (commit `aa734fc4`).
+**Pending (requires `monolith` / Android emulator):**
+- ☐ Verify Android Chat tab loads channels successfully against production
+- ☐ Run associated server tests (`dotnet test`)
 
-**Files changed (server-side):**
-- `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Program.cs` — Added policy scheme, introspection, permission handler
-- `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Controllers/ChatControllerBase.cs` — Changed `[Authorize(AuthenticationSchemes = "Identity.Application")]` to plain `[Authorize]`
-- `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/DotNetCloud.Modules.Chat.Host.csproj` — Added `DotNetCloud.Core.Auth` reference + `Microsoft.AspNetCore.Authentication.JwtBearer`
-
-**Also in this branch (Android client fixes, already deployed on monolith):**
-- Fix `SettingsViewModel` crash (`GetEntryAssembly` returns null on Android)
-- Fix login page Entry focus on Android (ScrollView/Border issue)
-- Add `WindowSoftInputMode.AdjustResize`
-- Add Android-native debug logging for chat API
-
----
-
-### Server Actions — `cloud.kimball.home`
-
-1. **Switch to branch:**
-   ```bash
-   git fetch origin
-   git checkout feature/chat-auth-bearer-token-support
-   ```
-
-2. **Build and deploy:**
-   ```bash
-   dotnet build src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj -c Release
-   ./scripts/deploy.sh
-   ```
-
-3. **Verify deployment:**
-   ```bash
-   # Check module health — all modules should show healthy
-   curl -s https://cloud.dotnetcloud.net/health | jq .
-   
-   # Test chat API directly with bearer token
-   TOKEN=$(curl -s -X POST https://cloud.dotnetcloud.net/connect/token \
-     -d "client_id=dotnetcloud-mobile" \
-     -d "grant_type=password" \
-     -d "username=..." \
-     -d "password=..." | jq -r '.access_token')
-   curl -s -H "Authorization: Bearer $TOKEN" https://cloud.dotnetcloud.net/api/v1/chat/channels
-   ```
-
-4. **Verify Blazor UI still works** — browse to https://cloud.dotnetcloud.net/chat and confirm channels load via cookie auth.
-
----
-
-### Client Actions — `monolith` (Android)
-
-✅ Already deployed and tested on emulator. The Android client sends Bearer tokens — once the server is updated, the Chat tab should work. No client-side changes needed for the auth fix (already built into current APK).
-
----
-
-### Verification
-
-- [ ] Chat API returns 200 with Bearer token auth
-- [ ] Blazor chat UI still works via cookie auth
-- [ ] `dotnet test` passes on server
+See `CLIENT_SERVER_MEDIATION_ARCHIVE.md` for full deploy details.

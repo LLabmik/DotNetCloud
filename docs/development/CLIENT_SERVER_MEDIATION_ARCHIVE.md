@@ -5012,3 +5012,26 @@ Key confirmations:
 - ✅ Follow-up pass clean: DurationMs=110, RemoteChanges=0
 - ✅ Sync duration ~2s with ~24 small files
 
+---
+
+## Archived: Chat Bearer Token Auth — Production Deploy (2026-06-27)
+
+**Target:** cloud.kimball.home (server-side deploy of Chat bearer token auth).
+
+**Result:** ✅ Chat module deployed with bearer token support. All changes on `feature/chat-auth-bearer-token-support`.
+
+### Server Actions — cloud.kimball.home (Completed)
+
+1. ✅ **Switched to branch:** `feature/chat-auth-bearer-token-support` (already current)
+2. ✅ **Built:** `dotnet build src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj -c Release` — succeeded (190.3s)
+3. ✅ **Deployed:** `sudo ./scripts/deploy.sh` — all 15 targets succeeded (333s)
+4. ✅ **Verified deployment:**
+   - All 13 modules Healthy (chat module: `dotnetcloud.chat: Healthy`)
+   - Chat API returns 401 without auth (correctly secured)
+   - Deployed commit: `11aa0d75` (binary timestamps Jun 27 04:08)
+   - Blazor UI responding via HTTPS
+
+### Notes
+- Pre-existing Contacts module gRPC issue resolved on retry (transient startup race)
+- Awaiting Android client (monolith) verification that Chat tab works with Bearer tokens against production
+
