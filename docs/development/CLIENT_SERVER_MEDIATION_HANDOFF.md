@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-27 17:30 UTC (Both fixes deployed — OpenIddict.Validation.AspNetCore removed, UseExceptionHandler added for production)
+Last updated: 2026-06-27 17:40 UTC (UseExceptionHandler works — now getting JSON error body. Need server to check Chat module logs for actual exception in ListChannelsAsync)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -92,7 +92,12 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Current Status
 
-- ✅ **Chat module fixes deployed** — `OpenIddict.Validation.AspNetCore` removed from Chat.csproj (conflicted with introspection scheme), `UseExceptionHandler()` added for production (returns JSON error envelope instead of bare 500 with empty body). Both root causes identified by monolith via Chat vs Files comparison, fixed, deployed, and verified on `cloud.kimball.home`.
+- 🔴 **Chat module still returns 500 — but now with JSON body** — `UseExceptionHandler()` fix is working. Android client now receives `{"success":false,"error":{"code":"INTERNAL_ERROR","message":"An unexpected error occurred."}}` instead of empty body. This means:
+  1. ✅ Auth is working (Bearer token accepted, request reaches controller)
+  2. ✅ `UseExceptionHandler()` catches exceptions properly (returns JSON)
+  3. ❌ **`ListChannelsAsync()` (or `GetAuthenticatedCaller()`) inside ChannelService is still throwing** — the actual exception is swallowed by `ExecuteAsync()` which returns generic `INTERNAL_ERROR`
+  4. Need server to check Chat module logs for the actual exception details
+- ✅ **OpenIddict.Validation.AspNetCore removed** — No longer conflicts with introspection scheme
 - ✅ **Sync architecture** — All testing complete. See archive.
 - ✅ **Linux client validation** — Completed on mint-OptiPlex-7010. Archived.
 
@@ -118,20 +123,39 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** Both fixes applied and deployed on `cloud.kimball.home`. Waiting for Android client (`monolith`) to rebuild APK and test Chat tab.
+**Summary:** `UseExceptionHandler()` fix is working — now getting JSON error body. But `ListChannelsAsync()` is still throwing. Server needs to check Chat module logs for the actual exception.
 
-**Background (2026-06-27, updated 17:30 UTC):** Two root causes identified by monolith via Chat vs Files comparison. Both fixed and deployed:
+**Background (2026-06-27, updated 17:40 UTC):** Android client (`monolith`) testing confirms:
 
-- **Fix 1:** Removed `OpenIddict.Validation.AspNetCore` from Chat.csproj (conflicted with custom introspection scheme)
-- **Fix 2:** Added `UseExceptionHandler()` for production (returns JSON error envelope instead of bare 500)
-- **Deploy:** `./scripts/deploy.sh` — Chat.Host published, all modules healthy
-- **Verify:** `curl /api/v1/chat/channels` → 401 (correct), no errors in Chat module logs
+- ✅ `UseExceptionHandler()` works — response body is now `{"success":false,"error":{"code":"INTERNAL_ERROR","message":"An unexpected error occurred."}}` (93 bytes, chunked encoding)
+- ✅ Auth works — Bearer token is accepted, request reaches Chat controller
+- ❌ `ListChannelsAsync()` still throws — the `ExecuteAsync()` wrapper (or `UseExceptionHandler()`) catches it and returns generic `INTERNAL_ERROR`
+- The actual exception is logged by the Chat module — need to check journalctl
+
+**Key question:** What is the actual exception inside `ListChannelsAsync`?
+- `GetAuthenticatedCaller()` might fail if claims from introspection don't include `ClaimTypes.NameIdentifier` or `"sub"` in expected format
+- `EnsureDefaultPublicChannelForUserAsync()` might fail with DB access issue
+- `ChannelService.ListChannelsAsync()` might fail for some other reason
 
 ---
 
+### Server Actions — `cloud.kimball.home`
+
+1. **Check Chat module logs** for the actual exception:
+   ```bash
+   # Look for exceptions during the Android client's requests (around 22:30-22:31 UTC)
+   sudo journalctl -u dotnetcloud-chat --since "2026-06-27 22:29:00" --until "2026-06-27 22:32:00" --no-pager
+   
+   # Or search for recent error entries
+   sudo journalctl -u dotnetcloud-chat --since "5 min ago" --no-pager | grep -i "error\|exception\|fail\|INTERNAL_ERROR\|ListChannels"
+   ```
+
+2. **Identify the exception type and message** — this will tell us what's wrong inside `ListChannelsAsync` or `GetAuthenticatedCaller()`
+
+3. **Fix the root cause** in `ChannelService.ListChannelsAsync()` or `GetAuthenticatedCaller()` claim handling
+
+4. **Redeploy** and verify
+
 ### Android Client Actions — `monolith`
 
-1. **Rebuild APK** on `monolith` (Windows 11) with latest server changes from `feature/chat-auth-bearer-token-support`
-2. **Install on emulator and test Chat tab**
-3. Expected: Chat tab loads channel list successfully (HTTP 200 with `{"success":true,"data":[...]}`)
-4. If still failing: capture full response body via logcat and relay back
+- ☐ After server fixes are deployed, test Chat tab again
