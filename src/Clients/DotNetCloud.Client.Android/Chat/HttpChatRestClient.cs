@@ -39,7 +39,14 @@ internal sealed class HttpChatRestClient : IChatRestClient
         Log.Info("DotNetCloud", $"GetChannelsAsync CALLING {url}");
         try
         {
-            var envelope = await _http.GetFromJsonAsync<Envelope<List<ChannelSummaryDto>>>(url, JsonOpts, ct).ConfigureAwait(false);
+            using var response = await _http.GetAsync(url, HttpCompletionOption.ResponseContentRead, ct).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+                Log.Error("DotNetCloud", $"GetChannelsAsync HTTP {(int)response.StatusCode} from {url}. Body: {body}");
+                response.EnsureSuccessStatusCode(); // throw after logging body
+            }
+            var envelope = await response.Content.ReadFromJsonAsync<Envelope<List<ChannelSummaryDto>>>(JsonOpts, ct).ConfigureAwait(false);
             Log.Info("DotNetCloud", $"GetChannelsAsync SUCCEEDED from {url}");
             return (envelope?.Data ?? []).Select(ToChannelSummary).ToList();
         }

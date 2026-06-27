@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-27 16:01 UTC (Chat module HTTP 500 fixed and deployed to production)
+Last updated: 2026-06-27 16:24 UTC (Chat HTTP 500 persists with valid token — server fix not live)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -92,8 +92,8 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Current Status
 
-- ✅ **Chat module HTTP 500** — Fixed and deployed to production. `ListChannelsAsync` wrapped in `ExecuteAsync()`, `UseDeveloperExceptionPage()` gated behind `IsDevelopment`, and all other unprotected ChatController endpoints (18 total) audited and fixed.
-- ✅ **Chat bearer token auth** — Deployed to production on `cloud.kimball.home`. Auth confirmed working. `GET /api/v1/chat/channels` now returns 401 (no token) instead of 500.
+- 🔴 **Chat module still returns 500 with valid Bearer token** — Auth middleware works (401 without token), but when Android client sends a valid 2064-char Bearer token, the server returns **HTTP 500 with empty body**. The `ExecuteAsync()` fix doesn't seem to be running on production, or the error occurs before the controller (YARP proxy layer).
+- ✅ **Chat bearer token auth** — Deployed to production on `cloud.kimball.home`. Auth confirmed working for unauthenticated requests.
 - ✅ **Sync architecture** — All testing complete. See archive.
 - ✅ **Linux client validation** — Completed on mint-OptiPlex-7010. Archived.
 
@@ -119,20 +119,64 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** Server-side Chat HTTP 500 fix deployed and verified. Android client (`monolith`) needs to rebuild APK and test Chat tab.
+**Summary:** Chat module still returns HTTP 500 with empty body when called with a valid Bearer token. The unauthenticated case (401) works, but authenticated requests fail. Server needs to investigate why `ExecuteAsync()` wrapper doesn't appear to be running on production.
 
-**Background (2026-06-27):** Chat module HTTP 500 fix completed on `cloud.kimball.home`:
+**Background (2026-06-27, updated 16:24 UTC):** Android client (`monolith`) testing revealed:
 
-- **`ListChannelsAsync`** — wrapped in `return await ExecuteAsync(...)` with proper error handling
-- **`UseDeveloperExceptionPage()`** — gated behind `if (app.Environment.IsDevelopment())`
-- **Audited all ChatController endpoints** — 18 unprotected endpoints fixed (all wrapped in `ExecuteAsync()` or explicit try-catch)
-- **DB investigation** — Connection string, provider, and migrations verified; all 14 modules healthy
-- **Deploy** — `./scripts/deploy.sh` (97s, all targets succeeded)
-- **Verify** — `curl -sk -o /dev/null -w "%{http_code}" https://cloud.dotnetcloud.net/api/v1/chat/channels` → **401** (was 500 before; 401 is correct for unauthenticated request)
+- Auth middleware works: `curl` without token returns 401 (correct)
+- But Android client **with a valid 2064-char Bearer token** gets **HTTP 500 with empty body**
+- Enhanced logging added to Android client to capture response body: **Body was empty string** — meaning the error happens before any response body is generated
+- This suggests either:
+  1. The `ExecuteAsync()` fix (#65b17e63) was **not actually deployed** to the running Chat module process (stale binary)
+  2. OR the 500 comes from **YARP proxy in Core.Server** before reaching the Chat module (module process crashed/unreachable)
+  3. OR the Chat module **process crashes entirely** on each authenticated request (stack overflow, null ref on startup)
+- Previous `Verify` step only tested without token — need to test WITH a valid token
+
+**Key clue:** Empty body = no controller code ran. `ExecuteAsync()` would return `{"success":false,"error":{"code":"INTERNAL_ERROR","message":"..."}}` — not empty.
+
+---
+
+### Server Actions — `cloud.kimball.home`
+
+1. **Verify the fix is actually deployed** — check that the Chat module binary on disk has the `ExecuteAsync()` changes:
+   ```bash
+   # Check binary timestamp vs deploy time
+   stat /opt/dotnetcloud/modules/chat/dotnetcloud.chat
+   # Or check if the deploy actually updated the module
+   sudo systemctl status dotnetcloud-chat
+   ```
+
+2. **Test with a valid Bearer token** (not just without one):
+   ```bash
+   # First get a token (use the same OAuth flow as Android)
+   # Then test:
+   curl -sk -w "\n%{http_code}" -H "Authorization: Bearer <token>" https://cloud.dotnetcloud.net/api/v1/chat/channels
+   # Expected: 200 with channel list
+   # Actual from Android: 500 with empty body
+   ```
+
+3. **Check Chat module logs** for crash/exception details:
+   ```bash
+   sudo journalctl -u dotnetcloud-chat --since "30 min ago" --no-pager
+   # OR
+   sudo tail -100 /var/log/dotnetcloud/chat/error.log
+   ```
+
+4. **Check Core.Server YARP proxy logs** — 500 with empty body could mean the proxy can't reach the Chat module process:
+   ```bash
+   sudo journalctl -u dotnetcloud-core --since "30 min ago" --no-pager
+   ```
+
+5. **If module process is crashing**, check if `DOTNETCLOUD_GRPC_ENDPOINT` env var is set correctly and the module can connect to Core.Server for token introspection
+
+6. **Deploy again** after verifying the fix:
+   ```bash
+   git fetch origin
+   git checkout feature/chat-auth-bearer-token-support
+   git pull
+   ./scripts/deploy.sh
+   ```
 
 ### Android Client Actions — `monolith`
 
-- [ ] Rebuild APK on `monolith` (Windows 11) with latest server changes
-- [ ] Install on emulator and test Chat tab
-- [ ] Expected: Chat tab loads channel list successfully (HTTP 200 with channel data)
-- [ ] Expected: Sending messages, creating channels all work via bearer token auth
+- ☐ After server fix is verified working with a Bearer token, rebuild APK and test Chat tab
