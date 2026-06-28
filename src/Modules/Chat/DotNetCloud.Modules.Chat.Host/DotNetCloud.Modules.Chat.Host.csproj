@@ -16,13 +16,13 @@
 
   <ItemGroup>
     <PackageReference Include="Grpc.AspNetCore" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
-    <PackageReference Include="OpenIddict.Validation.AspNetCore" />
-  </ItemGroup>
+    </ItemGroup>
 
   <ItemGroup>
     <Protobuf Include="Protos\chat_service.proto" GrpcServices="Server" />
@@ -31,6 +31,7 @@
   <ItemGroup>
     <ProjectReference Include="..\DotNetCloud.Modules.Chat\DotNetCloud.Modules.Chat.csproj" />
     <ProjectReference Include="..\DotNetCloud.Modules.Chat.Data\DotNetCloud.Modules.Chat.Data.csproj" />
+    <ProjectReference Include="..\..\..\Core\DotNetCloud.Core.Auth\DotNetCloud.Core.Auth.csproj" />
     <ProjectReference Include="..\..\..\Core\DotNetCloud.Core.Grpc\DotNetCloud.Core.Grpc.csproj" />
     <ProjectReference Include="..\..\Search\DotNetCloud.Modules.Search.Client\DotNetCloud.Modules.Search.Client.csproj" />
   </ItemGroup>

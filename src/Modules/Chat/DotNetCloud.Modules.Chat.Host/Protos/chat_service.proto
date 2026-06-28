@@ -206,6 +206,7 @@ message ChatMessageMessage {
   bool is_edited = 8;
   string reply_to_message_id = 9;
   repeated AttachmentMessage attachments = 10;
+  string sender_name = 11;
 }
 
 message AttachmentMessage {

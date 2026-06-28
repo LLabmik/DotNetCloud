@@ -1,3 +1,4 @@
+using Android.Content;
 using DotNetCloud.Client.Android.ViewModels;
 using Microsoft.Maui.ApplicationModel;
 
@@ -16,8 +17,22 @@ public partial class LoginPage : ContentPage
         vm.LoginSucceeded += OnLoginSucceeded;
     }
 
+    /// <inheritdoc />
+    protected override void OnAppearing()
+    {
+        base.OnAppearing();
+        // Auto-focus the server URL entry so the keyboard appears on page load.
+        // Delayed to ensure the layout is ready on Android.
+        Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(300), () => ServerUrlEntry.Focus());
+    }
+
     private async void OnLoginSucceeded(object? sender, EventArgs e)
     {
         await MainThread.InvokeOnMainThreadAsync(() => Shell.Current.GoToAsync("//Main/ChannelList", animate: true));
+
+        // Start the SignalR chat connection foreground service after successful login
+        var intent = new Intent(global::Android.App.Application.Context, typeof(ChatConnectionService));
+        intent.SetAction(ChatConnectionService.ActionStart);
+        global::Android.App.Application.Context.StartForegroundService(intent);
     }
 }

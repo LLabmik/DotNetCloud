@@ -1,3 +1,5 @@
+using Android.Util;
+using DotNetCloud.Client.Android.Auth;
 using DotNetCloud.Client.Android.Services;
 using DotNetCloud.Client.Core;
 using DotNetCloud.Client.Core.Auth;
@@ -22,6 +24,7 @@ internal sealed record SignalRMessageDto(
     [property: JsonPropertyName("id")] Guid Id,
     [property: JsonPropertyName("content")] string Content,
     [property: JsonPropertyName("senderUserId")] Guid SenderUserId,
+    [property: JsonPropertyName("senderName")] string? SenderName,
     [property: JsonPropertyName("sentAt")] DateTime SentAt);
 
 /// <summary>
@@ -42,8 +45,8 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
     private readonly ILogger<SignalRChatClient> _logger;
     private readonly IPendingMessageQueue _pendingQueue;
     private readonly IChatRestClient _restClient;
+    private readonly ISecureTokenStore _tokenStore;
     private string? _serverBaseUrl;
-    private string? _accessToken;
 
     /// <inheritdoc />
     public event EventHandler<ChatUnreadCountUpdatedEventArgs>? OnUnreadCountUpdated;
@@ -55,11 +58,13 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
     public SignalRChatClient(
         ILogger<SignalRChatClient> logger,
         IPendingMessageQueue pendingQueue,
-        IChatRestClient restClient)
+        IChatRestClient restClient,
+        ISecureTokenStore tokenStore)
     {
         _logger = logger;
         _pendingQueue = pendingQueue;
         _restClient = restClient;
+        _tokenStore = tokenStore;
     }
 
     /// <summary>
@@ -69,20 +74,22 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
     /// <param name="serverBaseUrl">Root URL of the DotNetCloud server.</param>
     /// <param name="accessToken">Bearer token used for hub authentication.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task ConnectAsync(string serverBaseUrl, string accessToken, CancellationToken cancellationToken = default)
+    public async Task ConnectAsync(string serverBaseUrl, string? accessToken = null, CancellationToken cancellationToken = default)
     {
         if (_hub is not null)
             await _hub.DisposeAsync().ConfigureAwait(false);
 
         _serverBaseUrl = serverBaseUrl;
-        _accessToken = accessToken;
 
         var hubUrl = $"{serverBaseUrl.TrimEnd('/')}/hubs/core";
 
         _hub = new HubConnectionBuilder()
             .WithUrl(hubUrl, options =>
             {
-                options.AccessTokenProvider = () => Task.FromResult<string?>(accessToken);
+                // Fetch a fresh token on every connect/reconnect to handle expiry.
+                // Falls back to the injected ISecureTokenStore which handles refresh flows.
+                options.AccessTokenProvider = async () =>
+                    await _tokenStore.GetAccessTokenAsync(serverBaseUrl).ConfigureAwait(false);
                 options.HttpMessageHandlerFactory = static _ => OAuthHttpClientHandlerFactory.CreateHandler();
             })
             .WithAutomaticReconnect([TimeSpan.Zero, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(15)])
@@ -92,14 +99,20 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
             OnUnreadCountUpdated?.Invoke(this, new ChatUnreadCountUpdatedEventArgs(payload.ChannelId, payload.Count, false)));
 
         _hub.On<NewMessagePayload>("NewMessage", payload =>
+        {
+            var senderName = !string.IsNullOrEmpty(payload.Message.SenderName)
+                ? payload.Message.SenderName
+                : payload.Message.SenderUserId.ToString();
+            Log.Info("DotNetCloud", $"SignalRChatClient: NewMessage received! channelId={payload.ChannelId}, content='{payload.Message.Content}', senderName='{senderName}', sentAt={payload.Message.SentAt:O}");
             OnNewChatMessage?.Invoke(this, new ChatMessageReceivedEventArgs(
                 payload.ChannelId,
                 string.Empty,
-                payload.Message.SenderUserId.ToString(),
+                senderName,
                 payload.Message.Content,
                 payload.Message.Id,
                 payload.Message.SentAt,
-                false)));
+                false));
+        });
 
         _hub.Reconnected += async connectionId =>
         {
@@ -123,7 +136,11 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
 
     private async Task FlushPendingMessagesAsync()
     {
-        if (_serverBaseUrl is null || _accessToken is null)
+        if (_serverBaseUrl is null)
+            return;
+
+        var accessToken = await _tokenStore.GetAccessTokenAsync(_serverBaseUrl).ConfigureAwait(false);
+        if (accessToken is null)
             return;
 
         var pending = await _pendingQueue.GetAllAsync().ConfigureAwait(false);
@@ -137,7 +154,7 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
             try
             {
                 await _restClient.SendMessageAsync(
-                    _serverBaseUrl, _accessToken,
+                    _serverBaseUrl, accessToken,
                     msg.ChannelId, msg.Content)
                     .ConfigureAwait(false);
                 flushed.Add(msg.RowId);
@@ -158,12 +175,23 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
     {
         if (_hub?.State is not HubConnectionState.Connected)
         {
+            Log.Warn("DotNetCloud", $"JoinChannelGroupAsync: cannot join {channelId}: hub not connected (state={_hub?.State}).");
             _logger.LogDebug("Cannot join channel group {ChannelId}: hub not connected.", channelId);
             return;
         }
 
         var groupName = $"chat-channel-{channelId}";
-        await _hub.InvokeAsync("JoinGroupAsync", groupName, cancellationToken).ConfigureAwait(false);
+        Log.Info("DotNetCloud", $"JoinChannelGroupAsync: invoking JoinGroupAsync('{groupName}')...");
+        try
+        {
+            await _hub.InvokeAsync("JoinGroupAsync", groupName, cancellationToken).ConfigureAwait(false);
+            Log.Info("DotNetCloud", $"JoinChannelGroupAsync: successfully joined group '{groupName}'.");
+        }
+        catch (Exception ex)
+        {
+            Log.Error("DotNetCloud", $"JoinChannelGroupAsync: FAILED to join group '{groupName}': {ex.Message}");
+            _logger.LogWarning(ex, "Failed to join SignalR group {Group}", groupName);
+        }
         _logger.LogDebug("Joined SignalR group {Group}.", groupName);
     }
 

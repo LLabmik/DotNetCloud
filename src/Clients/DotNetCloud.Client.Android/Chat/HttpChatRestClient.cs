@@ -1,3 +1,4 @@
+using Android.Util;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -35,8 +36,27 @@ internal sealed class HttpChatRestClient : IChatRestClient
     {
         SetAuth(accessToken);
         var url = $"{serverBaseUrl.TrimEnd('/')}/api/v1/chat/channels";
-        var envelope = await _http.GetFromJsonAsync<Envelope<List<ChannelSummaryDto>>>(url, JsonOpts, ct).ConfigureAwait(false);
-        return (envelope?.Data ?? []).Select(ToChannelSummary).ToList();
+        Log.Info("DotNetCloud", $"GetChannelsAsync CALLING {url}");
+        Log.Info("DotNetCloud", $"GetChannelsAsync Auth header: Bearer {accessToken[..Math.Min(20, accessToken.Length)]}... (len={accessToken.Length})");
+        try
+        {
+            using var response = await _http.GetAsync(url, HttpCompletionOption.ResponseContentRead, ct).ConfigureAwait(false);
+            Log.Info("DotNetCloud", $"GetChannelsAsync RESPONSE: Status={(int)response.StatusCode}, Content-Length={response.Content.Headers.ContentLength?.ToString() ?? "null"}, Headers={string.Join("; ", response.Headers.Select(h => $"{h.Key}={string.Join(",", h.Value)}"))}");
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+                Log.Error("DotNetCloud", $"GetChannelsAsync HTTP {(int)response.StatusCode} from {url}. Body='{body}' (len={body.Length})");
+                response.EnsureSuccessStatusCode(); // throw after logging body
+            }
+            var envelope = await response.Content.ReadFromJsonAsync<Envelope<List<ChannelSummaryDto>>>(JsonOpts, ct).ConfigureAwait(false);
+            Log.Info("DotNetCloud", $"GetChannelsAsync SUCCEEDED from {url}");
+            return (envelope?.Data ?? []).Select(ToChannelSummary).ToList();
+        }
+        catch (Exception ex)
+        {
+            Log.Error("DotNetCloud", $"GetChannelsAsync FAILED: {ex.GetType().Name}: {ex.Message}");
+            throw;
+        }
     }
 
     /// <inheritdoc />
@@ -50,9 +70,22 @@ internal sealed class HttpChatRestClient : IChatRestClient
             _logger.LogDebug("GetMessagesAsync currently ignores beforeId; server API uses page/pageSize pagination.");
 
         var url = $"{serverBaseUrl.TrimEnd('/')}/api/v1/chat/channels/{channelId}/messages?page=1&pageSize={pageSize}";
+        Log.Info("DotNetCloud", $"GetMessagesAsync CALLING {url}");
 
-        var envelope = await _http.GetFromJsonAsync<PagedEnvelope<ChatMessageDto>>(url, JsonOpts, ct).ConfigureAwait(false);
-        return (envelope?.Data ?? []).Select(ToChatMessage).ToList();
+        try
+        {
+            var envelope = await _http.GetFromJsonAsync<PagedEnvelope<ChatMessageDto>>(url, JsonOpts, ct).ConfigureAwait(false);
+            var msgs = (envelope?.Data ?? []).Select(ToChatMessage).ToList();
+            foreach (var m in msgs.Take(5))
+                Log.Info("DotNetCloud", $"GetMessagesAsync msg: senderUserId={m.SenderUserId}, senderName='{m.SenderName}', content='{m.Content[..Math.Min(20, m.Content.Length)]}'");
+            Log.Info("DotNetCloud", $"GetMessagesAsync SUCCEEDED from {url} ({msgs.Count} messages)");
+            return msgs;
+        }
+        catch (Exception ex)
+        {
+            Log.Error("DotNetCloud", $"GetMessagesAsync FAILED: {ex.GetType().Name}: {ex.Message}");
+            throw;
+        }
     }
 
     /// <inheritdoc />
@@ -101,8 +134,21 @@ internal sealed class HttpChatRestClient : IChatRestClient
     {
         SetAuth(accessToken);
         var url = $"{serverBaseUrl.TrimEnd('/')}/api/v1/chat/channels/{channelId}/members";
-        var envelope = await _http.GetFromJsonAsync<Envelope<List<ChannelMemberDto>>>(url, JsonOpts, ct).ConfigureAwait(false);
-        return (envelope?.Data ?? []).Select(ToMemberSummary).ToList();
+        Log.Info("DotNetCloud", $"GetChannelMembersAsync CALLING {url}");
+        try
+        {
+            var envelope = await _http.GetFromJsonAsync<Envelope<List<ChannelMemberDto>>>(url, JsonOpts, ct).ConfigureAwait(false);
+            var members = (envelope?.Data ?? []).Select(ToMemberSummary).ToList();
+            foreach (var m in members.Take(5))
+                Log.Info("DotNetCloud", $"GetChannelMembersAsync member: userId={m.UserId}, displayName='{m.DisplayName}'");
+            Log.Info("DotNetCloud", $"GetChannelMembersAsync SUCCEEDED ({members.Count} members)");
+            return members;
+        }
+        catch (Exception ex)
+        {
+            Log.Error("DotNetCloud", $"GetChannelMembersAsync FAILED: {ex.GetType().Name}: {ex.Message}");
+            throw;
+        }
     }
 
     /// <inheritdoc />

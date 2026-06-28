@@ -1,6 +1,7 @@
 using Android.App;
 using Android.Content;
 using Android.OS;
+using Android.Util;
 using CommunityToolkit.Mvvm.DependencyInjection;
 using DotNetCloud.Client.Android.Auth;
 using DotNetCloud.Client.Android.Chat;
@@ -43,41 +44,68 @@ public sealed class ChatConnectionService : Service
     /// <inheritdoc />
     public override StartCommandResult OnStartCommand(Intent? intent, StartCommandFlags flags, int startId)
     {
-        _logger = Ioc.Default.GetService<ILogger<ChatConnectionService>>();
-
-        if (intent?.Action == ActionStop)
+        try
         {
-            _logger?.LogInformation("ChatConnectionService stopping via intent.");
-            StopForeground(StopForegroundFlags.Remove);
-            StopSelf();
-            return StartCommandResult.NotSticky;
-        }
+            Log.Info("DotNetCloud", "ChatConnectionService.OnStartCommand entered.");
+            _logger = Ioc.Default.GetService<ILogger<ChatConnectionService>>();
 
-        // Build and show the persistent notification required for foreground services.
-        if (Build.VERSION.SdkInt >= BuildVersionCodes.Q)
-        {
+            if (intent?.Action == ActionStop)
+            {
+                _logger?.LogInformation("ChatConnectionService stopping via intent.");
+                StopForeground(StopForegroundFlags.Remove);
+                StopSelf();
+                return StartCommandResult.NotSticky;
+            }
+
+            // Build and show the persistent notification required for foreground services.
+            // On Android 13+, POST_NOTIFICATIONS is a runtime permission; wrap in try-catch
+            // to prevent StartForeground from crashing the service if the user denied it.
+            try
+            {
+                if (Build.VERSION.SdkInt >= BuildVersionCodes.Q)
+                {
 #pragma warning disable CA1416 // already guarded by runtime SDK check above
-            StartForeground(NotificationId, BuildNotification(),
-                global::Android.Content.PM.ForegroundService.TypeDataSync);
+                    StartForeground(NotificationId, BuildNotification(),
+                        global::Android.Content.PM.ForegroundService.TypeDataSync);
 #pragma warning restore CA1416
+                }
+                else
+                {
+                    StartForeground(NotificationId, BuildNotification());
+                }
+                Log.Info("DotNetCloud", "ChatConnectionService: StartForeground succeeded.");
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("DotNetCloud", $"ChatConnectionService: StartForeground failed: {ex.Message}");
+                _logger?.LogWarning(ex, "StartForeground failed; continuing without persistent notification.");
+            }
+
+            // Acquire partial wake lock to prevent the CPU from sleeping while SignalR is active.
+            try
+            {
+                var pm = (PowerManager?)GetSystemService(PowerService);
+                if (pm is not null)
+                {
+                    _wakeLock = pm.NewWakeLock(WakeLockFlags.Partial, "DotNetCloud::ChatWakeLock");
+                    _wakeLock?.Acquire();
+                    Log.Info("DotNetCloud", "ChatConnectionService: wake lock acquired.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("DotNetCloud", $"ChatConnectionService: wake lock failed: {ex.Message}");
+            }
+
+            _logger?.LogInformation("ChatConnectionService started; wake lock acquired.");
+
+            // Ensure the SignalR connection is live.
+            _ = EnsureSignalRConnectedAsync();
         }
-        else
+        catch (Exception ex)
         {
-            StartForeground(NotificationId, BuildNotification());
+            Log.Error("DotNetCloud", $"ChatConnectionService.OnStartCommand crashed: {ex}");
         }
-
-        // Acquire partial wake lock to prevent the CPU from sleeping while SignalR is active.
-        var pm = (PowerManager?)GetSystemService(PowerService);
-        if (pm is not null)
-        {
-            _wakeLock = pm.NewWakeLock(WakeLockFlags.Partial, "DotNetCloud::ChatWakeLock");
-            _wakeLock?.Acquire();
-        }
-
-        _logger?.LogInformation("ChatConnectionService started; wake lock acquired.");
-
-        // Ensure the SignalR connection is live.
-        _ = EnsureSignalRConnectedAsync();
 
         return StartCommandResult.Sticky;
     }
@@ -95,28 +123,40 @@ public sealed class ChatConnectionService : Service
     {
         try
         {
+            Log.Info("DotNetCloud", "ChatConnectionService.EnsureSignalRConnectedAsync: resolving services...");
             var signalR = Ioc.Default.GetService<IChatSignalRClient>();
             var serverStore = Ioc.Default.GetService<IServerConnectionStore>();
             var tokenStore = Ioc.Default.GetService<ISecureTokenStore>();
 
+            Log.Info("DotNetCloud", $"EnsureSignalRConnectedAsync: signalR={(signalR is not null)}, serverStore={(serverStore is not null)}, tokenStore={(tokenStore is not null)}");
+
             if (signalR is null || serverStore is null || tokenStore is null)
+            {
+                Log.Warn("DotNetCloud", "EnsureSignalRConnectedAsync: one or more services null, cannot connect.");
                 return;
+            }
 
             var connection = serverStore.GetActive();
+            Log.Info("DotNetCloud", $"EnsureSignalRConnectedAsync: connection={(connection is not null)}");
             if (connection is null)
                 return;
 
             var token = await tokenStore.GetAccessTokenAsync(connection.ServerBaseUrl).ConfigureAwait(false);
+            Log.Info("DotNetCloud", $"EnsureSignalRConnectedAsync: token={(token is not null)}, length={(token?.Length ?? 0)}");
             if (token is null)
                 return;
 
+            Log.Info("DotNetCloud", $"EnsureSignalRConnectedAsync: connecting to SignalR at {connection.ServerBaseUrl}...");
             if (signalR is SignalRChatClient androidSignalR)
-                await androidSignalR.ConnectAsync(connection.ServerBaseUrl, token).ConfigureAwait(false);
+                await androidSignalR.ConnectAsync(connection.ServerBaseUrl).ConfigureAwait(false);
             else
                 await signalR.ConnectAsync().ConfigureAwait(false);
+
+            Log.Info("DotNetCloud", "EnsureSignalRConnectedAsync: SignalR connected successfully!");
         }
         catch (Exception ex)
         {
+            Log.Error("DotNetCloud", $"EnsureSignalRConnectedAsync failed: {ex}");
             _logger?.LogWarning(ex, "Failed to ensure SignalR connection in foreground service.");
         }
     }

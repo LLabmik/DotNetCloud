@@ -412,6 +412,46 @@ public sealed class MessageItemViewModel
     /// <summary>When the message was sent (UTC).</summary>
     public DateTimeOffset SentAt { get; }
 
-    /// <summary>Formatted send time for display.</summary>
-    public string SentAtDisplay => SentAt.ToLocalTime().ToString("HH:mm");
+    /// <summary>Formatted send time for display, matching Blazor's tiered FormatTime.</summary>
+    public string SentAtDisplay
+    {
+        get
+        {
+            var diff = DateTimeOffset.UtcNow - SentAt;
+
+            // Handle server clock skew: the server sometimes serializes UTC timestamps
+            // with a local offset (-05:00 CDT instead of +00:00), making messages
+            // appear to be from the future. Re-interpret as UTC in that case.
+            var effectiveSent = SentAt;
+            if (diff.TotalMinutes < -5)
+            {
+                // Server sent local time as the timestamp — strip offset, treat as UTC
+                effectiveSent = new DateTimeOffset(SentAt.DateTime, TimeSpan.Zero);
+                diff = DateTimeOffset.UtcNow - effectiveSent;
+            }
+
+            var absMinutes = Math.Abs(diff.TotalMinutes);
+
+            global::Android.Util.Log.Info("DotNetCloud",
+                $"SentAtDisplay: absMin={absMinutes:F1}, SentAt={SentAt:O}, effective={effectiveSent:O}, diff={diff.TotalMinutes:F1}");
+
+            if (absMinutes < 1)
+                return "just now";
+
+            if (absMinutes < 60)
+                return $"{(int)Math.Abs(diff.TotalMinutes)}m ago";
+
+            var tz = TimeZoneInfo.Local;
+            var localSent = TimeZoneInfo.ConvertTime(effectiveSent, tz);
+            var localNow = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, tz);
+
+            if (localSent.Date == localNow.Date)
+                return localSent.ToString("HH:mm");
+
+            if (localSent.Date == localNow.Date.AddDays(-1))
+                return $"Yesterday {localSent:HH:mm}";
+
+            return localSent.ToString("MMM d, HH:mm");
+        }
+    }
 }

@@ -336,9 +336,12 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     private static string GetAppVersion()
     {
+        // Assembly.GetEntryAssembly() returns null on Android — fall back to
+        // the SettingsViewModel assembly which is in the same APK.
+        var assembly = System.Reflection.Assembly.GetEntryAssembly()
+                       ?? typeof(SettingsViewModel).Assembly;
         var attr = System.Reflection.CustomAttributeExtensions
-            .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(
-                System.Reflection.Assembly.GetEntryAssembly()!);
+            .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(assembly);
         var version = attr?.InformationalVersion ?? "0.0.0";
         var plusIdx = version.IndexOf('+');
         return plusIdx >= 0 ? version[..plusIdx] : version;

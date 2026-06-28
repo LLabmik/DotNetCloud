@@ -109,19 +109,25 @@ public class ChatController : ChatControllerBase
     [HttpGet("channels")]
     public async Task<IActionResult> ListChannelsAsync()
     {
-        var channels = await _channelService.ListChannelsAsync(GetAuthenticatedCaller());
-        return Ok(Envelope(channels));
+        return await ExecuteAsync(async () =>
+        {
+            var channels = await _channelService.ListChannelsAsync(GetAuthenticatedCaller());
+            return Ok(Envelope(channels));
+        });
     }
 
     /// <summary>Gets a channel by ID.</summary>
     [HttpGet("channels/{channelId:guid}")]
     public async Task<IActionResult> GetChannelAsync(Guid channelId)
     {
-        var channel = await _channelService.GetChannelAsync(channelId, GetAuthenticatedCaller());
-        if (channel is null)
-            return NotFound(ErrorEnvelope("CHAT_CHANNEL_NOT_FOUND", "Channel not found."));
+        return await ExecuteAsync(async () =>
+        {
+            var channel = await _channelService.GetChannelAsync(channelId, GetAuthenticatedCaller());
+            if (channel is null)
+                return NotFound(ErrorEnvelope("CHAT_CHANNEL_NOT_FOUND", "Channel not found."));
 
-        return Ok(Envelope(channel));
+            return Ok(Envelope(channel));
+        });
     }
 
     /// <summary>Updates a channel.</summary>
@@ -189,8 +195,11 @@ public class ChatController : ChatControllerBase
     [HttpPost("channels/dm/{otherUserId:guid}")]
     public async Task<IActionResult> GetOrCreateDmAsync(Guid otherUserId)
     {
-        var channel = await _channelService.GetOrCreateDirectMessageAsync(otherUserId, GetAuthenticatedCaller());
-        return Ok(Envelope(channel));
+        return await ExecuteAsync(async () =>
+        {
+            var channel = await _channelService.GetOrCreateDirectMessageAsync(otherUserId, GetAuthenticatedCaller());
+            return Ok(Envelope(channel));
+        });
     }
 
     // ── Member Endpoints ────────────────────────────────────────────
@@ -340,8 +349,11 @@ public class ChatController : ChatControllerBase
     [HttpGet("unread")]
     public async Task<IActionResult> GetUnreadCountsAsync()
     {
-        var unread = await _memberService.GetUnreadCountsAsync(GetAuthenticatedCaller());
-        return Ok(Envelope(unread));
+        return await ExecuteAsync(async () =>
+        {
+            var unread = await _memberService.GetUnreadCountsAsync(GetAuthenticatedCaller());
+            return Ok(Envelope(unread));
+        });
     }
 
     // ── Message Endpoints ───────────────────────────────────────────
@@ -405,18 +417,21 @@ public class ChatController : ChatControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50)
     {
-        var result = await _messageService.GetMessagesAsync(channelId, page, pageSize, GetAuthenticatedCaller());
-        return Ok(new
+        return await ExecuteAsync(async () =>
         {
-            success = true,
-            data = result.Items,
-            pagination = new
+            var result = await _messageService.GetMessagesAsync(channelId, page, pageSize, GetAuthenticatedCaller());
+            return Ok(new
             {
-                page = result.Page,
-                pageSize = result.PageSize,
-                totalItems = result.TotalItems,
-                totalPages = result.TotalPages
-            }
+                success = true,
+                data = result.Items,
+                pagination = new
+                {
+                    page = result.Page,
+                    pageSize = result.PageSize,
+                    totalItems = result.TotalItems,
+                    totalPages = result.TotalPages
+                }
+            });
         });
     }
 
@@ -424,11 +439,14 @@ public class ChatController : ChatControllerBase
     [HttpGet("channels/{channelId:guid}/messages/{messageId:guid}")]
     public async Task<IActionResult> GetMessageAsync(Guid channelId, Guid messageId)
     {
-        var message = await _messageService.GetMessageAsync(messageId, GetAuthenticatedCaller());
-        if (message is null)
-            return NotFound(ErrorEnvelope("CHAT_MESSAGE_NOT_FOUND", "Message not found."));
+        return await ExecuteAsync(async () =>
+        {
+            var message = await _messageService.GetMessageAsync(messageId, GetAuthenticatedCaller());
+            if (message is null)
+                return NotFound(ErrorEnvelope("CHAT_MESSAGE_NOT_FOUND", "Message not found."));
 
-        return Ok(Envelope(message));
+            return Ok(Envelope(message));
+        });
     }
 
     /// <summary>Edits a message.</summary>
@@ -481,50 +499,53 @@ public class ChatController : ChatControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50)
     {
-        if (string.IsNullOrWhiteSpace(q))
-            return BadRequest(ErrorEnvelope("VALIDATION_ERROR", "Search query is required."));
-
-        var caller = GetAuthenticatedCaller();
-
-        // Try FTS via Search module gRPC when available
-        if (_searchFtsClient is { IsAvailable: true })
+        return await ExecuteAsync(async () =>
         {
-            var ftsResult = await _searchFtsClient.SearchAsync(
-                q, moduleFilter: "chat", entityTypeFilter: "Message",
-                userId: caller.UserId, page: page, pageSize: pageSize);
+            if (string.IsNullOrWhiteSpace(q))
+                return BadRequest(ErrorEnvelope("VALIDATION_ERROR", "Search query is required."));
 
-            if (ftsResult is not null)
+            var caller = GetAuthenticatedCaller();
+
+            // Try FTS via Search module gRPC when available
+            if (_searchFtsClient is { IsAvailable: true })
             {
-                return Ok(new
+                var ftsResult = await _searchFtsClient.SearchAsync(
+                    q, moduleFilter: "chat", entityTypeFilter: "Message",
+                    userId: caller.UserId, page: page, pageSize: pageSize);
+
+                if (ftsResult is not null)
                 {
-                    success = true,
-                    data = ftsResult.Items,
-                    pagination = new
+                    return Ok(new
                     {
-                        page = ftsResult.Page,
-                        pageSize = ftsResult.PageSize,
-                        totalItems = ftsResult.TotalCount,
-                        totalPages = ftsResult.TotalCount > 0
-                            ? (int)Math.Ceiling((double)ftsResult.TotalCount / ftsResult.PageSize)
-                            : 0
-                    }
-                });
+                        success = true,
+                        data = ftsResult.Items,
+                        pagination = new
+                        {
+                            page = ftsResult.Page,
+                            pageSize = ftsResult.PageSize,
+                            totalItems = ftsResult.TotalCount,
+                            totalPages = ftsResult.TotalCount > 0
+                                ? (int)Math.Ceiling((double)ftsResult.TotalCount / ftsResult.PageSize)
+                                : 0
+                        }
+                    });
+                }
             }
-        }
 
-        // Fallback to LIKE-based search
-        var result = await _messageService.SearchMessagesAsync(channelId, q, page, pageSize, caller);
-        return Ok(new
-        {
-            success = true,
-            data = result.Items,
-            pagination = new
+            // Fallback to LIKE-based search
+            var result = await _messageService.SearchMessagesAsync(channelId, q, page, pageSize, caller);
+            return Ok(new
             {
-                page = result.Page,
-                pageSize = result.PageSize,
-                totalItems = result.TotalItems,
-                totalPages = result.TotalPages
-            }
+                success = true,
+                data = result.Items,
+                pagination = new
+                {
+                    page = result.Page,
+                    pageSize = result.PageSize,
+                    totalItems = result.TotalItems,
+                    totalPages = result.TotalPages
+                }
+            });
         });
     }
 
@@ -580,8 +601,11 @@ public class ChatController : ChatControllerBase
     [HttpGet("messages/{messageId:guid}/reactions")]
     public async Task<IActionResult> GetReactionsAsync(Guid messageId)
     {
-        var reactions = await _reactionService.GetReactionsAsync(messageId);
-        return Ok(Envelope(reactions));
+        return await ExecuteAsync(async () =>
+        {
+            var reactions = await _reactionService.GetReactionsAsync(messageId);
+            return Ok(Envelope(reactions));
+        });
     }
 
     // ── Pin Endpoints ───────────────────────────────────────────────
@@ -705,12 +729,14 @@ public class ChatController : ChatControllerBase
     [HttpGet("channels/{channelId:guid}/files")]
     public async Task<IActionResult> GetChannelFilesAsync(Guid channelId)
     {
-        // Retrieve messages with attachments for this channel
-        var result = await _messageService.GetMessagesAsync(channelId, 1, 100, GetAuthenticatedCaller());
-        var attachments = result.Items
-            .SelectMany(m => m.Attachments)
-            .ToList();
-        return Ok(Envelope(attachments));
+        return await ExecuteAsync(async () =>
+        {
+            var result = await _messageService.GetMessagesAsync(channelId, 1, 100, GetAuthenticatedCaller());
+            var attachments = result.Items
+                .SelectMany(m => m.Attachments)
+                .ToList();
+            return Ok(Envelope(attachments));
+        });
     }
 
     // ── Chat Image Upload ──────────────────────────────────────────
@@ -760,11 +786,19 @@ public class ChatController : ChatControllerBase
     [AllowAnonymous]
     public async Task<IActionResult> GetChatUploadAsync(string fileName)
     {
-        var file = await _chatImageStore.GetAsync(fileName);
-        if (file is null)
-            return NotFound();
+        try
+        {
+            var file = await _chatImageStore.GetAsync(fileName);
+            if (file is null)
+                return NotFound();
 
-        return File(file.Data, file.ContentType, enableRangeProcessing: true);
+            return File(file.Data, file.ContentType, enableRangeProcessing: true);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error serving chat upload: {FileName}", fileName);
+            return StatusCode(500, ErrorEnvelope("INTERNAL_ERROR", "An unexpected error occurred."));
+        }
     }
 
     // ── Announcement Endpoints ─────────────────────────────────────
@@ -801,19 +835,25 @@ public class ChatController : ChatControllerBase
     [HttpGet("~/api/v1/announcements")]
     public async Task<IActionResult> ListAnnouncementsAsync()
     {
-        var announcements = await _announcementService.ListAsync(GetAuthenticatedCaller());
-        return Ok(Envelope(announcements));
+        return await ExecuteAsync(async () =>
+        {
+            var announcements = await _announcementService.ListAsync(GetAuthenticatedCaller());
+            return Ok(Envelope(announcements));
+        });
     }
 
     /// <summary>Gets a single announcement by ID.</summary>
     [HttpGet("~/api/v1/announcements/{id:guid}")]
     public async Task<IActionResult> GetAnnouncementAsync(Guid id)
     {
-        var announcement = await _announcementService.GetAsync(id, GetAuthenticatedCaller());
-        if (announcement is null)
-            return NotFound(ErrorEnvelope("ANNOUNCEMENT_NOT_FOUND", "Announcement not found."));
+        return await ExecuteAsync(async () =>
+        {
+            var announcement = await _announcementService.GetAsync(id, GetAuthenticatedCaller());
+            if (announcement is null)
+                return NotFound(ErrorEnvelope("ANNOUNCEMENT_NOT_FOUND", "Announcement not found."));
 
-        return Ok(Envelope(announcement));
+            return Ok(Envelope(announcement));
+        });
     }
 
     /// <summary>Updates an announcement.</summary>
@@ -850,16 +890,22 @@ public class ChatController : ChatControllerBase
     [HttpPost("~/api/v1/announcements/{id:guid}/acknowledge")]
     public async Task<IActionResult> AcknowledgeAnnouncementAsync(Guid id)
     {
-        await _announcementService.AcknowledgeAsync(id, GetAuthenticatedCaller());
-        return Ok(Envelope(new { acknowledged = true }));
+        return await ExecuteAsync(async () =>
+        {
+            await _announcementService.AcknowledgeAsync(id, GetAuthenticatedCaller());
+            return Ok(Envelope(new { acknowledged = true }));
+        });
     }
 
     /// <summary>Gets announcement acknowledgements.</summary>
     [HttpGet("~/api/v1/announcements/{id:guid}/acknowledgements")]
     public async Task<IActionResult> GetAnnouncementAcknowledgementsAsync(Guid id)
     {
-        var acknowledgements = await _announcementService.GetAcknowledgementsAsync(id, GetAuthenticatedCaller());
-        return Ok(Envelope(acknowledgements));
+        return await ExecuteAsync(async () =>
+        {
+            var acknowledgements = await _announcementService.GetAcknowledgementsAsync(id, GetAuthenticatedCaller());
+            return Ok(Envelope(acknowledgements));
+        });
     }
 
     // ── Push Notification Endpoints ────────────────────────────────
@@ -889,8 +935,11 @@ public class ChatController : ChatControllerBase
     [HttpGet("invites")]
     public async Task<IActionResult> ListMyInvitesAsync()
     {
-        var invites = await _inviteService.ListMyInvitesAsync(GetAuthenticatedCaller());
-        return Ok(Envelope(invites));
+        return await ExecuteAsync(async () =>
+        {
+            var invites = await _inviteService.ListMyInvitesAsync(GetAuthenticatedCaller());
+            return Ok(Envelope(invites));
+        });
     }
 
     /// <summary>Lists pending invitations for a channel.</summary>
@@ -969,61 +1018,83 @@ public class ChatController : ChatControllerBase
     [HttpPost("~/api/v1/notifications/devices/register")]
     public async Task<IActionResult> RegisterPushDeviceAsync([FromBody] RegisterDeviceRequestDto dto)
     {
-        if (string.IsNullOrWhiteSpace(dto.DeviceToken))
-            return BadRequest(ErrorEnvelope("VALIDATION_ERROR", "Device token is required."));
-
-        if (!Enum.TryParse<PushProvider>(dto.Provider, ignoreCase: true, out var provider))
-            return BadRequest(ErrorEnvelope("VALIDATION_ERROR", "Invalid push provider."));
-
-        var caller = GetAuthenticatedCaller();
-        await _pushNotificationService.RegisterDeviceAsync(caller.UserId, new DeviceRegistration
+        return await ExecuteAsync(async () =>
         {
-            Token = dto.DeviceToken,
-            Provider = provider,
-            Endpoint = dto.Endpoint
-        });
+            if (string.IsNullOrWhiteSpace(dto.DeviceToken))
+                return BadRequest(ErrorEnvelope("VALIDATION_ERROR", "Device token is required."));
 
-        return Ok(Envelope(new { registered = true }));
+            if (!Enum.TryParse<PushProvider>(dto.Provider, ignoreCase: true, out var provider))
+                return BadRequest(ErrorEnvelope("VALIDATION_ERROR", "Invalid push provider."));
+
+            var caller = GetAuthenticatedCaller();
+            await _pushNotificationService.RegisterDeviceAsync(caller.UserId, new DeviceRegistration
+            {
+                Token = dto.DeviceToken,
+                Provider = provider,
+                Endpoint = dto.Endpoint
+            });
+
+            return Ok(Envelope(new { registered = true }));
+        });
     }
 
     /// <summary>Unregisters the caller device from push notifications.</summary>
     [HttpDelete("~/api/v1/notifications/devices/{deviceToken}")]
     public async Task<IActionResult> UnregisterPushDeviceAsync(string deviceToken)
     {
-        var caller = GetAuthenticatedCaller();
-        await _pushNotificationService.UnregisterDeviceAsync(caller.UserId, deviceToken);
-        return Ok(Envelope(new { unregistered = true }));
+        return await ExecuteAsync(async () =>
+        {
+            var caller = GetAuthenticatedCaller();
+            await _pushNotificationService.UnregisterDeviceAsync(caller.UserId, deviceToken);
+            return Ok(Envelope(new { unregistered = true }));
+        });
     }
 
     /// <summary>Gets caller-level push notification preferences.</summary>
     [HttpGet("~/api/v1/notifications/preferences")]
     public IActionResult GetNotificationPreferencesAsync()
     {
-        var caller = GetAuthenticatedCaller();
-        var preferences = _notificationPreferenceStore.Get(caller.UserId);
-        var dto = new NotificationPreferencesDto
+        try
         {
-            PushEnabled = preferences.PushEnabled,
-            DoNotDisturb = preferences.DoNotDisturb,
-            MutedChannelIds = [.. preferences.MutedChannelIds]
-        };
+            var caller = GetAuthenticatedCaller();
+            var preferences = _notificationPreferenceStore.Get(caller.UserId);
+            var dto = new NotificationPreferencesDto
+            {
+                PushEnabled = preferences.PushEnabled,
+                DoNotDisturb = preferences.DoNotDisturb,
+                MutedChannelIds = [.. preferences.MutedChannelIds]
+            };
 
-        return Ok(Envelope(dto));
+            return Ok(Envelope(dto));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting notification preferences");
+            return StatusCode(500, ErrorEnvelope("INTERNAL_ERROR", "An unexpected error occurred."));
+        }
     }
 
     /// <summary>Updates caller-level push notification preferences.</summary>
     [HttpPut("~/api/v1/notifications/preferences")]
     public IActionResult UpdateNotificationPreferencesAsync([FromBody] NotificationPreferencesDto dto)
     {
-        var caller = GetAuthenticatedCaller();
-        _notificationPreferenceStore.Update(caller.UserId, new UserNotificationPreferences
+        try
         {
-            PushEnabled = dto.PushEnabled,
-            DoNotDisturb = dto.DoNotDisturb,
-            MutedChannelIds = dto.MutedChannelIds.Distinct().ToHashSet()
-        });
+            var caller = GetAuthenticatedCaller();
+            _notificationPreferenceStore.Update(caller.UserId, new UserNotificationPreferences
+            {
+                PushEnabled = dto.PushEnabled,
+                DoNotDisturb = dto.DoNotDisturb,
+                MutedChannelIds = dto.MutedChannelIds.Distinct().ToHashSet()
+            });
 
-        return Ok(Envelope(new { updated = true }));
+            return Ok(Envelope(new { updated = true }));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating notification preferences");
+            return StatusCode(500, ErrorEnvelope("INTERNAL_ERROR", "An unexpected error occurred."));
+        }
     }
 
     // ── User Block Endpoints (Call Blocking) ─────────────────────
@@ -1047,16 +1118,22 @@ public class ChatController : ChatControllerBase
     [HttpDelete("users/{userId:guid}/block")]
     public async Task<IActionResult> UnblockUserAsync(Guid userId)
     {
-        await _userBlockService.UnblockUserAsync(userId, GetAuthenticatedCaller());
-        return Ok(Envelope(new { unblocked = true }));
+        return await ExecuteAsync(async () =>
+        {
+            await _userBlockService.UnblockUserAsync(userId, GetAuthenticatedCaller());
+            return Ok(Envelope(new { unblocked = true }));
+        });
     }
 
     /// <summary>Gets all users blocked by the authenticated user.</summary>
     [HttpGet("users/blocked")]
     public async Task<IActionResult> GetBlockedUsersAsync()
     {
-        var blocked = await _userBlockService.GetBlockedUsersAsync(GetAuthenticatedCaller());
-        return Ok(Envelope(blocked));
+        return await ExecuteAsync(async () =>
+        {
+            var blocked = await _userBlockService.GetBlockedUsersAsync(GetAuthenticatedCaller());
+            return Ok(Envelope(blocked));
+        });
     }
 
     // ── Video Call Endpoints ──────────────────────────────────────
@@ -1301,17 +1378,29 @@ public class ChatController : ChatControllerBase
     [HttpGet("ice-servers")]
     public IActionResult GetIceServers()
     {
-        GetAuthenticatedCaller(); // Ensure authenticated
-
-        var publicHost = Request.Host.Host;
-        var iceServers = _iceServerService.GetIceServers(publicHost);
-        var transportPolicy = _iceServerService.IceTransportPolicy;
-
-        return Ok(Envelope(new
+        try
         {
-            iceServers,
-            iceTransportPolicy = transportPolicy
-        }));
+            GetAuthenticatedCaller(); // Ensure authenticated
+
+            var publicHost = Request.Host.Host;
+            var iceServers = _iceServerService.GetIceServers(publicHost);
+            var transportPolicy = _iceServerService.IceTransportPolicy;
+
+            return Ok(Envelope(new
+            {
+                iceServers,
+                iceTransportPolicy = transportPolicy
+            }));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting ICE server configuration");
+            return StatusCode(500, ErrorEnvelope("INTERNAL_ERROR", "An unexpected error occurred."));
+        }
     }
 
     private static string BuildMessagePreview(string? content)

@@ -113,16 +113,35 @@ internal sealed class CoreHub : Hub
     /// Only users who are members of the channel are allowed to join.
     /// </summary>
     /// <param name="channelId">The channel ID to join.</param>
-    public async Task JoinGroupAsync(string channelId)
+    /// <summary>
+    /// Channel group name prefix used to scope broadcasts to a specific channel.
+    /// Must match <c>ChatHub.ChannelGroup()</c> so joins and broadcasts use the same key.
+    /// </summary>
+    private static string ChannelGroup(Guid channelId) => $"chat-channel-{channelId}";
+
+    public async Task JoinGroupAsync(string groupName)
     {
-        if (string.IsNullOrWhiteSpace(channelId))
+        if (string.IsNullOrWhiteSpace(groupName))
         {
-            throw new HubException("Channel ID cannot be empty.");
+            throw new HubException("Group name cannot be empty.");
         }
 
-        if (!Guid.TryParse(channelId, out var parsedChannelId))
+        // Extract the channelId GUID from the group name.
+        // Clients send the full group name ("chat-channel-{guid}") which must match
+        // the broadcast group name used by ChatHub.ChannelGroup().
+        Guid parsedChannelId;
+
+        if (groupName.StartsWith("chat-channel-", StringComparison.OrdinalIgnoreCase))
         {
-            throw new HubException("Invalid channel ID format.");
+            var guidPart = groupName["chat-channel-".Length..];
+            if (!Guid.TryParse(guidPart, out parsedChannelId))
+            {
+                throw new HubException("Invalid channel ID in group name.");
+            }
+        }
+        else if (!Guid.TryParse(groupName, out parsedChannelId))
+        {
+            throw new HubException("Invalid group name format.");
         }
 
         // Verify the user is a member of this channel before allowing group join
@@ -134,35 +153,43 @@ internal sealed class CoreHub : Hub
         {
             _logger.LogWarning(
                 "User {UserId} denied group join for channel {ChannelId} — not a member",
-                userId, channelId);
+                userId, groupName);
             throw new HubException("You are not a member of this channel.");
         }
 
-        await Groups.AddToGroupAsync(Context.ConnectionId, channelId);
-        _connectionTracker.AddGroupMembership(GetUserId(), channelId);
+        // Use the same group name format as ChatHub.ChannelGroup() so broadcasts
+        // to "chat-channel-{guid}" reach clients that joined via this method.
+        var groupKey = ChannelGroup(parsedChannelId);
+        await Groups.AddToGroupAsync(Context.ConnectionId, groupKey);
+        _connectionTracker.AddGroupMembership(GetUserId(), groupKey);
 
         _logger.LogDebug(
             "User {UserId} joined group {Group} via connection {ConnectionId}",
-            GetUserId(), channelId, Context.ConnectionId);
+            GetUserId(), groupKey, Context.ConnectionId);
     }
 
     /// <summary>
     /// Removes the calling user from a channel group.
     /// </summary>
-    /// <param name="channelId">The channel ID to leave.</param>
-    public async Task LeaveGroupAsync(string channelId)
+    /// <param name="groupName">The group name or channel ID to leave.</param>
+    public async Task LeaveGroupAsync(string groupName)
     {
-        if (string.IsNullOrWhiteSpace(channelId))
+        if (string.IsNullOrWhiteSpace(groupName))
         {
-            throw new HubException("Channel ID cannot be empty.");
+            throw new HubException("Group name cannot be empty.");
         }
 
-        await Groups.RemoveFromGroupAsync(Context.ConnectionId, channelId);
-        _connectionTracker.RemoveGroupMembership(GetUserId(), channelId);
+        // Derive the canonical group key from the provided name.
+        var groupKey = groupName.StartsWith("chat-channel-", StringComparison.OrdinalIgnoreCase)
+            ? groupName
+            : $"chat-channel-{groupName}";
+
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, groupKey);
+        _connectionTracker.RemoveGroupMembership(GetUserId(), groupKey);
 
         _logger.LogDebug(
             "User {UserId} left group {Group} via connection {ConnectionId}",
-            GetUserId(), channelId, Context.ConnectionId);
+            GetUserId(), groupKey, Context.ConnectionId);
     }
 
     /// <summary>

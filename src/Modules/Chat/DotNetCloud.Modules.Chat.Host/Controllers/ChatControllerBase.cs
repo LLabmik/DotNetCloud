@@ -12,7 +12,7 @@ namespace DotNetCloud.Modules.Chat.Host.Controllers;
 /// Provides helper methods for caller context creation and envelope responses.
 /// </summary>
 [ApiController]
-[Authorize(AuthenticationSchemes = "Identity.Application")]
+[Authorize]
 public abstract class ChatControllerBase : ControllerBase
 {
     /// <summary>

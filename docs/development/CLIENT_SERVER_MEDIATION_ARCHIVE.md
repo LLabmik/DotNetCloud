@@ -2,6 +2,71 @@
 
 Archived: 2026-06-25 01:35 UTC. Full git history preserved in commits up to changes from Windows11-TestDNC.
 
+## Archived: `perf/synctray-scan-and-transfer-speedups` — Linux Client Validation Complete (2026-06-27)
+
+**Target:** Windows11-TestDNC → mint-OptiPlex-7010 (client verification)
+
+**Result:** ✅ All 4 test cases passed on Linux mint-OptiPlex-7010. 7 bugs found and fixed across sync architecture testing on Windows11-TestDNC. Branch ready for merge.
+
+**Client verification completed (mint-OptiPlex-7010):**
+- ✅ Test Case 1: CRUD — create, read, update, delete files
+- ✅ Test Case 2: Rename/move — local and remote rename propagation
+- ✅ Test Case 3: Conflict resolution — all 4 strategies
+- ✅ Test Case 4: Batch conflict resolve — all scenarios
+
+**Next step:** Merge `perf/synctray-scan-and-transfer-speedups` → `main`.
+
+---
+
+## Archived: Chat Bearer Token Auth — Deployed to Production (2026-06-27)
+
+**Target:** monolith → cloud.kimball.home (server auth overhaul)
+
+**Result:** ✅ Auth changes deployed and secured Chat API (returns 401 without auth). However, `GET /api/v1/chat/channels` returns **500** — `ListChannelsAsync` lacks exception handling. Handed off for server-side fix.
+
+**Completed (monolith — code changes):**
+- ✅ Added `DotNetCloud.Core.Auth` project reference to Chat.Host.csproj
+- ✅ Added `Microsoft.AspNetCore.Authentication.JwtBearer` package
+- ✅ Added `AddTokenIntrospection()`, policy scheme resolution, `AddIntrospection()`, `AuthorizationPolicies.Configure()`, `PermissionAuthorizationHandler` to Chat.Host Program.cs
+- ✅ Changed `ChatControllerBase [Authorize(AuthenticationSchemes = "Identity.Application")]` to plain `[Authorize]`
+- ✅ Commit: `5d040145` (includes `Directory.Packages.props` fix for SQLitePCLRaw.lib.e_sqlite3.android)
+
+**Completed (cloud.kimball.home — deploy):**
+- ✅ Built and deployed Chat module with auth changes
+- ✅ All 13 modules healthy after deploy
+- ✅ Chat module binary timestamp: Jun 27 04:08 — confirmed running current build
+
+**Pending (handed off):**
+- ☐ Fix `ListChannelsAsync()` to use `ExecuteAsync()` wrapping to return proper error responses instead of 500
+
+---
+
+## Archived: Chat Module HTTP 500 — Server-Side Fix (2026-06-27)
+
+**Target:** cloud.kimball.home (server fix) → monolith (Android client validation)
+
+**Result:** ✅ All server-side actions completed. Chat module HTTP 500 fixed and deployed.
+
+**Completed (cloud.kimball.home):**
+- ✅ `ListChannelsAsync` wrapped in `return await ExecuteAsync(...)` with proper error envelope
+- ✅ `UseDeveloperExceptionPage()` gated behind `if (app.Environment.IsDevelopment())`
+- ✅ All 18 unprotected ChatController endpoints audited and fixed with `ExecuteAsync()` or try-catch:
+  - `ListChannelsAsync`, `GetChannelAsync`, `GetOrCreateDmAsync`, `GetUnreadCountsAsync`
+  - `GetMessagesAsync`, `GetMessageAsync`, `SearchMessagesAsync`, `GetReactionsAsync`
+  - `GetChannelFilesAsync`, `GetChatUploadAsync`, `ListAnnouncementsAsync`, `GetAnnouncementAsync`
+  - `AcknowledgeAnnouncementAsync`, `GetAnnouncementAcknowledgementsAsync`, `ListMyInvitesAsync`
+  - `RegisterPushDeviceAsync`, `UnregisterPushDeviceAsync`, `GetNotificationPreferencesAsync`
+  - `UpdateNotificationPreferencesAsync`, `UnblockUserAsync`, `GetBlockedUsersAsync`, `GetIceServers`
+- ✅ DB config verified: connection string present, SqlServer provider, migrations exist for both providers
+- ✅ Deployed via `./scripts/deploy.sh` — Chat.Host published, all 14 modules healthy
+- ✅ Verified: `curl` to `/api/v1/chat/channels` returns **401** (was 500), confirming controller no longer crashes
+- ✅ Commit: pending (not yet committed)
+
+**Next step (handed off to monolith):**
+- [ ] Rebuild APK, install on emulator, test Chat tab
+
+---
+
 ## Archived: gRPC CompleteUpload Fix — Server Deploy + Client Verification (2026-06-25)
 
 **Target:** cloud.kimball.home (server fix) → Windows11-TestDNC (client verification)
@@ -4995,4 +5060,59 @@ Key confirmations:
 - ✅ LocalApplied=15 — 15 files hydrated locally
 - ✅ Follow-up pass clean: DurationMs=110, RemoteChanges=0
 - ✅ Sync duration ~2s with ~24 small files
+
+---
+
+## Archived: Chat Module Bearer Token Auth & HTTP 500 Fix — Complete (2026-06-27)
+
+**Target:** monolith → cloud.kimball.home (Chat auth overhaul + 500 debugging cycle)
+
+**Result:** ✅ Chat tab working on Android (HTTP 200). Three server-side fixes deployed.
+
+### Cycle Summary
+
+1. **Chat bearer token auth deployed** — Added policy scheme + introspection to Chat module (mirrors Files module pattern)
+2. **HTTP 500 with empty body** — Android client got 500 with no response body
+3. **`UseExceptionHandler()` gated behind `IsDevelopment`** — Chat vs Files comparison revealed Chat module had no exception handler in production
+4. **`OpenIddict.Validation.AspNetCore` package conflict** — Present in Chat.csproj but NOT in Files.csproj; auto-registered auth handlers conflicted with custom introspection scheme
+5. **`IRealtimeBroadcaster` unresolvable** — ChatController needed this DI service which was only registered in Core.Server (in-process), not in the process-isolated Chat module
+
+### Fixes Applied
+
+1. ✅ `OpenIddict.Validation.AspNetCore` removed from Chat.csproj
+2. ✅ `UseExceptionHandler()` added for production (JSON error envelope)
+3. ✅ `NullRealtimeBroadcasterService` created and registered (follows existing null-object pattern)
+
+### Verification
+
+- Android Chat tab: HTTP 200, channels list loads successfully
+- All 14 modules healthy on `cloud.kimball.home`
+- Binary timestamps confirmed fresh after each deploy
+
+### Remaining
+
+- ☐ Add `SenderName` to server's `MessageDto` — currently only has `SenderUserId` (Guid), so Android shows GUID fragments instead of display names
+
+---
+
+## Archived: Chat Bearer Token Auth — Production Deploy (2026-06-27)
+
+**Target:** cloud.kimball.home (server-side deploy of Chat bearer token auth).
+
+**Result:** ✅ Chat module deployed with bearer token support. All changes on `feature/chat-auth-bearer-token-support`.
+
+### Server Actions — cloud.kimball.home (Completed)
+
+1. ✅ **Switched to branch:** `feature/chat-auth-bearer-token-support` (already current)
+2. ✅ **Built:** `dotnet build src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj -c Release` — succeeded (190.3s)
+3. ✅ **Deployed:** `sudo ./scripts/deploy.sh` — all 15 targets succeeded (333s)
+4. ✅ **Verified deployment:**
+   - All 13 modules Healthy (chat module: `dotnetcloud.chat: Healthy`)
+   - Chat API returns 401 without auth (correctly secured)
+   - Deployed commit: `11aa0d75` (binary timestamps Jun 27 04:08)
+   - Blazor UI responding via HTTPS
+
+### Notes
+- Pre-existing Contacts module gRPC issue resolved on retry (transient startup race)
+- Awaiting Android client (monolith) verification that Chat tab works with Bearer tokens against production
 

@@ -131,6 +131,9 @@ public sealed record MessageDto
     /// <summary>Sender user ID.</summary>
     public Guid SenderUserId { get; init; }
 
+    /// <summary>Sender display name.</summary>
+    public string SenderName { get; init; } = string.Empty;
+
     /// <summary>Message content (Markdown).</summary>
     public required string Content { get; init; }
 

@@ -123,6 +123,7 @@
          SQLite. Override both bundle and lib to 3.x which bundles SQLite >= 3.50.2. -->
     <PackageVersion Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
     <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.50.3" />
+    <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3.android" Version="2.1.11" />
     <!-- CLI -->
     <PackageVersion Include="System.CommandLine" Version="2.0.3" />
     <!-- Windows / platform -->

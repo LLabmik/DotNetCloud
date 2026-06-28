@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Modules.Chat.Data.Services;
 using DotNetCloud.Modules.Chat.Services;
 using Microsoft.Extensions.Configuration;
@@ -102,6 +103,12 @@ public static class ChatServiceRegistration
 
         // Cross-module Tracks activity display (null-object when Tracks not installed)
         services.AddSingleton<ITracksActivitySignalRService, NullTracksActivitySignalRService>();
+
+        // Real-time broadcasting (null-object in module-host mode — no in-process SignalR available).
+        // The real IRealtimeBroadcaster lives in Core.Server's SignalR infrastructure.
+        // Module hosts that need real-time broadcasts should use a gRPC-based broadcaster.
+        // The gRPC-based broadcaster (GrpcRealtimeBroadcaster) is registered in Chat.Host/Program.cs.
+        services.AddSingleton<IRealtimeBroadcaster, NullRealtimeBroadcasterService>();
 
         return services;
     }

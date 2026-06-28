@@ -35,6 +35,12 @@ service CoreCapabilities {
 
   // Gets basic group information by ID (IGroupDirectory capability).
   rpc GetGroup (GetGroupRequest) returns (GetGroupResponse);
+
+  // Broadcasts a real-time event to connected SignalR clients.
+  // Called by process-isolated module hosts that need to push real-time
+  // events (new messages, typing indicators, etc.) to web/mobile clients
+  // connected via Core.Server's SignalR hubs.
+  rpc BroadcastRealtimeEvent (BroadcastRealtimeEventRequest) returns (BroadcastRealtimeEventResponse);
 }
 
 // Caller context passed with every capability request for authorization.
@@ -184,4 +190,18 @@ message GroupInfoMessage {
   bool is_all_users_group = 5;
   int32 member_count = 6;
   string created_at = 7;
+}
+
+// --- BroadcastRealtimeEvent ---
+
+message BroadcastRealtimeEventRequest {
+  CallerContextMessage caller = 1;
+  string group = 2;       // SignalR group name (e.g., "chat-channel-{channelId}")
+  string event_name = 3;  // Event name (e.g., "NewMessage", "TypingStarted")
+  string payload_json = 4; // Serialized JSON payload
+  string target_user_id = 5; // If set, sends only to this user (per-user delivery)
+}
+
+message BroadcastRealtimeEventResponse {
+  bool success = 1;
 }
