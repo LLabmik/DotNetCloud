@@ -103,7 +103,7 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
             var senderName = !string.IsNullOrEmpty(payload.Message.SenderName)
                 ? payload.Message.SenderName
                 : payload.Message.SenderUserId.ToString();
-            Log.Info("DotNetCloud", $"SignalRChatClient: NewMessage received! channelId={payload.ChannelId}, content='{payload.Message.Content}', senderName='{senderName}'");
+            Log.Info("DotNetCloud", $"SignalRChatClient: NewMessage received! channelId={payload.ChannelId}, content='{payload.Message.Content}', senderName='{senderName}', sentAt={payload.Message.SentAt:O}");
             OnNewChatMessage?.Invoke(this, new ChatMessageReceivedEventArgs(
                 payload.ChannelId,
                 string.Empty,

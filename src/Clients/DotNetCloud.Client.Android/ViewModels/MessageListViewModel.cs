@@ -417,18 +417,33 @@ public sealed class MessageItemViewModel
     {
         get
         {
-            var utcSent = SentAt.UtcDateTime;
-            var now = DateTime.UtcNow;
-            var diff = now - utcSent;
+            var diff = DateTimeOffset.UtcNow - SentAt;
 
-            if (diff.TotalMinutes < 1)
+            // Handle server clock skew: the server sometimes serializes UTC timestamps
+            // with a local offset (-05:00 CDT instead of +00:00), making messages
+            // appear to be from the future. Re-interpret as UTC in that case.
+            var effectiveSent = SentAt;
+            if (diff.TotalMinutes < -5)
+            {
+                // Server sent local time as the timestamp — strip offset, treat as UTC
+                effectiveSent = new DateTimeOffset(SentAt.DateTime, TimeSpan.Zero);
+                diff = DateTimeOffset.UtcNow - effectiveSent;
+            }
+
+            var absMinutes = Math.Abs(diff.TotalMinutes);
+
+            global::Android.Util.Log.Info("DotNetCloud",
+                $"SentAtDisplay: absMin={absMinutes:F1}, SentAt={SentAt:O}, effective={effectiveSent:O}, diff={diff.TotalMinutes:F1}");
+
+            if (absMinutes < 1)
                 return "just now";
 
-            if (diff.TotalHours < 1)
-                return $"{(int)diff.TotalMinutes}m ago";
+            if (absMinutes < 60)
+                return $"{(int)Math.Abs(diff.TotalMinutes)}m ago";
 
-            var localSent = SentAt.ToLocalTime();
-            var localNow = DateTimeOffset.Now;
+            var tz = TimeZoneInfo.Local;
+            var localSent = TimeZoneInfo.ConvertTime(effectiveSent, tz);
+            var localNow = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, tz);
 
             if (localSent.Date == localNow.Date)
                 return localSent.ToString("HH:mm");
