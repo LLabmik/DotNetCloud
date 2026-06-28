@@ -1,3 +1,4 @@
+using Android.Util;
 using DotNetCloud.Client.Android.Services;
 using DotNetCloud.Client.Core;
 using DotNetCloud.Client.Core.Auth;
@@ -92,6 +93,8 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
             OnUnreadCountUpdated?.Invoke(this, new ChatUnreadCountUpdatedEventArgs(payload.ChannelId, payload.Count, false)));
 
         _hub.On<NewMessagePayload>("NewMessage", payload =>
+        {
+            Log.Info("DotNetCloud", $"SignalRChatClient: NewMessage received! channelId={payload.ChannelId}, content='{payload.Message.Content}', sender={payload.Message.SenderUserId}");
             OnNewChatMessage?.Invoke(this, new ChatMessageReceivedEventArgs(
                 payload.ChannelId,
                 string.Empty,
@@ -99,7 +102,8 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
                 payload.Message.Content,
                 payload.Message.Id,
                 payload.Message.SentAt,
-                false)));
+                false));
+        });
 
         _hub.Reconnected += async connectionId =>
         {
@@ -158,12 +162,23 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
     {
         if (_hub?.State is not HubConnectionState.Connected)
         {
+            Log.Warn("DotNetCloud", $"JoinChannelGroupAsync: cannot join {channelId}: hub not connected (state={_hub?.State}).");
             _logger.LogDebug("Cannot join channel group {ChannelId}: hub not connected.", channelId);
             return;
         }
 
         var groupName = $"chat-channel-{channelId}";
-        await _hub.InvokeAsync("JoinGroupAsync", groupName, cancellationToken).ConfigureAwait(false);
+        Log.Info("DotNetCloud", $"JoinChannelGroupAsync: invoking JoinGroupAsync('{groupName}')...");
+        try
+        {
+            await _hub.InvokeAsync("JoinGroupAsync", groupName, cancellationToken).ConfigureAwait(false);
+            Log.Info("DotNetCloud", $"JoinChannelGroupAsync: successfully joined group '{groupName}'.");
+        }
+        catch (Exception ex)
+        {
+            Log.Error("DotNetCloud", $"JoinChannelGroupAsync: FAILED to join group '{groupName}': {ex.Message}");
+            _logger.LogWarning(ex, "Failed to join SignalR group {Group}", groupName);
+        }
         _logger.LogDebug("Joined SignalR group {Group}.", groupName);
     }
 
