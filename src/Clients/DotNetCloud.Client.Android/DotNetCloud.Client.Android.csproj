@@ -102,7 +102,9 @@
 	     Project references
 	     ======================== -->
 	<ItemGroup>
-		<ProjectReference Include="..\DotNetCloud.Client.Core\DotNetCloud.Client.Core.csproj" />
+		<ProjectReference Include="..\DotNetCloud.Client.Core\DotNetCloud.Client.Core.csproj">
+			<GlobalPropertiesToRemove>RuntimeIdentifiers;RuntimeIdentifier</GlobalPropertiesToRemove>
+		</ProjectReference>
 	</ItemGroup>
 	<ItemGroup>
 	  <Folder Include="Resources\Splash\" />
