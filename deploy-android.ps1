@@ -5,7 +5,7 @@
 )
 
 $ErrorActionPreference = "Stop"
-$repoRoot = Split-Path -Parent $PSScriptRoot
+$repoRoot = $PSScriptRoot
 $env:ANDROID_HOME = "C:\Program Files (x86)\Android\android-sdk"
 
 # Maps Android CPU ABIs to .NET RuntimeIdentifiers
