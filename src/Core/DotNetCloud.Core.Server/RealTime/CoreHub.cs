@@ -165,7 +165,7 @@ internal sealed class CoreHub : Hub
 
         _logger.LogDebug(
             "User {UserId} joined group {Group} via connection {ConnectionId}",
-            GetUserId(), channelId, Context.ConnectionId);
+            GetUserId(), groupKey, Context.ConnectionId);
     }
 
     /// <summary>

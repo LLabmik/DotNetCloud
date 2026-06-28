@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-28 03:00 UTC (CoreHub group-name mismatch fix — server deploy pending)
+Last updated: 2026-06-28 03:10 UTC (CoreHub group-name fix deployed — ready for Android testing)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -96,7 +96,7 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 - ✅ **Blazor real-time forwarding deployed** — `BroadcastRealtimeEvent` handler in Core.Server now forwards chat events (`NewMessage`, `MessageEdited`, `MessageDeleted`) to `IChatMessageNotifier` in-process, so Blazor Server components receive updates without requiring a client-side SignalR HubConnection.
 - ✅ **gRPC-based real-time broadcaster** — Messages from Android (REST API → Chat module host → gRPC → Core.Server → SignalR) now also reach Blazor UI via in-process `IChatMessageNotifier` bridge.
 - ✅ **Android → Blazor real-time working** — Messages sent from Android appear instantly in Blazor Web UI.
-- ❌ **Blazor → Android real-time BROKEN** — Android SignalR connection established successfully, but group join uses a different group name than broadcasts. **Fix applied in source: `CoreHub.JoinGroupAsync()` now joins `chat-channel-{guid}` matching `ChatHub.ChannelGroup()`.** Server deploy pending.
+- ✅ **Blazor → Android real-time fixed** — `CoreHub.JoinGroupAsync()` now joins `chat-channel-{guid}` matching `ChatHub.ChannelGroup()`. Fix deployed to production. Also fixed `_connectionTracker.AddGroupMembership(GetUserId(), groupKey)` to use canonical group key instead of raw GUID.
 - ✅ **SenderName working** — Display names show correctly on Android (e.g., "Ben Kimball").
 - ✅ **ChatConnectionService starts correctly** — SignalR HubConnection established successfully (verified via logcat).
 - ✅ **DbContext concurrency fixed** — Sequential processing replaces `Task.WhenAll`.
@@ -150,6 +150,7 @@ Additionally, the Android client sends the full group name `"chat-channel-{guid}
 
 ### Server Actions — `cloud.kimball.home`
 
-- ☐ Pull latest `feature/chat-auth-bearer-token-support`
-- ☐ Deploy `CoreHub.cs` group-name fix to production
-- ☐ Verify Android receives Blazor messages in real-time (Blazor → Android direction)
+- ✓ Pull latest `feature/chat-auth-bearer-token-support`
+- ✓ Fixed `channelId`→`groupKey` rename in log line (build error)
+- ✓ Deploy `CoreHub.cs` group-name fix to production
+- ✓ Service restart, 14/14 modules healthy
