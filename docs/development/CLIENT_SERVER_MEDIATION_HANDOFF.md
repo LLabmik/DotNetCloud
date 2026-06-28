@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-27 18:48 UTC (SenderName + real-time broadcasts + DbContext fix deployed. Ready for Android client test)
+Last updated: 2026-06-28 00:30 UTC (Root cause found: IUserDirectory not registered in Chat module host DI — fix needed)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -92,7 +92,7 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Current Status
 
-- ✅ **SenderName added to MessageDto** — Android will now show display names instead of GUID fragments.
+- 🔴 **SenderName still empty** — `IUserDirectory` not registered in Chat module host DI. MessageService resolves with `_userDirectory = null` → `SenderName = ""`. Blazor UI works because it runs in-process in Core.Server where `IUserDirectory` IS registered.
 - ✅ **gRPC-based real-time broadcaster deployed** — Blazor UI should receive live message updates from Android-sent messages.
 - ✅ **DbContext concurrency fixed** — Sequential processing replaces `Task.WhenAll` to prevent concurrent DbContext access.
 - ✅ **Chat tab WORKING** — HTTP 200, channels list loads successfully on Android.
@@ -121,24 +121,44 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** All server-side SenderName and real-time broadcast fixes deployed. Ready for Android client to rebuild APK and test.
+**Summary:** `SenderName` still empty from REST API — `IUserDirectory` is NOT registered in Chat module host DI. Register it using the same pattern the Blazor UI uses (in-process `UserDirectoryService` in Core.Server), or add it to the Chat host.
 
-**Background (2026-06-27):** Three server-side changes deployed:
+**Background (2026-06-28, updated 00:30 UTC):** Android client logcat reveals:
 
-### ✅ Fixes Deployed
+- `GetMessagesAsync msg: senderUserId=..., senderName=''` — **SenderName is STILL empty** from the REST API
+- `GetChannelMembersAsync member: userId=..., displayName='587d777a'` — **Member DisplayName also contains GUID fragments** from the database
+- The `IUserDirectory` dependency in `MessageService.ToMessageDtoAsync()` is optional (defaults to `null`), and it resolves to `null` in the Chat module host because **no `IUserDirectory` registration exists in the Chat host's DI**
 
-1. **SenderName added to MessageDto** — `SenderName` property added to `MessageDto`, `ChatMessageDto`, and `chat_service.proto`. Populated in `MessageService.ToMessageDtoAsync()` via `IUserDirectory.GetDisplayNamesAsync()`. Android client should now see display names instead of GUID fragments.
+### Root Cause
 
-2. **gRPC-based real-time broadcaster** — Created `GrpcRealtimeBroadcaster` that forwards broadcasts from the process-isolated Chat module to Core.Server's SignalR infrastructure via the new `BroadcastRealtimeEvent` RPC on `CoreCapabilities` service. Replaces the null-object broadcaster. Blazor Chat UI should now receive real-time message notifications from Android-sent messages.
+The Blazor UI shows perfect names because:
+1. It runs **in-process in Core.Server**, where `IUserDirectory` IS registered (`UserDirectoryService`)
+2. `MessageService` gets a non-null `IUserDirectory` → `SenderName` is properly populated
+3. Additionally, `ChatPageLayout.razor.cs` calls `ResolveDisplayNamesAsync()` to batch-resolve all unknown sender IDs via `[Inject] IUserDirectory`
 
-3. **DbContext concurrency fix** — `Task.WhenAll` replaced with sequential `foreach` in `GetMessagesAsync`/`SearchMessagesAsync` to prevent concurrent DbContext access in the Blazor InteractiveServer circuit.
+The REST API (Chat module host process) does NOT register `IUserDirectory`, so:
+1. `MessageService._userDirectory` is `null` → `SenderName = ""`
+2. The `ChannelMembers` table stores GUID fragments as display names — this is legacy data
 
----
+### Required Fix
+
+**Register `IUserDirectory` in the Chat module host DI** so `MessageService.ToMessageDtoAsync()` can resolve display names. Follow the same source the Blazor UI uses:
+
+- **Interface:** `DotNetCloud.Core.Auth.IUserDirectory` (in `src/Core/DotNetCloud.Core.Auth/`)
+- **Implementation:** `UserDirectoryService` (in `src/Core/DotNetCloud.Core.Auth/`) — queries `CoreDbContext.Users` via `UserManager`
+- The Chat module may need a project reference to `DotNetCloud.Core.Auth` (already has one)
+- Register in `ChatServiceRegistration.cs` or `Chat.Host/Program.cs`:
+  ```csharp
+  services.AddScoped<IUserDirectory, UserDirectoryService>();
+  ```
+  (may also need to ensure `CoreDbContext` and `UserManager` are available in the Chat host — they already reference `DotNetCloud.Core.Auth` in the csproj)
+
+### Server Actions — `cloud.kimball.home`
+
+1. **Register `IUserDirectory`** in the Chat module host DI
+2. **Rebuild and deploy**
+3. **Verify** — Android client should show "Ben Kimball" etc. instead of GUID fragments
 
 ### Android Client Actions — `monolith`
 
-1. **Rebuild APK** on `monolith` (Windows 11) with latest server changes from `feature/chat-auth-bearer-token-support`
-2. **Install on emulator and test Chat tab**
-3. **Verify sender names** — messages should show display names (e.g., "Ben Kimball") instead of GUID fragments
-4. **Verify real-time** — send a message from Android app, verify it appears in Blazor web UI without refresh
-5. If still failing: capture full response body via logcat and relay back
+- ☐ After server fix deployed, rebuild APK and test
