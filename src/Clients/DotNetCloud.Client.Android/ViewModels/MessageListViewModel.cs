@@ -412,6 +412,31 @@ public sealed class MessageItemViewModel
     /// <summary>When the message was sent (UTC).</summary>
     public DateTimeOffset SentAt { get; }
 
-    /// <summary>Formatted send time for display.</summary>
-    public string SentAtDisplay => SentAt.ToLocalTime().ToString("HH:mm");
+    /// <summary>Formatted send time for display, matching Blazor's tiered FormatTime.</summary>
+    public string SentAtDisplay
+    {
+        get
+        {
+            var utcSent = SentAt.UtcDateTime;
+            var now = DateTime.UtcNow;
+            var diff = now - utcSent;
+
+            if (diff.TotalMinutes < 1)
+                return "just now";
+
+            if (diff.TotalHours < 1)
+                return $"{(int)diff.TotalMinutes}m ago";
+
+            var localSent = SentAt.ToLocalTime();
+            var localNow = DateTimeOffset.Now;
+
+            if (localSent.Date == localNow.Date)
+                return localSent.ToString("HH:mm");
+
+            if (localSent.Date == localNow.Date.AddDays(-1))
+                return $"Yesterday {localSent:HH:mm}";
+
+            return localSent.ToString("MMM d, HH:mm");
+        }
+    }
 }

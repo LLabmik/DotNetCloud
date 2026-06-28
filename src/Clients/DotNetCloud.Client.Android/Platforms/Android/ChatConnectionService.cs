@@ -148,7 +148,7 @@ public sealed class ChatConnectionService : Service
 
             Log.Info("DotNetCloud", $"EnsureSignalRConnectedAsync: connecting to SignalR at {connection.ServerBaseUrl}...");
             if (signalR is SignalRChatClient androidSignalR)
-                await androidSignalR.ConnectAsync(connection.ServerBaseUrl, token).ConfigureAwait(false);
+                await androidSignalR.ConnectAsync(connection.ServerBaseUrl).ConfigureAwait(false);
             else
                 await signalR.ConnectAsync().ConfigureAwait(false);
 
