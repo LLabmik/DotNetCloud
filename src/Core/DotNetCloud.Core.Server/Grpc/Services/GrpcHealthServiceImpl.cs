@@ -1,12 +1,14 @@
+using System.Text.Json;
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Grpc.Capabilities;
 using DotNetCloud.Core.Modules.Supervisor;
 using DotNetCloud.Core.Server.Services;
+using DotNetCloud.Modules.Chat.DTOs;
+using DotNetCloud.Modules.Chat.Services;
 using Grpc.Core;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
-using System.Text.Json;
 
 namespace DotNetCloud.Core.Server.Grpc.Services;
 
@@ -31,24 +33,83 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
     /// <summary>
     /// Looks up user information by ID (IUserDirectory capability).
     /// </summary>
-    public override Task<GetUserResponse> GetUser(GetUserRequest request, ServerCallContext context)
+    public override async Task<GetUserResponse> GetUser(GetUserRequest request, ServerCallContext context)
     {
         _logger.LogDebug("GetUser called for {UserId} by module {ModuleId}",
             request.UserId, GetModuleId(context));
 
-        // Placeholder: will be wired to IUserDirectory implementation
-        return Task.FromResult(new GetUserResponse { Found = false });
+        if (!Guid.TryParse(request.UserId, out var userId))
+        {
+            _logger.LogWarning("GetUser called with invalid UserId '{RawId}'", LogSanitizer.Sanitize(request.UserId));
+            return new GetUserResponse { Found = false };
+        }
+
+        try
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var userDir = scope.ServiceProvider.GetRequiredService<IUserDirectory>();
+
+            var names = await userDir.GetDisplayNamesAsync(new[] { userId });
+            if (!names.TryGetValue(userId, out var displayName))
+            {
+                _logger.LogInformation("GetUser: user {UserId} not found", userId);
+                return new GetUserResponse { Found = false };
+            }
+
+            var avatars = await userDir.GetAvatarUrlsAsync(new[] { userId });
+            avatars.TryGetValue(userId, out var avatarUrl);
+
+            _logger.LogDebug("GetUser: found user {UserId} ('{DisplayName}')", userId, displayName);
+
+            return new GetUserResponse
+            {
+                Found = true,
+                User = new UserInfo
+                {
+                    Id = request.UserId,
+                    DisplayName = displayName,
+                    AvatarUrl = avatarUrl ?? string.Empty,
+                }
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "GetUser failed for {UserId}", request.UserId);
+            return new GetUserResponse { Found = false };
+        }
     }
 
     /// <summary>
     /// Searches users matching criteria (IUserDirectory capability).
     /// </summary>
-    public override Task<SearchUsersResponse> SearchUsers(SearchUsersRequest request, ServerCallContext context)
+    public override async Task<SearchUsersResponse> SearchUsers(SearchUsersRequest request, ServerCallContext context)
     {
         _logger.LogDebug("SearchUsers called with query '{Query}' by module {ModuleId}",
             request.Query, GetModuleId(context));
 
-        return Task.FromResult(new SearchUsersResponse());
+        try
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var userDir = scope.ServiceProvider.GetRequiredService<IUserDirectory>();
+
+            var results = await userDir.SearchUsersAsync(request.Query, request.MaxResults > 0 ? request.MaxResults : 20);
+
+            var response = new SearchUsersResponse();
+            response.Users.AddRange(results.Select(r => new UserInfo
+            {
+                Id = r.Id.ToString(),
+                DisplayName = r.DisplayName,
+                Email = r.Email,
+            }));
+
+            _logger.LogDebug("SearchUsers: found {Count} results for query '{Query}'", response.Users.Count, request.Query);
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "SearchUsers failed for query '{Query}'", request.Query);
+            return new SearchUsersResponse();
+        }
     }
 
     /// <summary>
@@ -268,6 +329,11 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
                 await broadcaster.BroadcastAsync(request.Group, request.EventName, payload ?? request.PayloadJson, context.CancellationToken);
             }
 
+            // Forward chat events to the in-process IChatMessageNotifier so Blazor Server
+            // components (which rely on in-process events, not SignalR HubConnections) receive
+            // real-time updates from process-isolated module hosts.
+            TryForwardToChatMessageNotifier(request, moduleId);
+
             return new BroadcastRealtimeEventResponse { Success = true };
         }
         catch (Exception ex)
@@ -275,6 +341,75 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
             _logger.LogError(ex, "BroadcastRealtimeEvent failed for group={Group}, event={Event} from module {ModuleId}",
                 request.Group, request.EventName, moduleId);
             return new BroadcastRealtimeEventResponse { Success = false };
+        }
+    }
+
+    /// <summary>
+    /// Forwards chat-related real-time events from a process-isolated module host
+    /// to the in-process <see cref="IChatMessageNotifier"/>, which Blazor Server
+    /// components subscribe to for real-time UI updates.
+    /// </summary>
+    private void TryForwardToChatMessageNotifier(BroadcastRealtimeEventRequest request, string moduleId)
+    {
+        // Only handle chat-channel events (e.g., "chat-channel-{guid}")
+        if (request.Group is null || !request.Group.StartsWith("chat-channel-", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        if (string.IsNullOrWhiteSpace(request.PayloadJson))
+            return;
+
+        try
+        {
+            var notifier = _serviceProvider.GetService<IChatMessageNotifier>();
+            if (notifier is null)
+                return;
+
+            using var doc = JsonDocument.Parse(request.PayloadJson);
+            var root = doc.RootElement;
+
+            switch (request.EventName)
+            {
+                case "NewMessage":
+                case "MessageEdited":
+                {
+                    if (!root.TryGetProperty("channelId", out var chEl) || !chEl.TryGetGuid(out var channelId))
+                        return;
+                    if (!root.TryGetProperty("message", out var msgEl))
+                        return;
+
+                    var message = JsonSerializer.Deserialize<MessageDto>(msgEl.GetRawText(), JsonSerializerOptions.Default);
+                    if (message is null)
+                        return;
+
+                    if (request.EventName == "NewMessage")
+                        notifier.NotifyMessageReceived(channelId, message);
+                    else
+                        notifier.NotifyMessageEdited(channelId, message);
+
+                    _logger.LogDebug("Forwarded {Event} to IChatMessageNotifier for channel {ChannelId}",
+                        request.EventName, channelId);
+                    break;
+                }
+                case "MessageDeleted":
+                {
+                    if (!root.TryGetProperty("channelId", out var chEl) || !chEl.TryGetGuid(out var channelId))
+                        return;
+                    if (!root.TryGetProperty("messageId", out var msgIdEl) || !msgIdEl.TryGetGuid(out var messageId))
+                        return;
+
+                    notifier.NotifyMessageDeleted(channelId, messageId);
+
+                    _logger.LogDebug("Forwarded MessageDeleted to IChatMessageNotifier for channel {ChannelId}",
+                        channelId);
+                    break;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "Failed to forward {Event} to IChatMessageNotifier from module {ModuleId}",
+                request.EventName, moduleId);
         }
     }
 

@@ -454,7 +454,7 @@ internal sealed class MessageService : IMessageService
         if (_userDirectory is not null)
         {
             var names = await _userDirectory.GetDisplayNamesAsync(new[] { message.SenderUserId }, cancellationToken);
-            senderName = names.GetValueOrDefault(message.SenderUserId, string.Empty);
+            senderName = names?.GetValueOrDefault(message.SenderUserId, string.Empty) ?? string.Empty;
         }
 
         return new MessageDto
