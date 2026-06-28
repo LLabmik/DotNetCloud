@@ -1,3 +1,4 @@
+using Android.Content;
 using DotNetCloud.Client.Android.ViewModels;
 using Microsoft.Maui.ApplicationModel;
 
@@ -28,5 +29,10 @@ public partial class LoginPage : ContentPage
     private async void OnLoginSucceeded(object? sender, EventArgs e)
     {
         await MainThread.InvokeOnMainThreadAsync(() => Shell.Current.GoToAsync("//Main/ChannelList", animate: true));
+
+        // Start the SignalR chat connection foreground service after successful login
+        var intent = new Intent(global::Android.App.Application.Context, typeof(ChatConnectionService));
+        intent.SetAction(ChatConnectionService.ActionStart);
+        global::Android.App.Application.Context.StartForegroundService(intent);
     }
 }

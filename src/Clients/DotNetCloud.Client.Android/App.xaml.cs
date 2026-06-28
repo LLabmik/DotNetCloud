@@ -1,3 +1,4 @@
+using Android.Content;
 using DotNetCloud.Client.Android.Services;
 
 namespace DotNetCloud.Client.Android;
@@ -35,8 +36,17 @@ public partial class App : Application
         // Navigate to the channel list if a server connection is already active,
         // otherwise drop the user on the login screen.
         if (_serverStore.GetActive() is not null)
+        {
             await Shell.Current.GoToAsync("//Main/ChannelList");
+
+            // Start SignalR chat foreground service when resuming with saved session
+            var intent = new Intent(global::Android.App.Application.Context, typeof(ChatConnectionService));
+            intent.SetAction(ChatConnectionService.ActionStart);
+            global::Android.App.Application.Context.StartForegroundService(intent);
+        }
         else
+        {
             await Shell.Current.GoToAsync("//Login");
+        }
     }
 }

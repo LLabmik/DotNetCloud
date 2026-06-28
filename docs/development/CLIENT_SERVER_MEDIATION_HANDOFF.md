@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-28 02:30 UTC (All fixes deployed — IUserDirectory gRPC bridge + Blazor real-time forwarding)
+Last updated: 2026-06-28 03:00 UTC (CoreHub group-name mismatch fix — server deploy pending)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -95,6 +95,10 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 - ✅ **IUserDirectory gRPC bridge deployed** — `GrpcUserDirectoryService` registered in Chat module host DI. Resolves `SenderName` via Core.Server's `CoreCapabilities.GetUser` RPC, which was wired up to resolve `IUserDirectory` (database-backed `UserDirectoryService`).
 - ✅ **Blazor real-time forwarding deployed** — `BroadcastRealtimeEvent` handler in Core.Server now forwards chat events (`NewMessage`, `MessageEdited`, `MessageDeleted`) to `IChatMessageNotifier` in-process, so Blazor Server components receive updates without requiring a client-side SignalR HubConnection.
 - ✅ **gRPC-based real-time broadcaster** — Messages from Android (REST API → Chat module host → gRPC → Core.Server → SignalR) now also reach Blazor UI via in-process `IChatMessageNotifier` bridge.
+- ✅ **Android → Blazor real-time working** — Messages sent from Android appear instantly in Blazor Web UI.
+- ❌ **Blazor → Android real-time BROKEN** — Android SignalR connection established successfully, but group join uses a different group name than broadcasts. **Fix applied in source: `CoreHub.JoinGroupAsync()` now joins `chat-channel-{guid}` matching `ChatHub.ChannelGroup()`.** Server deploy pending.
+- ✅ **SenderName working** — Display names show correctly on Android (e.g., "Ben Kimball").
+- ✅ **ChatConnectionService starts correctly** — SignalR HubConnection established successfully (verified via logcat).
 - ✅ **DbContext concurrency fixed** — Sequential processing replaces `Task.WhenAll`.
 - ✅ **Chat tab WORKING** — HTTP 200, channels list loads successfully on Android.
 - ✅ **Sync architecture** — All testing complete. See archive.
@@ -117,45 +121,35 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 - API envelope: middleware wraps responses; clients should unwrap via envelope helpers.
 - Sync flow: changes -> tree -> reconcile -> chunk manifest -> chunk download -> file assembly.
 - Desktop OAuth constant: `OAuthConstants.ClientId = "dotnetcloud-desktop"`.
-- **SignalR channel group naming:** `chat-channel-{channelId}` (used by `ChatRealtimeService.ChannelGroup()` and Android `SignalRChatClient`).
+- ✅ **SignalR channel group naming:** `chat-channel-{channelId}` (used by `ChatHub.ChannelGroup()`, `CoreHub.JoinGroupAsync()`, and Android `SignalRChatClient`).
 - **Controller discovery:** Core.Server references Files.Host and Chat.Host via `ProjectReference`. ASP.NET Core auto-discovers controllers from referenced assemblies. Do NOT create duplicate controllers in Core.Server for routes already served by module Host assemblies.
 
 ## Active Handoff
 
-**Summary:** All server-side fixes deployed and verified. Android client needs to rebuild APK and test both `SenderName` display and real-time message updates.
+**Summary:** CoreHub `JoinGroupAsync` uses wrong group name for chat channels — server fix needs deploy.
 
-**Background (2026-06-28, updated 02:30 UTC):** Three server-side issues fixed and deployed:
+**Background (2026-06-28, updated 03:00 UTC):**
 
-### Fix 1: `SenderName` via gRPC User Directory
+### Fix 3: SignalR Group Name Mismatch (NEW)
 
-Created `GrpcUserDirectoryService` (following `GrpcRealtimeBroadcaster` pattern) that implements `IUserDirectory` by calling Core.Server's `CoreCapabilities.GetUser` RPC. Wired up the previously-stubbed `GetUser` and `SearchUsers` handlers in `CoreCapabilitiesServiceImpl` to resolve `IUserDirectory` from DI (database-backed `UserDirectoryService`).
+**Root cause:** `CoreHub.JoinGroupAsync()` (line 148) adds connections to a group named with just the raw GUID (`"dc03f432-..."`), but `ChatHub.ChannelGroup()` broadcasts to `"chat-channel-{guid}"`. These are **different group names**, so the Android client never receives broadcasts.
 
-**Files changed:**
-- `src/Core/DotNetCloud.Core.Server/Grpc/Services/GrpcHealthServiceImpl.cs` — `GetUser` and `SearchUsers` wired to `IUserDirectory`
-- `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Services/GrpcUserDirectoryService.cs` — **NEW**: gRPC client implementation of `IUserDirectory`
-- `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Program.cs` — registered `GrpcUserDirectoryService`
-- `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/Services/MessageService.cs` — null-safe `GetDisplayNamesAsync` call
+Additionally, the Android client sends the full group name `"chat-channel-{guid}"` as the parameter, but `JoinGroupAsync` tries `Guid.TryParse("chat-channel-...")` which **fails**, silently throwing a `HubException` that gets swallowed. The connection was added to a group that nobody broadcasts to.
 
-### Fix 2: Blazor Real-Time Updates
+**Fix applied in source (committed to branch):**
+- `CoreHub.JoinGroupAsync()` now accepts both `"chat-channel-{guid}"` and bare GUID formats
+- Extracts the GUID, then joins the connection to `"chat-channel-{guid}"` — matching `ChatHub.ChannelGroup()`
+- `CoreHub.LeaveGroupAsync()` updated similarly for consistency
+- `ChannelGroup()` helper method added to `CoreHub` matching the one in `ChatHub`
 
-Root cause: The Blazor Web UI relies on `IChatMessageNotifier` in-process events (no client-side `HubConnection` to SignalR). When a message arrives via the REST API (Android → Chat module host), the Chat module host calls `NotifyMessageReceived()` on **its own** `InProcessChatMessageNotifier` instance — a different process from Core.Server. The SignalR broadcast (`GrpcRealtimeBroadcaster` → `BroadcastRealtimeEvent` RPC) reaches SignalR clients but NOT the Blazor components.
-
-**Fix:** Added `TryForwardToChatMessageNotifier()` in `CoreCapabilitiesServiceImpl.BroadcastRealtimeEvent` handler. After broadcasting via `IRealtimeBroadcaster` (SignalR), it also forwards chat events (`NewMessage`, `MessageEdited`, `MessageDeleted`) to the in-process `IChatMessageNotifier`, which Blazor Server components subscribe to.
-
-**Files changed:**
-- `src/Core/DotNetCloud.Core.Server/Grpc/Services/GrpcHealthServiceImpl.cs` — `TryForwardToChatMessageNotifier()` method
+**Android client changes (already deployed in APK):**
+- `ChatConnectionService` now starts correctly (was never started before)
+- SignalR connection verified working via logcat ("SignalR connected successfully!")
+- `SenderName` display confirmed working
+- `JoinChannelGroupAsync` already sends the correct format ("chat-channel-{guid}")
 
 ### Server Actions — `cloud.kimball.home`
 
-- ✓ Create `GrpcUserDirectoryService` in Chat.Host/Services/
-- ✓ Wire up `GetUser`/`SearchUsers` in `CoreCapabilitiesServiceImpl`
-- ✓ Register `IUserDirectory` in Chat host DI
-- ✓ Add `TryForwardToChatMessageNotifier` in `BroadcastRealtimeEvent` handler
-- ✓ Build, test (all 1272 Chat tests pass), deploy (15/15 targets), verify (14/14 modules healthy)
-
-### Android Client Actions — `monolith`
-
-- ☐ Rebuild APK after pulling latest
-- ☐ Test Chat tab: verify `SenderName` shows display names (e.g., "Ben Kimball") instead of empty
-- ☐ Test real-time: send a message from Android and verify Blazor Web UI receives it without page refresh
-- ☐ Test the reverse: send from Blazor Web UI and verify Android receives it in real-time
+- ☐ Pull latest `feature/chat-auth-bearer-token-support`
+- ☐ Deploy `CoreHub.cs` group-name fix to production
+- ☐ Verify Android receives Blazor messages in real-time (Blazor → Android direction)
