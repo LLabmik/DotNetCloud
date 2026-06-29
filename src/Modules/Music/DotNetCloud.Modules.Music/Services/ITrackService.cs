@@ -32,6 +32,9 @@ public interface ITrackService
     /// <summary>Gets starred (favorited) tracks for the current user.</summary>
     Task<IReadOnlyList<TrackDto>> GetStarredTracksAsync(CallerContext caller, CancellationToken cancellationToken = default);
 
+    /// <summary>Gets the distinct first characters of all track titles for the user, sorted alphabetically.</summary>
+    Task<List<string>> ListTrackAlphabetAsync(CallerContext caller, CancellationToken cancellationToken = default);
+
     /// <summary>Deletes a track.</summary>
     Task DeleteTrackAsync(Guid trackId, CallerContext caller, CancellationToken cancellationToken = default);
 }

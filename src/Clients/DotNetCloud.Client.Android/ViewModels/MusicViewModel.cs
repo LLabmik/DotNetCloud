@@ -85,6 +85,17 @@ public sealed partial class MusicViewModel : ObservableObject
     private bool _hasMoreTracks = true;
     private CancellationTokenSource? _tracksLoadCts;
 
+    // ── Filtered-mode state (scoped drill-down) ────────────────────
+
+    /// <summary>When set, albums view is scoped to a single artist; infinite scroll is disabled.</summary>
+    private Guid? _albumsFilteredByArtistId;
+
+    /// <summary>When set, tracks view is scoped to a single album; infinite scroll is disabled.</summary>
+    private Guid? _tracksFilteredByAlbumId;
+
+    /// <summary>When set, tracks view is scoped to a single playlist; infinite scroll is disabled.</summary>
+    private Guid? _tracksFilteredByPlaylistId;
+
     // ── Observable properties ──────────────────────────────────────────
 
     [ObservableProperty]
@@ -150,6 +161,40 @@ public sealed partial class MusicViewModel : ObservableObject
     [ObservableProperty]
     private ObservableCollection<string> _genres = [];
 
+    // ── Alphabet index ────────────────────────────────────────────
+
+    /// <summary>Unique sorted first-character strings for the Artists alphabet strip.</summary>
+    [ObservableProperty]
+    private ObservableCollection<string> _artistAlphabet = [];
+
+    /// <summary>Unique sorted first-character strings for the Albums alphabet strip.</summary>
+    [ObservableProperty]
+    private ObservableCollection<string> _albumAlphabet = [];
+
+    /// <summary>Unique sorted first-character strings for the Tracks alphabet strip.</summary>
+    [ObservableProperty]
+    private ObservableCollection<string> _trackAlphabet = [];
+
+    // ── Back-navigation visibility ─────────────────────────────────
+
+    /// <summary>True when albums view is scoped to a specific artist (show back-arrow to artists).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanGoBack))]
+    private bool _canGoBackToArtist;
+
+    /// <summary>True when tracks view is scoped to a specific album (show back-arrow to albums).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanGoBack))]
+    private bool _canGoBackToAlbum;
+
+    /// <summary>True when tracks view is scoped to a specific playlist (show back-arrow to playlists).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanGoBack))]
+    private bool _canGoBackToPlaylist;
+
+    /// <summary>True when any contextual view is active (artist-scoped albums, album-scoped tracks, or playlist tracks).</summary>
+    public bool CanGoBack => CanGoBackToArtist || CanGoBackToAlbum || CanGoBackToPlaylist;
+
     [ObservableProperty]
     private TrackDto? _currentTrack;
 
@@ -207,6 +252,14 @@ public sealed partial class MusicViewModel : ObservableObject
     private CancellationTokenSource? _albumArtLoadCts;
     private TrackDto? _lastArtTrack;
 
+    // ── Scroll-to-character delegate ───────────────────────────────
+
+    /// <summary>
+    /// Delegated to the code-behind so it can call <see cref="Microsoft.Maui.Controls.CollectionView.ScrollTo"/>.
+    /// Invoked when the user taps a character in the alphabet index strip.
+    /// </summary>
+    public Action<object?, MusicView>? ScrollToRequested;
+
     // ── Commands ───────────────────────────────────────────────────────
 
     [RelayCommand]
@@ -231,6 +284,10 @@ public sealed partial class MusicViewModel : ObservableObject
                 Artists = new ObservableCollection<ArtistDto>(items);
                 CurrentView = MusicView.Artists;
                 Title = "Artists";
+                _ = LoadArtistAlphabetAsync(serverUrl, token);
+                CanGoBackToArtist = false;
+                CanGoBackToAlbum = false;
+                CanGoBackToPlaylist = false;
             });
         }
         catch (Exception ex)
@@ -262,11 +319,16 @@ public sealed partial class MusicViewModel : ObservableObject
         try
         {
             var items = await _music.ListAlbumsByArtistAsync(serverUrl, token, artist.Id, CancellationToken.None);
+            _albumsFilteredByArtistId = artist.Id;
             Dispatch(() =>
             {
                 Albums = new ObservableCollection<MusicAlbumDto>(items);
                 CurrentView = MusicView.Albums;
                 Title = artist.Name;
+                AlbumAlphabet = ComputeAlphabetLocal(items, a => a.Title);
+                CanGoBackToArtist = true;
+                CanGoBackToAlbum = false;
+                CanGoBackToPlaylist = false;
             });
         }
         catch (Exception ex)
@@ -290,6 +352,7 @@ public sealed partial class MusicViewModel : ObservableObject
         _albumsSkip = 0;
         _hasMoreAlbums = true;
         _albumsLoadCts?.Cancel();
+        _albumsFilteredByArtistId = null;
 
         IsLoading = true;
         ErrorMessage = null;
@@ -302,6 +365,10 @@ public sealed partial class MusicViewModel : ObservableObject
                 Albums = new ObservableCollection<MusicAlbumDto>(items);
                 CurrentView = MusicView.Albums;
                 Title = "Albums";
+                _ = LoadAlbumAlphabetAsync(serverUrl, token);
+                CanGoBackToArtist = false;
+                CanGoBackToAlbum = false;
+                CanGoBackToPlaylist = false;
             });
         }
         catch (Exception ex)
@@ -333,6 +400,7 @@ public sealed partial class MusicViewModel : ObservableObject
         try
         {
             var items = await _music.ListTracksByAlbumAsync(serverUrl, token, album.Id, CancellationToken.None);
+            _tracksFilteredByAlbumId = album.Id;
 
             // Enqueue all tracks and start playing from the first one
             if (items.Count > 0)
@@ -346,6 +414,10 @@ public sealed partial class MusicViewModel : ObservableObject
                 Tracks = new ObservableCollection<TrackDto>(items);
                 CurrentView = MusicView.Tracks;
                 Title = album.Title;
+                TrackAlphabet = ComputeAlphabetLocal(items, t => t.Title);
+                CanGoBackToArtist = false;
+                CanGoBackToAlbum = true;
+                CanGoBackToPlaylist = false;
             });
         }
         catch (Exception ex)
@@ -369,6 +441,8 @@ public sealed partial class MusicViewModel : ObservableObject
         _tracksSkip = 0;
         _hasMoreTracks = true;
         _tracksLoadCts?.Cancel();
+        _tracksFilteredByAlbumId = null;
+        _tracksFilteredByPlaylistId = null;
 
         IsLoading = true;
         ErrorMessage = null;
@@ -381,6 +455,10 @@ public sealed partial class MusicViewModel : ObservableObject
                 Tracks = new ObservableCollection<TrackDto>(items);
                 CurrentView = MusicView.Tracks;
                 Title = "Tracks";
+                _ = LoadTrackAlphabetAsync(serverUrl, token);
+                CanGoBackToArtist = false;
+                CanGoBackToAlbum = false;
+                CanGoBackToPlaylist = false;
             });
         }
         catch (Exception ex)
@@ -473,6 +551,10 @@ public sealed partial class MusicViewModel : ObservableObject
         if (!_hasMoreAlbums || IsLoading)
             return;
 
+        // When viewing albums scoped to a specific artist, don't load all albums
+        if (_albumsFilteredByArtistId is not null)
+            return;
+
         var (serverUrl, token) = await GetCredentialsAsync();
         if (serverUrl is null || token is null)
             return;
@@ -516,6 +598,10 @@ public sealed partial class MusicViewModel : ObservableObject
     private async Task LoadMoreTracksAsync()
     {
         if (!_hasMoreTracks || IsLoading)
+            return;
+
+        // When viewing tracks scoped to a specific album or playlist, don't load all tracks
+        if (_tracksFilteredByAlbumId is not null || _tracksFilteredByPlaylistId is not null)
             return;
 
         var (serverUrl, token) = await GetCredentialsAsync();
@@ -576,11 +662,16 @@ public sealed partial class MusicViewModel : ObservableObject
         try
         {
             var items = await _music.GetPlaylistTracksAsync(serverUrl, token, playlist.Id, CancellationToken.None);
+            _tracksFilteredByPlaylistId = playlist.Id;
             Dispatch(() =>
             {
                 Tracks = new ObservableCollection<TrackDto>(items);
                 CurrentView = MusicView.Tracks;
                 Title = playlist.Name;
+                TrackAlphabet = ComputeAlphabetLocal(items, t => t.Title);
+                CanGoBackToArtist = false;
+                CanGoBackToAlbum = false;
+                CanGoBackToPlaylist = true;
             });
         }
         catch (Exception ex)
@@ -736,9 +827,26 @@ public sealed partial class MusicViewModel : ObservableObject
     [RelayCommand]
     private async Task BackAsync()
     {
-        if (CurrentView == MusicView.Tracks && SelectedAlbum is not null)
+        if (CurrentView == MusicView.Tracks && CanGoBackToPlaylist)
         {
-            // From album tracks back to album list (or artist albums)
+            // From playlist tracks back to Playlists
+            if (Playlists.Count == 0)
+                await LoadPlaylistsCommand.ExecuteAsync(null);
+            else
+            {
+                _tracksFilteredByPlaylistId = null;
+                Dispatch(() =>
+                {
+                    CurrentView = MusicView.Playlists;
+                    Title = "Playlists";
+                    CanGoBackToPlaylist = false;
+                });
+            }
+        }
+        else if (CurrentView == MusicView.Tracks && CanGoBackToAlbum)
+        {
+            // From album tracks back to that artist's albums (or all albums if no artist context)
+            _tracksFilteredByAlbumId = null;
             if (SelectedArtist is not null)
             {
                 await SelectArtistCommand.ExecuteAsync(SelectedArtist);
@@ -753,7 +861,16 @@ public sealed partial class MusicViewModel : ObservableObject
         }
         else if (CurrentView == MusicView.Tracks)
         {
-            // From "All Tracks" back to Artists — preserve if loaded
+            // From "All Tracks" back to Artists
+            if (Artists.Count == 0)
+                await LoadArtistsCommand.ExecuteAsync(null);
+            else
+                SwitchToArtistsView();
+        }
+        else if (CurrentView == MusicView.Albums && CanGoBackToArtist)
+        {
+            // From artist-scoped albums back to Artists
+            _albumsFilteredByArtistId = null;
             if (Artists.Count == 0)
                 await LoadArtistsCommand.ExecuteAsync(null);
             else
@@ -761,7 +878,7 @@ public sealed partial class MusicViewModel : ObservableObject
         }
         else if (CurrentView == MusicView.Albums)
         {
-            // From albums back to Artists
+            // From all albums back to Artists
             if (Artists.Count == 0)
                 await LoadArtistsCommand.ExecuteAsync(null);
             else
@@ -769,7 +886,7 @@ public sealed partial class MusicViewModel : ObservableObject
         }
         else if (CurrentView == MusicView.Eq)
         {
-            // From EQ back to Artists — preserve if loaded
+            // From EQ back to Artists
             if (Artists.Count == 0)
                 await LoadArtistsCommand.ExecuteAsync(null);
             else
@@ -786,10 +903,16 @@ public sealed partial class MusicViewModel : ObservableObject
     {
         Dispatch(() =>
         {
+            _albumsFilteredByArtistId = null;
+            _tracksFilteredByAlbumId = null;
+            _tracksFilteredByPlaylistId = null;
             SelectedArtist = null;
             SelectedAlbum = null;
             CurrentView = MusicView.Artists;
             Title = "Artists";
+            CanGoBackToArtist = false;
+            CanGoBackToAlbum = false;
+            CanGoBackToPlaylist = false;
         });
     }
 
@@ -798,10 +921,15 @@ public sealed partial class MusicViewModel : ObservableObject
     {
         Dispatch(() =>
         {
+            _tracksFilteredByAlbumId = null;
+            _tracksFilteredByPlaylistId = null;
             SelectedArtist = null;
             SelectedAlbum = null;
             CurrentView = MusicView.Albums;
             Title = "Albums";
+            CanGoBackToArtist = false;
+            CanGoBackToAlbum = false;
+            CanGoBackToPlaylist = false;
         });
     }
 
@@ -830,6 +958,99 @@ public sealed partial class MusicViewModel : ObservableObject
                 ClearAlbumArt();
             }
         });
+    }
+
+    // ── Alphabet index helpers ──────────────────────────────────────
+
+    /// <summary>
+    /// Computes the unique sorted set of first characters from a locally-loaded collection
+    /// (used for filtered views where all items are already in memory).
+    /// </summary>
+    private static ObservableCollection<string> ComputeAlphabetLocal<T>(IReadOnlyList<T> items, Func<T, string?> nameSelector)
+    {
+        var chars = new SortedSet<char>();
+        foreach (var item in items)
+        {
+            var name = nameSelector(item);
+            if (!string.IsNullOrEmpty(name))
+            {
+                var c = char.ToUpperInvariant(name[0]);
+                if (char.IsLetterOrDigit(c))
+                    chars.Add(c);
+            }
+        }
+        return new ObservableCollection<string>(chars.Select(c => c.ToString()));
+    }
+
+    /// <summary>Loads the artist alphabet from the server (scans all entries efficiently).</summary>
+    private async Task LoadArtistAlphabetAsync(string serverUrl, string token)
+    {
+        try
+        {
+            var chars = await _music.GetArtistAlphabetAsync(serverUrl, token);
+            Dispatch(() => ArtistAlphabet = new ObservableCollection<string>(chars));
+        }
+        catch
+        {
+            // Best-effort — strip will be empty
+        }
+    }
+
+    /// <summary>Loads the album alphabet from the server (scans all entries efficiently).</summary>
+    private async Task LoadAlbumAlphabetAsync(string serverUrl, string token)
+    {
+        try
+        {
+            var chars = await _music.GetAlbumAlphabetAsync(serverUrl, token);
+            Dispatch(() => AlbumAlphabet = new ObservableCollection<string>(chars));
+        }
+        catch
+        {
+            // Best-effort
+        }
+    }
+
+    /// <summary>Loads the track alphabet from the server (scans all entries efficiently).</summary>
+    private async Task LoadTrackAlphabetAsync(string serverUrl, string token)
+    {
+        try
+        {
+            var chars = await _music.GetTrackAlphabetAsync(serverUrl, token);
+            Dispatch(() => TrackAlphabet = new ObservableCollection<string>(chars));
+        }
+        catch
+        {
+            // Best-effort
+        }
+    }
+
+    [RelayCommand]
+    private void ScrollToCharacter(string character)
+    {
+        if (string.IsNullOrEmpty(character))
+            return;
+
+        object? target = null;
+        var c = character[0];
+
+        if (CurrentView == MusicView.Artists)
+        {
+            target = Artists.FirstOrDefault(a =>
+                !string.IsNullOrEmpty(a.Name) && char.ToUpperInvariant(a.Name[0]) == c);
+        }
+        else if (CurrentView == MusicView.Albums)
+        {
+            target = Albums.FirstOrDefault(a =>
+                !string.IsNullOrEmpty(a.Title) && char.ToUpperInvariant(a.Title[0]) == c);
+        }
+        else if (CurrentView == MusicView.Tracks)
+        {
+            target = Tracks.FirstOrDefault(t =>
+                !string.IsNullOrEmpty(t.Title) && char.ToUpperInvariant(t.Title[0]) == c);
+        }
+
+        if (target is not null)
+            ScrollToRequested?.Invoke(target, CurrentView);
     }
 
     // ── Album art helpers ────────────────────────────────────────────

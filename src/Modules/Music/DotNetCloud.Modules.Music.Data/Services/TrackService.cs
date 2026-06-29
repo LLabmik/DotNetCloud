@@ -381,4 +381,15 @@ public sealed class TrackService : ITrackService
             return (nameX.Length - ix).CompareTo(nameY.Length - iy);
         }
     }
+
+    /// <inheritdoc />
+    public async Task<List<string>> ListTrackAlphabetAsync(CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        return await _db.UserTracks
+            .Where(ut => ut.OwnerId == caller.UserId)
+            .Select(ut => ut.CanonicalTrack!.Title.Substring(0, 1).ToUpper())
+            .Distinct()
+            .OrderBy(c => c)
+            .ToListAsync(cancellationToken);
+    }
 }

@@ -114,6 +114,16 @@ internal sealed class HttpMusicRestClient : IMusicRestClient
         return data ?? [];
     }
 
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<string>> GetArtistAlphabetAsync(
+        string serverBaseUrl, string accessToken,
+        CancellationToken ct = default)
+    {
+        var url = $"{BaseUrl(serverBaseUrl)}/api/v1/music/artists/alphabet";
+        var data = await GetEnvelopeDataAsync<List<string>>(url, accessToken, ct).ConfigureAwait(false);
+        return data ?? [];
+    }
+
     // ── Albums ───────────────────────────────────────────────────────
 
     /// <inheritdoc />
@@ -159,6 +169,16 @@ internal sealed class HttpMusicRestClient : IMusicRestClient
     {
         var url = $"{BaseUrl(serverBaseUrl)}/api/v1/music/albums/search?q={Uri.EscapeDataString(query)}&take={take}";
         var data = await GetEnvelopeDataAsync<List<MusicAlbumDto>>(url, accessToken, ct).ConfigureAwait(false);
+        return data ?? [];
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<string>> GetAlbumAlphabetAsync(
+        string serverBaseUrl, string accessToken,
+        CancellationToken ct = default)
+    {
+        var url = $"{BaseUrl(serverBaseUrl)}/api/v1/music/albums/alphabet";
+        var data = await GetEnvelopeDataAsync<List<string>>(url, accessToken, ct).ConfigureAwait(false);
         return data ?? [];
     }
 
@@ -217,6 +237,16 @@ internal sealed class HttpMusicRestClient : IMusicRestClient
     {
         var url = $"{BaseUrl(serverBaseUrl)}/api/v1/music/tracks/search?q={Uri.EscapeDataString(query)}&take={take}";
         var data = await GetEnvelopeDataAsync<List<TrackDto>>(url, accessToken, ct).ConfigureAwait(false);
+        return data ?? [];
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<string>> GetTrackAlphabetAsync(
+        string serverBaseUrl, string accessToken,
+        CancellationToken ct = default)
+    {
+        var url = $"{BaseUrl(serverBaseUrl)}/api/v1/music/tracks/alphabet";
+        var data = await GetEnvelopeDataAsync<List<string>>(url, accessToken, ct).ConfigureAwait(false);
         return data ?? [];
     }
 

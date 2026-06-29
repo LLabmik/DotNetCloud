@@ -15,6 +15,9 @@ public partial class MusicPage : ContentPage
     {
         InitializeComponent();
         BindingContext = _vm = vm;
+
+        // Wire up the scroll-to-character delegate from the ViewModel
+        _vm.ScrollToRequested += OnScrollToRequested;
     }
 
     /// <inheritdoc />
@@ -23,6 +26,31 @@ public partial class MusicPage : ContentPage
         base.OnAppearing();
         if (_vm.Artists.Count == 0)
             await _vm.LoadArtistsCommand.ExecuteAsync(null);
+    }
+
+    /// <summary>
+    /// Called by the ViewModel when the user taps a character in the alphabet index strip.
+    /// Scrolls the appropriate CollectionView to the first matching item.
+    /// </summary>
+    private async void OnScrollToRequested(object? targetItem, MusicView view)
+    {
+        if (targetItem is null)
+            return;
+
+        CollectionView? cv = view switch
+        {
+            MusicView.Artists => ArtistsCollectionView,
+            MusicView.Albums => AlbumsCollectionView,
+            MusicView.Tracks => TracksCollectionView,
+            _ => null
+        };
+
+        if (cv is null)
+            return;
+
+        // Small delay to let the UI settle before scrolling
+        await Task.Delay(50);
+        cv.ScrollTo(targetItem, position: ScrollToPosition.Start, animate: true);
     }
 
     /// <summary>Called when the user starts dragging the seek slider.</summary>

@@ -25,6 +25,11 @@ public interface IMusicRestClient
         string serverBaseUrl, string accessToken,
         string query, int take = 20, CancellationToken ct = default);
 
+    /// <summary>Gets the distinct first characters of all artist names (server-side alphabet).</summary>
+    Task<IReadOnlyList<string>> GetArtistAlphabetAsync(
+        string serverBaseUrl, string accessToken,
+        CancellationToken ct = default);
+
     // ── Albums ───────────────────────────────────────────────────────
 
     /// <summary>Lists all albums with pagination.</summary>
@@ -51,6 +56,11 @@ public interface IMusicRestClient
     Task<IReadOnlyList<MusicAlbumDto>> GetRecentAlbumsAsync(
         string serverBaseUrl, string accessToken,
         int take = 20, CancellationToken ct = default);
+
+    /// <summary>Gets the distinct first characters of all album titles (server-side alphabet).</summary>
+    Task<IReadOnlyList<string>> GetAlbumAlphabetAsync(
+        string serverBaseUrl, string accessToken,
+        CancellationToken ct = default);
 
     // ── Tracks ───────────────────────────────────────────────────────
 
@@ -83,6 +93,11 @@ public interface IMusicRestClient
     Task<IReadOnlyList<TrackDto>> GetRecentTracksAsync(
         string serverBaseUrl, string accessToken,
         int take = 20, CancellationToken ct = default);
+
+    /// <summary>Gets the distinct first characters of all track titles (server-side alphabet).</summary>
+    Task<IReadOnlyList<string>> GetTrackAlphabetAsync(
+        string serverBaseUrl, string accessToken,
+        CancellationToken ct = default);
 
     // ── Playlists ────────────────────────────────────────────────────
 

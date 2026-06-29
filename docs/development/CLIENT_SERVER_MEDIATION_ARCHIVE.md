@@ -48,6 +48,24 @@ Archived: 2026-06-25 01:35 UTC. Full git history preserved in commits up to chan
 - ✅ Changed `ChatControllerBase [Authorize(AuthenticationSchemes = "Identity.Application")]` to plain `[Authorize]`
 - ✅ Commit: `5d040145` (includes `Directory.Packages.props` fix for SQLitePCLRaw.lib.e_sqlite3.android)
 
+---
+
+## Archived: Music Module Bearer Token Auth — Deployed to Production (2026-06-29)
+
+**Target:** monolith → cloud.kimball.home (music module auth overhaul)
+
+**Result:** ✅ Music module bearer token auth is fully working. Server fix (policy scheme + introspection) resolves the 401 issue. Android client gets 200 on all music API endpoints.
+
+**Completed (monolith — code changes):**
+- ✅ Auth changes applied to `MusicControllerBase.cs` and `Program.cs`
+- ✅ `DotNetCloud.Core.Auth` project reference added to Music.Host.csproj
+- ✅ Build succeeds with `dotnet build`
+- ✅ Deployed to production (`cloud.kimball.home`)
+- ✅ All 14 modules healthy (including music: Healthy)
+- ✅ Android client verified — music API calls return 200
+
+**Deploy notes:** First deploy failed — `DotNetCloud.Core.Auth.dll` was copied but `dotnetcloud.music.deps.json` wasn't updated, causing `FileNotFoundException`. Fixed by also copying the updated `.deps.json` and `.runtimeconfig.json`. Ownership set to `dotnetcloud:dotnetcloud`.
+
 **Completed (cloud.kimball.home — deploy):**
 - ✅ Built and deployed Chat module with auth changes
 - ✅ All 13 modules healthy after deploy

@@ -92,132 +92,76 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** Add bearer token auth support to Music module (matching Chat/Files pattern)
+**Summary:** Deploy music alphabet index endpoints to the server
 
-**Background:** The Android Music tab client is fully implemented, but all API calls return 401. Root cause: `MusicControllerBase` uses `[Authorize(AuthenticationSchemes = "Identity.Application")]` which only accepts cookies. The Android app sends `Authorization: Bearer <token>` which the Music module doesn't recognize. Chat and Files modules use a policy scheme that auto-routes Bearer tokens to the Introspection handler — Music needs the same treatment.
+**Background:** The Android client now has an alphabet index strip (A-Z) on the Artists, Albums, and Tracks views. Previously it computed characters client-side from only the first 50 loaded items. Three new server-side endpoints were added to efficiently return distinct first characters from the full dataset:
 
-Diagnostic logcat output confirming the gap:
-```
-CheckModuleEndpoint: status=200 body={"success":true,"data":{"installed":false}}
-ProbeMusicApi: status=401 body=
-CheckAvailableModulesAsync: isAvailable=True
-MUSIC: GET https://cloud.kimball.home/api/v1/music/artists?skip=0&take=50
-MUSIC: 401 for https://cloud.kimball.home/api/v1/music/artists?skip=0&take=50:
-```
+- `GET /api/v1/music/artists/alphabet` → `List<string>` of distinct uppercase first letters from all user's artists
+- `GET /api/v1/music/albums/alphabet` → same for album titles
+- `GET /api/v1/music/tracks/alphabet` → same for track titles
 
----
+These use `SELECT DISTINCT UPPER(LEFT(Name,1))` via EF Core — a single indexed query, no pagination issues.
 
-### Server Actions — `cloud.kimball.home` / `mint22`
-
-Two files need changes, following the exact pattern already deployed in `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/`:
-
-**File 1: `src/Modules/Music/DotNetCloud.Modules.Music.Host/Controllers/MusicControllerBase.cs`**
-
-Change line:
-```csharp
-[Authorize(AuthenticationSchemes = "Identity.Application")]
-```
-to:
-```csharp
-[Authorize]
-```
-
-**File 2: `src/Modules/Music/DotNetCloud.Modules.Music.Host/Program.cs`**
-
-Replace the current auth setup (cookie-only) with the policy scheme + introspection pattern matching Chat/Files. The existing Chat `Program.cs` at `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Program.cs` is the reference.
-
-1. Add `using` for `DotNetCloud.Core.Auth` and `DotNetCloud.Core.Auth.Introspection`
-
-2. Replace:
-```csharp
-builder.Services.AddAuthentication("Identity.Application")
-    .AddCookie("Identity.Application", options =>
-    {
-        options.Cookie.Name = ".AspNetCore.Identity.Application";
-        options.Cookie.HttpOnly = true;
-        options.Cookie.SameSite = SameSiteMode.Lax;
-        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-        options.Cookie.IsEssential = true;
-        options.ExpireTimeSpan = TimeSpan.FromHours(24);
-        options.SlidingExpiration = true;
-    });
-```
-With:
-```csharp
-builder.Services.AddTokenIntrospection();
-
-builder.Services.AddAuthentication(options =>
-{
-    options.DefaultScheme = "DotNetCloud.Module";
-    options.DefaultAuthenticateScheme = "DotNetCloud.Module";
-    options.DefaultChallengeScheme = "DotNetCloud.Module";
-})
-.AddCookie("Identity.Application", options =>
-{
-    options.Cookie.Name = ".AspNetCore.Identity.Application";
-    options.Cookie.HttpOnly = true;
-    options.Cookie.SameSite = SameSiteMode.Lax;
-    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-    options.Cookie.IsEssential = true;
-    options.ExpireTimeSpan = TimeSpan.FromHours(24);
-    options.SlidingExpiration = true;
-})
-.AddIntrospection(IntrospectionAuthenticationExtensions.SchemeName)
-.AddPolicyScheme("DotNetCloud.Module", "DotNetCloud.Module", options =>
-{
-    options.ForwardDefaultSelector = context =>
-    {
-        if (context.Request.Headers.TryGetValue("Authorization", out var auth)
-            && auth.Count > 0
-            && auth[0]?.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) == true)
-        {
-            return IntrospectionAuthenticationExtensions.SchemeName;
-        }
-        return "Identity.Application";
-    };
-});
-```
-
-3. Replace `builder.Services.AddAuthorization();` with:
-```csharp
-builder.Services.AddAuthorization(options => AuthorizationPolicies.Configure(options));
-builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
-```
-
-4. Add project dependency: ensure `.csproj` has a reference to `DotNetCloud.Core.Auth` (same as Chat.Host.csproj).
-
-5. **Build:** `dotnet build src/Modules/Music/DotNetCloud.Modules.Music.Host/`
-
-6. **Deploy:** restart the music module process (e.g., `sudo systemctl restart dotnetcloud-module-music`)
-
-- ✓ Apply auth changes to `MusicControllerBase.cs` and `Program.cs`
-- ✓ Verify introspection is configured via the new programmatic introspection client
-- ✓ Build succeeds with `dotnet build` (Release publish verified)
-- ✓ Deploy to production and restart main dotnetcloud service
-- ✓ All 14 modules healthy (including music: Healthy)
-- ✓ Verify Android client can call music API with bearer token and get 200
-
-**Note:** First deploy failed — `DotNetCloud.Core.Auth.dll` was copied but `dotnetcloud.music.deps.json` wasn't updated, causing `FileNotFoundException`. Fixed by also copying the updated `.deps.json` and `.runtimeconfig.json`. Ownership set to `dotnetcloud:dotnetcloud`.
-
-**Server work complete — Android client verified successfully.**
+The server-side code is already committed and built. Only deployment is needed.
 
 ---
 
-### Android Client Actions — `monolith` (Completed ✓)
+### Server Actions — `cloud.kimball.home`
 
-- ✓ **Built APK:** `dotnet build src/Clients/DotNetCloud.Client.Android/DotNetCloud.Client.Android.csproj -f net10.0-android` — succeeded
-- ✓ **Deployed** signed APK to physical device (`R5CWC356B2K`, arm64-v8a)
-- ✓ **Verified music API calls return 200** (no 401 errors) — logcat confirms:
-  ```
-  I/DotNetCloud: MUSIC: GET https://cloud.dotnetcloud.net/api/v1/music/artists?skip=0&take=50
-  I/DotNetCloud: MUSIC: GET https://cloud.dotnetcloud.net/api/v1/music/artists/f044ce0d-.../albums
-  I/DotNetCloud: MUSIC: GET https://cloud.dotnetcloud.net/api/v1/music/albums/f251e567-.../tracks
-  ```
-  No `MUSIC: 401` lines — all requests succeed with bearer token auth.
-- ✓ **Music tab loads** — artists, albums, tracks display correctly
-- ✓ **Playback** — track playback works end-to-end
+1. Pull latest `main`:
+   ```
+   cd /opt/dotnetcloud
+   git pull origin main
+   ```
 
-**Result:** ✅ Music module bearer token auth is fully working. Server fix (policy scheme + introspection) resolves the 401 issue. Android client gets 200 on all music API endpoints.
+2. Build the music module (Release):
+   ```
+   dotnet publish src/Modules/Music/DotNetCloud.Modules.Music.Host/ \
+     -c Release \
+     -o /opt/dotnetcloud/publish/modules/music
+   ```
+
+3. Copy the updated binaries to the module directory:
+   ```
+   sudo cp /opt/dotnetcloud/publish/modules/music/dotnetcloud.music.dll /opt/dotnetcloud/modules/music/
+   sudo cp /opt/dotnetcloud/publish/modules/music/dotnetcloud.music.deps.json /opt/dotnetcloud/modules/music/
+   sudo cp /opt/dotnetcloud/publish/modules/music/dotnetcloud.music.runtimeconfig.json /opt/dotnetcloud/modules/music/
+   sudo chown dotnetcloud:dotnetcloud /opt/dotnetcloud/modules/music/dotnetcloud.music*
+   ```
+
+4. Restart the music module:
+   ```
+   sudo systemctl restart dotnetcloud-module-music
+   ```
+
+5. Verify the new endpoints are accessible:
+   ```
+   curl -s -H "Authorization: Bearer $(cat /opt/dotnetcloud/admin-token)" \
+     https://cloud.kimball.home/api/v1/music/artists/alphabet | head -c 200
+   ```
+   Expected: `{"success":true,"data":["A","B","C",...]}`
+
+6. Verify module health:
+   ```
+   curl -s https://cloud.kimball.home/health | python3 -c "import sys,json; d=json.load(sys.stdin); [print(m['name'], m['status']) for m in d.get('modules', []) if 'music' in m['name'].lower()]"
+   ```
+   Expected: `dotnetcloud-module-music Healthy`
+
+**Files changed (server-side, already built):**
+- `src/Modules/Music/DotNetCloud.Modules.Music/Services/IArtistService.cs` — added `ListArtistAlphabetAsync`
+- `src/Modules/Music/DotNetCloud.Modules.Music.Data/Services/ArtistService.cs` — implemented
+- `src/Modules/Music/DotNetCloud.Modules.Music/Services/IMusicAlbumService.cs` — added `ListAlbumAlphabetAsync`
+- `src/Modules/Music/DotNetCloud.Modules.Music.Data/Services/MusicAlbumService.cs` — implemented
+- `src/Modules/Music/DotNetCloud.Modules.Music/Services/ITrackService.cs` — added `ListTrackAlphabetAsync`
+- `src/Modules/Music/DotNetCloud.Modules.Music.Data/Services/TrackService.cs` — implemented
+- `src/Modules/Music/DotNetCloud.Modules.Music.Host/Controllers/MusicController.cs` — added 3 endpoints
+
+### Pre-commit checklist
+
+1. Run `git status --short`
+2. Delete ALL unexpected untracked files/directories (runtime data, storage, bin/)
+3. Verify clean state, then commit
+4. Push
 
 ## Environment
 
@@ -250,11 +194,3 @@ builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHand
 - SignalR connection verified working via logcat ("SignalR connected successfully!")
 - `SenderName` display confirmed working
 - `JoinChannelGroupAsync` already sends the correct format ("chat-channel-{guid}")
-
-### Server Actions — `cloud.kimball.home`
-
-- ✓ Pull latest `feature/chat-auth-bearer-token-support`
-- ✓ Fixed `channelId`→`groupKey` rename in log line (build error)
-- ✓ Re-deployed `CoreHub.cs` group-name fix (previous deploy killed during stop phase — files weren't copied)
-- ✓ Verified via deployed DLL strings: old "Channel ID cannot be empty." replaced by "Group name cannot empty."
-- ✓ 14/14 modules healthy

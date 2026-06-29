@@ -14,6 +14,9 @@ public interface IMusicAlbumService
     /// <summary>Lists albums with paging.</summary>
     Task<IReadOnlyList<MusicAlbumDto>> ListAlbumsAsync(CallerContext caller, int skip = 0, int take = 50, CancellationToken cancellationToken = default);
 
+    /// <summary>Gets the distinct first characters of all album titles for the user, sorted alphabetically.</summary>
+    Task<List<string>> ListAlbumAlphabetAsync(CallerContext caller, CancellationToken cancellationToken = default);
+
     /// <summary>Gets the total album count for a user.</summary>
     Task<int> GetCountAsync(Guid ownerId, CancellationToken cancellationToken = default);
 
