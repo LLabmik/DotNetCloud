@@ -41,6 +41,14 @@
             Icon="settings_icon.png"
             ContentTemplate="{DataTemplate views:SettingsPage}"/>
 
+        <ShellContent
+            x:Name="MusicTab"
+            Route="Music"
+            Title="Music"
+            Icon="music_icon.png"
+            IsVisible="False"
+            ContentTemplate="{DataTemplate views:MusicPage}"/>
+
     </TabBar>
 
 </Shell>

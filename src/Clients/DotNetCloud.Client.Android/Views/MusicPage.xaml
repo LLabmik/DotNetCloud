@@ -1,0 +1,336 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="DotNetCloud.Client.Android.Views.MusicPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:vm="clr-namespace:DotNetCloud.Client.Android.ViewModels"
+    xmlns:dto="clr-namespace:DotNetCloud.Core.DTOs;assembly=DotNetCloud.Core"
+    xmlns:conv="clr-namespace:DotNetCloud.Client.Android.Converters"
+    xmlns:views="clr-namespace:DotNetCloud.Client.Android.Views"
+    x:DataType="vm:MusicViewModel"
+    Shell.NavBarIsVisible="true"
+    Shell.BackgroundColor="#1E293B"
+    Shell.ForegroundColor="#F1F5F9"
+    BackgroundColor="#0F172A">
+
+    <ContentPage.Resources>
+        <ResourceDictionary>
+            <conv:IsNotNullConverter x:Key="IsNotNull"/>
+            <conv:TimeSpanToMmSsConverter x:Key="TimeSpanToMmSs"/>
+            <conv:BoolToPlayPauseIconConverter x:Key="PlayPauseIcon"/>
+            <conv:IsViewSelectedConverter x:Key="IsViewSelectedConverter"/>
+            <conv:TabSelectedConverter x:Key="TabSelectedConverter"/>
+        </ResourceDictionary>
+    </ContentPage.Resources>
+
+    <Grid RowDefinitions="Auto,*">
+
+        <!-- ── Now-playing bar ─────────────────────────────────────── -->
+        <Border
+            Grid.Row="0"
+            IsVisible="{Binding CurrentTrack, Converter={StaticResource IsNotNull}}"
+            BackgroundColor="#1E293B"
+            Stroke="#334155"
+            StrokeShape="RoundRectangle 8"
+            Padding="8"
+            Margin="4">
+
+            <Grid ColumnDefinitions="48,*,Auto"
+                  ColumnSpacing="8">
+                <!-- Album art thumbnail -->
+                <Border
+                    Grid.Column="0"
+                    WidthRequest="48"
+                    HeightRequest="48"
+                    StrokeShape="RoundRectangle 4"
+                    StrokeThickness="0"
+                    BackgroundColor="#334155">
+                    <Image
+                        Aspect="AspectFill"
+                        WidthRequest="48"
+                        HeightRequest="48"/>
+                </Border>
+
+                <!-- Track info -->
+                <VerticalStackLayout Grid.Column="1"
+                                     VerticalOptions="Center"
+                                     Spacing="2">
+                    <Label
+                        Text="{Binding CurrentTrack.Title}"
+                        TextColor="#F1F5F9"
+                        FontSize="14"
+                        FontAttributes="Bold"
+                        LineBreakMode="TailTruncation"/>
+                    <Label
+                        Text="{Binding CurrentTrack.ArtistName}"
+                        TextColor="#94A3B8"
+                        FontSize="12"
+                        LineBreakMode="TailTruncation"/>
+                </VerticalStackLayout>
+
+                <!-- Playback controls -->
+                <HorizontalStackLayout Grid.Column="2"
+                                       Spacing="8"
+                                       VerticalOptions="Center">
+                    <Button
+                        Text="⏮"
+                        FontSize="18"
+                        BackgroundColor="Transparent"
+                        TextColor="#F1F5F9"
+                        Command="{Binding PlayPreviousCommand}"
+                        WidthRequest="36"
+                        HeightRequest="36"
+                        Padding="0"/>
+                    <Button
+                        Text="{Binding IsPlaying, Converter={StaticResource PlayPauseIcon}}"
+                        FontSize="22"
+                        BackgroundColor="#0EA5E9"
+                        TextColor="#FFFFFF"
+                        Command="{Binding TogglePlayPauseCommand}"
+                        CornerRadius="20"
+                        WidthRequest="40"
+                        HeightRequest="40"
+                        Padding="0"/>
+                    <Button
+                        Text="⏭"
+                        FontSize="18"
+                        BackgroundColor="Transparent"
+                        TextColor="#F1F5F9"
+                        Command="{Binding PlayNextCommand}"
+                        WidthRequest="36"
+                        HeightRequest="36"
+                        Padding="0"/>
+                </HorizontalStackLayout>
+            </Grid>
+        </Border>
+
+        <!-- ── Content area ────────────────────────────────────────── -->
+        <Grid Grid.Row="1"
+              RowDefinitions="Auto,*">
+
+            <!-- Segmented tab bar -->
+            <HorizontalStackLayout
+                Grid.Row="0"
+                Spacing="0"
+                HorizontalOptions="Center"
+                Padding="8,8,8,4">
+
+                <Button
+                    Text="Artists"
+                    BackgroundColor="{Binding CurrentView, Converter={StaticResource TabSelectedConverter}, ConverterParameter=Artists}"
+                    TextColor="#F1F5F9"
+                    FontSize="13"
+                    CornerRadius="16"
+                    Padding="16,6"
+                    Margin="2,0"
+                    Command="{Binding LoadArtistsCommand}"/>
+                <Button
+                    Text="Albums"
+                    BackgroundColor="{Binding CurrentView, Converter={StaticResource TabSelectedConverter}, ConverterParameter=Albums}"
+                    TextColor="#F1F5F9"
+                    FontSize="13"
+                    CornerRadius="16"
+                    Padding="16,6"
+                    Margin="2,0"
+                    Command="{Binding LoadAlbumsCommand}"/>
+                <Button
+                    Text="Tracks"
+                    BackgroundColor="{Binding CurrentView, Converter={StaticResource TabSelectedConverter}, ConverterParameter=Tracks}"
+                    TextColor="#F1F5F9"
+                    FontSize="13"
+                    CornerRadius="16"
+                    Padding="16,6"
+                    Margin="2,0"
+                    Command="{Binding LoadTracksCommand}"/>
+                <Button
+                    Text="Playlists"
+                    BackgroundColor="{Binding CurrentView, Converter={StaticResource TabSelectedConverter}, ConverterParameter=Playlists}"
+                    TextColor="#F1F5F9"
+                    FontSize="13"
+                    CornerRadius="16"
+                    Padding="16,6"
+                    Margin="2,0"
+                    Command="{Binding LoadPlaylistsCommand}"/>
+            </HorizontalStackLayout>
+
+            <!-- Loading indicator -->
+            <ActivityIndicator
+                Grid.Row="1"
+                IsRunning="{Binding IsLoading}"
+                IsVisible="{Binding IsLoading}"
+                Color="#0EA5E9"
+                HeightRequest="40"
+                VerticalOptions="Start"/>
+
+            <!-- Error message -->
+            <VerticalStackLayout
+                Grid.Row="1"
+                IsVisible="{Binding ErrorMessage, Converter={StaticResource IsNotNull}}"
+                VerticalOptions="Start"
+                Padding="16,8">
+                <Label
+                    Text="{Binding ErrorMessage}"
+                    TextColor="#EF4444"
+                    FontSize="14"
+                    HorizontalOptions="Center"/>
+            </VerticalStackLayout>
+
+            <!-- Content (only one visible at a time) -->
+            <CollectionView
+                Grid.Row="1"
+                ItemsSource="{Binding Artists}"
+                IsVisible="{Binding CurrentView, Converter={StaticResource IsViewSelectedConverter}, ConverterParameter=Artists}"
+                SelectionMode="Single"
+                SelectedItem="{Binding SelectedArtist, Mode=TwoWay}">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="dto:ArtistDto">
+                        <Grid Padding="12,8"
+                              ColumnDefinitions="Auto,*,Auto">
+                            <BoxView
+                                Grid.Column="0"
+                                WidthRequest="48"
+                                HeightRequest="48"
+                                CornerRadius="24"
+                                Color="#334155"/>
+                            <VerticalStackLayout Grid.Column="1"
+                                                 VerticalOptions="Center"
+                                                 Margin="12,0,0,0">
+                                <Label Text="{Binding Name}"
+                                       TextColor="#F1F5F9"
+                                       FontSize="16"
+                                       FontAttributes="Bold"/>
+                                <Label Text="{Binding AlbumCount, StringFormat='{0} albums'}"
+                                       TextColor="#94A3B8"
+                                       FontSize="12"/>
+                            </VerticalStackLayout>
+                            <Label
+                                Grid.Column="2"
+                                Text="›"
+                                TextColor="#64748B"
+                                FontSize="20"
+                                VerticalOptions="Center"/>
+                        </Grid>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+
+            <CollectionView
+                Grid.Row="1"
+                ItemsSource="{Binding Albums}"
+                IsVisible="{Binding CurrentView, Converter={StaticResource IsViewSelectedConverter}, ConverterParameter=Albums}"
+                SelectionMode="Single"
+                SelectedItem="{Binding SelectedAlbum, Mode=TwoWay}">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="dto:MusicAlbumDto">
+                        <Grid Padding="12,8"
+                              ColumnDefinitions="48,*,Auto"
+                              ColumnSpacing="12">
+                            <BoxView
+                                Grid.Column="0"
+                                WidthRequest="48"
+                                HeightRequest="48"
+                                CornerRadius="4"
+                                Color="#334155"/>
+                            <VerticalStackLayout Grid.Column="1"
+                                                 VerticalOptions="Center">
+                                <Label Text="{Binding Title}"
+                                       TextColor="#F1F5F9"
+                                       FontSize="16"
+                                       FontAttributes="Bold"
+                                       LineBreakMode="TailTruncation"/>
+                                <Label Text="{Binding ArtistName}"
+                                       TextColor="#94A3B8"
+                                       FontSize="12"/>
+                            </VerticalStackLayout>
+                            <Label
+                                Grid.Column="2"
+                                Text="{Binding Year, StringFormat='{0}'}"
+                                TextColor="#64748B"
+                                FontSize="12"
+                                VerticalOptions="Center"/>
+                        </Grid>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+
+            <CollectionView
+                Grid.Row="1"
+                ItemsSource="{Binding Tracks}"
+                IsVisible="{Binding CurrentView, Converter={StaticResource IsViewSelectedConverter}, ConverterParameter=Tracks}"
+                SelectionMode="Single"
+                SelectedItem="{Binding SelectedTrack, Mode=TwoWay}">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="dto:TrackDto">
+                        <Grid Padding="12,8"
+                              ColumnDefinitions="Auto,*,Auto"
+                              ColumnSpacing="12">
+                            <Label
+                                Grid.Column="0"
+                                Text="{Binding TrackNumber, StringFormat='{0}'}"
+                                TextColor="#64748B"
+                                FontSize="14"
+                                VerticalOptions="Center"
+                                WidthRequest="24"/>
+                            <VerticalStackLayout Grid.Column="1"
+                                                 VerticalOptions="Center">
+                                <Label Text="{Binding Title}"
+                                       TextColor="#F1F5F9"
+                                       FontSize="15"
+                                       LineBreakMode="TailTruncation"/>
+                                <Label Text="{Binding ArtistName}"
+                                       TextColor="#94A3B8"
+                                       FontSize="11"
+                                       LineBreakMode="TailTruncation"/>
+                            </VerticalStackLayout>
+                            <Label
+                                Grid.Column="2"
+                                Text="{Binding Duration, Converter={StaticResource TimeSpanToMmSs}}"
+                                TextColor="#64748B"
+                                FontSize="12"
+                                VerticalOptions="Center"/>
+                        </Grid>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+
+            <CollectionView
+                Grid.Row="1"
+                ItemsSource="{Binding Playlists}"
+                IsVisible="{Binding CurrentView, Converter={StaticResource IsViewSelectedConverter}, ConverterParameter=Playlists}"
+                SelectionMode="Single"
+                SelectedItem="{Binding SelectedPlaylist, Mode=TwoWay}">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="dto:PlaylistDto">
+                        <Grid Padding="12,8"
+                              ColumnDefinitions="48,*,Auto"
+                              ColumnSpacing="12">
+                            <BoxView
+                                Grid.Column="0"
+                                WidthRequest="48"
+                                HeightRequest="48"
+                                CornerRadius="4"
+                                Color="#334155"/>
+                            <VerticalStackLayout Grid.Column="1"
+                                                 VerticalOptions="Center">
+                                <Label Text="{Binding Name}"
+                                       TextColor="#F1F5F9"
+                                       FontSize="16"
+                                       FontAttributes="Bold"
+                                       LineBreakMode="TailTruncation"/>
+                                <Label Text="{Binding TrackCount, StringFormat='{0} tracks'}"
+                                       TextColor="#94A3B8"
+                                       FontSize="12"/>
+                            </VerticalStackLayout>
+                            <Label
+                                Grid.Column="2"
+                                Text="›"
+                                TextColor="#64748B"
+                                FontSize="20"
+                                VerticalOptions="Center"/>
+                        </Grid>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </Grid>
+    </Grid>
+</ContentPage>

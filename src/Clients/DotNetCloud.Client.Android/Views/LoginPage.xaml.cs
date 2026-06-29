@@ -30,6 +30,9 @@ public partial class LoginPage : ContentPage
     {
         await MainThread.InvokeOnMainThreadAsync(() => Shell.Current.GoToAsync("//Main/ChannelList", animate: true));
 
+        // Check which optional server modules are available (Music, etc.)
+        await App.CheckMusicModuleAvailabilityAsync();
+
         // Start the SignalR chat connection foreground service after successful login
         var intent = new Intent(global::Android.App.Application.Context, typeof(ChatConnectionService));
         intent.SetAction(ChatConnectionService.ActionStart);

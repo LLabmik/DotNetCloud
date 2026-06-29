@@ -14,6 +14,12 @@
 			android:foregroundServiceType="dataSync"
 			android:exported="false" />
 
+		<!-- Music playback foreground service -->
+		<service
+			android:name=".MusicPlaybackService"
+			android:foregroundServiceType="mediaPlayback"
+			android:exported="false" />
+
 		<!-- Firebase Cloud Messaging handler (Google Play flavor) -->
 		<service
 			android:name=".FcmMessagingService"
@@ -46,6 +52,7 @@
 	<!-- Foreground service for chat connection -->
 	<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 	<uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+	<uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 
 	<!-- Photo auto-upload: read media -->
 	<uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />

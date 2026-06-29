@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.DependencyInjection;
 using DotNetCloud.Client.Android.Auth;
 using DotNetCloud.Client.Android.Chat;
 using DotNetCloud.Client.Android.Files;
+using DotNetCloud.Client.Android.Music;
 using DotNetCloud.Client.Android.Platforms.Android;
 using DotNetCloud.Client.Android.Services;
 using DotNetCloud.Client.Android.ViewModels;
@@ -73,6 +74,18 @@ public static class MauiProgram
             .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
         builder.Services.AddSingleton<IAndroidUpdateService, AndroidUpdateService>();
 
+        // ── Music ─────────────────────────────────────────────────────────
+        builder.Services.AddHttpClient<IMusicRestClient, HttpMusicRestClient>()
+            .AddHttpMessageHandler<AuthenticatedHttpClientHandler>()
+            .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
+
+        builder.Services.AddHttpClient<IAlbumArtCache, AlbumArtCache>()
+            .AddHttpMessageHandler<AuthenticatedHttpClientHandler>()
+            .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
+
+        builder.Services.AddSingleton<IMusicPlayerService, MusicPlayerService>();
+        builder.Services.AddSingleton<IEqualizerService, AndroidEqualizerService>();
+
         // ── ViewModels ────────────────────────────────────────────────
         builder.Services.AddTransient<LoginViewModel>();
         builder.Services.AddTransient<ChannelListViewModel>();
@@ -80,6 +93,7 @@ public static class MauiProgram
         builder.Services.AddTransient<ChannelDetailsViewModel>();
         builder.Services.AddTransient<SettingsViewModel>();
         builder.Services.AddTransient<FileBrowserViewModel>();
+        builder.Services.AddTransient<MusicViewModel>();
 
         // ── Pages ─────────────────────────────────────────────────────
         builder.Services.AddTransient<LoginPage>();
@@ -88,6 +102,7 @@ public static class MauiProgram
         builder.Services.AddTransient<ChannelDetailsPage>();
         builder.Services.AddTransient<SettingsPage>();
         builder.Services.AddTransient<FileBrowserPage>();
+        builder.Services.AddTransient<MusicPage>();
 
 #if DEBUG
         builder.Logging.AddDebug();

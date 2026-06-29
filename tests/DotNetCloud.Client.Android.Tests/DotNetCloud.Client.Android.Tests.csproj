@@ -38,6 +38,17 @@
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\IAppPreferences.cs" Link="AndroidApp\Services\IAppPreferences.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\IAndroidUpdateService.cs" Link="AndroidApp\Services\IAndroidUpdateService.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\AndroidUpdateService.cs" Link="AndroidApp\Services\AndroidUpdateService.cs" />
+
+    <!-- Music -->
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Music\IMusicRestClient.cs" Link="AndroidApp\Music\IMusicRestClient.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Music\HttpMusicRestClient.cs" Link="AndroidApp\Music\HttpMusicRestClient.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\ModuleAvailabilityState.cs" Link="AndroidApp\Services\ModuleAvailabilityState.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\MusicPageVisibilitySource.cs" Link="AndroidApp\Services\MusicPageVisibilitySource.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\IMusicPlayerService.cs" Link="AndroidApp\Services\IMusicPlayerService.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\IEqualizerService.cs" Link="AndroidApp\Services\IEqualizerService.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\IAlbumArtCache.cs" Link="AndroidApp\Services\IAlbumArtCache.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\AlbumArtCache.cs" Link="AndroidApp\Services\AlbumArtCache.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\ViewModels\MusicViewModel.cs" Link="AndroidApp\ViewModels\MusicViewModel.cs" />
   </ItemGroup>
 
 </Project>

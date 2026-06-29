@@ -138,6 +138,7 @@ public interface IMusicRestClient
 ```
 
 **DTO types** come from `DotNetCloud.Core.DTOs` (defined in `src/Core/DotNetCloud.Core/DTOs/MusicDtos.cs`). They are all `record` types:
+
 - `ArtistDto` — `Id:Guid`, `Name:string`, `SortName:string?`, `AlbumCount:int`, `TrackCount:int`, `IsStarred:bool`, `LogoUrl:string?`, `CreatedAt:DateTime`
 - `MusicAlbumDto` — `Id:Guid`, `Title:string`, `ArtistId:Guid`, `ArtistName:string`, `Year:int?`, `Genre:string?`, `TrackCount:int`, `TotalDuration:TimeSpan`, `HasCoverArt:bool`, `IsStarred:bool`, `CreatedAt:DateTime`
 - `TrackDto` — `Id:Guid`, `OwnerId:Guid`, `FileNodeId:Guid`, `Title:string`, `TrackNumber:int?`, `DiscNumber:int?`, `Duration:TimeSpan`, `SizeBytes:long`, `Bitrate:long?`, `MimeType:string`, `AlbumId:Guid?`, `AlbumTitle:string?`, `ArtistId:Guid`, `ArtistName:string`, `Genre:string?`, `Year:int?`, `IsStarred:bool`, `CreatedAt:DateTime`
@@ -151,30 +152,30 @@ public interface IMusicRestClient
 
 **Exact API endpoint URLs** (append to `serverBaseUrl.TrimEnd('/')`):
 
-| Method | HTTP | URL | Response `data` |
-|--------|------|-----|-----------------|
-| `ListArtistsAsync` | GET | `/api/v1/music/artists?skip={s}&take={t}` | `List<ArtistDto>` |
-| `GetArtistAsync` | GET | `/api/v1/music/artists/{artistId}` | `ArtistDto` or null (404) |
-| `SearchArtistsAsync` | GET | `/api/v1/music/artists/search?q={q}&take={t}` | `List<ArtistDto>` |
-| `ListAlbumsAsync` | GET | `/api/v1/music/albums?skip={s}&take={t}` | `List<MusicAlbumDto>` |
-| `GetAlbumAsync` | GET | `/api/v1/music/albums/{albumId}` | `MusicAlbumDto` or null (404) |
-| `ListAlbumsByArtistAsync` | GET | `/api/v1/music/artists/{artistId}/albums` | `List<MusicAlbumDto>` |
-| `SearchAlbumsAsync` | GET | `/api/v1/music/albums/search?q={q}&take={t}` | `List<MusicAlbumDto>` |
-| `GetRecentAlbumsAsync` | GET | `/api/v1/music/albums/recent?take={t}` | `List<MusicAlbumDto>` |
-| `ListTracksAsync` | GET | `/api/v1/music/tracks?skip={s}&take={t}` | `List<TrackDto>` |
-| `GetTrackAsync` | GET | `/api/v1/music/tracks/{trackId}` | `TrackDto` or null (404) |
-| `ListTracksByAlbumAsync` | GET | `/api/v1/music/albums/{albumId}/tracks` | `List<TrackDto>` |
-| `SearchTracksAsync` | GET | `/api/v1/music/tracks/search?q={q}&take={t}` | `List<TrackDto>` |
-| `GetRandomTracksAsync` | GET | `/api/v1/music/tracks/random?take={t}&genre={g}` | `List<TrackDto>` |
-| `GetRecentTracksAsync` | GET | `/api/v1/music/tracks/recent?take={t}` | `List<TrackDto>` |
-| `ListPlaylistsAsync` | GET | `/api/v1/music/playlists` | `List<PlaylistDto>` |
-| `GetPlaylistAsync` | GET | `/api/v1/music/playlists/{playlistId}` | `PlaylistDto` or null (404) |
-| `GetPlaylistTracksAsync` | GET | `/api/v1/music/playlists/{playlistId}/tracks` | `List<TrackDto>` |
-| `RecordPlayAsync` | POST | `/api/v1/music/tracks/{trackId}/play` | `{ recorded: true }` |
-| `ToggleStarAsync` | POST | `/api/v1/music/{typePlural}/{itemId}/star` | `{ toggled: true }` |
-| `ListEqPresetsAsync` | GET | `/api/v1/music/eq/presets` | `List<EqPresetDto>` |
-| `GetEqPresetAsync` | GET | `/api/v1/music/eq/presets/{presetId}` | `EqPresetDto` or null (404) |
-| `GetGenresAsync` | GET | `/api/v1/music/genres` | `List<string>` |
+| Method                    | HTTP | URL                                              | Response `data`               |
+| ------------------------- | ---- | ------------------------------------------------ | ----------------------------- |
+| `ListArtistsAsync`        | GET  | `/api/v1/music/artists?skip={s}&take={t}`        | `List<ArtistDto>`             |
+| `GetArtistAsync`          | GET  | `/api/v1/music/artists/{artistId}`               | `ArtistDto` or null (404)     |
+| `SearchArtistsAsync`      | GET  | `/api/v1/music/artists/search?q={q}&take={t}`    | `List<ArtistDto>`             |
+| `ListAlbumsAsync`         | GET  | `/api/v1/music/albums?skip={s}&take={t}`         | `List<MusicAlbumDto>`         |
+| `GetAlbumAsync`           | GET  | `/api/v1/music/albums/{albumId}`                 | `MusicAlbumDto` or null (404) |
+| `ListAlbumsByArtistAsync` | GET  | `/api/v1/music/artists/{artistId}/albums`        | `List<MusicAlbumDto>`         |
+| `SearchAlbumsAsync`       | GET  | `/api/v1/music/albums/search?q={q}&take={t}`     | `List<MusicAlbumDto>`         |
+| `GetRecentAlbumsAsync`    | GET  | `/api/v1/music/albums/recent?take={t}`           | `List<MusicAlbumDto>`         |
+| `ListTracksAsync`         | GET  | `/api/v1/music/tracks?skip={s}&take={t}`         | `List<TrackDto>`              |
+| `GetTrackAsync`           | GET  | `/api/v1/music/tracks/{trackId}`                 | `TrackDto` or null (404)      |
+| `ListTracksByAlbumAsync`  | GET  | `/api/v1/music/albums/{albumId}/tracks`          | `List<TrackDto>`              |
+| `SearchTracksAsync`       | GET  | `/api/v1/music/tracks/search?q={q}&take={t}`     | `List<TrackDto>`              |
+| `GetRandomTracksAsync`    | GET  | `/api/v1/music/tracks/random?take={t}&genre={g}` | `List<TrackDto>`              |
+| `GetRecentTracksAsync`    | GET  | `/api/v1/music/tracks/recent?take={t}`           | `List<TrackDto>`              |
+| `ListPlaylistsAsync`      | GET  | `/api/v1/music/playlists`                        | `List<PlaylistDto>`           |
+| `GetPlaylistAsync`        | GET  | `/api/v1/music/playlists/{playlistId}`           | `PlaylistDto` or null (404)   |
+| `GetPlaylistTracksAsync`  | GET  | `/api/v1/music/playlists/{playlistId}/tracks`    | `List<TrackDto>`              |
+| `RecordPlayAsync`         | POST | `/api/v1/music/tracks/{trackId}/play`            | `{ recorded: true }`          |
+| `ToggleStarAsync`         | POST | `/api/v1/music/{typePlural}/{itemId}/star`       | `{ toggled: true }`           |
+| `ListEqPresetsAsync`      | GET  | `/api/v1/music/eq/presets`                       | `List<EqPresetDto>`           |
+| `GetEqPresetAsync`        | GET  | `/api/v1/music/eq/presets/{presetId}`            | `EqPresetDto` or null (404)   |
+| `GetGenresAsync`          | GET  | `/api/v1/music/genres`                           | `List<string>`                |
 
 **Envelope parsing helper** (copy the EXACT pattern from `HttpFileRestClient.ReadEnvelopeDataAsync`):
 
@@ -208,6 +209,7 @@ private static async Task<T?> ReadEnvelopeDataAsync<T>(HttpResponseMessage respo
 ```
 
 **GET method pattern:**
+
 ```csharp
 public async Task<IReadOnlyList<ArtistDto>> ListArtistsAsync(
     string serverBaseUrl, string accessToken,
@@ -221,6 +223,7 @@ public async Task<IReadOnlyList<ArtistDto>> ListArtistsAsync(
 ```
 
 **Single-item GET pattern (returns null on 404):**
+
 ```csharp
 public async Task<ArtistDto?> GetArtistAsync(
     string serverBaseUrl, string accessToken,
@@ -237,6 +240,7 @@ public async Task<ArtistDto?> GetArtistAsync(
 ```
 
 **POST method pattern:**
+
 ```csharp
 public async Task RecordPlayAsync(
     string serverBaseUrl, string accessToken,
@@ -250,6 +254,7 @@ public async Task RecordPlayAsync(
 ```
 
 **ToggleStarAsync URL construction** — `itemType` is lowercased and pluralized:
+
 ```csharp
 public async Task ToggleStarAsync(
     string serverBaseUrl, string accessToken,
@@ -270,6 +275,7 @@ public async Task ToggleStarAsync(
 ### 1.3 Register in `MauiProgram.cs`
 
 Add in `CreateMauiApp()`:
+
 ```csharp
 // ── Music ─────────────────────────────────────────────────────────
 builder.Services.AddHttpClient<Music.IMusicRestClient, Music.HttpMusicRestClient>()
@@ -299,6 +305,7 @@ public static class ModuleAvailabilityState
 ### 2.2 Modify `src/Clients/DotNetCloud.Client.Android/App.xaml.cs`
 
 The `App` class needs `ISecureTokenStore` injected. Change the constructor to:
+
 ```csharp
 private readonly IServerConnectionStore _serverStore;
 private readonly ISecureTokenStore _tokenStore;
@@ -313,6 +320,7 @@ public App(IServerConnectionStore serverStore, ISecureTokenStore tokenStore)
 ```
 
 Add this method and call it in `OnStart()` BEFORE `NavigateToStartPageAsync()`:
+
 ```csharp
 protected override async void OnStart()
 {
@@ -380,6 +388,7 @@ public sealed class MusicPageVisibilitySource : INotifyPropertyChanged
 ### 3.2 Modify `src/Clients/DotNetCloud.Client.Android/AppShell.xaml`
 
 Add the Music `ShellContent` as the 4th tab, AFTER Settings:
+
 ```xml
 <TabBar Route="Main">
     <ShellContent Route="ChannelList" Title="Chat"    Icon="chat_icon.png"     ContentTemplate="{DataTemplate views:ChannelListPage}"/>
@@ -511,6 +520,7 @@ For full method bodies, see the detailed implementation section below. Each `Loa
 ### 4.2 Create `src/Clients/DotNetCloud.Client.Android/Views/MusicPage.xaml`
 
 **Layout structure:**
+
 - `ContentPage` → `Grid` with 2 rows: `Auto` (now-playing bar) + `*` (content)
 - **Now-playing bar:** `Frame` containing `Grid` with album art `Image` (48x48), track info `VerticalStackLayout`, play/pause/next buttons, seek `Slider`. Visibility bound to `CurrentTrack` not null via `IsNotNullConverter`.
 - **Content:** `Grid` with 2 rows: segmented tabs `HorizontalStackLayout` (Artists|Albums|Tracks|Playlists buttons) + `CollectionView` with `DataTemplateSelector` or visibility-switched `CollectionView` instances.
@@ -685,6 +695,7 @@ For the full `BuildNotification()` implementation, follow the pattern in `ChatCo
 File: `src/Clients/DotNetCloud.Client.Android/Platforms/Android/AndroidManifest.xml`
 
 Inside `<application>`, after the existing `ChatConnectionService`:
+
 ```xml
 <service android:name=".MusicPlaybackService"
          android:foregroundServiceType="mediaPlayback"
@@ -692,6 +703,7 @@ Inside `<application>`, after the existing `ChatConnectionService`:
 ```
 
 After existing `FOREGROUND_SERVICE_DATA_SYNC` permission:
+
 ```xml
 <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 ```
@@ -699,6 +711,7 @@ After existing `FOREGROUND_SERVICE_DATA_SYNC` permission:
 ### 5.5 Modify `MainApplication.cs`
 
 In `CreateNotificationChannels()`, add:
+
 ```csharp
 nm.CreateNotificationChannel(new NotificationChannel(
     MusicPlaybackService.ChannelId, "Music playback", NotificationImportance.Low)
@@ -962,6 +975,7 @@ builder.Services.AddSingleton<IEqualizerService, AndroidEqualizerService>();
 ### 8.1 Create `Resources/Images/music_icon.svg`
 
 Music note icon in the same style as existing tab icons (24x24 viewBox, `#0EA5E9` stroke):
+
 ```svg
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#0EA5E9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1000,6 +1014,7 @@ public sealed class BoolToPlayPauseIconConverter : IValueConverter
 ### 8.3 Final `MauiProgram.cs` registration summary
 
 All new registrations:
+
 ```csharp
 // ── Music ─────────────────────────────────────────────────────────
 builder.Services.AddHttpClient<Music.IMusicRestClient, Music.HttpMusicRestClient>()
@@ -1024,35 +1039,35 @@ builder.Services.AddTransient<MusicPage>();
 
 ## API Reference: All Server Endpoints Used
 
-| Endpoint | Method | Response `data` |
-|----------|--------|-----------------|
-| `/api/v1/core/modules/music/available` | GET | `{ installed: bool }` |
-| `/api/v1/music/artists?skip=&take=` | GET | `List<ArtistDto>` |
-| `/api/v1/music/artists/{id}` | GET | `ArtistDto` |
-| `/api/v1/music/artists/search?q=&take=` | GET | `List<ArtistDto>` |
-| `/api/v1/music/artists/{id}/albums` | GET | `List<MusicAlbumDto>` |
-| `/api/v1/music/albums?skip=&take=` | GET | `List<MusicAlbumDto>` |
-| `/api/v1/music/albums/{id}` | GET | `MusicAlbumDto` |
-| `/api/v1/music/albums/search?q=&take=` | GET | `List<MusicAlbumDto>` |
-| `/api/v1/music/albums/recent?take=` | GET | `List<MusicAlbumDto>` |
-| `/api/v1/music/albums/{id}/cover` | GET | JPEG/PNG binary |
-| `/api/v1/music/albums/{id}/tracks` | GET | `List<TrackDto>` |
-| `/api/v1/music/tracks?skip=&take=` | GET | `List<TrackDto>` |
-| `/api/v1/music/tracks/{id}` | GET | `TrackDto` |
-| `/api/v1/music/tracks/search?q=&take=` | GET | `List<TrackDto>` |
-| `/api/v1/music/tracks/random?take=&genre=` | GET | `List<TrackDto>` |
-| `/api/v1/music/tracks/recent?take=` | GET | `List<TrackDto>` |
-| `/api/v1/music/tracks/{id}/play` | POST | `{ recorded: true }` |
-| `/api/v1/music/tracks/{id}/star` | POST | `{ toggled: true }` |
-| `/api/v1/music/albums/{id}/star` | POST | `{ toggled: true }` |
-| `/api/v1/music/artists/{id}/star` | POST | `{ toggled: true }` |
-| `/api/v1/music/playlists` | GET | `List<PlaylistDto>` |
-| `/api/v1/music/playlists/{id}` | GET | `PlaylistDto` |
-| `/api/v1/music/playlists/{id}/tracks` | GET | `List<TrackDto>` |
-| `/api/v1/music/eq/presets` | GET | `List<EqPresetDto>` |
-| `/api/v1/music/eq/presets/{id}` | GET | `EqPresetDto` |
-| `/api/v1/music/genres` | GET | `List<string>` |
-| `/api/v1/files/{fileNodeId}/content` | GET | Audio binary (from Files module) |
+| Endpoint                                   | Method | Response `data`                  |
+| ------------------------------------------ | ------ | -------------------------------- |
+| `/api/v1/core/modules/music/available`     | GET    | `{ installed: bool }`            |
+| `/api/v1/music/artists?skip=&take=`        | GET    | `List<ArtistDto>`                |
+| `/api/v1/music/artists/{id}`               | GET    | `ArtistDto`                      |
+| `/api/v1/music/artists/search?q=&take=`    | GET    | `List<ArtistDto>`                |
+| `/api/v1/music/artists/{id}/albums`        | GET    | `List<MusicAlbumDto>`            |
+| `/api/v1/music/albums?skip=&take=`         | GET    | `List<MusicAlbumDto>`            |
+| `/api/v1/music/albums/{id}`                | GET    | `MusicAlbumDto`                  |
+| `/api/v1/music/albums/search?q=&take=`     | GET    | `List<MusicAlbumDto>`            |
+| `/api/v1/music/albums/recent?take=`        | GET    | `List<MusicAlbumDto>`            |
+| `/api/v1/music/albums/{id}/cover`          | GET    | JPEG/PNG binary                  |
+| `/api/v1/music/albums/{id}/tracks`         | GET    | `List<TrackDto>`                 |
+| `/api/v1/music/tracks?skip=&take=`         | GET    | `List<TrackDto>`                 |
+| `/api/v1/music/tracks/{id}`                | GET    | `TrackDto`                       |
+| `/api/v1/music/tracks/search?q=&take=`     | GET    | `List<TrackDto>`                 |
+| `/api/v1/music/tracks/random?take=&genre=` | GET    | `List<TrackDto>`                 |
+| `/api/v1/music/tracks/recent?take=`        | GET    | `List<TrackDto>`                 |
+| `/api/v1/music/tracks/{id}/play`           | POST   | `{ recorded: true }`             |
+| `/api/v1/music/tracks/{id}/star`           | POST   | `{ toggled: true }`              |
+| `/api/v1/music/albums/{id}/star`           | POST   | `{ toggled: true }`              |
+| `/api/v1/music/artists/{id}/star`          | POST   | `{ toggled: true }`              |
+| `/api/v1/music/playlists`                  | GET    | `List<PlaylistDto>`              |
+| `/api/v1/music/playlists/{id}`             | GET    | `PlaylistDto`                    |
+| `/api/v1/music/playlists/{id}/tracks`      | GET    | `List<TrackDto>`                 |
+| `/api/v1/music/eq/presets`                 | GET    | `List<EqPresetDto>`              |
+| `/api/v1/music/eq/presets/{id}`            | GET    | `EqPresetDto`                    |
+| `/api/v1/music/genres`                     | GET    | `List<string>`                   |
+| `/api/v1/files/{fileNodeId}/content`       | GET    | Audio binary (from Files module) |
 
 **All responses** use envelope: `{ "success": true, "data": ... }`. All require `Authorization: Bearer {token}`.
 
@@ -1062,36 +1077,36 @@ builder.Services.AddTransient<MusicPage>();
 
 ### Create (15 files)
 
-| # | File | Est. Lines |
-|---|------|-----------|
-| 1 | `Music/IMusicRestClient.cs` | ~90 |
-| 2 | `Music/HttpMusicRestClient.cs` | ~330 |
-| 3 | `Services/ModuleAvailabilityState.cs` | ~8 |
-| 4 | `Services/MusicPageVisibilitySource.cs` | ~18 |
-| 5 | `ViewModels/MusicViewModel.cs` | ~250 |
-| 6 | `Views/MusicPage.xaml` | ~200 |
-| 7 | `Views/MusicPage.xaml.cs` | ~20 |
-| 8 | `Services/IMusicPlayerService.cs` | ~35 |
-| 9 | `Services/MusicPlayerService.cs` | ~200 |
-| 10 | `Platforms/Android/MusicPlaybackService.cs` | ~200 |
-| 11 | `Services/IAlbumArtCache.cs` | ~12 |
-| 12 | `Services/AlbumArtCache.cs` | ~80 |
-| 13 | `Services/IEqualizerService.cs` | ~18 |
-| 14 | `Services/AndroidEqualizerService.cs` | ~140 |
-| 15 | `Resources/Images/music_icon.svg` | ~8 |
-| | **Total** | **~1,609** |
+| #   | File                                        | Est. Lines |
+| --- | ------------------------------------------- | ---------- |
+| 1   | `Music/IMusicRestClient.cs`                 | ~90        |
+| 2   | `Music/HttpMusicRestClient.cs`              | ~330       |
+| 3   | `Services/ModuleAvailabilityState.cs`       | ~8         |
+| 4   | `Services/MusicPageVisibilitySource.cs`     | ~18        |
+| 5   | `ViewModels/MusicViewModel.cs`              | ~250       |
+| 6   | `Views/MusicPage.xaml`                      | ~200       |
+| 7   | `Views/MusicPage.xaml.cs`                   | ~20        |
+| 8   | `Services/IMusicPlayerService.cs`           | ~35        |
+| 9   | `Services/MusicPlayerService.cs`            | ~200       |
+| 10  | `Platforms/Android/MusicPlaybackService.cs` | ~200       |
+| 11  | `Services/IAlbumArtCache.cs`                | ~12        |
+| 12  | `Services/AlbumArtCache.cs`                 | ~80        |
+| 13  | `Services/IEqualizerService.cs`             | ~18        |
+| 14  | `Services/AndroidEqualizerService.cs`       | ~140       |
+| 15  | `Resources/Images/music_icon.svg`           | ~8         |
+|     | **Total**                                   | **~1,609** |
 
 ### Modify (7 files)
 
-| # | File | Changes |
-|---|------|---------|
-| 1 | `MauiProgram.cs` | ~20 lines: 4 service + 1 VM + 1 page registrations |
-| 2 | `App.xaml.cs` | ~40 lines: inject `ISecureTokenStore`, add `CheckAvailableModulesAsync()`, call in `OnStart()` |
-| 3 | `AppShell.xaml` | ~3 lines: add Music `ShellContent` with `IsVisible` binding |
-| 4 | `AppShell.xaml.cs` | ~4 lines: add `MusicPageVisibilitySource`, set `BindingContext` |
-| 5 | `AndroidManifest.xml` | ~5 lines: service + permission declarations |
-| 6 | `MainApplication.cs` | ~6 lines: music notification channel |
-| 7 | `Converters/AppConverters.cs` | ~25 lines: two converters |
+| #   | File                          | Changes                                                                                        |
+| --- | ----------------------------- | ---------------------------------------------------------------------------------------------- |
+| 1   | `MauiProgram.cs`              | ~20 lines: 4 service + 1 VM + 1 page registrations                                             |
+| 2   | `App.xaml.cs`                 | ~40 lines: inject `ISecureTokenStore`, add `CheckAvailableModulesAsync()`, call in `OnStart()` |
+| 3   | `AppShell.xaml`               | ~3 lines: add Music `ShellContent` with `IsVisible` binding                                    |
+| 4   | `AppShell.xaml.cs`            | ~4 lines: add `MusicPageVisibilitySource`, set `BindingContext`                                |
+| 5   | `AndroidManifest.xml`         | ~5 lines: service + permission declarations                                                    |
+| 6   | `MainApplication.cs`          | ~6 lines: music notification channel                                                           |
+| 7   | `Converters/AppConverters.cs` | ~25 lines: two converters                                                                      |
 
 ---
 
@@ -1116,13 +1131,13 @@ builder.Services.AddTransient<MusicPage>();
 
 ## Key Design Decisions
 
-| Decision | Rationale |
-|----------|-----------|
-| REST (not gRPC) | Android has no gRPC infra. Music module exposes full REST API. Same `HttpClient` + `AuthenticatedHttpClientHandler` as Chat/Files. |
-| Foreground service + WakeLock | Follows `ChatConnectionService` pattern. `TypeMediaPlayback`, `Sticky`, media notification. |
-| `Android.Media.MediaPlayer` | Supports HTTP streaming with auth headers. Simpler than ExoPlayer for MAUI. |
-| Two-tier album art cache | Memory LRU (50 items) + disk. Uses `FileSystem.CacheDirectory`. |
-| `AudioEffect.Equalizer` | Standard Android EQ. Priority 0. Maps 10-band server presets to device bands. dB→millibels conversion. |
-| `ShellContent.IsVisible` binding | Reads static `ModuleAvailabilityState`. Set before Shell first displays. |
-| Shared `DotNetCloud.Core` DTOs | Reuses existing `ArtistDto`, `TrackDto`, etc. No duplicate definitions. |
-| No playlist creation, visualization, offline, indexing | Excluded by design per requirements. |
+| Decision                                               | Rationale                                                                                                                          |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| REST (not gRPC)                                        | Android has no gRPC infra. Music module exposes full REST API. Same `HttpClient` + `AuthenticatedHttpClientHandler` as Chat/Files. |
+| Foreground service + WakeLock                          | Follows `ChatConnectionService` pattern. `TypeMediaPlayback`, `Sticky`, media notification.                                        |
+| `Android.Media.MediaPlayer`                            | Supports HTTP streaming with auth headers. Simpler than ExoPlayer for MAUI.                                                        |
+| Two-tier album art cache                               | Memory LRU (50 items) + disk. Uses `FileSystem.CacheDirectory`.                                                                    |
+| `AudioEffect.Equalizer`                                | Standard Android EQ. Priority 0. Maps 10-band server presets to device bands. dB→millibels conversion.                             |
+| `ShellContent.IsVisible` binding                       | Reads static `ModuleAvailabilityState`. Set before Shell first displays.                                                           |
+| Shared `DotNetCloud.Core` DTOs                         | Reuses existing `ArtistDto`, `TrackDto`, etc. No duplicate definitions.                                                            |
+| No playlist creation, visualization, offline, indexing | Excluded by design per requirements.                                                                                               |

@@ -225,8 +225,10 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
 
         try
         {
-            var message = await _chatApi.SendMessageAsync(_serverUrl!, _accessToken!, _channelId, content, ct);
-            Messages.Add(new MessageItemViewModel(message.Id, ResolveSenderName(message.SenderUserId, message.SenderName), message.Content, message.SentAt));
+            await _chatApi.SendMessageAsync(_serverUrl!, _accessToken!, _channelId, content, ct);
+            // Message will appear via SignalR broadcast (OnNewChatMessage).
+            // We do NOT add it here to avoid duplicates — the SignalR handler
+            // delivers it to all clients including the sender.
         }
         catch (Exception ex)
         {
@@ -286,8 +288,8 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
             ErrorMessage = null;
             IsSending = true;
 
-            var message = await _chatApi.SendMessageAsync(_serverUrl!, _accessToken!, _channelId, content, ct);
-            Messages.Add(new MessageItemViewModel(message.Id, ResolveSenderName(message.SenderUserId, message.SenderName), message.Content, message.SentAt));
+            await _chatApi.SendMessageAsync(_serverUrl!, _accessToken!, _channelId, content, ct);
+            // Message appears via SignalR broadcast (same as SendAsync).
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
@@ -379,6 +381,11 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
 
         MainThread.BeginInvokeOnMainThread(() =>
         {
+            // Dedup: the sending client already added this message from the HTTP response,
+            // so the SignalR broadcast would create a duplicate. Skip if already present.
+            if (Messages.Any(m => m.Id == e.MessageId))
+                return;
+
             var vm = new MessageItemViewModel(e.MessageId, e.SenderDisplayName, e.MessagePreview, new DateTimeOffset(e.SentAt, TimeSpan.Zero));
             Messages.Add(vm);
         });
