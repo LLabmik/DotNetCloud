@@ -3,6 +3,7 @@ using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Events.Search;
+using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Music.Models;
 using DotNetCloud.Modules.Music.Services;
 using Microsoft.EntityFrameworkCore;
@@ -38,6 +39,12 @@ public sealed class LibraryScanService
 
     // Tracks album total duration incrementally to avoid O(n²) SUM queries.
     private readonly Dictionary<Guid, long> _albumDurationCache = new();
+
+    // Pre-loaded junction data for batch operations (CloneLibraryFromExistingAsync, TryBulkIndexFromExistingAsync).
+    // Populated once at the start, then used for in-memory lookups instead of per-track DB queries.
+    private HashSet<(string ContentHash, Guid ArtistId)>? _preloadedTrackArtists;
+    private HashSet<(string ContentHash, Guid GenreId)>? _preloadedTrackGenres;
+    private HashSet<(Guid AlbumId, Guid ArtistId)>? _preloadedAlbumArtists;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="LibraryScanService"/> class.
@@ -1151,9 +1158,14 @@ public sealed class LibraryScanService
         // ── 2. Create UserAlbum junction if applicable ──
         if (canonicalAlbum is not null)
         {
-            var existingUserAlbum = await _db.UserAlbums
-                .IgnoreQueryFilters()
-                .FirstOrDefaultAsync(ua => ua.OwnerId == ownerId && ua.CanonicalAlbumId == canonicalAlbum.Id, cancellationToken);
+            // Check ChangeTracker first to handle batched SaveChanges scenarios
+            // (CloneLibraryFromExistingAsync, TryBulkIndexFromExistingAsync) where
+            // a UserAlbum for this album may have been added but not yet saved.
+            var existingUserAlbum = _db.UserAlbums.Local
+                .FirstOrDefault(ua => ua.OwnerId == ownerId && ua.CanonicalAlbumId == canonicalAlbum.Id)
+                ?? await _db.UserAlbums
+                    .IgnoreQueryFilters()
+                    .FirstOrDefaultAsync(ua => ua.OwnerId == ownerId && ua.CanonicalAlbumId == canonicalAlbum.Id, cancellationToken);
             if (existingUserAlbum is null)
             {
                 _db.UserAlbums.Add(new UserAlbum
@@ -1171,9 +1183,12 @@ public sealed class LibraryScanService
         }
 
         // ── 3. Create UserArtist junction ──
-        var existingUserArtist = await _db.UserArtists
-            .IgnoreQueryFilters()
-            .FirstOrDefaultAsync(ua => ua.OwnerId == ownerId && ua.CanonicalArtistId == canonicalArtist.Id, cancellationToken);
+        // Check ChangeTracker first (same batched SaveChanges consideration)
+        var existingUserArtist = _db.UserArtists.Local
+            .FirstOrDefault(ua => ua.OwnerId == ownerId && ua.CanonicalArtistId == canonicalArtist.Id)
+            ?? await _db.UserArtists
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(ua => ua.OwnerId == ownerId && ua.CanonicalArtistId == canonicalArtist.Id, cancellationToken);
         if (existingUserArtist is null)
         {
             _db.UserArtists.Add(new UserArtist
@@ -1211,7 +1226,8 @@ public sealed class LibraryScanService
 
     /// <summary>
     /// Ensures canonical junction records (CanonicalTrackArtist, CanonicalTrackGenre, CanonicalAlbumArtist)
-    /// exist. Checks for existing records first to avoid duplicates when called from multiple code paths.
+    /// exist. Uses pre-loaded in-memory sets when available (batch operations) to avoid per-track DB queries.
+    /// Falls back to DB queries for single-file indexing paths.
     /// </summary>
     private async Task EnsureCanonicalJunctionsAsync(
         string contentHash,
@@ -1220,47 +1236,103 @@ public sealed class LibraryScanService
         CanonicalGenre? genre,
         CancellationToken cancellationToken)
     {
-        // Track-artist junction
-        var existingTrackArtist = await _db.CanonicalTrackArtists
-            .FirstOrDefaultAsync(cta => cta.TrackContentHash == contentHash && cta.ArtistId == artist.Id, cancellationToken);
-        if (existingTrackArtist is null)
+        // ── Track-artist junction ──
+        if (_preloadedTrackArtists?.Contains((contentHash, artist.Id)) == true)
         {
+            // Already exists per pre-loaded data — skip
+        }
+        else if (_preloadedTrackArtists is not null)
+        {
+            // Pre-loaded but not in set — doesn't exist, create it
             _db.CanonicalTrackArtists.Add(new CanonicalTrackArtist
             {
                 TrackContentHash = contentHash,
                 ArtistId = artist.Id,
                 IsPrimary = true
             });
+            _preloadedTrackArtists.Add((contentHash, artist.Id));
+        }
+        else
+        {
+            // No pre-loaded data (single-file path) — query DB
+            var exists = await _db.CanonicalTrackArtists
+                .AnyAsync(cta => cta.TrackContentHash == contentHash && cta.ArtistId == artist.Id, cancellationToken);
+            if (!exists)
+            {
+                _db.CanonicalTrackArtists.Add(new CanonicalTrackArtist
+                {
+                    TrackContentHash = contentHash,
+                    ArtistId = artist.Id,
+                    IsPrimary = true
+                });
+            }
         }
 
-        // Track-genre junction
+        // ── Track-genre junction ──
         if (genre is not null)
         {
-            var existingTrackGenre = await _db.CanonicalTrackGenres
-                .FirstOrDefaultAsync(ctg => ctg.TrackContentHash == contentHash && ctg.GenreId == genre.Id, cancellationToken);
-            if (existingTrackGenre is null)
+            if (_preloadedTrackGenres?.Contains((contentHash, genre.Id)) == true)
             {
+                // Already exists — skip
+            }
+            else if (_preloadedTrackGenres is not null)
+            {
+                // Pre-loaded but not in set — doesn't exist, create it
                 _db.CanonicalTrackGenres.Add(new CanonicalTrackGenre
                 {
                     TrackContentHash = contentHash,
                     GenreId = genre.Id
                 });
+                _preloadedTrackGenres.Add((contentHash, genre.Id));
+            }
+            else
+            {
+                // No pre-loaded data — query DB
+                var exists = await _db.CanonicalTrackGenres
+                    .AnyAsync(ctg => ctg.TrackContentHash == contentHash && ctg.GenreId == genre.Id, cancellationToken);
+                if (!exists)
+                {
+                    _db.CanonicalTrackGenres.Add(new CanonicalTrackGenre
+                    {
+                        TrackContentHash = contentHash,
+                        GenreId = genre.Id
+                    });
+                }
             }
         }
 
-        // Album-artist junction
+        // ── Album-artist junction ──
         if (album is not null)
         {
-            var existingAlbumArtist = await _db.CanonicalAlbumArtists
-                .FirstOrDefaultAsync(caa => caa.AlbumId == album.Id && caa.ArtistId == artist.Id, cancellationToken);
-            if (existingAlbumArtist is null)
+            if (_preloadedAlbumArtists?.Contains((album.Id, artist.Id)) == true)
             {
+                // Already exists — skip
+            }
+            else if (_preloadedAlbumArtists is not null)
+            {
+                // Pre-loaded but not in set — doesn't exist, create it
                 _db.CanonicalAlbumArtists.Add(new CanonicalAlbumArtist
                 {
                     AlbumId = album.Id,
                     ArtistId = artist.Id,
                     IsPrimary = true
                 });
+                _preloadedAlbumArtists.Add((album.Id, artist.Id));
+            }
+            else
+            {
+                // No pre-loaded data — query DB
+                var exists = await _db.CanonicalAlbumArtists
+                    .AnyAsync(caa => caa.AlbumId == album.Id && caa.ArtistId == artist.Id, cancellationToken);
+                if (!exists)
+                {
+                    _db.CanonicalAlbumArtists.Add(new CanonicalAlbumArtist
+                    {
+                        AlbumId = album.Id,
+                        ArtistId = artist.Id,
+                        IsPrimary = true
+                    });
+                }
             }
         }
     }
@@ -1419,7 +1491,7 @@ public sealed class LibraryScanService
     /// Uses canonical tables for deduplication — only creates UserTrack/UserAlbum/UserArtist
     /// junctions for the target owner. Skips tracks already indexed for the current user.
     /// </summary>
-    public async Task<int> CloneLibraryFromExistingAsync(Guid ownerId, CancellationToken cancellationToken = default)
+    public async Task<int> CloneLibraryFromExistingAsync(Guid ownerId, IProgress<MediaScanProgress>? progress = null, CancellationToken cancellationToken = default)
     {
         var existingUserTrackFileNodeIds = await _db.UserTracks
             .Where(ut => ut.OwnerId == ownerId)
@@ -1441,37 +1513,125 @@ public sealed class LibraryScanService
         if (sourceUserTracks.Count == 0)
             return 0;
 
+        // Filter to only source tracks that are not already indexed for this owner
+        var candidates = sourceUserTracks
+            .Where(ut => !existingSet.Contains(ut.FileNodeId))
+            .ToList();
+
+        var totalCandidates = candidates.Count;
+        if (totalCandidates == 0)
+            return 0;
+
+        // ── Pre-load ALL existing canonical data into memory ──
+        // This eliminates ALL per-track DB round trips. Everything is
+        // resolved from in-memory dictionaries during the batch loop.
+        var canonicalTrackLookup = (await _db.CanonicalTracks
+            .ToListAsync(cancellationToken))
+            .ToDictionary(ct => ct.ContentHash);
+
+        var userAlbumLookup = (await _db.UserAlbums
+            .IgnoreQueryFilters()
+            .Where(ua => ua.OwnerId == ownerId)
+            .ToListAsync(cancellationToken))
+            .ToDictionary(ua => ua.CanonicalAlbumId);
+
+        var userArtistLookup = (await _db.UserArtists
+            .IgnoreQueryFilters()
+            .Where(ua => ua.OwnerId == ownerId)
+            .ToListAsync(cancellationToken))
+            .ToDictionary(ua => ua.CanonicalArtistId);
+
+        _preloadedTrackArtists = (await _db.CanonicalTrackArtists
+            .Select(cta => new { cta.TrackContentHash, cta.ArtistId })
+            .ToListAsync(cancellationToken))
+            .Select(x => (x.TrackContentHash, x.ArtistId))
+            .ToHashSet();
+        _preloadedTrackGenres = (await _db.CanonicalTrackGenres
+            .Select(ctg => new { ctg.TrackContentHash, ctg.GenreId })
+            .ToListAsync(cancellationToken))
+            .Select(x => (x.TrackContentHash, x.GenreId))
+            .ToHashSet();
+        _preloadedAlbumArtists = (await _db.CanonicalAlbumArtists
+            .Select(caa => new { caa.AlbumId, caa.ArtistId })
+            .ToListAsync(cancellationToken))
+            .Select(x => (x.AlbumId, x.ArtistId))
+            .ToHashSet();
+
+        // ── Disable auto-detect changes ──
+        // FindAsync triggers DetectChanges which is O(n) in tracked entity count.
+        // Since we batch-flush, we keep the tracker small and manage it manually.
+        var prevAutoDetect = _db.ChangeTracker.AutoDetectChangesEnabled;
+        _db.ChangeTracker.AutoDetectChangesEnabled = false;
+
+        const int BatchSize = 500;
         var processed = 0;
 
-        foreach (var sourceUt in sourceUserTracks)
+        try
         {
-            if (existingSet.Contains(sourceUt.FileNodeId))
-                continue;
+            var batchUserTracks = new List<UserTrack>(BatchSize);
+            var batchUserAlbums = new List<UserAlbum>();
+            var batchUserArtists = new List<UserArtist>();
+            var batchCanonicalTracks = new List<CanonicalTrack>();
 
-            var canonicalTrack = sourceUt.CanonicalTrack!;
-
-            // Get or create canonical entities
-            var sourceArtistName = canonicalTrack.TrackArtists
-                .FirstOrDefault(cta => cta.IsPrimary)?.Artist?.Name
-                ?? canonicalTrack.TrackArtists.FirstOrDefault()?.Artist?.Name
-                ?? "Unknown Artist";
-            var canonicalArtist = await GetOrCreateCanonicalArtistAsync(sourceArtistName, cancellationToken);
-
-            CanonicalAlbum? canonicalAlbum = sourceUt.CanonicalAlbum;
-
-            CanonicalGenre? canonicalGenre = null;
-            var sourceGenre = canonicalTrack.TrackGenres.FirstOrDefault()?.Genre;
-            if (sourceGenre is not null)
-                canonicalGenre = await GetOrCreateCanonicalGenreAsync(sourceGenre.Name, cancellationToken);
-
-            // Ensure canonical track exists
-            var contentHash = sourceUt.CanonicalTrackHash;
-            if (contentHash is not null)
+            foreach (var sourceUt in candidates)
             {
-                var existingCanonical = await _db.CanonicalTracks.FindAsync([contentHash], cancellationToken);
-                if (existingCanonical is null)
+                cancellationToken.ThrowIfCancellationRequested();
+
+                progress?.Report(new MediaScanProgress
                 {
-                    var newCanonical = new CanonicalTrack
+                    Phase = "Cloning music library...",
+                    CurrentFile = sourceUt.CanonicalTrack?.Title ?? "Unknown",
+                    FilesProcessed = processed,
+                    TotalFiles = totalCandidates,
+                    Imported = processed,
+                    PercentComplete = totalCandidates > 0
+                        ? (int)((long)processed * 100 / totalCandidates)
+                        : 0,
+                });
+
+                var canonicalTrack = sourceUt.CanonicalTrack!;
+                var contentHash = sourceUt.CanonicalTrackHash;
+
+                if (contentHash is null)
+                {
+                    processed++;
+                    continue;
+                }
+
+                // ── Resolve/create canonical artist (in-memory cache) ──
+                var sourceArtistName = canonicalTrack.TrackArtists
+                    .FirstOrDefault(cta => cta.IsPrimary)?.Artist?.Name
+                    ?? canonicalTrack.TrackArtists.FirstOrDefault()?.Artist?.Name
+                    ?? "Unknown Artist";
+                if (!_artistCache.TryGetValue(sourceArtistName, out var canonicalArtist))
+                {
+                    canonicalArtist = await _db.CanonicalArtists
+                        .FirstOrDefaultAsync(a => a.Name == sourceArtistName, cancellationToken)
+                        ?? new CanonicalArtist { Name = sourceArtistName, SortName = GenerateSortName(sourceArtistName) };
+                    if (canonicalArtist.Id == Guid.Empty)
+                        _db.CanonicalArtists.Add(canonicalArtist);
+                    _artistCache[sourceArtistName] = canonicalArtist;
+                }
+
+                var canonicalAlbum = sourceUt.CanonicalAlbum;
+
+                // ── Resolve/create canonical genre (in-memory cache) ──
+                CanonicalGenre? canonicalGenre = null;
+                var sourceGenre = canonicalTrack.TrackGenres.FirstOrDefault()?.Genre;
+                if (sourceGenre is not null && !_genreCache.TryGetValue(sourceGenre.Name, out canonicalGenre))
+                {
+                    canonicalGenre = await _db.CanonicalGenres
+                        .FirstOrDefaultAsync(g => g.Name == sourceGenre.Name, cancellationToken)
+                        ?? new CanonicalGenre { Name = sourceGenre.Name };
+                    if (canonicalGenre.Id == Guid.Empty)
+                        _db.CanonicalGenres.Add(canonicalGenre);
+                    _genreCache[sourceGenre.Name] = canonicalGenre;
+                }
+
+                // ── Ensure canonical track exists (in-memory dict, 0 DB queries) ──
+                if (!canonicalTrackLookup.TryGetValue(contentHash, out var ct))
+                {
+                    ct = new CanonicalTrack
                     {
                         ContentHash = contentHash,
                         Title = canonicalTrack.Title,
@@ -1485,41 +1645,107 @@ public sealed class LibraryScanService
                         Year = canonicalTrack.Year,
                         MusicBrainzRecordingId = canonicalTrack.MusicBrainzRecordingId
                     };
-                    _db.CanonicalTracks.Add(newCanonical);
-                    await EnsureCanonicalJunctionsAsync(contentHash, canonicalArtist, canonicalAlbum, canonicalGenre, cancellationToken);
+                    batchCanonicalTracks.Add(ct);
+                    canonicalTrackLookup[contentHash] = ct;
+                }
+
+                // ── UserTrack junction ──
+                batchUserTracks.Add(new UserTrack
+                {
+                    OwnerId = ownerId,
+                    FileNodeId = sourceUt.FileNodeId,
+                    CanonicalTrackHash = contentHash,
+                    ContentHash = contentHash,
+                    CanonicalAlbumId = canonicalAlbum?.Id,
+                    PlayCount = 0
+                });
+
+                // ── UserAlbum junction (in-memory dict, 0 DB queries) ──
+                if (canonicalAlbum is not null && !userAlbumLookup.ContainsKey(canonicalAlbum.Id))
+                {
+                    batchUserAlbums.Add(new UserAlbum
+                    {
+                        OwnerId = ownerId,
+                        CanonicalAlbumId = canonicalAlbum.Id
+                    });
+                    userAlbumLookup[canonicalAlbum.Id] = null!;
+                }
+
+                // ── UserArtist junction (in-memory dict, 0 DB queries) ──
+                if (!userArtistLookup.ContainsKey(canonicalArtist.Id))
+                {
+                    batchUserArtists.Add(new UserArtist
+                    {
+                        OwnerId = ownerId,
+                        CanonicalArtistId = canonicalArtist.Id
+                    });
+                    userArtistLookup[canonicalArtist.Id] = null!;
+                }
+
+                processed++;
+
+                // ── Flush batch ──
+                if (batchUserTracks.Count >= BatchSize)
+                {
+                    _db.UserTracks.AddRange(batchUserTracks);
+                    if (batchUserAlbums.Count > 0)
+                        _db.UserAlbums.AddRange(batchUserAlbums);
+                    if (batchUserArtists.Count > 0)
+                        _db.UserArtists.AddRange(batchUserArtists);
+                    if (batchCanonicalTracks.Count > 0)
+                        _db.CanonicalTracks.AddRange(batchCanonicalTracks);
+                    await _db.SaveChangesAsync(cancellationToken);
+
+                    batchUserTracks.Clear();
+                    batchUserAlbums.Clear();
+                    batchUserArtists.Clear();
+                    batchCanonicalTracks.Clear();
                 }
             }
 
-            // Create user junctions for the target owner
-            if (contentHash is not null)
+            // ── Flush remaining batch ──
+            if (batchUserTracks.Count > 0)
             {
-                var ct = (await _db.CanonicalTracks.FindAsync([contentHash], cancellationToken))!;
-                await CreateUserTrackJunctionsAsync(
-                    sourceUt.FileNodeId, sourceUt.CanonicalTrack?.Title ?? "Unknown",
-                    sourceUt.CanonicalTrack?.MimeType ?? "audio/mpeg",
-                    sourceUt.CanonicalTrack?.DurationTicks ?? 0,
-                    ownerId, contentHash, canonicalTrack.Title,
-                    ct, canonicalAlbum, canonicalArtist, canonicalGenre,
-                    canonicalTrack.TrackNumber, canonicalTrack.DiscNumber, canonicalTrack.DurationTicks,
-                    canonicalTrack.Bitrate, canonicalTrack.SampleRate, canonicalTrack.Channels,
-                    canonicalTrack.Year, canonicalTrack.MusicBrainzRecordingId,
-                    cancellationToken);
+                _db.UserTracks.AddRange(batchUserTracks);
+                if (batchUserAlbums.Count > 0)
+                    _db.UserAlbums.AddRange(batchUserAlbums);
+                if (batchUserArtists.Count > 0)
+                    _db.UserArtists.AddRange(batchUserArtists);
+                if (batchCanonicalTracks.Count > 0)
+                    _db.CanonicalTracks.AddRange(batchCanonicalTracks);
+                await _db.SaveChangesAsync(cancellationToken);
             }
 
-            processed++;
-            existingSet.Add(sourceUt.FileNodeId);
+            _logger.LogInformation(
+                "CloneLibraryFromExisting: cloned {Count} tracks for owner {OwnerId} via canonical dedup",
+                processed, ownerId);
+
+            progress?.Report(new MediaScanProgress
+            {
+                Phase = "Clone complete",
+                FilesProcessed = processed,
+                TotalFiles = totalCandidates,
+                Imported = processed,
+                PercentComplete = 100,
+            });
+
+            return processed;
         }
+        finally
+        {
+            _db.ChangeTracker.AutoDetectChangesEnabled = prevAutoDetect;
+            ClearPreloadedJunctions();
+        }
+    }
 
-        if (processed == 0)
-            return 0;
-
-        await _db.SaveChangesAsync(cancellationToken);
-
-        _logger.LogInformation(
-            "CloneLibraryFromExisting: cloned {Count} tracks for owner {OwnerId} via canonical dedup",
-            processed, ownerId);
-
-        return processed;
+    /// <summary>
+    /// Clears pre-loaded junction caches to free memory after batch operations complete.
+    /// </summary>
+    private void ClearPreloadedJunctions()
+    {
+        _preloadedTrackArtists = null;
+        _preloadedTrackGenres = null;
+        _preloadedAlbumArtists = null;
     }
 
     /// <summary>

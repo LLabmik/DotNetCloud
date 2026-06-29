@@ -149,6 +149,7 @@ public static class SerilogConfigurationExtensions
             rollingInterval: options.RollingDaily ? RollingInterval.Day : RollingInterval.Infinite,
             retainedFileCountLimit: options.RetainedFileCountLimit,
             fileSizeLimitBytes: options.FileSizeLimitBytes,
+            rollOnFileSizeLimit: true,
             outputTemplate: OutputTemplate,
             shared: true,
             flushToDiskInterval: TimeSpan.FromSeconds(1));
@@ -166,6 +167,7 @@ public static class SerilogConfigurationExtensions
                     rollingInterval: options.RollingDaily ? RollingInterval.Day : RollingInterval.Infinite,
                     retainedFileCountLimit: options.RetainedFileCountLimit,
                     fileSizeLimitBytes: options.FileSizeLimitBytes,
+                    rollOnFileSizeLimit: true,
                     outputTemplate: OutputTemplate,
                     shared: true,
                     flushToDiskInterval: TimeSpan.FromSeconds(1)));

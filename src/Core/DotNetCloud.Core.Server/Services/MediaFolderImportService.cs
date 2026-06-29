@@ -111,12 +111,12 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
             {
                 progress?.Report(new MediaScanProgress
                 {
-                    Phase = "Cloning music library from existing user...",
+                    Phase = "Cloning music library...",
                     FilesDiscovered = 0,
                     PercentComplete = 0,
                 });
 
-                var cloned = await musicCallback.CloneLibraryFromExistingAsync(ownerId, cancellationToken);
+                var cloned = await musicCallback.CloneLibraryFromExistingAsync(ownerId, progress, cancellationToken);
                 if (cloned > 0)
                 {
                     _logger.LogInformation(

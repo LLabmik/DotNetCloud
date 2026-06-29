@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Files.Events;
 using Microsoft.Extensions.Logging;
 
@@ -170,7 +171,8 @@ public interface IMusicIndexingCallback
     /// metadata where the FileNodeId matches (admin shared folders use shared virtual IDs).
     /// </summary>
     /// <param name="ownerId">User to clone tracks for.</param>
+    /// <param name="progress">Optional progress reporter for real-time clone status.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Number of tracks cloned.</returns>
-    Task<int> CloneLibraryFromExistingAsync(Guid ownerId, CancellationToken cancellationToken = default);
+    Task<int> CloneLibraryFromExistingAsync(Guid ownerId, IProgress<MediaScanProgress>? progress = null, CancellationToken cancellationToken = default);
 }

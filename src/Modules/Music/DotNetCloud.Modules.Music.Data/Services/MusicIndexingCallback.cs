@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.Modules.Music.Events;
 using Microsoft.Extensions.Logging;
@@ -100,8 +101,8 @@ public sealed class MusicIndexingCallback : IMusicIndexingCallback
     }
 
     /// <inheritdoc />
-    public async Task<int> CloneLibraryFromExistingAsync(Guid ownerId, CancellationToken cancellationToken = default)
+    public async Task<int> CloneLibraryFromExistingAsync(Guid ownerId, IProgress<MediaScanProgress>? progress = null, CancellationToken cancellationToken = default)
     {
-        return await _libraryScanService.CloneLibraryFromExistingAsync(ownerId, cancellationToken);
+        return await _libraryScanService.CloneLibraryFromExistingAsync(ownerId, progress, cancellationToken);
     }
 }
