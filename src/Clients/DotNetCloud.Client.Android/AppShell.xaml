@@ -18,7 +18,7 @@
         Route="Login"
         ContentTemplate="{DataTemplate views:LoginPage}"
         Shell.NavBarIsVisible="false"
-        Shell.TabBarIsVisible="false" />
+        Shell.TabBarIsVisible="false"/>
 
     <!-- Authenticated tab bar -->
     <TabBar Route="Main">
@@ -26,20 +26,20 @@
         <ShellContent
             Route="ChannelList"
             Title="Chat"
-            Icon="dotnet_bot.png"
-            ContentTemplate="{DataTemplate views:ChannelListPage}" />
+            Icon="chat_icon.png"
+            ContentTemplate="{DataTemplate views:ChannelListPage}"/>
 
         <ShellContent
             Route="Files"
             Title="Files"
-            Icon="dotnet_bot.png"
-            ContentTemplate="{DataTemplate views:FileBrowserPage}" />
+            Icon="files_icon.png"
+            ContentTemplate="{DataTemplate views:FileBrowserPage}"/>
 
         <ShellContent
             Route="Settings"
             Title="Settings"
-            Icon="dotnet_bot.png"
-            ContentTemplate="{DataTemplate views:SettingsPage}" />
+            Icon="settings_icon.png"
+            ContentTemplate="{DataTemplate views:SettingsPage}"/>
 
     </TabBar>
 
