@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-29 (Music module auth handoff — Android client verified ✓)
+Last updated: 2026-06-29 (Music alphabet index endpoints deployed to production ✓)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -92,76 +92,50 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** Deploy music alphabet index endpoints to the server
+**Summary:** Android client — verify music alphabet index endpoints with live server data
 
-**Background:** The Android client now has an alphabet index strip (A-Z) on the Artists, Albums, and Tracks views. Previously it computed characters client-side from only the first 50 loaded items. Three new server-side endpoints were added to efficiently return distinct first characters from the full dataset:
+**Background:** Three new alphabet index endpoints were deployed to production (`cloud.kimball.home`):
 
-- `GET /api/v1/music/artists/alphabet` → `List<string>` of distinct uppercase first letters from all user's artists
-- `GET /api/v1/music/albums/alphabet` → same for album titles
-- `GET /api/v1/music/tracks/alphabet` → same for track titles
+- `GET /api/v1/music/artists/alphabet` — returns distinct uppercase first letters of artist names
+- `GET /api/v1/music/albums/alphabet` — returns distinct uppercase first letters of album titles
+- `GET /api/v1/music/tracks/alphabet` — returns distinct uppercase first letters of track titles
 
-These use `SELECT DISTINCT UPPER(LEFT(Name,1))` via EF Core — a single indexed query, no pagination issues.
+All endpoints return 401 without auth and route correctly. They need authentication via a valid OAuth2 bearer token (authorization_code flow with PKCE).
 
-The server-side code is already committed and built. Only deployment is needed.
+The Android client already has the alphabet index strip UI implemented. It previously computed characters client-side from only the first 50 items. Now it should fetch from `/artists/alphabet`, `/albums/alphabet`, `/tracks/alphabet` to get the full set of characters.
+
+**Server endpoint verification (completed ✓):**
+- ✅ Music module healthy and running
+- ✅ All 3 alphabet endpoints respond 401 (not 404) → properly routed
+- ✅ 14/14 modules healthy
 
 ---
 
-### Server Actions — `cloud.kimball.home`
+### Android Client Actions — `monolith`
 
 1. Pull latest `main`:
    ```
-   cd /opt/dotnetcloud
    git pull origin main
    ```
 
-2. Build the music module (Release):
+2. Verify the music page alphabet index strip calls the new endpoints instead of computing characters client-side.
+
+3. Build and deploy the Android APK:
    ```
-   dotnet publish src/Modules/Music/DotNetCloud.Modules.Music.Host/ \
-     -c Release \
-     -o /opt/dotnetcloud/publish/modules/music
+   cd D:\Repos\dotnetcloud
+   dotnet publish src/Clients/DotNetCloud.Client.Android -f net10.0-android -c Release -o bin\android-publish
    ```
 
-3. Copy the updated binaries to the module directory:
-   ```
-   sudo cp /opt/dotnetcloud/publish/modules/music/dotnetcloud.music.dll /opt/dotnetcloud/modules/music/
-   sudo cp /opt/dotnetcloud/publish/modules/music/dotnetcloud.music.deps.json /opt/dotnetcloud/modules/music/
-   sudo cp /opt/dotnetcloud/publish/modules/music/dotnetcloud.music.runtimeconfig.json /opt/dotnetcloud/modules/music/
-   sudo chown dotnetcloud:dotnetcloud /opt/dotnetcloud/modules/music/dotnetcloud.music*
-   ```
+4. Install APK on emulator and verify:
+   - Open Music tab → Artists view → alphabet strip shows letters from full dataset
+   - Scroll through alphabet — jumps to correct section
+   - Albums and Tracks views work similarly
 
-4. Restart the music module:
-   ```
-   sudo systemctl restart dotnetcloud-module-music
-   ```
-
-5. Verify the new endpoints are accessible:
-   ```
-   curl -s -H "Authorization: Bearer $(cat /opt/dotnetcloud/admin-token)" \
-     https://cloud.kimball.home/api/v1/music/artists/alphabet | head -c 200
-   ```
-   Expected: `{"success":true,"data":["A","B","C",...]}`
-
-6. Verify module health:
-   ```
-   curl -s https://cloud.kimball.home/health | python3 -c "import sys,json; d=json.load(sys.stdin); [print(m['name'], m['status']) for m in d.get('modules', []) if 'music' in m['name'].lower()]"
-   ```
-   Expected: `dotnetcloud-module-music Healthy`
-
-**Files changed (server-side, already built):**
-- `src/Modules/Music/DotNetCloud.Modules.Music/Services/IArtistService.cs` — added `ListArtistAlphabetAsync`
-- `src/Modules/Music/DotNetCloud.Modules.Music.Data/Services/ArtistService.cs` — implemented
-- `src/Modules/Music/DotNetCloud.Modules.Music/Services/IMusicAlbumService.cs` — added `ListAlbumAlphabetAsync`
-- `src/Modules/Music/DotNetCloud.Modules.Music.Data/Services/MusicAlbumService.cs` — implemented
-- `src/Modules/Music/DotNetCloud.Modules.Music/Services/ITrackService.cs` — added `ListTrackAlphabetAsync`
-- `src/Modules/Music/DotNetCloud.Modules.Music.Data/Services/TrackService.cs` — implemented
-- `src/Modules/Music/DotNetCloud.Modules.Music.Host/Controllers/MusicController.cs` — added 3 endpoints
-
-### Pre-commit checklist
-
-1. Run `git status --short`
-2. Delete ALL unexpected untracked files/directories (runtime data, storage, bin/)
-3. Verify clean state, then commit
-4. Push
+**Relevant files (client-side):**
+- `src/Clients/DotNetCloud.Client.Android/ViewModels/MusicViewModel.cs` — alphabet index logic
+- `src/Clients/DotNetCloud.Client.Android/Views/MusicPage.xaml` — alphabet index strip UI
+- `src/Clients/DotNetCloud.Client.Android/Services/IMusicRestClient.cs` — API client interface
+- `src/Clients/DotNetCloud.Client.Android/Services/HttpMusicRestClient.cs` — HTTP client implementation
 
 ## Environment
 

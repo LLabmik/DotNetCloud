@@ -2,6 +2,26 @@
 
 Archived: 2026-06-25 01:35 UTC. Full git history preserved in commits up to changes from Windows11-TestDNC.
 
+## Archived: Music Alphabet Index Endpoints — Deployed to Production (2026-06-29)
+
+**Target:** monolith → cloud.kimball.home (server deployment)
+
+**Result:** ✅ Music alphabet index endpoints deployed and verified on production.
+
+**Completed (cloud.kimball.home — deployment):**
+- ✅ Built music module (Release) with new alphabet endpoints
+- ✅ Copied updated binaries to `/opt/dotnetcloud/server/modules/dotnetcloud.music/`
+- ✅ Restarted dotnetcloud service
+- ✅ Music module is Healthy and Running (14/14 modules healthy)
+- ✅ All 3 endpoints return 401 (auth required, not 404) confirming proper routing:
+  - `GET /api/v1/music/artists/alphabet`
+  - `GET /api/v1/music/albums/alphabet`
+  - `GET /api/v1/music/tracks/alphabet`
+
+**Next step:** Android client (`monolith`) to verify alphabet index populates correctly with live server data.
+
+---
+
 ## Archived: `perf/synctray-scan-and-transfer-speedups` — Linux Client Validation Complete (2026-06-27)
 
 **Target:** Windows11-TestDNC → mint-OptiPlex-7010 (client verification)
