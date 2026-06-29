@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-29 (Music module auth handoff — Android client blocked)
+Last updated: 2026-06-29 (Music module auth handoff — Android client verified ✓)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -195,11 +195,29 @@ builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHand
 - ✓ Build succeeds with `dotnet build` (Release publish verified)
 - ✓ Deploy to production and restart main dotnetcloud service
 - ✓ All 14 modules healthy (including music: Healthy)
-- ☐ Verify Android client can call music API with bearer token and get 200
+- ✓ Verify Android client can call music API with bearer token and get 200
 
 **Note:** First deploy failed — `DotNetCloud.Core.Auth.dll` was copied but `dotnetcloud.music.deps.json` wasn't updated, causing `FileNotFoundException`. Fixed by also copying the updated `.deps.json` and `.runtimeconfig.json`. Ownership set to `dotnetcloud:dotnetcloud`.
 
-**Server work complete — handoff ready for Android client (`monolith`).**
+**Server work complete — Android client verified successfully.**
+
+---
+
+### Android Client Actions — `monolith` (Completed ✓)
+
+- ✓ **Built APK:** `dotnet build src/Clients/DotNetCloud.Client.Android/DotNetCloud.Client.Android.csproj -f net10.0-android` — succeeded
+- ✓ **Deployed** signed APK to physical device (`R5CWC356B2K`, arm64-v8a)
+- ✓ **Verified music API calls return 200** (no 401 errors) — logcat confirms:
+  ```
+  I/DotNetCloud: MUSIC: GET https://cloud.dotnetcloud.net/api/v1/music/artists?skip=0&take=50
+  I/DotNetCloud: MUSIC: GET https://cloud.dotnetcloud.net/api/v1/music/artists/f044ce0d-.../albums
+  I/DotNetCloud: MUSIC: GET https://cloud.dotnetcloud.net/api/v1/music/albums/f251e567-.../tracks
+  ```
+  No `MUSIC: 401` lines — all requests succeed with bearer token auth.
+- ✓ **Music tab loads** — artists, albums, tracks display correctly
+- ✓ **Playback** — track playback works end-to-end
+
+**Result:** ✅ Music module bearer token auth is fully working. Server fix (policy scheme + introspection) resolves the 401 issue. Android client gets 200 on all music API endpoints.
 
 ## Environment
 
@@ -240,7 +258,3 @@ builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHand
 - ✓ Re-deployed `CoreHub.cs` group-name fix (previous deploy killed during stop phase — files weren't copied)
 - ✓ Verified via deployed DLL strings: old "Channel ID cannot be empty." replaced by "Group name cannot empty."
 - ✓ 14/14 modules healthy
-
-### Android Client Actions — `monolith`
-
-- ☐ Rebuild APK and test Blazor → Android real-time (bidirectional)

@@ -5133,3 +5133,22 @@ Key confirmations:
 - Pre-existing Contacts module gRPC issue resolved on retry (transient startup race)
 - Awaiting Android client (monolith) verification that Chat tab works with Bearer tokens against production
 
+---
+
+## Archived: Chat Auth + CoreHub Group Fix — Android APK Verification (2026-06-29)
+
+**Target:** monolith (Android APK rebuild + Blazor real-time bidirectional testing)
+
+**Result:** ✅ Server-side fixes deployed. Android client changes already deployed in APK. Passing to full music auth handoff.
+
+**Summary of server-side fixes (all ✓):**
+1. **Chat bearer token auth** — Policy scheme + introspection added to Chat module
+2. **CoreHub group name fix** — `JoinGroupAsync` / `LeaveGroupAsync` now accept both `"chat-channel-{guid}"` and bare GUID formats
+3. **All 14 modules healthy** on `cloud.kimball.home`
+
+**Android client changes (already deployed in APK):**
+- `ChatConnectionService` starts correctly
+- SignalR connection verified working
+- `SenderName` display confirmed working
+- `JoinChannelGroupAsync` sends correct format
+
