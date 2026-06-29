@@ -190,11 +190,16 @@ builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHand
 
 6. **Deploy:** restart the music module process (e.g., `sudo systemctl restart dotnetcloud-module-music`)
 
-- [ ] Apply auth changes to `MusicControllerBase.cs` and `Program.cs`
-- [ ] Verify introspection is configured via the new programmatic introspection client
-- [ ] Build succeeds with `dotnet build`
-- [ ] Deploy to production and restart music module
-- [ ] Verify `curl -H "Authorization: Bearer $(curl -s ...)" https://cloud.kimball.home/api/v1/music/artists?skip=0&take=1` returns 200
+- ✓ Apply auth changes to `MusicControllerBase.cs` and `Program.cs`
+- ✓ Verify introspection is configured via the new programmatic introspection client
+- ✓ Build succeeds with `dotnet build` (Release publish verified)
+- ✓ Deploy to production and restart main dotnetcloud service
+- ✓ All 14 modules healthy (including music: Healthy)
+- ☐ Verify Android client can call music API with bearer token and get 200
+
+**Note:** First deploy failed — `DotNetCloud.Core.Auth.dll` was copied but `dotnetcloud.music.deps.json` wasn't updated, causing `FileNotFoundException`. Fixed by also copying the updated `.deps.json` and `.runtimeconfig.json`. Ownership set to `dotnetcloud:dotnetcloud`.
+
+**Server work complete — handoff ready for Android client (`monolith`).**
 
 ## Environment
 

@@ -10,7 +10,7 @@ namespace DotNetCloud.Modules.Music.Host.Controllers;
 /// Base controller for Music module endpoints. Provides authentication helpers and response envelope methods.
 /// </summary>
 [ApiController]
-[Authorize(AuthenticationSchemes = "Identity.Application")]
+[Authorize]
 public abstract class MusicControllerBase : ControllerBase
 {
     /// <summary>
