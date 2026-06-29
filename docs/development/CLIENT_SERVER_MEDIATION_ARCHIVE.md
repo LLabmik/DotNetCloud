@@ -28,6 +28,23 @@ Archived: 2026-06-25 01:35 UTC. Full git history preserved in commits up to chan
 - ✅ Added `DotNetCloud.Core.Auth` project reference to Chat.Host.csproj
 - ✅ Added `Microsoft.AspNetCore.Authentication.JwtBearer` package
 - ✅ Added `AddTokenIntrospection()`, policy scheme resolution, `AddIntrospection()`, `AuthorizationPolicies.Configure()`, `PermissionAuthorizationHandler` to Chat.Host Program.cs
+
+---
+
+## Archived: Android Music Tab — Client-Side Complete (2026-06-29)
+
+**Target:** monolith → cloud.kimball.home (music module auth fix needed)
+
+**Result:** ✅ Android client music tab fully implemented — tab visibility, browsing UI, REST client, error handling. Blocked by server-side auth: Music module API only accepts cookies, not bearer tokens.
+
+**Completed (monolith — client-side):**
+- ✅ Music tab shows/hides based on module detection
+- ✅ `IMusicRestClient` / `HttpMusicRestClient` with all API methods
+- ✅ `MusicViewModel` with browsing, playback control, error handling
+- ✅ `MusicPage.xaml` with now-playing bar, segmented tabs, 4 CollectionViews
+- ✅ Music foreground service, album art cache, EQ service
+- ✅ All 114 unit tests passing
+- ✅ Chat duplicate messages fixed (removed HTTP-response add, rely on SignalR)
 - ✅ Changed `ChatControllerBase [Authorize(AuthenticationSchemes = "Identity.Application")]` to plain `[Authorize]`
 - ✅ Commit: `5d040145` (includes `Directory.Packages.props` fix for SQLitePCLRaw.lib.e_sqlite3.android)
 

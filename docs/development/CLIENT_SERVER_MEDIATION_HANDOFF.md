@@ -90,14 +90,115 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 **No moderator task:** Moderator provides zero context, zero explanation. The handoff document has everything the receiving agent needs.
 
-## Current Status
+## Active Handoff
 
-- ✅ **IUserDirectory gRPC bridge deployed** — `GrpcUserDirectoryService` registered in Chat module host DI. Resolves `SenderName` via Core.Server's `CoreCapabilities.GetUser` RPC, which was wired up to resolve `IUserDirectory` (database-backed `UserDirectoryService`).
-- ✅ **Blazor real-time forwarding deployed** — `BroadcastRealtimeEvent` handler in Core.Server now forwards chat events (`NewMessage`, `MessageEdited`, `MessageDeleted`) to `IChatMessageNotifier` in-process, so Blazor Server components receive updates without requiring a client-side SignalR HubConnection.
-- ✅ **gRPC-based real-time broadcaster** — Messages from Android (REST API → Chat module host → gRPC → Core.Server → SignalR) now also reach Blazor UI via in-process `IChatMessageNotifier` bridge.
-- ✅ **Android → Blazor real-time working** — Messages sent from Android appear instantly in Blazor Web UI.
-- ✅ **Blazor → Android real-time deployed** — `CoreHub.JoinGroupAsync()` now joins `chat-channel-{guid}` matching `ChatHub.ChannelGroup()`. Fix deployed to production. Verified via string check (old "Channel ID cannot be empty." replaced by "Group name cannot be empty.").
-- ✅ **SenderName working** — Display names show correctly on Android (e.g., "Ben Kimball").
+**Summary:** Add bearer token auth support to Music module (matching Chat/Files pattern)
+
+**Background:** The Android Music tab client is fully implemented, but all API calls return 401. Root cause: `MusicControllerBase` uses `[Authorize(AuthenticationSchemes = "Identity.Application")]` which only accepts cookies. The Android app sends `Authorization: Bearer <token>` which the Music module doesn't recognize. Chat and Files modules use a policy scheme that auto-routes Bearer tokens to the Introspection handler — Music needs the same treatment.
+
+Diagnostic logcat output confirming the gap:
+```
+CheckModuleEndpoint: status=200 body={"success":true,"data":{"installed":false}}
+ProbeMusicApi: status=401 body=
+CheckAvailableModulesAsync: isAvailable=True
+MUSIC: GET https://cloud.kimball.home/api/v1/music/artists?skip=0&take=50
+MUSIC: 401 for https://cloud.kimball.home/api/v1/music/artists?skip=0&take=50:
+```
+
+---
+
+### Server Actions — `cloud.kimball.home` / `mint22`
+
+Two files need changes, following the exact pattern already deployed in `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/`:
+
+**File 1: `src/Modules/Music/DotNetCloud.Modules.Music.Host/Controllers/MusicControllerBase.cs`**
+
+Change line:
+```csharp
+[Authorize(AuthenticationSchemes = "Identity.Application")]
+```
+to:
+```csharp
+[Authorize]
+```
+
+**File 2: `src/Modules/Music/DotNetCloud.Modules.Music.Host/Program.cs`**
+
+Replace the current auth setup (cookie-only) with the policy scheme + introspection pattern matching Chat/Files. The existing Chat `Program.cs` at `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Program.cs` is the reference.
+
+1. Add `using` for `DotNetCloud.Core.Auth` and `DotNetCloud.Core.Auth.Introspection`
+
+2. Replace:
+```csharp
+builder.Services.AddAuthentication("Identity.Application")
+    .AddCookie("Identity.Application", options =>
+    {
+        options.Cookie.Name = ".AspNetCore.Identity.Application";
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SameSite = SameSiteMode.Lax;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+        options.Cookie.IsEssential = true;
+        options.ExpireTimeSpan = TimeSpan.FromHours(24);
+        options.SlidingExpiration = true;
+    });
+```
+With:
+```csharp
+builder.Services.AddTokenIntrospection();
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultScheme = "DotNetCloud.Module";
+    options.DefaultAuthenticateScheme = "DotNetCloud.Module";
+    options.DefaultChallengeScheme = "DotNetCloud.Module";
+})
+.AddCookie("Identity.Application", options =>
+{
+    options.Cookie.Name = ".AspNetCore.Identity.Application";
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SameSite = SameSiteMode.Lax;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Cookie.IsEssential = true;
+    options.ExpireTimeSpan = TimeSpan.FromHours(24);
+    options.SlidingExpiration = true;
+})
+.AddIntrospection(IntrospectionAuthenticationExtensions.SchemeName)
+.AddPolicyScheme("DotNetCloud.Module", "DotNetCloud.Module", options =>
+{
+    options.ForwardDefaultSelector = context =>
+    {
+        if (context.Request.Headers.TryGetValue("Authorization", out var auth)
+            && auth.Count > 0
+            && auth[0]?.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            return IntrospectionAuthenticationExtensions.SchemeName;
+        }
+        return "Identity.Application";
+    };
+});
+```
+
+3. Replace `builder.Services.AddAuthorization();` with:
+```csharp
+builder.Services.AddAuthorization(options => AuthorizationPolicies.Configure(options));
+builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
+```
+
+4. Add project dependency: ensure `.csproj` has a reference to `DotNetCloud.Core.Auth` (same as Chat.Host.csproj).
+
+5. **Build:** `dotnet build src/Modules/Music/DotNetCloud.Modules.Music.Host/`
+
+6. **Deploy:** restart the music module process (e.g., `sudo systemctl restart dotnetcloud-module-music`)
+
+- [ ] Apply auth changes to `MusicControllerBase.cs` and `Program.cs`
+- [ ] Verify introspection is configured via the new programmatic introspection client
+- [ ] Build succeeds with `dotnet build`
+- [ ] Deploy to production and restart music module
+- [ ] Verify `curl -H "Authorization: Bearer $(curl -s ...)" https://cloud.kimball.home/api/v1/music/artists?skip=0&take=1` returns 200
+
+### Status
+
+- ⏳ Music module auth fix — awaiting server-side deployment
 - ✅ **ChatConnectionService starts correctly** — SignalR HubConnection established successfully (verified via logcat).
 - ✅ **DbContext concurrency fixed** — Sequential processing replaces `Task.WhenAll`.
 - ✅ **Chat tab WORKING** — HTTP 200, channels list loads successfully on Android.

@@ -1,4 +1,5 @@
 using Android.Content;
+using Android.Util;
 using DotNetCloud.Client.Android.Auth;
 using DotNetCloud.Client.Android.Services;
 
@@ -41,41 +42,121 @@ public partial class App : Application
     /// </summary>
     public static async Task CheckMusicModuleAvailabilityAsync()
     {
-        if (Application.Current is not App app) return;
+        Log.Info("DotNetCloud", "CheckMusicModuleAvailabilityAsync called");
+        if (Application.Current is not App app)
+        {
+            Log.Warn("DotNetCloud", "CheckMusicModuleAvailabilityAsync: Application.Current is not App");
+            return;
+        }
         await app.CheckAvailableModulesAsync();
     }
 
     private async Task CheckAvailableModulesAsync()
     {
+        Log.Info("DotNetCloud", "CheckAvailableModulesAsync started");
         try
         {
             var connection = _serverStore.GetActive();
-            if (connection is null) return;
+            if (connection is null)
+            {
+                Log.Warn("DotNetCloud", "CheckAvailableModulesAsync: no active connection");
+                return;
+            }
 
             var token = await _tokenStore.GetAccessTokenAsync(connection.ServerBaseUrl);
-            if (token is null) return;
+            if (token is null)
+            {
+                Log.Warn("DotNetCloud", "CheckAvailableModulesAsync: no token");
+                return;
+            }
 
+            var baseUrl = connection.ServerBaseUrl.TrimEnd('/');
+
+            // Try the official module availability endpoint first
+            var isAvailable = await CheckModuleEndpointAsync(baseUrl, token);
+
+            // Fallback: if the module endpoint says false, probe an actual music API
+            // endpoint to double-check (the module may be running but not registered
+            // in the core module registry).
+            if (!isAvailable)
+            {
+                isAvailable = await ProbeMusicApiAsync(baseUrl, token);
+            }
+
+            Log.Info("DotNetCloud", $"CheckAvailableModulesAsync: isAvailable={isAvailable}");
+            Services.ModuleAvailabilityState.SetMusicAvailable(isAvailable);
+            if (isAvailable)
+            {
+                AppShell.SetMusicTabVisible(true);
+                Log.Info("DotNetCloud", "CheckAvailableModulesAsync: Music tab set visible");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error("DotNetCloud", $"CheckAvailableModulesAsync: exception: {ex.Message}");
+            Services.ModuleAvailabilityState.SetMusicAvailable(false);
+            AppShell.SetMusicTabVisible(false);
+        }
+    }
+
+    private static async Task<bool> CheckModuleEndpointAsync(string baseUrl, string token)
+    {
+        try
+        {
+            var url = $"{baseUrl}/api/v1/core/modules/music/available";
+            Log.Info("DotNetCloud", $"CheckModuleEndpoint: GET {url}");
             using var http = new HttpClient();
             http.DefaultRequestHeaders.Authorization =
                 new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 
-            var url = $"{connection.ServerBaseUrl.TrimEnd('/')}/api/v1/core/modules/music/available";
             var response = await http.GetAsync(url);
-            if (!response.IsSuccessStatusCode) return;
-
             var body = await response.Content.ReadAsStringAsync();
+            Log.Info("DotNetCloud", $"CheckModuleEndpoint: status={(int)response.StatusCode} body={body}");
+
+            if (!response.IsSuccessStatusCode)
+                return false;
+
             using var doc = System.Text.Json.JsonDocument.Parse(body);
             if (doc.RootElement.TryGetProperty("data", out var data) &&
                 data.TryGetProperty("installed", out var installed))
             {
-                Services.ModuleAvailabilityState.SetMusicAvailable(installed.GetBoolean());
-                AppShell.SetMusicTabVisible(true);
+                return installed.GetBoolean();
             }
+            return false;
         }
-        catch
+        catch (Exception ex)
         {
-            Services.ModuleAvailabilityState.SetMusicAvailable(false);
-            AppShell.SetMusicTabVisible(false);
+            Log.Warn("DotNetCloud", $"CheckModuleEndpoint: exception {ex.Message}");
+            return false;
+        }
+    }
+
+    private static async Task<bool> ProbeMusicApiAsync(string baseUrl, string token)
+    {
+        try
+        {
+            // Try the artists endpoint with take=1. If the module is installed,
+            // this returns 200 (even with empty results). If not installed, the
+            // server returns 404 or the request is routed differently.
+            var url = $"{baseUrl}/api/v1/music/artists?skip=0&take=1";
+            Log.Info("DotNetCloud", $"ProbeMusicApi: GET {url}");
+            using var http = new HttpClient();
+            http.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+            var response = await http.GetAsync(url);
+            var status = (int)response.StatusCode;
+            var body = await response.Content.ReadAsStringAsync();
+            Log.Info("DotNetCloud", $"ProbeMusicApi: status={status} body={body}");
+
+            // 200 or 401 means the endpoint exists (module is installed).
+            // 404 means the endpoint doesn't exist (module not installed).
+            return status == 200 || status == 401;
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("DotNetCloud", $"ProbeMusicApi: exception {ex.Message}");
+            return false;
         }
     }
 
