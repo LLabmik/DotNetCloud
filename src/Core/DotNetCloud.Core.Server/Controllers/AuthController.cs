@@ -296,7 +296,11 @@ public class AuthController : ControllerBase
             return CallerContext.CreateSystemContext();
         }
 
-        var roles = User.FindAll("role").Select(c => c.Value).ToList();
+        var roles = User.FindAll("role")
+            .Concat(User.FindAll(System.Security.Claims.ClaimTypes.Role))
+            .Select(c => c.Value)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
         return new CallerContext(userId, roles, CallerType.User);
     }
 }

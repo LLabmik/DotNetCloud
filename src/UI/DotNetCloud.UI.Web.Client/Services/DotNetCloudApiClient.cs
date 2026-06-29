@@ -191,6 +191,18 @@ public sealed class DotNetCloudApiClient
         }
 
         var body = await response.Content.ReadAsStringAsync(ct);
+        // Try to extract a meaningful error message from the API response body
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            var message = doc.RootElement.GetProperty("error").GetProperty("message").GetString();
+            if (!string.IsNullOrWhiteSpace(message))
+                return (false, message);
+        }
+        catch
+        {
+            // Fall through to raw body
+        }
         return (false, body);
     }
 

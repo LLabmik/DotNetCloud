@@ -140,7 +140,7 @@
             }
             else
             {
-                _errorMessage = "Failed to create user. Please check the form and try again.";
+                _errorMessage = result.ErrorMessage ?? "Failed to create user. Please check the form and try again.";
             }
         }
         catch (HttpRequestException)
