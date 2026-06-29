@@ -17,4 +17,18 @@ namespace DotNetCloud.Client.Android;
     ConfigurationChanges = ConfigChanges.ScreenSize | ConfigChanges.Orientation | ConfigChanges.UiMode | ConfigChanges.ScreenLayout | ConfigChanges.SmallestScreenSize | ConfigChanges.Density)]
 public class MainActivity : MauiAppCompatActivity
 {
+    /// <inheritdoc />
+    protected override void OnDestroy()
+    {
+        base.OnDestroy();
+        try
+        {
+            CommunityToolkit.Mvvm.DependencyInjection.Ioc.Default
+                .GetService<DotNetCloud.Client.Android.Services.IMusicPlayerService>()?.Stop();
+        }
+        catch
+        {
+            // Best effort — process is shutting down
+        }
+    }
 }

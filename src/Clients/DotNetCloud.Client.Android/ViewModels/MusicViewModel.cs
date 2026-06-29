@@ -9,7 +9,7 @@ using DotNetCloud.Core.DTOs;
 namespace DotNetCloud.Client.Android.ViewModels;
 
 /// <summary>Which browsing view is currently displayed.</summary>
-public enum MusicView { Artists, Albums, Tracks, Playlists }
+public enum MusicView { Artists, Albums, Tracks, Playlists, Eq }
 
 /// <summary>
 /// ViewModel for the Music tab. Handles browsing artists, albums, tracks, and playlists;
@@ -63,10 +63,27 @@ public sealed partial class MusicViewModel : ObservableObject
     private async Task<(string? serverUrl, string? token)> GetCredentialsAsync()
     {
         var conn = _serverStore.GetActive();
-        if (conn is null) return (null, null);
+        if (conn is null)
+            return (null, null);
         var tok = await _tokenStore.GetAccessTokenAsync(conn.ServerBaseUrl);
         return (conn.ServerBaseUrl, tok);
     }
+
+    // ── Pagination state (for infinite scroll) ─────────────────────
+
+    private const int PageSize = 50;
+
+    private int _artistsSkip;
+    private bool _hasMoreArtists = true;
+    private CancellationTokenSource? _artistsLoadCts;
+
+    private int _albumsSkip;
+    private bool _hasMoreAlbums = true;
+    private CancellationTokenSource? _albumsLoadCts;
+
+    private int _tracksSkip;
+    private bool _hasMoreTracks = true;
+    private CancellationTokenSource? _tracksLoadCts;
 
     // ── Observable properties ──────────────────────────────────────────
 
@@ -151,19 +168,64 @@ public sealed partial class MusicViewModel : ObservableObject
     [ObservableProperty]
     private string? _errorMessage;
 
+    // ── EQ state ───────────────────────────────────────────────────
+
+    [ObservableProperty]
+    private bool _eqAvailable;
+
+    [ObservableProperty]
+    private int _numberOfBands;
+
+    /// <summary>
+    /// Current gain levels per band (10 values matching server band frequencies:
+    /// 31, 63, 125, 250, 500, 1000, 2000, 4000, 8000, 16000 Hz).
+    /// Values are in dB (range approximately -12 to +12).
+    /// Initialized to all zeros (flat EQ).
+    /// </summary>
+    [ObservableProperty]
+    private ObservableCollection<float> _bandLevels = new(Enumerable.Repeat(0f, 10));
+
+    // ── Seek state ─────────────────────────────────────────────────
+
+    /// <summary>
+    /// When true, the user is currently dragging the seek slider.
+    /// Position updates from the playback timer are suppressed to avoid fighting the user's drag.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isSeeking;
+
+    // ── Album art ──────────────────────────────────────────────────
+
+    /// <summary>Album art image for the currently playing track. Loaded via <see cref="IAlbumArtCache"/>.</summary>
+    [ObservableProperty]
+    private ImageSource? _albumArtImage;
+
+    /// <summary>True when album art is loaded and available for display.</summary>
+    [ObservableProperty]
+    private bool _hasAlbumArt;
+
+    private CancellationTokenSource? _albumArtLoadCts;
+    private TrackDto? _lastArtTrack;
+
     // ── Commands ───────────────────────────────────────────────────────
 
     [RelayCommand]
     private async Task LoadArtistsAsync()
     {
         var (serverUrl, token) = await GetCredentialsAsync();
-        if (serverUrl is null || token is null) return;
+        if (serverUrl is null || token is null)
+            return;
+
+        // Reset pagination for fresh load
+        _artistsSkip = 0;
+        _hasMoreArtists = true;
+        _artistsLoadCts?.Cancel();
 
         IsLoading = true;
         ErrorMessage = null;
         try
         {
-            var items = await _music.ListArtistsAsync(serverUrl, token, ct: CancellationToken.None);
+            var items = await _music.ListArtistsAsync(serverUrl, token, skip: 0, take: PageSize, ct: CancellationToken.None);
             Dispatch(() =>
             {
                 Artists = new ObservableCollection<ArtistDto>(items);
@@ -192,7 +254,8 @@ public sealed partial class MusicViewModel : ObservableObject
     private async Task LoadAlbumsForArtistAsync(ArtistDto artist)
     {
         var (serverUrl, token) = await GetCredentialsAsync();
-        if (serverUrl is null || token is null) return;
+        if (serverUrl is null || token is null)
+            return;
 
         IsLoading = true;
         ErrorMessage = null;
@@ -220,14 +283,20 @@ public sealed partial class MusicViewModel : ObservableObject
     private async Task LoadAlbumsAsync()
     {
         var (serverUrl, token) = await GetCredentialsAsync();
-        if (serverUrl is null || token is null) return;
+        if (serverUrl is null || token is null)
+            return;
+
+        // Reset pagination for fresh load
+        _albumsSkip = 0;
+        _hasMoreAlbums = true;
+        _albumsLoadCts?.Cancel();
 
         IsLoading = true;
         ErrorMessage = null;
         try
         {
             SelectedArtist = null;
-            var items = await _music.ListAlbumsAsync(serverUrl, token, ct: CancellationToken.None);
+            var items = await _music.ListAlbumsAsync(serverUrl, token, skip: 0, take: PageSize, ct: CancellationToken.None);
             Dispatch(() =>
             {
                 Albums = new ObservableCollection<MusicAlbumDto>(items);
@@ -256,7 +325,8 @@ public sealed partial class MusicViewModel : ObservableObject
     private async Task LoadTracksForAlbumAsync(MusicAlbumDto album)
     {
         var (serverUrl, token) = await GetCredentialsAsync();
-        if (serverUrl is null || token is null) return;
+        if (serverUrl is null || token is null)
+            return;
 
         IsLoading = true;
         ErrorMessage = null;
@@ -292,14 +362,20 @@ public sealed partial class MusicViewModel : ObservableObject
     private async Task LoadTracksAsync()
     {
         var (serverUrl, token) = await GetCredentialsAsync();
-        if (serverUrl is null || token is null) return;
+        if (serverUrl is null || token is null)
+            return;
+
+        // Reset pagination for fresh load
+        _tracksSkip = 0;
+        _hasMoreTracks = true;
+        _tracksLoadCts?.Cancel();
 
         IsLoading = true;
         ErrorMessage = null;
         try
         {
             SelectedAlbum = null;
-            var items = await _music.ListTracksAsync(serverUrl, token, ct: CancellationToken.None);
+            var items = await _music.ListTracksAsync(serverUrl, token, skip: 0, take: PageSize, ct: CancellationToken.None);
             Dispatch(() =>
             {
                 Tracks = new ObservableCollection<TrackDto>(items);
@@ -321,7 +397,8 @@ public sealed partial class MusicViewModel : ObservableObject
     private async Task LoadPlaylistsAsync()
     {
         var (serverUrl, token) = await GetCredentialsAsync();
-        if (serverUrl is null || token is null) return;
+        if (serverUrl is null || token is null)
+            return;
 
         IsLoading = true;
         ErrorMessage = null;
@@ -346,6 +423,141 @@ public sealed partial class MusicViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private async Task LoadMoreArtistsAsync()
+    {
+        if (!_hasMoreArtists || IsLoading)
+            return;
+
+        var (serverUrl, token) = await GetCredentialsAsync();
+        if (serverUrl is null || token is null)
+            return;
+
+        IsLoading = true;
+        ErrorMessage = null;
+        _artistsLoadCts?.Cancel();
+        _artistsLoadCts = new CancellationTokenSource();
+        var ct = _artistsLoadCts.Token;
+
+        try
+        {
+            var nextSkip = _artistsSkip + PageSize;
+            var items = await _music.ListArtistsAsync(serverUrl, token, skip: nextSkip, take: PageSize, ct: ct);
+            if (ct.IsCancellationRequested)
+                return;
+
+            _artistsSkip = nextSkip;
+            if (items.Count < PageSize)
+                _hasMoreArtists = false;
+
+            Dispatch(() =>
+            {
+                foreach (var artist in items)
+                    Artists.Add(artist);
+            });
+        }
+        catch (OperationCanceledException) { /* cancelled — ignore */ }
+        catch (Exception ex)
+        {
+            Dispatch(() => ErrorMessage = $"Failed to load more artists: {ex.Message}");
+        }
+        finally
+        {
+            if (!ct.IsCancellationRequested)
+                Dispatch(() => IsLoading = false);
+        }
+    }
+
+    [RelayCommand]
+    private async Task LoadMoreAlbumsAsync()
+    {
+        if (!_hasMoreAlbums || IsLoading)
+            return;
+
+        var (serverUrl, token) = await GetCredentialsAsync();
+        if (serverUrl is null || token is null)
+            return;
+
+        IsLoading = true;
+        ErrorMessage = null;
+        _albumsLoadCts?.Cancel();
+        _albumsLoadCts = new CancellationTokenSource();
+        var ct = _albumsLoadCts.Token;
+
+        try
+        {
+            var nextSkip = _albumsSkip + PageSize;
+            var items = await _music.ListAlbumsAsync(serverUrl, token, skip: nextSkip, take: PageSize, ct: ct);
+            if (ct.IsCancellationRequested)
+                return;
+
+            _albumsSkip = nextSkip;
+            if (items.Count < PageSize)
+                _hasMoreAlbums = false;
+
+            Dispatch(() =>
+            {
+                foreach (var album in items)
+                    Albums.Add(album);
+            });
+        }
+        catch (OperationCanceledException) { /* cancelled */ }
+        catch (Exception ex)
+        {
+            Dispatch(() => ErrorMessage = $"Failed to load more albums: {ex.Message}");
+        }
+        finally
+        {
+            if (!ct.IsCancellationRequested)
+                Dispatch(() => IsLoading = false);
+        }
+    }
+
+    [RelayCommand]
+    private async Task LoadMoreTracksAsync()
+    {
+        if (!_hasMoreTracks || IsLoading)
+            return;
+
+        var (serverUrl, token) = await GetCredentialsAsync();
+        if (serverUrl is null || token is null)
+            return;
+
+        IsLoading = true;
+        ErrorMessage = null;
+        _tracksLoadCts?.Cancel();
+        _tracksLoadCts = new CancellationTokenSource();
+        var ct = _tracksLoadCts.Token;
+
+        try
+        {
+            var nextSkip = _tracksSkip + PageSize;
+            var items = await _music.ListTracksAsync(serverUrl, token, skip: nextSkip, take: PageSize, ct: ct);
+            if (ct.IsCancellationRequested)
+                return;
+
+            _tracksSkip = nextSkip;
+            if (items.Count < PageSize)
+                _hasMoreTracks = false;
+
+            Dispatch(() =>
+            {
+                foreach (var track in items)
+                    Tracks.Add(track);
+            });
+        }
+        catch (OperationCanceledException) { /* cancelled */ }
+        catch (Exception ex)
+        {
+            Dispatch(() => ErrorMessage = $"Failed to load more tracks: {ex.Message}");
+        }
+        finally
+        {
+            if (!ct.IsCancellationRequested)
+                Dispatch(() => IsLoading = false);
+        }
+    }
+
+    [RelayCommand]
     private async Task SelectPlaylistAsync(PlaylistDto playlist)
     {
         // SelectedPlaylist is already set by the CollectionView binding;
@@ -356,7 +568,8 @@ public sealed partial class MusicViewModel : ObservableObject
     private async Task LoadTracksForPlaylistAsync(PlaylistDto playlist)
     {
         var (serverUrl, token) = await GetCredentialsAsync();
-        if (serverUrl is null || token is null) return;
+        if (serverUrl is null || token is null)
+            return;
 
         IsLoading = true;
         ErrorMessage = null;
@@ -384,17 +597,30 @@ public sealed partial class MusicViewModel : ObservableObject
     private async Task LoadEqPresetsAsync()
     {
         var (serverUrl, token) = await GetCredentialsAsync();
-        if (serverUrl is null || token is null) return;
+        if (serverUrl is null || token is null)
+            return;
 
+        IsLoading = true;
+        ErrorMessage = null;
         try
         {
             var items = await _music.ListEqPresetsAsync(serverUrl, token, CancellationToken.None);
             Dispatch(() =>
-            EqPresets = new ObservableCollection<EqPresetDto>(items));
+            {
+                EqPresets = new ObservableCollection<EqPresetDto>(items);
+                EqAvailable = _eq.IsAvailable;
+                NumberOfBands = _eq.NumberOfBands;
+                CurrentView = MusicView.Eq;
+                Title = "Equalizer";
+            });
         }
         catch (Exception ex)
         {
             Dispatch(() => ErrorMessage = $"Failed to load EQ presets: {ex.Message}");
+        }
+        finally
+        {
+            Dispatch(() => IsLoading = false);
         }
     }
 
@@ -402,7 +628,8 @@ public sealed partial class MusicViewModel : ObservableObject
     private async Task PlayTrackAsync(TrackDto track)
     {
         var (serverUrl, token) = await GetCredentialsAsync();
-        if (serverUrl is null || token is null) return;
+        if (serverUrl is null || token is null)
+            return;
 
         try
         {
@@ -436,14 +663,23 @@ public sealed partial class MusicViewModel : ObservableObject
     [RelayCommand]
     private void PlayPrevious() => _player.PlayPrevious();
 
+    /// <summary>
+    /// Seeks to the specified position (seconds). Called on seek-slider drag-completed.
+    /// </summary>
     [RelayCommand]
-    private async Task SeekAsync(double pos) => _player.Seek(TimeSpan.FromSeconds(pos));
+    private void SeekTo(double pos)
+    {
+        _player.Seek(TimeSpan.FromSeconds(pos));
+        CurrentPositionSeconds = pos;
+        IsSeeking = false;
+    }
 
     [RelayCommand]
     private async Task ToggleStarAsync(object item)
     {
         var (serverUrl, token) = await GetCredentialsAsync();
-        if (serverUrl is null || token is null) return;
+        if (serverUrl is null || token is null)
+            return;
 
         try
         {
@@ -466,8 +702,36 @@ public sealed partial class MusicViewModel : ObservableObject
         }
     }
 
+    /// <summary>Resets the equalizer to flat (0 dB on all bands), clearing any applied preset.</summary>
     [RelayCommand]
-    private async Task ApplyEqPresetAsync(EqPresetDto preset) => _eq.ApplyPreset(preset);
+    private void ResetEq()
+    {
+        _eq.Reset();
+        Dispatch(() =>
+        {
+            for (int i = 0; i < BandLevels.Count; i++)
+                BandLevels[i] = 0f;
+        });
+    }
+
+    [RelayCommand]
+    private async Task ApplyEqPresetAsync(EqPresetDto preset)
+    {
+        _eq.ApplyPreset(preset);
+
+        // Update the band levels visualization from the preset's band dictionary
+        var serverFreqs = new[] { "31", "63", "125", "250", "500", "1000", "2000", "4000", "8000", "16000" };
+        Dispatch(() =>
+        {
+            for (int i = 0; i < serverFreqs.Length && i < BandLevels.Count; i++)
+            {
+                if (preset.Bands.TryGetValue(serverFreqs[i], out var gainDb))
+                    BandLevels[i] = (float)gainDb;
+                else
+                    BandLevels[i] = 0f;
+            }
+        });
+    }
 
     [RelayCommand]
     private async Task BackAsync()
@@ -481,12 +745,35 @@ public sealed partial class MusicViewModel : ObservableObject
             }
             else
             {
-                await LoadAlbumsCommand.ExecuteAsync(null);
+                if (Albums.Count == 0)
+                    await LoadAlbumsCommand.ExecuteAsync(null);
+                else
+                    SwitchToAlbumsView();
             }
         }
-        else if (CurrentView == MusicView.Tracks || CurrentView == MusicView.Albums)
+        else if (CurrentView == MusicView.Tracks)
         {
-            await LoadArtistsCommand.ExecuteAsync(null);
+            // From "All Tracks" back to Artists — preserve if loaded
+            if (Artists.Count == 0)
+                await LoadArtistsCommand.ExecuteAsync(null);
+            else
+                SwitchToArtistsView();
+        }
+        else if (CurrentView == MusicView.Albums)
+        {
+            // From albums back to Artists
+            if (Artists.Count == 0)
+                await LoadArtistsCommand.ExecuteAsync(null);
+            else
+                SwitchToArtistsView();
+        }
+        else if (CurrentView == MusicView.Eq)
+        {
+            // From EQ back to Artists — preserve if loaded
+            if (Artists.Count == 0)
+                await LoadArtistsCommand.ExecuteAsync(null);
+            else
+                SwitchToArtistsView();
         }
         else
         {
@@ -494,14 +781,111 @@ public sealed partial class MusicViewModel : ObservableObject
         }
     }
 
+    /// <summary>Switches view to Artists without reloading data from server.</summary>
+    private void SwitchToArtistsView()
+    {
+        Dispatch(() =>
+        {
+            SelectedArtist = null;
+            SelectedAlbum = null;
+            CurrentView = MusicView.Artists;
+            Title = "Artists";
+        });
+    }
+
+    /// <summary>Switches view to Albums without reloading data from server.</summary>
+    private void SwitchToAlbumsView()
+    {
+        Dispatch(() =>
+        {
+            SelectedArtist = null;
+            SelectedAlbum = null;
+            CurrentView = MusicView.Albums;
+            Title = "Albums";
+        });
+    }
+
     private void UpdatePlaybackState()
     {
         Dispatch(() =>
         {
-            CurrentTrack = _player.CurrentTrack;
+            var newTrack = _player.CurrentTrack;
+            CurrentTrack = newTrack;
             IsPlaying = _player.IsPlaying;
-            CurrentPositionSeconds = _player.CurrentPosition.TotalSeconds;
             DurationSeconds = _player.Duration.TotalSeconds;
+
+            // Don't overwrite position while user is dragging the slider
+            if (!IsSeeking)
+                CurrentPositionSeconds = _player.CurrentPosition.TotalSeconds;
+
+            // Load album art when track changes
+            if (newTrack is not null && newTrack != _lastArtTrack)
+            {
+                _lastArtTrack = newTrack;
+                _ = LoadAlbumArtForCurrentTrackAsync();
+            }
+            else if (newTrack is null)
+            {
+                _lastArtTrack = null;
+                ClearAlbumArt();
+            }
+        });
+    }
+
+    // ── Album art helpers ────────────────────────────────────────────
+
+    private async Task LoadAlbumArtForCurrentTrackAsync()
+    {
+        var (serverUrl, token) = await GetCredentialsAsync();
+        if (serverUrl is null || token is null || CurrentTrack is null)
+            return;
+
+        await LoadAlbumArtAsync(CurrentTrack, serverUrl, token);
+    }
+
+    /// <summary>
+    /// Loads album art for the given track's album, if it has one.
+    /// Cancels any in-flight art load to avoid stale images on rapid track changes.
+    /// </summary>
+    private async Task LoadAlbumArtAsync(TrackDto track, string serverUrl, string token)
+    {
+        if (track.AlbumId is null)
+        {
+            ClearAlbumArt();
+            return;
+        }
+
+        _albumArtLoadCts?.Cancel();
+        _albumArtLoadCts = new CancellationTokenSource();
+        var ct = _albumArtLoadCts.Token;
+
+        try
+        {
+            var source = await _artCache.GetAlbumArtAsync(track.AlbumId.Value, serverUrl, token, ct);
+            if (ct.IsCancellationRequested)
+                return;
+
+            Dispatch(() =>
+            {
+                AlbumArtImage = source;
+                HasAlbumArt = source is not null;
+            });
+        }
+        catch (OperationCanceledException) { /* cancelled */ }
+        catch
+        {
+            Dispatch(() => HasAlbumArt = false);
+        }
+    }
+
+    /// <summary>Clears the currently displayed album art.</summary>
+    private void ClearAlbumArt()
+    {
+        _albumArtLoadCts?.Cancel();
+        Dispatch(() =>
+        {
+            AlbumArtImage = null;
+            HasAlbumArt = false;
         });
     }
 }

@@ -2,6 +2,7 @@ using Android.Content;
 using Android.Util;
 using DotNetCloud.Client.Android.Auth;
 using DotNetCloud.Client.Android.Services;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DotNetCloud.Client.Android;
 
@@ -25,7 +26,23 @@ public partial class App : Application
     /// <inheritdoc />
     protected override Window CreateWindow(IActivationState? activationState)
     {
-        return new Window(new AppShell());
+        var window = new Window(new AppShell());
+
+        window.Destroying += (s, e) =>
+        {
+            try
+            {
+                var player = window.Page?.Handler?.MauiContext?.Services
+                    .GetService<IMusicPlayerService>();
+                player?.Stop();
+            }
+            catch
+            {
+                // Best effort — process is dying anyway
+            }
+        };
+
+        return window;
     }
 
     /// <inheritdoc />

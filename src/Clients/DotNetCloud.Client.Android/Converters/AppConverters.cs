@@ -166,3 +166,29 @@ public sealed class TabSelectedConverter : IValueConverter
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
         throw new NotSupportedException();
 }
+
+/// <summary>
+/// Converts a dB value (range approximately -12 to +12) to a 0.0-1.0 value
+/// suitable for <see cref="ProgressBar"/>. 0 dB = 0.5, +12 dB = 1.0, -12 dB = 0.0.
+/// </summary>
+public sealed class DbToProgressConverter : IValueConverter
+{
+    private const double MaxDb = 12.0;
+    private const double MinDb = -12.0;
+
+    /// <inheritdoc />
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is float db)
+        {
+            // Map [-12, +12] → [0.0, 1.0]
+            var clamped = Math.Clamp(db, MinDb, MaxDb);
+            return (clamped - MinDb) / (MaxDb - MinDb);
+        }
+        return 0.5; // default midpoint
+    }
+
+    /// <inheritdoc />
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
