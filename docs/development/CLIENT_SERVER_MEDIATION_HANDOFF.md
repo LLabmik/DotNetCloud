@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-28 03:25 UTC (CoreHub group-name fix deployed — all 14 modules healthy)
+Last updated: 2026-06-29 (Android client alphabet index deployed to phone ✓)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -18,7 +18,7 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
-- **Current active branch:** `feature/chat-auth-bearer-token-support`
+- **Current active branch:** `feature/android-music-tab`
 - No moderator involvement in technical decisions, code reviews, or work coordination.
 
 **Role separation (MANDATORY):**
@@ -90,19 +90,15 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 **No moderator task:** Moderator provides zero context, zero explanation. The handoff document has everything the receiving agent needs.
 
-## Current Status
+## Active Handoff
 
-- ✅ **IUserDirectory gRPC bridge deployed** — `GrpcUserDirectoryService` registered in Chat module host DI. Resolves `SenderName` via Core.Server's `CoreCapabilities.GetUser` RPC, which was wired up to resolve `IUserDirectory` (database-backed `UserDirectoryService`).
-- ✅ **Blazor real-time forwarding deployed** — `BroadcastRealtimeEvent` handler in Core.Server now forwards chat events (`NewMessage`, `MessageEdited`, `MessageDeleted`) to `IChatMessageNotifier` in-process, so Blazor Server components receive updates without requiring a client-side SignalR HubConnection.
-- ✅ **gRPC-based real-time broadcaster** — Messages from Android (REST API → Chat module host → gRPC → Core.Server → SignalR) now also reach Blazor UI via in-process `IChatMessageNotifier` bridge.
-- ✅ **Android → Blazor real-time working** — Messages sent from Android appear instantly in Blazor Web UI.
-- ✅ **Blazor → Android real-time deployed** — `CoreHub.JoinGroupAsync()` now joins `chat-channel-{guid}` matching `ChatHub.ChannelGroup()`. Fix deployed to production. Verified via string check (old "Channel ID cannot be empty." replaced by "Group name cannot be empty.").
-- ✅ **SenderName working** — Display names show correctly on Android (e.g., "Ben Kimball").
-- ✅ **ChatConnectionService starts correctly** — SignalR HubConnection established successfully (verified via logcat).
-- ✅ **DbContext concurrency fixed** — Sequential processing replaces `Task.WhenAll`.
-- ✅ **Chat tab WORKING** — HTTP 200, channels list loads successfully on Android.
-- ✅ **Sync architecture** — All testing complete. See archive.
-- ✅ **Linux client validation** — Completed on mint-OptiPlex-7010. Archived.
+**Summary:** ✅ Complete — Android client deployed with alphabet index endpoints
+
+All tasks for the music alphabet index feature are complete:
+- Server: alphabet endpoints deployed and verified on `cloud.kimball.home` ✓
+- Android client: code verified, built (Debug), installed on physical phone (`R5CWC356B2K`), and launched ✓
+
+No outstanding actions. Awaiting next handoff.
 
 ## Environment
 
@@ -124,18 +120,6 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 - ✅ **SignalR channel group naming:** `chat-channel-{channelId}` (used by `ChatHub.ChannelGroup()`, `CoreHub.JoinGroupAsync()`, and Android `SignalRChatClient`).
 - **Controller discovery:** Core.Server references Files.Host and Chat.Host via `ProjectReference`. ASP.NET Core auto-discovers controllers from referenced assemblies. Do NOT create duplicate controllers in Core.Server for routes already served by module Host assemblies.
 
-## Active Handoff
-
-**Summary:** CoreHub `JoinGroupAsync` uses wrong group name for chat channels — server fix needs deploy.
-
-**Background (2026-06-28, updated 03:00 UTC):**
-
-### Fix 3: SignalR Group Name Mismatch (NEW)
-
-**Root cause:** `CoreHub.JoinGroupAsync()` (line 148) adds connections to a group named with just the raw GUID (`"dc03f432-..."`), but `ChatHub.ChannelGroup()` broadcasts to `"chat-channel-{guid}"`. These are **different group names**, so the Android client never receives broadcasts.
-
-Additionally, the Android client sends the full group name `"chat-channel-{guid}"` as the parameter, but `JoinGroupAsync` tries `Guid.TryParse("chat-channel-...")` which **fails**, silently throwing a `HubException` that gets swallowed. The connection was added to a group that nobody broadcasts to.
-
 **Fix applied in source (committed to branch):**
 - `CoreHub.JoinGroupAsync()` now accepts both `"chat-channel-{guid}"` and bare GUID formats
 - Extracts the GUID, then joins the connection to `"chat-channel-{guid}"` — matching `ChatHub.ChannelGroup()`
@@ -147,15 +131,3 @@ Additionally, the Android client sends the full group name `"chat-channel-{guid}
 - SignalR connection verified working via logcat ("SignalR connected successfully!")
 - `SenderName` display confirmed working
 - `JoinChannelGroupAsync` already sends the correct format ("chat-channel-{guid}")
-
-### Server Actions — `cloud.kimball.home`
-
-- ✓ Pull latest `feature/chat-auth-bearer-token-support`
-- ✓ Fixed `channelId`→`groupKey` rename in log line (build error)
-- ✓ Re-deployed `CoreHub.cs` group-name fix (previous deploy killed during stop phase — files weren't copied)
-- ✓ Verified via deployed DLL strings: old "Channel ID cannot be empty." replaced by "Group name cannot empty."
-- ✓ 14/14 modules healthy
-
-### Android Client Actions — `monolith`
-
-- ☐ Rebuild APK and test Blazor → Android real-time (bidirectional)

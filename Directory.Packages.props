@@ -118,12 +118,12 @@
     <PackageVersion Include="SixLabors.ImageSharp" Version="3.1.12" />
     <!-- SQLite (mobile) -->
     <PackageVersion Include="sqlite-net-pcl" Version="1.9.172" />
-    <!-- Security: override vulnerable transitive dependency (CVE-2025-6965, SQLite < 3.50.2)
-         EF Core Sqlite 10.x pins SQLitePCLRaw.bundle_e_sqlite3 2.1.11 which bundles vulnerable
-         SQLite. Override both bundle and lib to 3.x which bundles SQLite >= 3.50.2. -->
+    <!-- Security: override vulnerable transitive dependency
+         EF Core Sqlite 10.x pins SQLitePCLRaw.bundle_e_sqlite3 2.1.11 / lib.e_sqlite3.android 2.1.11
+         which bundle SQLite < 3.50.2 (GHSA-2m69-gcr7-jv3q). Override to 3.x which bundles
+         SQLite >= 3.50.2. The .android variant has no fix version — use unified lib.e_sqlite3 instead. -->
     <PackageVersion Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
     <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.50.3" />
-    <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3.android" Version="2.1.11" />
     <!-- CLI -->
     <PackageVersion Include="System.CommandLine" Version="2.0.3" />
     <!-- Windows / platform -->

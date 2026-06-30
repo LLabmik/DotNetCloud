@@ -96,3 +96,99 @@ public sealed class OnlineStatusToColorConverter : IValueConverter
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
         throw new NotSupportedException();
 }
+
+/// <summary>Converts a <see cref="TimeSpan"/> to "m:ss" or "h:mm:ss" format.</summary>
+public sealed class TimeSpanToMmSsConverter : IValueConverter
+{
+    /// <inheritdoc />
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is TimeSpan ts)
+            return ts.TotalHours >= 1
+                ? $"{(int)ts.TotalHours}:{ts.Minutes:D2}:{ts.Seconds:D2}"
+                : $"{ts.Minutes}:{ts.Seconds:D2}";
+        return "0:00";
+    }
+
+    /// <inheritdoc />
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>Converts a boolean (playing=true) to a play/pause icon string.</summary>
+public sealed class BoolToPlayPauseIconConverter : IValueConverter
+{
+    /// <inheritdoc />
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is true ? "⏸" : "▶";
+
+    /// <inheritdoc />
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>
+/// Returns <c>true</c> when <see cref="ViewModels.MusicView"/> matches the converter parameter.
+/// Used to show/hide the correct CollectionView in MusicPage.
+/// </summary>
+public sealed class IsViewSelectedConverter : IValueConverter
+{
+    /// <inheritdoc />
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is Enum enumVal && parameter is string paramName)
+            return enumVal.ToString() == paramName;
+        return false;
+    }
+
+    /// <inheritdoc />
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>
+/// Returns a highlighted background color when the tab matches the current view.
+/// </summary>
+public sealed class TabSelectedConverter : IValueConverter
+{
+    private static readonly Color SelectedColor = Color.FromArgb("#0EA5E9");
+    private static readonly Color UnselectedColor = Color.FromArgb("#1E293B");
+
+    /// <inheritdoc />
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is Enum enumVal && parameter is string paramName)
+            return enumVal.ToString() == paramName ? SelectedColor : UnselectedColor;
+        return UnselectedColor;
+    }
+
+    /// <inheritdoc />
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>
+/// Converts a dB value (range approximately -12 to +12) to a 0.0-1.0 value
+/// suitable for <see cref="ProgressBar"/>. 0 dB = 0.5, +12 dB = 1.0, -12 dB = 0.0.
+/// </summary>
+public sealed class DbToProgressConverter : IValueConverter
+{
+    private const double MaxDb = 12.0;
+    private const double MinDb = -12.0;
+
+    /// <inheritdoc />
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is float db)
+        {
+            // Map [-12, +12] → [0.0, 1.0]
+            var clamped = Math.Clamp(db, MinDb, MaxDb);
+            return (clamped - MinDb) / (MaxDb - MinDb);
+        }
+        return 0.5; // default midpoint
+    }
+
+    /// <inheritdoc />
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}

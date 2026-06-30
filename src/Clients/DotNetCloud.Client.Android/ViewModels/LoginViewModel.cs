@@ -35,7 +35,38 @@ public sealed partial class LoginViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(LoginCommand))]
-    private string _serverUrl = string.Empty;
+    private string _serverUrl = LoadLastServerUrl();
+
+    /// <summary>
+    /// Loads the most recently used server URL from stored connections.
+    /// Checks the active connection first, then falls back to the last saved entry.
+    /// Returns empty string if no saved servers exist.
+    /// </summary>
+    private static string LoadLastServerUrl()
+    {
+        try
+        {
+            var services = IPlatformApplication.Current?.Services;
+            if (services is null)
+                return string.Empty;
+            var store = services.GetService(typeof(IServerConnectionStore)) as IServerConnectionStore;
+            if (store is null)
+                return string.Empty;
+
+            var active = store.GetActive();
+            if (active is not null)
+                return active.ServerBaseUrl;
+
+            var all = store.GetAll();
+            if (all.Count > 0)
+                return all[^1].ServerBaseUrl;
+        }
+        catch
+        {
+            // Best-effort — if resolution fails, start with blank field
+        }
+        return string.Empty;
+    }
 
     [ObservableProperty]
     private string? _errorMessage;

@@ -90,6 +90,15 @@ public class MusicController : MusicControllerBase
         return Ok(Envelope(artists));
     }
 
+    /// <summary>Gets the distinct first characters of all artist names for the user.</summary>
+    [HttpGet("artists/alphabet")]
+    public async Task<IActionResult> GetArtistAlphabet()
+    {
+        var caller = GetAuthenticatedCaller();
+        var chars = await _artistService.ListArtistAlphabetAsync(caller);
+        return Ok(Envelope(chars));
+    }
+
     /// <summary>Deletes an artist (soft delete).</summary>
     [HttpDelete("artists/{artistId:guid}")]
     public async Task<IActionResult> DeleteArtist(Guid artistId)
@@ -144,6 +153,15 @@ public class MusicController : MusicControllerBase
         var caller = GetAuthenticatedCaller();
         var albums = await _albumService.SearchAsync(caller, q, take);
         return Ok(Envelope(albums));
+    }
+
+    /// <summary>Gets the distinct first characters of all album titles for the user.</summary>
+    [HttpGet("albums/alphabet")]
+    public async Task<IActionResult> GetAlbumAlphabet()
+    {
+        var caller = GetAuthenticatedCaller();
+        var chars = await _albumService.ListAlbumAlphabetAsync(caller);
+        return Ok(Envelope(chars));
     }
 
     /// <summary>Gets recently added albums.</summary>
@@ -294,6 +312,15 @@ public class MusicController : MusicControllerBase
         var caller = GetAuthenticatedCaller();
         var tracks = await _trackService.SearchAsync(caller, q, take);
         return Ok(Envelope(tracks));
+    }
+
+    /// <summary>Gets the distinct first characters of all track titles for the user.</summary>
+    [HttpGet("tracks/alphabet")]
+    public async Task<IActionResult> GetTrackAlphabet()
+    {
+        var caller = GetAuthenticatedCaller();
+        var chars = await _trackService.ListTrackAlphabetAsync(caller);
+        return Ok(Envelope(chars));
     }
 
     /// <summary>Gets random tracks.</summary>

@@ -18,7 +18,6 @@ public class AboutHealthCheckTests
 
         var result = await healthCheck.CheckHealthAsync(context);
 
-        Assert.IsNotNull(result);
         Assert.AreEqual(HealthStatus.Healthy, result.Status);
     }
 

@@ -5,14 +5,27 @@ namespace DotNetCloud.Client.Android;
 /// <summary>Application shell — defines top-level navigation structure and routes.</summary>
 public partial class AppShell : Shell
 {
+    private static ShellContent? _musicTab;
+
     /// <summary>Initializes a new <see cref="AppShell"/> and registers detail routes.</summary>
     public AppShell()
     {
         InitializeComponent();
+        _musicTab = MusicTab;
 
         // Register routes for detail pages not expressed in the ShellContent hierarchy
         Routing.RegisterRoute("MessageList", typeof(MessageListPage));
         Routing.RegisterRoute("ChannelDetails", typeof(ChannelDetailsPage));
+    }
+
+    /// <summary>
+    /// Called by <see cref="App"/> after module availability is determined.
+    /// Directly sets the Music tab's visibility.
+    /// </summary>
+    public static void SetMusicTabVisible(bool visible)
+    {
+        if (_musicTab is not null)
+            _musicTab.IsVisible = visible;
     }
 }
 

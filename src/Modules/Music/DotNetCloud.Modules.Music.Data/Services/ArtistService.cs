@@ -241,4 +241,17 @@ public sealed class ArtistService : IArtistService
             CreatedAt = userArtist.CreatedAt
         };
     }
+
+    /// <inheritdoc />
+    public async Task<List<string>> ListArtistAlphabetAsync(CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
+        return await db.UserArtists
+            .Where(ua => ua.OwnerId == caller.UserId)
+            .Select(ua => ua.CanonicalArtist!.Name.Substring(0, 1).ToUpper())
+            .Distinct()
+            .OrderBy(c => c)
+            .ToListAsync(cancellationToken);
+    }
 }

@@ -223,4 +223,15 @@ public sealed class MusicAlbumService : IMusicAlbumService
             CreatedAt = userAlbum.CreatedAt
         };
     }
+
+    /// <inheritdoc />
+    public async Task<List<string>> ListAlbumAlphabetAsync(CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        return await _db.UserAlbums
+            .Where(ua => ua.OwnerId == caller.UserId)
+            .Select(ua => ua.CanonicalAlbum!.Title.Substring(0, 1).ToUpper())
+            .Distinct()
+            .OrderBy(c => c)
+            .ToListAsync(cancellationToken);
+    }
 }

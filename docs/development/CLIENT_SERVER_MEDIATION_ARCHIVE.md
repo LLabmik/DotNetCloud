@@ -2,6 +2,26 @@
 
 Archived: 2026-06-25 01:35 UTC. Full git history preserved in commits up to changes from Windows11-TestDNC.
 
+## Archived: Music Alphabet Index Endpoints — Deployed to Production (2026-06-29)
+
+**Target:** monolith → cloud.kimball.home (server deployment)
+
+**Result:** ✅ Music alphabet index endpoints deployed and verified on production.
+
+**Completed (cloud.kimball.home — deployment):**
+- ✅ Built music module (Release) with new alphabet endpoints
+- ✅ Copied updated binaries to `/opt/dotnetcloud/server/modules/dotnetcloud.music/`
+- ✅ Restarted dotnetcloud service
+- ✅ Music module is Healthy and Running (14/14 modules healthy)
+- ✅ All 3 endpoints return 401 (auth required, not 404) confirming proper routing:
+  - `GET /api/v1/music/artists/alphabet`
+  - `GET /api/v1/music/albums/alphabet`
+  - `GET /api/v1/music/tracks/alphabet`
+
+**Next step:** Android client (`monolith`) to verify alphabet index populates correctly with live server data.
+
+---
+
 ## Archived: `perf/synctray-scan-and-transfer-speedups` — Linux Client Validation Complete (2026-06-27)
 
 **Target:** Windows11-TestDNC → mint-OptiPlex-7010 (client verification)
@@ -28,8 +48,59 @@ Archived: 2026-06-25 01:35 UTC. Full git history preserved in commits up to chan
 - ✅ Added `DotNetCloud.Core.Auth` project reference to Chat.Host.csproj
 - ✅ Added `Microsoft.AspNetCore.Authentication.JwtBearer` package
 - ✅ Added `AddTokenIntrospection()`, policy scheme resolution, `AddIntrospection()`, `AuthorizationPolicies.Configure()`, `PermissionAuthorizationHandler` to Chat.Host Program.cs
+
+---
+
+## Archived: Android Client Alphabet Index — Deployed to Phone (2026-06-29)
+
+**Target:** cloud.kimball.home (server) → monolith (Android client)
+
+**Result:** ✅ Full end-to-end: server alphabet endpoints deployed to production, Android client code verified using them (not client-side computation), Debug APK built and installed on physical phone.
+
+**Completed (monolith — Android client):**
+- ✅ Pulled latest `main` (73f3cbbe)
+- ✅ Verified client calls server endpoints (`/artists/alphabet`, `/albums/alphabet`, `/tracks/alphabet`)
+- ✅ Built Debug APK (`dotnet publish -c Debug`)
+- ✅ Installed on physical phone `R5CWC356B2K` via adb and launched
+
+**Next step:** Awaiting next handoff.
+
+---
+
+## Archived: Android Music Tab — Client-Side Complete (2026-06-29)
+
+**Target:** monolith → cloud.kimball.home (music module auth fix needed)
+
+**Result:** ✅ Android client music tab fully implemented — tab visibility, browsing UI, REST client, error handling. Blocked by server-side auth: Music module API only accepts cookies, not bearer tokens.
+
+**Completed (monolith — client-side):**
+- ✅ Music tab shows/hides based on module detection
+- ✅ `IMusicRestClient` / `HttpMusicRestClient` with all API methods
+- ✅ `MusicViewModel` with browsing, playback control, error handling
+- ✅ `MusicPage.xaml` with now-playing bar, segmented tabs, 4 CollectionViews
+- ✅ Music foreground service, album art cache, EQ service
+- ✅ All 114 unit tests passing
+- ✅ Chat duplicate messages fixed (removed HTTP-response add, rely on SignalR)
 - ✅ Changed `ChatControllerBase [Authorize(AuthenticationSchemes = "Identity.Application")]` to plain `[Authorize]`
 - ✅ Commit: `5d040145` (includes `Directory.Packages.props` fix for SQLitePCLRaw.lib.e_sqlite3.android)
+
+---
+
+## Archived: Music Module Bearer Token Auth — Deployed to Production (2026-06-29)
+
+**Target:** monolith → cloud.kimball.home (music module auth overhaul)
+
+**Result:** ✅ Music module bearer token auth is fully working. Server fix (policy scheme + introspection) resolves the 401 issue. Android client gets 200 on all music API endpoints.
+
+**Completed (monolith — code changes):**
+- ✅ Auth changes applied to `MusicControllerBase.cs` and `Program.cs`
+- ✅ `DotNetCloud.Core.Auth` project reference added to Music.Host.csproj
+- ✅ Build succeeds with `dotnet build`
+- ✅ Deployed to production (`cloud.kimball.home`)
+- ✅ All 14 modules healthy (including music: Healthy)
+- ✅ Android client verified — music API calls return 200
+
+**Deploy notes:** First deploy failed — `DotNetCloud.Core.Auth.dll` was copied but `dotnetcloud.music.deps.json` wasn't updated, causing `FileNotFoundException`. Fixed by also copying the updated `.deps.json` and `.runtimeconfig.json`. Ownership set to `dotnetcloud:dotnetcloud`.
 
 **Completed (cloud.kimball.home — deploy):**
 - ✅ Built and deployed Chat module with auth changes
@@ -5115,4 +5186,23 @@ Key confirmations:
 ### Notes
 - Pre-existing Contacts module gRPC issue resolved on retry (transient startup race)
 - Awaiting Android client (monolith) verification that Chat tab works with Bearer tokens against production
+
+---
+
+## Archived: Chat Auth + CoreHub Group Fix — Android APK Verification (2026-06-29)
+
+**Target:** monolith (Android APK rebuild + Blazor real-time bidirectional testing)
+
+**Result:** ✅ Server-side fixes deployed. Android client changes already deployed in APK. Passing to full music auth handoff.
+
+**Summary of server-side fixes (all ✓):**
+1. **Chat bearer token auth** — Policy scheme + introspection added to Chat module
+2. **CoreHub group name fix** — `JoinGroupAsync` / `LeaveGroupAsync` now accept both `"chat-channel-{guid}"` and bare GUID formats
+3. **All 14 modules healthy** on `cloud.kimball.home`
+
+**Android client changes (already deployed in APK):**
+- `ChatConnectionService` starts correctly
+- SignalR connection verified working
+- `SenderName` display confirmed working
+- `JoinChannelGroupAsync` sends correct format
 

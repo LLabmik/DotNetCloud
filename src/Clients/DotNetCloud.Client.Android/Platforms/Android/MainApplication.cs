@@ -98,6 +98,15 @@ public class MainApplication : MauiApplication
         {
             Description = "Progress updates for automatic photo and video uploads."
         });
+
+        // Music playback — low importance, no sound.
+        nm.CreateNotificationChannel(new NotificationChannel(
+            MusicPlaybackService.ChannelId,
+            "Music playback",
+            NotificationImportance.Low)
+        {
+            Description = "Shows current track and playback controls."
+        });
     }
 }
 

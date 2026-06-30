@@ -20,6 +20,9 @@ public interface IArtistService
     /// <summary>Deletes an artist.</summary>
     Task DeleteArtistAsync(Guid artistId, CallerContext caller, CancellationToken cancellationToken = default);
 
+    /// <summary>Gets the distinct first characters of all artist names for the user, sorted alphabetically.</summary>
+    Task<List<string>> ListArtistAlphabetAsync(CallerContext caller, CancellationToken cancellationToken = default);
+
     /// <summary>Gets the total artist count for an owner.</summary>
     Task<int> GetCountAsync(Guid ownerId, CancellationToken cancellationToken = default);
 

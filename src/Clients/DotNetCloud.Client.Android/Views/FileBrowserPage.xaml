@@ -7,6 +7,20 @@
     Title="{Binding CurrentFolderName}"
     BackgroundColor="#0F172A">
 
+    <Shell.TitleView>
+        <HorizontalStackLayout Spacing="6"
+                VerticalOptions="Center">
+            <Image Source="logo.png"
+                   HeightRequest="36"
+                   WidthRequest="36"
+                   VerticalOptions="Center"/>
+            <Label Text="{Binding CurrentFolderName}"
+                   VerticalOptions="Center"
+                   TextColor="#F1F5F9"
+                   FontSize="18"/>
+        </HorizontalStackLayout>
+    </Shell.TitleView>
+
     <Grid RowDefinitions="Auto,*,Auto,Auto">
 
         <!-- Top toolbar: back + folder name + actions -->
@@ -30,7 +44,7 @@
                             FontFamily="OpenSansRegular"
                             Glyph="←"
                             Size="20"
-                            Color="#94A3B8" />
+                            Color="#94A3B8"/>
                     </ImageButton.Source>
                 </ImageButton>
 
@@ -48,13 +62,14 @@
                         HeightRequest="32">
                         <CollectionView.ItemTemplate>
                             <DataTemplate x:DataType="vm:BreadcrumbItem">
-                                <HorizontalStackLayout VerticalOptions="Center" Spacing="0">
+                                <HorizontalStackLayout VerticalOptions="Center"
+                                        Spacing="0">
                                     <Label
                                         FontSize="13"
                                         TextColor="#475569"
                                         VerticalOptions="Center"
                                         Text=" › "
-                                        IsVisible="{Binding FolderId, Converter={StaticResource IsNotNull}}" />
+                                        IsVisible="{Binding FolderId, Converter={StaticResource IsNotNull}}"/>
                                     <Label
                                         FontSize="13"
                                         TextColor="#94A3B8"
@@ -65,7 +80,7 @@
                                         <Label.GestureRecognizers>
                                             <TapGestureRecognizer
                                                 Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.NavigateToBreadcrumbCommand}"
-                                                CommandParameter="{Binding .}" />
+                                                CommandParameter="{Binding .}"/>
                                         </Label.GestureRecognizers>
                                     </Label>
                                 </HorizontalStackLayout>
@@ -89,9 +104,9 @@
                         HorizontalOptions="Center"
                         VerticalOptions="Center"
                         TextColor="#94A3B8"
-                        Text="📁+" />
+                        Text="📁+"/>
                     <Border.GestureRecognizers>
-                        <TapGestureRecognizer Command="{Binding CreateFolderCommand}" />
+                        <TapGestureRecognizer Command="{Binding CreateFolderCommand}"/>
                     </Border.GestureRecognizers>
                 </Border>
 
@@ -110,9 +125,9 @@
                         HorizontalOptions="Center"
                         VerticalOptions="Center"
                         TextColor="#94A3B8"
-                        Text="📤" />
+                        Text="📤"/>
                     <Border.GestureRecognizers>
-                        <TapGestureRecognizer Command="{Binding UploadFileCommand}" />
+                        <TapGestureRecognizer Command="{Binding UploadFileCommand}"/>
                     </Border.GestureRecognizers>
                 </Border>
 
@@ -131,9 +146,9 @@
                         HorizontalOptions="Center"
                         VerticalOptions="Center"
                         TextColor="#94A3B8"
-                        Text="📷" />
+                        Text="📷"/>
                     <Border.GestureRecognizers>
-                        <TapGestureRecognizer Command="{Binding CapturePhotoCommand}" />
+                        <TapGestureRecognizer Command="{Binding CapturePhotoCommand}"/>
                     </Border.GestureRecognizers>
                 </Border>
 
@@ -152,9 +167,9 @@
                         HorizontalOptions="Center"
                         VerticalOptions="Center"
                         TextColor="#94A3B8"
-                        Text="🎥" />
+                        Text="🎥"/>
                     <Border.GestureRecognizers>
-                        <TapGestureRecognizer Command="{Binding CaptureVideoCommand}" />
+                        <TapGestureRecognizer Command="{Binding CaptureVideoCommand}"/>
                     </Border.GestureRecognizers>
                 </Border>
 
@@ -178,13 +193,13 @@
                     HorizontalOptions="Center"
                     VerticalOptions="Center"
                     HeightRequest="120"
-                    WidthRequest="120" />
+                    WidthRequest="120"/>
                 <Image
                     Source="app_logo.png"
                     HeightRequest="64"
                     WidthRequest="64"
                     HorizontalOptions="Center"
-                    VerticalOptions="Center" />
+                    VerticalOptions="Center"/>
             </Grid>
             <Label
                 FontSize="13"
@@ -193,7 +208,7 @@
                 Padding="24,0"
                 IsVisible="{Binding ShowInitialLoadError, FallbackValue=False}"
                 TextColor="#FCA5A5"
-                Text="{Binding ErrorMessage}" />
+                Text="{Binding ErrorMessage}"/>
         </VerticalStackLayout>
 
         <!-- File list with pull-to-refresh -->
@@ -217,7 +232,7 @@
                                         Text="Delete"
                                         BackgroundColor="#EF4444"
                                         Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.DeleteItemCommand}"
-                                        CommandParameter="{Binding .}" />
+                                        CommandParameter="{Binding .}"/>
                                 </SwipeItems>
                             </SwipeView.RightItems>
 
@@ -245,7 +260,7 @@
                                             FontSize="20"
                                             HorizontalOptions="Center"
                                             VerticalOptions="Center"
-                                            Text="{Binding Icon}" />
+                                            Text="{Binding Icon}"/>
                                     </Border>
 
                                     <!-- Name + details -->
@@ -258,20 +273,20 @@
                                             TextColor="#F1F5F9"
                                             LineBreakMode="TailTruncation"
                                             MaxLines="1"
-                                            Text="{Binding Name}" />
+                                            Text="{Binding Name}"/>
                                         <HorizontalStackLayout Spacing="8">
                                             <Label
                                                 FontSize="12"
                                                 TextColor="#64748B"
-                                                Text="{Binding SizeDisplay}" />
+                                                Text="{Binding SizeDisplay}"/>
                                             <Label
                                                 FontSize="12"
                                                 TextColor="#475569"
-                                                Text="·" />
+                                                Text="·"/>
                                             <Label
                                                 FontSize="12"
                                                 TextColor="#64748B"
-                                                Text="{Binding DateDisplay}" />
+                                                Text="{Binding DateDisplay}"/>
                                         </HorizontalStackLayout>
                                     </VerticalStackLayout>
 
@@ -282,12 +297,12 @@
                                         IsVisible="{Binding IsFolder}"
                                         TextColor="#475569"
                                         VerticalOptions="Center"
-                                        Text="›" />
+                                        Text="›"/>
 
                                     <Grid.GestureRecognizers>
                                         <TapGestureRecognizer
                                             Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.SelectItemCommand}"
-                                            CommandParameter="{Binding .}" />
+                                            CommandParameter="{Binding .}"/>
                                     </Grid.GestureRecognizers>
 
                                 </Grid>
@@ -297,11 +312,13 @@
                 </CollectionView.ItemTemplate>
 
                 <CollectionView.Header>
-                    <BoxView HeightRequest="4" BackgroundColor="Transparent" />
+                    <BoxView HeightRequest="4"
+                            BackgroundColor="Transparent"/>
                 </CollectionView.Header>
 
                 <CollectionView.Footer>
-                    <BoxView HeightRequest="4" BackgroundColor="Transparent" />
+                    <BoxView HeightRequest="4"
+                            BackgroundColor="Transparent"/>
                 </CollectionView.Footer>
 
                 <!-- Empty state (shown only after successful load returns no items) -->
@@ -314,25 +331,25 @@
                         <Label
                             FontSize="40"
                             HorizontalOptions="Center"
-                            Text="📂" />
+                            Text="📂"/>
                         <Label
                             FontSize="16"
                             FontAttributes="Bold"
                             HorizontalOptions="Center"
                             TextColor="#F1F5F9"
-                            Text="This folder is empty" />
+                            Text="This folder is empty"/>
                         <Label
                             FontSize="13"
                             HorizontalOptions="Center"
                             HorizontalTextAlignment="Center"
                             TextColor="#64748B"
-                            Text="Upload files, take a photo, or create a folder to get started." />
+                            Text="Upload files, take a photo, or create a folder to get started."/>
                         <Label
                             FontSize="13"
                             HorizontalOptions="Center"
                             IsVisible="{Binding ShowInitialLoadError, FallbackValue=False}"
                             TextColor="#FCA5A5"
-                            Text="{Binding ErrorMessage}" />
+                            Text="{Binding ErrorMessage}"/>
                     </VerticalStackLayout>
                 </CollectionView.EmptyView>
 
@@ -351,17 +368,17 @@
                     <Label
                         FontSize="13"
                         TextColor="#0EA5E9"
-                        Text="Uploading:" />
+                        Text="Uploading:"/>
                     <Label
                         FontSize="13"
                         TextColor="#F1F5F9"
                         LineBreakMode="TailTruncation"
-                        Text="{Binding UploadFileName}" />
+                        Text="{Binding UploadFileName}"/>
                 </HorizontalStackLayout>
                 <ProgressBar
                     Progress="{Binding UploadProgress}"
                     ProgressColor="#0EA5E9"
-                    HeightRequest="4" />
+                    HeightRequest="4"/>
             </VerticalStackLayout>
         </Border>
 
@@ -376,11 +393,11 @@
                 <Label
                     FontSize="11"
                     TextColor="#64748B"
-                    Text="{Binding QuotaDisplayText}" />
+                    Text="{Binding QuotaDisplayText}"/>
                 <ProgressBar
                     Progress="{Binding QuotaPercentage}"
                     ProgressColor="#0EA5E9"
-                    HeightRequest="3" />
+                    HeightRequest="3"/>
             </VerticalStackLayout>
         </Border>
 

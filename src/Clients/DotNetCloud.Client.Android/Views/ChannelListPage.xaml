@@ -7,7 +7,87 @@
     Title="Chat"
     BackgroundColor="#0F172A">
 
+    <Shell.TitleView>
+        <HorizontalStackLayout Spacing="6"
+                VerticalOptions="Center">
+            <Image Source="logo.png"
+                   HeightRequest="36"
+                   WidthRequest="36"
+                   VerticalOptions="Center"/>
+            <Label Text="Chat"
+                   VerticalOptions="Center"
+                   TextColor="#F1F5F9"
+                   FontSize="18"/>
+        </HorizontalStackLayout>
+    </Shell.TitleView>
+
     <Grid>
+
+        <!-- Landing overlay — shown on first launch, hidden permanently on first tab switch -->
+        <Grid x:Name="LandingOverlay"
+              Grid.RowSpan="10"
+              BackgroundColor="#0F172A"
+              IsVisible="True"
+              InputTransparent="False"
+              ZIndex="100"
+              RowDefinitions="*,Auto,Auto,Auto,Auto,Auto,*">
+
+            <VerticalStackLayout Grid.Row="1"
+                                 HorizontalOptions="Center"
+                                 VerticalOptions="End"
+                                 Spacing="20">
+
+                <!-- Large logo -->
+                <Image Source="logo.png"
+                       HeightRequest="160"
+                       WidthRequest="160"
+                       HorizontalOptions="Center"
+                       Aspect="AspectFit"/>
+
+            </VerticalStackLayout>
+
+            <!-- DotNetCloud brand name -->
+            <Label Grid.Row="2"
+                   Text="DotNetCloud"
+                   FontSize="28"
+                   FontAttributes="Bold"
+                   TextColor="#F1F5F9"
+                   HorizontalOptions="Center"
+                   Margin="0,12,0,0"/>
+
+            <!-- Server URL -->
+            <Label x:Name="ServerUrlLabel"
+                   Grid.Row="3"
+                   FontSize="13"
+                   TextColor="#64748B"
+                   HorizontalOptions="Center"
+                   Margin="0,4,0,0"/>
+
+            <!-- Begin Chatting button -->
+            <Button Grid.Row="4"
+                    Text="Begin Chatting"
+                    Clicked="OnBeginChattingClicked"
+                    FontSize="16"
+                    FontAttributes="Bold"
+                    TextColor="#FFFFFF"
+                    BackgroundColor="#0EA5E9"
+                    CornerRadius="24"
+                    HeightRequest="50"
+                    WidthRequest="220"
+                    HorizontalOptions="Center"
+                    VerticalOptions="Start"
+                    Margin="0,32,0,0"/>
+
+            <!-- Hint text -->
+            <Label Grid.Row="5"
+                   Text="or select another tab below"
+                   FontSize="13"
+                   TextColor="#64748B"
+                   HorizontalOptions="Center"
+                   Margin="0,8,0,0"/>
+
+        </Grid>
+
         <!-- Loading / initial state overlay -->
         <VerticalStackLayout
             HorizontalOptions="Center"
@@ -24,13 +104,13 @@
                     HorizontalOptions="Center"
                     VerticalOptions="Center"
                     HeightRequest="120"
-                    WidthRequest="120" />
+                    WidthRequest="120"/>
                 <Image
                     Source="app_logo.png"
                     HeightRequest="64"
                     WidthRequest="64"
                     HorizontalOptions="Center"
-                    VerticalOptions="Center" />
+                    VerticalOptions="Center"/>
             </Grid>
             <Label
                 FontSize="13"
@@ -39,7 +119,7 @@
                 Padding="24,0"
                 IsVisible="{Binding ShowInitialLoadError, FallbackValue=False}"
                 TextColor="#FCA5A5"
-                Text="{Binding ErrorMessage}" />
+                Text="{Binding ErrorMessage}"/>
         </VerticalStackLayout>
 
         <RefreshView
@@ -79,7 +159,7 @@
                                         HorizontalOptions="Center"
                                         VerticalOptions="Center"
                                         TextColor="#94A3B8"
-                                        Text="#" />
+                                        Text="#"/>
                                 </Border>
 
                                 <!-- Channel info -->
@@ -91,14 +171,14 @@
                                         FontAttributes="{Binding UnreadCount, Converter={StaticResource UnreadToBold}}"
                                         FontSize="15"
                                         TextColor="#F1F5F9"
-                                        Text="{Binding Name}" />
+                                        Text="{Binding Name}"/>
                                     <Label
                                         FontSize="13"
                                         IsVisible="{Binding LastMessagePreview, Converter={StaticResource IsNotNullOrEmpty}}"
                                         LineBreakMode="TailTruncation"
                                         MaxLines="1"
                                         TextColor="#64748B"
-                                        Text="{Binding LastMessagePreview}" />
+                                        Text="{Binding LastMessagePreview}"/>
                                 </VerticalStackLayout>
 
                                 <!-- Unread badge -->
@@ -118,13 +198,13 @@
                                         HorizontalOptions="Center"
                                         VerticalOptions="Center"
                                         Text="{Binding UnreadCount}"
-                                        TextColor="White" />
+                                        TextColor="White"/>
                                 </Border>
 
                                 <Grid.GestureRecognizers>
                                     <TapGestureRecognizer
                                         Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.SelectChannelCommand}"
-                                        CommandParameter="{Binding .}" />
+                                        CommandParameter="{Binding .}"/>
                                 </Grid.GestureRecognizers>
 
                             </Grid>
@@ -133,11 +213,13 @@
                 </CollectionView.ItemTemplate>
 
                 <CollectionView.Header>
-                    <BoxView HeightRequest="8" BackgroundColor="Transparent" />
+                    <BoxView HeightRequest="8"
+                             BackgroundColor="Transparent"/>
                 </CollectionView.Header>
 
                 <CollectionView.Footer>
-                    <BoxView HeightRequest="8" BackgroundColor="Transparent" />
+                    <BoxView HeightRequest="8"
+                             BackgroundColor="Transparent"/>
                 </CollectionView.Footer>
 
                 <!-- Empty state (shown only after successful load returns no channels) -->
@@ -150,25 +232,25 @@
                         <Label
                             FontSize="40"
                             HorizontalOptions="Center"
-                            Text="💬" />
+                            Text="💬"/>
                         <Label
                             FontSize="16"
                             FontAttributes="Bold"
                             HorizontalOptions="Center"
                             TextColor="#F1F5F9"
-                            Text="No channels yet" />
+                            Text="No channels yet"/>
                         <Label
                             FontSize="13"
                             HorizontalOptions="Center"
                             HorizontalTextAlignment="Center"
                             TextColor="#64748B"
-                            Text="Channels will appear here once you join a conversation." />
+                            Text="Channels will appear here once you join a conversation."/>
                         <Label
                             FontSize="13"
                             HorizontalOptions="Center"
                             IsVisible="{Binding ShowInitialLoadError, FallbackValue=False}"
                             TextColor="#FCA5A5"
-                            Text="{Binding ErrorMessage}" />
+                            Text="{Binding ErrorMessage}"/>
                     </VerticalStackLayout>
                 </CollectionView.EmptyView>
 

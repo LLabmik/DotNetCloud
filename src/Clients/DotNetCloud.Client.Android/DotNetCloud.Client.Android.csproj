@@ -20,8 +20,8 @@
 	<PropertyGroup>
 		<ApplicationTitle>DotNetCloud</ApplicationTitle>
 		<ApplicationId>net.dotnetcloud.client</ApplicationId>
-		<ApplicationDisplayVersion>0.3.3</ApplicationDisplayVersion>
-		<ApplicationVersion>1</ApplicationVersion>
+		<ApplicationDisplayVersion>0.3.4</ApplicationDisplayVersion>
+		<ApplicationVersion>2</ApplicationVersion>
 	</PropertyGroup>
 
 	<!-- ========================
@@ -81,7 +81,18 @@
 		<PackageReference Include="Microsoft.Extensions.Http" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" />
 		<PackageReference Include="sqlite-net-pcl" />
-		<PackageReference Include="SQLitePCLRaw.lib.e_sqlite3.android" />
+		<!-- Security: override vulnerable transitive deps (CVE-2025-6965, SQLite < 3.50.2).
+		     SQLitePCLRaw.lib.e_sqlite3.android only goes up to 2.1.11 (vulnerable, no fix);
+		     lib.e_sqlite3 3.50.3 is the unified package covering all platforms including Android. -->
+		<PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" VersionOverride="3.0.3" />
+		<PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" VersionOverride="3.50.3" />
+	</ItemGroup>
+
+	<!-- Suppress NU1903 for the transitive SQLitePCLRaw.lib.e_sqlite3.android 2.1.11
+	     (GHSA-2m69-gcr7-jv3q). No fix version exists for the .android variant; the
+	     runtime is safe because lib.e_sqlite3 3.50.3 provides the fixed SQLite binary. -->
+	<ItemGroup>
+		<NuGetAuditSuppress Include="https://github.com/advisories/GHSA-2m69-gcr7-jv3q" />
 	</ItemGroup>
 
 	<!-- ========================

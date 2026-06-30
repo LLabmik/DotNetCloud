@@ -36,6 +36,14 @@
             ContentTemplate="{DataTemplate views:FileBrowserPage}"/>
 
         <ShellContent
+            x:Name="MusicTab"
+            Route="Music"
+            Title="Music"
+            Icon="music_icon.png"
+            IsVisible="False"
+            ContentTemplate="{DataTemplate views:MusicPage}"/>
+
+        <ShellContent
             Route="Settings"
             Title="Settings"
             Icon="settings_icon.png"
