@@ -105,7 +105,7 @@ All fixes deployed in APK v0.3.9/3 to phone. Verified working across multiple co
 
 ### Server Actions — `cloud.kimball.home`
 
-- [ ] Merge `feature/android-calendar-tab` to `main`
+- [ ] Create PR to merge `feature/android-calendar-tab` to `main`
 
 ### Client Actions — `monolith` (Android client)
 
