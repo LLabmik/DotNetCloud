@@ -117,6 +117,10 @@ public sealed partial class LoginViewModel : ObservableObject
 
     private bool CanLogin() => !string.IsNullOrWhiteSpace(ServerUrl) && !IsBusy;
 
+    /// <summary>Returns the active server URL if a saved connection exists, else null.
+    /// Used by <see cref="Views.LoginPage.OnAppearing"/> to skip login on warm start.</summary>
+    internal string? TryGetActiveConnection() => _serverStore.GetActive()?.ServerBaseUrl;
+
     private static string NormalizeUrl(string url)
     {
         url = url.Trim();

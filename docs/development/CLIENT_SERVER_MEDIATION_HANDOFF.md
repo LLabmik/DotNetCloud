@@ -92,29 +92,27 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** ✅ All Calendar Android client issues resolved. Re-test on phone successful. Next: server-side Calendar event detail endpoint verification (cloud.kimball.home).
+**Summary:** ✅ All Android Calendar + login persistence issues resolved. Ready to merge to main.
 
-**Context:** Calendar tab on Android has been fully validated:
-1. ✅ Calendar tab loads and displays events (Bearer token auth working)
-2. ✅ Event detail page loads when tapping an event (x:DataType + InvalidCastException fixes)
-3. ✅ No crashes or errors on any Calendar UI flow
+**Context:** Fixed three issues on the Android client:
+1. ✅ Calendar tab loads, events display, event detail page works (x:DataType + InvalidCastException fixes)
+2. ✅ Login persistence on warm start — LoginPage.OnAppearing now redirects to main page if saved connection exists
+3. ✅ App.OnResume also redirects from Login to ChannelList as defense-in-depth
 
-All fixes deployed in APK v0.3.9 to phone. Server-side action needed: verify the Calendar event detail API endpoint serves correct data to the client.
+All fixes deployed in APK v0.3.9/3 to phone. Verified working across multiple cold start + swipe-from-recents cycles.
 
 ---
 
 ### Server Actions — `cloud.kimball.home`
 
-- [ ] Verify Calendar event detail GET endpoint at `/api/v1/calendars/events/{eventId}` returns full CalendarEventDto
+- [ ] Merge `feature/android-calendar-tab` to `main`
 
 ### Client Actions — `monolith` (Android client)
 
-- [x] Android client already rebuilt and deployed to physical phone with all Calendar-related fixes
-- [x] XAML converter key crash fix deployed (`IsNotNullConverter` → `IsNotNull`)
-- [x] Event click crash fixed — `x:DataType` mismatch corrected in day view template
-- [x] Error handling added to `SelectEventAsync()` and `OnEventSelected` handler
-- [x] `InvalidCastException` fixed — Shell navigation passes EventId as string, not Guid
+- [x] Calendar event click crash fixed — `x:DataType` + `InvalidCastException` + error handling
+- [x] Login warm-start persistence fixed — `LoginPage.OnAppearing` + `App.OnResume` redirect
 - [x] MVVMTK0034 warning fixed in EventEditViewModel
+- [x] All fixes built and deployed to phone (APK v0.3.9)
 
 ## Environment
 
