@@ -51,6 +51,22 @@ Archived: 2026-06-25 01:35 UTC. Full git history preserved in commits up to chan
 
 ---
 
+## Archived: Android Client Alphabet Index — Deployed to Phone (2026-06-29)
+
+**Target:** cloud.kimball.home (server) → monolith (Android client)
+
+**Result:** ✅ Full end-to-end: server alphabet endpoints deployed to production, Android client code verified using them (not client-side computation), Debug APK built and installed on physical phone.
+
+**Completed (monolith — Android client):**
+- ✅ Pulled latest `main` (73f3cbbe)
+- ✅ Verified client calls server endpoints (`/artists/alphabet`, `/albums/alphabet`, `/tracks/alphabet`)
+- ✅ Built Debug APK (`dotnet publish -c Debug`)
+- ✅ Installed on physical phone `R5CWC356B2K` via adb and launched
+
+**Next step:** Awaiting next handoff.
+
+---
+
 ## Archived: Android Music Tab — Client-Side Complete (2026-06-29)
 
 **Target:** monolith → cloud.kimball.home (music module auth fix needed)

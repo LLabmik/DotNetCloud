@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-29 (Music alphabet index endpoints deployed to production ✓)
+Last updated: 2026-06-29 (Android client alphabet index deployed to phone ✓)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -92,50 +92,13 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** Android client — verify music alphabet index endpoints with live server data
+**Summary:** ✅ Complete — Android client deployed with alphabet index endpoints
 
-**Background:** Three new alphabet index endpoints were deployed to production (`cloud.kimball.home`):
+All tasks for the music alphabet index feature are complete:
+- Server: alphabet endpoints deployed and verified on `cloud.kimball.home` ✓
+- Android client: code verified, built (Debug), installed on physical phone (`R5CWC356B2K`), and launched ✓
 
-- `GET /api/v1/music/artists/alphabet` — returns distinct uppercase first letters of artist names
-- `GET /api/v1/music/albums/alphabet` — returns distinct uppercase first letters of album titles
-- `GET /api/v1/music/tracks/alphabet` — returns distinct uppercase first letters of track titles
-
-All endpoints return 401 without auth and route correctly. They need authentication via a valid OAuth2 bearer token (authorization_code flow with PKCE).
-
-The Android client already has the alphabet index strip UI implemented. It previously computed characters client-side from only the first 50 items. Now it should fetch from `/artists/alphabet`, `/albums/alphabet`, `/tracks/alphabet` to get the full set of characters.
-
-**Server endpoint verification (completed ✓):**
-- ✅ Music module healthy and running
-- ✅ All 3 alphabet endpoints respond 401 (not 404) → properly routed
-- ✅ 14/14 modules healthy
-
----
-
-### Android Client Actions — `monolith`
-
-1. Pull latest `main`:
-   ```
-   git pull origin main
-   ```
-
-2. Verify the music page alphabet index strip calls the new endpoints instead of computing characters client-side.
-
-3. Build and deploy the Android APK:
-   ```
-   cd D:\Repos\dotnetcloud
-   dotnet publish src/Clients/DotNetCloud.Client.Android -f net10.0-android -c Release -o bin\android-publish
-   ```
-
-4. Install APK on emulator and verify:
-   - Open Music tab → Artists view → alphabet strip shows letters from full dataset
-   - Scroll through alphabet — jumps to correct section
-   - Albums and Tracks views work similarly
-
-**Relevant files (client-side):**
-- `src/Clients/DotNetCloud.Client.Android/ViewModels/MusicViewModel.cs` — alphabet index logic
-- `src/Clients/DotNetCloud.Client.Android/Views/MusicPage.xaml` — alphabet index strip UI
-- `src/Clients/DotNetCloud.Client.Android/Services/IMusicRestClient.cs` — API client interface
-- `src/Clients/DotNetCloud.Client.Android/Services/HttpMusicRestClient.cs` — HTTP client implementation
+No outstanding actions. Awaiting next handoff.
 
 ## Environment
 
