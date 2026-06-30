@@ -92,15 +92,71 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** Calendar required-module schema migration — production (cloud.kimball.home) complete. Postgres fix deferred (mint22 offline).
+**Summary:** Calendar module host needs Bearer token introspection auth deployed to production (cloud.kimball.home)
 
-**Context:** SqlServer production deploy completed successfully at `cloud.kimball.home`. All 14 modules healthy, Calendar API verified working. Postgres migration fix for `mint22` deferred until that server is back online.
+**Context:** The Android Calendar tab (`feature/android-calendar-tab` branch) crashes with "session expired" when tapped. Root cause: the Calendar module host only supports cookie auth (`Identity.Application`), but Android clients send Bearer JWT tokens. The YARP proxy forwards the Bearer token to the Calendar host, which doesn't support it → 401 Unauthorized → Android interprets as session expired.
 
-**Commit:** `bcbf8e46` — "Fix SqlServer migrations for Calendar required-module schema change"
+**Fix committed to `feature/android-calendar-tab` at `efc8f8f7`:**
+- `src/Modules/Calendar/DotNetCloud.Modules.Calendar.Host/Program.cs` — replaced cookie-only auth with dual-auth (cookie + Bearer token introspection), matching the pattern used by Music/Files/Chat module hosts
+- `src/Modules/Calendar/DotNetCloud.Modules.Calendar.Host/Controllers/CalendarControllerBase.cs` — updated `[Authorize]` attribute to accept both `Identity.Application` and `Introspection` schemes
+
+**What was NOT changed (works as-is):**
+- The Android client (`src/Clients/`) already sends Bearer tokens correctly — it was the Calendar host rejecting them
+- The YARP proxy in Core.Server already forwards the `Authorization: Bearer` header correctly
+- The `DotNetCloud.Core.Auth.Introspection` package (gRPC token introspection) is already a dependency of the Calendar host via its `.csproj` file
 
 ---
 
-**No pending server actions.** mint22 is offline; Postgres migration fix will be handled when mint22 is back.
+### Server Actions — `cloud.kimball.home`
+
+1. **Pull the feature branch:**
+   ```bash
+   cd /path/to/dotnetcloud
+   git fetch origin
+   git checkout feature/android-calendar-tab
+   ```
+
+2. **Build the Calendar module host:**
+   ```bash
+   dotnet build src/Modules/Calendar/DotNetCloud.Modules.Calendar.Host/DotNetCloud.Modules.Calendar.Host.csproj -c Release
+   ```
+
+3. **Publish the Calendar module host:**
+   ```bash
+   dotnet publish src/Modules/Calendar/DotNetCloud.Modules.Calendar.Host/DotNetCloud.Modules.Calendar.Host.csproj -c Release -o /opt/dotnetcloud/modules/calendar
+   ```
+
+4. **Restart the Calendar module** (or restart the entire DotNetCloud service):
+   ```bash
+   sudo systemctl restart dotnetcloud   # or supervisorctl restart dotnetcloud
+   ```
+
+5. **Verify the Calendar module is healthy:**
+   ```bash
+   curl -s -o /dev/null -w "%{http_code}" https://cloud.dotnetcloud.net/health
+   ```
+
+6. **Verify the Calendar API works with a Bearer token** (test against an endpoint like `GET /api/v1/calendars`):
+   ```bash
+   # Get a token first
+   TOKEN=$(curl -s -X POST https://cloud.dotnetcloud.net/connect/token \
+     -d "client_id=dotnetcloud-android" \
+     -d "client_secret=<secret>" \
+     -d "grant_type=password" \
+     -d "username=<testuser>" \
+     -d "password=<testpass>" \
+     -d "scope=openid profile email api" | jq -r '.access_token')
+   # Test the calendar endpoint
+   curl -s -H "Authorization: Bearer $TOKEN" https://cloud.dotnetcloud.net/api/v1/calendars | jq .
+   ```
+
+---
+
+### Client Actions — `monolith` (Android client)
+
+- [x] Android client already rebuilt and deployed to physical phone with all Calendar-related fixes
+- [x] XAML converter key crash fix deployed (`IsNotNullConverter` → `IsNotNull`)
+- [ ] Re-test Calendar tab on phone after server-side fix is deployed
 
 ## Environment
 
