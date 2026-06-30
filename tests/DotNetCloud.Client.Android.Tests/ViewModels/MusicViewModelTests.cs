@@ -197,7 +197,7 @@ public sealed class MusicViewModelTests
         Assert.AreEqual("Track 1", _vm.Tracks[0].Title);
         Assert.AreEqual(MusicView.Tracks, _vm.CurrentView);
         Assert.AreEqual("Album", _vm.Title);
-        _player.Verify(x => x.Enqueue(tracks), Times.Once);
+        _player.Verify(x => x.ReplaceQueue(tracks), Times.Once);
         _player.Verify(x => x.PlayAsync(tracks[0], ServerUrl, "test-access-token"), Times.Once);
     }
 
@@ -332,11 +332,11 @@ public sealed class MusicViewModelTests
     }
 
     [TestMethod]
-    public async Task SeekCommand_SeeksToPosition()
+    public void SeekToCommand_SeeksToPosition()
     {
         _player.Setup(x => x.Seek(TimeSpan.FromSeconds(42.5)));
 
-        await _vm.SeekCommand.ExecuteAsync(42.5);
+        _vm.SeekToCommand.Execute(42.5);
 
         _player.Verify(x => x.Seek(TimeSpan.FromSeconds(42.5)), Times.Once);
     }
@@ -440,7 +440,8 @@ public sealed class MusicViewModelTests
 
         await _vm.BackCommand.ExecuteAsync(null);
 
-        _music.Verify(x => x.ListArtistsAsync(ServerUrl, "test-access-token", 0, 50, It.IsAny<CancellationToken>()), Times.AtLeast(2));
+        _music.Verify(x => x.ListArtistsAsync(ServerUrl, "test-access-token", 0, 50, It.IsAny<CancellationToken>()), Times.Once);
+        Assert.AreEqual(MusicView.Artists, _vm.CurrentView);
     }
 
     [TestMethod]

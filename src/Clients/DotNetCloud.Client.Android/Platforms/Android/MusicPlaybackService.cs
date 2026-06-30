@@ -256,6 +256,10 @@ public sealed class MusicPlaybackService : Service
             ? global::Android.Resource.Drawable.IcMediaPause
             : global::Android.Resource.Drawable.IcMediaPlay;
 
+        // CA1422: AddAction(int, string?, PendingIntent?) and Notification.Action(int, ...)
+        // are deprecated from API 23 (icons on actions don't display on 23+). The APIs
+        // still work correctly; the icons are simply ignored at runtime on API 23+.
+#pragma warning disable CA1422
         return new Notification.Builder(this, ChannelId)
             .SetContentTitle(trackTitle)
             .SetContentText(artistName)
@@ -269,5 +273,6 @@ public sealed class MusicPlaybackService : Service
             .AddAction(playPauseIcon, "Play/Pause", pendingPp)
             .AddAction(global::Android.Resource.Drawable.IcMediaNext, "Next", pendingNext)
             .Build();
+#pragma warning restore CA1422
     }
 }
