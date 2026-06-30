@@ -55,10 +55,20 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
         _accessToken = accessToken;
         CurrentTrack = track;
 
-        // Add to queue at current position
-        _queue.Clear();
-        _queue.Add(track);
-        _queueIndex = 0;
+        // If the track is already in the queue (pre-populated by ViewModel),
+        // just reposition to it without clearing the queue.
+        var idx = _queue.IndexOf(track);
+        if (idx >= 0)
+        {
+            _queueIndex = idx;
+        }
+        else
+        {
+            // Standalone playback — add as the only item
+            _queue.Clear();
+            _queue.Add(track);
+            _queueIndex = 0;
+        }
 
         await PrepareAndStartAsync().ConfigureAwait(false);
     }
@@ -168,7 +178,8 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
     /// <inheritdoc />
     public void PlayNext()
     {
-        if (_queue.Count == 0) return;
+        if (_queue.Count == 0)
+            return;
         _queueIndex = (_queueIndex + 1) % _queue.Count;
         CurrentTrack = _queue[_queueIndex];
         _ = PrepareAndStartAsync();
@@ -177,7 +188,8 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
     /// <inheritdoc />
     public void PlayPrevious()
     {
-        if (_queue.Count == 0) return;
+        if (_queue.Count == 0)
+            return;
         _queueIndex = (_queueIndex - 1 + _queue.Count) % _queue.Count;
         CurrentTrack = _queue[_queueIndex];
         _ = PrepareAndStartAsync();
@@ -186,6 +198,13 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
     /// <inheritdoc />
     public void Enqueue(IEnumerable<TrackDto> tracks)
     {
+        _queue.AddRange(tracks);
+    }
+
+    /// <inheritdoc />
+    public void ReplaceQueue(IEnumerable<TrackDto> tracks)
+    {
+        _queue.Clear();
         _queue.AddRange(tracks);
     }
 

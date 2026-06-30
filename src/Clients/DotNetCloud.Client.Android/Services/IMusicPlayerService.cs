@@ -35,6 +35,9 @@ public interface IMusicPlayerService
     /// <summary>Appends tracks to the end of the playback queue.</summary>
     void Enqueue(IEnumerable<TrackDto> tracks);
 
+    /// <summary>Replaces the entire playback queue with the given tracks.</summary>
+    void ReplaceQueue(IEnumerable<TrackDto> tracks);
+
     /// <summary>The currently playing track, or null if stopped.</summary>
     TrackDto? CurrentTrack { get; }
 

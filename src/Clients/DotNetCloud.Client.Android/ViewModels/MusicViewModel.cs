@@ -402,10 +402,10 @@ public sealed partial class MusicViewModel : ObservableObject
             var items = await _music.ListTracksByAlbumAsync(serverUrl, token, album.Id, CancellationToken.None);
             _tracksFilteredByAlbumId = album.Id;
 
-            // Enqueue all tracks and start playing from the first one
+            // Replace queue with all album tracks and start playing from the first one
             if (items.Count > 0)
             {
-                _player.Enqueue(items);
+                _player.ReplaceQueue(items);
                 await _player.PlayAsync(items[0], serverUrl, token);
             }
 
@@ -663,6 +663,14 @@ public sealed partial class MusicViewModel : ObservableObject
         {
             var items = await _music.GetPlaylistTracksAsync(serverUrl, token, playlist.Id, CancellationToken.None);
             _tracksFilteredByPlaylistId = playlist.Id;
+
+            // Replace queue with all playlist tracks and start playing from the first one
+            if (items.Count > 0)
+            {
+                _player.ReplaceQueue(items);
+                await _player.PlayAsync(items[0], serverUrl, token);
+            }
+
             Dispatch(() =>
             {
                 Tracks = new ObservableCollection<TrackDto>(items);
@@ -724,13 +732,6 @@ public sealed partial class MusicViewModel : ObservableObject
 
         try
         {
-            // When playing from album/track list context, enqueue all visible tracks
-            // and start playback from the tapped track.
-            if (Tracks.Count > 0)
-            {
-                _player.Enqueue(Tracks);
-            }
-
             await _player.PlayAsync(track, serverUrl, token);
         }
         catch (Exception ex)
@@ -1025,32 +1026,172 @@ public sealed partial class MusicViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void ScrollToCharacter(string character)
+    private async Task ScrollToCharacter(string character)
     {
         if (string.IsNullOrEmpty(character))
             return;
 
-        object? target = null;
-        var c = character[0];
+        var c = char.ToUpperInvariant(character[0]);
 
+        // Try exact match in already-loaded items first
+        var target = FindExactMatch(c);
+        if (target is not null)
+        {
+            ScrollToRequested?.Invoke(target, CurrentView);
+            return;
+        }
+
+        // If in a scoped/filtered view, all data is already loaded — can't load more
+        if (IsScopedView)
+            return;
+
+        // Load more pages until we find an item starting with this character
+        IsLoading = true;
+        ErrorMessage = null;
+        try
+        {
+            target = await LoadUntilCharacterFoundAsync(c);
+            if (target is not null)
+                ScrollToRequested?.Invoke(target, CurrentView);
+        }
+        finally
+        {
+            Dispatch(() => IsLoading = false);
+        }
+    }
+
+    /// <summary>True when the current view is scoped to a parent item (all data already in memory).</summary>
+    private bool IsScopedView => CurrentView switch
+    {
+        MusicView.Albums => _albumsFilteredByArtistId is not null,
+        MusicView.Tracks => _tracksFilteredByAlbumId is not null || _tracksFilteredByPlaylistId is not null,
+        _ => false
+    };
+
+    /// <summary>Finds the first loaded item whose name starts with the given character (exact match).</summary>
+    private object? FindExactMatch(char c)
+    {
         if (CurrentView == MusicView.Artists)
         {
-            target = Artists.FirstOrDefault(a =>
+            return Artists.FirstOrDefault(a =>
                 !string.IsNullOrEmpty(a.Name) && char.ToUpperInvariant(a.Name[0]) == c);
         }
-        else if (CurrentView == MusicView.Albums)
+        if (CurrentView == MusicView.Albums)
         {
-            target = Albums.FirstOrDefault(a =>
+            return Albums.FirstOrDefault(a =>
                 !string.IsNullOrEmpty(a.Title) && char.ToUpperInvariant(a.Title[0]) == c);
         }
-        else if (CurrentView == MusicView.Tracks)
+        if (CurrentView == MusicView.Tracks)
         {
-            target = Tracks.FirstOrDefault(t =>
+            return Tracks.FirstOrDefault(t =>
                 !string.IsNullOrEmpty(t.Title) && char.ToUpperInvariant(t.Title[0]) == c);
         }
+        return null;
+    }
 
-        if (target is not null)
-            ScrollToRequested?.Invoke(target, CurrentView);
+    /// <summary>
+    /// Loads pages from the server until an item starting with <paramref name="c"/> is found
+    /// or there is no more data. Returns the first matching item, or null.
+    /// </summary>
+    private async Task<object?> LoadUntilCharacterFoundAsync(char c)
+    {
+        var (serverUrl, token) = await GetCredentialsAsync();
+        if (serverUrl is null || token is null)
+            return null;
+
+        const int maxPages = 200; // safety limit
+
+        for (var page = 0; page < maxPages; page++)
+        {
+            // Re-check for exact match — new items may have been appended
+            var existing = FindExactMatch(c);
+            if (existing is not null)
+                return existing;
+
+            if (CurrentView == MusicView.Artists)
+            {
+                if (!_hasMoreArtists)
+                    break;
+
+                _artistsLoadCts?.Cancel();
+                _artistsLoadCts = new CancellationTokenSource();
+                var ct = _artistsLoadCts.Token;
+
+                var nextSkip = _artistsSkip + PageSize;
+                var items = await _music.ListArtistsAsync(serverUrl, token, skip: nextSkip, take: PageSize, ct: ct);
+                if (ct.IsCancellationRequested)
+                    return null;
+
+                _artistsSkip = nextSkip;
+                if (items.Count < PageSize)
+                    _hasMoreArtists = false;
+
+                Dispatch(() =>
+                {
+                    foreach (var item in items)
+                        Artists.Add(item);
+                });
+            }
+            else if (CurrentView == MusicView.Albums)
+            {
+                if (!_hasMoreAlbums)
+                    break;
+
+                _albumsLoadCts?.Cancel();
+                _albumsLoadCts = new CancellationTokenSource();
+                var ct = _albumsLoadCts.Token;
+
+                var nextSkip = _albumsSkip + PageSize;
+                var items = await _music.ListAlbumsAsync(serverUrl, token, skip: nextSkip, take: PageSize, ct: ct);
+                if (ct.IsCancellationRequested)
+                    return null;
+
+                _albumsSkip = nextSkip;
+                if (items.Count < PageSize)
+                    _hasMoreAlbums = false;
+
+                Dispatch(() =>
+                {
+                    foreach (var item in items)
+                        Albums.Add(item);
+                });
+            }
+            else if (CurrentView == MusicView.Tracks)
+            {
+                if (!_hasMoreTracks)
+                    break;
+
+                _tracksLoadCts?.Cancel();
+                _tracksLoadCts = new CancellationTokenSource();
+                var ct = _tracksLoadCts.Token;
+
+                var nextSkip = _tracksSkip + PageSize;
+                var items = await _music.ListTracksAsync(serverUrl, token, skip: nextSkip, take: PageSize, ct: ct);
+                if (ct.IsCancellationRequested)
+                    return null;
+
+                _tracksSkip = nextSkip;
+                if (items.Count < PageSize)
+                    _hasMoreTracks = false;
+
+                Dispatch(() =>
+                {
+                    foreach (var item in items)
+                        Tracks.Add(item);
+                });
+            }
+            else
+            {
+                break;
+            }
+
+            // Check if the newly loaded page contains a match
+            var match = FindExactMatch(c);
+            if (match is not null)
+                return match;
+        }
+
+        return null;
     }
 
     // ── Album art helpers ────────────────────────────────────────────
