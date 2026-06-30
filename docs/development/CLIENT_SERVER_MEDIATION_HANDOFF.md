@@ -92,22 +92,15 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** Postgres migration fix needed for mint22 dev server
+**Summary:** Calendar required-module schema migration — production (cloud.kimball.home) complete. Postgres fix deferred (mint22 offline).
 
-**Context:** The SqlServer production deploy at `cloud.kimball.home` is complete and verified. The same schema migration issue exists for Postgres on `mint22` — the `SwitchCalendarToCoreSchema` migration was generated assuming tables are in `calendar` schema, but the `InitialCreate` was regenerated to use `core` schema directly.
+**Context:** SqlServer production deploy completed successfully at `cloud.kimball.home`. All 14 modules healthy, Calendar API verified working. Postgres migration fix for `mint22` deferred until that server is back online.
 
-**Fix needed:** Same approach as SqlServer — remove the broken `SwitchCalendarToCoreSchema` migration and `AddCalendarOrganizationId`/`FixPendingModelChanges` migrations (if they have the same issue), then generate a clean migration that only adds the needed schema/column changes without trying to move tables.
-
-**Commit (SqlServer fix):** `51d21923` + migration fixes on `cloud.kimball.home` (not yet committed)
+**Commit:** `bcbf8e46` — "Fix SqlServer migrations for Calendar required-module schema change"
 
 ---
 
-### Server Actions — `mint22`
-
-- [ ] `git pull origin main`
-- [ ] Check Postgres migration state: `dotnet ef migrations list --project src/Modules/Calendar/DotNetCloud.Modules.Calendar.Data --startup-project src/Modules/Calendar/DotNetCloud.Modules.Calendar.Host --context CalendarDbContext`
-- [ ] If `SwitchCalendarToCoreSchema` is pending, fix the migration chain (same issue as SqlServer — tables already in `core` schema from regenerated `InitialCreate`)
-- [ ] Apply migrations, rebuild, deploy, verify Calendar API on mint22
+**No pending server actions.** mint22 is offline; Postgres migration fix will be handled when mint22 is back.
 
 ## Environment
 
