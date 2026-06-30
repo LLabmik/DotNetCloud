@@ -37,28 +37,28 @@ TabBar
 
 ## Files to Create (12 new files)
 
-| # | File | Purpose |
-|---|------|---------|
-| 1 | `src/Clients/DotNetCloud.Client.Android/Calendar/ICalendarRestClient.cs` | REST interface |
-| 2 | `src/Clients/DotNetCloud.Client.Android/Calendar/HttpCalendarRestClient.cs` | HTTP implementation |
-| 3 | `src/Clients/DotNetCloud.Client.Android/ViewModels/CalendarViewModel.cs` | Main tab ViewModel |
-| 4 | `src/Clients/DotNetCloud.Client.Android/ViewModels/EventDetailViewModel.cs` | Event detail ViewModel |
-| 5 | `src/Clients/DotNetCloud.Client.Android/ViewModels/EventEditViewModel.cs` | Create/edit ViewModel |
-| 6 | `src/Clients/DotNetCloud.Client.Android/Views/CalendarPage.xaml` | Main tab UI |
-| 7 | `src/Clients/DotNetCloud.Client.Android/Views/CalendarPage.xaml.cs` | Main tab code-behind |
-| 8 | `src/Clients/DotNetCloud.Client.Android/Views/EventDetailPage.xaml` | Event detail UI |
-| 9 | `src/Clients/DotNetCloud.Client.Android/Views/EventDetailPage.xaml.cs` | Event detail code-behind |
-| 10 | `src/Clients/DotNetCloud.Client.Android/Views/EventEditPage.xaml` | Create/edit form UI |
-| 11 | `src/Clients/DotNetCloud.Client.Android/Views/EventEditPage.xaml.cs` | Create/edit code-behind |
-| 12 | `src/Clients/DotNetCloud.Client.Android/Resources/Images/calendar_icon.svg` | Tab bar icon |
+| #   | File                                                                        | Purpose                  |
+| --- | --------------------------------------------------------------------------- | ------------------------ |
+| 1   | `src/Clients/DotNetCloud.Client.Android/Calendar/ICalendarRestClient.cs`    | REST interface           |
+| 2   | `src/Clients/DotNetCloud.Client.Android/Calendar/HttpCalendarRestClient.cs` | HTTP implementation      |
+| 3   | `src/Clients/DotNetCloud.Client.Android/ViewModels/CalendarViewModel.cs`    | Main tab ViewModel       |
+| 4   | `src/Clients/DotNetCloud.Client.Android/ViewModels/EventDetailViewModel.cs` | Event detail ViewModel   |
+| 5   | `src/Clients/DotNetCloud.Client.Android/ViewModels/EventEditViewModel.cs`   | Create/edit ViewModel    |
+| 6   | `src/Clients/DotNetCloud.Client.Android/Views/CalendarPage.xaml`            | Main tab UI              |
+| 7   | `src/Clients/DotNetCloud.Client.Android/Views/CalendarPage.xaml.cs`         | Main tab code-behind     |
+| 8   | `src/Clients/DotNetCloud.Client.Android/Views/EventDetailPage.xaml`         | Event detail UI          |
+| 9   | `src/Clients/DotNetCloud.Client.Android/Views/EventDetailPage.xaml.cs`      | Event detail code-behind |
+| 10  | `src/Clients/DotNetCloud.Client.Android/Views/EventEditPage.xaml`           | Create/edit form UI      |
+| 11  | `src/Clients/DotNetCloud.Client.Android/Views/EventEditPage.xaml.cs`        | Create/edit code-behind  |
+| 12  | `src/Clients/DotNetCloud.Client.Android/Resources/Images/calendar_icon.svg` | Tab bar icon             |
 
 ## Files to Modify (3 existing files)
 
-| # | File | Change |
-|---|------|--------|
-| 13 | `src/Clients/DotNetCloud.Client.Android/AppShell.xaml` | Add Calendar `<ShellContent>` inside `<TabBar>` |
-| 14 | `src/Clients/DotNetCloud.Client.Android/AppShell.xaml.cs` | Register `EventDetail` and `EventEdit` routes |
-| 15 | `src/Clients/DotNetCloud.Client.Android/MauiProgram.cs` | DI registrations for REST client, ViewModels, Pages |
+| #   | File                                                      | Change                                              |
+| --- | --------------------------------------------------------- | --------------------------------------------------- |
+| 13  | `src/Clients/DotNetCloud.Client.Android/AppShell.xaml`    | Add Calendar `<ShellContent>` inside `<TabBar>`     |
+| 14  | `src/Clients/DotNetCloud.Client.Android/AppShell.xaml.cs` | Register `EventDetail` and `EventEdit` routes       |
+| 15  | `src/Clients/DotNetCloud.Client.Android/MauiProgram.cs`   | DI registrations for REST client, ViewModels, Pages |
 
 ---
 
@@ -71,6 +71,7 @@ TabBar
 Create an SVG icon matching the existing tab icon style. The existing icons (`chat_icon.svg`, `files_icon.svg`, `music_icon.svg`, `settings_icon.svg`) use a consistent visual language. Use a simple calendar outline icon.
 
 **Design spec:**
+
 - `viewBox="0 0 24 24"`, fill none, stroke currentColor
 - Typically: a rectangle with a top header bar and two small "bumps" for month/day indicators
 - The icon is referenced in XAML as `calendar_icon.png` (MAUI converts SVGs to PNGs at build time)
@@ -214,20 +215,20 @@ internal sealed class HttpCalendarRestClient : ICalendarRestClient
 
 **API Endpoint Mapping:**
 
-| Method | HTTP | URL Pattern |
-|--------|------|-------------|
-| `ListCalendarsAsync` | GET | `/api/v1/calendars` |
-| `GetCalendarAsync` | GET | `/api/v1/calendars/{calendarId}` |
-| `CreateCalendarAsync` | POST | `/api/v1/calendars` (body: `CreateCalendarDto`) |
-| `UpdateCalendarAsync` | PUT | `/api/v1/calendars/{calendarId}` (body: `UpdateCalendarDto`) |
-| `DeleteCalendarAsync` | DELETE | `/api/v1/calendars/{calendarId}` |
-| `ListEventsAsync` | GET | `/api/v1/calendars/{calendarId}/events?from=&to=&skip=&take=` |
-| `GetEventAsync` | GET | `/api/v1/calendars/events/{eventId}` |
-| `CreateEventAsync` | POST | `/api/v1/calendars/events` (body: `CreateCalendarEventDto`) |
-| `UpdateEventAsync` | PUT | `/api/v1/calendars/events/{eventId}` (body: `UpdateCalendarEventDto`) |
-| `DeleteEventAsync` | DELETE | `/api/v1/calendars/events/{eventId}` |
-| `RsvpAsync` | POST | `/api/v1/calendars/events/{eventId}/rsvp` (body: `EventRsvpDto`) |
-| `SearchEventsAsync` | GET | `/api/v1/calendars/events/search?q=&from=&to=&skip=&take=` |
+| Method                | HTTP   | URL Pattern                                                           |
+| --------------------- | ------ | --------------------------------------------------------------------- |
+| `ListCalendarsAsync`  | GET    | `/api/v1/calendars`                                                   |
+| `GetCalendarAsync`    | GET    | `/api/v1/calendars/{calendarId}`                                      |
+| `CreateCalendarAsync` | POST   | `/api/v1/calendars` (body: `CreateCalendarDto`)                       |
+| `UpdateCalendarAsync` | PUT    | `/api/v1/calendars/{calendarId}` (body: `UpdateCalendarDto`)          |
+| `DeleteCalendarAsync` | DELETE | `/api/v1/calendars/{calendarId}`                                      |
+| `ListEventsAsync`     | GET    | `/api/v1/calendars/{calendarId}/events?from=&to=&skip=&take=`         |
+| `GetEventAsync`       | GET    | `/api/v1/calendars/events/{eventId}`                                  |
+| `CreateEventAsync`    | POST   | `/api/v1/calendars/events` (body: `CreateCalendarEventDto`)           |
+| `UpdateEventAsync`    | PUT    | `/api/v1/calendars/events/{eventId}` (body: `UpdateCalendarEventDto`) |
+| `DeleteEventAsync`    | DELETE | `/api/v1/calendars/events/{eventId}`                                  |
+| `RsvpAsync`           | POST   | `/api/v1/calendars/events/{eventId}/rsvp` (body: `EventRsvpDto`)      |
+| `SearchEventsAsync`   | GET    | `/api/v1/calendars/events/search?q=&from=&to=&skip=&take=`            |
 
 **Implementation pattern (use this for every method):**
 
@@ -291,6 +292,7 @@ public async Task DeleteEventAsync(
 **Pattern to follow:** `src/Clients/DotNetCloud.Client.Android/ViewModels/FileBrowserViewModel.cs`
 
 **Key aspects:**
+
 - Inherits `ObservableObject` (CommunityToolkit.Mvvm)
 - Is `sealed partial class` (source generators)
 - Uses `[ObservableProperty]` for bindable properties
@@ -956,6 +958,7 @@ public partial class CalendarPage : ContentPage
 **File:** `src/Clients/DotNetCloud.Client.Android/Views/EventDetailPage.xaml`
 
 Layout: ScrollView containing:
+
 - Event title (large, bold)
 - Date/time range (formatted nicely, e.g., "Mon, March 24 · 2:00 PM – 3:30 PM")
 - Calendar name + colored dot
@@ -989,6 +992,7 @@ Same pattern as `CalendarPage.xaml.cs` — inject ViewModel, set BindingContext,
 **File:** `src/Clients/DotNetCloud.Client.Android/Views/EventEditPage.xaml`
 
 Layout: ScrollView containing a form:
+
 - Edit scope banner (visible when `IsRecurringEvent` is true): "Editing this occurrence only" label with "Change" button
 - Title Entry
 - Description Editor
@@ -1062,11 +1066,13 @@ Routing.RegisterRoute("EventEdit", typeof(EventEditPage));
 Add three registrations following the existing pattern:
 
 **a) Add using statement at top:**
+
 ```csharp
 using DotNetCloud.Client.Android.Calendar;
 ```
 
 **b) Add REST client registration (in the REST clients section, alongside the Music one):**
+
 ```csharp
 // ── Calendar ──────────────────────────────────────────────────────
 builder.Services.AddHttpClient<ICalendarRestClient, HttpCalendarRestClient>()
@@ -1075,6 +1081,7 @@ builder.Services.AddHttpClient<ICalendarRestClient, HttpCalendarRestClient>()
 ```
 
 **c) Add ViewModels (in the ViewModels section):**
+
 ```csharp
 builder.Services.AddTransient<CalendarViewModel>();
 builder.Services.AddTransient<EventDetailViewModel>();
@@ -1082,6 +1089,7 @@ builder.Services.AddTransient<EventEditViewModel>();
 ```
 
 **d) Add Pages (in the Pages section):**
+
 ```csharp
 builder.Services.AddTransient<CalendarPage>();
 builder.Services.AddTransient<EventDetailPage>();
@@ -1095,6 +1103,7 @@ builder.Services.AddTransient<EventEditPage>();
 ### Response Envelope Format
 
 All API responses use the standard envelope:
+
 ```json
 {
   "success": true,
@@ -1123,20 +1132,20 @@ The `ReadEnvelopeDataAsync<T>` helper in `HttpCalendarRestClient` already handle
 
 ### API Endpoints Quick Reference
 
-| Method | URL | Purpose |
-|--------|-----|---------|
-| `GET` | `/api/v1/calendars` | List user's calendars |
-| `GET` | `/api/v1/calendars/{id}` | Get calendar |
-| `POST` | `/api/v1/calendars` | Create calendar |
-| `PUT` | `/api/v1/calendars/{id}` | Update calendar |
-| `DELETE` | `/api/v1/calendars/{id}` | Delete calendar |
-| `GET` | `/api/v1/calendars/{id}/events?from=&to=&skip=&take=` | List events |
-| `GET` | `/api/v1/calendars/events/{id}` | Get event |
-| `POST` | `/api/v1/calendars/events` | Create event |
-| `PUT` | `/api/v1/calendars/events/{id}` | Update event |
-| `DELETE` | `/api/v1/calendars/events/{id}` | Delete event |
-| `POST` | `/api/v1/calendars/events/{id}/rsvp` | RSVP to event |
-| `GET` | `/api/v1/calendars/events/search?q=&from=&to=&skip=&take=` | Search events |
+| Method   | URL                                                        | Purpose               |
+| -------- | ---------------------------------------------------------- | --------------------- |
+| `GET`    | `/api/v1/calendars`                                        | List user's calendars |
+| `GET`    | `/api/v1/calendars/{id}`                                   | Get calendar          |
+| `POST`   | `/api/v1/calendars`                                        | Create calendar       |
+| `PUT`    | `/api/v1/calendars/{id}`                                   | Update calendar       |
+| `DELETE` | `/api/v1/calendars/{id}`                                   | Delete calendar       |
+| `GET`    | `/api/v1/calendars/{id}/events?from=&to=&skip=&take=`      | List events           |
+| `GET`    | `/api/v1/calendars/events/{id}`                            | Get event             |
+| `POST`   | `/api/v1/calendars/events`                                 | Create event          |
+| `PUT`    | `/api/v1/calendars/events/{id}`                            | Update event          |
+| `DELETE` | `/api/v1/calendars/events/{id}`                            | Delete event          |
+| `POST`   | `/api/v1/calendars/events/{id}/rsvp`                       | RSVP to event         |
+| `GET`    | `/api/v1/calendars/events/search?q=&from=&to=&skip=&take=` | Search events         |
 
 Full documentation: `docs/api/CALENDAR.md`
 

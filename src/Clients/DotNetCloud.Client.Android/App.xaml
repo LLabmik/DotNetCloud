@@ -19,6 +19,15 @@
             <converters:UnreadToBoldConverter x:Key="UnreadToBold" />
             <converters:MentionToBadgeColorConverter x:Key="MentionToBadgeColor" />
             <converters:OnlineStatusToColorConverter x:Key="OnlineStatusToColor" />
+            <converters:ViewToggleConverter x:Key="ViewToggleConverter" />
+            <converters:ViewVisibilityConverter x:Key="ViewVisibilityConverter" />
+            <converters:TodayBackgroundConverter x:Key="TodayBackgroundConverter" />
+            <converters:DayTextColorConverter x:Key="DayTextColorConverter" />
+            <converters:IntToBoolConverter x:Key="IntToBoolConverter" />
+            <converters:BoolToColorConverter x:Key="BoolToColorConverter" />
+
+            <!-- Calendar FAB shadow -->
+            <Shadow x:Key="FabShadow" Brush="#0EA5E9" Offset="0,4" Radius="8" Opacity="0.4" />
 
         </ResourceDictionary>
     </Application.Resources>

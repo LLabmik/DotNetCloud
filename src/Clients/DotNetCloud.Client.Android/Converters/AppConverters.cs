@@ -1,4 +1,5 @@
 using System.Globalization;
+using DotNetCloud.Client.Android.ViewModels;
 
 namespace DotNetCloud.Client.Android.Converters;
 
@@ -187,6 +188,109 @@ public sealed class DbToProgressConverter : IValueConverter
         }
         return 0.5; // default midpoint
     }
+
+    /// <inheritdoc />
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+// ── Calendar View Converters ──────────────────────────────────────
+
+/// <summary>Returns highlighted/active background color when the view tab matches the converter parameter.</summary>
+public sealed class ViewToggleConverter : IValueConverter
+{
+    private static readonly Color ActiveColor = Color.FromArgb("#0EA5E9");
+    private static readonly Color InactiveColor = Color.FromArgb("#1E293B");
+
+    /// <inheritdoc />
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is CalendarViewType view && parameter is string param)
+            return view.ToString() == param ? ActiveColor : InactiveColor;
+        return InactiveColor;
+    }
+
+    /// <inheritdoc />
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>Returns <c>true</c> when the CalendarViewType matches the converter parameter.</summary>
+public sealed class ViewVisibilityConverter : IValueConverter
+{
+    /// <inheritdoc />
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is CalendarViewType view && parameter is string param)
+            return view.ToString() == param;
+        return false;
+    }
+
+    /// <inheritdoc />
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>Returns a highlighted background for today's date cell.</summary>
+public sealed class TodayBackgroundConverter : IValueConverter
+{
+    private static readonly Color TodayColor = Color.FromArgb("#0C1929");
+    private static readonly Color NormalColor = Colors.Transparent;
+    private static readonly Color FadedColor = Color.FromArgb("#0A0F1A");
+
+    /// <inheritdoc />
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is bool isToday && isToday)
+            return TodayColor;
+        return parameter?.ToString() == "faded" ? FadedColor : NormalColor;
+    }
+
+    /// <inheritdoc />
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>Returns brighter text for current-month days, dimmer for padding days.</summary>
+public sealed class DayTextColorConverter : IValueConverter
+{
+    private static readonly Color ActiveColor = Color.FromArgb("#F1F5F9");
+    private static readonly Color FadedColor = Color.FromArgb("#475569");
+
+    /// <inheritdoc />
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is bool isCurrentMonth)
+            return isCurrentMonth ? ActiveColor : FadedColor;
+        return FadedColor;
+    }
+
+    /// <inheritdoc />
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>Returns <c>true</c> when integer value is greater than zero.</summary>
+public sealed class IntToBoolConverter : IValueConverter
+{
+    /// <inheritdoc />
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is int i && i > 0;
+
+    /// <inheritdoc />
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>Returns a border color based on the visibility toggle state.</summary>
+public sealed class BoolToColorConverter : IValueConverter
+{
+    private static readonly Color VisibleColor = Color.FromArgb("#0EA5E9");
+    private static readonly Color HiddenColor = Color.FromArgb("#475569");
+
+    /// <inheritdoc />
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is bool isVisible && isVisible ? VisibleColor : HiddenColor;
 
     /// <inheritdoc />
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
