@@ -247,7 +247,7 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
     {
         var intent = new Intent(global::Android.App.Application.Context, typeof(MusicPlaybackService));
         intent.SetAction(MusicPlaybackService.ActionStop);
-        global::Android.App.Application.Context.StartForegroundService(intent);
+        global::Android.App.Application.Context.StopService(intent);
     }
 
     private void UpdateNotification()

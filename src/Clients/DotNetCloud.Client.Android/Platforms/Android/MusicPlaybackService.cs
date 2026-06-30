@@ -54,7 +54,22 @@ public sealed class MusicPlaybackService : Service
     {
         try
         {
-            _logger = Ioc.Default.GetService<ILogger<MusicPlaybackService>>();
+            // CRITICAL: Call StartForeground IMMEDIATELY with a basic notification
+            // to satisfy Android's requirement that startForegroundService() must be
+            // followed by startForeground() within a few seconds. DI resolution and
+            // other work happen AFTER this call to avoid the
+            // ForegroundServiceDidNotStartInTimeException crash.
+            try
+            {
+                StartForeground(NotificationId, BuildBasicNotification());
+                Log.Info("DotNetCloud", "MusicPlaybackService: StartForeground succeeded.");
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("DotNetCloud", $"MusicPlaybackService: StartForeground failed: {ex.Message}");
+            }
+
+            _logger = SafeResolveLogger();
 
             if (intent?.Action == ActionStop)
             {
@@ -65,30 +80,29 @@ public sealed class MusicPlaybackService : Service
             }
 
             // Handle media button actions
-            var player = Ioc.Default.GetService<IMusicPlayerService>();
+            var player = SafeResolvePlayer();
             switch (intent?.Action)
             {
                 case ActionPlayPause:
-                    if (player!.IsPlaying) player.Pause(); else player.Resume();
+                    if (player is null)
+                        break;
+                    if (player.IsPlaying)
+                        player.Pause();
+                    else
+                        player.Resume();
                     break;
                 case ActionNext:
-                    player!.PlayNext();
+                    player?.PlayNext();
                     break;
                 case ActionPrevious:
-                    player!.PlayPrevious();
+                    player?.PlayPrevious();
                     break;
             }
 
-            // Show the notification for the foreground service
-            try
+            // Update the notification with full track info now that DI is available
+            if (player is not null)
             {
-                StartForeground(NotificationId, BuildNotification());
-                Log.Info("DotNetCloud", "MusicPlaybackService: StartForeground succeeded.");
-            }
-            catch (Exception ex)
-            {
-                Log.Warn("DotNetCloud", $"MusicPlaybackService: StartForeground failed: {ex.Message}");
-                _logger?.LogWarning(ex, "StartForeground failed; continuing without persistent notification.");
+                UpdateNotification();
             }
 
             AcquireWakeLock();
@@ -99,6 +113,82 @@ public sealed class MusicPlaybackService : Service
         }
 
         return StartCommandResult.Sticky;
+    }
+
+    /// <summary>
+    /// Safely resolves <see cref="ILogger{MusicPlaybackService}"/> from DI,
+    /// returning null if the service provider is already disposed.
+    /// </summary>
+    private ILogger<MusicPlaybackService>? SafeResolveLogger()
+    {
+        try
+        {
+            return Ioc.Default.GetService<ILogger<MusicPlaybackService>>();
+        }
+        catch (ObjectDisposedException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Safely resolves <see cref="IMusicPlayerService"/> from DI,
+    /// returning null if the service provider is already disposed.
+    /// </summary>
+    private static IMusicPlayerService? SafeResolvePlayer()
+    {
+        try
+        {
+            return Ioc.Default.GetService<IMusicPlayerService>();
+        }
+        catch (ObjectDisposedException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Builds a minimal notification that can be constructed without any DI services.
+    /// Used for the initial <see cref="StartForeground"/> call to satisfy the Android
+    /// timeout requirement. The notification is later updated with full track info
+    /// once DI services are available.
+    /// </summary>
+    private Notification BuildBasicNotification()
+    {
+        var iconRes = ApplicationContext?.Resources?.GetIdentifier(
+            "ic_notification", "drawable", ApplicationContext.PackageName) ?? 0;
+        if (iconRes == 0)
+            iconRes = global::Android.Resource.Drawable.IcDialogInfo;
+
+        return new Notification.Builder(this, ChannelId)
+            .SetContentTitle("DotNetCloud Music")
+            .SetContentText("Loading...")
+            .SetSmallIcon(iconRes)
+            .SetOngoing(true)
+            .SetShowWhen(false)
+            .Build();
+    }
+
+    /// <summary>
+    /// Rebuilds the notification with full track info from the music player service.
+    /// Called after the initial StartForeground to upgrade the placeholder notification.
+    /// </summary>
+    private void UpdateNotification()
+    {
+        try
+        {
+            var player = SafeResolvePlayer();
+            if (player is null)
+                return;
+
+            var notification = BuildNotification(player);
+            var mgr = (NotificationManager?)GetSystemService(NotificationService);
+            mgr?.Notify(NotificationId, notification);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("DotNetCloud", $"MusicPlaybackService: UpdateNotification failed: {ex.Message}");
+        }
     }
 
     /// <inheritdoc />
@@ -128,11 +218,10 @@ public sealed class MusicPlaybackService : Service
         }
     }
 
-    private Notification BuildNotification()
+    private Notification BuildNotification(IMusicPlayerService player)
     {
-        var player = Ioc.Default.GetService<IMusicPlayerService>();
-        var trackTitle = player?.CurrentTrack?.Title ?? "DotNetCloud Music";
-        var artistName = player?.CurrentTrack?.ArtistName ?? "";
+        var trackTitle = player.CurrentTrack?.Title ?? "DotNetCloud Music";
+        var artistName = player.CurrentTrack?.ArtistName ?? "";
 
         var openIntent = new Intent(this, typeof(MainActivity));
         openIntent.SetFlags(ActivityFlags.SingleTop | ActivityFlags.ClearTop);
@@ -163,7 +252,7 @@ public sealed class MusicPlaybackService : Service
         if (iconRes == 0)
             iconRes = global::Android.Resource.Drawable.IcDialogInfo;
 
-        var playPauseIcon = (player?.IsPlaying ?? false)
+        var playPauseIcon = player.IsPlaying
             ? global::Android.Resource.Drawable.IcMediaPause
             : global::Android.Resource.Drawable.IcMediaPlay;
 
