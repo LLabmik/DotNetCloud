@@ -92,13 +92,30 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** ✅ Complete — Android client deployed with alphabet index endpoints
+**Summary:** Calendar module → required module, schema migration `calendar` → `core`
 
-All tasks for the music alphabet index feature are complete:
-- Server: alphabet endpoints deployed and verified on `cloud.kimball.home` ✓
-- Android client: code verified, built (Debug), installed on physical phone (`R5CWC356B2K`), and launched ✓
+**Context:** `dotnetcloud.calendar` was added to `RequiredModules.ModuleIds` (commit `51d21923`). This means:
+- Calendar is now architecturally required — cannot be disabled or uninstalled
+- Calendar tables share the `core` schema (same as Files, Chat, Search, Contacts, About)
+- New EF migrations generated for both Postgres and SqlServer to rename all 6 tables from `calendar` schema → `core` schema
 
-No outstanding actions. Awaiting next handoff.
+**Commit:** `51d21923` on `main` — "Make Calendar a required module, move tables to core schema"
+
+---
+
+### Server Actions — `cloud.kimball.home`
+
+- [ ] Pull latest `main`: `git pull origin main`
+- [ ] Stop the service: `sudo systemctl stop dotnetcloud`
+- [ ] Apply Postgres migration: `sudo dotnet ef database update --project src/Modules/Calendar/DotNetCloud.Modules.Calendar.Data --startup-project src/Modules/Calendar/DotNetCloud.Modules.Calendar.Host --context CalendarDbContext --connection "Host=localhost;Database=dotnetcloud;Username=dotnetcloud;Password=<from-env>"`
+- [ ] Verify migration applied — check that 6 calendar tables now live in `core` schema: `sudo -u postgres psql -d dotnetcloud -c "\dt core.*" | grep -i calendar`
+- [ ] Rebuild Calendar module (Release): `dotnet build src/Modules/Calendar/DotNetCloud.Modules.Calendar.Host -c Release`
+- [ ] Deploy updated Calendar module binaries to `/opt/dotnetcloud/server/modules/dotnetcloud.calendar/`
+- [ ] Deploy updated Core binaries (RequiredModules.cs change): copy `src/Core/DotNetCloud.Core/bin/Release/net10.0/DotNetCloud.Core.dll` to `/opt/dotnetcloud/server/`
+- [ ] Start the service: `sudo systemctl start dotnetcloud`
+- [ ] Verify Calendar module is Healthy: check admin health dashboard or `curl -k https://localhost:5443/health`
+- [ ] Verify Calendar is marked IsRequired in DB: query `InstalledModules` table
+- [ ] Mark complete and relay back
 
 ## Environment
 

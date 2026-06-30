@@ -1,6 +1,22 @@
 # Client/Server Mediation — Archived Context
 
-Archived: 2026-06-25 01:35 UTC. Full git history preserved in commits up to changes from Windows11-TestDNC.
+Archived: 2026-06-30. Full git history preserved.
+
+## Archived: Android Client Alphabet Index — Deployed to Phone (2026-06-30)
+
+**Target:** cloud.kimball.home (server) → monolith (Android client)
+
+**Result:** ✅ Full end-to-end: server alphabet endpoints deployed to production, Android client code verified using them (not client-side computation), Debug APK built and installed on physical phone.
+
+**Completed (monolith — Android client):**
+- ✅ Pulled latest `main`
+- ✅ Verified client calls server endpoints (`/artists/alphabet`, `/albums/alphabet`, `/tracks/alphabet`)
+- ✅ Built Debug APK (`dotnet publish -c Debug`)
+- ✅ Installed on physical phone `R5CWC356B2K` via adb and launched
+
+**Next step:** Awaiting next handoff.
+
+---
 
 ## Archived: Music Alphabet Index Endpoints — Deployed to Production (2026-06-29)
 
@@ -48,22 +64,6 @@ Archived: 2026-06-25 01:35 UTC. Full git history preserved in commits up to chan
 - ✅ Added `DotNetCloud.Core.Auth` project reference to Chat.Host.csproj
 - ✅ Added `Microsoft.AspNetCore.Authentication.JwtBearer` package
 - ✅ Added `AddTokenIntrospection()`, policy scheme resolution, `AddIntrospection()`, `AuthorizationPolicies.Configure()`, `PermissionAuthorizationHandler` to Chat.Host Program.cs
-
----
-
-## Archived: Android Client Alphabet Index — Deployed to Phone (2026-06-29)
-
-**Target:** cloud.kimball.home (server) → monolith (Android client)
-
-**Result:** ✅ Full end-to-end: server alphabet endpoints deployed to production, Android client code verified using them (not client-side computation), Debug APK built and installed on physical phone.
-
-**Completed (monolith — Android client):**
-- ✅ Pulled latest `main` (73f3cbbe)
-- ✅ Verified client calls server endpoints (`/artists/alphabet`, `/albums/alphabet`, `/tracks/alphabet`)
-- ✅ Built Debug APK (`dotnet publish -c Debug`)
-- ✅ Installed on physical phone `R5CWC356B2K` via adb and launched
-
-**Next step:** Awaiting next handoff.
 
 ---
 
