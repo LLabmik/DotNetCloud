@@ -18,7 +18,7 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
-- **Current active branch:** `feature/android-music-tab`
+- **Current active branch:** `feature/android-calendar-tab`
 - No moderator involvement in technical decisions, code reviews, or work coordination.
 
 **Role separation (MANDATORY):**
@@ -64,7 +64,7 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 - Put all technical findings, debugging conclusions, and next-step details in this document.
 - Assistant (current agent) commits their findings/work and updates the **Active Handoff** section with actionable next steps for the other client.
-- Assistant pushes commits to `main`.
+- Assistant pushes commits to `feature/android-calendar-tab`.
 - Unexpected untracked content rule (MANDATORY): remove unexpected untracked files/directories before commit; only keep intentional tracked changes for the handoff update.
 - Handoff readiness gate (MANDATORY): all executable tests must pass before marking a handoff as ready.
 - Environment-gated tests are allowed to be skipped, but must be explicitly identified as gated with the required environment/runtime prerequisites documented in the handoff.
@@ -109,9 +109,16 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ### Server Actions — `cloud.kimball.home`
 
-1. **Pull the feature branch:**
+**Goal:** Deploy the Calendar module auth fix to production so Android clients can call the Calendar API.
+
+1. **Get the fix onto your machine:**
    ```bash
-   cd /path/to/dotnetcloud
+   # Option A: Merge the feature branch into main (preferred)
+   git checkout main
+   git pull origin main
+   git merge origin/feature/android-calendar-tab
+   
+   # Option B: Just build from the feature branch directly
    git fetch origin
    git checkout feature/android-calendar-tab
    ```
@@ -121,34 +128,34 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
    dotnet build src/Modules/Calendar/DotNetCloud.Modules.Calendar.Host/DotNetCloud.Modules.Calendar.Host.csproj -c Release
    ```
 
-3. **Publish the Calendar module host:**
+3. **Publish the Calendar module host** (overwrites old DLLs):
    ```bash
    dotnet publish src/Modules/Calendar/DotNetCloud.Modules.Calendar.Host/DotNetCloud.Modules.Calendar.Host.csproj -c Release -o /opt/dotnetcloud/modules/calendar
    ```
 
-4. **Restart the Calendar module** (or restart the entire DotNetCloud service):
+4. **Restart the entire DotNetCloud service** (all modules restart):
    ```bash
-   sudo systemctl restart dotnetcloud   # or supervisorctl restart dotnetcloud
+   sudo systemctl restart dotnetcloud
    ```
 
-5. **Verify the Calendar module is healthy:**
+5. **Verify all modules are healthy:**
    ```bash
-   curl -s -o /dev/null -w "%{http_code}" https://cloud.dotnetcloud.net/health
+   curl -s https://cloud.dotnetcloud.net/health | jq .
    ```
+   Look for `"status": "Healthy"` for all 14 modules including Calendar.
 
-6. **Verify the Calendar API works with a Bearer token** (test against an endpoint like `GET /api/v1/calendars`):
-   ```bash
-   # Get a token first
-   TOKEN=$(curl -s -X POST https://cloud.dotnetcloud.net/connect/token \
-     -d "client_id=dotnetcloud-android" \
-     -d "client_secret=<secret>" \
-     -d "grant_type=password" \
-     -d "username=<testuser>" \
-     -d "password=<testpass>" \
-     -d "scope=openid profile email api" | jq -r '.access_token')
-   # Test the calendar endpoint
-   curl -s -H "Authorization: Bearer $TOKEN" https://cloud.dotnetcloud.net/api/v1/calendars | jq .
-   ```
+6. **Verify Calendar API responds to Bearer token requests:**
+   The Android app sends Bearer tokens obtained from `/connect/token`. After the fix, the Calendar host's introspection handler will validate them via gRPC call to Core.Server. No manual curl test needed — just have the Android client try the Calendar tab.
+
+**What the fix does:** The Calendar module host's `Program.cs` now registers:
+- `AddTokenIntrospection()` — gRPC client that calls Core.Server to validate Bearer tokens
+- `AddIntrospection()` — auth handler that uses the introspection client
+- A policy scheme that routes Bearer tokens to introspection, cookies to Identity.Application
+- `CalendarControllerBase.cs` `[Authorize]` now accepts both schemes
+
+**Files changed (2 files, committed to `feature/android-calendar-tab`):**
+- `src/Modules/Calendar/DotNetCloud.Modules.Calendar.Host/Program.cs`
+- `src/Modules/Calendar/DotNetCloud.Modules.Calendar.Host/Controllers/CalendarControllerBase.cs`
 
 ---
 
