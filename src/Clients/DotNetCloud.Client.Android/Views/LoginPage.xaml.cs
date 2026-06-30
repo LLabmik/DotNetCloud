@@ -29,7 +29,7 @@ public partial class LoginPage : ContentPage
 
     private async void OnLoginSucceeded(object? sender, EventArgs e)
     {
-        Log.Info("DotNetCloud", "LoginPage.OnLoginSucceeded: navigating to channel list");
+        Log.Info("DotNetCloud", "LoginPage.OnLoginSucceeded: navigating to landing page");
         await MainThread.InvokeOnMainThreadAsync(() => Shell.Current.GoToAsync("//Main/ChannelList", animate: true));
         Log.Info("DotNetCloud", "LoginPage.OnLoginSucceeded: navigation done, checking modules");
 

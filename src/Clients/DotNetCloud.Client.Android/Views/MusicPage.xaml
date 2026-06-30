@@ -13,6 +13,20 @@
     Shell.ForegroundColor="#F1F5F9"
     BackgroundColor="#0F172A">
 
+    <Shell.TitleView>
+        <HorizontalStackLayout Spacing="6"
+                VerticalOptions="Center">
+            <Image Source="logo.png"
+                   HeightRequest="36"
+                   WidthRequest="36"
+                   VerticalOptions="Center"/>
+            <Label Text="Music"
+                   VerticalOptions="Center"
+                   TextColor="#F1F5F9"
+                   FontSize="18"/>
+        </HorizontalStackLayout>
+    </Shell.TitleView>
+
     <ContentPage.Resources>
         <ResourceDictionary>
             <conv:IsNotNullConverter x:Key="IsNotNull"/>

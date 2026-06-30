@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="DotNetCloud.Client.Android.Views.LandingPage"
+             Shell.NavBarIsVisible="false"
+             BackgroundColor="#0F172A">
+
+    <Grid VerticalOptions="Fill"
+          HorizontalOptions="Fill"
+          RowDefinitions="*,Auto,*">
+
+        <!-- Centered logo -->
+        <Image Grid.Row="1"
+               Source="logo.png"
+               HeightRequest="120"
+               WidthRequest="120"
+               HorizontalOptions="Center"
+               VerticalOptions="Center"
+               Aspect="AspectFit"/>
+
+    </Grid>
+
+</ContentPage>

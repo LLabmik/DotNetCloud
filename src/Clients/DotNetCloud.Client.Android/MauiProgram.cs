@@ -96,6 +96,7 @@ public static class MauiProgram
         builder.Services.AddTransient<MusicViewModel>();
 
         // ── Pages ─────────────────────────────────────────────────────
+        builder.Services.AddTransient<LandingPage>();
         builder.Services.AddTransient<LoginPage>();
         builder.Services.AddTransient<ChannelListPage>();
         builder.Services.AddTransient<MessageListPage>();
