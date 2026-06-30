@@ -19,6 +19,16 @@ Archived: 2026-06-30. Full git history preserved.
 - ✅ Restarted service, waited for all 14 modules to become Healthy
 - ✅ Calendar API verified working (no more 500 errors)
 
+## Archived: Calendar Module Host Auth — Bearer Token Introspection (2026-06-30)
+
+**Target:** cloud.kimball.home → Calendar module host Bearer token fix
+
+**Context:** Android Calendar tab crashes with "session expired" because Calendar module host only supports cookie auth. Fix committed to `feature/android-calendar-tab` at `efc8f8f7`.
+
+**Fix:**
+- `Program.cs` — replaced cookie-only auth with dual-auth (cookie + Bearer token introspection)
+- `CalendarControllerBase.cs` — updated `[Authorize]` to accept both schemes
+
 **Issues discovered & fixed:**
 - ⚠️ Production DB had duplicate tables in both `calendar` and `core` schemas — dropped `core` duplicates, then transferred `calendar` → `core`
 - ⚠️ Deployed DLLs were stale (`Calendar.Data.dll` from Jun 29) — fresh build required copying ALL dependency DLLs, not just the host binary
