@@ -16,6 +16,8 @@ public partial class AppShell : Shell
         // Register routes for detail pages not expressed in the ShellContent hierarchy
         Routing.RegisterRoute("MessageList", typeof(MessageListPage));
         Routing.RegisterRoute("ChannelDetails", typeof(ChannelDetailsPage));
+        Routing.RegisterRoute("EventDetail", typeof(EventDetailPage));
+        Routing.RegisterRoute("EventEdit", typeof(EventEditPage));
     }
 
     /// <summary>

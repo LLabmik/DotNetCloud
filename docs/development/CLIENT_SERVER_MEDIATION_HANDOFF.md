@@ -18,7 +18,7 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
-- **Current active branch:** `feature/android-music-tab`
+- **Current active branch:** `feature/android-calendar-tab`
 - No moderator involvement in technical decisions, code reviews, or work coordination.
 
 **Role separation (MANDATORY):**
@@ -64,7 +64,7 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 - Put all technical findings, debugging conclusions, and next-step details in this document.
 - Assistant (current agent) commits their findings/work and updates the **Active Handoff** section with actionable next steps for the other client.
-- Assistant pushes commits to `main`.
+- Assistant pushes commits to `feature/android-calendar-tab`.
 - Unexpected untracked content rule (MANDATORY): remove unexpected untracked files/directories before commit; only keep intentional tracked changes for the handoff update.
 - Handoff readiness gate (MANDATORY): all executable tests must pass before marking a handoff as ready.
 - Environment-gated tests are allowed to be skipped, but must be explicitly identified as gated with the required environment/runtime prerequisites documented in the handoff.
@@ -92,15 +92,27 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** Calendar required-module schema migration — production (cloud.kimball.home) complete. Postgres fix deferred (mint22 offline).
+**Summary:** ✅ All Android Calendar + login persistence issues resolved. Ready to merge to main.
 
-**Context:** SqlServer production deploy completed successfully at `cloud.kimball.home`. All 14 modules healthy, Calendar API verified working. Postgres migration fix for `mint22` deferred until that server is back online.
+**Context:** Fixed three issues on the Android client:
+1. ✅ Calendar tab loads, events display, event detail page works (x:DataType + InvalidCastException fixes)
+2. ✅ Login persistence on warm start — LoginPage.OnAppearing now redirects to main page if saved connection exists
+3. ✅ App.OnResume also redirects from Login to ChannelList as defense-in-depth
 
-**Commit:** `bcbf8e46` — "Fix SqlServer migrations for Calendar required-module schema change"
+All fixes deployed in APK v0.3.9/3 to phone. Verified working across multiple cold start + swipe-from-recents cycles.
 
 ---
 
-**No pending server actions.** mint22 is offline; Postgres migration fix will be handled when mint22 is back.
+### Server Actions — `cloud.kimball.home`
+
+- [ ] Create PR to merge `feature/android-calendar-tab` to `main`
+
+### Client Actions — `monolith` (Android client)
+
+- [x] Calendar event click crash fixed — `x:DataType` + `InvalidCastException` + error handling
+- [x] Login warm-start persistence fixed — `LoginPage.OnAppearing` + `App.OnResume` redirect
+- [x] MVVMTK0034 warning fixed in EventEditViewModel
+- [x] All fixes built and deployed to phone (APK v0.3.9)
 
 ## Environment
 
@@ -133,3 +145,6 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 - SignalR connection verified working via logcat ("SignalR connected successfully!")
 - `SenderName` display confirmed working
 - `JoinChannelGroupAsync` already sends the correct format ("chat-channel-{guid}")
+- **Calendar event click crash fix:** `x:DataType` in Day view `CollectionView.ItemTemplate` corrected from `vm:CalendarViewModel` to `core:CalendarEventDto`
+- **Calendar week view fix:** Inner `DataTemplate x:DataType` corrected from `x:Object` to `core:CalendarEventDto`
+- **Calendar error handling:** `SelectEventAsync()` and `OnEventSelected()` now wrapped in try-catch to prevent unhandled crashes

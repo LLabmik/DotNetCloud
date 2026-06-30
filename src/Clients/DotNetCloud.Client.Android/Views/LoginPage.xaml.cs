@@ -22,6 +22,25 @@ public partial class LoginPage : ContentPage
     protected override void OnAppearing()
     {
         base.OnAppearing();
+
+        // If a saved server connection exists, skip the login page and go straight
+        // to the main page. This handles the case where Shell resets to the default
+        // route (//Login) on Activity recreation after the app is backgrounded.
+        try
+        {
+            var active = _vm.TryGetActiveConnection();
+            if (active is not null)
+            {
+                Log.Info("DotNetCloud", $"LoginPage.OnAppearing: saved connection found ({active}), redirecting");
+                _ = Shell.Current.GoToAsync("//Main/ChannelList");
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("DotNetCloud", $"LoginPage.OnAppearing check failed: {ex.Message}");
+        }
+
         // Auto-focus the server URL entry so the keyboard appears on page load.
         // Delayed to ensure the layout is ready on Android.
         Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(300), () => ServerUrlEntry.Focus());

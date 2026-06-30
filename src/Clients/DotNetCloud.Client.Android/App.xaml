@@ -7,18 +7,31 @@
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="Resources/Styles/Colors.xaml" />
-                <ResourceDictionary Source="Resources/Styles/Styles.xaml" />
+                <ResourceDictionary Source="Resources/Styles/Colors.xaml"/>
+                <ResourceDictionary Source="Resources/Styles/Styles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
 
             <!-- Shared value converters used throughout the app -->
-            <converters:InvertBoolConverter x:Key="InvertBool" />
-            <converters:IsNotNullOrEmptyConverter x:Key="IsNotNullOrEmpty" />
-            <converters:IsNotNullConverter x:Key="IsNotNull" />
-            <converters:IsNotZeroConverter x:Key="IsNotZero" />
-            <converters:UnreadToBoldConverter x:Key="UnreadToBold" />
-            <converters:MentionToBadgeColorConverter x:Key="MentionToBadgeColor" />
-            <converters:OnlineStatusToColorConverter x:Key="OnlineStatusToColor" />
+            <converters:InvertBoolConverter x:Key="InvertBool"/>
+            <converters:IsNotNullOrEmptyConverter x:Key="IsNotNullOrEmpty"/>
+            <converters:IsNotNullConverter x:Key="IsNotNull"/>
+            <converters:IsNotZeroConverter x:Key="IsNotZero"/>
+            <converters:UnreadToBoldConverter x:Key="UnreadToBold"/>
+            <converters:MentionToBadgeColorConverter x:Key="MentionToBadgeColor"/>
+            <converters:OnlineStatusToColorConverter x:Key="OnlineStatusToColor"/>
+            <converters:ViewToggleConverter x:Key="ViewToggleConverter"/>
+            <converters:ViewVisibilityConverter x:Key="ViewVisibilityConverter"/>
+            <converters:TodayBackgroundConverter x:Key="TodayBackgroundConverter"/>
+            <converters:DayTextColorConverter x:Key="DayTextColorConverter"/>
+            <converters:IntToBoolConverter x:Key="IntToBoolConverter"/>
+            <converters:BoolToColorConverter x:Key="BoolToColorConverter"/>
+
+            <!-- Calendar FAB shadow -->
+            <Shadow x:Key="FabShadow"
+                    Brush="#0EA5E9"
+                    Offset="0,4"
+                    Radius="8"
+                    Opacity="0.4"/>
 
         </ResourceDictionary>
     </Application.Resources>

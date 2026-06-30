@@ -53,6 +53,24 @@ public partial class App : Application
         await NavigateToStartPageAsync();
     }
 
+    protected override async void OnResume()
+    {
+        base.OnResume();
+        try
+        {
+            var active = _serverStore.GetActive();
+            var location = Shell.Current?.CurrentState?.Location?.ToString();
+            if (active is not null && location is not null && location.Contains("Login"))
+            {
+                await Shell.Current.GoToAsync("//Main/ChannelList");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("DotNetCloud", $"OnResume redirect error: {ex.Message}");
+        }
+    }
+
     /// <summary>
     /// Checks whether the Music module is available on the connected server and
     /// shows/hides the Music tab accordingly. Called at startup and after login.
@@ -179,20 +197,13 @@ public partial class App : Application
 
     private async Task NavigateToStartPageAsync()
     {
-        // Navigate to the channel list if a server connection is already active,
-        // otherwise drop the user on the login screen.
         if (_serverStore.GetActive() is not null)
         {
             await Shell.Current.GoToAsync("//Main/ChannelList");
 
-            // Start SignalR chat foreground service when resuming with saved session
             var intent = new Intent(global::Android.App.Application.Context, typeof(ChatConnectionService));
             intent.SetAction(ChatConnectionService.ActionStart);
             global::Android.App.Application.Context.StartForegroundService(intent);
-        }
-        else
-        {
-            await Shell.Current.GoToAsync("//Login");
         }
     }
 }

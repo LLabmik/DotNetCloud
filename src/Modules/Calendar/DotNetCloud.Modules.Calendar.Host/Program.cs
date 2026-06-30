@@ -1,3 +1,5 @@
+using DotNetCloud.Core.Auth.Authorization;
+using DotNetCloud.Core.Auth.Introspection;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Calendar;
@@ -53,9 +55,18 @@ builder.Services.AddDataProtection()
     .SetApplicationName("DotNetCloud")
     .PersistKeysToFileSystem(new DirectoryInfo(dpKeysPath));
 
-// Cookie auth — same cookie name as Core.Server. SecurePolicy=Always because
-// the YARP proxy sets X-Forwarded-Proto, so UseForwardedHeaders() enables Secure.
-builder.Services.AddAuthentication("Identity.Application")
+// Register token introspection client (replaces local JWT key validation).
+// Bearer tokens are validated by calling Core.Server's TokenIntrospection gRPC service.
+builder.Services.AddTokenIntrospection();
+
+// Authentication: supports both cookie (browser/Blazor) and introspection (desktop/mobile).
+// A policy scheme automatically routes to the correct handler based on the request.
+builder.Services.AddAuthentication(options =>
+    {
+        options.DefaultScheme = "DotNetCloud.Module";
+        options.DefaultAuthenticateScheme = "DotNetCloud.Module";
+        options.DefaultChallengeScheme = "DotNetCloud.Module";
+    })
     .AddCookie("Identity.Application", options =>
     {
         options.Cookie.Name = ".AspNetCore.Identity.Application";
@@ -87,9 +98,25 @@ builder.Services.AddAuthentication("Identity.Application")
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
             return Task.CompletedTask;
         };
+    })
+    .AddIntrospection(IntrospectionAuthenticationExtensions.SchemeName)
+    .AddPolicyScheme("DotNetCloud.Module", "DotNetCloud.Module", options =>
+    {
+        // Route to introspection handler for Bearer tokens, Cookie handler for browser requests
+        options.ForwardDefaultSelector = context =>
+        {
+            if (context.Request.Headers.TryGetValue("Authorization", out var auth)
+                && auth.Count > 0
+                && auth[0]?.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                return IntrospectionAuthenticationExtensions.SchemeName;
+            }
+            return "Identity.Application";
+        };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options => AuthorizationPolicies.Configure(options));
+builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
 
 // --- Services ---
 

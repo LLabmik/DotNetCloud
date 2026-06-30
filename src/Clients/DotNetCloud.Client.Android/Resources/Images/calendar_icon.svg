@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <!-- Calendar base rectangle -->
+  <rect x="3" y="4" width="18" height="18" rx="2" fill="#FFFFFF"/>
+  <!-- Top header bar -->
+  <rect x="3" y="4" width="18" height="5" rx="2" fill="#FFFFFF"/>
+  <!-- Month/day lines -->
+  <line x1="9" y1="12" x2="15" y2="12" stroke="#1E293B" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="7.5" y1="15.5" x2="16.5" y2="15.5" stroke="#1E293B" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="7.5" y1="19" x2="13" y2="19" stroke="#1E293B" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- Ring hangers -->
+  <line x1="7" y1="2" x2="7" y2="5" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"/>
+  <line x1="17" y1="2" x2="17" y2="5" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"/>
+</svg>

@@ -44,6 +44,12 @@
             ContentTemplate="{DataTemplate views:MusicPage}"/>
 
         <ShellContent
+            Route="Calendar"
+            Title="Calendar"
+            Icon="calendar_icon.png"
+            ContentTemplate="{DataTemplate views:CalendarPage}"/>
+
+        <ShellContent
             Route="Settings"
             Title="Settings"
             Icon="settings_icon.png"

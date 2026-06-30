@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.DependencyInjection;
 using DotNetCloud.Client.Android.Auth;
+using DotNetCloud.Client.Android.Calendar;
 using DotNetCloud.Client.Android.Chat;
 using DotNetCloud.Client.Android.Files;
 using DotNetCloud.Client.Android.Music;
@@ -86,6 +87,11 @@ public static class MauiProgram
         builder.Services.AddSingleton<IMusicPlayerService, MusicPlayerService>();
         builder.Services.AddSingleton<IEqualizerService, AndroidEqualizerService>();
 
+        // ── Calendar ────────────────────────────────────────────────────
+        builder.Services.AddHttpClient<ICalendarRestClient, HttpCalendarRestClient>()
+            .AddHttpMessageHandler<AuthenticatedHttpClientHandler>()
+            .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
+
         // ── ViewModels ────────────────────────────────────────────────
         builder.Services.AddTransient<LoginViewModel>();
         builder.Services.AddTransient<ChannelListViewModel>();
@@ -94,6 +100,9 @@ public static class MauiProgram
         builder.Services.AddTransient<SettingsViewModel>();
         builder.Services.AddTransient<FileBrowserViewModel>();
         builder.Services.AddTransient<MusicViewModel>();
+        builder.Services.AddTransient<CalendarViewModel>();
+        builder.Services.AddTransient<EventDetailViewModel>();
+        builder.Services.AddTransient<EventEditViewModel>();
 
         // ── Pages ─────────────────────────────────────────────────────
         builder.Services.AddTransient<LandingPage>();
@@ -104,6 +113,9 @@ public static class MauiProgram
         builder.Services.AddTransient<SettingsPage>();
         builder.Services.AddTransient<FileBrowserPage>();
         builder.Services.AddTransient<MusicPage>();
+        builder.Services.AddTransient<CalendarPage>();
+        builder.Services.AddTransient<EventDetailPage>();
+        builder.Services.AddTransient<EventEditPage>();
 
 #if DEBUG
         builder.Logging.AddDebug();
