@@ -92,72 +92,20 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** Calendar module host needs Bearer token introspection auth deployed to production (cloud.kimball.home)
+**Summary:** ✅ Calendar Bearer token auth deployed to production (cloud.kimball.home). Awaiting Android client re-test (monolith).
 
-**Context:** The Android Calendar tab (`feature/android-calendar-tab` branch) crashes with "session expired" when tapped. Root cause: the Calendar module host only supports cookie auth (`Identity.Application`), but Android clients send Bearer JWT tokens. The YARP proxy forwards the Bearer token to the Calendar host, which doesn't support it → 401 Unauthorized → Android interprets as session expired.
+**Context:** Server-side fix for Calendar module host Bearer token introspection has been built, deployed, and verified. All 14 modules healthy. The Android client (monolith) needs to re-test the Calendar tab.
 
-**Fix committed to `feature/android-calendar-tab` at `efc8f8f7`:**
-- `src/Modules/Calendar/DotNetCloud.Modules.Calendar.Host/Program.cs` — replaced cookie-only auth with dual-auth (cookie + Bearer token introspection), matching the pattern used by Music/Files/Chat module hosts
-- `src/Modules/Calendar/DotNetCloud.Modules.Calendar.Host/Controllers/CalendarControllerBase.cs` — updated `[Authorize]` attribute to accept both `Identity.Application` and `Introspection` schemes
-
-**What was NOT changed (works as-is):**
-- The Android client (`src/Clients/`) already sends Bearer tokens correctly — it was the Calendar host rejecting them
-- The YARP proxy in Core.Server already forwards the `Authorization: Bearer` header correctly
-- The `DotNetCloud.Core.Auth.Introspection` package (gRPC token introspection) is already a dependency of the Calendar host via its `.csproj` file
+**Server deploy commit:** `e92beccc` (on `feature/android-calendar-tab`)
+**Fix commit:** `efc8f8f7`
 
 ---
 
 ### Server Actions — `cloud.kimball.home`
 
-**Goal:** Deploy the Calendar module auth fix to production so Android clients can call the Calendar API.
-
-1. **Get the fix onto your machine:**
-   ```bash
-   # Option A: Merge the feature branch into main (preferred)
-   git checkout main
-   git pull origin main
-   git merge origin/feature/android-calendar-tab
-   
-   # Option B: Just build from the feature branch directly
-   git fetch origin
-   git checkout feature/android-calendar-tab
-   ```
-
-2. **Build the Calendar module host:**
-   ```bash
-   dotnet build src/Modules/Calendar/DotNetCloud.Modules.Calendar.Host/DotNetCloud.Modules.Calendar.Host.csproj -c Release
-   ```
-
-3. **Publish the Calendar module host** (overwrites old DLLs):
-   ```bash
-   dotnet publish src/Modules/Calendar/DotNetCloud.Modules.Calendar.Host/DotNetCloud.Modules.Calendar.Host.csproj -c Release -o /opt/dotnetcloud/modules/calendar
-   ```
-
-4. **Restart the entire DotNetCloud service** (all modules restart):
-   ```bash
-   sudo systemctl restart dotnetcloud
-   ```
-
-5. **Verify all modules are healthy:**
-   ```bash
-   curl -s https://cloud.dotnetcloud.net/health | jq .
-   ```
-   Look for `"status": "Healthy"` for all 14 modules including Calendar.
-
-6. **Verify Calendar API responds to Bearer token requests:**
-   The Android app sends Bearer tokens obtained from `/connect/token`. After the fix, the Calendar host's introspection handler will validate them via gRPC call to Core.Server. No manual curl test needed — just have the Android client try the Calendar tab.
-
-**What the fix does:** The Calendar module host's `Program.cs` now registers:
-- `AddTokenIntrospection()` — gRPC client that calls Core.Server to validate Bearer tokens
-- `AddIntrospection()` — auth handler that uses the introspection client
-- A policy scheme that routes Bearer tokens to introspection, cookies to Identity.Application
-- `CalendarControllerBase.cs` `[Authorize]` now accepts both schemes
-
-**Files changed (2 files, committed to `feature/android-calendar-tab`):**
-- `src/Modules/Calendar/DotNetCloud.Modules.Calendar.Host/Program.cs`
-- `src/Modules/Calendar/DotNetCloud.Modules.Calendar.Host/Controllers/CalendarControllerBase.cs`
-
----
+- [x] Build Calendar module host with auth fix — succeeded
+- [x] Deploy via `sudo ./scripts/deploy.sh` — all 15 targets succeeded (678s)
+- [x] Verify all 14 modules healthy including `dotnetcloud.calendar`
 
 ### Client Actions — `monolith` (Android client)
 

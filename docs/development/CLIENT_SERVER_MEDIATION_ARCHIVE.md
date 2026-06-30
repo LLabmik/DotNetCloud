@@ -5192,6 +5192,31 @@ Key confirmations:
 - All 14 modules healthy on `cloud.kimball.home`
 - Binary timestamps confirmed fresh after each deploy
 
+---
+
+## Archived: Calendar Bearer Token Auth — Production Deploy (2026-06-30)
+
+**Target:** cloud.kimball.home (server-side deploy of Calendar bearer token auth).
+
+**Result:** ✅ Calendar module deployed with Bearer token introspection support. All changes on `feature/android-calendar-tab`.
+
+**Commit:** `efc8f8f7` — "Fix Calendar module host auth: add Bearer token introspection support"
+
+### Server Actions — cloud.kimball.home (Completed)
+
+1. ✅ **Built:** `dotnet build src/Modules/Calendar/DotNetCloud.Modules.Calendar.Host/DotNetCloud.Modules.Calendar.Host.csproj -c Release` — succeeded (140.1s)
+2. ✅ **Deployed:** `sudo ./scripts/deploy.sh` — all 15 targets succeeded (678s), saved commit `e92beccc`
+3. ✅ **Verified health:** All 14 modules Healthy including `dotnetcloud.calendar: Healthy (Running)`
+
+### What the fix did
+- `Calendar.Host/Program.cs` — added Bearer token introspection alongside existing cookie auth
+- `CalendarControllerBase.cs` — `[Authorize]` now accepts both `Identity.Application` and `Introspection` schemes
+- Pattern matches Music/Files/Chat module hosts
+
+### Client Actions — monolith (Pending)
+
+- ☐ Re-test Calendar tab on Android phone after server-side fix is deployed
+
 ### Remaining
 
 - ☐ Add `SenderName` to server's `MessageDto` — currently only has `SenderUserId` (Guid), so Android shows GUID fragments instead of display names
