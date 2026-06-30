@@ -12,15 +12,15 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace DotNetCloud.Modules.Calendar.Data.SqlServer.Migrations
 {
     [DbContext(typeof(CalendarDbContext))]
-    [Migration("20260612232224_AddSequentialGuidDefaults_SqlServer")]
-    partial class AddSequentialGuidDefaults_SqlServer
+    [Migration("20260630072752_AddSequentialGuidDefaults")]
+    partial class AddSequentialGuidDefaults
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasDefaultSchema("calendar")
+                .HasDefaultSchema("core")
                 .HasAnnotation("ProductVersion", "10.0.3")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
@@ -98,7 +98,7 @@ namespace DotNetCloud.Modules.Calendar.Data.SqlServer.Migrations
                     b.HasIndex("OwnerId", "Name")
                         .HasDatabaseName("ix_calendars_owner_name");
 
-                    b.ToTable("Calendars", "calendar");
+                    b.ToTable("Calendars", "core");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Calendar.Models.CalendarEvent", b =>
@@ -204,7 +204,7 @@ namespace DotNetCloud.Modules.Calendar.Data.SqlServer.Migrations
                     b.HasIndex("StartUtc", "EndUtc")
                         .HasDatabaseName("ix_calendar_events_time_range");
 
-                    b.ToTable("CalendarEvents", "calendar");
+                    b.ToTable("CalendarEvents", "core");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Calendar.Models.CalendarShare", b =>
@@ -250,7 +250,7 @@ namespace DotNetCloud.Modules.Calendar.Data.SqlServer.Migrations
                     b.HasIndex("SharedWithUserId")
                         .HasDatabaseName("ix_calendar_shares_user_id");
 
-                    b.ToTable("CalendarShares", "calendar");
+                    b.ToTable("CalendarShares", "core");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Calendar.Models.EventAttendee", b =>
@@ -310,7 +310,7 @@ namespace DotNetCloud.Modules.Calendar.Data.SqlServer.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_event_attendees_event_email");
 
-                    b.ToTable("EventAttendees", "calendar");
+                    b.ToTable("EventAttendees", "core");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Calendar.Models.EventReminder", b =>
@@ -342,7 +342,7 @@ namespace DotNetCloud.Modules.Calendar.Data.SqlServer.Migrations
                     b.HasIndex("EventId")
                         .HasDatabaseName("ix_event_reminders_event_id");
 
-                    b.ToTable("EventReminders", "calendar");
+                    b.ToTable("EventReminders", "core");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Calendar.Models.ReminderLog", b =>
@@ -380,7 +380,7 @@ namespace DotNetCloud.Modules.Calendar.Data.SqlServer.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_reminder_logs_reminder_occurrence");
 
-                    b.ToTable("ReminderLogs", "calendar");
+                    b.ToTable("ReminderLogs", "core");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Calendar.Models.CalendarEvent", b =>

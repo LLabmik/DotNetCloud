@@ -92,30 +92,22 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** Calendar module → required module, schema migration `calendar` → `core`
+**Summary:** Postgres migration fix needed for mint22 dev server
 
-**Context:** `dotnetcloud.calendar` was added to `RequiredModules.ModuleIds` (commit `51d21923`). This means:
-- Calendar is now architecturally required — cannot be disabled or uninstalled
-- Calendar tables share the `core` schema (same as Files, Chat, Search, Contacts, About)
-- New EF migrations generated for both Postgres and SqlServer to rename all 6 tables from `calendar` schema → `core` schema
+**Context:** The SqlServer production deploy at `cloud.kimball.home` is complete and verified. The same schema migration issue exists for Postgres on `mint22` — the `SwitchCalendarToCoreSchema` migration was generated assuming tables are in `calendar` schema, but the `InitialCreate` was regenerated to use `core` schema directly.
 
-**Commit:** `51d21923` on `main` — "Make Calendar a required module, move tables to core schema"
+**Fix needed:** Same approach as SqlServer — remove the broken `SwitchCalendarToCoreSchema` migration and `AddCalendarOrganizationId`/`FixPendingModelChanges` migrations (if they have the same issue), then generate a clean migration that only adds the needed schema/column changes without trying to move tables.
+
+**Commit (SqlServer fix):** `51d21923` + migration fixes on `cloud.kimball.home` (not yet committed)
 
 ---
 
-### Server Actions — `cloud.kimball.home`
+### Server Actions — `mint22`
 
-- [ ] Pull latest `main`: `git pull origin main`
-- [ ] Stop the service: `sudo systemctl stop dotnetcloud`
-- [ ] Apply Postgres migration: `sudo dotnet ef database update --project src/Modules/Calendar/DotNetCloud.Modules.Calendar.Data --startup-project src/Modules/Calendar/DotNetCloud.Modules.Calendar.Host --context CalendarDbContext --connection "Host=localhost;Database=dotnetcloud;Username=dotnetcloud;Password=<from-env>"`
-- [ ] Verify migration applied — check that 6 calendar tables now live in `core` schema: `sudo -u postgres psql -d dotnetcloud -c "\dt core.*" | grep -i calendar`
-- [ ] Rebuild Calendar module (Release): `dotnet build src/Modules/Calendar/DotNetCloud.Modules.Calendar.Host -c Release`
-- [ ] Deploy updated Calendar module binaries to `/opt/dotnetcloud/server/modules/dotnetcloud.calendar/`
-- [ ] Deploy updated Core binaries (RequiredModules.cs change): copy `src/Core/DotNetCloud.Core/bin/Release/net10.0/DotNetCloud.Core.dll` to `/opt/dotnetcloud/server/`
-- [ ] Start the service: `sudo systemctl start dotnetcloud`
-- [ ] Verify Calendar module is Healthy: check admin health dashboard or `curl -k https://localhost:5443/health`
-- [ ] Verify Calendar is marked IsRequired in DB: query `InstalledModules` table
-- [ ] Mark complete and relay back
+- [ ] `git pull origin main`
+- [ ] Check Postgres migration state: `dotnet ef migrations list --project src/Modules/Calendar/DotNetCloud.Modules.Calendar.Data --startup-project src/Modules/Calendar/DotNetCloud.Modules.Calendar.Host --context CalendarDbContext`
+- [ ] If `SwitchCalendarToCoreSchema` is pending, fix the migration chain (same issue as SqlServer — tables already in `core` schema from regenerated `InitialCreate`)
+- [ ] Apply migrations, rebuild, deploy, verify Calendar API on mint22
 
 ## Environment
 

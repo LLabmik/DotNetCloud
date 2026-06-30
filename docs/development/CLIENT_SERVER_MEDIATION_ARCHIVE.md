@@ -2,6 +2,28 @@
 
 Archived: 2026-06-30. Full git history preserved.
 
+## Archived: Calendar Required Module — Schema Migration & Production Deploy (2026-06-30)
+
+**Target:** cloud.kimball.home → production deployment
+
+**Result:** ✅ Calendar tables migrated to `core` schema, sequential GUID defaults applied, Calendar API working.
+
+**Completed (cloud.kimball.home — production deploy):**
+- ✅ Pulled latest `main` (commit `51d21923`)
+- ✅ Fixed SqlServer migrations — removed broken intermediate migrations, created clean `AddSequentialGuidDefaults` migration
+- ✅ Applied `SwitchCalendarToCoreSchema` — moved 6 calendar tables from `calendar` → `core` schema on hyperdrive
+- ✅ Applied `AddSequentialGuidDefaults` — added `NEWSEQUENTIALID()` defaults to all 6 calendar tables
+- ✅ Dropped orphaned `calendar` schema from production DB
+- ✅ Rebuilt Calendar module (Release) with fresh dependencies
+- ✅ Deployed all fresh DLLs (`Calendar.Data.dll`, `Core.dll`, `Core.Data.dll`, etc.) to module directory
+- ✅ Restarted service, waited for all 14 modules to become Healthy
+- ✅ Calendar API verified working (no more 500 errors)
+
+**Issues discovered & fixed:**
+- ⚠️ Production DB had duplicate tables in both `calendar` and `core` schemas — dropped `core` duplicates, then transferred `calendar` → `core`
+- ⚠️ Deployed DLLs were stale (`Calendar.Data.dll` from Jun 29) — fresh build required copying ALL dependency DLLs, not just the host binary
+- ⚠️ No `manifest.json` for `dotnetcloud.calendar` (warning in logs) — module uses default manifest
+
 ## Archived: Android Client Alphabet Index — Deployed to Phone (2026-06-30)
 
 **Target:** cloud.kimball.home (server) → monolith (Android client)
