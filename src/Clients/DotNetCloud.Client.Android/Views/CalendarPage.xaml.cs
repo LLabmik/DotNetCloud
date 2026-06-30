@@ -67,11 +67,21 @@ public partial class CalendarPage : ContentPage
 
     private void OnEventSelected(object? sender, SelectionChangedEventArgs e)
     {
-        if (e.CurrentSelection.FirstOrDefault() is CalendarEventDto evt)
+        try
         {
-            _vm.SelectEventCommand.Execute(evt);
+            if (e.CurrentSelection.FirstOrDefault() is CalendarEventDto evt)
+            {
+                _vm.SelectEventCommand.Execute(evt);
+            }
         }
-        if (sender is CollectionView cv)
-            cv.SelectedItem = null;
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"OnEventSelected error: {ex.Message}");
+        }
+        finally
+        {
+            if (sender is CollectionView cv)
+                cv.SelectedItem = null;
+        }
     }
 }

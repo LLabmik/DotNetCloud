@@ -128,7 +128,7 @@ public sealed partial class EventEditViewModel : ObservableObject
     /// <summary>Selected calendar object for the Picker binding. Sets <see cref="SelectedCalendarId"/>.</summary>
     public CalendarDto? SelectedCalendarItem
     {
-        get => Calendars.FirstOrDefault(c => c.Id == _selectedCalendarId);
+        get => Calendars.FirstOrDefault(c => c.Id == SelectedCalendarId);
         set
         {
             if (value is not null)

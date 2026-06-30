@@ -278,11 +278,20 @@ public sealed partial class CalendarViewModel : ObservableObject
     [RelayCommand]
     private async Task SelectEventAsync(CalendarEventDto evt)
     {
-        SelectedEvent = evt;
-        await Shell.Current.GoToAsync("EventDetail", new Dictionary<string, object>
+        try
         {
-            ["EventId"] = evt.Id
-        });
+            SelectedEvent = evt;
+            await Shell.Current.GoToAsync("EventDetail", new Dictionary<string, object>
+            {
+                ["EventId"] = evt.Id.ToString()
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to navigate to event detail for {EventId}.", evt.Id);
+            if (IsActive)
+                ErrorMessage = ApiExceptionHelper.GetUserFriendlyMessage(ex);
+        }
     }
 
     /// <summary>Navigates to the create-event page.</summary>

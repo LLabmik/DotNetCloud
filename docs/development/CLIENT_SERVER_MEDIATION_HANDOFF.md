@@ -92,26 +92,29 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** ✅ Calendar Bearer token auth deployed to production (cloud.kimball.home). Awaiting Android client re-test (monolith).
+**Summary:** ✅ All Calendar Android client issues resolved. Re-test on phone successful. Next: server-side Calendar event detail endpoint verification (cloud.kimball.home).
 
-**Context:** Server-side fix for Calendar module host Bearer token introspection has been built, deployed, and verified. All 14 modules healthy. The Android client (monolith) needs to re-test the Calendar tab.
+**Context:** Calendar tab on Android has been fully validated:
+1. ✅ Calendar tab loads and displays events (Bearer token auth working)
+2. ✅ Event detail page loads when tapping an event (x:DataType + InvalidCastException fixes)
+3. ✅ No crashes or errors on any Calendar UI flow
 
-**Server deploy commit:** `e92beccc` (on `feature/android-calendar-tab`)
-**Fix commit:** `efc8f8f7`
+All fixes deployed in APK v0.3.9 to phone. Server-side action needed: verify the Calendar event detail API endpoint serves correct data to the client.
 
 ---
 
 ### Server Actions — `cloud.kimball.home`
 
-- [x] Build Calendar module host with auth fix — succeeded
-- [x] Deploy via `sudo ./scripts/deploy.sh` — all 15 targets succeeded (678s)
-- [x] Verify all 14 modules healthy including `dotnetcloud.calendar`
+- [ ] Verify Calendar event detail GET endpoint at `/api/v1/calendars/events/{eventId}` returns full CalendarEventDto
 
 ### Client Actions — `monolith` (Android client)
 
 - [x] Android client already rebuilt and deployed to physical phone with all Calendar-related fixes
 - [x] XAML converter key crash fix deployed (`IsNotNullConverter` → `IsNotNull`)
-- [ ] Re-test Calendar tab on phone after server-side fix is deployed
+- [x] Event click crash fixed — `x:DataType` mismatch corrected in day view template
+- [x] Error handling added to `SelectEventAsync()` and `OnEventSelected` handler
+- [x] `InvalidCastException` fixed — Shell navigation passes EventId as string, not Guid
+- [x] MVVMTK0034 warning fixed in EventEditViewModel
 
 ## Environment
 
@@ -144,3 +147,6 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 - SignalR connection verified working via logcat ("SignalR connected successfully!")
 - `SenderName` display confirmed working
 - `JoinChannelGroupAsync` already sends the correct format ("chat-channel-{guid}")
+- **Calendar event click crash fix:** `x:DataType` in Day view `CollectionView.ItemTemplate` corrected from `vm:CalendarViewModel` to `core:CalendarEventDto`
+- **Calendar week view fix:** Inner `DataTemplate x:DataType` corrected from `x:Object` to `core:CalendarEventDto`
+- **Calendar error handling:** `SelectEventAsync()` and `OnEventSelected()` now wrapped in try-catch to prevent unhandled crashes

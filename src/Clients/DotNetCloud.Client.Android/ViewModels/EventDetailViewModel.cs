@@ -198,7 +198,7 @@ public sealed partial class EventDetailViewModel : ObservableObject
 
             var parameters = new Dictionary<string, object>
             {
-                ["EventId"] = Event.Id,
+                ["EventId"] = Event.Id.ToString(),
                 ["EditScope"] = scope,
             };
 
@@ -211,7 +211,7 @@ public sealed partial class EventDetailViewModel : ObservableObject
         {
             await Shell.Current.GoToAsync("EventEdit", new Dictionary<string, object>
             {
-                ["EventId"] = Event.Id
+                ["EventId"] = Event.Id.ToString()
             });
         }
     }
