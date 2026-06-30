@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Auth.Introspection;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Errors;
 using Microsoft.AspNetCore.Authorization;
@@ -12,7 +13,7 @@ namespace DotNetCloud.Modules.Calendar.Host.Controllers;
 /// Provides helper methods for caller context creation and envelope responses.
 /// </summary>
 [ApiController]
-[Authorize(AuthenticationSchemes = "Identity.Application")]
+[Authorize(AuthenticationSchemes = "Identity.Application," + IntrospectionAuthenticationExtensions.SchemeName)]
 public abstract class CalendarControllerBase : ControllerBase
 {
     /// <summary>

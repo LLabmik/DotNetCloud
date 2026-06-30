@@ -290,7 +290,8 @@ public sealed partial class EventEditViewModel : ObservableObject
     [RelayCommand]
     private async Task LoadEventForEditAsync(CancellationToken ct)
     {
-        if (!_eventId.HasValue) return;
+        if (!_eventId.HasValue)
+            return;
 
         try
         {
@@ -430,7 +431,8 @@ public sealed partial class EventEditViewModel : ObservableObject
     [RelayCommand]
     private async Task DeleteAsync(CancellationToken ct)
     {
-        if (!_eventId.HasValue) return;
+        if (!_eventId.HasValue)
+            return;
 
         try
         {
@@ -440,7 +442,8 @@ public sealed partial class EventEditViewModel : ObservableObject
                     "Delete Recurring Event", "Cancel", null,
                     "Delete This Occurrence", "Delete All Events");
 
-                if (action is null || action == "Cancel") return;
+                if (action is null || action == "Cancel")
+                    return;
 
                 var (serverUrl, token) = await GetCredentialsAsync(ct);
                 await _calendarApi.DeleteEventAsync(serverUrl, token, _eventId.Value, ct);
@@ -449,7 +452,8 @@ public sealed partial class EventEditViewModel : ObservableObject
             {
                 var confirmed = await Shell.Current.DisplayAlert(
                     "Delete Event", "Delete this event?", "Delete", "Cancel");
-                if (!confirmed) return;
+                if (!confirmed)
+                    return;
 
                 var (serverUrl, token) = await GetCredentialsAsync(ct);
                 await _calendarApi.DeleteEventAsync(serverUrl, token, _eventId.Value, ct);
@@ -501,13 +505,20 @@ public sealed partial class EventEditViewModel : ObservableObject
         if (RecurrenceFrequency == 2)
         {
             var days = new List<string>();
-            if (RecurrenceSun) days.Add("SU");
-            if (RecurrenceMon) days.Add("MO");
-            if (RecurrenceTue) days.Add("TU");
-            if (RecurrenceWed) days.Add("WE");
-            if (RecurrenceThu) days.Add("TH");
-            if (RecurrenceFri) days.Add("FR");
-            if (RecurrenceSat) days.Add("SA");
+            if (RecurrenceSun)
+                days.Add("SU");
+            if (RecurrenceMon)
+                days.Add("MO");
+            if (RecurrenceTue)
+                days.Add("TU");
+            if (RecurrenceWed)
+                days.Add("WE");
+            if (RecurrenceThu)
+                days.Add("TH");
+            if (RecurrenceFri)
+                days.Add("FR");
+            if (RecurrenceSat)
+                days.Add("SA");
             if (days.Count > 0)
                 parts.Add($"BYDAY={string.Join(",", days)}");
         }
@@ -522,7 +533,8 @@ public sealed partial class EventEditViewModel : ObservableObject
 
     private void ParseRruleIntoFields(string rrule)
     {
-        if (string.IsNullOrEmpty(rrule)) return;
+        if (string.IsNullOrEmpty(rrule))
+            return;
 
         var parts = rrule.Split(';').Select(p => p.Split('=', 2))
             .ToDictionary(p => p[0], p => p.Length > 1 ? p[1] : "");
@@ -572,7 +584,8 @@ public sealed partial class EventEditViewModel : ObservableObject
 
     private static string DescribeRrule(string rrule)
     {
-        if (string.IsNullOrEmpty(rrule)) return string.Empty;
+        if (string.IsNullOrEmpty(rrule))
+            return string.Empty;
 
         var parts = rrule.Split(';').Select(p => p.Split('=', 2))
             .ToDictionary(p => p[0], p => p.Length > 1 ? p[1] : "");
@@ -598,8 +611,13 @@ public sealed partial class EventEditViewModel : ObservableObject
         {
             var dayNames = byDay.Split(',').Select(d => d switch
             {
-                "MO" => "Mon", "TU" => "Tue", "WE" => "Wed",
-                "TH" => "Thu", "FR" => "Fri", "SA" => "Sat", "SU" => "Sun",
+                "MO" => "Mon",
+                "TU" => "Tue",
+                "WE" => "Wed",
+                "TH" => "Thu",
+                "FR" => "Fri",
+                "SA" => "Sat",
+                "SU" => "Sun",
                 _ => d
             });
             prefix += $" on {string.Join(", ", dayNames)}";

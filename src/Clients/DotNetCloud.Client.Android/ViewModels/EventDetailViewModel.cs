@@ -90,7 +90,8 @@ public sealed partial class EventDetailViewModel : ObservableObject
     [RelayCommand]
     private async Task LoadEventAsync(CancellationToken ct)
     {
-        if (_eventId == Guid.Empty) return;
+        if (_eventId == Guid.Empty)
+            return;
         IsLoading = true;
         ErrorMessage = null;
 
@@ -155,11 +156,13 @@ public sealed partial class EventDetailViewModel : ObservableObject
     [RelayCommand]
     private async Task RsvpAsync(string status, CancellationToken ct)
     {
-        if (_eventId == Guid.Empty) return;
+        if (_eventId == Guid.Empty)
+            return;
 
         try
         {
-            if (!Enum.TryParse<AttendeeStatus>(status, out var attendeeStatus)) return;
+            if (!Enum.TryParse<AttendeeStatus>(status, out var attendeeStatus))
+                return;
 
             var (serverUrl, token) = await GetCredentialsAsync(ct);
             var dto = new EventRsvpDto { Status = attendeeStatus };
@@ -177,7 +180,8 @@ public sealed partial class EventDetailViewModel : ObservableObject
     [RelayCommand]
     private async Task EditEventAsync()
     {
-        if (Event is null) return;
+        if (Event is null)
+            return;
 
         if (IsRecurring)
         {
@@ -185,7 +189,8 @@ public sealed partial class EventDetailViewModel : ObservableObject
                 "Edit Recurring Event", "Cancel", null,
                 "Edit This Occurrence", "Edit All Events");
 
-            if (action is null || action == "Cancel") return;
+            if (action is null || action == "Cancel")
+                return;
 
             var scope = action == "Edit This Occurrence"
                 ? nameof(EditScope.ThisOccurrence)
@@ -215,7 +220,8 @@ public sealed partial class EventDetailViewModel : ObservableObject
     [RelayCommand]
     private async Task DeleteEventAsync(CancellationToken ct)
     {
-        if (Event is null || _eventId == Guid.Empty) return;
+        if (Event is null || _eventId == Guid.Empty)
+            return;
 
         try
         {
@@ -225,7 +231,8 @@ public sealed partial class EventDetailViewModel : ObservableObject
                     "Delete Recurring Event", "Cancel", null,
                     "Delete This Occurrence", "Delete All Events");
 
-                if (action is null || action == "Cancel") return;
+                if (action is null || action == "Cancel")
+                    return;
 
                 if (action == "Delete This Occurrence")
                 {
@@ -242,7 +249,8 @@ public sealed partial class EventDetailViewModel : ObservableObject
                 var confirmed = await Shell.Current.DisplayAlert(
                     "Delete Event", $"Delete \"{Event.Title}\"?", "Delete", "Cancel");
 
-                if (!confirmed) return;
+                if (!confirmed)
+                    return;
 
                 var (serverUrl, token) = await GetCredentialsAsync(ct);
                 await _calendarApi.DeleteEventAsync(serverUrl, token, _eventId, ct);
@@ -270,7 +278,8 @@ public sealed partial class EventDetailViewModel : ObservableObject
 
     private static string DescribeRrule(string rrule)
     {
-        if (string.IsNullOrEmpty(rrule)) return string.Empty;
+        if (string.IsNullOrEmpty(rrule))
+            return string.Empty;
 
         var parts = rrule.Split(';').Select(p => p.Split('=', 2))
             .ToDictionary(p => p[0], p => p.Length > 1 ? p[1] : "");
@@ -296,8 +305,13 @@ public sealed partial class EventDetailViewModel : ObservableObject
         {
             var dayNames = byDay.Split(',').Select(d => d switch
             {
-                "MO" => "Mon", "TU" => "Tue", "WE" => "Wed",
-                "TH" => "Thu", "FR" => "Fri", "SA" => "Sat", "SU" => "Sun",
+                "MO" => "Mon",
+                "TU" => "Tue",
+                "WE" => "Wed",
+                "TH" => "Thu",
+                "FR" => "Fri",
+                "SA" => "Sat",
+                "SU" => "Sun",
                 _ => d
             });
             prefix += $" on {string.Join(", ", dayNames)}";

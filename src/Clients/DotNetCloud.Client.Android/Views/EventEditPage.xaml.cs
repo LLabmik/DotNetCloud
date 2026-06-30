@@ -39,13 +39,27 @@ public partial class EventEditPage : ContentPage
         {
             switch (day)
             {
-                case "Sun": _vm.RecurrenceSun = !_vm.RecurrenceSun; break;
-                case "Mon": _vm.RecurrenceMon = !_vm.RecurrenceMon; break;
-                case "Tue": _vm.RecurrenceTue = !_vm.RecurrenceTue; break;
-                case "Wed": _vm.RecurrenceWed = !_vm.RecurrenceWed; break;
-                case "Thu": _vm.RecurrenceThu = !_vm.RecurrenceThu; break;
-                case "Fri": _vm.RecurrenceFri = !_vm.RecurrenceFri; break;
-                case "Sat": _vm.RecurrenceSat = !_vm.RecurrenceSat; break;
+                case "Sun":
+                    _vm.RecurrenceSun = !_vm.RecurrenceSun;
+                    break;
+                case "Mon":
+                    _vm.RecurrenceMon = !_vm.RecurrenceMon;
+                    break;
+                case "Tue":
+                    _vm.RecurrenceTue = !_vm.RecurrenceTue;
+                    break;
+                case "Wed":
+                    _vm.RecurrenceWed = !_vm.RecurrenceWed;
+                    break;
+                case "Thu":
+                    _vm.RecurrenceThu = !_vm.RecurrenceThu;
+                    break;
+                case "Fri":
+                    _vm.RecurrenceFri = !_vm.RecurrenceFri;
+                    break;
+                case "Sat":
+                    _vm.RecurrenceSat = !_vm.RecurrenceSat;
+                    break;
             }
             // Update button visual state
             button.BackgroundColor = GetDayToggleColor(day);

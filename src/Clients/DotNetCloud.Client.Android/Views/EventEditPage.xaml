@@ -9,136 +9,212 @@
              BackgroundColor="#0F172A">
 
     <Shell.TitleView>
-        <Grid ColumnDefinitions="Auto,*,Auto" Padding="0,0,8,0">
-            <Button Grid.Column="0" Text="Cancel"
-                    BackgroundColor="Transparent" TextColor="#0EA5E9"
-                    Clicked="OnCancelClicked" FontSize="14"/>
-            <HorizontalStackLayout Grid.Column="1" Spacing="8" VerticalOptions="Center"
+        <Grid ColumnDefinitions="Auto,*,Auto"
+                Padding="0,0,8,0">
+            <Button Grid.Column="0"
+                    Text="Cancel"
+                    BackgroundColor="Transparent"
+                    TextColor="#0EA5E9"
+                    Clicked="OnCancelClicked"
+                    FontSize="14"/>
+            <HorizontalStackLayout Grid.Column="1"
+                    Spacing="8"
+                    VerticalOptions="Center"
                                    HorizontalOptions="Center">
-                <Image Source="logo.png" HeightRequest="28" WidthRequest="28"
+                <Image Source="logo.png"
+                        HeightRequest="28"
+                        WidthRequest="28"
                        VerticalOptions="Center"/>
-                <Label Text="{Binding EditTitle}" FontSize="18" FontAttributes="Bold"
-                       TextColor="#F1F5F9" VerticalOptions="Center"/>
+                <Label Text="{Binding EditTitle}"
+                        FontSize="18"
+                        FontAttributes="Bold"
+                       TextColor="#F1F5F9"
+                        VerticalOptions="Center"/>
             </HorizontalStackLayout>
-            <Button Grid.Column="2" Text="Save"
-                    BackgroundColor="#0EA5E9" TextColor="#FFFFFF"
-                    Clicked="OnSaveClicked" FontSize="14" Padding="12,4"
+            <Button Grid.Column="2"
+                    Text="Save"
+                    BackgroundColor="#0EA5E9"
+                    TextColor="#FFFFFF"
+                    Clicked="OnSaveClicked"
+                    FontSize="14"
+                    Padding="12,4"
                     CornerRadius="8"/>
         </Grid>
     </Shell.TitleView>
 
     <ScrollView BackgroundColor="#0F172A">
-        <VerticalStackLayout Padding="16,8" Spacing="12">
+        <VerticalStackLayout Padding="16,8"
+                Spacing="12">
 
             <!-- Error message -->
-            <Label Text="{Binding FormError}" TextColor="#EF4444" FontSize="13"
-                   IsVisible="{Binding FormError, Converter={StaticResource IsNotNullConverter}}"/>
+            <Label Text="{Binding FormError}"
+                    TextColor="#EF4444"
+                    FontSize="13"
+                   IsVisible="{Binding FormError, Converter={StaticResource IsNotNull}}"/>
 
             <!-- Edit scope banner (recurring events only) -->
-            <Border StrokeThickness="1" Stroke="#0EA5E9" Padding="8,4"
-                    BackgroundColor="#0C1929" StrokeShape="RoundRectangle 8"
+            <Border StrokeThickness="1"
+                    Stroke="#0EA5E9"
+                    Padding="8,4"
+                    BackgroundColor="#0C1929"
+                    StrokeShape="RoundRectangle 8"
                     IsVisible="{Binding IsRecurringEvent}">
-                <Label Text="{Binding EditScopeLabel}" FontSize="12"
-                       TextColor="#0EA5E9" HorizontalOptions="Center"/>
+                <Label Text="{Binding EditScopeLabel}"
+                        FontSize="12"
+                       TextColor="#0EA5E9"
+                        HorizontalOptions="Center"/>
             </Border>
 
             <!-- Title -->
             <VerticalStackLayout Spacing="4">
-                <Label Text="Title *" FontSize="12" TextColor="#64748B"/>
-                <Entry Text="{Binding Title}" Placeholder="Event title"
-                       TextColor="#F1F5F9" PlaceholderColor="#475569"
+                <Label Text="Title *"
+                        FontSize="12"
+                        TextColor="#64748B"/>
+                <Entry Text="{Binding Title}"
+                        Placeholder="Event title"
+                       TextColor="#F1F5F9"
+                        PlaceholderColor="#475569"
                        BackgroundColor="#1E293B"/>
-                <Label Text="{Binding TitleError}" TextColor="#EF4444" FontSize="11"
-                       IsVisible="{Binding TitleError, Converter={StaticResource IsNotNullConverter}}"/>
+                <Label Text="{Binding TitleError}"
+                        TextColor="#EF4444"
+                        FontSize="11"
+                       IsVisible="{Binding TitleError, Converter={StaticResource IsNotNull}}"/>
             </VerticalStackLayout>
 
             <!-- Description -->
             <VerticalStackLayout Spacing="4">
-                <Label Text="Description" FontSize="12" TextColor="#64748B"/>
-                <Editor Text="{Binding Description}" Placeholder="Add description..."
-                        TextColor="#F1F5F9" PlaceholderColor="#475569"
-                        BackgroundColor="#1E293B" HeightRequest="80"/>
+                <Label Text="Description"
+                        FontSize="12"
+                        TextColor="#64748B"/>
+                <Editor Text="{Binding Description}"
+                        Placeholder="Add description..."
+                        TextColor="#F1F5F9"
+                        PlaceholderColor="#475569"
+                        BackgroundColor="#1E293B"
+                        HeightRequest="80"/>
             </VerticalStackLayout>
 
             <!-- Location -->
             <VerticalStackLayout Spacing="4">
-                <Label Text="Location" FontSize="12" TextColor="#64748B"/>
-                <Entry Text="{Binding Location}" Placeholder="Add location"
-                       TextColor="#F1F5F9" PlaceholderColor="#475569"
+                <Label Text="Location"
+                        FontSize="12"
+                        TextColor="#64748B"/>
+                <Entry Text="{Binding Location}"
+                        Placeholder="Add location"
+                       TextColor="#F1F5F9"
+                        PlaceholderColor="#475569"
                        BackgroundColor="#1E293B"/>
             </VerticalStackLayout>
 
             <!-- Start Date/Time -->
-            <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
-                <VerticalStackLayout Grid.Column="0" Spacing="4">
-                    <Label Text="Start Date" FontSize="12" TextColor="#64748B"/>
+            <Grid ColumnDefinitions="*,*"
+                    ColumnSpacing="8">
+                <VerticalStackLayout Grid.Column="0"
+                        Spacing="4">
+                    <Label Text="Start Date"
+                            FontSize="12"
+                            TextColor="#64748B"/>
                     <DatePicker Date="{Binding StartDate}"
-                                TextColor="#F1F5F9" BackgroundColor="#1E293B"/>
+                                TextColor="#F1F5F9"
+                            BackgroundColor="#1E293B"/>
                 </VerticalStackLayout>
-                <VerticalStackLayout Grid.Column="1" Spacing="4"
-                                     IsVisible="{Binding IsAllDay, Converter={StaticResource InvertBoolConverter}}">
-                    <Label Text="Start Time" FontSize="12" TextColor="#64748B"/>
+                <VerticalStackLayout Grid.Column="1"
+                        Spacing="4"
+                                     IsVisible="{Binding IsAllDay, Converter={StaticResource InvertBool}}">
+                    <Label Text="Start Time"
+                            FontSize="12"
+                            TextColor="#64748B"/>
                     <TimePicker Time="{Binding StartTime}"
-                                TextColor="#F1F5F9" BackgroundColor="#1E293B"/>
+                                TextColor="#F1F5F9"
+                            BackgroundColor="#1E293B"/>
                 </VerticalStackLayout>
             </Grid>
 
             <!-- End Date/Time -->
-            <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
-                <VerticalStackLayout Grid.Column="0" Spacing="4">
-                    <Label Text="End Date" FontSize="12" TextColor="#64748B"/>
+            <Grid ColumnDefinitions="*,*"
+                    ColumnSpacing="8">
+                <VerticalStackLayout Grid.Column="0"
+                        Spacing="4">
+                    <Label Text="End Date"
+                            FontSize="12"
+                            TextColor="#64748B"/>
                     <DatePicker Date="{Binding EndDate}"
-                                TextColor="#F1F5F9" BackgroundColor="#1E293B"/>
+                                TextColor="#F1F5F9"
+                            BackgroundColor="#1E293B"/>
                 </VerticalStackLayout>
-                <VerticalStackLayout Grid.Column="1" Spacing="4"
-                                     IsVisible="{Binding IsAllDay, Converter={StaticResource InvertBoolConverter}}">
-                    <Label Text="End Time" FontSize="12" TextColor="#64748B"/>
+                <VerticalStackLayout Grid.Column="1"
+                        Spacing="4"
+                                     IsVisible="{Binding IsAllDay, Converter={StaticResource InvertBool}}">
+                    <Label Text="End Time"
+                            FontSize="12"
+                            TextColor="#64748B"/>
                     <TimePicker Time="{Binding EndTime}"
-                                TextColor="#F1F5F9" BackgroundColor="#1E293B"/>
+                                TextColor="#F1F5F9"
+                            BackgroundColor="#1E293B"/>
                 </VerticalStackLayout>
             </Grid>
 
             <!-- Date error -->
-            <Label Text="{Binding DateError}" TextColor="#EF4444" FontSize="11"
-                   IsVisible="{Binding DateError, Converter={StaticResource IsNotNullConverter}}"/>
+            <Label Text="{Binding DateError}"
+                    TextColor="#EF4444"
+                    FontSize="11"
+                   IsVisible="{Binding DateError, Converter={StaticResource IsNotNull}}"/>
 
             <!-- All-day toggle -->
             <HorizontalStackLayout Spacing="8">
-                <Switch IsToggled="{Binding IsAllDay}" OnColor="#0EA5E9"
+                <Switch IsToggled="{Binding IsAllDay}"
+                        OnColor="#0EA5E9"
                         ThumbColor="#94A3B8"/>
-                <Label Text="All-day" FontSize="14" TextColor="#94A3B8"
+                <Label Text="All-day"
+                        FontSize="14"
+                        TextColor="#94A3B8"
                        VerticalOptions="Center"/>
             </HorizontalStackLayout>
 
             <!-- Calendar picker -->
             <VerticalStackLayout Spacing="4">
-                <Label Text="Calendar" FontSize="12" TextColor="#64748B"/>
+                <Label Text="Calendar"
+                        FontSize="12"
+                        TextColor="#64748B"/>
                 <Picker ItemsSource="{Binding Calendars}"
                         SelectedItem="{Binding SelectedCalendarItem}"
                         ItemDisplayBinding="{Binding Name}"
-                        TextColor="#F1F5F9" BackgroundColor="#1E293B"
+                        TextColor="#F1F5F9"
+                        BackgroundColor="#1E293B"
                         Title="Select calendar"/>
             </VerticalStackLayout>
 
             <!-- URL -->
             <VerticalStackLayout Spacing="4">
-                <Label Text="URL (video call, etc.)" FontSize="12" TextColor="#64748B"/>
-                <Entry Text="{Binding Url}" Placeholder="https://..."
-                       TextColor="#F1F5F9" PlaceholderColor="#475569"
+                <Label Text="URL (video call, etc.)"
+                        FontSize="12"
+                        TextColor="#64748B"/>
+                <Entry Text="{Binding Url}"
+                        Placeholder="https://..."
+                       TextColor="#F1F5F9"
+                        PlaceholderColor="#475569"
                        BackgroundColor="#1E293B"/>
             </VerticalStackLayout>
 
             <!-- ══════════ Recurrence Section ══════════ -->
-            <Border StrokeThickness="1" Stroke="#334155" Padding="12"
-                    BackgroundColor="#1E293B" StrokeShape="RoundRectangle 8">
+            <Border StrokeThickness="1"
+                    Stroke="#334155"
+                    Padding="12"
+                    BackgroundColor="#1E293B"
+                    StrokeShape="RoundRectangle 8">
                 <VerticalStackLayout Spacing="10">
 
                     <!-- Recurrence toggle -->
                     <HorizontalStackLayout Spacing="8">
-                        <Label Text="Recurring event" FontSize="14" FontAttributes="Bold"
-                               TextColor="#F1F5F9" VerticalOptions="Center"/>
-                        <Switch IsToggled="{Binding IsRecurring}" OnColor="#0EA5E9"
-                                ThumbColor="#94A3B8" VerticalOptions="Center"/>
+                        <Label Text="Recurring event"
+                                FontSize="14"
+                                FontAttributes="Bold"
+                               TextColor="#F1F5F9"
+                                VerticalOptions="Center"/>
+                        <Switch IsToggled="{Binding IsRecurring}"
+                                OnColor="#0EA5E9"
+                                ThumbColor="#94A3B8"
+                                VerticalOptions="Center"/>
                     </HorizontalStackLayout>
 
                     <!-- Recurrence fields (visible when IsRecurring is true) -->
@@ -147,23 +223,33 @@
 
                         <!-- Frequency -->
                         <VerticalStackLayout Spacing="4">
-                            <Label Text="Frequency" FontSize="12" TextColor="#64748B"/>
+                            <Label Text="Frequency"
+                                    FontSize="12"
+                                    TextColor="#64748B"/>
                             <Picker ItemsSource="{Binding FrequencyOptions}"
                                     SelectedIndex="{Binding RecurrenceFrequency}"
-                                    TextColor="#F1F5F9" BackgroundColor="#0F172A"/>
+                                    TextColor="#F1F5F9"
+                                    BackgroundColor="#0F172A"/>
                         </VerticalStackLayout>
 
                         <!-- Interval -->
-                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
-                            <Label Grid.Column="0" Text="Every" FontSize="14"
-                                   TextColor="#94A3B8" VerticalOptions="Center"/>
+                        <Grid ColumnDefinitions="Auto,*,Auto"
+                                ColumnSpacing="8">
+                            <Label Grid.Column="0"
+                                    Text="Every"
+                                    FontSize="14"
+                                   TextColor="#94A3B8"
+                                    VerticalOptions="Center"/>
                             <Stepper Grid.Column="1"
                                      Value="{Binding RecurrenceInterval}"
-                                     Minimum="1" Maximum="99" Increment="1"
+                                     Minimum="1"
+                                    Maximum="99"
+                                    Increment="1"
                                      HorizontalOptions="Fill"/>
                             <Label Grid.Column="2"
                                    Text="{Binding RecurrenceInterval, StringFormat='{0} days/weeks'}"
-                                   FontSize="12" TextColor="#64748B"
+                                   FontSize="12"
+                                    TextColor="#64748B"
                                    VerticalOptions="Center"/>
                         </Grid>
 
@@ -171,73 +257,110 @@
                         <Grid ColumnDefinitions="*,*,*,*,*,*,*"
                               ColumnSpacing="4"
                               IsVisible="{Binding ShowDaysOfWeek}">
-                            <Button Grid.Column="0" Text="Sun"
+                            <Button Grid.Column="0"
+                                    Text="Sun"
                                     Clicked="OnDayToggled"
-                                    CommandParameter="Sun" FontSize="11"
-                                    Padding="0" HeightRequest="36"/>
-                            <Button Grid.Column="1" Text="Mon"
+                                    CommandParameter="Sun"
+                                    FontSize="11"
+                                    Padding="0"
+                                    HeightRequest="36"/>
+                            <Button Grid.Column="1"
+                                    Text="Mon"
                                     Clicked="OnDayToggled"
-                                    CommandParameter="Mon" FontSize="11"
-                                    Padding="0" HeightRequest="36"/>
-                            <Button Grid.Column="2" Text="Tue"
+                                    CommandParameter="Mon"
+                                    FontSize="11"
+                                    Padding="0"
+                                    HeightRequest="36"/>
+                            <Button Grid.Column="2"
+                                    Text="Tue"
                                     Clicked="OnDayToggled"
-                                    CommandParameter="Tue" FontSize="11"
-                                    Padding="0" HeightRequest="36"/>
-                            <Button Grid.Column="3" Text="Wed"
+                                    CommandParameter="Tue"
+                                    FontSize="11"
+                                    Padding="0"
+                                    HeightRequest="36"/>
+                            <Button Grid.Column="3"
+                                    Text="Wed"
                                     Clicked="OnDayToggled"
-                                    CommandParameter="Wed" FontSize="11"
-                                    Padding="0" HeightRequest="36"/>
-                            <Button Grid.Column="4" Text="Thu"
+                                    CommandParameter="Wed"
+                                    FontSize="11"
+                                    Padding="0"
+                                    HeightRequest="36"/>
+                            <Button Grid.Column="4"
+                                    Text="Thu"
                                     Clicked="OnDayToggled"
-                                    CommandParameter="Thu" FontSize="11"
-                                    Padding="0" HeightRequest="36"/>
-                            <Button Grid.Column="5" Text="Fri"
+                                    CommandParameter="Thu"
+                                    FontSize="11"
+                                    Padding="0"
+                                    HeightRequest="36"/>
+                            <Button Grid.Column="5"
+                                    Text="Fri"
                                     Clicked="OnDayToggled"
-                                    CommandParameter="Fri" FontSize="11"
-                                    Padding="0" HeightRequest="36"/>
-                            <Button Grid.Column="6" Text="Sat"
+                                    CommandParameter="Fri"
+                                    FontSize="11"
+                                    Padding="0"
+                                    HeightRequest="36"/>
+                            <Button Grid.Column="6"
+                                    Text="Sat"
                                     Clicked="OnDayToggled"
-                                    CommandParameter="Sat" FontSize="11"
-                                    Padding="0" HeightRequest="36"/>
+                                    CommandParameter="Sat"
+                                    FontSize="11"
+                                    Padding="0"
+                                    HeightRequest="36"/>
                         </Grid>
 
                         <!-- End condition -->
                         <VerticalStackLayout Spacing="4">
-                            <Label Text="Ends" FontSize="12" TextColor="#64748B"/>
+                            <Label Text="Ends"
+                                    FontSize="12"
+                                    TextColor="#64748B"/>
                             <Picker ItemsSource="{Binding EndTypeOptions}"
                                     SelectedIndex="{Binding RecurrenceEndType}"
-                                    TextColor="#F1F5F9" BackgroundColor="#0F172A"/>
+                                    TextColor="#F1F5F9"
+                                    BackgroundColor="#0F172A"/>
                         </VerticalStackLayout>
 
                         <!-- End after count -->
                         <HorizontalStackLayout Spacing="8"
                                                IsVisible="{Binding ShowEndCount}">
-                            <Label Text="After" FontSize="14" TextColor="#94A3B8"
+                            <Label Text="After"
+                                    FontSize="14"
+                                    TextColor="#94A3B8"
                                    VerticalOptions="Center"/>
                             <Entry Text="{Binding RecurrenceEndCount}"
-                                   Keyboard="Numeric" WidthRequest="60"
-                                   TextColor="#F1F5F9" BackgroundColor="#0F172A"/>
-                            <Label Text="occurrences" FontSize="14" TextColor="#94A3B8"
+                                   Keyboard="Numeric"
+                                    WidthRequest="60"
+                                   TextColor="#F1F5F9"
+                                    BackgroundColor="#0F172A"/>
+                            <Label Text="occurrences"
+                                    FontSize="14"
+                                    TextColor="#94A3B8"
                                    VerticalOptions="Center"/>
                         </HorizontalStackLayout>
 
                         <!-- End on date -->
                         <DatePicker Date="{Binding RecurrenceEndDate}"
                                     IsVisible="{Binding ShowEndDate}"
-                                    TextColor="#F1F5F9" BackgroundColor="#0F172A"/>
+                                    TextColor="#F1F5F9"
+                                BackgroundColor="#0F172A"/>
 
                         <!-- Recurrence preview -->
                         <Label Text="{Binding RecurrenceDescription}"
-                               FontSize="12" TextColor="#0EA5E9" FontAttributes="Italic"
-                               IsVisible="{Binding RecurrenceDescription, Converter={StaticResource IsNotNullConverter}}"/>
+                               FontSize="12"
+                                TextColor="#0EA5E9"
+                                FontAttributes="Italic"
+                               IsVisible="{Binding RecurrenceDescription, Converter={StaticResource IsNotNull}}"/>
                     </VerticalStackLayout>
                 </VerticalStackLayout>
             </Border>
 
             <!-- Delete button (edit mode only) -->
-            <Button Text="Delete Event" Clicked="OnDeleteClicked"
-                    BackgroundColor="#DC2626" TextColor="#FFFFFF"
-                    FontSize="14" Padding="8" CornerRadius="8"
+            <Button Text="Delete Event"
+                    Clicked="OnDeleteClicked"
+                    BackgroundColor="#DC2626"
+                    TextColor="#FFFFFF"
+                    FontSize="14"
+                    Padding="8"
+                    CornerRadius="8"
                     IsVisible="{Binding IsEdit}"
                     Margin="0,8,0,16"/>
 

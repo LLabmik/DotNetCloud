@@ -97,8 +97,10 @@ internal sealed class HttpCalendarRestClient : ICalendarRestClient
     {
         SetAuth(accessToken);
         var query = $"?skip={skip}&take={take}";
-        if (from.HasValue) query += $"&from={from.Value:O}";
-        if (to.HasValue) query += $"&to={to.Value:O}";
+        if (from.HasValue)
+            query += $"&from={from.Value:O}";
+        if (to.HasValue)
+            query += $"&to={to.Value:O}";
 
         var result = await GetEnvelopeDataAsync<List<CalendarEventDto>>(
             $"{Url(serverBaseUrl)}/api/v1/calendars/{calendarId}/events{query}", ct)
@@ -178,8 +180,10 @@ internal sealed class HttpCalendarRestClient : ICalendarRestClient
     {
         SetAuth(accessToken);
         var q = $"?q={Uri.EscapeDataString(query)}&skip={skip}&take={take}";
-        if (from.HasValue) q += $"&from={from.Value:O}";
-        if (to.HasValue) q += $"&to={to.Value:O}";
+        if (from.HasValue)
+            q += $"&from={from.Value:O}";
+        if (to.HasValue)
+            q += $"&to={to.Value:O}";
 
         var result = await GetEnvelopeDataAsync<List<CalendarEventDto>>(
             $"{Url(serverBaseUrl)}/api/v1/calendars/events/search{q}", ct)
