@@ -149,14 +149,14 @@ public sealed class MusicPlaybackService : Service
 
     /// <summary>
     /// Builds a minimal notification that can be constructed without any DI services.
-    /// Used for the initial <see cref="StartForeground"/> call to satisfy the Android
+    /// Used for the initial <c>StartForeground</c> call to satisfy the Android
     /// timeout requirement. The notification is later updated with full track info
     /// once DI services are available.
     /// </summary>
     private Notification BuildBasicNotification()
     {
         var iconRes = ApplicationContext?.Resources?.GetIdentifier(
-            "ic_notification", "drawable", ApplicationContext.PackageName) ?? 0;
+            "ic_notification", "drawable", ApplicationContext?.PackageName) ?? 0;
         if (iconRes == 0)
             iconRes = global::Android.Resource.Drawable.IcDialogInfo;
 
@@ -248,7 +248,7 @@ public sealed class MusicPlaybackService : Service
             this, 3, nextIntent, PendingIntentFlags.Immutable | PendingIntentFlags.UpdateCurrent);
 
         var iconRes = ApplicationContext?.Resources?.GetIdentifier(
-            "ic_notification", "drawable", ApplicationContext.PackageName) ?? 0;
+            "ic_notification", "drawable", ApplicationContext?.PackageName) ?? 0;
         if (iconRes == 0)
             iconRes = global::Android.Resource.Drawable.IcDialogInfo;
 
@@ -260,19 +260,19 @@ public sealed class MusicPlaybackService : Service
         // are deprecated from API 23 (icons on actions don't display on 23+). The APIs
         // still work correctly; the icons are simply ignored at runtime on API 23+.
 #pragma warning disable CA1422
-        return new Notification.Builder(this, ChannelId)
-            .SetContentTitle(trackTitle)
-            .SetContentText(artistName)
-            .SetSmallIcon(iconRes)
-            .SetContentIntent(pendingOpenIntent)
-            .SetOngoing(true)
-            .SetShowWhen(false)
-            .SetStyle(new Notification.MediaStyle()
-                .SetShowActionsInCompactView(0, 1, 2))
-            .AddAction(global::Android.Resource.Drawable.IcMediaPrevious, "Previous", pendingPrev)
-            .AddAction(playPauseIcon, "Play/Pause", pendingPp)
-            .AddAction(global::Android.Resource.Drawable.IcMediaNext, "Next", pendingNext)
-            .Build();
+        var builder = new Notification.Builder(this, ChannelId);
+        builder.SetContentTitle(trackTitle);
+        builder.SetContentText(artistName);
+        builder.SetSmallIcon(iconRes);
+        builder.SetContentIntent(pendingOpenIntent);
+        builder.SetOngoing(true);
+        builder.SetShowWhen(false);
+        builder.SetStyle(new Notification.MediaStyle()
+            .SetShowActionsInCompactView(0, 1, 2));
+        builder.AddAction(global::Android.Resource.Drawable.IcMediaPrevious, "Previous", pendingPrev);
+        builder.AddAction(playPauseIcon, "Play/Pause", pendingPp);
+        builder.AddAction(global::Android.Resource.Drawable.IcMediaNext, "Next", pendingNext);
+        return builder.Build()!;
 #pragma warning restore CA1422
     }
 }

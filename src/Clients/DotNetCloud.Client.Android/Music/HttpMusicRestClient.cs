@@ -76,6 +76,28 @@ internal sealed class HttpMusicRestClient : IMusicRestClient
         response.EnsureSuccessStatusCode();
     }
 
+    private async Task<T> PostWithBodyAsync<T>(string url, string accessToken, object body, CancellationToken ct)
+    {
+        SetAuth(accessToken);
+        var json = JsonSerializer.Serialize(body, JsonOpts);
+        using var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+        using var response = await _http.PostAsync(url, content, ct).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        var result = await ReadEnvelopeDataAsync<T>(response, ct).ConfigureAwait(false);
+        return result ?? throw new InvalidOperationException("Server returned empty response for EQ preset creation.");
+    }
+
+    private async Task<T> PutWithBodyAsync<T>(string url, string accessToken, object body, CancellationToken ct)
+    {
+        SetAuth(accessToken);
+        var json = JsonSerializer.Serialize(body, JsonOpts);
+        using var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+        using var response = await _http.PutAsync(url, content, ct).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        var result = await ReadEnvelopeDataAsync<T>(response, ct).ConfigureAwait(false);
+        return result ?? throw new InvalidOperationException("Server returned empty response for EQ preset update.");
+    }
+
     // ── Artists ──────────────────────────────────────────────────────
 
     /// <inheritdoc />
@@ -363,6 +385,24 @@ internal sealed class HttpMusicRestClient : IMusicRestClient
         {
             return null;
         }
+    }
+
+    /// <inheritdoc />
+    public async Task<EqPresetDto> CreateEqPresetAsync(
+        string serverBaseUrl, string accessToken,
+        SaveEqPresetDto dto, CancellationToken ct = default)
+    {
+        var url = $"{BaseUrl(serverBaseUrl)}/api/v1/music/eq/presets";
+        return await PostWithBodyAsync<EqPresetDto>(url, accessToken, dto, ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<EqPresetDto> UpdateEqPresetAsync(
+        string serverBaseUrl, string accessToken,
+        Guid presetId, SaveEqPresetDto dto, CancellationToken ct = default)
+    {
+        var url = $"{BaseUrl(serverBaseUrl)}/api/v1/music/eq/presets/{presetId}";
+        return await PutWithBodyAsync<EqPresetDto>(url, accessToken, dto, ct).ConfigureAwait(false);
     }
 
     // ── Genres ───────────────────────────────────────────────────────

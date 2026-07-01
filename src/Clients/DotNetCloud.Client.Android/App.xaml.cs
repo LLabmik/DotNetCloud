@@ -60,7 +60,7 @@ public partial class App : Application
         {
             var active = _serverStore.GetActive();
             var location = Shell.Current?.CurrentState?.Location?.ToString();
-            if (active is not null && location is not null && location.Contains("Login"))
+            if (active is not null && location is not null && location.Contains("Login") && Shell.Current is not null)
             {
                 await Shell.Current.GoToAsync("//Main/ChannelList");
             }

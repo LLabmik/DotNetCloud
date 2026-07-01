@@ -14,24 +14,70 @@
     BackgroundColor="#0F172A">
 
     <Shell.TitleView>
-        <HorizontalStackLayout Spacing="6"
-                VerticalOptions="Center">
-            <Image Source="logo.png"
-                   HeightRequest="36"
-                   WidthRequest="36"
-                   VerticalOptions="Center"/>
-            <Label Text="Music"
-                   VerticalOptions="Center"
-                   TextColor="#F1F5F9"
-                   FontSize="18"/>
-        </HorizontalStackLayout>
+        <Grid ColumnDefinitions="*,Auto"
+              VerticalOptions="Center">
+            <HorizontalStackLayout Grid.Column="0"
+                                   Spacing="6"
+                                   VerticalOptions="Center">
+                <Image Source="logo.png"
+                       HeightRequest="36"
+                       WidthRequest="36"
+                       VerticalOptions="Center"/>
+                <Label Text="Music"
+                       VerticalOptions="Center"
+                       TextColor="#F1F5F9"
+                       FontSize="18"/>
+            </HorizontalStackLayout>
+
+            <!-- EQ icon button — visible during playback, navigates to EQ view -->
+            <Grid Grid.Column="1"
+                  IsVisible="{Binding CurrentTrack, Converter={StaticResource IsNotNull}}"
+                  WidthRequest="44"
+                  HeightRequest="44"
+                  VerticalOptions="Center"
+                  HorizontalOptions="End"
+                  Padding="8">
+                <Grid.GestureRecognizers>
+                    <TapGestureRecognizer Command="{Binding LoadEqPresetsCommand}"/>
+                </Grid.GestureRecognizers>
+                <Path WidthRequest="24"
+                      HeightRequest="24"
+                      VerticalOptions="Center"
+                      HorizontalOptions="Center"
+                      Stroke="#94A3B8"
+                      StrokeThickness="2"
+                      StrokeLineCap="Round"
+                      Fill="#94A3B8">
+                    <Path.Data>
+                        <GeometryGroup>
+                            <!-- Three vertical bars -->
+                            <LineGeometry StartPoint="5,22"
+                                          EndPoint="5,8"/>
+                            <LineGeometry StartPoint="12,22"
+                                          EndPoint="12,5"/>
+                            <LineGeometry StartPoint="19,22"
+                                          EndPoint="19,11"/>
+                            <!-- Slider thumb circles -->
+                            <EllipseGeometry Center="5,8"
+                                             RadiusX="2.5"
+                                             RadiusY="2.5"/>
+                            <EllipseGeometry Center="12,5"
+                                             RadiusX="2.5"
+                                             RadiusY="2.5"/>
+                            <EllipseGeometry Center="19,11"
+                                             RadiusX="2.5"
+                                             RadiusY="2.5"/>
+                        </GeometryGroup>
+                    </Path.Data>
+                </Path>
+            </Grid>
+        </Grid>
     </Shell.TitleView>
 
     <ContentPage.Resources>
         <ResourceDictionary>
             <conv:IsNotNullConverter x:Key="IsNotNull"/>
             <conv:InvertBoolConverter x:Key="InvertBool"/>
-            <conv:DbToProgressConverter x:Key="DbToProgressConverter"/>
             <conv:TimeSpanToMmSsConverter x:Key="TimeSpanToMmSs"/>
             <conv:BoolToPlayPauseIconConverter x:Key="PlayPauseIcon"/>
             <conv:IsViewSelectedConverter x:Key="IsViewSelectedConverter"/>
@@ -215,15 +261,6 @@
                         Padding="16,6"
                         Margin="2,0"
                         Command="{Binding LoadPlaylistsCommand}"/>
-                    <Button
-                        Text="EQ"
-                        BackgroundColor="{Binding CurrentView, Converter={StaticResource TabSelectedConverter}, ConverterParameter=Eq}"
-                        TextColor="#F1F5F9"
-                        FontSize="13"
-                        CornerRadius="16"
-                        Padding="16,6"
-                        Margin="2,0"
-                        Command="{Binding LoadEqPresetsCommand}"/>
                 </HorizontalStackLayout>
             </Grid>
 
@@ -539,171 +576,54 @@
                         </Label.FormattedText>
                     </Label>
 
-                    <!-- Band level visualization (10 ProgressBar elements) -->
+                    <!-- Interactive EQ band sliders (horizontal, stacked vertically) -->
                     <Border
                         IsVisible="{Binding EqAvailable}"
                         BackgroundColor="#1E293B"
                         Stroke="#334155"
                         StrokeShape="RoundRectangle 8"
-                        Padding="12,12"
-                        HeightRequest="120">
-                        <HorizontalStackLayout
-                            Spacing="4"
-                            HorizontalOptions="Center"
-                            VerticalOptions="Center">
-
-                            <VerticalStackLayout Spacing="2"
-                                                 HorizontalOptions="Center">
-                                <ProgressBar
-                                    Progress="{Binding BandLevels[0], Converter={StaticResource DbToProgressConverter}}"
-                                    ProgressColor="#0EA5E9"
-                                    WidthRequest="16"
-                                    HeightRequest="80"
-                                    Rotation="270"
-                                    AnchorX="0.5"
-                                    AnchorY="0.5"/>
-                                <Label Text="31"
-                                       FontSize="9"
-                                       TextColor="#64748B"
-                                       HorizontalOptions="Center"/>
+                        Padding="12,12">
+                        <ScrollView Orientation="Vertical"
+                                    HorizontalOptions="Fill"
+                                    HeightRequest="300">
+                            <VerticalStackLayout
+                                Spacing="8"
+                                HorizontalOptions="Fill"
+                                BindableLayout.ItemsSource="{Binding EqBands}">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:EqBandModel">
+                                        <Grid ColumnDefinitions="36,*,48"
+                                              ColumnSpacing="8"
+                                              HorizontalOptions="Fill"
+                                              HeightRequest="36">
+                                            <Label Text="{Binding FrequencyLabel}"
+                                                   FontSize="12"
+                                                   FontAttributes="Bold"
+                                                   TextColor="#F1F5F9"
+                                                   VerticalOptions="Center"
+                                                   HorizontalOptions="Center"/>
+                                            <Slider
+                                                Grid.Column="1"
+                                                Value="{Binding GainDb, Mode=TwoWay}"
+                                                Minimum="-12"
+                                                Maximum="12"
+                                                MinimumTrackColor="#0EA5E9"
+                                                MaximumTrackColor="#334155"
+                                                ThumbColor="#0EA5E9"
+                                                VerticalOptions="Center"
+                                                ValueChanged="OnEqSliderValueChanged"/>
+                                            <Label
+                                                Grid.Column="2"
+                                                Text="{Binding GainDb, StringFormat='{0:F1} dB'}"
+                                                FontSize="11"
+                                                TextColor="#94A3B8"
+                                                VerticalOptions="Center"
+                                                HorizontalOptions="End"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
                             </VerticalStackLayout>
-                            <VerticalStackLayout Spacing="2"
-                                                 HorizontalOptions="Center">
-                                <ProgressBar
-                                    Progress="{Binding BandLevels[1], Converter={StaticResource DbToProgressConverter}}"
-                                    ProgressColor="#0EA5E9"
-                                    WidthRequest="16"
-                                    HeightRequest="80"
-                                    Rotation="270"
-                                    AnchorX="0.5"
-                                    AnchorY="0.5"/>
-                                <Label Text="63"
-                                       FontSize="9"
-                                       TextColor="#64748B"
-                                       HorizontalOptions="Center"/>
-                            </VerticalStackLayout>
-                            <VerticalStackLayout Spacing="2"
-                                                 HorizontalOptions="Center">
-                                <ProgressBar
-                                    Progress="{Binding BandLevels[2], Converter={StaticResource DbToProgressConverter}}"
-                                    ProgressColor="#0EA5E9"
-                                    WidthRequest="16"
-                                    HeightRequest="80"
-                                    Rotation="270"
-                                    AnchorX="0.5"
-                                    AnchorY="0.5"/>
-                                <Label Text="125"
-                                       FontSize="9"
-                                       TextColor="#64748B"
-                                       HorizontalOptions="Center"/>
-                            </VerticalStackLayout>
-                            <VerticalStackLayout Spacing="2"
-                                                 HorizontalOptions="Center">
-                                <ProgressBar
-                                    Progress="{Binding BandLevels[3], Converter={StaticResource DbToProgressConverter}}"
-                                    ProgressColor="#0EA5E9"
-                                    WidthRequest="16"
-                                    HeightRequest="80"
-                                    Rotation="270"
-                                    AnchorX="0.5"
-                                    AnchorY="0.5"/>
-                                <Label Text="250"
-                                       FontSize="9"
-                                       TextColor="#64748B"
-                                       HorizontalOptions="Center"/>
-                            </VerticalStackLayout>
-                            <VerticalStackLayout Spacing="2"
-                                                 HorizontalOptions="Center">
-                                <ProgressBar
-                                    Progress="{Binding BandLevels[4], Converter={StaticResource DbToProgressConverter}}"
-                                    ProgressColor="#0EA5E9"
-                                    WidthRequest="16"
-                                    HeightRequest="80"
-                                    Rotation="270"
-                                    AnchorX="0.5"
-                                    AnchorY="0.5"/>
-                                <Label Text="500"
-                                       FontSize="9"
-                                       TextColor="#64748B"
-                                       HorizontalOptions="Center"/>
-                            </VerticalStackLayout>
-                            <VerticalStackLayout Spacing="2"
-                                                 HorizontalOptions="Center">
-                                <ProgressBar
-                                    Progress="{Binding BandLevels[5], Converter={StaticResource DbToProgressConverter}}"
-                                    ProgressColor="#22C55E"
-                                    WidthRequest="16"
-                                    HeightRequest="80"
-                                    Rotation="270"
-                                    AnchorX="0.5"
-                                    AnchorY="0.5"/>
-                                <Label Text="1K"
-                                       FontSize="9"
-                                       TextColor="#64748B"
-                                       HorizontalOptions="Center"/>
-                            </VerticalStackLayout>
-                            <VerticalStackLayout Spacing="2"
-                                                 HorizontalOptions="Center">
-                                <ProgressBar
-                                    Progress="{Binding BandLevels[6], Converter={StaticResource DbToProgressConverter}}"
-                                    ProgressColor="#22C55E"
-                                    WidthRequest="16"
-                                    HeightRequest="80"
-                                    Rotation="270"
-                                    AnchorX="0.5"
-                                    AnchorY="0.5"/>
-                                <Label Text="2K"
-                                       FontSize="9"
-                                       TextColor="#64748B"
-                                       HorizontalOptions="Center"/>
-                            </VerticalStackLayout>
-                            <VerticalStackLayout Spacing="2"
-                                                 HorizontalOptions="Center">
-                                <ProgressBar
-                                    Progress="{Binding BandLevels[7], Converter={StaticResource DbToProgressConverter}}"
-                                    ProgressColor="#F59E0B"
-                                    WidthRequest="16"
-                                    HeightRequest="80"
-                                    Rotation="270"
-                                    AnchorX="0.5"
-                                    AnchorY="0.5"/>
-                                <Label Text="4K"
-                                       FontSize="9"
-                                       TextColor="#64748B"
-                                       HorizontalOptions="Center"/>
-                            </VerticalStackLayout>
-                            <VerticalStackLayout Spacing="2"
-                                                 HorizontalOptions="Center">
-                                <ProgressBar
-                                    Progress="{Binding BandLevels[8], Converter={StaticResource DbToProgressConverter}}"
-                                    ProgressColor="#F59E0B"
-                                    WidthRequest="16"
-                                    HeightRequest="80"
-                                    Rotation="270"
-                                    AnchorX="0.5"
-                                    AnchorY="0.5"/>
-                                <Label Text="8K"
-                                       FontSize="9"
-                                       TextColor="#64748B"
-                                       HorizontalOptions="Center"/>
-                            </VerticalStackLayout>
-                            <VerticalStackLayout Spacing="2"
-                                                 HorizontalOptions="Center">
-                                <ProgressBar
-                                    Progress="{Binding BandLevels[9], Converter={StaticResource DbToProgressConverter}}"
-                                    ProgressColor="#F59E0B"
-                                    WidthRequest="16"
-                                    HeightRequest="80"
-                                    Rotation="270"
-                                    AnchorX="0.5"
-                                    AnchorY="0.5"/>
-                                <Label Text="16K"
-                                       FontSize="9"
-                                       TextColor="#64748B"
-                                       HorizontalOptions="Center"/>
-                            </VerticalStackLayout>
-
-                        </HorizontalStackLayout>
+                        </ScrollView>
                     </Border>
 
                     <!-- Reset EQ button -->
@@ -717,6 +637,83 @@
                         Padding="12,8"
                         Command="{Binding ResetEqCommand}"
                         HorizontalOptions="Center"/>
+
+                    <!-- Save current EQ as preset -->
+                    <Button
+                        IsVisible="{Binding EqAvailable}"
+                        Text="💾 Save Current as Preset"
+                        BackgroundColor="#475569"
+                        TextColor="#F1F5F9"
+                        FontSize="13"
+                        CornerRadius="8"
+                        Padding="12,8"
+                        Command="{Binding OpenSavePresetDialogCommand}"
+                        HorizontalOptions="Center"/>
+
+                    <!-- ── Save EQ Preset Dialog ── -->
+                    <Border
+                        IsVisible="{Binding ShowSavePresetDialog}"
+                        BackgroundColor="#1E293B"
+                        Stroke="#334155"
+                        StrokeShape="RoundRectangle 8"
+                        Padding="16,12">
+                        <VerticalStackLayout Spacing="12">
+                            <Label Text="Save EQ Preset"
+                                   TextColor="#F1F5F9"
+                                   FontSize="14"
+                                   FontAttributes="Bold"/>
+                            <Entry Placeholder="Preset name..."
+                                   PlaceholderColor="#64748B"
+                                   Text="{Binding NewPresetName, Mode=TwoWay}"
+                                   TextColor="#F1F5F9"
+                                   BackgroundColor="#0F172A"
+                                   FontSize="14"/>
+                            <!-- Existing presets to overwrite -->
+                            <Label Text="Or overwrite an existing preset:"
+                                   TextColor="#94A3B8"
+                                   FontSize="11"
+                                   IsVisible="{Binding HasEqPresets}"/>
+                            <CollectionView
+                                ItemsSource="{Binding EqPresets}"
+                                SelectionMode="None"
+                                HeightRequest="120">
+                                <CollectionView.ItemTemplate>
+                                    <DataTemplate x:DataType="dto:EqPresetDto">
+                                        <Border BackgroundColor="Transparent"
+                                                Stroke="#334155"
+                                                StrokeShape="RoundRectangle 4"
+                                                Padding="10,6"
+                                                Margin="0,2">
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type vm:MusicViewModel}}, Path=SelectEqPresetForOverwriteCommand}"
+                                                                      CommandParameter="{Binding .}"/>
+                                            </Border.GestureRecognizers>
+                                            <Label Text="{Binding Name}"
+                                                   TextColor="#F1F5F9"
+                                                   FontSize="13"/>
+                                        </Border>
+                                    </DataTemplate>
+                                </CollectionView.ItemTemplate>
+                            </CollectionView>
+                            <HorizontalStackLayout Spacing="8"
+                                                   HorizontalOptions="End">
+                                <Button Text="Cancel"
+                                        BackgroundColor="#475569"
+                                        TextColor="#F1F5F9"
+                                        FontSize="13"
+                                        CornerRadius="8"
+                                        Padding="16,8"
+                                        Command="{Binding CloseSavePresetDialogCommand}"/>
+                                <Button Text="Save"
+                                        BackgroundColor="#0EA5E9"
+                                        TextColor="#FFFFFF"
+                                        FontSize="13"
+                                        CornerRadius="8"
+                                        Padding="16,8"
+                                        Command="{Binding SaveEqPresetCommand}"/>
+                            </HorizontalStackLayout>
+                        </VerticalStackLayout>
+                    </Border>
 
                     <!-- Section header -->
                     <Label

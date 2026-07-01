@@ -172,7 +172,7 @@ public sealed partial class EventDetailViewModel : ObservableObject
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to RSVP to event {EventId}.", _eventId);
-            await Shell.Current.DisplayAlert("Error", ApiExceptionHelper.GetUserFriendlyMessage(ex), "OK");
+            await Shell.Current.DisplayAlertAsync("Error", ApiExceptionHelper.GetUserFriendlyMessage(ex), "OK");
         }
     }
 
@@ -185,7 +185,7 @@ public sealed partial class EventDetailViewModel : ObservableObject
 
         if (IsRecurring)
         {
-            var action = await Shell.Current.DisplayActionSheet(
+            var action = await Shell.Current.DisplayActionSheetAsync(
                 "Edit Recurring Event", "Cancel", null,
                 "Edit This Occurrence", "Edit All Events");
 
@@ -227,7 +227,7 @@ public sealed partial class EventDetailViewModel : ObservableObject
         {
             if (IsRecurring)
             {
-                var action = await Shell.Current.DisplayActionSheet(
+                var action = await Shell.Current.DisplayActionSheetAsync(
                     "Delete Recurring Event", "Cancel", null,
                     "Delete This Occurrence", "Delete All Events");
 
@@ -246,7 +246,7 @@ public sealed partial class EventDetailViewModel : ObservableObject
             }
             else
             {
-                var confirmed = await Shell.Current.DisplayAlert(
+                var confirmed = await Shell.Current.DisplayAlertAsync(
                     "Delete Event", $"Delete \"{Event.Title}\"?", "Delete", "Cancel");
 
                 if (!confirmed)
@@ -261,7 +261,7 @@ public sealed partial class EventDetailViewModel : ObservableObject
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to delete event {EventId}.", _eventId);
-            await Shell.Current.DisplayAlert("Error", ApiExceptionHelper.GetUserFriendlyMessage(ex), "OK");
+            await Shell.Current.DisplayAlertAsync("Error", ApiExceptionHelper.GetUserFriendlyMessage(ex), "OK");
         }
     }
 

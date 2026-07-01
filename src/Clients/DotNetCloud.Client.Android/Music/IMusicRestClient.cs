@@ -141,6 +141,16 @@ public interface IMusicRestClient
         string serverBaseUrl, string accessToken,
         Guid presetId, CancellationToken ct = default);
 
+    /// <summary>Creates a new EQ preset from the current band settings.</summary>
+    Task<EqPresetDto> CreateEqPresetAsync(
+        string serverBaseUrl, string accessToken,
+        SaveEqPresetDto dto, CancellationToken ct = default);
+
+    /// <summary>Updates an existing EQ preset.</summary>
+    Task<EqPresetDto> UpdateEqPresetAsync(
+        string serverBaseUrl, string accessToken,
+        Guid presetId, SaveEqPresetDto dto, CancellationToken ct = default);
+
     // ── Genres ───────────────────────────────────────────────────────
 
     /// <summary>Gets all available genres.</summary>
