@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Linq;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
@@ -7,7 +9,6 @@ using DotNetCloud.Modules.Video.Host.Services;
 using DotNetCloud.Modules.Video.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Linq;
 
 namespace DotNetCloud.Modules.Video.Host.Controllers;
 
@@ -512,6 +513,14 @@ public class VideoController : VideoControllerBase
         [FromQuery] string? token,
         [FromQuery] bool forceTranscode = false)
     {
+        // ── Log request headers for range request diagnostics ────────
+        var rangeHeader = HttpContext.Request.Headers.Range.FirstOrDefault() ?? "(none)";
+        _logger.LogInformation(
+            "StreamVideo: Request for video {VideoId}, Range={Range}, token={HasToken}",
+            videoId, rangeHeader, !string.IsNullOrWhiteSpace(token));
+        Console.Error.WriteLine(
+            $"[VIDEO-STREAM] REQUEST videoId={videoId} Range='{rangeHeader}' token={!string.IsNullOrWhiteSpace(token)}");
+
         Guid userId;
 
         if (!string.IsNullOrWhiteSpace(token))
@@ -549,9 +558,13 @@ public class VideoController : VideoControllerBase
         // Build caller context from the validated identity for the download service
         var caller = new CallerContext(userId, Array.Empty<string>(), CallerType.User);
 
+        // ── File Acquisition ────────────────────────────────────────
         // Reconstruct file from chunks via the Files download service.
+        // For admin share files (direct FileStream), no chunk reconstruction is needed.
         Stream fileStream;
         long totalBytes = 0;
+        string? directFilePath = null;
+        var pipelineStart = Stopwatch.GetTimestamp();
         try
         {
             // ── Report reconstruction progress ──────────────────────
@@ -563,21 +576,42 @@ public class VideoController : VideoControllerBase
 
             fileStream = await _downloadService.DownloadCurrentAsync(video.FileNodeId, caller);
 
-            // Estimate total size from the canonical video record
-            totalBytes = video.CanonicalVideo?.SizeBytes > 0
-                ? video.CanonicalVideo.SizeBytes
-                : fileStream.CanSeek ? fileStream.Length : 0;
-
-            if (totalBytes > 0)
+            // ═══ CHECK FOR DIRECT FILE STREAM (admin shares) ═══
+            // If the download returned a direct FileStream (e.g., admin shared folder),
+            // we can serve it directly without any temp file copy.
+            // IMPORTANT: Must check BEFORE wrapping with ProgressReportingStream,
+            // otherwise the 'is FileStream' check will fail.
+            if (fileStream is FileStream existingFs)
             {
-                // Create a progress-reporting wrapper around the download stream
-                fileStream = new ProgressReportingStream(fileStream, videoId, totalBytes, _streamProgress, _logger);
+                directFilePath = existingFs.Name;
+                totalBytes = new System.IO.FileInfo(directFilePath).Length;
+                progress.Stage = StreamProgressStage.Probing;
+                progress.Message = "Analyzing video…";
+                progress.Percent = 50;
+                progress.LastUpdated = DateTime.UtcNow;
+                _logger.LogInformation(
+                    "StreamVideo: Direct file stream for video {VideoId}, path={Path}, size={Size}MB",
+                    videoId, directFilePath, totalBytes / (1024.0 * 1024.0));
             }
             else
             {
-                progress.Stage = StreamProgressStage.Reconstructing;
-                progress.Message = "Assembling video file… (unknown size)";
-                progress.Percent = 50; // indeterminate
+                // Estimate total size from the canonical video record
+                totalBytes = video.CanonicalVideo?.SizeBytes > 0
+                    ? video.CanonicalVideo.SizeBytes
+                    : fileStream.CanSeek ? fileStream.Length : 0;
+
+                if (totalBytes > 0)
+                {
+                    // Create a progress-reporting wrapper around the download stream.
+                    // This only wraps non-FileStream streams (chunk-reconstructed files).
+                    fileStream = new ProgressReportingStream(fileStream, videoId, totalBytes, _streamProgress, _logger);
+                }
+                else
+                {
+                    progress.Stage = StreamProgressStage.Reconstructing;
+                    progress.Message = "Assembling video file… (unknown size)";
+                    progress.Percent = 50; // indeterminate
+                }
             }
         }
         catch (Exception ex)
@@ -587,33 +621,49 @@ public class VideoController : VideoControllerBase
             return NotFound(ErrorEnvelope("file_not_found", "Video file not found in storage."));
         }
 
-        // Save to a persistent temp path so ffprobe and ffmpeg can access it
-        var tempSourceDir = Path.Combine(Path.GetTempPath(), "dotnetcloud-stream-source");
-        Directory.CreateDirectory(tempSourceDir);
+        // ── Determine source path ──────────────────────────────────
+        // Either the direct file path (admin share) or a temp path for chunk-reconstructed files.
+        string sourcePath;
 
-        // Background cleanup of temp files older than 24 hours
-        _ = Task.Run(() => CleanupOldTempFiles(tempSourceDir, Path.Combine(Path.GetTempPath(), "dotnetcloud-hls"), TimeSpan.FromHours(24), _logger));
-
-        var sourcePath = Path.Combine(tempSourceDir, $"source-{videoId:N}");
-
-        try
+        if (directFilePath is not null)
         {
-            // Write the temp file from the download stream (unless it already is a FileStream).
-            //
-            // IMPORTANT: never use FileMode.Create directly on `sourcePath` while a background
-            // ffmpeg process might be reading it. FileMode.Create truncates the inode in-place
-            // (O_TRUNC), which causes ffmpeg to hit EOF mid-encode even though it already has
-            // the file open. Instead:
-            //   1. If the file already exists with the expected size, reuse it (no copy needed).
-            //   2. Otherwise write to a unique .tmp file, then atomically rename into place.
-            //      File.Move with overwrite=true is a rename(2) on Linux — atomic, and any
-            //      ffmpeg process with the old inode open is completely unaffected.
-            if (fileStream is FileStream existingFs)
+            // Admin share file — serve directly from its physical location.
+            // No temp file copy needed. ffprobe can read directly from this path.
+            sourcePath = directFilePath;
+            _logger.LogInformation(
+                "StreamVideo: Skipping temp file copy for video {VideoId} (direct file stream)",
+                videoId);
+        }
+        else
+        {
+            // Chunk-reconstructed file — write to a persistent temp path
+            // so ffprobe and ffmpeg can access it.
+            var tempSourceDir = Path.Combine(Path.GetTempPath(), "dotnetcloud-stream-source");
+            Directory.CreateDirectory(tempSourceDir);
+
+            // Background cleanup of temp files older than 24 hours
+            _ = Task.Run(() => CleanupOldTempFiles(
+                tempSourceDir,
+                Path.Combine(Path.GetTempPath(), "dotnetcloud-hls"),
+                TimeSpan.FromHours(24),
+                _logger));
+
+            sourcePath = Path.Combine(tempSourceDir, $"source-{videoId:N}");
+
+            var tempWriteStopwatch = Stopwatch.StartNew();
+            try
             {
-                sourcePath = existingFs.Name;
-            }
-            else
-            {
+                // Write the temp file from the download stream.
+                //
+                // IMPORTANT: never use FileMode.Create directly on `sourcePath` while a background
+                // ffmpeg process might be reading it. FileMode.Create truncates the inode in-place
+                // (O_TRUNC), which causes ffmpeg to hit EOF mid-encode even though it already has
+                // the file open. Instead:
+                //   1. If the file already exists with the expected size, reuse it (no copy needed).
+                //   2. Otherwise write to a unique .tmp file, then atomically rename into place.
+                //      File.Move with overwrite=true is a rename(2) on Linux — atomic, and any
+                //      ffmpeg process with the old inode open is completely unaffected.
+
                 // Reuse the cached file if it's already complete (avoids re-copying on retries).
                 var existingSize = System.IO.File.Exists(sourcePath) ? new System.IO.FileInfo(sourcePath).Length : 0L;
                 var needsCopy = existingSize == 0 || (totalBytes > 0 && existingSize < totalBytes);
@@ -641,6 +691,8 @@ public class VideoController : VideoControllerBase
                     System.IO.File.Move(tmpPath, sourcePath, overwrite: true);
                 }
 
+                var writeMs = tempWriteStopwatch.ElapsedMilliseconds;
+
                 // Verify the file was written successfully before probing.
                 // Prevents ffprobe from reading a partial/corrupt file and
                 // falling back to an unnecessary HLS transcode.
@@ -656,13 +708,30 @@ public class VideoController : VideoControllerBase
                 if (totalBytes > 0 && writtenSize < totalBytes)
                 {
                     _logger.LogWarning(
-                        "StreamVideo: temp file size mismatch for {VideoId}: expected {Expected}, got {Actual}",
-                        videoId, totalBytes, writtenSize);
+                        "StreamVideo: temp file size mismatch for {VideoId}: expected {Expected}, got {Actual} (write took {WriteMs}ms)",
+                        videoId, totalBytes, writtenSize, writeMs);
+                }
+                else
+                {
+                    _logger.LogInformation(
+                        "StreamVideo: Temp file written for {VideoId}: size={Size}MB, took {WriteMs}ms",
+                        videoId, writtenSize / (1024.0 * 1024.0), writeMs);
                 }
             }
+            catch (Exception ex)
+            {
+                _streamProgress.Remove(videoId);
+                _logger.LogError(ex, "StreamVideo: Failed to write temp file for video {VideoId}", videoId);
+                return StatusCode(500, ErrorEnvelope("file_write_failed", "Failed to write video file to temp storage."));
+            }
+        }
+
+        try
+        {
 
             // Determine MIME type for context
             var mimeType = video.CanonicalVideo?.MimeType ?? "application/octet-stream";
+            var beforeProbe = Stopwatch.GetTimestamp();
             _logger.LogInformation("StreamVideo: videoId={VideoId}, mimeType={MimeType}, forceTranscode={Force}",
                 videoId, mimeType, forceTranscode);
             Console.Error.WriteLine($"[VIDEO-STREAM] videoId={videoId} mimeType={mimeType} forceTranscode={forceTranscode} sourcePath={sourcePath}");
@@ -672,52 +741,172 @@ public class VideoController : VideoControllerBase
                 ? (StreamingStrategy.Transcode, null, null, null)
                 : await _transcodingService.DecideStreamingStrategyAsync(sourcePath, mimeType, HttpContext.RequestAborted);
 
+            var probeElapsed = Stopwatch.GetElapsedTime(beforeProbe);
+            var totalElapsed = Stopwatch.GetElapsedTime(pipelineStart);
+
             // Update progress with strategy info
             var progress = _streamProgress.GetOrCreate(videoId);
             progress.Strategy = strategy.ToString();
 
-            _logger.LogInformation("StreamVideo: videoId={VideoId}, strategy={Strategy}, vcodec={VCodec}, acodec={ACodec}, container={Container}",
-                videoId, strategy, videoCodec, audioCodec, container);
-            Console.Error.WriteLine($"[VIDEO-STREAM] videoId={videoId} decided={strategy} vcodec={videoCodec} acodec={audioCodec} container={container}");
+            _logger.LogInformation(
+                "StreamVideo: videoId={VideoId}, strategy={Strategy}, vcodec={VCodec}, acodec={ACodec}, container={Container}, " +
+                "probeTime={ProbeMs}ms, totalTime={TotalMs}ms",
+                videoId, strategy, videoCodec, audioCodec, container,
+                probeElapsed.TotalMilliseconds, totalElapsed.TotalMilliseconds);
+            Console.Error.WriteLine(
+                $"[VIDEO-STREAM] videoId={videoId} decided={strategy} vcodec={videoCodec} acodec={audioCodec} " +
+                $"container={container} probe={probeElapsed.TotalMilliseconds:F0}ms total={totalElapsed.TotalMilliseconds:F0}ms");
 
             // ── Strategy: Direct Play ──────────────────────────────
             if (strategy == StreamingStrategy.DirectPlay)
             {
-                _logger.LogInformation("StreamVideo: Direct play for video {VideoId}", videoId);
-                Console.Error.WriteLine($"[VIDEO-STREAM] videoId={videoId} → DIRECT_PLAY sourcePath={sourcePath}");
+                _logger.LogInformation(
+                    "StreamVideo: Direct play for video {VideoId} (probe={ProbeMs}ms, total={TotalMs}ms)",
+                    videoId, probeElapsed.TotalMilliseconds, totalElapsed.TotalMilliseconds);
+                Console.Error.WriteLine(
+                    $"[VIDEO-STREAM] videoId={videoId} → DIRECT_PLAY sourcePath={sourcePath} " +
+                    $"probe={probeElapsed.TotalMilliseconds:F0}ms total={totalElapsed.TotalMilliseconds:F0}ms");
+
+                // Safeguard: if the mimeType resolved to application/octet-stream,
+                // default to video/mp4 for DirectPlay-capable files. Otherwise the
+                // browser will download instead of streaming.
                 var contentType = VideoStreamingService.GetContentType(mimeType);
+                if (contentType == "application/octet-stream")
+                {
+                    _logger.LogWarning(
+                        "StreamVideo: Falling back to video/mp4 for video {VideoId} (original mimeType={MimeType})",
+                        videoId, mimeType);
+                    contentType = "video/mp4";
+                }
 
                 progress.Stage = StreamProgressStage.Streaming;
                 progress.Message = "Starting playback…";
                 progress.Percent = 100;
-
-                HttpContext.Response.OnStarting(() =>
-                {
-                    HttpContext.Response.Headers.Remove("X-Content-Type-Options");
-                    HttpContext.Response.Headers["X-Stream-Strategy"] = "direct";
-                    return Task.CompletedTask;
-                });
 
                 // NOTE: Do NOT remove progress entry here. The JS showStreamProgress()
                 // polls this endpoint and needs to find the entry with stage=Streaming.
                 // If the pipeline completes before the first poll, the entry is gone and
                 // the loading overlay stays forever. Let RemoveStaleEntries handle cleanup.
 
-                HttpContext.Response.OnCompleted(async () =>
-                {
-                    if (fileStream is FileStream fs)
-                        await fs.DisposeAsync();
-                });
+                // ═══ Manual streaming with explicit range handling ═══
+                // PhysicalFile with enableRangeProcessing=true has issues with certain
+                // Range header formats (e.g. duplicated "bytes=0-, bytes=0-") that
+                // browsers sometimes send. We handle ranges manually to ensure reliable
+                // 206 Partial Content responses.
+                var fileInfo = new System.IO.FileInfo(sourcePath);
+                var fileLength = fileInfo.Length;
 
-                return PhysicalFile(sourcePath, contentType, enableRangeProcessing: true);
+                HttpContext.Response.StatusCode = 200;
+                HttpContext.Response.ContentType = contentType;
+                HttpContext.Response.Headers.AcceptRanges = "bytes";
+                HttpContext.Response.Headers["X-Stream-Strategy"] = "direct";
+                HttpContext.Response.Headers["X-Stream-Diagnostics"] =
+                    $"strategy=direct;probe={probeElapsed.TotalMilliseconds:F0}ms;total={totalElapsed.TotalMilliseconds:F0}ms;codec={videoCodec};container={container}";
+
+                // Parse the Range header, handling the common case where browsers send
+                // "bytes=0-, bytes=0-" (two identical ranges in one header value).
+                // We take only the first range spec and ignore multi-range requests.
+                long rangeStart = 0;
+                long rangeEnd = fileLength - 1;
+                bool isRangeRequest = false;
+
+                var rawRange = HttpContext.Request.Headers.Range.FirstOrDefault();
+                if (!string.IsNullOrWhiteSpace(rawRange) &&
+                    rawRange.StartsWith("bytes=", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Split on ',' and take first range only (ignore duplicates/multi-ranges)
+                    var rangePart = rawRange["bytes=".Length..].Split(',')[0].Trim();
+                    var parts = rangePart.Split('-');
+
+                    if (parts.Length == 2)
+                    {
+                        if (long.TryParse(parts[0], out var start) && start >= 0 && start < fileLength)
+                        {
+                            rangeStart = start;
+                            rangeEnd = string.IsNullOrEmpty(parts[1])
+                                ? fileLength - 1
+                                : Math.Min(long.Parse(parts[1]), fileLength - 1);
+                            isRangeRequest = true;
+                        }
+                        else if (string.IsNullOrEmpty(parts[0]) &&
+                                 long.TryParse(parts[1], out var suffix) && suffix > 0)
+                        {
+                            // Suffix range: bytes=-N → last N bytes
+                            rangeStart = Math.Max(0, fileLength - suffix);
+                            rangeEnd = fileLength - 1;
+                            isRangeRequest = true;
+                        }
+                    }
+                }
+
+                if (isRangeRequest)
+                {
+                    var contentLength = rangeEnd - rangeStart + 1;
+                    HttpContext.Response.StatusCode = 206;
+                    HttpContext.Response.Headers.ContentRange = $"bytes {rangeStart}-{rangeEnd}/{fileLength}";
+                    HttpContext.Response.ContentLength = contentLength;
+
+                    _logger.LogInformation(
+                        "StreamVideo: 206 for video {VideoId}: {Start}-{End}/{Length} ({Size:F1}MB chunk)",
+                        videoId, rangeStart, rangeEnd, fileLength,
+                        contentLength / (1024.0 * 1024.0));
+                    Console.Error.WriteLine(
+                        $"[VIDEO-STREAM] videoId={videoId} → 206 range={rangeStart}-{rangeEnd}/{fileLength} chunk={contentLength / (1024.0 * 1024.0):F1}MB");
+                }
+                else
+                {
+                    HttpContext.Response.ContentLength = fileLength;
+                    Console.Error.WriteLine(
+                        $"[VIDEO-STREAM] videoId={videoId} → 200 full={fileLength / (1024.0 * 1024.0):F1}MB");
+                }
+
+                // Stream the file (or byte range) directly to the response body
+                try
+                {
+                    await using var outputStream = new FileStream(
+                        sourcePath, FileMode.Open, FileAccess.Read,
+                        FileShare.Read, 65536,
+                        FileOptions.Asynchronous | FileOptions.SequentialScan);
+
+                    if (isRangeRequest && rangeStart > 0)
+                    {
+                        outputStream.Seek(rangeStart, SeekOrigin.Begin);
+                    }
+
+                    var count = isRangeRequest ? rangeEnd - rangeStart + 1 : fileLength;
+                    await outputStream.CopyToAsync(HttpContext.Response.Body, HttpContext.RequestAborted);
+
+                    _streamProgress.Remove(videoId);
+                }
+                catch (OperationCanceledException)
+                {
+                    // Client disconnected — expected, don't log as error
+                    _streamProgress.Remove(videoId);
+                }
+                catch (Exception ex)
+                {
+                    _streamProgress.Remove(videoId);
+                    _logger.LogDebug(ex, "StreamVideo: Client disconnected for video {VideoId}", videoId);
+                }
+                finally
+                {
+                    // Dispose the original download service stream (admin share FileStream)
+                    if (fileStream is FileStream fs)
+                        fs.Dispose();
+                }
+
+                return new EmptyResult();
             }
 
             // ── Strategy: Stream Copy (Remux) ─────────────────────
             if (strategy == StreamingStrategy.StreamCopy)
             {
-                _logger.LogInformation("StreamVideo: Stream copy (remux) for video {VideoId}, vcodec={VCodec}, acodec={ACodec}",
-                    videoId, videoCodec, audioCodec);
-                Console.Error.WriteLine($"[VIDEO-STREAM] videoId={videoId} → STREAM_COPY/REMUX vcodec={videoCodec} acodec={audioCodec}");
+                _logger.LogInformation(
+                    "StreamVideo: Stream copy (remux) for video {VideoId}, vcodec={VCodec}, acodec={ACodec} (total={TotalMs}ms)",
+                    videoId, videoCodec, audioCodec, totalElapsed.TotalMilliseconds);
+                Console.Error.WriteLine(
+                    $"[VIDEO-STREAM] videoId={videoId} → STREAM_COPY/REMUX vcodec={videoCodec} acodec={audioCodec} " +
+                    $"total={totalElapsed.TotalMilliseconds:F0}ms");
 
                 progress.Stage = StreamProgressStage.Remuxing;
                 progress.Message = "Starting stream…";
@@ -735,6 +924,8 @@ public class VideoController : VideoControllerBase
                 response.ContentType = "video/mp4";
                 response.Headers.Remove("X-Content-Type-Options");
                 response.Headers["X-Stream-Strategy"] = "remux";
+                response.Headers["X-Stream-Diagnostics"] =
+                    $"strategy=remux;total={totalElapsed.TotalMilliseconds:F0}ms;codec={videoCodec};container={container}";
 
                 // Stream ffmpeg stdout directly to the HTTP response
                 try
@@ -758,8 +949,11 @@ public class VideoController : VideoControllerBase
             }
 
             // ── Strategy: Transcode (HLS) ──────────────────────────
-            _logger.LogInformation("StreamVideo: Starting HLS transcode for video {VideoId}", videoId);
-            Console.Error.WriteLine($"[VIDEO-STREAM] videoId={videoId} → TRANSCODE/HLS (WARNING: unexpected for MOV+H.264+AAC)");
+            _logger.LogInformation(
+                "StreamVideo: Starting HLS transcode for video {VideoId} (total={TotalMs}ms)",
+                videoId, totalElapsed.TotalMilliseconds);
+            Console.Error.WriteLine(
+                $"[VIDEO-STREAM] videoId={videoId} → TRANSCODE/HLS total={totalElapsed.TotalMilliseconds:F0}ms");
 
             progress.Stage = StreamProgressStage.Transcoding;
             progress.Message = "Preparing stream (transcoding)…";

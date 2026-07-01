@@ -243,8 +243,16 @@
 
         var stratLower = strategy.toLowerCase();
         if (stratLower === "direct" || stratLower === "remux") {
-          // video.src was already set by the Razor markup.
-          // The response is a playable MP4 — just start playback.
+          // The Razor markup already set video.src, so the browser has been
+          // loading the stream since the <video> element was rendered. By now
+          // the server pipeline is complete and data is flowing.
+          //
+          // If the browser failed to load (server wasn't ready yet), re-set
+          // src to trigger a fresh request. Otherwise just start playback.
+          if (video.networkState === video.NETWORK_NO_SOURCE) {
+            video.src = streamUrl;
+            video.load();
+          }
           video.play().catch(function () {});
           return;
         }
