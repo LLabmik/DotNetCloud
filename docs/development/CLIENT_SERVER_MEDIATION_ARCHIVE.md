@@ -1,6 +1,51 @@
 # Client/Server Mediation — Archived Context
 
-Archived: 2026-06-30. Full git history preserved.
+Archived: 2026-07-01. Full git history preserved.
+
+## Archived: Android EQ Preset Server-Side Endpoints — Verified & Deployed (2026-07-01)
+
+**Target:** cloud.kimball.home → production deploy
+
+**Result:** ✅ Server-side EQ preset endpoints (POST, PUT, GET, DELETE, set-active) already existed in `MusicController.cs`. DI registration already wired. Built, deployed, and verified on production. Merge PR pending (`feature/fix-android-music-equalizer` → `main`).
+
+**Completed (cloud.kimball.home):**
+- ✅ Verified `POST /api/v1/music/eq/presets` already exists
+- ✅ Verified `PUT /api/v1/music/eq/presets/{presetId:guid}` already exists
+- ✅ Verified `IEqPresetService`/`EqPresetService` DI registration in `MusicServiceRegistration.cs`
+- ✅ Built and deployed to production (commit `bffb0f8c`)
+- ✅ Fixed `Microsoft.OpenApi` v2.7.5.0 assembly mismatch (dependabot package update — old v2.0.0.0 was deployed)
+- ✅ All 14 modules healthy
+- ✅ Endpoints verified: all return 401 (auth required, not 404)
+
+**Client actions (monolith):**
+- ✅ Dynamic band sliders, save preset dialog, EQ icon button — all deployed to phone
+
+---
+
+## Archived: Android Calendar Tab + Chat SignalR Fixes (2026-06-30)
+
+**Target:** cloud.kimball.home → production merge
+
+**Result:** ✅ PR #17 merged `feature/android-calendar-tab` to `main`.
+
+**Key carry-forward contracts (no longer active):**
+- Auth: Files module host uses a policy scheme (`DotNetCloud.Module`) that auto-selects between `OpenIddict.Validation.AspNetCore` (JWT Bearer) and `Identity.Application` (cookie)
+- Desktop OAuth constant: `OAuthConstants.ClientId = "dotnetcloud-desktop"`
+- SignalR channel group naming: `chat-channel-{channelId}`
+- Controller discovery: Core.Server references Files.Host and Chat.Host via ProjectReference
+
+**CoreHub fixes (committed to `feature/android-calendar-tab`):**
+- `CoreHub.JoinGroupAsync()` now accepts both `"chat-channel-{guid}"` and bare GUID formats
+- `CoreHub.LeaveGroupAsync()` updated similarly
+- `ChannelGroup()` helper method added
+
+**Android client fixes (deployed in APK):**
+- ChatConnectionService starts correctly
+- Calendar event click crash fix (x:DataType)
+- Calendar week view fix (x:DataType)
+- Calendar error handling (try-catch wrappers)
+
+---
 
 ## Archived: Calendar Required Module — Schema Migration & Production Deploy (2026-06-30)
 
