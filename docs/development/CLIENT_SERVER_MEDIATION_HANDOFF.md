@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-06-29 (Android client alphabet index deployed to phone ✓)
+Last updated: 2026-07-01 (Android EQ sliders + save presets deployed to phone ✓)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -18,7 +18,7 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
-- **Current active branch:** `feature/android-calendar-tab`
+- **Current active branch:** `feature/fix-android-music-equalizer`
 - No moderator involvement in technical decisions, code reviews, or work coordination.
 
 **Role separation (MANDATORY):**
@@ -92,27 +92,35 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** ✅ All Android Calendar + login persistence issues resolved. Ready to merge to main.
+**Summary:** Add server-side EQ preset REST endpoints for Android save-preset feature
 
-**Context:** Fixed three issues on the Android client:
-1. ✅ Calendar tab loads, events display, event detail page works (x:DataType + InvalidCastException fixes)
-2. ✅ Login persistence on warm start — LoginPage.OnAppearing now redirects to main page if saved connection exists
-3. ✅ App.OnResume also redirects from Login to ChannelList as defense-in-depth
+**Context:** Android music equalizer now supports saving current EQ settings as presets (new + overwrite existing).
+The Android REST client (`HttpMusicRestClient`) has `CreateEqPresetAsync` and `UpdateEqPresetAsync` methods
+that call `POST /api/v1/music/eq/presets` and `PUT /api/v1/music/eq/presets/{id}`. The server-side controller
+endpoints need to be added — the `EqPresetService` (in `Music.Data/Services/`) already exists with
+`CreatePresetAsync`, `UpdatePresetAsync`, `ListPresetsAsync`, `GetPresetAsync`, `SetActivePresetAsync`,
+`GetActivePresetIdAsync`.
 
-All fixes deployed in APK v0.3.9/3 to phone. Verified working across multiple cold start + swipe-from-recents cycles.
+**Commit:** `e4ab01f4` — `feature/fix-android-music-equalizer`
 
 ---
 
 ### Server Actions — `cloud.kimball.home`
 
-- [ ] Create PR to merge `feature/android-calendar-tab` to `main`
+- [ ] Add `POST /api/v1/music/eq/presets` endpoint in `MusicController` (or a new `EqPresetsController`) that accepts `SaveEqPresetDto` body and returns `EqPresetDto` envelope
+- [ ] Add `PUT /api/v1/music/eq/presets/{id}` endpoint for updating existing presets
+- [ ] Wire up `IEqPresetService`/`EqPresetService` DI registration in `Music.Host/Program.cs` if not already present
+- [ ] Verify endpoints work: `curl -X POST ...` with sample `SaveEqPresetDto` JSON
+- [ ] Merge `feature/fix-android-music-equalizer` to `main` after endpoints are verified
 
 ### Client Actions — `monolith` (Android client)
 
-- [x] Calendar event click crash fixed — `x:DataType` + `InvalidCastException` + error handling
-- [x] Login warm-start persistence fixed — `LoginPage.OnAppearing` + `App.OnResume` redirect
-- [x] MVVMTK0034 warning fixed in EventEditViewModel
-- [x] All fixes built and deployed to phone (APK v0.3.9)
+- [x] Replace hardcoded 10-band ProgressBars with device-accurate dynamic Sliders
+- [x] Fix EQ gain reset on every playback state change (only recreate on session change)
+- [x] Add save EQ preset dialog (name entry + overwrite existing) + REST client methods
+- [x] Add EQ icon button in title bar, remove from segmented tab bar
+- [x] All warnings fixed (0 warnings, 0 errors)
+- [x] Built and deployed to phone — sliders work
 
 ## Environment
 
