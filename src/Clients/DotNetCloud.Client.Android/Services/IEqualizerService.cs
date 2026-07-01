@@ -19,6 +19,9 @@ public interface IEqualizerService
     /// <summary>Sets the gain for a specific band index (gain in millibels).</summary>
     void SetBandLevel(int bandIndex, short gainMb);
 
+    /// <summary>Gets the current gain of each device band in millibels.</summary>
+    short[] GetBandLevels();
+
     /// <summary>Sets all bands from a server preset dictionary (keys: frequency labels, values: dB).</summary>
     void SetAllBands(IDictionary<string, double> bands);
 

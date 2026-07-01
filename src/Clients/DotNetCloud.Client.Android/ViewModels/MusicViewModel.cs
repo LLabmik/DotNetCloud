@@ -40,6 +40,7 @@ public sealed partial class MusicViewModel : ObservableObject
         _tokenStore = tokenStore;
         _player.PlaybackStateChanged += (_, _) => UpdatePlaybackState();
         _player.TrackEnded += (_, _) => Dispatch(() => PlayNextCommand.Execute(null));
+        _eq.AvailabilityChanged += (_, _) => Dispatch(InitEqFromDevice);
     }
 
     /// <summary>
@@ -158,8 +159,29 @@ public sealed partial class MusicViewModel : ObservableObject
     [ObservableProperty]
     private ObservableCollection<EqPresetDto> _eqPresets = [];
 
+    /// <summary>True when there are presets available (for toggling overwrite section visibility).</summary>
+    public bool HasEqPresets => EqPresets.Count > 0;
+
+    partial void OnEqPresetsChanged(ObservableCollection<EqPresetDto> value)
+    {
+        OnPropertyChanged(nameof(HasEqPresets));
+    }
+
     [ObservableProperty]
     private ObservableCollection<string> _genres = [];
+
+    // ── Save EQ Preset dialog state ──────────────────────────────
+
+    /// <summary>Whether the "Save EQ Preset" dialog is visible.</summary>
+    [ObservableProperty]
+    private bool _showSavePresetDialog;
+
+    /// <summary>Name entered by the user for the new/updated preset.</summary>
+    [ObservableProperty]
+    private string _newPresetName = string.Empty;
+
+    /// <summary>Set when the user selects an existing preset to overwrite.</summary>
+    private Guid? _selectedPresetId;
 
     // ── Alphabet index ────────────────────────────────────────────
 
@@ -222,13 +244,13 @@ public sealed partial class MusicViewModel : ObservableObject
     private int _numberOfBands;
 
     /// <summary>
-    /// Current gain levels per band (10 values matching server band frequencies:
-    /// 31, 63, 125, 250, 500, 1000, 2000, 4000, 8000, 16000 Hz).
-    /// Values are in dB (range approximately -12 to +12).
-    /// Initialized to all zeros (flat EQ).
+    /// EQ band models for the device's actual physical bands.
+    /// Populated dynamically when the EQ becomes available.
+    /// Each <see cref="EqBandModel"/> has two-way bindable <see cref="EqBandModel.GainDb"/>
+    /// that updates the native EQ in real time via <see cref="OnEqBandChanged"/>.
     /// </summary>
     [ObservableProperty]
-    private ObservableCollection<float> _bandLevels = new(Enumerable.Repeat(0f, 10));
+    private ObservableCollection<EqBandModel> _eqBands = [];
 
     // ── Seek state ─────────────────────────────────────────────────
 
@@ -255,7 +277,7 @@ public sealed partial class MusicViewModel : ObservableObject
     // ── Scroll-to-character delegate ───────────────────────────────
 
     /// <summary>
-    /// Delegated to the code-behind so it can call <see cref="Microsoft.Maui.Controls.CollectionView.ScrollTo"/>.
+    /// Delegated to the code-behind so it can call <c>CollectionView.ScrollTo</c>.
     /// Invoked when the user taps a character in the alphabet index strip.
     /// </summary>
     public Action<object?, MusicView>? ScrollToRequested;
@@ -709,6 +731,12 @@ public sealed partial class MusicViewModel : ObservableObject
                 EqPresets = new ObservableCollection<EqPresetDto>(items);
                 EqAvailable = _eq.IsAvailable;
                 NumberOfBands = _eq.NumberOfBands;
+                System.Diagnostics.Debug.WriteLine($"[EQ] IsAvailable={_eq.IsAvailable}, NumberOfBands={_eq.NumberOfBands}");
+                if (_eq.IsAvailable)
+                    InitEqFromDevice();
+                else
+                    EqBands.Clear();
+                System.Diagnostics.Debug.WriteLine($"[EQ] EqBands.Count={EqBands.Count}");
                 CurrentView = MusicView.Eq;
                 Title = "Equalizer";
             });
@@ -801,8 +829,8 @@ public sealed partial class MusicViewModel : ObservableObject
         _eq.Reset();
         Dispatch(() =>
         {
-            for (int i = 0; i < BandLevels.Count; i++)
-                BandLevels[i] = 0f;
+            foreach (var band in EqBands)
+                band.GainDb = 0f;
         });
     }
 
@@ -811,18 +839,151 @@ public sealed partial class MusicViewModel : ObservableObject
     {
         _eq.ApplyPreset(preset);
 
-        // Update the band levels visualization from the preset's band dictionary
-        var serverFreqs = new[] { "31", "63", "125", "250", "500", "1000", "2000", "4000", "8000", "16000" };
+        // Read back the actual device band levels (preset frequencies are mapped
+        // to closest device bands by AndroidEqualizerService.SetAllBands).
+        var deviceGainsMb = _eq.GetBandLevels();
         Dispatch(() =>
         {
-            for (int i = 0; i < serverFreqs.Length && i < BandLevels.Count; i++)
-            {
-                if (preset.Bands.TryGetValue(serverFreqs[i], out var gainDb))
-                    BandLevels[i] = (float)gainDb;
-                else
-                    BandLevels[i] = 0f;
-            }
+            for (int i = 0; i < deviceGainsMb.Length && i < EqBands.Count; i++)
+                EqBands[i].GainDb = deviceGainsMb[i] / 100f;
         });
+    }
+
+    // ── Save EQ Preset ───────────────────────────────────────────────
+
+    /// <summary>Server preset target frequencies in Hz — used for saving presets in portable format.</summary>
+    private static readonly int[] ServerFrequencies = [31, 63, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+
+    /// <summary>Opens the save preset dialog.</summary>
+    [RelayCommand]
+    private void OpenSavePresetDialog()
+    {
+        _selectedPresetId = null;
+        NewPresetName = string.Empty;
+        ShowSavePresetDialog = true;
+    }
+
+    /// <summary>Closes the save preset dialog.</summary>
+    [RelayCommand]
+    private void CloseSavePresetDialog()
+    {
+        ShowSavePresetDialog = false;
+    }
+
+    /// <summary>Selects an existing preset to overwrite when saving.</summary>
+    [RelayCommand]
+    private void SelectEqPresetForOverwrite(EqPresetDto preset)
+    {
+        _selectedPresetId = preset.Id;
+        NewPresetName = preset.Name;
+    }
+
+    /// <summary>Saves the current EQ band settings as a preset (new or overwrite).</summary>
+    [RelayCommand]
+    private async Task SaveEqPresetAsync()
+    {
+        if (string.IsNullOrWhiteSpace(NewPresetName))
+            return;
+
+        var (serverUrl, token) = await GetCredentialsAsync();
+        if (serverUrl is null || token is null)
+            return;
+
+        try
+        {
+            // Build the bands dictionary in server format (10 standard frequencies)
+            // by mapping each server frequency to the closest device band's gain.
+            var bands = new Dictionary<string, double>();
+
+            // Get device band frequencies for closest-band mapping
+            var deviceFreqsMhz = _eq.GetBandFrequenciesMhz();
+            var deviceFreqsHz = deviceFreqsMhz.Select(f => f / 1000).ToArray();
+
+            foreach (var serverHz in ServerFrequencies)
+            {
+                var label = FormatFrequencyForPreset(serverHz);
+                var gainDb = FindClosestBandGain(deviceFreqsHz, serverHz);
+                bands[label] = gainDb;
+            }
+
+            var dto = new SaveEqPresetDto
+            {
+                Name = NewPresetName.Trim(),
+                Bands = bands
+            };
+
+            EqPresetDto result;
+            if (_selectedPresetId.HasValue)
+            {
+                result = await _music.UpdateEqPresetAsync(serverUrl, token, _selectedPresetId.Value, dto, CancellationToken.None);
+                // Update in local cache
+                var idx = -1;
+                Dispatch(() =>
+                {
+                    idx = EqPresets.IndexOf(EqPresets.FirstOrDefault(p => p.Id == _selectedPresetId.Value));
+                    if (idx >= 0)
+                        EqPresets[idx] = result;
+                    else
+                        EqPresets.Add(result);
+                });
+            }
+            else
+            {
+                result = await _music.CreateEqPresetAsync(serverUrl, token, dto, CancellationToken.None);
+                Dispatch(() => EqPresets.Add(result));
+            }
+
+            Dispatch(() =>
+            {
+                ShowSavePresetDialog = false;
+                NewPresetName = string.Empty;
+                _selectedPresetId = null;
+            });
+        }
+        catch (Exception ex)
+        {
+            Dispatch(() => ErrorMessage = $"Failed to save EQ preset: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Maps a server target frequency (Hz) to the closest device band and returns its current gain in dB.
+    /// Uses the same closest-frequency logic as <see cref="Services.AndroidEqualizerService.SetAllBands"/>.
+    /// Falls back to 0 dB if no device bands are available.
+    /// </summary>
+    private double FindClosestBandGain(int[] deviceFreqsHz, int targetHz)
+    {
+        if (deviceFreqsHz.Length == 0 || EqBands.Count == 0)
+            return 0.0;
+
+        // Find the closest device frequency
+        int closestIdx = 0;
+        int minDiff = int.MaxValue;
+        for (int i = 0; i < deviceFreqsHz.Length; i++)
+        {
+            var diff = Math.Abs(deviceFreqsHz[i] - targetHz);
+            if (diff < minDiff)
+            {
+                minDiff = diff;
+                closestIdx = i;
+            }
+        }
+
+        if (closestIdx < EqBands.Count)
+            return EqBands[closestIdx].GainDb;
+
+        return 0.0;
+    }
+
+    /// <summary>Formats a frequency in Hz to a preset dictionary key (e.g. 1000 → "1K", 125 → "125").</summary>
+    private static string FormatFrequencyForPreset(int hz)
+    {
+        if (hz >= 1000)
+        {
+            var khz = hz / 1000.0;
+            return khz % 1 == 0 ? $"{khz:F0}K" : $"{khz:F1}K";
+        }
+        return hz.ToString();
     }
 
     [RelayCommand]
@@ -959,6 +1120,56 @@ public sealed partial class MusicViewModel : ObservableObject
                 ClearAlbumArt();
             }
         });
+    }
+
+    // ── Equalizer ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// Initializes the <see cref="EqBands"/> collection from the device's native EQ
+    /// bands (frequencies + current gain levels). Called when the EQ becomes available
+    /// or when the user navigates to the EQ tab.
+    /// </summary>
+    private void InitEqFromDevice()
+    {
+        EqAvailable = _eq.IsAvailable;
+        NumberOfBands = _eq.NumberOfBands;
+
+        System.Diagnostics.Debug.WriteLine($"[EQ] InitEqFromDevice: IsAvailable={_eq.IsAvailable}, NumberOfBands={_eq.NumberOfBands}");
+
+        if (!_eq.IsAvailable || _eq.NumberOfBands == 0)
+        {
+            System.Diagnostics.Debug.WriteLine("[EQ] InitEqFromDevice: EQ not available or 0 bands, clearing");
+            EqBands.Clear();
+            return;
+        }
+
+        var freqsMhz = _eq.GetBandFrequenciesMhz();
+        var gainsMb = _eq.GetBandLevels();
+
+        System.Diagnostics.Debug.WriteLine($"[EQ] InitEqFromDevice: freqsMhz.Length={freqsMhz.Length}, gainsMb.Length={gainsMb.Length}");
+
+        var bands = new EqBandModel[freqsMhz.Length];
+        for (int i = 0; i < freqsMhz.Length; i++)
+        {
+            var freqHz = freqsMhz[i] / 1000; // millihertz → Hz
+            var gainDb = i < gainsMb.Length ? gainsMb[i] / 100f : 0f;
+            bands[i] = new EqBandModel(i, freqHz, gainDb);
+            System.Diagnostics.Debug.WriteLine($"[EQ]   Band {i}: freq={freqHz}Hz, gain={gainDb}dB");
+        }
+
+        EqBands = new ObservableCollection<EqBandModel>(bands);
+        System.Diagnostics.Debug.WriteLine($"[EQ] InitEqFromDevice: EqBands set with {EqBands.Count} items");
+    }
+
+    /// <summary>
+    /// Called when the user drags an EQ slider. Applies the gain change to the native EQ.
+    /// </summary>
+    /// <param name="bandIndex">Device band index (0-based).</param>
+    /// <param name="gainDb">New gain value in dB.</param>
+    public void OnEqBandChanged(int bandIndex, float gainDb)
+    {
+        var gainMb = (short)Math.Clamp((int)(gainDb * 100), -1500, 1500);
+        _eq.SetBandLevel(bandIndex, gainMb);
     }
 
     // ── Alphabet index helpers ──────────────────────────────────────

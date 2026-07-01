@@ -47,8 +47,8 @@ public interface ICalendarRestClient
         Guid eventId, CancellationToken ct = default);
 
     /// <summary>Creates a new event. For recurrence exceptions, set
-    /// <see cref="CreateCalendarEventDto.RecurringEventId"/> and
-    /// <see cref="CreateCalendarEventDto.OriginalStartUtc"/>.</summary>
+    /// <c>CreateCalendarEventDto.RecurringEventId</c> and
+    /// <c>CreateCalendarEventDto.OriginalStartUtc</c>.</summary>
     Task<CalendarEventDto> CreateEventAsync(
         string serverBaseUrl, string accessToken,
         CreateCalendarEventDto dto, CancellationToken ct = default);

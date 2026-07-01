@@ -93,9 +93,15 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
             _mediaPlayer.Prepared += OnTrackPrepared;
             _mediaPlayer.Error += OnPlayerError;
 
+            var uri = global::Android.Net.Uri.Parse(audioUrl);
+            if (uri is null)
+            {
+                _logger.LogError("Failed to parse audio URL for track {TrackId}", CurrentTrack.Id);
+                return;
+            }
             _mediaPlayer.SetDataSource(
                 global::Android.App.Application.Context,
-                global::Android.Net.Uri.Parse(audioUrl),
+                uri,
                 headers);
 
             _mediaPlayer.PrepareAsync();

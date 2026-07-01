@@ -13,6 +13,7 @@ internal sealed class AndroidEqualizerService : IEqualizerService, IDisposable
     private readonly IMusicPlayerService _player;
     private Equalizer? _equalizer;
     private bool _isAvailable;
+    private int _lastAudioSessionId;
 
     /// <summary>Server preset target frequencies in Hz.</summary>
     private static readonly int[] ServerFrequencies = [31, 63, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
@@ -36,7 +37,8 @@ internal sealed class AndroidEqualizerService : IEqualizerService, IDisposable
     /// <inheritdoc />
     public int[] GetBandFrequenciesMhz()
     {
-        if (_equalizer is null) return [];
+        if (_equalizer is null)
+            return [];
         var freqs = new int[_equalizer.NumberOfBands];
         for (int i = 0; i < freqs.Length; i++)
             freqs[i] = _equalizer.GetCenterFreq((short)i);
@@ -45,10 +47,28 @@ internal sealed class AndroidEqualizerService : IEqualizerService, IDisposable
 
     private void OnPlaybackStateChanged(object? sender, EventArgs e)
     {
+        System.Diagnostics.Debug.WriteLine($"[EQ-SVC] OnPlaybackStateChanged: IsPlaying={_player.IsPlaying}, SessionId={_player.AudioSessionId}, _isAvailable={_isAvailable}, _lastSessionId={_lastAudioSessionId}");
         if (_player.IsPlaying && _player.AudioSessionId != 0)
-            CreateEqualizer();
+        {
+            // Only create/recreate the EQ if it's not yet available or the audio session changed
+            // (new track). Avoids destroying/recreating the EQ on every minor state change,
+            // which would reset all band gains to zero.
+            if (!_isAvailable || _player.AudioSessionId != _lastAudioSessionId)
+            {
+                System.Diagnostics.Debug.WriteLine($"[EQ-SVC] Creating equalizer (wasAvailable={_isAvailable}, prevSession={_lastAudioSessionId}, newSession={_player.AudioSessionId})");
+                _lastAudioSessionId = _player.AudioSessionId;
+                CreateEqualizer();
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"[EQ-SVC] Skipping equalizer recreation (already available, same session)");
+            }
+        }
         else
+        {
+            System.Diagnostics.Debug.WriteLine($"[EQ-SVC] Disposing equalizer");
             DisposeEqualizer();
+        }
     }
 
     private void CreateEqualizer()
@@ -59,10 +79,12 @@ internal sealed class AndroidEqualizerService : IEqualizerService, IDisposable
             _equalizer = new Equalizer(0, _player.AudioSessionId);
             _equalizer.SetEnabled(true);
             _isAvailable = true;
+            System.Diagnostics.Debug.WriteLine("[EQ-SVC] Equalizer created, firing AvailabilityChanged");
             AvailabilityChanged?.Invoke(this, EventArgs.Empty);
         }
-        catch
+        catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"[EQ-SVC] Equalizer creation failed: {ex.Message}");
             _isAvailable = false;
             _equalizer = null;
         }
@@ -70,10 +92,12 @@ internal sealed class AndroidEqualizerService : IEqualizerService, IDisposable
 
     private void DisposeEqualizer()
     {
+        System.Diagnostics.Debug.WriteLine("[EQ-SVC] DisposeEqualizer called");
         _equalizer?.SetEnabled(false);
         _equalizer?.Release();
         _equalizer?.Dispose();
         _equalizer = null;
+        _isAvailable = false;
     }
 
     /// <inheritdoc />
@@ -81,9 +105,21 @@ internal sealed class AndroidEqualizerService : IEqualizerService, IDisposable
         => _equalizer?.SetBandLevel((short)bandIndex, gainMb);
 
     /// <inheritdoc />
+    public short[] GetBandLevels()
+    {
+        if (_equalizer is null)
+            return [];
+        var levels = new short[_equalizer.NumberOfBands];
+        for (short i = 0; i < levels.Length; i++)
+            levels[i] = _equalizer.GetBandLevel((short)i);
+        return levels;
+    }
+
+    /// <inheritdoc />
     public void SetAllBands(IDictionary<string, double> bands)
     {
-        if (_equalizer is null) return;
+        if (_equalizer is null)
+            return;
 
         var deviceFreqs = new int[_equalizer.NumberOfBands];
         for (int i = 0; i < deviceFreqs.Length; i++)
@@ -93,7 +129,8 @@ internal sealed class AndroidEqualizerService : IEqualizerService, IDisposable
         {
             var targetHz = ParseFrequencyLabel(freqLabel);
             var bandIdx = FindClosestBand(deviceFreqs, targetHz);
-            if (bandIdx < 0) continue;
+            if (bandIdx < 0)
+                continue;
             var gainMb = (short)Math.Clamp((int)(gainDb * 100), -1500, 1500);
             _equalizer.SetBandLevel((short)bandIdx, gainMb);
         }
@@ -106,7 +143,8 @@ internal sealed class AndroidEqualizerService : IEqualizerService, IDisposable
     /// <inheritdoc />
     public void Reset()
     {
-        if (_equalizer is null) return;
+        if (_equalizer is null)
+            return;
         for (short i = 0; i < _equalizer.NumberOfBands; i++)
             _equalizer.SetBandLevel(i, 0);
     }
