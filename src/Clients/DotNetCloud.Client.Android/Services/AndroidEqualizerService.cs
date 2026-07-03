@@ -15,8 +15,14 @@ internal sealed class AndroidEqualizerService : IEqualizerService, IDisposable
     private bool _isAvailable;
     private int _lastAudioSessionId;
 
-    /// <summary>Server preset target frequencies in Hz.</summary>
-    private static readonly int[] ServerFrequencies = [31, 63, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+    /// <summary>Server preset target frequencies in Hz (10-band standard).</summary>
+    internal static readonly int[] ServerFrequencies = [31, 63, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+
+    /// <summary>
+    /// Cached mapping from virtual band index (0–9) to physical band index.
+    /// Populated when the equalizer is created. -1 means unmapped.
+    /// </summary>
+    private int[] _virtualToPhysicalMap = [];
 
     /// <inheritdoc />
     public event EventHandler? AvailabilityChanged;
@@ -35,6 +41,9 @@ internal sealed class AndroidEqualizerService : IEqualizerService, IDisposable
     public int NumberOfBands => _equalizer?.NumberOfBands ?? 0;
 
     /// <inheritdoc />
+    public int VirtualBandCount => ServerFrequencies.Length;
+
+    /// <inheritdoc />
     public int[] GetBandFrequenciesMhz()
     {
         if (_equalizer is null)
@@ -43,6 +52,52 @@ internal sealed class AndroidEqualizerService : IEqualizerService, IDisposable
         for (int i = 0; i < freqs.Length; i++)
             freqs[i] = _equalizer.GetCenterFreq((short)i);
         return freqs;
+    }
+
+    /// <inheritdoc />
+    public int[] GetVirtualBandFrequenciesHz() => (int[])ServerFrequencies.Clone();
+
+    /// <inheritdoc />
+    public void SetVirtualBandGain(int virtualBandIndex, float gainDb)
+    {
+        if (_equalizer is null || virtualBandIndex < 0 || virtualBandIndex >= _virtualToPhysicalMap.Length)
+            return;
+        var physicalIdx = _virtualToPhysicalMap[virtualBandIndex];
+        if (physicalIdx < 0)
+            return;
+        var gainMb = (short)Math.Clamp((int)(gainDb * 100), -1500, 1500);
+        _equalizer.SetBandLevel((short)physicalIdx, gainMb);
+    }
+
+    /// <inheritdoc />
+    public float[] GetVirtualBandGainsDb()
+    {
+        var result = new float[ServerFrequencies.Length];
+        if (_equalizer is null)
+            return result;
+        for (int i = 0; i < ServerFrequencies.Length; i++)
+        {
+            var physicalIdx = i < _virtualToPhysicalMap.Length ? _virtualToPhysicalMap[i] : -1;
+            if (physicalIdx >= 0)
+                result[i] = _equalizer.GetBandLevel((short)physicalIdx) / 100f;
+        }
+        return result;
+    }
+
+    /// <inheritdoc />
+    public void ApplyVirtualBandGains(float[] gainsDb)
+    {
+        if (_equalizer is null)
+            return;
+        var applied = new HashSet<short>();
+        for (int i = 0; i < gainsDb.Length && i < _virtualToPhysicalMap.Length; i++)
+        {
+            var physicalIdx = (short)_virtualToPhysicalMap[i];
+            if (physicalIdx < 0 || !applied.Add(physicalIdx))
+                continue;
+            var gainMb = (short)Math.Clamp((int)(gainsDb[i] * 100), -1500, 1500);
+            _equalizer.SetBandLevel(physicalIdx, gainMb);
+        }
     }
 
     private void OnPlaybackStateChanged(object? sender, EventArgs e)
@@ -73,12 +128,24 @@ internal sealed class AndroidEqualizerService : IEqualizerService, IDisposable
 
     private void CreateEqualizer()
     {
+        // AudioEffect must be created on the main looper thread on some Android versions.
+        if (!MainThread.IsMainThread)
+        {
+            System.Diagnostics.Debug.WriteLine("[EQ-SVC] CreateEqualizer called from non-UI thread, dispatching");
+            MainThread.BeginInvokeOnMainThread(CreateEqualizer);
+            return;
+        }
+
         try
         {
             DisposeEqualizer();
             _equalizer = new Equalizer(0, _player.AudioSessionId);
             _equalizer.SetEnabled(true);
             _isAvailable = true;
+
+            // Build virtual→physical band mapping cache
+            BuildVirtualBandMap();
+
             System.Diagnostics.Debug.WriteLine("[EQ-SVC] Equalizer created, firing AvailabilityChanged");
             AvailabilityChanged?.Invoke(this, EventArgs.Empty);
         }
@@ -87,17 +154,25 @@ internal sealed class AndroidEqualizerService : IEqualizerService, IDisposable
             System.Diagnostics.Debug.WriteLine($"[EQ-SVC] Equalizer creation failed: {ex.Message}");
             _isAvailable = false;
             _equalizer = null;
+            _virtualToPhysicalMap = [];
+            // Notify ViewModel that EQ state changed (creation failed means unavailable)
+            AvailabilityChanged?.Invoke(this, EventArgs.Empty);
         }
     }
 
     private void DisposeEqualizer()
     {
+        if (!_isAvailable && _equalizer is null)
+            return; // already disposed, avoid redundant event firing
+
         System.Diagnostics.Debug.WriteLine("[EQ-SVC] DisposeEqualizer called");
         _equalizer?.SetEnabled(false);
         _equalizer?.Release();
         _equalizer?.Dispose();
         _equalizer = null;
         _isAvailable = false;
+        // Notify ViewModel that EQ is gone so it hides sliders and shows the banner
+        AvailabilityChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <inheritdoc />
@@ -147,6 +222,42 @@ internal sealed class AndroidEqualizerService : IEqualizerService, IDisposable
             return;
         for (short i = 0; i < _equalizer.NumberOfBands; i++)
             _equalizer.SetBandLevel(i, 0);
+    }
+
+    /// <summary>
+    /// Builds the cached mapping from each of the 10 server-standard frequencies
+    /// to the closest physical device band. Called once when the equalizer is created.
+    /// </summary>
+    private void BuildVirtualBandMap()
+    {
+        if (_equalizer is null)
+        {
+            _virtualToPhysicalMap = [];
+            return;
+        }
+
+        var physicalFreqsHz = new int[_equalizer.NumberOfBands];
+        for (int i = 0; i < physicalFreqsHz.Length; i++)
+            physicalFreqsHz[i] = _equalizer.GetCenterFreq((short)i) / 1000;
+
+        _virtualToPhysicalMap = new int[ServerFrequencies.Length];
+        for (int v = 0; v < ServerFrequencies.Length; v++)
+        {
+            var targetHz = ServerFrequencies[v];
+            int bestIdx = -1, bestDiff = int.MaxValue;
+            for (int p = 0; p < physicalFreqsHz.Length; p++)
+            {
+                var diff = Math.Abs(physicalFreqsHz[p] - targetHz);
+                if (diff < bestDiff)
+                {
+                    bestDiff = diff;
+                    bestIdx = p;
+                }
+            }
+            _virtualToPhysicalMap[v] = bestIdx;
+            System.Diagnostics.Debug.WriteLine(
+                $"[EQ-SVC] Virtual band {v} ({targetHz}Hz) → physical band {bestIdx} ({physicalFreqsHz[bestIdx]}Hz)");
+        }
     }
 
     private static int ParseFrequencyLabel(string label)

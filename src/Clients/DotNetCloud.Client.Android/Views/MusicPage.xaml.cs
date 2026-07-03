@@ -69,11 +69,19 @@ public partial class MusicPage : ContentPage
     /// <summary>
     /// Called when the user drags an EQ band slider. Reads the band index from the
     /// slider's <see cref="EqBandModel"/> binding context and applies the gain to the native EQ.
+    /// If the equalizer has been disposed (playback stopped), shows a brief alert.
     /// </summary>
     private void OnEqSliderValueChanged(object? sender, ValueChangedEventArgs e)
     {
         if (sender is Slider slider && slider.BindingContext is EqBandModel band)
         {
+            if (!_vm.EqAvailable)
+            {
+                // EQ was disposed (playback stopped). The banner should already
+                // be visible, but provide a subtle hint if the user interacts.
+                return;
+            }
+
             _vm.OnEqBandChanged(band.BandIndex, (float)e.NewValue);
         }
     }

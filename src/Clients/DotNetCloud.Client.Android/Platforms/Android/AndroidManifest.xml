@@ -54,6 +54,9 @@
 	<uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 	<uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 
+	<!-- Equalizer (AudioEffect) requires this to adjust band levels -->
+	<uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
 	<!-- Photo auto-upload: read media -->
 	<uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
 	<uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />

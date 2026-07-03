@@ -240,14 +240,18 @@ public sealed partial class MusicViewModel : ObservableObject
     [ObservableProperty]
     private bool _eqAvailable;
 
+    /// <summary>Number of virtual bands (always 10, matching server/Blazor preset format).</summary>
     [ObservableProperty]
     private int _numberOfBands;
 
+    /// <summary>Number of physical device bands (informational, typically 5–6).</summary>
+    [ObservableProperty]
+    private int _physicalBandCount;
+
     /// <summary>
-    /// EQ band models for the device's actual physical bands.
-    /// Populated dynamically when the EQ becomes available.
+    /// EQ band models for the 10 virtual server-standard bands (31 Hz – 16 kHz).
     /// Each <see cref="EqBandModel"/> has two-way bindable <see cref="EqBandModel.GainDb"/>
-    /// that updates the native EQ in real time via <see cref="OnEqBandChanged"/>.
+    /// that maps to the closest physical device band via <see cref="IEqualizerService.SetVirtualBandGain"/>.
     /// </summary>
     [ObservableProperty]
     private ObservableCollection<EqBandModel> _eqBands = [];
@@ -721,25 +725,32 @@ public sealed partial class MusicViewModel : ObservableObject
         if (serverUrl is null || token is null)
             return;
 
+        // Show the EQ view immediately — don't wait for the server presets API.
+        // The EQ tab must always be navigable regardless of server state.
+        Dispatch(() =>
+        {
+            if (_eq.IsAvailable)
+                InitEqFromDevice();
+            else
+            {
+                EqAvailable = false;
+                PhysicalBandCount = 0;
+                NumberOfBands = _eq.VirtualBandCount;
+                EqBands.Clear();
+            }
+            System.Diagnostics.Debug.WriteLine($"[EQ] IsAvailable={_eq.IsAvailable}, EqBands.Count={EqBands.Count}");
+            CurrentView = MusicView.Eq;
+            Title = "Equalizer";
+        });
+
+        // Load server presets asynchronously — failures only affect the preset list,
+        // not the EQ view itself.
         IsLoading = true;
         ErrorMessage = null;
         try
         {
             var items = await _music.ListEqPresetsAsync(serverUrl, token, CancellationToken.None);
-            Dispatch(() =>
-            {
-                EqPresets = new ObservableCollection<EqPresetDto>(items);
-                EqAvailable = _eq.IsAvailable;
-                NumberOfBands = _eq.NumberOfBands;
-                System.Diagnostics.Debug.WriteLine($"[EQ] IsAvailable={_eq.IsAvailable}, NumberOfBands={_eq.NumberOfBands}");
-                if (_eq.IsAvailable)
-                    InitEqFromDevice();
-                else
-                    EqBands.Clear();
-                System.Diagnostics.Debug.WriteLine($"[EQ] EqBands.Count={EqBands.Count}");
-                CurrentView = MusicView.Eq;
-                Title = "Equalizer";
-            });
+            Dispatch(() => EqPresets = new ObservableCollection<EqPresetDto>(items));
         }
         catch (Exception ex)
         {
@@ -837,22 +848,22 @@ public sealed partial class MusicViewModel : ObservableObject
     [RelayCommand]
     private async Task ApplyEqPresetAsync(EqPresetDto preset)
     {
+        // Apply to physical bands via the service
         _eq.ApplyPreset(preset);
 
-        // Read back the actual device band levels (preset frequencies are mapped
-        // to closest device bands by AndroidEqualizerService.SetAllBands).
-        var deviceGainsMb = _eq.GetBandLevels();
+        // Read back the virtual band gains to update the 10 sliders.
+        // The preset's frequency→gain mapping is applied to physical bands,
+        // and we read back through the virtual→physical mapping to show
+        // what each virtual band ended up with.
+        var virtualGains = _eq.GetVirtualBandGainsDb();
         Dispatch(() =>
         {
-            for (int i = 0; i < deviceGainsMb.Length && i < EqBands.Count; i++)
-                EqBands[i].GainDb = deviceGainsMb[i] / 100f;
+            for (int i = 0; i < virtualGains.Length && i < EqBands.Count; i++)
+                EqBands[i].GainDb = virtualGains[i];
         });
     }
 
     // ── Save EQ Preset ───────────────────────────────────────────────
-
-    /// <summary>Server preset target frequencies in Hz — used for saving presets in portable format.</summary>
-    private static readonly int[] ServerFrequencies = [31, 63, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
 
     /// <summary>Opens the save preset dialog.</summary>
     [RelayCommand]
@@ -892,18 +903,15 @@ public sealed partial class MusicViewModel : ObservableObject
         try
         {
             // Build the bands dictionary in server format (10 standard frequencies)
-            // by mapping each server frequency to the closest device band's gain.
+            // directly from the virtual EQ sliders — they already use the same
+            // 10-band format as Blazor/server presets.
             var bands = new Dictionary<string, double>();
+            var virtualFreqs = _eq.GetVirtualBandFrequenciesHz();
 
-            // Get device band frequencies for closest-band mapping
-            var deviceFreqsMhz = _eq.GetBandFrequenciesMhz();
-            var deviceFreqsHz = deviceFreqsMhz.Select(f => f / 1000).ToArray();
-
-            foreach (var serverHz in ServerFrequencies)
+            for (int i = 0; i < virtualFreqs.Length && i < EqBands.Count; i++)
             {
-                var label = FormatFrequencyForPreset(serverHz);
-                var gainDb = FindClosestBandGain(deviceFreqsHz, serverHz);
-                bands[label] = gainDb;
+                var label = FormatFrequencyLabel(virtualFreqs[i]);
+                bands[label] = EqBands[i].GainDb;
             }
 
             var dto = new SaveEqPresetDto
@@ -947,36 +955,9 @@ public sealed partial class MusicViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Maps a server target frequency (Hz) to the closest device band and returns its current gain in dB.
-    /// Uses the same closest-frequency logic as <see cref="Services.AndroidEqualizerService.SetAllBands"/>.
-    /// Falls back to 0 dB if no device bands are available.
+    /// Formats a frequency in Hz to a preset dictionary key (e.g. 1000 → "1K", 125 → "125").
     /// </summary>
-    private double FindClosestBandGain(int[] deviceFreqsHz, int targetHz)
-    {
-        if (deviceFreqsHz.Length == 0 || EqBands.Count == 0)
-            return 0.0;
-
-        // Find the closest device frequency
-        int closestIdx = 0;
-        int minDiff = int.MaxValue;
-        for (int i = 0; i < deviceFreqsHz.Length; i++)
-        {
-            var diff = Math.Abs(deviceFreqsHz[i] - targetHz);
-            if (diff < minDiff)
-            {
-                minDiff = diff;
-                closestIdx = i;
-            }
-        }
-
-        if (closestIdx < EqBands.Count)
-            return EqBands[closestIdx].GainDb;
-
-        return 0.0;
-    }
-
-    /// <summary>Formats a frequency in Hz to a preset dictionary key (e.g. 1000 → "1K", 125 → "125").</summary>
-    private static string FormatFrequencyForPreset(int hz)
+    private static string FormatFrequencyLabel(int hz)
     {
         if (hz >= 1000)
         {
@@ -1125,51 +1106,59 @@ public sealed partial class MusicViewModel : ObservableObject
     // ── Equalizer ──────────────────────────────────────────────────
 
     /// <summary>
-    /// Initializes the <see cref="EqBands"/> collection from the device's native EQ
-    /// bands (frequencies + current gain levels). Called when the EQ becomes available
-    /// or when the user navigates to the EQ tab.
+    /// Initializes the <see cref="EqBands"/> collection with 10 virtual server-standard
+    /// bands. Each virtual band maps to the closest physical device band when gain is
+    /// applied via <see cref="IEqualizerService.SetVirtualBandGain"/>.
+    /// Skips recreation if the band count hasn't changed.
     /// </summary>
     private void InitEqFromDevice()
     {
         EqAvailable = _eq.IsAvailable;
-        NumberOfBands = _eq.NumberOfBands;
+        PhysicalBandCount = _eq.NumberOfBands;
+        NumberOfBands = _eq.VirtualBandCount;
 
-        System.Diagnostics.Debug.WriteLine($"[EQ] InitEqFromDevice: IsAvailable={_eq.IsAvailable}, NumberOfBands={_eq.NumberOfBands}");
+        System.Diagnostics.Debug.WriteLine(
+            $"[EQ] InitEqFromDevice: IsAvailable={_eq.IsAvailable}, PhysicalBands={PhysicalBandCount}, VirtualBands={NumberOfBands}");
 
-        if (!_eq.IsAvailable || _eq.NumberOfBands == 0)
+        if (!_eq.IsAvailable || _eq.VirtualBandCount == 0)
         {
-            System.Diagnostics.Debug.WriteLine("[EQ] InitEqFromDevice: EQ not available or 0 bands, clearing");
+            System.Diagnostics.Debug.WriteLine("[EQ] InitEqFromDevice: EQ not available, clearing");
             EqBands.Clear();
             return;
         }
 
-        var freqsMhz = _eq.GetBandFrequenciesMhz();
-        var gainsMb = _eq.GetBandLevels();
-
-        System.Diagnostics.Debug.WriteLine($"[EQ] InitEqFromDevice: freqsMhz.Length={freqsMhz.Length}, gainsMb.Length={gainsMb.Length}");
-
-        var bands = new EqBandModel[freqsMhz.Length];
-        for (int i = 0; i < freqsMhz.Length; i++)
+        // Skip recreation if the virtual band count is unchanged
+        if (EqBands.Count == _eq.VirtualBandCount)
         {
-            var freqHz = freqsMhz[i] / 1000; // millihertz → Hz
-            var gainDb = i < gainsMb.Length ? gainsMb[i] / 100f : 0f;
-            bands[i] = new EqBandModel(i, freqHz, gainDb);
-            System.Diagnostics.Debug.WriteLine($"[EQ]   Band {i}: freq={freqHz}Hz, gain={gainDb}dB");
+            System.Diagnostics.Debug.WriteLine("[EQ] InitEqFromDevice: band count unchanged, skipping recreation");
+            return;
+        }
+
+        var virtualFreqsHz = _eq.GetVirtualBandFrequenciesHz();
+        var virtualGainsDb = _eq.GetVirtualBandGainsDb();
+
+        System.Diagnostics.Debug.WriteLine(
+            $"[EQ] InitEqFromDevice: virtualFreqsHz.Length={virtualFreqsHz.Length}, virtualGainsDb.Length={virtualGainsDb.Length}");
+
+        var bands = new EqBandModel[virtualFreqsHz.Length];
+        for (int i = 0; i < virtualFreqsHz.Length; i++)
+        {
+            var gainDb = i < virtualGainsDb.Length ? virtualGainsDb[i] : 0f;
+            bands[i] = new EqBandModel(i, virtualFreqsHz[i], gainDb);
+            System.Diagnostics.Debug.WriteLine($"[EQ]   Band {i}: freq={virtualFreqsHz[i]}Hz, gain={gainDb:F1}dB");
         }
 
         EqBands = new ObservableCollection<EqBandModel>(bands);
-        System.Diagnostics.Debug.WriteLine($"[EQ] InitEqFromDevice: EqBands set with {EqBands.Count} items");
+        System.Diagnostics.Debug.WriteLine($"[EQ] InitEqFromDevice: EqBands set with {EqBands.Count} virtual bands");
     }
 
     /// <summary>
-    /// Called when the user drags an EQ slider. Applies the gain change to the native EQ.
+    /// Called when the user drags an EQ slider. Applies the gain change to the native EQ
+    /// via the virtual band mapping (virtual band → closest physical band).
     /// </summary>
-    /// <param name="bandIndex">Device band index (0-based).</param>
-    /// <param name="gainDb">New gain value in dB.</param>
     public void OnEqBandChanged(int bandIndex, float gainDb)
     {
-        var gainMb = (short)Math.Clamp((int)(gainDb * 100), -1500, 1500);
-        _eq.SetBandLevel(bandIndex, gainMb);
+        _eq.SetVirtualBandGain(bandIndex, gainDb);
     }
 
     // ── Alphabet index helpers ──────────────────────────────────────
