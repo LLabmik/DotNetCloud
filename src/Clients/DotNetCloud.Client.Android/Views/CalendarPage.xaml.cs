@@ -22,7 +22,14 @@ public partial class CalendarPage : ContentPage
         _vm.IsActive = true;
         _vm.ErrorMessage = null;
         if (_vm.Calendars.Count == 0 && _vm.LoadCalendarsCommand.CanExecute(null))
+        {
             _vm.LoadCalendarsCommand.Execute(null);
+        }
+        else if (CalendarViewModel.NeedsRefresh)
+        {
+            CalendarViewModel.NeedsRefresh = false;
+            _vm.LoadEventsCommand.Execute(null);
+        }
     }
 
     /// <inheritdoc />

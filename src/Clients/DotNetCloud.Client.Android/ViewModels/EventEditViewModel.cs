@@ -414,6 +414,7 @@ public sealed partial class EventEditViewModel : ObservableObject
                 await _calendarApi.CreateEventAsync(serverUrl, token, createDto, ct);
             }
 
+            CalendarViewModel.NeedsRefresh = true;
             await Shell.Current.GoToAsync("..");
         }
         catch (Exception ex)
@@ -459,6 +460,7 @@ public sealed partial class EventEditViewModel : ObservableObject
                 await _calendarApi.DeleteEventAsync(serverUrl, token, _eventId.Value, ct);
             }
 
+            CalendarViewModel.NeedsRefresh = true;
             await Shell.Current.GoToAsync("../.."); // Go back to calendar
         }
         catch (Exception ex)

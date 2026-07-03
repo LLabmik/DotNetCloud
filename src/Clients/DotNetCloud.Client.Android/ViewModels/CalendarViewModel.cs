@@ -97,6 +97,13 @@ public sealed partial class CalendarViewModel : ObservableObject
     /// <summary>Whether the page is currently visible. Prevents background load errors from showing after navigating away.</summary>
     internal bool IsActive { get; set; }
 
+    /// <summary>
+    /// Set to <see langword="true"/> when calendar data may have changed (event created, edited, deleted, or RSVP'd)
+    /// so that the next <see cref="Views.CalendarPage.OnAppearing"/> triggers a reload of the events collection.
+    /// Reset to <see langword="false"/> after the reload completes.
+    /// </summary>
+    internal static bool NeedsRefresh { get; set; }
+
     // ── Data Collections ───────────────────────────────────────────
 
     /// <summary>User's calendars with visibility toggle.</summary>

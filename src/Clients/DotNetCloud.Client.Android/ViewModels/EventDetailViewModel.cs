@@ -167,6 +167,7 @@ public sealed partial class EventDetailViewModel : ObservableObject
             var (serverUrl, token) = await GetCredentialsAsync(ct);
             var dto = new EventRsvpDto { Status = attendeeStatus };
             await _calendarApi.RsvpAsync(serverUrl, token, _eventId, dto, ct);
+            CalendarViewModel.NeedsRefresh = true;
             await LoadEventAsync(ct);
         }
         catch (Exception ex)
@@ -256,6 +257,7 @@ public sealed partial class EventDetailViewModel : ObservableObject
                 await _calendarApi.DeleteEventAsync(serverUrl, token, _eventId, ct);
             }
 
+            CalendarViewModel.NeedsRefresh = true;
             await Shell.Current.GoToAsync("..");
         }
         catch (Exception ex)
