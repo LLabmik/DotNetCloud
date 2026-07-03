@@ -287,6 +287,17 @@ public sealed partial class FileBrowserViewModel : ObservableObject
                 return;
             }
 
+            var cameraStatus = await Permissions.CheckStatusAsync<Permissions.Camera>();
+            if (cameraStatus != PermissionStatus.Granted)
+            {
+                cameraStatus = await Permissions.RequestAsync<Permissions.Camera>();
+                if (cameraStatus != PermissionStatus.Granted)
+                {
+                    await Shell.Current.DisplayAlertAsync("Permission Denied", "Camera permission is required to take photos. Please grant camera access in your device settings.", "OK");
+                    return;
+                }
+            }
+
             var photo = await MediaPicker.Default.CapturePhotoAsync();
             if (photo is null)
                 return;
@@ -316,6 +327,17 @@ public sealed partial class FileBrowserViewModel : ObservableObject
             {
                 await Shell.Current.DisplayAlertAsync("Not Supported", "Video capture is not available on this device.", "OK");
                 return;
+            }
+
+            var cameraStatus = await Permissions.CheckStatusAsync<Permissions.Camera>();
+            if (cameraStatus != PermissionStatus.Granted)
+            {
+                cameraStatus = await Permissions.RequestAsync<Permissions.Camera>();
+                if (cameraStatus != PermissionStatus.Granted)
+                {
+                    await Shell.Current.DisplayAlertAsync("Permission Denied", "Camera permission is required to record videos. Please grant camera access in your device settings.", "OK");
+                    return;
+                }
             }
 
             var video = await MediaPicker.Default.CaptureVideoAsync();
