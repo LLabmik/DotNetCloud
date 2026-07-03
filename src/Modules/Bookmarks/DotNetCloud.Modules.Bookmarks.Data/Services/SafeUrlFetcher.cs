@@ -227,7 +227,14 @@ public sealed class SafeUrlFetcher
             }
         }
 
-        var socket = new Socket(context.DnsEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+        var addressFamily = context.DnsEndPoint.AddressFamily;
+        if (addressFamily == AddressFamily.Unspecified)
+        {
+            // When the DNS endpoint has no specific address family, pick one from the resolved addresses
+            addressFamily = addresses.FirstOrDefault()?.AddressFamily ?? AddressFamily.InterNetwork;
+        }
+
+        var socket = new Socket(addressFamily, SocketType.Stream, ProtocolType.Tcp);
         try
         {
             await socket.ConnectAsync(context.DnsEndPoint, ct);

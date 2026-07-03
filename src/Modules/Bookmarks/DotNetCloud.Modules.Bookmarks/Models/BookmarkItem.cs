@@ -1,3 +1,6 @@
+using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
+
 namespace DotNetCloud.Modules.Bookmarks.Models;
 
 /// <summary>
@@ -15,6 +18,8 @@ public sealed class BookmarkItem
     public Guid? FolderId { get; set; }
 
     /// <summary>The bookmark URL as entered by the user.</summary>
+    [Required(ErrorMessage = "URL is required")]
+    [Url(ErrorMessage = "Enter a valid URL")]
     public string Url { get; set; } = string.Empty;
 
     /// <summary>Normalized URL for deduplication.</summary>
@@ -51,5 +56,6 @@ public sealed class BookmarkItem
     public BookmarkFolder? Folder { get; set; }
 
     /// <summary>Rich preview data for this bookmark.</summary>
+    [JsonIgnore]
     public BookmarkPreview? Preview { get; set; }
 }

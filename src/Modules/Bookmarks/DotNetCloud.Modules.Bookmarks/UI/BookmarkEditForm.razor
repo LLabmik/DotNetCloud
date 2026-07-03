@@ -1,50 +1,69 @@
 @namespace DotNetCloud.Modules.Bookmarks.UI
 @using DotNetCloud.Modules.Bookmarks.Models
+@using System.ComponentModel.DataAnnotations
 
-<div class="bookmarks-edit-panel">
+<div class="edit-panel">
     <h3>@(Bookmark.Id == Guid.Empty ? "Add Bookmark" : "Edit Bookmark")</h3>
 
-    <div class="bookmarks-form-group">
-        <label>URL</label>
-        <input class="bookmarks-input" @bind="Bookmark.Url" placeholder="https://..." />
-    </div>
+    <EditForm Model="Bookmark" OnValidSubmit="HandleSaveAsync" OnInvalidSubmit="HandleInvalidSubmit"
+              FormName="bookmark-edit">
+        <DataAnnotationsValidator />
 
-    <div class="bookmarks-form-group">
-        <label>Title</label>
-        <input class="bookmarks-input" @bind="Bookmark.Title" placeholder="Optional title" />
-    </div>
+        <div class="form-group">
+            <label for="url">URL</label>
+            <InputText id="url" class="input" @bind-Value="Bookmark.Url" placeholder="https://..." />
+            <ValidationMessage For="() => Bookmark.Url" />
+        </div>
 
-    <div class="bookmarks-form-group">
-        <label>Folder</label>
-        <select class="bookmarks-input" @bind="Bookmark.FolderId">
-            <option value="">No folder</option>
-            @foreach (var folder in Folders)
-            {
-                <option value="@folder.Id">@folder.Name</option>
-            }
-        </select>
-    </div>
+        <div class="form-group">
+            <label for="title">Title</label>
+            <InputText id="title" class="input" @bind-Value="Bookmark.Title" placeholder="Optional title" />
+        </div>
 
-    <div class="bookmarks-form-group">
-        <label>Description</label>
-        <textarea class="bookmarks-input bookmarks-textarea" @bind="Bookmark.Description"
-                  rows="2" placeholder="Optional description"></textarea>
-    </div>
+        <div class="form-group">
+            <label for="folder">Folder</label>
+            <select id="folder" class="input" @bind="Bookmark.FolderId">
+                <option value="">No folder</option>
+                @foreach (var folder in Folders)
+                {
+                    <option value="@folder.Id">@folder.Name</option>
+                }
+            </select>
+        </div>
 
-    <div class="bookmarks-form-group">
-        <label>Notes</label>
-        <textarea class="bookmarks-input bookmarks-textarea" @bind="Bookmark.Notes"
-                  rows="3" placeholder="Optional notes"></textarea>
-    </div>
+        <div class="form-group">
+            <label for="description">Description</label>
+            <InputTextArea id="description" class="input" @bind-Value="Bookmark.Description" rows="2"
+                           placeholder="Optional description" />
+        </div>
 
-    <div class="bookmarks-form-group">
-        <label>Tags (comma-separated)</label>
-        <input class="bookmarks-input" @bind="_tagsInput" placeholder="tag1, tag2, tag3" />
-    </div>
+        <div class="form-group">
+            <label for="notes">Notes</label>
+            <InputTextArea id="notes" class="input" @bind-Value="Bookmark.Notes" rows="3"
+                           placeholder="Optional notes" />
+        </div>
 
-    <div class="bookmarks-form-actions">
-        <button class="bookmarks-btn bookmarks-btn-primary" @onclick="HandleSave">Save</button>
-        <button class="bookmarks-btn bookmarks-btn-secondary" @onclick="() => OnCancel?.Invoke()">Cancel</button>
+        <div class="form-group">
+            <label for="tags">Tags (comma-separated)</label>
+            <input id="tags" class="input" @bind="_tagsInput" placeholder="tag1, tag2, tag3" />
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(_errorMessage))
+        {
+            <div class="alert alert-danger">@_errorMessage</div>
+        }
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary" disabled="@_submitting">
+                @(_submitting ? "Saving..." : "Save")
+            </button>
+        </div>
+    </EditForm>
+
+    <div class="form-actions" style="margin-top: 8px;">
+        <button type="button" class="btn btn-outline" @onclick="Cancel" disabled="@_submitting">
+            Cancel
+        </button>
     </div>
 </div>
 
@@ -55,9 +74,14 @@
     [Parameter] public Action? OnCancel { get; set; }
 
     private string _tagsInput = string.Empty;
+    private bool _submitting;
+    private string? _errorMessage;
 
     protected override void OnParametersSet()
     {
+        _submitting = false;
+        _errorMessage = null;
+
         if (!string.IsNullOrWhiteSpace(Bookmark.TagsJson))
         {
             try
@@ -70,21 +94,45 @@
         }
     }
 
-    private async Task HandleSave()
+    private async Task HandleSaveAsync()
     {
-        // Serialize tags
-        if (!string.IsNullOrWhiteSpace(_tagsInput))
-        {
-            var tags = _tagsInput.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Where(t => t.Length > 0).ToList();
-            Bookmark.TagsJson = System.Text.Json.JsonSerializer.Serialize(tags);
-        }
-        else
-        {
-            Bookmark.TagsJson = null;
-        }
+        _submitting = true;
+        _errorMessage = null;
 
-        if (OnSave is not null)
-            await OnSave.Invoke(Bookmark);
+        try
+        {
+            // Serialize tags
+            if (!string.IsNullOrWhiteSpace(_tagsInput))
+            {
+                var tags = _tagsInput.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Where(t => t.Length > 0).ToList();
+                Bookmark.TagsJson = System.Text.Json.JsonSerializer.Serialize(tags);
+            }
+            else
+            {
+                Bookmark.TagsJson = null;
+            }
+
+            if (OnSave is not null)
+                await OnSave.Invoke(Bookmark);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+
+    private void HandleInvalidSubmit(EditContext context)
+    {
+        _errorMessage = "Please fix the validation errors before saving.";
+    }
+
+    private void Cancel()
+    {
+        OnCancel?.Invoke();
     }
 }

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace DotNetCloud.Modules.Bookmarks.Models;
 
 /// <summary>
@@ -57,6 +59,7 @@ public sealed class BookmarkPreview
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>Parent bookmark navigation property.</summary>
+    [JsonIgnore]
     public BookmarkItem? Bookmark { get; set; }
 }
 
