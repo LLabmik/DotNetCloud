@@ -77,9 +77,28 @@ builder.Services.AddSingleton<BookmarksModule>();
 // File validation service for upload security
 builder.Services.AddSingleton<IFileValidationService, FileValidationService>();
 
-// Register EF Core with in-memory database (dev only)
-builder.Services.AddDbContext<BookmarksDbContext>(options =>
-    options.UseInMemoryDatabase("BookmarksModule"));
+// Register EF Core with SQL Server or PostgreSQL based on configuration
+var connectionString = builder.Configuration["connectionString"]
+    ?? builder.Configuration.GetConnectionString("DefaultConnection");
+var dbProvider = builder.Configuration["databaseProvider"]
+    ?? builder.Configuration["database:provider"];
+
+if (!string.IsNullOrEmpty(connectionString) && !string.IsNullOrEmpty(dbProvider))
+{
+    builder.Services.AddDbContext<BookmarksDbContext>(options =>
+    {
+        if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
+            options.UseNpgsql(connectionString);
+        else
+            options.UseSqlServer(connectionString);
+    });
+}
+else
+{
+    // Fallback to in-memory for development/testing
+    builder.Services.AddDbContext<BookmarksDbContext>(options =>
+        options.UseInMemoryDatabase("BookmarksModule"));
+}
 
 // In-process event bus for standalone operation
 builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
@@ -107,6 +126,14 @@ builder.Services.AddHealthChecks()
     .AddCheck<BookmarksHealthCheck>("bookmarks_module");
 
 var app = builder.Build();
+
+// Initialize the database schema (creates tables if they don't exist)
+if (!string.IsNullOrEmpty(connectionString) && !string.IsNullOrEmpty(dbProvider))
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<BookmarksDbContext>();
+    await BookmarksDbInitializer.InitializeAsync(db, app.Logger, CancellationToken.None);
+}
 
 // Show full exception details for debugging; remove in production.
 app.UseDeveloperExceptionPage();

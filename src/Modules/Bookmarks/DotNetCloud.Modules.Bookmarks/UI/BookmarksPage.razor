@@ -138,8 +138,8 @@
         else if (_editingBookmark is not null)
         {
             @* Add/Edit Bookmark *@
-            <BookmarkEditForm Bookmark="_editingBookmark" Folders="_folders"
-                              OnSave="SaveBookmarkAsync" OnCancel="CancelEdit" />
+            <BookmarkEditForm Bookmark="_editingBookmark" Folders="_folders" OnSave="SaveBookmarkAsync"
+                              OnCancel="CancelEdit" />
         }
         else if (_editingFolder is not null)
         {
@@ -165,11 +165,13 @@
             @* Detail View *@
             <div class="bookmarks-detail">
                 <div class="bookmarks-detail-header">
-                    <button class="bookmarks-btn bookmarks-btn-secondary" @onclick="() => { _selectedBookmark = null; _selectedPreview = null; }">
+                    <button class="bookmarks-btn bookmarks-btn-secondary"
+                            @onclick="() => { _selectedBookmark = null; _selectedPreview = null; }">
                         ← Back
                     </button>
                     <div class="bookmarks-detail-actions">
-                        <button class="bookmarks-btn bookmarks-btn-secondary" @onclick='() => BeginEdit(_selectedBookmark)'>Edit</button>
+                        <button class="bookmarks-btn bookmarks-btn-secondary"
+                                @onclick='() => BeginEdit(_selectedBookmark)'>Edit</button>
                         <button class="bookmarks-btn bookmarks-btn-secondary"
                                 @onclick='() => ToggleFavorite(_selectedBookmark)'>
                             @(_selectedBookmark.IsFavorite ? "★" : "☆")
@@ -182,7 +184,8 @@
                 </div>
 
                 <h2>@(_selectedBookmark.Title)</h2>
-                <a href="@_selectedBookmark.Url" target="_blank" rel="noopener" class="bookmarks-url">@_selectedBookmark.Url</a>
+                <a href="@_selectedBookmark.Url" target="_blank" rel="noopener"
+                   class="bookmarks-url">@_selectedBookmark.Url</a>
 
                 @if (_selectedBookmark.Description is not null)
                 {
@@ -251,10 +254,12 @@
                     </button>
                 </div>
                 <div class="bookmarks-view-toggle">
-                    <button class="bookmarks-btn bookmarks-btn-secondary @(_viewMode == BookmarkViewMode.Grid ? "active" : "")"
-                            @onclick="() => _viewMode = BookmarkViewMode.Grid" title="Grid view">▦</button>
-                    <button class="bookmarks-btn bookmarks-btn-secondary @(_viewMode == BookmarkViewMode.List ? "active" : "")"
-                            @onclick="() => _viewMode = BookmarkViewMode.List" title="List view">☰</button>
+                    <button
+                    class="bookmarks-btn bookmarks-btn-secondary @(_viewMode == BookmarkViewMode.Grid ? "active" : "")"
+                    @onclick="() => _viewMode = BookmarkViewMode.Grid" title="Grid view">▦</button>
+                    <button
+                    class="bookmarks-btn bookmarks-btn-secondary @(_viewMode == BookmarkViewMode.List ? "active" : "")"
+                    @onclick="() => _viewMode = BookmarkViewMode.List" title="List view">☰</button>
                 </div>
             </div>
 
@@ -316,7 +321,8 @@
     {
         try
         {
-            var collapsed = await JSRuntime.InvokeAsync<string>("localStorage.getItem", new object?[] { "dotnetcloud.sidebar:bookmarks" });
+            var collapsed = await JSRuntime.InvokeAsync<string>("localStorage.getItem", new object?[] {
+"dotnetcloud.sidebar:bookmarks" });
             if (bool.TryParse(collapsed ?? "false", out var parsed))
                 _sidebarCollapsed = parsed;
         }
@@ -369,18 +375,22 @@
     {
         _selectedBookmark = item;
         _editingBookmark = null;
+        _selectedPreview = null;
+        StateHasChanged();
         // Load preview
         try
         {
             _selectedPreview = await ApiClient.GetPreviewAsync(item.Id);
+            StateHasChanged();
         }
         catch { _selectedPreview = null; }
     }
 
     private void BeginAdd()
     {
-        _editingBookmark = new BookmarkItem { FolderId = _selectedFolderId };
+        _editingBookmark = new BookmarkItem { Id = Guid.Empty, FolderId = _selectedFolderId };
         _selectedBookmark = null;
+        StateHasChanged();
     }
 
     private void BeginEdit(BookmarkItem item)
@@ -396,45 +406,39 @@
 
     private async Task SaveBookmarkAsync(BookmarkItem item)
     {
-        try
+        if (item.Id == Guid.Empty)
         {
-            if (item.Id == Guid.Empty)
+            var request = new CreateBookmarkRequest
             {
-                var request = new CreateBookmarkRequest
-                {
-                    Url = item.Url,
-                    Title = !string.IsNullOrWhiteSpace(item.Title) ? item.Title : null,
-                    Description = item.Description,
-                    Notes = item.Notes,
-                    Tags = !string.IsNullOrWhiteSpace(item.TagsJson)
-                        ? System.Text.Json.JsonSerializer.Deserialize<List<string>>(item.TagsJson)
-                        : null,
-                    FolderId = item.FolderId
-                };
-                await ApiClient.CreateAsync(request);
-            }
-            else
-            {
-                var request = new UpdateBookmarkRequest
-                {
-                    Url = item.Url,
-                    Title = item.Title,
-                    Description = item.Description,
-                    Notes = item.Notes,
-                    Tags = !string.IsNullOrWhiteSpace(item.TagsJson)
-                        ? System.Text.Json.JsonSerializer.Deserialize<List<string>>(item.TagsJson)
-                        : null,
-                    FolderId = item.FolderId
-                };
-                await ApiClient.UpdateAsync(item.Id, request);
-            }
-            CancelEdit();
-            await ReloadAsync();
+                Url = item.Url,
+                Title = !string.IsNullOrWhiteSpace(item.Title) ? item.Title : null,
+                Description = item.Description,
+                Notes = item.Notes,
+                Tags = !string.IsNullOrWhiteSpace(item.TagsJson)
+                    ? System.Text.Json.JsonSerializer.Deserialize<List<string>>(item.TagsJson)
+                    : null,
+                FolderId = item.FolderId
+            };
+            await ApiClient.CreateAsync(request);
         }
-        catch (Exception ex)
+        else
         {
-            _errorMessage = $"Failed to save bookmark: {ex.Message}";
+            var request = new UpdateBookmarkRequest
+            {
+                Url = item.Url,
+                Title = item.Title,
+                Description = item.Description,
+                Notes = item.Notes,
+                Tags = !string.IsNullOrWhiteSpace(item.TagsJson)
+                    ? System.Text.Json.JsonSerializer.Deserialize<List<string>>(item.TagsJson)
+                    : null,
+                FolderId = item.FolderId
+            };
+            await ApiClient.UpdateAsync(item.Id, request);
         }
+        CancelEdit();
+        await ReloadAsync();
+        StateHasChanged();
     }
 
     private async Task SaveFolderAsync()
@@ -514,6 +518,8 @@
     {
         _editingBookmark = null;
         _editingFolder = null;
+        _selectedBookmark = null;
+        StateHasChanged();
     }
 
     private async Task DoSearch()
