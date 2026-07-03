@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-07-01 (Android EQ sliders + save presets deployed to phone ✓)
+Last updated: 2026-07-03 (gRPC conversion TODOs — Chat proto expansion & stub resolution)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -18,7 +18,7 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
-- **Current active branch:** `feature/fix-android-music-equalizer`
+- **Current active branch:** `main`
 - No moderator involvement in technical decisions, code reviews, or work coordination.
 
 **Role separation (MANDATORY):**
@@ -92,22 +92,36 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** ✅ Server-side EQ preset endpoints verified, deployed to production. Ready to merge to main.
+**Summary:** Complete gRPC conversion — Chat proto expansion, 9 stub methods replaced, CoreCapabilities placeholders wired.
 
-**Context:** Server-side EQ preset REST endpoints already existed in `MusicController.cs` (POST, PUT, GET, DELETE, set-active all present). `EqPresetService`/`IEqPresetService` DI registration was already wired in `MusicServiceRegistration.cs`. Built and deployed (`bffb0f8c`). All three endpoints return 401 (auth required, not 404) confirming proper routing. Requires `gh auth login` for PR creation.
+**Context:** All high-priority and medium-priority items from the gRPC conversion audit are now complete:
 
-**Commit:** `bffb0f8c` — `feature/fix-android-music-equalizer`
+**Chat module — 9 new proto RPCs + server impl + client impl:**
+- `chat_service.proto` expanded with `MarkAsRead`, `GetUnreadCounts`, `ListChannelMembers`, `SendCallOffer`, `SendCallAnswer`, `SendIceCandidate`, `SendMediaStateChange`, `InviteToCall`, `TransferCallHost`
+- `ChatGrpcService.cs` — all 9 RPCs implemented, delegating to `IChannelMemberService`, `ICallSignalingService`, `IVideoCallService`
+- `ChatGrpcApiClient.cs` — all 9 stub methods replaced with real gRPC calls
+- 1272/1272 Chat module tests passing
+
+**CoreCapabilities placeholders wired:**
+- `SendNotification` — now resolves `INotificationService` from DI and dispatches to real notification pipeline
+- `PublishEvent` — documented limitation (generic `IEventBus.PublishAsync<TEvent>` needs event type registry; modules should use `BroadcastRealtimeEvent` RPC for now)
+
+**Cleanup:**
+- Fixed misleading "Legacy in-process HTTP clients" comment in `Program.cs:537`
+
+**SyncTray or Android app changes:** None. Only server-side files modified.
 
 ---
 
 ### Server Actions — `cloud.kimball.home`
 
-- [x] Verified `POST /api/v1/music/eq/presets` already exists in `MusicController.cs` — returns `Created()` with envelope
-- [x] Verified `PUT /api/v1/music/eq/presets/{presetId:guid}` already exists — returns `Ok()` with envelope
-- [x] Verified `IEqPresetService`/`EqPresetService` DI registration in `MusicServiceRegistration.cs`
-- [x] Built and deployed to production (commit `bffb0f8c`)
-- [x] Verified all 14 modules healthy after deploy
-- [x] Fixed `Microsoft.OpenApi` v2.7.5.0 assembly mismatch (dependabot package update)
+- [ ] `git pull` on `main`
+- [ ] `dotnet publish src/Core/DotNetCloud.Core.Server -c Release -o /opt/dotnetcloud/publish`
+- [ ] `dotnet publish src/Modules/Chat/DotNetCloud.Modules.Chat.Host -c Release -o /opt/dotnetcloud/modules/chat`
+- [ ] `sudo systemctl restart dotnetcloud` (core server)
+- [ ] `sudo systemctl restart dotnetcloud@chat` (Chat module host)
+- [ ] Verify health: `curl -k https://cloud.kimball.home/health` — all 14 modules should report healthy
+- [ ] Verify new Chat RPCs: trigger a MarkAsRead or ListChannelMembers call from the UI and check module logs
 - [x] Endpoint routing verified: all return 401 (auth required, not 404)
 - [ ] Create PR to merge `feature/fix-android-music-equalizer` to `main`
 

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DotNetCloud.Core.Capabilities;
+using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Grpc.Capabilities;
 using DotNetCloud.Core.Modules.Supervisor;
@@ -134,18 +135,53 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
     /// <summary>
     /// Sends a notification (INotificationService capability).
     /// </summary>
-    public override Task<SendNotificationResponse> SendNotification(SendNotificationRequest request, ServerCallContext context)
+    public override async Task<SendNotificationResponse> SendNotification(SendNotificationRequest request, ServerCallContext context)
     {
+        var moduleId = GetModuleId(context);
         _logger.LogInformation(
             "SendNotification: '{Title}' to {Count} recipients from module {ModuleId}",
-            request.Title, request.RecipientUserIds.Count, GetModuleId(context));
+            request.Title, request.RecipientUserIds.Count, moduleId);
 
-        // Placeholder: will be wired to INotificationService implementation
-        return Task.FromResult(new SendNotificationResponse
+        try
         {
-            Success = true,
-            DeliveredCount = request.RecipientUserIds.Count
-        });
+            using var scope = _serviceProvider.CreateScope();
+            var notificationService = scope.ServiceProvider.GetRequiredService<INotificationService>();
+
+            var deliveredCount = 0;
+
+            foreach (var rawUserId in request.RecipientUserIds)
+            {
+                if (!Guid.TryParse(rawUserId, out var userId))
+                    continue;
+
+                var notification = new NotificationDto
+                {
+                    Id = Guid.CreateVersion7(),
+                    UserId = userId,
+                    SourceModuleId = moduleId,
+                    Type = NotificationType.Info,
+                    Title = request.Title,
+                    Message = string.IsNullOrEmpty(request.Body) ? null : request.Body,
+                    Priority = NotificationPriority.Normal,
+                    ActionUrl = string.IsNullOrEmpty(request.Link) ? null : request.Link,
+                    CreatedAtUtc = DateTime.UtcNow,
+                };
+
+                await notificationService.SendAsync(userId, notification, context.CancellationToken);
+                deliveredCount++;
+            }
+
+            return new SendNotificationResponse
+            {
+                Success = true,
+                DeliveredCount = deliveredCount
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "SendNotification failed for module {ModuleId}", moduleId);
+            return new SendNotificationResponse { Success = false, DeliveredCount = 0 };
+        }
     }
 
     /// <summary>
@@ -153,10 +189,15 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
     /// </summary>
     public override Task<PublishEventResponse> PublishEvent(PublishEventRequest request, ServerCallContext context)
     {
-        _logger.LogDebug("PublishEvent: {EventType} from module {ModuleId}",
+        _logger.LogInformation("PublishEvent: {EventType} from module {ModuleId}",
             request.EventType, GetModuleId(context));
 
-        // Placeholder: will be wired to IEventBus implementation
+        // NOTE: IEventBus.PublishAsync<TEvent> is generic and requires knowing TEvent
+        // at compile time. Full implementation requires an event type registry that
+        // maps event type strings to CLR types. Until then, events from process-isolated
+        // modules are logged but not dispatched through the in-process event bus.
+        // Modules should use the BroadcastRealtimeEvent RPC for real-time notifications.
+
         return Task.FromResult(new PublishEventResponse { Success = true });
     }
 

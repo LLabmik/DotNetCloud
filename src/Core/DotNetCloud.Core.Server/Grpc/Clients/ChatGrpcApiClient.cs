@@ -256,33 +256,80 @@ public sealed class ChatGrpcApiClient : IChatApiClient, IDisposable
     /// <inheritdoc />
     public async Task<bool> MarkChannelAsReadAsync(Guid channelId, Guid messageId, Guid userId, CancellationToken cancellationToken = default)
     {
-        // Use the ChannelMemberService equivalent via gRPC: send as typing notification with metadata
-        // The ChatGrpcService currently doesn't expose MarkAsRead directly via proto.
-        // We use a dedicated proto call; since it's not available yet, return success.
-        // TODO: Add MarkAsRead RPC to chat_service.proto when ChatGrpcService is updated.
-        _logger.LogWarning(
-            "MarkChannelAsRead for channel {ChannelId} user {UserId} message {MessageId} — RPC not yet available",
-            channelId, userId, messageId);
-        return true;
+        var request = new MarkAsReadRequest
+        {
+            ChannelId = channelId.ToString(),
+            UserId = userId.ToString(),
+            MessageId = messageId.ToString(),
+        };
+
+        try
+        {
+            var response = await Client.MarkAsReadAsync(request, GetCallOptions(cancellationToken));
+            return response.Success;
+        }
+        catch (RpcException ex)
+        {
+            _logger.LogWarning(ex, "MarkAsRead RPC failed for channel {ChannelId} user {UserId}", channelId, userId);
+            return false;
+        }
     }
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<ChatUnreadCountDto>> GetUnreadCountsAsync(Guid userId, CancellationToken cancellationToken = default)
     {
-        // The GetUnreadCounts operation is currently not exposed via gRPC.
-        // Return empty list until the proto is updated.
-        // TODO: Add GetUnreadCounts RPC to chat_service.proto
-        _logger.LogWarning("GetUnreadCounts for user {UserId} — RPC not yet available", userId);
-        return Array.Empty<ChatUnreadCountDto>();
+        var request = new GetUnreadCountsRequest
+        {
+            UserId = userId.ToString(),
+        };
+
+        try
+        {
+            var response = await Client.GetUnreadCountsAsync(request, GetCallOptions(cancellationToken));
+            return response.Counts.Select(e => new ChatUnreadCountDto
+            {
+                ChannelId = Guid.TryParse(e.ChannelId, out var cid) ? cid : Guid.Empty,
+                UnreadCount = e.UnreadCount,
+                MentionCount = e.MentionCount,
+                IsMuted = e.IsMuted,
+                IsPinned = e.IsPinned,
+            }).ToList().AsReadOnly();
+        }
+        catch (RpcException ex)
+        {
+            _logger.LogWarning(ex, "GetUnreadCounts RPC failed for user {UserId}", userId);
+            return Array.Empty<ChatUnreadCountDto>();
+        }
     }
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<ChatChannelMemberDto>> ListChannelMembersAsync(Guid channelId, Guid userId, CancellationToken cancellationToken = default)
     {
-        // Not yet exposed via gRPC proto.
-        // TODO: Add ListChannelMembers RPC to chat_service.proto
-        _logger.LogWarning("ListChannelMembers for channel {ChannelId} — RPC not yet available", channelId);
-        return Array.Empty<ChatChannelMemberDto>();
+        var request = new ListChannelMembersRequest
+        {
+            ChannelId = channelId.ToString(),
+            UserId = userId.ToString(),
+        };
+
+        try
+        {
+            var response = await Client.ListChannelMembersAsync(request, GetCallOptions(cancellationToken));
+            return response.Members.Select(m => new ChatChannelMemberDto
+            {
+                UserId = Guid.TryParse(m.UserId, out var uid) ? uid : Guid.Empty,
+                DisplayName = m.DisplayName,
+                Username = string.IsNullOrEmpty(m.Username) ? null : m.Username,
+                Role = m.Role,
+                JoinedAt = DateTime.TryParse(m.JoinedAt, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var joinedAt) ? joinedAt : DateTime.MinValue,
+                IsMuted = m.IsMuted,
+                NotificationPref = m.NotificationPref,
+            }).ToList().AsReadOnly();
+        }
+        catch (RpcException ex)
+        {
+            _logger.LogWarning(ex, "ListChannelMembers RPC failed for channel {ChannelId}", channelId);
+            return Array.Empty<ChatChannelMemberDto>();
+        }
     }
 
     // ── Video Call Signaling Operations ─────────────────────────────────
@@ -290,31 +337,93 @@ public sealed class ChatGrpcApiClient : IChatApiClient, IDisposable
     /// <inheritdoc />
     public async Task<bool> SendCallOfferAsync(Guid callId, Guid targetUserId, string sdpOffer, Guid userId, CancellationToken cancellationToken = default)
     {
-        // Call signaling is handled via the Chat module's gRPC.
-        // TODO: Add signaling RPCs to chat_service.proto
-        _logger.LogWarning("SendCallOffer for call {CallId} — RPC not yet available", callId);
-        return true;
+        var request = new SendCallOfferRequest
+        {
+            CallId = callId.ToString(),
+            UserId = userId.ToString(),
+            TargetUserId = targetUserId.ToString(),
+            SdpOffer = sdpOffer,
+        };
+
+        try
+        {
+            var response = await Client.SendCallOfferAsync(request, GetCallOptions(cancellationToken));
+            return response.Success;
+        }
+        catch (RpcException ex)
+        {
+            _logger.LogWarning(ex, "SendCallOffer RPC failed for call {CallId}", callId);
+            return false;
+        }
     }
 
     /// <inheritdoc />
     public async Task<bool> SendCallAnswerAsync(Guid callId, Guid targetUserId, string sdpAnswer, Guid userId, CancellationToken cancellationToken = default)
     {
-        _logger.LogWarning("SendCallAnswer for call {CallId} — RPC not yet available", callId);
-        return true;
+        var request = new SendCallAnswerRequest
+        {
+            CallId = callId.ToString(),
+            UserId = userId.ToString(),
+            TargetUserId = targetUserId.ToString(),
+            SdpAnswer = sdpAnswer,
+        };
+
+        try
+        {
+            var response = await Client.SendCallAnswerAsync(request, GetCallOptions(cancellationToken));
+            return response.Success;
+        }
+        catch (RpcException ex)
+        {
+            _logger.LogWarning(ex, "SendCallAnswer RPC failed for call {CallId}", callId);
+            return false;
+        }
     }
 
     /// <inheritdoc />
     public async Task<bool> SendIceCandidateAsync(Guid callId, Guid targetUserId, string iceCandidate, Guid userId, CancellationToken cancellationToken = default)
     {
-        _logger.LogWarning("SendIceCandidate for call {CallId} — RPC not yet available", callId);
-        return true;
+        var request = new SendIceCandidateRequest
+        {
+            CallId = callId.ToString(),
+            UserId = userId.ToString(),
+            TargetUserId = targetUserId.ToString(),
+            IceCandidate = iceCandidate,
+        };
+
+        try
+        {
+            var response = await Client.SendIceCandidateAsync(request, GetCallOptions(cancellationToken));
+            return response.Success;
+        }
+        catch (RpcException ex)
+        {
+            _logger.LogWarning(ex, "SendIceCandidate RPC failed for call {CallId}", callId);
+            return false;
+        }
     }
 
     /// <inheritdoc />
     public async Task<bool> SendMediaStateChangeAsync(Guid callId, string mediaType, bool enabled, Guid userId, CancellationToken cancellationToken = default)
     {
-        _logger.LogWarning("SendMediaStateChange for call {CallId} — RPC not yet available", callId);
-        return true;
+        var request = new SendMediaStateChangeRequest
+        {
+            CallId = callId.ToString(),
+            UserId = userId.ToString(),
+            MediaType = mediaType,
+            Enabled = enabled,
+        };
+
+        try
+        {
+            var response = await Client.SendMediaStateChangeAsync(request, GetCallOptions(cancellationToken));
+            return response.Success;
+        }
+        catch (RpcException ex)
+        {
+            _logger.LogWarning(ex, "SendMediaStateChange RPC failed for call {CallId}", callId);
+            return false;
+        }
     }
 
     // ── Video Call Lifecycle Operations ─────────────────────────────────
@@ -322,17 +431,45 @@ public sealed class ChatGrpcApiClient : IChatApiClient, IDisposable
     /// <inheritdoc />
     public async Task<bool> InviteToCallAsync(Guid callId, Guid targetUserId, Guid userId, CancellationToken cancellationToken = default)
     {
-        // Video call operations go through the Chat module's gRPC service.
-        // TODO: Add InviteToCall RPC to chat_service.proto
-        _logger.LogWarning("InviteToCall for call {CallId} — RPC not yet available", callId);
-        return true;
+        var request = new InviteToCallRequest
+        {
+            CallId = callId.ToString(),
+            UserId = userId.ToString(),
+            TargetUserId = targetUserId.ToString(),
+        };
+
+        try
+        {
+            var response = await Client.InviteToCallAsync(request, GetCallOptions(cancellationToken));
+            return response.Success;
+        }
+        catch (RpcException ex)
+        {
+            _logger.LogWarning(ex, "InviteToCall RPC failed for call {CallId}", callId);
+            return false;
+        }
     }
 
     /// <inheritdoc />
     public async Task<bool> TransferCallHostAsync(Guid callId, Guid newHostUserId, Guid userId, CancellationToken cancellationToken = default)
     {
-        _logger.LogWarning("TransferCallHost for call {CallId} — RPC not yet available", callId);
-        return true;
+        var request = new TransferCallHostRequest
+        {
+            CallId = callId.ToString(),
+            UserId = userId.ToString(),
+            NewHostUserId = newHostUserId.ToString(),
+        };
+
+        try
+        {
+            var response = await Client.TransferCallHostAsync(request, GetCallOptions(cancellationToken));
+            return response.Success;
+        }
+        catch (RpcException ex)
+        {
+            _logger.LogWarning(ex, "TransferCallHost RPC failed for call {CallId}", callId);
+            return false;
+        }
     }
 
     // ── Mapping Methods ─────────────────────────────────────────────────

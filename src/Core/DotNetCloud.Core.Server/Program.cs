@@ -534,7 +534,7 @@ public class Program
         // ✅ gRPC clients (newly implemented)
         builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.INotesApiClient, DotNetCloud.Core.Server.Grpc.Clients.NotesGrpcApiClient>();
         builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.IBookmarksApiClient, DotNetCloud.Core.Server.Grpc.Clients.BookmarksGrpcApiClient>();
-        // ⚠️ Legacy in-process HTTP clients (TODO: gRPC proto expansion needed — see GRPC_MODULE_CONVERSION_PLAN.md)
+        // gRPC clients — Tracks and Email modules are process-isolated with full proto support
         builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.ITracksApiClient, DotNetCloud.Core.Server.Grpc.Clients.TracksGrpcApiClient>();
         builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.IEmailApiClient, DotNetCloud.Core.Server.Grpc.Clients.EmailGrpcApiClient>();
         builder.Services.AddScoped<DotNetCloud.Modules.Tracks.Services.IOnboardingStateService, DotNetCloud.Modules.Tracks.Services.OnboardingStateService>();

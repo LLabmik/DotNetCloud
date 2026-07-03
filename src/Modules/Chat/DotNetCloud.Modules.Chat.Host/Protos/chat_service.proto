@@ -63,6 +63,33 @@ service ChatService {
 
   // Gets the currently active call for a channel.
   rpc GetActiveCall (GetActiveCallRequest) returns (VideoCallResponse);
+
+  // Marks a channel as read up to a specific message for a user.
+  rpc MarkAsRead (MarkAsReadRequest) returns (MarkAsReadResponse);
+
+  // Gets unread message counts per channel for a user.
+  rpc GetUnreadCounts (GetUnreadCountsRequest) returns (GetUnreadCountsResponse);
+
+  // Lists members of a channel.
+  rpc ListChannelMembers (ListChannelMembersRequest) returns (ListChannelMembersResponse);
+
+  // WebRTC signaling: sends an SDP offer to a target participant.
+  rpc SendCallOffer (SendCallOfferRequest) returns (CallSignalingResponse);
+
+  // WebRTC signaling: sends an SDP answer to a target participant.
+  rpc SendCallAnswer (SendCallAnswerRequest) returns (CallSignalingResponse);
+
+  // WebRTC signaling: sends an ICE candidate to a target participant.
+  rpc SendIceCandidate (SendIceCandidateRequest) returns (CallSignalingResponse);
+
+  // WebRTC signaling: sends a media state change notification.
+  rpc SendMediaStateChange (SendMediaStateChangeRequest) returns (CallSignalingResponse);
+
+  // Invites a user to join an active call.
+  rpc InviteToCall (InviteToCallRequest) returns (VideoCallOperationResponse);
+
+  // Transfers the host role of an active call.
+  rpc TransferCallHost (TransferCallHostRequest) returns (VideoCallOperationResponse);
 }
 
 // --- CreateChannel ---
@@ -340,4 +367,107 @@ message CallHistoryMessage {
   int32 duration_seconds = 7;
   int32 participant_count = 8;
   string created_at_utc = 9;
+}
+
+// --- MarkAsRead ---
+
+message MarkAsReadRequest {
+  string channel_id = 1;
+  string user_id = 2;
+  string message_id = 3;
+}
+
+message MarkAsReadResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+// --- GetUnreadCounts ---
+
+message GetUnreadCountsRequest {
+  string user_id = 1;
+}
+
+message GetUnreadCountsResponse {
+  repeated UnreadCountEntry counts = 1;
+}
+
+message UnreadCountEntry {
+  string channel_id = 1;
+  int32 unread_count = 2;
+  int32 mention_count = 3;
+  bool is_muted = 4;
+  bool is_pinned = 5;
+}
+
+// --- ListChannelMembers ---
+
+message ListChannelMembersRequest {
+  string channel_id = 1;
+  string user_id = 2;
+}
+
+message ListChannelMembersResponse {
+  repeated ChannelMemberMessage members = 1;
+}
+
+message ChannelMemberMessage {
+  string user_id = 1;
+  string display_name = 2;
+  string username = 3;
+  string role = 4;
+  string joined_at = 5;
+  bool is_muted = 6;
+  string notification_pref = 7;
+}
+
+// --- WebRTC Signaling ---
+
+message SendCallOfferRequest {
+  string call_id = 1;
+  string user_id = 2;
+  string target_user_id = 3;
+  string sdp_offer = 4;
+}
+
+message SendCallAnswerRequest {
+  string call_id = 1;
+  string user_id = 2;
+  string target_user_id = 3;
+  string sdp_answer = 4;
+}
+
+message SendIceCandidateRequest {
+  string call_id = 1;
+  string user_id = 2;
+  string target_user_id = 3;
+  string ice_candidate = 4;
+}
+
+message SendMediaStateChangeRequest {
+  string call_id = 1;
+  string user_id = 2;
+  string media_type = 3;   // "Audio", "Video", or "ScreenShare"
+  bool enabled = 4;
+}
+
+message CallSignalingResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+// --- InviteToCall ---
+
+message InviteToCallRequest {
+  string call_id = 1;
+  string user_id = 2;
+  string target_user_id = 3;
+}
+
+// --- TransferCallHost ---
+
+message TransferCallHostRequest {
+  string call_id = 1;
+  string user_id = 2;
+  string new_host_user_id = 3;
 }

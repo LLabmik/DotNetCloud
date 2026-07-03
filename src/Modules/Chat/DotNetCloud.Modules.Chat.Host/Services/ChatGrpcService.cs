@@ -18,6 +18,8 @@ public sealed class ChatGrpcService : ChatService.ChatServiceBase
 {
     private readonly ChatDbContext _db;
     private readonly IChannelService _channelService;
+    private readonly IChannelMemberService _channelMemberService;
+    private readonly ICallSignalingService _callSignalingService;
     private readonly IVideoCallService _videoCallService;
     private readonly ILogger<ChatGrpcService> _logger;
 
@@ -27,11 +29,15 @@ public sealed class ChatGrpcService : ChatService.ChatServiceBase
     public ChatGrpcService(
         ChatDbContext db,
         IChannelService channelService,
+        IChannelMemberService channelMemberService,
+        ICallSignalingService callSignalingService,
         IVideoCallService videoCallService,
         ILogger<ChatGrpcService> logger)
     {
         _db = db;
         _channelService = channelService;
+        _channelMemberService = channelMemberService;
+        _callSignalingService = callSignalingService;
         _videoCallService = videoCallService;
         _logger = logger;
     }
@@ -503,6 +509,233 @@ public sealed class ChatGrpcService : ChatService.ChatServiceBase
         }
 
         return new VideoCallResponse { Success = true, Call = ToVideoCallMessage(call) };
+    }
+
+    // ── Channel Member gRPC Methods ──────────────────────────────────
+
+    /// <inheritdoc />
+    public override async Task<MarkAsReadResponse> MarkAsRead(
+        MarkAsReadRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.ChannelId, out var channelId) ||
+            !Guid.TryParse(request.UserId, out var userId) ||
+            !Guid.TryParse(request.MessageId, out var messageId))
+        {
+            return new MarkAsReadResponse { Success = false, ErrorMessage = "Invalid ID format." };
+        }
+
+        try
+        {
+            var caller = new CallerContext(userId, ["user"], CallerType.User);
+            await _channelMemberService.MarkAsReadAsync(channelId, messageId, caller, context.CancellationToken);
+            return new MarkAsReadResponse { Success = true };
+        }
+        catch (Exception ex) when (ex is ArgumentException or UnauthorizedAccessException)
+        {
+            return new MarkAsReadResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<GetUnreadCountsResponse> GetUnreadCounts(
+        GetUnreadCountsRequest request, ServerCallContext context)
+    {
+        var response = new GetUnreadCountsResponse();
+
+        if (!Guid.TryParse(request.UserId, out var userId))
+        {
+            return response;
+        }
+
+        var caller = new CallerContext(userId, ["user"], CallerType.User);
+        var counts = await _channelMemberService.GetUnreadCountsAsync(caller, context.CancellationToken);
+
+        foreach (var entry in counts)
+        {
+            response.Counts.Add(new UnreadCountEntry
+            {
+                ChannelId = entry.ChannelId.ToString(),
+                UnreadCount = entry.UnreadCount,
+                MentionCount = entry.MentionCount,
+                IsMuted = entry.IsMuted,
+                IsPinned = entry.IsPinned
+            });
+        }
+
+        return response;
+    }
+
+    /// <inheritdoc />
+    public override async Task<ListChannelMembersResponse> ListChannelMembers(
+        ListChannelMembersRequest request, ServerCallContext context)
+    {
+        var response = new ListChannelMembersResponse();
+
+        if (!Guid.TryParse(request.ChannelId, out var channelId) ||
+            !Guid.TryParse(request.UserId, out var userId))
+        {
+            return response;
+        }
+
+        var caller = new CallerContext(userId, ["user"], CallerType.User);
+        var members = await _channelMemberService.ListMembersAsync(channelId, caller, context.CancellationToken);
+
+        foreach (var member in members)
+        {
+            response.Members.Add(new ChannelMemberMessage
+            {
+                UserId = member.UserId.ToString(),
+                DisplayName = member.DisplayName,
+                Username = member.Username ?? string.Empty,
+                Role = member.Role,
+                JoinedAt = member.JoinedAt.ToString("O"),
+                IsMuted = member.IsMuted,
+                NotificationPref = member.NotificationPref
+            });
+        }
+
+        return response;
+    }
+
+    // ── WebRTC Signaling gRPC Methods ────────────────────────────────
+
+    /// <inheritdoc />
+    public override async Task<CallSignalingResponse> SendCallOffer(
+        SendCallOfferRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.CallId, out var callId) ||
+            !Guid.TryParse(request.UserId, out var userId) ||
+            !Guid.TryParse(request.TargetUserId, out var targetUserId))
+        {
+            return new CallSignalingResponse { Success = false, ErrorMessage = "Invalid ID format." };
+        }
+
+        try
+        {
+            var caller = new CallerContext(userId, ["user"], CallerType.User);
+            await _callSignalingService.SendOfferAsync(callId, targetUserId, request.SdpOffer, caller, context.CancellationToken);
+            return new CallSignalingResponse { Success = true };
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or UnauthorizedAccessException)
+        {
+            return new CallSignalingResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<CallSignalingResponse> SendCallAnswer(
+        SendCallAnswerRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.CallId, out var callId) ||
+            !Guid.TryParse(request.UserId, out var userId) ||
+            !Guid.TryParse(request.TargetUserId, out var targetUserId))
+        {
+            return new CallSignalingResponse { Success = false, ErrorMessage = "Invalid ID format." };
+        }
+
+        try
+        {
+            var caller = new CallerContext(userId, ["user"], CallerType.User);
+            await _callSignalingService.SendAnswerAsync(callId, targetUserId, request.SdpAnswer, caller, context.CancellationToken);
+            return new CallSignalingResponse { Success = true };
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or UnauthorizedAccessException)
+        {
+            return new CallSignalingResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<CallSignalingResponse> SendIceCandidate(
+        SendIceCandidateRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.CallId, out var callId) ||
+            !Guid.TryParse(request.UserId, out var userId) ||
+            !Guid.TryParse(request.TargetUserId, out var targetUserId))
+        {
+            return new CallSignalingResponse { Success = false, ErrorMessage = "Invalid ID format." };
+        }
+
+        try
+        {
+            var caller = new CallerContext(userId, ["user"], CallerType.User);
+            await _callSignalingService.SendIceCandidateAsync(callId, targetUserId, request.IceCandidate, caller, context.CancellationToken);
+            return new CallSignalingResponse { Success = true };
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or UnauthorizedAccessException)
+        {
+            return new CallSignalingResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<CallSignalingResponse> SendMediaStateChange(
+        SendMediaStateChangeRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.CallId, out var callId) ||
+            !Guid.TryParse(request.UserId, out var userId))
+        {
+            return new CallSignalingResponse { Success = false, ErrorMessage = "Invalid ID format." };
+        }
+
+        try
+        {
+            var caller = new CallerContext(userId, ["user"], CallerType.User);
+            await _callSignalingService.SendMediaStateChangeAsync(callId, request.MediaType, request.Enabled, caller, context.CancellationToken);
+            return new CallSignalingResponse { Success = true };
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or UnauthorizedAccessException)
+        {
+            return new CallSignalingResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    // ── Video Call Lifecycle gRPC Methods ────────────────────────────
+
+    /// <inheritdoc />
+    public override async Task<VideoCallOperationResponse> InviteToCall(
+        Protos.InviteToCallRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.CallId, out var callId) ||
+            !Guid.TryParse(request.UserId, out var userId) ||
+            !Guid.TryParse(request.TargetUserId, out var targetUserId))
+        {
+            return new VideoCallOperationResponse { Success = false, ErrorMessage = "Invalid ID format." };
+        }
+
+        try
+        {
+            var caller = new CallerContext(userId, ["user"], CallerType.User);
+            await _videoCallService.InviteToCallAsync(callId, targetUserId, caller, context.CancellationToken);
+            return new VideoCallOperationResponse { Success = true };
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or UnauthorizedAccessException)
+        {
+            return new VideoCallOperationResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<VideoCallOperationResponse> TransferCallHost(
+        Protos.TransferCallHostRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.CallId, out var callId) ||
+            !Guid.TryParse(request.UserId, out var userId) ||
+            !Guid.TryParse(request.NewHostUserId, out var newHostUserId))
+        {
+            return new VideoCallOperationResponse { Success = false, ErrorMessage = "Invalid ID format." };
+        }
+
+        try
+        {
+            var caller = new CallerContext(userId, ["user"], CallerType.User);
+            await _videoCallService.TransferHostAsync(callId, newHostUserId, caller, context.CancellationToken);
+            return new VideoCallOperationResponse { Success = true };
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or UnauthorizedAccessException)
+        {
+            return new VideoCallOperationResponse { Success = false, ErrorMessage = ex.Message };
+        }
     }
 
     private static ChannelMessage ToChannelMessage(ChannelDto dto)

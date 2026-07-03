@@ -19,6 +19,8 @@ public class VideoCallGrpcServiceTests
 {
     private ChatDbContext _db = null!;
     private Mock<IChannelService> _channelService = null!;
+    private Mock<IChannelMemberService> _channelMemberService = null!;
+    private Mock<ICallSignalingService> _callSignalingService = null!;
     private Mock<IVideoCallService> _videoCallService = null!;
     private ChatGrpcService _service = null!;
     private ServerCallContext _context = null!;
@@ -31,11 +33,15 @@ public class VideoCallGrpcServiceTests
             .Options;
         _db = new ChatDbContext(options);
         _channelService = new Mock<IChannelService>();
+        _channelMemberService = new Mock<IChannelMemberService>();
+        _callSignalingService = new Mock<ICallSignalingService>();
         _videoCallService = new Mock<IVideoCallService>();
 
         _service = new ChatGrpcService(
             _db,
             _channelService.Object,
+            _channelMemberService.Object,
+            _callSignalingService.Object,
             _videoCallService.Object,
             NullLogger<ChatGrpcService>.Instance);
 

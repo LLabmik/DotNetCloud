@@ -8,6 +8,12 @@ Archived: 2026-07-01. Full git history preserved.
 
 **Result:** ✅ Server-side EQ preset endpoints (POST, PUT, GET, DELETE, set-active) already existed in `MusicController.cs`. DI registration already wired. Built, deployed, and verified on production. Merge PR pending (`feature/fix-android-music-equalizer` → `main`).
 
+## Archived: gRPC Conversion TODOs — Chat Proto Expansion & Stub Resolution (2026-07-03)
+
+**Target:** cloud.kimball.home → production deploy
+
+**Result:** ✅ All high-priority gRPC conversion items completed on `main` (commit `<COMMIT_HASH>`). Chat module proto expanded with 9 new RPCs, 13 new message types. ChatGrpcService server-side impl complete. 9 ChatGrpcApiClient stubs replaced with real gRPC calls. CoreCapabilities SendNotification wired to real INotificationService. Comment cleanup in Program.cs.
+
 **Completed (cloud.kimball.home):**
 - ✅ Verified `POST /api/v1/music/eq/presets` already exists
 - ✅ Verified `PUT /api/v1/music/eq/presets/{presetId:guid}` already exists
