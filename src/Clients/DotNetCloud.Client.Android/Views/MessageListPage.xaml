@@ -12,7 +12,7 @@
             Text="Details"
             Command="{Binding ViewDetailsCommand}"
             Order="Primary"
-            Priority="0" />
+            Priority="0"/>
     </ContentPage.ToolbarItems>
 
     <Grid RowDefinitions="*,Auto,Auto">
@@ -37,11 +37,27 @@
                             StrokeThickness="0"
                             StrokeShape="RoundRectangle 10"
                             Margin="12,3"
-                            Padding="14,10">
+                            Padding="14,10"
+                            HorizontalOptions="Start">
+
+                            <!-- Own-message overrides: right-aligned with blue bubble -->
+                            <Border.Triggers>
+                                <DataTrigger TargetType="Border"
+                                        Binding="{Binding IsOwnMessage}"
+                                        Value="True">
+                                    <Setter Property="BackgroundColor"
+                                            Value="#0EA5E9"/>
+                                    <Setter Property="HorizontalOptions"
+                                            Value="End"/>
+                                    <Setter Property="Margin"
+                                            Value="48,3,12,3"/>
+                                </DataTrigger>
+                            </Border.Triggers>
 
                             <VerticalStackLayout Spacing="4">
-                                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
-                                    <!-- Sender avatar -->
+                                <Grid ColumnDefinitions="Auto,*,Auto"
+                                        ColumnSpacing="8">
+                                    <!-- Sender avatar (hidden for own messages) -->
                                     <Border
                                         Grid.Column="0"
                                         BackgroundColor="#334155"
@@ -56,39 +72,81 @@
                                             HorizontalOptions="Center"
                                             VerticalOptions="Center"
                                             TextColor="#94A3B8"
-                                            Text="{Binding SenderInitial}" />
+                                            Text="{Binding SenderInitial}"/>
+                                        <Border.Triggers>
+                                            <DataTrigger TargetType="Border"
+                                                    Binding="{Binding IsOwnMessage}"
+                                                    Value="True">
+                                                <Setter Property="IsVisible"
+                                                        Value="False"/>
+                                            </DataTrigger>
+                                        </Border.Triggers>
                                     </Border>
 
+                                    <!-- Sender name (hidden for own messages) -->
                                     <Label
                                         Grid.Column="1"
                                         FontAttributes="Bold"
                                         FontSize="13"
                                         TextColor="#38BDF8"
                                         VerticalOptions="Center"
-                                        Text="{Binding SenderName}" />
+                                        Text="{Binding SenderName}">
+                                        <Label.Triggers>
+                                            <DataTrigger TargetType="Label"
+                                                    Binding="{Binding IsOwnMessage}"
+                                                    Value="True">
+                                                <Setter Property="IsVisible"
+                                                        Value="False"/>
+                                            </DataTrigger>
+                                        </Label.Triggers>
+                                    </Label>
+
+                                    <!-- Timestamp (always visible) -->
                                     <Label
                                         Grid.Column="2"
                                         FontSize="11"
                                         TextColor="#475569"
                                         VerticalOptions="Center"
-                                        Text="{Binding SentAtDisplay}" />
+                                        Text="{Binding SentAtDisplay}">
+                                        <Label.Triggers>
+                                            <DataTrigger TargetType="Label"
+                                                    Binding="{Binding IsOwnMessage}"
+                                                    Value="True">
+                                                <Setter Property="TextColor"
+                                                        Value="#BFDBFE"/>
+                                            </DataTrigger>
+                                        </Label.Triggers>
+                                    </Label>
                                 </Grid>
                                 <Label
                                     FontSize="15"
                                     TextColor="#E2E8F0"
                                     Margin="36,0,0,0"
-                                    Text="{Binding Content}" />
+                                    Text="{Binding Content}">
+                                    <Label.Triggers>
+                                        <DataTrigger TargetType="Label"
+                                                Binding="{Binding IsOwnMessage}"
+                                                Value="True">
+                                            <Setter Property="Margin"
+                                                    Value="0,0,0,0"/>
+                                            <Setter Property="TextColor"
+                                                    Value="#FFFFFF"/>
+                                        </DataTrigger>
+                                    </Label.Triggers>
+                                </Label>
                             </VerticalStackLayout>
                         </Border>
                     </DataTemplate>
                 </CollectionView.ItemTemplate>
 
                 <CollectionView.Header>
-                    <BoxView HeightRequest="8" BackgroundColor="Transparent" />
+                    <BoxView HeightRequest="8"
+                            BackgroundColor="Transparent"/>
                 </CollectionView.Header>
 
                 <CollectionView.Footer>
-                    <BoxView HeightRequest="4" BackgroundColor="Transparent" />
+                    <BoxView HeightRequest="4"
+                            BackgroundColor="Transparent"/>
                 </CollectionView.Footer>
 
                 <CollectionView.EmptyView>
@@ -100,13 +158,13 @@
                         <Label
                             FontSize="32"
                             HorizontalOptions="Center"
-                            Text="👋" />
+                            Text="👋"/>
                         <Label
                             FontSize="14"
                             TextColor="#64748B"
                             HorizontalOptions="Center"
                             HorizontalTextAlignment="Center"
-                            Text="No messages yet. Start the conversation!" />
+                            Text="No messages yet. Start the conversation!"/>
                     </VerticalStackLayout>
                 </CollectionView.EmptyView>
 
@@ -136,9 +194,9 @@
                         FontSize="20"
                         HorizontalOptions="Center"
                         VerticalOptions="Center"
-                        Text="📎" />
+                        Text="📎"/>
                     <Border.GestureRecognizers>
-                        <TapGestureRecognizer Command="{Binding AttachFileCommand}" />
+                        <TapGestureRecognizer Command="{Binding AttachFileCommand}"/>
                     </Border.GestureRecognizers>
                 </Border>
 
@@ -158,7 +216,7 @@
                             PlaceholderColor="#475569"
                             TextColor="#F1F5F9"
                             BackgroundColor="Transparent"
-                            Text="{Binding ComposerText}" />
+                            Text="{Binding ComposerText}"/>
                     </Border>
 
                     <!-- @mention autocomplete overlay -->
@@ -177,11 +235,13 @@
                             <CollectionView.ItemTemplate>
                                 <DataTemplate x:DataType="x:String">
                                     <Grid Padding="14,10">
-                                        <Label Text="{Binding .}" FontSize="14" TextColor="#F1F5F9" />
+                                        <Label Text="{Binding .}"
+                                                FontSize="14"
+                                                TextColor="#F1F5F9"/>
                                         <Grid.GestureRecognizers>
                                             <TapGestureRecognizer
                                                 Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.SelectMentionCommand}"
-                                                CommandParameter="{Binding .}" />
+                                                CommandParameter="{Binding .}"/>
                                         </Grid.GestureRecognizers>
                                     </Grid>
                                 </DataTemplate>
@@ -201,9 +261,9 @@
                         FontSize="20"
                         HorizontalOptions="Center"
                         VerticalOptions="Center"
-                        Text="😊" />
+                        Text="😊"/>
                     <Border.GestureRecognizers>
-                        <TapGestureRecognizer Command="{Binding ToggleEmojiPickerCommand}" />
+                        <TapGestureRecognizer Command="{Binding ToggleEmojiPickerCommand}"/>
                     </Border.GestureRecognizers>
                 </Border>
 
@@ -219,7 +279,7 @@
                     WidthRequest="40"
                     VerticalOptions="End">
                     <Border.GestureRecognizers>
-                        <TapGestureRecognizer Command="{Binding SendCommand}" />
+                        <TapGestureRecognizer Command="{Binding SendCommand}"/>
                     </Border.GestureRecognizers>
                     <Label
                         FontSize="16"
@@ -228,7 +288,7 @@
                         VerticalOptions="Center"
                         TextColor="White"
                         Text="↑"
-                        IsEnabled="{Binding IsSending, Converter={StaticResource InvertBool}}" />
+                        IsEnabled="{Binding IsSending, Converter={StaticResource InvertBool}}"/>
                 </Border>
 
             </Grid>
@@ -249,14 +309,30 @@
                     Padding="10,8">
                     <BindableLayout.ItemsSource>
                         <x:Array Type="{x:Type x:String}">
-                            <x:String>😀</x:String><x:String>😂</x:String><x:String>😍</x:String>
-                            <x:String>🤔</x:String><x:String>😎</x:String><x:String>😢</x:String>
-                            <x:String>😡</x:String><x:String>🎉</x:String><x:String>👍</x:String>
-                            <x:String>👎</x:String><x:String>❤️</x:String><x:String>🔥</x:String>
-                            <x:String>✅</x:String><x:String>❌</x:String><x:String>⚡</x:String>
-                            <x:String>🚀</x:String><x:String>💯</x:String><x:String>🙏</x:String>
-                            <x:String>👀</x:String><x:String>💪</x:String><x:String>🤝</x:String>
-                            <x:String>📎</x:String><x:String>📌</x:String><x:String>🔗</x:String>
+                            <x:String>😀</x:String>
+                            <x:String>😂</x:String>
+                            <x:String>😍</x:String>
+                            <x:String>🤔</x:String>
+                            <x:String>😎</x:String>
+                            <x:String>😢</x:String>
+                            <x:String>😡</x:String>
+                            <x:String>🎉</x:String>
+                            <x:String>👍</x:String>
+                            <x:String>👎</x:String>
+                            <x:String>❤️</x:String>
+                            <x:String>🔥</x:String>
+                            <x:String>✅</x:String>
+                            <x:String>❌</x:String>
+                            <x:String>⚡</x:String>
+                            <x:String>🚀</x:String>
+                            <x:String>💯</x:String>
+                            <x:String>🙏</x:String>
+                            <x:String>👀</x:String>
+                            <x:String>💪</x:String>
+                            <x:String>🤝</x:String>
+                            <x:String>📎</x:String>
+                            <x:String>📌</x:String>
+                            <x:String>🔗</x:String>
                         </x:Array>
                     </BindableLayout.ItemsSource>
                     <BindableLayout.ItemTemplate>
@@ -273,11 +349,11 @@
                                     VerticalOptions="Center"
                                     HorizontalTextAlignment="Center"
                                     VerticalTextAlignment="Center"
-                                    Text="{Binding .}" />
+                                    Text="{Binding .}"/>
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer
                                         Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.InsertEmojiCommand}"
-                                        CommandParameter="{Binding .}" />
+                                        CommandParameter="{Binding .}"/>
                                 </Border.GestureRecognizers>
                             </Border>
                         </DataTemplate>

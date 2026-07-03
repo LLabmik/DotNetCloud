@@ -49,6 +49,14 @@
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\IAlbumArtCache.cs" Link="AndroidApp\Services\IAlbumArtCache.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\AlbumArtCache.cs" Link="AndroidApp\Services\AlbumArtCache.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\ViewModels\MusicViewModel.cs" Link="AndroidApp\ViewModels\MusicViewModel.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\ViewModels\EqBandModel.cs" Link="AndroidApp\ViewModels\EqBandModel.cs" />
+
+    <!-- Chat -->
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\ViewModels\MessageListViewModel.cs" Link="AndroidApp\ViewModels\MessageListViewModel.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Chat\IChatRestClient.cs" Link="AndroidApp\Chat\IChatRestClient.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\ILocalMessageCache.cs" Link="AndroidApp\Services\ILocalMessageCache.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\ApiExceptionHelper.cs" Link="AndroidApp\Services\ApiExceptionHelper.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\AccessTokenUserIdExtractor.cs" Link="AndroidApp\Services\AccessTokenUserIdExtractor.cs" />
   </ItemGroup>
 
 </Project>

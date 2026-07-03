@@ -25,6 +25,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
     private readonly ILogger<MessageListViewModel> _logger;
 
     private Guid _channelId;
+    private Guid _currentUserId;
     private string? _serverUrl;
     private string? _accessToken;
 
@@ -111,10 +112,32 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
                 return;
             }
 
+            // Extract the current user ID from the JWT for own-message detection
+            try
+            {
+                _currentUserId = AccessTokenUserIdExtractor.ExtractUserId(_accessToken);
+                _logger.LogInformation("MessageListViewModel: currentUserId={CurrentUserId}", _currentUserId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Could not extract current user ID from token; own-message detection disabled.");
+            }
+
             // Load members first so we can resolve sender names
             await LoadMemberNamesAsync(ct);
 
             await LoadMessagesAsync(ct);
+
+            // Ensure SignalR is connected before joining channel groups.
+            // The connection may still be establishing via the foreground service.
+            try
+            {
+                await _signalR.ConnectAsync(_serverUrl, _accessToken, ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "ConnectAsync failed; real-time updates may not be available.");
+            }
 
             // Join the SignalR broadcast group so we receive real-time messages for this channel
             try
@@ -189,7 +212,8 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
             foreach (var m in messages.OrderBy(m => m.SentAt))
             {
                 var senderName = ResolveSenderName(m.SenderUserId, m.SenderName);
-                Messages.Add(new MessageItemViewModel(m.Id, senderName, m.Content, m.SentAt));
+                var isOwn = m.SenderUserId == _currentUserId;
+                Messages.Add(new MessageItemViewModel(m.Id, senderName, m.Content, m.SentAt, isOwn));
             }
 
             // Update cache in background
@@ -225,10 +249,18 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
 
         try
         {
-            await _chatApi.SendMessageAsync(_serverUrl!, _accessToken!, _channelId, content, ct);
-            // Message will appear via SignalR broadcast (OnNewChatMessage).
-            // We do NOT add it here to avoid duplicates — the SignalR handler
-            // delivers it to all clients including the sender.
+            var sentMessage = await _chatApi.SendMessageAsync(_serverUrl!, _accessToken!, _channelId, content, ct);
+
+            // Add the sent message to the UI immediately from the REST response,
+            // so it appears even if the SignalR broadcast is delayed or unavailable.
+            // The SignalR handler's dedup check (by MessageId) prevents duplicates.
+            var senderName = ResolveSenderName(sentMessage.SenderUserId, sentMessage.SenderName);
+            var isOwn = sentMessage.SenderUserId == _currentUserId;
+            var vm = new MessageItemViewModel(sentMessage.Id, senderName, sentMessage.Content, sentMessage.SentAt, isOwn);
+            Messages.Add(vm);
+
+            // Cache the message locally for offline access
+            _ = _cache.UpsertAsync([new CachedMessage(sentMessage.Id, sentMessage.ChannelId, senderName, sentMessage.Content, sentMessage.SentAt)]);
         }
         catch (Exception ex)
         {
@@ -288,8 +320,16 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
             ErrorMessage = null;
             IsSending = true;
 
-            await _chatApi.SendMessageAsync(_serverUrl!, _accessToken!, _channelId, content, ct);
-            // Message appears via SignalR broadcast (same as SendAsync).
+            var sentMessage = await _chatApi.SendMessageAsync(_serverUrl!, _accessToken!, _channelId, content, ct);
+
+            // Add the sent file message to the UI immediately (same pattern as SendAsync)
+            var senderName = ResolveSenderName(sentMessage.SenderUserId, sentMessage.SenderName);
+            var isOwn = sentMessage.SenderUserId == _currentUserId;
+            var vm = new MessageItemViewModel(sentMessage.Id, senderName, sentMessage.Content, sentMessage.SentAt, isOwn);
+            Messages.Add(vm);
+
+            // Cache the message locally for offline access
+            _ = _cache.UpsertAsync([new CachedMessage(sentMessage.Id, sentMessage.ChannelId, senderName, sentMessage.Content, sentMessage.SentAt)]);
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
@@ -379,16 +419,35 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
         if (e.ChannelId != _channelId.ToString())
             return;
 
-        MainThread.BeginInvokeOnMainThread(() =>
+        // Dispatch to UI thread for ObservableCollection updates.
+        // If not on a UI platform (e.g., unit tests), execute inline.
+        Action dispatch = () =>
         {
-            // Dedup: the sending client already added this message from the HTTP response,
-            // so the SignalR broadcast would create a duplicate. Skip if already present.
+            // Dedup: the sending client already added this message from the HTTP response
+            // (see SendAsync/AttachFileAsync). Skip the SignalR echo to avoid duplicates.
             if (Messages.Any(m => m.Id == e.MessageId))
                 return;
 
-            var vm = new MessageItemViewModel(e.MessageId, e.SenderDisplayName, e.MessagePreview, new DateTimeOffset(e.SentAt, TimeSpan.Zero));
+            var isOwn = e.SenderUserId != Guid.Empty && e.SenderUserId == _currentUserId;
+            var vm = new MessageItemViewModel(e.MessageId, e.SenderDisplayName, e.MessagePreview, new DateTimeOffset(e.SentAt, TimeSpan.Zero), isOwn);
             Messages.Add(vm);
-        });
+
+            // Cache the message locally for offline access
+            if (Guid.TryParse(e.ChannelId, out var channelGuid))
+            {
+                _ = _cache.UpsertAsync([new CachedMessage(e.MessageId, channelGuid, e.SenderDisplayName, e.MessagePreview, new DateTimeOffset(e.SentAt, TimeSpan.Zero))]);
+            }
+        };
+
+        try
+        {
+            MainThread.BeginInvokeOnMainThread(dispatch);
+        }
+        catch
+        {
+            // Unit test environment without a UI thread — run inline.
+            dispatch();
+        }
     }
 }
 
@@ -396,12 +455,13 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
 public sealed class MessageItemViewModel
 {
     /// <summary>Initializes a message list item.</summary>
-    public MessageItemViewModel(Guid id, string senderName, string content, DateTimeOffset sentAt)
+    public MessageItemViewModel(Guid id, string senderName, string content, DateTimeOffset sentAt, bool isOwnMessage = false)
     {
         Id = id;
         SenderName = senderName;
         Content = content;
         SentAt = sentAt;
+        IsOwnMessage = isOwnMessage;
     }
 
     /// <summary>Message identifier.</summary>
@@ -418,6 +478,9 @@ public sealed class MessageItemViewModel
 
     /// <summary>When the message was sent (UTC).</summary>
     public DateTimeOffset SentAt { get; }
+
+    /// <summary>Whether this message was sent by the current user.</summary>
+    public bool IsOwnMessage { get; }
 
     /// <summary>Formatted send time for display, matching Blazor's tiered FormatTime.</summary>
     public string SentAtDisplay
@@ -439,7 +502,7 @@ public sealed class MessageItemViewModel
 
             var absMinutes = Math.Abs(diff.TotalMinutes);
 
-            global::Android.Util.Log.Info("DotNetCloud",
+            System.Diagnostics.Debug.WriteLine(
                 $"SentAtDisplay: absMin={absMinutes:F1}, SentAt={SentAt:O}, effective={effectiveSent:O}, diff={diff.TotalMinutes:F1}");
 
             if (absMinutes < 1)

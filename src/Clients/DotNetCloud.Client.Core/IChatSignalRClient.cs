@@ -22,6 +22,14 @@ public interface IChatSignalRClient
     Task ConnectAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Connects to the chat real-time transport with explicit server URL and token.
+    /// </summary>
+    /// <param name="serverBaseUrl">Root URL of the DotNetCloud server.</param>
+    /// <param name="accessToken">Optional bearer token for hub authentication.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task ConnectAsync(string serverBaseUrl, string? accessToken = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Joins the SignalR broadcast group for a channel so the client receives real-time messages.
     /// </summary>
     /// <param name="channelId">The channel to join.</param>
@@ -54,6 +62,7 @@ public sealed record ChatUnreadCountUpdatedEventArgs(string ChannelId, int Unrea
 /// <param name="MessageId">Server-assigned message identifier.</param>
 /// <param name="SentAt">Server timestamp when the message was sent (UTC).</param>
 /// <param name="IsMention">Whether the message contains a mention for the current user.</param>
+/// <param name="SenderUserId">User ID of the sender, or <c>default</c> if unknown.</param>
 public sealed record ChatMessageReceivedEventArgs(
     string ChannelId,
     string ChannelDisplayName,
@@ -61,4 +70,5 @@ public sealed record ChatMessageReceivedEventArgs(
     string MessagePreview,
     Guid MessageId,
     DateTime SentAt,
-    bool IsMention);
+    bool IsMention,
+    Guid SenderUserId = default);

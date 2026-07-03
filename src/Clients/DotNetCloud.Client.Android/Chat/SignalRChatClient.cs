@@ -5,6 +5,7 @@ using DotNetCloud.Client.Core;
 using DotNetCloud.Client.Core.Auth;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Logging;
+using System.Collections.Concurrent;
 using System.Text.Json.Serialization;
 
 namespace DotNetCloud.Client.Android.Chat;
@@ -47,6 +48,9 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
     private readonly IChatRestClient _restClient;
     private readonly ISecureTokenStore _tokenStore;
     private string? _serverBaseUrl;
+
+    // Tracks channel groups joined so they can be re-joined after reconnection.
+    private readonly ConcurrentDictionary<Guid, byte> _joinedChannels = new();
 
     /// <inheritdoc />
     public event EventHandler<ChatUnreadCountUpdatedEventArgs>? OnUnreadCountUpdated;
@@ -111,12 +115,31 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
                 payload.Message.Content,
                 payload.Message.Id,
                 payload.Message.SentAt,
-                false));
+                false,
+                payload.Message.SenderUserId));
         });
 
         _hub.Reconnected += async connectionId =>
         {
-            _logger.LogInformation("SignalR reconnected (connId={ConnectionId}). Flushing pending messages.", connectionId);
+            _logger.LogInformation("SignalR reconnected (connId={ConnectionId}). Re-joining channel groups and flushing pending messages.", connectionId);
+
+            if (_hub?.State == HubConnectionState.Connected)
+            {
+                foreach (var (channelId, _) in _joinedChannels)
+                {
+                    try
+                    {
+                        var groupName = $"chat-channel-{channelId}";
+                        await _hub.InvokeAsync("JoinGroupAsync", groupName).ConfigureAwait(false);
+                        _logger.LogDebug("Re-joined SignalR group {Group} after reconnect.", groupName);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to re-join channel group {ChannelId} after reconnect; will retry on next reconnect.", channelId);
+                    }
+                }
+            }
+
             await FlushPendingMessagesAsync().ConfigureAwait(false);
         };
         _hub.Closed += error =>
@@ -125,11 +148,22 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
             return Task.CompletedTask;
         };
 
-        await _hub.StartAsync(cancellationToken).ConfigureAwait(false);
-        _logger.LogInformation("SignalR connected to {HubUrl}.", hubUrl);
+        try
+        {
+            await _hub.StartAsync(cancellationToken).ConfigureAwait(false);
+            _logger.LogInformation("SignalR connected to {HubUrl}.", hubUrl);
+        }
+        catch
+        {
+            // StartAsync failed — null out _hub so downstream callers know there
+            // is no active connection rather than pointing at a dead HubConnection.
+            await _hub.DisposeAsync().ConfigureAwait(false);
+            _hub = null;
+            throw;
+        }
     }
 
-    /// <summary>Implements the parameterless <see cref="IChatSignalRClient.ConnectAsync"/> for compatibility.</summary>
+    /// <summary>Implements the parameterless <see cref="IChatSignalRClient.ConnectAsync(CancellationToken)"/> for compatibility.</summary>
     Task IChatSignalRClient.ConnectAsync(CancellationToken cancellationToken) =>
         Task.FromException(new InvalidOperationException(
             "Use the overload that accepts serverBaseUrl and accessToken."));
@@ -173,10 +207,28 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
     /// <inheritdoc />
     public async Task JoinChannelGroupAsync(Guid channelId, CancellationToken cancellationToken = default)
     {
+        // Always track the join so we can re-join on reconnect — even if the hub
+        // happens to be disconnected right now, the caller will re-trigger this
+        // after ensuring connectivity.
+        _joinedChannels.TryAdd(channelId, 0);
+
+        // Give the hub a brief window to become connected before giving up.
+        // This handles the case where ConnectAsync returned successfully but
+        // the hub state hasn't transitioned to Connected yet, or where a
+        // transient blip happened between ConnectAsync and JoinChannelGroupAsync.
+        if (_hub?.State is not HubConnectionState.Connected)
+        {
+            for (var i = 0; i < 5 && _hub?.State is not HubConnectionState.Connected; i++)
+            {
+                await Task.Delay(200, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
         if (_hub?.State is not HubConnectionState.Connected)
         {
             Log.Warn("DotNetCloud", $"JoinChannelGroupAsync: cannot join {channelId}: hub not connected (state={_hub?.State}).");
-            _logger.LogDebug("Cannot join channel group {ChannelId}: hub not connected.", channelId);
+            _logger.LogWarning("Cannot join channel group {ChannelId}: hub not connected (state={State}); tracked for retry on reconnect.",
+                channelId, _hub?.State);
             return;
         }
 
@@ -198,9 +250,11 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
     /// <inheritdoc />
     public async Task LeaveChannelGroupAsync(Guid channelId, CancellationToken cancellationToken = default)
     {
+        _joinedChannels.TryRemove(channelId, out _);
+
         if (_hub?.State is not HubConnectionState.Connected)
         {
-            _logger.LogDebug("Cannot leave channel group {ChannelId}: hub not connected.", channelId);
+            _logger.LogDebug("Cannot leave channel group {ChannelId}: hub not connected (already untracked).", channelId);
             return;
         }
 
