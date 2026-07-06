@@ -300,7 +300,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
         MentionSuggestions.Clear();
     }
 
-    /// <summary>Opens the system media picker and sends the chosen file as a message attachment.</summary>
+    /// <summary>Opens the system media picker and sends the chosen file as an image attachment.</summary>
     [RelayCommand]
     private async Task AttachFileAsync(CancellationToken ct)
     {
@@ -314,18 +314,41 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
             if (result is null)
                 return;
 
-            // Send the file name as plain-text message for now;
-            // full chunked-upload integration is handled by PhotoAutoUploadService.
-            var content = $"📎 {result.FileName}";
             ErrorMessage = null;
             IsSending = true;
 
-            var sentMessage = await _chatApi.SendMessageAsync(_serverUrl!, _accessToken!, _channelId, content, ct);
+            // Step 1: Read the picked file into memory so we know the exact size
+            byte[] fileBytes;
+            using (var sourceStream = await result.OpenReadAsync().ConfigureAwait(false))
+            using (var ms = new MemoryStream())
+            {
+                await sourceStream.CopyToAsync(ms, ct).ConfigureAwait(false);
+                fileBytes = ms.ToArray();
+            }
 
-            // Add the sent file message to the UI immediately (same pattern as SendAsync)
+            // Step 2: Upload the image to the server
+            using var uploadStream = new MemoryStream(fileBytes);
+            var uploadResult = await _chatApi.UploadImageAsync(
+                _serverUrl!, _accessToken!, _channelId,
+                uploadStream, result.FileName, result.ContentType ?? "image/jpeg", ct).ConfigureAwait(false);
+
+            // Step 3: Send the message with attachment metadata
+            var attachment = new ChatAttachment(
+                Id: Guid.Empty, // server assigns the actual ID
+                FileName: uploadResult.FileName,
+                MimeType: uploadResult.MimeType,
+                FileSize: uploadResult.FileSize,
+                ThumbnailUrl: uploadResult.Url);
+
+            var sentMessage = await _chatApi.SendMessageWithAttachmentsAsync(
+                _serverUrl!, _accessToken!, _channelId,
+                content: string.Empty,
+                attachments: [attachment], ct);
+
+            // Add the sent message to the UI immediately
             var senderName = ResolveSenderName(sentMessage.SenderUserId, sentMessage.SenderName);
             var isOwn = sentMessage.SenderUserId == _currentUserId;
-            var vm = new MessageItemViewModel(sentMessage.Id, senderName, sentMessage.Content, sentMessage.SentAt, isOwn);
+            var vm = new MessageItemViewModel(sentMessage.Id, senderName, sentMessage.Content, sentMessage.SentAt, isOwn, sentMessage.Attachments);
             Messages.Add(vm);
 
             // Cache the message locally for offline access
@@ -428,8 +451,26 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
             if (Messages.Any(m => m.Id == e.MessageId))
                 return;
 
+            // Parse attachments from SignalR payload if present
+            IReadOnlyList<ChatAttachment>? attachments = null;
+            if (!string.IsNullOrEmpty(e.AttachmentsJson))
+            {
+                try
+                {
+                    var dtos = System.Text.Json.JsonSerializer.Deserialize<List<SignalRAttachmentDto>>(e.AttachmentsJson);
+                    if (dtos is { Count: > 0 })
+                    {
+                        attachments = dtos.Select(a => new ChatAttachment(a.Id, a.FileName, a.MimeType, a.FileSize, a.ThumbnailUrl)).ToList();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to parse attachments JSON from SignalR message.");
+                }
+            }
+
             var isOwn = e.SenderUserId != Guid.Empty && e.SenderUserId == _currentUserId;
-            var vm = new MessageItemViewModel(e.MessageId, e.SenderDisplayName, e.MessagePreview, new DateTimeOffset(e.SentAt, TimeSpan.Zero), isOwn);
+            var vm = new MessageItemViewModel(e.MessageId, e.SenderDisplayName, e.MessagePreview, new DateTimeOffset(e.SentAt, TimeSpan.Zero), isOwn, attachments);
             Messages.Add(vm);
 
             // Cache the message locally for offline access
@@ -455,13 +496,16 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
 public sealed class MessageItemViewModel
 {
     /// <summary>Initializes a message list item.</summary>
-    public MessageItemViewModel(Guid id, string senderName, string content, DateTimeOffset sentAt, bool isOwnMessage = false)
+    public MessageItemViewModel(Guid id, string senderName, string content, DateTimeOffset sentAt, bool isOwnMessage = false, IReadOnlyList<ChatAttachment>? attachments = null)
     {
         Id = id;
         SenderName = senderName;
         Content = content;
         SentAt = sentAt;
         IsOwnMessage = isOwnMessage;
+        Attachments = attachments ?? [];
+        HasImageAttachment = Attachments.Any(a => a.MimeType.StartsWith("image/", StringComparison.OrdinalIgnoreCase));
+        FirstImageUrl = Attachments.FirstOrDefault(a => a.MimeType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))?.ThumbnailUrl;
     }
 
     /// <summary>Message identifier.</summary>
@@ -481,6 +525,15 @@ public sealed class MessageItemViewModel
 
     /// <summary>Whether this message was sent by the current user.</summary>
     public bool IsOwnMessage { get; }
+
+    /// <summary>Attachments on this message.</summary>
+    public IReadOnlyList<ChatAttachment> Attachments { get; }
+
+    /// <summary>Whether this message has at least one image attachment.</summary>
+    public bool HasImageAttachment { get; }
+
+    /// <summary>URL of the first image attachment for inline preview.</summary>
+    public string? FirstImageUrl { get; }
 
     /// <summary>Formatted send time for display, matching Blazor's tiered FormatTime.</summary>
     public string SentAtDisplay

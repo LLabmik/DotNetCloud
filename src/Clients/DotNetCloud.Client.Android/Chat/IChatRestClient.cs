@@ -28,6 +28,15 @@ public interface IChatRestClient
         Guid channelId, string content,
         CancellationToken ct = default);
 
+    /// <summary>
+    /// Sends a new message with attachments to a channel.
+    /// </summary>
+    Task<ChatMessage> SendMessageWithAttachmentsAsync(
+        string serverBaseUrl, string accessToken,
+        Guid channelId, string content,
+        IReadOnlyList<ChatAttachment>? attachments,
+        CancellationToken ct = default);
+
     /// <summary>Marks all messages in a channel as read up to <paramref name="messageId"/>.</summary>
     Task MarkReadAsync(
         string serverBaseUrl, string accessToken,
@@ -52,6 +61,17 @@ public interface IChatRestClient
     Task LeaveChannelAsync(
         string serverBaseUrl, string accessToken,
         Guid channelId,
+        CancellationToken ct = default);
+
+    // ── Image Upload ─────────────────────────────────────────────────
+
+    /// <summary>
+    /// Uploads an image file to the server for use in a chat message.
+    /// Returns the upload result containing the serving URL and metadata.
+    /// </summary>
+    Task<ChatImageUploadResult> UploadImageAsync(
+        string serverBaseUrl, string accessToken,
+        Guid channelId, Stream fileStream, string fileName, string contentType,
         CancellationToken ct = default);
 
     // ── Attachments ──────────────────────────────────────────────────
@@ -81,6 +101,30 @@ public sealed record ChannelSummary(
     string? LastMessagePreview,
     DateTimeOffset? LastMessageAt);
 
+/// <summary>Result of uploading an image to a chat channel.</summary>
+/// <param name="Url">Serving URL path for the image (e.g., /api/v1/chat/uploads/abc123.png).</param>
+/// <param name="FileName">Original file name.</param>
+/// <param name="MimeType">MIME content type.</param>
+/// <param name="FileSize">File size in bytes.</param>
+public sealed record ChatImageUploadResult(
+    string Url,
+    string FileName,
+    string MimeType,
+    long FileSize);
+
+/// <summary>Attachment metadata on a chat message.</summary>
+/// <param name="Id">Attachment ID (server-assigned).</param>
+/// <param name="FileName">File name for display.</param>
+/// <param name="MimeType">MIME content type.</param>
+/// <param name="FileSize">File size in bytes.</param>
+/// <param name="ThumbnailUrl">URL for image/video preview (null for non-previewable types).</param>
+public sealed record ChatAttachment(
+    Guid Id,
+    string FileName,
+    string MimeType,
+    long FileSize,
+    string? ThumbnailUrl);
+
 /// <summary>A single chat message returned from the server.</summary>
 /// <param name="Id">Message ID.</param>
 /// <param name="ChannelId">Channel the message belongs to.</param>
@@ -89,6 +133,7 @@ public sealed record ChannelSummary(
 /// <param name="Content">Plain-text message body.</param>
 /// <param name="SentAt">When the message was sent (UTC).</param>
 /// <param name="IsEdited">Whether the message has been edited.</param>
+/// <param name="Attachments">Attachments on this message (optional).</param>
 public sealed record ChatMessage(
     Guid Id,
     Guid ChannelId,
@@ -96,7 +141,8 @@ public sealed record ChatMessage(
     string SenderName,
     string Content,
     DateTimeOffset SentAt,
-    bool IsEdited);
+    bool IsEdited,
+    IReadOnlyList<ChatAttachment>? Attachments = null);
 
 /// <summary>Summary of a channel member for the member list.</summary>
 /// <param name="UserId">User identifier.</param>

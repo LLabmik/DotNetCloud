@@ -105,6 +105,64 @@ internal sealed class HttpChatRestClient : IChatRestClient
     }
 
     /// <inheritdoc />
+    public async Task<ChatMessage> SendMessageWithAttachmentsAsync(
+        string serverBaseUrl, string accessToken,
+        Guid channelId, string content,
+        IReadOnlyList<ChatAttachment>? attachments,
+        CancellationToken ct = default)
+    {
+        SetAuth(accessToken);
+        var url = $"{serverBaseUrl.TrimEnd('/')}/api/v1/chat/channels/{channelId}/messages";
+
+        var body = new
+        {
+            Content = content,
+            Attachments = attachments?.Select(a => new
+            {
+                fileName = a.FileName,
+                mimeType = a.MimeType,
+                fileSize = a.FileSize,
+                thumbnailUrl = a.ThumbnailUrl
+            }).ToList()
+        };
+
+        using var response = await _http.PostAsJsonAsync(url, body, ct).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        var envelope = await response.Content.ReadFromJsonAsync<Envelope<ChatMessageDto>>(JsonOpts, ct).ConfigureAwait(false)
+                       ?? throw new InvalidOperationException("Empty response from send message with attachments.");
+        return envelope.Data is null
+            ? throw new InvalidOperationException("Send message response did not include data.")
+            : ToChatMessage(envelope.Data);
+    }
+
+    /// <inheritdoc />
+    public async Task<ChatImageUploadResult> UploadImageAsync(
+        string serverBaseUrl, string accessToken,
+        Guid channelId, Stream fileStream, string fileName, string contentType,
+        CancellationToken ct = default)
+    {
+        SetAuth(accessToken);
+        var url = $"{serverBaseUrl.TrimEnd('/')}/api/v1/chat/channels/{channelId}/upload-image";
+
+        using var ms = new MemoryStream();
+        await fileStream.CopyToAsync(ms, ct).ConfigureAwait(false);
+        var data = ms.ToArray();
+
+        using var content = new ByteArrayContent(data);
+        content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(contentType);
+        content.Headers.Add("X-File-Name", fileName);
+
+        using var response = await _http.PostAsync(url, content, ct).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+
+        var envelope = await response.Content.ReadFromJsonAsync<Envelope<UploadImageResponseDto>>(JsonOpts, ct).ConfigureAwait(false)
+                       ?? throw new InvalidOperationException("Empty response from upload image.");
+        return envelope.Data is null
+            ? throw new InvalidOperationException("Upload image response did not include data.")
+            : new ChatImageUploadResult(envelope.Data.Url, envelope.Data.FileName, envelope.Data.MimeType, envelope.Data.FileSize);
+    }
+
+    /// <inheritdoc />
     public async Task MarkReadAsync(
         string serverBaseUrl, string accessToken,
         Guid channelId, Guid messageId, CancellationToken ct = default)
@@ -194,7 +252,8 @@ internal sealed class HttpChatRestClient : IChatRestClient
     private static ChatMessage ToChatMessage(ChatMessageDto d) =>
         new(d.Id, d.ChannelId, d.SenderUserId,
             string.IsNullOrWhiteSpace(d.SenderName) ? string.Empty : d.SenderName,
-            d.Content, d.SentAt, d.IsEdited);
+            d.Content, d.SentAt, d.IsEdited,
+            d.Attachments?.Select(a => new ChatAttachment(a.Id, a.FileName, a.MimeType, a.FileSize, a.ThumbnailUrl)).ToList());
 
     private static ChannelMemberSummary ToMemberSummary(ChannelMemberDto d) =>
         new(d.UserId, d.DisplayName, d.Role, d.IsOnline);
@@ -234,6 +293,24 @@ internal sealed class HttpChatRestClient : IChatRestClient
         public string Content { get; init; } = string.Empty;
         public DateTimeOffset SentAt { get; init; }
         public bool IsEdited { get; init; }
+        public List<ChatMessageAttachmentDto>? Attachments { get; init; }
+    }
+
+    private sealed class ChatMessageAttachmentDto
+    {
+        public Guid Id { get; init; }
+        public string FileName { get; init; } = string.Empty;
+        public string MimeType { get; init; } = string.Empty;
+        public long FileSize { get; init; }
+        public string? ThumbnailUrl { get; init; }
+    }
+
+    private sealed class UploadImageResponseDto
+    {
+        public string Url { get; init; } = string.Empty;
+        public string FileName { get; init; } = string.Empty;
+        public string MimeType { get; init; } = string.Empty;
+        public long FileSize { get; init; }
     }
 
     private sealed class ChannelMemberDto

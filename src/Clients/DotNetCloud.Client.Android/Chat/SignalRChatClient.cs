@@ -6,6 +6,7 @@ using DotNetCloud.Client.Core.Auth;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace DotNetCloud.Client.Android.Chat;
@@ -26,7 +27,18 @@ internal sealed record SignalRMessageDto(
     [property: JsonPropertyName("content")] string Content,
     [property: JsonPropertyName("senderUserId")] Guid SenderUserId,
     [property: JsonPropertyName("senderName")] string? SenderName,
-    [property: JsonPropertyName("sentAt")] DateTime SentAt);
+    [property: JsonPropertyName("sentAt")] DateTime SentAt,
+    [property: JsonPropertyName("attachments")] IReadOnlyList<SignalRAttachmentDto>? Attachments = null);
+
+/// <summary>
+/// Minimal attachment DTO for SignalR deserialization.
+/// </summary>
+internal sealed record SignalRAttachmentDto(
+    [property: JsonPropertyName("id")] Guid Id,
+    [property: JsonPropertyName("fileName")] string FileName,
+    [property: JsonPropertyName("mimeType")] string MimeType,
+    [property: JsonPropertyName("fileSize")] long FileSize,
+    [property: JsonPropertyName("thumbnailUrl")] string? ThumbnailUrl);
 
 /// <summary>
 /// Server payload for new messages: { channelId, message }.
@@ -108,6 +120,13 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
                 ? payload.Message.SenderName
                 : payload.Message.SenderUserId.ToString();
             Log.Info("DotNetCloud", $"SignalRChatClient: NewMessage received! channelId={payload.ChannelId}, content='{payload.Message.Content}', senderName='{senderName}', sentAt={payload.Message.SentAt:O}");
+
+            string? attachmentsJson = null;
+            if (payload.Message.Attachments is { Count: > 0 })
+            {
+                attachmentsJson = JsonSerializer.Serialize(payload.Message.Attachments);
+            }
+
             OnNewChatMessage?.Invoke(this, new ChatMessageReceivedEventArgs(
                 payload.ChannelId,
                 string.Empty,
@@ -116,7 +135,8 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
                 payload.Message.Id,
                 payload.Message.SentAt,
                 false,
-                payload.Message.SenderUserId));
+                payload.Message.SenderUserId,
+                attachmentsJson));
         });
 
         _hub.Reconnected += async connectionId =>

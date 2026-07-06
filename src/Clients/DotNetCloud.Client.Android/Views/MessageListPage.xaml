@@ -43,8 +43,8 @@
                             <!-- Own-message overrides: right-aligned with blue bubble -->
                             <Border.Triggers>
                                 <DataTrigger TargetType="Border"
-                                        Binding="{Binding IsOwnMessage}"
-                                        Value="True">
+                                             Binding="{Binding IsOwnMessage}"
+                                             Value="True">
                                     <Setter Property="BackgroundColor"
                                             Value="#0EA5E9"/>
                                     <Setter Property="HorizontalOptions"
@@ -56,7 +56,7 @@
 
                             <VerticalStackLayout Spacing="4">
                                 <Grid ColumnDefinitions="Auto,*,Auto"
-                                        ColumnSpacing="8">
+                                      ColumnSpacing="8">
                                     <!-- Sender avatar (hidden for own messages) -->
                                     <Border
                                         Grid.Column="0"
@@ -75,8 +75,8 @@
                                             Text="{Binding SenderInitial}"/>
                                         <Border.Triggers>
                                             <DataTrigger TargetType="Border"
-                                                    Binding="{Binding IsOwnMessage}"
-                                                    Value="True">
+                                                         Binding="{Binding IsOwnMessage}"
+                                                         Value="True">
                                                 <Setter Property="IsVisible"
                                                         Value="False"/>
                                             </DataTrigger>
@@ -93,8 +93,8 @@
                                         Text="{Binding SenderName}">
                                         <Label.Triggers>
                                             <DataTrigger TargetType="Label"
-                                                    Binding="{Binding IsOwnMessage}"
-                                                    Value="True">
+                                                         Binding="{Binding IsOwnMessage}"
+                                                         Value="True">
                                                 <Setter Property="IsVisible"
                                                         Value="False"/>
                                             </DataTrigger>
@@ -110,14 +110,38 @@
                                         Text="{Binding SentAtDisplay}">
                                         <Label.Triggers>
                                             <DataTrigger TargetType="Label"
-                                                    Binding="{Binding IsOwnMessage}"
-                                                    Value="True">
+                                                         Binding="{Binding IsOwnMessage}"
+                                                         Value="True">
                                                 <Setter Property="TextColor"
                                                         Value="#BFDBFE"/>
                                             </DataTrigger>
                                         </Label.Triggers>
                                     </Label>
                                 </Grid>
+
+                                <!-- Image attachment preview (shown when message has image attachments) -->
+                                <Image
+                                    Source="{Binding FirstImageUrl}"
+                                    HeightRequest="200"
+                                    Aspect="AspectFit"
+                                    Margin="36,4,0,0">
+                                    <Image.Triggers>
+                                        <DataTrigger TargetType="Image"
+                                                     Binding="{Binding HasImageAttachment}"
+                                                     Value="False">
+                                            <Setter Property="IsVisible"
+                                                    Value="False"/>
+                                        </DataTrigger>
+                                        <DataTrigger TargetType="Image"
+                                                     Binding="{Binding IsOwnMessage}"
+                                                     Value="True">
+                                            <Setter Property="Margin"
+                                                    Value="0,4,0,0"/>
+                                        </DataTrigger>
+                                    </Image.Triggers>
+                                </Image>
+
+                                <!-- Text content (hidden when message has only image attachment) -->
                                 <Label
                                     FontSize="15"
                                     TextColor="#E2E8F0"
@@ -125,8 +149,8 @@
                                     Text="{Binding Content}">
                                     <Label.Triggers>
                                         <DataTrigger TargetType="Label"
-                                                Binding="{Binding IsOwnMessage}"
-                                                Value="True">
+                                                     Binding="{Binding IsOwnMessage}"
+                                                     Value="True">
                                             <Setter Property="Margin"
                                                     Value="0,0,0,0"/>
                                             <Setter Property="TextColor"
@@ -141,12 +165,12 @@
 
                 <CollectionView.Header>
                     <BoxView HeightRequest="8"
-                            BackgroundColor="Transparent"/>
+                             BackgroundColor="Transparent"/>
                 </CollectionView.Header>
 
                 <CollectionView.Footer>
                     <BoxView HeightRequest="4"
-                            BackgroundColor="Transparent"/>
+                             BackgroundColor="Transparent"/>
                 </CollectionView.Footer>
 
                 <CollectionView.EmptyView>
@@ -236,8 +260,8 @@
                                 <DataTemplate x:DataType="x:String">
                                     <Grid Padding="14,10">
                                         <Label Text="{Binding .}"
-                                                FontSize="14"
-                                                TextColor="#F1F5F9"/>
+                                               FontSize="14"
+                                               TextColor="#F1F5F9"/>
                                         <Grid.GestureRecognizers>
                                             <TapGestureRecognizer
                                                 Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.SelectMentionCommand}"
