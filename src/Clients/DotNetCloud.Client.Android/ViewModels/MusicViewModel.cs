@@ -928,11 +928,16 @@ public sealed partial class MusicViewModel : ObservableObject
                 var idx = -1;
                 Dispatch(() =>
                 {
-                    idx = EqPresets.IndexOf(EqPresets.FirstOrDefault(p => p.Id == _selectedPresetId.Value));
-                    if (idx >= 0)
+                    var existing = EqPresets.FirstOrDefault(p => p.Id == _selectedPresetId.Value);
+                    if (existing is not null)
+                    {
+                        idx = EqPresets.IndexOf(existing);
                         EqPresets[idx] = result;
+                    }
                     else
+                    {
                         EqPresets.Add(result);
+                    }
                 });
             }
             else
