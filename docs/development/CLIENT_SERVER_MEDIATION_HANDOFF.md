@@ -92,9 +92,40 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-No active handoff. All completed tasks have been archived (see `CLIENT_SERVER_MEDIATION_ARCHIVE.md`).
+**Summary:** Investigate Android chat image attachment filename duplication
 
-**Last deploy:** `a579a02f` — Blazor chat image attachment rendering fix deployed. 14/14 modules healthy. Files.Host NU1903 vulnerability fixed (added explicit `Microsoft.OpenApi` reference).
+**Context:** All 9 chat image attachments sent from Android had filenames stored in the database as `100000xxxx.jpg, 100000xxxx.jpg` — the filename itself contained a comma-separated duplicate. The server-side `core.MessageAttachments` table had `FileName = '1000006501.jpg, 1000006501.jpg'` for every message with an image attachment.
+
+**What was done on server side (cloud.kimball.home):**
+- Database fixed: `UPDATE core.MessageAttachments SET FileName = LEFT(FileName, CHARINDEX(',', FileName) - 1)` — 9 rows corrected
+- `MessageList.razor`: Added `onerror="this.style.display='none'"` + null/empty guard on `ThumbnailUrl` (defensive, deployed as `1e53ad26`)
+- 14/14 modules healthy
+
+**Evidence from database:**
+- Affected rows: `019F3930...`, `019F3928...`, `019F396A...`, `019F3931...`, `019F3937...` (2x), `019F393F...`, `019F3919...`, `019F3949...`
+- All have `FileName = 'XXXX.jpg, XXXX.jpg'` — the filename is repeated after a comma+space
+- `ThumbnailUrl` was correctly stored (e.g., `/api/v1/chat/uploads/019f396a5e7c76a48ef1936a6eec14c4.jpg`)
+- Some messages had empty content, some had text content — all had the duplicated filename
+- The stored files on disk at `/var/lib/dotnetcloud/storage/chat-uploads/` have correct GUID-based names and are served fine (HTTP 200)
+
+**Likely source:** The Android `HttpChatRestClient.cs` or `MessageListViewModel.cs` — the `result.FileName` from `MediaPicker.Default.PickPhotosAsync()` is piped through `X-File-Name` header → server upload response → `ChatAttachment.FileName` → `SendMessageWithAttachmentsAsync` JSON payload. Something in this chain sends `"1000006501.jpg, 1000006501.jpg"` as the filename. Could be the MediaPicker returning a decorated filename, or the HTTP client accidentally concatenating the filename.
+
+---
+
+### Server Actions — `cloud.kimball.home`
+
+- [x] Database `UPDATE` fixing 9 rows with duplicated filenames
+- [x] Defensive `onerror` handler + null guard deployed
+- [x] 14/14 modules healthy
+
+### Client Actions — `monolith` (Android client)
+
+- [ ] Read findings above
+- [ ] Look at `src/Clients/DotNetCloud.Client.Android/ViewModels/MessageListViewModel.cs` — `AttachFileAsync()` method (~line 330-370). Check if `result.FileName` from `MediaPicker.Default.PickPhotosAsync()` could return a value with duplicate.
+- [ ] Look at `src/Clients/DotNetCloud.Client.Android/Chat/HttpChatRestClient.cs` — `UploadImageAsync()` (line 139-165). Check if the `X-File-Name` header could be set to a duplicated value.
+- [ ] Look at `src/Clients/DotNetCloud.Client.Android/Chat/HttpChatRestClient.cs` — `SendMessageWithAttachmentsAsync()` (line 106-137). Check if the `fileName` field in the JSON body could contain a duplicate.
+- [ ] Add a simple test or log statement: after `MediaPicker` returns, log `result.FileName` to verify it's not already duplicated.
+- [ ] Fix any duplication found, rebuild APK, deploy to phone, test.
 
 ## Environment
 
