@@ -38,6 +38,9 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
     // Typing indicator debounce
     private CancellationTokenSource _typingCts = new();
 
+    // Pending attachment uploaded to server but waiting for Send button
+    private ChatAttachment? _pendingAttachment;
+
     /// <summary>Initializes a new <see cref="MessageListViewModel"/>.</summary>
     public MessageListViewModel(
         IChatRestClient chatApi,
@@ -235,21 +238,37 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
         }
     }
 
-    /// <summary>Sends the composed message.</summary>
+    /// <summary>Sends the composed message, including any pending attachment.</summary>
     [RelayCommand(CanExecute = nameof(CanSend))]
     private async Task SendAsync(CancellationToken ct)
     {
         if (!CanSend())
             return;
+
         var content = ComposerText.Trim();
+        var attachment = _pendingAttachment;
+
+        // Clear UI state immediately
         ComposerText = string.Empty;
+        _pendingAttachment = null;
         IsEmojiPickerOpen = false;
         ShowMentionSuggestions = false;
         IsSending = true;
 
         try
         {
-            var sentMessage = await _chatApi.SendMessageAsync(_serverUrl!, _accessToken!, _channelId, content, ct);
+            ChatMessage sentMessage;
+            if (attachment is not null)
+            {
+                var msgContent = string.IsNullOrWhiteSpace(content) ? " " : content;
+                sentMessage = await _chatApi.SendMessageWithAttachmentsAsync(
+                    _serverUrl!, _accessToken!, _channelId,
+                    msgContent, [attachment], ct);
+            }
+            else
+            {
+                sentMessage = await _chatApi.SendMessageAsync(_serverUrl!, _accessToken!, _channelId, content, ct);
+            }
 
             // Add the sent message to the UI immediately from the REST response.
             // The SignalR broadcast often arrives before the HTTP response, so the
@@ -267,6 +286,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
         {
             _logger.LogError(ex, "Failed to send message.");
             ComposerText = content; // restore on failure
+            _pendingAttachment = attachment; // restore pending attachment
             ErrorMessage = ApiExceptionHelper.GetUserFriendlyMessage(ex);
         }
         finally
@@ -301,7 +321,11 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
         MentionSuggestions.Clear();
     }
 
-    /// <summary>Opens the system media picker and sends the chosen file as an image attachment.</summary>
+    /// <summary>
+    /// Opens the system media picker, uploads the chosen image to the server,
+    /// and stores it as a pending attachment. The attachment is sent when the
+    /// user taps Send (↑), along with any typed text.
+    /// </summary>
     [RelayCommand]
     private async Task AttachFileAsync(CancellationToken ct)
     {
@@ -316,62 +340,37 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
                 return;
 
             ErrorMessage = null;
-            IsSending = true;
 
-            // Step 1: Read the picked file into memory so we know the exact size
+            // Step 1: Read the picked file into memory
             byte[] fileBytes;
-            using (var sourceStream = await result.OpenReadAsync().ConfigureAwait(false))
+            using (var sourceStream = await result.OpenReadAsync())
             using (var ms = new MemoryStream())
             {
-                await sourceStream.CopyToAsync(ms, ct).ConfigureAwait(false);
+                await sourceStream.CopyToAsync(ms, ct);
                 fileBytes = ms.ToArray();
             }
 
-            // Step 2: Upload the image to the server
+            // Step 2: Upload the image to the server and store as pending
             using var uploadStream = new MemoryStream(fileBytes);
             var uploadResult = await _chatApi.UploadImageAsync(
                 _serverUrl!, _accessToken!, _channelId,
-                uploadStream, result.FileName, result.ContentType ?? "image/jpeg", ct).ConfigureAwait(false);
+                uploadStream, result.FileName, result.ContentType ?? "image/jpeg", ct);
 
-            // Step 3: Send the message with attachment metadata
-            var attachment = new ChatAttachment(
+            _pendingAttachment = new ChatAttachment(
                 Id: Guid.Empty, // server assigns the actual ID
                 FileName: uploadResult.FileName,
                 MimeType: uploadResult.MimeType,
                 FileSize: uploadResult.FileSize,
                 ThumbnailUrl: uploadResult.Url);
 
-            var sentMessage = await _chatApi.SendMessageWithAttachmentsAsync(
-                _serverUrl!, _accessToken!, _channelId,
-                content: " ",
-                attachments: [attachment], ct);
-
-            // Add the sent message to the UI immediately.
-            // The SignalR broadcast often arrives before the HTTP response, so the
-            // OnNewChatMessage handler may have already added it — dedup by ID.
-            var senderName = ResolveSenderName(sentMessage.SenderUserId, sentMessage.SenderName);
-            var isOwn = sentMessage.SenderUserId == _currentUserId;
-            if (Messages.All(m => m.Id != sentMessage.Id))
-            {
-                var vm = new MessageItemViewModel(sentMessage.Id, senderName, sentMessage.Content, sentMessage.SentAt, isOwn, sentMessage.Attachments, _serverUrl);
-                Messages.Add(vm);
-
-                // Cache the message locally for offline access
-                _ = _cache.UpsertAsync([new CachedMessage(sentMessage.Id, sentMessage.ChannelId, senderName, sentMessage.Content, sentMessage.SentAt)]);
-            }
-
-            // Cache the message locally for offline access
-            _ = _cache.UpsertAsync([new CachedMessage(sentMessage.Id, sentMessage.ChannelId, senderName, sentMessage.Content, sentMessage.SentAt)]);
+            // Notify Send button to re-check CanExecute now that we have a pending attachment
+            SendCommand.NotifyCanExecuteChanged();
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to attach file.");
             ErrorMessage = "Failed to attach file.";
-        }
-        finally
-        {
-            IsSending = false;
         }
     }
 
@@ -422,7 +421,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
         ShowMentionSuggestions = matches.Count > 0 && partial.Length > 0;
     }
 
-    private bool CanSend() => !string.IsNullOrWhiteSpace(ComposerText) && !IsSending;
+    private bool CanSend() => (!string.IsNullOrWhiteSpace(ComposerText) || _pendingAttachment is not null) && !IsSending;
 
     /// <summary>Raised when the user wants to view full channel details.</summary>
     public event EventHandler? ViewDetailsRequested;
