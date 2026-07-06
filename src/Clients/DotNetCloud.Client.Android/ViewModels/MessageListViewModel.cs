@@ -251,13 +251,14 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
         {
             var sentMessage = await _chatApi.SendMessageAsync(_serverUrl!, _accessToken!, _channelId, content, ct);
 
-            // Add the sent message to the UI immediately from the REST response,
-            // so it appears even if the SignalR broadcast is delayed or unavailable.
-            // The SignalR handler's dedup check (by MessageId) prevents duplicates.
+            // Add the sent message to the UI immediately from the REST response.
+            // The SignalR broadcast often arrives before the HTTP response, so the
+            // OnNewChatMessage handler may have already added it — dedup by ID.
             var senderName = ResolveSenderName(sentMessage.SenderUserId, sentMessage.SenderName);
             var isOwn = sentMessage.SenderUserId == _currentUserId;
             var vm = new MessageItemViewModel(sentMessage.Id, senderName, sentMessage.Content, sentMessage.SentAt, isOwn, sentMessage.Attachments, _serverUrl);
-            Messages.Add(vm);
+            if (Messages.All(m => m.Id != sentMessage.Id))
+                Messages.Add(vm);
 
             // Cache the message locally for offline access
             _ = _cache.UpsertAsync([new CachedMessage(sentMessage.Id, sentMessage.ChannelId, senderName, sentMessage.Content, sentMessage.SentAt)]);
@@ -345,11 +346,19 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
                 content: " ",
                 attachments: [attachment], ct);
 
-            // Add the sent message to the UI immediately
+            // Add the sent message to the UI immediately.
+            // The SignalR broadcast often arrives before the HTTP response, so the
+            // OnNewChatMessage handler may have already added it — dedup by ID.
             var senderName = ResolveSenderName(sentMessage.SenderUserId, sentMessage.SenderName);
             var isOwn = sentMessage.SenderUserId == _currentUserId;
-            var vm = new MessageItemViewModel(sentMessage.Id, senderName, sentMessage.Content, sentMessage.SentAt, isOwn, sentMessage.Attachments, _serverUrl);
-            Messages.Add(vm);
+            if (Messages.All(m => m.Id != sentMessage.Id))
+            {
+                var vm = new MessageItemViewModel(sentMessage.Id, senderName, sentMessage.Content, sentMessage.SentAt, isOwn, sentMessage.Attachments, _serverUrl);
+                Messages.Add(vm);
+
+                // Cache the message locally for offline access
+                _ = _cache.UpsertAsync([new CachedMessage(sentMessage.Id, sentMessage.ChannelId, senderName, sentMessage.Content, sentMessage.SentAt)]);
+            }
 
             // Cache the message locally for offline access
             _ = _cache.UpsertAsync([new CachedMessage(sentMessage.Id, sentMessage.ChannelId, senderName, sentMessage.Content, sentMessage.SentAt)]);
