@@ -5314,3 +5314,38 @@ Key confirmations:
 - `SenderName` display confirmed working
 - `JoinChannelGroupAsync` sends correct format
 
+---
+
+## Archived: gRPC Conversion Deploy — Cloud.kimball.home (2026-07-05)
+
+**Target:** cloud.kimball.home (server-side deploy of gRPC conversion + quota fix)
+
+**Result:** ✅ Both gRPC conversion and quota double-counting fix deployed. Database quota fix SQL run (3 rows updated). Health check: 13/13 modules healthy.
+
+### Summary of deployed changes
+
+**gRPC conversion (commit `9eb32751`):**
+- Chat proto expanded with 9 new RPCs (MarkAsRead, GetUnreadCounts, ListChannelMembers, WebRTC signaling x4, InviteToCall, TransferCallHost)
+- All 9 RPCs implemented in ChatGrpcService.cs + ChatGrpcApiClient.cs
+- CoreCapabilities SendNotification wired to real INotificationService pipeline
+- 1272/1272 Chat module tests passing
+
+**Quota double-counting fix (commit `cf183bee`):**
+- `ChunkedUploadService.cs` — CompleteUploadAsync accounts for already-reserved quota; CancelUploadAsync releases reserved quota
+- `UploadSessionCleanupService.cs` — Releases reserved quota for expired sessions
+- `ApiExceptionHelper.cs` (Android) — Added 409 Conflict handler
+
+### Server Actions — cloud.kimball.home (Completed)
+
+1. ✅ `git pull` on main — pulled `cf183bee`
+2. ✅ `dotnet publish src/Core/DotNetCloud.Core.Server -c Release -o /opt/dotnetcloud/publish`
+3. ✅ `dotnet publish src/Modules/Chat/DotNetCloud.Modules.Chat.Host -c Release -o /opt/dotnetcloud/modules/chat`
+4. ✅ `sudo systemctl restart dotnetcloud` — active (running)
+5. ✅ Health verify — 13/13 modules healthy
+6. ✅ Database quota fix: `UPDATE core.FileQuotas SET UsedBytes = ...` — 3 rows updated (SQL Server syntax: GETDATE())
+
+### Notes
+- Chat module runs as child process supervised by core, no separate systemd unit
+- Verify new Chat RPCs still pending (needs UI testing)
+- Android APK rebuild needed for 409 handler
+

@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-07-05 (Server deployed — cloud.kimball.home gRPC conversion published)
+Last updated: 2026-07-05 (Photo upload testing — rebuild APK on monolith, verify 409 fix)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -36,32 +36,18 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 ```markdown
 ### Active Handoff
 
-**Summary:** Fix quota double-counting bug causing "409 Conflict" on second photo upload from Android
+**Summary:** [one-line description of what's happening]
 
-**Bug:** `InitiateUploadAsync` reserves quota via `TryReserveQuotaAsync` (adds file size to `UsedBytes`), then `CompleteUploadAsync` calls `AdjustUsedBytesAsync` which adds the same amount again — double-counting every upload. Also, `CancelUploadAsync` and `UploadSessionCleanupService` never released reserved quota on cancelled/expired sessions.
-
-**Files changed:**
-- `src/Modules/Files/DotNetCloud.Modules.Files.Data/Services/ChunkedUploadService.cs` — Fix `CompleteUploadAsync` to account for already-reserved quota (`finalAdjustment = quotaDelta - TotalSize`), and `CancelUploadAsync` to release reserved quota via `AdjustUsedBytesAsync(userId, -TotalSize)`
-- `src/Modules/Files/DotNetCloud.Modules.Files.Data/Services/Background/UploadSessionCleanupService.cs` — Release reserved quota for expired upload sessions
-- `src/Clients/DotNetCloud.Client.Android/Services/ApiExceptionHelper.cs` — Added `HttpStatusCode.Conflict` (409) handler so Android shows a meaningful error instead of "A connection error occurred"
+[Context/background — what changed, why, relevant commits]
 
 ---
 
 ### Server Actions — `cloud.kimball.home`
 
-After pulling:
+- [ ] Action 1 with exact commands
+- [ ] Action 2
 
-1. [ ] Deploy updated server: `dotnet publish src/Core/DotNetCloud.Core.Server -c Release -o /opt/dotnetcloud/publish` then `sudo systemctl restart dotnetcloud`
-2. [ ] Fix already-inflated quota in the database:
-   ```sql
-   UPDATE core.FileQuotas SET UsedBytes = COALESCE((SELECT SUM(Size) FROM core.FileNodes WHERE OwnerId = FileQuotas.UserId AND NodeType = 'File' AND IsDeleted = 0), 0), LastCalculatedAt = NOW(), UpdatedAt = NOW();
-   ```
-3. [ ] Verify health: `curl -k https://cloud.kimball.home/health`
-
-### Client Actions — `monolith` (Android client)
-
-- [x] `ApiExceptionHelper.cs` updated with 409 handler
-- [ ] Rebuild and deploy Android APK for testing
+### Client Actions — `mint-OptiPlex-7010`
 
 - [ ] Action 1 with exact commands
 - [ ] Action 2
@@ -106,46 +92,30 @@ After pulling:
 
 ## Active Handoff
 
-**Summary:** Complete gRPC conversion — Chat proto expansion, 9 stub methods replaced, CoreCapabilities placeholders wired.
+**Summary:** Rebuild Android APK with 409 Conflict handler, test photo uploads from phone
 
-**Context:** All high-priority and medium-priority items from the gRPC conversion audit are now complete:
+**Context:** Server-side quota double-counting fix is deployed on `cloud.kimball.home` (commit `cf183bee`) and database quotas have been recalculated (3 rows updated). The Android `ApiExceptionHelper.cs` already has the 409 handler committed, but the APK on the phone still has the old version showing "A connection error occurred" instead of a meaningful message.
 
-**Chat module — 9 new proto RPCs + server impl + client impl:**
-- `chat_service.proto` expanded with `MarkAsRead`, `GetUnreadCounts`, `ListChannelMembers`, `SendCallOffer`, `SendCallAnswer`, `SendIceCandidate`, `SendMediaStateChange`, `InviteToCall`, `TransferCallHost`
-- `ChatGrpcService.cs` — all 9 RPCs implemented, delegating to `IChannelMemberService`, `ICallSignalingService`, `IVideoCallService`
-- `ChatGrpcApiClient.cs` — all 9 stub methods replaced with real gRPC calls
-- 1272/1272 Chat module tests passing
-
-**CoreCapabilities placeholders wired:**
-- `SendNotification` — now resolves `INotificationService` from DI and dispatches to real notification pipeline
-- `PublishEvent` — documented limitation (generic `IEventBus.PublishAsync<TEvent>` needs event type registry; modules should use `BroadcastRealtimeEvent` RPC for now)
-
-**Cleanup:**
-- Fixed misleading "Legacy in-process HTTP clients" comment in `Program.cs:537`
-
-**SyncTray or Android app changes:** None. Only server-side files modified.
+**Files changed (already committed, need APK rebuild):**
+- `src/Clients/DotNetCloud.Client.Android/Services/ApiExceptionHelper.cs` — Added `HttpStatusCode.Conflict` (409) handler
 
 ---
 
 ### Server Actions — `cloud.kimball.home`
 
 - [x] `git pull` on `main` — pulled `cf183bee`
-- [x] `dotnet publish src/Core/DotNetCloud.Core.Server -c Release -o /opt/dotnetcloud/publish` — succeeded, copied to `/opt/dotnetcloud/server/`
-- [x] `dotnet publish src/Modules/Chat/DotNetCloud.Modules.Chat.Host -c Release -o /opt/dotnetcloud/modules/chat` — succeeded, copied to `/opt/dotnetcloud/server/modules/dotnetcloud.chat/`
-- [x] `sudo systemctl restart dotnetcloud` (core server) — active (running)
-- [x] `sudo systemctl restart dotnetcloud@chat` — unit not loaded (Chat runs as child process supervised by core)
-- [x] Verify health: `curl -k https://cloud.kimball.home/health` — 13/13 modules healthy (chat, contacts, files, calendar, about, notes, tracks, video, email, bookmarks, music, ai, search)
-- [ ] Verify new Chat RPCs: trigger a MarkAsRead or ListChannelMembers call from the UI and check module logs
-- [x] Endpoint routing verified: all return 401 (auth required, not 404)
+- [x] `dotnet publish src/Core/DotNetCloud.Core.Server -c Release -o /opt/dotnetcloud/publish` — deployed to `/opt/dotnetcloud/server/`
+- [x] `sudo systemctl restart dotnetcloud` — active (running)
+- [x] Verify health — 13/13 modules healthy
+- [x] Database quota fix: `UPDATE core.FileQuotas SET UsedBytes = ...` — 3 rows updated
+- [ ] Verify new Chat RPCs (MarkAsRead, ListChannelMembers) from UI — optional
 
 ### Client Actions — `monolith` (Android client)
 
-- [x] Replace hardcoded 10-band ProgressBars with device-accurate dynamic Sliders
-- [x] Fix EQ gain reset on every playback state change (only recreate on session change)
-- [x] Add save EQ preset dialog (name entry + overwrite existing) + REST client methods
-- [x] Add EQ icon button in title bar, remove from segmented tab bar
-- [x] All warnings fixed (0 warnings, 0 errors)
-- [x] Built and deployed to phone — sliders work
+- [ ] Pull `main` (commit `cf183bee` has the `ApiExceptionHelper.cs` change)
+- [ ] Rebuild Android APK
+- [ ] Deploy to test phone
+- [ ] Test: upload a photo from Android — should succeed on first try. Upload a second photo — should succeed (no 409). Try uploading a file larger than remaining quota — should show meaningful "quota exceeded" message instead of "A connection error occurred"
 
 ## Environment
 
