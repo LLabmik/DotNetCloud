@@ -110,7 +110,13 @@
                             </div>
                         }
 
-                        <div class="message-content">@RenderMarkdown(message.Content)</div>
+                        @{
+                            var renderedContent = RenderMarkdown(message.Content);
+                        }
+                        @if (!string.IsNullOrWhiteSpace(message.Content) || message.Attachments.Count == 0)
+                        {
+                            <div class="message-content">@renderedContent</div>
+                        }
 
                         @if (message.Attachments.Count > 0)
                         {
