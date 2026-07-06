@@ -36,18 +36,32 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 ```markdown
 ### Active Handoff
 
-**Summary:** [one-line description of what's happening]
+**Summary:** Fix quota double-counting bug causing "409 Conflict" on second photo upload from Android
 
-[Context/background — what changed, why, relevant commits]
+**Bug:** `InitiateUploadAsync` reserves quota via `TryReserveQuotaAsync` (adds file size to `UsedBytes`), then `CompleteUploadAsync` calls `AdjustUsedBytesAsync` which adds the same amount again — double-counting every upload. Also, `CancelUploadAsync` and `UploadSessionCleanupService` never released reserved quota on cancelled/expired sessions.
+
+**Files changed:**
+- `src/Modules/Files/DotNetCloud.Modules.Files.Data/Services/ChunkedUploadService.cs` — Fix `CompleteUploadAsync` to account for already-reserved quota (`finalAdjustment = quotaDelta - TotalSize`), and `CancelUploadAsync` to release reserved quota via `AdjustUsedBytesAsync(userId, -TotalSize)`
+- `src/Modules/Files/DotNetCloud.Modules.Files.Data/Services/Background/UploadSessionCleanupService.cs` — Release reserved quota for expired upload sessions
+- `src/Clients/DotNetCloud.Client.Android/Services/ApiExceptionHelper.cs` — Added `HttpStatusCode.Conflict` (409) handler so Android shows a meaningful error instead of "A connection error occurred"
 
 ---
 
 ### Server Actions — `cloud.kimball.home`
 
-- [ ] Action 1 with exact commands
-- [ ] Action 2
+After pulling:
 
-### Client Actions — `mint-OptiPlex-7010`
+1. [ ] Deploy updated server: `dotnet publish src/Core/DotNetCloud.Core.Server -c Release -o /opt/dotnetcloud/publish` then `sudo systemctl restart dotnetcloud`
+2. [ ] Fix already-inflated quota in the database:
+   ```sql
+   UPDATE core.FileQuotas SET UsedBytes = COALESCE((SELECT SUM(Size) FROM core.FileNodes WHERE OwnerId = FileQuotas.UserId AND NodeType = 'File' AND IsDeleted = 0), 0), LastCalculatedAt = NOW(), UpdatedAt = NOW();
+   ```
+3. [ ] Verify health: `curl -k https://cloud.kimball.home/health`
+
+### Client Actions — `monolith` (Android client)
+
+- [x] `ApiExceptionHelper.cs` updated with 409 handler
+- [ ] Rebuild and deploy Android APK for testing
 
 - [ ] Action 1 with exact commands
 - [ ] Action 2

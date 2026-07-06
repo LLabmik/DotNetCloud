@@ -22,6 +22,9 @@ internal static class ApiExceptionHelper
         HttpRequestException { StatusCode: HttpStatusCode.NotFound } =>
             "The requested item was not found on the server.",
 
+        HttpRequestException { StatusCode: HttpStatusCode.Conflict } =>
+            "A conflict occurred on the server. The file may already exist or your storage quota may be exceeded.",
+
         HttpRequestException { StatusCode: HttpStatusCode.InternalServerError or HttpStatusCode.BadGateway or HttpStatusCode.ServiceUnavailable } =>
             "The server is temporarily unavailable. Please try again later.",
 
