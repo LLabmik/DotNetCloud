@@ -41,6 +41,11 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
     // Pending attachment uploaded to server but waiting for Send button
     private ChatAttachment? _pendingAttachment;
 
+    /// <summary>Whether there's an image uploaded and waiting to be sent with the next message.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SendCommand))]
+    private bool _hasPendingAttachment;
+
     /// <summary>Initializes a new <see cref="MessageListViewModel"/>.</summary>
     public MessageListViewModel(
         IChatRestClient chatApi,
@@ -251,6 +256,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
         // Clear UI state immediately
         ComposerText = string.Empty;
         _pendingAttachment = null;
+        HasPendingAttachment = false;
         IsEmojiPickerOpen = false;
         ShowMentionSuggestions = false;
         IsSending = true;
@@ -287,6 +293,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
             _logger.LogError(ex, "Failed to send message.");
             ComposerText = content; // restore on failure
             _pendingAttachment = attachment; // restore pending attachment
+            HasPendingAttachment = attachment is not null;
             ErrorMessage = ApiExceptionHelper.GetUserFriendlyMessage(ex);
         }
         finally
@@ -362,9 +369,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
                 MimeType: uploadResult.MimeType,
                 FileSize: uploadResult.FileSize,
                 ThumbnailUrl: uploadResult.Url);
-
-            // Notify Send button to re-check CanExecute now that we have a pending attachment
-            SendCommand.NotifyCanExecuteChanged();
+            HasPendingAttachment = true;
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
@@ -421,7 +426,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
         ShowMentionSuggestions = matches.Count > 0 && partial.Length > 0;
     }
 
-    private bool CanSend() => (!string.IsNullOrWhiteSpace(ComposerText) || _pendingAttachment is not null) && !IsSending;
+    private bool CanSend() => (!string.IsNullOrWhiteSpace(ComposerText) || HasPendingAttachment) && !IsSending;
 
     /// <summary>Raised when the user wants to view full channel details.</summary>
     public event EventHandler? ViewDetailsRequested;
