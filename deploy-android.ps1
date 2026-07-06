@@ -19,7 +19,7 @@ $abiToRid = @{
 # --- Step 1: Resolve target device ---
 Write-Output "=== Step 1: Resolve Target Device ==="
 $devices = & "$env:ANDROID_HOME\platform-tools\adb.exe" devices 2>$null
-$deviceLines = $devices -split "`n" | Where-Object { $_ -match "^\S+\s+device$" }
+$deviceLines = $devices -replace "`r", "" -split "`n" | Where-Object { $_ -match "^\S+\s+device$" }
 
 if (-not $DeviceSerial) {
     # Auto-detect: prefer emulator, fall back to single physical device
