@@ -92,34 +92,9 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** Deploy Blazor chat image attachment rendering fix to production server
+No active handoff. All completed tasks have been archived (see `CLIENT_SERVER_MEDIATION_ARCHIVE.md`).
 
-**Context:** The Android chat image attachment feature was fully implemented (commits `2494f6b4`→`717aab63`). The Android APK has been deployed to the phone and confirmed working: the 📎 button uploads the image as a pending attachment, then the ↑ button sends text+image together in one message. The image renders correctly on both Android and Blazor.
-
-However, the Blazor UI was showing the filename twice for attachment-only messages. A rendering fix was applied in commit `8d0c3db6` — `MessageList.razor` now conditionally hides the `message-content` div when content is whitespace-only and attachments exist.
-
-This fix is **client-side Blazor code** (`src/Modules/Chat/DotNetCloud.Modules.Chat/UI/MessageList.razor`) — it runs on the server and needs a rebuild + restart to take effect. No DB migrations or config changes are involved.
-
-**Note:** The `deploy-android.ps1` script was also fixed (commit `c5821781`) — the device auto-detection regex now strips `\r` from `adb devices` output on Windows.
-
----
-
-### Server Actions — `cloud.kimball.home`
-
-- [ ] `git pull` on `main`
-- [ ] `dotnet publish src/Core/DotNetCloud.Core.Server -c Release -o /opt/dotnetcloud/publish`
-- [ ] `sudo systemctl restart dotnetcloud`
-- [ ] Verify health — all modules healthy
-- [ ] Test: open Blazor chat UI, send a message with an image attachment → filename should appear once, not twice
-
-### Client Actions — `monolith` (Android client)
-
-- [x] Pulled `main` (commits `2494f6b4`→`717aab63`→`8d0c3db6`)
-- [x] Rebuilt Android APK with chat image attachment fix
-- [x] Deployed to phone — 📎 uploads pending, ↑ sends text+image in one message
-- [x] Images render correctly on Android (absolute URL resolution)
-- [x] No duplicate messages (dedup fix for SignalR race)
-- [x] No crash when sending text+image together (removed `ConfigureAwait(false)`)
+**Last deploy:** `a579a02f` — Blazor chat image attachment rendering fix deployed. 14/14 modules healthy. Files.Host NU1903 vulnerability fixed (added explicit `Microsoft.OpenApi` reference).
 
 ## Environment
 

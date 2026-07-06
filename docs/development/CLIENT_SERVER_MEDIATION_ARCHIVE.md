@@ -1,6 +1,12 @@
 # Client/Server Mediation — Archived Context
 
-Archived: 2026-07-01. Full git history preserved.
+Archived: 2026-07-06. Full git history preserved.
+
+## Archived: Blazor Chat Image Attachment Rendering Fix — Deployed (2026-07-06)
+
+**Target:** cloud.kimball.home → production deploy
+
+**Result:** ✅ Server deployed with commit `a579a02f`. Blazor `MessageList.razor` rendering fix for attachment-only messages live. Files.Host had NU1903 vulnerability in transitive `Microsoft.OpenApi` 2.0.0 — fixed by adding explicit `Microsoft.OpenApi` reference. 14/14 modules healthy.
 
 ## Archived: Android EQ Preset Server-Side Endpoints — Verified & Deployed (2026-07-01)
 
