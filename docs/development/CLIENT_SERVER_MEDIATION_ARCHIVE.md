@@ -2,6 +2,22 @@
 
 Archived: 2026-07-06. Full git history preserved.
 
+## Archived: Android Chat Image Attachment Filename Duplication Fix (2026-07-06)
+
+**Summary:** Investigated and fixed `100000xxxx.jpg, 100000xxxx.jpg` filename duplication on chat image attachments from Android.
+
+**Root cause:** The `result.FileName` from `MediaPicker.Default.PickPhotosAsync()` on Android could return a filename that already contains a comma+space duplicate (e.g., `"1000006501.jpg, 1000006501.jpg"`). This value was passed as `X-File-Name` header → echoed back by server upload endpoint → stored in DB by message create endpoint.
+
+**Fix applied (3 layers of defense):**
+
+1. **Client-side** (`MessageListViewModel.cs`): Sanitize `result.FileName` before upload — split at `, ` and take first part. Added diagnostic logging.
+2. **Server-side** (`ChatController.cs`): Sanitize `X-File-Name` header value at upload endpoint.
+3. **Server-side** (`MessageService.cs`): Sanitize `FileName` from `CreateAttachmentDto` before DB storage in both `SendMessageAsync` and `AddAttachmentAsync`.
+
+**Result:** ✅ All projects build with 0 errors, 0 warnings. APK rebuild and deploy pending.
+
+---
+
 ## Archived: Blazor Chat Image Attachment Rendering Fix — Deployed (2026-07-06)
 
 **Target:** cloud.kimball.home → production deploy

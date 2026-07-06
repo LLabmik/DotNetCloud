@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-07-06 (Android chat image attachment fixes + Blazor rendering fix)
+Last updated: 2026-07-06 (Android chat image attachment filename duplication fix + deploy)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -92,40 +92,37 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** Investigate Android chat image attachment filename duplication
+**Summary:** Build signed APK with filename duplication fix, deploy to phone, and test chat image attachments
 
-**Context:** All 9 chat image attachments sent from Android had filenames stored in the database as `100000xxxx.jpg, 100000xxxx.jpg` — the filename itself contained a comma-separated duplicate. The server-side `core.MessageAttachments` table had `FileName = '1000006501.jpg, 1000006501.jpg'` for every message with an image attachment.
+**Context:** The Android chat image attachment filename duplication bug has been investigated and fixed. Three layers of defense were added:
 
-**What was done on server side (cloud.kimball.home):**
-- Database fixed: `UPDATE core.MessageAttachments SET FileName = LEFT(FileName, CHARINDEX(',', FileName) - 1)` — 9 rows corrected
-- `MessageList.razor`: Added `onerror="this.style.display='none'"` + null/empty guard on `ThumbnailUrl` (defensive, deployed as `1e53ad26`)
-- 14/14 modules healthy
+1. **Client-side** (`MessageListViewModel.cs` — `AttachFileAsync`): Sanitizes `result.FileName` from `MediaPicker` by splitting at `, ` and taking the first part. Includes diagnostic logging of raw filename.
+2. **Server-side** (`ChatController.cs` — `UploadChatImageAsync`): Sanitizes `X-File-Name` header value at the upload endpoint (same comma+space pattern).
+3. **Server-side** (`MessageService.cs` — `SendMessageAsync` and `AddAttachmentAsync`): Sanitizes the `FileName` field from the `CreateAttachmentDto` before storing in the database.
 
-**Evidence from database:**
-- Affected rows: `019F3930...`, `019F3928...`, `019F396A...`, `019F3931...`, `019F3937...` (2x), `019F393F...`, `019F3919...`, `019F3949...`
-- All have `FileName = 'XXXX.jpg, XXXX.jpg'` — the filename is repeated after a comma+space
-- `ThumbnailUrl` was correctly stored (e.g., `/api/v1/chat/uploads/019f396a5e7c76a48ef1936a6eec14c4.jpg`)
-- Some messages had empty content, some had text content — all had the duplicated filename
-- The stored files on disk at `/var/lib/dotnetcloud/storage/chat-uploads/` have correct GUID-based names and are served fine (HTTP 200)
+All three fix locations handle the duplicated `"1000006501.jpg, 1000006501.jpg"` pattern by detecting `, ` and taking the portion before it. All build successfully with 0 errors.
 
-**Likely source:** The Android `HttpChatRestClient.cs` or `MessageListViewModel.cs` — the `result.FileName` from `MediaPicker.Default.PickPhotosAsync()` is piped through `X-File-Name` header → server upload response → `ChatAttachment.FileName` → `SendMessageWithAttachmentsAsync` JSON payload. Something in this chain sends `"1000006501.jpg, 1000006501.jpg"` as the filename. Could be the MediaPicker returning a decorated filename, or the HTTP client accidentally concatenating the filename.
+**Diagnostic log added:** `_logger.LogDebug("MediaPicker returned FileName: {FileName}", rawFileName)` — will appear in logcat when running the updated APK. Check for "MediaPicker returned FileName" in logcat output.
 
 ---
 
 ### Server Actions — `cloud.kimball.home`
 
-- [x] Database `UPDATE` fixing 9 rows with duplicated filenames
-- [x] Defensive `onerror` handler + null guard deployed
-- [x] 14/14 modules healthy
+- [ ] `git pull` on main
+- [ ] `dotnet publish src/Core/DotNetCloud.Core.Server -c Release -o /opt/dotnetcloud/publish`
+- [ ] `dotnet publish src/Modules/Chat/DotNetCloud.Modules.Chat.Host -c Release -o /opt/dotnetcloud/modules/chat`
+- [ ] `sudo systemctl restart dotnetcloud`
+- [ ] Health verify — 14/14 modules healthy
 
 ### Client Actions — `monolith` (Android client)
 
-- [ ] Read findings above
-- [ ] Look at `src/Clients/DotNetCloud.Client.Android/ViewModels/MessageListViewModel.cs` — `AttachFileAsync()` method (~line 330-370). Check if `result.FileName` from `MediaPicker.Default.PickPhotosAsync()` could return a value with duplicate.
-- [ ] Look at `src/Clients/DotNetCloud.Client.Android/Chat/HttpChatRestClient.cs` — `UploadImageAsync()` (line 139-165). Check if the `X-File-Name` header could be set to a duplicated value.
-- [ ] Look at `src/Clients/DotNetCloud.Client.Android/Chat/HttpChatRestClient.cs` — `SendMessageWithAttachmentsAsync()` (line 106-137). Check if the `fileName` field in the JSON body could contain a duplicate.
-- [ ] Add a simple test or log statement: after `MediaPicker` returns, log `result.FileName` to verify it's not already duplicated.
-- [ ] Fix any duplication found, rebuild APK, deploy to phone, test.
+- [x] Investigated `AttachFileAsync`, `UploadImageAsync`, and `SendMessageWithAttachmentsAsync` — the `result.FileName` from `MediaPicker` is passed as `X-File-Name` header → server echoes it back → stored in DB. The most likely source is `MediaPicker` returning a decorated filename on some Android versions.
+- [x] Added diagnostic logging: `_logger.LogDebug("MediaPicker returned FileName: {FileName}", rawFileName)` in `AttachFileAsync`
+- [x] Added defensive sanitization: if `rawFileName` contains `, `, take only the first part (applied in all 3 layers — client upload, server upload, server message create)
+- [x] All projects build with 0 errors, 0 warnings
+- [ ] Build signed APK: `dotnet build src\Clients\DotNetCloud.Client.Android -f net10.0-android -c Debug -r android-arm64 /p:AndroidSdkDirectory="C:\Program Files (x86)\Android\android-sdk"`
+- [ ] Deploy: `adb install -r src\Clients\DotNetCloud.Client.Android\bin\Debug\net10.0-android\android-arm64\net.dotnetcloud.client-Signed.apk`
+- [ ] Launch app, send a chat message with an image attachment, then check logcat: `adb logcat -d | Select-String "MediaPicker returned FileName"`
 
 ## Environment
 

@@ -348,6 +348,21 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
 
             ErrorMessage = null;
 
+            // Log the raw filename from MediaPicker for diagnostic purposes
+            var rawFileName = result.FileName;
+            _logger.LogDebug("MediaPicker returned FileName: {FileName}", rawFileName);
+
+            // Defensive sanitization: if the filename contains a comma + space (possible
+            // duplication from MediaPicker on some Android versions), take only the first part.
+            // See handoff notes for full investigation context.
+            var sanitizedFileName = rawFileName;
+            var commaIdx = sanitizedFileName.IndexOf(", ", StringComparison.Ordinal);
+            if (commaIdx > 0)
+            {
+                sanitizedFileName = sanitizedFileName[..commaIdx];
+                _logger.LogWarning("Sanitized duplicated filename: {Original} -> {Sanitized}", rawFileName, sanitizedFileName);
+            }
+
             // Step 1: Read the picked file into memory
             byte[] fileBytes;
             using (var sourceStream = await result.OpenReadAsync())
@@ -361,7 +376,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
             using var uploadStream = new MemoryStream(fileBytes);
             var uploadResult = await _chatApi.UploadImageAsync(
                 _serverUrl!, _accessToken!, _channelId,
-                uploadStream, result.FileName, result.ContentType ?? "image/jpeg", ct);
+                uploadStream, sanitizedFileName, result.ContentType ?? "image/jpeg", ct);
 
             _pendingAttachment = new ChatAttachment(
                 Id: Guid.Empty, // server assigns the actual ID

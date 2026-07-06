@@ -765,6 +765,19 @@ public class ChatController : ChatControllerBase
             var contentType = Request.ContentType ?? "image/png";
             var fileName = Request.Headers["X-File-Name"].FirstOrDefault() ?? "uploaded-image.png";
 
+            // Defensive sanitization: handle comma+space duplication in filename
+            // (observed from Android MediaPicker on some devices)
+            if (fileName is { Length: > 0 })
+            {
+                var commaIdx = fileName.IndexOf(", ", StringComparison.Ordinal);
+                if (commaIdx > 0)
+                {
+                    var original = fileName;
+                    fileName = fileName[..commaIdx];
+                    _logger.LogWarning("Sanitized duplicated filename from header: {Original} -> {Sanitized}", original, fileName);
+                }
+            }
+
             var result = await _chatImageStore.SaveAsync(fileName, contentType, data);
 
             return Ok(Envelope(new
