@@ -28,6 +28,28 @@ Archived: 2026-07-01. Full git history preserved.
 
 ---
 
+## Archived: 409 Conflict Handler + Quota Recalculation (2026-07-06)
+
+**Target:** cloud.kimball.home → production deploy + monolith → Android APK rebuild
+
+**Result:** ✅ Server deployed (`cf183bee`), quotas recalculated (3 rows). Android APK rebuilt with `ApiExceptionHelper.cs` 409 handler and deployed to phone.
+
+### Server Actions — `cloud.kimball.home`
+
+- [x] `git pull` on `main` — pulled `cf183bee`
+- [x] `dotnet publish src/Core/DotNetCloud.Core.Server -c Release -o /opt/dotnetcloud/publish` — deployed
+- [x] `sudo systemctl restart dotnetcloud` — active (running)
+- [x] Verify health — 13/13 modules healthy
+- [x] Database quota fix: `UPDATE core.FileQuotas SET UsedBytes = ...` — 3 rows updated
+
+### Client Actions — `monolith` (Android client)
+
+- [x] Pulled `main` (commit `cf183bee`)
+- [x] Rebuilt Android APK with 409 handler
+- [x] Deployed and tested on phone
+
+---
+
 ## Archived: Android Calendar Tab + Chat SignalR Fixes (2026-06-30)
 
 **Target:** cloud.kimball.home → production merge

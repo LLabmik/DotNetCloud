@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-07-05 (Photo upload testing — rebuild APK on monolith, verify 409 fix)
+Last updated: 2026-07-06 (Android chat image attachment fixes + Blazor rendering fix)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -92,30 +92,34 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** Rebuild Android APK with 409 Conflict handler, test photo uploads from phone
+**Summary:** Deploy Blazor chat image attachment rendering fix to production server
 
-**Context:** Server-side quota double-counting fix is deployed on `cloud.kimball.home` (commit `cf183bee`) and database quotas have been recalculated (3 rows updated). The Android `ApiExceptionHelper.cs` already has the 409 handler committed, but the APK on the phone still has the old version showing "A connection error occurred" instead of a meaningful message.
+**Context:** The Android chat image attachment feature was fully implemented (commits `2494f6b4`→`717aab63`). The Android APK has been deployed to the phone and confirmed working: the 📎 button uploads the image as a pending attachment, then the ↑ button sends text+image together in one message. The image renders correctly on both Android and Blazor.
 
-**Files changed (already committed, need APK rebuild):**
-- `src/Clients/DotNetCloud.Client.Android/Services/ApiExceptionHelper.cs` — Added `HttpStatusCode.Conflict` (409) handler
+However, the Blazor UI was showing the filename twice for attachment-only messages. A rendering fix was applied in commit `8d0c3db6` — `MessageList.razor` now conditionally hides the `message-content` div when content is whitespace-only and attachments exist.
+
+This fix is **client-side Blazor code** (`src/Modules/Chat/DotNetCloud.Modules.Chat/UI/MessageList.razor`) — it runs on the server and needs a rebuild + restart to take effect. No DB migrations or config changes are involved.
+
+**Note:** The `deploy-android.ps1` script was also fixed (commit `c5821781`) — the device auto-detection regex now strips `\r` from `adb devices` output on Windows.
 
 ---
 
 ### Server Actions — `cloud.kimball.home`
 
-- [x] `git pull` on `main` — pulled `cf183bee`
-- [x] `dotnet publish src/Core/DotNetCloud.Core.Server -c Release -o /opt/dotnetcloud/publish` — deployed to `/opt/dotnetcloud/server/`
-- [x] `sudo systemctl restart dotnetcloud` — active (running)
-- [x] Verify health — 13/13 modules healthy
-- [x] Database quota fix: `UPDATE core.FileQuotas SET UsedBytes = ...` — 3 rows updated
-- [ ] Verify new Chat RPCs (MarkAsRead, ListChannelMembers) from UI — optional
+- [ ] `git pull` on `main`
+- [ ] `dotnet publish src/Core/DotNetCloud.Core.Server -c Release -o /opt/dotnetcloud/publish`
+- [ ] `sudo systemctl restart dotnetcloud`
+- [ ] Verify health — all modules healthy
+- [ ] Test: open Blazor chat UI, send a message with an image attachment → filename should appear once, not twice
 
 ### Client Actions — `monolith` (Android client)
 
-- [ ] Pull `main` (commit `cf183bee` has the `ApiExceptionHelper.cs` change)
-- [ ] Rebuild Android APK
-- [ ] Deploy to test phone
-- [ ] Test: upload a photo from Android — should succeed on first try. Upload a second photo — should succeed (no 409). Try uploading a file larger than remaining quota — should show meaningful "quota exceeded" message instead of "A connection error occurred"
+- [x] Pulled `main` (commits `2494f6b4`→`717aab63`→`8d0c3db6`)
+- [x] Rebuilt Android APK with chat image attachment fix
+- [x] Deployed to phone — 📎 uploads pending, ↑ sends text+image in one message
+- [x] Images render correctly on Android (absolute URL resolution)
+- [x] No duplicate messages (dedup fix for SignalR race)
+- [x] No crash when sending text+image together (removed `ConfigureAwait(false)`)
 
 ## Environment
 
