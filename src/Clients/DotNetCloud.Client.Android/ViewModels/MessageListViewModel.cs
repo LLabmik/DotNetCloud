@@ -213,7 +213,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
             {
                 var senderName = ResolveSenderName(m.SenderUserId, m.SenderName);
                 var isOwn = m.SenderUserId == _currentUserId;
-                Messages.Add(new MessageItemViewModel(m.Id, senderName, m.Content, m.SentAt, isOwn));
+                Messages.Add(new MessageItemViewModel(m.Id, senderName, m.Content, m.SentAt, isOwn, m.Attachments, _serverUrl));
             }
 
             // Update cache in background
@@ -256,7 +256,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
             // The SignalR handler's dedup check (by MessageId) prevents duplicates.
             var senderName = ResolveSenderName(sentMessage.SenderUserId, sentMessage.SenderName);
             var isOwn = sentMessage.SenderUserId == _currentUserId;
-            var vm = new MessageItemViewModel(sentMessage.Id, senderName, sentMessage.Content, sentMessage.SentAt, isOwn);
+            var vm = new MessageItemViewModel(sentMessage.Id, senderName, sentMessage.Content, sentMessage.SentAt, isOwn, sentMessage.Attachments, _serverUrl);
             Messages.Add(vm);
 
             // Cache the message locally for offline access
@@ -342,13 +342,13 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
 
             var sentMessage = await _chatApi.SendMessageWithAttachmentsAsync(
                 _serverUrl!, _accessToken!, _channelId,
-                content: string.Empty,
+                content: " ",
                 attachments: [attachment], ct);
 
             // Add the sent message to the UI immediately
             var senderName = ResolveSenderName(sentMessage.SenderUserId, sentMessage.SenderName);
             var isOwn = sentMessage.SenderUserId == _currentUserId;
-            var vm = new MessageItemViewModel(sentMessage.Id, senderName, sentMessage.Content, sentMessage.SentAt, isOwn, sentMessage.Attachments);
+            var vm = new MessageItemViewModel(sentMessage.Id, senderName, sentMessage.Content, sentMessage.SentAt, isOwn, sentMessage.Attachments, _serverUrl);
             Messages.Add(vm);
 
             // Cache the message locally for offline access
@@ -470,7 +470,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
             }
 
             var isOwn = e.SenderUserId != Guid.Empty && e.SenderUserId == _currentUserId;
-            var vm = new MessageItemViewModel(e.MessageId, e.SenderDisplayName, e.MessagePreview, new DateTimeOffset(e.SentAt, TimeSpan.Zero), isOwn, attachments);
+            var vm = new MessageItemViewModel(e.MessageId, e.SenderDisplayName, e.MessagePreview, new DateTimeOffset(e.SentAt, TimeSpan.Zero), isOwn, attachments, _serverUrl);
             Messages.Add(vm);
 
             // Cache the message locally for offline access
@@ -496,7 +496,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
 public sealed class MessageItemViewModel
 {
     /// <summary>Initializes a message list item.</summary>
-    public MessageItemViewModel(Guid id, string senderName, string content, DateTimeOffset sentAt, bool isOwnMessage = false, IReadOnlyList<ChatAttachment>? attachments = null)
+    public MessageItemViewModel(Guid id, string senderName, string content, DateTimeOffset sentAt, bool isOwnMessage = false, IReadOnlyList<ChatAttachment>? attachments = null, string? serverBaseUrl = null)
     {
         Id = id;
         SenderName = senderName;
@@ -505,7 +505,18 @@ public sealed class MessageItemViewModel
         IsOwnMessage = isOwnMessage;
         Attachments = attachments ?? [];
         HasImageAttachment = Attachments.Any(a => a.MimeType.StartsWith("image/", StringComparison.OrdinalIgnoreCase));
-        FirstImageUrl = Attachments.FirstOrDefault(a => a.MimeType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))?.ThumbnailUrl;
+
+        // Resolve relative thumbnail URLs against the server base URL (MAUI Image needs absolute)
+        var firstImage = Attachments.FirstOrDefault(a => a.MimeType.StartsWith("image/", StringComparison.OrdinalIgnoreCase));
+        if (firstImage?.ThumbnailUrl is not null)
+        {
+            var url = firstImage.ThumbnailUrl;
+            if (url.StartsWith('/') && serverBaseUrl is not null)
+            {
+                url = serverBaseUrl.TrimEnd('/') + url;
+            }
+            FirstImageUrl = url;
+        }
     }
 
     /// <summary>Message identifier.</summary>
@@ -532,7 +543,7 @@ public sealed class MessageItemViewModel
     /// <summary>Whether this message has at least one image attachment.</summary>
     public bool HasImageAttachment { get; }
 
-    /// <summary>URL of the first image attachment for inline preview.</summary>
+    /// <summary>Absolute URL of the first image attachment for inline preview.</summary>
     public string? FirstImageUrl { get; }
 
     /// <summary>Formatted send time for display, matching Blazor's tiered FormatTime.</summary>
