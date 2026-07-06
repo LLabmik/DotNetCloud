@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-07-03 (gRPC conversion TODOs — Chat proto expansion & stub resolution)
+Last updated: 2026-07-05 (Server deployed — cloud.kimball.home gRPC conversion published)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -129,15 +129,14 @@ After pulling:
 
 ### Server Actions — `cloud.kimball.home`
 
-- [ ] `git pull` on `main`
-- [ ] `dotnet publish src/Core/DotNetCloud.Core.Server -c Release -o /opt/dotnetcloud/publish`
-- [ ] `dotnet publish src/Modules/Chat/DotNetCloud.Modules.Chat.Host -c Release -o /opt/dotnetcloud/modules/chat`
-- [ ] `sudo systemctl restart dotnetcloud` (core server)
-- [ ] `sudo systemctl restart dotnetcloud@chat` (Chat module host)
-- [ ] Verify health: `curl -k https://cloud.kimball.home/health` — all 14 modules should report healthy
+- [x] `git pull` on `main` — pulled `cf183bee`
+- [x] `dotnet publish src/Core/DotNetCloud.Core.Server -c Release -o /opt/dotnetcloud/publish` — succeeded, copied to `/opt/dotnetcloud/server/`
+- [x] `dotnet publish src/Modules/Chat/DotNetCloud.Modules.Chat.Host -c Release -o /opt/dotnetcloud/modules/chat` — succeeded, copied to `/opt/dotnetcloud/server/modules/dotnetcloud.chat/`
+- [x] `sudo systemctl restart dotnetcloud` (core server) — active (running)
+- [x] `sudo systemctl restart dotnetcloud@chat` — unit not loaded (Chat runs as child process supervised by core)
+- [x] Verify health: `curl -k https://cloud.kimball.home/health` — 13/13 modules healthy (chat, contacts, files, calendar, about, notes, tracks, video, email, bookmarks, music, ai, search)
 - [ ] Verify new Chat RPCs: trigger a MarkAsRead or ListChannelMembers call from the UI and check module logs
 - [x] Endpoint routing verified: all return 401 (auth required, not 404)
-- [ ] Create PR to merge `feature/fix-android-music-equalizer` to `main`
 
 ### Client Actions — `monolith` (Android client)
 
