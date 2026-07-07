@@ -2,6 +2,20 @@
 
 Archived: 2026-07-06. Full git history preserved.
 
+## Archived: Server Deploy — Chat Image Attachment Filename Fix (2026-07-06)
+
+**Target:** cloud.kimball.home → production deploy
+
+**Result:** ✅ Server deployed with commit `e3fa1363`. Chat module Host + Core.Server published. 14/14 modules healthy.
+
+**Completed (cloud.kimball.home):**
+- ✅ `git pull` on main
+- ✅ `dotnet publish` via deploy script (incremental mode — detected Chat + Core changes)
+- ✅ `sudo systemctl restart dotnetcloud`
+- ✅ Health verified — 14/14 modules healthy
+
+---
+
 ## Archived: Android Chat Image Attachment Filename Duplication Fix (2026-07-06)
 
 **Summary:** Investigated and fixed `100000xxxx.jpg, 100000xxxx.jpg` filename duplication on chat image attachments from Android.

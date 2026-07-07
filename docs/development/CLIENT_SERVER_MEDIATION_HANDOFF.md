@@ -92,27 +92,21 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** Build signed APK with filename duplication fix, deploy to phone, and test chat image attachments
+**Summary:** Rebuild signed APK with filename duplication fix, deploy to phone, and test chat image attachments
 
-**Context:** The Android chat image attachment filename duplication bug has been investigated and fixed. Three layers of defense were added:
-
-1. **Client-side** (`MessageListViewModel.cs` — `AttachFileAsync`): Sanitizes `result.FileName` from `MediaPicker` by splitting at `, ` and taking the first part. Includes diagnostic logging of raw filename.
-2. **Server-side** (`ChatController.cs` — `UploadChatImageAsync`): Sanitizes `X-File-Name` header value at the upload endpoint (same comma+space pattern).
-3. **Server-side** (`MessageService.cs` — `SendMessageAsync` and `AddAttachmentAsync`): Sanitizes the `FileName` field from the `CreateAttachmentDto` before storing in the database.
-
-All three fix locations handle the duplicated `"1000006501.jpg, 1000006501.jpg"` pattern by detecting `, ` and taking the portion before it. All build successfully with 0 errors.
+**Context:** Server-side deploy complete (commit `e3fa1363`). Chat module filenames now sanitized on both upload and DB storage. Client-side fix in `MessageListViewModel.cs` also committed. APK rebuild needed.
 
 **Diagnostic log added:** `_logger.LogDebug("MediaPicker returned FileName: {FileName}", rawFileName)` — will appear in logcat when running the updated APK. Check for "MediaPicker returned FileName" in logcat output.
 
 ---
 
-### Server Actions — `cloud.kimball.home`
+### Client Actions — `monolith`
 
 - [ ] `git pull` on main
-- [ ] `dotnet publish src/Core/DotNetCloud.Core.Server -c Release -o /opt/dotnetcloud/publish`
-- [ ] `dotnet publish src/Modules/Chat/DotNetCloud.Modules.Chat.Host -c Release -o /opt/dotnetcloud/modules/chat`
-- [ ] `sudo systemctl restart dotnetcloud`
-- [ ] Health verify — 14/14 modules healthy
+- [ ] Build signed APK in VS 2022 (Android)
+- [ ] Deploy APK to phone via ADB
+- [ ] Test: attach image in chat — verify filename is `100000xxxx.jpg` (not `100000xxxx.jpg, 100000xxxx.jpg`)
+- [ ] Check logcat for "MediaPicker returned FileName" diagnostic log
 
 ## Environment
 
