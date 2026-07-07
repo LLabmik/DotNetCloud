@@ -7,7 +7,7 @@ namespace DotNetCloud.Client.Android.Services;
 public interface ILocalMessageCache
 {
     /// <summary>Returns the most recent <paramref name="count"/> messages for a channel.</summary>
-    Task<IReadOnlyList<CachedMessage>> GetRecentAsync(Guid channelId, int count = 50, CancellationToken ct = default);
+    Task<IReadOnlyList<CachedMessage>> GetRecentAsync(Guid channelId, int count = 25, CancellationToken ct = default);
 
     /// <summary>Upserts messages into the local cache.</summary>
     Task UpsertAsync(IEnumerable<CachedMessage> messages, CancellationToken ct = default);
