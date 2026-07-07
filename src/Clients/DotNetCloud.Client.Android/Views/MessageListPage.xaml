@@ -4,6 +4,7 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:vm="clr-namespace:DotNetCloud.Client.Android.ViewModels"
+    x:Name="ThisPage"
     Title="{Binding ChannelName}"
     BackgroundColor="#0F172A">
 
@@ -71,6 +72,11 @@
                         Margin="12,3"
                         Padding="14,10"
                         HorizontalOptions="Start">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer
+                                Command="{Binding BindingContext.GoToMessageCommand, Source={x:Reference ThisPage}}"
+                                CommandParameter="{Binding .}"/>
+                        </Border.GestureRecognizers>
 
                         <!-- Own-message overrides: right-aligned with blue bubble -->
                         <Border.Triggers>

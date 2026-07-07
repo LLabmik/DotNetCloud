@@ -33,6 +33,7 @@ public partial class MessageListPage : ContentPage
         vm.ViewDetailsRequested += OnViewDetailsRequested;
         vm.OlderMessagesLoaded += OnOlderMessagesLoaded;
         vm.ScrollToBottomRequested += OnScrollToBottomRequested;
+        vm.ScrollToMessageRequested += OnScrollToMessageRequested;
     }
 
     /// <inheritdoc />
@@ -61,12 +62,32 @@ public partial class MessageListPage : ContentPage
     {
         base.OnDisappearing();
         _vm.ScrollToBottomRequested -= OnScrollToBottomRequested;
+        _vm.ScrollToMessageRequested -= OnScrollToMessageRequested;
         _vm.OlderMessagesLoaded -= OnOlderMessagesLoaded;
         if (_scrollSubscribed)
         {
             MessageList.Scrolled -= OnMessageListScrolled;
             _scrollSubscribed = false;
         }
+    }
+
+    /// <summary>
+    /// Scrolls the message list to the message matching <paramref name="messageId"/>,
+    /// centered in the viewport with animation.
+    /// </summary>
+    private void OnScrollToMessageRequested(object? sender, Guid messageId)
+    {
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            for (var i = 0; i < _vm.Messages.Count; i++)
+            {
+                if (_vm.Messages[i].Id == messageId)
+                {
+                    MessageList.ScrollTo(i, position: ScrollToPosition.Center, animate: true);
+                    break;
+                }
+            }
+        });
     }
 
     /// <summary>

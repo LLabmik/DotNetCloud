@@ -63,6 +63,9 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
     /// <summary>Raised after the initial message load completes, signaling the view should scroll to the latest message.</summary>
     public event EventHandler? ScrollToBottomRequested;
 
+    /// <summary>Raised after closing search, signaling the view should scroll to the tapped search result message.</summary>
+    public event EventHandler<Guid>? ScrollToMessageRequested;
+
     /// <summary>Whether there's an image uploaded and waiting to be sent with the next message.</summary>
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SendCommand))]
@@ -614,6 +617,22 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
                 _ = LoadMessagesAsync(CancellationToken.None);
             }
         }
+    }
+
+    /// <summary>Closes search and scrolls to the specified message in the full message list.</summary>
+    [RelayCommand]
+    private async Task GoToMessageAsync(MessageItemViewModel? message)
+    {
+        if (message is null || _activeSearchQuery is null)
+            return;
+
+        var targetId = message.Id;
+
+        // Close search first — this reloads the full message list
+        await CloseSearchAsync();
+
+        // Signal the view to scroll to the target message
+        ScrollToMessageRequested?.Invoke(this, targetId);
     }
 
     /// <summary>Closes the search panel and restores the normal message list.</summary>
