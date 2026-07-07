@@ -1,6 +1,15 @@
 # Client/Server Mediation — Archived Context
 
-Archived: 2026-07-06. Full git history preserved.
+Archived: 2026-07-07. Full git history preserved.
+
+## Archived: Android Chat Search Fix — Deployed Client (2026-07-07)
+
+**Result:** ✅ Android APK deployed to monolith with search close button fix.
+
+**Completed (monolith):**
+- ✅ Search close button switched from `Button` (clipped by internal padding) to `Label` with `TapGestureRecognizer` at FontSize=22, WidthRequest=44
+
+---
 
 ## Archived: Server Deploy — Chat Image Attachment Filename Fix (2026-07-06)
 

@@ -38,15 +38,19 @@
                     TextColor="#F1F5F9"
                     BackgroundColor="#0F172A"
                     Text="{Binding SearchQuery}"/>
-                <Button
+                <Label
                     Grid.Column="1"
                     Text="✕"
-                    Command="{Binding CloseSearchCommand}"
-                    BackgroundColor="Transparent"
                     TextColor="#94A3B8"
-                    FontSize="16"
-                    WidthRequest="36"
-                    HeightRequest="36"/>
+                    FontSize="22"
+                    HorizontalTextAlignment="Center"
+                    VerticalTextAlignment="Center"
+                    WidthRequest="44"
+                    HeightRequest="36">
+                    <Label.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding CloseSearchCommand}"/>
+                    </Label.GestureRecognizers>
+                </Label>
             </Grid>
         </Border>
 
