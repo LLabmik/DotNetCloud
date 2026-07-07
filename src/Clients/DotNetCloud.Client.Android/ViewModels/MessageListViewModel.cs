@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Android.Util;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DotNetCloud.Client.Android.Auth;
@@ -351,6 +352,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
             // Log the raw filename from MediaPicker for diagnostic purposes
             var rawFileName = result.FileName;
             _logger.LogDebug("MediaPicker returned FileName: {FileName}", rawFileName);
+            Log.Info("DotNetCloud", $"MediaPicker returned FileName: {rawFileName}");
 
             // Defensive sanitization: if the filename contains a comma + space (possible
             // duplication from MediaPicker on some Android versions), take only the first part.

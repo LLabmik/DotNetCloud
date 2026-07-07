@@ -18,15 +18,20 @@ Archived: 2026-07-06. Full git history preserved.
 
 ## Archived: Android Chat Image Attachment Filename Duplication Fix (2026-07-06)
 
-**Summary:** Investigated and fixed `100000xxxx.jpg, 100000xxxx.jpg` filename duplication on chat image attachments from Android.
+**Summary:** Investigated and fixed `100000xxxx.jpg, 100000xxxx.jpg` filename duplication on chat image attachments from Android. All layers deployed and verified.
 
 **Root cause:** The `result.FileName` from `MediaPicker.Default.PickPhotosAsync()` on Android could return a filename that already contains a comma+space duplicate (e.g., `"1000006501.jpg, 1000006501.jpg"`). This value was passed as `X-File-Name` header → echoed back by server upload endpoint → stored in DB by message create endpoint.
 
 **Fix applied (3 layers of defense):**
 
-1. **Client-side** (`MessageListViewModel.cs`): Sanitize `result.FileName` before upload — split at `, ` and take first part. Added diagnostic logging.
+1. **Client-side** (`MessageListViewModel.cs`): Sanitize `result.FileName` before upload — split at `, ` and take first part. Added diagnostic logging via `Log.Info("DotNetCloud", ...)`.
 2. **Server-side** (`ChatController.cs`): Sanitize `X-File-Name` header value at upload endpoint.
 3. **Server-side** (`MessageService.cs`): Sanitize `FileName` from `CreateAttachmentDto` before DB storage in both `SendMessageAsync` and `AddAttachmentAsync`.
+
+**Verification (monolith, 2026-07-06):**
+- ✅ APK built with 0 errors, 0 warnings, deployed via ADB
+- ✅ Chat image attachment sent successfully — image displays correctly
+- ✅ Logcat diagnostic: `07-06 22:43:20.398 I DotNetCloud: MediaPicker returned FileName: 1000006327.jpg` — clean filename, no duplication
 
 **Result:** ✅ All projects build with 0 errors, 0 warnings. APK rebuild and deploy pending.
 

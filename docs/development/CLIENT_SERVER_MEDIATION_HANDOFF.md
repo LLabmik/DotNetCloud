@@ -92,21 +92,9 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** Rebuild signed APK with filename duplication fix, deploy to phone, and test chat image attachments
+No active handoff. All tasks complete.
 
-**Context:** Server-side deploy complete (commit `e3fa1363`). Chat module filenames now sanitized on both upload and DB storage. Client-side fix in `MessageListViewModel.cs` also committed. APK rebuild needed.
-
-**Diagnostic log added:** `_logger.LogDebug("MediaPicker returned FileName: {FileName}", rawFileName)` — will appear in logcat when running the updated APK. Check for "MediaPicker returned FileName" in logcat output.
-
----
-
-### Client Actions — `monolith`
-
-- [ ] `git pull` on main
-- [ ] Build signed APK in VS 2022 (Android)
-- [ ] Deploy APK to phone via ADB
-- [ ] Test: attach image in chat — verify filename is `100000xxxx.jpg` (not `100000xxxx.jpg, 100000xxxx.jpg`)
-- [ ] Check logcat for "MediaPicker returned FileName" diagnostic log
+**Last completed:** Android chat image attachment filename duplication fix — deployed server-side (cloud.kimball.home) and client-side (monolith). Verified working with clean diagnostic log: `MediaPicker returned FileName: 1000006327.jpg`.
 
 ## Environment
 
