@@ -151,8 +151,9 @@ public sealed class MessageListViewModelTests
 
         _chatApi.Setup(x => x.GetChannelMembersAsync(ServerUrl, It.IsAny<string>(), ChannelId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(members);
-        _chatApi.Setup(x => x.GetMessagesAsync(ServerUrl, It.IsAny<string>(), ChannelId, null, 50, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(serverMessages);
+        var pagedResult = new PagedMessagesResult(serverMessages, 1, 25, serverMessages.Count, 1);
+        _chatApi.Setup(x => x.GetMessagesAsync(ServerUrl, It.IsAny<string>(), ChannelId, 1, 25, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(pagedResult);
         var lastMsg = serverMessages[serverMessages.Count - 1];
         _chatApi.Setup(x => x.MarkReadAsync(ServerUrl, It.IsAny<string>(), ChannelId, lastMsg.Id, It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
@@ -409,10 +410,11 @@ public sealed class MessageListViewModelTests
             MakeChatMessage(Guid.NewGuid(), CurrentUserId, "Current User", "Server msg 2", DateTimeOffset.UtcNow.AddMinutes(-10)),
         };
 
-        _cache.Setup(x => x.GetRecentAsync(ChannelId, 50, It.IsAny<CancellationToken>()))
+        _cache.Setup(x => x.GetRecentAsync(ChannelId, 25, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new[] { cachedMsg });
-        _chatApi.Setup(x => x.GetMessagesAsync(ServerUrl, It.IsAny<string>(), ChannelId, null, 50, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(serverMsgs);
+        var pagedResult = new PagedMessagesResult(serverMsgs, 1, 25, serverMsgs.Count, 1);
+        _chatApi.Setup(x => x.GetMessagesAsync(ServerUrl, It.IsAny<string>(), ChannelId, 1, 25, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(pagedResult);
         var lastMsg = serverMsgs[serverMsgs.Count - 1];
         _chatApi.Setup(x => x.MarkReadAsync(ServerUrl, It.IsAny<string>(), ChannelId, lastMsg.Id, It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
@@ -431,9 +433,10 @@ public sealed class MessageListViewModelTests
         SetupDefaultChannelMembers();
         var cachedMsg = new CachedMessage(Guid.NewGuid(), ChannelId, "Cached", "Offline fallback", DateTimeOffset.UtcNow.AddMinutes(-5));
 
-        _cache.Setup(x => x.GetRecentAsync(ChannelId, 50, It.IsAny<CancellationToken>()))
+        _cache.Setup(x => x.GetRecentAsync(ChannelId, 25, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new[] { cachedMsg });
-        _chatApi.Setup(x => x.GetMessagesAsync(ServerUrl, It.IsAny<string>(), ChannelId, null, 50, It.IsAny<CancellationToken>()))
+        var pagedResult = new PagedMessagesResult([], 1, 25, 0, 0);
+        _chatApi.Setup(x => x.GetMessagesAsync(ServerUrl, It.IsAny<string>(), ChannelId, 1, 25, It.IsAny<CancellationToken>()))
             .ThrowsAsync(new HttpRequestException("Server unavailable"));
 
         await _vm.InitializeAsync(ChannelId, "General");
@@ -533,6 +536,260 @@ public sealed class MessageListViewModelTests
     }
 
     // ══════════════════════════════════════════════════════════════════
+    //  LoadMoreMessages (infinite scroll pagination)
+    // ══════════════════════════════════════════════════════════════════
+
+    [TestMethod]
+    public async Task LoadMoreMessages_LoadsNextPageAndPrepends()
+    {
+        SetupDefaultChannelMembers();
+        // Page 1: 2 messages
+        var page1 = new List<ChatMessage>
+        {
+            MakeChatMessage(Guid.NewGuid(), OtherUserId, "User A", "Older msg", DateTimeOffset.UtcNow.AddMinutes(-20)),
+            MakeChatMessage(Guid.NewGuid(), CurrentUserId, "Me", "Newer msg", DateTimeOffset.UtcNow.AddMinutes(-10)),
+        };
+        // Page 2: 2 older messages
+        var page2 = new List<ChatMessage>
+        {
+            MakeChatMessage(Guid.NewGuid(), OtherUserId, "User B", "Oldest msg", DateTimeOffset.UtcNow.AddMinutes(-40)),
+            MakeChatMessage(Guid.NewGuid(), OtherUserId, "User A", "Second oldest", DateTimeOffset.UtcNow.AddMinutes(-30)),
+        };
+
+        var paged1 = new PagedMessagesResult(page1, 1, 25, 4, 2); // total 4 items, 2 pages
+        _chatApi.Setup(x => x.GetMessagesAsync(ServerUrl, It.IsAny<string>(), ChannelId, 1, 25, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(paged1);
+        var lastMsg = page1[page1.Count - 1];
+        _chatApi.Setup(x => x.MarkReadAsync(ServerUrl, It.IsAny<string>(), ChannelId, lastMsg.Id, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        _signalR.Setup(x => x.ConnectAsync(ServerUrl, It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _signalR.Setup(x => x.JoinChannelGroupAsync(ChannelId, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        await _vm.InitializeAsync(ChannelId, "Test");
+
+        Assert.AreEqual(2, _vm.Messages.Count);
+        Assert.AreEqual("Older msg", _vm.Messages[0].Content);
+        Assert.AreEqual("Newer msg", _vm.Messages[1].Content);
+        Assert.IsTrue(_vm.HasMoreMessages);
+
+        // Act: load page 2
+        var paged2 = new PagedMessagesResult(page2, 2, 25, 4, 2);
+        _chatApi.Setup(x => x.GetMessagesAsync(ServerUrl, It.IsAny<string>(), ChannelId, 2, 25, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(paged2);
+
+        await _vm.LoadMoreMessagesCommand.ExecuteAsync(null);
+
+        // Assert: page 2 messages should be prepended (oldest-first)
+        Assert.AreEqual(4, _vm.Messages.Count);
+        Assert.AreEqual("Oldest msg", _vm.Messages[0].Content);   // prepended
+        Assert.AreEqual("Second oldest", _vm.Messages[1].Content); // prepended
+        Assert.AreEqual("Older msg", _vm.Messages[2].Content);    // original page 1
+        Assert.AreEqual("Newer msg", _vm.Messages[3].Content);    // original page 1
+        Assert.IsFalse(_vm.HasMoreMessages, "HasMoreMessages should be false after loading last page");
+    }
+
+    [TestMethod]
+    public async Task LoadMoreMessages_NoMorePages_DoesNothing()
+    {
+        await InitializeHappyPathAsync();
+
+        // Only one page loaded — HasMoreMessages is false
+        Assert.IsFalse(_vm.HasMoreMessages);
+
+        await _vm.LoadMoreMessagesCommand.ExecuteAsync(null);
+
+        // No additional API calls should have been made
+        _chatApi.Verify(x => x.GetMessagesAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()),
+            Times.Once); // only the initial load
+    }
+
+    [TestMethod]
+    public async Task LoadMoreMessages_WhileLoading_DoesNothing()
+    {
+        SetupDefaultChannelMembers();
+        var page1 = new List<ChatMessage>
+        {
+            MakeChatMessage(Guid.NewGuid(), OtherUserId, "A", "First", DateTimeOffset.UtcNow.AddMinutes(-10)),
+        };
+        var paged1 = new PagedMessagesResult(page1, 1, 25, 2, 2);
+        _chatApi.Setup(x => x.GetMessagesAsync(ServerUrl, It.IsAny<string>(), ChannelId, 1, 25, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(paged1);
+        _chatApi.Setup(x => x.MarkReadAsync(ServerUrl, It.IsAny<string>(), ChannelId, page1[page1.Count - 1].Id, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _signalR.Setup(x => x.ConnectAsync(ServerUrl, It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _signalR.Setup(x => x.JoinChannelGroupAsync(ChannelId, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        await _vm.InitializeAsync(ChannelId, "Test");
+        Assert.IsTrue(_vm.HasMoreMessages);
+
+        // Fire LoadMoreMessages — it should work once
+        var paged2 = new PagedMessagesResult([], 2, 25, 2, 2);
+        _chatApi.Setup(x => x.GetMessagesAsync(ServerUrl, It.IsAny<string>(), ChannelId, 2, 25, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(paged2);
+
+        await _vm.LoadMoreMessagesCommand.ExecuteAsync(null);
+
+        // No error and no duplicate call assertion
+        _chatApi.Verify(x => x.GetMessagesAsync(ServerUrl, It.IsAny<string>(), ChannelId, 2, 25, It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    //  Search
+    // ══════════════════════════════════════════════════════════════════
+
+    [TestMethod]
+    public void ToggleSearch_OpensAndClosesPanel()
+    {
+        Assert.IsFalse(_vm.IsSearchOpen);
+
+        _vm.ToggleSearchCommand.Execute(null);
+        Assert.IsTrue(_vm.IsSearchOpen);
+
+        _vm.ToggleSearchCommand.Execute(null);
+        Assert.IsFalse(_vm.IsSearchOpen);
+    }
+
+    [TestMethod]
+    public async Task SearchQuery_TriggersSearch()
+    {
+        await InitializeHappyPathAsync();
+
+        var results = new List<ChatMessage>
+        {
+            MakeChatMessage(Guid.NewGuid(), OtherUserId, "User", "Found message one", DateTimeOffset.UtcNow.AddMinutes(-5)),
+            MakeChatMessage(Guid.NewGuid(), CurrentUserId, "Me", "Found message two", DateTimeOffset.UtcNow.AddMinutes(-2)),
+        };
+        var pagedResult = new PagedMessagesResult(results, 1, 25, 2, 1);
+        _chatApi.Setup(x => x.SearchMessagesAsync(ServerUrl, It.IsAny<string>(), ChannelId, "found", 1, 25, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(pagedResult);
+
+        _vm.SearchQuery = "found";
+
+        // Wait for debounce (300ms) + execution
+        await Task.Delay(600);
+
+        Assert.AreEqual(2, _vm.Messages.Count);
+        Assert.AreEqual("Found message one", _vm.Messages[0].Content);
+        Assert.AreEqual("Found message two", _vm.Messages[1].Content);
+    }
+
+    [TestMethod]
+    public async Task CloseSearch_RestoresNormalMessages()
+    {
+        await InitializeHappyPathAsync();
+
+        var results = new List<ChatMessage>
+        {
+            MakeChatMessage(Guid.NewGuid(), OtherUserId, "User", "Found", DateTimeOffset.UtcNow.AddMinutes(-5)),
+        };
+        var pagedResult = new PagedMessagesResult(results, 1, 25, 1, 1);
+        _chatApi.Setup(x => x.SearchMessagesAsync(ServerUrl, It.IsAny<string>(), ChannelId, "test", 1, 25, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(pagedResult);
+
+        // Open search and enter query
+        _vm.ToggleSearchCommand.Execute(null);
+        _vm.SearchQuery = "test";
+        await Task.Delay(600);
+        Assert.AreEqual(1, _vm.Messages.Count);
+
+        // Close search — should reload normal messages
+        var normalMsgs = new List<ChatMessage>
+        {
+            MakeChatMessage(Guid.NewGuid(), OtherUserId, "Normal", "Normal message", DateTimeOffset.UtcNow.AddMinutes(-10)),
+        };
+        var normalPaged = new PagedMessagesResult(normalMsgs, 1, 25, 1, 1);
+        _chatApi.Setup(x => x.GetMessagesAsync(ServerUrl, It.IsAny<string>(), ChannelId, 1, 25, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(normalPaged);
+        _chatApi.Setup(x => x.MarkReadAsync(ServerUrl, It.IsAny<string>(), ChannelId, normalMsgs[normalMsgs.Count - 1].Id, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        await _vm.CloseSearchCommand.ExecuteAsync(null);
+        await Task.Delay(100);
+
+        Assert.IsFalse(_vm.IsSearchOpen);
+        Assert.AreEqual("Normal message", _vm.Messages[0].Content);
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    //  MessageItemViewModel (search highlight)
+    // ══════════════════════════════════════════════════════════════════
+
+    [TestMethod]
+    public void MessageItemViewModel_SearchQueryMatch_SetsHighlightedContent()
+    {
+        var vm = new MessageItemViewModel(
+            Guid.NewGuid(), "Alice", "This is a test message with hello world", DateTimeOffset.UtcNow,
+            searchQuery: "hello");
+
+        Assert.IsTrue(vm.IsHighlighted);
+        Assert.IsNotNull(vm.HighlightedContent);
+        Assert.IsTrue(vm.HighlightedContent.Spans.Count >= 3,
+            "Should have spans: before, match, after");
+        // First span is text before match
+        Assert.AreEqual("This is a test message with ", vm.HighlightedContent.Spans[0].Text);
+        // Second span is the highlighted match
+        Assert.AreEqual("hello", vm.HighlightedContent.Spans[1].Text);
+        Assert.AreEqual(Color.FromArgb("#F59E0B"), vm.HighlightedContent.Spans[1].BackgroundColor);
+    }
+
+    [TestMethod]
+    public void MessageItemViewModel_SearchQueryNoMatch_NoHighlight()
+    {
+        var vm = new MessageItemViewModel(
+            Guid.NewGuid(), "Bob", "Nothing relevant here", DateTimeOffset.UtcNow,
+            searchQuery: "missing");
+
+        Assert.IsFalse(vm.IsHighlighted);
+        Assert.IsNull(vm.HighlightedContent);
+    }
+
+    [TestMethod]
+    public void MessageItemViewModel_SearchQueryNull_NoHighlight()
+    {
+        var vm = new MessageItemViewModel(
+            Guid.NewGuid(), "Bob", "Some text", DateTimeOffset.UtcNow);
+
+        Assert.IsFalse(vm.IsHighlighted);
+        Assert.IsNull(vm.HighlightedContent);
+    }
+
+    [TestMethod]
+    public void MessageItemViewModel_SearchQueryCaseInsensitive_HighlightsMatch()
+    {
+        var vm = new MessageItemViewModel(
+            Guid.NewGuid(), "Alice", "Hello World", DateTimeOffset.UtcNow,
+            searchQuery: "hello");
+
+        Assert.IsTrue(vm.IsHighlighted);
+        Assert.IsNotNull(vm.HighlightedContent);
+        // Span[0] = text before match (empty), Span[1] = the matched "Hello", Span[2] = rest
+        var highlightSpan = vm.HighlightedContent.Spans.FirstOrDefault(
+            s => s.Text.Equals("Hello", StringComparison.Ordinal));
+        Assert.IsNotNull(highlightSpan, "Should have a span with the matched text 'Hello'");
+    }
+
+    [TestMethod]
+    public void MessageItemViewModel_SearchQueryMultipleMatches_HighlightsAll()
+    {
+        var vm = new MessageItemViewModel(
+            Guid.NewGuid(), "Alice", "test one test two test", DateTimeOffset.UtcNow,
+            searchQuery: "test");
+
+        Assert.IsTrue(vm.IsHighlighted);
+        // Should have 3 spans with text "test" — the highlighted occurrences
+        var highlighted = vm.HighlightedContent!.Spans
+            .Where(s => s.Text.Equals("test", StringComparison.Ordinal) && s.FontAttributes == FontAttributes.Bold)
+            .ToList();
+        Assert.AreEqual(3, highlighted.Count, "Should highlight all 3 occurrences");
+    }
+
+    // ══════════════════════════════════════════════════════════════════
     //  Helpers
     // ══════════════════════════════════════════════════════════════════
 
@@ -562,8 +819,9 @@ public sealed class MessageListViewModelTests
 
     private void SetupDefaultMessages(IReadOnlyList<ChatMessage> messages)
     {
-        _chatApi.Setup(x => x.GetMessagesAsync(ServerUrl, It.IsAny<string>(), ChannelId, null, 50, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(messages);
+        var pagedResult = new PagedMessagesResult(messages, 1, 25, messages.Count, messages.Count > 0 ? 1 : 0);
+        _chatApi.Setup(x => x.GetMessagesAsync(ServerUrl, It.IsAny<string>(), ChannelId, 1, 25, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(pagedResult);
         if (messages.Count > 0)
         {
             var lastMsg = messages[messages.Count - 1];

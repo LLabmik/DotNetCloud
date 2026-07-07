@@ -15,11 +15,16 @@ public interface IChatRestClient
 
     /// <summary>
     /// Returns a page of messages for a channel, ordered newest-first.
-    /// Pass <paramref name="beforeId"/> to paginate backwards.
     /// </summary>
-    Task<IReadOnlyList<ChatMessage>> GetMessagesAsync(
+    Task<PagedMessagesResult> GetMessagesAsync(
         string serverBaseUrl, string accessToken,
-        Guid channelId, Guid? beforeId = null, int pageSize = 50,
+        Guid channelId, int page = 1, int pageSize = 25,
+        CancellationToken ct = default);
+
+    /// <summary>Searches messages in a channel by text query.</summary>
+    Task<PagedMessagesResult> SearchMessagesAsync(
+        string serverBaseUrl, string accessToken,
+        Guid channelId, string query, int page = 1, int pageSize = 25,
         CancellationToken ct = default);
 
     /// <summary>Sends a new message to a channel.</summary>
@@ -85,6 +90,19 @@ public interface IChatRestClient
         Guid channelId, Guid fileId, string fileName,
         CancellationToken ct = default);
 }
+
+/// <summary>Result of a paginated messages query.</summary>
+/// <param name="Messages">The page of messages, ordered newest-first by the server.</param>
+/// <param name="Page">Current page number (1-based).</param>
+/// <param name="PageSize">Number of items per page.</param>
+/// <param name="TotalItems">Total number of messages matching the query.</param>
+/// <param name="TotalPages">Total number of pages available.</param>
+public sealed record PagedMessagesResult(
+    IReadOnlyList<ChatMessage> Messages,
+    int Page,
+    int PageSize,
+    int TotalItems,
+    int TotalPages);
 
 /// <summary>Summary of a chat channel for channel-list display.</summary>
 /// <param name="Id">Channel ID.</param>
@@ -154,3 +172,15 @@ public sealed record ChannelMemberSummary(
     string DisplayName,
     string Role,
     bool IsOnline);
+
+/// <summary>
+/// Minimal attachment DTO for SignalR deserialization of inline attachments.
+/// Defined here (rather than in SignalRChatClient.cs) so it's reachable from
+/// ViewModels compiled outside the Android target (e.g., unit tests).
+/// </summary>
+internal sealed record SignalRAttachmentDto(
+    Guid Id,
+    string FileName,
+    string MimeType,
+    long FileSize,
+    string? ThumbnailUrl);

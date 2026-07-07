@@ -4,200 +4,267 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:vm="clr-namespace:DotNetCloud.Client.Android.ViewModels"
+    x:Name="ThisPage"
     Title="{Binding ChannelName}"
     BackgroundColor="#0F172A">
 
     <ContentPage.ToolbarItems>
         <ToolbarItem
+            Text="🔍"
+            Command="{Binding ToggleSearchCommand}"
+            Order="Primary"
+            Priority="0"/>
+        <ToolbarItem
             Text="Details"
             Command="{Binding ViewDetailsCommand}"
             Order="Primary"
-            Priority="0"/>
+            Priority="1"/>
     </ContentPage.ToolbarItems>
 
-    <Grid RowDefinitions="*,Auto,Auto">
+    <Grid RowDefinitions="Auto,*,Auto,Auto">
+
+        <!-- Search panel (toggleable) -->
+        <Border
+            Grid.Row="0"
+            BackgroundColor="#1E293B"
+            StrokeThickness="0"
+            Padding="8,6"
+            IsVisible="{Binding IsSearchOpen}">
+            <Grid ColumnDefinitions="*,Auto"
+                  ColumnSpacing="6">
+                <Entry
+                    x:Name="SearchEntry"
+                    Placeholder="Search messages…"
+                    PlaceholderColor="#475569"
+                    TextColor="#F1F5F9"
+                    BackgroundColor="#0F172A"
+                    Text="{Binding SearchQuery}"/>
+                <Label
+                    Grid.Column="1"
+                    Text="✕"
+                    TextColor="#94A3B8"
+                    FontSize="22"
+                    HorizontalTextAlignment="Center"
+                    VerticalTextAlignment="Center"
+                    WidthRequest="44"
+                    HeightRequest="36">
+                    <Label.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding CloseSearchCommand}"/>
+                    </Label.GestureRecognizers>
+                </Label>
+            </Grid>
+        </Border>
 
         <!-- Message list -->
-        <RefreshView
-            Grid.Row="0"
-            Command="{Binding LoadMessagesCommand}"
-            IsRefreshing="{Binding IsLoading}"
-            RefreshColor="#0EA5E9">
+        <CollectionView
+            Grid.Row="1"
+            x:Name="MessageList"
+            ItemsSource="{Binding Messages}"
+            ItemsUpdatingScrollMode="KeepScrollOffset"
+            SelectionMode="None">
 
-            <CollectionView
-                x:Name="MessageList"
-                ItemsSource="{Binding Messages}"
-                ItemsUpdatingScrollMode="KeepLastItemInView"
-                SelectionMode="None">
+            <CollectionView.ItemTemplate>
+                <DataTemplate x:DataType="vm:MessageItemViewModel">
+                    <Border
+                        BackgroundColor="#1E293B"
+                        StrokeThickness="0"
+                        StrokeShape="RoundRectangle 10"
+                        Margin="12,3"
+                        Padding="14,10"
+                        HorizontalOptions="Start">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer
+                                Command="{Binding BindingContext.GoToMessageCommand, Source={x:Reference ThisPage}}"
+                                CommandParameter="{Binding .}"/>
+                        </Border.GestureRecognizers>
 
-                <CollectionView.ItemTemplate>
-                    <DataTemplate x:DataType="vm:MessageItemViewModel">
-                        <Border
-                            BackgroundColor="#1E293B"
-                            StrokeThickness="0"
-                            StrokeShape="RoundRectangle 10"
-                            Margin="12,3"
-                            Padding="14,10"
-                            HorizontalOptions="Start">
+                        <!-- Own-message overrides: right-aligned with blue bubble -->
+                        <Border.Triggers>
+                            <DataTrigger TargetType="Border"
+                                         Binding="{Binding IsOwnMessage}"
+                                         Value="True">
+                                <Setter Property="BackgroundColor"
+                                        Value="#0EA5E9"/>
+                                <Setter Property="HorizontalOptions"
+                                        Value="End"/>
+                                <Setter Property="Margin"
+                                        Value="48,3,12,3"/>
+                            </DataTrigger>
+                        </Border.Triggers>
 
-                            <!-- Own-message overrides: right-aligned with blue bubble -->
-                            <Border.Triggers>
-                                <DataTrigger TargetType="Border"
-                                             Binding="{Binding IsOwnMessage}"
-                                             Value="True">
-                                    <Setter Property="BackgroundColor"
-                                            Value="#0EA5E9"/>
-                                    <Setter Property="HorizontalOptions"
-                                            Value="End"/>
-                                    <Setter Property="Margin"
-                                            Value="48,3,12,3"/>
-                                </DataTrigger>
-                            </Border.Triggers>
-
-                            <VerticalStackLayout Spacing="4">
-                                <Grid ColumnDefinitions="Auto,*,Auto"
-                                      ColumnSpacing="8">
-                                    <!-- Sender avatar (hidden for own messages) -->
-                                    <Border
-                                        Grid.Column="0"
-                                        BackgroundColor="#334155"
-                                        HeightRequest="28"
-                                        WidthRequest="28"
-                                        StrokeThickness="0"
-                                        StrokeShape="RoundRectangle 14"
-                                        VerticalOptions="Center">
-                                        <Label
-                                            FontSize="12"
-                                            FontAttributes="Bold"
-                                            HorizontalOptions="Center"
-                                            VerticalOptions="Center"
-                                            TextColor="#94A3B8"
-                                            Text="{Binding SenderInitial}"/>
-                                        <Border.Triggers>
-                                            <DataTrigger TargetType="Border"
-                                                         Binding="{Binding IsOwnMessage}"
-                                                         Value="True">
-                                                <Setter Property="IsVisible"
-                                                        Value="False"/>
-                                            </DataTrigger>
-                                        </Border.Triggers>
-                                    </Border>
-
-                                    <!-- Sender name (hidden for own messages) -->
+                        <VerticalStackLayout Spacing="4">
+                            <Grid ColumnDefinitions="Auto,*,Auto"
+                                  ColumnSpacing="8">
+                                <!-- Sender avatar (hidden for own messages) -->
+                                <Border
+                                    Grid.Column="0"
+                                    BackgroundColor="#334155"
+                                    HeightRequest="28"
+                                    WidthRequest="28"
+                                    StrokeThickness="0"
+                                    StrokeShape="RoundRectangle 14"
+                                    VerticalOptions="Center">
                                     <Label
-                                        Grid.Column="1"
+                                        FontSize="12"
                                         FontAttributes="Bold"
-                                        FontSize="13"
-                                        TextColor="#38BDF8"
+                                        HorizontalOptions="Center"
                                         VerticalOptions="Center"
-                                        Text="{Binding SenderName}">
-                                        <Label.Triggers>
-                                            <DataTrigger TargetType="Label"
-                                                         Binding="{Binding IsOwnMessage}"
-                                                         Value="True">
-                                                <Setter Property="IsVisible"
-                                                        Value="False"/>
-                                            </DataTrigger>
-                                        </Label.Triggers>
-                                    </Label>
-
-                                    <!-- Timestamp (always visible) -->
-                                    <Label
-                                        Grid.Column="2"
-                                        FontSize="11"
-                                        TextColor="#475569"
-                                        VerticalOptions="Center"
-                                        Text="{Binding SentAtDisplay}">
-                                        <Label.Triggers>
-                                            <DataTrigger TargetType="Label"
-                                                         Binding="{Binding IsOwnMessage}"
-                                                         Value="True">
-                                                <Setter Property="TextColor"
-                                                        Value="#BFDBFE"/>
-                                            </DataTrigger>
-                                        </Label.Triggers>
-                                    </Label>
-                                </Grid>
-
-                                <!-- Image attachment preview (shown when message has image attachments) -->
-                                <Image
-                                    Source="{Binding FirstImageUrl}"
-                                    HeightRequest="200"
-                                    Aspect="AspectFit"
-                                    Margin="36,4,0,0">
-                                    <Image.Triggers>
-                                        <DataTrigger TargetType="Image"
-                                                     Binding="{Binding HasImageAttachment}"
-                                                     Value="False">
+                                        TextColor="#94A3B8"
+                                        Text="{Binding SenderInitial}"/>
+                                    <Border.Triggers>
+                                        <DataTrigger TargetType="Border"
+                                                     Binding="{Binding IsOwnMessage}"
+                                                     Value="True">
                                             <Setter Property="IsVisible"
                                                     Value="False"/>
                                         </DataTrigger>
-                                        <DataTrigger TargetType="Image"
-                                                     Binding="{Binding IsOwnMessage}"
-                                                     Value="True">
-                                            <Setter Property="Margin"
-                                                    Value="0,4,0,0"/>
-                                        </DataTrigger>
-                                    </Image.Triggers>
-                                </Image>
+                                    </Border.Triggers>
+                                </Border>
 
-                                <!-- Text content (hidden when message has only image attachment) -->
+                                <!-- Sender name (hidden for own messages) -->
                                 <Label
-                                    FontSize="15"
-                                    TextColor="#E2E8F0"
-                                    Margin="36,0,0,0"
-                                    Text="{Binding Content}">
+                                    Grid.Column="1"
+                                    FontAttributes="Bold"
+                                    FontSize="13"
+                                    TextColor="#38BDF8"
+                                    VerticalOptions="Center"
+                                    Text="{Binding SenderName}">
                                     <Label.Triggers>
                                         <DataTrigger TargetType="Label"
                                                      Binding="{Binding IsOwnMessage}"
                                                      Value="True">
-                                            <Setter Property="Margin"
-                                                    Value="0,0,0,0"/>
-                                            <Setter Property="TextColor"
-                                                    Value="#FFFFFF"/>
+                                            <Setter Property="IsVisible"
+                                                    Value="False"/>
                                         </DataTrigger>
                                     </Label.Triggers>
                                 </Label>
-                            </VerticalStackLayout>
-                        </Border>
-                    </DataTemplate>
-                </CollectionView.ItemTemplate>
 
-                <CollectionView.Header>
-                    <BoxView HeightRequest="8"
-                             BackgroundColor="Transparent"/>
-                </CollectionView.Header>
+                                <!-- Timestamp (always visible) -->
+                                <Label
+                                    Grid.Column="2"
+                                    FontSize="11"
+                                    TextColor="#475569"
+                                    VerticalOptions="Center"
+                                    Text="{Binding SentAtDisplay}">
+                                    <Label.Triggers>
+                                        <DataTrigger TargetType="Label"
+                                                     Binding="{Binding IsOwnMessage}"
+                                                     Value="True">
+                                            <Setter Property="TextColor"
+                                                    Value="#BFDBFE"/>
+                                        </DataTrigger>
+                                    </Label.Triggers>
+                                </Label>
+                            </Grid>
 
-                <CollectionView.Footer>
-                    <BoxView HeightRequest="4"
-                             BackgroundColor="Transparent"/>
-                </CollectionView.Footer>
+                            <!-- Image attachment preview (shown when message has image attachments) -->
+                            <Image
+                                Source="{Binding FirstImageUrl}"
+                                HeightRequest="200"
+                                Aspect="AspectFit"
+                                Margin="36,4,0,0">
+                                <Image.Triggers>
+                                    <DataTrigger TargetType="Image"
+                                                 Binding="{Binding HasImageAttachment}"
+                                                 Value="False">
+                                        <Setter Property="IsVisible"
+                                                Value="False"/>
+                                    </DataTrigger>
+                                    <DataTrigger TargetType="Image"
+                                                 Binding="{Binding IsOwnMessage}"
+                                                 Value="True">
+                                        <Setter Property="Margin"
+                                                Value="0,4,0,0"/>
+                                    </DataTrigger>
+                                </Image.Triggers>
+                            </Image>
 
-                <CollectionView.EmptyView>
-                    <VerticalStackLayout
+                            <!-- Text content — plain (shown when no search highlight) -->
+                            <Label
+                                FontSize="15"
+                                TextColor="#E2E8F0"
+                                Margin="36,0,0,0"
+                                Text="{Binding Content}"
+                                IsVisible="True">
+                                <Label.Triggers>
+                                    <DataTrigger TargetType="Label"
+                                                 Binding="{Binding IsOwnMessage}"
+                                                 Value="True">
+                                        <Setter Property="Margin"
+                                                Value="0,0,0,0"/>
+                                        <Setter Property="TextColor"
+                                                Value="#FFFFFF"/>
+                                    </DataTrigger>
+                                    <DataTrigger TargetType="Label"
+                                                 Binding="{Binding IsHighlighted}"
+                                                 Value="True">
+                                        <Setter Property="IsVisible"
+                                                Value="False"/>
+                                    </DataTrigger>
+                                </Label.Triggers>
+                            </Label>
+
+                            <!-- Text content — highlighted search results (shown when highlighted) -->
+                            <Label
+                                FontSize="15"
+                                TextColor="#E2E8F0"
+                                Margin="36,0,0,0"
+                                FormattedText="{Binding HighlightedContent}"
+                                IsVisible="False">
+                                <Label.Triggers>
+                                    <DataTrigger TargetType="Label"
+                                                 Binding="{Binding IsHighlighted}"
+                                                 Value="True">
+                                        <Setter Property="IsVisible"
+                                                Value="True"/>
+                                    </DataTrigger>
+                                    <DataTrigger TargetType="Label"
+                                                 Binding="{Binding IsOwnMessage}"
+                                                 Value="True">
+                                        <Setter Property="Margin"
+                                                Value="0,0,0,0"/>
+                                    </DataTrigger>
+                                </Label.Triggers>
+                            </Label>
+                        </VerticalStackLayout>
+                    </Border>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+
+            <CollectionView.Header>
+                <BoxView HeightRequest="8"
+                         BackgroundColor="Transparent"/>
+            </CollectionView.Header>
+
+            <CollectionView.Footer>
+                <BoxView HeightRequest="4"
+                         BackgroundColor="Transparent"/>
+            </CollectionView.Footer>
+
+            <CollectionView.EmptyView>
+                <VerticalStackLayout
+                    HorizontalOptions="Center"
+                    VerticalOptions="Center"
+                    Spacing="8"
+                    Padding="32">
+                    <Label
+                        FontSize="32"
                         HorizontalOptions="Center"
-                        VerticalOptions="Center"
-                        Spacing="8"
-                        Padding="32">
-                        <Label
-                            FontSize="32"
-                            HorizontalOptions="Center"
-                            Text="👋"/>
-                        <Label
-                            FontSize="14"
-                            TextColor="#64748B"
-                            HorizontalOptions="Center"
-                            HorizontalTextAlignment="Center"
-                            Text="No messages yet. Start the conversation!"/>
-                    </VerticalStackLayout>
-                </CollectionView.EmptyView>
+                        Text="👋"/>
+                    <Label
+                        FontSize="14"
+                        TextColor="#64748B"
+                        HorizontalOptions="Center"
+                        HorizontalTextAlignment="Center"
+                        Text="No messages yet. Start the conversation!"/>
+                </VerticalStackLayout>
+            </CollectionView.EmptyView>
 
-            </CollectionView>
-        </RefreshView>
+        </CollectionView>
 
         <!-- Composer bar -->
         <Border
-            Grid.Row="1"
+            Grid.Row="2"
             BackgroundColor="#1E293B"
             StrokeThickness="0"
             StrokeShape="RoundRectangle 0"
@@ -320,7 +387,7 @@
 
         <!-- Emoji picker panel -->
         <Border
-            Grid.Row="2"
+            Grid.Row="3"
             IsVisible="{Binding IsEmojiPickerOpen}"
             BackgroundColor="#1E293B"
             StrokeThickness="0"

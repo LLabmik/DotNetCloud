@@ -60,30 +60,64 @@ internal sealed class HttpChatRestClient : IChatRestClient
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<ChatMessage>> GetMessagesAsync(
+    public async Task<PagedMessagesResult> GetMessagesAsync(
         string serverBaseUrl, string accessToken,
-        Guid channelId, Guid? beforeId = null, int pageSize = 50,
+        Guid channelId, int page = 1, int pageSize = 25,
         CancellationToken ct = default)
     {
         SetAuth(accessToken);
-        if (beforeId.HasValue)
-            _logger.LogDebug("GetMessagesAsync currently ignores beforeId; server API uses page/pageSize pagination.");
-
-        var url = $"{serverBaseUrl.TrimEnd('/')}/api/v1/chat/channels/{channelId}/messages?page=1&pageSize={pageSize}";
+        var url = $"{serverBaseUrl.TrimEnd('/')}/api/v1/chat/channels/{channelId}/messages?page={page}&pageSize={pageSize}";
         Log.Info("DotNetCloud", $"GetMessagesAsync CALLING {url}");
 
         try
         {
             var envelope = await _http.GetFromJsonAsync<PagedEnvelope<ChatMessageDto>>(url, JsonOpts, ct).ConfigureAwait(false);
             var msgs = (envelope?.Data ?? []).Select(ToChatMessage).ToList();
+            var pagination = envelope?.Pagination;
             foreach (var m in msgs.Take(5))
                 Log.Info("DotNetCloud", $"GetMessagesAsync msg: senderUserId={m.SenderUserId}, senderName='{m.SenderName}', content='{m.Content[..Math.Min(20, m.Content.Length)]}'");
-            Log.Info("DotNetCloud", $"GetMessagesAsync SUCCEEDED from {url} ({msgs.Count} messages)");
-            return msgs;
+            Log.Info("DotNetCloud", $"GetMessagesAsync SUCCEEDED from {url} ({msgs.Count} messages, page {pagination?.Page ?? page}/{pagination?.TotalPages ?? 1})");
+            return new PagedMessagesResult(
+                msgs,
+                pagination?.Page ?? page,
+                pagination?.PageSize ?? pageSize,
+                pagination?.TotalItems ?? msgs.Count,
+                pagination?.TotalPages ?? 1);
         }
         catch (Exception ex)
         {
             Log.Error("DotNetCloud", $"GetMessagesAsync FAILED: {ex.GetType().Name}: {ex.Message}");
+            throw;
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<PagedMessagesResult> SearchMessagesAsync(
+        string serverBaseUrl, string accessToken,
+        Guid channelId, string query, int page = 1, int pageSize = 25,
+        CancellationToken ct = default)
+    {
+        SetAuth(accessToken);
+        var encodedQuery = Uri.EscapeDataString(query);
+        var url = $"{serverBaseUrl.TrimEnd('/')}/api/v1/chat/channels/{channelId}/messages/search?q={encodedQuery}&page={page}&pageSize={pageSize}";
+        Log.Info("DotNetCloud", $"SearchMessagesAsync CALLING {url}");
+
+        try
+        {
+            var envelope = await _http.GetFromJsonAsync<PagedEnvelope<ChatMessageDto>>(url, JsonOpts, ct).ConfigureAwait(false);
+            var msgs = (envelope?.Data ?? []).Select(ToChatMessage).ToList();
+            var pagination = envelope?.Pagination;
+            Log.Info("DotNetCloud", $"SearchMessagesAsync SUCCEEDED ({msgs.Count} results, page {pagination?.Page ?? page}/{pagination?.TotalPages ?? 1})");
+            return new PagedMessagesResult(
+                msgs,
+                pagination?.Page ?? page,
+                pagination?.PageSize ?? pageSize,
+                pagination?.TotalItems ?? msgs.Count,
+                pagination?.TotalPages ?? 1);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("DotNetCloud", $"SearchMessagesAsync FAILED: {ex.GetType().Name}: {ex.Message}");
             throw;
         }
     }
@@ -264,10 +298,24 @@ internal sealed class HttpChatRestClient : IChatRestClient
         public T? Data { get; init; }
     }
 
+    /// <summary>
+    /// Pagination metadata from the server's JSON response.
+    /// Uses a class (not a positional record) so that System.Text.Json resolves
+    /// properties case-insensitively via <see cref="JsonOpts"/>.
+    /// </summary>
+    private sealed class PaginationInfo
+    {
+        public int Page { get; init; }
+        public int PageSize { get; init; }
+        public int TotalItems { get; init; }
+        public int TotalPages { get; init; }
+    }
+
     private sealed class PagedEnvelope<T>
     {
         public bool Success { get; init; }
         public List<T>? Data { get; init; }
+        public PaginationInfo? Pagination { get; init; }
     }
 
     private sealed class ChannelSummaryDto

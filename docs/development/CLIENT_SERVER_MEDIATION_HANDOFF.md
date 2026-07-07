@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-07-06 (Android chat image attachment filename duplication fix + deploy)
+Last updated: 2026-07-07 (Android chat search fix — fully deployed, both client + server)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -92,9 +92,19 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-No active handoff. All tasks complete.
+**No active handoff.** Android chat search fix fully deployed on both client (APK) and server (cloud.kimball.home). 13/13 modules healthy.
 
-**Last completed:** Android chat image attachment filename duplication fix — deployed server-side (cloud.kimball.home) and client-side (monolith). Verified working with clean diagnostic log: `MediaPicker returned FileName: 1000006327.jpg`.
+---
+
+### Completed — `cloud.kimball.home` (2026-07-07)
+
+- ✅ `git pull` on feature branch
+- ✅ `dotnet build` Chat module Host (Release)
+- ✅ `dotnet publish` Chat module Host → `/tmp/chat-publish`
+- ✅ Copy DLL to `/opt/dotnetcloud/server/` and `/opt/dotnetcloud/server/modules/dotnetcloud.chat/`
+- ✅ `sudo systemctl restart dotnetcloud`
+- ✅ Health verify — 13/13 modules healthy, `dotnetcloud.chat` healthy
+- ✅ Hash verify — `8cb86badf61dd4eb71cea4bd8ca21c07` matches on both locations
 
 ## Environment
 

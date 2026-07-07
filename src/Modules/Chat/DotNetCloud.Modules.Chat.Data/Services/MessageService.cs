@@ -298,7 +298,7 @@ internal sealed class MessageService : IMessageService
 
         var dbQuery = _db.Messages
             .AsNoTracking()
-            .Where(m => m.ChannelId == channelId && m.Content.Contains(query))
+            .Where(m => m.ChannelId == channelId && EF.Functions.Like(m.Content, $"%{query}%"))
             .OrderByDescending(m => m.SentAt);
 
         var totalCount = await dbQuery.CountAsync(cancellationToken);
