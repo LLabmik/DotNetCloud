@@ -4,6 +4,34 @@ Archived: 2026-07-07. Full git history preserved.
 
 ## Archived: Android Chat Search Fix — Deployed Client (2026-07-07)
 
+### Handoff Summary
+**Android chat search fix** — Server-side deployed on `cloud.kimball.home`. Chat module republished with FTS path bypass (always uses LIKE-based search) and case-insensitive LIKE semantics via `EF.Functions.Like()`.
+
+**Root cause (2 bugs):**
+1. **Primary: FTS path returns wrong DTO type** — `ChatController.SearchMessagesAsync()` called `_searchFtsClient.SearchAsync()` which returned `SearchResultItem[]` instead of `ChatMessageDto[]`. Chat was never indexed in FTS, so 0 results.
+2. **Secondary (defensive): LIKE was case-sensitive on PostgreSQL** — `m.Content.Contains(query)` is case-sensitive on PostgreSQL. Changed to `EF.Functions.Like()`.
+
+**Server deploy (commit `986bbc45`):**
+- `dotnet publish` Chat module
+- Copied DLL to `/opt/dotnetcloud/server/` and `/opt/dotnetcloud/server/modules/dotnetcloud.chat/`
+- `sudo systemctl restart dotnetcloud`
+- Verified: 13/13 modules healthy, `dotnetcloud.chat` healthy, hashes match
+
+**Client side (monolith):** Already deployed in APK prior.
+
+### Server Actions — cloud.kimball.home (Completed 2026-07-07)
+
+1. ✅ `git pull` on feature branch
+2. ✅ `dotnet publish` Chat module Host
+3. ✅ Copy DLL to server + module subdirectory
+4. ✅ `sudo systemctl restart dotnetcloud`
+5. ✅ Health verify — 13/13 modules healthy, `dotnetcloud.chat` healthy
+
+### Notes
+- Chat runs as process-isolated module supervised by Core.Server (PID 886656)
+- Module subdirectory: `/opt/dotnetcloud/server/modules/dotnetcloud.chat/`
+- Hash verification: `8cb86badf61dd4eb71cea4bd8ca21c07` matches on both server dir and module subdir
+
 **Result:** ✅ Android APK deployed to monolith with search close button fix.
 
 **Completed (monolith):**

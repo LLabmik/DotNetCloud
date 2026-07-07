@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-07-07 (Android chat search fix — client deployed, server handoff prepared)
+Last updated: 2026-07-07 (Android chat search fix — fully deployed, both client + server)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -92,59 +92,19 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** Deploy server-side chat search fix to production — Android chat search was returning no results because the FTS path returned `SearchResultItem[]` which the Android client can't deserialize as `ChatMessageDto[]`.
-
-**Root cause (2 bugs):**
-
-1. **Primary: FTS path returns wrong DTO type** — `ChatController.SearchMessagesAsync()` called `_searchFtsClient.SearchAsync()` when FTS was available. The Search module returned `SearchResultItem[]` (fields: `ModuleId`, `EntityId`, `Title`, `Snippet`), but the Android client deserializes the response as `ChatMessageDto[]` (fields: `Id`, `Content`, `SenderUserId`, `SentAt`, etc.). These JSON shapes are completely different → deserialization produced all-default/empty objects → "No messages found." Additionally, chat messages were never indexed into FTS (Chat has no `IModuleSearchDocumentClient`), so FTS returned 0 results anyway.
-
-2. **Secondary (defensive): LIKE was case-sensitive on PostgreSQL** — `MessageService.SearchMessagesAsync()` used `m.Content.Contains(query)` which is case-sensitive on PostgreSQL (`strpos`/`LIKE`). Changed to `EF.Functions.Like()` for explicit LIKE semantics. On SQL Server (current production), default collation is already case-insensitive so this is a future-proofing change.
-
-**Server changes (need deploy):**
-
-- `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Controllers/ChatController.cs` — Removed the FTS gRPC `_searchFtsClient` call path from `SearchMessagesAsync()`. The endpoint now always uses `_messageService.SearchMessagesAsync()` which returns proper `MessageDto[]`. Also cleaned up unused `ISearchFtsClient` field, constructor parameter, and unused imports (`DotNetCloud.Core.DTOs.Search`, `DotNetCloud.Modules.Search.Client`).
-
-- `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/Services/MessageService.cs` — Changed `m.Content.Contains(query)` → `EF.Functions.Like(m.Content, $"%{query}%")` for explicit case-insensitive LIKE semantics.
-
-**Client changes (already deployed in APK on monolith):**
-
-- `src/Clients/DotNetCloud.Client.Android/Views/MessageListPage.xaml` — Search close button changed from `Button` (clipped by internal padding) to `Label` with `TapGestureRecognizer` at FontSize=22, WidthRequest=44, so the `✕` character renders fully instead of getting clipped.
-
-**Verification test after deploy:**
-
-1. Open a chat channel that has a message containing "Fat Dogs"
-2. Tap the search icon (🔍) in the toolbar
-3. Type "Fat" in the search box → should show the "Fat Dogs" message
-4. Type "fat" (lowercase) → should also find it (case-insensitive)
-5. Type "Holdrege" → should find the matching message
-6. Tap the `✕` close button → should close search and restore normal message list
+**No active handoff.** Android chat search fix fully deployed on both client (APK) and server (cloud.kimball.home). 13/13 modules healthy.
 
 ---
 
-### Server Actions — `cloud.kimball.home`
+### Completed — `cloud.kimball.home` (2026-07-07)
 
-- [ ] `git pull` on main branch
-- [ ] `dotnet publish` the Chat module Host:  
-      `dotnet publish src/Modules/Chat/DotNetCloud.Modules.Chat.Host/DotNetCloud.Modules.Chat.Host.csproj -c Release -o /opt/dotnetcloud/chat`
-- [ ] Restart the Chat Host service:  
-      `sudo systemctl restart dotnetcloud-chat` (or whatever the chat module service is named)
-- [ ] If Chat is part of Core.Server's supervised modules, restart Core.Server instead:  
-      `sudo systemctl restart dotnetcloud`
-- [ ] Verify health:  
-      `curl -s https://cloud.dotnetcloud.net/health | jq .`
-- [ ] Verify the search endpoint responds correctly:  
-      `curl -s "https://cloud.dotnetcloud.net/api/v1/chat/channels/{channelId}/messages/search?q=Fat" -H "Authorization: Bearer {token}" | jq .`
-- [ ] Verify the `✕` close button change is client-only (no server changes needed for that)
-
-**Note:** The Android client was already rebuilt and installed on the test phone with matching client changes. No additional client work needed.
-
----
-
-### Client Actions — `monolith`
-
-- ✅ Already completed. APK deployed with:
-  - Search close button changed from `Button` to `Label` (fixes clipped `✕` character)
-  - No client-side changes needed for the search fix itself (the fix is purely server-side — the client was already calling the right endpoint and deserializing correctly; the server just wasn't returning the right data type)
+- ✅ `git pull` on feature branch
+- ✅ `dotnet build` Chat module Host (Release)
+- ✅ `dotnet publish` Chat module Host → `/tmp/chat-publish`
+- ✅ Copy DLL to `/opt/dotnetcloud/server/` and `/opt/dotnetcloud/server/modules/dotnetcloud.chat/`
+- ✅ `sudo systemctl restart dotnetcloud`
+- ✅ Health verify — 13/13 modules healthy, `dotnetcloud.chat` healthy
+- ✅ Hash verify — `8cb86badf61dd4eb71cea4bd8ca21c07` matches on both locations
 
 ## Environment
 
