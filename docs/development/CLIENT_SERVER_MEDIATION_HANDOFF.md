@@ -114,16 +114,6 @@ All three fix locations handle the duplicated `"1000006501.jpg, 1000006501.jpg"`
 - [ ] `sudo systemctl restart dotnetcloud`
 - [ ] Health verify — 14/14 modules healthy
 
-### Client Actions — `monolith` (Android client)
-
-- [x] Investigated `AttachFileAsync`, `UploadImageAsync`, and `SendMessageWithAttachmentsAsync` — the `result.FileName` from `MediaPicker` is passed as `X-File-Name` header → server echoes it back → stored in DB. The most likely source is `MediaPicker` returning a decorated filename on some Android versions.
-- [x] Added diagnostic logging: `_logger.LogDebug("MediaPicker returned FileName: {FileName}", rawFileName)` in `AttachFileAsync`
-- [x] Added defensive sanitization: if `rawFileName` contains `, `, take only the first part (applied in all 3 layers — client upload, server upload, server message create)
-- [x] All projects build with 0 errors, 0 warnings
-- [ ] Build signed APK: `dotnet build src\Clients\DotNetCloud.Client.Android -f net10.0-android -c Debug -r android-arm64 /p:AndroidSdkDirectory="C:\Program Files (x86)\Android\android-sdk"`
-- [ ] Deploy: `adb install -r src\Clients\DotNetCloud.Client.Android\bin\Debug\net10.0-android\android-arm64\net.dotnetcloud.client-Signed.apk`
-- [ ] Launch app, send a chat message with an image attachment, then check logcat: `adb logcat -d | Select-String "MediaPicker returned FileName"`
-
 ## Environment
 
 | Role           | Machine              | Detail                                                                             |
