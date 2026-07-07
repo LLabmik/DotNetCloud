@@ -57,6 +57,9 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
     // Current search query when in search mode (null = normal mode)
     private string? _activeSearchQuery;
 
+    /// <summary>When set, suppresses the auto-scroll-to-bottom on the next message load.</summary>
+    private bool _suppressScrollToBottom;
+
     /// <summary>Raised after older messages are prepended; carries the first-old message ID for scroll anchor.</summary>
     public event EventHandler<Guid>? OlderMessagesLoaded;
 
@@ -297,10 +300,11 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
             Log.Info("DotNetCloud", $"LoadMessagesAsync: completed, Messages.Count={Messages.Count}, ErrorMessage={ErrorMessage}");
             IsLoading = false;
             // Signal the view to scroll to the latest message after initial load
-            if (Messages.Count > 0 && _activeSearchQuery is null)
+            if (Messages.Count > 0 && _activeSearchQuery is null && !_suppressScrollToBottom)
             {
                 ScrollToBottomRequested?.Invoke(this, EventArgs.Empty);
             }
+            _suppressScrollToBottom = false;
         }
     }
 
@@ -628,11 +632,75 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
 
         var targetId = message.Id;
 
-        // Close search first — this reloads the full message list
-        await CloseSearchAsync();
+        try
+        {
+            _suppressScrollToBottom = true;
+            await CloseSearchAsync();
 
-        // Signal the view to scroll to the target message
-        ScrollToMessageRequested?.Invoke(this, targetId);
+            // If the target message isn't in the first page, load more pages until we find it
+            await LoadPagesUntilMessageFoundAsync(targetId, CancellationToken.None);
+
+            ScrollToMessageRequested?.Invoke(this, targetId);
+        }
+        finally
+        {
+            _suppressScrollToBottom = false;
+        }
+    }
+
+    /// <summary>Loads additional pages until the target message is found or all pages are exhausted.</summary>
+    private async Task LoadPagesUntilMessageFoundAsync(Guid targetId, CancellationToken ct)
+    {
+        // Quick check — already in the current page
+        if (Messages.Any(m => m.Id == targetId))
+            return;
+
+        while (_hasMoreMessages)
+        {
+            var nextPage = _currentPage + 1;
+
+            PagedMessagesResult result;
+            try
+            {
+                result = await _chatApi.GetMessagesAsync(
+                    _serverUrl!, _accessToken!, _channelId,
+                    page: nextPage, pageSize: PageSize, ct: ct);
+            }
+            catch
+            {
+                // If a page load fails, stop trying
+                break;
+            }
+
+            _currentPage = nextPage;
+            _hasMoreMessages = result.Page < result.TotalPages;
+            OnPropertyChanged(nameof(HasMoreMessages));
+
+            var olderMessages = result.Messages
+                .OrderBy(m => m.SentAt)
+                .ToList();
+
+            if (olderMessages.Count == 0)
+            {
+                _hasMoreMessages = false;
+                return;
+            }
+
+            // Prepend at the beginning (messages arrive newest-first, oldest-first for display)
+            var insertIndex = 0;
+            foreach (var m in olderMessages)
+            {
+                var senderName = ResolveSenderName(m.SenderUserId, m.SenderName);
+                var isOwn = m.SenderUserId == _currentUserId;
+                Messages.Insert(insertIndex, new MessageItemViewModel(
+                    m.Id, senderName, m.Content, m.SentAt, isOwn, m.Attachments, _serverUrl));
+                insertIndex++;
+            }
+
+            // Check if the target message was in this batch
+            if (olderMessages.Any(m => m.Id == targetId))
+                return;
+        }
     }
 
     /// <summary>Closes the search panel and restores the normal message list.</summary>
