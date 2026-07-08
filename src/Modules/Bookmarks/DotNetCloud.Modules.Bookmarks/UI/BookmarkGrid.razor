@@ -4,13 +4,12 @@
 <div class="bookmarks-grid">
     @foreach (var item in Items)
     {
-        <div class="bookmarks-card @(item.IsFavorite ? "favorite" : "")"
-             @onclick="() => OnSelect(item)">
+        <div class="bookmarks-card @(item.IsFavorite ? "favorite" : "")" @onclick="() => OnSelect(item)"
+             @onclick:preventDefault="false" role="button" tabindex="0">
             <div class="bookmarks-card-header">
                 @if (item.Preview?.FaviconUrl is not null)
                 {
-                    <img src="@item.Preview.FaviconUrl" alt="" class="bookmarks-card-favicon"
-                         width="16" height="16" />
+                    <img src="@item.Preview.FaviconUrl" alt="" class="bookmarks-card-favicon" width="16" height="16" />
                 }
                 <h4 class="bookmarks-card-title">
                     @(string.IsNullOrWhiteSpace(item.Title) ? item.Url : item.Title)
@@ -34,16 +33,13 @@
                 }
             }
             <div class="bookmarks-card-actions">
-                <button class="bookmarks-card-btn" title="Favorite"
-                        @onclick="() => OnToggleFavorite(item)"
+                <button class="bookmarks-card-btn" title="Favorite" @onclick="() => OnToggleFavorite(item)"
                         @onclick:stopPropagation="true">
                     @(item.IsFavorite ? "★" : "☆")
                 </button>
-                <button class="bookmarks-card-btn" title="Fetch preview"
-                        @onclick="() => OnFetchPreview(item)"
+                <button class="bookmarks-card-btn" title="Fetch preview" @onclick="() => OnFetchPreview(item)"
                         @onclick:stopPropagation="true">🔍</button>
-                <button class="bookmarks-card-btn bookmarks-card-btn-danger" title="Delete"
-                        @onclick="() => OnDelete(item)"
+                <button class="bookmarks-card-btn bookmarks-card-btn-danger" title="Delete" @onclick="() => OnDelete(item)"
                         @onclick:stopPropagation="true">✕</button>
             </div>
         </div>
