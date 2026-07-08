@@ -312,6 +312,18 @@ a:hover {
   height: 100%;
 }
 
+/* Full-bleed pages: bookmarks */
+.page-content:has(.bookmarks-layout) {
+  padding: 0;
+  overflow: hidden;
+}
+
+.page-content:has(.bookmarks-layout) .content-area {
+  max-width: none;
+  margin: 0;
+  height: 100%;
+}
+
 /* --- Page Header --- */
 .page-header {
   display: flex;

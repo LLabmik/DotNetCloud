@@ -32,6 +32,7 @@ public sealed class BookmarkService : IBookmarkService
     public async Task<IReadOnlyList<BookmarkItem>> ListAsync(CallerContext caller, Guid? folderId, int skip, int take, CancellationToken ct = default)
     {
         var query = _db.Bookmarks.AsNoTracking()
+            .Include(b => b.Preview)
             .Where(b => b.OwnerId == caller.UserId);
 
         if (folderId.HasValue)
@@ -45,6 +46,7 @@ public sealed class BookmarkService : IBookmarkService
     public async Task<BookmarkItem?> GetAsync(Guid id, CallerContext caller, CancellationToken ct = default)
     {
         return await _db.Bookmarks.AsNoTracking()
+            .Include(b => b.Preview)
             .FirstOrDefaultAsync(b => b.Id == id && b.OwnerId == caller.UserId, ct);
     }
 
@@ -148,6 +150,7 @@ public sealed class BookmarkService : IBookmarkService
     public async Task<IReadOnlyList<BookmarkItem>> SearchAsync(CallerContext caller, string query, int skip, int take, CancellationToken ct = default)
     {
         return await _db.Bookmarks.AsNoTracking()
+            .Include(b => b.Preview)
             .Where(b => b.OwnerId == caller.UserId &&
                         (b.Title.Contains(query) ||
                          b.Description!.Contains(query) ||
