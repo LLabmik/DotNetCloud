@@ -52,6 +52,9 @@ public sealed record VideoDto
     /// <summary>Whether an external poster (TMDB) is available for this video.</summary>
     public bool HasExternalPoster { get; init; }
 
+    /// <summary>Whether a thumbnail image is available for this video.</summary>
+    public bool HasThumbnail { get; init; }
+
     /// <summary>TMDB movie overview/description.</summary>
     public string? Overview { get; init; }
 

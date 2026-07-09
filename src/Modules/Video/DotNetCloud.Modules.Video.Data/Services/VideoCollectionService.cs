@@ -412,6 +412,7 @@ public sealed class VideoCollectionService : IVideoCollectionService
             WatchPositionTicks = null,
             CreatedAt = userVideo.CreatedAt,
             HasExternalPoster = hasExternalPoster,
+            HasThumbnail = canonical.ThumbnailPosterHash is not null || canonical.ExternalPosterHash is not null,
             Overview = overview,
             TmdbRating = tmdbRating,
             Genres = genres,

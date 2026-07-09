@@ -430,6 +430,8 @@ public sealed class VideoService : IVideoService
             }
         }
 
+        var hasThumbnail = canonical.ThumbnailPosterHash is not null || canonical.ExternalPosterHash is not null;
+
         return new VideoDto
         {
             Id = userVideo.Id,
@@ -447,6 +449,7 @@ public sealed class VideoService : IVideoService
             WatchPositionTicks = WatchProgressService.ApplyResumeLogic(userVideo.WatchPositionTicks, canonical.DurationTicks),
             CreatedAt = userVideo.CreatedAt,
             HasExternalPoster = hasExternalPoster,
+            HasThumbnail = hasThumbnail,
             Overview = overview,
             TmdbRating = tmdbRating,
             Genres = genres,

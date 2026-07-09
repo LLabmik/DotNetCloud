@@ -193,7 +193,16 @@
                                     <div class="video-card"
                                          @onclick="() => OpenVideoDetailAsync(capturedVideo)">
                                         <div class="video-thumb">
-                                            <img src="@GetThumbnailUrl(capturedVideo.Id)" alt="@capturedVideo.Title" loading="lazy" />
+                                            @if (capturedVideo.HasThumbnail)
+                                            {
+                                                <img src="@GetThumbnailUrl(capturedVideo.Id)" alt="@capturedVideo.Title" loading="lazy" />
+                                            }
+                                            else
+                                            {
+                                                <div class="video-thumb-placeholder">
+                                                    <span class="thumb-placeholder-icon">🎬</span>
+                                                </div>
+                                            }
                                             <span class="thumb-duration">@FormatDuration(capturedVideo.Duration)</span>
                                             <span class="thumb-overlay-play">▶</span>
                                         </div>
@@ -321,7 +330,16 @@
                                     <div class="video-card"
                                          @onclick="() => OpenVideoDetailAsync(capturedVideo)">
                                         <div class="video-thumb">
-                                            <img src="@GetThumbnailUrl(capturedVideo.Id)" alt="@capturedVideo.Title" loading="lazy" />
+                                            @if (capturedVideo.HasThumbnail)
+                                            {
+                                                <img src="@GetThumbnailUrl(capturedVideo.Id)" alt="@capturedVideo.Title" loading="lazy" />
+                                            }
+                                            else
+                                            {
+                                                <div class="video-thumb-placeholder">
+                                                    <span class="thumb-placeholder-icon">🎬</span>
+                                                </div>
+                                            }
                                             <span class="thumb-duration">@FormatDuration(capturedVideo.Duration)</span>
                                             @if (capturedVideo.WatchPositionTicks.HasValue && capturedVideo.Duration.Ticks > 0)
                                             {
@@ -472,7 +490,16 @@
                                         <div class="video-card"
                                              @onclick="() => OpenVideoDetailAsync(capturedVideo)">
                                             <div class="video-thumb">
-                                                <img src="@GetThumbnailUrl(capturedVideo.Id)" alt="@capturedVideo.Title" loading="lazy" />
+                                                @if (capturedVideo.HasThumbnail)
+                                                {
+                                                    <img src="@GetThumbnailUrl(capturedVideo.Id)" alt="@capturedVideo.Title" loading="lazy" />
+                                                }
+                                                else
+                                                {
+                                                    <div class="video-thumb-placeholder">
+                                                        <span class="thumb-placeholder-icon">🎬</span>
+                                                    </div>
+                                                }
                                                 <span class="thumb-duration">@FormatDuration(capturedVideo.Duration)</span>
                                                 <span class="thumb-overlay-play">▶</span>
                                             </div>
@@ -516,7 +543,16 @@
                             <div class="video-card"
                                  @onclick="() => OpenVideoDetailAsync(capturedVideo)">
                                 <div class="video-thumb">
-                                    <img src="@GetThumbnailUrl(capturedVideo.Id)" alt="@capturedVideo.Title" loading="lazy" />
+                                    @if (capturedVideo.HasThumbnail)
+                                    {
+                                        <img src="@GetThumbnailUrl(capturedVideo.Id)" alt="@capturedVideo.Title" loading="lazy" />
+                                    }
+                                    else
+                                    {
+                                        <div class="video-thumb-placeholder">
+                                            <span class="thumb-placeholder-icon">🎬</span>
+                                        </div>
+                                    }
                                     <span class="thumb-duration">@FormatDuration(capturedVideo.Duration)</span>
                                     <span class="thumb-overlay-play">▶</span>
                                 </div>
@@ -909,7 +945,16 @@
                                     <div class="video-card"
                                          @onclick="() => OpenVideoDetailAsync(capturedVideo)">
                                         <div class="video-thumb">
-                                            <img src="@GetThumbnailUrl(capturedVideo.Id)" alt="@capturedVideo.Title" loading="lazy" />
+                                            @if (capturedVideo.HasThumbnail)
+                                            {
+                                                <img src="@GetThumbnailUrl(capturedVideo.Id)" alt="@capturedVideo.Title" loading="lazy" />
+                                            }
+                                            else
+                                            {
+                                                <div class="video-thumb-placeholder">
+                                                    <span class="thumb-placeholder-icon">🎬</span>
+                                                </div>
+                                            }
                                             <span class="thumb-duration">@FormatDuration(capturedVideo.Duration)</span>
                                             <span class="thumb-overlay-play">▶</span>
                                         </div>
