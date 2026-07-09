@@ -65,6 +65,7 @@ public static class VideoServiceRegistration
         services.AddSingleton<InMemoryVideoEnrichmentBackgroundQueue>();
         services.AddSingleton<IVideoEnrichmentBackgroundQueue>(sp => sp.GetRequiredService<InMemoryVideoEnrichmentBackgroundQueue>());
         services.AddHostedService<VideoEnrichmentBackgroundService>();
+        services.AddHostedService<DailyVideoEnrichmentService>();
 
         // Scan progress state (singleton — shared across all video page sessions)
         services.AddSingleton<VideoScanProgressState>();
