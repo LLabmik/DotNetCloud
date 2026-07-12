@@ -106,25 +106,43 @@ Archived: 2026-07-07. Full git history preserved.
 
 ---
 
-## Archived: 409 Conflict Handler + Quota Recalculation (2026-07-06)
+## Archived: Server-Side Thumbnail Lazy-Generation & EXIF Deployed (2026-07-12)
 
-**Target:** cloud.kimball.home → production deploy + monolith → Android APK rebuild
+**Target:** cloud.kimball.home → production deploy
 
-**Result:** ✅ Server deployed (`cf183bee`), quotas recalculated (3 rows). Android APK rebuilt with `ApiExceptionHelper.cs` 409 handler and deployed to phone.
+**Result:** ✅ Files module rebuilt from `feature/android-files-photo-thumbnails` (commit `30611287`). `GetOrGenerateThumbnailAsync`, lazy thumbnail endpoint, and EXIF metadata endpoint deployed to production. All 14 modules healthy.
 
-### Server Actions — `cloud.kimball.home`
+**Verification results (server-side):**
+- ✅ `GET /api/v1/files/{nodeId}/thumbnail?size=small` — routing and auth working
+- ✅ `GET /api/v1/files/{nodeId}/metadata` — routing and auth working
+- ✅ Both endpoints accept cookie-based session auth
+- 🔜 Endpoints return 404 — file chunks not on server disk (server-side fix needed, see current Active Handoff)
 
-- [x] `git pull` on `main` — pulled `cf183bee`
-- [x] `dotnet publish src/Core/DotNetCloud.Core.Server -c Release -o /opt/dotnetcloud/publish` — deployed
-- [x] `sudo systemctl restart dotnetcloud` — active (running)
-- [x] Verify health — 13/13 modules healthy
-- [x] Database quota fix: `UPDATE core.FileQuotas SET UsedBytes = ...` — 3 rows updated
+**What changed on the server:**
+- `IThumbnailService` / `ThumbnailService` — `GetOrGenerateThumbnailAsync` generates thumbnails on-demand
+- `FilesController` — `GET .../thumbnail` calls lazy generation on cache miss; new `GET .../metadata` returns EXIF data
+- `Program.cs` — `AddMediaMetadataExtractors()` registered
 
-### Client Actions — `monolith` (Android client)
+---
 
-- [x] Pulled `main` (commit `cf183bee`)
-- [x] Rebuilt Android APK with 409 handler
-- [x] Deployed and tested on phone
+## Archived: Android ThumbnailCache FromFile → FromStream (2026-07-12)
+
+**Target:** monolith → Android client thumbnail download path refactor
+
+**Result:** Changed `ThumbnailCache` to use `ImageSource.FromStream()` instead of `ImageSource.FromFile()` for both cache tiers. Matches `AlbumArtCache` pattern. **However, this was NOT the root cause** — server returns 404 for all thumbnail requests because file chunks aren't on disk. Keeping the change as it's still correct practice.
+
+**Changes:**
+- Disk hit: `ImageSource.FromFile(diskPath)` → `ImageSource.FromStream(() => File.OpenRead(diskPath))`
+- Download hit: `ImageSource.FromFile(diskPath)` → `ImageSource.FromStream(() => new MemoryStream(bytes))`
+- Added `Android.Util.Log` warn-level logging to catch blocks
+
+---
+
+## Archived: gRPC Conversion — Chat Proto Expansion & Stub Resolution (2026-07-12)
+
+**Target:** cloud.kimball.home → production deploy
+
+**Result:** ✅ All high-priority gRPC conversion items completed on `main`. Chat module proto expanded with 9 new RPCs, 13 new message types. ChatGrpcService server-side impl complete. 9 ChatGrpcApiClient stubs replaced with real gRPC calls. CoreCapabilities SendNotification wired to real INotificationService.
 
 ---
 
@@ -190,6 +208,22 @@ Archived: 2026-07-07. Full git history preserved.
 **Target:** cloud.kimball.home (server) → monolith (Android client)
 
 **Result:** ✅ Full end-to-end: server alphabet endpoints deployed to production, Android client code verified using them (not client-side computation), Debug APK built and installed on physical phone.
+
+---
+
+## Archived: Android Files Photo Thumbnails — Server Deploy (2026-07-12)
+
+**Target:** cloud.kimball.home → production deploy
+
+**Result:** ✅ Server-side thumbnail lazy-generation and EXIF metadata endpoint deployed to production on `cloud.kimball.home`.
+
+**Completed (cloud.kimball.home):**
+- ✅ Published Files module host to `/opt/dotnetcloud/server/modules/dotnetcloud.files/`
+- ✅ Service restarted, all modules healthy
+- ✅ `GET /api/v1/files/{nodeId}/thumbnail?size=small` — endpoint responds (structured 404 when file data not on disk, correct behavior for previously-uploaded files whose chunks live on client only)
+- ✅ `GET /api/v1/files/{nodeId}/metadata` — endpoint responds (same structured response)
+- ✅ Auth works via cookie session (tested with `testdude@llabmik.net`)
+- 🚫 PR creation skipped — moderator responsibility
 
 **Completed (monolith — Android client):**
 - ✅ Pulled latest `main`

@@ -9,7 +9,7 @@
 
     <Shell.TitleView>
         <HorizontalStackLayout Spacing="6"
-                VerticalOptions="Center">
+                               VerticalOptions="Center">
             <Image Source="logo.png"
                    HeightRequest="36"
                    WidthRequest="36"
@@ -63,7 +63,7 @@
                         <CollectionView.ItemTemplate>
                             <DataTemplate x:DataType="vm:BreadcrumbItem">
                                 <HorizontalStackLayout VerticalOptions="Center"
-                                        Spacing="0">
+                                                       Spacing="0">
                                     <Label
                                         FontSize="13"
                                         TextColor="#475569"
@@ -247,7 +247,7 @@
                                     ColumnDefinitions="Auto,*,Auto"
                                     Padding="14,12">
 
-                                    <!-- File/Folder icon -->
+                                    <!-- File/Folder icon or image thumbnail -->
                                     <Border
                                         Grid.Column="0"
                                         BackgroundColor="#334155"
@@ -256,11 +256,28 @@
                                         StrokeThickness="0"
                                         StrokeShape="RoundRectangle 12"
                                         Margin="0,0,12,0">
-                                        <Label
-                                            FontSize="20"
-                                            HorizontalOptions="Center"
-                                            VerticalOptions="Center"
-                                            Text="{Binding Icon}"/>
+                                        <Grid>
+                                            <!-- Image thumbnail (shown for image files with loaded thumbnail) -->
+                                            <Image
+                                                Source="{Binding Thumbnail}"
+                                                Aspect="AspectFill"
+                                                WidthRequest="44"
+                                                HeightRequest="44"
+                                                IsVisible="{Binding Thumbnail, Converter={StaticResource IsNotNull}}">
+                                                <Image.Clip>
+                                                    <RoundRectangleGeometry
+                                                        CornerRadius="12"
+                                                        Rect="0,0,44,44"/>
+                                                </Image.Clip>
+                                            </Image>
+                                            <!-- Emoji fallback (shown when no thumbnail) -->
+                                            <Label
+                                                FontSize="20"
+                                                HorizontalOptions="Center"
+                                                VerticalOptions="Center"
+                                                Text="{Binding Icon}"
+                                                IsVisible="{Binding Thumbnail, Converter={StaticResource IsNull}}"/>
+                                        </Grid>
                                     </Border>
 
                                     <!-- Name + details -->
@@ -313,12 +330,12 @@
 
                 <CollectionView.Header>
                     <BoxView HeightRequest="4"
-                            BackgroundColor="Transparent"/>
+                             BackgroundColor="Transparent"/>
                 </CollectionView.Header>
 
                 <CollectionView.Footer>
                     <BoxView HeightRequest="4"
-                            BackgroundColor="Transparent"/>
+                             BackgroundColor="Transparent"/>
                 </CollectionView.Footer>
 
                 <!-- Empty state (shown only after successful load returns no items) -->

@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Modules.Files.Host.Controllers;
 using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Options;
@@ -689,6 +690,7 @@ public sealed class FilesControllerTests
                 VersionService.Object,
                 ShareService.Object,
                 ThumbnailService.Object,
+                Enumerable.Empty<IMediaMetadataExtractor>(),
                 Mock.Of<ILogger<FilesController>>(),
                 Options.Create(new FileSystemOptions()),
                 Options.Create(new FileUploadOptions()))

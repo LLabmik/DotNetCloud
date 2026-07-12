@@ -18,6 +18,7 @@ public partial class AppShell : Shell
         Routing.RegisterRoute("ChannelDetails", typeof(ChannelDetailsPage));
         Routing.RegisterRoute("EventDetail", typeof(EventDetailPage));
         Routing.RegisterRoute("EventEdit", typeof(EventEditPage));
+        Routing.RegisterRoute("ImageViewer", typeof(ImageViewerPage));
     }
 
     /// <summary>

@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-07-07 (Android chat search fix — fully deployed, both client + server)
+Last updated: 2026-07-12 (Android Files — server deploy ✅, monolith re-test against production)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -18,7 +18,7 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
-- **Current active branch:** `main`
+- **Current active branch:** `feature/android-files-photo-thumbnails`
 - No moderator involvement in technical decisions, code reviews, or work coordination.
 
 **Role separation (MANDATORY):**
@@ -64,7 +64,7 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 - Put all technical findings, debugging conclusions, and next-step details in this document.
 - Assistant (current agent) commits their findings/work and updates the **Active Handoff** section with actionable next steps for the other client.
-- Assistant pushes commits to `feature/fix-android-music-equalizer`.
+- Assistant pushes commits to `feature/android-files-photo-thumbnails`.
 - Unexpected untracked content rule (MANDATORY): remove unexpected untracked files/directories before commit; only keep intentional tracked changes for the handoff update.
 - Handoff readiness gate (MANDATORY): all executable tests must pass before marking a handoff as ready.
 - Environment-gated tests are allowed to be skipped, but must be explicitly identified as gated with the required environment/runtime prerequisites documented in the handoff.
@@ -92,19 +92,33 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**No active handoff.** Android chat search fix fully deployed on both client (APK) and server (cloud.kimball.home). 13/13 modules healthy.
+**Summary:** ✅ Thumbnails working end-to-end! Server-side fix (chunks → temp file assembly) + Android client fix (XAML Border/Grid single-child layout). All verified.
+
+**Root cause (server):** Files are stored as content-addressable chunks. `GetStoragePathAsync` returns a metadata reference path, not a real filesystem path. Fixed by using `IDownloadService.DownloadCurrentAsync` to reconstruct the file from chunks before generating thumbnails.
+
+**Root cause (Android client):** MAUI `Border` can only have one child. The `<Image>` and `<Label>` were both direct children of `<Border>` — only the `<Label>` was rendered. `ImageSource.FromFile(diskPath)` was working correctly all along. Fixed by wrapping both in a `<Grid>` container.
+
+**Verification (all passing):**
+- ✅ Server thumbnail endpoint returns 200 with valid JPEG data
+- ✅ Android client downloads thumbnails, caches to disk, displays them in the file list
+- ✅ No more emoji fallback or gray squares — actual photo thumbnails render correctly
 
 ---
 
 ### Completed — `cloud.kimball.home` (2026-07-07)
 
-- ✅ `git pull` on feature branch
-- ✅ `dotnet build` Chat module Host (Release)
-- ✅ `dotnet publish` Chat module Host → `/tmp/chat-publish`
-- ✅ Copy DLL to `/opt/dotnetcloud/server/` and `/opt/dotnetcloud/server/modules/dotnetcloud.chat/`
-- ✅ `sudo systemctl restart dotnetcloud`
-- ✅ Health verify — 13/13 modules healthy, `dotnetcloud.chat` healthy
-- ✅ Hash verify — `8cb86badf61dd4eb71cea4bd8ca21c07` matches on both locations
+- [x] Check storage config & directory structure
+- [x] Identify root cause (chunks vs full file path mismatch)
+- [x] Fix both thumbnail and metadata endpoints to use `DownloadService`
+- [x] Deploy to production
+- [x] Verify all endpoints return 200
+- [x] Commit fix to branch
+
+### Client Actions — `monolith` (Android client)
+
+- [x] Re-test thumbnails against `cloud.dotnetcloud.net` — ✅ thumbnails appear
+- [x] Fix XAML Border/Grid layout bug (Image was never the Border's Content)
+- [x] Add `Android.Util.Log` diagnostics for future debugging
 
 ## Environment
 
@@ -126,17 +140,4 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 - ✅ **SignalR channel group naming:** `chat-channel-{channelId}` (used by `ChatHub.ChannelGroup()`, `CoreHub.JoinGroupAsync()`, and Android `SignalRChatClient`).
 - **Controller discovery:** Core.Server references Files.Host and Chat.Host via `ProjectReference`. ASP.NET Core auto-discovers controllers from referenced assemblies. Do NOT create duplicate controllers in Core.Server for routes already served by module Host assemblies.
 
-**Fix applied in source (committed to branch):**
-- `CoreHub.JoinGroupAsync()` now accepts both `"chat-channel-{guid}"` and bare GUID formats
-- Extracts the GUID, then joins the connection to `"chat-channel-{guid}"` — matching `ChatHub.ChannelGroup()`
-- `CoreHub.LeaveGroupAsync()` updated similarly for consistency
-- `ChannelGroup()` helper method added to `CoreHub` matching the one in `ChatHub`
-
-**Android client changes (already deployed in APK):**
-- `ChatConnectionService` now starts correctly (was never started before)
-- SignalR connection verified working via logcat ("SignalR connected successfully!")
-- `SenderName` display confirmed working
-- `JoinChannelGroupAsync` already sends the correct format ("chat-channel-{guid}")
-- **Calendar event click crash fix:** `x:DataType` in Day view `CollectionView.ItemTemplate` corrected from `vm:CalendarViewModel` to `core:CalendarEventDto`
-- **Calendar week view fix:** Inner `DataTemplate x:DataType` corrected from `x:Object` to `core:CalendarEventDto`
-- **Calendar error handling:** `SelectEventAsync()` and `OnEventSelected()` now wrapped in try-catch to prevent unhandled crashes
+<!-- carry-forward contracts and old Android changes archived to CLIENT_SERVER_MEDIATION_ARCHIVE.md -->

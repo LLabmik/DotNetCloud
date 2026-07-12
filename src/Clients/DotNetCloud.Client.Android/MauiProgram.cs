@@ -84,6 +84,11 @@ public static class MauiProgram
             .AddHttpMessageHandler<AuthenticatedHttpClientHandler>()
             .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
 
+        // Thumbnail cache
+        builder.Services.AddHttpClient<IThumbnailCache, ThumbnailCache>()
+            .AddHttpMessageHandler<AuthenticatedHttpClientHandler>()
+            .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
+
         builder.Services.AddSingleton<IMusicPlayerService, MusicPlayerService>();
         builder.Services.AddSingleton<IEqualizerService, AndroidEqualizerService>();
 
@@ -103,6 +108,7 @@ public static class MauiProgram
         builder.Services.AddTransient<CalendarViewModel>();
         builder.Services.AddTransient<EventDetailViewModel>();
         builder.Services.AddTransient<EventEditViewModel>();
+        builder.Services.AddTransient<ImageViewerViewModel>();
 
         // ── Pages ─────────────────────────────────────────────────────
         builder.Services.AddTransient<LandingPage>();
@@ -116,6 +122,7 @@ public static class MauiProgram
         builder.Services.AddTransient<CalendarPage>();
         builder.Services.AddTransient<EventDetailPage>();
         builder.Services.AddTransient<EventEditPage>();
+        builder.Services.AddTransient<ImageViewerPage>();
 
 #if DEBUG
         builder.Logging.AddDebug();

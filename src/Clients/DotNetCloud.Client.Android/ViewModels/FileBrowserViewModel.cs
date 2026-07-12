@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Android.Util;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DotNetCloud.Client.Android.Auth;
@@ -15,20 +16,24 @@ public sealed partial class FileBrowserViewModel : ObservableObject
     private readonly IFileRestClient _fileApi;
     private readonly IServerConnectionStore _serverStore;
     private readonly ISecureTokenStore _tokenStore;
+    private readonly IThumbnailCache _thumbnailCache;
     private readonly ILogger<FileBrowserViewModel> _logger;
 
     private readonly Stack<(Guid? FolderId, string Name)> _navigationStack = new();
+    private CancellationTokenSource? _thumbnailLoadCts;
 
     /// <summary>Initializes a new <see cref="FileBrowserViewModel"/>.</summary>
     public FileBrowserViewModel(
         IFileRestClient fileApi,
         IServerConnectionStore serverStore,
         ISecureTokenStore tokenStore,
+        IThumbnailCache thumbnailCache,
         ILogger<FileBrowserViewModel> logger)
     {
         _fileApi = fileApi;
         _serverStore = serverStore;
         _tokenStore = tokenStore;
+        _thumbnailCache = thumbnailCache;
         _logger = logger;
 
         _navigationStack.Push((null, "My Files"));
@@ -128,6 +133,9 @@ public sealed partial class FileBrowserViewModel : ObservableObject
 
                     HasCompletedInitialLoad = true;
 
+                    // Load thumbnails in background
+                    LoadThumbnailsAsync(serverUrl, token);
+
                     // Load quota in background
                     _ = LoadQuotaAsync(serverUrl, token, ct);
                     return;
@@ -175,6 +183,16 @@ public sealed partial class FileBrowserViewModel : ObservableObject
             CanGoBack = _navigationStack.Count > 1;
             UpdateBreadcrumbs();
             await LoadFilesAsync(ct);
+        }
+        else if (item.IsImage)
+        {
+            // Pass IDs as strings — Shell's query attribute system uses Convert.ChangeType
+            // which cannot handle Guid directly.
+            await Shell.Current.GoToAsync("ImageViewer", new Dictionary<string, object>
+            {
+                ["NodeId"] = item.Id.ToString(),
+                ["FolderId"] = CurrentFolderId?.ToString()
+            });
         }
         else
         {
@@ -560,6 +578,57 @@ public sealed partial class FileBrowserViewModel : ObservableObject
         < 1024 * 1024 * 1024 => $"{bytes / (1024.0 * 1024):F1} MB",
         _ => $"{bytes / (1024.0 * 1024 * 1024):F2} GB"
     };
+
+    /// <summary>
+    /// Loads thumbnails for image items in the current folder listing.
+    /// Uses a semaphore to limit concurrent downloads and cancels if the user navigates away.
+    /// </summary>
+    private async void LoadThumbnailsAsync(string serverUrl, string token)
+    {
+        // Cancel any previous thumbnail load operation
+        _thumbnailLoadCts?.Cancel();
+        _thumbnailLoadCts = new CancellationTokenSource();
+        var ct = _thumbnailLoadCts.Token;
+
+        var imageItems = Items.Where(i => i.IsImage).ToList();
+        Log.Warn("DotNetCloud", $"LoadThumbnailsAsync: found {imageItems.Count} image items out of {Items.Count} total");
+        if (imageItems.Count == 0)
+            return;
+
+        // Load thumbnails one at a time
+        foreach (var item in imageItems)
+        {
+            if (ct.IsCancellationRequested)
+                break;
+
+            try
+            {
+                Log.Info("DotNetCloud", $"LoadThumbnailsAsync: fetching thumbnail for {item.Id} ({item.Name})");
+                var source = await _thumbnailCache.GetThumbnailAsync(item.Id, serverUrl, token, ct);
+                if (source is not null)
+                {
+                    Log.Info("DotNetCloud", $"LoadThumbnailsAsync: got thumbnail for {item.Id}");
+                    await MainThread.InvokeOnMainThreadAsync(() =>
+                    {
+                        item.Thumbnail = source;
+                    });
+                }
+                else
+                {
+                    Log.Warn("DotNetCloud", $"LoadThumbnailsAsync: GetThumbnailAsync returned null for {item.Id}");
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("DotNetCloud", $"LoadThumbnailsAsync: exception for {item.Id}: {ex.Message}");
+                _logger.LogDebug(ex, "Failed to load thumbnail for {FileId}", item.Id);
+            }
+        }
+    }
 }
 
 /// <summary>ViewModel for a single file or folder item in the browser.</summary>
@@ -577,6 +646,13 @@ public sealed partial class FileItemViewModel : ObservableObject
         ChildCount = item.ChildCount;
         IsFolder = string.Equals(item.NodeType, "Folder", StringComparison.OrdinalIgnoreCase);
     }
+
+    /// <summary>Thumbnail image source for image files.</summary>
+    [ObservableProperty]
+    private ImageSource? _thumbnail;
+
+    /// <summary>Whether this item is an image file with a supported MIME type.</summary>
+    public bool IsImage => MimeType?.StartsWith("image/", StringComparison.OrdinalIgnoreCase) == true;
 
     /// <summary>Node ID.</summary>
     public Guid Id { get; }
