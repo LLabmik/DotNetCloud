@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Net.Http.Headers;
+using Android.Util;
 using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Client.Android.Services;
@@ -70,7 +71,9 @@ internal sealed class ThumbnailCache : IThumbnailCache
                 new AuthenticationHeaderValue("Bearer", accessToken);
             var baseUrl = serverBaseUrl.TrimEnd('/');
             var url = $"{baseUrl}/api/v1/files/{fileNodeId}/thumbnail?size=small";
+            Log.Info("DotNetCloud", $"GetThumbnailAsync: downloading from {url}");
             var bytes = await _http.GetByteArrayAsync(url, ct).ConfigureAwait(false);
+            Log.Info("DotNetCloud", $"GetThumbnailAsync: received {bytes.Length} bytes");
             if (bytes.Length == 0)
                 return null;
             await File.WriteAllBytesAsync(diskPath, bytes, ct).ConfigureAwait(false);
@@ -82,7 +85,8 @@ internal sealed class ThumbnailCache : IThumbnailCache
         }
         catch (Exception ex)
         {
-            _logger.LogDebug(ex, "Failed to download thumbnail for {FileNodeId}", fileNodeId);
+            Log.Warn("DotNetCloud", $"GetThumbnailAsync: failed for {fileNodeId}: {ex.GetType().Name}: {ex.Message}");
+            _logger.LogWarning(ex, "Failed to download thumbnail for {FileNodeId}", fileNodeId);
             return null;
         }
     }

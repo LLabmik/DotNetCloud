@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Android.Util;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DotNetCloud.Client.Android.Auth;
@@ -571,6 +572,7 @@ public sealed partial class FileBrowserViewModel : ObservableObject
         var ct = _thumbnailLoadCts.Token;
 
         var imageItems = Items.Where(i => i.IsImage).ToList();
+        Log.Warn("DotNetCloud", $"LoadThumbnailsAsync: found {imageItems.Count} image items out of {Items.Count} total");
         if (imageItems.Count == 0)
             return;
 
@@ -582,13 +584,19 @@ public sealed partial class FileBrowserViewModel : ObservableObject
 
             try
             {
+                Log.Info("DotNetCloud", $"LoadThumbnailsAsync: fetching thumbnail for {item.Id} ({item.Name})");
                 var source = await _thumbnailCache.GetThumbnailAsync(item.Id, serverUrl, token, ct);
                 if (source is not null)
                 {
+                    Log.Info("DotNetCloud", $"LoadThumbnailsAsync: got thumbnail for {item.Id}");
                     await MainThread.InvokeOnMainThreadAsync(() =>
                     {
                         item.Thumbnail = source;
                     });
+                }
+                else
+                {
+                    Log.Warn("DotNetCloud", $"LoadThumbnailsAsync: GetThumbnailAsync returned null for {item.Id}");
                 }
             }
             catch (OperationCanceledException)
@@ -597,6 +605,7 @@ public sealed partial class FileBrowserViewModel : ObservableObject
             }
             catch (Exception ex)
             {
+                Log.Warn("DotNetCloud", $"LoadThumbnailsAsync: exception for {item.Id}: {ex.Message}");
                 _logger.LogDebug(ex, "Failed to load thumbnail for {FileId}", item.Id);
             }
         }

@@ -38,12 +38,25 @@ Archived: 2026-07-01. Full git history preserved.
 - ✅ `GET /api/v1/files/{nodeId}/thumbnail?size=small` — routing and auth working
 - ✅ `GET /api/v1/files/{nodeId}/metadata` — routing and auth working
 - ✅ Both endpoints accept cookie-based session auth
-- 🔜 Real thumbnails need Android client fix (see current Active Handoff)
+- 🔜 Endpoints return 404 — file chunks not on server disk (server-side fix needed, see current Active Handoff)
 
 **What changed on the server:**
 - `IThumbnailService` / `ThumbnailService` — `GetOrGenerateThumbnailAsync` generates thumbnails on-demand
 - `FilesController` — `GET .../thumbnail` calls lazy generation on cache miss; new `GET .../metadata` returns EXIF data
 - `Program.cs` — `AddMediaMetadataExtractors()` registered
+
+---
+
+## Archived: Android ThumbnailCache FromFile → FromStream (2026-07-12)
+
+**Target:** monolith → Android client thumbnail download path refactor
+
+**Result:** Changed `ThumbnailCache` to use `ImageSource.FromStream()` instead of `ImageSource.FromFile()` for both cache tiers. Matches `AlbumArtCache` pattern. **However, this was NOT the root cause** — server returns 404 for all thumbnail requests because file chunks aren't on disk. Keeping the change as it's still correct practice.
+
+**Changes:**
+- Disk hit: `ImageSource.FromFile(diskPath)` → `ImageSource.FromStream(() => File.OpenRead(diskPath))`
+- Download hit: `ImageSource.FromFile(diskPath)` → `ImageSource.FromStream(() => new MemoryStream(bytes))`
+- Added `Android.Util.Log` warn-level logging to catch blocks
 
 ---
 

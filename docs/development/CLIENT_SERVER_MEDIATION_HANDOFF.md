@@ -92,27 +92,41 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** 🐛 Found + fixed Android `ThumbnailCache` bug — `ImageSource.FromFile()` doesn't work with absolute paths on Android (needs `FromStream()`). Rebuild APK and re-test thumbnails.
+**Summary:** 🐛 Server returns `404 (Not Found)` for ALL thumbnail requests — file chunks are not on `cloud.kimball.home`'s disk. Server team needs to investigate why synced files' storage chunks aren't present.
 
-**Context:** The server-side thumbnail endpoints were confirmed working (commit `30611287` deployed to production). The Android client reported thumbnails still showing placeholder icons. Investigation of `ThumbnailCache.cs` revealed that **both** the disk-hit and download paths used `ImageSource.FromFile(diskPath)`, which on Android MAUI loads from app resources/assets — NOT from arbitrary file-system paths like `CacheDirectory`. The fix (committed to `feature/android-files-photo-thumbnails`):
+**Context (Android monolith side — debugging complete):**
+Diagnostic logging confirmed the Android client is working correctly:
+- `LoadThumbnailsAsync` is called and finds image items ✅
+- HTTP requests go out to `https://cloud.dotnetcloud.net/api/v1/files/{nodeId}/thumbnail?size=small` ✅
+- **Server returns 404 for every single file** ❌
+- File nodes exist in the DB (the file list API returns them with correct MIME types like `image/jpeg`)
+- But `GetStoragePathAsync` returns empty/null, meaning the physical chunks are not on this server's disk
 
-- **Disk hit** (`File.Exists` path): Changed `ImageSource.FromFile(diskPath)` → `ImageSource.FromStream(() => File.OpenRead(diskPath))`
-- **Download hit** (HTTP fetch path): Changed `ImageSource.FromFile(diskPath)` → `ImageSource.FromStream(() => new MemoryStream(bytes))`
-- Added `ILogger.LogDebug` to the catch block in the download path for future diagnostics
-- This matches the pattern used by `AlbumArtCache` (album art works, uses `FromStream` for downloads)
+**Relevant filenames tested (all return 404):**
+- `Omega.jpg`
+- `20260704 - Dunlap IA USA 250 Parade.jpg`
+- `Downtown Omaha from I29 Interchange Pole.jpg`
+- `IMG_20260706_071832.jpg`
+- `IMG_20260706_223824.jpg`
 
-**Note:** `AlbumArtCache` has the same `FromFile` issue on its disk-hit path — not blocking thumbnails, but should be fixed in a follow-up.
+**Also changed on the branch (keep, not the root cause):**
+- `ThumbnailCache` now uses `ImageSource.FromStream()` instead of `ImageSource.FromFile()` for both cache tiers — matches `AlbumArtCache` pattern. This is still correct but wasn't the blocker.
+- Added `Android.Util.Log` diagnostic logging at `Warn` level to the catch blocks (will help future debugging)
 
 ---
 
+### Server Actions — `cloud.kimball.home`
+
+- [ ] SSH into `cloud.kimball.home` and check the actual file storage directory
+- [ ] Verify `GetStoragePathAsync` for a known node ID — why is it returning null/empty?
+- [ ] Check sync process logs — are file chunks being written correctly?
+- [ ] Check the storage configuration — is `StorageRoot` pointing to the right directory?
+- [ ] After fixing, verify with: `curl -sk -o /dev/null -w "%{http_code}" "https://cloud.dotnetcloud.net/api/v1/files/{nodeId}/thumbnail?size=small"` with auth — should return `200`
+- [ ] Commit any server-side fixes to `feature/android-files-photo-thumbnails`
+
 ### Client Actions — `monolith` (Android client)
 
-- [ ] Clear old thumbnail cache on emulator: `adb shell rm -rf /data/data/com.dotnetcloud.android/cache/thumbnails/`
-- [ ] Rebuild and deploy Android APK with the fix
-- [ ] Upload a fresh JPEG via sync to a folder
-- [ ] Navigate to that folder — confirm thumbnail appears (not emoji fallback)
-- [ ] Tap the image — confirm inline CarouselView viewer opens with smooth swipe
-- [ ] Tap info/metadata button — confirm EXIF panel shows camera, lens, GPS, dimensions
+- ☐ (Waiting on server fix) After server is fixed, test thumbnails again without rebuilding client — just re-navigate to folder
 
 ## Environment
 
