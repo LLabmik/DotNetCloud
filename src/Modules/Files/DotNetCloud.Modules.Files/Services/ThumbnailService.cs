@@ -71,6 +71,33 @@ public sealed class ThumbnailService : IThumbnailService
     }
 
     /// <inheritdoc />
+    public async Task<(Stream? Data, string? ContentType)> GetOrGenerateThumbnailAsync(
+        Guid fileNodeId,
+        ThumbnailSize size,
+        string storagePath,
+        string mimeType,
+        CancellationToken cancellationToken = default)
+    {
+        // 1. Check cache first
+        var (data, contentType) = await GetThumbnailAsync(fileNodeId, size, cancellationToken).ConfigureAwait(false);
+        if (data is not null)
+            return (data, contentType);
+
+        // 2. Cache miss — only raster images support lazy generation (video/PDF need external tools)
+        if (!_supportedImageMimeTypes.Contains(mimeType))
+        {
+            _logger.LogDebug(
+                "No cached thumbnail for {FileId} and MIME type {MimeType} does not support lazy generation.",
+                fileNodeId, mimeType);
+            return (null, null);
+        }
+
+        // 3. Generate all sizes, then retry
+        await GenerateThumbnailAsync(fileNodeId, storagePath, mimeType, cancellationToken).ConfigureAwait(false);
+        return await GetThumbnailAsync(fileNodeId, size, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     public async Task GenerateThumbnailAsync(
         Guid fileNodeId,
         string storagePath,

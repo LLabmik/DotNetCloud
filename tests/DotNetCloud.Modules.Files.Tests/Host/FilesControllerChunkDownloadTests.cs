@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Modules.Files.Host.Controllers;
 using DotNetCloud.Modules.Files.Services;
 using Microsoft.AspNetCore.Http;
@@ -33,6 +34,7 @@ public class FilesControllerChunkDownloadTests
             Mock.Of<IVersionService>(),
             Mock.Of<IShareService>(),
             Mock.Of<IThumbnailService>(),
+            Enumerable.Empty<IMediaMetadataExtractor>(),
             NullLogger<FilesController>.Instance,
             Microsoft.Extensions.Options.Options.Create(new DotNetCloud.Modules.Files.Options.FileSystemOptions()),
             Microsoft.Extensions.Options.Options.Create(new DotNetCloud.Modules.Files.Options.FileUploadOptions()));

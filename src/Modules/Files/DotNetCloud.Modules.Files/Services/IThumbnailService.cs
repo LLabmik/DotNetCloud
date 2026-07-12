@@ -40,6 +40,27 @@ public interface IThumbnailService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Returns a JPEG thumbnail for the given file node, generating it on-the-fly if no cached
+    /// thumbnail exists yet. Only raster image MIME types support lazy generation; video and PDF
+    /// types still return <c>(null, null)</c> on cache miss (they require external tools).
+    /// </summary>
+    /// <param name="fileNodeId">The file node to retrieve or generate a thumbnail for.</param>
+    /// <param name="size">Desired thumbnail dimension.</param>
+    /// <param name="storagePath">Absolute path of the file on disk (used for generation).</param>
+    /// <param name="mimeType">MIME type of the file (e.g. <c>"image/jpeg"</c>).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>
+    /// A tuple containing the image stream and MIME type (<c>"image/jpeg"</c>),
+    /// or <c>(null, null)</c> when the file type is unsupported or generation fails.
+    /// </returns>
+    Task<(Stream? Data, string? ContentType)> GetOrGenerateThumbnailAsync(
+        Guid fileNodeId,
+        ThumbnailSize size,
+        string storagePath,
+        string mimeType,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Generates and caches all thumbnail sizes for a newly uploaded file.
     /// Supported image and video MIME types are processed; other types are silently skipped.
     /// Should be called after a chunked upload session completes.

@@ -51,6 +51,18 @@ public sealed class IsNotNullConverter : IValueConverter
         throw new NotSupportedException();
 }
 
+/// <summary>Returns <c>true</c> when the value is <c>null</c>.</summary>
+public sealed class IsNullConverter : IValueConverter
+{
+    /// <inheritdoc />
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is null;
+
+    /// <inheritdoc />
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
 /// <summary>
 /// Returns <see cref="FontAttributes.Bold"/> when the unread count is greater than zero;
 /// otherwise <see cref="FontAttributes.None"/>.

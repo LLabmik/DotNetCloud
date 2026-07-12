@@ -198,6 +198,17 @@ internal sealed class HttpFileRestClient : IFileRestClient
             : new QuotaInfo(dto.UsedBytes, dto.QuotaBytes);
     }
 
+    // ── Metadata ────────────────────────────────────────────────────
+
+    /// <inheritdoc />
+    public async Task<MediaMetadataDto?> GetFileMetadataAsync(
+        string serverBaseUrl, string accessToken, Guid nodeId, CancellationToken ct = default)
+    {
+        SetAuth(accessToken);
+        return await GetEnvelopeDataAsync<MediaMetadataDto>(
+            $"{Url(serverBaseUrl)}/api/v1/files/{nodeId}/metadata", ct).ConfigureAwait(false);
+    }
+
     // ── Private helpers ──────────────────────────────────────────────
 
     private void SetAuth(string accessToken) =>
@@ -276,3 +287,4 @@ internal sealed class HttpFileRestClient : IFileRestClient
         public long QuotaBytes { get; init; }
     }
 }
+

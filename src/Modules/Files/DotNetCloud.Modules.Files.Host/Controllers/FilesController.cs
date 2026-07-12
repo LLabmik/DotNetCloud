@@ -1,3 +1,5 @@
+using DotNetCloud.Core.Capabilities;
+using DotNetCloud.Core.DTOs.Media;
 using DotNetCloud.Core.DTOs.Search;
 using Microsoft.AspNetCore.RateLimiting;
 using DotNetCloud.Modules.Files.DTOs;
@@ -25,6 +27,7 @@ public class FilesController : FilesControllerBase
     private readonly IVersionService _versionService;
     private readonly IShareService _shareService;
     private readonly IThumbnailService _thumbnailService;
+    private readonly IEnumerable<IMediaMetadataExtractor> _metadataExtractors;
     private readonly ILogger<FilesController> _logger;
     private readonly FileSystemOptions _fileSystemOptions;
     private readonly FileUploadOptions _uploadOptions;
@@ -40,6 +43,7 @@ public class FilesController : FilesControllerBase
         IVersionService versionService,
         IShareService shareService,
         IThumbnailService thumbnailService,
+        IEnumerable<IMediaMetadataExtractor> metadataExtractors,
         ILogger<FilesController> logger,
         IOptions<FileSystemOptions> fileSystemOptions,
         IOptions<FileUploadOptions> uploadOptions,
@@ -51,6 +55,7 @@ public class FilesController : FilesControllerBase
         _versionService = versionService;
         _shareService = shareService;
         _thumbnailService = thumbnailService;
+        _metadataExtractors = metadataExtractors;
         _logger = logger;
         _fileSystemOptions = fileSystemOptions.Value;
         _uploadOptions = uploadOptions.Value;
@@ -504,7 +509,8 @@ public class FilesController : FilesControllerBase
     });
 
     /// <summary>
-    /// Gets a cached thumbnail for a file node.
+    /// Gets a cached thumbnail for a file node, generating it on-the-fly if missing
+    /// (lazy generation for raster image formats).
     /// </summary>
     [HttpGet("{nodeId:guid}/thumbnail")]
     public Task<IActionResult> GetThumbnailAsync(Guid nodeId, [FromQuery] string size = "medium") => ExecuteAsync(async () =>
@@ -516,12 +522,53 @@ public class FilesController : FilesControllerBase
         if (node is null)
             return NotFound(ErrorEnvelope("not_found", "Node not found."));
 
-        var (thumbnailData, contentType) = await _thumbnailService.GetThumbnailAsync(nodeId, thumbnailSize);
+        if (string.Equals(node.NodeType, "Folder", StringComparison.OrdinalIgnoreCase))
+            return BadRequest(ErrorEnvelope("validation_error", "Folders do not have thumbnails."));
+
+        var storagePath = await _fileService.GetStoragePathAsync(nodeId, HttpContext.RequestAborted);
+        if (string.IsNullOrEmpty(storagePath))
+            return NotFound(ErrorEnvelope("not_found", "File storage path not found."));
+
+        var (thumbnailData, contentType) = await _thumbnailService.GetOrGenerateThumbnailAsync(
+            nodeId, thumbnailSize, storagePath, node.MimeType ?? "application/octet-stream", HttpContext.RequestAborted);
+
         if (thumbnailData is null)
-            return NotFound(ErrorEnvelope("not_found", "Thumbnail not found."));
+            return NotFound(ErrorEnvelope("not_found", "Thumbnail not found or format not supported."));
 
         Response.Headers.CacheControl = "private, max-age=3600";
         return File(thumbnailData, contentType ?? "image/jpeg", enableRangeProcessing: false);
+    });
+
+    /// <summary>
+    /// Gets EXIF / media metadata for a file node. Extracts camera, lens, GPS,
+    /// dimensions, date-taken, and other metadata from the file on first access.
+    /// Results are cached for 1 hour via <c>Cache-Control</c>.
+    /// </summary>
+    [HttpGet("{nodeId:guid}/metadata")]
+    public Task<IActionResult> GetFileMetadataAsync(Guid nodeId) => ExecuteAsync(async () =>
+    {
+        var node = await _fileService.GetNodeAsync(nodeId, GetAuthenticatedCaller());
+        if (node is null)
+            return NotFound(ErrorEnvelope("not_found", "Node not found."));
+
+        if (string.IsNullOrEmpty(node.MimeType))
+            return BadRequest(ErrorEnvelope("validation_error", "Folders do not have media metadata."));
+
+        var extractor = _metadataExtractors.FirstOrDefault(e => e.CanExtract(node.MimeType));
+        if (extractor is null)
+            return BadRequest(ErrorEnvelope("unsupported_media_type",
+                $"No metadata extractor available for MIME type: {node.MimeType}"));
+
+        var storagePath = await _fileService.GetStoragePathAsync(nodeId, HttpContext.RequestAborted);
+        if (string.IsNullOrEmpty(storagePath))
+            return NotFound(ErrorEnvelope("not_found", "File storage path not found."));
+
+        var metadata = await extractor.ExtractAsync(storagePath, node.MimeType, HttpContext.RequestAborted);
+        if (metadata is null)
+            return NotFound(ErrorEnvelope("not_found", "Could not extract metadata from file."));
+
+        Response.Headers.CacheControl = "private, max-age=3600";
+        return Ok(metadata);
     });
 
     /// <summary>

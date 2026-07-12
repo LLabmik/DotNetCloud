@@ -15,20 +15,24 @@ public sealed partial class FileBrowserViewModel : ObservableObject
     private readonly IFileRestClient _fileApi;
     private readonly IServerConnectionStore _serverStore;
     private readonly ISecureTokenStore _tokenStore;
+    private readonly IThumbnailCache _thumbnailCache;
     private readonly ILogger<FileBrowserViewModel> _logger;
 
     private readonly Stack<(Guid? FolderId, string Name)> _navigationStack = new();
+    private CancellationTokenSource? _thumbnailLoadCts;
 
     /// <summary>Initializes a new <see cref="FileBrowserViewModel"/>.</summary>
     public FileBrowserViewModel(
         IFileRestClient fileApi,
         IServerConnectionStore serverStore,
         ISecureTokenStore tokenStore,
+        IThumbnailCache thumbnailCache,
         ILogger<FileBrowserViewModel> logger)
     {
         _fileApi = fileApi;
         _serverStore = serverStore;
         _tokenStore = tokenStore;
+        _thumbnailCache = thumbnailCache;
         _logger = logger;
 
         _navigationStack.Push((null, "My Files"));
@@ -128,6 +132,9 @@ public sealed partial class FileBrowserViewModel : ObservableObject
 
                     HasCompletedInitialLoad = true;
 
+                    // Load thumbnails in background
+                    LoadThumbnailsAsync(serverUrl, token);
+
                     // Load quota in background
                     _ = LoadQuotaAsync(serverUrl, token, ct);
                     return;
@@ -175,6 +182,14 @@ public sealed partial class FileBrowserViewModel : ObservableObject
             CanGoBack = _navigationStack.Count > 1;
             UpdateBreadcrumbs();
             await LoadFilesAsync(ct);
+        }
+        else if (item.IsImage)
+        {
+            await Shell.Current.GoToAsync("ImageViewer", new Dictionary<string, object>
+            {
+                ["NodeId"] = item.Id,
+                ["FolderId"] = CurrentFolderId
+            });
         }
         else
         {
@@ -541,6 +556,58 @@ public sealed partial class FileBrowserViewModel : ObservableObject
         < 1024 * 1024 * 1024 => $"{bytes / (1024.0 * 1024):F1} MB",
         _ => $"{bytes / (1024.0 * 1024 * 1024):F2} GB"
     };
+
+    /// <summary>
+    /// Loads thumbnails for image items in the current folder listing.
+    /// Uses a semaphore to limit concurrent downloads and cancels if the user navigates away.
+    /// </summary>
+    private async void LoadThumbnailsAsync(string serverUrl, string token)
+    {
+        // Cancel any previous thumbnail load operation
+        _thumbnailLoadCts?.Cancel();
+        _thumbnailLoadCts = new CancellationTokenSource();
+        var ct = _thumbnailLoadCts.Token;
+
+        var imageItems = Items.Where(i => i.IsImage).ToList();
+        if (imageItems.Count == 0)
+            return;
+
+        using var semaphore = new SemaphoreSlim(4);
+
+        await Task.Run(async () =>
+        {
+            var tasks = imageItems.Select(async item =>
+            {
+                await semaphore.WaitAsync(ct);
+                try
+                {
+                    ct.ThrowIfCancellationRequested();
+                    var source = await _thumbnailCache.GetThumbnailAsync(item.Id, serverUrl, token, ct);
+                    if (source is not null)
+                    {
+                        await MainThread.InvokeOnMainThreadAsync(() =>
+                        {
+                            item.Thumbnail = source;
+                        });
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    // Navigation cancelled — ignore
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "Failed to load thumbnail for {FileId}", item.Id);
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            });
+
+            await Task.WhenAll(tasks);
+        }, ct);
+    }
 }
 
 /// <summary>ViewModel for a single file or folder item in the browser.</summary>
@@ -558,6 +625,13 @@ public sealed partial class FileItemViewModel : ObservableObject
         ChildCount = item.ChildCount;
         IsFolder = string.Equals(item.NodeType, "Folder", StringComparison.OrdinalIgnoreCase);
     }
+
+    /// <summary>Thumbnail image source for image files.</summary>
+    [ObservableProperty]
+    private ImageSource? _thumbnail;
+
+    /// <summary>Whether this item is an image file with a supported MIME type.</summary>
+    public bool IsImage => MimeType?.StartsWith("image/", StringComparison.OrdinalIgnoreCase) == true;
 
     /// <summary>Node ID.</summary>
     public Guid Id { get; }

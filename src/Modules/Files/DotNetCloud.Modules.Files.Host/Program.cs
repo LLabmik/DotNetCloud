@@ -3,6 +3,7 @@ using DotNetCloud.Core.Auth.Introspection;
 using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.ServiceDefaults.Media;
 using DotNetCloud.Modules.Files;
 using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Files.Host.Services;
@@ -161,6 +162,9 @@ else
 
 // Files module business logic services
 builder.Services.AddFilesServices(builder.Configuration);
+
+// Media metadata extractors (EXIF for photos, tag readers for audio/video)
+builder.Services.AddMediaMetadataExtractors();
 
 // File storage engine (local filesystem, configurable base path)
 var storagePath = builder.Configuration.GetValue<string>("Files:StoragePath");

@@ -15,6 +15,7 @@
             <converters:InvertBoolConverter x:Key="InvertBool"/>
             <converters:IsNotNullOrEmptyConverter x:Key="IsNotNullOrEmpty"/>
             <converters:IsNotNullConverter x:Key="IsNotNull"/>
+            <converters:IsNullConverter x:Key="IsNull"/>
             <converters:IsNotZeroConverter x:Key="IsNotZero"/>
             <converters:UnreadToBoldConverter x:Key="UnreadToBold"/>
             <converters:MentionToBadgeColorConverter x:Key="MentionToBadgeColor"/>

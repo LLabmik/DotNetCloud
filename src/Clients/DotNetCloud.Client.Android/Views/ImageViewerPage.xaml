@@ -1,0 +1,270 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="DotNetCloud.Client.Android.Views.ImageViewerPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:vm="clr-namespace:DotNetCloud.Client.Android.ViewModels"
+    Shell.NavBarIsVisible="False"
+    Shell.TabBarIsVisible="False"
+    BackgroundColor="#0F172A">
+
+    <Grid RowDefinitions="Auto,*,Auto">
+
+        <!-- Semi-transparent header overlay -->
+        <Border
+            Grid.Row="0"
+            BackgroundColor="#800F172A"
+            StrokeThickness="0"
+            Padding="8,8"
+            IsVisible="{Binding IsHeaderVisible}">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                <!-- Back button -->
+                <ImageButton
+                    Grid.Column="0"
+                    BackgroundColor="Transparent"
+                    Command="{Binding CloseCommand}"
+                    HeightRequest="40"
+                    WidthRequest="40">
+                    <ImageButton.Source>
+                        <FontImageSource
+                            FontFamily="OpenSansRegular"
+                            Glyph="←"
+                            Size="22"
+                            Color="#F1F5F9"/>
+                    </ImageButton.Source>
+                </ImageButton>
+
+                <!-- File name -->
+                <Label
+                    Grid.Column="1"
+                    Text="{Binding FileName}"
+                    TextColor="#F1F5F9"
+                    FontSize="15"
+                    VerticalOptions="Center"
+                    LineBreakMode="TailTruncation"
+                    MaxLines="1"
+                    Margin="8,0"/>
+
+                <!-- Info / metadata button -->
+                <ImageButton
+                    Grid.Column="2"
+                    BackgroundColor="Transparent"
+                    Command="{Binding ToggleMetadataCommand}"
+                    HeightRequest="40"
+                    WidthRequest="40">
+                    <ImageButton.Source>
+                        <FontImageSource
+                            FontFamily="OpenSansRegular"
+                            Glyph="ⓘ"
+                            Size="20"
+                            Color="#94A3B8"/>
+                    </ImageButton.Source>
+                </ImageButton>
+
+                <!-- Share button -->
+                <ImageButton
+                    Grid.Column="3"
+                    BackgroundColor="Transparent"
+                    HeightRequest="40"
+                    WidthRequest="40">
+                    <ImageButton.Source>
+                        <FontImageSource
+                            FontFamily="OpenSansRegular"
+                            Glyph="↗"
+                            Size="20"
+                            Color="#94A3B8"/>
+                    </ImageButton.Source>
+                </ImageButton>
+            </Grid>
+        </Border>
+
+        <!-- Image area with gesture support -->
+        <Grid
+            Grid.Row="1"
+            VerticalOptions="Fill"
+            HorizontalOptions="Fill">
+
+            <!-- Loading indicator -->
+            <ActivityIndicator
+                IsRunning="{Binding IsLoading}"
+                IsVisible="{Binding IsLoading}"
+                Color="#7C3AED"
+                HeightRequest="48"
+                WidthRequest="48"
+                HorizontalOptions="Center"
+                VerticalOptions="Center"/>
+
+            <!-- Full-resolution image -->
+            <Image
+                Source="{Binding Source}"
+                Aspect="AspectFit"
+                HorizontalOptions="Fill"
+                VerticalOptions="Fill"
+                IsVisible="{Binding IsLoading, Converter={StaticResource InvertBool}}">
+
+                <Image.GestureRecognizers>
+                    <!-- Tap to toggle header overlay -->
+                    <TapGestureRecognizer Command="{Binding ToggleHeaderCommand}"/>
+
+                    <!-- Swipe left → next image -->
+                    <SwipeGestureRecognizer
+                        Direction="Left"
+                        Command="{Binding NavigateNextCommand}"/>
+
+                    <!-- Swipe right → previous image -->
+                    <SwipeGestureRecognizer
+                        Direction="Right"
+                        Command="{Binding NavigatePreviousCommand}"/>
+                </Image.GestureRecognizers>
+            </Image>
+
+            <!-- Navigation arrows (subtle indicators) -->
+            <Label
+                Text="‹"
+                FontSize="36"
+                TextColor="#80F1F5F9"
+                VerticalOptions="Center"
+                HorizontalOptions="Start"
+                Padding="12,0"
+                IsVisible="{Binding HasPrevious}">
+                <Label.GestureRecognizers>
+                    <TapGestureRecognizer Command="{Binding NavigatePreviousCommand}"/>
+                </Label.GestureRecognizers>
+            </Label>
+
+            <Label
+                Text="›"
+                FontSize="36"
+                TextColor="#80F1F5F9"
+                VerticalOptions="Center"
+                HorizontalOptions="End"
+                Padding="12,0"
+                IsVisible="{Binding HasNext}">
+                <Label.GestureRecognizers>
+                    <TapGestureRecognizer Command="{Binding NavigateNextCommand}"/>
+                </Label.GestureRecognizers>
+            </Label>
+        </Grid>
+
+        <!-- EXIF metadata panel (collapsible) -->
+        <Border
+            Grid.Row="2"
+            BackgroundColor="#CC0F172A"
+            StrokeThickness="0"
+            Padding="16,12"
+            IsVisible="{Binding IsMetadataExpanded}">
+            <ScrollView
+                HeightRequest="200">
+                <VerticalStackLayout Spacing="6">
+                    <Label
+                        Text="Image Info"
+                        TextColor="#94A3B8"
+                        FontSize="13"
+                        FontAttributes="Bold"
+                        Margin="0,0,0,4"/>
+
+                    <!-- Dimensions -->
+                    <HorizontalStackLayout
+                        Spacing="8"
+                        IsVisible="{Binding DimensionsDisplay, Converter={StaticResource IsNotNullOrEmpty}}">
+                        <Label Text="Dimensions:"
+                                TextColor="#64748B"
+                                FontSize="13"
+                                WidthRequest="90"/>
+                        <Label Text="{Binding DimensionsDisplay}"
+                                TextColor="#F1F5F9"
+                                FontSize="13"/>
+                    </HorizontalStackLayout>
+
+                    <!-- Date taken -->
+                    <HorizontalStackLayout
+                        Spacing="8"
+                        IsVisible="{Binding DateTakenDisplay, Converter={StaticResource IsNotNullOrEmpty}}">
+                        <Label Text="Date:"
+                                TextColor="#64748B"
+                                FontSize="13"
+                                WidthRequest="90"/>
+                        <Label Text="{Binding DateTakenDisplay}"
+                                TextColor="#F1F5F9"
+                                FontSize="13"/>
+                    </HorizontalStackLayout>
+
+                    <!-- Camera -->
+                    <HorizontalStackLayout
+                        Spacing="8"
+                        IsVisible="{Binding CameraDisplay, Converter={StaticResource IsNotNullOrEmpty}}">
+                        <Label Text="Camera:"
+                                TextColor="#64748B"
+                                FontSize="13"
+                                WidthRequest="90"/>
+                        <Label Text="{Binding CameraDisplay}"
+                                TextColor="#F1F5F9"
+                                FontSize="13"/>
+                    </HorizontalStackLayout>
+
+                    <!-- Lens -->
+                    <HorizontalStackLayout
+                        Spacing="8"
+                        IsVisible="{Binding LensDisplay, Converter={StaticResource IsNotNullOrEmpty}}">
+                        <Label Text="Lens:"
+                                TextColor="#64748B"
+                                FontSize="13"
+                                WidthRequest="90"/>
+                        <Label Text="{Binding LensDisplay}"
+                                TextColor="#F1F5F9"
+                                FontSize="13"/>
+                    </HorizontalStackLayout>
+
+                    <!-- Camera settings (aperture · shutter · ISO · focal length) -->
+                    <HorizontalStackLayout
+                        Spacing="8"
+                        IsVisible="{Binding SettingsDisplay, Converter={StaticResource IsNotNullOrEmpty}}">
+                        <Label Text="Settings:"
+                                TextColor="#64748B"
+                                FontSize="13"
+                                WidthRequest="90"/>
+                        <Label Text="{Binding SettingsDisplay}"
+                                TextColor="#F1F5F9"
+                                FontSize="13"/>
+                    </HorizontalStackLayout>
+
+                    <!-- Flash -->
+                    <HorizontalStackLayout
+                        Spacing="8"
+                        IsVisible="{Binding FlashDisplay, Converter={StaticResource IsNotNullOrEmpty}}">
+                        <Label Text="Flash:"
+                                TextColor="#64748B"
+                                FontSize="13"
+                                WidthRequest="90"/>
+                        <Label Text="{Binding FlashDisplay}"
+                                TextColor="#F1F5F9"
+                                FontSize="13"/>
+                    </HorizontalStackLayout>
+
+                    <!-- GPS -->
+                    <HorizontalStackLayout
+                        Spacing="8"
+                        IsVisible="{Binding GpsDisplay, Converter={StaticResource IsNotNullOrEmpty}}">
+                        <Label Text="Location:"
+                                TextColor="#64748B"
+                                FontSize="13"
+                                WidthRequest="90"/>
+                        <Label Text="{Binding GpsDisplay}"
+                                TextColor="#F1F5F9"
+                                FontSize="13"/>
+                    </HorizontalStackLayout>
+
+                    <!-- No metadata fallback -->
+                    <Label
+                        Text="No EXIF data available for this image."
+                        TextColor="#64748B"
+                        FontSize="13"
+                        FontAttributes="Italic"
+                        IsVisible="{Binding HasMetadata, Converter={StaticResource InvertBool}}"/>
+                </VerticalStackLayout>
+            </ScrollView>
+        </Border>
+
+    </Grid>
+
+</ContentPage>
