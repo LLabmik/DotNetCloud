@@ -563,7 +563,8 @@ public class FilesController : FilesControllerBase
         }
         finally
         {
-            try { if (System.IO.File.Exists(tmpPath)) System.IO.File.Delete(tmpPath); }
+            try
+            { if (System.IO.File.Exists(tmpPath)) System.IO.File.Delete(tmpPath); }
             catch { /* best-effort cleanup */ }
         }
     });
@@ -621,7 +622,8 @@ public class FilesController : FilesControllerBase
         }
         finally
         {
-            try { if (System.IO.File.Exists(tmpPath)) System.IO.File.Delete(tmpPath); }
+            try
+            { if (System.IO.File.Exists(tmpPath)) System.IO.File.Delete(tmpPath); }
             catch { /* best-effort cleanup */ }
         }
     });
