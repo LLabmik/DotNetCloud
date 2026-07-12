@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Net.Http.Headers;
+using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Client.Android.Services;
 
@@ -12,12 +13,14 @@ internal sealed class ThumbnailCache : IThumbnailCache
     private const int MaxMemoryEntries = 100;
     private readonly ConcurrentDictionary<Guid, CachedEntry> _memory = new();
     private readonly HttpClient _http;
+    private readonly ILogger<ThumbnailCache> _logger;
     private readonly string _diskDir;
 
     /// <summary>Initializes a new <see cref="ThumbnailCache"/>.</summary>
-    public ThumbnailCache(HttpClient http)
+    public ThumbnailCache(HttpClient http, ILogger<ThumbnailCache> logger)
     {
         _http = http;
+        _logger = logger;
         _diskDir = GetCacheDirectory();
         Directory.CreateDirectory(_diskDir);
     }
@@ -58,15 +61,18 @@ internal sealed class ThumbnailCache : IThumbnailCache
             return src;
         }
 
-        // 3. Download
+        // 3. Download thumbnail from server
         try
         {
             _http.DefaultRequestHeaders.Authorization =
                 new AuthenticationHeaderValue("Bearer", accessToken);
-            var url = $"{serverBaseUrl.TrimEnd('/')}/api/v1/files/{fileNodeId}/thumbnail?size=small";
+            var baseUrl = serverBaseUrl.TrimEnd('/');
+            var url = $"{baseUrl}/api/v1/files/{fileNodeId}/thumbnail?size=small";
             var bytes = await _http.GetByteArrayAsync(url, ct).ConfigureAwait(false);
+            if (bytes.Length == 0)
+                return null;
             await File.WriteAllBytesAsync(diskPath, bytes, ct).ConfigureAwait(false);
-            var source = ImageSource.FromStream(() => new MemoryStream(bytes));
+            var source = ImageSource.FromFile(diskPath);
             AddToMemory(fileNodeId, source);
             return source;
         }

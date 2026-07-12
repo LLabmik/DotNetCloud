@@ -185,10 +185,12 @@ public sealed partial class FileBrowserViewModel : ObservableObject
         }
         else if (item.IsImage)
         {
+            // Pass IDs as strings — Shell's query attribute system uses Convert.ChangeType
+            // which cannot handle Guid directly.
             await Shell.Current.GoToAsync("ImageViewer", new Dictionary<string, object>
             {
-                ["NodeId"] = item.Id,
-                ["FolderId"] = CurrentFolderId
+                ["NodeId"] = item.Id.ToString(),
+                ["FolderId"] = CurrentFolderId?.ToString()
             });
         }
         else
@@ -572,41 +574,32 @@ public sealed partial class FileBrowserViewModel : ObservableObject
         if (imageItems.Count == 0)
             return;
 
-        using var semaphore = new SemaphoreSlim(4);
-
-        await Task.Run(async () =>
+        // Load thumbnails one at a time
+        foreach (var item in imageItems)
         {
-            var tasks = imageItems.Select(async item =>
-            {
-                await semaphore.WaitAsync(ct);
-                try
-                {
-                    ct.ThrowIfCancellationRequested();
-                    var source = await _thumbnailCache.GetThumbnailAsync(item.Id, serverUrl, token, ct);
-                    if (source is not null)
-                    {
-                        await MainThread.InvokeOnMainThreadAsync(() =>
-                        {
-                            item.Thumbnail = source;
-                        });
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    // Navigation cancelled — ignore
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogDebug(ex, "Failed to load thumbnail for {FileId}", item.Id);
-                }
-                finally
-                {
-                    semaphore.Release();
-                }
-            });
+            if (ct.IsCancellationRequested)
+                break;
 
-            await Task.WhenAll(tasks);
-        }, ct);
+            try
+            {
+                var source = await _thumbnailCache.GetThumbnailAsync(item.Id, serverUrl, token, ct);
+                if (source is not null)
+                {
+                    await MainThread.InvokeOnMainThreadAsync(() =>
+                    {
+                        item.Thumbnail = source;
+                    });
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to load thumbnail for {FileId}", item.Id);
+            }
+        }
     }
 }
 

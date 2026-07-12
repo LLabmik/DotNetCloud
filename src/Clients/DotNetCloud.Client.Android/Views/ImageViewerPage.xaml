@@ -17,7 +17,7 @@
             StrokeThickness="0"
             Padding="8,8"
             IsVisible="{Binding IsHeaderVisible}">
-            <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto">
                 <!-- Back button -->
                 <ImageButton
                     Grid.Column="0"
@@ -45,9 +45,18 @@
                     MaxLines="1"
                     Margin="8,0"/>
 
+                <!-- Position indicator (e.g. "3 / 15") -->
+                <Label
+                    Grid.Column="2"
+                    Text="{Binding PositionText}"
+                    TextColor="#94A3B8"
+                    FontSize="13"
+                    VerticalOptions="Center"
+                    Margin="4,0"/>
+
                 <!-- Info / metadata button -->
                 <ImageButton
-                    Grid.Column="2"
+                    Grid.Column="3"
                     BackgroundColor="Transparent"
                     Command="{Binding ToggleMetadataCommand}"
                     HeightRequest="40"
@@ -63,7 +72,7 @@
 
                 <!-- Share button -->
                 <ImageButton
-                    Grid.Column="3"
+                    Grid.Column="4"
                     BackgroundColor="Transparent"
                     HeightRequest="40"
                     WidthRequest="40">
@@ -78,72 +87,63 @@
             </Grid>
         </Border>
 
-        <!-- Image area with gesture support -->
+        <!-- Carousel image area — smooth native swipe transitions -->
         <Grid
             Grid.Row="1"
             VerticalOptions="Fill"
             HorizontalOptions="Fill">
 
-            <!-- Loading indicator -->
+            <!-- Initial loading indicator (hidden once first image loads) -->
             <ActivityIndicator
-                IsRunning="{Binding IsLoading}"
-                IsVisible="{Binding IsLoading}"
+                IsRunning="{Binding IsViewerLoading}"
+                IsVisible="{Binding IsViewerLoading}"
                 Color="#7C3AED"
                 HeightRequest="48"
                 WidthRequest="48"
                 HorizontalOptions="Center"
                 VerticalOptions="Center"/>
 
-            <!-- Full-resolution image -->
-            <Image
-                Source="{Binding Source}"
-                Aspect="AspectFit"
+            <!-- CarouselView for smooth drag-to-swipe -->
+            <CarouselView
+                ItemsSource="{Binding CarouselItems}"
+                Position="{Binding CurrentPosition, Mode=TwoWay}"
+                Loop="False"
+                PeekAreaInsets="0"
+                IsSwipeEnabled="True"
                 HorizontalOptions="Fill"
                 VerticalOptions="Fill"
-                IsVisible="{Binding IsLoading, Converter={StaticResource InvertBool}}">
+                IsVisible="{Binding IsViewerLoading, Converter={StaticResource InvertBool}}">
 
-                <Image.GestureRecognizers>
-                    <!-- Tap to toggle header overlay -->
-                    <TapGestureRecognizer Command="{Binding ToggleHeaderCommand}"/>
+                <CarouselView.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ImageCarouselItem">
+                        <Grid>
+                            <!-- Per-item loading spinner -->
+                            <ActivityIndicator
+                                IsRunning="{Binding IsItemLoading}"
+                                IsVisible="{Binding IsItemLoading}"
+                                Color="#475569"
+                                HeightRequest="32"
+                                WidthRequest="32"
+                                HorizontalOptions="Center"
+                                VerticalOptions="Center"/>
 
-                    <!-- Swipe left → next image -->
-                    <SwipeGestureRecognizer
-                        Direction="Left"
-                        Command="{Binding NavigateNextCommand}"/>
+                            <!-- The image itself -->
+                            <Image
+                                Source="{Binding Source}"
+                                Aspect="AspectFit"
+                                HorizontalOptions="Fill"
+                                VerticalOptions="Fill"
+                                IsVisible="{Binding IsItemLoading, Converter={StaticResource InvertBool}}">
 
-                    <!-- Swipe right → previous image -->
-                    <SwipeGestureRecognizer
-                        Direction="Right"
-                        Command="{Binding NavigatePreviousCommand}"/>
-                </Image.GestureRecognizers>
-            </Image>
-
-            <!-- Navigation arrows (subtle indicators) -->
-            <Label
-                Text="‹"
-                FontSize="36"
-                TextColor="#80F1F5F9"
-                VerticalOptions="Center"
-                HorizontalOptions="Start"
-                Padding="12,0"
-                IsVisible="{Binding HasPrevious}">
-                <Label.GestureRecognizers>
-                    <TapGestureRecognizer Command="{Binding NavigatePreviousCommand}"/>
-                </Label.GestureRecognizers>
-            </Label>
-
-            <Label
-                Text="›"
-                FontSize="36"
-                TextColor="#80F1F5F9"
-                VerticalOptions="Center"
-                HorizontalOptions="End"
-                Padding="12,0"
-                IsVisible="{Binding HasNext}">
-                <Label.GestureRecognizers>
-                    <TapGestureRecognizer Command="{Binding NavigateNextCommand}"/>
-                </Label.GestureRecognizers>
-            </Label>
+                                <Image.GestureRecognizers>
+                                    <TapGestureRecognizer
+                                        Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.ToggleHeaderCommand}"/>
+                                </Image.GestureRecognizers>
+                            </Image>
+                        </Grid>
+                    </DataTemplate>
+                </CarouselView.ItemTemplate>
+            </CarouselView>
         </Grid>
 
         <!-- EXIF metadata panel (collapsible) -->
@@ -168,12 +168,12 @@
                         Spacing="8"
                         IsVisible="{Binding DimensionsDisplay, Converter={StaticResource IsNotNullOrEmpty}}">
                         <Label Text="Dimensions:"
-                                TextColor="#64748B"
-                                FontSize="13"
-                                WidthRequest="90"/>
+                               TextColor="#64748B"
+                               FontSize="13"
+                               WidthRequest="90"/>
                         <Label Text="{Binding DimensionsDisplay}"
-                                TextColor="#F1F5F9"
-                                FontSize="13"/>
+                               TextColor="#F1F5F9"
+                               FontSize="13"/>
                     </HorizontalStackLayout>
 
                     <!-- Date taken -->
@@ -181,12 +181,12 @@
                         Spacing="8"
                         IsVisible="{Binding DateTakenDisplay, Converter={StaticResource IsNotNullOrEmpty}}">
                         <Label Text="Date:"
-                                TextColor="#64748B"
-                                FontSize="13"
-                                WidthRequest="90"/>
+                               TextColor="#64748B"
+                               FontSize="13"
+                               WidthRequest="90"/>
                         <Label Text="{Binding DateTakenDisplay}"
-                                TextColor="#F1F5F9"
-                                FontSize="13"/>
+                               TextColor="#F1F5F9"
+                               FontSize="13"/>
                     </HorizontalStackLayout>
 
                     <!-- Camera -->
@@ -194,12 +194,12 @@
                         Spacing="8"
                         IsVisible="{Binding CameraDisplay, Converter={StaticResource IsNotNullOrEmpty}}">
                         <Label Text="Camera:"
-                                TextColor="#64748B"
-                                FontSize="13"
-                                WidthRequest="90"/>
+                               TextColor="#64748B"
+                               FontSize="13"
+                               WidthRequest="90"/>
                         <Label Text="{Binding CameraDisplay}"
-                                TextColor="#F1F5F9"
-                                FontSize="13"/>
+                               TextColor="#F1F5F9"
+                               FontSize="13"/>
                     </HorizontalStackLayout>
 
                     <!-- Lens -->
@@ -207,12 +207,12 @@
                         Spacing="8"
                         IsVisible="{Binding LensDisplay, Converter={StaticResource IsNotNullOrEmpty}}">
                         <Label Text="Lens:"
-                                TextColor="#64748B"
-                                FontSize="13"
-                                WidthRequest="90"/>
+                               TextColor="#64748B"
+                               FontSize="13"
+                               WidthRequest="90"/>
                         <Label Text="{Binding LensDisplay}"
-                                TextColor="#F1F5F9"
-                                FontSize="13"/>
+                               TextColor="#F1F5F9"
+                               FontSize="13"/>
                     </HorizontalStackLayout>
 
                     <!-- Camera settings (aperture · shutter · ISO · focal length) -->
@@ -220,12 +220,12 @@
                         Spacing="8"
                         IsVisible="{Binding SettingsDisplay, Converter={StaticResource IsNotNullOrEmpty}}">
                         <Label Text="Settings:"
-                                TextColor="#64748B"
-                                FontSize="13"
-                                WidthRequest="90"/>
+                               TextColor="#64748B"
+                               FontSize="13"
+                               WidthRequest="90"/>
                         <Label Text="{Binding SettingsDisplay}"
-                                TextColor="#F1F5F9"
-                                FontSize="13"/>
+                               TextColor="#F1F5F9"
+                               FontSize="13"/>
                     </HorizontalStackLayout>
 
                     <!-- Flash -->
@@ -233,12 +233,12 @@
                         Spacing="8"
                         IsVisible="{Binding FlashDisplay, Converter={StaticResource IsNotNullOrEmpty}}">
                         <Label Text="Flash:"
-                                TextColor="#64748B"
-                                FontSize="13"
-                                WidthRequest="90"/>
+                               TextColor="#64748B"
+                               FontSize="13"
+                               WidthRequest="90"/>
                         <Label Text="{Binding FlashDisplay}"
-                                TextColor="#F1F5F9"
-                                FontSize="13"/>
+                               TextColor="#F1F5F9"
+                               FontSize="13"/>
                     </HorizontalStackLayout>
 
                     <!-- GPS -->
@@ -246,12 +246,12 @@
                         Spacing="8"
                         IsVisible="{Binding GpsDisplay, Converter={StaticResource IsNotNullOrEmpty}}">
                         <Label Text="Location:"
-                                TextColor="#64748B"
-                                FontSize="13"
-                                WidthRequest="90"/>
+                               TextColor="#64748B"
+                               FontSize="13"
+                               WidthRequest="90"/>
                         <Label Text="{Binding GpsDisplay}"
-                                TextColor="#F1F5F9"
-                                FontSize="13"/>
+                               TextColor="#F1F5F9"
+                               FontSize="13"/>
                     </HorizontalStackLayout>
 
                     <!-- No metadata fallback -->

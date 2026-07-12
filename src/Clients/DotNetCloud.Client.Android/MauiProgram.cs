@@ -84,6 +84,7 @@ public static class MauiProgram
             .AddHttpMessageHandler<AuthenticatedHttpClientHandler>()
             .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
 
+        // Thumbnail cache
         builder.Services.AddHttpClient<IThumbnailCache, ThumbnailCache>()
             .AddHttpMessageHandler<AuthenticatedHttpClientHandler>()
             .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);

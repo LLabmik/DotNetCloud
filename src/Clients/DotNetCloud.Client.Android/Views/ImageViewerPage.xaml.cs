@@ -14,19 +14,4 @@ public partial class ImageViewerPage : ContentPage
         InitializeComponent();
         BindingContext = viewModel;
     }
-
-    /// <inheritdoc />
-    protected override void OnAppearing()
-    {
-        base.OnAppearing();
-
-        // Trigger initialization via the ViewModel
-        if (BindingContext is ImageViewerViewModel vm)
-        {
-            MainThread.BeginInvokeOnMainThread(async () =>
-            {
-                await vm.InitializeCommand.ExecuteAsync(null);
-            });
-        }
-    }
 }

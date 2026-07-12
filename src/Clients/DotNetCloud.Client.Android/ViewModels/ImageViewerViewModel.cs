@@ -9,61 +9,112 @@ using Microsoft.Extensions.Logging;
 namespace DotNetCloud.Client.Android.ViewModels;
 
 /// <summary>
-/// ViewModel for the full-screen image viewer.
-/// Supports swipe navigation between images in the same folder,
-/// full-resolution loading, and EXIF metadata display.
+/// A single page in the carousel-based image viewer.
+/// Holds the loaded image source and loading state.
 /// </summary>
-[QueryProperty(nameof(NodeId), "NodeId")]
-[QueryProperty(nameof(FolderId), "FolderId")]
-public sealed partial class ImageViewerViewModel : ObservableObject
+public sealed partial class ImageCarouselItem : ObservableObject
+{
+    /// <summary>Initializes a new carousel item for the given file.</summary>
+    public ImageCarouselItem(Guid fileId, string fileName)
+    {
+        FileId = fileId;
+        FileName = fileName;
+    }
+
+    /// <summary>File node ID.</summary>
+    public Guid FileId { get; }
+
+    /// <summary>Display name.</summary>
+    public string FileName { get; }
+
+    /// <summary>Loaded full-resolution image source.</summary>
+    [ObservableProperty]
+    private ImageSource? _source;
+
+    /// <summary>Whether this item is still loading its image.</summary>
+    [ObservableProperty]
+    private bool _isItemLoading = true;
+}
+
+/// <summary>
+/// ViewModel for the full-screen image viewer powered by a <see cref="CarouselView"/>
+/// for smooth native swipe transitions.
+/// Pre-loads adjacent images so swiping feels instant.
+/// </summary>
+public sealed partial class ImageViewerViewModel : ObservableObject, IQueryAttributable
 {
     private readonly IFileRestClient _fileApi;
-    private readonly IThumbnailCache _thumbnailCache;
     private readonly IServerConnectionStore _serverStore;
     private readonly ISecureTokenStore _tokenStore;
     private readonly ILogger<ImageViewerViewModel> _logger;
 
     private List<FileItem> _folderItems = [];
-    private int _currentIndex;
     private string _serverUrl = string.Empty;
     private string _accessToken = string.Empty;
+    private Guid _nodeId;
+    private Guid? _folderId;
+    private CancellationTokenSource? _loadCts;
 
     /// <summary>Initializes a new <see cref="ImageViewerViewModel"/>.</summary>
     public ImageViewerViewModel(
         IFileRestClient fileApi,
-        IThumbnailCache thumbnailCache,
         IServerConnectionStore serverStore,
         ISecureTokenStore tokenStore,
         ILogger<ImageViewerViewModel> logger)
     {
         _fileApi = fileApi;
-        _thumbnailCache = thumbnailCache;
         _serverStore = serverStore;
         _tokenStore = tokenStore;
         _logger = logger;
     }
 
-    /// <summary>The currently viewed file node ID (set via navigation query).</summary>
-    public Guid NodeId { get; set; }
+    /// <inheritdoc />
+    public void ApplyQueryAttributes(IDictionary<string, object> query)
+    {
+        if (query.TryGetValue("NodeId", out var nodeId) && nodeId is string nodeIdStr
+            && Guid.TryParse(nodeIdStr, out var parsedNodeId))
+        {
+            _nodeId = parsedNodeId;
+        }
 
-    /// <summary>The folder containing this image (set via navigation query).</summary>
-    public Guid? FolderId { get; set; }
+        if (query.TryGetValue("FolderId", out var folderId) && folderId is string folderIdStr
+            && Guid.TryParse(folderIdStr, out var parsedFolderId))
+        {
+            _folderId = parsedFolderId;
+        }
 
-    /// <summary>Full-resolution image source for display.</summary>
+        MainThread.BeginInvokeOnMainThread(async () =>
+        {
+            await InitializeCommand.ExecuteAsync(null);
+        });
+    }
+
+    // ── Carousel ────────────────────────────────────────────────────
+
+    /// <summary>Carousel items — one per image in the current folder.</summary>
+    public ObservableCollection<ImageCarouselItem> CarouselItems { get; } = [];
+
+    /// <summary>Current carousel position (two-way bound to CarouselView.Position).</summary>
     [ObservableProperty]
-    private ImageSource? _source;
+    private int _currentPosition = -1;
+
+    /// <summary>Whether the entire viewer is still loading the initial image.</summary>
+    [ObservableProperty]
+    private bool _isViewerLoading = true;
+
+    /// <summary>Whether the header/info overlay is visible.</summary>
+    [ObservableProperty]
+    private bool _isHeaderVisible = true;
 
     /// <summary>Current file name displayed in the header.</summary>
     [ObservableProperty]
     private string _fileName = string.Empty;
 
-    /// <summary>Whether the full-resolution image is loading.</summary>
+    /// <summary>Current position indicator text (e.g. "3 / 15").</summary>
     [ObservableProperty]
-    private bool _isLoading = true;
+    private string _positionText = string.Empty;
 
-    /// <summary>Whether the header/info overlay is visible.</summary>
-    [ObservableProperty]
-    private bool _isHeaderVisible = true;
+    // ── Metadata ─────────────────────────────────────────────────────
 
     /// <summary>EXIF/metadata for the current image.</summary>
     [ObservableProperty]
@@ -72,14 +123,6 @@ public sealed partial class ImageViewerViewModel : ObservableObject
     /// <summary>Whether the EXIF info panel is expanded.</summary>
     [ObservableProperty]
     private bool _isMetadataExpanded;
-
-    /// <summary>Whether there is a previous image to swipe to.</summary>
-    [ObservableProperty]
-    private bool _hasPrevious;
-
-    /// <summary>Whether there is a next image to swipe to.</summary>
-    [ObservableProperty]
-    private bool _hasNext;
 
     /// <summary>Whether the metadata panel shows any data.</summary>
     public bool HasMetadata => Metadata is not null;
@@ -109,7 +152,6 @@ public sealed partial class ImageViewerViewModel : ObservableObject
             var m = Metadata;
             if (m is null)
                 return null;
-
             var parts = new List<string>();
             if (m.Aperture.HasValue)
                 parts.Add($"f/{m.Aperture.Value:F1}");
@@ -149,9 +191,11 @@ public sealed partial class ImageViewerViewModel : ObservableObject
         }
     }
 
+    // ── Initialization ──────────────────────────────────────────────
+
     /// <summary>
-    /// Called after navigation query properties are set.
-    /// Loads the folder listing, then shows the requested image.
+    /// Loads the folder listing, populates the carousel, then loads the
+    /// selected image and pre-loads adjacent ones.
     /// </summary>
     [RelayCommand]
     private async Task InitializeAsync(CancellationToken ct)
@@ -162,59 +206,116 @@ public sealed partial class ImageViewerViewModel : ObservableObject
             _serverUrl = serverUrl;
             _accessToken = token;
 
-            // Load folder listing to enable swipe navigation
-            _folderItems = (await _fileApi.ListChildrenAsync(serverUrl, token, FolderId, ct))
+            _folderItems = (await _fileApi.ListChildrenAsync(serverUrl, token, _folderId, ct))
                 .Where(f => string.Equals(f.NodeType, "File", StringComparison.OrdinalIgnoreCase)
                     && f.MimeType?.StartsWith("image/", StringComparison.OrdinalIgnoreCase) == true)
                 .ToList();
 
-            _currentIndex = _folderItems.FindIndex(f => f.Id == NodeId);
-            if (_currentIndex < 0)
-                _currentIndex = 0;
+            if (_folderItems.Count == 0)
+            {
+                await Shell.Current.DisplayAlertAsync("Info", "No images found in this folder.", "OK");
+                await Shell.Current.GoToAsync("..");
+                return;
+            }
 
-            await LoadCurrentImageAsync(ct);
+            // Populate carousel items (placeholders — images load on demand)
+            CarouselItems.Clear();
+            foreach (var item in _folderItems)
+                CarouselItems.Add(new ImageCarouselItem(item.Id, item.Name));
+
+            var startIndex = _folderItems.FindIndex(f => f.Id == _nodeId);
+            if (startIndex < 0)
+                startIndex = 0;
+
+            // Set position — this triggers OnCurrentPositionChanged which loads the image
+            CurrentPosition = startIndex;
+            IsViewerLoading = false;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to initialize image viewer for {NodeId}", NodeId);
+            _logger.LogError(ex, "Failed to initialize image viewer for {NodeId}", _nodeId);
             await Shell.Current.DisplayAlertAsync("Error", "Could not load image.", "OK");
             await Shell.Current.GoToAsync("..");
         }
     }
 
-    /// <summary>Loads the full-resolution image and metadata for the current index.</summary>
-    private async Task LoadCurrentImageAsync(CancellationToken ct)
+    /// <summary>
+    /// Called whenever <see cref="CurrentPosition"/> changes — either by user swipe
+    /// or programmatic scroll. Loads the visible image and pre-loads neighbours.
+    /// </summary>
+    partial void OnCurrentPositionChanged(int value)
     {
-        IsLoading = true;
-        IsMetadataExpanded = false;
+        // Cancel any in-flight preloads
+        _loadCts?.Cancel();
+        _loadCts = new CancellationTokenSource();
+        var ct = _loadCts.Token;
+
+        if (value < 0 || value >= _folderItems.Count)
+            return;
+
+        var item = _folderItems[value];
+        FileName = item.Name;
+        PositionText = $"{value + 1} / {_folderItems.Count}";
         Metadata = null;
+        OnPropertyChanged(nameof(HasMetadata));
+        OnPropertyChanged(nameof(DimensionsDisplay));
+        OnPropertyChanged(nameof(CameraDisplay));
+        OnPropertyChanged(nameof(LensDisplay));
+        OnPropertyChanged(nameof(SettingsDisplay));
+        OnPropertyChanged(nameof(FlashDisplay));
+        OnPropertyChanged(nameof(DateTakenDisplay));
+        OnPropertyChanged(nameof(GpsDisplay));
+
+        // Load the current image + preload neighbours in the background
+        _ = LoadImageAsync(value, ct);
+        _ = LoadImageAsync(value - 1, ct); // previous
+        _ = LoadImageAsync(value + 1, ct); // next
+    }
+
+    /// <summary>Downloads the full-resolution image for the item at <paramref name="index"/>.</summary>
+    private async Task LoadImageAsync(int index, CancellationToken ct)
+    {
+        if (index < 0 || index >= _folderItems.Count || ct.IsCancellationRequested)
+            return;
+
+        var carouselItem = CarouselItems[index];
+        if (!carouselItem.IsItemLoading)
+            return; // already loaded
 
         try
         {
-            var item = _folderItems[_currentIndex];
-            FileName = item.Name;
-            HasPrevious = _currentIndex > 0;
-            HasNext = _currentIndex < _folderItems.Count - 1;
-
-            // Load full-resolution image
-            using var stream = await _fileApi.DownloadAsync(_serverUrl, _accessToken, item.Id, ct);
+            var fileItem = _folderItems[index];
+            using var stream = await _fileApi.DownloadAsync(_serverUrl, _accessToken, fileItem.Id, ct);
             var ms = new MemoryStream();
             await stream.CopyToAsync(ms, ct);
             ms.Position = 0;
 
             await MainThread.InvokeOnMainThreadAsync(() =>
             {
-                Source = ImageSource.FromStream(() => new MemoryStream(ms.ToArray()));
-                IsLoading = false;
+                if (ct.IsCancellationRequested)
+                    return;
+                carouselItem.Source = ImageSource.FromStream(() => new MemoryStream(ms.ToArray()));
+                carouselItem.IsItemLoading = false;
             });
 
-            // Load metadata in background
-            _ = LoadMetadataAsync(item.Id, ct);
+            // Fetch EXIF metadata for the current (visible) image
+            if (index == CurrentPosition)
+            {
+                _ = LoadMetadataAsync(fileItem.Id, ct);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Swiped away — ignore
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to load image at index {Index}", _currentIndex);
-            IsLoading = false;
+            _logger.LogDebug(ex, "Failed to load image at index {Index}", index);
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                if (!ct.IsCancellationRequested)
+                    carouselItem.IsItemLoading = false;
+            });
         }
     }
 
@@ -223,7 +324,7 @@ public sealed partial class ImageViewerViewModel : ObservableObject
         try
         {
             var metadata = await _fileApi.GetFileMetadataAsync(_serverUrl, _accessToken, nodeId, ct);
-            if (metadata is not null)
+            if (metadata is not null && !ct.IsCancellationRequested)
             {
                 await MainThread.InvokeOnMainThreadAsync(() =>
                 {
@@ -245,25 +346,7 @@ public sealed partial class ImageViewerViewModel : ObservableObject
         }
     }
 
-    /// <summary>Navigates to the previous image in the folder.</summary>
-    [RelayCommand]
-    private async Task NavigatePreviousAsync(CancellationToken ct)
-    {
-        if (_currentIndex <= 0)
-            return;
-        _currentIndex--;
-        await LoadCurrentImageAsync(ct);
-    }
-
-    /// <summary>Navigates to the next image in the folder.</summary>
-    [RelayCommand]
-    private async Task NavigateNextAsync(CancellationToken ct)
-    {
-        if (_currentIndex >= _folderItems.Count - 1)
-            return;
-        _currentIndex++;
-        await LoadCurrentImageAsync(ct);
-    }
+    // ── Commands ────────────────────────────────────────────────────
 
     /// <summary>Toggles the header/info overlay visibility.</summary>
     [RelayCommand]
@@ -277,6 +360,7 @@ public sealed partial class ImageViewerViewModel : ObservableObject
     [RelayCommand]
     private async Task CloseAsync()
     {
+        _loadCts?.Cancel();
         await Shell.Current.GoToAsync("..");
     }
 
