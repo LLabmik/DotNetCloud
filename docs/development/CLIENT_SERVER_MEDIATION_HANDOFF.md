@@ -92,41 +92,38 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** 🐛 Server returns `404 (Not Found)` for ALL thumbnail requests — file chunks are not on `cloud.kimball.home`'s disk. Server team needs to investigate why synced files' storage chunks aren't present.
+**Summary:** ✅ Thumbnail & metadata endpoints FIXED on `cloud.kimball.home`. Root cause was chunk-based storage — files are never assembled on disk at the `files/...` path.
 
-**Context (Android monolith side — debugging complete):**
-Diagnostic logging confirmed the Android client is working correctly:
-- `LoadThumbnailsAsync` is called and finds image items ✅
-- HTTP requests go out to `https://cloud.dotnetcloud.net/api/v1/files/{nodeId}/thumbnail?size=small` ✅
-- **Server returns 404 for every single file** ❌
-- File nodes exist in the DB (the file list API returns them with correct MIME types like `image/jpeg`)
-- But `GetStoragePathAsync` returns empty/null, meaning the physical chunks are not on this server's disk
+**Root cause:**
+Files are stored as content-addressable chunks under `storage/chunks/ab/cd/{hash}`. The `StoragePath` column in `FileNodes` (e.g. `files/71/dc/71dcaa...`) is a **metadata reference**, NOT a real filesystem path. The old code passed this relative path directly to `ThumbnailService` which called `File.Exists()` — always failing.
 
-**Relevant filenames tested (all return 404):**
-- `Omega.jpg`
-- `20260704 - Dunlap IA USA 250 Parade.jpg`
-- `Downtown Omaha from I29 Interchange Pole.jpg`
-- `IMG_20260706_071832.jpg`
-- `IMG_20260706_223824.jpg`
+**Fix (committed to `feature/android-files-photo-thumbnails` at `2380c111`):**
+Both `GET .../thumbnail` and `GET .../metadata` endpoints now use `IDownloadService.DownloadCurrentAsync` to reconstruct the file from chunks, write to a temp file, pass that path to the generator/extractor, and clean up the temp file.
 
-**Also changed on the branch (keep, not the root cause):**
-- `ThumbnailCache` now uses `ImageSource.FromStream()` instead of `ImageSource.FromFile()` for both cache tiers — matches `AlbumArtCache` pattern. This is still correct but wasn't the blocker.
-- Added `Android.Util.Log` diagnostic logging at `Warn` level to the catch blocks (will help future debugging)
+**Verification (all passing on `cloud.kimball.home`):**
+- ✅ `GET .../thumbnail?size=small` → 200, 8757B image/jpeg
+- ✅ `GET .../thumbnail?size=medium` → 200, 17764B image/jpeg
+- ✅ `GET .../thumbnail?size=large` → 200, 46791B image/jpeg
+- ✅ `GET .../metadata` → 200, full EXIF (Samsung Galaxy S24 Ultra, f/1.7, ISO 2000, 4000×3000, taken 2026-07-06)
+- ✅ All 14 modules healthy
 
 ---
 
 ### Server Actions — `cloud.kimball.home`
 
-- [ ] SSH into `cloud.kimball.home` and check the actual file storage directory
-- [ ] Verify `GetStoragePathAsync` for a known node ID — why is it returning null/empty?
-- [ ] Check sync process logs — are file chunks being written correctly?
-- [ ] Check the storage configuration — is `StorageRoot` pointing to the right directory?
-- [ ] After fixing, verify with: `curl -sk -o /dev/null -w "%{http_code}" "https://cloud.dotnetcloud.net/api/v1/files/{nodeId}/thumbnail?size=small"` with auth — should return `200`
-- [ ] Commit any server-side fixes to `feature/android-files-photo-thumbnails`
+- [x] Check storage config & directory structure
+- [x] Identify root cause (chunks vs full file path mismatch)
+- [x] Fix both thumbnail and metadata endpoints to use `DownloadService`
+- [x] Deploy to production
+- [x] Verify all endpoints return 200
+- [x] Commit fix to branch
 
 ### Client Actions — `monolith` (Android client)
 
-- ☐ (Waiting on server fix) After server is fixed, test thumbnails again without rebuilding client — just re-navigate to folder
+- [ ] Re-test thumbnails against `cloud.dotnetcloud.net` — navigate to folder with images, confirm thumbnails appear (not emoji fallback)
+- [ ] Tap an image — confirm CarouselView inline viewer opens
+- [ ] Tap info/metadata button — confirm EXIF panel shows camera/lens/GPS data
+- [ ] Test with multiple image files to confirm lazy generation triggers on first access
 
 ## Environment
 
