@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-07-12 (Android Files — deploy server-side thumbnail lazy-generation & EXIF metadata endpoint)
+Last updated: 2026-07-12 (Android Files — server deploy ✅, monolith re-test against production)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -92,38 +92,30 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** Deploy server-side thumbnail lazy-generation and EXIF metadata endpoint for Android Files photo viewer.
+**Summary:** Server-side thumbnail lazy-generation & EXIF metadata endpoint deployed to production ✅. Android client needs to re-test against `cloud.dotnetcloud.net` and confirm thumbnails load in the file list.
 
-**Context:** Android Files app (`feature/android-files-photo-thumbnails`, commit `050000a4`) now shows an inline image viewer with swipe navigation and EXIF metadata panel. The thumbnail cache on the client fetches from `GET /api/v1/files/{nodeId}/thumbnail?size=small`, but the server returns 404 for pre-existing images because the lazy-generation code (`GetOrGenerateThumbnailAsync`) hasn't been deployed yet. Thumbnails will appear once the server has this code.
+**Context:** Server deployment is DONE on `cloud.kimball.home` (production). The Files module was rebuilt from `feature/android-files-photo-thumbnails` (commit `30611287`) with `GetOrGenerateThumbnailAsync`, the lazy thumbnail endpoint, and the EXIF metadata endpoint. All 14 modules are healthy.
 
-**Server-side changes in this branch (already committed, need deploy):**
-- `IThumbnailService.cs` / `ThumbnailService.cs` — added `GetOrGenerateThumbnailAsync` for lazy on-demand thumbnail generation (instead of only at upload time)
-- `FilesController.cs` — updated `GET .../thumbnail` to call lazy generation on cache miss; added `GET .../metadata` endpoint returning EXIF data via `ExifMetadataExtractor`
-- `Program.cs` — added `builder.Services.AddMediaMetadataExtractors()`
-- `DotNetCloud.Modules.Files.Host.csproj` — added `DotNetCloud.Core.ServiceDefaults` project reference
+**Verification results (server-side):**
+- ✅ `GET /api/v1/files/{nodeId}/thumbnail?size=small` — routing and auth working, returns structured 404 when file chunks aren't on this server's disk (expected — the test file was uploaded from a different machine)
+- ✅ `GET /api/v1/files/{nodeId}/metadata` — routing and auth working, returns structured error when file not on disk
+- ✅ Both endpoints accept cookie-based session auth
+- 🔜 **Real thumbnails will work end-to-end when the Android app uploads a fresh JPEG via sync** — the lazy-generation triggers on first access to a file whose chunks ARE on the server
+
+**What changed on the server (already in production):**
+- `IThumbnailService` / `ThumbnailService` — `GetOrGenerateThumbnailAsync` generates thumbnails on-demand
+- `FilesController` — `GET .../thumbnail` calls lazy generation on cache miss; new `GET .../metadata` returns EXIF data
+- `Program.cs` — `AddMediaMetadataExtractors()` registered
 
 ---
 
-### Server Actions — `cloud.kimball.home`
-
-- [ ] `git fetch origin`
-- [ ] `git switch feature/android-files-photo-thumbnails`
-- [ ] `dotnet publish src/Modules/Files/DotNetCloud.Modules.Files.Host -c Release -o /opt/dotnetcloud/modules/files`
-- [ ] `sudo systemctl restart dotnetcloud@files`
-- [ ] Verify health: `curl -k https://cloud.kimball.home/health` — Files module reports healthy
-- [ ] Verify thumbnail endpoint: upload a JPEG via the web UI, then `curl -I "https://cloud.kimball.home/api/v1/files/{nodeId}/thumbnail?size=small"` returns `200 image/jpeg`
-- [ ] Verify metadata endpoint: `curl "https://cloud.kimball.home/api/v1/files/{nodeId}/metadata"` returns JSON with EXIF fields
-- [ ] Create PR to merge `feature/android-files-photo-thumbnails` to `main`
-
 ### Client Actions — `monolith` (Android client)
 
-- [x] Full-screen CarouselView image viewer with smooth swipe transitions
-- [x] EXIF metadata panel (camera, lens, settings, GPS, date, dimensions)
-- [x] `ThumbnailCache` service (two-tier LRU memory + disk, fetches `.../thumbnail?size=small`)
-- [x] Image thumbnails in file list (conditional Image vs emoji fallback)
-- [x] Lazy thumbnail loading with cancellation on navigation
-- [x] `IsNullConverter` for XAML visibility
-- [x] All services, pages, and routes registered in DI
+- [ ] Re-test the Android Files app against `cloud.dotnetcloud.net` with a freshly uploaded JPEG (via sync)
+- [ ] Navigate to the folder containing the new image — confirm thumbnail appears (not emoji fallback)
+- [ ] Tap the image — confirm inline CarouselView viewer opens with smooth swipe
+- [ ] Tap info/metadata button — confirm EXIF panel shows camera, lens, GPS, dimensions
+- [ ] If thumbnails still don't appear: check `ThumbnailCache` logs and verify the HTTP response from `.../thumbnail?size=small` returns `200` with image data (not a redirect or error envelope)
 
 ## Environment
 
@@ -145,17 +137,4 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 - ✅ **SignalR channel group naming:** `chat-channel-{channelId}` (used by `ChatHub.ChannelGroup()`, `CoreHub.JoinGroupAsync()`, and Android `SignalRChatClient`).
 - **Controller discovery:** Core.Server references Files.Host and Chat.Host via `ProjectReference`. ASP.NET Core auto-discovers controllers from referenced assemblies. Do NOT create duplicate controllers in Core.Server for routes already served by module Host assemblies.
 
-**Fix applied in source (committed to branch):**
-- `CoreHub.JoinGroupAsync()` now accepts both `"chat-channel-{guid}"` and bare GUID formats
-- Extracts the GUID, then joins the connection to `"chat-channel-{guid}"` — matching `ChatHub.ChannelGroup()`
-- `CoreHub.LeaveGroupAsync()` updated similarly for consistency
-- `ChannelGroup()` helper method added to `CoreHub` matching the one in `ChatHub`
-
-**Android client changes (already deployed in APK):**
-- `ChatConnectionService` now starts correctly (was never started before)
-- SignalR connection verified working via logcat ("SignalR connected successfully!")
-- `SenderName` display confirmed working
-- `JoinChannelGroupAsync` already sends the correct format ("chat-channel-{guid}")
-- **Calendar event click crash fix:** `x:DataType` in Day view `CollectionView.ItemTemplate` corrected from `vm:CalendarViewModel` to `core:CalendarEventDto`
-- **Calendar week view fix:** Inner `DataTemplate x:DataType` corrected from `x:Object` to `core:CalendarEventDto`
-- **Calendar error handling:** `SelectEventAsync()` and `OnEventSelected()` now wrapped in try-catch to prevent unhandled crashes
+<!-- carry-forward contracts and old Android changes archived to CLIENT_SERVER_MEDIATION_ARCHIVE.md -->

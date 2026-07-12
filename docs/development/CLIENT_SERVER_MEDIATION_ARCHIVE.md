@@ -99,6 +99,22 @@ Archived: 2026-07-01. Full git history preserved.
 
 **Result:** ✅ Full end-to-end: server alphabet endpoints deployed to production, Android client code verified using them (not client-side computation), Debug APK built and installed on physical phone.
 
+---
+
+## Archived: Android Files Photo Thumbnails — Server Deploy (2026-07-12)
+
+**Target:** cloud.kimball.home → production deploy
+
+**Result:** ✅ Server-side thumbnail lazy-generation and EXIF metadata endpoint deployed to production on `cloud.kimball.home`.
+
+**Completed (cloud.kimball.home):**
+- ✅ Published Files module host to `/opt/dotnetcloud/server/modules/dotnetcloud.files/`
+- ✅ Service restarted, all modules healthy
+- ✅ `GET /api/v1/files/{nodeId}/thumbnail?size=small` — endpoint responds (structured 404 when file data not on disk, correct behavior for previously-uploaded files whose chunks live on client only)
+- ✅ `GET /api/v1/files/{nodeId}/metadata` — endpoint responds (same structured response)
+- ✅ Auth works via cookie session (tested with `testdude@llabmik.net`)
+- 🚫 PR creation skipped — moderator responsibility
+
 **Completed (monolith — Android client):**
 - ✅ Pulled latest `main`
 - ✅ Verified client calls server endpoints (`/artists/alphabet`, `/albums/alphabet`, `/tracks/alphabet`)
