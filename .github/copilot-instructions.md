@@ -532,6 +532,12 @@ When the assistant needs the mediator to run a command:
 - The assistant is responsible for pushing commits to remote by default.
 - Do not delegate routine push responsibility to the moderator/user unless explicitly requested.
 
+### PR Creation Policy (MANDATORY)
+
+- The assistant does NOT create Pull Requests. Never call `gh pr create` or any PR creation workflow.
+- PRs are created by the moderator/user only.
+- If the handoff says "Create PR" — skip that step and note it in the update as the moderator's responsibility.
+
 ---
 
 ## Domain Information
