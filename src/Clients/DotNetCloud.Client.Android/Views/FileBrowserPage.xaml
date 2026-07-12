@@ -256,26 +256,28 @@
                                         StrokeThickness="0"
                                         StrokeShape="RoundRectangle 12"
                                         Margin="0,0,12,0">
-                                        <!-- Image thumbnail (shown for image files with loaded thumbnail) -->
-                                        <Image
-                                            Source="{Binding Thumbnail}"
-                                            Aspect="AspectFill"
-                                            WidthRequest="44"
-                                            HeightRequest="44"
-                                            IsVisible="{Binding Thumbnail, Converter={StaticResource IsNotNull}}">
-                                            <Image.Clip>
-                                                <RoundRectangleGeometry
-                                                    CornerRadius="12"
-                                                    Rect="0,0,44,44"/>
-                                            </Image.Clip>
-                                        </Image>
-                                        <!-- Emoji fallback (shown when no thumbnail) -->
-                                        <Label
-                                            FontSize="20"
-                                            HorizontalOptions="Center"
-                                            VerticalOptions="Center"
-                                            Text="{Binding Icon}"
-                                            IsVisible="{Binding Thumbnail, Converter={StaticResource IsNull}}"/>
+                                        <Grid>
+                                            <!-- Image thumbnail (shown for image files with loaded thumbnail) -->
+                                            <Image
+                                                Source="{Binding Thumbnail}"
+                                                Aspect="AspectFill"
+                                                WidthRequest="44"
+                                                HeightRequest="44"
+                                                IsVisible="{Binding Thumbnail, Converter={StaticResource IsNotNull}}">
+                                                <Image.Clip>
+                                                    <RoundRectangleGeometry
+                                                        CornerRadius="12"
+                                                        Rect="0,0,44,44"/>
+                                                </Image.Clip>
+                                            </Image>
+                                            <!-- Emoji fallback (shown when no thumbnail) -->
+                                            <Label
+                                                FontSize="20"
+                                                HorizontalOptions="Center"
+                                                VerticalOptions="Center"
+                                                Text="{Binding Icon}"
+                                                IsVisible="{Binding Thumbnail, Converter={StaticResource IsNull}}"/>
+                                        </Grid>
                                     </Border>
 
                                     <!-- Name + details -->

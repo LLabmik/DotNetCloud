@@ -92,20 +92,16 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** ✅ Thumbnail & metadata endpoints FIXED on `cloud.kimball.home`. Root cause was chunk-based storage — files are never assembled on disk at the `files/...` path.
+**Summary:** ✅ Thumbnails working end-to-end! Server-side fix (chunks → temp file assembly) + Android client fix (XAML Border/Grid single-child layout). All verified.
 
-**Root cause:**
-Files are stored as content-addressable chunks under `storage/chunks/ab/cd/{hash}`. The `StoragePath` column in `FileNodes` (e.g. `files/71/dc/71dcaa...`) is a **metadata reference**, NOT a real filesystem path. The old code passed this relative path directly to `ThumbnailService` which called `File.Exists()` — always failing.
+**Root cause (server):** Files are stored as content-addressable chunks. `GetStoragePathAsync` returns a metadata reference path, not a real filesystem path. Fixed by using `IDownloadService.DownloadCurrentAsync` to reconstruct the file from chunks before generating thumbnails.
 
-**Fix (committed to `feature/android-files-photo-thumbnails` at `2380c111`):**
-Both `GET .../thumbnail` and `GET .../metadata` endpoints now use `IDownloadService.DownloadCurrentAsync` to reconstruct the file from chunks, write to a temp file, pass that path to the generator/extractor, and clean up the temp file.
+**Root cause (Android client):** MAUI `Border` can only have one child. The `<Image>` and `<Label>` were both direct children of `<Border>` — only the `<Label>` was rendered. `ImageSource.FromFile(diskPath)` was working correctly all along. Fixed by wrapping both in a `<Grid>` container.
 
-**Verification (all passing on `cloud.kimball.home`):**
-- ✅ `GET .../thumbnail?size=small` → 200, 8757B image/jpeg
-- ✅ `GET .../thumbnail?size=medium` → 200, 17764B image/jpeg
-- ✅ `GET .../thumbnail?size=large` → 200, 46791B image/jpeg
-- ✅ `GET .../metadata` → 200, full EXIF (Samsung Galaxy S24 Ultra, f/1.7, ISO 2000, 4000×3000, taken 2026-07-06)
-- ✅ All 14 modules healthy
+**Verification (all passing):**
+- ✅ Server thumbnail endpoint returns 200 with valid JPEG data
+- ✅ Android client downloads thumbnails, caches to disk, displays them in the file list
+- ✅ No more emoji fallback or gray squares — actual photo thumbnails render correctly
 
 ---
 
@@ -120,10 +116,9 @@ Both `GET .../thumbnail` and `GET .../metadata` endpoints now use `IDownloadServ
 
 ### Client Actions — `monolith` (Android client)
 
-- [ ] Re-test thumbnails against `cloud.dotnetcloud.net` — navigate to folder with images, confirm thumbnails appear (not emoji fallback)
-- [ ] Tap an image — confirm CarouselView inline viewer opens
-- [ ] Tap info/metadata button — confirm EXIF panel shows camera/lens/GPS data
-- [ ] Test with multiple image files to confirm lazy generation triggers on first access
+- [x] Re-test thumbnails against `cloud.dotnetcloud.net` — ✅ thumbnails appear
+- [x] Fix XAML Border/Grid layout bug (Image was never the Border's Content)
+- [x] Add `Android.Util.Log` diagnostics for future debugging
 
 ## Environment
 

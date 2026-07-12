@@ -57,9 +57,7 @@ internal sealed class ThumbnailCache : IThumbnailCache
         var diskPath = GetDiskPath(fileNodeId);
         if (File.Exists(diskPath))
         {
-            // Use FromStream — FromFile does not work reliably with absolute paths
-            // on Android's CacheDirectory (it looks in app resources/assets).
-            var src = ImageSource.FromStream(() => File.OpenRead(diskPath));
+            var src = ImageSource.FromFile(diskPath);
             AddToMemory(fileNodeId, src);
             return src;
         }
@@ -77,9 +75,8 @@ internal sealed class ThumbnailCache : IThumbnailCache
             if (bytes.Length == 0)
                 return null;
             await File.WriteAllBytesAsync(diskPath, bytes, ct).ConfigureAwait(false);
-            // Use FromStream — FromFile does not work reliably with absolute paths
-            // on Android's CacheDirectory (it looks in app resources/assets).
-            var source = ImageSource.FromStream(() => new MemoryStream(bytes));
+            // Load from the cached file on disk using FromFile with the absolute path.
+            var source = ImageSource.FromFile(diskPath);
             AddToMemory(fileNodeId, source);
             return source;
         }
