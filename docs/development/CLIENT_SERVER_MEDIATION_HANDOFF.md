@@ -92,30 +92,27 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** Server-side thumbnail lazy-generation & EXIF metadata endpoint deployed to production ✅. Android client needs to re-test against `cloud.dotnetcloud.net` and confirm thumbnails load in the file list.
+**Summary:** 🐛 Found + fixed Android `ThumbnailCache` bug — `ImageSource.FromFile()` doesn't work with absolute paths on Android (needs `FromStream()`). Rebuild APK and re-test thumbnails.
 
-**Context:** Server deployment is DONE on `cloud.kimball.home` (production). The Files module was rebuilt from `feature/android-files-photo-thumbnails` (commit `30611287`) with `GetOrGenerateThumbnailAsync`, the lazy thumbnail endpoint, and the EXIF metadata endpoint. All 14 modules are healthy.
+**Context:** The server-side thumbnail endpoints were confirmed working (commit `30611287` deployed to production). The Android client reported thumbnails still showing placeholder icons. Investigation of `ThumbnailCache.cs` revealed that **both** the disk-hit and download paths used `ImageSource.FromFile(diskPath)`, which on Android MAUI loads from app resources/assets — NOT from arbitrary file-system paths like `CacheDirectory`. The fix (committed to `feature/android-files-photo-thumbnails`):
 
-**Verification results (server-side):**
-- ✅ `GET /api/v1/files/{nodeId}/thumbnail?size=small` — routing and auth working, returns structured 404 when file chunks aren't on this server's disk (expected — the test file was uploaded from a different machine)
-- ✅ `GET /api/v1/files/{nodeId}/metadata` — routing and auth working, returns structured error when file not on disk
-- ✅ Both endpoints accept cookie-based session auth
-- 🔜 **Real thumbnails will work end-to-end when the Android app uploads a fresh JPEG via sync** — the lazy-generation triggers on first access to a file whose chunks ARE on the server
+- **Disk hit** (`File.Exists` path): Changed `ImageSource.FromFile(diskPath)` → `ImageSource.FromStream(() => File.OpenRead(diskPath))`
+- **Download hit** (HTTP fetch path): Changed `ImageSource.FromFile(diskPath)` → `ImageSource.FromStream(() => new MemoryStream(bytes))`
+- Added `ILogger.LogDebug` to the catch block in the download path for future diagnostics
+- This matches the pattern used by `AlbumArtCache` (album art works, uses `FromStream` for downloads)
 
-**What changed on the server (already in production):**
-- `IThumbnailService` / `ThumbnailService` — `GetOrGenerateThumbnailAsync` generates thumbnails on-demand
-- `FilesController` — `GET .../thumbnail` calls lazy generation on cache miss; new `GET .../metadata` returns EXIF data
-- `Program.cs` — `AddMediaMetadataExtractors()` registered
+**Note:** `AlbumArtCache` has the same `FromFile` issue on its disk-hit path — not blocking thumbnails, but should be fixed in a follow-up.
 
 ---
 
 ### Client Actions — `monolith` (Android client)
 
-- [ ] Re-test the Android Files app against `cloud.dotnetcloud.net` with a freshly uploaded JPEG (via sync)
-- [ ] Navigate to the folder containing the new image — confirm thumbnail appears (not emoji fallback)
+- [ ] Clear old thumbnail cache on emulator: `adb shell rm -rf /data/data/com.dotnetcloud.android/cache/thumbnails/`
+- [ ] Rebuild and deploy Android APK with the fix
+- [ ] Upload a fresh JPEG via sync to a folder
+- [ ] Navigate to that folder — confirm thumbnail appears (not emoji fallback)
 - [ ] Tap the image — confirm inline CarouselView viewer opens with smooth swipe
 - [ ] Tap info/metadata button — confirm EXIF panel shows camera, lens, GPS, dimensions
-- [ ] If thumbnails still don't appear: check `ThumbnailCache` logs and verify the HTTP response from `.../thumbnail?size=small` returns `200` with image data (not a redirect or error envelope)
 
 ## Environment
 

@@ -28,6 +28,25 @@ Archived: 2026-07-01. Full git history preserved.
 
 ---
 
+## Archived: Server-Side Thumbnail Lazy-Generation & EXIF Deployed (2026-07-12)
+
+**Target:** cloud.kimball.home → production deploy
+
+**Result:** ✅ Files module rebuilt from `feature/android-files-photo-thumbnails` (commit `30611287`). `GetOrGenerateThumbnailAsync`, lazy thumbnail endpoint, and EXIF metadata endpoint deployed to production. All 14 modules healthy.
+
+**Verification results (server-side):**
+- ✅ `GET /api/v1/files/{nodeId}/thumbnail?size=small` — routing and auth working
+- ✅ `GET /api/v1/files/{nodeId}/metadata` — routing and auth working
+- ✅ Both endpoints accept cookie-based session auth
+- 🔜 Real thumbnails need Android client fix (see current Active Handoff)
+
+**What changed on the server:**
+- `IThumbnailService` / `ThumbnailService` — `GetOrGenerateThumbnailAsync` generates thumbnails on-demand
+- `FilesController` — `GET .../thumbnail` calls lazy generation on cache miss; new `GET .../metadata` returns EXIF data
+- `Program.cs` — `AddMediaMetadataExtractors()` registered
+
+---
+
 ## Archived: gRPC Conversion — Chat Proto Expansion & Stub Resolution (2026-07-12)
 
 **Target:** cloud.kimball.home → production deploy
