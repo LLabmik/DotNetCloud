@@ -518,25 +518,54 @@ public class FilesController : FilesControllerBase
         if (!Enum.TryParse<ThumbnailSize>(size, ignoreCase: true, out var thumbnailSize))
             return BadRequest(ErrorEnvelope("validation_error", "Invalid thumbnail size. Use small, medium, or large."));
 
-        var node = await _fileService.GetNodeAsync(nodeId, GetAuthenticatedCaller());
+        var caller = GetAuthenticatedCaller();
+        var node = await _fileService.GetNodeAsync(nodeId, caller);
         if (node is null)
             return NotFound(ErrorEnvelope("not_found", "Node not found."));
 
         if (string.Equals(node.NodeType, "Folder", StringComparison.OrdinalIgnoreCase))
             return BadRequest(ErrorEnvelope("validation_error", "Folders do not have thumbnails."));
 
-        var storagePath = await _fileService.GetStoragePathAsync(nodeId, HttpContext.RequestAborted);
-        if (string.IsNullOrEmpty(storagePath))
-            return NotFound(ErrorEnvelope("not_found", "File storage path not found."));
+        // Files are stored as content-addressable chunks under storage/chunks/ — the
+        // StoragePath column in FileNodes (e.g. "files/ab/cd/...") is a metadata reference,
+        // not a real filesystem path.  Reconstruct the file from chunks via DownloadService,
+        // write to a temp file, then pass that path to the thumbnail generator.
+        Stream fileStream;
+        try
+        {
+            fileStream = await _downloadService.DownloadCurrentAsync(nodeId, caller, HttpContext.RequestAborted);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Failed to download file content for thumbnail generation: {NodeId}", nodeId);
+            return NotFound(ErrorEnvelope("not_found", "File content not available for thumbnail generation."));
+        }
 
-        var (thumbnailData, contentType) = await _thumbnailService.GetOrGenerateThumbnailAsync(
-            nodeId, thumbnailSize, storagePath, node.MimeType ?? "application/octet-stream", HttpContext.RequestAborted);
+        var tmpDir = _uploadOptions.TmpPath ?? Path.GetTempPath();
+        var tmpPath = Path.Combine(tmpDir, $"dotnetcloud-thumb-{nodeId:N}.bin");
+        try
+        {
+            await using (fileStream)
+            {
+                await using var tmpWrite = new FileStream(
+                    tmpPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, useAsync: true);
+                await fileStream.CopyToAsync(tmpWrite, HttpContext.RequestAborted);
+            }
 
-        if (thumbnailData is null)
-            return NotFound(ErrorEnvelope("not_found", "Thumbnail not found or format not supported."));
+            var (thumbnailData, contentType) = await _thumbnailService.GetOrGenerateThumbnailAsync(
+                nodeId, thumbnailSize, tmpPath, node.MimeType ?? "application/octet-stream", HttpContext.RequestAborted);
 
-        Response.Headers.CacheControl = "private, max-age=3600";
-        return File(thumbnailData, contentType ?? "image/jpeg", enableRangeProcessing: false);
+            if (thumbnailData is null)
+                return NotFound(ErrorEnvelope("not_found", "Thumbnail not found or format not supported."));
+
+            Response.Headers.CacheControl = "private, max-age=3600";
+            return File(thumbnailData, contentType ?? "image/jpeg", enableRangeProcessing: false);
+        }
+        finally
+        {
+            try { if (System.IO.File.Exists(tmpPath)) System.IO.File.Delete(tmpPath); }
+            catch { /* best-effort cleanup */ }
+        }
     });
 
     /// <summary>
@@ -547,7 +576,8 @@ public class FilesController : FilesControllerBase
     [HttpGet("{nodeId:guid}/metadata")]
     public Task<IActionResult> GetFileMetadataAsync(Guid nodeId) => ExecuteAsync(async () =>
     {
-        var node = await _fileService.GetNodeAsync(nodeId, GetAuthenticatedCaller());
+        var caller = GetAuthenticatedCaller();
+        var node = await _fileService.GetNodeAsync(nodeId, caller);
         if (node is null)
             return NotFound(ErrorEnvelope("not_found", "Node not found."));
 
@@ -559,16 +589,41 @@ public class FilesController : FilesControllerBase
             return BadRequest(ErrorEnvelope("unsupported_media_type",
                 $"No metadata extractor available for MIME type: {node.MimeType}"));
 
-        var storagePath = await _fileService.GetStoragePathAsync(nodeId, HttpContext.RequestAborted);
-        if (string.IsNullOrEmpty(storagePath))
-            return NotFound(ErrorEnvelope("not_found", "File storage path not found."));
+        // Files are stored as chunks — reconstruct from DownloadService for the extractor.
+        Stream fileStream;
+        try
+        {
+            fileStream = await _downloadService.DownloadCurrentAsync(nodeId, caller, HttpContext.RequestAborted);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Failed to download file content for metadata extraction: {NodeId}", nodeId);
+            return NotFound(ErrorEnvelope("not_found", "File content not available for metadata extraction."));
+        }
 
-        var metadata = await extractor.ExtractAsync(storagePath, node.MimeType, HttpContext.RequestAborted);
-        if (metadata is null)
-            return NotFound(ErrorEnvelope("not_found", "Could not extract metadata from file."));
+        var tmpDir = _uploadOptions.TmpPath ?? Path.GetTempPath();
+        var tmpPath = Path.Combine(tmpDir, $"dotnetcloud-meta-{nodeId:N}.bin");
+        try
+        {
+            await using (fileStream)
+            {
+                await using var tmpWrite = new FileStream(
+                    tmpPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, useAsync: true);
+                await fileStream.CopyToAsync(tmpWrite, HttpContext.RequestAborted);
+            }
 
-        Response.Headers.CacheControl = "private, max-age=3600";
-        return Ok(metadata);
+            var metadata = await extractor.ExtractAsync(tmpPath, node.MimeType, HttpContext.RequestAborted);
+            if (metadata is null)
+                return NotFound(ErrorEnvelope("not_found", "Could not extract metadata from file."));
+
+            Response.Headers.CacheControl = "private, max-age=3600";
+            return Ok(metadata);
+        }
+        finally
+        {
+            try { if (System.IO.File.Exists(tmpPath)) System.IO.File.Delete(tmpPath); }
+            catch { /* best-effort cleanup */ }
+        }
     });
 
     /// <summary>
