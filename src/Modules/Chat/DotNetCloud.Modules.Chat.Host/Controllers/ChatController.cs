@@ -1,9 +1,7 @@
 using DotNetCloud.Core.Capabilities;
-using DotNetCloud.Core.DTOs.Search;
 using DotNetCloud.Modules.Chat.DTOs;
 using DotNetCloud.Modules.Chat.Models;
 using DotNetCloud.Modules.Chat.Services;
-using DotNetCloud.Modules.Search.Client;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -37,7 +35,6 @@ public class ChatController : ChatControllerBase
     private readonly IUserBlockService _userBlockService;
     private readonly IChatImageStore _chatImageStore;
     private readonly ILogger<ChatController> _logger;
-    private readonly ISearchFtsClient? _searchFtsClient;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ChatController"/> class.
@@ -60,8 +57,7 @@ public class ChatController : ChatControllerBase
         IVideoCallService videoCallService,
         IUserBlockService userBlockService,
         IChatImageStore chatImageStore,
-        ILogger<ChatController> logger,
-        ISearchFtsClient? searchFtsClient = null)
+        ILogger<ChatController> logger)
     {
         _channelService = channelService;
         _memberService = memberService;
@@ -81,7 +77,6 @@ public class ChatController : ChatControllerBase
         _userBlockService = userBlockService;
         _chatImageStore = chatImageStore;
         _logger = logger;
-        _searchFtsClient = searchFtsClient;
     }
 
     // ── Channel Endpoints ───────────────────────────────────────────
@@ -506,33 +501,8 @@ public class ChatController : ChatControllerBase
 
             var caller = GetAuthenticatedCaller();
 
-            // Try FTS via Search module gRPC when available
-            if (_searchFtsClient is { IsAvailable: true })
-            {
-                var ftsResult = await _searchFtsClient.SearchAsync(
-                    q, moduleFilter: "chat", entityTypeFilter: "Message",
-                    userId: caller.UserId, page: page, pageSize: pageSize);
-
-                if (ftsResult is not null)
-                {
-                    return Ok(new
-                    {
-                        success = true,
-                        data = ftsResult.Items,
-                        pagination = new
-                        {
-                            page = ftsResult.Page,
-                            pageSize = ftsResult.PageSize,
-                            totalItems = ftsResult.TotalCount,
-                            totalPages = ftsResult.TotalCount > 0
-                                ? (int)Math.Ceiling((double)ftsResult.TotalCount / ftsResult.PageSize)
-                                : 0
-                        }
-                    });
-                }
-            }
-
-            // Fallback to LIKE-based search
+            // Use database LIKE-based search (FTS returns SearchResultItem which the client
+            // can't deserialize as ChatMessageDto, so bypass FTS for chat message search)
             var result = await _messageService.SearchMessagesAsync(channelId, q, page, pageSize, caller);
             return Ok(new
             {
@@ -764,6 +734,19 @@ public class ChatController : ChatControllerBase
 
             var contentType = Request.ContentType ?? "image/png";
             var fileName = Request.Headers["X-File-Name"].FirstOrDefault() ?? "uploaded-image.png";
+
+            // Defensive sanitization: handle comma+space duplication in filename
+            // (observed from Android MediaPicker on some devices)
+            if (fileName is { Length: > 0 })
+            {
+                var commaIdx = fileName.IndexOf(", ", StringComparison.Ordinal);
+                if (commaIdx > 0)
+                {
+                    var original = fileName;
+                    fileName = fileName[..commaIdx];
+                    _logger.LogWarning("Sanitized duplicated filename from header: {Original} -> {Sanitized}", original, fileName);
+                }
+            }
 
             var result = await _chatImageStore.SaveAsync(fileName, contentType, data);
 

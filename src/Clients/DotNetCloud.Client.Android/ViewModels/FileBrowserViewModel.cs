@@ -434,8 +434,12 @@ public sealed partial class FileBrowserViewModel : ObservableObject
     private async Task UploadMediaFileAsync(FileResult media, CancellationToken ct)
     {
         IsUploading = true;
-        UploadFileName = media.FileName;
         UploadProgress = 0;
+
+        // Use Android-style datetime naming (IMG_YYYYMMDD_HHmmss / VID_YYYYMMDD_HHmmss)
+        // instead of the GUID filename that MAUI's MediaPicker generates on Android.
+        var generatedName = BuildAndroidStyleFileName(media);
+        UploadFileName = generatedName;
 
         var (serverUrl, token) = await GetCredentialsAsync(ct);
 
@@ -449,11 +453,26 @@ public sealed partial class FileBrowserViewModel : ObservableObject
             await stream.CopyToAsync(tempMs, ct);
             fileSize = tempMs.Length;
             tempMs.Position = 0;
-            await UploadStreamAsync(serverUrl, token, media.FileName, tempMs, fileSize, media.ContentType, ct);
+            await UploadStreamAsync(serverUrl, token, generatedName, tempMs, fileSize, media.ContentType, ct);
             return;
         }
 
-        await UploadStreamAsync(serverUrl, token, media.FileName, stream, fileSize, media.ContentType, ct);
+        await UploadStreamAsync(serverUrl, token, generatedName, stream, fileSize, media.ContentType, ct);
+    }
+
+    /// <summary>
+    /// Builds an Android-style filename like <c>IMG_20260706_120000.jpg</c> or
+    /// <c>VID_20260706_120000.mp4</c> based on the media content type and the
+    /// current timestamp, preserving the original file extension.
+    /// </summary>
+    private static string BuildAndroidStyleFileName(FileResult media)
+    {
+        var extension = Path.GetExtension(media.FileName);
+        var prefix = media.ContentType?.StartsWith("video/", StringComparison.OrdinalIgnoreCase) == true
+            ? "VID"
+            : "IMG";
+        var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+        return $"{prefix}_{timestamp}{extension}";
     }
 
     private async Task UploadStreamAsync(

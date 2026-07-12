@@ -110,7 +110,13 @@
                             </div>
                         }
 
-                        <div class="message-content">@RenderMarkdown(message.Content)</div>
+                        @{
+                            var renderedContent = RenderMarkdown(message.Content);
+                        }
+                        @if (!string.IsNullOrWhiteSpace(message.Content) || message.Attachments.Count == 0)
+                        {
+                            <div class="message-content">@renderedContent</div>
+                        }
 
                         @if (message.Attachments.Count > 0)
                         {
@@ -126,12 +132,13 @@
                                     @if (IsInlinePreviewAttachment(attachment))
                                     {
                                         <div class="attachment-preview">
-                                            @if (attachment.MimeType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+                                            @if (attachment.MimeType.StartsWith("image/", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(attachment.ThumbnailUrl))
                                             {
-                                                <img src="@(attachment.ThumbnailUrl ?? string.Empty)"
+                                                <img src="@attachment.ThumbnailUrl"
                                                      alt="@attachment.FileName"
                                                      class="image-preview"
-                                                     @onclick="() => OpenImageLightbox(attachment.ThumbnailUrl ?? string.Empty, attachment.FileName)" />
+                                                     onerror="this.style.display='none'"
+                                                     @onclick="() => OpenImageLightbox(attachment.ThumbnailUrl, attachment.FileName)" />
                                             }
                                             else if (attachment.MimeType.Contains("pdf", StringComparison.OrdinalIgnoreCase))
                                             {

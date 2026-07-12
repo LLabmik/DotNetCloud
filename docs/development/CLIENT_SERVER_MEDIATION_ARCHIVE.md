@@ -1,6 +1,84 @@
 # Client/Server Mediation — Archived Context
 
-Archived: 2026-07-01. Full git history preserved.
+Archived: 2026-07-07. Full git history preserved.
+
+## Archived: Android Chat Search Fix — Deployed Client (2026-07-07)
+
+### Handoff Summary
+**Android chat search fix** — Server-side deployed on `cloud.kimball.home`. Chat module republished with FTS path bypass (always uses LIKE-based search) and case-insensitive LIKE semantics via `EF.Functions.Like()`.
+
+**Root cause (2 bugs):**
+1. **Primary: FTS path returns wrong DTO type** — `ChatController.SearchMessagesAsync()` called `_searchFtsClient.SearchAsync()` which returned `SearchResultItem[]` instead of `ChatMessageDto[]`. Chat was never indexed in FTS, so 0 results.
+2. **Secondary (defensive): LIKE was case-sensitive on PostgreSQL** — `m.Content.Contains(query)` is case-sensitive on PostgreSQL. Changed to `EF.Functions.Like()`.
+
+**Server deploy (commit `986bbc45`):**
+- `dotnet publish` Chat module
+- Copied DLL to `/opt/dotnetcloud/server/` and `/opt/dotnetcloud/server/modules/dotnetcloud.chat/`
+- `sudo systemctl restart dotnetcloud`
+- Verified: 13/13 modules healthy, `dotnetcloud.chat` healthy, hashes match
+
+**Client side (monolith):** Already deployed in APK prior.
+
+### Server Actions — cloud.kimball.home (Completed 2026-07-07)
+
+1. ✅ `git pull` on feature branch
+2. ✅ `dotnet publish` Chat module Host
+3. ✅ Copy DLL to server + module subdirectory
+4. ✅ `sudo systemctl restart dotnetcloud`
+5. ✅ Health verify — 13/13 modules healthy, `dotnetcloud.chat` healthy
+
+### Notes
+- Chat runs as process-isolated module supervised by Core.Server (PID 886656)
+- Module subdirectory: `/opt/dotnetcloud/server/modules/dotnetcloud.chat/`
+- Hash verification: `8cb86badf61dd4eb71cea4bd8ca21c07` matches on both server dir and module subdir
+
+**Result:** ✅ Android APK deployed to monolith with search close button fix.
+
+**Completed (monolith):**
+- ✅ Search close button switched from `Button` (clipped by internal padding) to `Label` with `TapGestureRecognizer` at FontSize=22, WidthRequest=44
+
+---
+
+## Archived: Server Deploy — Chat Image Attachment Filename Fix (2026-07-06)
+
+**Target:** cloud.kimball.home → production deploy
+
+**Result:** ✅ Server deployed with commit `e3fa1363`. Chat module Host + Core.Server published. 14/14 modules healthy.
+
+**Completed (cloud.kimball.home):**
+- ✅ `git pull` on main
+- ✅ `dotnet publish` via deploy script (incremental mode — detected Chat + Core changes)
+- ✅ `sudo systemctl restart dotnetcloud`
+- ✅ Health verified — 14/14 modules healthy
+
+---
+
+## Archived: Android Chat Image Attachment Filename Duplication Fix (2026-07-06)
+
+**Summary:** Investigated and fixed `100000xxxx.jpg, 100000xxxx.jpg` filename duplication on chat image attachments from Android. All layers deployed and verified.
+
+**Root cause:** The `result.FileName` from `MediaPicker.Default.PickPhotosAsync()` on Android could return a filename that already contains a comma+space duplicate (e.g., `"1000006501.jpg, 1000006501.jpg"`). This value was passed as `X-File-Name` header → echoed back by server upload endpoint → stored in DB by message create endpoint.
+
+**Fix applied (3 layers of defense):**
+
+1. **Client-side** (`MessageListViewModel.cs`): Sanitize `result.FileName` before upload — split at `, ` and take first part. Added diagnostic logging via `Log.Info("DotNetCloud", ...)`.
+2. **Server-side** (`ChatController.cs`): Sanitize `X-File-Name` header value at upload endpoint.
+3. **Server-side** (`MessageService.cs`): Sanitize `FileName` from `CreateAttachmentDto` before DB storage in both `SendMessageAsync` and `AddAttachmentAsync`.
+
+**Verification (monolith, 2026-07-06):**
+- ✅ APK built with 0 errors, 0 warnings, deployed via ADB
+- ✅ Chat image attachment sent successfully — image displays correctly
+- ✅ Logcat diagnostic: `07-06 22:43:20.398 I DotNetCloud: MediaPicker returned FileName: 1000006327.jpg` — clean filename, no duplication
+
+**Result:** ✅ All projects build with 0 errors, 0 warnings. APK rebuild and deploy pending.
+
+---
+
+## Archived: Blazor Chat Image Attachment Rendering Fix — Deployed (2026-07-06)
+
+**Target:** cloud.kimball.home → production deploy
+
+**Result:** ✅ Server deployed with commit `a579a02f`. Blazor `MessageList.razor` rendering fix for attachment-only messages live. Files.Host had NU1903 vulnerability in transitive `Microsoft.OpenApi` 2.0.0 — fixed by adding explicit `Microsoft.OpenApi` reference. 14/14 modules healthy.
 
 ## Archived: Android EQ Preset Server-Side Endpoints — Verified & Deployed (2026-07-01)
 
@@ -5369,4 +5447,39 @@ Key confirmations:
 - SignalR connection verified working
 - `SenderName` display confirmed working
 - `JoinChannelGroupAsync` sends correct format
+
+---
+
+## Archived: gRPC Conversion Deploy — Cloud.kimball.home (2026-07-05)
+
+**Target:** cloud.kimball.home (server-side deploy of gRPC conversion + quota fix)
+
+**Result:** ✅ Both gRPC conversion and quota double-counting fix deployed. Database quota fix SQL run (3 rows updated). Health check: 13/13 modules healthy.
+
+### Summary of deployed changes
+
+**gRPC conversion (commit `9eb32751`):**
+- Chat proto expanded with 9 new RPCs (MarkAsRead, GetUnreadCounts, ListChannelMembers, WebRTC signaling x4, InviteToCall, TransferCallHost)
+- All 9 RPCs implemented in ChatGrpcService.cs + ChatGrpcApiClient.cs
+- CoreCapabilities SendNotification wired to real INotificationService pipeline
+- 1272/1272 Chat module tests passing
+
+**Quota double-counting fix (commit `cf183bee`):**
+- `ChunkedUploadService.cs` — CompleteUploadAsync accounts for already-reserved quota; CancelUploadAsync releases reserved quota
+- `UploadSessionCleanupService.cs` — Releases reserved quota for expired sessions
+- `ApiExceptionHelper.cs` (Android) — Added 409 Conflict handler
+
+### Server Actions — cloud.kimball.home (Completed)
+
+1. ✅ `git pull` on main — pulled `cf183bee`
+2. ✅ `dotnet publish src/Core/DotNetCloud.Core.Server -c Release -o /opt/dotnetcloud/publish`
+3. ✅ `dotnet publish src/Modules/Chat/DotNetCloud.Modules.Chat.Host -c Release -o /opt/dotnetcloud/modules/chat`
+4. ✅ `sudo systemctl restart dotnetcloud` — active (running)
+5. ✅ Health verify — 13/13 modules healthy
+6. ✅ Database quota fix: `UPDATE core.FileQuotas SET UsedBytes = ...` — 3 rows updated (SQL Server syntax: GETDATE())
+
+### Notes
+- Chat module runs as child process supervised by core, no separate systemd unit
+- Verify new Chat RPCs still pending (needs UI testing)
+- Android APK rebuild needed for 409 handler
 

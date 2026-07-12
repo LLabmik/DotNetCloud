@@ -457,9 +457,15 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
             await ExecuteTransactionBody();
         }
 
-        // Update quota usage in real time (outside transaction — idempotent)
-        if (quotaDelta != 0)
-            await _quotaService.AdjustUsedBytesAsync(caller.UserId, quotaDelta, cancellationToken);
+        // Update quota usage in real time (outside transaction — idempotent).
+        // Quota was already reserved at initiate time via TryReserveQuotaAsync.
+        // For new files: quotaDelta == session.TotalSize (reserved), so adjust is 0.
+        // For version updates (re-upload): quotaDelta = newSize - oldSize, so
+        // we need to release the old file size that is no longer counted.
+        var reservedQuota = session.TotalSize;
+        var finalQuotaAdjustment = quotaDelta - reservedQuota;
+        if (finalQuotaAdjustment != 0)
+            await _quotaService.AdjustUsedBytesAsync(caller.UserId, finalQuotaAdjustment, cancellationToken);
 
         await _eventBus.PublishAsync(new FileUploadedEvent
         {
@@ -558,7 +564,11 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
 
         await _db.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Upload session {SessionId} cancelled by {UserId}", sessionId, caller.UserId);
+        // Release the reserved quota that was never used for a real file
+        await _quotaService.AdjustUsedBytesAsync(caller.UserId, -session.TotalSize, cancellationToken);
+
+        _logger.LogInformation("Upload session {SessionId} cancelled by {UserId}, released {TotalSize} bytes of reserved quota",
+            sessionId, caller.UserId, session.TotalSize);
     }
 
     /// <inheritdoc />

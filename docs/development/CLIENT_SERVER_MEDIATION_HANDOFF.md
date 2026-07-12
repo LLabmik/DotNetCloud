@@ -105,7 +105,7 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ---
 
-### Server Actions — `cloud.kimball.home`
+### Completed — `cloud.kimball.home` (2026-07-07)
 
 - [x] Check storage config & directory structure
 - [x] Identify root cause (chunks vs full file path mismatch)

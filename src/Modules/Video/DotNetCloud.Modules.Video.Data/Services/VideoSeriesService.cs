@@ -393,6 +393,7 @@ public sealed class VideoSeriesService : IVideoSeriesService
             ViewCount = uv.ViewCount,
             CreatedAt = uv.CreatedAt,
             HasExternalPoster = canonical.HasExternalPoster,
+            HasThumbnail = canonical.ThumbnailPosterHash is not null || canonical.ExternalPosterHash is not null,
         };
     }
 
@@ -710,7 +711,8 @@ public sealed class VideoSeriesService : IVideoSeriesService
                         Height = uv.CanonicalVideo.Metadata?.Height,
                         IsFavorite = uv.IsFavorite,
                         ViewCount = uv.ViewCount,
-                        CreatedAt = uv.CreatedAt
+                        CreatedAt = uv.CreatedAt,
+                        HasThumbnail = uv.CanonicalVideo.ThumbnailPosterHash is not null || uv.CanonicalVideo.ExternalPosterHash is not null
                     };
                 }
 

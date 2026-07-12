@@ -63,6 +63,7 @@ public sealed record ChatUnreadCountUpdatedEventArgs(string ChannelId, int Unrea
 /// <param name="SentAt">Server timestamp when the message was sent (UTC).</param>
 /// <param name="IsMention">Whether the message contains a mention for the current user.</param>
 /// <param name="SenderUserId">User ID of the sender, or <c>default</c> if unknown.</param>
+/// <param name="AttachmentsJson">JSON-serialized array of attachment objects, or <c>null</c> if none.</param>
 public sealed record ChatMessageReceivedEventArgs(
     string ChannelId,
     string ChannelDisplayName,
@@ -71,4 +72,5 @@ public sealed record ChatMessageReceivedEventArgs(
     Guid MessageId,
     DateTime SentAt,
     bool IsMention,
-    Guid SenderUserId = default);
+    Guid SenderUserId = default,
+    string? AttachmentsJson = null);

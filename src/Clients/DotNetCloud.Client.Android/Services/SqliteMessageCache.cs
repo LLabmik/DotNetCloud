@@ -21,7 +21,7 @@ internal sealed class SqliteMessageCache : ILocalMessageCache, IAsyncDisposable
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<CachedMessage>> GetRecentAsync(Guid channelId, int count = 50, CancellationToken ct = default)
+    public async Task<IReadOnlyList<CachedMessage>> GetRecentAsync(Guid channelId, int count = 25, CancellationToken ct = default)
     {
         var db = await GetDbAsync().ConfigureAwait(false);
         var channelStr = channelId.ToString();

@@ -1,4 +1,6 @@
+#if ANDROID
 using Android.Util;
+#endif
 using DotNetCloud.Client.Android.Auth;
 using DotNetCloud.Client.Android.Services;
 using DotNetCloud.Client.Core;
@@ -6,6 +8,7 @@ using DotNetCloud.Client.Core.Auth;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace DotNetCloud.Client.Android.Chat;
@@ -26,7 +29,8 @@ internal sealed record SignalRMessageDto(
     [property: JsonPropertyName("content")] string Content,
     [property: JsonPropertyName("senderUserId")] Guid SenderUserId,
     [property: JsonPropertyName("senderName")] string? SenderName,
-    [property: JsonPropertyName("sentAt")] DateTime SentAt);
+    [property: JsonPropertyName("sentAt")] DateTime SentAt,
+    [property: JsonPropertyName("attachments")] IReadOnlyList<SignalRAttachmentDto>? Attachments = null);
 
 /// <summary>
 /// Server payload for new messages: { channelId, message }.
@@ -107,7 +111,16 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
             var senderName = !string.IsNullOrEmpty(payload.Message.SenderName)
                 ? payload.Message.SenderName
                 : payload.Message.SenderUserId.ToString();
+#if ANDROID
             Log.Info("DotNetCloud", $"SignalRChatClient: NewMessage received! channelId={payload.ChannelId}, content='{payload.Message.Content}', senderName='{senderName}', sentAt={payload.Message.SentAt:O}");
+#endif
+
+            string? attachmentsJson = null;
+            if (payload.Message.Attachments is { Count: > 0 })
+            {
+                attachmentsJson = JsonSerializer.Serialize(payload.Message.Attachments);
+            }
+
             OnNewChatMessage?.Invoke(this, new ChatMessageReceivedEventArgs(
                 payload.ChannelId,
                 string.Empty,
@@ -116,7 +129,8 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
                 payload.Message.Id,
                 payload.Message.SentAt,
                 false,
-                payload.Message.SenderUserId));
+                payload.Message.SenderUserId,
+                attachmentsJson));
         });
 
         _hub.Reconnected += async connectionId =>
@@ -226,22 +240,30 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
 
         if (_hub?.State is not HubConnectionState.Connected)
         {
+#if ANDROID
             Log.Warn("DotNetCloud", $"JoinChannelGroupAsync: cannot join {channelId}: hub not connected (state={_hub?.State}).");
+#endif
             _logger.LogWarning("Cannot join channel group {ChannelId}: hub not connected (state={State}); tracked for retry on reconnect.",
                 channelId, _hub?.State);
             return;
         }
 
         var groupName = $"chat-channel-{channelId}";
+#if ANDROID
         Log.Info("DotNetCloud", $"JoinChannelGroupAsync: invoking JoinGroupAsync('{groupName}')...");
+#endif
         try
         {
-            await _hub.InvokeAsync("JoinGroupAsync", groupName, cancellationToken).ConfigureAwait(false);
+            await _hub.InvokeAsync("JoinGroupAsync", groupName).ConfigureAwait(false);
+#if ANDROID
             Log.Info("DotNetCloud", $"JoinChannelGroupAsync: successfully joined group '{groupName}'.");
+#endif
         }
         catch (Exception ex)
         {
+#if ANDROID
             Log.Error("DotNetCloud", $"JoinChannelGroupAsync: FAILED to join group '{groupName}': {ex.Message}");
+#endif
             _logger.LogWarning(ex, "Failed to join SignalR group {Group}", groupName);
         }
         _logger.LogDebug("Joined SignalR group {Group}.", groupName);

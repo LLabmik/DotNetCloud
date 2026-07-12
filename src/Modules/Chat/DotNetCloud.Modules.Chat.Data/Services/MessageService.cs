@@ -88,10 +88,24 @@ internal sealed class MessageService : IMessageService
             for (var i = 0; i < dto.Attachments.Count; i++)
             {
                 var att = dto.Attachments[i];
+
+                // Defensive sanitization: handle comma+space filename duplication
+                var fileName = att.FileName;
+                if (fileName is { Length: > 0 })
+                {
+                    var commaIdx = fileName.IndexOf(", ", StringComparison.Ordinal);
+                    if (commaIdx > 0)
+                    {
+                        var original = fileName;
+                        fileName = fileName[..commaIdx];
+                        _logger.LogWarning("Sanitized duplicated attachment filename: {Original} -> {Sanitized}", original, fileName);
+                    }
+                }
+
                 message.Attachments.Add(new MessageAttachment
                 {
                     MessageId = message.Id,
-                    FileName = att.FileName,
+                    FileName = fileName,
                     MimeType = att.MimeType,
                     FileSize = att.FileSize,
                     ThumbnailUrl = att.ThumbnailUrl,
@@ -284,7 +298,7 @@ internal sealed class MessageService : IMessageService
 
         var dbQuery = _db.Messages
             .AsNoTracking()
-            .Where(m => m.ChannelId == channelId && m.Content.Contains(query))
+            .Where(m => m.ChannelId == channelId && EF.Functions.Like(m.Content, $"%{query}%"))
             .OrderByDescending(m => m.SentAt);
 
         var totalCount = await dbQuery.CountAsync(cancellationToken);
@@ -346,10 +360,23 @@ internal sealed class MessageService : IMessageService
             ? message.Attachments.Max(a => a.SortOrder) + 1
             : 0;
 
+        // Defensive sanitization: handle comma+space filename duplication
+        var fileName = dto.FileName;
+        if (fileName is { Length: > 0 })
+        {
+            var commaIdx = fileName.IndexOf(", ", StringComparison.Ordinal);
+            if (commaIdx > 0)
+            {
+                var original = fileName;
+                fileName = fileName[..commaIdx];
+                _logger.LogWarning("Sanitized duplicated attachment filename (AddAttachment): {Original} -> {Sanitized}", original, fileName);
+            }
+        }
+
         var attachment = new MessageAttachment
         {
             MessageId = messageId,
-            FileName = dto.FileName,
+            FileName = fileName,
             MimeType = dto.MimeType,
             FileSize = dto.FileSize,
             ThumbnailUrl = dto.ThumbnailUrl,

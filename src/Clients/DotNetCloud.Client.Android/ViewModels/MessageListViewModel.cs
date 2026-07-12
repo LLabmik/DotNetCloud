@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Android.Util;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DotNetCloud.Client.Android.Auth;
@@ -37,6 +38,41 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
 
     // Typing indicator debounce
     private CancellationTokenSource _typingCts = new();
+
+    // Pending attachment uploaded to server but waiting for Send button
+    private ChatAttachment? _pendingAttachment;
+
+    // ── Pagination state (for infinite scroll) ─────────────────────
+    private const int PageSize = 25;
+    private int _currentPage = 1;
+    private bool _hasMoreMessages = true;
+
+    /// <summary>Whether there's another page of older messages to load.</summary>
+    public bool HasMoreMessages => _hasMoreMessages;
+
+    /// <summary>Whether a page load is currently in progress.</summary>
+    public bool IsLoadingMore => _isLoadingMore;
+    private bool _isLoadingMore;
+
+    // Current search query when in search mode (null = normal mode)
+    private string? _activeSearchQuery;
+
+    /// <summary>When set, suppresses the auto-scroll-to-bottom on the next message load.</summary>
+    private bool _suppressScrollToBottom;
+
+    /// <summary>Raised after older messages are prepended; carries the first-old message ID for scroll anchor.</summary>
+    public event EventHandler<Guid>? OlderMessagesLoaded;
+
+    /// <summary>Raised after the initial message load completes, signaling the view should scroll to the latest message.</summary>
+    public event EventHandler? ScrollToBottomRequested;
+
+    /// <summary>Raised after closing search, signaling the view should scroll to the tapped search result message.</summary>
+    public event EventHandler<Guid>? ScrollToMessageRequested;
+
+    /// <summary>Whether there's an image uploaded and waiting to be sent with the next message.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SendCommand))]
+    private bool _hasPendingAttachment;
 
     /// <summary>Initializes a new <see cref="MessageListViewModel"/>.</summary>
     public MessageListViewModel(
@@ -89,11 +125,28 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private bool _showMentionSuggestions;
 
+    // ── Search state ────────────────────────────────────────────────
+    private CancellationTokenSource _searchCts = new();
+
+    /// <summary>Whether the inline search panel is open.</summary>
+    [ObservableProperty]
+    private bool _isSearchOpen;
+
+    /// <summary>Current search query text; changes trigger debounced search.</summary>
+    [ObservableProperty]
+    private string _searchQuery = string.Empty;
+
+    /// <summary>Whether a search is currently in progress.</summary>
+    [ObservableProperty]
+    private bool _isSearching;
+
     /// <summary>Initializes the view model for a specific channel and loads its messages.</summary>
     public async Task InitializeAsync(Guid channelId, string channelName, CancellationToken ct = default)
     {
         _channelId = channelId;
         ChannelName = channelName;
+
+        Log.Info("DotNetCloud", $"InitializeAsync STARTED for channel {channelId} ('{channelName}')");
 
         try
         {
@@ -152,6 +205,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to initialize message list for channel {ChannelId}.", channelId);
+            Log.Error("DotNetCloud", $"InitializeAsync FAILED for channel {channelId}: {ex.GetType().Name}: {ex.Message}");
             ErrorMessage = ApiExceptionHelper.GetUserFriendlyMessage(ex);
         }
     }
@@ -184,11 +238,15 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
         return senderUserId == Guid.Empty ? "Unknown" : senderUserId.ToString()[..8];
     }
 
-    /// <summary>Loads the message history, falling back to cache if offline.</summary>
+    /// <summary>Loads the first page of message history, falling back to cache if offline.</summary>
     [RelayCommand]
     private async Task LoadMessagesAsync(CancellationToken ct)
     {
+        Log.Info("DotNetCloud", $"LoadMessagesAsync ENTERED for channel {_channelId}, IsLoading={IsLoading}");
         IsLoading = true;
+        _currentPage = 1;
+        _hasMoreMessages = true;
+        _activeSearchQuery = null;
         Messages.Clear();
         IReadOnlyList<CachedMessage> cached = [];
 
@@ -206,58 +264,175 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
                 _logger.LogWarning(ex, "Local message cache unavailable for channel {ChannelId}; loading from server only.", _channelId);
             }
 
-            var messages = await _chatApi.GetMessagesAsync(_serverUrl!, _accessToken!, _channelId, ct: ct);
+            var result = await _chatApi.GetMessagesAsync(_serverUrl!, _accessToken!, _channelId, page: 1, pageSize: PageSize, ct: ct);
+            Log.Info("DotNetCloud", $"LoadMessagesAsync: got {result.Messages.Count} messages, page {result.Page}/{result.TotalPages}, IsLoading={IsLoading}");
 
             Messages.Clear();
-            foreach (var m in messages.OrderBy(m => m.SentAt))
+            // Server returns newest-first; reverse for display (oldest at top, newest at bottom)
+            foreach (var m in result.Messages.OrderBy(m => m.SentAt))
             {
                 var senderName = ResolveSenderName(m.SenderUserId, m.SenderName);
                 var isOwn = m.SenderUserId == _currentUserId;
-                Messages.Add(new MessageItemViewModel(m.Id, senderName, m.Content, m.SentAt, isOwn));
+                Messages.Add(new MessageItemViewModel(m.Id, senderName, m.Content, m.SentAt, isOwn, m.Attachments, _serverUrl));
             }
 
+            Log.Info("DotNetCloud", $"LoadMessagesAsync: Messages.Count={Messages.Count} after populate");
+
+            _hasMoreMessages = result.Page < result.TotalPages;
+            OnPropertyChanged(nameof(HasMoreMessages));
+
             // Update cache in background
-            _ = _cache.UpsertAsync(messages.Select(m => new CachedMessage(m.Id, m.ChannelId, ResolveSenderName(m.SenderUserId, m.SenderName), m.Content, m.SentAt)));
+            _ = _cache.UpsertAsync(result.Messages.Select(m => new CachedMessage(m.Id, m.ChannelId, ResolveSenderName(m.SenderUserId, m.SenderName), m.Content, m.SentAt)));
 
             // Mark latest message as read
-            if (messages.Count > 0)
-                await _chatApi.MarkReadAsync(_serverUrl!, _accessToken!, _channelId, messages[^1].Id, ct);
+            if (result.Messages.Count > 0)
+                await _chatApi.MarkReadAsync(_serverUrl!, _accessToken!, _channelId, result.Messages[^1].Id, ct);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to load messages for channel {ChannelId}.", _channelId);
+            Log.Error("DotNetCloud", $"LoadMessagesAsync FAILED: {ex.GetType().Name}: {ex.Message}");
             if (cached.Count == 0)
                 ErrorMessage = ApiExceptionHelper.GetUserFriendlyMessage(ex);
         }
         finally
         {
+            Log.Info("DotNetCloud", $"LoadMessagesAsync: completed, Messages.Count={Messages.Count}, ErrorMessage={ErrorMessage}");
             IsLoading = false;
+            // Signal the view to scroll to the latest message after initial load
+            if (Messages.Count > 0 && _activeSearchQuery is null && !_suppressScrollToBottom)
+            {
+                ScrollToBottomRequested?.Invoke(this, EventArgs.Empty);
+            }
+            _suppressScrollToBottom = false;
         }
     }
 
-    /// <summary>Sends the composed message.</summary>
+    /// <summary>Loads the next page of older messages and prepends them to the list.</summary>
+    [RelayCommand]
+    private async Task LoadMoreMessagesAsync(CancellationToken ct)
+    {
+        if (!_hasMoreMessages || _isLoadingMore || IsLoading)
+            return;
+
+        _isLoadingMore = true;
+        OnPropertyChanged(nameof(IsLoadingMore));
+        ErrorMessage = null;
+
+        try
+        {
+            var nextPage = _currentPage + 1;
+
+            PagedMessagesResult result;
+            if (_activeSearchQuery is not null)
+            {
+                result = await _chatApi.SearchMessagesAsync(
+                    _serverUrl!, _accessToken!, _channelId,
+                    _activeSearchQuery, page: nextPage, pageSize: PageSize, ct: ct);
+            }
+            else
+            {
+                result = await _chatApi.GetMessagesAsync(
+                    _serverUrl!, _accessToken!, _channelId,
+                    page: nextPage, pageSize: PageSize, ct: ct);
+            }
+
+            _currentPage = nextPage;
+            _hasMoreMessages = result.Page < result.TotalPages;
+            OnPropertyChanged(nameof(HasMoreMessages));
+
+            // Save the ID of the currently first visible (oldest) message for scroll anchor
+            var anchorId = Messages.Count > 0 ? Messages[0].Id : Guid.Empty;
+
+            // Server returns newest-first; we need oldest-first for prepend
+            var olderMessages = result.Messages
+                .OrderBy(m => m.SentAt)
+                .ToList();
+
+            if (olderMessages.Count == 0)
+            {
+                _hasMoreMessages = false;
+                OnPropertyChanged(nameof(HasMoreMessages));
+                return;
+            }
+
+            // Prepend older messages at the beginning
+            var newViewModels = olderMessages.Select(m =>
+            {
+                var senderName = ResolveSenderName(m.SenderUserId, m.SenderName);
+                var isOwn = m.SenderUserId == _currentUserId;
+                return new MessageItemViewModel(m.Id, senderName, m.Content, m.SentAt, isOwn, m.Attachments, _serverUrl);
+            }).ToList();
+
+            var insertIndex = 0;
+            foreach (var vm in newViewModels)
+            {
+                Messages.Insert(insertIndex, vm);
+                insertIndex++;
+            }
+
+            // Update cache in background
+            _ = _cache.UpsertAsync(olderMessages.Select(m => new CachedMessage(m.Id, m.ChannelId, ResolveSenderName(m.SenderUserId, m.SenderName), m.Content, m.SentAt)));
+
+            // Notify code-behind with the first-oldest message ID for scroll anchor restoration
+            if (anchorId != Guid.Empty)
+            {
+                OlderMessagesLoaded?.Invoke(this, anchorId);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load more messages for channel {ChannelId}.", _channelId);
+            ErrorMessage = ApiExceptionHelper.GetUserFriendlyMessage(ex);
+        }
+        finally
+        {
+            _isLoadingMore = false;
+            OnPropertyChanged(nameof(IsLoadingMore));
+        }
+    }
+
+    /// <summary>Sends the composed message, including any pending attachment.</summary>
     [RelayCommand(CanExecute = nameof(CanSend))]
     private async Task SendAsync(CancellationToken ct)
     {
         if (!CanSend())
             return;
+
         var content = ComposerText.Trim();
+        var attachment = _pendingAttachment;
+
+        // Clear UI state immediately
         ComposerText = string.Empty;
+        _pendingAttachment = null;
+        HasPendingAttachment = false;
         IsEmojiPickerOpen = false;
         ShowMentionSuggestions = false;
         IsSending = true;
 
         try
         {
-            var sentMessage = await _chatApi.SendMessageAsync(_serverUrl!, _accessToken!, _channelId, content, ct);
+            ChatMessage sentMessage;
+            if (attachment is not null)
+            {
+                var msgContent = string.IsNullOrWhiteSpace(content) ? " " : content;
+                sentMessage = await _chatApi.SendMessageWithAttachmentsAsync(
+                    _serverUrl!, _accessToken!, _channelId,
+                    msgContent, [attachment], ct);
+            }
+            else
+            {
+                sentMessage = await _chatApi.SendMessageAsync(_serverUrl!, _accessToken!, _channelId, content, ct);
+            }
 
-            // Add the sent message to the UI immediately from the REST response,
-            // so it appears even if the SignalR broadcast is delayed or unavailable.
-            // The SignalR handler's dedup check (by MessageId) prevents duplicates.
+            // Add the sent message to the UI immediately from the REST response.
+            // The SignalR broadcast often arrives before the HTTP response, so the
+            // OnNewChatMessage handler may have already added it — dedup by ID.
             var senderName = ResolveSenderName(sentMessage.SenderUserId, sentMessage.SenderName);
             var isOwn = sentMessage.SenderUserId == _currentUserId;
-            var vm = new MessageItemViewModel(sentMessage.Id, senderName, sentMessage.Content, sentMessage.SentAt, isOwn);
-            Messages.Add(vm);
+            var vm = new MessageItemViewModel(sentMessage.Id, senderName, sentMessage.Content, sentMessage.SentAt, isOwn, sentMessage.Attachments, _serverUrl);
+            if (Messages.All(m => m.Id != sentMessage.Id))
+                Messages.Add(vm);
 
             // Cache the message locally for offline access
             _ = _cache.UpsertAsync([new CachedMessage(sentMessage.Id, sentMessage.ChannelId, senderName, sentMessage.Content, sentMessage.SentAt)]);
@@ -266,6 +441,8 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
         {
             _logger.LogError(ex, "Failed to send message.");
             ComposerText = content; // restore on failure
+            _pendingAttachment = attachment; // restore pending attachment
+            HasPendingAttachment = attachment is not null;
             ErrorMessage = ApiExceptionHelper.GetUserFriendlyMessage(ex);
         }
         finally
@@ -300,7 +477,11 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
         MentionSuggestions.Clear();
     }
 
-    /// <summary>Opens the system media picker and sends the chosen file as a message attachment.</summary>
+    /// <summary>
+    /// Opens the system media picker, uploads the chosen image to the server,
+    /// and stores it as a pending attachment. The attachment is sent when the
+    /// user taps Send (↑), along with any typed text.
+    /// </summary>
     [RelayCommand]
     private async Task AttachFileAsync(CancellationToken ct)
     {
@@ -314,32 +495,54 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
             if (result is null)
                 return;
 
-            // Send the file name as plain-text message for now;
-            // full chunked-upload integration is handled by PhotoAutoUploadService.
-            var content = $"📎 {result.FileName}";
             ErrorMessage = null;
-            IsSending = true;
 
-            var sentMessage = await _chatApi.SendMessageAsync(_serverUrl!, _accessToken!, _channelId, content, ct);
+            // Log the raw filename from MediaPicker for diagnostic purposes
+            var rawFileName = result.FileName;
+            _logger.LogDebug("MediaPicker returned FileName: {FileName}", rawFileName);
+#if ANDROID
+            Log.Info("DotNetCloud", $"MediaPicker returned FileName: {rawFileName}");
+#endif
 
-            // Add the sent file message to the UI immediately (same pattern as SendAsync)
-            var senderName = ResolveSenderName(sentMessage.SenderUserId, sentMessage.SenderName);
-            var isOwn = sentMessage.SenderUserId == _currentUserId;
-            var vm = new MessageItemViewModel(sentMessage.Id, senderName, sentMessage.Content, sentMessage.SentAt, isOwn);
-            Messages.Add(vm);
+            // Defensive sanitization: if the filename contains a comma + space (possible
+            // duplication from MediaPicker on some Android versions), take only the first part.
+            // See handoff notes for full investigation context.
+            var sanitizedFileName = rawFileName;
+            var commaIdx = sanitizedFileName.IndexOf(", ", StringComparison.Ordinal);
+            if (commaIdx > 0)
+            {
+                sanitizedFileName = sanitizedFileName[..commaIdx];
+                _logger.LogWarning("Sanitized duplicated filename: {Original} -> {Sanitized}", rawFileName, sanitizedFileName);
+            }
 
-            // Cache the message locally for offline access
-            _ = _cache.UpsertAsync([new CachedMessage(sentMessage.Id, sentMessage.ChannelId, senderName, sentMessage.Content, sentMessage.SentAt)]);
+            // Step 1: Read the picked file into memory
+            byte[] fileBytes;
+            using (var sourceStream = await result.OpenReadAsync())
+            using (var ms = new MemoryStream())
+            {
+                await sourceStream.CopyToAsync(ms, ct);
+                fileBytes = ms.ToArray();
+            }
+
+            // Step 2: Upload the image to the server and store as pending
+            using var uploadStream = new MemoryStream(fileBytes);
+            var uploadResult = await _chatApi.UploadImageAsync(
+                _serverUrl!, _accessToken!, _channelId,
+                uploadStream, sanitizedFileName, result.ContentType ?? "image/jpeg", ct);
+
+            _pendingAttachment = new ChatAttachment(
+                Id: Guid.Empty, // server assigns the actual ID
+                FileName: uploadResult.FileName,
+                MimeType: uploadResult.MimeType,
+                FileSize: uploadResult.FileSize,
+                ThumbnailUrl: uploadResult.Url);
+            HasPendingAttachment = true;
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to attach file.");
             ErrorMessage = "Failed to attach file.";
-        }
-        finally
-        {
-            IsSending = false;
         }
     }
 
@@ -390,7 +593,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
         ShowMentionSuggestions = matches.Count > 0 && partial.Length > 0;
     }
 
-    private bool CanSend() => !string.IsNullOrWhiteSpace(ComposerText) && !IsSending;
+    private bool CanSend() => (!string.IsNullOrWhiteSpace(ComposerText) || HasPendingAttachment) && !IsSending;
 
     /// <summary>Raised when the user wants to view full channel details.</summary>
     public event EventHandler? ViewDetailsRequested;
@@ -398,6 +601,238 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
     /// <summary>Opens the channel details page.</summary>
     [RelayCommand]
     private void ViewDetails() => ViewDetailsRequested?.Invoke(this, EventArgs.Empty);
+
+    // ── Search commands ──────────────────────────────────────────────
+
+    /// <summary>Toggles the search panel open/closed.</summary>
+    [RelayCommand]
+    private void ToggleSearch()
+    {
+        IsSearchOpen = !IsSearchOpen;
+        if (!IsSearchOpen)
+        {
+            // Closing search without a query — just restore normal messages
+            if (_activeSearchQuery is not null)
+            {
+                _searchCts.Cancel();
+                _searchCts = new CancellationTokenSource();
+                _activeSearchQuery = null;
+                SearchQuery = string.Empty;
+                _ = LoadMessagesAsync(CancellationToken.None);
+            }
+        }
+    }
+
+    /// <summary>Closes search and scrolls to the specified message in the full message list.</summary>
+    [RelayCommand]
+    private async Task GoToMessageAsync(MessageItemViewModel? message)
+    {
+        if (message is null || _activeSearchQuery is null)
+            return;
+
+        var targetId = message.Id;
+
+        try
+        {
+            _suppressScrollToBottom = true;
+            await CloseSearchAsync();
+
+            // If the target message isn't in the first page, load more pages until we find it
+            await LoadPagesUntilMessageFoundAsync(targetId, CancellationToken.None);
+
+            ScrollToMessageRequested?.Invoke(this, targetId);
+        }
+        finally
+        {
+            _suppressScrollToBottom = false;
+        }
+    }
+
+    /// <summary>Loads additional pages until the target message is found or all pages are exhausted.</summary>
+    private async Task LoadPagesUntilMessageFoundAsync(Guid targetId, CancellationToken ct)
+    {
+        // Quick check — already in the current page
+        if (Messages.Any(m => m.Id == targetId))
+            return;
+
+        while (_hasMoreMessages)
+        {
+            var nextPage = _currentPage + 1;
+
+            PagedMessagesResult result;
+            try
+            {
+                result = await _chatApi.GetMessagesAsync(
+                    _serverUrl!, _accessToken!, _channelId,
+                    page: nextPage, pageSize: PageSize, ct: ct);
+            }
+            catch
+            {
+                // If a page load fails, stop trying
+                break;
+            }
+
+            _currentPage = nextPage;
+            _hasMoreMessages = result.Page < result.TotalPages;
+            OnPropertyChanged(nameof(HasMoreMessages));
+
+            var olderMessages = result.Messages
+                .OrderBy(m => m.SentAt)
+                .ToList();
+
+            if (olderMessages.Count == 0)
+            {
+                _hasMoreMessages = false;
+                return;
+            }
+
+            // Prepend at the beginning (messages arrive newest-first, oldest-first for display)
+            var insertIndex = 0;
+            foreach (var m in olderMessages)
+            {
+                var senderName = ResolveSenderName(m.SenderUserId, m.SenderName);
+                var isOwn = m.SenderUserId == _currentUserId;
+                Messages.Insert(insertIndex, new MessageItemViewModel(
+                    m.Id, senderName, m.Content, m.SentAt, isOwn, m.Attachments, _serverUrl));
+                insertIndex++;
+            }
+
+            // Check if the target message was in this batch
+            if (olderMessages.Any(m => m.Id == targetId))
+                return;
+        }
+    }
+
+    /// <summary>Closes the search panel and restores the normal message list.</summary>
+    [RelayCommand]
+    private async Task CloseSearchAsync()
+    {
+        IsSearchOpen = false;
+        _activeSearchQuery = null;
+        SearchQuery = string.Empty;
+        _searchCts.Cancel();
+        _searchCts = new CancellationTokenSource();
+        await LoadMessagesAsync(CancellationToken.None);
+    }
+
+    /// <summary>
+    /// Called when <see cref="SearchQuery"/> changes.
+    /// Debounces by 300ms before executing the search.
+    /// </summary>
+    partial void OnSearchQueryChanged(string value)
+    {
+        _searchCts.Cancel();
+        _searchCts = new CancellationTokenSource();
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            // Search text cleared — restore normal messages
+            if (_activeSearchQuery is not null)
+            {
+                _activeSearchQuery = null;
+                _ = LoadMessagesAsync(CancellationToken.None);
+            }
+            return;
+        }
+
+        var token = _searchCts.Token;
+        var query = value;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(300, token).ConfigureAwait(false);
+                if (!token.IsCancellationRequested)
+                {
+                    await ExecuteSearchAsync(query, token);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Cancelled — a newer keystroke is pending
+            }
+        }, token);
+    }
+
+    /// <summary>Executes the search against the server API and replaces the message list with results.</summary>
+    private async Task ExecuteSearchAsync(string query, CancellationToken ct)
+    {
+        if (_serverUrl is null || _accessToken is null)
+            return;
+
+        IsSearching = true;
+        _currentPage = 1;
+        _activeSearchQuery = query;
+
+        try
+        {
+            var result = await _chatApi.SearchMessagesAsync(
+                _serverUrl, _accessToken, _channelId,
+                query, page: 1, pageSize: PageSize, ct: ct);
+
+            _hasMoreMessages = result.Page < result.TotalPages;
+            OnPropertyChanged(nameof(HasMoreMessages));
+
+            // Replace message list with search results, newest-first → oldest-first for display
+            Action dispatch = () =>
+            {
+                Messages.Clear();
+                foreach (var m in result.Messages.OrderBy(m => m.SentAt))
+                {
+                    var senderName = ResolveSenderName(m.SenderUserId, m.SenderName);
+                    var isOwn = m.SenderUserId == _currentUserId;
+                    Messages.Add(new MessageItemViewModel(
+                        m.Id, senderName, m.Content, m.SentAt, isOwn,
+                        m.Attachments, _serverUrl, searchQuery: query));
+                }
+
+                if (result.Messages.Count == 0)
+                {
+                    ErrorMessage = "No messages found.";
+                }
+                else
+                {
+                    ErrorMessage = null;
+                }
+            };
+
+            try
+            {
+                MainThread.BeginInvokeOnMainThread(dispatch);
+            }
+            catch
+            {
+                // Unit test environment without a UI thread — run inline.
+                dispatch();
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Search failed for query '{Query}' in channel {ChannelId}.", query, _channelId);
+            Action errorDispatch = () => ErrorMessage = $"Search failed: {ex.Message}";
+            try
+            {
+                MainThread.BeginInvokeOnMainThread(errorDispatch);
+            }
+            catch
+            {
+                errorDispatch();
+            }
+        }
+        finally
+        {
+            Action finallyDispatch = () => IsSearching = false;
+            try
+            {
+                MainThread.BeginInvokeOnMainThread(finallyDispatch);
+            }
+            catch
+            {
+                finallyDispatch();
+            }
+        }
+    }
 
     /// <inheritdoc />
     public void Dispose()
@@ -428,8 +863,26 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
             if (Messages.Any(m => m.Id == e.MessageId))
                 return;
 
+            // Parse attachments from SignalR payload if present
+            IReadOnlyList<ChatAttachment>? attachments = null;
+            if (!string.IsNullOrEmpty(e.AttachmentsJson))
+            {
+                try
+                {
+                    var dtos = System.Text.Json.JsonSerializer.Deserialize<List<SignalRAttachmentDto>>(e.AttachmentsJson);
+                    if (dtos is { Count: > 0 })
+                    {
+                        attachments = dtos.Select(a => new ChatAttachment(a.Id, a.FileName, a.MimeType, a.FileSize, a.ThumbnailUrl)).ToList();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to parse attachments JSON from SignalR message.");
+                }
+            }
+
             var isOwn = e.SenderUserId != Guid.Empty && e.SenderUserId == _currentUserId;
-            var vm = new MessageItemViewModel(e.MessageId, e.SenderDisplayName, e.MessagePreview, new DateTimeOffset(e.SentAt, TimeSpan.Zero), isOwn);
+            var vm = new MessageItemViewModel(e.MessageId, e.SenderDisplayName, e.MessagePreview, new DateTimeOffset(e.SentAt, TimeSpan.Zero), isOwn, attachments, _serverUrl);
             Messages.Add(vm);
 
             // Cache the message locally for offline access
@@ -455,13 +908,78 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
 public sealed class MessageItemViewModel
 {
     /// <summary>Initializes a message list item.</summary>
-    public MessageItemViewModel(Guid id, string senderName, string content, DateTimeOffset sentAt, bool isOwnMessage = false)
+    public MessageItemViewModel(Guid id, string senderName, string content, DateTimeOffset sentAt, bool isOwnMessage = false, IReadOnlyList<ChatAttachment>? attachments = null, string? serverBaseUrl = null, string? searchQuery = null)
     {
         Id = id;
         SenderName = senderName;
         Content = content;
         SentAt = sentAt;
         IsOwnMessage = isOwnMessage;
+        Attachments = attachments ?? [];
+        HasImageAttachment = Attachments.Any(a => a.MimeType.StartsWith("image/", StringComparison.OrdinalIgnoreCase));
+
+        // Build highlighted FormattedString if a search query is active
+        if (!string.IsNullOrEmpty(searchQuery) && content.Contains(searchQuery, StringComparison.OrdinalIgnoreCase))
+        {
+            HighlightedContent = BuildHighlightedString(content, searchQuery);
+        }
+        else
+        {
+            HighlightedContent = null;
+        }
+
+        // Resolve relative thumbnail URLs against the server base URL (MAUI Image needs absolute)
+        var firstImage = Attachments.FirstOrDefault(a => a.MimeType.StartsWith("image/", StringComparison.OrdinalIgnoreCase));
+        if (firstImage?.ThumbnailUrl is not null)
+        {
+            var url = firstImage.ThumbnailUrl;
+            if (url.StartsWith('/') && serverBaseUrl is not null)
+            {
+                url = serverBaseUrl.TrimEnd('/') + url;
+            }
+            FirstImageUrl = url;
+        }
+    }
+
+    /// <summary>
+    /// Builds a <see cref="FormattedString"/> that highlights all case-insensitive occurrences
+    /// of <paramref name="query"/> within <paramref name="text"/> using a yellow span.
+    /// </summary>
+    private static FormattedString BuildHighlightedString(string text, string query)
+    {
+        var formatted = new FormattedString();
+        var index = 0;
+
+        while (index < text.Length)
+        {
+            // Find the next occurrence (case-insensitive)
+            var searchIdx = text.IndexOf(query, index, StringComparison.OrdinalIgnoreCase);
+            if (searchIdx < 0)
+            {
+                // No more matches — append remaining text as plain
+                formatted.Spans.Add(new Span { Text = text[index..] });
+                break;
+            }
+
+            // Text before the match
+            if (searchIdx > index)
+            {
+                formatted.Spans.Add(new Span { Text = text[index..searchIdx] });
+            }
+
+            // The matched text — highlighted
+            formatted.Spans.Add(new Span
+            {
+                Text = text[searchIdx..(searchIdx + query.Length)],
+                BackgroundColor = Color.FromArgb("#F59E0B"),
+                TextColor = Color.FromArgb("#0F172A"),
+                FontAttributes = FontAttributes.Bold
+            });
+
+            index = searchIdx + query.Length;
+        }
+
+        return formatted;
     }
 
     /// <summary>Message identifier.</summary>
@@ -481,6 +999,24 @@ public sealed class MessageItemViewModel
 
     /// <summary>Whether this message was sent by the current user.</summary>
     public bool IsOwnMessage { get; }
+
+    /// <summary>Attachments on this message.</summary>
+    public IReadOnlyList<ChatAttachment> Attachments { get; }
+
+    /// <summary>Whether this message has at least one image attachment.</summary>
+    public bool HasImageAttachment { get; }
+
+    /// <summary>Absolute URL of the first image attachment for inline preview.</summary>
+    public string? FirstImageUrl { get; }
+
+    /// <summary>
+    /// When non-null, the message content should use this FormattedString instead of <see cref="Content"/>
+    /// to render highlighted search matches. Set when the message matches an active search query.
+    /// </summary>
+    public FormattedString? HighlightedContent { get; }
+
+    /// <summary>Whether this message has highlighted search text (i.e., is a search result with matches).</summary>
+    public bool IsHighlighted => HighlightedContent is not null;
 
     /// <summary>Formatted send time for display, matching Blazor's tiered FormatTime.</summary>
     public string SentAtDisplay

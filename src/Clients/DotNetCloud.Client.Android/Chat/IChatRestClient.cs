@@ -15,17 +15,31 @@ public interface IChatRestClient
 
     /// <summary>
     /// Returns a page of messages for a channel, ordered newest-first.
-    /// Pass <paramref name="beforeId"/> to paginate backwards.
     /// </summary>
-    Task<IReadOnlyList<ChatMessage>> GetMessagesAsync(
+    Task<PagedMessagesResult> GetMessagesAsync(
         string serverBaseUrl, string accessToken,
-        Guid channelId, Guid? beforeId = null, int pageSize = 50,
+        Guid channelId, int page = 1, int pageSize = 25,
+        CancellationToken ct = default);
+
+    /// <summary>Searches messages in a channel by text query.</summary>
+    Task<PagedMessagesResult> SearchMessagesAsync(
+        string serverBaseUrl, string accessToken,
+        Guid channelId, string query, int page = 1, int pageSize = 25,
         CancellationToken ct = default);
 
     /// <summary>Sends a new message to a channel.</summary>
     Task<ChatMessage> SendMessageAsync(
         string serverBaseUrl, string accessToken,
         Guid channelId, string content,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Sends a new message with attachments to a channel.
+    /// </summary>
+    Task<ChatMessage> SendMessageWithAttachmentsAsync(
+        string serverBaseUrl, string accessToken,
+        Guid channelId, string content,
+        IReadOnlyList<ChatAttachment>? attachments,
         CancellationToken ct = default);
 
     /// <summary>Marks all messages in a channel as read up to <paramref name="messageId"/>.</summary>
@@ -54,6 +68,17 @@ public interface IChatRestClient
         Guid channelId,
         CancellationToken ct = default);
 
+    // ── Image Upload ─────────────────────────────────────────────────
+
+    /// <summary>
+    /// Uploads an image file to the server for use in a chat message.
+    /// Returns the upload result containing the serving URL and metadata.
+    /// </summary>
+    Task<ChatImageUploadResult> UploadImageAsync(
+        string serverBaseUrl, string accessToken,
+        Guid channelId, Stream fileStream, string fileName, string contentType,
+        CancellationToken ct = default);
+
     // ── Attachments ──────────────────────────────────────────────────
 
     /// <summary>
@@ -65,6 +90,19 @@ public interface IChatRestClient
         Guid channelId, Guid fileId, string fileName,
         CancellationToken ct = default);
 }
+
+/// <summary>Result of a paginated messages query.</summary>
+/// <param name="Messages">The page of messages, ordered newest-first by the server.</param>
+/// <param name="Page">Current page number (1-based).</param>
+/// <param name="PageSize">Number of items per page.</param>
+/// <param name="TotalItems">Total number of messages matching the query.</param>
+/// <param name="TotalPages">Total number of pages available.</param>
+public sealed record PagedMessagesResult(
+    IReadOnlyList<ChatMessage> Messages,
+    int Page,
+    int PageSize,
+    int TotalItems,
+    int TotalPages);
 
 /// <summary>Summary of a chat channel for channel-list display.</summary>
 /// <param name="Id">Channel ID.</param>
@@ -81,6 +119,30 @@ public sealed record ChannelSummary(
     string? LastMessagePreview,
     DateTimeOffset? LastMessageAt);
 
+/// <summary>Result of uploading an image to a chat channel.</summary>
+/// <param name="Url">Serving URL path for the image (e.g., /api/v1/chat/uploads/abc123.png).</param>
+/// <param name="FileName">Original file name.</param>
+/// <param name="MimeType">MIME content type.</param>
+/// <param name="FileSize">File size in bytes.</param>
+public sealed record ChatImageUploadResult(
+    string Url,
+    string FileName,
+    string MimeType,
+    long FileSize);
+
+/// <summary>Attachment metadata on a chat message.</summary>
+/// <param name="Id">Attachment ID (server-assigned).</param>
+/// <param name="FileName">File name for display.</param>
+/// <param name="MimeType">MIME content type.</param>
+/// <param name="FileSize">File size in bytes.</param>
+/// <param name="ThumbnailUrl">URL for image/video preview (null for non-previewable types).</param>
+public sealed record ChatAttachment(
+    Guid Id,
+    string FileName,
+    string MimeType,
+    long FileSize,
+    string? ThumbnailUrl);
+
 /// <summary>A single chat message returned from the server.</summary>
 /// <param name="Id">Message ID.</param>
 /// <param name="ChannelId">Channel the message belongs to.</param>
@@ -89,6 +151,7 @@ public sealed record ChannelSummary(
 /// <param name="Content">Plain-text message body.</param>
 /// <param name="SentAt">When the message was sent (UTC).</param>
 /// <param name="IsEdited">Whether the message has been edited.</param>
+/// <param name="Attachments">Attachments on this message (optional).</param>
 public sealed record ChatMessage(
     Guid Id,
     Guid ChannelId,
@@ -96,7 +159,8 @@ public sealed record ChatMessage(
     string SenderName,
     string Content,
     DateTimeOffset SentAt,
-    bool IsEdited);
+    bool IsEdited,
+    IReadOnlyList<ChatAttachment>? Attachments = null);
 
 /// <summary>Summary of a channel member for the member list.</summary>
 /// <param name="UserId">User identifier.</param>
@@ -108,3 +172,15 @@ public sealed record ChannelMemberSummary(
     string DisplayName,
     string Role,
     bool IsOnline);
+
+/// <summary>
+/// Minimal attachment DTO for SignalR deserialization of inline attachments.
+/// Defined here (rather than in SignalRChatClient.cs) so it's reachable from
+/// ViewModels compiled outside the Android target (e.g., unit tests).
+/// </summary>
+internal sealed record SignalRAttachmentDto(
+    Guid Id,
+    string FileName,
+    string MimeType,
+    long FileSize,
+    string? ThumbnailUrl);

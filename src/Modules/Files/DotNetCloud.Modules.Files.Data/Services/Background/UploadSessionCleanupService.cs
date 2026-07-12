@@ -70,11 +70,12 @@ internal sealed class UploadSessionCleanupService : BackgroundService
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<FilesDbContext>();
+        var quotaService = scope.ServiceProvider.GetRequiredService<IQuotaService>();
         var storageEngine = scope.ServiceProvider.GetRequiredService<IFileStorageEngine>();
 
         var now = DateTime.UtcNow;
 
-        // Expire stale in-progress sessions
+        // Expire stale in-progress sessions and release reserved quota
         var expiredSessions = await db.UploadSessions
             .Where(s => s.Status == UploadSessionStatus.InProgress && s.ExpiresAt < now)
             .ToListAsync(cancellationToken);
@@ -83,12 +84,18 @@ internal sealed class UploadSessionCleanupService : BackgroundService
         {
             session.Status = UploadSessionStatus.Expired;
             session.UpdatedAt = now;
+
+            // Release the quota that was reserved for this expired session
+            if (session.TotalSize > 0)
+            {
+                await quotaService.AdjustUsedBytesAsync(session.UserId, -session.TotalSize, cancellationToken);
+            }
         }
 
         if (expiredSessions.Count > 0)
         {
             await db.SaveChangesAsync(cancellationToken);
-            _logger.LogInformation("Expired {Count} stale upload sessions", expiredSessions.Count);
+            _logger.LogInformation("Expired {Count} stale upload sessions and released reserved quota", expiredSessions.Count);
         }
 
         // GC orphaned chunks: chunks with no file version references (ReferenceCount = 0)

@@ -14,6 +14,15 @@ using Microsoft.AspNetCore.Diagnostics;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Load shared config from DOTNETCLOUD_CONFIG_DIR
+var configDir = Environment.GetEnvironmentVariable("DOTNETCLOUD_CONFIG_DIR");
+if (!string.IsNullOrEmpty(configDir))
+{
+    var p = Path.Combine(configDir, "config.json");
+    if (File.Exists(p))
+        builder.Configuration.AddJsonFile(p, optional: true, reloadOnChange: false);
+}
+
 // Bind gRPC endpoint from DOTNETCLOUD_GRPC_ENDPOINT (set by ProcessSupervisor)
 var grpcEndpoint = Environment.GetEnvironmentVariable("DOTNETCLOUD_GRPC_ENDPOINT");
 if (!string.IsNullOrEmpty(grpcEndpoint))

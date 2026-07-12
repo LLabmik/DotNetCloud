@@ -12,6 +12,9 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<MauiXamlInflator>SourceGen</MauiXamlInflator>
+		<!-- XA4301: duplicate libe_sqlite3.so from lib.e_sqlite3.android (transitive)
+		     and lib.e_sqlite3 3.50.3 — APK packager picks one, harmless -->
+		<NoWarn>$(NoWarn);XA4301</NoWarn>
 	</PropertyGroup>
 
 	<!-- ========================
