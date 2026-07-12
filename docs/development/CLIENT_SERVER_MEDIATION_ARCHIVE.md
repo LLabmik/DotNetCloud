@@ -28,6 +28,14 @@ Archived: 2026-07-01. Full git history preserved.
 
 ---
 
+## Archived: gRPC Conversion — Chat Proto Expansion & Stub Resolution (2026-07-12)
+
+**Target:** cloud.kimball.home → production deploy
+
+**Result:** ✅ All high-priority gRPC conversion items completed on `main`. Chat module proto expanded with 9 new RPCs, 13 new message types. ChatGrpcService server-side impl complete. 9 ChatGrpcApiClient stubs replaced with real gRPC calls. CoreCapabilities SendNotification wired to real INotificationService.
+
+---
+
 ## Archived: Android Calendar Tab + Chat SignalR Fixes (2026-06-30)
 
 **Target:** cloud.kimball.home → production merge

@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-07-03 (gRPC conversion TODOs — Chat proto expansion & stub resolution)
+Last updated: 2026-07-12 (Android Files — deploy server-side thumbnail lazy-generation & EXIF metadata endpoint)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -18,7 +18,7 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
-- **Current active branch:** `main`
+- **Current active branch:** `feature/android-files-photo-thumbnails`
 - No moderator involvement in technical decisions, code reviews, or work coordination.
 
 **Role separation (MANDATORY):**
@@ -64,7 +64,7 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 - Put all technical findings, debugging conclusions, and next-step details in this document.
 - Assistant (current agent) commits their findings/work and updates the **Active Handoff** section with actionable next steps for the other client.
-- Assistant pushes commits to `feature/fix-android-music-equalizer`.
+- Assistant pushes commits to `feature/android-files-photo-thumbnails`.
 - Unexpected untracked content rule (MANDATORY): remove unexpected untracked files/directories before commit; only keep intentional tracked changes for the handoff update.
 - Handoff readiness gate (MANDATORY): all executable tests must pass before marking a handoff as ready.
 - Environment-gated tests are allowed to be skipped, but must be explicitly identified as gated with the required environment/runtime prerequisites documented in the handoff.
@@ -92,47 +92,38 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 
 ## Active Handoff
 
-**Summary:** Complete gRPC conversion — Chat proto expansion, 9 stub methods replaced, CoreCapabilities placeholders wired.
+**Summary:** Deploy server-side thumbnail lazy-generation and EXIF metadata endpoint for Android Files photo viewer.
 
-**Context:** All high-priority and medium-priority items from the gRPC conversion audit are now complete:
+**Context:** Android Files app (`feature/android-files-photo-thumbnails`, commit `050000a4`) now shows an inline image viewer with swipe navigation and EXIF metadata panel. The thumbnail cache on the client fetches from `GET /api/v1/files/{nodeId}/thumbnail?size=small`, but the server returns 404 for pre-existing images because the lazy-generation code (`GetOrGenerateThumbnailAsync`) hasn't been deployed yet. Thumbnails will appear once the server has this code.
 
-**Chat module — 9 new proto RPCs + server impl + client impl:**
-- `chat_service.proto` expanded with `MarkAsRead`, `GetUnreadCounts`, `ListChannelMembers`, `SendCallOffer`, `SendCallAnswer`, `SendIceCandidate`, `SendMediaStateChange`, `InviteToCall`, `TransferCallHost`
-- `ChatGrpcService.cs` — all 9 RPCs implemented, delegating to `IChannelMemberService`, `ICallSignalingService`, `IVideoCallService`
-- `ChatGrpcApiClient.cs` — all 9 stub methods replaced with real gRPC calls
-- 1272/1272 Chat module tests passing
-
-**CoreCapabilities placeholders wired:**
-- `SendNotification` — now resolves `INotificationService` from DI and dispatches to real notification pipeline
-- `PublishEvent` — documented limitation (generic `IEventBus.PublishAsync<TEvent>` needs event type registry; modules should use `BroadcastRealtimeEvent` RPC for now)
-
-**Cleanup:**
-- Fixed misleading "Legacy in-process HTTP clients" comment in `Program.cs:537`
-
-**SyncTray or Android app changes:** None. Only server-side files modified.
+**Server-side changes in this branch (already committed, need deploy):**
+- `IThumbnailService.cs` / `ThumbnailService.cs` — added `GetOrGenerateThumbnailAsync` for lazy on-demand thumbnail generation (instead of only at upload time)
+- `FilesController.cs` — updated `GET .../thumbnail` to call lazy generation on cache miss; added `GET .../metadata` endpoint returning EXIF data via `ExifMetadataExtractor`
+- `Program.cs` — added `builder.Services.AddMediaMetadataExtractors()`
+- `DotNetCloud.Modules.Files.Host.csproj` — added `DotNetCloud.Core.ServiceDefaults` project reference
 
 ---
 
 ### Server Actions — `cloud.kimball.home`
 
-- [ ] `git pull` on `main`
-- [ ] `dotnet publish src/Core/DotNetCloud.Core.Server -c Release -o /opt/dotnetcloud/publish`
-- [ ] `dotnet publish src/Modules/Chat/DotNetCloud.Modules.Chat.Host -c Release -o /opt/dotnetcloud/modules/chat`
-- [ ] `sudo systemctl restart dotnetcloud` (core server)
-- [ ] `sudo systemctl restart dotnetcloud@chat` (Chat module host)
-- [ ] Verify health: `curl -k https://cloud.kimball.home/health` — all 14 modules should report healthy
-- [ ] Verify new Chat RPCs: trigger a MarkAsRead or ListChannelMembers call from the UI and check module logs
-- [x] Endpoint routing verified: all return 401 (auth required, not 404)
-- [ ] Create PR to merge `feature/fix-android-music-equalizer` to `main`
+- [ ] `git fetch origin`
+- [ ] `git switch feature/android-files-photo-thumbnails`
+- [ ] `dotnet publish src/Modules/Files/DotNetCloud.Modules.Files.Host -c Release -o /opt/dotnetcloud/modules/files`
+- [ ] `sudo systemctl restart dotnetcloud@files`
+- [ ] Verify health: `curl -k https://cloud.kimball.home/health` — Files module reports healthy
+- [ ] Verify thumbnail endpoint: upload a JPEG via the web UI, then `curl -I "https://cloud.kimball.home/api/v1/files/{nodeId}/thumbnail?size=small"` returns `200 image/jpeg`
+- [ ] Verify metadata endpoint: `curl "https://cloud.kimball.home/api/v1/files/{nodeId}/metadata"` returns JSON with EXIF fields
+- [ ] Create PR to merge `feature/android-files-photo-thumbnails` to `main`
 
 ### Client Actions — `monolith` (Android client)
 
-- [x] Replace hardcoded 10-band ProgressBars with device-accurate dynamic Sliders
-- [x] Fix EQ gain reset on every playback state change (only recreate on session change)
-- [x] Add save EQ preset dialog (name entry + overwrite existing) + REST client methods
-- [x] Add EQ icon button in title bar, remove from segmented tab bar
-- [x] All warnings fixed (0 warnings, 0 errors)
-- [x] Built and deployed to phone — sliders work
+- [x] Full-screen CarouselView image viewer with smooth swipe transitions
+- [x] EXIF metadata panel (camera, lens, settings, GPS, date, dimensions)
+- [x] `ThumbnailCache` service (two-tier LRU memory + disk, fetches `.../thumbnail?size=small`)
+- [x] Image thumbnails in file list (conditional Image vs emoji fallback)
+- [x] Lazy thumbnail loading with cancellation on navigation
+- [x] `IsNullConverter` for XAML visibility
+- [x] All services, pages, and routes registered in DI
 
 ## Environment
 
