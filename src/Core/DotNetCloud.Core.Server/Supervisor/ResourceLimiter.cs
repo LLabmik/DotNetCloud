@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using DotNetCloud.Core;
 using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Core.Server.Supervisor;
@@ -407,10 +408,7 @@ internal sealed partial class ResourceLimiter : IDisposable
 
     private static string SanitizeForLog(string? value)
     {
-        if (string.IsNullOrEmpty(value))
-            return string.Empty;
-        return value.Replace("\r", "\\r", StringComparison.Ordinal)
-            .Replace("\n", "\\n", StringComparison.Ordinal);
+        return LogSanitizer.Sanitize(value ?? string.Empty);
     }
 
     public void Dispose()

@@ -1,3 +1,4 @@
+using DotNetCloud.Core;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Server.PushNotifications;
 using Microsoft.Extensions.Logging;
@@ -25,7 +26,7 @@ internal sealed class UserMentionedNotificationHandler : IEventHandler<UserMenti
     {
         _logger.LogInformation(
             "Sending mention notification to user {UserId} in {ContentType} \"{ContentTitle}\"",
-            @event.MentionedUserId, @event.ContentType, @event.ContentTitle);
+            @event.MentionedUserId, LogSanitizer.Sanitize(@event.ContentType), LogSanitizer.Sanitize(@event.ContentTitle));
 
         await _pushService.SendAsync(@event.MentionedUserId, new PushNotification
         {

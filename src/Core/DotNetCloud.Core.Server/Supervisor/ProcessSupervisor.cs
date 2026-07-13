@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Entities.Modules;
 using DotNetCloud.Core.Grpc.Lifecycle;
+using DotNetCloud.Core;
 using DotNetCloud.Core.Modules;
 using DotNetCloud.Core.Modules.Supervisor;
 using DotNetCloud.Core.Server.ModuleLoading;
@@ -80,7 +81,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
-                    _logger.LogError(ex, "Failed to start module {ModuleId}", module.ModuleId);
+                    _logger.LogError(ex, "Failed to start module {ModuleId}", LogSanitizer.Sanitize(module.ModuleId));
                 }
             }
         }
@@ -137,7 +138,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
     {
         ArgumentNullException.ThrowIfNull(moduleId);
 
-        _logger.LogInformation("Restarting module {ModuleId}", moduleId);
+        _logger.LogInformation("Restarting module {ModuleId}", LogSanitizer.Sanitize(moduleId));
         await StopModuleCoreAsync(moduleId, cancellationToken);
 
         var discovered = _discoveryService.DiscoverModule(moduleId);
@@ -430,9 +431,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
 
     private static string SanitizeForLog(string value)
     {
-        return value
-            .Replace("\r", "\\r", StringComparison.Ordinal)
-            .Replace("\n", "\\n", StringComparison.Ordinal);
+        return LogSanitizer.Sanitize(value);
     }
 
     /// <summary>Copies an environment variable from the current process to the child

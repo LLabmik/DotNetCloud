@@ -1,3 +1,4 @@
+using DotNetCloud.Core;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Server.PushNotifications;
 using Microsoft.Extensions.Logging;
@@ -24,7 +25,7 @@ internal sealed class PublicLinkAccessedNotificationHandler : IEventHandler<Publ
     public async Task HandleAsync(PublicLinkAccessedEvent @event, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Sending public link accessed notification to user {UserId} for file {FileName}",
-            @event.CreatedByUserId, @event.FileName);
+            @event.CreatedByUserId, LogSanitizer.Sanitize(@event.FileName));
 
         await _pushService.SendAsync(@event.CreatedByUserId, new PushNotification
         {
