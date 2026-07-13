@@ -8,7 +8,7 @@
 
     <Shell.TitleView>
         <HorizontalStackLayout Spacing="6"
-                VerticalOptions="Center">
+                               VerticalOptions="Center">
             <Image Source="logo.png"
                    HeightRequest="36"
                    WidthRequest="36"
@@ -22,7 +22,7 @@
 
     <ScrollView>
         <VerticalStackLayout Padding="12,12"
-                Spacing="8">
+                             Spacing="8">
 
             <!-- ═══ Update Available Banner ═══ -->
             <Border
@@ -40,7 +40,7 @@
                             VerticalOptions="Center"
                             Text="🔔"/>
                         <VerticalStackLayout VerticalOptions="Center"
-                                Spacing="2">
+                                             Spacing="2">
                             <Label
                                 FontAttributes="Bold"
                                 FontSize="15"
@@ -56,14 +56,14 @@
                     </HorizontalStackLayout>
 
                     <HorizontalStackLayout Spacing="10"
-                            HorizontalOptions="End">
+                                           HorizontalOptions="End">
                         <Border
                             BackgroundColor="Transparent"
                             StrokeThickness="0"
                             Padding="14,8">
                             <Label FontSize="13"
-                                    TextColor="#94A3B8"
-                                    Text="Dismiss"/>
+                                   TextColor="#94A3B8"
+                                   Text="Dismiss"/>
                             <Border.GestureRecognizers>
                                 <TapGestureRecognizer Command="{Binding DismissUpdateCommand}"/>
                             </Border.GestureRecognizers>
@@ -74,9 +74,9 @@
                             StrokeShape="RoundRectangle 8"
                             Padding="16,8">
                             <Label FontSize="13"
-                                    FontAttributes="Bold"
-                                    TextColor="#0F172A"
-                                    Text="Update"/>
+                                   FontAttributes="Bold"
+                                   TextColor="#0F172A"
+                                   Text="Update"/>
                             <Border.GestureRecognizers>
                                 <TapGestureRecognizer Command="{Binding OpenUpdateCommand}"/>
                             </Border.GestureRecognizers>
@@ -117,7 +117,7 @@
                                 Text="👤"/>
                         </Border>
                         <VerticalStackLayout VerticalOptions="Center"
-                                Spacing="2">
+                                             Spacing="2">
                             <Label
                                 FontAttributes="Bold"
                                 FontSize="16"
@@ -163,7 +163,7 @@
                                 Text="🖥"/>
                         </Border>
                         <VerticalStackLayout VerticalOptions="Center"
-                                Spacing="2">
+                                             Spacing="2">
                             <Label
                                 FontSize="15"
                                 TextColor="#F1F5F9"
@@ -195,7 +195,7 @@
 
                     <!-- Auto-upload toggle -->
                     <Grid ColumnDefinitions="Auto,*,Auto"
-                            Padding="0,6">
+                          Padding="0,6">
                         <Border
                             Grid.Column="0"
                             BackgroundColor="#334155"
@@ -211,13 +211,13 @@
                                 Text="🔄"/>
                         </Border>
                         <VerticalStackLayout Grid.Column="1"
-                                VerticalOptions="Center"
-                                Spacing="1">
+                                             VerticalOptions="Center"
+                                             Spacing="1">
                             <Label FontSize="15"
-                                    TextColor="#F1F5F9"
-                                    Text="Auto-Upload Media"/>
+                                   TextColor="#F1F5F9"
+                                   Text="Auto-Upload Media"/>
                             <Label FontSize="12"
-                                    TextColor="#64748B"
+                                   TextColor="#64748B"
                                    Text="Automatically upload new photos &amp; videos"/>
                         </VerticalStackLayout>
                         <Switch
@@ -229,12 +229,12 @@
                     </Grid>
 
                     <BoxView HeightRequest="1"
-                            BackgroundColor="#334155"
-                            Margin="0,4"/>
+                             BackgroundColor="#334155"
+                             Margin="0,4"/>
 
                     <!-- WiFi-only toggle -->
                     <Grid ColumnDefinitions="Auto,*,Auto"
-                            Padding="0,6">
+                          Padding="0,6">
                         <Border
                             Grid.Column="0"
                             BackgroundColor="#334155"
@@ -250,13 +250,13 @@
                                 Text="📶"/>
                         </Border>
                         <VerticalStackLayout Grid.Column="1"
-                                VerticalOptions="Center"
-                                Spacing="1">
+                                             VerticalOptions="Center"
+                                             Spacing="1">
                             <Label FontSize="15"
-                                    TextColor="#F1F5F9"
-                                    Text="WiFi Only"/>
+                                   TextColor="#F1F5F9"
+                                   Text="WiFi Only"/>
                             <Label FontSize="12"
-                                    TextColor="#64748B"
+                                   TextColor="#64748B"
                                    Text="Only upload when connected to WiFi"/>
                         </VerticalStackLayout>
                         <Switch
@@ -268,12 +268,12 @@
                     </Grid>
 
                     <BoxView HeightRequest="1"
-                            BackgroundColor="#334155"
-                            Margin="0,4"/>
+                             BackgroundColor="#334155"
+                             Margin="0,4"/>
 
                     <!-- Organize by date toggle -->
                     <Grid ColumnDefinitions="Auto,*,Auto"
-                            Padding="0,6">
+                          Padding="0,6">
                         <Border
                             Grid.Column="0"
                             BackgroundColor="#334155"
@@ -289,13 +289,13 @@
                                 Text="📅"/>
                         </Border>
                         <VerticalStackLayout Grid.Column="1"
-                                VerticalOptions="Center"
-                                Spacing="1">
+                                             VerticalOptions="Center"
+                                             Spacing="1">
                             <Label FontSize="15"
-                                    TextColor="#F1F5F9"
-                                    Text="Organize by Date"/>
+                                   TextColor="#F1F5F9"
+                                   Text="Organize by Date"/>
                             <Label FontSize="12"
-                                    TextColor="#64748B"
+                                   TextColor="#64748B"
                                    Text="Group uploads into YYYY/MM folders"/>
                         </VerticalStackLayout>
                         <Switch
@@ -307,12 +307,12 @@
                     </Grid>
 
                     <BoxView HeightRequest="1"
-                            BackgroundColor="#334155"
-                            Margin="0,4"/>
+                             BackgroundColor="#334155"
+                             Margin="0,4"/>
 
                     <!-- Upload folder name -->
                     <Grid ColumnDefinitions="Auto,*,Auto"
-                            Padding="0,6">
+                          Padding="0,6">
                         <Border
                             Grid.Column="0"
                             BackgroundColor="#334155"
@@ -328,13 +328,13 @@
                                 Text="📁"/>
                         </Border>
                         <VerticalStackLayout Grid.Column="1"
-                                VerticalOptions="Center"
-                                Spacing="1">
+                                             VerticalOptions="Center"
+                                             Spacing="1">
                             <Label FontSize="15"
-                                    TextColor="#F1F5F9"
-                                    Text="Upload Folder"/>
+                                   TextColor="#F1F5F9"
+                                   Text="Upload Folder"/>
                             <Label FontSize="12"
-                                    TextColor="#64748B"
+                                   TextColor="#64748B"
                                    Text="{Binding UploadFolderName}"/>
                         </VerticalStackLayout>
                         <Border
@@ -345,8 +345,8 @@
                             Padding="12,6"
                             VerticalOptions="Center">
                             <Label FontSize="13"
-                                    TextColor="#0EA5E9"
-                                    Text="Change"/>
+                                   TextColor="#0EA5E9"
+                                   Text="Change"/>
                             <Border.GestureRecognizers>
                                 <TapGestureRecognizer Command="{Binding ChangeUploadFolderCommand}"/>
                             </Border.GestureRecognizers>
@@ -354,8 +354,8 @@
                     </Grid>
 
                     <BoxView HeightRequest="1"
-                            BackgroundColor="#334155"
-                            Margin="0,4"/>
+                             BackgroundColor="#334155"
+                             Margin="0,4"/>
 
                     <!-- Sync now button -->
                     <Border
@@ -407,7 +407,7 @@
                         Margin="0,0,0,12"/>
 
                     <Grid ColumnDefinitions="Auto,*,Auto"
-                            Padding="0,6">
+                          Padding="0,6">
                         <Border
                             Grid.Column="0"
                             BackgroundColor="#334155"
@@ -423,13 +423,13 @@
                                 Text="🔋"/>
                         </Border>
                         <VerticalStackLayout Grid.Column="1"
-                                VerticalOptions="Center"
-                                Spacing="1">
+                                             VerticalOptions="Center"
+                                             Spacing="1">
                             <Label FontSize="15"
-                                    TextColor="#F1F5F9"
-                                    Text="Battery Optimization"/>
+                                   TextColor="#F1F5F9"
+                                   Text="Battery Optimization"/>
                             <Label FontSize="12"
-                                    TextColor="{Binding BatteryStatusColor}"
+                                   TextColor="{Binding BatteryStatusColor}"
                                    Text="{Binding BatteryStatusText}"/>
                         </VerticalStackLayout>
 
@@ -443,9 +443,9 @@
                             VerticalOptions="Center"
                             IsVisible="{Binding IsBatteryOptimized}">
                             <Label FontSize="13"
-                                    FontAttributes="Bold"
-                                    TextColor="#0F172A"
-                                    Text="Fix"/>
+                                   FontAttributes="Bold"
+                                   TextColor="#0F172A"
+                                   Text="Fix"/>
                             <Border.GestureRecognizers>
                                 <TapGestureRecognizer Command="{Binding RequestBatteryExemptionCommand}"/>
                             </Border.GestureRecognizers>
@@ -542,7 +542,7 @@
                         Margin="0,0,0,12"/>
 
                     <Grid ColumnDefinitions="Auto,*,Auto"
-                            Padding="0,6">
+                          Padding="0,6">
                         <Border
                             Grid.Column="0"
                             BackgroundColor="#334155"
@@ -558,13 +558,13 @@
                                 Text="🔍"/>
                         </Border>
                         <VerticalStackLayout Grid.Column="1"
-                                VerticalOptions="Center"
-                                Spacing="1">
+                                             VerticalOptions="Center"
+                                             Spacing="1">
                             <Label FontSize="15"
-                                    TextColor="#F1F5F9"
-                                    Text="Rescan Modules"/>
+                                   TextColor="#F1F5F9"
+                                   Text="Rescan Modules"/>
                             <Label FontSize="12"
-                                    TextColor="#64748B"
+                                   TextColor="#64748B"
                                    Text="Re-check which server modules are available"/>
                         </VerticalStackLayout>
                     </Grid>
