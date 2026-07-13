@@ -102,10 +102,12 @@ public partial class MusicPage : IAsyncDisposable
     [Parameter] public string? FileIdNav { get; set; }
     [Parameter] public string? TrackId { get; set; }
     [Parameter] public string? ArtistId { get; set; }
+    [Parameter] public string? AlbumId { get; set; }
     [Parameter] public string? ScrollToPlaying { get; set; }
     private string? _lastHandledNav;
     private string? _lastHandledTrackId;
     private string? _lastHandledArtistId;
+    private string? _lastHandledAlbumId;
     private bool _pendingScrollToPlaying;
 
     // ── Library Settings ──
@@ -217,6 +219,13 @@ public partial class MusicPage : IAsyncDisposable
                 _lastHandledArtistId = ArtistId;
                 await NavigateToArtistAsync(artistId);
             }
+
+            // Deep-link: navigate to album if albumId parameter was supplied
+            if (!string.IsNullOrEmpty(AlbumId) && Guid.TryParse(AlbumId, out var albumId))
+            {
+                _lastHandledAlbumId = AlbumId;
+                await NavigateToAlbumAsync(albumId);
+            }
         }
         catch (Exception ex)
         {
@@ -254,6 +263,13 @@ public partial class MusicPage : IAsyncDisposable
         {
             _lastHandledArtistId = ArtistId;
             await NavigateToArtistAsync(artistId);
+        }
+
+        // Handle same-page navigation for albumId (e.g., from playbar album link)
+        if (!string.IsNullOrEmpty(AlbumId) && AlbumId != _lastHandledAlbumId && Guid.TryParse(AlbumId, out var albumId))
+        {
+            _lastHandledAlbumId = AlbumId;
+            await NavigateToAlbumAsync(albumId);
         }
 
         // Handle "scroll to playing track" when navigating from global playbar

@@ -108,18 +108,49 @@ public class MusicPageTrackIdTests
         Assert.IsNull(_page.PendingAutoPlayTrackForTests);
     }
 
-    // ── NavigateToAlbumAsync (real, via overridden dispatch) ───
+    // ── NavigateToAlbumAsync (via overridden virtual dispatch) ──
 
     [TestMethod]
     public async Task NavigateToAlbumAsync_NullAlbumId_ReturnsWithoutAction()
     {
-        // Call the overridden version which includes null guard, and since
-        // the virtual dispatch works, null guard on base is bypassed.
-        // The overridden version records every call including null.
+        // The overridden version in TestableMusicPage records every call including null.
         await _page.NavigateToAlbumAsync(null);
 
         Assert.AreEqual(1, _page.NavigateToAlbumCallCount);
         Assert.IsNull(_page.NavigatedAlbumId);
+    }
+
+    [TestMethod]
+    public async Task NavigateToAlbumAsync_ValidAlbumId_NavigatesToAlbum()
+    {
+        var albumId = Guid.CreateVersion7();
+
+        await _page.NavigateToAlbumAsync(albumId);
+
+        Assert.AreEqual(1, _page.NavigateToAlbumCallCount);
+        Assert.AreEqual(albumId, _page.NavigatedAlbumId);
+    }
+
+    // ── AlbumId deep-link parameter handling ───────────────────
+
+    [TestMethod]
+    public async Task NavigateToArtistAsync_NullArtistId_ReturnsWithoutAction()
+    {
+        await _page.NavigateToArtistAsync(null);
+
+        Assert.AreEqual(0, _page.NavigateToArtistCallCount);
+        Assert.IsNull(_page.NavigatedArtistId);
+    }
+
+    [TestMethod]
+    public async Task NavigateToArtistAsync_ValidArtistId_NavigatesToArtist()
+    {
+        var artistId = Guid.CreateVersion7();
+
+        await _page.NavigateToArtistAsync(artistId);
+
+        Assert.AreEqual(1, _page.NavigateToArtistCallCount);
+        Assert.AreEqual(artistId, _page.NavigatedArtistId);
     }
 
     // ── Helpers ────────────────────────────────────────────────
@@ -144,17 +175,28 @@ public class MusicPageTrackIdTests
 
     /// <summary>
     /// Testable subclass that overrides <see cref="MusicPage.NavigateToAlbumAsync"/>
-    /// to avoid the full dependency chain (GetCallerAsync, OpenAlbumDetail, etc.).
+    /// and <see cref="MusicPage.NavigateToArtistAsync"/> to avoid the full dependency
+    /// chain (GetCallerAsync, OpenAlbumDetail, OpenArtistDetail, etc.).
     /// </summary>
     private class TestableMusicPage : MusicPage
     {
         public Guid? NavigatedAlbumId { get; private set; }
         public int NavigateToAlbumCallCount { get; private set; }
 
+        public Guid? NavigatedArtistId { get; private set; }
+        public int NavigateToArtistCallCount { get; private set; }
+
         internal override Task NavigateToAlbumAsync(Guid? albumId)
         {
             NavigatedAlbumId = albumId;
             NavigateToAlbumCallCount++;
+            return Task.CompletedTask;
+        }
+
+        internal override Task NavigateToArtistAsync(Guid? artistId)
+        {
+            NavigatedArtistId = artistId;
+            NavigateToArtistCallCount++;
             return Task.CompletedTask;
         }
     }

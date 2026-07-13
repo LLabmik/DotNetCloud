@@ -23,6 +23,9 @@
     [SupplyParameterFromQuery(Name = "artistId")]
     public string? ArtistId { get; set; }
 
+    [SupplyParameterFromQuery(Name = "albumId")]
+    public string? AlbumId { get; set; }
+
     private Dictionary<string, object>? _parameters;
 
     protected override void OnParametersSet()
@@ -52,6 +55,12 @@
         if (!string.IsNullOrEmpty(ArtistId))
         {
             _parameters["ArtistId"] = ArtistId;
+            hasParams = true;
+        }
+
+        if (!string.IsNullOrEmpty(AlbumId))
+        {
+            _parameters["AlbumId"] = AlbumId;
             hasParams = true;
         }
 
