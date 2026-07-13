@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core;
 using DotNetCloud.Core.DTOs.Media;
 using DotNetCloud.Core.Services;
 using DotNetCloud.Core.Services.ModuleApis;
@@ -46,7 +47,7 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
         _logger.LogWarning(
             "ScanAsync (local filesystem) called for {Path} by {OwnerId} ({MediaType}). " +
             "This path is deprecated—prefer ScanSourcesAsync for gRPC-based virtual scanning.",
-            directoryPath, ownerId, mediaType);
+            directoryPath, ownerId, LogSanitizer.Sanitize(mediaType));
 
         return new MediaScanResult
         {
@@ -141,7 +142,7 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
         if (!scanResult.Success)
         {
             result.Errors.Add(scanResult.ErrorMessage ?? "Media folder scan failed.");
-            _logger.LogWarning("Media folder scan via gRPC failed: {Error}", scanResult.ErrorMessage);
+            _logger.LogWarning("Media folder scan via gRPC failed: {Error}", LogSanitizer.Sanitize(scanResult.ErrorMessage ?? ""));
             return result;
         }
 
@@ -207,7 +208,7 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
             {
                 _logger.LogInformation(
                     "Detected {Count} deleted {MediaType} files for user {OwnerId} — removing from index. FileNodeIds: {FileNodeIds}",
-                    deletedFileNodeIds.Count, parsed, ownerId,
+                    deletedFileNodeIds.Count, LogSanitizer.Sanitize(parsed.ToString()), ownerId,
                     string.Join(",", deletedFileNodeIds.Take(10)) + (deletedFileNodeIds.Count > 10 ? "..." : ""));
 
                 progress?.Report(new MediaScanProgress

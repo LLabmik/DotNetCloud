@@ -1,3 +1,4 @@
+using DotNetCloud.Core;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Server.PushNotifications;
 using Microsoft.Extensions.Logging;
@@ -25,7 +26,7 @@ internal sealed class ReminderNotificationHandler : IEventHandler<ReminderTrigge
     {
         _logger.LogInformation(
             "Sending reminder notification to user {UserId} for {EntityType} \"{Title}\"",
-            @event.UserId, @event.EntityType, @event.Title);
+            @event.UserId, LogSanitizer.Sanitize(@event.EntityType), LogSanitizer.Sanitize(@event.Title));
 
         var data = new Dictionary<string, string>
         {

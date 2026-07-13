@@ -1,3 +1,4 @@
+using DotNetCloud.Core;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.DTOs.Media;
@@ -63,7 +64,7 @@ public sealed class AdminSharedFolderCleanupService : IEventHandler<AdminSharedF
 
         _logger.LogInformation(
             "Starting cleanup for deleted admin shared folder {SharedFolderId} ('{DisplayName}')",
-            evt.SharedFolderId, evt.DisplayName);
+            evt.SharedFolderId, LogSanitizer.Sanitize(evt.DisplayName));
 
         try
         {
@@ -87,13 +88,13 @@ public sealed class AdminSharedFolderCleanupService : IEventHandler<AdminSharedF
             _logger.LogInformation(
                 "Cleanup complete for admin shared folder {SharedFolderId} ('{DisplayName}'). " +
                 "Affected users: {UserCount}",
-                evt.SharedFolderId, evt.DisplayName, affectedUsers.Count);
+                evt.SharedFolderId, LogSanitizer.Sanitize(evt.DisplayName), affectedUsers.Count);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex,
                 "Cleanup failed for admin shared folder {SharedFolderId} ('{DisplayName}')",
-                evt.SharedFolderId, evt.DisplayName);
+                evt.SharedFolderId, LogSanitizer.Sanitize(evt.DisplayName));
 
             if (_statusReporter is not null && evt.EventId != Guid.Empty)
             {

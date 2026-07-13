@@ -1,3 +1,4 @@
+using DotNetCloud.Core;
 using DotNetCloud.Core.DTOs.Search;
 using DotNetCloud.Core.Server.Grpc.Clients;
 using Google.Protobuf.Collections;
@@ -128,7 +129,7 @@ internal sealed class FilesModuleSearchClient : IModuleSearchDocumentClient
         }
         catch (RpcException ex)
         {
-            _logger.LogError(ex, "FilesModuleSearchClient.GetSearchableDocumentAsync({EntityId}) failed", entityId);
+            _logger.LogError(ex, "FilesModuleSearchClient.GetSearchableDocumentAsync({EntityId}) failed", LogSanitizer.Sanitize(entityId));
             return null;
         }
     }
@@ -198,7 +199,7 @@ internal sealed class NotesModuleSearchClient : IModuleSearchDocumentClient
         }
         catch (RpcException ex)
         {
-            _logger.LogError(ex, "NotesModuleSearchClient.GetSearchableDocumentAsync({EntityId}) failed", entityId);
+            _logger.LogError(ex, "NotesModuleSearchClient.GetSearchableDocumentAsync({EntityId}) failed", LogSanitizer.Sanitize(entityId));
             return null;
         }
     }
@@ -268,7 +269,7 @@ internal sealed class CalendarModuleSearchClient : IModuleSearchDocumentClient
         }
         catch (RpcException ex)
         {
-            _logger.LogError(ex, "CalendarModuleSearchClient.GetSearchableDocumentAsync({EntityId}) failed", entityId);
+            _logger.LogError(ex, "CalendarModuleSearchClient.GetSearchableDocumentAsync({EntityId}) failed", LogSanitizer.Sanitize(entityId));
             return null;
         }
     }
@@ -338,7 +339,7 @@ internal sealed class BookmarksModuleSearchClient : IModuleSearchDocumentClient
         }
         catch (RpcException ex)
         {
-            _logger.LogError(ex, "BookmarksModuleSearchClient.GetSearchableDocumentAsync({EntityId}) failed", entityId);
+            _logger.LogError(ex, "BookmarksModuleSearchClient.GetSearchableDocumentAsync({EntityId}) failed", LogSanitizer.Sanitize(entityId));
             return null;
         }
     }
@@ -408,7 +409,7 @@ internal sealed class EmailModuleSearchClient : IModuleSearchDocumentClient
         }
         catch (RpcException ex)
         {
-            _logger.LogError(ex, "EmailModuleSearchClient.GetSearchableDocumentAsync({EntityId}) failed", entityId);
+            _logger.LogError(ex, "EmailModuleSearchClient.GetSearchableDocumentAsync({EntityId}) failed", LogSanitizer.Sanitize(entityId));
             return null;
         }
     }
@@ -478,7 +479,7 @@ internal sealed class MusicModuleSearchClient : IModuleSearchDocumentClient
         }
         catch (RpcException ex)
         {
-            _logger.LogError(ex, "MusicModuleSearchClient.GetSearchableDocumentAsync({EntityId}) failed", entityId);
+            _logger.LogError(ex, "MusicModuleSearchClient.GetSearchableDocumentAsync({EntityId}) failed", LogSanitizer.Sanitize(entityId));
             return null;
         }
     }
@@ -548,7 +549,7 @@ internal sealed class VideoModuleSearchClient : IModuleSearchDocumentClient
         }
         catch (RpcException ex)
         {
-            _logger.LogError(ex, "VideoModuleSearchClient.GetSearchableDocumentAsync({EntityId}) failed", entityId);
+            _logger.LogError(ex, "VideoModuleSearchClient.GetSearchableDocumentAsync({EntityId}) failed", LogSanitizer.Sanitize(entityId));
             return null;
         }
     }

@@ -1,3 +1,4 @@
+using DotNetCloud.Core;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Server.PushNotifications;
 using Microsoft.Extensions.Logging;
@@ -25,7 +26,8 @@ internal sealed class ResourceSharedNotificationHandler : IEventHandler<Resource
     {
         _logger.LogInformation(
             "Sending share notification to user {UserId} for {EntityType} \"{EntityName}\" from module {Module}",
-            @event.SharedWithUserId, @event.EntityType, @event.EntityDisplayName, @event.SourceModuleId);
+            @event.SharedWithUserId, LogSanitizer.Sanitize(@event.EntityType),
+            LogSanitizer.Sanitize(@event.EntityDisplayName), LogSanitizer.Sanitize(@event.SourceModuleId));
 
         await _pushService.SendAsync(@event.SharedWithUserId, new PushNotification
         {

@@ -225,8 +225,7 @@ public class AdminController : ControllerBase
             return string.Empty;
         }
 
-        return value.Replace("\r", "\\r", StringComparison.Ordinal)
-            .Replace("\n", "\\n", StringComparison.Ordinal);
+        return LogSanitizer.Sanitize(value ?? string.Empty);
     }
 
     /// <summary>

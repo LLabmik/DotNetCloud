@@ -1,3 +1,4 @@
+using DotNetCloud.Core;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Server.PushNotifications;
 using Microsoft.Extensions.Logging;
@@ -28,7 +29,7 @@ internal sealed class FileSharedNotificationHandler : IEventHandler<FileSharedEv
             return;
 
         _logger.LogInformation("Sending share notification to user {UserId} for file {FileName}",
-            @event.SharedWithUserId, @event.FileName);
+            @event.SharedWithUserId, LogSanitizer.Sanitize(@event.FileName));
 
         await _pushService.SendAsync(@event.SharedWithUserId.Value, new PushNotification
         {

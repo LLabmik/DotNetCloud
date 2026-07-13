@@ -1,3 +1,4 @@
+using DotNetCloud.Core;
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Calendar.Services;
@@ -48,7 +49,7 @@ internal sealed class CrossModuleLinkResolver : ICrossModuleLinkResolver
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to resolve cross-module link: {LinkType} {TargetId}", linkType, targetId);
+            _logger.LogWarning(ex, "Failed to resolve cross-module link: {LinkType} {TargetId}", linkType, LogSanitizer.Sanitize(targetId.ToString()));
             return CreateUnresolvedLink(linkType, targetId, linkType.ToString());
         }
     }

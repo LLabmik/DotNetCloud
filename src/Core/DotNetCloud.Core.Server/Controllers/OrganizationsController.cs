@@ -398,7 +398,6 @@ public class OrganizationsController : ControllerBase
     {
         if (string.IsNullOrEmpty(value))
             return string.Empty;
-        return value.Replace("\r", "\\r", StringComparison.Ordinal)
-            .Replace("\n", "\\n", StringComparison.Ordinal);
+        return LogSanitizer.Sanitize(value ?? string.Empty);
     }
 }

@@ -1,3 +1,4 @@
+using DotNetCloud.Core;
 using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Entities.Modules;
 using DotNetCloud.Core.DTOs;
@@ -74,8 +75,7 @@ internal sealed class AdminModuleService : IAdminModuleService
         module.Status = "Enabled";
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        var sanitizedModuleId = SanitizeForLog(moduleId);
-        _logger.LogInformation("Module {ModuleId} started", sanitizedModuleId);
+        _logger.LogInformation("Module {ModuleId} started", LogSanitizer.Sanitize(moduleId));
         return true;
     }
 
@@ -103,20 +103,8 @@ internal sealed class AdminModuleService : IAdminModuleService
         module.Status = "Disabled";
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        var sanitizedModuleId = SanitizeForLog(moduleId);
-        _logger.LogInformation("Module {ModuleId} stopped", sanitizedModuleId);
+        _logger.LogInformation("Module {ModuleId} stopped", LogSanitizer.Sanitize(moduleId));
         return true;
-    }
-
-    private static string SanitizeForLog(string? value)
-    {
-        if (string.IsNullOrEmpty(value))
-        {
-            return string.Empty;
-        }
-
-        return value.Replace("\r", "\\r", StringComparison.Ordinal)
-            .Replace("\n", "\\n", StringComparison.Ordinal);
     }
 
     /// <inheritdoc/>
@@ -134,7 +122,7 @@ internal sealed class AdminModuleService : IAdminModuleService
 
         await _processSupervisor.RestartModuleAsync(moduleId, cancellationToken);
 
-        _logger.LogInformation("Module {ModuleId} restarted", moduleId);
+        _logger.LogInformation("Module {ModuleId} restarted", LogSanitizer.Sanitize(moduleId));
         return true;
     }
 
@@ -162,7 +150,7 @@ internal sealed class AdminModuleService : IAdminModuleService
         if (existing is not null)
         {
             _logger.LogInformation("Capability {Capability} already granted to module {ModuleId}",
-                capabilityName, moduleId);
+                LogSanitizer.Sanitize(capabilityName), LogSanitizer.Sanitize(moduleId));
             return MapGrantToDto(existing);
         }
 
@@ -179,7 +167,7 @@ internal sealed class AdminModuleService : IAdminModuleService
         await _dbContext.SaveChangesAsync();
 
         _logger.LogInformation("Granted capability {Capability} to module {ModuleId} by user {UserId}",
-            capabilityName, moduleId, grantedByUserId);
+            LogSanitizer.Sanitize(capabilityName), LogSanitizer.Sanitize(moduleId), grantedByUserId);
 
         return MapGrantToDto(grant);
     }

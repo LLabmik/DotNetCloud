@@ -1,3 +1,4 @@
+using DotNetCloud.Core;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Server.PushNotifications;
 using Microsoft.Extensions.Logging;
@@ -27,7 +28,7 @@ internal sealed class ShareExpiringNotificationHandler : IEventHandler<ShareExpi
         var hoursLeft = Math.Max(1, (int)Math.Ceiling(timeLeft.TotalHours));
 
         _logger.LogInformation("Sending share expiry notification to user {UserId} for file {FileName}, expires in {Hours}h",
-            @event.CreatedByUserId, @event.FileName, hoursLeft);
+            @event.CreatedByUserId, LogSanitizer.Sanitize(@event.FileName), hoursLeft);
 
         await _pushService.SendAsync(@event.CreatedByUserId, new PushNotification
         {
