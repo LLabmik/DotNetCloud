@@ -76,6 +76,14 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private bool _isBusy;
 
+    /// <summary>Whether a module rescan is currently in progress.</summary>
+    [ObservableProperty]
+    private bool _isRescanning;
+
+    /// <summary>Status message shown after a module rescan attempt.</summary>
+    [ObservableProperty]
+    private string _rescanStatus = string.Empty;
+
     // ── File sync settings ───────────────────────────────────────────
 
     [ObservableProperty]
@@ -199,6 +207,29 @@ public sealed partial class SettingsViewModel : ObservableObject
         finally
         {
             IsBusy = false;
+        }
+    }
+
+    /// <summary>Triggers a full rescan of optional modules on the server, updating tab visibility.</summary>
+    [RelayCommand]
+    private async Task RescanModulesAsync()
+    {
+        IsRescanning = true;
+        RescanStatus = string.Empty;
+        try
+        {
+            await App.TriggerModuleRescanAsync();
+            RescanStatus = "Modules rescanned successfully.";
+            _logger.LogInformation("Manual module rescan completed.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Module rescan failed.");
+            RescanStatus = $"Rescan failed: {ex.Message}";
+        }
+        finally
+        {
+            IsRescanning = false;
         }
     }
 
