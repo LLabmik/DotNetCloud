@@ -1,3 +1,4 @@
+using DotNetCloud.Client.Android.Services;
 using DotNetCloud.Client.Android.Views;
 
 namespace DotNetCloud.Client.Android;
@@ -29,6 +30,15 @@ public partial class AppShell : Shell
     {
         if (_musicTab is not null)
             _musicTab.IsVisible = visible;
+    }
+
+    /// <summary>
+    /// Re-reads <see cref="ModuleAvailabilityState"/> and updates all tab visibilities
+    /// accordingly. Called after a full module rescan.
+    /// </summary>
+    public static void RefreshAllTabs()
+    {
+        SetMusicTabVisible(ModuleAvailabilityState.IsMusicModuleAvailable);
     }
 }
 

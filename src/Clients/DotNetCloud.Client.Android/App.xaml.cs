@@ -86,6 +86,26 @@ public partial class App : Application
         await app.CheckAvailableModulesAsync();
     }
 
+    /// <summary>
+    /// Triggers a full rescan of all optional modules on the connected server.
+    /// Clears any cached availability state, re-checks every known module, and
+    /// updates tab visibility accordingly. Call this from the Settings "Rescan Modules" action.
+    /// </summary>
+    public static async Task TriggerModuleRescanAsync()
+    {
+        Log.Info("DotNetCloud", "TriggerModuleRescanAsync called");
+        if (Application.Current is not App app)
+        {
+            Log.Warn("DotNetCloud", "TriggerModuleRescanAsync: Application.Current is not App");
+            return;
+        }
+
+        ModuleAvailabilityState.ClearAll();
+        await app.CheckAvailableModulesAsync();
+        AppShell.RefreshAllTabs();
+        Log.Info("DotNetCloud", "TriggerModuleRescanAsync completed");
+    }
+
     private async Task CheckAvailableModulesAsync()
     {
         Log.Info("DotNetCloud", "CheckAvailableModulesAsync started");
@@ -107,46 +127,53 @@ public partial class App : Application
 
             var baseUrl = connection.ServerBaseUrl.TrimEnd('/');
 
-            // Try the official module availability endpoint first
-            var isAvailable = await CheckModuleEndpointAsync(baseUrl, token);
+            // ── Check Music module ──────────────────────────────────
+            // Try the official module availability endpoint first.
+            var musicAvailable = await CheckMusicModuleEndpointAsync(baseUrl, token);
 
-            // Fallback: if the module endpoint says false, probe an actual music API
-            // endpoint to double-check (the module may be running but not registered
-            // in the core module registry).
-            if (!isAvailable)
+            // Fallback: probe an actual music API endpoint to double-check
+            // (the module may be running but not registered in the core module registry).
+            if (!musicAvailable)
             {
-                isAvailable = await ProbeMusicApiAsync(baseUrl, token);
+                musicAvailable = await ProbeMusicApiAsync(baseUrl, token);
             }
 
-            Log.Info("DotNetCloud", $"CheckAvailableModulesAsync: isAvailable={isAvailable}");
-            Services.ModuleAvailabilityState.SetMusicAvailable(isAvailable);
-            if (isAvailable)
+            Log.Info("DotNetCloud", $"CheckAvailableModulesAsync: musicAvailable={musicAvailable}");
+            ModuleAvailabilityState.SetMusicAvailable(musicAvailable);
+            if (musicAvailable)
             {
                 AppShell.SetMusicTabVisible(true);
                 Log.Info("DotNetCloud", "CheckAvailableModulesAsync: Music tab set visible");
             }
+
+            // ── Future modules: add additional checks here ──────────
+            // Each new module follows the same pattern:
+            //   1. Check the module availability endpoint
+            //   2. Optionally probe a known API endpoint as fallback
+            //   3. Call ModuleAvailabilityState.SetModuleAvailable("ModuleName", result)
+            //   4. Call AppShell.SetXxxTabVisible(result) if applicable
         }
         catch (Exception ex)
         {
             Log.Error("DotNetCloud", $"CheckAvailableModulesAsync: exception: {ex.Message}");
-            Services.ModuleAvailabilityState.SetMusicAvailable(false);
+            ModuleAvailabilityState.SetMusicAvailable(false);
             AppShell.SetMusicTabVisible(false);
         }
     }
 
-    private static async Task<bool> CheckModuleEndpointAsync(string baseUrl, string token)
+    private static async Task<bool> CheckMusicModuleEndpointAsync(string baseUrl, string token)
     {
         try
         {
             var url = $"{baseUrl}/api/v1/core/modules/music/available";
-            Log.Info("DotNetCloud", $"CheckModuleEndpoint: GET {url}");
+            Log.Info("DotNetCloud", $"CheckMusicModuleEndpoint: GET {url}");
             using var http = new HttpClient();
             http.DefaultRequestHeaders.Authorization =
                 new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 
             var response = await http.GetAsync(url);
             var body = await response.Content.ReadAsStringAsync();
-            Log.Info("DotNetCloud", $"CheckModuleEndpoint: status={(int)response.StatusCode} body={body}");
+            Log.Info("DotNetCloud", $"CheckMusicModuleEndpoint: status={(int)response.StatusCode} body={body}");
 
             if (!response.IsSuccessStatusCode)
                 return false;
@@ -161,7 +188,7 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
-            Log.Warn("DotNetCloud", $"CheckModuleEndpoint: exception {ex.Message}");
+            Log.Warn("DotNetCloud", $"CheckMusicModuleEndpoint: exception {ex.Message}");
             return false;
         }
     }
