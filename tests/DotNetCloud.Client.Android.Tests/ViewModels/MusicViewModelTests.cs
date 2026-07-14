@@ -1,4 +1,5 @@
 using DotNetCloud.Client.Android.Auth;
+using DotNetCloud.Client.Core;
 using DotNetCloud.Client.Android.Music;
 using DotNetCloud.Client.Android.Services;
 using DotNetCloud.Client.Android.ViewModels;
@@ -60,6 +61,57 @@ public sealed class MusicViewModelTests
         Assert.AreEqual(0, _vm.Playlists.Count);
         Assert.AreEqual(0, _vm.EqPresets.Count);
         Assert.AreEqual(0, _vm.Genres.Count);
+
+        // Repeat defaults
+        Assert.AreEqual(RepeatMode.Off, _vm.RepeatMode);
+        Assert.AreEqual("🔁", _vm.RepeatIcon);
+        Assert.AreEqual("Off", _vm.RepeatLabel);
+        Assert.IsFalse(_vm.IsRepeatActive);
+    }
+
+    // ── Repeat ─────────────────────────────────────────────────────────
+
+    [TestMethod]
+    public void CycleRepeatCommand_DelegatesToPlayer()
+    {
+        _vm.CycleRepeatCommand.Execute(null);
+        _player.Verify(x => x.CycleRepeat(), Times.Once);
+    }
+
+    [TestMethod]
+    public void RepeatModeChanged_SyncsOffState()
+    {
+        _player.Setup(x => x.RepeatMode).Returns(RepeatMode.Off);
+        _player.Raise(x => x.RepeatModeChanged += null, EventArgs.Empty);
+
+        Assert.AreEqual(RepeatMode.Off, _vm.RepeatMode);
+        Assert.AreEqual("🔁", _vm.RepeatIcon);
+        Assert.AreEqual("Off", _vm.RepeatLabel);
+        Assert.IsFalse(_vm.IsRepeatActive);
+    }
+
+    [TestMethod]
+    public void RepeatModeChanged_SyncsOneState()
+    {
+        _player.Setup(x => x.RepeatMode).Returns(RepeatMode.One);
+        _player.Raise(x => x.RepeatModeChanged += null, EventArgs.Empty);
+
+        Assert.AreEqual(RepeatMode.One, _vm.RepeatMode);
+        Assert.AreEqual("🔂", _vm.RepeatIcon);
+        Assert.AreEqual("One", _vm.RepeatLabel);
+        Assert.IsTrue(_vm.IsRepeatActive);
+    }
+
+    [TestMethod]
+    public void RepeatModeChanged_SyncsAllState()
+    {
+        _player.Setup(x => x.RepeatMode).Returns(RepeatMode.All);
+        _player.Raise(x => x.RepeatModeChanged += null, EventArgs.Empty);
+
+        Assert.AreEqual(RepeatMode.All, _vm.RepeatMode);
+        Assert.AreEqual("🔁", _vm.RepeatIcon);
+        Assert.AreEqual("All", _vm.RepeatLabel);
+        Assert.IsTrue(_vm.IsRepeatActive);
     }
 
     // ── LoadArtistsAsync ───────────────────────────────────────────────

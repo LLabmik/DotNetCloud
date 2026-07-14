@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DotNetCloud.Client.Android.Auth;
+using DotNetCloud.Client.Core;
 using DotNetCloud.Client.Android.Music;
 using DotNetCloud.Client.Android.Services;
 using DotNetCloud.Core.DTOs;
@@ -40,6 +41,7 @@ public sealed partial class MusicViewModel : ObservableObject
         _tokenStore = tokenStore;
         _player.PlaybackStateChanged += (_, _) => UpdatePlaybackState();
         _player.TrackEnded += (_, _) => Dispatch(() => PlayNextCommand.Execute(null));
+        _player.RepeatModeChanged += (_, _) => Dispatch(UpdateRepeatState);
         _eq.AvailabilityChanged += (_, _) => Dispatch(InitEqFromDevice);
     }
 
@@ -267,6 +269,24 @@ public sealed partial class MusicViewModel : ObservableObject
     /// </summary>
     [ObservableProperty]
     private bool _isSeeking;
+
+    // ── Repeat state ────────────────────────────────────────────────
+
+    /// <summary>Current repeat mode — synced from <see cref="IMusicPlayerService.RepeatMode"/>.</summary>
+    [ObservableProperty]
+    private RepeatMode _repeatMode;
+
+    /// <summary>Repeat icon character: 🔁 for Off/All, 🔂 for One.</summary>
+    [ObservableProperty]
+    private string _repeatIcon = "🔁";
+
+    /// <summary>Repeat label text: "Off", "One", or "All".</summary>
+    [ObservableProperty]
+    private string _repeatLabel = "Off";
+
+    /// <summary>True when repeat mode is not Off (used for active styling).</summary>
+    [ObservableProperty]
+    private bool _isRepeatActive;
 
     // ── Album art ──────────────────────────────────────────────────
 
@@ -806,6 +826,24 @@ public sealed partial class MusicViewModel : ObservableObject
 
     [RelayCommand]
     private void PlayPrevious() => _player.PlayPrevious();
+
+    [RelayCommand]
+    private void CycleRepeat() => _player.CycleRepeat();
+
+    private void UpdateRepeatState()
+    {
+        var mode = _player.RepeatMode;
+        RepeatMode = mode;
+        RepeatIcon = mode == RepeatMode.One ? "🔂" : "🔁";
+        RepeatLabel = mode switch
+        {
+            RepeatMode.Off => "Off",
+            RepeatMode.One => "One",
+            RepeatMode.All => "All",
+            _ => "Off",
+        };
+        IsRepeatActive = mode != RepeatMode.Off;
+    }
 
     [RelayCommand]
     private async Task NavigateToPlayingArtistAsync()

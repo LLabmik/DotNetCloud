@@ -1,5 +1,6 @@
 using Android.Content;
 using Android.Media;
+using DotNetCloud.Client.Core;
 using DotNetCloud.Core.DTOs;
 using Microsoft.Extensions.Logging;
 
@@ -28,6 +29,9 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
 
     /// <summary>The playlist ID the current queue was loaded from, if any.</summary>
     private Guid? _playingPlaylistId;
+
+    /// <summary>Current repeat mode — controls end-of-queue / track-end behavior.</summary>
+    private RepeatMode _repeatMode;
 
     public MusicPlayerService(ILogger<MusicPlayerService> logger)
     {
@@ -58,10 +62,16 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
     public Guid? PlayingPlaylistId => _playingPlaylistId;
 
     /// <inheritdoc />
+    public RepeatMode RepeatMode => _repeatMode;
+
+    /// <inheritdoc />
     public event EventHandler? PlaybackStateChanged;
 
     /// <inheritdoc />
     public event EventHandler? TrackEnded;
+
+    /// <inheritdoc />
+    public event EventHandler? RepeatModeChanged;
 
     /// <inheritdoc />
     public async Task PlayAsync(TrackDto track, string serverBaseUrl, string accessToken)
@@ -232,7 +242,31 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
     {
         if (_queue.Count == 0)
             return;
-        _queueIndex = (_queueIndex + 1) % _queue.Count;
+
+        // Repeat One: replay the current track without advancing the queue
+        if (_repeatMode == RepeatMode.One && CurrentTrack is not null)
+        {
+            _ = PrepareAndStartAsync();
+            return;
+        }
+
+        // Normal advance
+        _queueIndex++;
+        if (_queueIndex >= _queue.Count)
+        {
+            if (_repeatMode == RepeatMode.All)
+            {
+                _queueIndex = 0;
+            }
+            else
+            {
+                // RepeatMode.Off — stop at end of queue
+                _queueIndex = _queue.Count - 1;
+                Stop();
+                return;
+            }
+        }
+
         CurrentTrack = _queue[_queueIndex];
         _ = PrepareAndStartAsync();
     }
@@ -245,6 +279,22 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
         _queueIndex = (_queueIndex - 1 + _queue.Count) % _queue.Count;
         CurrentTrack = _queue[_queueIndex];
         _ = PrepareAndStartAsync();
+    }
+
+    /// <summary>
+    /// Cycles through repeat modes: Off → One → All → Off.
+    /// Fires <see cref="RepeatModeChanged"/> after the mode changes.
+    /// </summary>
+    public void CycleRepeat()
+    {
+        _repeatMode = _repeatMode switch
+        {
+            RepeatMode.Off => RepeatMode.One,
+            RepeatMode.One => RepeatMode.All,
+            RepeatMode.All => RepeatMode.Off,
+            _ => RepeatMode.Off,
+        };
+        RepeatModeChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <inheritdoc />

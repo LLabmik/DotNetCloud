@@ -10,8 +10,8 @@ namespace DotNetCloud.Client.Android.Music;
 /// <summary>
 /// <see cref="IMusicRestClient"/> implementation backed by <see cref="HttpClient"/>.
 /// Registered via <c>AddHttpClient&lt;IMusicRestClient, HttpMusicRestClient&gt;()</c>.
-/// Uses the same auth pattern as <see cref="Files.HttpFileRestClient"/> and
-/// <see cref="Chat.HttpChatRestClient"/> — sets the Bearer token on DefaultRequestHeaders.
+/// Uses the same auth pattern as <c>HttpFileRestClient</c> and
+/// <c>HttpChatRestClient</c> — sets the Bearer token on DefaultRequestHeaders.
 /// </summary>
 internal sealed class HttpMusicRestClient : IMusicRestClient
 {

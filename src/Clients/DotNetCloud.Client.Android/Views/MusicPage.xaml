@@ -14,7 +14,7 @@
     BackgroundColor="#0F172A">
 
     <Shell.TitleView>
-        <Grid ColumnDefinitions="*,Auto"
+        <Grid ColumnDefinitions="*,Auto,Auto,Auto"
               VerticalOptions="Center">
             <HorizontalStackLayout Grid.Column="0"
                                    Spacing="6"
@@ -29,13 +29,51 @@
                        FontSize="18"/>
             </HorizontalStackLayout>
 
-            <!-- EQ icon button — visible during playback, navigates to EQ view -->
+            <!-- Repeat icon button — visible during playback, cycles through Off→One→All→Off -->
             <Grid Grid.Column="1"
                   IsVisible="{Binding CurrentTrack, Converter={StaticResource IsNotNull}}"
                   WidthRequest="44"
                   HeightRequest="44"
                   VerticalOptions="Center"
-                  HorizontalOptions="End"
+                  Padding="8">
+                <Grid.GestureRecognizers>
+                    <TapGestureRecognizer Command="{Binding CycleRepeatCommand}"/>
+                </Grid.GestureRecognizers>
+                <Label Text="{Binding RepeatIcon}"
+                       FontSize="16"
+                       VerticalOptions="Center"
+                       HorizontalOptions="Center">
+                    <Label.Triggers>
+                        <DataTrigger TargetType="Label"
+                                     Binding="{Binding IsRepeatActive}"
+                                     Value="True">
+                            <Setter Property="TextColor"
+                                    Value="#0EA5E9"/>
+                        </DataTrigger>
+                        <DataTrigger TargetType="Label"
+                                     Binding="{Binding IsRepeatActive}"
+                                     Value="False">
+                            <Setter Property="TextColor"
+                                    Value="#94A3B8"/>
+                        </DataTrigger>
+                    </Label.Triggers>
+                </Label>
+            </Grid>
+
+            <!-- Repeat label — shown to the right of the repeat icon -->
+            <Label Grid.Column="2"
+                   Text="{Binding RepeatLabel}"
+                   FontSize="10"
+                   TextColor="#94A3B8"
+                   VerticalOptions="Center"
+                   IsVisible="{Binding CurrentTrack, Converter={StaticResource IsNotNull}}"/>
+
+            <!-- EQ icon button — visible during playback, navigates to EQ view -->
+            <Grid Grid.Column="3"
+                  IsVisible="{Binding CurrentTrack, Converter={StaticResource IsNotNull}}"
+                  WidthRequest="44"
+                  HeightRequest="44"
+                  VerticalOptions="Center"
                   Padding="8">
                 <Grid.GestureRecognizers>
                     <TapGestureRecognizer Command="{Binding LoadEqPresetsCommand}"/>
@@ -48,52 +86,52 @@
                                 HorizontalOptions="Center">
                     <!-- Bar 1: line from (3,14) to (3,5) scaled → (4.5,21) to (4.5,7.5) -->
                     <Line X1="4.5"
-                            Y1="21"
-                            X2="4.5"
-                            Y2="7.5"
+                          Y1="21"
+                          X2="4.5"
+                          Y2="7.5"
                           Stroke="#94A3B8"
-                            StrokeThickness="2.5"
-                            StrokeLineCap="Round"
+                          StrokeThickness="2.5"
+                          StrokeLineCap="Round"
                           AbsoluteLayout.LayoutBounds="0,0,24,24"
-                            AbsoluteLayout.LayoutFlags="None"/>
+                          AbsoluteLayout.LayoutFlags="None"/>
                     <!-- Bar 2: line from (8,14) to (8,3) scaled → (12,21) to (12,4.5) -->
                     <Line X1="12"
-                            Y1="21"
-                            X2="12"
-                            Y2="4.5"
+                          Y1="21"
+                          X2="12"
+                          Y2="4.5"
                           Stroke="#94A3B8"
-                            StrokeThickness="2.5"
-                            StrokeLineCap="Round"
+                          StrokeThickness="2.5"
+                          StrokeLineCap="Round"
                           AbsoluteLayout.LayoutBounds="0,0,24,24"
-                            AbsoluteLayout.LayoutFlags="None"/>
+                          AbsoluteLayout.LayoutFlags="None"/>
                     <!-- Bar 3: line from (13,14) to (13,7) scaled → (19.5,21) to (19.5,10.5) -->
                     <Line X1="19.5"
-                            Y1="21"
-                            X2="19.5"
-                            Y2="10.5"
+                          Y1="21"
+                          X2="19.5"
+                          Y2="10.5"
                           Stroke="#94A3B8"
-                            StrokeThickness="2.5"
-                            StrokeLineCap="Round"
+                          StrokeThickness="2.5"
+                          StrokeLineCap="Round"
                           AbsoluteLayout.LayoutBounds="0,0,24,24"
-                            AbsoluteLayout.LayoutFlags="None"/>
+                          AbsoluteLayout.LayoutFlags="None"/>
                     <!-- Knob 1: circle center (3,5) r=1.5 scaled → (4.5,7.5) r=2.25≈2 -->
                     <Ellipse WidthRequest="4"
-                            HeightRequest="4"
-                            Fill="#94A3B8"
+                             HeightRequest="4"
+                             Fill="#94A3B8"
                              AbsoluteLayout.LayoutBounds="2.5,5.5,4,4"
-                            AbsoluteLayout.LayoutFlags="None"/>
+                             AbsoluteLayout.LayoutFlags="None"/>
                     <!-- Knob 2: circle center (8,3) r=1.5 scaled → (12,4.5) r=2 -->
                     <Ellipse WidthRequest="4"
-                            HeightRequest="4"
-                            Fill="#94A3B8"
+                             HeightRequest="4"
+                             Fill="#94A3B8"
                              AbsoluteLayout.LayoutBounds="10,2.5,4,4"
-                            AbsoluteLayout.LayoutFlags="None"/>
+                             AbsoluteLayout.LayoutFlags="None"/>
                     <!-- Knob 3: circle center (13,7) r=1.5 scaled → (19.5,10.5) r=2 -->
                     <Ellipse WidthRequest="4"
-                            HeightRequest="4"
-                            Fill="#94A3B8"
+                             HeightRequest="4"
+                             Fill="#94A3B8"
                              AbsoluteLayout.LayoutBounds="17.5,8.5,4,4"
-                            AbsoluteLayout.LayoutFlags="None"/>
+                             AbsoluteLayout.LayoutFlags="None"/>
                 </AbsoluteLayout>
             </Grid>
         </Grid>

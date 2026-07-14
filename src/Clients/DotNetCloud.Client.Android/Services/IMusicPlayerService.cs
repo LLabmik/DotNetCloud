@@ -1,3 +1,4 @@
+using DotNetCloud.Client.Core;
 using DotNetCloud.Core.DTOs;
 
 namespace DotNetCloud.Client.Android.Services;
@@ -74,9 +75,18 @@ public interface IMusicPlayerService
     /// </summary>
     Guid? PlayingPlaylistId { get; }
 
+    /// <summary>Current repeat mode.</summary>
+    RepeatMode RepeatMode { get; }
+
+    /// <summary>Cycles through repeat modes: Off → One → All → Off.</summary>
+    void CycleRepeat();
+
     /// <summary>Raised when playback state (playing/paused/stopped) changes.</summary>
     event EventHandler? PlaybackStateChanged;
 
     /// <summary>Raised when the current track finishes playing.</summary>
     event EventHandler? TrackEnded;
+
+    /// <summary>Raised when the repeat mode changes.</summary>
+    event EventHandler? RepeatModeChanged;
 }

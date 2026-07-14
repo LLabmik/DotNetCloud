@@ -6,7 +6,7 @@ namespace DotNetCloud.Client.Android.Services;
 /// <summary>
 /// Provides binding-friendly access to <see cref="ModuleAvailabilityState.IsMusicModuleAvailable"/>
 /// with <see cref="INotifyPropertyChanged"/> support so that <c>IsVisible</c> bindings in
-/// <see cref="AppShell"/> react to state changes.
+/// <c>AppShell</c> react to state changes.
 /// </summary>
 public sealed class MusicPageVisibilitySource : INotifyPropertyChanged
 {
