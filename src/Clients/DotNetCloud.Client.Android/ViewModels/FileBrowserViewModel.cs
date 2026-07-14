@@ -191,7 +191,7 @@ public sealed partial class FileBrowserViewModel : ObservableObject
             await Shell.Current.GoToAsync("ImageViewer", new Dictionary<string, object>
             {
                 ["NodeId"] = item.Id.ToString(),
-                ["FolderId"] = CurrentFolderId?.ToString()
+                ["FolderId"] = CurrentFolderId?.ToString() ?? ""
             });
         }
         else

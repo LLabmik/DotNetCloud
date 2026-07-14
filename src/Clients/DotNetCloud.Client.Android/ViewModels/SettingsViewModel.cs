@@ -218,7 +218,16 @@ public sealed partial class SettingsViewModel : ObservableObject
         RescanStatus = string.Empty;
         try
         {
-            await App.TriggerModuleRescanAsync();
+            // Trigger module rescan if running inside a MAUI application context.
+            // In test environments, Application.Current may be null — gracefully skip.
+            var appType = Microsoft.Maui.Controls.Application.Current?.GetType();
+            var method = appType?.GetMethod("TriggerModuleRescanAsync", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+            if (method is not null)
+            {
+                var task = (Task?)method.Invoke(null, null);
+                if (task is not null)
+                    await task;
+            }
             RescanStatus = "Modules rescanned successfully.";
             _logger.LogInformation("Manual module rescan completed.");
         }

@@ -4,7 +4,7 @@ namespace DotNetCloud.Client.Android.Music;
 
 /// <summary>
 /// REST API client for music operations against a DotNetCloud server.
-/// Follows the same per-call credentials pattern as <see cref="Files.IFileRestClient"/>.
+/// Follows the same per-call credentials pattern as <c>IFileRestClient</c>.
 /// </summary>
 public interface IMusicRestClient
 {

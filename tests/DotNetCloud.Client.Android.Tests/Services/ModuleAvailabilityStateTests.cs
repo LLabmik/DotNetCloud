@@ -9,7 +9,7 @@ public sealed class ModuleAvailabilityStateTests
     public void Setup()
     {
         // Reset state before each test
-        ModuleAvailabilityState.IsMusicModuleAvailable = false;
+        ModuleAvailabilityState.SetMusicAvailable(false);
     }
 
     [TestMethod]

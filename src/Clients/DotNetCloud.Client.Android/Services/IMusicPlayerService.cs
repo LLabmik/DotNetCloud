@@ -1,3 +1,4 @@
+using DotNetCloud.Client.Core;
 using DotNetCloud.Core.DTOs;
 
 namespace DotNetCloud.Client.Android.Services;
@@ -38,6 +39,15 @@ public interface IMusicPlayerService
     /// <summary>Replaces the entire playback queue with the given tracks.</summary>
     void ReplaceQueue(IEnumerable<TrackDto> tracks);
 
+    /// <summary>
+    /// Replaces the entire playback queue with the given tracks,
+    /// optionally recording the source album or playlist ID for navigation context.
+    /// </summary>
+    /// <param name="tracks">The tracks to play.</param>
+    /// <param name="albumId">If the queue comes from an album, the album's ID.</param>
+    /// <param name="playlistId">If the queue comes from a playlist, the playlist's ID.</param>
+    void ReplaceQueue(IEnumerable<TrackDto> tracks, Guid? albumId, Guid? playlistId);
+
     /// <summary>The currently playing track, or null if stopped.</summary>
     TrackDto? CurrentTrack { get; }
 
@@ -53,9 +63,30 @@ public interface IMusicPlayerService
     /// <summary>The Android audio session ID used by the MediaPlayer.</summary>
     int AudioSessionId { get; }
 
+    /// <summary>
+    /// If the current queue was loaded from an album, the album's ID; otherwise null.
+    /// Used by the UI to navigate back to the album view when tapping the now-playing bar.
+    /// </summary>
+    Guid? PlayingAlbumId { get; }
+
+    /// <summary>
+    /// If the current queue was loaded from a playlist, the playlist's ID; otherwise null.
+    /// Used by the UI to navigate back to the playlist view when tapping the now-playing bar.
+    /// </summary>
+    Guid? PlayingPlaylistId { get; }
+
+    /// <summary>Current repeat mode.</summary>
+    RepeatMode RepeatMode { get; }
+
+    /// <summary>Cycles through repeat modes: Off → One → All → Off.</summary>
+    void CycleRepeat();
+
     /// <summary>Raised when playback state (playing/paused/stopped) changes.</summary>
     event EventHandler? PlaybackStateChanged;
 
     /// <summary>Raised when the current track finishes playing.</summary>
     event EventHandler? TrackEnded;
+
+    /// <summary>Raised when the repeat mode changes.</summary>
+    event EventHandler? RepeatModeChanged;
 }

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 namespace DotNetCloud.Client.Android.Services;
 
 /// <summary>Holds the availability state of optional server modules.
-/// Set by <see cref="App"/> after querying the server at startup.</summary>
+/// Set by <c>App</c> after querying the server at startup.</summary>
 public static class ModuleAvailabilityState
 {
     private static readonly HashSet<string> _availableModules = new();
@@ -16,7 +16,7 @@ public static class ModuleAvailabilityState
 
     /// <summary>
     /// Fired when <see cref="IsMusicModuleAvailable"/> changes.
-    /// <see cref="AppShell"/> hooks this to refresh the <see cref="MusicPageVisibilitySource"/> binding.
+    /// <c>AppShell</c> hooks this to refresh the <see cref="MusicPageVisibilitySource"/> binding.
     /// </summary>
     public static event Action? MusicAvailabilityChanged;
 

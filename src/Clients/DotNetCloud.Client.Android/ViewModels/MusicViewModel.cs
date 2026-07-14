@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DotNetCloud.Client.Android.Auth;
+using DotNetCloud.Client.Core;
 using DotNetCloud.Client.Android.Music;
 using DotNetCloud.Client.Android.Services;
 using DotNetCloud.Core.DTOs;
@@ -40,6 +41,7 @@ public sealed partial class MusicViewModel : ObservableObject
         _tokenStore = tokenStore;
         _player.PlaybackStateChanged += (_, _) => UpdatePlaybackState();
         _player.TrackEnded += (_, _) => Dispatch(() => PlayNextCommand.Execute(null));
+        _player.RepeatModeChanged += (_, _) => Dispatch(UpdateRepeatState);
         _eq.AvailabilityChanged += (_, _) => Dispatch(InitEqFromDevice);
     }
 
@@ -96,6 +98,9 @@ public sealed partial class MusicViewModel : ObservableObject
 
     /// <summary>When set, tracks view is scoped to a single playlist; infinite scroll is disabled.</summary>
     private Guid? _tracksFilteredByPlaylistId;
+
+    /// <summary>Tracks the last non-EQ view so the EQ button can toggle back to it.</summary>
+    private MusicView _previousNonEqView = MusicView.Artists;
 
     // ── Observable properties ──────────────────────────────────────────
 
@@ -265,6 +270,24 @@ public sealed partial class MusicViewModel : ObservableObject
     [ObservableProperty]
     private bool _isSeeking;
 
+    // ── Repeat state ────────────────────────────────────────────────
+
+    /// <summary>Current repeat mode — synced from <see cref="IMusicPlayerService.RepeatMode"/>.</summary>
+    [ObservableProperty]
+    private RepeatMode _repeatMode;
+
+    /// <summary>Repeat icon character: 🔁 for Off/All, 🔂 for One.</summary>
+    [ObservableProperty]
+    private string _repeatIcon = "🔁";
+
+    /// <summary>Repeat label text: "Off", "One", or "All".</summary>
+    [ObservableProperty]
+    private string _repeatLabel = "Off";
+
+    /// <summary>True when repeat mode is not Off (used for active styling).</summary>
+    [ObservableProperty]
+    private bool _isRepeatActive;
+
     // ── Album art ──────────────────────────────────────────────────
 
     /// <summary>Album art image for the currently playing track. Loaded via <see cref="IAlbumArtCache"/>.</summary>
@@ -431,7 +454,7 @@ public sealed partial class MusicViewModel : ObservableObject
             // Replace queue with all album tracks and start playing from the first one
             if (items.Count > 0)
             {
-                _player.ReplaceQueue(items);
+                _player.ReplaceQueue(items, albumId: album.Id, playlistId: null);
                 await _player.PlayAsync(items[0], serverUrl, token);
             }
 
@@ -693,7 +716,7 @@ public sealed partial class MusicViewModel : ObservableObject
             // Replace queue with all playlist tracks and start playing from the first one
             if (items.Count > 0)
             {
-                _player.ReplaceQueue(items);
+                _player.ReplaceQueue(items, albumId: null, playlistId: playlist.Id);
                 await _player.PlayAsync(items[0], serverUrl, token);
             }
 
@@ -718,9 +741,19 @@ public sealed partial class MusicViewModel : ObservableObject
         }
     }
 
-    [RelayCommand]
+    [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task LoadEqPresetsAsync()
     {
+        // Toggle: if EQ is already showing, go back to the previous non-EQ view.
+        if (CurrentView == MusicView.Eq)
+        {
+            NavigateToView(_previousNonEqView);
+            return;
+        }
+
+        // Save the current view so we can return to it when toggling EQ off.
+        _previousNonEqView = CurrentView;
+
         var (serverUrl, token) = await GetCredentialsAsync();
         if (serverUrl is null || token is null)
             return;
@@ -793,6 +826,194 @@ public sealed partial class MusicViewModel : ObservableObject
 
     [RelayCommand]
     private void PlayPrevious() => _player.PlayPrevious();
+
+    [RelayCommand]
+    private void CycleRepeat() => _player.CycleRepeat();
+
+    private void UpdateRepeatState()
+    {
+        var mode = _player.RepeatMode;
+        RepeatMode = mode;
+        RepeatIcon = mode == RepeatMode.One ? "🔂" : "🔁";
+        RepeatLabel = mode switch
+        {
+            RepeatMode.Off => "Off",
+            RepeatMode.One => "One",
+            RepeatMode.All => "All",
+            _ => "Off",
+        };
+        IsRepeatActive = mode != RepeatMode.Off;
+    }
+
+    [RelayCommand]
+    private async Task NavigateToPlayingArtistAsync()
+    {
+        var track = _player.CurrentTrack;
+        if (track is null)
+            return;
+
+        var (serverUrl, token) = await GetCredentialsAsync();
+        if (serverUrl is null || token is null)
+            return;
+
+        IsLoading = true;
+        ErrorMessage = null;
+        try
+        {
+            var items = await _music.ListAlbumsByArtistAsync(serverUrl, token, track.ArtistId, CancellationToken.None);
+            _albumsFilteredByArtistId = track.ArtistId;
+            Dispatch(() =>
+            {
+                Albums = new ObservableCollection<MusicAlbumDto>(items);
+                CurrentView = MusicView.Albums;
+                Title = track.ArtistName;
+                AlbumAlphabet = ComputeAlphabetLocal(items, a => a.Title);
+                CanGoBackToArtist = true;
+                CanGoBackToAlbum = false;
+                CanGoBackToPlaylist = false;
+            });
+        }
+        catch (Exception ex)
+        {
+            Dispatch(() => ErrorMessage = $"Failed to load albums: {ex.Message}");
+        }
+        finally
+        {
+            Dispatch(() => IsLoading = false);
+        }
+    }
+
+    [RelayCommand]
+    private async Task NavigateToCurrentSourceAsync()
+    {
+        var track = _player.CurrentTrack;
+        if (track is null)
+            return;
+
+        var (serverUrl, token) = await GetCredentialsAsync();
+        if (serverUrl is null || token is null)
+            return;
+
+        // Prefer playlist context, then album context
+        if (_player.PlayingPlaylistId is not null)
+        {
+            await NavigateToPlaylistTracksAsync(_player.PlayingPlaylistId.Value, serverUrl, token);
+        }
+        else if (_player.PlayingAlbumId is not null || track.AlbumId is not null)
+        {
+            var albumId = _player.PlayingAlbumId ?? track.AlbumId!.Value;
+            await NavigateToAlbumTracksAsync(albumId, serverUrl, token);
+        }
+    }
+
+    /// <summary>
+    /// Loads tracks for the given playlist and switches to the tracks view,
+    /// without restarting playback.
+    /// </summary>
+    private async Task NavigateToPlaylistTracksAsync(Guid playlistId, string serverUrl, string token)
+    {
+        IsLoading = true;
+        ErrorMessage = null;
+        try
+        {
+            var items = await _music.GetPlaylistTracksAsync(serverUrl, token, playlistId, CancellationToken.None);
+            _tracksFilteredByPlaylistId = playlistId;
+            Dispatch(() =>
+            {
+                Tracks = new ObservableCollection<TrackDto>(items);
+                CurrentView = MusicView.Tracks;
+                TrackAlphabet = ComputeAlphabetLocal(items, t => t.Title);
+                CanGoBackToArtist = false;
+                CanGoBackToAlbum = false;
+                CanGoBackToPlaylist = true;
+                // Set Title to the playlist name by loading playlists if needed
+                _ = SetTitleFromPlaylistIdAsync(playlistId);
+            });
+        }
+        catch (Exception ex)
+        {
+            Dispatch(() => ErrorMessage = $"Failed to load playlist tracks: {ex.Message}");
+        }
+        finally
+        {
+            Dispatch(() => IsLoading = false);
+        }
+    }
+
+    /// <summary>
+    /// Loads tracks for the given album and switches to the tracks view,
+    /// without restarting playback.
+    /// </summary>
+    private async Task NavigateToAlbumTracksAsync(Guid albumId, string serverUrl, string token)
+    {
+        IsLoading = true;
+        ErrorMessage = null;
+        try
+        {
+            var items = await _music.ListTracksByAlbumAsync(serverUrl, token, albumId, CancellationToken.None);
+            _tracksFilteredByAlbumId = albumId;
+            Dispatch(() =>
+            {
+                Tracks = new ObservableCollection<TrackDto>(items);
+                CurrentView = MusicView.Tracks;
+                TrackAlphabet = ComputeAlphabetLocal(items, t => t.Title);
+                CanGoBackToArtist = false;
+                CanGoBackToAlbum = true;
+                CanGoBackToPlaylist = false;
+                _ = SetTitleFromAlbumIdAsync(albumId, serverUrl, token);
+            });
+        }
+        catch (Exception ex)
+        {
+            Dispatch(() => ErrorMessage = $"Failed to load album tracks: {ex.Message}");
+        }
+        finally
+        {
+            Dispatch(() => IsLoading = false);
+        }
+    }
+
+    /// <summary>Sets the Title from the album's title, loading album info if needed.</summary>
+    private async Task SetTitleFromAlbumIdAsync(Guid albumId, string serverUrl, string token)
+    {
+        try
+        {
+            var album = await _music.GetAlbumAsync(serverUrl, token, albumId, CancellationToken.None);
+            Dispatch(() => Title = album?.Title ?? "Unknown Album");
+        }
+        catch
+        {
+            // Fallback — already showing Tracks
+        }
+    }
+
+    /// <summary>Sets the Title from the playlist's name, loading playlist info if needed.</summary>
+    private async Task SetTitleFromPlaylistIdAsync(Guid playlistId)
+    {
+        var existing = Playlists.FirstOrDefault(p => p.Id == playlistId);
+        if (existing is not null)
+        {
+            Dispatch(() => Title = existing.Name);
+            return;
+        }
+
+        var (serverUrl, token) = await GetCredentialsAsync();
+        if (serverUrl is null || token is null)
+            return;
+
+        try
+        {
+            var items = await _music.ListPlaylistsAsync(serverUrl, token, CancellationToken.None);
+            Dispatch(() => Playlists = new ObservableCollection<PlaylistDto>(items));
+            var match = items.FirstOrDefault(p => p.Id == playlistId);
+            if (match is not null)
+                Dispatch(() => Title = match.Name);
+        }
+        catch
+        {
+            // Fallback — already showing Tracks
+        }
+    }
 
     /// <summary>
     /// Seeks to the specified position (seconds). Called on seek-slider drag-completed.
@@ -1034,11 +1255,8 @@ public sealed partial class MusicViewModel : ObservableObject
         }
         else if (CurrentView == MusicView.Eq)
         {
-            // From EQ back to Artists
-            if (Artists.Count == 0)
-                await LoadArtistsCommand.ExecuteAsync(null);
-            else
-                SwitchToArtistsView();
+            // From EQ back to the previous non-EQ view, falling back to Artists.
+            NavigateToView(_previousNonEqView);
         }
         else
         {
@@ -1079,6 +1297,59 @@ public sealed partial class MusicViewModel : ObservableObject
             CanGoBackToAlbum = false;
             CanGoBackToPlaylist = false;
         });
+    }
+
+    /// <summary>Navigates to the specified non-EQ view, falling back to Artists for unknown values.</summary>
+    private void NavigateToView(MusicView view)
+    {
+        switch (view)
+        {
+            case MusicView.Albums:
+                if (Albums.Count == 0)
+                    _ = LoadAlbumsCommand.ExecuteAsync(null);
+                else
+                    SwitchToAlbumsView();
+                break;
+            case MusicView.Tracks:
+                if (Tracks.Count == 0)
+                    _ = LoadTracksCommand.ExecuteAsync(null);
+                else
+                {
+                    Dispatch(() =>
+                    {
+                        _tracksFilteredByAlbumId = null;
+                        _tracksFilteredByPlaylistId = null;
+                        CurrentView = MusicView.Tracks;
+                        Title = "Tracks";
+                        CanGoBackToArtist = false;
+                        CanGoBackToAlbum = false;
+                        CanGoBackToPlaylist = false;
+                    });
+                }
+                break;
+            case MusicView.Playlists:
+                if (Playlists.Count == 0)
+                    _ = LoadPlaylistsCommand.ExecuteAsync(null);
+                else
+                {
+                    Dispatch(() =>
+                    {
+                        CurrentView = MusicView.Playlists;
+                        Title = "Playlists";
+                        CanGoBackToArtist = false;
+                        CanGoBackToAlbum = false;
+                        CanGoBackToPlaylist = false;
+                    });
+                }
+                break;
+            default:
+                // Artists (fallback)
+                if (Artists.Count == 0)
+                    _ = LoadArtistsCommand.ExecuteAsync(null);
+                else
+                    SwitchToArtistsView();
+                break;
+        }
     }
 
     private void UpdatePlaybackState()
