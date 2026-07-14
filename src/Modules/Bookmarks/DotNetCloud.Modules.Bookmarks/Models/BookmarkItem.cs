@@ -56,8 +56,8 @@ public sealed class BookmarkItem
     public BookmarkFolder? Folder { get; set; }
 
     /// <summary>Rich preview data for this bookmark.</summary>
-    [JsonIgnore]
     /// <remarks>The circular back-reference on <see cref="BookmarkPreview.Bookmark"/> is <c>[JsonIgnore]</c>,
     /// so serializing Preview here won't cause cycles.</remarks>
+    [JsonIgnore]
     public BookmarkPreview? Preview { get; set; }
 }
