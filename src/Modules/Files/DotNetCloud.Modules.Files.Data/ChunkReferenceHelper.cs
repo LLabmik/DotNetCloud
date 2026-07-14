@@ -85,7 +85,7 @@ internal static class ChunkReferenceHelper
             .Where(c => c.Id == chunkId)
             .ExecuteUpdateAsync(
                 setters => setters
-                    .SetProperty(c => c.ReferenceCount, c => Math.Max(c.ReferenceCount - 1, 0))
+                    .SetProperty(c => c.ReferenceCount, c => c.ReferenceCount > 0 ? c.ReferenceCount - 1 : 0)
                     .SetProperty(c => c.LastReferencedAt, _ => DateTime.UtcNow),
                 cancellationToken);
     }
