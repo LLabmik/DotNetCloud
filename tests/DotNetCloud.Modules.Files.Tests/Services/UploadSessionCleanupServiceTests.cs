@@ -22,9 +22,11 @@ public class UploadSessionCleanupServiceTests
     private static UploadSessionCleanupService CreateService(FilesDbContext db, IFileStorageEngine? storageEngine = null)
     {
         var storage = storageEngine ?? Mock.Of<IFileStorageEngine>();
+        var quotaService = Mock.Of<IQuotaService>();
         var services = new ServiceCollection();
         services.AddSingleton(db);
         services.AddSingleton(storage);
+        services.AddSingleton(quotaService);
 
         var scopeFactory = new Mock<IServiceScopeFactory>();
         var scope = new Mock<IServiceScope>();

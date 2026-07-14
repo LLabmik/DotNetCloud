@@ -652,14 +652,27 @@ public partial class MusicPage : IAsyncDisposable
         StateHasChanged();
     }
 
-    internal virtual async Task NavigateToAlbumAsync(Guid? albumId)
+    /// <summary>
+    /// Navigate to an album's detail page by ID. Null-safe entry point that delegates
+    /// to <see cref="NavigateToAlbumCoreAsync"/> for the actual navigation logic.
+    /// </summary>
+    internal Task NavigateToAlbumAsync(Guid? albumId)
     {
         if (albumId is null)
-            return;
+            return Task.CompletedTask;
+        return NavigateToAlbumCoreAsync(albumId.Value);
+    }
+
+    /// <summary>
+    /// Virtual core for album navigation. Overridable in tests to intercept navigation
+    /// without losing the null-guard in <see cref="NavigateToAlbumAsync"/>.
+    /// </summary>
+    internal virtual async Task NavigateToAlbumCoreAsync(Guid albumId)
+    {
         try
         {
             var caller = await GetCallerAsync();
-            var album = await AlbumService.GetAlbumAsync(albumId.Value, caller);
+            var album = await AlbumService.GetAlbumAsync(albumId, caller);
             if (album is not null)
             {
                 OpenAlbumDetail(album);
@@ -672,17 +685,27 @@ public partial class MusicPage : IAsyncDisposable
     }
 
     /// <summary>
-    /// Navigate to an artist's detail page by ID. Used for deep-linking
-    /// from the global playbar and for artist name links throughout the UI.
+    /// Navigate to an artist's detail page by ID. Null-safe entry point that delegates
+    /// to <see cref="NavigateToArtistCoreAsync"/> for the actual navigation logic.
+    /// Used for deep-linking from the global playbar and for artist name links throughout the UI.
     /// </summary>
-    internal virtual async Task NavigateToArtistAsync(Guid? artistId)
+    internal Task NavigateToArtistAsync(Guid? artistId)
     {
         if (artistId is null)
-            return;
+            return Task.CompletedTask;
+        return NavigateToArtistCoreAsync(artistId.Value);
+    }
+
+    /// <summary>
+    /// Virtual core for artist navigation. Overridable in tests to intercept navigation
+    /// without losing the null-guard in <see cref="NavigateToArtistAsync"/>.
+    /// </summary>
+    internal virtual async Task NavigateToArtistCoreAsync(Guid artistId)
+    {
         try
         {
             var caller = _caller ?? await GetCallerAsync();
-            var artist = await ArtistService.GetArtistAsync(artistId.Value, caller);
+            var artist = await ArtistService.GetArtistAsync(artistId, caller);
             if (artist is not null)
             {
                 _section = Section.Artists;

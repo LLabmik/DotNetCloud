@@ -174,8 +174,8 @@ public class MusicPageTrackIdTests
     }
 
     /// <summary>
-    /// Testable subclass that overrides <see cref="MusicPage.NavigateToAlbumAsync"/>
-    /// and <see cref="MusicPage.NavigateToArtistAsync"/> to avoid the full dependency
+    /// Testable subclass that overrides <see cref="MusicPage.NavigateToAlbumCoreAsync"/>
+    /// and <see cref="MusicPage.NavigateToArtistCoreAsync"/> to avoid the full dependency
     /// chain (GetCallerAsync, OpenAlbumDetail, OpenArtistDetail, etc.).
     /// </summary>
     private class TestableMusicPage : MusicPage
@@ -186,14 +186,14 @@ public class MusicPageTrackIdTests
         public Guid? NavigatedArtistId { get; private set; }
         public int NavigateToArtistCallCount { get; private set; }
 
-        internal override Task NavigateToAlbumAsync(Guid? albumId)
+        internal override Task NavigateToAlbumCoreAsync(Guid albumId)
         {
             NavigatedAlbumId = albumId;
             NavigateToAlbumCallCount++;
             return Task.CompletedTask;
         }
 
-        internal override Task NavigateToArtistAsync(Guid? artistId)
+        internal override Task NavigateToArtistCoreAsync(Guid artistId)
         {
             NavigatedArtistId = artistId;
             NavigateToArtistCallCount++;

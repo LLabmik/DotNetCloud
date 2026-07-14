@@ -32,7 +32,7 @@ public class CoreHubSecurityTests
         var ex = await Assert.ThrowsExactlyAsync<HubException>(
             () => hub.JoinGroupAsync(""));
 
-        Assert.AreEqual("Channel ID cannot be empty.", ex.Message);
+        Assert.AreEqual("Group name cannot be empty.", ex.Message);
     }
 
     [TestMethod]
@@ -43,7 +43,7 @@ public class CoreHubSecurityTests
         var ex = await Assert.ThrowsExactlyAsync<HubException>(
             () => hub.JoinGroupAsync("   "));
 
-        Assert.AreEqual("Channel ID cannot be empty.", ex.Message);
+        Assert.AreEqual("Group name cannot be empty.", ex.Message);
     }
 
     [TestMethod]
@@ -54,7 +54,7 @@ public class CoreHubSecurityTests
         var ex = await Assert.ThrowsExactlyAsync<HubException>(
             () => hub.JoinGroupAsync("not-a-guid"));
 
-        Assert.AreEqual("Invalid channel ID format.", ex.Message);
+        Assert.AreEqual("Invalid group name format.", ex.Message);
     }
 
     [TestMethod]
@@ -74,12 +74,13 @@ public class CoreHubSecurityTests
     {
         var groups = new StubGroupManager();
         var hub = CreateHubWithMembershipCheck(isMember: true, groups: groups);
-        var channelId = Guid.CreateVersion7().ToString();
+        var channelId = Guid.CreateVersion7();
+        var groupName = $"chat-channel-{channelId}";
 
-        await hub.JoinGroupAsync(channelId);
+        await hub.JoinGroupAsync(groupName);
 
         Assert.IsTrue(groups.Operations.Any(o =>
-            o.GroupName == channelId && o.Action == "Add"));
+            o.GroupName == groupName && o.Action == "Add"));
     }
 
     [TestMethod]
@@ -97,12 +98,13 @@ public class CoreHubSecurityTests
             userId: Guid.CreateVersion7(),
             chatApiClientMock: chatApiClientMock,
             groups: groups);
-        var channelId = Guid.CreateVersion7().ToString();
+        var channelId = Guid.CreateVersion7();
+        var groupName = $"chat-channel-{channelId}";
 
-        await hub.JoinGroupAsync(channelId);
+        await hub.JoinGroupAsync(groupName);
 
         Assert.IsTrue(groups.Operations.Any(o =>
-            o.GroupName == channelId && o.Action == "Add"));
+            o.GroupName == groupName && o.Action == "Add"));
     }
 
     // ──── Helpers ─────────────────────────────────────────────────────────────
