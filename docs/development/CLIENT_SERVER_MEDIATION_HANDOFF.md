@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-07-12 (Android Files — server deploy ✅, monolith re-test against production)
+Last updated: 2026-07-14 (Notes Required Module — deploy to production)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -18,8 +18,80 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
-- **Current active branch:** `feature/android-files-photo-thumbnails`
-- No moderator involvement in technical decisions, code reviews, or work coordination.
+- **Current active branch:** `feature/notes-required-module`
+
+## Active Handoff
+
+**Summary:** Deploy Notes Required Module promotion to production on `cloud.kimball.home` — includes schema migration for `notes` → `core` schema.
+
+**Context:** `dotnetcloud.notes` has been promoted from optional to architecturally required (shares `core` schema, cannot be disabled/uninstalled). This requires an EF migration to move all 6 Notes tables from the `notes` schema to the `core` schema on the production database.
+
+**Branch:** `feature/notes-required-module` (commit `9bfbb00c`)
+
+**Migration details:** The EF migration `PromoteNotesToRequiredModule` renames all 6 Notes tables from `notes` schema to `core` schema:
+- `notes.NoteVersions` → `core.NoteVersions`
+- `notes.NoteTags` → `core.NoteTags`
+- `notes.NoteShares` → `core.NoteShares`
+- `notes.Notes` → `core.Notes`
+- `notes.NoteLinks` → `core.NoteLinks`
+- `notes.NoteFolders` → `core.NoteFolders`
+
+The `NotesDbContextModelSnapshot` now has `.HasDefaultSchema("core")`.
+
+---
+
+### Server Actions — `cloud.kimball.home`
+
+- [ ] `git checkout feature/notes-required-module && git pull`
+- [ ] `dotnet publish src/Core/DotNetCloud.Core.Server/ -c Release -o /opt/dotnetcloud/server/`
+- [ ] `dotnet publish src/Modules/Notes/DotNetCloud.Modules.Notes.Host/ -c Release -o /opt/dotnetcloud/server/modules/dotnetcloud.notes/`
+- [ ] Apply EF migration to production database:
+  ```
+  cd /opt/dotnetcloud/server
+  DOTNETCLOUD_DB_CONNECTION="Host=localhost;Database=dotnetcloud;Username=dotnetcloud;Password=<production-password>" \
+  dotnet ef database update --context CoreDbContext \
+    --project src/Core/DotNetCloud.Core.Data \
+    --startup-project src/Core/DotNetCloud.Core.Server
+  ```
+  _Note: The Notes module's migration is applied as part of `Core.Server` `DbInitializer` which runs all module migrations. Verify tables rename from `notes.*` to `core.*`._
+
+- [ ] Restart the service: `sudo systemctl restart dotnetcloud`
+- [ ] Verify all modules healthy:
+  ```
+  curl -s https://cloud.dotnetcloud.net/health | jq .
+  ```
+  Expected: all modules report healthy, 13/13 or similar.
+
+- [ ] Verify Notes tables are now in `core` schema:
+  ```
+  psql -U dotnetcloud -d dotnetcloud -c "\dt core.*note*"
+  ```
+  Expected: 6 tables (`Notes`, `NoteFolders`, `NoteTags`, `NoteLinks`, `NoteVersions`, `NoteShares`) all in `core` schema.
+
+- [ ] Verify `notes` schema is now empty or gone:
+  ```
+  psql -U dotnetcloud -d dotnetcloud -c "\dt notes.*"
+  ```
+  Expected: no tables listed under `notes` schema.
+
+- [ ] Smoke test the Notes API:
+  ```
+  curl -s -b /tmp/cookies.txt https://cloud.dotnetcloud.net/api/v1/notes?take=1 | jq .
+  ```
+  Expected: valid JSON response, no 500 errors.
+
+- [ ] Confirm Notes cannot be disabled:
+  ```
+  ssh dotnetcloud@localhost "dotnetcloud module list | grep notes"
+  ```
+  Expected: Notes shows as enabled; disable/uninstall commands should be rejected.
+
+- [ ] If rollback needed:
+  ```
+  # Revert the migration (move tables back to notes schema)
+  dotnet ef migrations remove --project src/Modules/Notes/DotNetCloud.Modules.Notes.Data --context NotesDbContext
+  # Or restore from database backup
+  ```
 
 **Role separation (MANDATORY):**
 

@@ -1,3 +1,29 @@
+## Archived: Notes Required Module — Server Deploy (2026-07-14)
+
+**Target:** cloud.kimball.home → production deploy
+
+**Result:** Promoted `dotnetcloud.notes` to an architecturally required module. Notes tables move from `notes` schema to `core` schema. Also fixed a pre-existing inconsistency where `dotnetcloud.contacts` was already required but listed as optional in the setup wizard.
+
+**Branch:** `feature/notes-required-module` — commit `9bfbb00c`
+
+**Summary of changes:**
+- Added `dotnetcloud.notes` to `RequiredModules.ModuleIds` (7 required modules total)
+- Removed contacts & notes from SetupCommand optional array (only Tracks remains optional)
+- Generated EF migration `PromoteNotesToRequiredModule` — moves 6 tables (Notes, NoteFolders, NoteTags, NoteLinks, NoteVersions, NoteShares) from `notes` → `core` schema
+- Added `NotesDbContextDesignTimeFactory` for future migration generation
+- Updated documentation to reflect current required module list
+
+**Verification (all passing before handoff):**
+- ✅ Build: all projects succeeded
+- ✅ Notes Tests: 124/124 passed
+- ✅ Core Tests: 484/484 passed
+- ✅ Core Data Tests: 175/175 passed
+- ✅ CLI Tests: 120/120 passed
+- ✅ Migration snapshot shows `.HasDefaultSchema("core")`
+- ✅ Existing `notes` schema tables in production DB must be migrated (see Active Handoff)
+
+---
+
 # Client/Server Mediation — Archived Context
 
 Archived: 2026-07-07. Full git history preserved.

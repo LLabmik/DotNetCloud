@@ -470,12 +470,10 @@ internal static class SetupCommand
         // ───────────────────────────────────────────────
         ConsoleOutput.WriteStep(7, TotalSteps, "Module Selection");
 
-        // Required modules (Files, Chat, Search, Calendar, About) are always enabled.
+        // Required modules (Files, Chat, Search, Contacts, Calendar, Notes, About) are always enabled.
         var requiredModules = DotNetCloud.Core.Modules.RequiredModules.ModuleIds;
         var optionalModules = new[]
         {
-            "dotnetcloud.contacts",
-            "dotnetcloud.notes",
             "dotnetcloud.tracks"
         };
 
@@ -492,7 +490,7 @@ internal static class SetupCommand
         if (beginnerMode)
         {
             ConsoleOutput.WriteInfo("Keeping the first install simple: only the required modules are enabled.");
-            ConsoleOutput.WriteInfo("You can enable Contacts, Notes, and Tracks later from the admin UI.");
+            ConsoleOutput.WriteInfo("You can enable Tracks later from the admin UI.");
         }
         else if (optionalModules.Length > 0)
         {

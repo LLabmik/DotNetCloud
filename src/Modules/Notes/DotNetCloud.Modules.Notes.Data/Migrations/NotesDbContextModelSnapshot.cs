@@ -17,7 +17,7 @@ namespace DotNetCloud.Modules.Notes.Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasDefaultSchema("notes")
+                .HasDefaultSchema("core")
                 .HasAnnotation("ProductVersion", "10.0.3")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
@@ -99,7 +99,7 @@ namespace DotNetCloud.Modules.Notes.Data.Migrations
                     b.HasIndex("OwnerId", "FolderId")
                         .HasDatabaseName("ix_notes_owner_folder");
 
-                    b.ToTable("Notes", "notes");
+                    b.ToTable("Notes", "core");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Notes.Models.NoteFolder", b =>
@@ -155,7 +155,7 @@ namespace DotNetCloud.Modules.Notes.Data.Migrations
                     b.HasIndex("OwnerId", "ParentId")
                         .HasDatabaseName("ix_note_folders_owner_parent");
 
-                    b.ToTable("NoteFolders", "notes");
+                    b.ToTable("NoteFolders", "core");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Notes.Models.NoteLink", b =>
@@ -185,7 +185,7 @@ namespace DotNetCloud.Modules.Notes.Data.Migrations
                     b.HasIndex("NoteId", "TargetId")
                         .HasDatabaseName("ix_note_links_note_target");
 
-                    b.ToTable("NoteLinks", "notes");
+                    b.ToTable("NoteLinks", "core");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Notes.Models.NoteShare", b =>
@@ -223,7 +223,7 @@ namespace DotNetCloud.Modules.Notes.Data.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_note_shares_note_user");
 
-                    b.ToTable("NoteShares", "notes");
+                    b.ToTable("NoteShares", "core");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Notes.Models.NoteTag", b =>
@@ -252,7 +252,7 @@ namespace DotNetCloud.Modules.Notes.Data.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_note_tags_note_tag");
 
-                    b.ToTable("NoteTags", "notes");
+                    b.ToTable("NoteTags", "core");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Notes.Models.NoteVersion", b =>
@@ -293,7 +293,7 @@ namespace DotNetCloud.Modules.Notes.Data.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_note_versions_note_version");
 
-                    b.ToTable("NoteVersions", "notes");
+                    b.ToTable("NoteVersions", "core");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Notes.Models.Note", b =>
@@ -311,7 +311,7 @@ namespace DotNetCloud.Modules.Notes.Data.Migrations
                     b.HasOne("DotNetCloud.Modules.Notes.Models.NoteFolder", "Parent")
                         .WithMany("Children")
                         .HasForeignKey("ParentId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.Navigation("Parent");
                 });
