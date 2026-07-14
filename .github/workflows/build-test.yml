@@ -47,8 +47,8 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Install .NET workloads
-        run: dotnet workload install wasm-tools
+      - name: Restore .NET workloads
+        run: dotnet workload restore DotNetCloud.sln
 
       - name: Cache NuGet packages
         uses: actions/cache@v4
@@ -126,8 +126,8 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Install .NET workloads
-        run: dotnet workload install wasm-tools
+      - name: Restore .NET workloads
+        run: dotnet workload restore DotNetCloud.sln
 
       - name: Cache NuGet packages
         uses: actions/cache@v4
@@ -222,8 +222,8 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Install .NET workloads
-        run: dotnet workload install wasm-tools
+      - name: Restore .NET workloads
+        run: dotnet workload restore DotNetCloud.sln
 
       - name: Cache NuGet packages
         uses: actions/cache@v4
