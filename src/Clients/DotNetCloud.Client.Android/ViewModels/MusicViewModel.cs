@@ -97,6 +97,9 @@ public sealed partial class MusicViewModel : ObservableObject
     /// <summary>When set, tracks view is scoped to a single playlist; infinite scroll is disabled.</summary>
     private Guid? _tracksFilteredByPlaylistId;
 
+    /// <summary>Tracks the last non-EQ view so the EQ button can toggle back to it.</summary>
+    private MusicView _previousNonEqView = MusicView.Artists;
+
     // ── Observable properties ──────────────────────────────────────────
 
     [ObservableProperty]
@@ -718,9 +721,19 @@ public sealed partial class MusicViewModel : ObservableObject
         }
     }
 
-    [RelayCommand]
+    [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task LoadEqPresetsAsync()
     {
+        // Toggle: if EQ is already showing, go back to the previous non-EQ view.
+        if (CurrentView == MusicView.Eq)
+        {
+            NavigateToView(_previousNonEqView);
+            return;
+        }
+
+        // Save the current view so we can return to it when toggling EQ off.
+        _previousNonEqView = CurrentView;
+
         var (serverUrl, token) = await GetCredentialsAsync();
         if (serverUrl is null || token is null)
             return;
@@ -928,7 +941,7 @@ public sealed partial class MusicViewModel : ObservableObject
         try
         {
             var album = await _music.GetAlbumAsync(serverUrl, token, albumId, CancellationToken.None);
-            Dispatch(() => Title = album.Title);
+            Dispatch(() => Title = album?.Title ?? "Unknown Album");
         }
         catch
         {
@@ -1204,11 +1217,8 @@ public sealed partial class MusicViewModel : ObservableObject
         }
         else if (CurrentView == MusicView.Eq)
         {
-            // From EQ back to Artists
-            if (Artists.Count == 0)
-                await LoadArtistsCommand.ExecuteAsync(null);
-            else
-                SwitchToArtistsView();
+            // From EQ back to the previous non-EQ view, falling back to Artists.
+            NavigateToView(_previousNonEqView);
         }
         else
         {
@@ -1249,6 +1259,59 @@ public sealed partial class MusicViewModel : ObservableObject
             CanGoBackToAlbum = false;
             CanGoBackToPlaylist = false;
         });
+    }
+
+    /// <summary>Navigates to the specified non-EQ view, falling back to Artists for unknown values.</summary>
+    private void NavigateToView(MusicView view)
+    {
+        switch (view)
+        {
+            case MusicView.Albums:
+                if (Albums.Count == 0)
+                    _ = LoadAlbumsCommand.ExecuteAsync(null);
+                else
+                    SwitchToAlbumsView();
+                break;
+            case MusicView.Tracks:
+                if (Tracks.Count == 0)
+                    _ = LoadTracksCommand.ExecuteAsync(null);
+                else
+                {
+                    Dispatch(() =>
+                    {
+                        _tracksFilteredByAlbumId = null;
+                        _tracksFilteredByPlaylistId = null;
+                        CurrentView = MusicView.Tracks;
+                        Title = "Tracks";
+                        CanGoBackToArtist = false;
+                        CanGoBackToAlbum = false;
+                        CanGoBackToPlaylist = false;
+                    });
+                }
+                break;
+            case MusicView.Playlists:
+                if (Playlists.Count == 0)
+                    _ = LoadPlaylistsCommand.ExecuteAsync(null);
+                else
+                {
+                    Dispatch(() =>
+                    {
+                        CurrentView = MusicView.Playlists;
+                        Title = "Playlists";
+                        CanGoBackToArtist = false;
+                        CanGoBackToAlbum = false;
+                        CanGoBackToPlaylist = false;
+                    });
+                }
+                break;
+            default:
+                // Artists (fallback)
+                if (Artists.Count == 0)
+                    _ = LoadArtistsCommand.ExecuteAsync(null);
+                else
+                    SwitchToArtistsView();
+                break;
+        }
     }
 
     private void UpdatePlaybackState()
