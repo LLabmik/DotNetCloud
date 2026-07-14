@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using Android.Util;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DotNetCloud.Client.Android.Auth;
@@ -146,7 +145,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
         _channelId = channelId;
         ChannelName = channelName;
 
-        Log.Info("DotNetCloud", $"InitializeAsync STARTED for channel {channelId} ('{channelName}')");
+        _logger.LogInformation("InitializeAsync STARTED for channel {ChannelId} ('{ChannelName}')", channelId, channelName);
 
         try
         {
@@ -205,7 +204,6 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to initialize message list for channel {ChannelId}.", channelId);
-            Log.Error("DotNetCloud", $"InitializeAsync FAILED for channel {channelId}: {ex.GetType().Name}: {ex.Message}");
             ErrorMessage = ApiExceptionHelper.GetUserFriendlyMessage(ex);
         }
     }
@@ -242,7 +240,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private async Task LoadMessagesAsync(CancellationToken ct)
     {
-        Log.Info("DotNetCloud", $"LoadMessagesAsync ENTERED for channel {_channelId}, IsLoading={IsLoading}");
+        _logger.LogInformation("LoadMessagesAsync ENTERED for channel {ChannelId}, IsLoading={IsLoading}", _channelId, IsLoading);
         IsLoading = true;
         _currentPage = 1;
         _hasMoreMessages = true;
@@ -265,7 +263,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
             }
 
             var result = await _chatApi.GetMessagesAsync(_serverUrl!, _accessToken!, _channelId, page: 1, pageSize: PageSize, ct: ct);
-            Log.Info("DotNetCloud", $"LoadMessagesAsync: got {result.Messages.Count} messages, page {result.Page}/{result.TotalPages}, IsLoading={IsLoading}");
+            _logger.LogInformation("LoadMessagesAsync: got {Count} messages, page {Page}/{TotalPages}, IsLoading={IsLoading}", result.Messages.Count, result.Page, result.TotalPages, IsLoading);
 
             Messages.Clear();
             // Server returns newest-first; reverse for display (oldest at top, newest at bottom)
@@ -276,7 +274,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
                 Messages.Add(new MessageItemViewModel(m.Id, senderName, m.Content, m.SentAt, isOwn, m.Attachments, _serverUrl));
             }
 
-            Log.Info("DotNetCloud", $"LoadMessagesAsync: Messages.Count={Messages.Count} after populate");
+            _logger.LogInformation("LoadMessagesAsync: Messages.Count={Count} after populate", Messages.Count);
 
             _hasMoreMessages = result.Page < result.TotalPages;
             OnPropertyChanged(nameof(HasMoreMessages));
@@ -291,13 +289,12 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to load messages for channel {ChannelId}.", _channelId);
-            Log.Error("DotNetCloud", $"LoadMessagesAsync FAILED: {ex.GetType().Name}: {ex.Message}");
             if (cached.Count == 0)
                 ErrorMessage = ApiExceptionHelper.GetUserFriendlyMessage(ex);
         }
         finally
         {
-            Log.Info("DotNetCloud", $"LoadMessagesAsync: completed, Messages.Count={Messages.Count}, ErrorMessage={ErrorMessage}");
+            _logger.LogInformation("LoadMessagesAsync: completed, Messages.Count={Count}, ErrorMessage={ErrorMessage}", Messages.Count, ErrorMessage);
             IsLoading = false;
             // Signal the view to scroll to the latest message after initial load
             if (Messages.Count > 0 && _activeSearchQuery is null && !_suppressScrollToBottom)
@@ -500,9 +497,6 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
             // Log the raw filename from MediaPicker for diagnostic purposes
             var rawFileName = result.FileName;
             _logger.LogDebug("MediaPicker returned FileName: {FileName}", rawFileName);
-#if ANDROID
-            Log.Info("DotNetCloud", $"MediaPicker returned FileName: {rawFileName}");
-#endif
 
             // Defensive sanitization: if the filename contains a comma + space (possible
             // duplication from MediaPicker on some Android versions), take only the first part.

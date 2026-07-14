@@ -137,6 +137,9 @@
                         StrokeShape="RoundRectangle 4"
                         StrokeThickness="0"
                         BackgroundColor="#334155">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding NavigateToCurrentSourceCommand}"/>
+                        </Border.GestureRecognizers>
                         <Grid>
                             <!-- Fallback placeholder when no album art -->
                             <BoxView
@@ -163,12 +166,20 @@
                             TextColor="#F1F5F9"
                             FontSize="14"
                             FontAttributes="Bold"
-                            LineBreakMode="TailTruncation"/>
+                            LineBreakMode="TailTruncation">
+                            <Label.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding NavigateToCurrentSourceCommand}"/>
+                            </Label.GestureRecognizers>
+                        </Label>
                         <Label
                             Text="{Binding CurrentTrack.ArtistName}"
                             TextColor="#94A3B8"
                             FontSize="12"
-                            LineBreakMode="TailTruncation"/>
+                            LineBreakMode="TailTruncation">
+                            <Label.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding NavigateToPlayingArtistCommand}"/>
+                            </Label.GestureRecognizers>
+                        </Label>
                     </VerticalStackLayout>
 
                     <!-- Playback controls -->

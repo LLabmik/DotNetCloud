@@ -20,6 +20,15 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
     private readonly List<TrackDto> _queue = [];
     private int _queueIndex;
 
+    /// <summary>Serializes access to PrepareAndStartAsync to prevent concurrent MediaPlayer setup.</summary>
+    private readonly SemaphoreSlim _prepareLock = new(1, 1);
+
+    /// <summary>The album ID the current queue was loaded from, if any.</summary>
+    private Guid? _playingAlbumId;
+
+    /// <summary>The playlist ID the current queue was loaded from, if any.</summary>
+    private Guid? _playingPlaylistId;
+
     public MusicPlayerService(ILogger<MusicPlayerService> logger)
     {
         _logger = logger;
@@ -43,6 +52,12 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
     public int AudioSessionId => _mediaPlayer?.AudioSessionId ?? 0;
 
     /// <inheritdoc />
+    public Guid? PlayingAlbumId => _playingAlbumId;
+
+    /// <inheritdoc />
+    public Guid? PlayingPlaylistId => _playingPlaylistId;
+
+    /// <inheritdoc />
     public event EventHandler? PlaybackStateChanged;
 
     /// <inheritdoc />
@@ -64,10 +79,12 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
         }
         else
         {
-            // Standalone playback — add as the only item
+            // Standalone playback — add as the only item and clear context
             _queue.Clear();
             _queue.Add(track);
             _queueIndex = 0;
+            _playingAlbumId = null;
+            _playingPlaylistId = null;
         }
 
         await PrepareAndStartAsync().ConfigureAwait(false);
@@ -78,10 +95,16 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
         if (CurrentTrack is null || _serverBaseUrl is null || _accessToken is null)
             return;
 
+        // Serialize MediaPlayer setup to prevent MEDIA_ERROR_SERVER_DIED (-38)
+        // from rapid create/release cycles on Samsung/Android mediaserver.
+        await _prepareLock.WaitAsync().ConfigureAwait(false);
         try
         {
-            _mediaPlayer?.Release();
-            _mediaPlayer = new MediaPlayer();
+            // Start foreground service IMMEDIATELY, before any async preparation
+            // work. Android requires startForeground() within ~5s of
+            // startForegroundService() or it crashes the app with
+            // ForegroundServiceDidNotStartInTimeException.
+            StartForegroundService();
 
             var audioUrl = $"{_serverBaseUrl.TrimEnd('/')}/api/v1/files/{CurrentTrack.FileNodeId}/content";
             var headers = new Dictionary<string, string>
@@ -89,9 +112,21 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
                 ["Authorization"] = $"Bearer {_accessToken}"
             };
 
-            _mediaPlayer.Completion += OnTrackCompleted;
-            _mediaPlayer.Prepared += OnTrackPrepared;
-            _mediaPlayer.Error += OnPlayerError;
+            if (_mediaPlayer is null)
+            {
+                // First-time creation
+                var player = new MediaPlayer();
+                player.Completion += OnTrackCompleted;
+                player.Prepared += OnTrackPrepared;
+                player.Error += OnPlayerError;
+                _mediaPlayer = player;
+            }
+            else
+            {
+                // Reuse existing player via Reset() instead of release+create,
+                // which avoids mediaserver crashes on some Samsung devices.
+                _mediaPlayer.Reset();
+            }
 
             var uri = global::Android.Net.Uri.Parse(audioUrl);
             if (uri is null)
@@ -103,18 +138,25 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
                 global::Android.App.Application.Context,
                 uri,
                 headers);
-
             _mediaPlayer.PrepareAsync();
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to prepare audio for track {TrackId}", CurrentTrack.Id);
         }
+        finally
+        {
+            _prepareLock.Release();
+        }
     }
 
     private void OnTrackPrepared(object? sender, EventArgs e)
     {
-        _mediaPlayer?.Start();
+        // Ignore stale Prepared events from players that have been replaced
+        if (sender is not MediaPlayer player || player != _mediaPlayer)
+            return;
+
+        player.Start();
         IsPlaying = true;
         StartPositionTimer();
         StartForegroundService();
@@ -127,7 +169,9 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
         StopPositionTimer();
         TrackEnded?.Invoke(this, EventArgs.Empty);
         PlaybackStateChanged?.Invoke(this, EventArgs.Empty);
-        PlayNextIfQueued();
+        // Auto-advance is handled by the ViewModel's TrackEnded handler,
+        // which dispatches PlayNextCommand on the main thread.
+        // Do NOT call PlayNextIfQueued here — it would race with the ViewModel.
     }
 
     private void OnPlayerError(object? sender, MediaPlayer.ErrorEventArgs e)
@@ -160,12 +204,14 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
     public void Stop()
     {
         _mediaPlayer?.Stop();
-        _mediaPlayer?.Release();
-        _mediaPlayer = null;
+        // Keep the player alive for reuse via Reset()
+        // Keep the foreground service alive — don't stop/restart it between tracks,
+        // as rapid stop/start cycles can trigger ForegroundServiceDidNotStartInTimeException.
         IsPlaying = false;
         CurrentTrack = null;
+        _playingAlbumId = null;
+        _playingPlaylistId = null;
         StopPositionTimer();
-        StopForegroundService();
         PlaybackStateChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -210,16 +256,16 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
     /// <inheritdoc />
     public void ReplaceQueue(IEnumerable<TrackDto> tracks)
     {
-        _queue.Clear();
-        _queue.AddRange(tracks);
+        ReplaceQueue(tracks, null, null);
     }
 
-    private void PlayNextIfQueued()
+    /// <inheritdoc />
+    public void ReplaceQueue(IEnumerable<TrackDto> tracks, Guid? albumId, Guid? playlistId)
     {
-        if (_queue.Count > 1 && _queueIndex < _queue.Count - 1)
-        {
-            MainThread.BeginInvokeOnMainThread(() => PlayNext());
-        }
+        _queue.Clear();
+        _queue.AddRange(tracks);
+        _playingAlbumId = albumId;
+        _playingPlaylistId = playlistId;
     }
 
     // ── Position timer ────────────────────────────────────────────────
@@ -267,7 +313,9 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
     public void Dispose()
     {
         Stop();
+        StopForegroundService();
         _mediaPlayer?.Dispose();
         _mediaPlayer = null;
+        _prepareLock.Dispose();
     }
 }

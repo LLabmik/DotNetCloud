@@ -431,7 +431,7 @@ public sealed partial class MusicViewModel : ObservableObject
             // Replace queue with all album tracks and start playing from the first one
             if (items.Count > 0)
             {
-                _player.ReplaceQueue(items);
+                _player.ReplaceQueue(items, albumId: album.Id, playlistId: null);
                 await _player.PlayAsync(items[0], serverUrl, token);
             }
 
@@ -693,7 +693,7 @@ public sealed partial class MusicViewModel : ObservableObject
             // Replace queue with all playlist tracks and start playing from the first one
             if (items.Count > 0)
             {
-                _player.ReplaceQueue(items);
+                _player.ReplaceQueue(items, albumId: null, playlistId: playlist.Id);
                 await _player.PlayAsync(items[0], serverUrl, token);
             }
 
@@ -793,6 +793,176 @@ public sealed partial class MusicViewModel : ObservableObject
 
     [RelayCommand]
     private void PlayPrevious() => _player.PlayPrevious();
+
+    [RelayCommand]
+    private async Task NavigateToPlayingArtistAsync()
+    {
+        var track = _player.CurrentTrack;
+        if (track is null)
+            return;
+
+        var (serverUrl, token) = await GetCredentialsAsync();
+        if (serverUrl is null || token is null)
+            return;
+
+        IsLoading = true;
+        ErrorMessage = null;
+        try
+        {
+            var items = await _music.ListAlbumsByArtistAsync(serverUrl, token, track.ArtistId, CancellationToken.None);
+            _albumsFilteredByArtistId = track.ArtistId;
+            Dispatch(() =>
+            {
+                Albums = new ObservableCollection<MusicAlbumDto>(items);
+                CurrentView = MusicView.Albums;
+                Title = track.ArtistName;
+                AlbumAlphabet = ComputeAlphabetLocal(items, a => a.Title);
+                CanGoBackToArtist = true;
+                CanGoBackToAlbum = false;
+                CanGoBackToPlaylist = false;
+            });
+        }
+        catch (Exception ex)
+        {
+            Dispatch(() => ErrorMessage = $"Failed to load albums: {ex.Message}");
+        }
+        finally
+        {
+            Dispatch(() => IsLoading = false);
+        }
+    }
+
+    [RelayCommand]
+    private async Task NavigateToCurrentSourceAsync()
+    {
+        var track = _player.CurrentTrack;
+        if (track is null)
+            return;
+
+        var (serverUrl, token) = await GetCredentialsAsync();
+        if (serverUrl is null || token is null)
+            return;
+
+        // Prefer playlist context, then album context
+        if (_player.PlayingPlaylistId is not null)
+        {
+            await NavigateToPlaylistTracksAsync(_player.PlayingPlaylistId.Value, serverUrl, token);
+        }
+        else if (_player.PlayingAlbumId is not null || track.AlbumId is not null)
+        {
+            var albumId = _player.PlayingAlbumId ?? track.AlbumId!.Value;
+            await NavigateToAlbumTracksAsync(albumId, serverUrl, token);
+        }
+    }
+
+    /// <summary>
+    /// Loads tracks for the given playlist and switches to the tracks view,
+    /// without restarting playback.
+    /// </summary>
+    private async Task NavigateToPlaylistTracksAsync(Guid playlistId, string serverUrl, string token)
+    {
+        IsLoading = true;
+        ErrorMessage = null;
+        try
+        {
+            var items = await _music.GetPlaylistTracksAsync(serverUrl, token, playlistId, CancellationToken.None);
+            _tracksFilteredByPlaylistId = playlistId;
+            Dispatch(() =>
+            {
+                Tracks = new ObservableCollection<TrackDto>(items);
+                CurrentView = MusicView.Tracks;
+                TrackAlphabet = ComputeAlphabetLocal(items, t => t.Title);
+                CanGoBackToArtist = false;
+                CanGoBackToAlbum = false;
+                CanGoBackToPlaylist = true;
+                // Set Title to the playlist name by loading playlists if needed
+                _ = SetTitleFromPlaylistIdAsync(playlistId);
+            });
+        }
+        catch (Exception ex)
+        {
+            Dispatch(() => ErrorMessage = $"Failed to load playlist tracks: {ex.Message}");
+        }
+        finally
+        {
+            Dispatch(() => IsLoading = false);
+        }
+    }
+
+    /// <summary>
+    /// Loads tracks for the given album and switches to the tracks view,
+    /// without restarting playback.
+    /// </summary>
+    private async Task NavigateToAlbumTracksAsync(Guid albumId, string serverUrl, string token)
+    {
+        IsLoading = true;
+        ErrorMessage = null;
+        try
+        {
+            var items = await _music.ListTracksByAlbumAsync(serverUrl, token, albumId, CancellationToken.None);
+            _tracksFilteredByAlbumId = albumId;
+            Dispatch(() =>
+            {
+                Tracks = new ObservableCollection<TrackDto>(items);
+                CurrentView = MusicView.Tracks;
+                TrackAlphabet = ComputeAlphabetLocal(items, t => t.Title);
+                CanGoBackToArtist = false;
+                CanGoBackToAlbum = true;
+                CanGoBackToPlaylist = false;
+                _ = SetTitleFromAlbumIdAsync(albumId, serverUrl, token);
+            });
+        }
+        catch (Exception ex)
+        {
+            Dispatch(() => ErrorMessage = $"Failed to load album tracks: {ex.Message}");
+        }
+        finally
+        {
+            Dispatch(() => IsLoading = false);
+        }
+    }
+
+    /// <summary>Sets the Title from the album's title, loading album info if needed.</summary>
+    private async Task SetTitleFromAlbumIdAsync(Guid albumId, string serverUrl, string token)
+    {
+        try
+        {
+            var album = await _music.GetAlbumAsync(serverUrl, token, albumId, CancellationToken.None);
+            Dispatch(() => Title = album.Title);
+        }
+        catch
+        {
+            // Fallback — already showing Tracks
+        }
+    }
+
+    /// <summary>Sets the Title from the playlist's name, loading playlist info if needed.</summary>
+    private async Task SetTitleFromPlaylistIdAsync(Guid playlistId)
+    {
+        var existing = Playlists.FirstOrDefault(p => p.Id == playlistId);
+        if (existing is not null)
+        {
+            Dispatch(() => Title = existing.Name);
+            return;
+        }
+
+        var (serverUrl, token) = await GetCredentialsAsync();
+        if (serverUrl is null || token is null)
+            return;
+
+        try
+        {
+            var items = await _music.ListPlaylistsAsync(serverUrl, token, CancellationToken.None);
+            Dispatch(() => Playlists = new ObservableCollection<PlaylistDto>(items));
+            var match = items.FirstOrDefault(p => p.Id == playlistId);
+            if (match is not null)
+                Dispatch(() => Title = match.Name);
+        }
+        catch
+        {
+            // Fallback — already showing Tracks
+        }
+    }
 
     /// <summary>
     /// Seeks to the specified position (seconds). Called on seek-slider drag-completed.

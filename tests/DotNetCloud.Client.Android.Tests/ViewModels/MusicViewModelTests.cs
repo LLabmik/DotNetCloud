@@ -197,7 +197,7 @@ public sealed class MusicViewModelTests
         Assert.AreEqual("Track 1", _vm.Tracks[0].Title);
         Assert.AreEqual(MusicView.Tracks, _vm.CurrentView);
         Assert.AreEqual("Album", _vm.Title);
-        _player.Verify(x => x.ReplaceQueue(tracks), Times.Once);
+        _player.Verify(x => x.ReplaceQueue(tracks, albumId: album.Id, playlistId: null), Times.Once);
         _player.Verify(x => x.PlayAsync(tracks[0], ServerUrl, "test-access-token"), Times.Once);
     }
 
@@ -266,6 +266,7 @@ public sealed class MusicViewModelTests
         Assert.AreEqual("Playlist Track", _vm.Tracks[0].Title);
         Assert.AreEqual(MusicView.Tracks, _vm.CurrentView);
         Assert.AreEqual("My Playlist", _vm.Title);
+        _player.Verify(x => x.ReplaceQueue(tracks, albumId: null, playlistId: playlist.Id), Times.Once);
     }
 
     // ── PlayTrackAsync ─────────────────────────────────────────────────
@@ -391,6 +392,160 @@ public sealed class MusicViewModelTests
         await _vm.ToggleStarCommand.ExecuteAsync(track);
 
         _music.Verify(x => x.ToggleStarAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // ── NavigateToPlayingArtistAsync ────────────────────────────────────
+
+    [TestMethod]
+    public async Task NavigateToPlayingArtistCommand_LoadsAlbumsForCurrentTrackArtist()
+    {
+        var artistId = Guid.NewGuid();
+        var track = new TrackDto { Id = Guid.NewGuid(), Title = "Track", OwnerId = Guid.NewGuid(), FileNodeId = Guid.NewGuid(), MimeType = "audio/mpeg", ArtistId = artistId, ArtistName = "Test Artist", CreatedAt = DateTime.UtcNow };
+        _player.Setup(x => x.CurrentTrack).Returns(track);
+
+        var albums = new List<MusicAlbumDto>
+        {
+            new() { Id = Guid.NewGuid(), Title = "Album 1", ArtistId = artistId, ArtistName = "Test Artist", CreatedAt = DateTime.UtcNow }
+        };
+        _music.Setup(x => x.ListAlbumsByArtistAsync(ServerUrl, "test-access-token", artistId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(albums);
+
+        await _vm.NavigateToPlayingArtistCommand.ExecuteAsync(null);
+
+        Assert.AreEqual(1, _vm.Albums.Count);
+        Assert.AreEqual("Album 1", _vm.Albums[0].Title);
+        Assert.AreEqual(MusicView.Albums, _vm.CurrentView);
+        Assert.AreEqual("Test Artist", _vm.Title);
+        Assert.IsTrue(_vm.CanGoBackToArtist);
+    }
+
+    [TestMethod]
+    public async Task NavigateToPlayingArtistCommand_DoesNothing_WhenNoTrack()
+    {
+        _player.Setup(x => x.CurrentTrack).Returns((TrackDto?)null);
+
+        await _vm.NavigateToPlayingArtistCommand.ExecuteAsync(null);
+
+        _music.Verify(x => x.ListAlbumsByArtistAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [TestMethod]
+    public async Task NavigateToPlayingArtistCommand_DoesNothing_WhenNoCredentials()
+    {
+        var track = new TrackDto { Id = Guid.NewGuid(), Title = "Track", OwnerId = Guid.NewGuid(), FileNodeId = Guid.NewGuid(), MimeType = "audio/mpeg", ArtistId = Guid.NewGuid(), ArtistName = "Artist", CreatedAt = DateTime.UtcNow };
+        _player.Setup(x => x.CurrentTrack).Returns(track);
+        _serverStore.Setup(x => x.GetActive()).Returns((ServerConnection?)null);
+
+        await _vm.NavigateToPlayingArtistCommand.ExecuteAsync(null);
+
+        _music.Verify(x => x.ListAlbumsByArtistAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // ── NavigateToCurrentSourceAsync ────────────────────────────────────
+
+    [TestMethod]
+    public async Task NavigateToCurrentSourceCommand_WithAlbumContext_NavigatesToAlbumTracks()
+    {
+        var albumId = Guid.NewGuid();
+        var track = new TrackDto { Id = Guid.NewGuid(), Title = "Track", OwnerId = Guid.NewGuid(), FileNodeId = Guid.NewGuid(), MimeType = "audio/mpeg", ArtistId = Guid.NewGuid(), ArtistName = "Artist", AlbumId = albumId, CreatedAt = DateTime.UtcNow };
+        _player.Setup(x => x.CurrentTrack).Returns(track);
+        _player.Setup(x => x.PlayingAlbumId).Returns(albumId);
+        _player.Setup(x => x.PlayingPlaylistId).Returns((Guid?)null);
+
+        var album = new MusicAlbumDto { Id = albumId, Title = "Test Album", ArtistId = Guid.NewGuid(), ArtistName = "Artist", CreatedAt = DateTime.UtcNow };
+        _music.Setup(x => x.GetAlbumAsync(ServerUrl, "test-access-token", albumId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(album);
+
+        var tracks = new List<TrackDto>
+        {
+            new() { Id = Guid.NewGuid(), Title = "Album Track", OwnerId = Guid.NewGuid(), FileNodeId = Guid.NewGuid(), MimeType = "audio/mpeg", ArtistId = Guid.NewGuid(), ArtistName = "Artist", AlbumId = albumId, CreatedAt = DateTime.UtcNow }
+        };
+        _music.Setup(x => x.ListTracksByAlbumAsync(ServerUrl, "test-access-token", albumId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(tracks);
+
+        await _vm.NavigateToCurrentSourceCommand.ExecuteAsync(null);
+
+        Assert.AreEqual(1, _vm.Tracks.Count);
+        Assert.AreEqual("Album Track", _vm.Tracks[0].Title);
+        Assert.AreEqual(MusicView.Tracks, _vm.CurrentView);
+        Assert.IsTrue(_vm.CanGoBackToAlbum);
+        // Playback should NOT have been restarted
+        _player.Verify(x => x.PlayAsync(It.IsAny<TrackDto>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [TestMethod]
+    public async Task NavigateToCurrentSourceCommand_WithPlaylistContext_NavigatesToPlaylistTracks()
+    {
+        var playlistId = Guid.NewGuid();
+        var track = new TrackDto { Id = Guid.NewGuid(), Title = "Track", OwnerId = Guid.NewGuid(), FileNodeId = Guid.NewGuid(), MimeType = "audio/mpeg", ArtistId = Guid.NewGuid(), ArtistName = "Artist", CreatedAt = DateTime.UtcNow };
+        _player.Setup(x => x.CurrentTrack).Returns(track);
+        _player.Setup(x => x.PlayingAlbumId).Returns((Guid?)null);
+        _player.Setup(x => x.PlayingPlaylistId).Returns(playlistId);
+
+        var tracks = new List<TrackDto>
+        {
+            new() { Id = Guid.NewGuid(), Title = "Playlist Track", OwnerId = Guid.NewGuid(), FileNodeId = Guid.NewGuid(), MimeType = "audio/mpeg", ArtistId = Guid.NewGuid(), ArtistName = "Artist", CreatedAt = DateTime.UtcNow }
+        };
+        _music.Setup(x => x.GetPlaylistTracksAsync(ServerUrl, "test-access-token", playlistId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(tracks);
+
+        await _vm.NavigateToCurrentSourceCommand.ExecuteAsync(null);
+
+        Assert.AreEqual(1, _vm.Tracks.Count);
+        Assert.AreEqual("Playlist Track", _vm.Tracks[0].Title);
+        Assert.AreEqual(MusicView.Tracks, _vm.CurrentView);
+        Assert.IsTrue(_vm.CanGoBackToPlaylist);
+        _player.Verify(x => x.PlayAsync(It.IsAny<TrackDto>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [TestMethod]
+    public async Task NavigateToCurrentSourceCommand_FallsBackToTrackAlbumId_WhenNoPlayerContext()
+    {
+        var albumId = Guid.NewGuid();
+        var track = new TrackDto { Id = Guid.NewGuid(), Title = "Track", OwnerId = Guid.NewGuid(), FileNodeId = Guid.NewGuid(), MimeType = "audio/mpeg", ArtistId = Guid.NewGuid(), ArtistName = "Artist", AlbumId = albumId, CreatedAt = DateTime.UtcNow };
+        _player.Setup(x => x.CurrentTrack).Returns(track);
+        _player.Setup(x => x.PlayingAlbumId).Returns((Guid?)null);
+        _player.Setup(x => x.PlayingPlaylistId).Returns((Guid?)null);
+
+        var tracks = new List<TrackDto>
+        {
+            new() { Id = Guid.NewGuid(), Title = "Fallback Track", OwnerId = Guid.NewGuid(), FileNodeId = Guid.NewGuid(), MimeType = "audio/mpeg", ArtistId = Guid.NewGuid(), ArtistName = "Artist", AlbumId = albumId, CreatedAt = DateTime.UtcNow }
+        };
+        _music.Setup(x => x.ListTracksByAlbumAsync(ServerUrl, "test-access-token", albumId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(tracks);
+
+        var album = new MusicAlbumDto { Id = albumId, Title = "Fallback Album", ArtistId = Guid.NewGuid(), ArtistName = "Artist", CreatedAt = DateTime.UtcNow };
+        _music.Setup(x => x.GetAlbumAsync(ServerUrl, "test-access-token", albumId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(album);
+
+        await _vm.NavigateToCurrentSourceCommand.ExecuteAsync(null);
+
+        Assert.AreEqual(1, _vm.Tracks.Count);
+        Assert.AreEqual(MusicView.Tracks, _vm.CurrentView);
+    }
+
+    [TestMethod]
+    public async Task NavigateToCurrentSourceCommand_DoesNothing_WhenNoTrack()
+    {
+        _player.Setup(x => x.CurrentTrack).Returns((TrackDto?)null);
+
+        await _vm.NavigateToCurrentSourceCommand.ExecuteAsync(null);
+
+        _music.Verify(x => x.ListTracksByAlbumAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _music.Verify(x => x.GetPlaylistTracksAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [TestMethod]
+    public async Task NavigateToCurrentSourceCommand_DoesNothing_WhenNoCredentials()
+    {
+        var track = new TrackDto { Id = Guid.NewGuid(), Title = "Track", OwnerId = Guid.NewGuid(), FileNodeId = Guid.NewGuid(), MimeType = "audio/mpeg", ArtistId = Guid.NewGuid(), ArtistName = "Artist", CreatedAt = DateTime.UtcNow };
+        _player.Setup(x => x.CurrentTrack).Returns(track);
+        _serverStore.Setup(x => x.GetActive()).Returns((ServerConnection?)null);
+
+        await _vm.NavigateToCurrentSourceCommand.ExecuteAsync(null);
+
+        _music.Verify(x => x.ListTracksByAlbumAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _music.Verify(x => x.GetPlaylistTracksAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     // ── ApplyEqPresetAsync ─────────────────────────────────────────────
@@ -556,5 +711,18 @@ public sealed class MusicViewModelTests
         // Verify subscription via raising events
         _player.Raise(x => x.PlaybackStateChanged += null, EventArgs.Empty);
         // Should not throw
+    }
+
+    [TestMethod]
+    public void TrackEndedEvent_TriggersPlayNextCommand()
+    {
+        // The ViewModel subscribes to TrackEnded and dispatches PlayNextCommand.
+        // This verifies the handler is wired up correctly (replaces the old
+        // PlayNextIfQueued call that was removed from MusicPlayerService).
+        _player.Setup(x => x.PlayNext());
+
+        _player.Raise(x => x.TrackEnded += null, EventArgs.Empty);
+
+        _player.Verify(x => x.PlayNext(), Times.AtLeastOnce);
     }
 }
