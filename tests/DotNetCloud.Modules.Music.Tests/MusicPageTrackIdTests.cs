@@ -113,10 +113,9 @@ public class MusicPageTrackIdTests
     [TestMethod]
     public async Task NavigateToAlbumAsync_NullAlbumId_ReturnsWithoutAction()
     {
-        // The overridden version in TestableMusicPage records every call including null.
         await _page.NavigateToAlbumAsync(null);
 
-        Assert.AreEqual(1, _page.NavigateToAlbumCallCount);
+        Assert.AreEqual(0, _page.NavigateToAlbumCallCount);
         Assert.IsNull(_page.NavigatedAlbumId);
     }
 
