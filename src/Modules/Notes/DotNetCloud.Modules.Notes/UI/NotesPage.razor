@@ -112,7 +112,10 @@
             <div class="notes-list">
                 @if (_notes.Count == 0)
                 {
-                    <p>No notes found.</p>
+                    <div class="notes-list-empty">
+                        <span class="notes-list-empty-icon">📝</span>
+                        <p>No notes found</p>
+                    </div>
                 }
                 else
                 {
@@ -120,12 +123,33 @@
                     {
                         <button class="notes-list-item @(_selectedNote?.Id == note.Id ? "selected" : "")"
                                 @onclick="() => SelectNoteAsync(note.Id)">
-                            <strong>@note.Title</strong>
-                            <span>@note.UpdatedAt.ToLocalTime().ToString("g")</span>
-                            @if (note.IsFavorite)
+                            <div class="notes-list-item-header">
+                                <strong class="notes-list-item-title">@note.Title</strong>
+                                @if (note.IsFavorite)
+                                {
+                                    <span class="notes-list-item-favorite" title="Favorite">★</span>
+                                }
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(note.Content))
                             {
-                                <span>★</span>
+                                <span class="notes-list-item-preview">@GetPreview(note.Content)</span>
                             }
+                            <div class="notes-list-item-footer">
+                                <span class="notes-list-item-date">@note.UpdatedAt.ToLocalTime().ToString("g")</span>
+                                @if (note.Tags.Count > 0)
+                                {
+                                    <span class="notes-list-item-tags">
+                                        @foreach (var tag in note.Tags.Take(2))
+                                        {
+                                            <span class="notes-list-item-tag">@tag</span>
+                                        }
+                                        @if (note.Tags.Count > 2)
+                                        {
+                                            <span class="notes-list-item-tag notes-list-item-tag-more">+@(note.Tags.Count - 2)</span>
+                                        }
+                                    </span>
+                                }
+                            </div>
                         </button>
                     }
                 }
@@ -265,6 +289,12 @@
     private string _folderName = string.Empty;
     private Guid? _editingFolderId;
     private bool _sidebarCollapsed;
+
+    private static string GetPreview(string content)
+    {
+        var singleLine = content.ReplaceLineEndings(" ").Trim();
+        return singleLine.Length > 80 ? string.Concat(singleLine.AsSpan(0, 80), "…") : singleLine;
+    }
 
     private IEnumerable<NoteDto> VisibleNotes
     {
