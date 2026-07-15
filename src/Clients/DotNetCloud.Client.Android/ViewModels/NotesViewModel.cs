@@ -1,7 +1,9 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
 using DotNetCloud.Client.Android.Auth;
+using DotNetCloud.Client.Android.Messages;
 using DotNetCloud.Client.Android.Notes;
 using DotNetCloud.Client.Android.Services;
 using DotNetCloud.Core.DTOs;
@@ -28,6 +30,13 @@ public sealed partial class NotesViewModel : ObservableObject
         _serverStore = serverStore;
         _tokenStore = tokenStore;
         _logger = logger;
+
+        // Reload notes list when a note is saved from the editor
+        WeakReferenceMessenger.Default.Register<NoteSavedMessage>(this, (_, _) =>
+        {
+            if (LoadNotesCommand.CanExecute(null))
+                LoadNotesCommand.Execute(null);
+        });
     }
 
     // ── View State ─────────────────────────────────────────────────

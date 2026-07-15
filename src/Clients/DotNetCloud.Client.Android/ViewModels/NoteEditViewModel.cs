@@ -1,6 +1,8 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
 using DotNetCloud.Client.Android.Auth;
+using DotNetCloud.Client.Android.Messages;
 using DotNetCloud.Client.Android.Notes;
 using DotNetCloud.Client.Android.Services;
 using DotNetCloud.Core.DTOs;
@@ -163,7 +165,11 @@ public sealed partial class NoteEditViewModel : ObservableObject
                     }, ct);
             }
 
+            bool isNew = !IsEditing;
             await Shell.Current.GoToAsync("..");
+
+            // Notify the notes list to refresh
+            WeakReferenceMessenger.Default.Send(new NoteSavedMessage(isNew));
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
         catch (Exception ex)
