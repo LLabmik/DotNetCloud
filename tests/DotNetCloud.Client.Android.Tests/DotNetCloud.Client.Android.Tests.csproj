@@ -61,6 +61,7 @@
     <!-- Notes -->
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Notes\INotesRestClient.cs" Link="AndroidApp\Notes\INotesRestClient.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Notes\HttpNotesRestClient.cs" Link="AndroidApp\Notes\HttpNotesRestClient.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\ViewModels\NotesViewModel.cs" Link="AndroidApp\ViewModels\NotesViewModel.cs" />
   </ItemGroup>
 
 </Project>

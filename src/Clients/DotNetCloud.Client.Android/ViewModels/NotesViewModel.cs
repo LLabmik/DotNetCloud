@@ -92,16 +92,20 @@ public sealed partial class NotesViewModel : ObservableObject
         try
         {
             var (serverUrl, token) = await GetCredentialsAsync(ct);
+            _logger.LogInformation("Loading notes from {ServerUrl}", serverUrl);
 
             IReadOnlyList<NoteDto> notes;
             if (!string.IsNullOrWhiteSpace(SearchQuery))
             {
+                _logger.LogInformation("Searching notes with query: {Query}", SearchQuery);
                 notes = await _notesApi.SearchNotesAsync(serverUrl, token, SearchQuery, ct: ct);
             }
             else
             {
                 notes = await _notesApi.ListNotesAsync(serverUrl, token, SelectedFolderId, ct: ct);
             }
+
+            _logger.LogInformation("Loaded {Count} notes", notes.Count);
 
             Notes.Clear();
             foreach (var n in notes)
@@ -113,6 +117,8 @@ public sealed partial class NotesViewModel : ObservableObject
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to load notes.");
+            System.Console.Error.WriteLine($"[NotesVM] Error: {ex.GetType().Name}: {ex.Message}");
+            _logger.LogError("Exception type: {Type}, Message: {Message}", ex.GetType().Name, ex.Message);
             if (IsActive)
                 ErrorMessage = ApiExceptionHelper.GetUserFriendlyMessage(ex);
         }
@@ -139,6 +145,7 @@ public sealed partial class NotesViewModel : ObservableObject
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to load folders.");
+            System.Console.Error.WriteLine($"[NotesVM] Folder error: {ex.GetType().Name}: {ex.Message}");
         }
     }
 
@@ -255,7 +262,7 @@ public sealed partial class NotesViewModel : ObservableObject
         {
             var (serverUrl, token) = await GetCredentialsAsync(CancellationToken.None);
             var preview = await _notesApi.GetNotePreviewAsync(serverUrl, token, note.Id);
-            PreviewHtml = preview.RenderedHtml;
+            PreviewHtml = WrapHtmlWithDarkTheme(preview.RenderedHtml);
             IsPreviewVisible = true;
         }
         catch (Exception ex)
@@ -385,6 +392,45 @@ public sealed partial class NotesViewModel : ObservableObject
     }
 
     // ── Private Helpers ────────────────────────────────────────────
+
+    /// <summary>Wraps rendered HTML with dark-theme CSS to match the app's dark background.</summary>
+    internal static string WrapHtmlWithDarkTheme(string html)
+    {
+        return $@"<!DOCTYPE html>
+<html>
+<head>
+<meta name=""viewport"" content=""width=device-width, initial-scale=1.0"">
+<style>
+    * {{ color-scheme: dark !important; }}
+    body {{
+        background-color: #0F172A !important;
+        color: #E2E8F0 !important;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+        font-size: 15px !important;
+        line-height: 1.6 !important;
+        padding: 16px !important;
+        margin: 0 !important;
+    }}
+    a {{ color: #38BDF8 !important; }}
+    h1, h2, h3, h4, h5, h6 {{ color: #F8FAFC !important; }}
+    code {{ background-color: #1E293B !important; color: #F472B6 !important; padding: 2px 6px !important; border-radius: 4px !important; font-size: 13px !important; }}
+    pre {{ background-color: #1E293B !important; padding: 12px !important; border-radius: 8px !important; overflow-x: auto !important; }}
+    pre code {{ background: none !important; padding: 0 !important; }}
+    blockquote {{ border-left: 3px solid #38BDF8 !important; padding-left: 12px !important; margin-left: 0 !important; color: #94A3B8 !important; }}
+    img {{ max-width: 100% !important; border-radius: 8px !important; }}
+    table {{ border-collapse: collapse !important; width: 100% !important; }}
+    th, td {{ border: 1px solid #334155 !important; padding: 8px 12px !important; text-align: left !important; }}
+    th {{ background-color: #1E293B !important; color: #F8FAFC !important; }}
+    tr:nth-child(even) {{ background-color: #1A2332 !important; }}
+    hr {{ border: none !important; border-top: 1px solid #334155 !important; }}
+    ul, ol {{ padding-left: 20px !important; }}
+    li {{ margin: 4px 0 !important; color: #E2E8F0 !important; }}
+    p {{ color: #E2E8F0 !important; }}
+</style>
+</head>
+<body>{html}</body>
+</html>";
+    }
 
     private async Task<(string ServerUrl, string Token)> GetCredentialsAsync(CancellationToken ct)
     {

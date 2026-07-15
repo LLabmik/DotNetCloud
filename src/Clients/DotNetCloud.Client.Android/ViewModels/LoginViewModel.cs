@@ -97,14 +97,12 @@ public sealed partial class LoginViewModel : ObservableObject
 
             await _tokenStore.SaveTokensAsync(normalizedUrl, result.AccessToken, result.RefreshToken, ct);
 
-            // Extract user info from the ID token (has profile claims) or fall back to the access token
-            var idToken = result.IdToken ?? result.AccessToken;
-            var email = ExtractClaimFromToken(idToken, "email")
-                        ?? ExtractClaimFromToken(idToken, "preferred_username")
-                        ?? ExtractClaimFromToken(idToken, "name")
+            // Extract user info from the access token
+            var email = ExtractClaimFromToken(result.AccessToken, "email")
+                        ?? ExtractClaimFromToken(result.AccessToken, "preferred_username")
+                        ?? ExtractClaimFromToken(result.AccessToken, "name")
                         ?? new Uri(normalizedUrl).Host;
-            var displayName = ExtractClaimFromToken(idToken, "name")
-                              ?? ExtractClaimFromToken(idToken, "preferred_username")
+            var displayName = ExtractClaimFromToken(result.AccessToken, "name")
                               ?? new Uri(normalizedUrl).Host;
             _serverStore.Save(new ServerConnection(normalizedUrl, displayName, email));
             _serverStore.SetActive(normalizedUrl);

@@ -11,16 +11,16 @@
 
     <Shell.TitleView>
         <HorizontalStackLayout Spacing="8"
-                VerticalOptions="Center">
+                               VerticalOptions="Center">
             <Image Source="logo.png"
                    HeightRequest="36"
-                    WidthRequest="36"
+                   WidthRequest="36"
                    VerticalOptions="Center"/>
             <Label Text="Notes"
                    FontSize="20"
-                    FontAttributes="Bold"
+                   FontAttributes="Bold"
                    TextColor="#F1F5F9"
-                    VerticalOptions="Center"/>
+                   VerticalOptions="Center"/>
         </HorizontalStackLayout>
     </Shell.TitleView>
 
@@ -56,7 +56,7 @@
                     </Border.GestureRecognizers>
                     <Label Text="All Notes"
                            FontSize="13"
-                            TextColor="#F1F5F9"
+                           TextColor="#F1F5F9"
                            VerticalOptions="Center"/>
                 </Border>
 
@@ -73,7 +73,7 @@
                     </Border.GestureRecognizers>
                     <Label Text="{Binding Name}"
                            FontSize="13"
-                            TextColor="#F1F5F9"
+                           TextColor="#F1F5F9"
                            VerticalOptions="Center"/>
                 </Border>
             </HorizontalStackLayout>
@@ -81,9 +81,25 @@
 
         <!-- Row 2: Notes list (or preview panel) -->
 
+        <!-- Error message banner -->
+        <Border Grid.Row="2"
+                BackgroundColor="#1E293B"
+                Stroke="#EF4444"
+                StrokeThickness="1"
+                StrokeShape="RoundRectangle 8"
+                Padding="12,8"
+                Margin="8,4,8,0"
+                IsVisible="{Binding ErrorMessage, Converter={StaticResource IsNotNullOrEmpty}}"
+                VerticalOptions="Start">
+            <Label Text="{Binding ErrorMessage}"
+                   TextColor="#EF4444"
+                   FontSize="13"
+                   LineBreakMode="WordWrap"/>
+        </Border>
+
         <!-- A: Preview panel (visible when a note is selected) -->
         <Grid Grid.Row="2"
-                IsVisible="{Binding IsPreviewVisible}">
+              IsVisible="{Binding IsPreviewVisible}">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
@@ -92,8 +108,8 @@
 
             <!-- Preview header -->
             <HorizontalStackLayout Grid.Row="0"
-                    Spacing="8"
-                    Padding="12,8">
+                                   Spacing="8"
+                                   Padding="12,8">
                 <Button Text="&lt; Back"
                         BackgroundColor="Transparent"
                         TextColor="#0EA5E9"
@@ -101,22 +117,22 @@
                         Command="{Binding ClosePreviewCommand}"/>
                 <Label Text="{Binding SelectedNote.Title}"
                        FontSize="18"
-                        FontAttributes="Bold"
+                       FontAttributes="Bold"
                        TextColor="#F1F5F9"
                        VerticalOptions="Center"
                        LineBreakMode="TailTruncation"/>
             </HorizontalStackLayout>
 
             <!-- Rendered HTML -->
-            <WebView Grid.Row="1"
-                     Source="{Binding PreviewHtml}"
+            <WebView x:Name="PreviewWebView"
+                     Grid.Row="1"
                      BackgroundColor="#0F172A"
                      Margin="12,0"/>
 
             <!-- Preview footer actions -->
             <HorizontalStackLayout Grid.Row="2"
-                    Spacing="12"
-                    Padding="12,8"
+                                   Spacing="12"
+                                   Padding="12,8"
                                    HorizontalOptions="Center">
                 <Button Text="Edit"
                         BackgroundColor="#1E293B"
@@ -143,7 +159,7 @@
 
         <!-- B: Notes list (visible when no note is selected) -->
         <Grid Grid.Row="2"
-                IsVisible="{Binding IsPreviewVisible, Converter={StaticResource InvertBool}}">
+              IsVisible="{Binding IsPreviewVisible, Converter={StaticResource InvertBool}}">
             <RefreshView IsRefreshing="{Binding IsLoading}"
                          Command="{Binding RefreshCommand}"
                          RefreshColor="#0EA5E9">
@@ -160,7 +176,7 @@
                                    HorizontalOptions="Center"/>
                             <Label Text="No notes yet"
                                    FontSize="18"
-                                    FontAttributes="Bold"
+                                   FontAttributes="Bold"
                                    TextColor="#94A3B8"
                                    HorizontalOptions="Center"
                                    Margin="0,12,0,4"/>
@@ -184,19 +200,19 @@
 
                                     <!-- Title row -->
                                     <HorizontalStackLayout Grid.Row="0"
-                                            Grid.Column="0"
-                                            Spacing="6">
+                                                           Grid.Column="0"
+                                                           Spacing="6">
                                         <Label Text="📌"
-                                                FontSize="12"
+                                               FontSize="12"
                                                IsVisible="{Binding IsPinned}"
                                                VerticalOptions="Center"/>
                                         <Label Text="⭐"
-                                                FontSize="12"
+                                               FontSize="12"
                                                IsVisible="{Binding IsFavorite}"
                                                VerticalOptions="Center"/>
                                         <Label Text="{Binding Title}"
                                                FontSize="15"
-                                                FontAttributes="Bold"
+                                               FontAttributes="Bold"
                                                TextColor="#F1F5F9"
                                                LineBreakMode="TailTruncation"
                                                MaxLines="1"
@@ -205,7 +221,7 @@
 
                                     <!-- Updated date -->
                                     <Label Grid.Row="0"
-                                            Grid.Column="1"
+                                           Grid.Column="1"
                                            Text="{Binding UpdatedAt, StringFormat='{0:MMM dd}'}"
                                            FontSize="11"
                                            TextColor="#64748B"
@@ -213,8 +229,8 @@
 
                                     <!-- Content preview -->
                                     <Label Grid.Row="1"
-                                            Grid.Column="0"
-                                            Grid.ColumnSpan="2"
+                                           Grid.Column="0"
+                                           Grid.ColumnSpan="2"
                                            Text="{Binding Content}"
                                            FontSize="13"
                                            TextColor="#94A3B8"
@@ -223,12 +239,12 @@
 
                                     <!-- Action icons row -->
                                     <HorizontalStackLayout Grid.Row="2"
-                                            Grid.Column="0"
-                                            Grid.ColumnSpan="2"
+                                                           Grid.Column="0"
+                                                           Grid.ColumnSpan="2"
                                                            Spacing="16"
-                                            Margin="0,4,0,0">
+                                                           Margin="0,4,0,0">
                                         <Label Text="📌"
-                                                FontSize="14">
+                                               FontSize="14">
                                             <Label.GestureRecognizers>
                                                 <TapGestureRecognizer
                                                     Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.TogglePinCommand}"
@@ -236,7 +252,7 @@
                                             </Label.GestureRecognizers>
                                         </Label>
                                         <Label Text="⭐"
-                                                FontSize="14">
+                                               FontSize="14">
                                             <Label.GestureRecognizers>
                                                 <TapGestureRecognizer
                                                     Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.ToggleFavoriteCommand}"
@@ -244,8 +260,8 @@
                                             </Label.GestureRecognizers>
                                         </Label>
                                         <Label Text="🗑️"
-                                                FontSize="14"
-                                                HorizontalOptions="End">
+                                               FontSize="14"
+                                               HorizontalOptions="End">
                                             <Label.GestureRecognizers>
                                                 <TapGestureRecognizer
                                                     Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.DeleteNoteCommand}"

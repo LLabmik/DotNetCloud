@@ -13,6 +13,25 @@ public partial class NotesPage : ContentPage
     {
         InitializeComponent();
         BindingContext = _vm = vm;
+
+        _vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(NotesViewModel.PreviewHtml))
+            {
+                PreviewWebView.Source = new HtmlWebViewSource { Html = _vm.PreviewHtml };
+            }
+        };
+    }
+
+    /// <inheritdoc />
+    protected override bool OnBackButtonPressed()
+    {
+        if (_vm.IsPreviewVisible)
+        {
+            _vm.ClosePreviewCommand.Execute(null);
+            return true; // Back was handled, prevent minimize
+        }
+        return base.OnBackButtonPressed();
     }
 
     /// <inheritdoc />

@@ -22,43 +22,25 @@ Archived context:
 
 ## Active Handoff
 
-**Summary:** ✅ Notes module Bearer token auth deployed and verified on `cloud.kimball.home`
+**Summary:** ✅ Server-side deployment complete. Client testing in progress.
 
-**Context:** Notes module REST auth fix — accept Bearer tokens for Android client. Server-side deployment complete. Ready for Android client testing.
-
-**⚠️ Additional fix discovered during deployment:** The initial handoff only modified `NotesControllerBase.cs` and the `.csproj`, but `Program.cs` was **not** updated to register the `Introspection` authentication scheme. On first deploy, the endpoint returned `HTTP 500` — `No authentication handler is registered for the scheme 'Introspection'`. Fixed by updating `Program.cs` to use a policy scheme (`DotNetCloud.Module`) that auto-routes between `Identity.Application` (cookie) and `Introspection` (Bearer token), matching the Calendar module pattern exactly.
-
-**Files changed (server-side):**
-- `src/Modules/Notes/DotNetCloud.Modules.Notes.Host/Program.cs` — Added `AddTokenIntrospection()`, policy scheme `DotNetCloud.Module` with `ForwardDefaultSelector`, `AddIntrospection()` handler registration
-- `src/Modules/Notes/DotNetCloud.Modules.Notes.Host/Controllers/NotesControllerBase.cs` — Added `[Authorize(AuthenticationSchemes = "Identity.Application," + "Introspection")]` and `using DotNetCloud.Core.Auth.Introspection`
-- `src/Modules/Notes/DotNetCloud.Modules.Notes.Host/DotNetCloud.Modules.Notes.Host.csproj` — Added `<ProjectReference>` to `DotNetCloud.Core.Auth`
+**Context:** Notes module now accepts Bearer tokens (Introspection auth scheme registered in `Program.cs`). Ready for Android client verification.
 
 **Branch:** `feature/android-notes-tab`
 
 ---
 
-### Server Actions — `cloud.kimball.home` ✅
-
-- [x] Already on branch `feature/android-notes-tab`, already up-to-date
-- [x] Discovered missing `Program.cs` Introspection registration — fixed with policy scheme pattern
-- [x] Built and published: `dotnet publish src/Modules/Notes/DotNetCloud.Modules.Notes.Host -c Release -o /opt/dotnetcloud/publish/notes`
-- [x] Deployed: copied DLLs to `/opt/dotnetcloud/server/modules/dotnetcloud.notes/`
-- [x] Hash verification: `dotnetcloud.notes.dll` hashes match ✅
-- [x] Restarted: `sudo systemctl restart dotnetcloud.service`
-- [x] Verified: `dotnetcloud.notes` status = **Healthy** (14 modules registered)
-- [x] Endpoint test: Bearer token request now returns `HTTP 401` (was `HTTP 500`) — Introspection handler is active
-
 ### Client Actions — `monolith` (Android client)
 
-1. Test the Android Notes tab against `cloud.dotnetcloud.net`:
-   - Open app on phone
-   - Navigate to Notes tab
-   - Verify existing notes load from server (should now use Bearer token auth)
-   - Test creating a new note
-   - Test editing and deleting notes
-   - Verify search and folder filtering work
+Test the Android Notes tab against `cloud.dotnetcloud.net`:
 
-2. Report any issues back.
+- [ ] Open app on phone
+- [ ] Navigate to Notes tab
+- [ ] Verify existing notes load from server (Bearer token auth should work now)
+- [ ] Test creating a new note
+- [ ] Test editing and deleting notes
+- [ ] Verify search and folder filtering work
+- [ ] Verify Settings account section shows username + email
 
 **Role separation (MANDATORY):**
 
