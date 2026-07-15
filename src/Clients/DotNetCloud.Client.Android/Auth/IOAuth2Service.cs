@@ -25,5 +25,6 @@ public interface IOAuth2Service
 /// <summary>Result from a completed OAuth2 authentication or token refresh.</summary>
 /// <param name="AccessToken">The new access token.</param>
 /// <param name="RefreshToken">The new refresh token.</param>
+/// <param name="IdToken">The OpenID Connect ID token (JWT), or null if not returned.</param>
 /// <param name="ExpiresAt">UTC time when the access token expires.</param>
-public sealed record OAuth2Result(string AccessToken, string RefreshToken, DateTimeOffset ExpiresAt);
+public sealed record OAuth2Result(string AccessToken, string RefreshToken, string? IdToken, DateTimeOffset ExpiresAt);

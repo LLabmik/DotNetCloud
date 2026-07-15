@@ -1,0 +1,278 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:DotNetCloud.Client.Android.ViewModels"
+             xmlns:core="clr-namespace:DotNetCloud.Core.DTOs;assembly=DotNetCloud.Core"
+             x:Class="DotNetCloud.Client.Android.Views.NotesPage"
+             x:DataType="vm:NotesViewModel"
+             Title="Notes"
+             BackgroundColor="#0F172A"
+             Shell.NavBarIsVisible="True">
+
+    <Shell.TitleView>
+        <HorizontalStackLayout Spacing="8"
+                VerticalOptions="Center">
+            <Image Source="logo.png"
+                   HeightRequest="36"
+                    WidthRequest="36"
+                   VerticalOptions="Center"/>
+            <Label Text="Notes"
+                   FontSize="20"
+                    FontAttributes="Bold"
+                   TextColor="#F1F5F9"
+                    VerticalOptions="Center"/>
+        </HorizontalStackLayout>
+    </Shell.TitleView>
+
+    <Grid RowDefinitions="Auto,Auto,*"
+          BackgroundColor="#0F172A">
+
+        <!-- Row 0: Search bar -->
+        <SearchBar Grid.Row="0"
+                   Placeholder="Search notes..."
+                   Text="{Binding SearchQuery}"
+                   SearchCommand="{Binding SearchCommand}"
+                   BackgroundColor="#1E293B"
+                   TextColor="#F1F5F9"
+                   PlaceholderColor="#64748B"
+                   CancelButtonColor="#0EA5E9"
+                   Margin="8,8,8,0"/>
+
+        <!-- Row 1: Folder chips row -->
+        <ScrollView Grid.Row="1"
+                    Orientation="Horizontal"
+                    HorizontalScrollBarVisibility="Never"
+                    Margin="8,4,8,0">
+            <HorizontalStackLayout Spacing="6"
+                                   BindableLayout.ItemsSource="{Binding Folders}">
+                <!-- "All Notes" chip (always first, before the bound items) -->
+                <Border StrokeShape="RoundRectangle 16"
+                        BackgroundColor="{Binding SelectedFolderId, Converter={StaticResource IsNull}}"
+                        Stroke="#334155"
+                        Padding="12,4"
+                        HeightRequest="32">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding SelectFolderCommand}"/>
+                    </Border.GestureRecognizers>
+                    <Label Text="All Notes"
+                           FontSize="13"
+                            TextColor="#F1F5F9"
+                           VerticalOptions="Center"/>
+                </Border>
+
+                <!-- Folder chips -->
+                <Border StrokeShape="RoundRectangle 16"
+                        BackgroundColor="#1E293B"
+                        Stroke="#334155"
+                        Padding="12,4"
+                        HeightRequest="32">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer
+                            Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.SelectFolderCommand}"
+                            CommandParameter="{Binding Id}"/>
+                    </Border.GestureRecognizers>
+                    <Label Text="{Binding Name}"
+                           FontSize="13"
+                            TextColor="#F1F5F9"
+                           VerticalOptions="Center"/>
+                </Border>
+            </HorizontalStackLayout>
+        </ScrollView>
+
+        <!-- Row 2: Notes list (or preview panel) -->
+
+        <!-- A: Preview panel (visible when a note is selected) -->
+        <Grid Grid.Row="2"
+                IsVisible="{Binding IsPreviewVisible}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Preview header -->
+            <HorizontalStackLayout Grid.Row="0"
+                    Spacing="8"
+                    Padding="12,8">
+                <Button Text="&lt; Back"
+                        BackgroundColor="Transparent"
+                        TextColor="#0EA5E9"
+                        FontSize="14"
+                        Command="{Binding ClosePreviewCommand}"/>
+                <Label Text="{Binding SelectedNote.Title}"
+                       FontSize="18"
+                        FontAttributes="Bold"
+                       TextColor="#F1F5F9"
+                       VerticalOptions="Center"
+                       LineBreakMode="TailTruncation"/>
+            </HorizontalStackLayout>
+
+            <!-- Rendered HTML -->
+            <WebView Grid.Row="1"
+                     Source="{Binding PreviewHtml}"
+                     BackgroundColor="#0F172A"
+                     Margin="12,0"/>
+
+            <!-- Preview footer actions -->
+            <HorizontalStackLayout Grid.Row="2"
+                    Spacing="12"
+                    Padding="12,8"
+                                   HorizontalOptions="Center">
+                <Button Text="Edit"
+                        BackgroundColor="#1E293B"
+                        TextColor="#0EA5E9"
+                        FontSize="14"
+                        Padding="16,8"
+                        CornerRadius="8"
+                        BorderColor="#334155"
+                        BorderWidth="1"
+                        Command="{Binding EditNoteCommand}"
+                        CommandParameter="{Binding SelectedNote}"/>
+                <Button Text="Delete"
+                        BackgroundColor="#1E293B"
+                        TextColor="#EF4444"
+                        FontSize="14"
+                        Padding="16,8"
+                        CornerRadius="8"
+                        BorderColor="#334155"
+                        BorderWidth="1"
+                        Command="{Binding DeleteNoteCommand}"
+                        CommandParameter="{Binding SelectedNote}"/>
+            </HorizontalStackLayout>
+        </Grid>
+
+        <!-- B: Notes list (visible when no note is selected) -->
+        <Grid Grid.Row="2"
+                IsVisible="{Binding IsPreviewVisible, Converter={StaticResource InvertBool}}">
+            <RefreshView IsRefreshing="{Binding IsLoading}"
+                         Command="{Binding RefreshCommand}"
+                         RefreshColor="#0EA5E9">
+                <CollectionView ItemsSource="{Binding Notes}"
+                                SelectionMode="Single"
+                                SelectionChanged="OnNoteSelected">
+
+                    <CollectionView.EmptyView>
+                        <VerticalStackLayout VerticalOptions="Center"
+                                             HorizontalOptions="Center"
+                                             Padding="40">
+                            <Label Text="📝"
+                                   FontSize="48"
+                                   HorizontalOptions="Center"/>
+                            <Label Text="No notes yet"
+                                   FontSize="18"
+                                    FontAttributes="Bold"
+                                   TextColor="#94A3B8"
+                                   HorizontalOptions="Center"
+                                   Margin="0,12,0,4"/>
+                            <Label Text="Tap + to create your first note"
+                                   FontSize="14"
+                                   TextColor="#64748B"
+                                   HorizontalOptions="Center"/>
+                        </VerticalStackLayout>
+                    </CollectionView.EmptyView>
+
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate x:DataType="core:NoteDto">
+                            <Border Margin="8,4"
+                                    Padding="12,10"
+                                    BackgroundColor="#1E293B"
+                                    StrokeShape="RoundRectangle 8"
+                                    Stroke="#334155">
+                                <Grid ColumnDefinitions="*,Auto"
+                                      RowDefinitions="Auto,Auto,Auto"
+                                      RowSpacing="2">
+
+                                    <!-- Title row -->
+                                    <HorizontalStackLayout Grid.Row="0"
+                                            Grid.Column="0"
+                                            Spacing="6">
+                                        <Label Text="📌"
+                                                FontSize="12"
+                                               IsVisible="{Binding IsPinned}"
+                                               VerticalOptions="Center"/>
+                                        <Label Text="⭐"
+                                                FontSize="12"
+                                               IsVisible="{Binding IsFavorite}"
+                                               VerticalOptions="Center"/>
+                                        <Label Text="{Binding Title}"
+                                               FontSize="15"
+                                                FontAttributes="Bold"
+                                               TextColor="#F1F5F9"
+                                               LineBreakMode="TailTruncation"
+                                               MaxLines="1"
+                                               VerticalOptions="Center"/>
+                                    </HorizontalStackLayout>
+
+                                    <!-- Updated date -->
+                                    <Label Grid.Row="0"
+                                            Grid.Column="1"
+                                           Text="{Binding UpdatedAt, StringFormat='{0:MMM dd}'}"
+                                           FontSize="11"
+                                           TextColor="#64748B"
+                                           VerticalOptions="Center"/>
+
+                                    <!-- Content preview -->
+                                    <Label Grid.Row="1"
+                                            Grid.Column="0"
+                                            Grid.ColumnSpan="2"
+                                           Text="{Binding Content}"
+                                           FontSize="13"
+                                           TextColor="#94A3B8"
+                                           LineBreakMode="TailTruncation"
+                                           MaxLines="2"/>
+
+                                    <!-- Action icons row -->
+                                    <HorizontalStackLayout Grid.Row="2"
+                                            Grid.Column="0"
+                                            Grid.ColumnSpan="2"
+                                                           Spacing="16"
+                                            Margin="0,4,0,0">
+                                        <Label Text="📌"
+                                                FontSize="14">
+                                            <Label.GestureRecognizers>
+                                                <TapGestureRecognizer
+                                                    Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.TogglePinCommand}"
+                                                    CommandParameter="{Binding .}"/>
+                                            </Label.GestureRecognizers>
+                                        </Label>
+                                        <Label Text="⭐"
+                                                FontSize="14">
+                                            <Label.GestureRecognizers>
+                                                <TapGestureRecognizer
+                                                    Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.ToggleFavoriteCommand}"
+                                                    CommandParameter="{Binding .}"/>
+                                            </Label.GestureRecognizers>
+                                        </Label>
+                                        <Label Text="🗑️"
+                                                FontSize="14"
+                                                HorizontalOptions="End">
+                                            <Label.GestureRecognizers>
+                                                <TapGestureRecognizer
+                                                    Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.DeleteNoteCommand}"
+                                                    CommandParameter="{Binding .}"/>
+                                            </Label.GestureRecognizers>
+                                        </Label>
+                                    </HorizontalStackLayout>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+            </RefreshView>
+
+            <!-- FAB: Create new note -->
+            <Button Text="+"
+                    FontSize="24"
+                    BackgroundColor="#0EA5E9"
+                    TextColor="#FFFFFF"
+                    CornerRadius="28"
+                    WidthRequest="56"
+                    HeightRequest="56"
+                    HorizontalOptions="End"
+                    VerticalOptions="End"
+                    Margin="0,0,16,16"
+                    Shadow="{StaticResource FabShadow}"
+                    Command="{Binding CreateNoteCommand}"/>
+        </Grid>
+    </Grid>
+</ContentPage>

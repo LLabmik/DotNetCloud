@@ -22,29 +22,60 @@ Archived context:
 
 ## Active Handoff
 
-**Summary:** ✅ Notes Required Module deployed to production. All 14 modules healthy, schema migration complete.
+**Summary:** Notes module REST auth fix — accept Bearer tokens for Android client
 
-**Context:** `dotnetcloud.notes` promoted from optional to architecturally required. Note tables moved from `notes` schema to `core` schema on production SQL Server (`hyperdrive.kimball.home`).
+**Context:** The Android Notes tab (feature branch `feature/android-notes-tab`) was returning empty results because the `NotesControllerBase` only accepted `Identity.Application` cookie auth. Android sends Bearer tokens via `Authorization: Bearer` header. Fixed by adding `Introspection` auth scheme alongside cookie auth (matching the Calendar module pattern).
 
-**Branch:** `feature/notes-required-module`
+**Files changed (server-side):**
+- `src/Modules/Notes/DotNetCloud.Modules.Notes.Host/Controllers/NotesControllerBase.cs` — Added `[Authorize(AuthenticationSchemes = "Identity.Application," + "Introspection")]` and `using DotNetCloud.Core.Auth.Introspection`
+- `src/Modules/Notes/DotNetCloud.Modules.Notes.Host/DotNetCloud.Modules.Notes.Host.csproj` — Added `<ProjectReference>` to `DotNetCloud.Core.Auth`
+
+**Branch (with server + client changes):** `feature/android-notes-tab`
 
 ---
 
-### Completed — `cloud.kimball.home` (2026-07-14)
+### Server Actions — `cloud.kimball.home`
 
-- [x] Created missing SQL Server migration `PromoteNotesToRequiredModule` — PostgreSQL migration existed but SQL Server was missing
-- [x] Published Core.Server and Notes.Host to production
-- [x] Migration auto-applied via `DbInitializer` on startup
-- [x] **Fix applied:** Migration created empty tables in `core` schema instead of moving data. Manually transferred tables via `ALTER SCHEMA core TRANSFER` and restored missing FK constraints
-- [x] All 14 modules healthy (health endpoint verified)
-- [x] Data verified: 4 Notes, 4 NoteVersions in `core` schema
-- [x] `notes` schema now empty (0 tables)
-- [x] All 6 FK constraints restored in `core` schema
-- [x] Notes API returns 401 (auth required) — no 500 errors
+1. **Checkout and pull the feature branch:**
+   ```bash
+   cd /opt/dotnetcloud
+   git checkout feature/android-notes-tab
+   git pull
+   ```
 
-**Notes for future:**
-- SQL Server `RenameTable` migration behavior on this version may create empty tables instead of transferring. If deploying schema migrations to SQL Server, verify `ALTER SCHEMA ... TRANSFER` executed correctly.
-- Handoff instructed `psql` verification commands — production runs SQL Server. Use `sqlcmd` with `INFORMATION_SCHEMA` queries instead.
+2. **Build and publish the Notes module host:**
+   ```bash
+   dotnet publish src/Modules/Notes/DotNetCloud.Modules.Notes.Host -c Release -o /opt/dotnetcloud/publish/notes
+   ```
+
+3. **Restart the Notes module process:**
+   The module is managed by the process supervisor. Either restart the supervisor or stop/start the Notes module directly:
+   ```bash
+   sudo systemctl restart dotnetcloud-notes   # if managed as a systemd service
+   # OR if managed by the Core.Server supervisor:
+   sudo systemctl restart dotnetcloud-server
+   ```
+
+4. **Verify the fix:**
+   ```bash
+   # Test with a Bearer token — should return notes, not 401
+   curl -s -H "Authorization: Bearer $(cat /tmp/test_token)" https://cloud.dotnetcloud.net/api/v1/notes | head -c 200
+   
+   # Expected: {"success":true,"data":[...]} with the user's notes
+   # Before fix: 401 Unauthorized
+   ```
+
+### Client Actions — `monolith`
+
+1. After server confirms the Notes module has been restarted, test the Android Notes tab:
+   - Open app on phone
+   - Navigate to Notes tab
+   - Verify existing notes load from server
+   - Test creating a new note
+   - Test editing and deleting notes
+   - Verify search and folder filtering work
+
+2. Report any issues back.
 
 **Role separation (MANDATORY):**
 

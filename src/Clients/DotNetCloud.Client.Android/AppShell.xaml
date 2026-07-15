@@ -50,6 +50,12 @@
             ContentTemplate="{DataTemplate views:CalendarPage}"/>
 
         <ShellContent
+            Route="Notes"
+            Title="Notes"
+            Icon="notes_icon.png"
+            ContentTemplate="{DataTemplate views:NotesPage}"/>
+
+        <ShellContent
             Route="Settings"
             Title="Settings"
             Icon="settings_icon.png"

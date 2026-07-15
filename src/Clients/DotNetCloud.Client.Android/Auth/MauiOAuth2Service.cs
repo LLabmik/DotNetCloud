@@ -64,7 +64,7 @@ internal sealed class MauiOAuth2Service : IOAuth2Service
                $"?client_id={Uri.EscapeDataString(ClientId)}" +
                $"&response_type=code" +
                $"&redirect_uri={Uri.EscapeDataString(RedirectUri)}" +
-                             $"&scope={Uri.EscapeDataString("openid profile offline_access files:read files:write")}" +
+                             $"&scope={Uri.EscapeDataString("openid profile email offline_access files:read files:write")}" +
                $"&code_challenge={Uri.EscapeDataString(codeChallenge)}" +
                $"&code_challenge_method=S256" +
                $"&state={state}";
@@ -97,6 +97,7 @@ internal sealed class MauiOAuth2Service : IOAuth2Service
         return new OAuth2Result(
             json.AccessToken,
             json.RefreshToken,
+            json.IdToken,
             DateTimeOffset.UtcNow.AddSeconds(json.ExpiresIn - 30));
     }
 
@@ -148,6 +149,9 @@ internal sealed class MauiOAuth2Service : IOAuth2Service
 
         [JsonPropertyName("refresh_token")]
         public string RefreshToken { get; init; } = string.Empty;
+
+        [JsonPropertyName("id_token")]
+        public string? IdToken { get; init; }
 
         [JsonPropertyName("expires_in")]
         public int ExpiresIn { get; init; }

@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:DotNetCloud.Client.Android.ViewModels"
+             x:Class="DotNetCloud.Client.Android.Views.NoteEditPage"
+             x:DataType="vm:NoteEditViewModel"
+             Title="{Binding IsEditing, Converter={StaticResource BoolToString}, ConverterParameter='Edit Note|New Note'}"
+             BackgroundColor="#0F172A">
+
+    <Shell.TitleView>
+        <HorizontalStackLayout Spacing="8"
+                VerticalOptions="Center">
+            <Image Source="logo.png"
+                   HeightRequest="36"
+                    WidthRequest="36"
+                   VerticalOptions="Center"/>
+            <Label Text="{Binding IsEditing, Converter={StaticResource BoolToString}, ConverterParameter='Edit Note|New Note'}"
+                   FontSize="18"
+                    FontAttributes="Bold"
+                   TextColor="#F1F5F9"
+                    VerticalOptions="Center"/>
+        </HorizontalStackLayout>
+    </Shell.TitleView>
+
+    <!-- Toolbar: Cancel (left), Save (right) -->
+    <Shell.ToolbarItems>
+        <ToolbarItem Text="Cancel"
+                     Command="{Binding CancelCommand}"
+                     Order="Primary"/>
+        <ToolbarItem Text="Save"
+                     Command="{Binding SaveCommand}"
+                     Order="Primary"/>
+    </Shell.ToolbarItems>
+
+    <Grid RowDefinitions="Auto,Auto,*,Auto"
+          BackgroundColor="#0F172A">
+
+        <!-- Row 0: Title entry -->
+        <Entry Grid.Row="0"
+               Placeholder="Note title"
+               Text="{Binding Title}"
+               BackgroundColor="#1E293B"
+               TextColor="#F1F5F9"
+               PlaceholderColor="#64748B"
+               FontSize="18"
+               Margin="12,12,12,0"/>
+
+        <!-- Row 1: Markdown formatting toolbar -->
+        <HorizontalStackLayout Grid.Row="1"
+                               Spacing="4"
+                               Padding="8,4"
+                               BackgroundColor="#1E293B"
+                               Margin="12,4,12,0">
+            <Button Text="B"
+                    FontAttributes="Bold"
+                    Clicked="OnBoldClicked"
+                    BackgroundColor="Transparent"
+                    TextColor="#F1F5F9"
+                    FontSize="14"
+                    WidthRequest="36"
+                    HeightRequest="36"
+                    Padding="0"
+                    BorderWidth="1"
+                    BorderColor="#334155"
+                    CornerRadius="4"/>
+            <Button Text="I"
+                    FontAttributes="Italic"
+                    Clicked="OnItalicClicked"
+                    BackgroundColor="Transparent"
+                    TextColor="#F1F5F9"
+                    FontSize="14"
+                    WidthRequest="36"
+                    HeightRequest="36"
+                    Padding="0"
+                    BorderWidth="1"
+                    BorderColor="#334155"
+                    CornerRadius="4"/>
+            <Button Text="H"
+                    Clicked="OnHeadingClicked"
+                    BackgroundColor="Transparent"
+                    TextColor="#F1F5F9"
+                    FontSize="14"
+                    FontAttributes="Bold"
+                    WidthRequest="36"
+                    HeightRequest="36"
+                    Padding="0"
+                    BorderWidth="1"
+                    BorderColor="#334155"
+                    CornerRadius="4"/>
+            <Button Text="•"
+                    Clicked="OnBulletListClicked"
+                    BackgroundColor="Transparent"
+                    TextColor="#F1F5F9"
+                    FontSize="16"
+                    WidthRequest="36"
+                    HeightRequest="36"
+                    Padding="0"
+                    BorderWidth="1"
+                    BorderColor="#334155"
+                    CornerRadius="4"/>
+            <Button Text="1."
+                    Clicked="OnNumberedListClicked"
+                    BackgroundColor="Transparent"
+                    TextColor="#F1F5F9"
+                    FontSize="14"
+                    WidthRequest="36"
+                    HeightRequest="36"
+                    Padding="0"
+                    BorderWidth="1"
+                    BorderColor="#334155"
+                    CornerRadius="4"/>
+            <Button Text="🔗"
+                    Clicked="OnLinkClicked"
+                    BackgroundColor="Transparent"
+                    TextColor="#F1F5F9"
+                    FontSize="14"
+                    WidthRequest="36"
+                    HeightRequest="36"
+                    Padding="0"
+                    BorderWidth="1"
+                    BorderColor="#334155"
+                    CornerRadius="4"/>
+            <Button Text="&lt;&gt;"
+                    Clicked="OnCodeClicked"
+                    BackgroundColor="Transparent"
+                    TextColor="#F1F5F9"
+                    FontSize="12"
+                    WidthRequest="36"
+                    HeightRequest="36"
+                    Padding="0"
+                    BorderWidth="1"
+                    BorderColor="#334155"
+                    CornerRadius="4"/>
+            <Button Text="❝"
+                    Clicked="OnBlockquoteClicked"
+                    BackgroundColor="Transparent"
+                    TextColor="#F1F5F9"
+                    FontSize="14"
+                    WidthRequest="36"
+                    HeightRequest="36"
+                    Padding="0"
+                    BorderWidth="1"
+                    BorderColor="#334155"
+                    CornerRadius="4"/>
+
+            <!-- Separator -->
+            <BoxView WidthRequest="1"
+                    HeightRequest="24"
+                     Color="#334155"
+                    VerticalOptions="Center"/>
+
+            <!-- Preview toggle button -->
+            <Button Text="{Binding IsPreviewVisible, Converter={StaticResource BoolToString}, ConverterParameter='Edit|Preview'}"
+                    Clicked="OnTogglePreviewClicked"
+                    BackgroundColor="#0EA5E9"
+                    TextColor="#FFFFFF"
+                    FontSize="12"
+                    HeightRequest="32"
+                    Padding="12,0"
+                    CornerRadius="16"
+                    VerticalOptions="Center"/>
+        </HorizontalStackLayout>
+
+        <!-- Row 2: Editor / Preview WebView -->
+        <Grid Grid.Row="2"
+                Margin="12,8,12,0">
+
+            <!-- Edit mode: Multi-line Editor -->
+            <Editor x:Name="ContentEditor"
+                    Placeholder="Start writing... (Markdown supported)"
+                    Text="{Binding Content}"
+                    BackgroundColor="#1E293B"
+                    TextColor="#F1F5F9"
+                    PlaceholderColor="#64748B"
+                    FontSize="15"
+                    IsVisible="{Binding IsPreviewVisible, Converter={StaticResource InvertBool}}"
+                    AutoSize="TextChanges"
+                    TextChanged="OnContentTextChanged"/>
+
+            <!-- Preview mode: Rendered HTML -->
+            <WebView x:Name="PreviewWebView"
+                     IsVisible="{Binding IsPreviewVisible}"
+                     BackgroundColor="#0F172A"/>
+        </Grid>
+
+        <!-- Row 3: Folder picker -->
+        <Grid Grid.Row="3"
+                ColumnDefinitions="Auto,*"
+                Padding="12,8,12,12">
+            <Label Grid.Column="0"
+                   Text="Folder:"
+                   TextColor="#94A3B8"
+                   FontSize="14"
+                   VerticalOptions="Center"
+                   Margin="0,0,8,0"/>
+            <Picker Grid.Column="1"
+                    x:Name="FolderPicker"
+                    Title="None"
+                    TextColor="#F1F5F9"
+                    TitleColor="#64748B"
+                    VerticalOptions="Center"/>
+        </Grid>
+    </Grid>
+</ContentPage>

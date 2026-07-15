@@ -60,6 +60,15 @@ public sealed partial class LoginViewModel : ObservableObject
             var all = store.GetAll();
             if (all.Count > 0)
                 return all[^1].ServerBaseUrl;
+
+            // Fall back to URL saved during logout
+            var prefs = services.GetService(typeof(IAppPreferences)) as IAppPreferences;
+            if (prefs is not null)
+            {
+                var saved = prefs.Get<string>("last_server_url", string.Empty);
+                if (!string.IsNullOrEmpty(saved))
+                    return saved;
+            }
         }
         catch
         {
@@ -88,11 +97,14 @@ public sealed partial class LoginViewModel : ObservableObject
 
             await _tokenStore.SaveTokensAsync(normalizedUrl, result.AccessToken, result.RefreshToken, ct);
 
-            var email = ExtractClaimFromToken(result.AccessToken, "email")
-                        ?? ExtractClaimFromToken(result.AccessToken, "preferred_username")
-                        ?? ExtractClaimFromToken(result.AccessToken, "name")
+            // Extract user info from the ID token (has profile claims) or fall back to the access token
+            var idToken = result.IdToken ?? result.AccessToken;
+            var email = ExtractClaimFromToken(idToken, "email")
+                        ?? ExtractClaimFromToken(idToken, "preferred_username")
+                        ?? ExtractClaimFromToken(idToken, "name")
                         ?? new Uri(normalizedUrl).Host;
-            var displayName = ExtractClaimFromToken(result.AccessToken, "name")
+            var displayName = ExtractClaimFromToken(idToken, "name")
+                              ?? ExtractClaimFromToken(idToken, "preferred_username")
                               ?? new Uri(normalizedUrl).Host;
             _serverStore.Save(new ServerConnection(normalizedUrl, displayName, email));
             _serverStore.SetActive(normalizedUrl);

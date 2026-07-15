@@ -14,6 +14,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     internal const string PrefWifiOnly = "media_upload_wifi_only";
     internal const string PrefOrganizeByDate = "media_upload_organize_by_date";
     internal const string PrefUploadFolderName = "media_upload_folder_name";
+    internal const string PrefLastServerUrl = "last_server_url";
     internal const string DefaultUploadFolderName = "InstantUpload";
 
     private readonly IServerConnectionStore _serverStore;
@@ -251,6 +252,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         {
             if (!string.IsNullOrEmpty(ServerBaseUrl))
             {
+                // Save the URL so the login page can pre-fill it
+                _preferences.Set(PrefLastServerUrl, ServerBaseUrl);
                 await _tokenStore.DeleteTokensAsync(ServerBaseUrl, ct);
                 _serverStore.Remove(ServerBaseUrl);
             }
