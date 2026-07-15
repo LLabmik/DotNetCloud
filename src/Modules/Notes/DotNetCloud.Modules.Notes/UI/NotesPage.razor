@@ -121,7 +121,7 @@
                         <button class="notes-list-item @(_selectedNote?.Id == note.Id ? "selected" : "")"
                                 @onclick="() => SelectNoteAsync(note.Id)">
                             <strong>@note.Title</strong>
-                            <span>@note.UpdatedAt.ToLocalTime():g</span>
+                            <span>@note.UpdatedAt.ToLocalTime().ToString("g")</span>
                             @if (note.IsFavorite)
                             {
                                 <span>★</span>
@@ -163,15 +163,16 @@
                 <h2>@_selectedNote.Title</h2>
                 <p><strong>Tags:</strong> @string.Join(", ", _selectedNote.Tags)</p>
                 <div class="notes-detail-actions">
-                    <button class="btn btn-primary" @onclick="BeginEditSelected">Edit</button>
+                    <button class="btn btn-outline-primary" @onclick="BeginEditSelected">Edit</button>
                     <button class="btn btn-outline-warning" @onclick="ToggleFavoriteAsync">@(_selectedNote.IsFavorite ?
-                                "Unfavorite" : "Favorite")</button>
+                                                        "Unfavorite" : "Favorite")</button>
                         <button class="btn btn-outline-secondary" @onclick="ToggleSharePanel">
                             @(_showSharePanel ? "Hide Shares" : "Share")
                         </button>
                         <button class="btn btn-outline-secondary" @onclick="ToggleVersionPanel">
                             @(_showVersionPanel ? "Hide History" : "History")
                         </button>
+                        <button class="btn btn-outline-danger" @onclick="DeleteNoteFromDetailAsync">Delete</button>
                     </div>
 
                     @if (_showSharePanel)
@@ -218,7 +219,7 @@
                                 @foreach (var version in _versions.OrderByDescending(v => v.VersionNumber))
                                 {
                                     <div class="version-item">
-                                        <span>v@(version.VersionNumber) — @version.CreatedAt.ToLocalTime():g</span>
+                                        <span>v@(version.VersionNumber) — @version.CreatedAt.ToLocalTime().ToString("g")</span>
                                         <button class="btn btn-sm btn-outline-primary"
                                                 @onclick="() => RestoreVersionAsync(version.Id)">Restore</button>
                                     </div>
@@ -241,8 +242,11 @@
         </div>
     </div>
 
+<DncConfirmDialog @ref="_confirmDialog" />
+
 @code {
     private bool _isLoading;
+    private DncConfirmDialog _confirmDialog = default!;
 
     private readonly List<NoteDto> _notes = [];
     private readonly List<NoteFolderDto> _folders = [];
@@ -406,8 +410,30 @@ _sidebarCollapsed.ToString().ToLowerInvariant() });
             return;
         }
 
+        if (!await _confirmDialog.ShowAsync("Delete this note? This action cannot be undone.", "Delete Note"))
+        {
+            return;
+        }
+
         await ApiClient.DeleteNoteAsync(noteId);
         _editingNote = null;
+        _selectedNote = null;
+        await ReloadAsync();
+    }
+
+    private async Task DeleteNoteFromDetailAsync()
+    {
+        if (_selectedNote is null)
+        {
+            return;
+        }
+
+        if (!await _confirmDialog.ShowAsync($"Delete note '{_selectedNote.Title}'? This action cannot be undone.", "Delete Note"))
+        {
+            return;
+        }
+
+        await ApiClient.DeleteNoteAsync(_selectedNote.Id);
         _selectedNote = null;
         await ReloadAsync();
     }

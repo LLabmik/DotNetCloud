@@ -3818,7 +3818,7 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - ✓ Add `IsRequired` to `ModuleDto`
 - ✓ Drop and recreate database with core migrations only
 
-**Notes:** Phase 1 complete. `RequiredModules.ModuleIds` defines `dotnetcloud.files`, `dotnetcloud.chat`, `dotnetcloud.search` as architecturally required. `IsRequired` flag persists in the `InstalledModules` table. `GetSchemaName` maps required modules to `"core"` schema and optional modules to their short-name schema.
+**Notes:** Phase 1 complete. `RequiredModules.ModuleIds` defines `dotnetcloud.files`, `dotnetcloud.chat`, `dotnetcloud.search`, `dotnetcloud.contacts`, `dotnetcloud.calendar`, `dotnetcloud.notes`, `dotnetcloud.about` as architecturally required. `IsRequired` flag persists in the `InstalledModules` table. `GetSchemaName` maps required modules to `"core"` schema and optional modules to their short-name schema.
 
 ### Step: req-modules-schema-2 — Schema enforcement in naming strategies
 
@@ -3831,7 +3831,7 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - ✓ All 13 design-time factories pass naming strategy to DbContext constructors
 - ✓ Backward-compatible single-parameter constructors on all DbContexts
 
-**Notes:** Phase 2 complete. Schema mapping is now centralized in `RequiredModules.GetSchemaName`. Required modules (files, chat, search) map to the `core` schema. Optional modules get dedicated schemas (contacts, calendar, notes, tracks, photos, music, video, ai). Previously hardcoded schema strings in Photos/Music/Video DbContexts replaced with strategy calls. All test projects pass.
+**Notes:** Phase 2 complete. Schema mapping is now centralized in `RequiredModules.GetSchemaName`. Required modules (files, chat, search, contacts, calendar, notes, about) map to the `core` schema. Optional modules get dedicated schemas (contacts, calendar, notes, tracks, photos, music, video, ai). Previously hardcoded schema strings in Photos/Music/Video DbContexts replaced with strategy calls. All test projects pass.
 
 ### Step: req-modules-schema-3 — Lazy schema creation
 
@@ -5961,7 +5961,7 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - ✓ Add `IsRequired` to `ModuleDto`
 - ✓ Drop and recreate database with core migrations only
 
-**Notes:** Phase 1 complete. `RequiredModules.ModuleIds` defines `dotnetcloud.files`, `dotnetcloud.chat`, `dotnetcloud.search` as architecturally required. `IsRequired` flag persists in the `InstalledModules` table. `GetSchemaName` maps required modules to `"core"` schema and optional modules to their short-name schema.
+**Notes:** Phase 1 complete. `RequiredModules.ModuleIds` defines `dotnetcloud.files`, `dotnetcloud.chat`, `dotnetcloud.search`, `dotnetcloud.contacts`, `dotnetcloud.calendar`, `dotnetcloud.notes`, `dotnetcloud.about` as architecturally required. `IsRequired` flag persists in the `InstalledModules` table. `GetSchemaName` maps required modules to `"core"` schema and optional modules to their short-name schema.
 
 ### Step: req-modules-schema-2 — Schema enforcement in naming strategies
 
@@ -5974,7 +5974,7 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - ✓ All 13 design-time factories pass naming strategy to DbContext constructors
 - ✓ Backward-compatible single-parameter constructors on all DbContexts
 
-**Notes:** Phase 2 complete. Schema mapping is now centralized in `RequiredModules.GetSchemaName`. Required modules (files, chat, search) map to the `core` schema. Optional modules get dedicated schemas (contacts, calendar, notes, tracks, photos, music, video, ai). Previously hardcoded schema strings in Photos/Music/Video DbContexts replaced with strategy calls. All test projects pass.
+**Notes:** Phase 2 complete. Schema mapping is now centralized in `RequiredModules.GetSchemaName`. Required modules (files, chat, search, contacts, calendar, notes, about) map to the `core` schema. Optional modules get dedicated schemas (contacts, calendar, notes, tracks, photos, music, video, ai). Previously hardcoded schema strings in Photos/Music/Video DbContexts replaced with strategy calls. All test projects pass.
 
 ### Step: req-modules-schema-3 — Lazy schema creation
 
@@ -6120,3 +6120,5 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 
 - ✓ Step 5.1 — Auth Screen (complete as scaffold)
 - ✓ Step 5.2 — Main Popup Structure (complete
+
+

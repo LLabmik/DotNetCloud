@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-07-12 (Android Files — server deploy ✅, monolith re-test against production)
+Last updated: 2026-07-14 (Notes Required Module — deploy to production)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -18,8 +18,33 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
-- **Current active branch:** `feature/android-files-photo-thumbnails`
-- No moderator involvement in technical decisions, code reviews, or work coordination.
+- **Current active branch:** `feature/notes-required-module`
+
+## Active Handoff
+
+**Summary:** ✅ Notes Required Module deployed to production. All 14 modules healthy, schema migration complete.
+
+**Context:** `dotnetcloud.notes` promoted from optional to architecturally required. Note tables moved from `notes` schema to `core` schema on production SQL Server (`hyperdrive.kimball.home`).
+
+**Branch:** `feature/notes-required-module`
+
+---
+
+### Completed — `cloud.kimball.home` (2026-07-14)
+
+- [x] Created missing SQL Server migration `PromoteNotesToRequiredModule` — PostgreSQL migration existed but SQL Server was missing
+- [x] Published Core.Server and Notes.Host to production
+- [x] Migration auto-applied via `DbInitializer` on startup
+- [x] **Fix applied:** Migration created empty tables in `core` schema instead of moving data. Manually transferred tables via `ALTER SCHEMA core TRANSFER` and restored missing FK constraints
+- [x] All 14 modules healthy (health endpoint verified)
+- [x] Data verified: 4 Notes, 4 NoteVersions in `core` schema
+- [x] `notes` schema now empty (0 tables)
+- [x] All 6 FK constraints restored in `core` schema
+- [x] Notes API returns 401 (auth required) — no 500 errors
+
+**Notes for future:**
+- SQL Server `RenameTable` migration behavior on this version may create empty tables instead of transferring. If deploying schema migrations to SQL Server, verify `ALTER SCHEMA ... TRANSFER` executed correctly.
+- Handoff instructed `psql` verification commands — production runs SQL Server. Use `sqlcmd` with `INFORMATION_SCHEMA` queries instead.
 
 **Role separation (MANDATORY):**
 

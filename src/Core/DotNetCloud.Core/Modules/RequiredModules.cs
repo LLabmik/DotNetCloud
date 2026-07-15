@@ -17,6 +17,7 @@ public static class RequiredModules
         "dotnetcloud.search",
         "dotnetcloud.contacts",
         "dotnetcloud.calendar",
+        "dotnetcloud.notes",
         "dotnetcloud.about"
     };
 

@@ -4,7 +4,7 @@
 
 Three intertwined requirements:
 
-1. **Architecturally required modules** — `dotnetcloud.files`, `dotnetcloud.chat`, and `dotnetcloud.search` must be impossible to disable or uninstall at runtime.
+1. **Architecturally required modules** — `dotnetcloud.files`, `dotnetcloud.chat`, `dotnetcloud.search`, `dotnetcloud.contacts`, `dotnetcloud.calendar`, `dotnetcloud.notes`, `dotnetcloud.about` must be impossible to disable or uninstall at runtime.
 2. **Schema separation** — Required modules share the `core` schema with core tables. Optional modules get dedicated schemas (`contacts`, `calendar`, etc.). Supports both PostgreSQL and SQL Server.
 3. **Lazy schema creation** — A module's schema is only created when the module is installed. Uninstalled modules never get a schema.
 
@@ -85,7 +85,11 @@ public static class RequiredModules
     {
         "dotnetcloud.files",
         "dotnetcloud.chat",
-        "dotnetcloud.search"
+        "dotnetcloud.search",
+        "dotnetcloud.contacts",
+        "dotnetcloud.calendar",
+        "dotnetcloud.notes",
+        "dotnetcloud.about"
     };
 
     public static bool IsRequired(string moduleId)
@@ -122,8 +126,11 @@ Update all three naming strategy implementations so `GetSchemaForModule` delegat
 RequiredModules.GetSchemaName("files")    -> "core"      (required)
 RequiredModules.GetSchemaName("chat")     -> "core"      (required)
 RequiredModules.GetSchemaName("search")   -> "core"      (required)
-RequiredModules.GetSchemaName("contacts") -> "contacts"
-RequiredModules.GetSchemaName("calendar") -> "calendar"
+RequiredModules.GetSchemaName("contacts") -> "core"      (required)
+RequiredModules.GetSchemaName("calendar") -> "core"      (required)
+RequiredModules.GetSchemaName("notes")    -> "core"      (required)
+RequiredModules.GetSchemaName("about")    -> "core"      (required)
+RequiredModules.GetSchemaName("tracks")   -> "tracks"    (optional)
 ...
 ```
 
