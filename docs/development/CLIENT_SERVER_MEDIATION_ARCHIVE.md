@@ -5509,3 +5509,33 @@ Key confirmations:
 - Verify new Chat RPCs still pending (needs UI testing)
 - Android APK rebuild needed for 409 handler
 
+---
+
+## Thumbnails — Completed (2026-07-07)
+
+**Summary:** ✅ Thumbnails working end-to-end! Server-side fix (chunks → temp file assembly) + Android client fix (XAML Border/Grid single-child layout). All verified.
+
+**Root cause (server):** Files are stored as content-addressable chunks. `GetStoragePathAsync` returns a metadata reference path, not a real filesystem path. Fixed by using `IDownloadService.DownloadCurrentAsync` to reconstruct the file from chunks before generating thumbnails.
+
+**Root cause (Android client):** MAUI `Border` can only have one child. The `<Image>` and `<Label>` were both direct children of `<Border>` — only the `<Label>` was rendered. `ImageSource.FromFile(diskPath)` was working correctly all along. Fixed by wrapping both in a `<Grid>` container.
+
+**Verification (all passing):**
+- ✅ Server thumbnail endpoint returns 200 with valid JPEG data
+- ✅ Android client downloads thumbnails, caches to disk, displays them in the file list
+- ✅ No more emoji fallback or gray squares — actual photo thumbnails render correctly
+
+### Completed — `cloud.kimball.home` (2026-07-07)
+
+- [x] Check storage config & directory structure
+- [x] Identify root cause (chunks vs full file path mismatch)
+- [x] Fix both thumbnail and metadata endpoints to use `DownloadService`
+- [x] Deploy to production
+- [x] Verify all endpoints return 200
+- [x] Commit fix to branch
+
+### Client Actions — `monolith` (Android client)
+
+- [x] Re-test thumbnails against `cloud.dotnetcloud.net` — ✅ thumbnails appear
+- [x] Fix XAML Border/Grid layout bug (Image was never the Border's Content)
+- [x] Add `Android.Util.Log` diagnostics for future debugging
+
