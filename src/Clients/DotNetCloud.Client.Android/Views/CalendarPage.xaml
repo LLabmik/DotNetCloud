@@ -183,15 +183,18 @@
                                                                 Stroke="{Binding DayBorderColor}"
                                                                 Padding="2"
                                                                 BackgroundColor="{Binding IsToday, Converter={StaticResource TodayBackgroundConverter}}">
-                                                                <VerticalStackLayout Spacing="1">
+                                                                <VerticalStackLayout Spacing="1"
+                                                                                     HorizontalOptions="Center">
                                                                         <Label Text="{Binding DayNumber}"
                                                                                FontSize="13"
                                                                                FontAttributes="{Binding DayNumberFont}"
-                                                                               TextColor="{Binding DayNumberColor}"/>
+                                                                               TextColor="{Binding DayNumberColor}"
+                                                                               HorizontalOptions="Center"/>
                                                                         <!-- Event dots: max 3 per cell -->
                                                                         <Label Text="{Binding Events.Count, StringFormat='{0} events'}"
                                                                                FontSize="9"
                                                                                TextColor="#0EA5E9"
+                                                                               HorizontalOptions="Center"
                                                                                IsVisible="{Binding Events.Count, Converter={StaticResource IntToBoolConverter}}"/>
                                                                 </VerticalStackLayout>
                                                         </Border>
