@@ -321,6 +321,11 @@
   font-size: 13px;
 }
 
+.notes-main {
+  flex: 1;
+  min-width: 0;
+}
+
 .notes-detail {
   padding: 24px 24px 24px 12px;
   min-height: 100%;
