@@ -44,10 +44,7 @@ public partial class NotesPage : ContentPage
         {
             _vm.LoadFoldersCommand.Execute(null);
         }
-        if (_vm.Notes.Count == 0 && _vm.LoadNotesCommand.CanExecute(null))
-        {
-            _vm.LoadNotesCommand.Execute(null);
-        }
+        _vm.LoadNotesCommand.Execute(null);
     }
 
     /// <inheritdoc />

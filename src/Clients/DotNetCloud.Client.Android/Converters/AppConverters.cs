@@ -243,10 +243,10 @@ public sealed class ViewVisibilityConverter : IValueConverter
         throw new NotSupportedException();
 }
 
-/// <summary>Returns a highlighted background for today's date cell.</summary>
+/// <summary>Returns a highlighted background for today's date cell (accent-subtle to match Blazor calendar styling).</summary>
 public sealed class TodayBackgroundConverter : IValueConverter
 {
-    private static readonly Color TodayColor = Color.FromArgb("#0C1929");
+    private static readonly Color TodayColor = Color.FromArgb("#0E3D5C");
     private static readonly Color NormalColor = Colors.Transparent;
     private static readonly Color FadedColor = Color.FromArgb("#0A0F1A");
 

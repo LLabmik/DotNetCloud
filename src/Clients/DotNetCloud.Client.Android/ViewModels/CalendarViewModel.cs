@@ -49,6 +49,22 @@ public sealed class CalendarDayItem
 
     /// <summary>Events occurring on this day.</summary>
     public IReadOnlyList<CalendarEventDto> Events { get; init; } = [];
+
+    /// <summary>Text color for the day number — accent color when today, active text when current month, dimmed otherwise.</summary>
+    public Color DayNumberColor => IsToday
+        ? Color.FromArgb("#0EA5E9")
+        : IsCurrentMonth ? Color.FromArgb("#F1F5F9") : Color.FromArgb("#475569");
+
+    /// <summary>Font weight for the day number — bold when today, normal otherwise.</summary>
+    public FontAttributes DayNumberFont => IsToday ? FontAttributes.Bold : FontAttributes.None;
+
+    /// <summary>Border color — light gray when today, transparent otherwise.</summary>
+    public Color DayBorderColor => IsToday
+        ? Color.FromArgb("#64748B")
+        : Colors.Transparent;
+
+    /// <summary>Border thickness — 1 when today, 0 otherwise.</summary>
+    public double DayBorderWidth => IsToday ? 1.0 : 0.0;
 }
 
 /// <summary>Main ViewModel for the Calendar tab.</summary>

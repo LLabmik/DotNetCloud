@@ -69,6 +69,10 @@ public partial class NoteEditPage : ContentPage
         if (e.NewTextValue is null || e.OldTextValue is null)
             return;
 
+        // Guard: skip if we already processed this exact text (prevents re-entrant processing)
+        if (string.Equals(e.NewTextValue, _lastContent, StringComparison.Ordinal))
+            return;
+
         // Only process if the new text ends with \n that the old text didn't have
         if (!e.NewTextValue.EndsWith("\n") ||
             e.OldTextValue.EndsWith("\n") ||
@@ -97,19 +101,36 @@ public partial class NoteEditPage : ContentPage
             return;
         }
 
+        // ── CRITICAL: Defer content modification ─────────────────
+        // Modifying _vm.Content inside TextChanged causes re-entrant calls
+        // to the native Android EditText while it's still processing the
+        // current text change. This corrupts the internal Editable buffer
+        // and crashes the app. Using Dispatcher.Dispatch defers the
+        // modification until after the current event cycle completes.
+        // ──────────────────────────────────────────────────────────
+
+        _lastContent = e.NewTextValue; // snapshot what we're processing now
+
         // If the line is just the prefix (empty content after it), remove the prefix to end the list
         if (previousLine.TrimEnd().Equals(prefix.TrimEnd(), StringComparison.Ordinal))
         {
             string before = newText[..lineStart];
             string after = newText[cursorPos..];
-            _vm.Content = before + after;
-            _lastContent = _vm.Content;
+            Dispatcher.Dispatch(() =>
+            {
+                _vm.Content = before + after;
+                _lastContent = _vm.Content;
+            });
             return;
         }
 
         // Insert the continuation prefix
-        _vm.Content = newText + prefix;
-        _lastContent = _vm.Content;
+        string modified = newText + prefix;
+        Dispatcher.Dispatch(() =>
+        {
+            _vm.Content = modified;
+            _lastContent = _vm.Content;
+        });
     }
 
     /// <summary>
