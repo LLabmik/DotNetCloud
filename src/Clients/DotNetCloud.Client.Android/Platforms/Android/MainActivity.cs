@@ -2,6 +2,7 @@ using Android.App;
 using Android.Content.PM;
 using Android.OS;
 using Android.Views;
+using AndroidX.Activity;
 
 namespace DotNetCloud.Client.Android;
 

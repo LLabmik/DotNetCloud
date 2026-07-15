@@ -26,6 +26,7 @@
             <converters:DayTextColorConverter x:Key="DayTextColorConverter"/>
             <converters:IntToBoolConverter x:Key="IntToBoolConverter"/>
             <converters:BoolToColorConverter x:Key="BoolToColorConverter"/>
+            <converters:BoolToStringConverter x:Key="BoolToString"/>
 
             <!-- Calendar FAB shadow -->
             <Shadow x:Key="FabShadow"

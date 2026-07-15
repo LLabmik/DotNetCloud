@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using DotNetCloud.Core.Auth.Introspection;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Errors;
 using Microsoft.AspNetCore.Authorization;
@@ -11,7 +12,7 @@ namespace DotNetCloud.Modules.Notes.Host.Controllers;
 /// Base controller for Notes module endpoints. Provides authentication helpers and response envelope methods.
 /// </summary>
 [ApiController]
-[Authorize(AuthenticationSchemes = "Identity.Application")]
+[Authorize(AuthenticationSchemes = "Identity.Application," + IntrospectionAuthenticationExtensions.SchemeName)]
 public abstract class NotesControllerBase : ControllerBase
 {
     /// <summary>

@@ -4,6 +4,7 @@ using DotNetCloud.Client.Android.Calendar;
 using DotNetCloud.Client.Android.Chat;
 using DotNetCloud.Client.Android.Files;
 using DotNetCloud.Client.Android.Music;
+using DotNetCloud.Client.Android.Notes;
 using DotNetCloud.Client.Android.Platforms.Android;
 using DotNetCloud.Client.Android.Services;
 using DotNetCloud.Client.Android.ViewModels;
@@ -97,6 +98,11 @@ public static class MauiProgram
             .AddHttpMessageHandler<AuthenticatedHttpClientHandler>()
             .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
 
+        // ── Notes ───────────────────────────────────────────────────────
+        builder.Services.AddHttpClient<INotesRestClient, HttpNotesRestClient>()
+            .AddHttpMessageHandler<AuthenticatedHttpClientHandler>()
+            .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
+
         // ── ViewModels ────────────────────────────────────────────────
         builder.Services.AddTransient<LoginViewModel>();
         builder.Services.AddTransient<ChannelListViewModel>();
@@ -109,6 +115,8 @@ public static class MauiProgram
         builder.Services.AddTransient<EventDetailViewModel>();
         builder.Services.AddTransient<EventEditViewModel>();
         builder.Services.AddTransient<ImageViewerViewModel>();
+        builder.Services.AddTransient<NotesViewModel>();
+        builder.Services.AddTransient<NoteEditViewModel>();
 
         // ── Pages ─────────────────────────────────────────────────────
         builder.Services.AddTransient<LandingPage>();
@@ -123,6 +131,8 @@ public static class MauiProgram
         builder.Services.AddTransient<EventDetailPage>();
         builder.Services.AddTransient<EventEditPage>();
         builder.Services.AddTransient<ImageViewerPage>();
+        builder.Services.AddTransient<NotesPage>();
+        builder.Services.AddTransient<NoteEditPage>();
 
 #if DEBUG
         builder.Logging.AddDebug();

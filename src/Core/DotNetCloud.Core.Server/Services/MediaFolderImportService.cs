@@ -103,27 +103,33 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
             PercentComplete = 0,
         });
 
-        // ── Clone from existing user first (Music only) ──
+        // ── Clone from existing user first (Music only, empty library only) ──
         if (parsed == MediaScanType.Music)
         {
             using var cloneScope = _scopeFactory.CreateScope();
             var musicCallback = cloneScope.ServiceProvider.GetService<IMusicIndexingCallback>();
             if (musicCallback is not null)
             {
-                progress?.Report(new MediaScanProgress
+                // Only clone when the user's library is empty (initial import).
+                // On re-scan the library already has tracks — just discover new/removed files.
+                var existingIds = await musicCallback.GetIndexedFileNodeIdsAsync(ownerId, cancellationToken);
+                if (existingIds.Count == 0)
                 {
-                    Phase = "Cloning music library...",
-                    FilesDiscovered = 0,
-                    PercentComplete = 0,
-                });
+                    progress?.Report(new MediaScanProgress
+                    {
+                        Phase = "Cloning music library...",
+                        FilesDiscovered = 0,
+                        PercentComplete = 0,
+                    });
 
-                var cloned = await musicCallback.CloneLibraryFromExistingAsync(ownerId, progress, cancellationToken);
-                if (cloned > 0)
-                {
-                    _logger.LogInformation(
-                        "Cloned {Count} {MediaType} tracks from existing user for {OwnerId} — continuing to discover remaining files",
-                        cloned, parsed, ownerId);
-                    result.Imported = cloned;
+                    var cloned = await musicCallback.CloneLibraryFromExistingAsync(ownerId, progress, cancellationToken);
+                    if (cloned > 0)
+                    {
+                        _logger.LogInformation(
+                            "Cloned {Count} {MediaType} tracks from existing user for {OwnerId} — continuing to discover remaining files",
+                            cloned, parsed, ownerId);
+                        result.Imported = cloned;
+                    }
                 }
             }
         }

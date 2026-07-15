@@ -22,29 +22,25 @@ Archived context:
 
 ## Active Handoff
 
-**Summary:** ✅ Notes Required Module deployed to production. All 14 modules healthy, schema migration complete.
+**Summary:** ✅ Server-side deployment complete. Client testing in progress.
 
-**Context:** `dotnetcloud.notes` promoted from optional to architecturally required. Note tables moved from `notes` schema to `core` schema on production SQL Server (`hyperdrive.kimball.home`).
+**Context:** Notes module now accepts Bearer tokens (Introspection auth scheme registered in `Program.cs`). Ready for Android client verification.
 
-**Branch:** `feature/notes-required-module`
+**Branch:** `feature/android-notes-tab`
 
 ---
 
-### Completed — `cloud.kimball.home` (2026-07-14)
+### Client Actions — `monolith` (Android client)
 
-- [x] Created missing SQL Server migration `PromoteNotesToRequiredModule` — PostgreSQL migration existed but SQL Server was missing
-- [x] Published Core.Server and Notes.Host to production
-- [x] Migration auto-applied via `DbInitializer` on startup
-- [x] **Fix applied:** Migration created empty tables in `core` schema instead of moving data. Manually transferred tables via `ALTER SCHEMA core TRANSFER` and restored missing FK constraints
-- [x] All 14 modules healthy (health endpoint verified)
-- [x] Data verified: 4 Notes, 4 NoteVersions in `core` schema
-- [x] `notes` schema now empty (0 tables)
-- [x] All 6 FK constraints restored in `core` schema
-- [x] Notes API returns 401 (auth required) — no 500 errors
+Test the Android Notes tab against `cloud.dotnetcloud.net`:
 
-**Notes for future:**
-- SQL Server `RenameTable` migration behavior on this version may create empty tables instead of transferring. If deploying schema migrations to SQL Server, verify `ALTER SCHEMA ... TRANSFER` executed correctly.
-- Handoff instructed `psql` verification commands — production runs SQL Server. Use `sqlcmd` with `INFORMATION_SCHEMA` queries instead.
+- [ ] Open app on phone
+- [ ] Navigate to Notes tab
+- [ ] Verify existing notes load from server (Bearer token auth should work now)
+- [ ] Test creating a new note
+- [ ] Test editing and deleting notes
+- [ ] Verify search and folder filtering work
+- [ ] Verify Settings account section shows username + email
 
 **Role separation (MANDATORY):**
 
@@ -114,36 +110,6 @@ Every Active Handoff MUST use per-machine action blocks. Actions are grouped by 
 - `<Commit hash> — New handoff update for <target-machine>. Pull and check docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md Active Handoff.`
 
 **No moderator task:** Moderator provides zero context, zero explanation. The handoff document has everything the receiving agent needs.
-
-## Active Handoff
-
-**Summary:** ✅ Thumbnails working end-to-end! Server-side fix (chunks → temp file assembly) + Android client fix (XAML Border/Grid single-child layout). All verified.
-
-**Root cause (server):** Files are stored as content-addressable chunks. `GetStoragePathAsync` returns a metadata reference path, not a real filesystem path. Fixed by using `IDownloadService.DownloadCurrentAsync` to reconstruct the file from chunks before generating thumbnails.
-
-**Root cause (Android client):** MAUI `Border` can only have one child. The `<Image>` and `<Label>` were both direct children of `<Border>` — only the `<Label>` was rendered. `ImageSource.FromFile(diskPath)` was working correctly all along. Fixed by wrapping both in a `<Grid>` container.
-
-**Verification (all passing):**
-- ✅ Server thumbnail endpoint returns 200 with valid JPEG data
-- ✅ Android client downloads thumbnails, caches to disk, displays them in the file list
-- ✅ No more emoji fallback or gray squares — actual photo thumbnails render correctly
-
----
-
-### Completed — `cloud.kimball.home` (2026-07-07)
-
-- [x] Check storage config & directory structure
-- [x] Identify root cause (chunks vs full file path mismatch)
-- [x] Fix both thumbnail and metadata endpoints to use `DownloadService`
-- [x] Deploy to production
-- [x] Verify all endpoints return 200
-- [x] Commit fix to branch
-
-### Client Actions — `monolith` (Android client)
-
-- [x] Re-test thumbnails against `cloud.dotnetcloud.net` — ✅ thumbnails appear
-- [x] Fix XAML Border/Grid layout bug (Image was never the Border's Content)
-- [x] Add `Android.Util.Log` diagnostics for future debugging
 
 ## Environment
 

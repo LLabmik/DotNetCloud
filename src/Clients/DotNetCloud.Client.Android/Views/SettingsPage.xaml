@@ -120,56 +120,15 @@
                                              Spacing="2">
                             <Label
                                 FontAttributes="Bold"
-                                FontSize="16"
-                                TextColor="#F1F5F9"
-                                Text="{Binding AccountEmail}"/>
-                            <Label
-                                FontSize="13"
-                                TextColor="#64748B"
-                                Text="{Binding ServerBaseUrl}"/>
-                        </VerticalStackLayout>
-                    </HorizontalStackLayout>
-                </VerticalStackLayout>
-            </Border>
-
-            <!-- Server card -->
-            <Border
-                BackgroundColor="#1E293B"
-                StrokeThickness="0"
-                StrokeShape="RoundRectangle 16"
-                Padding="20,20">
-
-                <VerticalStackLayout Spacing="4">
-                    <Label
-                        FontAttributes="Bold"
-                        FontSize="12"
-                        TextColor="#64748B"
-                        Text="SERVER"
-                        TextTransform="Uppercase"
-                        Margin="0,0,0,12"/>
-
-                    <HorizontalStackLayout Spacing="14">
-                        <Border
-                            BackgroundColor="#334155"
-                            HeightRequest="48"
-                            WidthRequest="48"
-                            StrokeThickness="0"
-                            StrokeShape="RoundRectangle 24">
-                            <Label
-                                FontSize="20"
-                                HorizontalOptions="Center"
-                                VerticalOptions="Center"
-                                TextColor="#94A3B8"
-                                Text="🖥"/>
-                        </Border>
-                        <VerticalStackLayout VerticalOptions="Center"
-                                             Spacing="2">
-                            <Label
-                                FontSize="15"
+                                FontSize="17"
                                 TextColor="#F1F5F9"
                                 Text="{Binding ServerDisplayName}"/>
                             <Label
                                 FontSize="13"
+                                TextColor="#94A3B8"
+                                Text="{Binding AccountEmail}"/>
+                            <Label
+                                FontSize="12"
                                 TextColor="#64748B"
                                 Text="{Binding ServerBaseUrl}"/>
                         </VerticalStackLayout>
