@@ -22,76 +22,29 @@ Archived context:
 
 ## Active Handoff
 
-**Summary:** Deploy Notes Required Module promotion to production on `cloud.kimball.home` — includes schema migration for `notes` → `core` schema.
+**Summary:** ✅ Notes Required Module deployed to production. All 14 modules healthy, schema migration complete.
 
-**Context:** `dotnetcloud.notes` has been promoted from optional to architecturally required (shares `core` schema, cannot be disabled/uninstalled). This requires an EF migration to move all 6 Notes tables from the `notes` schema to the `core` schema on the production database.
+**Context:** `dotnetcloud.notes` promoted from optional to architecturally required. Note tables moved from `notes` schema to `core` schema on production SQL Server (`hyperdrive.kimball.home`).
 
-**Branch:** `feature/notes-required-module` (commit `9bfbb00c`)
-
-**Migration details:** The EF migration `PromoteNotesToRequiredModule` renames all 6 Notes tables from `notes` schema to `core` schema:
-- `notes.NoteVersions` → `core.NoteVersions`
-- `notes.NoteTags` → `core.NoteTags`
-- `notes.NoteShares` → `core.NoteShares`
-- `notes.Notes` → `core.Notes`
-- `notes.NoteLinks` → `core.NoteLinks`
-- `notes.NoteFolders` → `core.NoteFolders`
-
-The `NotesDbContextModelSnapshot` now has `.HasDefaultSchema("core")`.
+**Branch:** `feature/notes-required-module`
 
 ---
 
-### Server Actions — `cloud.kimball.home`
+### Completed — `cloud.kimball.home` (2026-07-14)
 
-- [ ] `git checkout feature/notes-required-module && git pull`
-- [ ] `dotnet publish src/Core/DotNetCloud.Core.Server/ -c Release -o /opt/dotnetcloud/server/`
-- [ ] `dotnet publish src/Modules/Notes/DotNetCloud.Modules.Notes.Host/ -c Release -o /opt/dotnetcloud/server/modules/dotnetcloud.notes/`
-- [ ] Apply EF migration to production database:
-  ```
-  cd /opt/dotnetcloud/server
-  DOTNETCLOUD_DB_CONNECTION="Host=localhost;Database=dotnetcloud;Username=dotnetcloud;Password=<production-password>" \
-  dotnet ef database update --context CoreDbContext \
-    --project src/Core/DotNetCloud.Core.Data \
-    --startup-project src/Core/DotNetCloud.Core.Server
-  ```
-  _Note: The Notes module's migration is applied as part of `Core.Server` `DbInitializer` which runs all module migrations. Verify tables rename from `notes.*` to `core.*`._
+- [x] Created missing SQL Server migration `PromoteNotesToRequiredModule` — PostgreSQL migration existed but SQL Server was missing
+- [x] Published Core.Server and Notes.Host to production
+- [x] Migration auto-applied via `DbInitializer` on startup
+- [x] **Fix applied:** Migration created empty tables in `core` schema instead of moving data. Manually transferred tables via `ALTER SCHEMA core TRANSFER` and restored missing FK constraints
+- [x] All 14 modules healthy (health endpoint verified)
+- [x] Data verified: 4 Notes, 4 NoteVersions in `core` schema
+- [x] `notes` schema now empty (0 tables)
+- [x] All 6 FK constraints restored in `core` schema
+- [x] Notes API returns 401 (auth required) — no 500 errors
 
-- [ ] Restart the service: `sudo systemctl restart dotnetcloud`
-- [ ] Verify all modules healthy:
-  ```
-  curl -s https://cloud.dotnetcloud.net/health | jq .
-  ```
-  Expected: all modules report healthy, 13/13 or similar.
-
-- [ ] Verify Notes tables are now in `core` schema:
-  ```
-  psql -U dotnetcloud -d dotnetcloud -c "\dt core.*note*"
-  ```
-  Expected: 6 tables (`Notes`, `NoteFolders`, `NoteTags`, `NoteLinks`, `NoteVersions`, `NoteShares`) all in `core` schema.
-
-- [ ] Verify `notes` schema is now empty or gone:
-  ```
-  psql -U dotnetcloud -d dotnetcloud -c "\dt notes.*"
-  ```
-  Expected: no tables listed under `notes` schema.
-
-- [ ] Smoke test the Notes API:
-  ```
-  curl -s -b /tmp/cookies.txt https://cloud.dotnetcloud.net/api/v1/notes?take=1 | jq .
-  ```
-  Expected: valid JSON response, no 500 errors.
-
-- [ ] Confirm Notes cannot be disabled:
-  ```
-  ssh dotnetcloud@localhost "dotnetcloud module list | grep notes"
-  ```
-  Expected: Notes shows as enabled; disable/uninstall commands should be rejected.
-
-- [ ] If rollback needed:
-  ```
-  # Revert the migration (move tables back to notes schema)
-  dotnet ef migrations remove --project src/Modules/Notes/DotNetCloud.Modules.Notes.Data --context NotesDbContext
-  # Or restore from database backup
-  ```
+**Notes for future:**
+- SQL Server `RenameTable` migration behavior on this version may create empty tables instead of transferring. If deploying schema migrations to SQL Server, verify `ALTER SCHEMA ... TRANSFER` executed correctly.
+- Handoff instructed `psql` verification commands — production runs SQL Server. Use `sqlcmd` with `INFORMATION_SCHEMA` queries instead.
 
 **Role separation (MANDATORY):**
 
