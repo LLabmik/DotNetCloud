@@ -1,4 +1,3 @@
-using AndroidX.AppCompat.Widget;
 using CommunityToolkit.Mvvm.DependencyInjection;
 using DotNetCloud.Client.Android.Auth;
 using DotNetCloud.Client.Android.Calendar;
@@ -33,24 +32,6 @@ public static class MauiProgram
                 fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
                 fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
             });
-
-        // ── Android text cursor visibility ───────────────────────────────
-        // Make the cursor (caret) visible against dark backgrounds in Editor & Entry
-#if ANDROID
-        Microsoft.Maui.Handlers.EditorHandler.Mapper.AppendToMapping(
-            nameof(Editor), (handler, _) =>
-            {
-                if (handler.PlatformView is AppCompatEditText edit)
-                    edit.TextCursorDrawable?.SetTint(global::Android.Graphics.Color.ParseColor("#38BDF8"));
-            });
-
-        Microsoft.Maui.Handlers.EntryHandler.Mapper.AppendToMapping(
-            nameof(Entry), (handler, _) =>
-            {
-                if (handler.PlatformView is AppCompatEditText entry)
-                    entry.TextCursorDrawable?.SetTint(global::Android.Graphics.Color.ParseColor("#38BDF8"));
-            });
-#endif
 
         // ── Infrastructure ────────────────────────────────────────────
         builder.Services.AddSingleton<ISecureTokenStore, AndroidKeyStoreTokenStore>();

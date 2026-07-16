@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Overrides MAUI's internal Maui.MainTheme.NoActionBar to customise
+        text-entry visuals (cursor, focused underline) app-wide.
+    -->
+    <style name="Maui.MainTheme.NoActionBar" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <!-- Blinking caret / insertion point -->
+        <item name="android:textCursorDrawable">@drawable/cursor_color</item>
+        <!-- Focused underline / accent color for text fields -->
+        <item name="colorControlActivated">#A3E635</item>
+    </style>
+</resources>
