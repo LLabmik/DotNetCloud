@@ -102,6 +102,19 @@ public sealed partial class MusicViewModel : ObservableObject
     /// <summary>Tracks the last non-EQ view so the EQ button can toggle back to it.</summary>
     private MusicView _previousNonEqView = MusicView.Artists;
 
+    // ── Search state ───────────────────────────────────────────────
+
+    private CancellationTokenSource? _searchCts;
+
+    /// <summary>Saved pre-search collections to restore on search close.</summary>
+    private ObservableCollection<ArtistDto>? _preSearchArtists;
+
+    /// <summary>Saved pre-search collections to restore on search close.</summary>
+    private ObservableCollection<MusicAlbumDto>? _preSearchAlbums;
+
+    /// <summary>Saved pre-search collections to restore on search close.</summary>
+    private ObservableCollection<TrackDto>? _preSearchTracks;
+
     // ── Observable properties ──────────────────────────────────────────
 
     [ObservableProperty]
@@ -148,6 +161,46 @@ public sealed partial class MusicViewModel : ObservableObject
 
     [ObservableProperty]
     private string _title = "Music";
+
+    // ── Search observable properties ───────────────────────────────
+
+    /// <summary>Whether the search panel is open.</summary>
+    [ObservableProperty]
+    private bool _isSearchOpen;
+
+    /// <summary>Current search query text.</summary>
+    [ObservableProperty]
+    private string _searchQuery = string.Empty;
+
+    /// <summary>Search result status text (e.g. &quot;12 results&quot; or &quot;No results&quot;).</summary>
+    [ObservableProperty]
+    private string? _searchResultText;
+
+    /// <summary>Whether a server-side search is in flight.</summary>
+    [ObservableProperty]
+    private bool _isSearching;
+
+    /// <summary>Placeholder text for the search Entry (varies by active tab).</summary>
+    [ObservableProperty]
+    private string _searchPlaceholderText = "Search…";
+
+    partial void OnSearchQueryChanged(string value)
+    {
+        _ = SearchAsync(value);
+    }
+
+    partial void OnIsSearchOpenChanged(bool value)
+    {
+        if (value)
+        {
+            // Save pre-search collections when opening
+            _preSearchArtists = Artists;
+            _preSearchAlbums = Albums;
+            _preSearchTracks = Tracks;
+            SearchResultText = null;
+            ErrorMessage = null;
+        }
+    }
 
     [ObservableProperty]
     private ObservableCollection<ArtistDto> _artists = [];
@@ -309,11 +362,191 @@ public sealed partial class MusicViewModel : ObservableObject
     /// </summary>
     public Action<object?, MusicView>? ScrollToRequested;
 
+    // ── Search commands ────────────────────────────────────────────────
+
+    /// <summary>Toggles the search panel open/close.</summary>
+    [RelayCommand]
+    private void ToggleSearch()
+    {
+        if (IsSearchOpen)
+        {
+            CloseSearch();
+        }
+        else
+        {
+            IsSearchOpen = true;
+        }
+    }
+
+    /// <summary>Closes the search panel and restores original data.</summary>
+    [RelayCommand]
+    private void CloseSearch()
+    {
+        _searchCts?.Cancel();
+
+        if (IsSearchOpen)
+        {
+            if (_preSearchArtists is not null)
+                Artists = _preSearchArtists;
+            if (_preSearchAlbums is not null)
+                Albums = _preSearchAlbums;
+            if (_preSearchTracks is not null)
+                Tracks = _preSearchTracks;
+        }
+
+        _preSearchArtists = null;
+        _preSearchAlbums = null;
+        _preSearchTracks = null;
+        IsSearchOpen = false;
+        SearchQuery = string.Empty;
+        SearchResultText = null;
+        IsSearching = false;
+    }
+
+    /// <summary>
+    /// Debounced server-side search. Called automatically when <see cref="SearchQuery"/> changes
+    /// via the source-generated <c>OnSearchQueryChanged</c> partial method.
+    /// Fans out to the correct search endpoint based on <see cref="CurrentView"/>.
+    /// </summary>
+    private async Task SearchAsync(string query)
+    {
+        // Cancel any in-flight search
+        _searchCts?.Cancel();
+        _searchCts = new CancellationTokenSource();
+        var ct = _searchCts.Token;
+
+        // If query is empty/whitespace, restore original collections
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            IsSearching = false;
+            SearchResultText = null;
+            RestorePreSearchCollections();
+            return;
+        }
+
+        // Debounce: wait 300ms before firing
+        try
+        {
+            await Task.Delay(300, ct);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        if (ct.IsCancellationRequested)
+            return;
+
+        var (serverUrl, token) = await GetCredentialsAsync();
+        if (serverUrl is null || token is null)
+        {
+            ErrorMessage = "Not connected to server";
+            return;
+        }
+
+        IsSearching = true;
+        ErrorMessage = null;
+
+        try
+        {
+            int count;
+
+            switch (CurrentView)
+            {
+                case MusicView.Artists:
+                    var artists = await _music.SearchArtistsAsync(serverUrl, token, query, take: 50, ct: ct);
+                    if (ct.IsCancellationRequested)
+                        return;
+                    count = artists.Count;
+                    Dispatch(() =>
+                    {
+                        Artists = new ObservableCollection<ArtistDto>(artists);
+                        ArtistAlphabet = ComputeAlphabetLocal(artists, a => a.Name);
+                    });
+                    break;
+
+                case MusicView.Albums:
+                    var albums = await _music.SearchAlbumsAsync(serverUrl, token, query, take: 50, ct: ct);
+                    if (ct.IsCancellationRequested)
+                        return;
+                    count = albums.Count;
+                    Dispatch(() =>
+                    {
+                        Albums = new ObservableCollection<MusicAlbumDto>(albums);
+                        AlbumAlphabet = ComputeAlphabetLocal(albums, a => a.Title);
+                    });
+                    break;
+
+                case MusicView.Tracks:
+                    var tracks = await _music.SearchTracksAsync(serverUrl, token, query, take: 50, ct: ct);
+                    if (ct.IsCancellationRequested)
+                        return;
+                    count = tracks.Count;
+                    Dispatch(() =>
+                    {
+                        Tracks = new ObservableCollection<TrackDto>(tracks);
+                        TrackAlphabet = ComputeAlphabetLocal(tracks, t => t.Title);
+                    });
+                    break;
+
+                default:
+                    // Playlists and EQ views — search not applicable
+                    count = 0;
+                    break;
+            }
+
+            if (!ct.IsCancellationRequested)
+            {
+                Dispatch(() =>
+                {
+                    SearchResultText = count == 0
+                        ? $"No results for \"{query}\""
+                        : $"{count} result{(count != 1 ? "s" : "")} for \"{query}\"";
+                });
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancelled — do nothing
+        }
+        catch (Exception ex)
+        {
+            if (!ct.IsCancellationRequested)
+                Dispatch(() => ErrorMessage = $"Search failed: {ex.Message}");
+        }
+        finally
+        {
+            if (!ct.IsCancellationRequested)
+                Dispatch(() => IsSearching = false);
+        }
+    }
+
+    /// <summary>
+    /// Restores the pre-search collections when the user clears the search query.
+    /// Only restores if pre-search collections were saved.
+    /// </summary>
+    private void RestorePreSearchCollections()
+    {
+        Dispatch(() =>
+        {
+            if (_preSearchArtists is not null && CurrentView == MusicView.Artists)
+                Artists = _preSearchArtists;
+            if (_preSearchAlbums is not null && CurrentView == MusicView.Albums)
+                Albums = _preSearchAlbums;
+            if (_preSearchTracks is not null && CurrentView == MusicView.Tracks)
+                Tracks = _preSearchTracks;
+        });
+    }
+
     // ── Commands ───────────────────────────────────────────────────────
 
     [RelayCommand]
     private async Task LoadArtistsAsync()
     {
+        // Close search if open — tab switch clears search state
+        IsSearchOpen = false;
+        SearchQuery = string.Empty;
+
         var (serverUrl, token) = await GetCredentialsAsync();
         if (serverUrl is null || token is null)
             return;
@@ -393,6 +626,10 @@ public sealed partial class MusicViewModel : ObservableObject
     [RelayCommand]
     private async Task LoadAlbumsAsync()
     {
+        // Close search if open — tab switch clears search state
+        IsSearchOpen = false;
+        SearchQuery = string.Empty;
+
         var (serverUrl, token) = await GetCredentialsAsync();
         if (serverUrl is null || token is null)
             return;
@@ -482,6 +719,10 @@ public sealed partial class MusicViewModel : ObservableObject
     [RelayCommand]
     private async Task LoadTracksAsync()
     {
+        // Close search if open — tab switch clears search state
+        IsSearchOpen = false;
+        SearchQuery = string.Empty;
+
         var (serverUrl, token) = await GetCredentialsAsync();
         if (serverUrl is null || token is null)
             return;
@@ -552,7 +793,7 @@ public sealed partial class MusicViewModel : ObservableObject
     [RelayCommand]
     private async Task LoadMoreArtistsAsync()
     {
-        if (!_hasMoreArtists || IsLoading)
+        if (IsSearchOpen || !_hasMoreArtists || IsLoading)
             return;
 
         var (serverUrl, token) = await GetCredentialsAsync();
@@ -597,7 +838,7 @@ public sealed partial class MusicViewModel : ObservableObject
     [RelayCommand]
     private async Task LoadMoreAlbumsAsync()
     {
-        if (!_hasMoreAlbums || IsLoading)
+        if (IsSearchOpen || !_hasMoreAlbums || IsLoading)
             return;
 
         // When viewing albums scoped to a specific artist, don't load all albums
@@ -646,7 +887,7 @@ public sealed partial class MusicViewModel : ObservableObject
     [RelayCommand]
     private async Task LoadMoreTracksAsync()
     {
-        if (!_hasMoreTracks || IsLoading)
+        if (IsSearchOpen || !_hasMoreTracks || IsLoading)
             return;
 
         // When viewing tracks scoped to a specific album or playlist, don't load all tracks
@@ -1196,6 +1437,13 @@ public sealed partial class MusicViewModel : ObservableObject
     [RelayCommand]
     private async Task BackAsync()
     {
+        // If search is open, close it first — don't navigate back
+        if (IsSearchOpen)
+        {
+            CloseSearch();
+            return;
+        }
+
         if (CurrentView == MusicView.Tracks && CanGoBackToPlaylist)
         {
             // From playlist tracks back to Playlists

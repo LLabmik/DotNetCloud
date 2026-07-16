@@ -14,7 +14,7 @@
     BackgroundColor="#0F172A">
 
     <Shell.TitleView>
-        <Grid ColumnDefinitions="*,Auto,Auto,Auto"
+        <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto"
               VerticalOptions="Center">
             <HorizontalStackLayout Grid.Column="0"
                                    Spacing="6"
@@ -134,6 +134,22 @@
                              AbsoluteLayout.LayoutFlags="None"/>
                 </AbsoluteLayout>
             </Grid>
+
+            <!-- Search icon button — always visible, toggles search panel -->
+            <Grid Grid.Column="4"
+                  WidthRequest="44"
+                  HeightRequest="44"
+                  VerticalOptions="Center"
+                  Padding="8">
+                <Grid.GestureRecognizers>
+                    <TapGestureRecognizer Command="{Binding ToggleSearchCommand}"/>
+                </Grid.GestureRecognizers>
+                <Label Text="🔍"
+                       FontSize="16"
+                       TextColor="#94A3B8"
+                       VerticalOptions="Center"
+                       HorizontalOptions="Center"/>
+            </Grid>
         </Grid>
     </Shell.TitleView>
 
@@ -148,7 +164,7 @@
         </ResourceDictionary>
     </ContentPage.Resources>
 
-    <Grid RowDefinitions="Auto,*">
+    <Grid RowDefinitions="Auto,Auto,*">
 
         <!-- ── Now-playing bar (album art + controls + seek) ──────── -->
         <Border
@@ -271,9 +287,43 @@
             </Grid>
         </Border>
 
+        <!-- ── Search panel (toggleable) ───────────────────────────── -->
+        <Border
+            Grid.Row="1"
+            IsVisible="{Binding IsSearchOpen}"
+            BackgroundColor="#1E293B"
+            StrokeThickness="0"
+            Padding="8,6">
+            <Grid ColumnDefinitions="*,Auto"
+                  ColumnSpacing="6">
+                <Entry
+                    x:Name="SearchEntry"
+                    Placeholder="{Binding SearchPlaceholderText}"
+                    PlaceholderColor="#475569"
+                    TextColor="#F1F5F9"
+                    BackgroundColor="#0F172A"
+                    Text="{Binding SearchQuery, Mode=TwoWay}"
+                    ReturnType="Search"
+                    Completed="OnSearchCompleted"/>
+                <Label
+                    Grid.Column="1"
+                    Text="✕"
+                    TextColor="#94A3B8"
+                    FontSize="22"
+                    HorizontalTextAlignment="Center"
+                    VerticalTextAlignment="Center"
+                    WidthRequest="44"
+                    HeightRequest="36">
+                    <Label.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding CloseSearchCommand}"/>
+                    </Label.GestureRecognizers>
+                </Label>
+            </Grid>
+        </Border>
+
         <!-- ── Content area ────────────────────────────────────────── -->
-        <Grid Grid.Row="1"
-              RowDefinitions="Auto,*">
+        <Grid Grid.Row="2"
+              RowDefinitions="Auto,Auto,*">
 
             <!-- Header row: back button + segmented tab bar -->
             <Grid Grid.Row="0"
@@ -338,9 +388,20 @@
                 </HorizontalStackLayout>
             </Grid>
 
+            <!-- Search results indicator (visible only when search is active) -->
+            <Label
+                Grid.Row="1"
+                Text="{Binding SearchResultText}"
+                TextColor="#94A3B8"
+                FontSize="13"
+                HorizontalOptions="Center"
+                Padding="8,4"
+                IsVisible="{Binding IsSearchOpen}"
+                LineBreakMode="TailTruncation"/>
+
             <!-- Loading indicator -->
             <ActivityIndicator
-                Grid.Row="1"
+                Grid.Row="2"
                 IsRunning="{Binding IsLoading}"
                 IsVisible="{Binding IsLoading}"
                 Color="#0EA5E9"
@@ -349,7 +410,7 @@
 
             <!-- Error message -->
             <VerticalStackLayout
-                Grid.Row="1"
+                Grid.Row="2"
                 IsVisible="{Binding ErrorMessage, Converter={StaticResource IsNotNull}}"
                 VerticalOptions="Start"
                 Padding="16,8">
@@ -361,7 +422,7 @@
             </VerticalStackLayout>
 
             <!-- Artists view: alphabet strip + collection -->
-            <Grid Grid.Row="1"
+            <Grid Grid.Row="2"
                   IsVisible="{Binding CurrentView, Converter={StaticResource IsViewSelectedConverter}, ConverterParameter=Artists}"
                   ColumnDefinitions="28,*">
                 <!-- Alphabet strip -->
@@ -431,7 +492,7 @@
             </Grid>
 
             <!-- Albums view: alphabet strip + collection -->
-            <Grid Grid.Row="1"
+            <Grid Grid.Row="2"
                   IsVisible="{Binding CurrentView, Converter={StaticResource IsViewSelectedConverter}, ConverterParameter=Albums}"
                   ColumnDefinitions="28,*">
                 <!-- Alphabet strip -->
@@ -502,7 +563,7 @@
             </Grid>
 
             <!-- Tracks view: alphabet strip + collection -->
-            <Grid Grid.Row="1"
+            <Grid Grid.Row="2"
                   IsVisible="{Binding CurrentView, Converter={StaticResource IsViewSelectedConverter}, ConverterParameter=Tracks}"
                   ColumnDefinitions="28,*">
                 <!-- Alphabet strip -->
@@ -574,7 +635,7 @@
             </Grid>
 
             <CollectionView
-                Grid.Row="1"
+                Grid.Row="2"
                 ItemsSource="{Binding Playlists}"
                 IsVisible="{Binding CurrentView, Converter={StaticResource IsViewSelectedConverter}, ConverterParameter=Playlists}"
                 SelectionMode="Single"
@@ -616,7 +677,7 @@
             <!-- EQ view — server presets, current band levels, reset    -->
             <!-- ════════════════════════════════════════════════════════════ -->
             <ScrollView
-                Grid.Row="1"
+                Grid.Row="2"
                 IsVisible="{Binding CurrentView, Converter={StaticResource IsViewSelectedConverter}, ConverterParameter=Eq}">
                 <VerticalStackLayout Spacing="12"
                                      Padding="12,8">
