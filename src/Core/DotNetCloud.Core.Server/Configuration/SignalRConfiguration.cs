@@ -38,9 +38,9 @@ public sealed class SignalROptions
 
     /// <summary>
     /// Gets or sets the maximum message size (in bytes) the hub can receive from a client.
-    /// Defaults to 32 KB.
+    /// Defaults to 512 KB.
     /// </summary>
-    public int MaximumReceiveMessageSize { get; set; } = 32 * 1024;
+    public int MaximumReceiveMessageSize { get; set; } = 512 * 1024;
 
     /// <summary>
     /// Gets or sets the maximum number of concurrent connections allowed.

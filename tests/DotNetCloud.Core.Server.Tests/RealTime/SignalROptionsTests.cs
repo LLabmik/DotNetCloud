@@ -38,11 +38,11 @@ public class SignalROptionsTests
     }
 
     [TestMethod]
-    public void WhenCreatedThenDefaultMaxReceiveMessageSizeIs32KB()
+    public void WhenCreatedThenDefaultMaxReceiveMessageSizeIs512KB()
     {
         var options = new SignalROptions();
 
-        Assert.AreEqual(32 * 1024, options.MaximumReceiveMessageSize);
+        Assert.AreEqual(512 * 1024, options.MaximumReceiveMessageSize);
     }
 
     [TestMethod]
