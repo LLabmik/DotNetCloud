@@ -18,6 +18,19 @@ public partial class MusicPage : ContentPage
 
         // Wire up the scroll-to-character delegate from the ViewModel
         _vm.ScrollToRequested += OnScrollToRequested;
+
+        // Auto-focus the search Entry when the search panel opens
+        _vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(MusicViewModel.IsSearchOpen) && _vm.IsSearchOpen)
+            {
+                MainThread.BeginInvokeOnMainThread(async () =>
+                {
+                    await Task.Delay(100);
+                    SearchEntry?.Focus();
+                });
+            }
+        };
     }
 
     /// <inheritdoc />
@@ -51,6 +64,13 @@ public partial class MusicPage : ContentPage
         // Small delay to let the UI settle before scrolling
         await Task.Delay(50);
         cv.ScrollTo(targetItem, position: ScrollToPosition.Start, animate: true);
+    }
+
+    /// <summary>Called when the user completes search input (presses Search on keyboard). Dismisses the keyboard.</summary>
+    private void OnSearchCompleted(object? sender, EventArgs e)
+    {
+        if (sender is Entry entry)
+            entry.Unfocus();
     }
 
     /// <summary>Called when the user starts dragging the seek slider.</summary>

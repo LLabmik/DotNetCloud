@@ -3538,6 +3538,23 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Create direct APK download option
 - ✓ Write app store listing description
 
+#### Music Tab
+
+- ✓ Create `MusicPage.xaml` with browsing UI (artists, albums, tracks, playlists)
+- ✓ Create `MusicViewModel` with tab switching, pagination, infinite scroll, alphabet index
+- ✓ Create `IMusicRestClient` / `HttpMusicRestClient` (search, listing, playback reporting, EQ presets)
+- ✓ Create `IMusicPlayerService` / `MusicPlayerService` (Android `MediaPlayer` background playback)
+- ✓ Create `MusicPlaybackService` (Android foreground service with `WakeLock` + notification)
+- ✓ Create `IAlbumArtCache` / `AlbumArtCache` (two-tier: memory LRU + disk)
+- ✓ Create `IEqualizerService` / `AndroidEqualizerService` (native `AudioEffect.Equalizer`)
+- ✓ Implement EQ preset save/load/apply (server presets + virtual band mapping)
+- ✓ Implement repeat modes (Off / One / All) with visual indicator
+- ✓ Implement now-playing bar with album art, seek slider, play/pause/next/prev controls
+- ✓ Implement album art loading via `IAlbumArtCache` with fallback placeholder
+- ✓ Implement search: toggle search icon in title bar, debounced server-side search by current tab (artists/albums/tracks), results replace collection, restore on close
+- ✓ Implement search guards: infinite scroll disabled during search, tab-switch closes search, back navigates away from search first
+- ✓ Add 16 unit tests for search toggle, close/restore, endpoint routing, error handling, tab-switch closure
+
 ---
 
 ## Phase 2.11: Chat Module gRPC Host

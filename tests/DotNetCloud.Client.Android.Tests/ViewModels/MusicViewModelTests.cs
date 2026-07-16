@@ -777,4 +777,283 @@ public sealed class MusicViewModelTests
 
         _player.Verify(x => x.PlayNext(), Times.AtLeastOnce);
     }
+
+    // ── Search ─────────────────────────────────────────────────────────
+
+    [TestMethod]
+    public void Constructor_InitializesSearchDefaults()
+    {
+        Assert.IsFalse(_vm.IsSearchOpen);
+        Assert.AreEqual(string.Empty, _vm.SearchQuery);
+        Assert.IsNull(_vm.SearchResultText);
+        Assert.IsFalse(_vm.IsSearching);
+        Assert.AreEqual("Search…", _vm.SearchPlaceholderText);
+    }
+
+    [TestMethod]
+    public void ToggleSearchCommand_OpensSearchPanel()
+    {
+        _vm.ToggleSearchCommand.Execute(null);
+
+        Assert.IsTrue(_vm.IsSearchOpen);
+    }
+
+    [TestMethod]
+    public void ToggleSearchCommand_ClosesSearchPanel_WhenAlreadyOpen()
+    {
+        _vm.ToggleSearchCommand.Execute(null); // open
+        _vm.ToggleSearchCommand.Execute(null); // close
+
+        Assert.IsFalse(_vm.IsSearchOpen);
+        Assert.AreEqual(string.Empty, _vm.SearchQuery);
+    }
+
+    [TestMethod]
+    public void CloseSearchCommand_RestoresOriginalCollections_AndClearsSearch()
+    {
+        // Pre-populate Artists
+        var artistId = Guid.NewGuid();
+        var preSearch = new List<ArtistDto>
+        {
+            new() { Id = artistId, Name = "Saved Artist", CreatedAt = DateTime.UtcNow }
+        };
+        _music.Setup(x => x.ListArtistsAsync(ServerUrl, "test-access-token", 0, 50, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(preSearch);
+        _vm.LoadArtistsCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+        Assert.AreEqual(1, _vm.Artists.Count);
+
+        // Open search (saves pre-search collections)
+        _vm.ToggleSearchCommand.Execute(null);
+        Assert.IsTrue(_vm.IsSearchOpen);
+
+        // Simulate search results replacing the collection
+        _vm.Artists = [];
+        Assert.AreEqual(0, _vm.Artists.Count);
+
+        // Close search — original data should be restored
+        _vm.CloseSearchCommand.Execute(null);
+
+        Assert.IsFalse(_vm.IsSearchOpen);
+        Assert.AreEqual(string.Empty, _vm.SearchQuery);
+        Assert.IsNull(_vm.SearchResultText);
+        Assert.IsFalse(_vm.IsSearching);
+        Assert.AreEqual(1, _vm.Artists.Count);
+        Assert.AreEqual("Saved Artist", _vm.Artists[0].Name);
+    }
+
+    [TestMethod]
+    public void CloseSearchCommand_DoesNotThrow_WhenSearchNotOpen()
+    {
+        // Should be safe to call CloseSearch even if search was never opened
+        _vm.CloseSearchCommand.Execute(null);
+
+        Assert.IsFalse(_vm.IsSearchOpen);
+    }
+
+    [TestMethod]
+    public async Task SearchQueryChanged_EmptyQuery_RestoresOriginalCollections()
+    {
+        // Pre-populate Artists
+        var artistId = Guid.NewGuid();
+        var preSearch = new List<ArtistDto>
+        {
+            new() { Id = artistId, Name = "Restored Artist", CreatedAt = DateTime.UtcNow }
+        };
+        _music.Setup(x => x.ListArtistsAsync(ServerUrl, "test-access-token", 0, 50, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(preSearch);
+        _vm.LoadArtistsCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+        Assert.AreEqual(1, _vm.Artists.Count);
+
+        // Open search (saves pre-search collections)
+        _vm.ToggleSearchCommand.Execute(null);
+
+        // Simulate search results replacing the collection
+        _vm.Artists = [];
+        Assert.AreEqual(0, _vm.Artists.Count);
+
+        // CloseSearchCommand restores the original collection synchronously
+        _vm.CloseSearchCommand.Execute(null);
+
+        Assert.IsFalse(_vm.IsSearchOpen);
+        Assert.AreEqual(1, _vm.Artists.Count);
+        Assert.AreEqual("Restored Artist", _vm.Artists[0].Name);
+    }
+
+    [TestMethod]
+    public async Task SearchQueryChanged_SearchesArtists_OnArtistsTab()
+    {
+        // Pre-populate Artists tab
+        _music.Setup(x => x.ListArtistsAsync(ServerUrl, "test-access-token", 0, 50, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        await _vm.LoadArtistsCommand.ExecuteAsync(null);
+        Assert.AreEqual(MusicView.Artists, _vm.CurrentView);
+
+        // Setup search mock
+        var results = new List<ArtistDto>
+        {
+            new() { Id = Guid.NewGuid(), Name = "Found Artist", CreatedAt = DateTime.UtcNow }
+        };
+        _music.Setup(x => x.SearchArtistsAsync(ServerUrl, "test-access-token", "Found", 50, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(results);
+
+        // Open search
+        _vm.ToggleSearchCommand.Execute(null);
+
+        // Trigger search by setting query text
+        _vm.SearchQuery = "Found";
+
+        // Wait for debounce + Dispatch
+        await Task.Delay(500);
+
+        Assert.AreEqual(1, _vm.Artists.Count);
+        Assert.AreEqual("Found Artist", _vm.Artists[0].Name);
+        StringAssert.Contains(_vm.SearchResultText, "1 result");
+    }
+
+    [TestMethod]
+    public async Task SearchQueryChanged_SearchesAlbums_OnAlbumsTab()
+    {
+        // Pre-populate Albums tab
+        _music.Setup(x => x.ListAlbumsAsync(ServerUrl, "test-access-token", 0, 50, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        await _vm.LoadAlbumsCommand.ExecuteAsync(null);
+        Assert.AreEqual(MusicView.Albums, _vm.CurrentView);
+
+        // Setup search mock
+        var results = new List<MusicAlbumDto>
+        {
+            new() { Id = Guid.NewGuid(), Title = "Found Album", ArtistId = Guid.NewGuid(), ArtistName = "Artist", CreatedAt = DateTime.UtcNow }
+        };
+        _music.Setup(x => x.SearchAlbumsAsync(ServerUrl, "test-access-token", "Found", 50, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(results);
+
+        // Open search
+        _vm.ToggleSearchCommand.Execute(null);
+
+        // Trigger search
+        _vm.SearchQuery = "Found";
+
+        await Task.Delay(500);
+
+        Assert.AreEqual(1, _vm.Albums.Count);
+        Assert.AreEqual("Found Album", _vm.Albums[0].Title);
+        StringAssert.Contains(_vm.SearchResultText, "1 result");
+    }
+
+    [TestMethod]
+    public async Task SearchQueryChanged_SearchesTracks_OnTracksTab()
+    {
+        // Pre-populate Tracks tab
+        _music.Setup(x => x.ListTracksAsync(ServerUrl, "test-access-token", 0, 50, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        await _vm.LoadTracksCommand.ExecuteAsync(null);
+        Assert.AreEqual(MusicView.Tracks, _vm.CurrentView);
+
+        // Setup search mock
+        var results = new List<TrackDto>
+        {
+            new() { Id = Guid.NewGuid(), Title = "Found Track", OwnerId = Guid.NewGuid(), FileNodeId = Guid.NewGuid(), MimeType = "audio/mpeg", ArtistId = Guid.NewGuid(), ArtistName = "Artist", CreatedAt = DateTime.UtcNow }
+        };
+        _music.Setup(x => x.SearchTracksAsync(ServerUrl, "test-access-token", "Found", 50, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(results);
+
+        // Open search
+        _vm.ToggleSearchCommand.Execute(null);
+
+        // Trigger search
+        _vm.SearchQuery = "Found";
+
+        await Task.Delay(500);
+
+        Assert.AreEqual(1, _vm.Tracks.Count);
+        Assert.AreEqual("Found Track", _vm.Tracks[0].Title);
+        StringAssert.Contains(_vm.SearchResultText, "1 result");
+    }
+
+    [TestMethod]
+    public async Task SearchQueryChanged_NoResults_ShowsZeroText()
+    {
+        _music.Setup(x => x.ListArtistsAsync(ServerUrl, "test-access-token", 0, 50, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        await _vm.LoadArtistsCommand.ExecuteAsync(null);
+
+        _music.Setup(x => x.SearchArtistsAsync(ServerUrl, "test-access-token", "XyzNotFound", 50, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        _vm.ToggleSearchCommand.Execute(null);
+        _vm.SearchQuery = "XyzNotFound";
+
+        await Task.Delay(500);
+
+        StringAssert.Contains(_vm.SearchResultText, "No results");
+    }
+
+    [TestMethod]
+    public async Task SearchQueryChanged_ServerError_ShowsErrorMessage()
+    {
+        _music.Setup(x => x.ListArtistsAsync(ServerUrl, "test-access-token", 0, 50, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        await _vm.LoadArtistsCommand.ExecuteAsync(null);
+
+        _music.Setup(x => x.SearchArtistsAsync(ServerUrl, "test-access-token", "Error", 50, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("Server down"));
+
+        _vm.ToggleSearchCommand.Execute(null);
+        _vm.SearchQuery = "Error";
+
+        await Task.Delay(500);
+
+        StringAssert.Contains(_vm.ErrorMessage, "Search failed");
+    }
+
+    [TestMethod]
+    public async Task LoadArtistsCommand_ClosesSearch()
+    {
+        _music.Setup(x => x.ListArtistsAsync(ServerUrl, "test-access-token", 0, 50, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        _vm.ToggleSearchCommand.Execute(null);
+        Assert.IsTrue(_vm.IsSearchOpen);
+
+        await _vm.LoadArtistsCommand.ExecuteAsync(null);
+
+        Assert.IsFalse(_vm.IsSearchOpen);
+        Assert.AreEqual(string.Empty, _vm.SearchQuery);
+    }
+
+    [TestMethod]
+    public async Task LoadAlbumsCommand_ClosesSearch()
+    {
+        _music.Setup(x => x.ListAlbumsAsync(ServerUrl, "test-access-token", 0, 50, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        _vm.ToggleSearchCommand.Execute(null);
+        Assert.IsTrue(_vm.IsSearchOpen);
+
+        await _vm.LoadAlbumsCommand.ExecuteAsync(null);
+
+        Assert.IsFalse(_vm.IsSearchOpen);
+        Assert.AreEqual(string.Empty, _vm.SearchQuery);
+    }
+
+    [TestMethod]
+    public async Task LoadTracksCommand_ClosesSearch()
+    {
+        _music.Setup(x => x.ListTracksAsync(ServerUrl, "test-access-token", 0, 50, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        _vm.ToggleSearchCommand.Execute(null);
+        Assert.IsTrue(_vm.IsSearchOpen);
+
+        await _vm.LoadTracksCommand.ExecuteAsync(null);
+
+        Assert.IsFalse(_vm.IsSearchOpen);
+        Assert.AreEqual(string.Empty, _vm.SearchQuery);
+    }
+
+    [TestMethod]
+    public void SearchPlaceholderText_StartsWithDefault()
+    {
+        Assert.AreEqual("Search…", _vm.SearchPlaceholderText);
+    }
 }
