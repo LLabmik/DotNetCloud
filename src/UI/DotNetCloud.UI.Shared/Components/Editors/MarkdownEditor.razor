@@ -24,18 +24,18 @@
         <div class="toolbar-separator"></div>
         @if (!Compact)
         {
-        <div class="toolbar-group">
-            <button type="button" class="toolbar-btn" title="Heading 1" @onclick="() => InsertHeading(1)">
-                H1
-            </button>
-            <button type="button" class="toolbar-btn" title="Heading 2" @onclick="() => InsertHeading(2)">
-                H2
-            </button>
-            <button type="button" class="toolbar-btn" title="Heading 3" @onclick="() => InsertHeading(3)">
-                H3
-            </button>
-        </div>
-        <div class="toolbar-separator"></div>
+            <div class="toolbar-group">
+                <button type="button" class="toolbar-btn" title="Heading 1" @onclick="() => InsertHeading(1)">
+                    H1
+                </button>
+                <button type="button" class="toolbar-btn" title="Heading 2" @onclick="() => InsertHeading(2)">
+                    H2
+                </button>
+                <button type="button" class="toolbar-btn" title="Heading 3" @onclick="() => InsertHeading(3)">
+                    H3
+                </button>
+            </div>
+            <div class="toolbar-separator"></div>
         }
         <div class="toolbar-group">
             <button type="button" class="toolbar-btn" title="Unordered list" @onclick="InsertUnorderedList">
@@ -43,12 +43,12 @@
             </button>
             @if (!Compact)
             {
-            <button type="button" class="toolbar-btn" title="Ordered list" @onclick="InsertOrderedList">
-                1. List
-            </button>
-            <button type="button" class="toolbar-btn" title="Task list" @onclick="InsertTaskList">
-                ☑ Task
-            </button>
+                <button type="button" class="toolbar-btn" title="Ordered list" @onclick="InsertOrderedList">
+                    1. List
+                </button>
+                <button type="button" class="toolbar-btn" title="Task list" @onclick="InsertTaskList">
+                    ☑ Task
+                </button>
             }
         </div>
         <div class="toolbar-separator"></div>
@@ -58,89 +58,93 @@
             </button>
             @if (!Compact)
             {
-            <button type="button" class="toolbar-btn" title="Image" @onclick="InsertImage">
-                🖼
-            </button>
+                <button type="button" class="toolbar-btn" title="Image" @onclick="InsertImage">
+                    🖼
+                </button>
             }
             <button type="button" class="toolbar-btn" title="Code block" @onclick="InsertCodeBlock">
                 &lt;/&gt;
             </button>
             @if (!Compact)
             {
-            <button type="button" class="toolbar-btn" title="Blockquote" @onclick="InsertBlockquote">
-                ❝
-            </button>
-            <button type="button" class="toolbar-btn" title="Horizontal rule" @onclick="InsertHorizontalRule">
-                ―
-            </button>
-            <button type="button" class="toolbar-btn" title="Table" @onclick="InsertTable">
-                ⊞
-            </button>
+                <button type="button" class="toolbar-btn" title="Blockquote" @onclick="InsertBlockquote">
+                    ❝
+                </button>
+                <button type="button" class="toolbar-btn" title="Horizontal rule" @onclick="InsertHorizontalRule">
+                    ―
+                </button>
+                <button type="button" class="toolbar-btn" title="Table" @onclick="InsertTable">
+                    ⊞
+                </button>
             }
         </div>
         @if (Compact)
         {
-        <div class="toolbar-group compact-more-group">
-            <button type="button" class="toolbar-btn compact-more-btn" title="More formatting" @onclick="ToggleCompactMenu">
-                ☰
-            </button>
-            @if (_showCompactMenu)
-            {
-            <div class="compact-more-menu">
-                <button type="button" class="compact-menu-item" @onclick="() => { InsertHeading(1); _showCompactMenu = false; }">
-                    <span class="compact-menu-icon">H1</span> Heading 1
+            <div class="toolbar-group compact-more-group">
+                <button type="button" class="toolbar-btn compact-more-btn" title="More formatting"
+                        @onclick="ToggleCompactMenu">
+                    ☰
                 </button>
-                <button type="button" class="compact-menu-item" @onclick="() => { InsertHeading(2); _showCompactMenu = false; }">
-                    <span class="compact-menu-icon">H2</span> Heading 2
-                </button>
-                <button type="button" class="compact-menu-item" @onclick="() => { InsertHeading(3); _showCompactMenu = false; }">
-                    <span class="compact-menu-icon">H3</span> Heading 3
-                </button>
-                <div class="compact-menu-divider"></div>
-                <button type="button" class="compact-menu-item" @onclick="() => { InsertOrderedList(); _showCompactMenu = false; }">
-                    <span class="compact-menu-icon">1.</span> Ordered List
-                </button>
-                <button type="button" class="compact-menu-item" @onclick="() => { InsertTaskList(); _showCompactMenu = false; }">
-                    <span class="compact-menu-icon">☑</span> Task List
-                </button>
-                <div class="compact-menu-divider"></div>
-                <button type="button" class="compact-menu-item" @onclick="() => { InsertImage(); _showCompactMenu = false; }">
-                    <span class="compact-menu-icon">🖼</span> Image
-                </button>
-                <button type="button" class="compact-menu-item" @onclick="() => { InsertBlockquote(); _showCompactMenu = false; }">
-                    <span class="compact-menu-icon">❝</span> Blockquote
-                </button>
-                <button type="button" class="compact-menu-item" @onclick="() => { InsertHorizontalRule(); _showCompactMenu = false; }">
-                    <span class="compact-menu-icon">―</span> Horizontal Rule
-                </button>
-                <button type="button" class="compact-menu-item" @onclick="() => { InsertTable(); _showCompactMenu = false; }">
-                    <span class="compact-menu-icon">⊞</span> Table
-                </button>
+                @if (_showCompactMenu)
+                {
+                    <div class="compact-more-menu">
+                        <button type="button" class="compact-menu-item"
+                                @onclick="() => { InsertHeading(1); _showCompactMenu = false; }">
+                            <span class="compact-menu-icon">H1</span> Heading 1
+                        </button>
+                        <button type="button" class="compact-menu-item"
+                                @onclick="() => { InsertHeading(2); _showCompactMenu = false; }">
+                            <span class="compact-menu-icon">H2</span> Heading 2
+                        </button>
+                        <button type="button" class="compact-menu-item"
+                                @onclick="() => { InsertHeading(3); _showCompactMenu = false; }">
+                            <span class="compact-menu-icon">H3</span> Heading 3
+                        </button>
+                        <div class="compact-menu-divider"></div>
+                        <button type="button" class="compact-menu-item"
+                                @onclick="() => { InsertOrderedList(); _showCompactMenu = false; }">
+                            <span class="compact-menu-icon">1.</span> Ordered List
+                        </button>
+                        <button type="button" class="compact-menu-item"
+                                @onclick="() => { InsertTaskList(); _showCompactMenu = false; }">
+                            <span class="compact-menu-icon">☑</span> Task List
+                        </button>
+                        <div class="compact-menu-divider"></div>
+                        <button type="button" class="compact-menu-item"
+                                @onclick="() => { InsertImage(); _showCompactMenu = false; }">
+                            <span class="compact-menu-icon">🖼</span> Image
+                        </button>
+                        <button type="button" class="compact-menu-item"
+                                @onclick="() => { InsertBlockquote(); _showCompactMenu = false; }">
+                            <span class="compact-menu-icon">❝</span> Blockquote
+                        </button>
+                        <button type="button" class="compact-menu-item"
+                                @onclick="() => { InsertHorizontalRule(); _showCompactMenu = false; }">
+                            <span class="compact-menu-icon">―</span> Horizontal Rule
+                        </button>
+                        <button type="button" class="compact-menu-item"
+                                @onclick="() => { InsertTable(); _showCompactMenu = false; }">
+                            <span class="compact-menu-icon">⊞</span> Table
+                        </button>
+                    </div>
+                }
             </div>
-            }
-        </div>
         }
         <div class="toolbar-separator"></div>
         <div class="toolbar-group toolbar-group-right">
-            <button type="button"
-                    class="toolbar-btn @(_activeView == EditorView.Edit ? "active" : "")"
-                    title="Edit"
+            <button type="button" class="toolbar-btn @(_activeView == EditorView.Edit ? "active" : "")" title="Edit"
                     @onclick="() => SetView(EditorView.Edit)">
                 ✏ Edit
             </button>
             @if (!Compact)
             {
-            <button type="button"
-                    class="toolbar-btn @(_activeView == EditorView.Split ? "active" : "")"
-                    title="Split view"
-                    @onclick="() => SetView(EditorView.Split)">
-                ⬓ Split
-            </button>
+                <button type="button" class="toolbar-btn @(_activeView == EditorView.Split ? "active" : "")"
+                        title="Split view" @onclick="() => SetView(EditorView.Split)">
+                    ⬓ Split
+                </button>
             }
-            <button type="button"
-                    class="toolbar-btn @(_activeView == EditorView.Preview ? "active" : "")"
-                    title="Preview"
-                    @onclick="() => SetView(EditorView.Preview)">
+            <button type="button" class="toolbar-btn @(_activeView == EditorView.Preview ? "active" : "")"
+                    title="Preview" @onclick="() => SetView(EditorView.Preview)">
                 👁 Preview
             </button>
         </div>
@@ -150,14 +154,18 @@
         @if (_activeView != EditorView.Preview)
         {
             <div class="editor-pane">
-                <textarea @ref="_textareaRef"
-                          class="editor-textarea"
-                          placeholder="@(Placeholder ?? "Write your note in Markdown…")"
-                          rows="@Rows"
-                          @bind="Content"
-                          @bind:event="oninput"
-                          @bind:after="OnContentChanged"
-                          spellcheck="true"></textarea>
+                <textarea @ref="_textareaRef" class="editor-textarea"
+                          placeholder="@(Placeholder ?? "Write your note in Markdown…")" rows="@Rows" @bind="Content"
+                          @bind:event="oninput" @bind:after="OnContentChanged" spellcheck="true"></textarea>
+                @if (ShowCharacterCount && MaxLength > 0)
+                {
+                    var len = Content?.Length ?? 0;
+                    var pct = (double)len / MaxLength;
+                    <div
+                        class="editor-character-count @(pct >= 1.0 ? "over-limit" : pct >= 0.9 ? "near-limit" : pct >= 0.8 ? "warning" : "")">
+                        @len / @MaxLength characters
+                    </div>
+                }
             </div>
         }
         @if (_activeView != EditorView.Edit)
@@ -227,6 +235,19 @@
     [Parameter]
     public int Rows { get; set; }
 
+    /// <summary>
+    /// Maximum content length in characters. Defaults to 100,000.
+    /// Content beyond this limit is truncated. Set to 0 for unlimited.
+    /// </summary>
+    [Parameter]
+    public int MaxLength { get; set; } = 100000;
+
+    /// <summary>
+    /// When true, shows a character count below the editor.
+    /// </summary>
+    [Parameter]
+    public bool ShowCharacterCount { get; set; } = true;
+
     private bool _viewInitialized;
 
     /// <inheritdoc />
@@ -265,8 +286,17 @@
 
     private async Task OnContentChanged()
     {
+        EnforceMaxLength();
         RenderPreview();
         await ContentChanged.InvokeAsync(Content);
+    }
+
+    private void EnforceMaxLength()
+    {
+        if (MaxLength > 0 && Content.Length > MaxLength)
+        {
+            Content = Content[..MaxLength];
+        }
     }
 
     private void RenderPreview()
@@ -323,6 +353,7 @@
         if (newValue is not null)
         {
             Content = newValue;
+            EnforceMaxLength();
             RenderPreview();
             await ContentChanged.InvokeAsync(Content);
         }
@@ -335,6 +366,7 @@
         if (newValue is not null)
         {
             Content = newValue;
+            EnforceMaxLength();
             RenderPreview();
             await ContentChanged.InvokeAsync(Content);
         }
