@@ -529,6 +529,34 @@
   color: #fff;
 }
 
+/* ── New Note button ────────────────────────────────────── */
+.new-note-btn {
+  padding: 8px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 8px;
+  background: #3b82f6;
+  border: 2px solid #3b82f6;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.35);
+  transition:
+    background var(--transition),
+    box-shadow var(--transition),
+    transform var(--transition),
+    border-color var(--transition);
+}
+.new-note-btn:hover:not(:disabled) {
+  background: #2563eb;
+  border-color: #2563eb;
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.5);
+  transform: translateY(-1px);
+}
+.new-note-btn-icon {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  margin-right: 2px;
+}
+
 .btn-secondary {
   background: var(--color-bg);
   color: var(--color-text);

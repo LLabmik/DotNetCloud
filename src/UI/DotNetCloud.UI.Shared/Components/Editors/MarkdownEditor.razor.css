@@ -290,12 +290,12 @@
   word-wrap: break-word;
 }
 
-.markdown-body h1,
-.markdown-body h2,
-.markdown-body h3,
-.markdown-body h4,
-.markdown-body h5,
-.markdown-body h6 {
+.markdown-body ::deep h1,
+.markdown-body ::deep h2,
+.markdown-body ::deep h3,
+.markdown-body ::deep h4,
+.markdown-body ::deep h5,
+.markdown-body ::deep h6 {
   margin-top: 1.5em;
   margin-bottom: 0.5em;
   font-weight: 600;
@@ -303,57 +303,57 @@
   color: var(--color-text, #1e293b);
 }
 
-.markdown-body h1:first-child,
-.markdown-body h2:first-child,
-.markdown-body h3:first-child {
+.markdown-body ::deep h1:first-child,
+.markdown-body ::deep h2:first-child,
+.markdown-body ::deep h3:first-child {
   margin-top: 0;
 }
 
-.markdown-body h1 {
+.markdown-body ::deep h1 {
   font-size: 1.75rem;
   border-bottom: 1px solid var(--color-border, #e2e8f0);
   padding-bottom: 0.3em;
 }
-.markdown-body h2 {
+.markdown-body ::deep h2 {
   font-size: 1.4rem;
   border-bottom: 1px solid var(--color-border, #e2e8f0);
   padding-bottom: 0.3em;
 }
-.markdown-body h3 {
+.markdown-body ::deep h3 {
   font-size: 1.15rem;
 }
-.markdown-body h4 {
+.markdown-body ::deep h4 {
   font-size: 1rem;
 }
-.markdown-body h5 {
+.markdown-body ::deep h5 {
   font-size: 0.875rem;
 }
-.markdown-body h6 {
+.markdown-body ::deep h6 {
   font-size: 0.8rem;
   color: var(--color-text-secondary, #64748b);
 }
 
-.markdown-body p {
+.markdown-body ::deep p {
   margin: 0 0 1em;
   line-height: 1.6;
 }
 
-.markdown-body a {
+.markdown-body ::deep a {
   color: var(--color-primary, #3b82f6);
   text-decoration: none;
 }
 
-.markdown-body a:hover {
+.markdown-body ::deep a:hover {
   text-decoration: underline;
 }
 
-.markdown-body img {
+.markdown-body ::deep img {
   max-width: 100%;
   height: auto;
   border-radius: 4px;
 }
 
-.markdown-body blockquote {
+.markdown-body ::deep blockquote {
   margin: 0 0 1em;
   padding: 0.5em 1em;
   border-left: 4px solid var(--color-border, #e2e8f0);
@@ -362,11 +362,11 @@
   border-radius: 0 4px 4px 0;
 }
 
-.markdown-body blockquote p:last-child {
+.markdown-body ::deep blockquote p:last-child {
   margin-bottom: 0;
 }
 
-.markdown-body code {
+.markdown-body ::deep code {
   padding: 0.15em 0.4em;
   font-family:
     "JetBrains Mono", "Cascadia Code", "Fira Code", "Consolas", monospace;
@@ -376,7 +376,7 @@
   color: var(--color-text, #1e293b);
 }
 
-.markdown-body pre {
+.markdown-body ::deep pre {
   margin: 0 0 1em;
   padding: 12px 16px;
   overflow-x: auto;
@@ -386,7 +386,7 @@
   line-height: 1.5;
 }
 
-.markdown-body pre code {
+.markdown-body ::deep pre code {
   padding: 0;
   background: transparent;
   border-radius: 0;
@@ -394,29 +394,29 @@
   font-size: 0.85rem;
 }
 
-.markdown-body ul,
-.markdown-body ol {
+.markdown-body ::deep ul,
+.markdown-body ::deep ol {
   margin: 0 0 1em;
   padding-left: 2em;
 }
 
-.markdown-body li {
+.markdown-body ::deep li {
   margin-bottom: 0.25em;
 }
 
-.markdown-body li > ul,
-.markdown-body li > ol {
+.markdown-body ::deep li > ul,
+.markdown-body ::deep li > ol {
   margin-top: 0.25em;
   margin-bottom: 0;
 }
 
 /* Task list checkboxes */
-.markdown-body li input[type="checkbox"] {
+.markdown-body ::deep li input[type="checkbox"] {
   margin-right: 0.5em;
   vertical-align: middle;
 }
 
-.markdown-body table {
+.markdown-body ::deep table {
   display: table;
   width: 100%;
   max-width: 100%;
@@ -428,8 +428,8 @@
   border-radius: 6px;
 }
 
-.markdown-body th,
-.markdown-body td {
+.markdown-body ::deep th,
+.markdown-body ::deep td {
   padding: 8px 14px;
   border-bottom: 1px solid var(--color-border, #e2e8f0);
   border-right: 1px solid var(--color-border, #e2e8f0);
@@ -438,43 +438,43 @@
   line-height: 1.5;
 }
 
-.markdown-body th:last-child,
-.markdown-body td:last-child {
+.markdown-body ::deep th:last-child,
+.markdown-body ::deep td:last-child {
   border-right: none;
 }
 
-.markdown-body tr:last-child td {
+.markdown-body ::deep tr:last-child td {
   border-bottom: none;
 }
 
-.markdown-body th {
+.markdown-body ::deep th {
   font-weight: 600;
   color: var(--color-text, #1e293b);
   background: var(--color-surface-alt, rgba(127, 127, 127, 0.12));
   white-space: nowrap;
 }
 
-.markdown-body tbody tr:nth-child(even) {
+.markdown-body ::deep tbody tr:nth-child(even) {
   background: rgba(127, 127, 127, 0.05);
 }
 
-.markdown-body tbody tr:hover {
+.markdown-body ::deep tbody tr:hover {
   background: rgba(127, 127, 127, 0.1);
 }
 
-.markdown-body hr {
+.markdown-body ::deep hr {
   margin: 1.5em 0;
   border: none;
   border-top: 1px solid var(--color-border, #e2e8f0);
 }
 
-.markdown-body mark {
+.markdown-body ::deep mark {
   padding: 0.1em 0.2em;
   background: #fef3c7;
   border-radius: 2px;
 }
 
-.markdown-body kbd {
+.markdown-body ::deep kbd {
   display: inline-block;
   padding: 2px 6px;
   font-family: "JetBrains Mono", "Cascadia Code", monospace;
@@ -486,23 +486,23 @@
   box-shadow: 0 1px 0 var(--color-border, #e2e8f0);
 }
 
-.markdown-body details {
+.markdown-body ::deep details {
   margin: 0 0 1em;
   padding: 8px;
   border: 1px solid var(--border-color, #d0d5dd);
   border-radius: 4px;
 }
 
-.markdown-body details summary {
+.markdown-body ::deep details summary {
   cursor: pointer;
   font-weight: 500;
 }
 
-.markdown-body del {
+.markdown-body ::deep del {
   color: var(--muted-text, #667085);
 }
 
 /* ── Emoji ───────────────────────────────────────────────── */
-.markdown-body .emoji {
+.markdown-body ::deep .emoji {
   font-style: normal;
 }

@@ -20,8 +20,9 @@
             </button>
             @if (!_sidebarCollapsed)
             {
-                <button class="btn btn-sm btn-primary" @onclick="BeginCreateNote" title="New Note">
-                    <span>+</span>
+                <button class="btn btn-primary new-note-btn" @onclick="BeginCreateNote" title="New Note">
+                    <span class="new-note-btn-icon">+</span>
+                    <span>New Note</span>
                 </button>
             }
         </div>
