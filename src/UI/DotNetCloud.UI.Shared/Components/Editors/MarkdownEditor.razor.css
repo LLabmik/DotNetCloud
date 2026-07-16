@@ -107,6 +107,30 @@
   min-height: 300px;
 }
 
+/* ── Character counter ───────────────────────────────────── */
+
+.editor-character-count {
+  padding: 4px 16px 8px;
+  font-size: 11px;
+  color: var(--color-text-secondary, #64748b);
+  text-align: right;
+  border-top: none;
+  user-select: none;
+}
+
+.editor-character-count.warning {
+  color: var(--color-warning, #f59e0b);
+}
+
+.editor-character-count.near-limit {
+  color: #f97316;
+}
+
+.editor-character-count.over-limit {
+  color: var(--color-danger, #ef4444);
+  font-weight: 600;
+}
+
 .editor-textarea {
   flex: 1;
   width: 100%;
@@ -393,7 +417,7 @@
 }
 
 .markdown-body table {
-  display: block;
+  display: table;
   width: 100%;
   max-width: 100%;
   overflow-x: auto;
