@@ -38,7 +38,25 @@ public partial class MusicPage : ContentPage
     {
         base.OnAppearing();
         if (_vm.Artists.Count == 0)
+        {
             await _vm.LoadArtistsCommand.ExecuteAsync(null);
+
+            // Auto-scroll to the first artist starting with 'A' on initial load,
+            // skipping any noisy non-letter names (e.g. symbols, digits) at the top.
+            // Users can still scroll back up to see those entries.
+            var firstA = _vm.Artists.FirstOrDefault(a =>
+                !string.IsNullOrEmpty(a.Name) &&
+                a.Name.Length > 0 &&
+                char.ToUpperInvariant(a.Name[0]) == 'A');
+
+            if (firstA is not null)
+            {
+                // Allow the CollectionView to complete its initial layout
+                // before scrolling.
+                await Task.Delay(300);
+                OnScrollToRequested(firstA, MusicView.Artists);
+            }
+        }
     }
 
     /// <summary>
