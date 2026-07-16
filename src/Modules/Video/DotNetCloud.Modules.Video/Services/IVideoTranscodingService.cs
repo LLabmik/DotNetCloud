@@ -110,6 +110,7 @@ public interface IVideoTranscodingService
     /// <param name="mimeType">MIME type of the source video.</param>
     /// <param name="sourceVideoCodec">Source video codec from ffprobe (for bitstream filter optimization).</param>
     /// <param name="sourceAudioCodec">Source audio codec from ffprobe (for audio copy optimization).</param>
+    /// <param name="seekStart">Optional seek position to start transcoding from (e.g., when user seeks beyond available HLS segments).</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>A tuple of (jobId, outputDirectory, playlistPath).</returns>
     Task<(string JobId, string OutputDir, string PlaylistPath)> TranscodeHlsAsync(
@@ -119,6 +120,7 @@ public interface IVideoTranscodingService
         string mimeType,
         string? sourceVideoCodec = null,
         string? sourceAudioCodec = null,
+        TimeSpan? seekStart = null,
         CancellationToken ct = default);
 
     /// <summary>

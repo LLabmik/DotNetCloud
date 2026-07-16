@@ -1274,7 +1274,7 @@
                     <div id="player-container" class="player-container">
                         <video id="video-player"
                                class="video-player"
-                               poster="@(_playerVideo.HasExternalPoster ? GetThumbnailUrl(_playerVideo.Id) : null)"
+                               poster="@(_playerVideo!.HasExternalPoster ? GetThumbnailUrl(_playerVideo.Id) : null)"
                                controls
                                autoplay
                                preload="auto"
@@ -1327,10 +1327,23 @@
                         }
                     </div>
 
+                    @if (_streamStrategy is not null && _streamStrategy != "direct" && _playerVideo is not null)
+                    {
+                        <div class="transcode-seek-bar" id="transcode-seek-bar" data-max-duration="@_playerVideo!.Duration.TotalSeconds">
+                            <div class="transcode-seek-track" id="transcode-seek-track">
+                                <div class="transcode-seek-fill" id="transcode-seek-fill"></div>
+                                <div class="transcode-seek-thumb" id="transcode-seek-thumb"></div>
+                            </div>
+                            <div class="transcode-seek-hint">
+                                @(_streamStrategy == "transcode" ? "Transcoding" : "Streaming") in progress — drag to seek anywhere
+                            </div>
+                        </div>
+                    }
+
                     <div class="player-info-panel">
                         <div class="player-info-header">
                             <div class="player-title-section">
-                                <h3>@_playerVideo.Title</h3>
+                                <h3>@_playerVideo!.Title</h3>
                                 @if (_streamStrategy is not null)
                                 {
                                     <span class="stream-strategy-badge stream-strategy-@_streamStrategy">

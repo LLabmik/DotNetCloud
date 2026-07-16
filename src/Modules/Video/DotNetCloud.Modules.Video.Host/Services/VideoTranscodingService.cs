@@ -333,6 +333,7 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
         string mimeType,
         string? sourceVideoCodec = null,
         string? sourceAudioCodec = null,
+        TimeSpan? seekStart = null,
         CancellationToken ct = default)
     {
         // ═══ Check for pre-existing HLS output on disk ═══
@@ -378,7 +379,7 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
 
             // Lock timed out (30s) — extremely rare, fall back to lock-free creation
             _logger.LogWarning("HLS lock acquire timed out for video {VideoId}; proceeding without lock", videoId);
-            return await CreateHlsJobUnlocked(videoId, userId, sourceFilePath, mimeType, sourceVideoCodec, sourceAudioCodec, ct);
+            return await CreateHlsJobUnlocked(videoId, userId, sourceFilePath, mimeType, sourceVideoCodec, sourceAudioCodec, seekStart, ct);
         }
 
         // Variables captured outside the lock for return
@@ -435,7 +436,7 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
         }
 
         // Launch ffmpeg (outside lock, fire-and-forget)
-        await LaunchFfmpegAsync(activeJob, sourceFilePath, actualOutputDir, actualPlaylistPath, sourceVideoCodec, sourceAudioCodec, ct);
+        await LaunchFfmpegAsync(activeJob, sourceFilePath, actualOutputDir, actualPlaylistPath, sourceVideoCodec, sourceAudioCodec, seekStart, ct);
 
         return (activeJob.Id, actualOutputDir, actualPlaylistPath);
     }
@@ -457,6 +458,7 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
         string mimeType,
         string? sourceVideoCodec,
         string? sourceAudioCodec,
+        TimeSpan? seekStart,
         CancellationToken ct)
     {
         // Create fresh HLS output directory
@@ -476,7 +478,7 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
         job.IsHls = true;
 
         // Launch ffmpeg
-        await LaunchFfmpegAsync(job, sourceFilePath, actualOutputDir, actualPlaylistPath, sourceVideoCodec, sourceAudioCodec, ct);
+        await LaunchFfmpegAsync(job, sourceFilePath, actualOutputDir, actualPlaylistPath, sourceVideoCodec, sourceAudioCodec, seekStart, ct);
 
         return (job.Id, actualOutputDir, actualPlaylistPath);
     }
@@ -567,13 +569,16 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
         string playlistPath,
         string? sourceVideoCodec,
         string? sourceAudioCodec,
-        CancellationToken ct)
+        TimeSpan? seekStart = null,
+        CancellationToken ct = default)
     {
         var duration = await GetVideoDurationAsync(sourceFilePath, ct);
-        _logger.LogInformation("HLS transcode starting: job={JobId}, source={Source}, outputDir={OutputDir}, duration={Duration}",
-            job.Id, sourceFilePath, outputDir, duration);
+        _logger.LogInformation("HLS transcode starting: job={JobId}, source={Source}, outputDir={OutputDir}, duration={Duration}" +
+            (seekStart.HasValue ? ", seekStart={SeekStart}" : ""),
+            job.Id, sourceFilePath, outputDir, duration,
+            seekStart);
 
-        var args = _argBuilder.BuildHlsArgs(sourceFilePath, outputDir, _options, sourceVideoCodec, sourceAudioCodec);
+        var args = _argBuilder.BuildHlsArgs(sourceFilePath, outputDir, _options, sourceVideoCodec, sourceAudioCodec, seekStart);
 
         _ = Task.Run(async () =>
         {
