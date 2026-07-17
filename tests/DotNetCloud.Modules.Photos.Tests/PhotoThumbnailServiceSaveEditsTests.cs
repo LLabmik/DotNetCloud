@@ -18,6 +18,7 @@ public class PhotoThumbnailServiceSaveEditsTests
     private PhotosDbContext _db = null!;
     private Mock<IFileStorageEngine> _storageEngineMock = null!;
     private Mock<IDownloadService> _downloadServiceMock = null!;
+    private Mock<IServiceProvider> _serviceProviderMock = null!;
     private PhotoThumbnailService _service = null!;
 
     [TestInitialize]
@@ -26,10 +27,18 @@ public class PhotoThumbnailServiceSaveEditsTests
         _db = TestHelpers.CreateDb();
         _storageEngineMock = new Mock<IFileStorageEngine>();
         _downloadServiceMock = new Mock<IDownloadService>();
+        _serviceProviderMock = new Mock<IServiceProvider>();
+
+        _serviceProviderMock
+            .Setup(sp => sp.GetService(typeof(IFileStorageEngine)))
+            .Returns(_storageEngineMock.Object);
+        _serviceProviderMock
+            .Setup(sp => sp.GetService(typeof(IDownloadService)))
+            .Returns(_downloadServiceMock.Object);
+
         _service = new PhotoThumbnailService(
             _db,
-            _storageEngineMock.Object,
-            _downloadServiceMock.Object,
+            _serviceProviderMock.Object,
             NullLogger<PhotoThumbnailService>.Instance);
     }
 

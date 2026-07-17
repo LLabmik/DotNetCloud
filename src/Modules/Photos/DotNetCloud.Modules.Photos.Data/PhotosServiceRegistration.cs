@@ -1,6 +1,7 @@
 using DotNetCloud.Core.Data.Extensions;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Files.Events;
 using DotNetCloud.Modules.Photos.Data;
 using DotNetCloud.Modules.Photos.Data.Services;
@@ -23,6 +24,9 @@ public static class PhotosServiceRegistration
     /// </summary>
     public static IServiceCollection AddPhotosServices(this IServiceCollection services, IConfiguration configuration)
     {
+        // Register Files data services (provides IDownloadService needed for full-size photo serving)
+        services.AddFilesServices(configuration);
+
         // Business services (forward-registered for concrete + interface injection)
         services.AddScoped<PhotoService>();
         services.AddScoped<IPhotoService>(sp => sp.GetRequiredService<PhotoService>());
