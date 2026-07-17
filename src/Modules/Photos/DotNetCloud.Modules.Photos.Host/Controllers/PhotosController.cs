@@ -1,5 +1,6 @@
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
+using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.Modules.Photos.Data.Services;
 using DotNetCloud.Modules.Photos.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -20,6 +21,7 @@ public class PhotosController : PhotosControllerBase
     private readonly PhotoEditService _editService;
     private readonly SlideshowService _slideshowService;
     private readonly IPhotoThumbnailService _thumbnailService;
+    private readonly IDownloadService _downloadService;
     private readonly ILogger<PhotosController> _logger;
 
     /// <summary>
@@ -34,6 +36,7 @@ public class PhotosController : PhotosControllerBase
         PhotoEditService editService,
         SlideshowService slideshowService,
         IPhotoThumbnailService thumbnailService,
+        IDownloadService downloadService,
         ILogger<PhotosController> logger)
     {
         _photoService = photoService;
@@ -44,6 +47,7 @@ public class PhotosController : PhotosControllerBase
         _editService = editService;
         _slideshowService = slideshowService;
         _thumbnailService = thumbnailService;
+        _downloadService = downloadService;
         _logger = logger;
     }
 
@@ -82,6 +86,27 @@ public class PhotosController : PhotosControllerBase
 
         Response.Headers.CacheControl = "private, max-age=3600";
         return File(stream, contentType ?? "image/jpeg");
+    }
+
+    /// <summary>
+    /// Serves the original full-resolution photo file.
+    /// Resolves the photo's FileNodeId through the Files module to stream the original image.
+    /// </summary>
+    [HttpGet("{photoId:guid}/download")]
+    public async Task<IActionResult> DownloadPhotoAsync(Guid photoId)
+    {
+        var caller = GetAuthenticatedCaller();
+        var photo = await _photoService.GetPhotoAsync(photoId, caller);
+        if (photo is null)
+            return NotFound(ErrorEnvelope(ErrorCodes.PhotoNotFound, "Photo not found."));
+
+        var stream = await _downloadService.DownloadCurrentAsync(photo.FileNodeId, caller);
+        if (stream is null)
+            return NotFound();
+
+        var contentType = photo.MimeType ?? "image/jpeg";
+        Response.Headers.CacheControl = "private, max-age=3600";
+        return File(stream, contentType, photo.FileName);
     }
 
     /// <summary>Creates a photo record linked to a file node.</summary>

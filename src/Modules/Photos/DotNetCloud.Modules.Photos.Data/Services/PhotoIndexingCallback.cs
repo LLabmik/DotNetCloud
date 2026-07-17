@@ -38,18 +38,15 @@ public sealed class PhotoIndexingCallback : IPhotoIndexingCallback
         {
             _logger.LogDebug("Photo already exists for FileNode {FileNodeId} (PhotoId {PhotoId}), skipping insert", fileNodeId, existing.Id);
 
-            // Still generate thumbnails for existing photos that may lack them
-            if (!string.IsNullOrEmpty(storagePath))
+            // Generate thumbnails if missing — uses chunk reconstruction when no storage path is available
+            try
             {
-                try
-                {
-                    await _thumbnailService.GenerateThumbnailsAsync(existing.Id, storagePath, mimeType, cancellationToken);
-                    _logger.LogDebug("Thumbnails regenerated for existing photo {PhotoId}", existing.Id);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Failed to generate thumbnails for existing photo {PhotoId} from {Path}", existing.Id, storagePath);
-                }
+                await _thumbnailService.GenerateThumbnailsAsync(existing.Id, storagePath, mimeType, cancellationToken);
+                _logger.LogDebug("Thumbnails regenerated for existing photo {PhotoId}", existing.Id);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to generate thumbnails for existing photo {PhotoId}", existing.Id);
             }
 
             return;
@@ -60,18 +57,15 @@ public sealed class PhotoIndexingCallback : IPhotoIndexingCallback
 
         _logger.LogDebug("Photo indexed for FileNode {FileNodeId} by user {OwnerId}", fileNodeId, ownerId);
 
-        // Generate thumbnails if we have the storage path
-        if (!string.IsNullOrEmpty(storagePath))
+        // Generate thumbnails — uses chunk reconstruction when no storage path is available
+        try
         {
-            try
-            {
-                await _thumbnailService.GenerateThumbnailsAsync(photo.Id, storagePath, mimeType, cancellationToken);
-                _logger.LogDebug("Thumbnails generated for photo {PhotoId}", photo.Id);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to generate thumbnails for photo {PhotoId} from {Path}", photo.Id, storagePath);
-            }
+            await _thumbnailService.GenerateThumbnailsAsync(photo.Id, storagePath, mimeType, cancellationToken);
+            _logger.LogDebug("Thumbnails generated for photo {PhotoId}", photo.Id);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to generate thumbnails for photo {PhotoId}", photo.Id);
         }
     }
 

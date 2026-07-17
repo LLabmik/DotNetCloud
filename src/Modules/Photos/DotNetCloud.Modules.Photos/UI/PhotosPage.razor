@@ -28,7 +28,8 @@
             {
                 <h2 class="photos-sidebar-title">Photos</h2>
             }
-            <button class="sidebar-toggle" @onclick="ToggleSidebar" title="@(_sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")">
+            <button class="sidebar-toggle" @onclick="ToggleSidebar"
+                    title="@(_sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")">
                 <span>@(_sidebarCollapsed ? "▶" : "◀")</span>
             </button>
         </div>
@@ -105,8 +106,7 @@
                 </button>
                 @foreach (var album in _albums)
                 {
-                    <button class="album-sidebar-item @(_selectedAlbumId == album.Id ? "active" : "")"
-                            title="@album.Title"
+                    <button class="album-sidebar-item @(_selectedAlbumId == album.Id ? "active" : "")" title="@album.Title"
                             @onclick="() => SelectAlbumAsync(album.Id)">
                         <span class="album-thumb">📁</span>
                         <div class="album-sidebar-info">
@@ -135,8 +135,7 @@
             </div>
             <div class="toolbar-right">
                 <div class="search-box">
-                    <input type="text" placeholder="Search photos…"
-                           @bind="_searchQuery" @bind:event="oninput"
+                    <input type="text" placeholder="Search photos…" @bind="_searchQuery" @bind:event="oninput"
                            @onkeyup="HandleSearchKeyUp" />
                 </div>
                 <div class="view-toggle">
@@ -185,11 +184,10 @@
                         @foreach (var photo in photos)
                         {
                             <div class="photo-card @(_selectedPhotoIds.Contains(photo.Id) ? "selected" : "")"
-                                 @onclick="e => HandlePhotoClick(photo, e)"
-                                 @ondblclick="() => OpenLightboxAsync(photo)">
+                                 @onclick="e => HandlePhotoClick(photo, e)">
                                 <div class="photo-card-img">
-                                    <img src="@GetThumbnailUrl(photo.Id, "grid")" alt="@photo.FileName"
-                                         loading="lazy" @onerror="HandleImageError" />
+                                    <img src="@GetThumbnailUrl(photo.Id, "grid")" alt="@photo.FileName" loading="lazy"
+                                         @onerror="HandleImageError" />
                                     @if (photo.IsFavorite)
                                     {
                                         <span class="favorite-badge">★</span>
@@ -282,7 +280,7 @@
                                 <div class="photos-grid compact">
                                     @foreach (var photo in group.Value)
                                     {
-                                        <div class="photo-card" @ondblclick="() => OpenLightboxAsync(photo)">
+                                        <div class="photo-card" @onclick="() => OpenLightboxAsync(photo)">
                                             <div class="photo-card-img">
                                                 <img src="@GetThumbnailUrl(photo.Id, "grid")" alt="@photo.FileName" loading="lazy" />
                                             </div>
@@ -316,372 +314,406 @@
                                     @foreach (var cluster in _geoClusters)
                                     {
                                         <div class="geo-cluster-item">
-                                            <span class="geo-coords">@cluster.Latitude.ToString("F4")°, @cluster.Longitude.ToString("F4")°</span>
-                                            <span class="geo-count">@cluster.PhotoCount photos</span>
-                                        </div>
-                                    }
+                                            <span class="geo-coords">@cluster.Latitude.ToString("F4")°,
+                                                @cluster.Longitude.ToString("F4")°</span>
+                                                <span class="geo-count">@cluster.PhotoCount photos</span>
+                                            </div>
+                                        }
+                                    </div>
                                 </div>
-                            </div>
-                        }
+                            }
+                        </div>
                     </div>
-                </div>
-            }
+                }
 
-            @* ─── Library Settings ─── *@
-            @if (_section == Section.Settings)
-            {
-                <div class="module-settings-section">
-                    <div class="settings-card">
-                        <h4>Photos Library</h4>
-                        <p class="hint">Select one or more Files folders for your photos library. Owned folders and
-                            admin shared folders mounted under _DotNetCloud are both supported, and overlapping folders are deduplicated during scans.</p>
-                        <div class="form-group">
-                            <label>Selected Sources</label>
-                            <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
-                                @if (_librarySources.Count == 0)
+                @* ─── Library Settings ─── *@
+                @if (_section == Section.Settings)
+                {
+                    <div class="module-settings-section">
+                        <div class="settings-card">
+                            <h4>Photos Library</h4>
+                            <p class="hint">Select one or more Files folders for your photos library. Owned folders and
+                                admin shared folders mounted under _DotNetCloud are both supported, and overlapping folders are
+                                deduplicated during scans.</p>
+                                <div class="form-group">
+                                    <label>Selected Sources</label>
+                                    <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
+                                        @if (_librarySources.Count == 0)
+                                        {
+                                            <div class="hint"
+                                                 style="padding: 12px; border: 1px dashed rgba(255,255,255,0.16); border-radius: 12px;">
+                                                No sources selected yet. Add folders from your library or from _DotNetCloud shared mounts.
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            @foreach (var source in _librarySources)
+                                            {
+                                                <div
+                                                    style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; background: rgba(255,255,255,0.03);">
+                                                    <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+                                                        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                                            <span class="tag-chip">@GetLibrarySourceKindLabel(source)</span>
+                                                            <strong>@source.DisplayName</strong>
+                                                        </div>
+                                                        <span class="hint" style="word-break: break-word;">@source.DisplayPath</span>
+                                                    </div>
+                                                    <button class="btn btn-outline btn-sm"
+                                                            @onclick="() => RemoveLibrarySource(source)">Remove</button>
+                                                </div>
+                                            }
+                                        }
+                                    </div>
+                                </div>
+                                <div class="settings-actions">
+                                    <button class="btn btn-outline btn-sm" @onclick="OpenDirectoryBrowser">Add Source…</button>
+                                    <button class="btn btn-primary btn-sm" @onclick="SaveLibraryPathAsync" disabled="@_settingsSaving">
+                                        @(_settingsSaving ? "Saving..." : "Save Sources")
+                                    </button>
+                                    <button class="btn btn-outline btn-sm" @onclick="ScanLibraryAsync"
+                                            disabled="@(_settingsScanning || _librarySources.Count == 0)">
+                                        @(_settingsScanning ? "Scanning..." : "Scan Now")
+                                    </button>
+                                </div>
+                                @if (_scanResult is not null)
                                 {
-                                    <div class="hint" style="padding: 12px; border: 1px dashed rgba(255,255,255,0.16); border-radius: 12px;">
-                                        No sources selected yet. Add folders from your library or from _DotNetCloud shared mounts.
+                                    <div class="scan-result-banner">
+                                        Found @_scanResult.TotalFound · Imported @_scanResult.Imported · Skipped @_scanResult.Skipped
+                                        @if (_scanResult.Removed > 0)
+                                        {
+                                            <span> · Removed @_scanResult.Removed</span>
+                                        }
+                                        @if (_scanResult.Failed > 0)
+                                        {
+                                            <span class="text-danger"> · Failed @_scanResult.Failed</span>
+                                        }
                                     </div>
                                 }
-                                else
+                                @if (!string.IsNullOrWhiteSpace(_settingsError))
                                 {
-                                    @foreach (var source in _librarySources)
-                                    {
-                                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; background: rgba(255,255,255,0.03);">
-                                            <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
-                                                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                                                    <span class="tag-chip">@GetLibrarySourceKindLabel(source)</span>
-                                                    <strong>@source.DisplayName</strong>
-                                                </div>
-                                                <span class="hint" style="word-break: break-word;">@source.DisplayPath</span>
-                                            </div>
-                                            <button class="btn btn-outline btn-sm" @onclick="() => RemoveLibrarySource(source)">Remove</button>
-                                        </div>
-                                    }
+                                    <div class="alert alert-danger" style="margin-top: 12px; font-size: 13px;">@_settingsError</div>
                                 }
-                            </div>
-                        </div>
-                        <div class="settings-actions">
-                            <button class="btn btn-outline btn-sm" @onclick="OpenDirectoryBrowser">Add Source…</button>
-                            <button class="btn btn-primary btn-sm" @onclick="SaveLibraryPathAsync"
-                                    disabled="@_settingsSaving">
-                                @(_settingsSaving ? "Saving..." : "Save Sources")
-                            </button>
-                            <button class="btn btn-outline btn-sm" @onclick="ScanLibraryAsync"
-                                    disabled="@(_settingsScanning || _librarySources.Count == 0)">
-                                @(_settingsScanning ? "Scanning..." : "Scan Now")
-                            </button>
-                        </div>
-                        @if (_scanResult is not null)
-                        {
-                            <div class="scan-result-banner">
-                                Found @_scanResult.TotalFound · Imported @_scanResult.Imported · Skipped @_scanResult.Skipped
-                                @if (_scanResult.Removed > 0)
+                                @if (!string.IsNullOrWhiteSpace(_settingsSuccess))
                                 {
-                                    <span> · Removed @_scanResult.Removed</span>
+                                    <div class="alert alert-success" style="margin-top: 12px; font-size: 13px;">@_settingsSuccess</div>
                                 }
-                                @if (_scanResult.Failed > 0)
-                                {
-                                    <span class="text-danger"> · Failed @_scanResult.Failed</span>
-                                }
-                            </div>
-                        }
-                        @if (!string.IsNullOrWhiteSpace(_settingsError))
-                        {
-                            <div class="alert alert-danger" style="margin-top: 12px; font-size: 13px;">@_settingsError</div>
-                        }
-                        @if (!string.IsNullOrWhiteSpace(_settingsSuccess))
-                        {
-                            <div class="alert alert-success" style="margin-top: 12px; font-size: 13px;">@_settingsSuccess</div>
-                        }
 
-                        <div class="settings-danger-zone" style="margin-top: 24px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.08);">
-                            <h5 style="color: var(--color-danger, #e55); margin-bottom: 8px;">Reset Collection</h5>
-                            <p class="hint" style="margin-bottom: 8px;">Deletes all indexed photo metadata (photos, albums, metadata, tags, shares, edit records).
-                                Your actual image files are NOT affected. After resetting, click Scan Now to rebuild from scratch.</p>
-                            <button class="btn btn-outline btn-sm" style="border-color: var(--color-danger, #e55); color: var(--color-danger, #e55);"
-                                    @onclick="() => _showResetConfirm = true">
-                                Reset Collection
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            }
-
-            @* ── Reset Collection Confirmation Modal ── *@
-            @if (_showResetConfirm)
-            {
-                <DncModal Title="Reset Photo Collection" StartVisible OnClose="() => _showResetConfirm = false">
-                    <ChildContent>
-                        <p>Are you sure you want to <strong>reset</strong> the photo collection?</p>
-                        <p class="tracks-modal-warning">⚠️ This deletes all indexed photo metadata (photos, albums, metadata, tags, shares, edit records). Your actual image files are NOT affected.</p>
-                    </ChildContent>
-                    <Footer>
-                        <button class="btn btn-danger" @onclick="ResetCollectionAsync" disabled="@_settingsResetting">
-                            @(_settingsResetting ? "Resetting..." : "Yes, Reset")
-                        </button>
-                        <button class="btn btn-secondary" @onclick="() => _showResetConfirm = false">Cancel</button>
-                    </Footer>
-                </DncModal>
-            }
-
-            @* ─── Directory Browser Dialog ─── *@
-            @if (_showDirBrowser)
-            {
-                <div class="folder-picker-overlay" @onclick="HideDirectoryBrowser">
-                    <div class="folder-picker-dialog" @onclick:stopPropagation>
-                        <div class="folder-picker-header">
-                            <h3>Select Folder</h3>
-                            <button class="btn-icon" @onclick="HideDirectoryBrowser" title="Close">✕</button>
-                        </div>
-
-                        <nav class="folder-picker-breadcrumbs">
-                            <button class="btn btn-sm" @onclick="DirBrowserNavigateToRoot">
-                                Home
-                            </button>
-                            @for (int i = 0; i < _dirBrowserBreadcrumbs.Count; i++)
-                            {
-                                var idx = i;
-                                <span class="separator">/</span>
-                                <button class="btn btn-sm" @onclick="() => DirBrowserNavigateToCrumb(idx)">@_dirBrowserBreadcrumbs[idx].Name</button>
-                            }
-                        </nav>
-
-                        <div class="folder-picker-current-path">
-                            <span class="path-label">Path:</span> @GetDirBrowserPath()
-                        </div>
-
-                        <div class="folder-picker-list">
-                            @if (_dirBrowserBreadcrumbs.Count > 0)
-                            {
-                                <button class="folder-picker-item" @onclick="DirBrowserGoUp">
-                                    📁 ..
-                                </button>
-                            }
-                            @if (!string.IsNullOrEmpty(_dirBrowserError))
-                            {
-                                <p class="text-muted folder-picker-empty">@_dirBrowserError</p>
-                            }
-                            else if (_dirBrowserFolders.Count == 0)
-                            {
-                                <p class="text-muted folder-picker-empty">No subfolders</p>
-                            }
-                            else
-                            {
-                                @foreach (var folder in _dirBrowserFolders)
-                                {
-                                    <button class="folder-picker-item" @onclick="() => DirBrowserNavigate(folder.Id, folder.Name)">
-                                        📁 @folder.Name
-                                    </button>
-                                }
-                            }
-                        </div>
-
-                        <div class="folder-picker-actions">
-                            <button class="btn btn-primary btn-sm" @onclick="ConfirmDirectoryBrowserAsync">
-                                Add this folder
-                            </button>
-                            <button class="btn btn-sm" @onclick="HideDirectoryBrowser">Cancel</button>
-                        </div>
-                    </div>
-                </div>
-            }
-        }
-
-        @* ─── Lightbox Overlay ─── *@
-        @if (_lightboxPhoto is not null)
-        {
-            <div class="lightbox-overlay" @onclick="CloseLightbox" @onkeydown="HandleLightboxKeyDown" tabindex="0">
-                <div class="lightbox-content" @onclick:stopPropagation="true">
-                    <div class="lightbox-header">
-                        <h4>@_lightboxPhoto.FileName</h4>
-                        <div class="lightbox-actions">
-                            <button class="lb-btn" @onclick="() => ToggleFavoriteAsync(_lightboxPhoto)" title="Favorite">
-                                @(_lightboxPhoto.IsFavorite ? "★" : "☆")
-                            </button>
-                            <button class="lb-btn" @onclick="() => _showEditPanel = !_showEditPanel" title="Edit">✎</button>
-                            <button class="lb-btn" @onclick="() => _showInfoPanel = !_showInfoPanel" title="Info">ⓘ</button>
-                            <button class="lb-btn" @onclick="() => BeginSlideshow()" title="Slideshow">▶</button>
-                            <button class="lb-btn" @onclick="() => BeginShare(_lightboxPhoto)" title="Share">↗</button>
-                            <button class="lb-btn danger" @onclick="() => DeletePhotoAsync(_lightboxPhoto)" title="Delete">🗑</button>
-                            <button class="lb-btn close" @onclick="CloseLightbox" title="Close">✕</button>
-                        </div>
-                    </div>
-
-                    <div class="lightbox-body">
-                        <button class="lb-nav lb-prev" @onclick="LightboxPrevAsync" disabled="@(!CanLightboxPrev)">‹</button>
-                        <div class="lightbox-image-wrap">
-                            <img src="@GetThumbnailUrl(_lightboxPhoto.Id, "detail")" alt="@_lightboxPhoto.FileName"
-                                 style="@GetEditImageStyle()" />
-                        </div>
-                        <button class="lb-nav lb-next" @onclick="LightboxNextAsync" disabled="@(!CanLightboxNext)">›</button>
-
-                        @* Info Panel *@
-                        @if (_showInfoPanel)
-                        {
-                            <aside class="lightbox-info-panel">
-                                <h5>Details</h5>
-                                <dl>
-                                    <dt>File</dt><dd>@_lightboxPhoto.FileName</dd>
-                                    <dt>Size</dt><dd>@FormatSize(_lightboxPhoto.SizeBytes)</dd>
-                                    <dt>Dimensions</dt><dd>@(_lightboxPhoto.Width)×@(_lightboxPhoto.Height)</dd>
-                                    <dt>Taken</dt><dd>@FormatDate(_lightboxPhoto.TakenAt)</dd>
-                                    @if (_lightboxPhoto.Metadata is not null)
-                                    {
-                                        @if (!string.IsNullOrEmpty(_lightboxPhoto.Metadata.CameraMake))
-                                        {
-                                            <dt>Camera</dt><dd>@_lightboxPhoto.Metadata.CameraMake @_lightboxPhoto.Metadata.CameraModel</dd>
-                                        }
-                                        @if (!string.IsNullOrEmpty(_lightboxPhoto.Metadata.LensModel))
-                                        {
-                                            <dt>Lens</dt><dd>@_lightboxPhoto.Metadata.LensModel</dd>
-                                        }
-                                        @if (_lightboxPhoto.Metadata.FocalLengthMm.HasValue)
-                                        {
-                                            <dt>Focal</dt><dd>@(_lightboxPhoto.Metadata.FocalLengthMm)mm</dd>
-                                        }
-                                        @if (_lightboxPhoto.Metadata.Aperture.HasValue)
-                                        {
-                                            <dt>Aperture</dt><dd>f/@_lightboxPhoto.Metadata.Aperture</dd>
-                                        }
-                                        @if (!string.IsNullOrEmpty(_lightboxPhoto.Metadata.ShutterSpeed))
-                                        {
-                                            <dt>Shutter</dt><dd>@_lightboxPhoto.Metadata.ShutterSpeed</dd>
-                                        }
-                                        @if (_lightboxPhoto.Metadata.Iso.HasValue)
-                                        {
-                                            <dt>ISO</dt><dd>@_lightboxPhoto.Metadata.Iso</dd>
-                                        }
-                                        @if (_lightboxPhoto.Metadata.Location is not null)
-                                        {
-                                            <dt>Location</dt>
-                                            <dd>@_lightboxPhoto.Metadata.Location.Latitude.ToString("F4")°, @_lightboxPhoto.Metadata.Location.Longitude.ToString("F4")°</dd>
-                                        }
-                                    }
-                                </dl>
-                            </aside>
-                        }
-
-                        @* Edit Panel *@
-                        @if (_showEditPanel)
-                        {
-                            <aside class="lightbox-edit-panel">
-                                <h5>Edit</h5>
-                                <div class="edit-controls">
-                                    <button class="edit-btn" @onclick="() => ApplyEditAsync(PhotoEditType.Rotate, 90)">↻ Rotate 90°</button>
-                                    <button class="edit-btn" @onclick="() => ApplyEditAsync(PhotoEditType.Rotate, 180)">↻ Rotate 180°</button>
-                                    <button class="edit-btn" @onclick="() => ApplyEditAsync(PhotoEditType.Rotate, 270)">↻ Rotate 270°</button>
-                                    <button class="edit-btn" @onclick="() => ApplyEditAsync(PhotoEditType.Flip, 0)">↔ Flip H</button>
-                                    <button class="edit-btn" @onclick="() => ApplyEditAsync(PhotoEditType.Flip, 1)">↕ Flip V</button>
-                                    <div class="edit-separator"></div>
-                                    <label class="edit-slider-label">Brightness
-                                        <input type="range" min="-100" max="100" value="@_editState.Brightness"
-                                               @onchange="@(e => ApplyEditAsync(PhotoEditType.Brightness, int.Parse(e.Value?.ToString() ?? "0")))" />
-                                    </label>
-                                    <label class="edit-slider-label">Contrast
-                                        <input type="range" min="-100" max="100" value="@_editState.Contrast"
-                                               @onchange="@(e => ApplyEditAsync(PhotoEditType.Contrast, int.Parse(e.Value?.ToString() ?? "0")))" />
-                                    </label>
-                                    <label class="edit-slider-label">Saturation
-                                        <input type="range" min="-100" max="100" value="@_editState.Saturation"
-                                               @onchange="@(e => ApplyEditAsync(PhotoEditType.Saturation, int.Parse(e.Value?.ToString() ?? "0")))" />
-                                    </label>
-                                    <div class="edit-separator"></div>
-                                    <button class="edit-btn" @onclick="() => ApplyEditAsync(PhotoEditType.Sharpen, 50)">Sharpen</button>
-                                    <button class="edit-btn" @onclick="() => ApplyEditAsync(PhotoEditType.Blur, 5)">Blur</button>
-                                    <div class="edit-separator"></div>
-                                    <button class="edit-btn undo" @onclick="UndoEditAsync">↩ Undo</button>
-                                    <button class="edit-btn danger" @onclick="RevertAllEditsAsync">⟲ Revert All</button>
-                                    <div class="edit-separator"></div>
-                                    <button class="edit-btn save" @onclick="SaveEditsToThumbnailsAsync" disabled="@_editSaving">
-                                        @(_editSaving ? "Saving…" : "💾 Save Edits")
-                                    </button>
-                                    @if (_editSaveMessage is not null)
-                                    {
-                                        <div class="edit-save-msg @(_editSaveSuccess ? "success" : "error")">@_editSaveMessage</div>
-                                    }
+                                <div class="settings-danger-zone"
+                                     style="margin-top: 24px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.08);">
+                                    <h5 style="color: var(--color-danger, #e55); margin-bottom: 8px;">Reset Collection</h5>
+                                    <p class="hint" style="margin-bottom: 8px;">Deletes all indexed photo metadata (photos, albums,
+                                        metadata, tags, shares, edit records).
+                                        Your actual image files are NOT affected. After resetting, click Scan Now to rebuild from
+                                        scratch.</p>
+                                        <button class="btn btn-outline btn-sm"
+                                                style="border-color: var(--color-danger, #e55); color: var(--color-danger, #e55);"
+                                                @onclick="() => _showResetConfirm = true">
+                                            Reset Collection
+                                        </button>
+                                    </div>
                                 </div>
-                            </aside>
+                            </div>
                         }
-                    </div>
-                </div>
-            </div>
-        }
 
-        @* ─── Slideshow Overlay ─── *@
-        @if (_slideshowActive && _slideshowPhotos.Count > 0)
-        {
-            <div class="slideshow-overlay" @onclick="StopSlideshow" @onkeydown="HandleSlideshowKeyDown" tabindex="0">
-                <div class="slideshow-content" @onclick:stopPropagation="true">
-                    <img src="@GetThumbnailUrl(_slideshowPhotos[_slideshowIndex].Id, "detail")"
-                         alt="@_slideshowPhotos[_slideshowIndex].FileName"
-                         class="slideshow-image @(_slideshowTransitioning ? "transitioning" : "")" />
-                    <div class="slideshow-controls">
-                        <button @onclick="SlideshowPrev" disabled="@(_slideshowIndex == 0)">‹</button>
-                        <button @onclick="ToggleSlideshowPause">@(_slideshowPaused ? "▶" : "⏸")</button>
-                        <span class="slideshow-counter">@(_slideshowIndex + 1) / @_slideshowPhotos.Count</span>
-                        <button @onclick="SlideshowNext" disabled="@(_slideshowIndex >= _slideshowPhotos.Count - 1)">›</button>
-                        <button @onclick="StopSlideshow" class="slideshow-close">✕</button>
-                    </div>
-                </div>
-            </div>
-        }
+                        @* ── Reset Collection Confirmation Modal ── *@
+                        @if (_showResetConfirm)
+                        {
+                            <DncModal Title="Reset Photo Collection" StartVisible OnClose="() => _showResetConfirm = false">
+                                <ChildContent>
+                                    <p>Are you sure you want to <strong>reset</strong> the photo collection?</p>
+                                    <p class="tracks-modal-warning">⚠️ This deletes all indexed photo metadata (photos, albums, metadata,
+                                        tags, shares, edit records). Your actual image files are NOT affected.</p>
+                                    </ChildContent>
+                                    <Footer>
+                                        <button class="btn btn-danger" @onclick="ResetCollectionAsync" disabled="@_settingsResetting">
+                                            @(_settingsResetting ? "Resetting..." : "Yes, Reset")
+                                        </button>
+                                        <button class="btn btn-secondary" @onclick="() => _showResetConfirm = false">Cancel</button>
+                                    </Footer>
+                                </DncModal>
+                            }
 
-        @* ─── Album Create/Edit Dialog ─── *@
-        @if (_showAlbumDialog)
-        {
-            <div class="dialog-overlay" @onclick="() => _showAlbumDialog = false">
-                <div class="dialog-panel" @onclick:stopPropagation="true">
-                    <div class="dialog-header">
-                        <h4>@(_editingAlbumId.HasValue ? "Edit Album" : "Create Album")</h4>
-                        <button class="btn-icon" @onclick="() => _showAlbumDialog = false" aria-label="Close" title="Close">X</button>
-                    </div>
-                    <div class="dialog-form">
-                        <label>Title
-                            <input type="text" @bind="_albumTitle" placeholder="Album title" />
-                        </label>
-                        <label>Description
-                            <textarea @bind="_albumDescription" placeholder="Optional description" rows="3"></textarea>
-                        </label>
-                    </div>
-                    <div class="dialog-actions">
-                        <button class="btn-primary" @onclick="SaveAlbumAsync">
-                            @(_editingAlbumId.HasValue ? "Save" : "Create")
-                        </button>
-                        <button class="btn-cancel" @onclick="() => _showAlbumDialog = false">Cancel</button>
-                    </div>
-                </div>
-            </div>
-        }
+                            @* ─── Directory Browser Dialog ─── *@
+                            @if (_showDirBrowser)
+                            {
+                                <div class="folder-picker-overlay" @onclick="HideDirectoryBrowser">
+                                    <div class="folder-picker-dialog" @onclick:stopPropagation>
+                                        <div class="folder-picker-header">
+                                            <h3>Select Folder</h3>
+                                            <button class="btn-icon" @onclick="HideDirectoryBrowser" title="Close">✕</button>
+                                        </div>
 
-        @* ─── Share Dialog ─── *@
-        @if (_showShareDialog && _shareTargetPhotoId.HasValue)
-        {
-            <div class="dialog-overlay" @onclick="() => _showShareDialog = false">
-                <div class="dialog-panel" @onclick:stopPropagation="true">
-                    <div class="dialog-header">
-                        <h4>Share Photo</h4>
-                        <button class="btn-icon" @onclick="() => _showShareDialog = false" aria-label="Close" title="Close">X</button>
-                    </div>
-                    <div class="dialog-form">
-                        <label>Share with (User ID)
-                            <input type="text" @bind="_shareUserId" placeholder="User ID" />
-                        </label>
-                        <label>Permission
-                            <select @bind="_sharePermission">
-                                <option value="@PhotoSharePermission.ReadOnly">View only</option>
-                                <option value="@PhotoSharePermission.Download">Download</option>
-                                <option value="@PhotoSharePermission.Contribute">Contribute</option>
-                            </select>
-                        </label>
-                    </div>
-                    <div class="dialog-actions">
-                        <button class="btn-primary" @onclick="SaveShareAsync">Share</button>
-                        <button class="btn-cancel" @onclick="() => _showShareDialog = false">Cancel</button>
-                    </div>
-                </div>
-            </div>
-        }
-    </main>
-</div>
+                                        <nav class="folder-picker-breadcrumbs">
+                                            <button class="btn btn-sm" @onclick="DirBrowserNavigateToRoot">
+                                                Home
+                                            </button>
+                                            @for (int i = 0; i < _dirBrowserBreadcrumbs.Count; i++)
+                                            {
+                                                var idx = i;
+                                                <span class="separator">/</span>
+                                                <button class="btn btn-sm"
+                                                        @onclick="() => DirBrowserNavigateToCrumb(idx)">@_dirBrowserBreadcrumbs[idx].Name</button>
+                                            }
+                                        </nav>
+
+                                        <div class="folder-picker-current-path">
+                                            <span class="path-label">Path:</span> @GetDirBrowserPath()
+                                        </div>
+
+                                        <div class="folder-picker-list">
+                                            @if (_dirBrowserBreadcrumbs.Count > 0)
+                                            {
+                                                <button class="folder-picker-item" @onclick="DirBrowserGoUp">
+                                                    📁 ..
+                                                </button>
+                                            }
+                                            @if (!string.IsNullOrEmpty(_dirBrowserError))
+                                            {
+                                                <p class="text-muted folder-picker-empty">@_dirBrowserError</p>
+                                            }
+                                            else if (_dirBrowserFolders.Count == 0)
+                                            {
+                                                <p class="text-muted folder-picker-empty">No subfolders</p>
+                                            }
+                                            else
+                                            {
+                                                @foreach (var folder in _dirBrowserFolders)
+                                                {
+                                                    <button class="folder-picker-item" @onclick="() => DirBrowserNavigate(folder.Id, folder.Name)">
+                                                        📁 @folder.Name
+                                                    </button>
+                                                }
+                                            }
+                                        </div>
+
+                                        <div class="folder-picker-actions">
+                                            <button class="btn btn-primary btn-sm" @onclick="ConfirmDirectoryBrowserAsync">
+                                                Add this folder
+                                            </button>
+                                            <button class="btn btn-sm" @onclick="HideDirectoryBrowser">Cancel</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        }
+
+                        @* ─── Lightbox Overlay ─── *@
+                        @if (_lightboxPhoto is not null)
+                        {
+                            <div class="lightbox-overlay" @onclick="CloseLightbox" @onkeydown="HandleLightboxKeyDown" tabindex="0">
+                                <div class="lightbox-content" @onclick:stopPropagation="true">
+                                    <div class="lightbox-header">
+                                        <h4>@_lightboxPhoto.FileName</h4>
+                                        <div class="lightbox-actions">
+                                            <button class="lb-btn" @onclick="() => ToggleFavoriteAsync(_lightboxPhoto)" title="Favorite">
+                                                @(_lightboxPhoto.IsFavorite ? "★" : "☆")
+                                            </button>
+                                            <button class="lb-btn" @onclick="() => _showEditPanel = !_showEditPanel" title="Edit">✎</button>
+                                            <button class="lb-btn" @onclick="() => _showInfoPanel = !_showInfoPanel" title="Info">ⓘ</button>
+                                            <button class="lb-btn" @onclick="() => BeginSlideshow()" title="Slideshow">▶</button>
+                                            <button class="lb-btn" @onclick="() => BeginShare(_lightboxPhoto)" title="Share">↗</button>
+                                            <button class="lb-btn danger" @onclick="() => DeletePhotoAsync(_lightboxPhoto)"
+                                                    title="Delete">🗑</button>
+                                            <button class="lb-btn close" @onclick="CloseLightbox" title="Close">✕</button>
+                                        </div>
+                                    </div>
+
+                                    <div class="lightbox-body">
+                                        <button class="lb-nav lb-prev" @onclick="LightboxPrevAsync"
+                                                disabled="@(!CanLightboxPrev)">‹</button>
+                                        <div class="lightbox-image-wrap">
+                                            <img src="@GetPhotoDownloadUrl(_lightboxPhoto.Id)" alt="@_lightboxPhoto.FileName"
+                                                 style="@GetEditImageStyle()" />
+                                        </div>
+                                        <button class="lb-nav lb-next" @onclick="LightboxNextAsync"
+                                                disabled="@(!CanLightboxNext)">›</button>
+
+                                        @* Info Panel *@
+                                        @if (_showInfoPanel)
+                                        {
+                                            <aside class="lightbox-info-panel">
+                                                <h5>Details</h5>
+                                                <dl>
+                                                    <dt>File</dt>
+                                                    <dd>@_lightboxPhoto.FileName</dd>
+                                                    <dt>Size</dt>
+                                                    <dd>@FormatSize(_lightboxPhoto.SizeBytes)</dd>
+                                                    <dt>Dimensions</dt>
+                                                    <dd>@(_lightboxPhoto.Width)×@(_lightboxPhoto.Height)</dd>
+                                                    <dt>Taken</dt>
+                                                    <dd>@FormatDate(_lightboxPhoto.TakenAt)</dd>
+                                                    @if (_lightboxPhoto.Metadata is not null)
+                                                    {
+                                                        @if (!string.IsNullOrEmpty(_lightboxPhoto.Metadata.CameraMake))
+                                                        {
+                                                            <dt>Camera</dt>
+                                                            <dd>@_lightboxPhoto.Metadata.CameraMake @_lightboxPhoto.Metadata.CameraModel</dd>
+                                                        }
+                                                        @if (!string.IsNullOrEmpty(_lightboxPhoto.Metadata.LensModel))
+                                                        {
+                                                            <dt>Lens</dt>
+                                                            <dd>@_lightboxPhoto.Metadata.LensModel</dd>
+                                                        }
+                                                        @if (_lightboxPhoto.Metadata.FocalLengthMm.HasValue)
+                                                        {
+                                                            <dt>Focal</dt>
+                                                            <dd>@(_lightboxPhoto.Metadata.FocalLengthMm)mm</dd>
+                                                        }
+                                                        @if (_lightboxPhoto.Metadata.Aperture.HasValue)
+                                                        {
+                                                            <dt>Aperture</dt>
+                                                            <dd>f/@_lightboxPhoto.Metadata.Aperture</dd>
+                                                        }
+                                                        @if (!string.IsNullOrEmpty(_lightboxPhoto.Metadata.ShutterSpeed))
+                                                        {
+                                                            <dt>Shutter</dt>
+                                                            <dd>@_lightboxPhoto.Metadata.ShutterSpeed</dd>
+                                                        }
+                                                        @if (_lightboxPhoto.Metadata.Iso.HasValue)
+                                                        {
+                                                            <dt>ISO</dt>
+                                                            <dd>@_lightboxPhoto.Metadata.Iso</dd>
+                                                        }
+                                                        @if (_lightboxPhoto.Metadata.Location is not null)
+                                                        {
+                                                            <dt>Location</dt>
+                                                            <dd>@_lightboxPhoto.Metadata.Location.Latitude.ToString("F4")°,
+                                                                @_lightboxPhoto.Metadata.Location.Longitude.ToString("F4")°</dd>
+                                                            }
+                                                        }
+                                                    </dl>
+                                                </aside>
+                                            }
+
+                                            @* Edit Panel *@
+                                            @if (_showEditPanel)
+                                            {
+                                                <aside class="lightbox-edit-panel">
+                                                    <h5>Edit</h5>
+                                                    <div class="edit-controls">
+                                                        <button class="edit-btn" @onclick="() => ApplyEditAsync(PhotoEditType.Rotate, 90)">↻ Rotate
+                                                            90°</button>
+                                                            <button class="edit-btn" @onclick="() => ApplyEditAsync(PhotoEditType.Rotate, 180)">↻ Rotate
+                                                                180°</button>
+                                                                <button class="edit-btn" @onclick="() => ApplyEditAsync(PhotoEditType.Rotate, 270)">↻ Rotate
+                                                                    270°</button>
+                                                                    <button class="edit-btn" @onclick="() => ApplyEditAsync(PhotoEditType.Flip, 0)">↔ Flip
+                                                                        H</button>
+                                                                        <button class="edit-btn" @onclick="() => ApplyEditAsync(PhotoEditType.Flip, 1)">↕ Flip
+                                                                            V</button>
+                                                                            <div class="edit-separator"></div>
+                                                                            <label class="edit-slider-label">Brightness
+                                                                                <input type="range" min="-100" max="100" value="@_editState.Brightness"
+                                                                                       @onchange="@(e => ApplyEditAsync(PhotoEditType.Brightness, int.Parse(e.Value?.ToString() ?? "0")))" />
+                                                                            </label>
+                                                                            <label class="edit-slider-label">Contrast
+                                                                                <input type="range" min="-100" max="100" value="@_editState.Contrast"
+                                                                                       @onchange="@(e => ApplyEditAsync(PhotoEditType.Contrast, int.Parse(e.Value?.ToString() ?? "0")))" />
+                                                                            </label>
+                                                                            <label class="edit-slider-label">Saturation
+                                                                                <input type="range" min="-100" max="100" value="@_editState.Saturation"
+                                                                                       @onchange="@(e => ApplyEditAsync(PhotoEditType.Saturation, int.Parse(e.Value?.ToString() ?? "0")))" />
+                                                                            </label>
+                                                                            <div class="edit-separator"></div>
+                                                                            <button class="edit-btn"
+                                                                                    @onclick="() => ApplyEditAsync(PhotoEditType.Sharpen, 50)">Sharpen</button>
+                                                                            <button class="edit-btn"
+                                                                                    @onclick="() => ApplyEditAsync(PhotoEditType.Blur, 5)">Blur</button>
+                                                                            <div class="edit-separator"></div>
+                                                                            <button class="edit-btn undo" @onclick="UndoEditAsync">↩ Undo</button>
+                                                                            <button class="edit-btn danger" @onclick="RevertAllEditsAsync">⟲ Revert All</button>
+                                                                            <div class="edit-separator"></div>
+                                                                            <button class="edit-btn save" @onclick="SaveEditsToThumbnailsAsync" disabled="@_editSaving">
+                                                                                @(_editSaving ? "Saving…" : "💾 Save Edits")
+                                                                            </button>
+                                                                            @if (_editSaveMessage is not null)
+                                                                            {
+                                                                                <div class="edit-save-msg @(_editSaveSuccess ? "success" : "error")">@_editSaveMessage</div>
+                                                                            }
+                                                                        </div>
+                                                                    </aside>
+                                                                }
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                }
+
+                                                @* ─── Slideshow Overlay ─── *@
+                                                @if (_slideshowActive && _slideshowPhotos.Count > 0)
+                                                {
+                                                    <div class="slideshow-overlay" @onclick="StopSlideshow" @onkeydown="HandleSlideshowKeyDown" tabindex="0">
+                                                        <div class="slideshow-content" @onclick:stopPropagation="true">
+                                                            <img src="@GetPhotoDownloadUrl(_slideshowPhotos[_slideshowIndex].Id)"
+                                                                 alt="@_slideshowPhotos[_slideshowIndex].FileName"
+                                                                 class="slideshow-image @(_slideshowTransitioning ? "transitioning" : "")" />
+                                                            <div class="slideshow-controls">
+                                                                <button @onclick="SlideshowPrev" disabled="@(_slideshowIndex == 0)">‹</button>
+                                                                <button @onclick="ToggleSlideshowPause">@(_slideshowPaused ? "▶" : "⏸")</button>
+                                                                <span class="slideshow-counter">@(_slideshowIndex + 1) / @_slideshowPhotos.Count</span>
+                                                                <button @onclick="SlideshowNext"
+                                                                        disabled="@(_slideshowIndex >= _slideshowPhotos.Count - 1)">›</button>
+                                                                <button @onclick="StopSlideshow" class="slideshow-close">✕</button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                }
+
+                                                @* ─── Album Create/Edit Dialog ─── *@
+                                                @if (_showAlbumDialog)
+                                                {
+                                                    <div class="dialog-overlay" @onclick="() => _showAlbumDialog = false">
+                                                        <div class="dialog-panel" @onclick:stopPropagation="true">
+                                                            <div class="dialog-header">
+                                                                <h4>@(_editingAlbumId.HasValue ? "Edit Album" : "Create Album")</h4>
+                                                                <button class="btn-icon" @onclick="() => _showAlbumDialog = false" aria-label="Close"
+                                                                        title="Close">X</button>
+                                                            </div>
+                                                            <div class="dialog-form">
+                                                                <label>Title
+                                                                    <input type="text" @bind="_albumTitle" placeholder="Album title" />
+                                                                </label>
+                                                                <label>Description
+                                                                    <textarea @bind="_albumDescription" placeholder="Optional description" rows="3"></textarea>
+                                                                </label>
+                                                            </div>
+                                                            <div class="dialog-actions">
+                                                                <button class="btn-primary" @onclick="SaveAlbumAsync">
+                                                                    @(_editingAlbumId.HasValue ? "Save" : "Create")
+                                                                </button>
+                                                                <button class="btn-cancel" @onclick="() => _showAlbumDialog = false">Cancel</button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                }
+
+                                                @* ─── Share Dialog ─── *@
+                                                @if (_showShareDialog && _shareTargetPhotoId.HasValue)
+                                                {
+                                                    <div class="dialog-overlay" @onclick="() => _showShareDialog = false">
+                                                        <div class="dialog-panel" @onclick:stopPropagation="true">
+                                                            <div class="dialog-header">
+                                                                <h4>Share Photo</h4>
+                                                                <button class="btn-icon" @onclick="() => _showShareDialog = false" aria-label="Close"
+                                                                        title="Close">X</button>
+                                                            </div>
+                                                            <div class="dialog-form">
+                                                                <label>Share with (User ID)
+                                                                    <input type="text" @bind="_shareUserId" placeholder="User ID" />
+                                                                </label>
+                                                                <label>Permission
+                                                                    <select @bind="_sharePermission">
+                                                                        <option value="@PhotoSharePermission.ReadOnly">View only</option>
+                                                                        <option value="@PhotoSharePermission.Download">Download</option>
+                                                                        <option value="@PhotoSharePermission.Contribute">Contribute</option>
+                                                                    </select>
+                                                                </label>
+                                                            </div>
+                                                            <div class="dialog-actions">
+                                                                <button class="btn-primary" @onclick="SaveShareAsync">Share</button>
+                                                                <button class="btn-cancel" @onclick="() => _showShareDialog = false">Cancel</button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                }
+                                            </main>
+                                        </div>

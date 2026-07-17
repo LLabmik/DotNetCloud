@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.Modules.Photos.Data;
 using DotNetCloud.Modules.Photos.Data.Services;
 using DotNetCloud.Modules.Photos.Host.Controllers;
@@ -17,6 +18,7 @@ public class PhotosControllerSaveEditsTests
 {
     private PhotosDbContext _db = null!;
     private Mock<IPhotoThumbnailService> _thumbnailServiceMock = null!;
+    private Mock<IDownloadService> _downloadServiceMock = null!;
     private PhotosController _controller = null!;
     private Guid _userId;
 
@@ -35,6 +37,7 @@ public class PhotosControllerSaveEditsTests
         var editService = new PhotoEditService(_db, eventBus, NullLogger<PhotoEditService>.Instance);
         var slideshowService = new SlideshowService(_db, NullLogger<SlideshowService>.Instance);
         _thumbnailServiceMock = new Mock<IPhotoThumbnailService>();
+        _downloadServiceMock = new Mock<IDownloadService>();
 
         _controller = new PhotosController(
             photoService,
@@ -45,6 +48,7 @@ public class PhotosControllerSaveEditsTests
             editService,
             slideshowService,
             _thumbnailServiceMock.Object,
+            _downloadServiceMock.Object,
             NullLogger<PhotosController>.Instance);
 
         SetupAuthenticatedUser(_controller, _userId);

@@ -232,17 +232,19 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
 
     // ── Photo Selection & Actions ────────────────────────────
 
-    private void HandlePhotoClick(PhotoDto photo, MouseEventArgs e)
+    private async Task HandlePhotoClick(PhotoDto photo, MouseEventArgs e)
     {
         if (e.CtrlKey || e.MetaKey)
         {
+            // Ctrl/Cmd+Click: toggle multi-selection
             if (!_selectedPhotoIds.Add(photo.Id))
                 _selectedPhotoIds.Remove(photo.Id);
+            StateHasChanged();
         }
         else
         {
-            _selectedPhotoIds.Clear();
-            _selectedPhotoIds.Add(photo.Id);
+            // Single click: open lightbox
+            await OpenLightboxAsync(photo);
         }
     }
 
@@ -617,6 +619,9 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
 
     private string GetThumbnailUrl(Guid photoId, string size)
         => $"/api/v1/photos/{photoId}/thumbnail?size={size}";
+
+    private string GetPhotoDownloadUrl(Guid photoId)
+        => $"/api/v1/photos/{photoId}/download";
 
     private static string FormatDate(DateTime dt)
         => dt.ToString("MMM d, yyyy");

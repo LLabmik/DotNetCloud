@@ -3,6 +3,7 @@ using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Photos.Services;
 using DotNetCloud.Modules.Files.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Processing;
@@ -22,22 +23,24 @@ public sealed class PhotoThumbnailService : IPhotoThumbnailService
     };
 
     private readonly PhotosDbContext _db;
-    private readonly IFileStorageEngine _storageEngine;
-    private readonly IDownloadService _downloadService;
+    private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<PhotoThumbnailService> _logger;
+    private IFileStorageEngine? _storageEngine;
+    private IDownloadService? _downloadService;
 
     /// <summary>
     /// Initializes the photo thumbnail service.
+    /// Files module services (IFileStorageEngine, IDownloadService) are resolved lazily —
+    /// they are only needed for thumbnail generation, not for serving cached thumbnails.
+    /// This avoids a hard DI dependency from the Photos module host on Files module services.
     /// </summary>
     public PhotoThumbnailService(
         PhotosDbContext db,
-        IFileStorageEngine storageEngine,
-        IDownloadService downloadService,
+        IServiceProvider serviceProvider,
         ILogger<PhotoThumbnailService> logger)
     {
         _db = db;
-        _storageEngine = storageEngine;
-        _downloadService = downloadService;
+        _serviceProvider = serviceProvider;
         _logger = logger;
     }
 
@@ -75,16 +78,10 @@ public sealed class PhotoThumbnailService : IPhotoThumbnailService
     /// <inheritdoc />
     public async Task GenerateThumbnailsAsync(
         Guid photoId,
-        string storagePath,
+        string? storagePath,
         string mimeType,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrEmpty(storagePath))
-        {
-            _logger.LogWarning("No storage path provided for photo thumbnail generation: {PhotoId}", photoId);
-            return;
-        }
-
         if (!SupportedMimeTypes.Contains(mimeType))
         {
             _logger.LogDebug("Unsupported MIME type for photo thumbnail: {MimeType}", mimeType);
@@ -93,14 +90,33 @@ public sealed class PhotoThumbnailService : IPhotoThumbnailService
 
         try
         {
+            // Resolve Files module services lazily — they may not be registered in the
+            // Photos module host (process-isolated) DI container.
+            _storageEngine ??= _serviceProvider.GetService<IFileStorageEngine>();
+            _downloadService ??= _serviceProvider.GetService<IDownloadService>();
+
             // Try direct storage path first (fast path for single-chunk files),
             // then fall back to chunk reconstruction via IDownloadService.
-            Stream? sourceStream = await _storageEngine.OpenReadStreamAsync(storagePath, cancellationToken);
+            Stream? sourceStream = null;
             var ownsStream = true;
+
+            if (!string.IsNullOrEmpty(storagePath) && _storageEngine is not null)
+            {
+                sourceStream = await _storageEngine.OpenReadStreamAsync(storagePath, cancellationToken);
+            }
 
             if (sourceStream is null)
             {
-                // Storage path doesn't exist as a single file — reconstruct from chunks.
+                if (_downloadService is null)
+                {
+                    _logger.LogWarning(
+                        "Cannot reconstruct photo {PhotoId}: IDownloadService is not available. " +
+                        "Ensure Files module services are registered in the host DI container.",
+                        photoId);
+                    return;
+                }
+
+                // No storage path, or file not found as a single blob — reconstruct from chunks.
                 var photo = await _db.Photos.IgnoreQueryFilters()
                     .FirstOrDefaultAsync(p => p.Id == photoId, cancellationToken);
 
@@ -236,6 +252,13 @@ public sealed class PhotoThumbnailService : IPhotoThumbnailService
             // 3. Reassemble original file from chunks via IDownloadService
             //    (same pattern as Music module — files are stored as content-addressable
             //    chunks, NOT single blobs, so we must reassemble before processing).
+            _downloadService ??= _serviceProvider.GetService<IDownloadService>();
+            if (_downloadService is null)
+            {
+                _logger.LogWarning("SaveEdits: IDownloadService not available — cannot edit photo {PhotoId}", photoId);
+                return false;
+            }
+
             var caller = new CallerContext(photo.OwnerId, [], CallerType.System);
             using var sourceStream = await _downloadService.DownloadCurrentAsync(
                 photo.FileNodeId, caller, cancellationToken);

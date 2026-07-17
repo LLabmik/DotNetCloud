@@ -1,4 +1,7 @@
+using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Modules.Files.Data;
+using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.Modules.Photos;
 using DotNetCloud.Modules.Photos.Data;
 using DotNetCloud.Modules.Photos.Data.Services;
@@ -90,13 +93,28 @@ var dbProvider = builder.Configuration["databaseProvider"]
 
 if (!string.IsNullOrEmpty(connectionString) && !string.IsNullOrEmpty(dbProvider))
 {
-    builder.Services.AddDbContext<PhotosDbContext>(options =>
+    builder.Services.AddSingleton<ITableNamingStrategy>(
+        string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase)
+            ? new PostgreSqlNamingStrategy()
+            : new SqlServerNamingStrategy());
+
+    void ConfigureDb(DbContextOptionsBuilder o)
     {
         if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
-            options.UseNpgsql(connectionString);
+            o.UseNpgsql(connectionString);
         else
-            options.UseSqlServer(connectionString);
-    });
+            o.UseSqlServer(connectionString);
+    }
+
+    builder.Services.AddDbContext<PhotosDbContext>(ConfigureDb);
+
+    // Register Files DbContext and storage engine so IDownloadService can be resolved.
+    builder.Services.AddDbContextFactory<FilesDbContext>(ConfigureDb);
+    builder.Services.AddDbContext<FilesDbContext>(ConfigureDb);
+    builder.Services.AddSingleton<IFileStorageEngine>(
+        sp => new LocalFileStorageEngine(
+            builder.Configuration["Files:Storage:RootPath"] ?? "/var/lib/dotnetcloud/storage",
+            sp.GetRequiredService<ILogger<LocalFileStorageEngine>>()));
 }
 else
 {

@@ -44,12 +44,12 @@ public interface IPhotoThumbnailService
     /// Full size is not cached — it reads the original on demand.
     /// </summary>
     /// <param name="photoId">The photo record ID.</param>
-    /// <param name="storagePath">Absolute path of the image file on disk.</param>
+    /// <param name="storagePath">Absolute path of the image file on disk, or null to reconstruct from chunks.</param>
     /// <param name="mimeType">MIME type of the image (e.g. <c>"image/jpeg"</c>).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     Task GenerateThumbnailsAsync(
         Guid photoId,
-        string storagePath,
+        string? storagePath,
         string mimeType,
         CancellationToken cancellationToken = default);
 
