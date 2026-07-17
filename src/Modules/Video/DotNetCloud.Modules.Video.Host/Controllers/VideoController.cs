@@ -461,6 +461,87 @@ public class VideoController : VideoControllerBase
         }));
     }
 
+    /// <summary>
+    /// Seeks an active HLS transcode to a new position.
+    /// Cancels the current transcode, cleans up old segments, and starts
+    /// a new transcode from the requested position. The client should
+    /// reload the HLS stream after this returns successfully.
+    /// </summary>
+    [HttpPost("{videoId:guid}/stream/seek")]
+    public async Task<IActionResult> SeekTranscode(
+        Guid videoId,
+        [FromBody] SeekTranscodeDto dto)
+    {
+        var caller = GetAuthenticatedCaller();
+
+        // Validate position
+        if (dto.PositionSeconds < 0)
+            return BadRequest(ErrorEnvelope("invalid_position", "Position must be non-negative."));
+
+        var seekStart = TimeSpan.FromSeconds(dto.PositionSeconds);
+
+        // Look up the video to get the file path
+        var video = await _videoService.GetVideoAsync(videoId, caller);
+        if (video is null)
+            return NotFound(ErrorEnvelope(ErrorCodes.VideoNotFound, "Video not found."));
+
+        // Cancel any existing transcode for this video+user
+        _transcodingService.CancelTranscode(videoId, caller.UserId);
+
+        // Clean up old HLS output directory if it exists
+        var hlsRootDir = Path.Combine(Path.GetTempPath(), "dotnetcloud-hls");
+        var oldDirPattern = $"hls-{videoId:N}-{caller.UserId:N}";
+        if (Directory.Exists(hlsRootDir))
+        {
+            foreach (var dir in Directory.GetDirectories(hlsRootDir, oldDirPattern + "*"))
+            {
+                try
+                { Directory.Delete(dir, recursive: true); }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to clean old HLS dir for seek: {Dir}", dir);
+                }
+            }
+        }
+
+        // Reconstruct file path from storage
+        var (filePath, _) = await SaveVideoToTempFile(video, caller);
+        if (filePath is null)
+            return NotFound(ErrorEnvelope("file_not_found", "Video file not found in storage."));
+
+        try
+        {
+            // Start new HLS transcode from the seek position
+            var (jobId, outputDir, playlistPath) = await _transcodingService.TranscodeHlsAsync(
+                videoId,
+                caller.UserId,
+                filePath,
+                video.MimeType,
+                seekStart: seekStart,
+                ct: HttpContext.RequestAborted);
+
+            _logger.LogInformation(
+                "SeekTranscode: Started new transcode job {JobId} for video {VideoId} at position {Position}s",
+                jobId, videoId, dto.PositionSeconds);
+
+            // Wait for the playlist + at least 2 segments to be ready
+            var waitResult = await WaitForHlsReadyAsync(
+                playlistPath, outputDir, jobId, HttpContext.RequestAborted);
+
+            if (waitResult == HlsWaitResult.Ready)
+            {
+                return Ok(Envelope(new { ready = true, jobId }));
+            }
+
+            return StatusCode(504, ErrorEnvelope("TRANSCODE_TIMEOUT",
+                "HLS transcode did not produce segments within 30 seconds."));
+        }
+        finally
+        {
+            TryDeleteTempFile(filePath);
+        }
+    }
+
     /// <summary>Probes a video to determine if it can be direct-played or needs transcoding.</summary>
     [HttpGet("{videoId:guid}/stream-probe")]
     public async Task<IActionResult> ProbeStream(Guid videoId)
@@ -477,7 +558,7 @@ public class VideoController : VideoControllerBase
 
         try
         {
-            var (strategy, videoCodec, audioCodec, container) = await _transcodingService.DecideStreamingStrategyAsync(filePath, video.MimeType);
+            var (strategy, videoCodec, audioCodec, container, _) = await _transcodingService.DecideStreamingStrategyAsync(filePath, video.MimeType);
             var token = _streamingService.GenerateStreamToken(videoId, caller.UserId);
 
             return Ok(Envelope(new
@@ -511,7 +592,8 @@ public class VideoController : VideoControllerBase
     public async Task<IActionResult> StreamVideo(
         Guid videoId,
         [FromQuery] string? token,
-        [FromQuery] bool forceTranscode = false)
+        [FromQuery] bool forceTranscode = false,
+        [FromQuery] double? startSeconds = null)
     {
         // ── Log request headers for range request diagnostics ────────
         var rangeHeader = HttpContext.Request.Headers.Range.FirstOrDefault() ?? "(none)";
@@ -737,9 +819,25 @@ public class VideoController : VideoControllerBase
             Console.Error.WriteLine($"[VIDEO-STREAM] videoId={videoId} mimeType={mimeType} forceTranscode={forceTranscode} sourcePath={sourcePath}");
 
             // ── Decide streaming strategy ──────────────────────────
-            var (strategy, videoCodec, audioCodec, container) = forceTranscode
-                ? (StreamingStrategy.Transcode, null, null, null)
-                : await _transcodingService.DecideStreamingStrategyAsync(sourcePath, mimeType, HttpContext.RequestAborted);
+            StreamingStrategy strategy;
+            string? videoCodec, audioCodec, container;
+            TimeSpan probeDuration = TimeSpan.Zero;
+
+            if (forceTranscode)
+            {
+                (strategy, videoCodec, audioCodec, container) = (StreamingStrategy.Transcode, null, null, null);
+            }
+            else
+            {
+                (strategy, videoCodec, audioCodec, container, probeDuration) =
+                    await _transcodingService.DecideStreamingStrategyAsync(sourcePath, mimeType, HttpContext.RequestAborted);
+
+                // Backfill DurationTicks if ffprobe extracted a valid duration
+                if (probeDuration > TimeSpan.Zero)
+                {
+                    _ = _videoService.UpdateDurationAsync(videoId, probeDuration, HttpContext.RequestAborted);
+                }
+            }
 
             var probeElapsed = Stopwatch.GetElapsedTime(beforeProbe);
             var totalElapsed = Stopwatch.GetElapsedTime(pipelineStart);
@@ -913,8 +1011,10 @@ public class VideoController : VideoControllerBase
                 progress.Percent = 50;
 
                 // Start ffmpeg remux with stdout piped for progressive streaming
+                var startTime = startSeconds.HasValue && startSeconds.Value > 0
+                    ? TimeSpan.FromSeconds(startSeconds.Value) : (TimeSpan?)null;
                 var (ffmpegProcess, _) = await _transcodingService.StreamCopyAsync(
-                    sourcePath, videoCodec, audioCodec, HttpContext.RequestAborted);
+                    sourcePath, videoCodec, audioCodec, HttpContext.RequestAborted, startTime);
 
                 progress.Stage = StreamProgressStage.Streaming;
                 progress.Message = "Streaming…";
@@ -1422,4 +1522,13 @@ public class VideoController : VideoControllerBase
             return false;
         }
     }
+}
+
+/// <summary>
+/// Request DTO for seeking an active HLS transcode to a new position.
+/// </summary>
+public sealed class SeekTranscodeDto
+{
+    /// <summary>The target position in seconds (may have decimal precision).</summary>
+    public double PositionSeconds { get; set; }
 }

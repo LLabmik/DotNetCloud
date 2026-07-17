@@ -39,7 +39,7 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
     }
 
     /// <inheritdoc />
-    public async Task<(StreamingStrategy Strategy, string? VideoCodec, string? AudioCodec, string? Container)> DecideStreamingStrategyAsync(
+    public async Task<(StreamingStrategy Strategy, string? VideoCodec, string? AudioCodec, string? Container, TimeSpan Duration)> DecideStreamingStrategyAsync(
         string videoFilePath,
         string mimeType,
         CancellationToken ct = default)
@@ -51,19 +51,39 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
             // Can't probe — assume transcode needed
             _logger.LogWarning("ffprobe failed for {Path}, falling back to transcode", videoFilePath);
             Console.Error.WriteLine($"[VIDEO-STRATEGY] FFPROBE_FAILED path={videoFilePath} → fallback to Transcode");
-            return (StreamingStrategy.Transcode, null, null, null);
+            return (StreamingStrategy.Transcode, null, null, null, TimeSpan.Zero);
         }
 
         var (videoCodec, audioCodec, container) = ParseCodecInfo(probeJson);
         var strategy = _argBuilder.DecideStrategy(mimeType, videoCodec, audioCodec, container);
 
+        // Extract duration from the same probe JSON
+        var duration = TimeSpan.Zero;
+        try
+        {
+            using var doc = JsonDocument.Parse(probeJson);
+            if (doc.RootElement.TryGetProperty("format", out var format) &&
+                format.TryGetProperty("duration", out var durEl))
+            {
+                double seconds = 0;
+                if (durEl.ValueKind == JsonValueKind.String &&
+                    double.TryParse(durEl.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var ds))
+                    seconds = ds;
+                else if (durEl.ValueKind == JsonValueKind.Number && durEl.TryGetDouble(out var dn))
+                    seconds = dn;
+                if (seconds > 0)
+                    duration = TimeSpan.FromSeconds(seconds);
+            }
+        }
+        catch { /* ignore parse errors */ }
+
         _logger.LogInformation(
-            "Streaming strategy for {Path}: {Strategy} (mime={Mime}, vcodec={VCodec}, acodec={ACodec}, container={Container})",
-            videoFilePath, strategy, mimeType, videoCodec, audioCodec, container);
+            "Streaming strategy for {Path}: {Strategy} (mime={Mime}, vcodec={VCodec}, acodec={ACodec}, container={Container}, duration={Duration})",
+            videoFilePath, strategy, mimeType, videoCodec, audioCodec, container, duration);
 
         Console.Error.WriteLine($"[VIDEO-STRATEGY] path={videoFilePath} strategy={strategy} mime={mimeType} vcodec={videoCodec} acodec={audioCodec} container={container}");
 
-        return (strategy, videoCodec, audioCodec, container);
+        return (strategy, videoCodec, audioCodec, container, duration);
     }
 
     /// <inheritdoc />
@@ -72,7 +92,7 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
         string mimeType,
         CancellationToken ct = default)
     {
-        var (strategy, _, _, _) = await DecideStreamingStrategyAsync(videoFilePath, mimeType, ct);
+        var (strategy, _, _, _, _) = await DecideStreamingStrategyAsync(videoFilePath, mimeType, ct);
         return strategy == StreamingStrategy.DirectPlay;
     }
 
@@ -81,13 +101,15 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
         string sourceFilePath,
         string? videoCodec,
         string? audioCodec,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        TimeSpan? startTime = null)
     {
-        var args = _argBuilder.GetStreamCopyArgs(sourceFilePath, videoCodec, audioCodec);
+        var args = _argBuilder.GetStreamCopyArgs(sourceFilePath, videoCodec, audioCodec, startTime: startTime);
 
         _logger.LogInformation(
-            "Starting stream copy (remux): source={Source}, vcodec={VCodec}, acodec={ACodec}, args={Args}",
-            sourceFilePath, videoCodec, audioCodec, args);
+            "Starting stream copy (remux): source={Source}, vcodec={VCodec}, acodec={ACodec}, args={Args}" +
+            (startTime.HasValue ? ", startTime={StartTime}" : ""),
+            sourceFilePath, videoCodec, audioCodec, args, startTime);
 
         var psi = new ProcessStartInfo
         {
@@ -333,6 +355,7 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
         string mimeType,
         string? sourceVideoCodec = null,
         string? sourceAudioCodec = null,
+        TimeSpan? seekStart = null,
         CancellationToken ct = default)
     {
         // ═══ Check for pre-existing HLS output on disk ═══
@@ -378,7 +401,7 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
 
             // Lock timed out (30s) — extremely rare, fall back to lock-free creation
             _logger.LogWarning("HLS lock acquire timed out for video {VideoId}; proceeding without lock", videoId);
-            return await CreateHlsJobUnlocked(videoId, userId, sourceFilePath, mimeType, sourceVideoCodec, sourceAudioCodec, ct);
+            return await CreateHlsJobUnlocked(videoId, userId, sourceFilePath, mimeType, sourceVideoCodec, sourceAudioCodec, seekStart, ct);
         }
 
         // Variables captured outside the lock for return
@@ -435,7 +458,7 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
         }
 
         // Launch ffmpeg (outside lock, fire-and-forget)
-        await LaunchFfmpegAsync(activeJob, sourceFilePath, actualOutputDir, actualPlaylistPath, sourceVideoCodec, sourceAudioCodec, ct);
+        await LaunchFfmpegAsync(activeJob, sourceFilePath, actualOutputDir, actualPlaylistPath, sourceVideoCodec, sourceAudioCodec, seekStart, ct);
 
         return (activeJob.Id, actualOutputDir, actualPlaylistPath);
     }
@@ -457,6 +480,7 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
         string mimeType,
         string? sourceVideoCodec,
         string? sourceAudioCodec,
+        TimeSpan? seekStart,
         CancellationToken ct)
     {
         // Create fresh HLS output directory
@@ -476,7 +500,7 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
         job.IsHls = true;
 
         // Launch ffmpeg
-        await LaunchFfmpegAsync(job, sourceFilePath, actualOutputDir, actualPlaylistPath, sourceVideoCodec, sourceAudioCodec, ct);
+        await LaunchFfmpegAsync(job, sourceFilePath, actualOutputDir, actualPlaylistPath, sourceVideoCodec, sourceAudioCodec, seekStart, ct);
 
         return (job.Id, actualOutputDir, actualPlaylistPath);
     }
@@ -567,13 +591,16 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
         string playlistPath,
         string? sourceVideoCodec,
         string? sourceAudioCodec,
-        CancellationToken ct)
+        TimeSpan? seekStart = null,
+        CancellationToken ct = default)
     {
         var duration = await GetVideoDurationAsync(sourceFilePath, ct);
-        _logger.LogInformation("HLS transcode starting: job={JobId}, source={Source}, outputDir={OutputDir}, duration={Duration}",
-            job.Id, sourceFilePath, outputDir, duration);
+        _logger.LogInformation("HLS transcode starting: job={JobId}, source={Source}, outputDir={OutputDir}, duration={Duration}" +
+            (seekStart.HasValue ? ", seekStart={SeekStart}" : ""),
+            job.Id, sourceFilePath, outputDir, duration,
+            seekStart);
 
-        var args = _argBuilder.BuildHlsArgs(sourceFilePath, outputDir, _options, sourceVideoCodec, sourceAudioCodec);
+        var args = _argBuilder.BuildHlsArgs(sourceFilePath, outputDir, _options, sourceVideoCodec, sourceAudioCodec, seekStart);
 
         _ = Task.Run(async () =>
         {

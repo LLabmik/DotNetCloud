@@ -426,6 +426,28 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
             if (userVideo?.CanonicalVideo is not null)
             {
                 var canonical = userVideo.CanonicalVideo;
+
+                // ── Extract duration from format section ──
+                if (format.ValueKind == JsonValueKind.Object
+                    && format.TryGetProperty("duration", out var durationEl))
+                {
+                    double? durationSeconds = null;
+                    if (durationEl.ValueKind == JsonValueKind.String
+                        && double.TryParse(durationEl.GetString(),
+                            System.Globalization.NumberStyles.Float,
+                            System.Globalization.CultureInfo.InvariantCulture,
+                            out var ds))
+                        durationSeconds = ds;
+                    else if (durationEl.ValueKind == JsonValueKind.Number
+                        && durationEl.TryGetDouble(out var dn))
+                        durationSeconds = dn;
+
+                    if (durationSeconds.HasValue && durationSeconds.Value > 0)
+                    {
+                        canonical.DurationTicks = (long)(durationSeconds.Value * TimeSpan.TicksPerSecond);
+                    }
+                }
+
                 if (embeddedTitle is not null)
                     canonical.EmbeddedTitle = embeddedTitle;
                 if (embeddedImdbId is not null)

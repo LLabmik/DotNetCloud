@@ -157,6 +157,26 @@ public sealed class VideoService : IVideoService
     }
 
     /// <summary>
+    /// Backfills DurationTicks on the canonical video if currently 0.
+    /// Called from the streaming pipeline when ffprobe has already extracted the duration.
+    /// </summary>
+    public async Task UpdateDurationAsync(Guid videoId, TimeSpan duration, CancellationToken cancellationToken = default)
+    {
+        if (duration <= TimeSpan.Zero) return;
+
+        var userVideo = await _db.UserVideos
+            .Include(uv => uv.CanonicalVideo)
+            .FirstOrDefaultAsync(uv => uv.Id == videoId, cancellationToken);
+
+        if (userVideo?.CanonicalVideo is { DurationTicks: 0 })
+        {
+            userVideo.CanonicalVideo.DurationTicks = duration.Ticks;
+            userVideo.CanonicalVideo.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    /// <summary>
     /// Gets a video by its Files-module FileNodeId.
     /// </summary>
     public async Task<VideoDto?> GetVideoByFileNodeIdAsync(Guid fileNodeId, CallerContext caller, CancellationToken cancellationToken = default)

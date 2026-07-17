@@ -66,16 +66,22 @@ public sealed class FfmpegArgumentBuilder
     /// <param name="videoCodec">Source video codec (e.g. "h264"). Used to decide bitstream filter.</param>
     /// <param name="audioCodec">Source audio codec (e.g. "aac"). If not browser-compatible, audio is re-encoded.</param>
     /// <param name="outputContainer">Target container: "mp4" or "webm". MP4 is the default.</param>
+    /// <param name="startTime">Optional seek position in the source file (applied via -ss before -i).</param>
     /// <returns>Full ffmpeg argument string (does NOT include the "ffmpeg" binary name).</returns>
     public string GetStreamCopyArgs(
         string inputPath,
         string? videoCodec,
         string? audioCodec,
-        string outputContainer = "mp4")
+        string outputContainer = "mp4",
+        TimeSpan? startTime = null)
     {
         var sb = new StringBuilder();
         sb.Append("-nostdin -hide_banner -loglevel warning ");
         sb.Append("-fflags +genpts ");  // Generate PTS if missing (common in MKV/AVI)
+        if (startTime.HasValue && startTime.Value > TimeSpan.Zero)
+        {
+            sb.AppendFormat(CultureInfo.InvariantCulture, "-ss {0:F3} ", startTime.Value.TotalSeconds);
+        }
         sb.AppendFormat(CultureInfo.InvariantCulture, "-i \"{0}\" ", EscapePath(inputPath));
 
         // Map streams

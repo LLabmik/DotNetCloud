@@ -92,6 +92,10 @@ public partial class VideoPage : IAsyncDisposable
     private bool _scriptsLoaded;
     private string? _streamStrategy; // "direct", "remux", or "transcode"
 
+    // ── Transcode seek bar ──
+    private double _seekBarPosition;
+    private bool _seekInProgress;
+
     private readonly SemaphoreSlim _pageLoadSemaphore = new(1, 1);
 
     // ── Library paging spinner ──
@@ -194,10 +198,10 @@ public partial class VideoPage : IAsyncDisposable
                 // then show progress overlay and attach the player once ready.
                 var streamUrl = GetStreamUrl(_playerVideo!.Id);
 
-                // attachHlsPlayer with 4 args enables progress overlay + polling
-                // With 2 args (legacy), plays immediately without progress
+                // attachHlsPlayer with 5 args: elementId, streamUrl, videoId, dotNetRef, fullDuration
                 await Js.InvokeVoidAsync("DotNetCloudVideo.attachHlsPlayer",
-                    "video-player", streamUrl, _playerVideo!.Id.ToString(), _dotNetRef);
+                    "video-player", streamUrl, _playerVideo!.Id.ToString(), _dotNetRef,
+                    _playerVideo.Duration.TotalSeconds);
 
                 await Js.InvokeVoidAsync("DotNetCloudVideo.attachVideoErrorListener", "video-player", _dotNetRef);
                 await Js.InvokeVoidAsync("DotNetCloudVideo.attachIdleAutoHide", "player-container", 3000);
@@ -227,7 +231,25 @@ public partial class VideoPage : IAsyncDisposable
     public void OnStreamStrategy(string strategy)
     {
         _streamStrategy = strategy;
+        _seekBarPosition = 0;
+        // StateHasChanged needed here so the seek bar DOM renders (gated on _streamStrategy).
+        // The video element src is unchanged, so Blazor's diff should leave it alone.
         InvokeAsync(StateHasChanged);
+
+        // Initialize the custom seek slider for non-direct strategies.
+        // Fire-and-forget: initSeekSlider retries for up to 3s waiting for
+        // the Blazor-rendered DOM elements to appear.
+        if (!string.Equals(strategy, "direct", StringComparison.OrdinalIgnoreCase)
+            && _playerVideo is not null)
+        {
+            _ = InvokeAsync(async () =>
+            {
+                await Js.InvokeVoidAsync("DotNetCloudVideo.initSeekSlider",
+                    _dotNetRef,
+                    _playerVideo.Id.ToString(),
+                    _playerVideo.Duration.TotalSeconds);
+            });
+        }
     }
 
     /// <summary>Called from JS when the video element fires an error event.</summary>
@@ -346,6 +368,69 @@ public partial class VideoPage : IAsyncDisposable
     {
         _noAudioDetected = true;
         InvokeAsync(StateHasChanged);
+    }
+
+    // ────────────────────────────────────────────────────────
+    //  Transcode Seek Bar
+    // ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Called on every input event while the user drags the transcode seek slider.
+    /// Updates the displayed position without triggering a seek-transcode.
+    /// </summary>
+    private void OnSeekBarInput(ChangeEventArgs e)
+    {
+        if (e.Value is string s && double.TryParse(s, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var pos))
+        {
+            _seekBarPosition = pos;
+        }
+    }
+
+    /// <summary>
+    /// Called when the user releases the transcode seek slider (onchange).
+    /// Triggers the seek-transcode flow if the target is beyond buffered range.
+    /// </summary>
+    private async Task OnSeekBarChanged(ChangeEventArgs e)
+    {
+        if (_seekInProgress)
+            return;
+        if (e.Value is not string s || !double.TryParse(s, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var targetSeconds))
+            return;
+
+        _seekBarPosition = targetSeconds;
+        _seekInProgress = true;
+        StateHasChanged();
+
+        try
+        {
+            await Js.InvokeVoidAsync("DotNetCloudVideo.seekTranscode",
+                "video-player",
+                targetSeconds,
+                _playerVideo!.Id.ToString(),
+                _dotNetRef);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Seek-transcode failed for video {VideoId}", _playerVideo?.Id);
+        }
+        finally
+        {
+            _seekInProgress = false;
+        }
+    }
+
+    /// <summary>
+    /// Called from JS when the transcode seek completes and the stream is ready.
+    /// Updates the seek bar position to match the new playback position.
+    /// </summary>
+    [JSInvokable]
+    public void OnTranscodeSeekComplete(double positionSeconds)
+    {
+        _seekBarPosition = positionSeconds;
+        // NOTE: Do NOT call StateHasChanged() here.
+        // _seekBarPosition is not rendered in Razor — the JS manages the
+        // slider fill/thumb position directly. A Blazor re-render would
+        // re-apply the <video> src attribute and restart playback from 0.
     }
 
     protected override async Task OnInitializedAsync()
@@ -722,6 +807,7 @@ public partial class VideoPage : IAsyncDisposable
             _videoErrorListenerAttached = false;
             _scriptsLoaded = false; // force fresh script load with DOM-settle delay
             _streamStrategy = null;
+            _seekBarPosition = 0;
             _playerOpen = true;
 
             var caller = await GetCallerAsync();
@@ -753,8 +839,8 @@ public partial class VideoPage : IAsyncDisposable
         _videoErrorListenerAttached = false;
         _playerSeriesContext = null;
         _streamStrategy = null;
-
-        // Tear down HLS player and UI handlers
+        _seekBarPosition = 0;
+        _seekInProgress = false;
         try
         {
             await Js.InvokeVoidAsync("DotNetCloudVideo.disposeProgressTracking", "video-player");

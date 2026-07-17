@@ -137,11 +137,13 @@ internal sealed class VideoEnrichmentBackgroundService : BackgroundService
         // Any video without TMDB poster data qualifies — this includes videos that
         // previously fell back to screenshot thumbnails, since TMDB results should
         // always override screenshot fallbacks when a match is found.
+        // Also include videos with DurationTicks == 0 (missing ffprobe duration from
+        // a previous scan) so metadata extraction can backfill the duration.
         var pendingVideos = await db.UserVideos
             .Include(uv => uv.CanonicalVideo)
             .Where(uv => uv.OwnerId == job.OwnerId && !uv.IsDeleted
                 && uv.CanonicalVideo != null
-                && !uv.CanonicalVideo.HasExternalPoster)
+                && (!uv.CanonicalVideo.HasExternalPoster || uv.CanonicalVideo.DurationTicks == 0))
             .ToListAsync(stoppingToken);
 
         var total = pendingVideos.Count;
@@ -197,8 +199,18 @@ internal sealed class VideoEnrichmentBackgroundService : BackgroundService
             try
             {
                 // Step 0: Extract embedded metadata via ffprobe (populates EmbeddedTitle,
-                // EmbeddedTmdbId, EmbeddedImdbId, etc. — needed for TMDB search quality)
+                // EmbeddedTmdbId, EmbeddedImdbId, DurationTicks, etc.)
                 await thumbnailService.ExtractMetadataAsync(userVideo.Id, userVideo.FileNodeId, stoppingToken);
+
+                // If this video already has a TMDB poster, skip TMDB re-enrichment.
+                // It was only included in this batch because DurationTicks was 0,
+                // which ExtractMetadataAsync just fixed.
+                if (userVideo.CanonicalVideo?.HasExternalPoster == true)
+                {
+                    _logger.LogDebug("Duration-only backfill for video {VideoId}: '{Title}'",
+                        userVideo.Id, displayName);
+                    continue;
+                }
 
                 // Step 1: Try TMDB enrichment
                 await enrichmentService.EnrichVideoAsync(userVideo.Id, caller, cancellationToken: stoppingToken);

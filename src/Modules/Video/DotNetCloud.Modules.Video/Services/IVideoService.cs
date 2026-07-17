@@ -14,6 +14,9 @@ public interface IVideoService
     /// <summary>Gets a video by ID.</summary>
     Task<VideoDto?> GetVideoAsync(Guid videoId, CallerContext caller, CancellationToken cancellationToken = default);
 
+    /// <summary>Backfills DurationTicks on the canonical video if currently 0.</summary>
+    Task UpdateDurationAsync(Guid videoId, TimeSpan duration, CancellationToken cancellationToken = default);
+
     /// <summary>Gets a video by its Files-module FileNodeId.</summary>
     Task<VideoDto?> GetVideoByFileNodeIdAsync(Guid fileNodeId, CallerContext caller, CancellationToken cancellationToken = default);
 
