@@ -163,6 +163,11 @@
                                 HeightRequest="200"
                                 Aspect="AspectFit"
                                 Margin="36,4,0,0">
+                                <Image.GestureRecognizers>
+                                    <TapGestureRecognizer
+                                        Command="{Binding BindingContext.OpenChatImageCommand, Source={x:Reference ThisPage}}"
+                                        CommandParameter="{Binding .}"/>
+                                </Image.GestureRecognizers>
                                 <Image.Triggers>
                                     <DataTrigger TargetType="Image"
                                                  Binding="{Binding HasImageAttachment}"

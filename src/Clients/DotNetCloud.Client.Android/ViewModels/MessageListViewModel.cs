@@ -596,6 +596,44 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void ViewDetails() => ViewDetailsRequested?.Invoke(this, EventArgs.Empty);
 
+    /// <summary>
+    /// Opens the full-screen image viewer for a chat message containing image attachments.
+    /// Passes the image URLs as pipe-separated strings through Shell navigation query parameters.
+    /// </summary>
+    [RelayCommand]
+    private async Task OpenChatImageAsync(MessageItemViewModel? message)
+    {
+        if (message is null || !message.HasImageAttachment)
+            return;
+
+        var imageAttachments = message.Attachments
+            .Where(a => a.MimeType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (imageAttachments.Count == 0)
+            return;
+
+        // Build absolute URLs if needed (thumbnail URLs may be relative)
+        var urls = string.Join("|", imageAttachments.Select(a =>
+        {
+            var url = a.ThumbnailUrl ?? string.Empty;
+            if (url.StartsWith('/') && _serverUrl is not null)
+                url = _serverUrl.TrimEnd('/') + url;
+            return url;
+        }));
+
+        var names = string.Join("|", imageAttachments.Select(a => a.FileName));
+
+        // Navigate to the simplified chat image viewer (no CarouselView).
+        // Only pass the first image URL — the viewer displays a single image
+        // with pinch-to-zoom, no swipe-between-images complexity.
+        await Shell.Current.GoToAsync("ChatImageViewer", new Dictionary<string, object>
+        {
+            ["ImageUrl"] = urls.Split('|')[0],
+            ["FileName"] = names.Split('|')[0],
+        });
+    }
+
     // ── Search commands ──────────────────────────────────────────────
 
     /// <summary>Toggles the search panel open/closed.</summary>

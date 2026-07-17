@@ -20,6 +20,7 @@ public partial class AppShell : Shell
         Routing.RegisterRoute("EventDetail", typeof(EventDetailPage));
         Routing.RegisterRoute("EventEdit", typeof(EventEditPage));
         Routing.RegisterRoute("ImageViewer", typeof(ImageViewerPage));
+        Routing.RegisterRoute("ChatImageViewer", typeof(Views.ChatImageViewerPage));
         Routing.RegisterRoute("NoteEdit", typeof(NoteEditPage));
     }
 
