@@ -229,6 +229,11 @@
      *   2-arg mode, strategy is undefined and we fall back to a HEAD fetch.
      */
     function playStream(video, streamUrl, dotNetRef, strategy) {
+      // Store stream URL for seek-transcode re-init
+      video.setAttribute("data-stream-url", streamUrl);
+      // Reset seek offset — new stream starts from the beginning
+      video._seekStartOffset = 0;
+
       // If strategy is known (4-arg mode from progress polling), handle it
       // directly. MUST clear the HLS guard flag BEFORE any early return.
       if (strategy) {
@@ -660,4 +665,323 @@
       delete progressTracking[elementId];
     }
   };
+
+  // ────────────────────────────────────────────────────────
+  //  Transcode Seek Bar
+  // ────────────────────────────────────────────────────────
+
+  /**
+   * Formats seconds as H:MM:SS or M:SS.
+   * @param {number} seconds
+   * @returns {string}
+   */
+  function formatTime(seconds) {
+    if (!isFinite(seconds) || seconds < 0) return "0:00";
+    var h = Math.floor(seconds / 3600);
+    var m = Math.floor((seconds % 3600) / 60);
+    var s = Math.floor(seconds % 60);
+    if (h > 0) {
+      return h + ":" + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+    }
+    return m + ":" + String(s).padStart(2, "0");
+  }
+
+  /**
+   * Seeks the transcode to a new position. If the target is within the
+   * already-transcoded (buffered) range, performs a normal seek. If the
+   * target is beyond buffered range, calls the server to restart the
+   * transcode from that position, then reloads the HLS stream.
+   *
+   * @param {string} elementId - The video element ID.
+   * @param {number} targetSeconds - The target position in seconds.
+   * @param {string} videoId - The video GUID.
+   * @param {object} dotNetRef - .NET reference for callbacks.
+   */
+  videoPlayer.seekTranscode = function (
+    elementId,
+    targetSeconds,
+    videoId,
+    dotNetRef,
+  ) {
+    var video = document.getElementById(elementId);
+    if (!video) return;
+
+    // If video is NOT using HLS (direct play, stream copy, remux),
+    // we can't just set video.currentTime because the stream copy (remux)
+    // is a non-seekable ffmpeg pipe. The browser will reload from byte 0.
+    // Instead, reload the stream URL with a startSeconds parameter so the
+    // server restarts ffmpeg from the seeked position.
+    if (!video._hls) {
+      var baseUrl = video.getAttribute("data-stream-url") || video.src || ("/api/v1/videos/" + videoId + "/stream");
+      // Strip existing query params and add startSeconds + cache-buster
+      var sep = baseUrl.indexOf("?") === -1 ? "?" : "&";
+      var newUrl = baseUrl + sep + "startSeconds=" + targetSeconds + "&_=" + Date.now();
+
+      // Store the absolute offset so the slider position reflects the full
+      // video timeline, not the (restarted) stream's local time.
+      video._seekStartOffset = targetSeconds;
+
+      video.src = newUrl;
+      video.play().catch(function () {});
+
+      if (dotNetRef) {
+        dotNetRef
+          .invokeMethodAsync("OnTranscodeSeekComplete", targetSeconds)
+          .catch(function () {});
+      }
+      return;
+    }
+
+    // Check if target is within already-buffered range
+    var bufferedEnd = 0;
+    if (video.buffered && video.buffered.length > 0) {
+      bufferedEnd = video.buffered.end(video.buffered.length - 1);
+    }
+
+    if (targetSeconds <= bufferedEnd + 1) {
+      // Within (or very near) buffered range — normal seek
+      video.currentTime = targetSeconds;
+      if (dotNetRef) {
+        dotNetRef
+          .invokeMethodAsync("OnTranscodeSeekComplete", targetSeconds)
+          .catch(function () {});
+      }
+      return;
+    }
+
+    // Beyond buffered range — restart transcode from target position
+    var container = document.getElementById("player-container");
+    var overlay = document.createElement("div");
+    overlay.id = "dnc-seek-overlay";
+    overlay.innerHTML =
+      '<div style="position:absolute;top:0;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.7);z-index:20;">' +
+      '<div style="text-align:center;color:#fff;">' +
+      '<div style="width:24px;height:24px;border:3px solid rgba(255,255,255,0.2);border-top-color:#3b82f6;border-radius:50%;margin:0 auto 12px;animation:dnc-spin 0.8s linear infinite;"></div>' +
+      '<p style="margin:0;font-size:14px;">Jumping to ' +
+      formatTime(targetSeconds) +
+      "&hellip;</p>" +
+      "</div></div>";
+    if (container) container.appendChild(overlay);
+
+    // Call the seek-transcode API
+    fetch("/api/v1/videos/" + videoId + "/stream/seek", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ positionSeconds: targetSeconds }),
+    })
+      .then(function (resp) {
+        if (!resp.ok) {
+          return resp.json().then(function (err) {
+            throw new Error(
+              err.message || "Seek failed (HTTP " + resp.status + ")",
+            );
+          });
+        }
+        return resp.json();
+      })
+      .then(function () {
+        // Destroy old HLS instance
+        if (video._hls) {
+          video._hls.destroy();
+          delete video._hls;
+        }
+        if (videoPlayer._hls) {
+          delete videoPlayer._hls;
+        }
+
+        // Remove overlay
+        if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+
+        // Re-initialize HLS with the same stream URL.
+        var streamUrl = video.getAttribute("data-stream-url") || video.src;
+        if (!streamUrl) {
+          streamUrl = "/api/v1/videos/" + videoId + "/stream?forceTranscode=true";
+        }
+
+        // Clear existing src to force a fresh load
+        video.removeAttribute("src");
+        video.load();
+
+        // Set flag to prevent error listener from firing during HLS re-init
+        videoPlayer._expectingHlsResponse = true;
+
+        // Re-initialize HLS
+        if (typeof Hls !== "undefined" && Hls.isSupported()) {
+          if (!Hls.DefaultConfig._dncConfigured) {
+            Hls.DefaultConfig.lowLatencyMode = false;
+            Hls.DefaultConfig.backBufferLength = Infinity;
+            Hls.DefaultConfig._dncConfigured = true;
+          }
+          var hls = new Hls({ manifestLoadingTimeOut: 20000 });
+          hls.loadSource(streamUrl);
+          hls.attachMedia(video);
+          hls.on(Hls.Events.MANIFEST_PARSED, function () {
+            video.play().catch(function () {});
+          });
+          hls.on(Hls.Events.ERROR, function (event, data) {
+            if (data.fatal) {
+              switch (data.type) {
+                case Hls.ErrorTypes.NETWORK_ERROR:
+                  hls.startLoad();
+                  break;
+                case Hls.ErrorTypes.MEDIA_ERROR:
+                  hls.recoverMediaError();
+                  break;
+                default:
+                  hls.destroy();
+                  break;
+              }
+            }
+          });
+          video._hls = hls;
+          videoPlayer._hls = hls;
+        }
+
+        if (dotNetRef) {
+          dotNetRef
+            .invokeMethodAsync("OnTranscodeSeekComplete", targetSeconds)
+            .catch(function () {});
+        }
+      })
+      .catch(function (err) {
+        console.error("DNC: seek-transcode failed", err);
+        if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+
+        // Show error overlay
+        var errOverlay = document.createElement("div");
+        errOverlay.id = "dnc-seek-error";
+        errOverlay.innerHTML =
+          '<div style="position:absolute;top:0;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.8);z-index:20;">' +
+          '<div style="text-align:center;color:#fff;max-width:400px;padding:24px;">' +
+          '<p style="font-size:18px;margin:0 0 8px;">&#9888; Seek Failed</p>' +
+          '<p style="font-size:13px;color:rgba(255,255,255,0.7);margin:0 0 16px;">' +
+          (err.message || "Could not jump to the selected position.") +
+          "</p>" +
+          '<button onclick="document.getElementById(\'dnc-seek-error\').remove()" style="background:#3b82f6;color:#fff;border:none;padding:8px 20px;border-radius:6px;cursor:pointer;font-size:13px;">Dismiss</button>' +
+          "</div></div>";
+        if (container) container.appendChild(errOverlay);
+      });
+  };
+
+  /**
+   * Initializes the custom seek slider for transcode/progressive streams.
+   * Attaches drag events to the Blazor-rendered div-based slider elements.
+   *
+   * Must be called AFTER the Blazor-rendered DOM is in place (i.e., after
+   * the stream strategy is known and the seek bar is rendered).
+   *
+   * @param {object} dotNetRef - .NET reference for callbacks.
+   * @param {string} videoId - The video GUID.
+   * @param {number} fullDuration - Total video duration in seconds.
+   */
+  videoPlayer.initSeekSlider = function (dotNetRef, videoId, fullDuration) {
+    // Guard: retry up to 30 times (3s) for Blazor to render the seek bar DOM
+    var attempts = 0;
+    var maxAttempts = 30;
+
+    function tryInit() {
+      var track = document.getElementById("transcode-seek-track");
+      if (!track) {
+        if (++attempts < maxAttempts) {
+          setTimeout(tryInit, 100);
+        }
+        return;
+      }
+
+      // Prevent double-initialization
+      if (track._seekInit) return;
+      track._seekInit = true;
+
+      var fill = document.getElementById("transcode-seek-fill");
+      var thumb = document.getElementById("transcode-seek-thumb");
+      var bar = document.getElementById("transcode-seek-bar");
+      var hint = document.getElementById("transcode-seek-hint");
+      var video = document.getElementById("video-player");
+
+      if (!fill || !thumb || !bar) return;
+
+      // Resolve max duration: prefer data-max-duration, fall back to fullDuration arg
+      var maxDuration = parseFloat(bar.getAttribute("data-max-duration")) || fullDuration || 0;
+
+      // If still 0, try to get from video element (may update via durationchange)
+      if (maxDuration <= 0 && video && isFinite(video.duration) && video.duration > 0) {
+        maxDuration = video.duration;
+      }
+
+      // If duration is unknown, hide the seek bar and show a message
+      if (maxDuration <= 0) {
+        if (bar) bar.style.display = "none";
+        return;
+      }
+
+      var dragging = false;
+
+      function updateFill(percent) {
+        percent = Math.max(0, Math.min(100, percent));
+        if (fill) fill.style.width = percent + "%";
+        if (thumb) thumb.style.left = percent + "%";
+      }
+
+      function getPercentFromClientX(clientX) {
+        var rect = track.getBoundingClientRect();
+        var x = clientX - rect.left;
+        return (x / rect.width) * 100;
+      }
+
+      function onStart(e) {
+        if (maxDuration <= 0) return;
+        dragging = true;
+        var clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        updateFill(getPercentFromClientX(clientX));
+        e.preventDefault();
+      }
+
+      function onMove(e) {
+        if (!dragging) return;
+        var clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        updateFill(getPercentFromClientX(clientX));
+      }
+
+      function onEnd(e) {
+        if (!dragging) return;
+        dragging = false;
+        var clientX = (e.changedTouches && e.changedTouches[0])
+          ? e.changedTouches[0].clientX
+          : e.clientX;
+        var pct = getPercentFromClientX(clientX);
+        var targetSeconds = (pct / 100) * maxDuration;
+        if (targetSeconds < 0) targetSeconds = 0;
+        if (targetSeconds > maxDuration) targetSeconds = maxDuration;
+        updateFill(pct);
+        videoPlayer.seekTranscode("video-player", targetSeconds, videoId, dotNetRef);
+      }
+
+      // Mouse events
+      track.addEventListener("mousedown", onStart);
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onEnd);
+
+      // Touch events
+      track.addEventListener("touchstart", onStart, { passive: false });
+      document.addEventListener("touchmove", onMove, { passive: false });
+      document.addEventListener("touchend", onEnd);
+
+      // Update fill position on timeupdate (if not dragging)
+      if (video) {
+        video.addEventListener("timeupdate", function () {
+          if (dragging) return;
+          if (maxDuration <= 0) return;
+          // Add any seek offset (for non-HLS stream reloads) so the slider
+          // reflects the absolute position in the full video timeline.
+          var effectiveTime = video.currentTime + (video._seekStartOffset || 0);
+          var pct = (effectiveTime / maxDuration) * 100;
+          updateFill(pct);
+        });
+      }
+    }
+
+    tryInit();
+  };
+
 })();

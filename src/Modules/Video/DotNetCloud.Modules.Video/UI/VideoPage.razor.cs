@@ -232,7 +232,24 @@ public partial class VideoPage : IAsyncDisposable
     {
         _streamStrategy = strategy;
         _seekBarPosition = 0;
+        // StateHasChanged needed here so the seek bar DOM renders (gated on _streamStrategy).
+        // The video element src is unchanged, so Blazor's diff should leave it alone.
         InvokeAsync(StateHasChanged);
+
+        // Initialize the custom seek slider for non-direct strategies.
+        // Fire-and-forget: initSeekSlider retries for up to 3s waiting for
+        // the Blazor-rendered DOM elements to appear.
+        if (!string.Equals(strategy, "direct", StringComparison.OrdinalIgnoreCase)
+            && _playerVideo is not null)
+        {
+            _ = InvokeAsync(async () =>
+            {
+                await Js.InvokeVoidAsync("DotNetCloudVideo.initSeekSlider",
+                    _dotNetRef,
+                    _playerVideo.Id.ToString(),
+                    _playerVideo.Duration.TotalSeconds);
+            });
+        }
     }
 
     /// <summary>Called from JS when the video element fires an error event.</summary>
@@ -410,7 +427,10 @@ public partial class VideoPage : IAsyncDisposable
     public void OnTranscodeSeekComplete(double positionSeconds)
     {
         _seekBarPosition = positionSeconds;
-        InvokeAsync(StateHasChanged);
+        // NOTE: Do NOT call StateHasChanged() here.
+        // _seekBarPosition is not rendered in Razor — the JS manages the
+        // slider fill/thumb position directly. A Blazor re-render would
+        // re-apply the <video> src attribute and restart playback from 0.
     }
 
     protected override async Task OnInitializedAsync()

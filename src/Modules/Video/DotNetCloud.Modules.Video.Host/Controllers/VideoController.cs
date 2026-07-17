@@ -558,7 +558,7 @@ public class VideoController : VideoControllerBase
 
         try
         {
-            var (strategy, videoCodec, audioCodec, container) = await _transcodingService.DecideStreamingStrategyAsync(filePath, video.MimeType);
+            var (strategy, videoCodec, audioCodec, container, _) = await _transcodingService.DecideStreamingStrategyAsync(filePath, video.MimeType);
             var token = _streamingService.GenerateStreamToken(videoId, caller.UserId);
 
             return Ok(Envelope(new
@@ -592,7 +592,8 @@ public class VideoController : VideoControllerBase
     public async Task<IActionResult> StreamVideo(
         Guid videoId,
         [FromQuery] string? token,
-        [FromQuery] bool forceTranscode = false)
+        [FromQuery] bool forceTranscode = false,
+        [FromQuery] double? startSeconds = null)
     {
         // ── Log request headers for range request diagnostics ────────
         var rangeHeader = HttpContext.Request.Headers.Range.FirstOrDefault() ?? "(none)";
@@ -818,9 +819,25 @@ public class VideoController : VideoControllerBase
             Console.Error.WriteLine($"[VIDEO-STREAM] videoId={videoId} mimeType={mimeType} forceTranscode={forceTranscode} sourcePath={sourcePath}");
 
             // ── Decide streaming strategy ──────────────────────────
-            var (strategy, videoCodec, audioCodec, container) = forceTranscode
-                ? (StreamingStrategy.Transcode, null, null, null)
-                : await _transcodingService.DecideStreamingStrategyAsync(sourcePath, mimeType, HttpContext.RequestAborted);
+            StreamingStrategy strategy;
+            string? videoCodec, audioCodec, container;
+            TimeSpan probeDuration = TimeSpan.Zero;
+
+            if (forceTranscode)
+            {
+                (strategy, videoCodec, audioCodec, container) = (StreamingStrategy.Transcode, null, null, null);
+            }
+            else
+            {
+                (strategy, videoCodec, audioCodec, container, probeDuration) =
+                    await _transcodingService.DecideStreamingStrategyAsync(sourcePath, mimeType, HttpContext.RequestAborted);
+
+                // Backfill DurationTicks if ffprobe extracted a valid duration
+                if (probeDuration > TimeSpan.Zero)
+                {
+                    _ = _videoService.UpdateDurationAsync(videoId, probeDuration, HttpContext.RequestAborted);
+                }
+            }
 
             var probeElapsed = Stopwatch.GetElapsedTime(beforeProbe);
             var totalElapsed = Stopwatch.GetElapsedTime(pipelineStart);
@@ -994,8 +1011,10 @@ public class VideoController : VideoControllerBase
                 progress.Percent = 50;
 
                 // Start ffmpeg remux with stdout piped for progressive streaming
+                var startTime = startSeconds.HasValue && startSeconds.Value > 0
+                    ? TimeSpan.FromSeconds(startSeconds.Value) : (TimeSpan?)null;
                 var (ffmpegProcess, _) = await _transcodingService.StreamCopyAsync(
-                    sourcePath, videoCodec, audioCodec, HttpContext.RequestAborted);
+                    sourcePath, videoCodec, audioCodec, HttpContext.RequestAborted, startTime);
 
                 progress.Stage = StreamProgressStage.Streaming;
                 progress.Message = "Streaming…";

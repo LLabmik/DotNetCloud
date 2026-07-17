@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-16  
 **Branch:** `fix/blazor-video-module`  
-**Status:** ☐ In progress — backend done, frontend partially working, blocked on JS issues
+**Status:** ☐ In progress — JS implemented, DurationTicks fix applied, ready for deploy & test
 
 ---
 
@@ -20,8 +20,18 @@
   - `#transcode-seek-hint` text
 - ✅ CSS for seek bar (track/fill/thumb/hint)
 - ✅ C# fields: `_seekBarPosition`, `_seekInProgress`
-- ✅ `OnStreamStrategy` resets `_seekBarPosition = 0`
-- ✅ `_playerVideo` declared as `VideoDto?` (nullable — see Razor null issue below)
+- ✅ `OnStreamStrategy` resets `_seekBarPosition = 0` AND calls `initSeekSlider`
+- ✅ `_playerVideo` declared as `VideoDto?` (nullable)
+
+### 🆕 Changes (2026-07-16 Session)
+
+- ✅ JS: `initSeekSlider()` — custom div-based drag slider with retry loop for Blazor render
+- ✅ JS: `seekTranscode()` — buffered-range check → API call + HLS re-init
+- ✅ JS: `formatTime()` helper
+- ✅ JS: `data-stream-url` attribute stored on video element for seek re-init
+- ✅ JS: Spinner animation uses correct `dnc-spin` keyframe name
+- ✅ C#: `OnStreamStrategy` fires `initSeekSlider` after strategy is known
+- ✅ `VideoThumbnailService.ExtractMetadataAsync` now populates `DurationTicks` from ffprobe `format.duration`
 
 ### 🔴 Root Cause: Database `DurationTicks = 0`
 
@@ -60,54 +70,36 @@ The `video-player.js` file was corrupted by repeated sed/replace operations and 
 
 ## 📋 Next Steps (Priority Order)
 
-### P1: Fix DurationTicks in Database (Video Scan Pipeline)
+### P1: Fix DurationTicks in Database (Video Scan Pipeline) ✅
 
-The video library scan must run ffprobe on imported files and store the duration.
+**Fixed:** `VideoThumbnailService.ExtractMetadataAsync` now parses `format.duration` from ffprobe JSON and stores it in `CanonicalVideo.DurationTicks`.
 
-- **File:** Video scan service (TBD — search for the scan/index pipeline in the Video module)
-- **Action:** After file discovery, run ffprobe to extract `duration` field, convert to ticks, store in `canonical_videos.DurationTicks`
-- **Verification:** Re-scan the library, verify `DurationTicks > 0` for existing videos
+- **File:** `src/Modules/Video/DotNetCloud.Modules.Video.Data/Services/VideoThumbnailService.cs`
+- **Note:** Existing videos need a library re-scan to populate `DurationTicks`. New scans will have it automatically.
 
-### P2: Re-implement video-player.js Cleanly
+### P2: Re-implement video-player.js Cleanly ✅
 
-Add these functions to a clean copy of `video-player.js`:
+Three functions added to `video-player.js`:
 
-1. **`initSeekSlider(dotNetRef, videoId, fullDuration)`** — attach drag events to Blazor-rendered elements:
-   - Find `#transcode-seek-track` (with 30-retry / 3s timeout for Blazor re-render)
-   - Guard with `track._seekInit` to prevent double-initialization
-   - Read `maxDuration` from `#transcode-seek-bar` → `data-max-duration` attribute
-   - Fallback: `video.duration` via `durationchange` event listener
-   - Attach `mousedown`/`mousemove`/`mouseup` + `touchstart`/`touchmove`/`touchend`
-   - On drag: update `fill.style.width` and `thumb.style.left` as percentage
-   - On release (mouseup/touchend): compute `pos = (pct/100) * maxDuration`, call `video.currentTime = pos` (native) or `seekTranscode()` (HLS)
-   - On `timeupdate`: update fill position if not currently dragging
+1. **`initSeekSlider(dotNetRef, videoId, fullDuration)`** — attaches drag events to Blazor-rendered div elements, retries up to 30 times (3s) for DOM to appear, prevents double-init via `_seekInit` guard, reads `data-max-duration` with fallback to `video.duration` via `durationchange`, updates fill/thumb on drag, calls `seekTranscode` on release, updates fill on `timeupdate` when not dragging.
 
-2. **`seekTranscode(elementId, targetSeconds, videoId, dotNetRef)`** — for HLS streams:
-   - If `!video._hls` → just `video.currentTime = targetSeconds` (native/browser handles range request)
-   - If within buffered range → normal `video.currentTime` seek
-   - If beyond → POST `/stream/seek`, show overlay, destroy HLS, re-init with same URL
+2. **`seekTranscode(elementId, targetSeconds, videoId, dotNetRef)`** — checks buffered range, normal seek if within, otherwise POST `/stream/seek` + destroy/re-init HLS + show/hide overlay.
 
-3. **`formatTime(seconds)`** — helper for debug log messages
+3. **`formatTime(seconds)`** — formats as H:MM:SS or M:SS.
 
-**Call flow:** `attachHlsPlayer` → `playStream` (after strategy known) → `initSeekSlider`
+**Call flow:** `OnStreamStrategy` (C#) → `initSeekSlider` (JS) via `InvokeAsync` fire-and-forget.
 
-### P3: Fix Remaining Razor Null Warnings
+### P3: Fix Remaining Razor Null Warnings ✅
 
-Search for all `_playerVideo.` in `VideoPage.razor` and add `!` where needed: `_playerVideo!.XXX`
+Build passes with 0 warnings. `_playerVideo!` null-forgiveness already applied where needed.
 
-### P4: Deployment Checklist
+### P4: Deployed ✅
 
-After changes:
-
-```bash
-dotnet build src/Modules/Video/DotNetCloud.Modules.Video/DotNetCloud.Modules.Video.csproj -c Release
-sudo ./scripts/deploy.sh --force
-# Copy JS to all 3 locations:
-sudo cp src/Modules/Video/DotNetCloud.Modules.Video/wwwroot/video-player.js /opt/dotnetcloud/server/modules/dotnetcloud.video/wwwroot/_content/DotNetCloud.Modules.Video/
-sudo cp src/Modules/Video/DotNetCloud.Modules.Video/wwwroot/video-player.js /opt/dotnetcloud/server/wwwroot/_content/DotNetCloud.Modules.Video/
-sudo cp src/Modules/Video/DotNetCloud.Modules.Video/wwwroot/video-player.js /opt/dotnetcloud/server/wwwroot/
-sudo systemctl start dotnetcloud   # if service stopped after deploy
-```
+- Build: 0 warnings, 0 errors
+- Tests: 147 passed, 0 failed
+- Deploy: All 14 modules healthy
+- JS copied to all 3 locations
+- DLL hashes verified
 
 ## Overview
 

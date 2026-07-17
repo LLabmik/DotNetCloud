@@ -14,7 +14,7 @@ public interface IVideoTranscodingService
     /// <param name="mimeType">MIME type of the video (e.g., "video/mp4").</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>The recommended streaming strategy and parsed codec info.</returns>
-    Task<(StreamingStrategy Strategy, string? VideoCodec, string? AudioCodec, string? Container)> DecideStreamingStrategyAsync(
+    Task<(StreamingStrategy Strategy, string? VideoCodec, string? AudioCodec, string? Container, TimeSpan Duration)> DecideStreamingStrategyAsync(
         string videoFilePath,
         string mimeType,
         CancellationToken ct = default);
@@ -38,12 +38,14 @@ public interface IVideoTranscodingService
     /// <param name="videoCodec">Source video codec name (for bitstream filter selection).</param>
     /// <param name="audioCodec">Source audio codec name (for audio copy decision).</param>
     /// <param name="ct">Cancellation token.</param>
+    /// <param name="startTime">Optional seek position in the source file (applied via -ss before -i).</param>
     /// <returns>A tuple of (ffmpeg Process, arguments string used). Caller owns the Process lifetime.</returns>
     Task<(System.Diagnostics.Process Process, string Args)> StreamCopyAsync(
         string sourceFilePath,
         string? videoCodec,
         string? audioCodec,
-        CancellationToken ct = default);
+        CancellationToken ct = default,
+        TimeSpan? startTime = null);
 
     /// <summary>
     /// Runs ffmpeg stream copy writing to a temp file (for subsequent PhysicalFile serving).
