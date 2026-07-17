@@ -2,22 +2,32 @@
 
 **Date:** 2026-07-16  
 **Branch:** `fix/blazor-video-module`  
-**Status:** ☐ In progress — JS implemented, DurationTicks fix applied, ready for deploy & test
+**Status:** ✓ Complete — merged & deployed, seek slider working for both HLS transcode and StreamCopy
 
 ---
 
-## 🔴 CRITICAL: Session Findings (2026-07-16)
+## ✅ Final State (2026-07-16)
 
-### What's Deployed & Working
+### StreamCopy (Remux) — seek by restarting ffmpeg from position
 
-- ✅ Backend `POST /stream/seek` endpoint (cancels old transcode, starts new from seek position)
-- ✅ `IVideoTranscodingService.TranscodeHlsAsync` now accepts `seekStart: TimeSpan?` parameter
-- ✅ `seekStart` flows through to `BuildHlsArgs` → ffmpeg `-ss` flag (already supported)
-- ✅ `SeekTranscodeDto` DTO class
-- ✅ Razor renders seek bar DOM when `_streamStrategy != "direct"`:
-  - `#transcode-seek-bar` (with `data-max-duration` attribute)
-  - `#transcode-seek-track`, `#transcode-seek-fill`, `#transcode-seek-thumb`
-  - `#transcode-seek-hint` text
+When the user drags the slider on a StreamCopy video, the JS reloads the stream URL with `?startSeconds=X`. The server passes this to `StreamCopyAsync` which adds `-ss X` before `-i` in the ffmpeg args. ffmpeg seeks to that position in the source file and starts remuxing from there. The `_seekStartOffset` tracks the absolute position so the slider stays correct.
+
+### HLS Transcode — seek via API + HLS re-init
+
+The `POST /stream/seek` endpoint cancels the old transcode, starts a new one from the seek position, and returns when segments are ready. The client destroys the old hls.js instance and re-initializes from the same stream URL.
+
+### DurationTicks — backfilled at play time
+
+The `DecideStreamingStrategyAsync` method now returns `TimeSpan Duration` extracted from the same ffprobe run. `StreamVideo` calls `UpdateDurationAsync` to store it if `DurationTicks == 0`. No rescan needed — duration is populated the first time any video is played.
+
+### Key Bugs Fixed
+
+- **Blazor re-render reset**: `OnTranscodeSeekComplete` called `StateHasChanged()` which re-applied `src` on `<video>`, restarting playback. Removed — `_seekBarPosition` is JS-managed.
+- **ffprobe duration type**: Now handles both `JsonValueKind.String` and `JsonValueKind.Number`.
+- **Enrichment skip**: Queue now includes `DurationTicks == 0` videos even if `HasExternalPoster == true`.
+- **Non-HLS seek**: StreamCopy/remux pipes aren't seekable — now reloads with `startSeconds` instead of setting `currentTime`.
+- **Slider offset**: `_seekStartOffset` tracks the absolute position so the slider doesn't reset to 0 after stream reload.
+- **Zero-duration guard**: `initSeekSlider` hides the bar when `maxDuration <= 0`.
 - ✅ CSS for seek bar (track/fill/thumb/hint)
 - ✅ C# fields: `_seekBarPosition`, `_seekInProgress`
 - ✅ `OnStreamStrategy` resets `_seekBarPosition = 0` AND calls `initSeekSlider`
@@ -68,46 +78,21 @@ The `video-player.js` file was corrupted by repeated sed/replace operations and 
 
 ---
 
-## 📋 Next Steps (Priority Order)
+## Files Modified (11 files, +503/-61 lines)
 
-### P1: Fix DurationTicks in Database (Video Scan Pipeline) ✅
+| File | Change |
+|------|--------|
+| `wwwroot/video-player.js` | Added `initSeekSlider`, `seekTranscode`, `formatTime`; non-HLS stream reload with `startSeconds`; `_seekStartOffset` tracking |
+| `UI/VideoPage.razor.cs` | `OnStreamStrategy` wires `initSeekSlider`; removed `StateHasChanged` from `OnTranscodeSeekComplete` |
+| `Controllers/VideoController.cs` | `StreamVideo` accepts `?startSeconds=`; calls `UpdateDurationAsync` after probe; passes `startTime` to `StreamCopyAsync` |
+| `Services/VideoTranscodingService.cs` | `DecideStreamingStrategyAsync` returns `TimeSpan Duration`; `StreamCopyAsync` accepts `TimeSpan? startTime` |
+| `Services/IVideoTranscodingService.cs` | Updated signatures for duration return and `startTime` param |
+| `Services/FfmpegArgumentBuilder.cs` | `GetStreamCopyArgs` inserts `-ss {seconds}` before `-i` when `startTime` provided |
+| `Services/VideoService.cs` | Added `UpdateDurationAsync` — backfills `DurationTicks` if 0 |
+| `Services/IVideoService.cs` | Added `UpdateDurationAsync` to interface |
+| `Services/VideoThumbnailService.cs` | `ExtractMetadataAsync` handles both string/number ffprobe duration types |
+| `Services/VideoEnrichmentBackgroundQueue.cs` | Filter includes `DurationTicks == 0`; skips TMDB for already-enriched |
 
-**Fixed:** `VideoThumbnailService.ExtractMetadataAsync` now parses `format.duration` from ffprobe JSON and stores it in `CanonicalVideo.DurationTicks`.
-
-- **File:** `src/Modules/Video/DotNetCloud.Modules.Video.Data/Services/VideoThumbnailService.cs`
-- **Note:** Existing videos need a library re-scan to populate `DurationTicks`. New scans will have it automatically.
-
-### P2: Re-implement video-player.js Cleanly ✅
-
-Three functions added to `video-player.js`:
-
-1. **`initSeekSlider(dotNetRef, videoId, fullDuration)`** — attaches drag events to Blazor-rendered div elements, retries up to 30 times (3s) for DOM to appear, prevents double-init via `_seekInit` guard, reads `data-max-duration` with fallback to `video.duration` via `durationchange`, updates fill/thumb on drag, calls `seekTranscode` on release, updates fill on `timeupdate` when not dragging.
-
-2. **`seekTranscode(elementId, targetSeconds, videoId, dotNetRef)`** — checks buffered range, normal seek if within, otherwise POST `/stream/seek` + destroy/re-init HLS + show/hide overlay.
-
-3. **`formatTime(seconds)`** — formats as H:MM:SS or M:SS.
-
-**Call flow:** `OnStreamStrategy` (C#) → `initSeekSlider` (JS) via `InvokeAsync` fire-and-forget.
-
-### P3: Fix Remaining Razor Null Warnings ✅
-
-Build passes with 0 warnings. `_playerVideo!` null-forgiveness already applied where needed.
-
-### P4: Deployed ✅
-
-- Build: 0 warnings, 0 errors
-- Tests: 147 passed, 0 failed
-- Deploy: All 14 modules healthy
-- JS copied to all 3 locations
-- DLL hashes verified
-
-## Overview
-
-When a video requires transcoding (HLS), the native browser position slider only shows the duration of segments generated so far. This plan adds a **custom seek bar** that spans the **full video duration** from the moment playback starts. When the user seeks beyond what's been transcoded, the backend restarts ffmpeg from the selected position so playback can resume immediately.
-
----
-
-## Files to Modify
 
 | File                                                                                   | What Changes                                        |
 | -------------------------------------------------------------------------------------- | --------------------------------------------------- |
