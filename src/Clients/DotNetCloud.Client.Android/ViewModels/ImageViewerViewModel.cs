@@ -55,6 +55,12 @@ public sealed partial class ImageViewerViewModel : ObservableObject, IQueryAttri
     private Guid? _folderId;
     private CancellationTokenSource? _loadCts;
 
+    // ── URL mode (chat images) ───────────────────────────────────────
+    private bool _isUrlMode;
+    private string[] _imageUrls = [];
+    private string[] _imageNames = [];
+    private string _startUrl = string.Empty;
+
     /// <summary>Initializes a new <see cref="ImageViewerViewModel"/>.</summary>
     public ImageViewerViewModel(
         IFileRestClient fileApi,
@@ -81,6 +87,27 @@ public sealed partial class ImageViewerViewModel : ObservableObject, IQueryAttri
             && Guid.TryParse(folderIdStr, out var parsedFolderId))
         {
             _folderId = parsedFolderId;
+        }
+
+        // URL mode (chat images) — a pipe-separated list of image URLs
+        if (query.TryGetValue("ImageUrls", out var urlsObj) && urlsObj is string urlsStr
+            && !string.IsNullOrWhiteSpace(urlsStr))
+        {
+            _imageUrls = urlsStr.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            _isUrlMode = _imageUrls.Length > 0;
+        }
+
+        // Optional display names, one per URL, same pipe-separated order
+        if (query.TryGetValue("ImageNames", out var namesObj) && namesObj is string namesStr
+            && !string.IsNullOrWhiteSpace(namesStr))
+        {
+            _imageNames = namesStr.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        }
+
+        // Optional start URL — the initially selected image
+        if (query.TryGetValue("StartUrl", out var startObj) && startObj is string startStr)
+        {
+            _startUrl = startStr;
         }
 
         MainThread.BeginInvokeOnMainThread(async () =>
@@ -202,6 +229,14 @@ public sealed partial class ImageViewerViewModel : ObservableObject, IQueryAttri
     {
         try
         {
+            // ── URL mode (chat images) ────────────────────────────────
+            if (_isUrlMode)
+            {
+                await InitializeUrlModeAsync(ct);
+                return;
+            }
+
+            // ── File mode (browser images) ────────────────────────────
             var (serverUrl, token) = await GetCredentialsAsync(ct);
             _serverUrl = serverUrl;
             _accessToken = token;
@@ -240,6 +275,54 @@ public sealed partial class ImageViewerViewModel : ObservableObject, IQueryAttri
     }
 
     /// <summary>
+    /// Initializes the viewer in URL mode (used for chat image attachments).
+    /// Populates the carousel with URL-based image sources directly,
+    /// without downloading through the Files API.
+    /// </summary>
+    private async Task InitializeUrlModeAsync(CancellationToken ct)
+    {
+        try
+        {
+            CarouselItems.Clear();
+
+            for (var i = 0; i < _imageUrls.Length; i++)
+            {
+                var url = _imageUrls[i];
+                var name = i < _imageNames.Length ? _imageNames[i] : $"Image {i + 1}";
+
+                var item = new ImageCarouselItem(Guid.Empty, name);
+                // Set the image source directly from the URL — MAUI Image loads it asynchronously
+                item.Source = ImageSource.FromUri(new Uri(url));
+                item.IsItemLoading = false;
+                CarouselItems.Add(item);
+            }
+
+            if (CarouselItems.Count == 0)
+            {
+                await Shell.Current.GoToAsync("..");
+                return;
+            }
+
+            // Find the start index matching the start URL, default to 0
+            var startIndex = 0;
+            if (!string.IsNullOrEmpty(_startUrl))
+            {
+                var idx = Array.IndexOf(_imageUrls, _startUrl);
+                if (idx >= 0)
+                    startIndex = idx;
+            }
+
+            CurrentPosition = startIndex;
+            IsViewerLoading = false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to initialize URL-mode image viewer.");
+            await Shell.Current.GoToAsync("..");
+        }
+    }
+
+    /// <summary>
     /// Called whenever <see cref="CurrentPosition"/> changes — either by user swipe
     /// or programmatic scroll. Loads the visible image and pre-loads neighbours.
     /// </summary>
@@ -250,7 +333,22 @@ public sealed partial class ImageViewerViewModel : ObservableObject, IQueryAttri
         _loadCts = new CancellationTokenSource();
         var ct = _loadCts.Token;
 
-        if (value < 0 || value >= _folderItems.Count)
+        if (value < 0)
+            return;
+
+        // ── URL mode (chat images) — update header only, images are already set ──
+        if (_isUrlMode)
+        {
+            if (value >= CarouselItems.Count)
+                return;
+            var urlItem = CarouselItems[value];
+            FileName = urlItem.FileName;
+            PositionText = $"{value + 1} / {CarouselItems.Count}";
+            return;
+        }
+
+        // ── File mode ────────────────────────────────────────────────
+        if (value >= _folderItems.Count)
             return;
 
         var item = _folderItems[value];
@@ -362,6 +460,53 @@ public sealed partial class ImageViewerViewModel : ObservableObject, IQueryAttri
     {
         _loadCts?.Cancel();
         await Shell.Current.GoToAsync("..");
+    }
+
+    /// <summary>Shares the current image via the system share sheet.</summary>
+    [RelayCommand]
+    private async Task ShareAsync()
+    {
+        try
+        {
+            if (CurrentPosition < 0 || CurrentPosition >= CarouselItems.Count)
+                return;
+
+            var item = CarouselItems[CurrentPosition];
+            var fileName = item.FileName;
+
+            byte[] data;
+            if (_isUrlMode && CurrentPosition < _imageUrls.Length)
+            {
+                // URL mode (chat images) — download from the URL directly
+                using var client = new HttpClient();
+                data = await client.GetByteArrayAsync(_imageUrls[CurrentPosition]);
+            }
+            else if (!_isUrlMode && CurrentPosition < _folderItems.Count)
+            {
+                // File mode — download via the Files API
+                using var stream = await _fileApi.DownloadAsync(_serverUrl, _accessToken, _folderItems[CurrentPosition].Id, CancellationToken.None);
+                using var ms = new MemoryStream();
+                await stream.CopyToAsync(ms);
+                data = ms.ToArray();
+            }
+            else
+            {
+                return;
+            }
+
+            var tempFile = System.IO.Path.Combine(FileSystem.CacheDirectory, "share_image.jpg");
+            await System.IO.File.WriteAllBytesAsync(tempFile, data);
+
+            await Share.Default.RequestAsync(new ShareFileRequest
+            {
+                Title = fileName,
+                File = new ShareFile(tempFile),
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to share image.");
+        }
     }
 
     private async Task<(string ServerUrl, string Token)> GetCredentialsAsync(CancellationToken ct)

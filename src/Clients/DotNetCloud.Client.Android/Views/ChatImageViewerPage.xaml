@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="DotNetCloud.Client.Android.Views.ChatImageViewerPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    Shell.NavBarIsVisible="False"
+    Shell.TabBarIsVisible="False"
+    BackgroundColor="#0F172A">
+
+    <Grid RowDefinitions="Auto,*,Auto">
+
+        <!-- Semi-transparent header overlay (toggled by single tap) -->
+        <Border
+            Grid.Row="0"
+            BackgroundColor="#800F172A"
+            StrokeThickness="0"
+            Padding="8,8"
+            x:Name="HeaderBar">
+            <Grid ColumnDefinitions="Auto,*">
+                <!-- Back button -->
+                <ImageButton
+                    Grid.Column="0"
+                    BackgroundColor="Transparent"
+                    Clicked="OnCloseClicked"
+                    HeightRequest="40"
+                    WidthRequest="40">
+                    <ImageButton.Source>
+                        <FontImageSource
+                            FontFamily="MaterialIcons"
+                            Glyph="&#xe5c4;"
+                            Size="24"
+                            Color="#F1F5F9"/>
+                    </ImageButton.Source>
+                </ImageButton>
+
+                <!-- File name -->
+                <Label
+                    Grid.Column="1"
+                    x:Name="FileTitle"
+                    TextColor="#F1F5F9"
+                    FontSize="15"
+                    VerticalOptions="Center"
+                    LineBreakMode="TailTruncation"
+                    MaxLines="1"
+                    Margin="8,0"/>
+            </Grid>
+        </Border>
+
+        <!-- Image area -->
+        <Grid
+            Grid.Row="1"
+            VerticalOptions="Fill"
+            HorizontalOptions="Fill">
+
+            <!-- Loading indicator -->
+            <ActivityIndicator
+                x:Name="LoadingSpinner"
+                IsRunning="True"
+                Color="#7C3AED"
+                HeightRequest="48"
+                WidthRequest="48"
+                HorizontalOptions="Center"
+                VerticalOptions="Center"/>
+
+            <!-- The image — AspectFit so it fits the screen, then pinch to zoom in -->
+            <Image
+                x:Name="ChatImage"
+                Aspect="AspectFit"
+                HorizontalOptions="Fill"
+                VerticalOptions="Fill"
+                IsVisible="False">
+
+                <Image.GestureRecognizers>
+                    <!-- Single tap toggles header visibility -->
+                    <TapGestureRecognizer Tapped="OnImageTapped"/>
+
+                    <!-- Double tap toggles between 1x and 3x zoom -->
+                    <TapGestureRecognizer NumberOfTapsRequired="2"
+                                          Tapped="OnImageDoubleTapped"/>
+
+                    <!-- Pinch to zoom (up to 5x) -->
+                    <PinchGestureRecognizer PinchUpdated="OnImagePinchUpdated"/>
+
+                    <!-- One-finger drag to pan when zoomed in -->
+                    <PanGestureRecognizer PanUpdated="OnImagePanUpdated"/>
+                </Image.GestureRecognizers>
+            </Image>
+        </Grid>
+
+        <!-- Semi-transparent footer overlay with action buttons -->
+        <Border
+            Grid.Row="2"
+            BackgroundColor="#800F172A"
+            StrokeThickness="0"
+            Padding="8,8"
+            x:Name="FooterBar">
+            <Grid ColumnDefinitions="*,Auto,Auto"
+                  ColumnSpacing="8">
+                <!-- Spacer -->
+                <Label Grid.Column="0"/>
+
+                <!-- Download button -->
+                <ImageButton
+                    Grid.Column="1"
+                    BackgroundColor="Transparent"
+                    Clicked="OnDownloadClicked"
+                    HeightRequest="44"
+                    WidthRequest="44">
+                    <ImageButton.Source>
+                        <FontImageSource
+                            FontFamily="MaterialIcons"
+                            Glyph="&#xe2c4;"
+                            Size="24"
+                            Color="#F1F5F9"/>
+                    </ImageButton.Source>
+                </ImageButton>
+
+                <!-- Share button -->
+                <ImageButton
+                    Grid.Column="2"
+                    BackgroundColor="Transparent"
+                    Clicked="OnShareClicked"
+                    HeightRequest="44"
+                    WidthRequest="44">
+                    <ImageButton.Source>
+                        <FontImageSource
+                            FontFamily="MaterialIcons"
+                            Glyph="&#xe80d;"
+                            Size="24"
+                            Color="#F1F5F9"/>
+                    </ImageButton.Source>
+                </ImageButton>
+            </Grid>
+        </Border>
+    </Grid>
+</ContentPage>

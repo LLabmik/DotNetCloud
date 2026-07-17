@@ -74,13 +74,14 @@
                 <ImageButton
                     Grid.Column="4"
                     BackgroundColor="Transparent"
+                    Command="{Binding ShareCommand}"
                     HeightRequest="40"
                     WidthRequest="40">
                     <ImageButton.Source>
                         <FontImageSource
-                            FontFamily="OpenSansRegular"
-                            Glyph="↗"
-                            Size="20"
+                            FontFamily="MaterialIcons"
+                            Glyph="&#xe80d;"
+                            Size="22"
                             Color="#94A3B8"/>
                     </ImageButton.Source>
                 </ImageButton>
@@ -105,6 +106,7 @@
 
             <!-- CarouselView for smooth drag-to-swipe -->
             <CarouselView
+                x:Name="CarouselView"
                 ItemsSource="{Binding CarouselItems}"
                 Position="{Binding CurrentPosition, Mode=TwoWay}"
                 Loop="False"
@@ -136,8 +138,20 @@
                                 IsVisible="{Binding IsItemLoading, Converter={StaticResource InvertBool}}">
 
                                 <Image.GestureRecognizers>
+                                    <!-- Single tap toggles the header overlay -->
                                     <TapGestureRecognizer
                                         Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.ToggleHeaderCommand}"/>
+
+                                    <!-- Double tap toggles between 1x and 3x zoom -->
+                                    <TapGestureRecognizer
+                                        NumberOfTapsRequired="2"
+                                        Tapped="OnImageDoubleTapped"/>
+
+                                    <!-- Pinch to zoom (up to 5x). PanGestureRecognizer is deliberately
+                                         omitted — it conflicts with PinchGestureRecognizer on the same
+                                         element and causes the image to flash back to 1x during pinch. -->
+                                    <PinchGestureRecognizer
+                                        PinchUpdated="OnImagePinchUpdated"/>
                                 </Image.GestureRecognizers>
                             </Image>
                         </Grid>

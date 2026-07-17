@@ -12,6 +12,7 @@ public partial class MessageListPage : ContentPage
     private Guid _channelId;
     private string _channelDisplayName = string.Empty;
     private bool _scrollSubscribed;
+    private bool _initialized;
 
     /// <summary>Injected channel ID from Shell navigation query parameter.</summary>
     public string ChannelId
@@ -49,7 +50,14 @@ public partial class MessageListPage : ContentPage
                 _scrollSubscribed = true;
             }
 
-            await _vm.InitializeAsync(_channelId, _channelDisplayName);
+            // Only initialize on first appearance — subsequent appearances (e.g., returning
+            // from ImageViewer or ChannelDetails) must preserve scroll position. Real-time
+            // messages arrive via the SignalR handler without a full reload.
+            if (!_initialized)
+            {
+                _initialized = true;
+                await _vm.InitializeAsync(_channelId, _channelDisplayName);
+            }
         }
         catch (Exception ex)
         {
@@ -61,14 +69,9 @@ public partial class MessageListPage : ContentPage
     protected override void OnDisappearing()
     {
         base.OnDisappearing();
-        _vm.ScrollToBottomRequested -= OnScrollToBottomRequested;
-        _vm.ScrollToMessageRequested -= OnScrollToMessageRequested;
-        _vm.OlderMessagesLoaded -= OnOlderMessagesLoaded;
-        if (_scrollSubscribed)
-        {
-            MessageList.Scrolled -= OnMessageListScrolled;
-            _scrollSubscribed = false;
-        }
+        // Keep event subscriptions alive — OnDisappearing fires even when pushing a detail
+        // page (ImageViewer, ChannelDetails). Tearing down subscriptions would lose scroll
+        // position on return. The MessageListPage stays alive in the Shell navigation stack.
     }
 
     /// <summary>
