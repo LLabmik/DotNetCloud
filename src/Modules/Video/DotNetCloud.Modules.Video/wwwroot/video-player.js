@@ -896,13 +896,19 @@
       var fill = document.getElementById("transcode-seek-fill");
       var thumb = document.getElementById("transcode-seek-thumb");
       var bar = document.getElementById("transcode-seek-bar");
-      var hint = document.getElementById("transcode-seek-hint");
+      var timeStart = document.getElementById("transcode-seek-time-start");
+      var timeEnd = document.getElementById("transcode-seek-time-end");
       var video = document.getElementById("video-player");
 
       if (!fill || !thumb || !bar) return;
 
       // Resolve max duration: prefer data-max-duration, fall back to fullDuration arg
       var maxDuration = parseFloat(bar.getAttribute("data-max-duration")) || fullDuration || 0;
+
+      // Set end time label
+      if (timeEnd && maxDuration > 0) {
+        timeEnd.textContent = formatTime(maxDuration);
+      }
 
       // If still 0, try to get from video element (may update via durationchange)
       if (maxDuration <= 0 && video && isFinite(video.duration) && video.duration > 0) {
@@ -913,6 +919,21 @@
       if (maxDuration <= 0) {
         if (bar) bar.style.display = "none";
         return;
+      }
+
+      // Hide native browser controls — the custom slider replaces them.
+      // Click on the video toggles play/pause instead.
+      if (video && video.hasAttribute("controls")) {
+        video.removeAttribute("controls");
+        video._customControlsActive = true;
+        // Click-to-toggle-playback on the video itself
+        video.addEventListener("click", function (e) {
+          if (video.paused) {
+            video.play().catch(function () {});
+          } else {
+            video.pause();
+          }
+        });
       }
 
       var dragging = false;
@@ -977,6 +998,10 @@
           var effectiveTime = video.currentTime + (video._seekStartOffset || 0);
           var pct = (effectiveTime / maxDuration) * 100;
           updateFill(pct);
+          // Update start time label
+          if (timeStart) {
+            timeStart.textContent = formatTime(effectiveTime);
+          }
         });
       }
     }

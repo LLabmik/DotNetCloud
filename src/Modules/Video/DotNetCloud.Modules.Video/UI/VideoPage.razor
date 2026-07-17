@@ -1330,13 +1330,12 @@
                     @if (_streamStrategy is not null && _streamStrategy != "direct" && _playerVideo is not null)
                     {
                         <div class="transcode-seek-bar" id="transcode-seek-bar" data-max-duration="@_playerVideo!.Duration.TotalSeconds">
+                            <div class="transcode-seek-time transcode-seek-time-start" id="transcode-seek-time-start">0:00</div>
                             <div class="transcode-seek-track" id="transcode-seek-track">
                                 <div class="transcode-seek-fill" id="transcode-seek-fill"></div>
                                 <div class="transcode-seek-thumb" id="transcode-seek-thumb"></div>
                             </div>
-                            <div class="transcode-seek-hint">
-                                @(_streamStrategy == "transcode" ? "Transcoding" : "Streaming") in progress — drag to seek anywhere
-                            </div>
+                            <div class="transcode-seek-time transcode-seek-time-end" id="transcode-seek-time-end">0:00</div>
                         </div>
                     }
 

@@ -2052,14 +2052,31 @@
   position: relative;
   z-index: 1;
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 4px;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
   pointer-events: auto;
   background: rgba(0, 0, 0, 0.55);
   padding: 8px 14px 6px;
   margin: 0;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.transcode-seek-time {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  min-width: 36px;
+  flex-shrink: 0;
+}
+
+.transcode-seek-time-start {
+  text-align: right;
+}
+
+.transcode-seek-time-end {
+  text-align: left;
 }
 
 .transcode-seek-track {
