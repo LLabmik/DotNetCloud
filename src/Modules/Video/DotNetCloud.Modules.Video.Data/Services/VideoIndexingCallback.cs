@@ -4,6 +4,7 @@ using DotNetCloud.Modules.Video.Events;
 using DotNetCloud.Modules.Video.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Modules.Video.Data.Services;
@@ -20,6 +21,7 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
     private readonly VideoDbContext _db;
     private readonly IConfiguration _configuration;
     private readonly ILogger<VideoIndexingCallback> _logger;
+    private readonly IServiceScopeFactory _scopeFactory;
 
     private static readonly Regex TvSeriesPattern = new(
         @"^(.+?)[._\s]+[Ss](\d{1,2})[Ee](\d{1,3})",
@@ -32,7 +34,7 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
     /// <summary>
     /// Initializes a new instance of the <see cref="VideoIndexingCallback"/> class.
     /// </summary>
-    public VideoIndexingCallback(VideoService videoService, IVideoCollectionService collectionService, IVideoSeriesService seriesService, VideoDbContext db, IConfiguration configuration, ILogger<VideoIndexingCallback> logger)
+    public VideoIndexingCallback(VideoService videoService, IVideoCollectionService collectionService, IVideoSeriesService seriesService, VideoDbContext db, IConfiguration configuration, ILogger<VideoIndexingCallback> logger, IServiceScopeFactory scopeFactory)
     {
         _videoService = videoService;
         _collectionService = collectionService;
@@ -40,6 +42,7 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
         _db = db;
         _configuration = configuration;
         _logger = logger;
+        _scopeFactory = scopeFactory;
     }
 
     /// <inheritdoc />
@@ -359,6 +362,9 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
     /// <summary>
     /// Fires TMDB enrichment for a series to fetch posters and metadata.
     /// Runs as a short-lived background task that doesn't block the indexing pipeline.
+    /// Creates its own DI scope to avoid <see cref="ObjectDisposedException"/> when the
+    /// originating request's scoped <see cref="VideoDbContext"/> is disposed before the
+    /// background task executes.
     /// Concurrency is throttled to 3 simultaneous enrichments to avoid overwhelming the TMDB API.
     /// </summary>
     private void EnrichSeriesInBackground(Guid seriesId, Guid ownerId)
@@ -368,7 +374,9 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
             await _seriesEnrichmentThrottle.WaitAsync();
             try
             {
-                await _seriesService.EnrichSeriesAsync(seriesId);
+                using var scope = _scopeFactory.CreateScope();
+                var seriesService = scope.ServiceProvider.GetRequiredService<IVideoSeriesService>();
+                await seriesService.EnrichSeriesAsync(seriesId);
             }
             catch (Exception ex)
             {
