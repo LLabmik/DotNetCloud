@@ -58,11 +58,6 @@ public static class MauiProgram
         builder.Services.AddSingleton<IPushNotificationService, UnifiedPushService>();
 #endif
 
-        // ── Photo auto-upload ─────────────────────────────────────────
-        builder.Services.AddHttpClient<IPhotoAutoUploadService, PhotoAutoUploadService>()
-            .AddHttpMessageHandler<AuthenticatedHttpClientHandler>()
-            .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
-
         // ── Files / media upload ────────────────────────────────────
         builder.Services.AddHttpClient<IFileRestClient, HttpFileRestClient>()
             .AddHttpMessageHandler<AuthenticatedHttpClientHandler>()

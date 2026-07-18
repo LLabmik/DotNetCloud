@@ -228,9 +228,13 @@ public partial class App : Application
         {
             await Shell.Current.GoToAsync("//Main/ChannelList");
 
-            var intent = new Intent(global::Android.App.Application.Context, typeof(ChatConnectionService));
-            intent.SetAction(ChatConnectionService.ActionStart);
-            global::Android.App.Application.Context.StartForegroundService(intent);
+            var chatIntent = new Intent(global::Android.App.Application.Context, typeof(ChatConnectionService));
+            chatIntent.SetAction(ChatConnectionService.ActionStart);
+            global::Android.App.Application.Context.StartForegroundService(chatIntent);
+
+            var uploadIntent = new Intent(global::Android.App.Application.Context, typeof(MediaUploadForegroundService));
+            uploadIntent.SetAction(MediaUploadForegroundService.ActionStart);
+            global::Android.App.Application.Context.StartForegroundService(uploadIntent);
         }
     }
 }
