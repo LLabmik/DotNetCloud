@@ -6,13 +6,14 @@ using AndroidUri = global::Android.Net.Uri;
 using AndroidConnectivityManager = global::Android.Net.ConnectivityManager;
 using AndroidTransportType = global::Android.Net.TransportType;
 using Microsoft.Extensions.Logging;
+using System.Security.Cryptography;
 
 namespace DotNetCloud.Client.Android.Services;
 
 /// <summary>
 /// Periodically scans the device's MediaStore for new photos and videos, uploading them
 /// to the active DotNetCloud server using the chunked upload protocol via <see cref="IFileRestClient"/>.
-/// Organises uploads into an <c>InstantUpload/YYYY/MM</c> folder hierarchy by default.
+/// Organises uploads into an <c>AutoUpload/YYYY/MM</c> folder hierarchy by default.
 /// Respects WiFi-only and enabled/disabled preferences.
 /// </summary>
 internal sealed class MediaAutoUploadService : IMediaAutoUploadService
@@ -24,7 +25,11 @@ internal sealed class MediaAutoUploadService : IMediaAutoUploadService
     private const string PrefLastPhotoTs = "media_upload_last_photo_ts";
     private const string PrefLastVideoTs = "media_upload_last_video_ts";
     private const int NotificationId = 3001;
-    private const string DefaultUploadFolderName = "InstantUpload";
+    private const string DefaultUploadFolderName = "AutoUpload";
+    private const string PrefDedupPrefix = "media_upload_dedup_";
+    private const string PrefChargingOnly = "media_upload_charging_only";
+    private const string PrefBatteryThreshold = "media_upload_battery_threshold";
+    private const string PendingUploadsDirName = "PendingUploads";
 
     private readonly IServerConnectionStore _connectionStore;
     private readonly ISecureTokenStore _tokenStore;
@@ -38,6 +43,10 @@ internal sealed class MediaAutoUploadService : IMediaAutoUploadService
 
     private CancellationTokenSource? _loopCts;
     private Task? _loopTask;
+
+    // Real-time MediaStore observer — signals when new photos/videos appear.
+    private MediaStoreContentObserver? _contentObserver;
+    private Task? _observerListenerTask;
 
     /// <inheritdoc />
     public bool IsRunning => _loopCts is not null && !_loopCts.IsCancellationRequested;
@@ -63,6 +72,15 @@ internal sealed class MediaAutoUploadService : IMediaAutoUploadService
 
         _loopCts = new CancellationTokenSource();
         _loopTask = RunLoopAsync(_loopCts.Token);
+
+        // Register real-time MediaStore observer for instant photo/video detection.
+        if (Platform.AppContext?.ContentResolver is { } resolver)
+        {
+            _contentObserver = new MediaStoreContentObserver();
+            _contentObserver.Register(resolver);
+            _observerListenerTask = ObserveMediaStoreChangesAsync(_loopCts.Token);
+        }
+
         return Task.CompletedTask;
     }
 
@@ -78,13 +96,59 @@ internal sealed class MediaAutoUploadService : IMediaAutoUploadService
         catch (OperationCanceledException) { }
         _loopCts.Dispose();
         _loopCts = null;
+
+        // Unregister MediaStore observer.
+        if (_contentObserver is not null && Platform.AppContext?.ContentResolver is { } resolver)
+        {
+            _contentObserver.Unregister(resolver);
+            _contentObserver = null;
+        }
     }
 
     /// <inheritdoc />
     public Task ScanAndUploadNowAsync(CancellationToken cancellationToken = default)
         => UploadNewMediaAsync(cancellationToken);
 
+    /// <inheritdoc />
+    public async Task<Guid?> ResolveUploadTargetFolderAsync(
+        string serverBaseUrl, string accessToken,
+        DateTime? timestamp = null, CancellationToken ct = default)
+    {
+        var dt = timestamp ?? DateTime.UtcNow;
+        return await EnsureUploadFolderAsync(serverBaseUrl, accessToken, dt.Year, dt.Month, ct)
+            .ConfigureAwait(false);
+    }
+
     // ── Private helpers ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Listens for MediaStore change signals from the <see cref="MediaStoreContentObserver"/>
+    /// and triggers a scan-and-upload whenever new media content is detected.
+    /// </summary>
+    private async Task ObserveMediaStoreChangesAsync(CancellationToken ct)
+    {
+        if (_contentObserver is null)
+            return;
+
+        var reader = _contentObserver.Reader;
+        try
+        {
+            while (await reader.WaitToReadAsync(ct).ConfigureAwait(false))
+            {
+                while (reader.TryRead(out _))
+                {
+                    // Drain any buffered signals — we only need one scan.
+                }
+
+                _logger.LogDebug("MediaStore change detected; triggering immediate scan.");
+                _ = UploadNewMediaAsync(ct);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Shutdown requested.
+        }
+    }
 
     private async Task RunLoopAsync(CancellationToken ct)
     {
@@ -115,6 +179,21 @@ internal sealed class MediaAutoUploadService : IMediaAutoUploadService
             return;
         }
 
+        // Charging-only mode: skip if not plugged in.
+        if (Preferences.Default.Get(PrefChargingOnly, false) && !IsCharging())
+        {
+            _logger.LogDebug("Media auto-upload skipped — charging-only mode active and device is not charging.");
+            return;
+        }
+
+        // Battery threshold: skip if battery is below the minimum percentage.
+        var minBatteryPct = Preferences.Default.Get(PrefBatteryThreshold, 20);
+        if (minBatteryPct > 0 && GetBatteryPercentage() is { } pct && pct < minBatteryPct)
+        {
+            _logger.LogDebug("Media auto-upload skipped — battery ({BatteryPct}%) below threshold ({Threshold}%).", pct, minBatteryPct);
+            return;
+        }
+
         var connection = _connectionStore.GetActive();
         if (connection is null)
             return;
@@ -133,7 +212,12 @@ internal sealed class MediaAutoUploadService : IMediaAutoUploadService
 
         var totalItems = photos.Count + videos.Count;
         if (totalItems == 0)
+        {
+            // Also check the local pending uploads queue — files saved by camera capture
+            // while auto-upload was off.
+            await UploadPendingFilesAsync(connection.ServerBaseUrl, accessToken, ct);
             return;
+        }
 
         _logger.LogInformation("Found {PhotoCount} new photo(s) and {VideoCount} new video(s) to upload.",
             photos.Count, videos.Count);
@@ -194,7 +278,92 @@ internal sealed class MediaAutoUploadService : IMediaAutoUploadService
             }
         }
 
+        // Upload any files in the local pending queue (captured while setting was off).
+        await UploadPendingFilesAsync(connection.ServerBaseUrl, accessToken, ct);
+
         nm.Cancel(NotificationId);
+    }
+
+    /// <summary>
+    /// Uploads all files from the local pending uploads queue directory.
+    /// These are photos/videos captured from the Files tab while auto-upload was off.
+    /// After successful upload, the local file is deleted.
+    /// </summary>
+    private async Task UploadPendingFilesAsync(string serverBaseUrl, string accessToken, CancellationToken ct)
+    {
+        var pendingDir = System.IO.Path.Combine(
+            Microsoft.Maui.Storage.FileSystem.AppDataDirectory,
+            PendingUploadsDirName);
+
+        if (!Directory.Exists(pendingDir))
+            return;
+
+        var files = Directory.GetFiles(pendingDir);
+        if (files.Length == 0)
+            return;
+
+        _logger.LogInformation("Found {Count} pending file(s) in local upload queue.", files.Length);
+
+        foreach (var filePath in files)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var fileName = System.IO.Path.GetFileName(filePath);
+            var mimeType = GuessMimeType(fileName, "application/octet-stream");
+
+            try
+            {
+                await using var fileStream = File.OpenRead(filePath);
+                using var ms = new MemoryStream();
+                await fileStream.CopyToAsync(ms, ct).ConfigureAwait(false);
+                ms.Position = 0;
+
+                // Resolve the AutoUpload/YYYY/MM folder.
+                Guid? parentId = null;
+                if (Preferences.Default.Get(PrefOrganizeByDate, true))
+                {
+                    parentId = await EnsureUploadFolderAsync(
+                        serverBaseUrl, accessToken, DateTime.UtcNow.Year, DateTime.UtcNow.Month, ct)
+                        .ConfigureAwait(false);
+                }
+
+                // Check dedup before uploading.
+                var fingerprint = ComputeFingerprint(ms, ms.Length, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+                if (!string.IsNullOrEmpty(fingerprint) && Preferences.Default.ContainsKey(PrefDedupPrefix + fingerprint))
+                {
+                    _logger.LogDebug("Skipping pending {FileName} — already uploaded.", fileName);
+                    SafeDeleteFile(filePath);
+                    continue;
+                }
+
+                await _fileApi.UploadFileAsync(
+                    serverBaseUrl, accessToken,
+                    fileName, parentId,
+                    ms, ms.Length, mimeType,
+                    progress: null, ct).ConfigureAwait(false);
+
+                if (!string.IsNullOrEmpty(fingerprint))
+                    Preferences.Default.Set(PrefDedupPrefix + fingerprint, filePath);
+
+                _logger.LogInformation("Uploaded pending file {FileName}.", fileName);
+                SafeDeleteFile(filePath);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to upload pending file {FileName}; keeping in queue.", fileName);
+            }
+        }
+    }
+
+    /// <summary>Deletes a file, swallowing any I/O errors.</summary>
+    private static void SafeDeleteFile(string path)
+    {
+        try
+        { File.Delete(path); }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Failed to delete pending file {path}: {ex.Message}");
+        }
     }
 
     private async Task UploadMediaItemAsync(
@@ -241,18 +410,32 @@ internal sealed class MediaAutoUploadService : IMediaAutoUploadService
         await inputStream.CopyToAsync(ms, ct).ConfigureAwait(false);
         ms.Position = 0;
 
+        // Dedup: skip if this file was already uploaded (fingerprint matches).
+        var fingerprint = ComputeFingerprint(ms, ms.Length, dateAdded);
+        if (!string.IsNullOrEmpty(fingerprint) && Preferences.Default.ContainsKey(PrefDedupPrefix + fingerprint))
+        {
+            _logger.LogDebug("Skipping {FileName} — already uploaded (fingerprint match).", fileName);
+            return;
+        }
+
         var result = await _fileApi.UploadFileAsync(
             serverBaseUrl, accessToken,
             fileName, parentId,
             ms, ms.Length, mimeType,
             progress: null, ct).ConfigureAwait(false);
 
+        // Store dedup fingerprint so we don't re-upload if the timestamp resets.
+        if (!string.IsNullOrEmpty(fingerprint))
+        {
+            Preferences.Default.Set(PrefDedupPrefix + fingerprint, contentUri);
+        }
+
         _logger.LogInformation("Uploaded {FileName} ({Bytes} bytes) to {FolderName}.",
             fileName, ms.Length, parentId.HasValue ? "date folder" : "root");
     }
 
     /// <summary>
-    /// Ensures the <c>InstantUpload/YYYY/MM</c> folder chain exists on the server and
+    /// Ensures the <c>AutoUpload/YYYY/MM</c> folder chain exists on the server and
     /// returns the month-level folder ID. Results are cached to avoid repeated API calls.
     /// </summary>
     private async Task<Guid?> EnsureUploadFolderAsync(
@@ -344,6 +527,36 @@ internal sealed class MediaAutoUploadService : IMediaAutoUploadService
         return result;
     }
 
+    /// <summary>
+    /// Computes a quick fingerprint for deduplication: SHA-256 of (first 4 KB + file size + dateAdded).
+    /// This is a practical balance — full-file hashing of large videos is expensive on-device,
+    /// while first-4KB + metadata is near-unique for consumer photos.
+    /// </summary>
+    private static string ComputeFingerprint(MemoryStream stream, long fileSize, long dateAdded)
+    {
+        var position = stream.Position;
+        try
+        {
+            // Read up to 4 KB from the start of the stream.
+            var sampleSize = (int)Math.Min(4096, stream.Length);
+            var buffer = new byte[sampleSize + 8 + 8];
+            stream.Position = 0;
+            stream.ReadExactly(buffer, 0, sampleSize);
+
+            // Append file size (8 bytes)
+            BitConverter.GetBytes(fileSize).CopyTo(buffer, sampleSize);
+            // Append dateAdded timestamp (8 bytes)
+            BitConverter.GetBytes(dateAdded).CopyTo(buffer, sampleSize + 8);
+
+            var hash = SHA256.HashData(buffer.AsSpan(0, sampleSize + 16));
+            return Convert.ToHexStringLower(hash);
+        }
+        finally
+        {
+            stream.Position = position;
+        }
+    }
+
     private static void ShowProgress(
         NotificationManagerCompat nm, global::Android.Content.Context context,
         string title, int current, int total)
@@ -390,5 +603,33 @@ internal sealed class MediaAutoUploadService : IMediaAutoUploadService
             return false;
         var caps = cm.ActiveNetwork is { } net ? cm.GetNetworkCapabilities(net) : null;
         return caps?.HasTransport(AndroidTransportType.Wifi) ?? false;
+    }
+
+    /// <summary>Returns <c>true</c> if the device is plugged in (AC or USB).</summary>
+    private static bool IsCharging()
+    {
+        var context = Platform.AppContext;
+        if (context is null)
+            return false;
+
+        var batteryManager = context.GetSystemService(Context.BatteryService) as global::Android.OS.BatteryManager;
+        if (batteryManager is null)
+            return false;
+
+        return batteryManager.IsCharging;
+    }
+
+    /// <summary>Returns the current battery percentage (0–100), or <c>null</c> if unavailable.</summary>
+    private static int? GetBatteryPercentage()
+    {
+        var context = Platform.AppContext;
+        if (context is null)
+            return null;
+
+        var batteryManager = context.GetSystemService(Context.BatteryService) as global::Android.OS.BatteryManager;
+        if (batteryManager is null)
+            return null;
+
+        return batteryManager.GetIntProperty((int)global::Android.OS.BatteryProperty.Capacity);
     }
 }

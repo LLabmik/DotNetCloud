@@ -15,7 +15,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     internal const string PrefOrganizeByDate = "media_upload_organize_by_date";
     internal const string PrefUploadFolderName = "media_upload_folder_name";
     internal const string PrefLastServerUrl = "last_server_url";
-    internal const string DefaultUploadFolderName = "InstantUpload";
+    internal const string PrefChargingOnly = "media_upload_charging_only";
+    internal const string PrefBatteryThreshold = "media_upload_battery_threshold";
+    internal const string DefaultUploadFolderName = "AutoUpload";
 
     private readonly IServerConnectionStore _serverStore;
     private readonly ISecureTokenStore _tokenStore;
@@ -56,6 +58,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         _wifiOnlyEnabled = _preferences.Get(PrefWifiOnly, true);
         _organizeByDate = _preferences.Get(PrefOrganizeByDate, true);
         _uploadFolderName = _preferences.Get(PrefUploadFolderName, DefaultUploadFolderName);
+        _chargingOnly = _preferences.Get(PrefChargingOnly, false);
+        _batteryThreshold = _preferences.Get(PrefBatteryThreshold, 20);
 
         RefreshBatteryStatus();
     }
@@ -98,6 +102,14 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     [ObservableProperty]
     private string _uploadFolderName;
+
+    // ── Upload constraints ──────────────────────────────────────────
+
+    [ObservableProperty]
+    private bool _chargingOnly;
+
+    [ObservableProperty]
+    private int _batteryThreshold = 20;
 
     // ── Battery optimization ─────────────────────────────────────────
 
@@ -142,6 +154,21 @@ public sealed partial class SettingsViewModel : ObservableObject
             _preferences.Set(PrefUploadFolderName, value.Trim());
             _logger.LogInformation("Upload folder name set to '{FolderName}'.", value.Trim());
         }
+    }
+
+    partial void OnChargingOnlyChanged(bool value)
+    {
+        _preferences.Set(PrefChargingOnly, value);
+        _logger.LogInformation("Charging-only upload set to {Value}.", value);
+    }
+
+    partial void OnBatteryThresholdChanged(int value)
+    {
+        var clamped = Math.Clamp(value, 0, 100);
+        if (clamped != value)
+            BatteryThreshold = clamped;
+        _preferences.Set(PrefBatteryThreshold, clamped);
+        _logger.LogInformation("Battery upload threshold set to {Value}%.", clamped);
     }
 
     // ── Commands ─────────────────────────────────────────────────────

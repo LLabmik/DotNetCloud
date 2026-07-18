@@ -63,6 +63,8 @@
 
 	<!-- Camera for photo/video capture -->
 	<uses-permission android:name="android.permission.CAMERA" />
+	<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+	<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
 
 	<!-- Battery optimization exemption — required for reliable background sync -->
 	<uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />

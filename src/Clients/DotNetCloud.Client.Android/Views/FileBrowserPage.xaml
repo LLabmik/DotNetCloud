@@ -21,7 +21,7 @@
         </HorizontalStackLayout>
     </Shell.TitleView>
 
-    <Grid RowDefinitions="Auto,*,Auto,Auto">
+    <Grid RowDefinitions="Auto,Auto,*,Auto,Auto">
 
         <!-- Top toolbar: back + folder name + actions -->
         <Border
@@ -176,9 +176,41 @@
             </Grid>
         </Border>
 
+        <!-- Auto-upload status banner -->
+        <Border
+            Grid.Row="1"
+            BackgroundColor="#1E293B"
+            StrokeThickness="0"
+            StrokeShape="RoundRectangle 0"
+            Padding="12,6"
+            IsVisible="{Binding IsAutoUploadEnabled}">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <Label
+                    Grid.Column="0"
+                    Text="📤"
+                    FontSize="14"
+                    VerticalOptions="Center"
+                    Margin="0,0,8,0"/>
+                <VerticalStackLayout
+                    Grid.Column="1"
+                    VerticalOptions="Center"
+                    Spacing="1">
+                    <Label
+                        Text="{Binding AutoUploadStatusText}"
+                        TextColor="#94A3B8"
+                        FontSize="12"/>
+                    <Label
+                        Text="{Binding LastUploadTimestampText}"
+                        TextColor="#64748B"
+                        FontSize="10"
+                        IsVisible="{Binding LastUploadTimestampText, Converter={StaticResource IsNotNull}}"/>
+                </VerticalStackLayout>
+            </Grid>
+        </Border>
+
         <!-- Loading / initial state overlay -->
         <VerticalStackLayout
-            Grid.Row="1"
+            Grid.Row="2"
             HorizontalOptions="Center"
             VerticalOptions="Center"
             Spacing="16"
@@ -213,7 +245,7 @@
 
         <!-- File list with pull-to-refresh -->
         <RefreshView
-            Grid.Row="1"
+            Grid.Row="2"
             Command="{Binding LoadFilesCommand}"
             IsRefreshing="{Binding IsLoading}"
             IsVisible="{Binding HasCompletedInitialLoad}"
@@ -292,6 +324,18 @@
                                             MaxLines="1"
                                             Text="{Binding Name}"/>
                                         <HorizontalStackLayout Spacing="8">
+                                            <!-- Pending upload badge -->
+                                            <Border
+                                                BackgroundColor="#F59E0B"
+                                                StrokeThickness="0"
+                                                StrokeShape="RoundRectangle 4"
+                                                Padding="6,2"
+                                                IsVisible="{Binding IsPending}">
+                                                <Label
+                                                    FontSize="10"
+                                                    TextColor="#0F172A"
+                                                    Text="Pending"/>
+                                            </Border>
                                             <Label
                                                 FontSize="12"
                                                 TextColor="#64748B"
@@ -299,7 +343,8 @@
                                             <Label
                                                 FontSize="12"
                                                 TextColor="#475569"
-                                                Text="·"/>
+                                                Text="·"
+                                                IsVisible="{Binding SizeDisplay, Converter={StaticResource IsNotNullOrEmpty}}"/>
                                             <Label
                                                 FontSize="12"
                                                 TextColor="#64748B"
@@ -375,7 +420,7 @@
 
         <!-- Upload progress overlay -->
         <Border
-            Grid.Row="2"
+            Grid.Row="3"
             BackgroundColor="#1E293B"
             StrokeThickness="0"
             Padding="16,10"
@@ -401,7 +446,7 @@
 
         <!-- Quota bar -->
         <Border
-            Grid.Row="3"
+            Grid.Row="4"
             BackgroundColor="#1E293B"
             StrokeThickness="0"
             Padding="16,8"

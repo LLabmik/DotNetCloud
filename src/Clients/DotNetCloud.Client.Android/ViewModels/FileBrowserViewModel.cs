@@ -17,6 +17,7 @@ public sealed partial class FileBrowserViewModel : ObservableObject
     private readonly IServerConnectionStore _serverStore;
     private readonly ISecureTokenStore _tokenStore;
     private readonly IThumbnailCache _thumbnailCache;
+    private readonly IMediaAutoUploadService _autoUploadService;
     private readonly ILogger<FileBrowserViewModel> _logger;
 
     private readonly Stack<(Guid? FolderId, string Name)> _navigationStack = new();
@@ -28,12 +29,14 @@ public sealed partial class FileBrowserViewModel : ObservableObject
         IServerConnectionStore serverStore,
         ISecureTokenStore tokenStore,
         IThumbnailCache thumbnailCache,
+        IMediaAutoUploadService autoUploadService,
         ILogger<FileBrowserViewModel> logger)
     {
         _fileApi = fileApi;
         _serverStore = serverStore;
         _tokenStore = tokenStore;
         _thumbnailCache = thumbnailCache;
+        _autoUploadService = autoUploadService;
         _logger = logger;
 
         _navigationStack.Push((null, "My Files"));
@@ -74,6 +77,20 @@ public sealed partial class FileBrowserViewModel : ObservableObject
     [ObservableProperty]
     private string? _uploadFileName;
 
+    // ── Auto-upload status ──────────────────────────────────────────
+
+    /// <summary>Status text for the auto-upload banner (e.g. "Watching for new photos", "Uploading 3 of 12").</summary>
+    [ObservableProperty]
+    private string _autoUploadStatusText = string.Empty;
+
+    /// <summary>Whether auto-upload is enabled in settings.</summary>
+    [ObservableProperty]
+    private bool _isAutoUploadEnabled;
+
+    /// <summary>Last auto-upload timestamp, formatted for display.</summary>
+    [ObservableProperty]
+    private string _lastUploadTimestampText = string.Empty;
+
     // ── Quota ────────────────────────────────────────────────────────
 
     [ObservableProperty]
@@ -100,6 +117,7 @@ public sealed partial class FileBrowserViewModel : ObservableObject
     [RelayCommand]
     private async Task LoadFilesAsync(CancellationToken ct)
     {
+        RefreshAutoUploadStatus();
         IsLoading = true;
         ErrorMessage = null;
 
@@ -128,6 +146,45 @@ public sealed partial class FileBrowserViewModel : ObservableObject
                         .ToList();
 
                     Items.Clear();
+
+                    // Pin the AutoUpload folder at the top when browsing root.
+                    if (CurrentFolderId is null)
+                    {
+                        var uploadFolderName = Preferences.Default.Get(
+                            SettingsViewModel.PrefUploadFolderName,
+                            SettingsViewModel.DefaultUploadFolderName);
+                        var pinned = sorted.FirstOrDefault(f =>
+                            string.Equals(f.Name, uploadFolderName, StringComparison.OrdinalIgnoreCase) &&
+                            string.Equals(f.NodeType, "Folder", StringComparison.OrdinalIgnoreCase));
+                        if (pinned is not null)
+                        {
+                            Items.Add(new FileItemViewModel(pinned) { IsPinned = true });
+                            sorted.Remove(pinned);
+                        }
+
+                        // Show local pending uploads as virtual file items at the top.
+                        var pendingDir = System.IO.Path.Combine(FileSystem.AppDataDirectory, "PendingUploads");
+                        if (Directory.Exists(pendingDir))
+                        {
+                            foreach (var pendingFile in Directory.GetFiles(pendingDir))
+                            {
+                                var fileName = System.IO.Path.GetFileName(pendingFile);
+                                var fileInfo = new System.IO.FileInfo(pendingFile);
+                                Items.Add(new FileItemViewModel(
+                                    new FileItem(
+                                        Id: Guid.Empty,
+                                        Name: fileName,
+                                        NodeType: "File",
+                                        Size: fileInfo.Length,
+                                        MimeType: GuessMimeType(fileName),
+                                        ParentId: null,
+                                        UpdatedAt: fileInfo.LastWriteTimeUtc,
+                                        ChildCount: 0))
+                                { IsPending = true });
+                            }
+                        }
+                    }
+
                     foreach (var item in sorted)
                         Items.Add(new FileItemViewModel(item));
 
@@ -316,6 +373,9 @@ public sealed partial class FileBrowserViewModel : ObservableObject
                 }
             }
 
+            // Request location permission so the camera app can embed GPS in EXIF.
+            await RequestLocationPermissionAsync();
+
             var photo = await MediaPicker.Default.CapturePhotoAsync();
             if (photo is null)
                 return;
@@ -357,6 +417,9 @@ public sealed partial class FileBrowserViewModel : ObservableObject
                     return;
                 }
             }
+
+            // Request location permission so the camera app can embed GPS in EXIF.
+            await RequestLocationPermissionAsync();
 
             var video = await MediaPicker.Default.CaptureVideoAsync();
             if (video is null)
@@ -424,11 +487,11 @@ public sealed partial class FileBrowserViewModel : ObservableObject
             await stream.CopyToAsync(tempMs, ct);
             fileSize = tempMs.Length;
             tempMs.Position = 0;
-            await UploadStreamAsync(serverUrl, token, picked.FileName, tempMs, fileSize, picked.ContentType, ct);
+            await UploadStreamAsync(serverUrl, token, picked.FileName, tempMs, fileSize, picked.ContentType, CurrentFolderId, ct);
             return;
         }
 
-        await UploadStreamAsync(serverUrl, token, picked.FileName, stream, fileSize, picked.ContentType, ct);
+        await UploadStreamAsync(serverUrl, token, picked.FileName, stream, fileSize, picked.ContentType, CurrentFolderId, ct);
     }
 
     private async Task UploadMediaFileAsync(FileResult media, CancellationToken ct)
@@ -436,28 +499,105 @@ public sealed partial class FileBrowserViewModel : ObservableObject
         IsUploading = true;
         UploadProgress = 0;
 
-        // Use Android-style datetime naming (IMG_YYYYMMDD_HHmmss / VID_YYYYMMDD_HHmmss)
-        // instead of the GUID filename that MAUI's MediaPicker generates on Android.
         var generatedName = BuildAndroidStyleFileName(media);
         UploadFileName = generatedName;
 
-        var (serverUrl, token) = await GetCredentialsAsync(ct);
+        // Always save the captured photo to a local pending uploads directory.
+        // This ensures no data leaves the device unless auto-upload is enabled.
+        var (uploadStream, fileSize) = await ReadMediaStreamAsync(media, ct);
+        await SaveToPendingUploadsAsync(generatedName, uploadStream, ct);
 
-        using var stream = await media.OpenReadAsync();
-        long fileSize = stream.CanSeek ? stream.Length : 0;
-
-        if (fileSize == 0)
+        // Only upload to the server if auto-upload is enabled.
+        if (!Preferences.Default.Get(SettingsViewModel.PrefEnabled, false))
         {
-            // Copy to memory for non-seekable streams
-            using var tempMs = new MemoryStream();
-            await stream.CopyToAsync(tempMs, ct);
-            fileSize = tempMs.Length;
-            tempMs.Position = 0;
-            await UploadStreamAsync(serverUrl, token, generatedName, tempMs, fileSize, media.ContentType, ct);
+            uploadStream.Dispose();
+            _logger.LogInformation("Captured {FileName} saved locally (auto-upload is off).", generatedName);
             return;
         }
 
-        await UploadStreamAsync(serverUrl, token, generatedName, stream, fileSize, media.ContentType, ct);
+        uploadStream.Position = 0;
+        var (serverUrl, token) = await GetCredentialsAsync(ct);
+
+        Guid? targetFolderId;
+        try
+        {
+            targetFolderId = await _autoUploadService.ResolveUploadTargetFolderAsync(
+                serverUrl, token, timestamp: DateTime.UtcNow, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to resolve AutoUpload target folder; falling back to current folder.");
+            targetFolderId = CurrentFolderId;
+        }
+
+        await UploadStreamAsync(serverUrl, token, generatedName, uploadStream, fileSize, media.ContentType, targetFolderId, ct);
+
+        // Upload succeeded — remove from local pending queue.
+        var pendingPath = System.IO.Path.Combine(FileSystem.AppDataDirectory, "PendingUploads", generatedName);
+        if (File.Exists(pendingPath))
+        {
+            try
+            { File.Delete(pendingPath); }
+            catch { /* Best effort */ }
+        }
+    }
+
+    /// <summary>
+    /// Saves media bytes to the local pending uploads queue directory.
+    /// Photos appear in the Files tab with a ☁️ Pending badge and will be
+    /// uploaded when auto-upload is enabled.
+    /// </summary>
+    private static async Task SaveToPendingUploadsAsync(string fileName, Stream data, CancellationToken ct)
+    {
+        var pendingDir = System.IO.Path.Combine(FileSystem.AppDataDirectory, "PendingUploads");
+        Directory.CreateDirectory(pendingDir);
+        var filePath = System.IO.Path.Combine(pendingDir, fileName);
+
+        using var fileStream = File.Create(filePath);
+        data.Position = 0;
+        await data.CopyToAsync(fileStream, ct);
+    }
+
+    private static string GuessMimeType(string fileName)
+    {
+        var ext = System.IO.Path.GetExtension(fileName)?.ToLowerInvariant();
+        return ext switch
+        {
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".png" => "image/png",
+            ".gif" => "image/gif",
+            ".webp" => "image/webp",
+            ".heic" or ".heif" => "image/heif",
+            ".mp4" => "video/mp4",
+            _ => "image/jpeg"
+        };
+    }
+
+    /// <summary>
+    /// Reads a <see cref="FileResult"/> stream into memory, returning the stream and its length.
+    /// The caller is responsible for disposing the returned stream.
+    /// </summary>
+    private static async Task<(Stream Stream, long Length)> ReadMediaStreamAsync(FileResult media, CancellationToken ct)
+    {
+        var stream = await media.OpenReadAsync();
+        var ms = new MemoryStream();
+        await stream.CopyToAsync(ms, ct);
+        stream.Dispose();
+        ms.Position = 0;
+        return (ms, ms.Length);
+    }
+
+    /// <summary>
+    /// Requests location permission if not already granted. The camera app checks
+    /// whether the calling app has location permission before embedding GPS in EXIF.
+    /// This is best-effort — the user can deny without blocking the capture.
+    /// </summary>
+    private static async Task RequestLocationPermissionAsync()
+    {
+        if (await Permissions.CheckStatusAsync<Permissions.LocationWhenInUse>() != PermissionStatus.Granted)
+        {
+            await Permissions.RequestAsync<Permissions.LocationWhenInUse>();
+        }
     }
 
     /// <summary>
@@ -475,9 +615,56 @@ public sealed partial class FileBrowserViewModel : ObservableObject
         return $"{prefix}_{timestamp}{extension}";
     }
 
+    /// <summary>
+    /// Refreshes the auto-upload status properties from preferences.
+    /// Called on every page load so the banner always reflects the current state.
+    /// </summary>
+    private void RefreshAutoUploadStatus()
+    {
+        var prefs = Preferences.Default;
+        var enabled = prefs.Get("media_upload_enabled", false);
+        IsAutoUploadEnabled = enabled;
+
+        // Count pending files in the local upload queue.
+        var pendingDir = System.IO.Path.Combine(FileSystem.AppDataDirectory, "PendingUploads");
+        var pendingCount = Directory.Exists(pendingDir)
+            ? Directory.GetFiles(pendingDir).Length
+            : 0;
+
+        if (!enabled)
+        {
+            AutoUploadStatusText = pendingCount > 0
+                ? $"📤 {pendingCount} pending upload(s) — enable auto-upload to sync"
+                : "Auto-upload paused";
+            LastUploadTimestampText = string.Empty;
+            return;
+        }
+
+        // Show the last upload timestamp if available.
+        var lastPhotoTs = prefs.Get("media_upload_last_photo_ts", 0L);
+        var lastVideoTs = prefs.Get("media_upload_last_video_ts", 0L);
+        var latestTs = Math.Max(lastPhotoTs, lastVideoTs);
+
+        if (latestTs > 0)
+        {
+            var dt = DateTimeOffset.FromUnixTimeSeconds(latestTs).LocalDateTime;
+            LastUploadTimestampText = $"Last upload: {dt:MMM dd, yyyy h:mm tt}";
+        }
+        else
+        {
+            LastUploadTimestampText = string.Empty;
+        }
+
+        var status = _autoUploadService.IsRunning ? "Watching for new photos..." : "Auto-upload idle";
+        if (pendingCount > 0)
+            status = $"📤 {pendingCount} pending upload(s)";
+        AutoUploadStatusText = status;
+    }
+
     private async Task UploadStreamAsync(
         string serverUrl, string token,
         string fileName, Stream stream, long fileSize, string? mimeType,
+        Guid? parentId,
         CancellationToken ct)
     {
         var progress = new Progress<FileTransferProgress>(p =>
@@ -489,7 +676,7 @@ public sealed partial class FileBrowserViewModel : ObservableObject
         });
 
         await _fileApi.UploadFileAsync(
-            serverUrl, token, fileName, CurrentFolderId,
+            serverUrl, token, fileName, parentId,
             stream, fileSize, mimeType, progress, ct);
 
         await LoadFilesAsync(ct);
@@ -590,7 +777,7 @@ public sealed partial class FileBrowserViewModel : ObservableObject
         _thumbnailLoadCts = new CancellationTokenSource();
         var ct = _thumbnailLoadCts.Token;
 
-        var imageItems = Items.Where(i => i.IsImage).ToList();
+        var imageItems = Items.Where(i => i.IsImage && !i.IsPending).ToList();
         Log.Warn("DotNetCloud", $"LoadThumbnailsAsync: found {imageItems.Count} image items out of {Items.Count} total");
         if (imageItems.Count == 0)
             return;
@@ -654,6 +841,12 @@ public sealed partial class FileItemViewModel : ObservableObject
     /// <summary>Whether this item is an image file with a supported MIME type.</summary>
     public bool IsImage => MimeType?.StartsWith("image/", StringComparison.OrdinalIgnoreCase) == true;
 
+    /// <summary>Whether this item is pinned at the top (e.g. the AutoUpload folder).</summary>
+    public bool IsPinned { get; set; }
+
+    /// <summary>Whether this item is a local pending upload (not yet on server).</summary>
+    public bool IsPending { get; set; }
+
     /// <summary>Node ID.</summary>
     public Guid Id { get; }
 
@@ -679,7 +872,7 @@ public sealed partial class FileItemViewModel : ObservableObject
     public bool IsFolder { get; }
 
     /// <summary>Icon glyph for display.</summary>
-    public string Icon => IsFolder ? "📁" : GetFileIcon(Name, MimeType);
+    public string Icon => IsPending ? "☁️" : IsFolder ? "📁" : GetFileIcon(Name, MimeType);
 
     /// <summary>Formatted file size string.</summary>
     public string SizeDisplay => IsFolder
