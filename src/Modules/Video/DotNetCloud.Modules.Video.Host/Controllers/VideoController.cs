@@ -1313,6 +1313,89 @@ public class VideoController : VideoControllerBase
         }
     }
 
+    // ─── Download ───────────────────────────────────────────────────
+
+    /// <summary>Downloads a video file to the user's machine.
+    /// Serves the raw file (same reconstruction as streaming) with Content-Disposition: attachment
+    /// so the browser prompts to save rather than play inline.</summary>
+    [HttpGet("{videoId:guid}/download")]
+    public async Task<IActionResult> DownloadVideo(Guid videoId)
+    {
+        // Authenticate via cookie auth (same as stream endpoint)
+        Guid userId;
+        try
+        {
+            var authCaller = GetAuthenticatedCaller();
+            userId = authCaller.UserId;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Unauthorized(ErrorEnvelope("auth_required",
+                "Authentication is required to download videos."));
+        }
+
+        // Look up the video
+        var video = await _streamingService.GetVideoForStreamingAsync(videoId, userId);
+        if (video is null)
+            return NotFound(ErrorEnvelope(ErrorCodes.VideoNotFound, "Video not found."));
+
+        var caller = new CallerContext(userId, Array.Empty<string>(), CallerType.User);
+
+        // Reconstruct file from chunks (or get direct FileStream for admin shares)
+        Stream downloadStream;
+        long fileSize;
+        string fileName;
+
+        var canonical = video.CanonicalVideo;
+        if (canonical is null)
+            return NotFound(ErrorEnvelope("file_not_found", "Video file metadata not found."));
+
+        try
+        {
+            downloadStream = await _downloadService.DownloadCurrentAsync(video.FileNodeId, caller);
+            fileName = canonical.FileName;
+
+            if (downloadStream is FileStream fs)
+            {
+                fileSize = new System.IO.FileInfo(fs.Name).Length;
+            }
+            else if (downloadStream.CanSeek)
+            {
+                fileSize = downloadStream.Length;
+            }
+            else
+            {
+                fileSize = canonical.SizeBytes > 0 ? canonical.SizeBytes : 0;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to reconstruct file for download for video {VideoId}", videoId);
+            return NotFound(ErrorEnvelope("file_not_found", "Video file not found in storage."));
+        }
+
+        // Determine content type (use video MIME type, fall back to octet-stream)
+        var contentType = VideoStreamingService.GetContentType(canonical.MimeType);
+        if (contentType == "application/octet-stream")
+            contentType = "video/mp4";
+
+        _logger.LogInformation(
+            "DownloadVideo: Serving {FileName} ({Size:F1}MB) for video {VideoId}",
+            fileName, fileSize / (1024.0 * 1024.0), videoId);
+
+        // Stream the file to the response with Content-Disposition: attachment
+        try
+        {
+            return File(downloadStream, contentType, fileName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "DownloadVideo: Client disconnected for video {VideoId}", videoId);
+            await downloadStream.DisposeAsync();
+            return new EmptyResult();
+        }
+    }
+
     private static bool IsSafeHlsRelativePath(string path)
     {
         if (string.IsNullOrWhiteSpace(path))

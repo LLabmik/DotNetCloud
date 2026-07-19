@@ -1009,4 +1009,30 @@
     tryInit();
   };
 
+  /**
+   * Pauses the <video> element only if it is currently playing.
+   * No-op if already paused or if the element doesn't exist.
+   * Used by the download button to pause playback before starting a download.
+   */
+  videoPlayer.pauseIfPlaying = function (elementId) {
+    var video = document.getElementById(elementId);
+    if (video && !video.paused) {
+      video.pause();
+    }
+  };
+
+  /**
+   * Triggers a file download by creating a temporary <a> element,
+   * clicking it programmatically, then removing it.
+   * The explicit filename is set via the download attribute.
+   */
+  videoPlayer.triggerDownload = function (url, filename) {
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
 })();

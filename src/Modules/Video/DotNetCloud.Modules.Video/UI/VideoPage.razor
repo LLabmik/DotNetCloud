@@ -1392,9 +1392,16 @@
                             <div class="player-actions">
                                 <button type="button" class="btn-icon-action" @onclick="ToggleFavoriteAsync"
                                         title="@(_playerVideo.IsFavorite ? "Remove from favorites" : "Add to favorites")">
-                                    @(_playerVideo.IsFavorite ? "★" : "☆")
+                                    @if (_playerVideo.IsFavorite)
+                                    {
+                                        <span class="material-icons">favorite</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="material-icons">favorite_border</span>
+                                    }
                                 </button>
-                                <button type="button" class="btn-icon-action" @onclick="() => _showAddToCollection = true" title="Add to collection">📁</button>
+                                <button type="button" class="btn-icon-action" @onclick="() => _showAddToCollection = true" title="Add to collection"><span class="material-icons">playlist_add</span></button>
                                 @if (_tmdbAvailable)
                                 {
                                     <button type="button" class="btn-icon-action"
@@ -1408,11 +1415,12 @@
                                         }
                                         else
                                         {
-                                            <span>🎬</span>
+                                            <span class="material-icons">movie</span>
                                         }
                                     </button>
                                 }
-                                <button type="button" class="btn-close-player" @onclick="ClosePlayer">✕ Close</button>
+                                <button type="button" class="btn-icon-action" @onclick="DownloadVideoAsync" title="Download video"><span class="material-icons">download</span></button>
+                                <button type="button" class="btn-close-player" @onclick="ClosePlayer"><span class="material-icons">close</span> Close</button>
                             </div>
                         </div>
 
