@@ -1,0 +1,31 @@
+/* Material Icon SVG size variants.
+   Default is 24px (MaterialIconSize.Md). */
+
+::deep .material-icon {
+    flex-shrink: 0;
+}
+
+.material-icon--sm {
+    width: 16px;
+    height: 16px;
+}
+
+.material-icon--md {
+    width: 24px;
+    height: 24px;
+}
+
+.material-icon--lg {
+    width: 32px;
+    height: 32px;
+}
+
+.material-icon--xl {
+    width: 48px;
+    height: 48px;
+}
+
+/* Fallback text for unknown icons */
+.material-icon--fallback {
+    font-size: inherit;
+}

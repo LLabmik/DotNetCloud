@@ -18,15 +18,13 @@
 
     <div class="@alertClass" role="alert">
         <div class="demo-banner-content">
-            <span class="demo-banner-icon">
-                @(daysRemaining switch
+            <MaterialIcon Icon="@(daysRemaining switch
                 {
-                    0 => "⚠️",
-                    <= 1 => "🔴",
-                    <= 2 => "🟡",
-                    _ => "⏳"
-                })
-            </span>
+                    0 => "warning",
+                    <= 1 => "error",
+                    <= 2 => "warning_amber",
+                    _ => "hourglass_empty"
+                })" CssClass="demo-banner-icon" />
             <span class="demo-banner-text">
                 @if (daysRemaining == 0)
                 {

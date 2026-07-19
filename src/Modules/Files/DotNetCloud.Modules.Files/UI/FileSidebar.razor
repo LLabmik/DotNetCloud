@@ -14,7 +14,7 @@
             <h3 class="sidebar-title">Files</h3>
         }
         <button class="sidebar-toggle" @onclick="ToggleCollapsed" title="@(_sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")">
-            <span>@(_sidebarCollapsed ? "▶" : "◀")</span>
+            <MaterialIcon Icon="@(_sidebarCollapsed ? "chevron_right" : "chevron_left")" />
         </button>
     </div>
     <ul class="sidebar-nav-list">

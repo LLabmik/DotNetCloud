@@ -42,35 +42,21 @@
                             @onclick="ToggleAddPeoplePicker"
                             title="Add people to this conversation"
                             aria-label="Add people">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                            <circle cx="8.5" cy="7" r="4" />
-                            <line x1="20" y1="8" x2="20" y2="14" />
-                            <line x1="23" y1="11" x2="17" y2="11" />
-                        </svg>
+                        <MaterialIcon Icon="person_add" />
                     </button>
                 }
                 <button class="dm-action-btn @(IsDmSearchVisible ? "active" : "")"
                         @onclick="ToggleDmSearch"
                         title="New direct message"
                         aria-label="New direct message">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                        <line x1="12" y1="8" x2="12" y2="14" />
-                        <line x1="9" y1="11" x2="15" y2="11" />
-                    </svg>
+                    <MaterialIcon Icon="add_comment" />
                 </button>
             </div>
         }
         else
         {
             <div class="dm-header-empty-title">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                </svg>
+                <MaterialIcon Icon="chat" />
                 <span>New Direct Message</span>
             </div>
         }
@@ -88,11 +74,7 @@
                 }
             </div>
             <div class="dm-search-input-wrapper">
-                <svg class="dm-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none"
-                     stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="11" cy="11" r="8" />
-                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                </svg>
+                <MaterialIcon Icon="search" CssClass="dm-search-icon" />
                 <input type="text"
                        class="dm-search-input"
                        placeholder="Search by name or username…"
@@ -124,11 +106,7 @@
                                     <span class="dm-result-username">@("@" + user.Username)</span>
                                 }
                             </span>
-                            <svg class="dm-result-arrow" width="14" height="14" viewBox="0 0 24 24"
-                                 fill="none" stroke="currentColor" stroke-width="2.5"
-                                 stroke-linecap="round" stroke-linejoin="round">
-                                <polyline points="9 18 15 12 9 6" />
-                            </svg>
+                            <MaterialIcon Icon="chevron_right" CssClass="dm-result-arrow" />
                         </button>
                     }
                 </div>
@@ -146,14 +124,12 @@
         <div class="dm-search-panel">
             <div class="dm-search-label">
                 <span>Add people to this conversation</span>
-                <button class="dm-search-close" @onclick="ToggleAddPeoplePicker" aria-label="Close">✕</button>
+                <button class="dm-search-close" @onclick="ToggleAddPeoplePicker" aria-label="Close">
+                    <MaterialIcon Icon="close" />
+                </button>
             </div>
             <div class="dm-search-input-wrapper">
-                <svg class="dm-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none"
-                     stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="11" cy="11" r="8" />
-                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                </svg>
+                <MaterialIcon Icon="search" CssClass="dm-search-icon" />
                 <input type="text"
                        class="dm-search-input"
                        placeholder="Search by name or username…"
@@ -185,12 +161,7 @@
                                     <span class="dm-result-username">@("@" + user.Username)</span>
                                 }
                             </span>
-                            <svg class="dm-result-add-icon" width="14" height="14" viewBox="0 0 24 24"
-                                 fill="none" stroke="currentColor" stroke-width="2.5"
-                                 stroke-linecap="round" stroke-linejoin="round">
-                                <line x1="12" y1="5" x2="12" y2="19" />
-                                <line x1="5" y1="12" x2="19" y2="12" />
-                            </svg>
+                            <MaterialIcon Icon="add" CssClass="dm-result-add-icon" />
                         </button>
                     }
                 </div>
@@ -230,10 +201,7 @@
     {
         <div class="dm-empty-state">
             <div class="dm-empty-icon">
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                     stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                </svg>
+                <MaterialIcon Icon="chat" Size="MaterialIconSize.Xl" />
             </div>
             <p class="dm-empty-heading">Send a direct message</p>
             <p class="dm-empty-subtext">Search for someone above to start a private conversation.</p>

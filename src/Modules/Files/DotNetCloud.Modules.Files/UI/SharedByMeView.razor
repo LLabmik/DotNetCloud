@@ -52,7 +52,7 @@
             @foreach (var item in SortedItems)
             {
                 <li class="shared-item @(item.IsExpired ? "shared-item--expired" : "")">
-                    <div class="shared-item-icon">@GetNodeIcon(item)</div>
+                    <div class="shared-item-icon"><MaterialIcon Icon="@GetNodeIcon(item)" /></div>
 
                     <div class="shared-item-content">
                         <div class="shared-item-top-row">

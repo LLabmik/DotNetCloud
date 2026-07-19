@@ -3,7 +3,7 @@
 <nav class="sidebar @(Collapsed ? "collapsed" : "")">
     <div class="sidebar-header">
         <a href="/" class="brand" title="@BrandText" aria-label="@BrandText">
-            <span class="brand-icon">@BrandIcon</span>
+            <MaterialIcon Icon="@BrandIcon" CssClass="brand-icon" />
             @if (!Collapsed)
             {
                 <span class="brand-text">@BrandText</span>
@@ -13,7 +13,7 @@
                 @onclick="ToggleCollapsed"
                 title="@(Collapsed ? "Expand sidebar" : "Collapse sidebar")"
                 aria-label="@(Collapsed ? "Expand sidebar" : "Collapse sidebar")">
-            <span class="toggle-icon">@(Collapsed ? "▶" : "◀")</span>
+            <MaterialIcon Icon="@(Collapsed ? "chevron_right" : "chevron_left")" CssClass="toggle-icon" />
         </button>
     </div>
     <div class="nav-menu">
@@ -28,7 +28,7 @@
                              aria-label="@item.Label">
                         @if (item.Icon is not null)
                         {
-                            <span class="nav-icon">@item.Icon</span>
+                            <MaterialIcon Icon="@item.Icon" CssClass="nav-icon" />
                         }
                         @if (!Collapsed)
                         {

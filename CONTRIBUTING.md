@@ -145,6 +145,22 @@ The API will be available at `https://localhost:7001`
 
 ## Coding Standards
 
+### Blazor UI Icons (MANDATORY)
+
+All icons in Blazor UI must use the `MaterialIcon` component from `DotNetCloud.UI.Shared`. Never use raw emoji, text spans, or inline SVGs from other icon sets.
+
+```razor
+<!-- ✅ CORRECT: MaterialIcon component -->
+<MaterialIcon Icon="home" />
+<MaterialIcon Icon="settings" Size="MaterialIconSize.Lg" />
+
+<!-- ❌ WRONG: raw emoji / text spans / foreign SVGs -->
+<span>🏠</span>
+<svg viewBox="0 0 24 24">...</svg>
+```
+
+See `src/UI/DotNetCloud.UI.Shared/Components/DataDisplay/MaterialIcon.razor` for full usage. Add missing icon SVG paths to `MaterialSvgIcons.cs`.
+
 ### C# Style Guide
 
 ```csharp

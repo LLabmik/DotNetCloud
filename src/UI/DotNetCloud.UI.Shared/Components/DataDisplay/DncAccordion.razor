@@ -5,7 +5,7 @@
         <div class="accordion-item @(isOpen ? "open" : "")">
             <button class="accordion-header" @onclick="() => Toggle(item.Id)">
                 <span>@item.Title</span>
-                <span class="accordion-icon">@(isOpen ? "▲" : "▼")</span>
+                <MaterialIcon Icon="@(isOpen ? "expand_less" : "expand_more")" CssClass="accordion-icon" />
             </button>
             @if (isOpen)
             {

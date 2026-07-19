@@ -17,7 +17,7 @@
             }
             <button class="email-sidebar-toggle" @onclick="ToggleSidebar"
                     title="@(_sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")">
-                <span>@(_sidebarCollapsed ? "▶" : "◀")</span>
+                <MaterialIcon Icon="@(_sidebarCollapsed ? "chevron_right" : "chevron_left")" />
             </button>
         </div>
 
@@ -57,7 +57,7 @@
                 {
                     <button class="email-nav-item @(_selectedMailbox?.Id == mb.Id ? "active" : "")"
                             @onclick="() => SelectMailbox(mb)" title="@mb.DisplayName">
-                        <span>@MailboxIcon(mb)</span>
+                        <MaterialIcon Icon="@MailboxIcon(mb)" />
                         <span class="email-nav-text">@mb.DisplayName</span>
                     </button>
                 }
@@ -70,18 +70,18 @@
             </div>
             <button class="email-nav-item @(_showRules ? "active" : "")"
                     @onclick="() => { _showRules = true; _selectedMailbox = null; _composing = null; }" title="Rules">
-                <span>⚙️</span>
+                <MaterialIcon Icon="settings" />
                 <span class="email-nav-text">Rules</span>
             </button>
             @if (_selectedAccount is not null)
             {
                 <button class="email-nav-item" @onclick="SyncAccount" disabled="@_isSyncing" title="Sync">
-                    <span>@(_isSyncing ? "⏳" : "🔄")</span>
+                    <MaterialIcon Icon="@(_isSyncing ? "hourglass_empty" : "sync")" />
                     <span class="email-nav-text">@(_isSyncing ? "Syncing..." : "Sync Now")</span>
                 </button>
                 <button class="email-nav-item email-nav-item-danger"
                         @onclick="() => _confirmDeleteAccount = true" title="Delete Account">
-                    <span>🗑️</span>
+                    <MaterialIcon Icon="delete" />
                     <span class="email-nav-text">Delete Account</span>
                 </button>
             }
@@ -264,15 +264,15 @@
                 <div class="email-thread-header">
                     <button class="email-btn email-btn-ghost email-thread-back"
                             @onclick="() => { _selectedThread = null; }">
-                        ← Back
+                        <MaterialIcon Icon="arrow_back" /> Back
                     </button>
                     <h3>@_selectedThread.Subject</h3>
                     <div class="email-thread-actions">
                         <button class="email-btn email-btn-primary email-btn-reply" @onclick="() => ReplyToThread(_selectedThread)">
-                            ↩ Reply
+                            <MaterialIcon Icon="reply" /> Reply
                         </button>
                         <button class="email-btn email-btn-secondary email-btn-forward" @onclick="() => ForwardThread(_selectedThread)">
-                            → Forward
+                            <MaterialIcon Icon="forward" /> Forward
                         </button>
                     </div>
                 </div>
@@ -317,7 +317,7 @@
                                             var isDetaching = _detachingAttachmentId == att.Id;
                                             <div class="email-attachment-item">
                                                 <a href="@downloadUrl" class="email-attachment-chip" download="@att.FileName" title="@att.FileName (@sizeFormatted)">
-                                                    <span class="email-attachment-icon">@fileIcon</span>
+                                                    <MaterialIcon Icon="@fileIcon" CssClass="email-attachment-icon" />
                                                     <span class="email-attachment-name">@att.FileName</span>
                                                     <span class="email-attachment-size">@sizeFormatted</span>
                                                 </a>
@@ -325,7 +325,7 @@
                                                 {
                                                     <button class="email-attachment-save-btn" @onclick="() => DetachAttachment(att.Id)"
                                                             disabled="@isDetaching" title="Save to Files">
-                                                        @(isDetaching ? "⏳" : "📁")
+                                                        <MaterialIcon Icon="@(isDetaching ? "hourglass_empty" : "folder")" />
                                                     </button>
                                                 }
                                             </div>
@@ -907,13 +907,13 @@
 
     private static string MailboxIcon(EmailMailbox mb)
     {
-        if ((mb.SyncFlags & (int)MailboxFlags.Inbox) != 0) return "📥";
-        if ((mb.SyncFlags & (int)MailboxFlags.Sent) != 0) return "📤";
-        if ((mb.SyncFlags & (int)MailboxFlags.Drafts) != 0) return "📝";
-        if ((mb.SyncFlags & (int)MailboxFlags.Trash) != 0) return "🗑️";
-        if ((mb.SyncFlags & (int)MailboxFlags.Spam) != 0) return "🚫";
-        if ((mb.SyncFlags & (int)MailboxFlags.Archive) != 0) return "📦";
-        return "📁";
+        if ((mb.SyncFlags & (int)MailboxFlags.Inbox) != 0) return "move_to_inbox";
+        if ((mb.SyncFlags & (int)MailboxFlags.Sent) != 0) return "outbox";
+        if ((mb.SyncFlags & (int)MailboxFlags.Drafts) != 0) return "edit_note";
+        if ((mb.SyncFlags & (int)MailboxFlags.Trash) != 0) return "delete";
+        if ((mb.SyncFlags & (int)MailboxFlags.Spam) != 0) return "block";
+        if ((mb.SyncFlags & (int)MailboxFlags.Archive) != 0) return "inventory_2";
+        return "folder";
     }
 
     private static string FormatFrom(string fromJson)
@@ -946,32 +946,32 @@
     private static string GetFileTypeIcon(string contentType)
     {
         if (string.IsNullOrWhiteSpace(contentType))
-            return "📎";
+            return "attach_file";
 
         var type = contentType.ToLowerInvariant();
 
         if (type.StartsWith("image/"))
-            return "🖼️";
+            return "image";
         if (type == "application/pdf")
-            return "📄";
+            return "picture_as_pdf";
         if (type is "application/zip" or "application/x-rar-compressed"
             or "application/gzip" or "application/x-7z-compressed"
             or "application/x-tar")
-            return "📦";
+            return "folder_zip";
         if (type.StartsWith("text/"))
-            return "📝";
+            return "text_snippet";
         if (type.StartsWith("audio/"))
-            return "🎵";
+            return "music_note";
         if (type.StartsWith("video/"))
-            return "🎬";
+            return "movie";
         if (type.Contains("spreadsheet") || type.Contains("excel") || type.Contains("csv"))
-            return "📊";
+            return "table_chart";
         if (type.Contains("presentation") || type.Contains("powerpoint") || type.Contains("slides"))
-            return "📽️";
+            return "slideshow";
         if (type.Contains("word") || type.Contains("document"))
-            return "📃";
+            return "article";
 
-        return "📎";
+        return "attach_file";
     }
 
     /// <summary>

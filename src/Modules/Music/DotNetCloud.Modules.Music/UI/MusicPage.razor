@@ -34,7 +34,7 @@
                 <h2 class="music-sidebar-title">Music</h2>
             }
             <button class="music-sidebar-toggle" @onclick="ToggleSidebar" title="@(_sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")">
-                <span>@(_sidebarCollapsed ? "▶" : "◀")</span>
+                <MaterialIcon Icon="@(_sidebarCollapsed ? "chevron_right" : "chevron_left")" />
             </button>
         </div>
 

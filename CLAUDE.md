@@ -111,6 +111,32 @@ Always use **targeted edits** (minimal context around changed lines) to preserve
 
 **Checkbox format:** Use `✓` (completed) and `☐` (pending). Never use `[x]` / `[ ]`.
 
+## UI — Material Icons (MANDATORY)
+
+**All Blazor UI icons MUST use the `MaterialIcon` component.** Never use raw emoji, raw spans with icon text, or inline SVGs from other icon sets.
+
+```razor
+<!-- ✅ CORRECT -->
+<MaterialIcon Icon="home" />
+<MaterialIcon Icon="settings" Size="MaterialIconSize.Lg" />
+<MaterialIcon Icon="close" CssClass="my-class" />
+
+<!-- ❌ WRONG — raw emoji/text spans/mixed icon systems -->
+<span>🏠</span>
+<span class="nav-icon">home</span>
+<svg viewBox="0 0 24 24">...</svg>
+```
+
+**Component location:** `src/UI/DotNetCloud.UI.Shared/Components/DataDisplay/MaterialIcon.razor`
+
+**Icon names:** Use Google Material Icons ligature names (e.g., "home", "dashboard", "folder", "settings", "search"). See https://fonts.google.com/icons for full list.
+
+**SVG path mapping:** If an icon name doesn't render, add its SVG path to `MaterialSvgIcons.cs`. The component renders inline SVGs — no font dependency.
+
+**Size variants:** `MaterialIconSize.Sm` (16px), `.Md` (24px default), `.Lg` (32px), `.Xl` (48px).
+
+**Module-to-icon mapping:** Use `ModuleIconProvider.GetIcon(moduleId)` for search/nav module icons. Use `FileTypeIconProvider.GetIcon(mimeType)` for file type icons.
+
 ## Code Conventions
 
 - **File-scoped namespaces**, nullable reference types enabled, `TreatWarningsAsErrors` — all enforced via `Directory.Build.props`.

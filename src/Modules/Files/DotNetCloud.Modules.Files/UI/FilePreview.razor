@@ -13,7 +13,7 @@
 
         <div class="preview-header">
             <div class="preview-title">
-                <span class="preview-file-icon">@GetFileIcon(DisplayNode?.MimeType)</span>
+                <MaterialIcon Icon="@GetFileIcon(DisplayNode?.MimeType)" CssClass="preview-file-icon" />
                 <h3 title="@DisplayNode?.Name">@DisplayNode?.Name</h3>
             </div>
             <div class="preview-actions">
@@ -59,7 +59,7 @@
             {
                 <div class="preview-audio-container">
                     <div class="preview-audio-art">
-                        <span class="preview-audio-icon">@GetFileIcon(DisplayNode.MimeType)</span>
+                        <MaterialIcon Icon="@GetFileIcon(DisplayNode.MimeType)" CssClass="preview-audio-icon" />
                         <p class="preview-audio-name">@DisplayNode.Name</p>
                         <p class="text-muted">@FormatSize(DisplayNode.Size)</p>
                     </div>
@@ -165,7 +165,7 @@
             else if (IsDocument)
             {
                 <div class="preview-document">
-                    <span class="preview-doc-icon">@GetFileIcon(DisplayNode.MimeType)</span>
+                    <MaterialIcon Icon="@GetFileIcon(DisplayNode.MimeType)" CssClass="preview-doc-icon" />
                     <p class="preview-doc-name">@DisplayNode.Name</p>
                     @if (DisplayNode.IsReadOnly)
                     {
@@ -184,7 +184,7 @@
             else
             {
                 <div class="preview-unsupported">
-                    <span class="preview-unsupported-icon">@GetFileIcon(DisplayNode.MimeType)</span>
+                    <MaterialIcon Icon="@GetFileIcon(DisplayNode.MimeType)" CssClass="preview-unsupported-icon" />
                     <p class="preview-unsupported-name">@DisplayNode.Name</p>
                     <p class="text-muted">Preview is not available for this file type.</p>
                     <button class="btn btn-primary" @onclick="Download">Download File</button>

@@ -18,7 +18,7 @@
                 <h3 class="calendar-sidebar-title">Calendar</h3>
             }
             <button class="calendar-sidebar-toggle" @onclick="ToggleSidebar" title="@(_sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")">
-                <span>@(_sidebarCollapsed ? "▶" : "◀")</span>
+                <MaterialIcon Icon="@(_sidebarCollapsed ? "chevron_right" : "chevron_left")" />
             </button>
             @if (!_sidebarCollapsed)
             {

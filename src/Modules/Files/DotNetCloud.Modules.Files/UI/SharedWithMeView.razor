@@ -58,7 +58,7 @@
                         @foreach (var item in group.Value)
                         {
                             <li class="shared-item @(item.IsExpired ? "shared-item--expired" : "")">
-                                <div class="shared-item-icon">@GetNodeIcon(item)</div>
+                                <div class="shared-item-icon"><MaterialIcon Icon="@GetNodeIcon(item)" /></div>
                                 <div class="shared-item-info">
                                     <span class="shared-item-name">@item.NodeName</span>
                                     <span class="shared-item-meta">
@@ -114,7 +114,7 @@
                 @foreach (var item in SortedItems)
                 {
                     <li class="shared-item @(item.IsExpired ? "shared-item--expired" : "")">
-                        <div class="shared-item-icon">@GetNodeIcon(item)</div>
+                        <div class="shared-item-icon"><MaterialIcon Icon="@GetNodeIcon(item)" /></div>
                         <div class="shared-item-info">
                             <span class="shared-item-name">@item.NodeName</span>
                             <span class="shared-item-meta">

@@ -385,30 +385,30 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
 
     // ── Formatting ──────────────────────────────────────────────────────────────
 
-    /// <summary>Returns an emoji icon for the given MIME type.</summary>
+    /// <summary>Returns an icon name for the given MIME type.</summary>
     protected static string GetFileIcon(string? mimeType)
     {
         if (mimeType is null)
-            return "📄";
+            return "description";
         if (mimeType.StartsWith("image/"))
-            return "🖼️";
+            return "image";
         if (mimeType.StartsWith("video/"))
-            return "🎬";
+            return "movie";
         if (mimeType.StartsWith("audio/"))
-            return "🎵";
+            return "music_note";
         if (mimeType == "application/pdf")
-            return "📕";
+            return "picture_as_pdf";
         if (mimeType.StartsWith("text/"))
-            return "📝";
+            return "text_snippet";
         if (mimeType.Contains("spreadsheet") || mimeType.Contains("excel"))
-            return "📊";
+            return "table_chart";
         if (mimeType.Contains("presentation") || mimeType.Contains("powerpoint"))
-            return "📈";
+            return "slideshow";
         if (mimeType.Contains("document") || mimeType.Contains("word"))
-            return "📘";
+            return "article";
         if (mimeType.Contains("zip") || mimeType.Contains("compressed"))
-            return "🗜️";
-        return "📄";
+            return "folder_zip";
+        return "description";
     }
 
     /// <summary>

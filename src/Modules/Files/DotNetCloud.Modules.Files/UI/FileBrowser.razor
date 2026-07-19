@@ -87,7 +87,7 @@ else if (_activeSection == FileSidebarSection.Tags && ActiveTag is not null)
                 @foreach (var node in TaggedNodes)
                 {
                     <div class="file-item">
-                        <div class="file-icon">@GetNodeIcon(node)</div>
+                        <div class="file-icon"><MaterialIcon Icon="@GetNodeIcon(node)" /></div>
                         <div class="file-info">
                             <button class="file-name file-name-link"
                                     title="Open @node.Name"
@@ -359,7 +359,7 @@ else
                         }
                         else
                         {
-                            @GetNodeIcon(node)
+                            <MaterialIcon Icon="@GetNodeIcon(node)" />
                         }
                     </div>
 
