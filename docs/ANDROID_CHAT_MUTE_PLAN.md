@@ -750,3 +750,129 @@ dotnet test
 5. **Process death** — If Android kills the app process, `ChannelMuteStateService` cache is lost. On next cold start, `LoadChannelsAsync` repopulates it from the server response. No persistence needed client-side since mute is server-side.
 
 6. **Offline behavior** — If the device is offline, mute toggles will fail silently. The local state changes optimistically. On next successful channel list load, the server state (unchanged) will overwrite. This is acceptable because the user will see the mute didn't actually take effect.
+
+### Step 9: Unit Tests
+
+Create/update unit tests in `tests/DotNetCloud.Client.Android.Tests/`. Test framework: **MSTest** with **Moq** mocking. Follow existing naming convention: `MethodName_Condition_ExpectedResult`.
+
+#### 9a. `ChannelListViewModelTests.cs`
+
+**File: `tests/DotNetCloud.Client.Android.Tests/ViewModels/ChannelListViewModelTests.cs`** (new file)
+
+**Pattern to follow:** `tests/DotNetCloud.Client.Android.Tests/ViewModels/MessageListViewModelTests.cs`
+
+**Mocks needed:** `Mock<IChatRestClient>`, `Mock<IChatSignalRClient>`, `Mock<IServerConnectionStore>`, `Mock<ISecureTokenStore>`, `Mock<IChannelMuteStateService>`, `Mock<ILogger<ChannelListViewModel>>`
+
+**JWT helper:** Copy the `MakeTestJwt` / `Base64UrlEncode` pattern from `MessageListViewModelTests.cs`.
+
+**Test cases:**
+
+| Test Method | Arrange | Assert |
+|-------------|---------|--------|
+| `Constructor_InitializesDefaultState` | Create mocks, construct VM | `Channels` is empty, `IsLoading` is `true`, `HasCompletedInitialLoad` is `false`, `ErrorMessage` is `null` |
+| `ChannelItemViewModel_Constructor_SetsAllProperties` | Create `ChannelItemViewModel` with known values including `isMuted: true` | All properties match input values, `IsMuted` is `true` |
+| `ChannelItemViewModel_IsMuted_DefaultsToFalse` | Create `ChannelItemViewModel` with `isMuted: false` | `IsMuted` is `false` |
+| `LoadChannelsAsync_PassesIsMuted_ToChannelItem` | Setup `GetChannelsAsync` to return one channel with `IsMuted: true`. Setup auth mocks. Call `LoadChannelsCommand.Execute(null)` | `Channels[0].IsMuted` is `true` |
+| `LoadChannelsAsync_PopulatesMuteStateCache` | Setup `GetChannelsAsync` to return 2 channels: one muted, one unmuted. Setup auth mocks. | `IChannelMuteStateService.ReplaceAll` called with dict containing both states |
+| `ToggleMuteAsync_UnmutedToMuted_CallsMuteApi` | Create VM with an unmuted `ChannelItemViewModel`. Setup auth mocks. Setup `MuteChannelAsync` to return. | `MuteChannelAsync` called once; `item.IsMuted` is `true`; `SetMuted(item.ChannelId, true)` called |
+| `ToggleMuteAsync_MutedToUnmuted_CallsUnmuteApi` | Create VM with a muted `ChannelItemViewModel`. Setup auth mocks. Setup `UnmuteChannelAsync` to return. | `UnmuteChannelAsync` called once; `item.IsMuted` is `false`; `SetMuted(item.ChannelId, false)` called |
+| `ToggleMuteAsync_FiresMuteStateChanged` | Subscribe to `MuteStateChanged`. Setup auth mocks. Call `ToggleMuteCommand.Execute(item)` | `MuteStateChanged` fires with correct `(channelId, newMuteState)` |
+| `ToggleMuteAsync_ApiFails_DoesNotCrash` | Setup auth mocks. Setup `MuteChannelAsync` to throw `HttpRequestException`. | No unhandled exception; `item.IsMuted` is `true` (optimistic toggle sticks locally, server state corrects on next load) |
+| `LoadChannelsAsync_FillsChannels_WithIsMutedFromServer` | Setup `GetChannelsAsync` to return list with varying `IsMuted` values. | All `ChannelItemViewModel.IsMuted` match server values |
+
+---
+
+#### 9b. `ChannelDetailsViewModelTests.cs`
+
+**File: `tests/DotNetCloud.Client.Android.Tests/ViewModels/ChannelDetailsViewModelTests.cs`** (new file)
+
+**Mocks needed:** `Mock<IChatRestClient>`, `Mock<IServerConnectionStore>`, `Mock<ISecureTokenStore>`, `Mock<ILogger<ChannelDetailsViewModel>>`
+
+**Test cases:**
+
+| Test Method | Arrange | Assert |
+|-------------|---------|--------|
+| `Constructor_InitializesDefaultState` | Create mocks, construct VM | `Members` is empty, `IsMuted` is `false`, `IsLoading` is `false` |
+| `ChannelId_ExposedAsPublicProperty` | `vm.Prepare(channelId, "name")` | `vm.ChannelId == channelId` |
+| `Prepare_SetsChannelNameAndId` | Call `vm.Prepare(channelId, "General", "topic")` | `ChannelName == "General"`, `ChannelTopic == "topic"` |
+| `LoadAsync_LoadsMembers` | Setup `GetChannelMembersAsync` to return 3 members. Setup auth mocks. Call `vm.LoadAsync()` | `Members.Count == 3`, `MemberCountDisplay` reflects count |
+| `SetIsMuted_True_CallsMuteApi` | `Prepare` + auth setup via `LoadAsync`. Set `vm.IsMuted = true` | `MuteChannelAsync` called once with correct channelId |
+| `SetIsMuted_False_CallsUnmuteApi` | `Prepare` + auth setup. `vm.IsMuted = true` (set first), then `vm.IsMuted = false` | `UnmuteChannelAsync` called once |
+| `SetIsMuted_NoCredentials_SkipsApiCall` | Don't setup auth or call `LoadAsync`. Set `vm.IsMuted = true` | No exception thrown; API not called (guarded by `_serverUrl is null` check) |
+
+---
+
+#### 9c. `ChannelMuteStateServiceTests.cs`
+
+**File: `tests/DotNetCloud.Client.Android.Tests/Services/ChannelMuteStateServiceTests.cs`** (new file)
+
+**No mocks needed** — test the concrete `ChannelMuteStateService` implementation directly.
+
+**Test cases:**
+
+| Test Method | Arrange | Assert |
+|-------------|---------|--------|
+| `IsMuted_UnknownChannel_ReturnsFalse` | Fresh instance, call `IsMuted(Guid.NewGuid())` | Returns `false` |
+| `SetMuted_True_IsMutedReturnsTrue` | `svc.SetMuted(channelId, true)` | `svc.IsMuted(channelId)` returns `true` |
+| `SetMuted_False_IsMutedReturnsFalse` | `svc.SetMuted(channelId, true)` then `svc.SetMuted(channelId, false)` | `svc.IsMuted(channelId)` returns `false` |
+| `ReplaceAll_OverwritesAllState` | `svc.SetMuted(channelA, true)`. Then `svc.ReplaceAll` with dict containing `{channelB, true}` | `svc.IsMuted(channelA)` -> `false`, `svc.IsMuted(channelB)` -> `true` |
+| `ReplaceAll_EmptyDictionary_ClearsAll` | `svc.SetMuted(channelId, true)`. Then `svc.ReplaceAll(new Dictionary<Guid, bool>())` | `svc.IsMuted(channelId)` -> `false` |
+| `IsMuted_ThreadSafe_ConcurrentAccess` | Start multiple threads calling `SetMuted` and `IsMuted` concurrently on same instance | No exceptions, no data corruption |
+
+---
+
+#### 9d. `AppForegroundServiceTests.cs`
+
+**File: `tests/DotNetCloud.Client.Android.Tests/Services/AppForegroundServiceTests.cs`** (new file)
+
+**No mocks needed** — test the concrete `AppForegroundService` implementation directly.
+
+**Test cases:**
+
+| Test Method | Arrange | Assert |
+|-------------|---------|--------|
+| `IsInForeground_DefaultsToFalse` | Fresh instance | `svc.IsInForeground` is `false` |
+| `SetForeground_True_SetsIsInForeground` | `svc.SetForeground(true)` | `svc.IsInForeground` is `true` |
+| `SetForeground_False_AfterTrue_SetsToFalse` | `svc.SetForeground(true)` then `svc.SetForeground(false)` | `svc.IsInForeground` is `false` |
+| `SetForeground_SameValue_NoEventFired` | Subscribe to `ForegroundChanged`. `svc.SetForeground(true)` then `svc.SetForeground(true)` again | Event fired exactly once |
+| `SetForeground_ChangedValue_EventFired` | Subscribe to `ForegroundChanged`. `svc.SetForeground(true)` | Event fired once with `true` |
+
+---
+
+#### 9e. Update existing test files (verify no breakage)
+
+| File | Change needed? |
+|------|---------------|
+| `tests/DotNetCloud.Client.Android.Tests/ViewModels/MessageListViewModelTests.cs` | **None.** Does not create `ChannelSummary` instances directly. |
+| `tests/DotNetCloud.Client.Android.Tests/SignalRPayloadDeserializationTests.cs` | **None.** SignalR payload records are unchanged. |
+
+---
+
+## Test Files Summary
+
+| File | New/Existing | Purpose |
+|------|-------------|---------|
+| `tests/DotNetCloud.Client.Android.Tests/ViewModels/ChannelListViewModelTests.cs` | **New** | ChannelItemViewModel.IsMuted, ToggleMuteCommand, MuteStateChanged, cache population |
+| `tests/DotNetCloud.Client.Android.Tests/ViewModels/ChannelDetailsViewModelTests.cs` | **New** | OnIsMutedChanged API calls, ChannelId exposure, member loading |
+| `tests/DotNetCloud.Client.Android.Tests/Services/ChannelMuteStateServiceTests.cs` | **New** | ConcurrentDictionary-based mute cache correctness, ReplaceAll, thread safety |
+| `tests/DotNetCloud.Client.Android.Tests/Services/AppForegroundServiceTests.cs` | **New** | Foreground flag get/set, event firing, deduplication |
+| `tests/DotNetCloud.Client.Android.Tests/ViewModels/MessageListViewModelTests.cs` | Existing | Verify no breakage from `ChannelSummary.IsMuted` default parameter |
+| `tests/DotNetCloud.Client.Android.Tests/SignalRPayloadDeserializationTests.cs` | Existing | Verify no breakage (records are unchanged) |
+
+---
+
+## Test Commands
+
+```powershell
+# Run only the Android client tests
+dotnet test tests/DotNetCloud.Client.Android.Tests/
+
+# Run with verbose output
+dotnet test tests/DotNetCloud.Client.Android.Tests/ -v n
+
+# Run a specific test class
+dotnet test tests/DotNetCloud.Client.Android.Tests/ --filter "FullyQualifiedName~ChannelListViewModelTests"
+
+# Run all tests in the solution
+dotnet test
+```
