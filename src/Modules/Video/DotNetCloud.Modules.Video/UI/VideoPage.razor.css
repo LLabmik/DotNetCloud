@@ -1198,6 +1198,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
+
+  .material-icons {
+    font-size: 20px;
+    line-height: 1;
+  }
   transition: all var(--transition, 200ms ease);
   color: var(--color-text-secondary, #64748b);
 }

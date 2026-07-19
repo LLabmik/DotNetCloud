@@ -1259,6 +1259,9 @@ public partial class VideoPage : IAsyncDisposable
     private static string GetStreamUrl(Guid videoId) =>
         $"/api/v1/videos/{videoId}/stream";
 
+    private static string GetDownloadUrl(Guid videoId) =>
+        $"/api/v1/videos/{videoId}/download";
+
     private static string GetSubtitleUrl(Guid subtitleId) => $"/api/v1/videos/subtitles/{subtitleId}";
 
     private static double GetWatchPercent(VideoDto video)
@@ -1327,6 +1330,30 @@ public partial class VideoPage : IAsyncDisposable
         {
             Logger.LogError(ex, "Failed to auto-open video from query string");
         }
+    }
+
+    /// <summary>
+    /// Pauses playback (if playing) and triggers a download of the current video.
+    /// Uses JS interop to create a temporary anchor element with the download attribute,
+    /// which prompts the browser to save the file rather than navigate to it.
+    /// </summary>
+    private async Task DownloadVideoAsync()
+    {
+        if (_playerVideo is null)
+            return;
+
+        // Pause playback only if the video is currently playing
+        // (no-op if already paused). This avoids competing bandwidth usage
+        // between the stream and the download, while preserving the
+        // playback position so the user can resume after download completes.
+        await Js.InvokeVoidAsync("DotNetCloudVideo.pauseIfPlaying", "video-player");
+
+        // Trigger the download with the original filename so the saved file
+        // has a meaningful name, not just the video ID.
+        await Js.InvokeVoidAsync(
+            "DotNetCloudVideo.triggerDownload",
+            GetDownloadUrl(_playerVideo!.Id),
+            _playerVideo!.FileName);
     }
 
     private async Task<CallerContext> GetCallerAsync()
