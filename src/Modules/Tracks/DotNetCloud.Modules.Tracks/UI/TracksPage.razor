@@ -11,7 +11,7 @@
             }
             <button class="tracks-sidebar-toggle" @onclick="() => _sidebarCollapsed = !_sidebarCollapsed"
                     title="@(_sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")">
-                <span>@(_sidebarCollapsed ? "▶" : "◀")</span>
+                <MaterialIcon Icon="@(_sidebarCollapsed ? "chevron_right" : "chevron_left")" />
             </button>
         </div>
 

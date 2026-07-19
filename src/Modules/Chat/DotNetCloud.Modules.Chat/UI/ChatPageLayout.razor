@@ -55,7 +55,9 @@
                 <div class="search-input-row">
                     <input type="text" class="search-input" placeholder="Search messages..." @bind="_searchQuery" @bind:event="oninput" />
                     <button class="btn btn-sm btn-primary" @onclick="() => HandleSearchSubmit(_searchQuery)">Search</button>
-                    <button class="btn btn-sm" @onclick="HandleCloseSearch" title="Close search">✕</button>
+                    <button class="btn btn-sm" @onclick="HandleCloseSearch" title="Close search">
+       <MaterialIcon Icon="close" />
+   </button>
                 </div>
                 @if (_isSearching)
                 {
@@ -103,7 +105,7 @@
                     @if (IsBlockedBySelectedPeer)
                     {
                         <div class="chat-blocked-banner">
-                            <span class="blocked-icon">🚫</span>
+                            <span class="blocked-icon"><MaterialIcon Icon="block" /></span>
                             <span>You have been blocked by this user. You cannot send messages or make calls.</span>
                         </div>
                     }
@@ -117,7 +119,9 @@
                                     <div class="pending-attachment-item">
                                         <img src="@attachment.Url" alt="@attachment.FileName" class="pending-attachment-thumb" />
                                         <span class="pending-attachment-name">@attachment.FileName</span>
-                                        <button class="pending-attachment-remove" @onclick="() => HandleRemovePendingAttachment(attachment.Id)" title="Remove">✕</button>
+                                        <button class="pending-attachment-remove" @onclick="() => HandleRemovePendingAttachment(attachment.Id)" title="Remove">
+                            <MaterialIcon Icon="close" />
+                        </button>
                                     </div>
                                 }
                             </div>
@@ -208,7 +212,9 @@
         <div class="dialog invite-dialog" @onclick:stopPropagation="true">
             <div class="dialog-header">
                 <h2>Invite to #@_selectedChannel.Name</h2>
-                <button class="btn btn-sm" @onclick="HandleCloseInviteDialog">✕</button>
+                <button class="btn btn-sm" @onclick="HandleCloseInviteDialog">
+    <MaterialIcon Icon="close" />
+</button>
             </div>
             <div class="dialog-body">
                 <div class="settings-section">
@@ -252,7 +258,9 @@
                     </svg>
                     <h3 class="dm-picker-title">New Direct Message</h3>
                 </div>
-                <button class="dm-picker-close" @onclick="HandleCloseDmUserPicker" aria-label="Close">✕</button>
+                <button class="dm-picker-close" @onclick="HandleCloseDmUserPicker" aria-label="Close">
+    <MaterialIcon Icon="close" />
+</button>
             </div>
             <div class="dm-picker-body">
                 <div class="dm-picker-search-wrapper">
@@ -342,7 +350,9 @@
                     </svg>
                     <h3 class="dm-picker-title">Add People to #@_selectedChannel.Name</h3>
                 </div>
-                <button class="dm-picker-close" @onclick="HandleCloseChannelAddPeoplePicker" aria-label="Close">✕</button>
+                <button class="dm-picker-close" @onclick="HandleCloseChannelAddPeoplePicker" aria-label="Close">
+    <MaterialIcon Icon="close" />
+</button>
             </div>
             <div class="dm-picker-body">
                 <div class="dm-picker-search-wrapper">

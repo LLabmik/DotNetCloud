@@ -58,12 +58,12 @@
                     {
                         var isSelected = _selectedFileId == file.Id;
                         var isFolder = file.NodeType == "Folder";
-                        var icon = isFolder ? "📁" : GetFileTypeIcon(file.MimeType);
+                        var icon = isFolder ? "folder" : GetFileTypeIcon(file.MimeType);
                         var sizeStr = isFolder ? "" : FormatFileSize(file.Size);
 
                         <div class="email-file-picker-item @(isSelected ? "selected" : "") @(isFolder ? "folder" : "file")"
                              @onclick="() => HandleItemClick(file.Id, file.Name, isFolder)">
-                            <span class="email-file-picker-icon">@icon</span>
+                            <MaterialIcon Icon="@icon" CssClass="email-file-picker-icon" />
                             <span class="email-file-picker-name">@file.Name</span>
                             <span class="email-file-picker-size">@sizeStr</span>
                         </div>
@@ -204,18 +204,18 @@
 
     private static string GetFileTypeIcon(string? mimeType)
     {
-        if (string.IsNullOrWhiteSpace(mimeType)) return "📄";
+        if (string.IsNullOrWhiteSpace(mimeType)) return "description";
         var type = mimeType.ToLowerInvariant();
-        if (type.StartsWith("image/")) return "🖼️";
-        if (type == "application/pdf") return "📄";
-        if (type.StartsWith("text/")) return "📝";
-        if (type.StartsWith("audio/")) return "🎵";
-        if (type.StartsWith("video/")) return "🎬";
-        if (type.Contains("spreadsheet") || type.Contains("excel") || type.Contains("csv")) return "📊";
-        if (type.Contains("presentation") || type.Contains("powerpoint") || type.Contains("slides")) return "📽️";
-        if (type.Contains("word") || type.Contains("document")) return "📝";
-        if (type.Contains("zip") || type.Contains("rar") || type.Contains("gzip") || type.Contains("7z") || type.Contains("tar")) return "📦";
-        return "📄";
+        if (type.StartsWith("image/")) return "image";
+        if (type == "application/pdf") return "picture_as_pdf";
+        if (type.StartsWith("text/")) return "text_snippet";
+        if (type.StartsWith("audio/")) return "music_note";
+        if (type.StartsWith("video/")) return "movie";
+        if (type.Contains("spreadsheet") || type.Contains("excel") || type.Contains("csv")) return "table_chart";
+        if (type.Contains("presentation") || type.Contains("powerpoint") || type.Contains("slides")) return "slideshow";
+        if (type.Contains("word") || type.Contains("document")) return "article";
+        if (type.Contains("zip") || type.Contains("rar") || type.Contains("gzip") || type.Contains("7z") || type.Contains("tar")) return "folder_zip";
+        return "description";
     }
 
     private static string FormatFileSize(long bytes)

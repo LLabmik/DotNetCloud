@@ -14,7 +14,7 @@
             <button class="about-sidebar-toggle" @onclick="ToggleSidebar"
                     title="@(_sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")"
                     aria-label="@(_sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")">
-                <span>@(_sidebarCollapsed ? "▶" : "◀")</span>
+                <MaterialIcon Icon="@(_sidebarCollapsed ? "chevron_right" : "chevron_left")" />
             </button>
         </div>
 

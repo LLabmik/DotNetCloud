@@ -40,6 +40,34 @@ ALL modules **MUST** communicate exclusively via gRPC. No exceptions.
 
 ---
 
+## 🎨 UI — Material Icons (MANDATORY)
+
+**All Blazor UI icons MUST use the `MaterialIcon` component.** Never use raw emoji, raw spans with icon text, or inline SVGs from other icon sets.
+
+```razor
+<!-- ✅ CORRECT -->
+<MaterialIcon Icon="home" />
+<MaterialIcon Icon="settings" Size="MaterialIconSize.Lg" />
+<MaterialIcon Icon="close" CssClass="my-class" />
+
+<!-- ❌ WRONG — raw emoji/text spans/mixed icon systems -->
+<span>🏠</span>
+<span class="nav-icon">home</span>
+<svg viewBox="0 0 24 24">...</svg>
+```
+
+**Component location:** `src/UI/DotNetCloud.UI.Shared/Components/DataDisplay/MaterialIcon.razor`
+
+**Icon names:** Use Google Material Icons ligature names (e.g., "home", "dashboard", "folder", "settings", "search"). See https://fonts.google.com/icons for full list.
+
+**Missing icons:** If a name doesn't render, add its SVG path to `src/UI/DotNetCloud.UI.Shared/Components/DataDisplay/MaterialSvgIcons.cs`. The component renders inline SVGs — no font dependency, works everywhere.
+
+**Size variants:** `MaterialIconSize.Sm` (16px), `.Md` (24px default), `.Lg` (32px), `.Xl` (48px).
+
+**Module-to-icon mapping:** Use `ModuleIconProvider.GetIcon(moduleId)` — single source of truth. Use `FileTypeIconProvider.GetIcon(mimeType)` for file type icons.
+
+---
+
 ## � Client/Server Mediation Handoff Protocol (MANDATORY)
 
 **Reference doc:** `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`

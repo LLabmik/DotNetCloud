@@ -21,7 +21,9 @@
         <span class="toolbar-sep" aria-hidden="true"></span>
 
         @* ── Link ── *@
-        <button class="btn btn-sm composer-fmt fmt-link" @onclick='() => FormatAsync("link")' title="Link (Ctrl+K)" aria-label="Insert link">🔗</button>
+        <button class="btn btn-sm composer-fmt fmt-link" @onclick='() => FormatAsync("link")' title="Link (Ctrl+K)" aria-label="Insert link">
+            <MaterialIcon Icon="link" />
+        </button>
         <span class="toolbar-sep" aria-hidden="true"></span>
 
         @* ── Lists ── *@
@@ -30,16 +32,20 @@
         <span class="toolbar-sep" aria-hidden="true"></span>
 
         @* ── Block ── *@
-        <button class="btn btn-sm composer-fmt fmt-quote" @onclick='() => FormatAsync("blockquote")' title="Quote" aria-label="Blockquote">❝</button>
+        <button class="btn btn-sm composer-fmt fmt-quote" @onclick='() => FormatAsync("blockquote")' title="Quote" aria-label="Blockquote">
+            <MaterialIcon Icon="format_quote" />
+        </button>
         <button class="btn btn-sm composer-fmt fmt-heading" @onclick='() => FormatAsync("heading")' title="Heading" aria-label="Heading"><strong>H</strong></button>
     </div>
 
     @if (EditingMessage is not null)
     {
         <div class="edit-preview">
-            <span class="edit-label">✏️ Editing message</span>
+            <span class="edit-label"><MaterialIcon Icon="edit" /> Editing message</span>
             <span class="edit-content">@TruncateContent(EditingMessage.Content)</span>
-            <button class="btn-close" @onclick="CancelEdit" title="Cancel edit">✕</button>
+            <button class="btn-close" @onclick="CancelEdit" title="Cancel edit">
+                <MaterialIcon Icon="close" />
+            </button>
         </div>
     }
     else if (ReplyToMessage is not null)
@@ -47,13 +53,15 @@
         <div class="reply-preview">
             <span class="reply-label">Replying to <strong>@ReplyToMessage.SenderName</strong></span>
             <span class="reply-content">@TruncateContent(ReplyToMessage.Content)</span>
-            <button class="btn-close" @onclick="CancelReply" title="Cancel reply">✕</button>
+            <button class="btn-close" @onclick="CancelReply" title="Cancel reply">
+                <MaterialIcon Icon="close" />
+            </button>
         </div>
     }
 
     <div class="composer-input-row">
         <button class="btn btn-sm composer-action" @onclick="OnAttachClick" title="Attach a file">
-            📎
+            <MaterialIcon Icon="attach_file" />
         </button>
 
         <div class="composer-input-wrapper">
@@ -87,14 +95,14 @@
         </div>
 
         <button class="btn btn-sm composer-action" @onclick="ToggleEmojiPicker" title="Emoji">
-            😀
+            <MaterialIcon Icon="emoji_emotions" />
         </button>
 
         <button class="btn btn-sm btn-primary composer-send"
                 @onclick="SendMessage"
                 disabled="@IsSendDisabled"
                 title="Send message">
-            ➤
+            <MaterialIcon Icon="send" />
         </button>
     </div>
 

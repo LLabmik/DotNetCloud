@@ -4,7 +4,9 @@
         <div class="dialog" @onclick:stopPropagation="true">
             <div class="dialog-header">
                 <h3>@Title</h3>
-                <button class="btn-icon" @onclick="OnCancel" aria-label="Close" title="Close">X</button>
+                <button class="btn-icon" @onclick="OnCancel" aria-label="Close" title="Close">
+                    <MaterialIcon Icon="close" />
+                </button>
             </div>
             <div class="dialog-body">
                 <p>@Message</p>

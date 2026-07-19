@@ -8,7 +8,7 @@
 <div class="call-controls">
     <div class="call-controls-left">
         <span class="call-timer">@FormattedDuration</span>
-        <span class="participant-count" title="Participants in call">👥 @ParticipantCount</span>
+        <span class="participant-count" title="Participants in call"><MaterialIcon Icon="group" /> @ParticipantCount</span>
     </div>
 
     <div class="call-controls-center">
@@ -36,7 +36,7 @@
                         @onclick="HandleToggleBackgroundBlur"
                         title="@(IsBackgroundBlurred ? "Disable background blur" : "Enable background blur")"
                         disabled="@IsDisabled">
-                    <span class="control-icon">🔲</span>
+                    <span class="control-icon"><MaterialIcon Icon="blur_on" /></span>
                     <span class="control-label">@(IsBackgroundBlurred ? "Blur On" : "Blur")</span>
                 </button>
 
@@ -60,7 +60,7 @@
                     @onclick="ToggleEffectsPanel"
                     title="Video effects settings"
                     disabled="@IsDisabled">
-                <span class="control-icon">🖼️</span>
+                <span class="control-icon"><MaterialIcon Icon="wallpaper" /></span>
                 <span class="control-label">Effects</span>
             </button>
 
@@ -104,7 +104,7 @@
                 @onclick="HandleToggleScreenShare"
                 title="@(IsScreenSharing ? "Stop sharing screen" : "Share your screen")"
                 disabled="@IsDisabled">
-            <span class="control-icon">🖥️</span>
+            <span class="control-icon"><MaterialIcon Icon="present_to_all" /></span>
             <span class="control-label">@(IsScreenSharing ? "Stop Share" : "Share Screen")</span>
         </button>
 
@@ -114,7 +114,7 @@
                     @onclick="HandleAddPeople"
                     title="Invite more people to this call"
                     disabled="@IsDisabled">
-                <span class="control-icon">👥</span>
+                <span class="control-icon"><MaterialIcon Icon="group" /></span>
                 <span class="control-label">Add People</span>
             </button>
         }

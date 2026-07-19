@@ -75,32 +75,32 @@ public partial class SharedWithMeView : ComponentBase
         _ => permission
     };
 
-    /// <summary>Returns an emoji icon based on node type and MIME type.</summary>
+    /// <summary>Returns an icon name based on node type and MIME type.</summary>
     protected static string GetNodeIcon(SharedItemViewModel item)
     {
         if (item.NodeType == "Folder")
-            return "📁";
+            return "folder";
         if (item.MimeType is null)
-            return "📄";
+            return "description";
         if (item.MimeType.StartsWith("image/"))
-            return "🖼️";
+            return "image";
         if (item.MimeType.StartsWith("video/"))
-            return "🎬";
+            return "movie";
         if (item.MimeType.StartsWith("audio/"))
-            return "🎵";
+            return "music_note";
         if (item.MimeType.StartsWith("text/"))
-            return "📝";
+            return "text_snippet";
         if (item.MimeType == "application/pdf")
-            return "📕";
+            return "picture_as_pdf";
         if (item.MimeType.Contains("spreadsheet") || item.MimeType.Contains("excel"))
-            return "📊";
+            return "table_chart";
         if (item.MimeType.Contains("presentation") || item.MimeType.Contains("powerpoint"))
-            return "📈";
+            return "slideshow";
         if (item.MimeType.Contains("document") || item.MimeType.Contains("word"))
-            return "📘";
+            return "article";
         if (item.MimeType.Contains("zip") || item.MimeType.Contains("compressed"))
-            return "🗜️";
-        return "📄";
+            return "folder_zip";
+        return "description";
     }
 
     /// <summary>Formats a file size in human-readable units.</summary>

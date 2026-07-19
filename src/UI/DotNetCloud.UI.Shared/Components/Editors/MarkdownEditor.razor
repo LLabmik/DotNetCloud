@@ -47,19 +47,19 @@
                     1. List
                 </button>
                 <button type="button" class="toolbar-btn" title="Task list" @onclick="InsertTaskList">
-                    ☑ Task
+                    <MaterialIcon Icon="checklist" CssClass="toolbar-icon" /> Task
                 </button>
             }
         </div>
         <div class="toolbar-separator"></div>
         <div class="toolbar-group">
             <button type="button" class="toolbar-btn" title="Link" @onclick="InsertLink">
-                🔗
+                <MaterialIcon Icon="link" CssClass="toolbar-icon" />
             </button>
             @if (!Compact)
             {
                 <button type="button" class="toolbar-btn" title="Image" @onclick="InsertImage">
-                    🖼
+                    <MaterialIcon Icon="image" CssClass="toolbar-icon" />
                 </button>
             }
             <button type="button" class="toolbar-btn" title="Code block" @onclick="InsertCodeBlock">
@@ -68,13 +68,13 @@
             @if (!Compact)
             {
                 <button type="button" class="toolbar-btn" title="Blockquote" @onclick="InsertBlockquote">
-                    ❝
+                    <MaterialIcon Icon="format_quote" CssClass="toolbar-icon" />
                 </button>
                 <button type="button" class="toolbar-btn" title="Horizontal rule" @onclick="InsertHorizontalRule">
                     ―
                 </button>
                 <button type="button" class="toolbar-btn" title="Table" @onclick="InsertTable">
-                    ⊞
+                    <MaterialIcon Icon="table_chart" CssClass="toolbar-icon" />
                 </button>
             }
         </div>
@@ -83,7 +83,7 @@
             <div class="toolbar-group compact-more-group">
                 <button type="button" class="toolbar-btn compact-more-btn" title="More formatting"
                         @onclick="ToggleCompactMenu">
-                    ☰
+                    <MaterialIcon Icon="menu" CssClass="toolbar-icon" />
                 </button>
                 @if (_showCompactMenu)
                 {
@@ -107,16 +107,16 @@
                         </button>
                         <button type="button" class="compact-menu-item"
                                 @onclick="() => { InsertTaskList(); _showCompactMenu = false; }">
-                            <span class="compact-menu-icon">☑</span> Task List
+                            <MaterialIcon Icon="checklist" CssClass="compact-menu-icon" /> Task List
                         </button>
                         <div class="compact-menu-divider"></div>
                         <button type="button" class="compact-menu-item"
                                 @onclick="() => { InsertImage(); _showCompactMenu = false; }">
-                            <span class="compact-menu-icon">🖼</span> Image
+                            <MaterialIcon Icon="image" CssClass="compact-menu-icon" /> Image
                         </button>
                         <button type="button" class="compact-menu-item"
                                 @onclick="() => { InsertBlockquote(); _showCompactMenu = false; }">
-                            <span class="compact-menu-icon">❝</span> Blockquote
+                            <MaterialIcon Icon="format_quote" CssClass="compact-menu-icon" /> Blockquote
                         </button>
                         <button type="button" class="compact-menu-item"
                                 @onclick="() => { InsertHorizontalRule(); _showCompactMenu = false; }">
@@ -124,7 +124,7 @@
                         </button>
                         <button type="button" class="compact-menu-item"
                                 @onclick="() => { InsertTable(); _showCompactMenu = false; }">
-                            <span class="compact-menu-icon">⊞</span> Table
+                            <MaterialIcon Icon="table_chart" CssClass="compact-menu-icon" /> Table
                         </button>
                     </div>
                 }

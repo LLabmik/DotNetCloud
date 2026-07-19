@@ -163,10 +163,12 @@
                         var icon = GetComposeFileTypeIcon(att.ContentType);
                         var sizeStr = FormatComposeFileSize(att.Size);
                         <div class="email-compose-attachment-item">
-                            <span class="email-compose-attachment-icon">@icon</span>
+                            <MaterialIcon Icon="@icon" CssClass="email-compose-attachment-icon" />
                             <span class="email-compose-attachment-name">@att.FileName</span>
                             <span class="email-compose-attachment-size">@sizeStr</span>
-                            <button class="email-compose-attachment-remove" @onclick="() => RemoveAttachment(att)" title="Remove attachment">✕</button>
+                            <button class="email-compose-attachment-remove" @onclick="() => RemoveAttachment(att)" title="Remove attachment">
+                                <MaterialIcon Icon="close" />
+                            </button>
                         </div>
                     }
                 </div>
@@ -685,18 +687,18 @@
 
     private static string GetComposeFileTypeIcon(string contentType)
     {
-        if (string.IsNullOrWhiteSpace(contentType)) return "📎";
+        if (string.IsNullOrWhiteSpace(contentType)) return "attach_file";
         var type = contentType.ToLowerInvariant();
-        if (type.StartsWith("image/")) return "🖼️";
-        if (type == "application/pdf") return "📄";
-        if (type is "application/zip" or "application/x-rar-compressed" or "application/gzip" or "application/x-7z-compressed" or "application/x-tar") return "📦";
-        if (type.StartsWith("text/")) return "📝";
-        if (type.StartsWith("audio/")) return "🎵";
-        if (type.StartsWith("video/")) return "🎬";
-        if (type.Contains("spreadsheet") || type.Contains("excel") || type.Contains("csv")) return "📊";
-        if (type.Contains("presentation") || type.Contains("powerpoint") || type.Contains("slides")) return "📽️";
-        if (type.Contains("word") || type.Contains("document")) return "📃";
-        return "📎";
+        if (type.StartsWith("image/")) return "image";
+        if (type == "application/pdf") return "picture_as_pdf";
+        if (type is "application/zip" or "application/x-rar-compressed" or "application/gzip" or "application/x-7z-compressed" or "application/x-tar") return "folder_zip";
+        if (type.StartsWith("text/")) return "text_snippet";
+        if (type.StartsWith("audio/")) return "music_note";
+        if (type.StartsWith("video/")) return "movie";
+        if (type.Contains("spreadsheet") || type.Contains("excel") || type.Contains("csv")) return "table_chart";
+        if (type.Contains("presentation") || type.Contains("powerpoint") || type.Contains("slides")) return "slideshow";
+        if (type.Contains("word") || type.Contains("document")) return "article";
+        return "attach_file";
     }
 
     private static string FormatComposeFileSize(long bytes)
