@@ -394,4 +394,96 @@ public class ChatControllerTests
         Assert.IsTrue(data.GetProperty("DoNotDisturb").GetBoolean());
         Assert.AreEqual(1, data.GetProperty("MutedChannelIds").GetArrayLength());
     }
+
+    // ── POST/DELETE Mute Endpoint Tests ─────────────────────────────
+
+    [TestMethod]
+    public async Task MuteChannelAsync_Post_WhenSuccessful_ReturnsOkAndMutedTrue()
+    {
+        _memberService
+            .Setup(s => s.SetMuteAsync(It.IsAny<Guid>(), true, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var result = await _controller.MuteChannelAsync(Guid.CreateVersion7());
+
+        var ok = result as OkObjectResult;
+        Assert.IsNotNull(ok);
+
+        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(ok.Value));
+        Assert.IsTrue(doc.RootElement.GetProperty("success").GetBoolean());
+        Assert.IsTrue(doc.RootElement.GetProperty("data").GetProperty("muted").GetBoolean());
+
+        _memberService.Verify(
+            s => s.SetMuteAsync(It.IsAny<Guid>(), true, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [TestMethod]
+    public async Task MuteChannelAsync_Post_WhenNotMember_ReturnsNotFound()
+    {
+        _memberService
+            .Setup(s => s.SetMuteAsync(It.IsAny<Guid>(), true, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("User is not a member"));
+
+        var result = await _controller.MuteChannelAsync(Guid.CreateVersion7());
+
+        Assert.IsInstanceOfType<NotFoundObjectResult>(result);
+    }
+
+    [TestMethod]
+    public async Task MuteChannelAsync_Post_WhenUnauthorized_ReturnsForbid()
+    {
+        _memberService
+            .Setup(s => s.SetMuteAsync(It.IsAny<Guid>(), true, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new UnauthorizedAccessException("forbidden"));
+
+        var result = await _controller.MuteChannelAsync(Guid.CreateVersion7());
+
+        Assert.IsInstanceOfType<ForbidResult>(result);
+    }
+
+    [TestMethod]
+    public async Task UnmuteChannelAsync_Delete_WhenSuccessful_ReturnsOkAndMutedFalse()
+    {
+        _memberService
+            .Setup(s => s.SetMuteAsync(It.IsAny<Guid>(), false, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var result = await _controller.UnmuteChannelAsync(Guid.CreateVersion7());
+
+        var ok = result as OkObjectResult;
+        Assert.IsNotNull(ok);
+
+        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(ok.Value));
+        Assert.IsTrue(doc.RootElement.GetProperty("success").GetBoolean());
+        Assert.IsFalse(doc.RootElement.GetProperty("data").GetProperty("muted").GetBoolean());
+
+        _memberService.Verify(
+            s => s.SetMuteAsync(It.IsAny<Guid>(), false, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [TestMethod]
+    public async Task UnmuteChannelAsync_Delete_WhenNotMember_ReturnsNotFound()
+    {
+        _memberService
+            .Setup(s => s.SetMuteAsync(It.IsAny<Guid>(), false, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("User is not a member"));
+
+        var result = await _controller.UnmuteChannelAsync(Guid.CreateVersion7());
+
+        Assert.IsInstanceOfType<NotFoundObjectResult>(result);
+    }
+
+    [TestMethod]
+    public async Task UnmuteChannelAsync_Delete_WhenUnauthorized_ReturnsForbid()
+    {
+        _memberService
+            .Setup(s => s.SetMuteAsync(It.IsAny<Guid>(), false, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new UnauthorizedAccessException("forbidden"));
+
+        var result = await _controller.UnmuteChannelAsync(Guid.CreateVersion7());
+
+        Assert.IsInstanceOfType<ForbidResult>(result);
+    }
 }

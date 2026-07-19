@@ -178,6 +178,112 @@ public class ChannelMemberServiceTests
             r => r.RemoveUserFromChannelGroupAsync(_memberCaller.UserId, _channelId, It.IsAny<CancellationToken>()),
             Times.Once);
     }
+
+    // ── Mute Tests ──────────────────────────────────────────────────
+
+    [TestMethod]
+    public async Task WhenMemberMutesChannelThenIsMutedIsTrue()
+    {
+        await _service.SetMuteAsync(_channelId, muted: true, _memberCaller);
+
+        var membership = await _db.ChannelMembers
+            .AsNoTracking()
+            .FirstAsync(m => m.ChannelId == _channelId && m.UserId == _memberCaller.UserId);
+
+        Assert.IsTrue(membership.IsMuted);
+    }
+
+    [TestMethod]
+    public async Task WhenMemberUnmutesChannelThenIsMutedIsFalse()
+    {
+        // First mute
+        await _service.SetMuteAsync(_channelId, muted: true, _memberCaller);
+
+        // Then unmute
+        await _service.SetMuteAsync(_channelId, muted: false, _memberCaller);
+
+        var membership = await _db.ChannelMembers
+            .AsNoTracking()
+            .FirstAsync(m => m.ChannelId == _channelId && m.UserId == _memberCaller.UserId);
+
+        Assert.IsFalse(membership.IsMuted);
+    }
+
+    [TestMethod]
+    public async Task WhenNonMemberMutesChannelThenInvalidOperationExceptionIsThrown()
+    {
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _service.SetMuteAsync(_channelId, muted: true, _outsiderCaller));
+    }
+
+    [TestMethod]
+    public async Task WhenNonMemberUnmutesChannelThenInvalidOperationExceptionIsThrown()
+    {
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _service.SetMuteAsync(_channelId, muted: false, _outsiderCaller));
+    }
+
+    [TestMethod]
+    public async Task WhenMemberMutesNonExistentChannelThenInvalidOperationExceptionIsThrown()
+    {
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _service.SetMuteAsync(Guid.CreateVersion7(), muted: true, _memberCaller));
+    }
+
+    [TestMethod]
+    public async Task WhenMemberMutesAlreadyMutedChannelThenStaysMuted()
+    {
+        await _service.SetMuteAsync(_channelId, muted: true, _memberCaller);
+        await _service.SetMuteAsync(_channelId, muted: true, _memberCaller);
+
+        var membership = await _db.ChannelMembers
+            .AsNoTracking()
+            .FirstAsync(m => m.ChannelId == _channelId && m.UserId == _memberCaller.UserId);
+
+        Assert.IsTrue(membership.IsMuted);
+    }
+
+    [TestMethod]
+    public async Task WhenOwnerMutesChannelThenIsMutedIsTrue()
+    {
+        await _service.SetMuteAsync(_channelId, muted: true, _ownerCaller);
+
+        var membership = await _db.ChannelMembers
+            .AsNoTracking()
+            .FirstAsync(m => m.ChannelId == _channelId && m.UserId == _ownerCaller.UserId);
+
+        Assert.IsTrue(membership.IsMuted);
+    }
+
+    [TestMethod]
+    public async Task WhenOwnerUnmutesChannelThenIsMutedIsFalse()
+    {
+        await _service.SetMuteAsync(_channelId, muted: true, _ownerCaller);
+        await _service.SetMuteAsync(_channelId, muted: false, _ownerCaller);
+
+        var membership = await _db.ChannelMembers
+            .AsNoTracking()
+            .FirstAsync(m => m.ChannelId == _channelId && m.UserId == _ownerCaller.UserId);
+
+        Assert.IsFalse(membership.IsMuted);
+    }
+
+    [TestMethod]
+    public async Task WhenMemberMutesAndThenListsChannelsReturnsCorrectIsMuted()
+    {
+        await _service.SetMuteAsync(_channelId, muted: true, _memberCaller);
+
+        var memberships = await _db.ChannelMembers
+            .AsNoTracking()
+            .Where(m => m.ChannelId == _channelId)
+            .ToListAsync();
+
+        var memberMembership = memberships.First(m => m.UserId == _memberCaller.UserId);
+        Assert.IsTrue(memberMembership.IsMuted);
+
+        var ownerMembership = memberships.First(m => m.UserId == _ownerCaller.UserId);
+        Assert.IsFalse(ownerMembership.IsMuted);
+    }
 }
 
 // ══════════════════════════════════════════════════════════════════════

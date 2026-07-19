@@ -365,4 +365,120 @@ public class ChannelServiceTests
 
         Assert.IsTrue(ex.Errors.ContainsKey("Name"));
     }
+
+    [TestMethod]
+    public async Task WhenCreateChannelThenIsMutedIsFalse()
+    {
+        var dto = new CreateChannelDto { Name = "test", Type = "Public" };
+
+        var result = await _service.CreateChannelAsync(dto, _caller);
+
+        Assert.IsNotNull(result);
+        Assert.IsFalse(result.IsMuted);
+    }
+
+    [TestMethod]
+    public async Task WhenListChannelsThenIsMutedMatchesMembership()
+    {
+        var dto = new CreateChannelDto { Name = "test", Type = "Public" };
+        var created = await _service.CreateChannelAsync(dto, _caller);
+
+        // Mute the channel via the membership
+        var membership = await _db.ChannelMembers
+            .FirstAsync(m => m.ChannelId == created.Id && m.UserId == _caller.UserId);
+        membership.IsMuted = true;
+        await _db.SaveChangesAsync();
+
+        var result = await _service.ListChannelsAsync(_caller);
+
+        var channel = result.First(c => c.Id == created.Id);
+        Assert.IsTrue(channel.IsMuted);
+    }
+
+    [TestMethod]
+    public async Task WhenListChannelsThenUnmutedChannelReturnsIsMutedFalse()
+    {
+        var dto = new CreateChannelDto { Name = "test", Type = "Public" };
+        await _service.CreateChannelAsync(dto, _caller);
+
+        var result = await _service.ListChannelsAsync(_caller);
+
+        var channel = result.First(c => c.Name == "test");
+        Assert.IsFalse(channel.IsMuted);
+    }
+
+    [TestMethod]
+    public async Task WhenGetChannelThenIsMutedMatchesMembership()
+    {
+        var dto = new CreateChannelDto { Name = "test", Type = "Public" };
+        var created = await _service.CreateChannelAsync(dto, _caller);
+
+        // Mute the channel via the membership
+        var membership = await _db.ChannelMembers
+            .FirstAsync(m => m.ChannelId == created.Id && m.UserId == _caller.UserId);
+        membership.IsMuted = true;
+        await _db.SaveChangesAsync();
+
+        var result = await _service.GetChannelAsync(created.Id, _caller);
+
+        Assert.IsNotNull(result);
+        Assert.IsTrue(result.IsMuted);
+    }
+
+    [TestMethod]
+    public async Task WhenGetChannelWithUnmutedThenIsMutedIsFalse()
+    {
+        var dto = new CreateChannelDto { Name = "test", Type = "Public" };
+        var created = await _service.CreateChannelAsync(dto, _caller);
+
+        var result = await _service.GetChannelAsync(created.Id, _caller);
+
+        Assert.IsNotNull(result);
+        Assert.IsFalse(result.IsMuted);
+    }
+
+    [TestMethod]
+    public async Task WhenGetChannelAsNonMemberThenIsMutedIsFalse()
+    {
+        var dto = new CreateChannelDto { Name = "test", Type = "Public" };
+        var created = await _service.CreateChannelAsync(dto, _caller);
+
+        var otherCaller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
+        var result = await _service.GetChannelAsync(created.Id, otherCaller);
+
+        // Public channel - non-member can view, but IsMuted defaults to false
+        Assert.IsNotNull(result);
+        Assert.IsFalse(result.IsMuted);
+    }
+
+    [TestMethod]
+    public async Task WhenUpdateChannelThenIsMutedIsPreserved()
+    {
+        var dto = new CreateChannelDto { Name = "updatable", Type = "Public" };
+        var created = await _service.CreateChannelAsync(dto, _caller);
+
+        // Mute the channel
+        var membership = await _db.ChannelMembers
+            .FirstAsync(m => m.ChannelId == created.Id && m.UserId == _caller.UserId);
+        membership.IsMuted = true;
+        await _db.SaveChangesAsync();
+
+        var updateDto = new UpdateChannelDto { Description = "updated description" };
+        var result = await _service.UpdateChannelAsync(created.Id, updateDto, _caller);
+
+        Assert.IsNotNull(result);
+        Assert.IsTrue(result.IsMuted);
+        Assert.AreEqual("updated description", result.Description);
+    }
+
+    [TestMethod]
+    public async Task WhenGetOrCreateDmThenIsMutedIsFalse()
+    {
+        var otherUserId = Guid.CreateVersion7();
+
+        var result = await _service.GetOrCreateDirectMessageAsync(otherUserId, _caller);
+
+        Assert.IsNotNull(result);
+        Assert.IsFalse(result.IsMuted);
+    }
 }

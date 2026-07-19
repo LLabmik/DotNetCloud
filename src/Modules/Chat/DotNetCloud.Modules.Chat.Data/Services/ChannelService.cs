@@ -108,7 +108,7 @@ internal sealed class ChannelService : IChannelService
         _logger.LogInformation("Channel {ChannelId} '{Name}' created by {UserId}", channel.Id, channel.Name, caller.UserId);
 
         var memberCount = 1 + dto.MemberIds.Count(m => m != caller.UserId);
-        return ToChannelDto(channel, memberCount);
+        return ToChannelDto(channel, memberCount, isMuted: false);
     }
 
     /// <inheritdoc />
@@ -132,7 +132,14 @@ internal sealed class ChannelService : IChannelService
         }
 
         var memberCount = await _db.ChannelMembers.CountAsync(m => m.ChannelId == channelId, cancellationToken);
-        return ToChannelDto(channel, memberCount);
+
+        var membership = await _db.ChannelMembers
+            .AsNoTracking()
+            .Where(m => m.ChannelId == channelId && m.UserId == caller.UserId)
+            .Select(m => m.IsMuted)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return ToChannelDto(channel, memberCount, membership);
     }
 
     /// <inheritdoc />
@@ -140,11 +147,14 @@ internal sealed class ChannelService : IChannelService
     {
         await EnsureDefaultPublicChannelForUserAsync(caller, cancellationToken);
 
-        var channelIds = await _db.ChannelMembers
+        var memberships = await _db.ChannelMembers
             .AsNoTracking()
             .Where(m => m.UserId == caller.UserId)
-            .Select(m => m.ChannelId)
+            .Select(m => new { m.ChannelId, m.IsMuted })
             .ToListAsync(cancellationToken);
+
+        var channelIds = memberships.Select(m => m.ChannelId).ToList();
+        var muteStates = memberships.ToDictionary(m => m.ChannelId, m => m.IsMuted);
 
         var memberCounts = await _db.ChannelMembers
             .AsNoTracking()
@@ -160,7 +170,7 @@ internal sealed class ChannelService : IChannelService
             .ToListAsync(cancellationToken);
 
         return channels
-            .Select(c => ToChannelDto(c, memberCounts.GetValueOrDefault(c.Id, 0)))
+            .Select(c => ToChannelDto(c, memberCounts.GetValueOrDefault(c.Id, 0), muteStates.GetValueOrDefault(c.Id)))
             .ToList();
     }
 
@@ -250,7 +260,11 @@ internal sealed class ChannelService : IChannelService
         _logger.LogInformation("Channel {ChannelId} updated by {UserId}", channelId, caller.UserId);
 
         var memberCount = await _db.ChannelMembers.CountAsync(m => m.ChannelId == channelId, cancellationToken);
-        return ToChannelDto(channel, memberCount);
+        var isMuted = await _db.ChannelMembers
+            .Where(m => m.ChannelId == channelId && m.UserId == caller.UserId)
+            .Select(m => m.IsMuted)
+            .FirstOrDefaultAsync(cancellationToken);
+        return ToChannelDto(channel, memberCount, isMuted);
     }
 
     /// <inheritdoc />
@@ -330,7 +344,12 @@ internal sealed class ChannelService : IChannelService
 
         if (existingChannel is not null)
         {
-            return ToChannelDto(existingChannel, 2);
+            var existingMembership = await _db.ChannelMembers
+                .AsNoTracking()
+                .Where(m => m.ChannelId == existingChannel.Id && m.UserId == caller.UserId)
+                .Select(m => m.IsMuted)
+                .FirstOrDefaultAsync(cancellationToken);
+            return ToChannelDto(existingChannel, 2, existingMembership);
         }
 
         // Create new DM channel
@@ -365,7 +384,7 @@ internal sealed class ChannelService : IChannelService
 
         _logger.LogInformation("DM channel {ChannelId} created between {User1} and {User2}", channel.Id, caller.UserId, otherUserId);
 
-        return ToChannelDto(channel, 2);
+        return ToChannelDto(channel, 2, isMuted: false);
     }
 
     private async Task ValidateChannelNameUniqueAsync(string name, Guid? organizationId, Guid? excludeChannelId, CancellationToken cancellationToken)
@@ -395,7 +414,7 @@ internal sealed class ChannelService : IChannelService
             throw new UnauthorizedAccessException($"User {caller.UserId} is not an owner or admin of channel {channelId}.");
     }
 
-    private static ChannelDto ToChannelDto(Channel channel, int memberCount)
+    private static ChannelDto ToChannelDto(Channel channel, int memberCount, bool isMuted = false)
     {
         return new ChannelDto
         {
@@ -409,7 +428,8 @@ internal sealed class ChannelService : IChannelService
             MemberCount = memberCount,
             LastActivityAt = channel.LastActivityAt,
             CreatedAt = channel.CreatedAt,
-            CreatedByUserId = channel.CreatedByUserId
+            CreatedByUserId = channel.CreatedByUserId,
+            IsMuted = isMuted
         };
     }
 }

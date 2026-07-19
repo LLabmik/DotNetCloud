@@ -302,7 +302,45 @@ public class ChatController : ChatControllerBase
         }
     }
 
-    /// <summary>Sets the mute state for the caller's membership in a channel.</summary>
+    /// <summary>Mutes the channel for the caller (POST variant for Android client compatibility).</summary>
+    [HttpPost("channels/{channelId:guid}/mute")]
+    public async Task<IActionResult> MuteChannelAsync(Guid channelId)
+    {
+        try
+        {
+            await _memberService.SetMuteAsync(channelId, muted: true, GetAuthenticatedCaller());
+            return Ok(Envelope(new { muted = true }));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(ErrorEnvelope("CHAT_MEMBER_NOT_FOUND", ex.Message));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+    }
+
+    /// <summary>Unmutes the channel for the caller (DELETE variant for Android client compatibility).</summary>
+    [HttpDelete("channels/{channelId:guid}/mute")]
+    public async Task<IActionResult> UnmuteChannelAsync(Guid channelId)
+    {
+        try
+        {
+            await _memberService.SetMuteAsync(channelId, muted: false, GetAuthenticatedCaller());
+            return Ok(Envelope(new { muted = false }));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(ErrorEnvelope("CHAT_MEMBER_NOT_FOUND", ex.Message));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+    }
+
+    /// <summary>Sets the mute state for the caller's membership in a channel (PUT variant with body).</summary>
     [HttpPut("channels/{channelId:guid}/mute")]
     public async Task<IActionResult> SetChannelMuteAsync(Guid channelId, [FromBody] SetMuteDto dto)
     {

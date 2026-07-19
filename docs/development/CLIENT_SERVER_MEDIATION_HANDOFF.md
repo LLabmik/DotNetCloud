@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-07-19 (Android Chat Channel Mute — server-side mute API endpoints)
+Last updated: 2026-07-19 (Android Chat Channel Mute — client-side E2E testing)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -22,66 +22,26 @@ Archived context:
 
 ## Active Handoff
 
-**Summary:** Implement server-side mute/unmute API endpoints for the Android chat channel mute feature. The Android client already has the UI and API calls; it needs the server endpoints to function.
+**Summary:** Android client: test mute toggle end-to-end now that server endpoints are live.
 
 **Branch:** `feature/android-chat-channel-mute`
 
-**Context:** The Android client now supports per-channel mute toggles in the channel list and channel details page. When a channel is muted, the Android app suppresses system notifications for new messages in that channel. The mute toggle UI is fully built and wired to call `POST/DELETE /api/v1/chat/channels/{channelId}/mute`, and the channel list expects `isMuted: boolean` in the `GET /api/v1/chat/channels` response. These server endpoints need to be implemented.
+**Context:** Server-side mute API endpoints are deployed and verified (commit `ec3c87f52c07`). The Android client needs end-to-end testing against `cloud.dotnetcloud.net`.
 
 ---
-
-### Server Actions — `cloud.kimball.home`
-
-- [ ] **Add DB migration** — Create `ChatChannelMutePreferences` table:
-
-  | Column | Type | Notes |
-  |--------|------|-------|
-  | `Id` | `Guid` | Primary key |
-  | `UserId` | `Guid` | FK to AspNetUsers |
-  | `ChannelId` | `Guid` | FK to ChatChannels |
-  | `IsMuted` | `bool` | Default `false` |
-  | `MutedAt` | `DateTimeOffset` | When mute was last toggled |
-
-  Unique constraint on `(UserId, ChannelId)`.
-
-- [ ] **Update `GET /api/v1/chat/channels`** — Add `isMuted: boolean` to each channel in the response. For the authenticated user, left-join to `ChatChannelMutePreferences` to populate the field.
-
-- [ ] **Add `POST /api/v1/chat/channels/{channelId}/mute`** — Upsert the mute preference row for the current user, setting `IsMuted = true`. Return `204 No Content`.
-
-- [ ] **Add `DELETE /api/v1/chat/channels/{channelId}/mute`** — Set `IsMuted = false` for the current user's mute preference (or delete the row). Return `204 No Content`.
-
-- [ ] **Deploy and verify** — After deploying, verify that:
-  - `GET /api/v1/chat/channels` returns `isMuted` for each channel
-  - `POST /api/v1/chat/channels/{id}/mute` returns 204
-  - `DELETE /api/v1/chat/channels/{id}/mute` returns 204
-  - Toggling mute via the Android client actually persists (reload channel list to confirm `isMuted` value)
 
 ### Client Actions — `monolith`
 
 - [ ] Verify Android client builds cleanly: `dotnet build src\Clients\DotNetCloud.Client.Android\DotNetCloud.Client.Android.csproj`
-- [ ] Deploy to emulator and test mute toggle end-to-end once server endpoints are live
-
----
-
-### Client Actions — `monolith` (Android client)
-
-Test the Android Notes tab against `cloud.dotnetcloud.net`:
-
-- [ ] Open app on phone
-- [ ] Navigate to Notes tab
-- [ ] Verify existing notes load from server (Bearer token auth should work now)
-- [ ] Test creating a new note
-- [ ] Test editing and deleting notes
+- [ ] Deploy to emulator and test mute toggle end-to-end:
+  - `GET /api/v1/chat/channels` returns `isMuted` for each channel
+  - `POST /api/v1/chat/channels/{id}/mute` returns 200 with `{ muted: true }`
+  - `DELETE /api/v1/chat/channels/{id}/mute` returns 200 with `{ muted: false }`
+  - Muting persists across app restarts (check DB: `SELECT IsMuted FROM [core].[ChannelMembers]`)
+- [ ] Open app on phone, navigate to Notes tab, verify existing notes load from server
+- [ ] Test creating, editing, and deleting notes
 - [ ] Verify search and folder filtering work
 - [ ] Verify Settings account section shows username + email
-
-**Role separation (MANDATORY):**
-
-- **Client code** (`src/Clients/`, `src/UI/`) is handled ONLY by client machines (`mint-OptiPlex-7010`, `Windows11-TestDNC`, `mint-dnc-client`, `monolith`).
-- **Server code** (`src/Core/`, `src/Modules/`) is handled ONLY by server machines (`cloud.kimball.home`, `mint22`).
-- Each agent ONLY executes actions in the block matching their machine name (from the Environment table).
-- If no action block matches your machine, the handoff is not for you — relay it to the moderator.
-- Never cross role boundaries: a client agent never deploys server code, a server agent never builds client apps.
 
 **Active Handoff format (MANDATORY):**
 

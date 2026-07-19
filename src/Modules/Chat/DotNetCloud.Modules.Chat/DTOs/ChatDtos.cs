@@ -37,6 +37,9 @@ public sealed record ChannelDto
 
     /// <summary>User who created the channel.</summary>
     public Guid CreatedByUserId { get; init; }
+
+    /// <summary>Whether the current user has muted this channel.</summary>
+    public bool IsMuted { get; init; }
 }
 
 /// <summary>
