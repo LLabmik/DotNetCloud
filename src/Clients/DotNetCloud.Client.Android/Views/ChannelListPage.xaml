@@ -9,7 +9,7 @@
 
     <Shell.TitleView>
         <HorizontalStackLayout Spacing="6"
-                VerticalOptions="Center">
+                               VerticalOptions="Center">
             <Image Source="logo.png"
                    HeightRequest="36"
                    WidthRequest="36"
@@ -201,7 +201,33 @@
                                         TextColor="White"/>
                                 </Border>
 
+                                <!-- Mute/unmute icon -->
+                                <Label
+                                    Grid.Column="2"
+                                    FontSize="16"
+                                    HorizontalOptions="End"
+                                    VerticalOptions="Center"
+                                    TextColor="#94A3B8"
+                                    Margin="4,0,0,0"
+                                    Text="🔕"
+                                    IsVisible="{Binding IsMuted}">
+                                </Label>
+                                <Label
+                                    Grid.Column="2"
+                                    FontSize="16"
+                                    HorizontalOptions="End"
+                                    VerticalOptions="Center"
+                                    TextColor="#64748B"
+                                    Margin="4,0,0,0"
+                                    Text="🔔"
+                                    IsVisible="{Binding IsMuted, Converter={StaticResource InvertBool}}">
+                                </Label>
+
                                 <Grid.GestureRecognizers>
+                                    <TapGestureRecognizer
+                                        Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.ToggleMuteCommand}"
+                                        CommandParameter="{Binding .}"
+                                        NumberOfTapsRequired="2"/>
                                     <TapGestureRecognizer
                                         Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.SelectChannelCommand}"
                                         CommandParameter="{Binding .}"/>

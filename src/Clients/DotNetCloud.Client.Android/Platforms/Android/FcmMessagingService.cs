@@ -95,6 +95,35 @@ public sealed class FcmMessagingService : FirebaseMessagingService
 
     private void ShowChatNotification(string type, string? channelId, string title, string body)
     {
+        // ── Foreground check: suppress if app is visible ──
+        try
+        {
+            var foreground = Ioc.Default.GetService<IAppForegroundService>();
+            if (foreground?.IsInForeground == true)
+            {
+                var logger = Ioc.Default.GetService<ILogger<FcmMessagingService>>();
+                logger?.LogDebug("App in foreground; suppressing notification for channel {ChannelId}.", channelId);
+                return;
+            }
+        }
+        catch { /* Best effort — post notification if we can't check */ }
+
+        // ── Mute check: suppress if channel is muted ──
+        try
+        {
+            if (Guid.TryParse(channelId, out var chId) && chId != Guid.Empty)
+            {
+                var muteState = Ioc.Default.GetService<IChannelMuteStateService>();
+                if (muteState?.IsMuted(chId) == true)
+                {
+                    var logger = Ioc.Default.GetService<ILogger<FcmMessagingService>>();
+                    logger?.LogDebug("Channel {ChannelId} is muted; suppressing notification.", channelId);
+                    return;
+                }
+            }
+        }
+        catch { /* Best effort */ }
+
         var channelGuid = Guid.TryParse(channelId, out var g) ? g : Guid.Empty;
 
         // Deep-link intent: open MainActivity and route to the specified channel.

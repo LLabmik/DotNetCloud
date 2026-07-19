@@ -3,6 +3,8 @@ using Android.Content.PM;
 using Android.OS;
 using Android.Views;
 using AndroidX.Activity;
+using CommunityToolkit.Mvvm.DependencyInjection;
+using DotNetCloud.Client.Android.Services;
 
 namespace DotNetCloud.Client.Android;
 
@@ -18,6 +20,28 @@ namespace DotNetCloud.Client.Android;
     ConfigurationChanges = ConfigChanges.ScreenSize | ConfigChanges.Orientation | ConfigChanges.UiMode | ConfigChanges.ScreenLayout | ConfigChanges.SmallestScreenSize | ConfigChanges.Density)]
 public class MainActivity : MauiAppCompatActivity
 {
+    /// <inheritdoc />
+    protected override void OnResume()
+    {
+        base.OnResume();
+        try
+        {
+            Ioc.Default.GetService<IAppForegroundService>()?.SetForeground(true);
+        }
+        catch { /* Best effort */ }
+    }
+
+    /// <inheritdoc />
+    protected override void OnPause()
+    {
+        base.OnPause();
+        try
+        {
+            Ioc.Default.GetService<IAppForegroundService>()?.SetForeground(false);
+        }
+        catch { /* Best effort */ }
+    }
+
     /// <inheritdoc />
     protected override void OnDestroy()
     {

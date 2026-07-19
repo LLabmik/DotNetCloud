@@ -67,6 +67,10 @@ public static class MauiProgram
         // ── Platform services ─────────────────────────────────────────
         builder.Services.AddSingleton<IBatteryOptimizationService, AndroidBatteryOptimizationService>();
 
+        // ── Foreground tracking & mute state ──────────────────────────
+        builder.Services.AddSingleton<IAppForegroundService, AppForegroundService>();
+        builder.Services.AddSingleton<IChannelMuteStateService, ChannelMuteStateService>();
+
         // ── Update services ───────────────────────────────────────────
         builder.Services.AddHttpClient<IClientUpdateService, ClientUpdateService>()
             .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);

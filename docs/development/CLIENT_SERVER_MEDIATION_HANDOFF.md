@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-07-14 (Notes Required Module — deploy to production)
+Last updated: 2026-07-19 (Android Chat Channel Mute — server-side mute API endpoints)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -18,15 +18,48 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
-- **Current active branch:** `feature/notes-required-module`
+- **Current active branch:** `feature/android-chat-channel-mute`
 
 ## Active Handoff
 
-**Summary:** ✅ Server-side deployment complete. Client testing in progress.
+**Summary:** Implement server-side mute/unmute API endpoints for the Android chat channel mute feature. The Android client already has the UI and API calls; it needs the server endpoints to function.
 
-**Context:** Notes module now accepts Bearer tokens (Introspection auth scheme registered in `Program.cs`). Ready for Android client verification.
+**Branch:** `feature/android-chat-channel-mute`
 
-**Branch:** `feature/android-notes-tab`
+**Context:** The Android client now supports per-channel mute toggles in the channel list and channel details page. When a channel is muted, the Android app suppresses system notifications for new messages in that channel. The mute toggle UI is fully built and wired to call `POST/DELETE /api/v1/chat/channels/{channelId}/mute`, and the channel list expects `isMuted: boolean` in the `GET /api/v1/chat/channels` response. These server endpoints need to be implemented.
+
+---
+
+### Server Actions — `cloud.kimball.home`
+
+- [ ] **Add DB migration** — Create `ChatChannelMutePreferences` table:
+
+  | Column | Type | Notes |
+  |--------|------|-------|
+  | `Id` | `Guid` | Primary key |
+  | `UserId` | `Guid` | FK to AspNetUsers |
+  | `ChannelId` | `Guid` | FK to ChatChannels |
+  | `IsMuted` | `bool` | Default `false` |
+  | `MutedAt` | `DateTimeOffset` | When mute was last toggled |
+
+  Unique constraint on `(UserId, ChannelId)`.
+
+- [ ] **Update `GET /api/v1/chat/channels`** — Add `isMuted: boolean` to each channel in the response. For the authenticated user, left-join to `ChatChannelMutePreferences` to populate the field.
+
+- [ ] **Add `POST /api/v1/chat/channels/{channelId}/mute`** — Upsert the mute preference row for the current user, setting `IsMuted = true`. Return `204 No Content`.
+
+- [ ] **Add `DELETE /api/v1/chat/channels/{channelId}/mute`** — Set `IsMuted = false` for the current user's mute preference (or delete the row). Return `204 No Content`.
+
+- [ ] **Deploy and verify** — After deploying, verify that:
+  - `GET /api/v1/chat/channels` returns `isMuted` for each channel
+  - `POST /api/v1/chat/channels/{id}/mute` returns 204
+  - `DELETE /api/v1/chat/channels/{id}/mute` returns 204
+  - Toggling mute via the Android client actually persists (reload channel list to confirm `isMuted` value)
+
+### Client Actions — `monolith`
+
+- [ ] Verify Android client builds cleanly: `dotnet build src\Clients\DotNetCloud.Client.Android\DotNetCloud.Client.Android.csproj`
+- [ ] Deploy to emulator and test mute toggle end-to-end once server endpoints are live
 
 ---
 

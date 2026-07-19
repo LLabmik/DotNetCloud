@@ -129,6 +129,35 @@ public sealed class UnifiedPushReceiver : UnifiedPush.MessagingReceiver
 
     private static void ShowNotification(Context context, PushPayload payload)
     {
+        // ── Foreground check: suppress if app is visible ──
+        try
+        {
+            var foreground = Ioc.Default.GetService<IAppForegroundService>();
+            if (foreground?.IsInForeground == true)
+            {
+                var logger = Ioc.Default.GetService<ILogger<UnifiedPushReceiver>>();
+                logger?.LogDebug("App in foreground; suppressing notification for channel {ChannelId}.", payload.ChannelId);
+                return;
+            }
+        }
+        catch { /* Best effort — post notification if we can't check */ }
+
+        // ── Mute check: suppress if channel is muted ──
+        try
+        {
+            if (Guid.TryParse(payload.ChannelId, out var chId) && chId != Guid.Empty)
+            {
+                var muteState = Ioc.Default.GetService<IChannelMuteStateService>();
+                if (muteState?.IsMuted(chId) == true)
+                {
+                    var logger = Ioc.Default.GetService<ILogger<UnifiedPushReceiver>>();
+                    logger?.LogDebug("Channel {ChannelId} is muted; suppressing notification.", payload.ChannelId);
+                    return;
+                }
+            }
+        }
+        catch { /* Best effort */ }
+
         var channelGuid = Guid.TryParse(payload.ChannelId, out var g) ? g : Guid.Empty;
 
         var openIntent = new Intent(context, typeof(MainActivity));

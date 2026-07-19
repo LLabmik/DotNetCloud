@@ -1,4 +1,5 @@
 using DotNetCloud.Client.Android.ViewModels;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Maui.ApplicationModel;
 
 namespace DotNetCloud.Client.Android.Views;
@@ -12,6 +13,7 @@ namespace DotNetCloud.Client.Android.Views;
 public partial class ChannelDetailsPage : ContentPage
 {
     private readonly ChannelDetailsViewModel _vm;
+    private ChannelListViewModel? _listVm;
     private Guid _channelId;
     private string _channelDisplayName = string.Empty;
 
@@ -42,6 +44,11 @@ public partial class ChannelDetailsPage : ContentPage
         base.OnAppearing();
         try
         {
+            // Subscribe to mute state changes from the channel list
+            _listVm = Handler?.MauiContext?.Services.GetService<ChannelListViewModel>();
+            if (_listVm is not null)
+                _listVm.MuteStateChanged += OnMuteStateChanged;
+
             _vm.Prepare(_channelId, _channelDisplayName);
             await _vm.LoadAsync();
         }
@@ -49,6 +56,19 @@ public partial class ChannelDetailsPage : ContentPage
         {
             System.Diagnostics.Debug.WriteLine($"[ChannelDetailsPage] OnAppearing error: {ex}");
         }
+    }
+
+    protected override void OnDisappearing()
+    {
+        base.OnDisappearing();
+        if (_listVm is not null)
+            _listVm.MuteStateChanged -= OnMuteStateChanged;
+    }
+
+    private void OnMuteStateChanged(object? sender, (Guid ChannelId, bool IsMuted) e)
+    {
+        if (_vm.ChannelId == e.ChannelId)
+            _vm.IsMuted = e.IsMuted;
     }
 
     private async void OnChannelLeft(object? sender, EventArgs e)

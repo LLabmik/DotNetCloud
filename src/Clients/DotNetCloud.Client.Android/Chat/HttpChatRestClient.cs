@@ -256,6 +256,32 @@ internal sealed class HttpChatRestClient : IChatRestClient
     }
 
     /// <inheritdoc />
+    public async Task MuteChannelAsync(
+        string serverBaseUrl, string accessToken,
+        Guid channelId, CancellationToken ct = default)
+    {
+        SetAuth(accessToken);
+        var url = $"{serverBaseUrl.TrimEnd('/')}/api/v1/chat/channels/{channelId}/mute";
+        using var response = await _http.PostAsync(url, null, ct).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+            _logger.LogWarning("MuteChannel returned {StatusCode} for channel {ChannelId}.",
+                response.StatusCode, channelId);
+    }
+
+    /// <inheritdoc />
+    public async Task UnmuteChannelAsync(
+        string serverBaseUrl, string accessToken,
+        Guid channelId, CancellationToken ct = default)
+    {
+        SetAuth(accessToken);
+        var url = $"{serverBaseUrl.TrimEnd('/')}/api/v1/chat/channels/{channelId}/mute";
+        using var response = await _http.DeleteAsync(url, ct).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+            _logger.LogWarning("UnmuteChannel returned {StatusCode} for channel {ChannelId}.",
+                response.StatusCode, channelId);
+    }
+
+    /// <inheritdoc />
     public async Task<ChatMessage> SendFileMessageAsync(
         string serverBaseUrl, string accessToken,
         Guid channelId, Guid fileId, string fileName,
@@ -280,7 +306,7 @@ internal sealed class HttpChatRestClient : IChatRestClient
     // ── DTO mappings ────────────────────────────────────────────────
 
     private static ChannelSummary ToChannelSummary(ChannelSummaryDto d) =>
-        new(d.Id, d.Name, d.UnreadCount, d.HasMention, d.LastMessagePreview,
+        new(d.Id, d.Name, d.UnreadCount, d.HasMention, d.IsMuted, d.LastMessagePreview,
             d.LastMessageAt ?? (d.LastActivityAt.HasValue ? new DateTimeOffset(d.LastActivityAt.Value, TimeSpan.Zero) : null));
 
     private static ChatMessage ToChatMessage(ChatMessageDto d) =>
@@ -327,6 +353,7 @@ internal sealed class HttpChatRestClient : IChatRestClient
         public int MemberCount { get; init; }
         public int UnreadCount { get; init; }
         public bool HasMention { get; init; }
+        public bool IsMuted { get; init; }
         public string? LastMessagePreview { get; init; }
         public DateTimeOffset? LastMessageAt { get; init; }
         public DateTime? LastActivityAt { get; init; }

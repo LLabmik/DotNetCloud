@@ -52,6 +52,9 @@ public sealed partial class ChannelDetailsViewModel : ObservableObject
     [ObservableProperty]
     private bool _isMuted;
 
+    /// <summary>The current channel ID (exposed for cross-VM sync).</summary>
+    public Guid ChannelId => _channelId;
+
     [ObservableProperty]
     private bool _isLoading;
 
@@ -126,6 +129,30 @@ public sealed partial class ChannelDetailsViewModel : ObservableObject
             _logger.LogError(ex, "Failed to leave channel {ChannelId}.", _channelId);
             ErrorMessage = "Failed to leave channel.";
         }
+    }
+
+    /// <summary>Called when <see cref="IsMuted"/> changes. Calls the server API.</summary>
+    partial void OnIsMutedChanged(bool value)
+    {
+        if (_serverUrl is null || _accessToken is null)
+            return;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                if (value)
+                    await _chatApi.MuteChannelAsync(_serverUrl, _accessToken, _channelId);
+                else
+                    await _chatApi.UnmuteChannelAsync(_serverUrl, _accessToken, _channelId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to toggle mute for channel {ChannelId} from details page.", _channelId);
+                // Revert the toggle on failure
+                await MainThread.InvokeOnMainThreadAsync(() => IsMuted = !value);
+            }
+        });
     }
 }
 

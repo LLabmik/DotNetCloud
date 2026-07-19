@@ -21,10 +21,14 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
     private readonly IChatSignalRClient _signalR;
     private readonly IServerConnectionStore _serverStore;
     private readonly ISecureTokenStore _tokenStore;
+    private readonly IChannelMuteStateService _muteState;
     private readonly ILogger<ChannelListViewModel> _logger;
 
     /// <summary>Raised when a channel is selected and the app should navigate to it.</summary>
     public event EventHandler<(Guid ChannelId, string Name)>? ChannelSelected;
+
+    /// <summary>Raised when a channel's mute state changes (used to sync with ChannelDetailsViewModel).</summary>
+    public event EventHandler<(Guid ChannelId, bool IsMuted)>? MuteStateChanged;
 
     /// <summary>Initializes a new <see cref="ChannelListViewModel"/>.</summary>
     public ChannelListViewModel(
@@ -32,12 +36,14 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
         IChatSignalRClient signalR,
         IServerConnectionStore serverStore,
         ISecureTokenStore tokenStore,
+        IChannelMuteStateService muteState,
         ILogger<ChannelListViewModel> logger)
     {
         _chatApi = chatApi;
         _signalR = signalR;
         _serverStore = serverStore;
         _tokenStore = tokenStore;
+        _muteState = muteState;
         _logger = logger;
 
         _signalR.OnUnreadCountUpdated += OnUnreadCountUpdated;
@@ -92,8 +98,14 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
                         () => _chatApi.GetChannelsAsync(serverUrl, token, ct), ct);
 
                     Channels.Clear();
+                    var muteStates = new Dictionary<Guid, bool>();
                     foreach (var ch in channels)
-                        Channels.Add(new ChannelItemViewModel(ch.Id, ch.Name, ch.UnreadCount, ch.HasMention, ch.LastMessagePreview));
+                    {
+                        muteStates[ch.Id] = ch.IsMuted;
+                        Channels.Add(new ChannelItemViewModel(ch.Id, ch.Name, ch.UnreadCount, ch.HasMention, ch.IsMuted, ch.LastMessagePreview));
+                    }
+
+                    _muteState.ReplaceAll(muteStates);
 
                     HasCompletedInitialLoad = true;
                     return;
@@ -146,6 +158,32 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
         _signalR.OnNewChatMessage -= OnNewMessage;
     }
 
+    // ── Mute toggle ──────────────────────────────────────────────────
+
+    /// <summary>Toggles the mute state for a channel.</summary>
+    [RelayCommand]
+    private async Task ToggleMuteAsync(ChannelItemViewModel item, CancellationToken ct)
+    {
+        try
+        {
+            var (serverUrl, token) = await GetActiveCredentialsAsync(ct);
+            if (item.IsMuted)
+                await _chatApi.UnmuteChannelAsync(serverUrl, token, item.ChannelId, ct);
+            else
+                await _chatApi.MuteChannelAsync(serverUrl, token, item.ChannelId, ct);
+
+            item.IsMuted = !item.IsMuted;
+            _muteState.SetMuted(item.ChannelId, item.IsMuted);
+
+            // Notify mute state change for ChannelDetailsViewModel sync
+            MuteStateChanged?.Invoke(this, (item.ChannelId, item.IsMuted));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to toggle mute for channel {ChannelId}.", item.ChannelId);
+        }
+    }
+
     // ── Real-time handlers ───────────────────────────────────────────
 
     private void OnUnreadCountUpdated(object? sender, ChatUnreadCountUpdatedEventArgs e)
@@ -196,12 +234,13 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
 public sealed partial class ChannelItemViewModel : ObservableObject
 {
     /// <summary>Initializes a channel list item.</summary>
-    public ChannelItemViewModel(Guid channelId, string name, int unreadCount, bool hasMention, string? lastMessagePreview)
+    public ChannelItemViewModel(Guid channelId, string name, int unreadCount, bool hasMention, bool isMuted, string? lastMessagePreview)
     {
         ChannelId = channelId;
         Name = name;
         UnreadCount = unreadCount;
         HasMention = hasMention;
+        IsMuted = isMuted;
         LastMessagePreview = lastMessagePreview;
     }
 
@@ -216,6 +255,9 @@ public sealed partial class ChannelItemViewModel : ObservableObject
 
     /// <summary>Whether any unread messages contain a mention.</summary>
     [ObservableProperty] private bool _hasMention;
+
+    /// <summary>Whether notifications for this channel are muted.</summary>
+    [ObservableProperty] private bool _isMuted;
 
     /// <summary>Preview of the last message.</summary>
     public string? LastMessagePreview { get; }

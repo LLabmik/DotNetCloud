@@ -24,6 +24,28 @@
 
 ---
 
+## Archived: Notes Tab Android Client — Client Testing (2026-07-14)
+
+**Target:** monolith (Android client testing)
+
+**Result:** Notes module server-side deployment complete. Added Bearer token support (Introspection auth scheme) to Notes module host. Android client verification of Notes tab.
+
+**Branch:** `feature/android-notes-tab`
+
+**Server Actions (cloud.kimball.home):**
+- ✅ Added `AddTokenIntrospection()` and policy scheme to Notes module `Program.cs`
+- ✅ `PermissionAuthorizationHandler` and `AuthorizationPolicies.Configure()` registered
+- ✅ Controllers use bare `[Authorize]` (no scheme specified)
+- ✅ Deployed to production
+
+**Client Actions (monolith):**
+- ☐ Open app on phone, navigate to Notes tab
+- ☐ Verify existing notes load from server
+- ☐ Test creating, editing, deleting notes
+- ☐ Verify search and folder filtering work
+
+---
+
 # Client/Server Mediation — Archived Context
 
 Archived: 2026-07-07. Full git history preserved.
