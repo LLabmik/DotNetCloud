@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Calendar.Models;
 using DotNetCloud.Modules.Calendar.Services;
@@ -113,6 +114,13 @@ public sealed class ReminderDispatchService : BackgroundService
         {
             foreach (var reminder in evt.Reminders)
             {
+                // Only dispatch Notification-type reminders via push/in-app.
+                // Email-type reminders are handled separately.
+                if (reminder.Method != ReminderMethod.Notification)
+                {
+                    continue;
+                }
+
                 var triggerTime = evt.StartUtc.AddMinutes(-reminder.MinutesBefore);
 
                 // Is it due now?
@@ -184,6 +192,13 @@ public sealed class ReminderDispatchService : BackgroundService
                 {
                     foreach (var reminder in master.Reminders)
                     {
+                        // Only dispatch Notification-type reminders via push/in-app.
+                        // Email-type reminders are handled separately.
+                        if (reminder.Method != ReminderMethod.Notification)
+                        {
+                            continue;
+                        }
+
                         var triggerTime = occ.StartUtc.AddMinutes(-reminder.MinutesBefore);
 
                         if (triggerTime > now)

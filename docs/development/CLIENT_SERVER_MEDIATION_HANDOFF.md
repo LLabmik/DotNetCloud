@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-07-19 (Android Calendar Alarm Reminders — server-side push dispatch)
+Last updated: 2026-07-20 (Android Calendar Alarm Reminders — server-side push dispatch deployed, ready for client E2E testing)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -19,49 +19,29 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
-- **Current active branch:** `feature/android-calendar-reminders`
+- **Current active branch:** `feature/android-chat-channel-mute`
 
 ## Active Handoff
 
-**Summary:** Add server-side `CalendarReminderDispatcher` background service to push calendar event reminders via FCM/UnifiedPush.
+**Summary:** E2E test calendar reminders on Android client against deployed server.
 
-**Branch:** `feature/android-calendar-reminders`
+**Branch:** `feature/android-chat-channel-mute`
 
-**Context:** Android client now has full local alarm scheduling (`CalendarReminderScheduler` + `CalendarAlarmReceiver` + `CalendarBootReceiver`, committed on this branch). The client handles `type=calendar_reminder` push notifications in both `FcmMessagingService` and `UnifiedPushReceiver`. The server needs to dispatch these pushes.
-
-The `CalendarEventDto.Reminders` list contains `EventReminderDto` with `MinutesBefore` and `Method` (Notification/Email). The server should dispatch `Notification` reminders only; `Email` reminders are handled separately.
+**Context:** Server-side calendar reminder push dispatch is deployed to `cloud.kimball.home`. The `ReminderDispatchService` (30s scan interval) now filters to `ReminderMethod.Notification` only and dispatches via Core.Server's `CoreCapabilities` gRPC (`SendNotification` in-app + `BroadcastRealtimeEvent` SignalR). The Android client already has local alarm scheduling and `type=calendar_reminder` push handling. No FCM credentials are configured on production — push delivery falls back to SignalR for connected clients and in-app notifications.
 
 ---
 
-### Server Actions — `cloud.kimball.home`
+### Client Actions — `monolith` (Android client)
 
-- [ ] Create `CalendarReminderDispatcher` — an `IHostedService` (or `BackgroundService`) that runs on a ~60-second timer in the Calendar module Host process.
-- [ ] On each tick, query all non-deleted events where `StartUtc - X minutes` falls within the next scan window (e.g., up to 120s ahead) and a reminder notification has not yet been sent for that (eventId, minutesBefore) pair.
-- [ ] Deduplication: add a `CalendarReminderLog` table (or expand the events schema) with columns `EventId`, `MinutesBefore`, `SentAtUtc` to prevent duplicate reminder sends.
-- [ ] Expand recurring events (RFC 5545 RRULE) within the scan window before checking for upcoming reminders — the server already has the recurrence engine.
-- [ ] Dispatch push notification via existing FCM/UnifiedPush infrastructure with payload:
-  ```json
-  {
-    "type": "calendar_reminder",
-    "channelId": "<eventId>",
-    "eventId": "<eventId>",
-    "title": "<event title>",
-    "body": "Starts in X minutes"
-  }
-  ```
-- [ ] Filter: only dispatch for events with `ReminderMethod.Notification` (skip `Email`).
-- [ ] Verify dispatch against `cloud.dotnetcloud.net` FCM configuration.
-- [ ] **(Optional, for local fallback bootstrap)** Add `GET /api/v1/calendars/reminders/upcoming?lookaheadHours=24` endpoint that returns all reminders due in the next N hours. The Android client uses this on first install or after prolonged offline.
-
-**Relevant files:**
-- Calendar module: `src/Modules/Calendar/DotNetCloud.Modules.Calendar/`
-- Host project: `src/Modules/Calendar/DotNetCloud.Modules.Calendar.Host/`
-- Existing push dispatch: follow pattern from the Notifications module or Chat push flow
-- Calendar DTOs: `src/Core/DotNetCloud.Core/DTOs/CalendarDtos.cs` — `EventReminderDto`, `ReminderMethod`
-
-### Client Actions — `monolith`
-
-*(No client actions — all Android-side work is complete on this branch. Client testing will follow after server deployment.)*
+- [ ] Pull this branch on `monolith` (Windows 11).
+- [ ] Run the Android emulator and connect to `cloud.dotnetcloud.net` (not localhost).
+- [ ] Create a calendar event with a 5-minute reminder on the web UI or via CalDAV.
+- [ ] Verify: after ~30-90s, the local alarm fires on the Android device (handled by `CalendarAlarmReceiver`).
+- [ ] Verify: in-app notification appears in the notification bell on the web UI (handled by `SendNotification` gRPC → `INotificationService`).
+- [ ] Verify: SignalR-connected clients receive the `CalendarReminder` real-time event (handled by `BroadcastRealtimeEvent`).
+- [ ] Test edge case: create a recurring event with reminder — verify reminder fires for first occurrence only (dedup via `ReminderLog`).
+- [ ] Test edge case: set reminder to `Email` method — verify no push/in-app notification is dispatched.
+- [ ] If push notifications via FCM/UnifiedPush are desired, configure `Chat:Push:Fcm.CredentialsPath` and `Chat:Push:Fcm.ProjectId` in `/etc/dotnetcloud/config.json` on `cloud.kimball.home`.
 
 **Active Handoff format (MANDATORY):**
 

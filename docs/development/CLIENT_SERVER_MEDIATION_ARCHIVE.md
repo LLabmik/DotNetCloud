@@ -5575,6 +5575,36 @@ Key confirmations:
 
 ---
 
+## Calendar Reminder Push Dispatch — Completed (2026-07-20)
+
+**Summary:** ✅ Server-side calendar reminder push dispatch deployed to `cloud.kimball.home`. The existing `ReminderDispatchService` was enhanced with `ReminderMethod.Notification` filtering and a new `CalendarReminderEventSubscriber` that dispatches in-app notifications and real-time SignalR events via Core.Server's `CoreCapabilities` gRPC service.
+
+**Architecture notes:**
+- `ReminderDispatchService` (already deployed, running on 30s interval) was modified to skip `Email`-type reminders.
+- New `CalendarReminderEventHandler` + `CalendarReminderEventSubscriber` subscribe to `CalendarReminderTriggeredEvent` on the in-process event bus.
+- On reminder fire, dispatches via `CoreCapabilities.SendNotification` (in-app notification) and `BroadcastRealtimeEvent` (SignalR real-time push to connected clients).
+- FCM/UnifiedPush not configured in production config; if credentials are added later, the existing Chat module push pipeline can be extended.
+- No DB migration needed — `ReminderLog` table already exists.
+
+### Server Actions — `cloud.kimball.home` (2026-07-20)
+
+- [x] Add `ReminderMethod.Notification` filter to `ReminderDispatchService`
+- [x] Create `CalendarReminderEventHandler` — handles `CalendarReminderTriggeredEvent`, dispatches via gRPC to Core.Server
+- [x] Create `CalendarReminderEventSubscriber` — subscribes to events on startup, unsubscribes on shutdown
+- [x] Register `CoreCapabilitiesClient` gRPC client + subscriber in `Program.cs`
+- [x] Build (Debug + Release), full solution build succeeds
+- [x] Deploy with `--force` to `cloud.kimball.home`
+- [x] Verify health — all 14 modules healthy
+- [x] Verify hash — deployed `dotnetcloud.calendar.dll` matches build output
+- [x] Verify logs — `CalendarReminderEventSubscriber started — subscribed to CalendarReminderTriggeredEvent`
+
+### Client Actions — `monolith` (Android client)
+
+- [ ] Test calendar reminders end-to-end using `cloud.dotnetcloud.net` — verify local alarms fire, verify push notifications arrive when server push is available
+- [ ] Verify `type=calendar_reminder` notification payload format matches Android client expectations
+
+---
+
 ## Thumbnails — Completed (2026-07-07)
 
 **Summary:** ✅ Thumbnails working end-to-end! Server-side fix (chunks → temp file assembly) + Android client fix (XAML Border/Grid single-child layout). All verified.
