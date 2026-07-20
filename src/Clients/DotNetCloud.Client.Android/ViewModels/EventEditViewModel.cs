@@ -143,6 +143,50 @@ public sealed partial class EventEditViewModel : ObservableObject
     /// <summary>Available calendars for the picker.</summary>
     public ObservableCollection<CalendarDto> Calendars { get; } = [];
 
+    // ── Reminder Editor ───────────────────────────────────────────
+
+    /// <summary>Minutes before the event to trigger a reminder. 0 means no reminder.
+    /// These correspond to the <see cref="EventReminderDto.MinutesBefore"/> value.</summary>
+    [ObservableProperty]
+    private int _reminderMinutesBefore;
+
+    /// <summary>Index into <see cref="ReminderOptions"/> for the Picker.</summary>
+    [ObservableProperty]
+    private int _reminderSelectedIndex;
+
+    partial void OnReminderMinutesBeforeChanged(int value)
+    {
+        // Sync the picker index to match the minutes value
+        for (var i = 0; i < ReminderOptions.Length; i++)
+        {
+            if (ReminderOptions[i].Key == value)
+            {
+                ReminderSelectedIndex = i;
+                return;
+            }
+        }
+        ReminderSelectedIndex = 0; // "None"
+    }
+
+    partial void OnReminderSelectedIndexChanged(int value)
+    {
+        if (value >= 0 && value < ReminderOptions.Length)
+            ReminderMinutesBefore = ReminderOptions[value].Key;
+    }
+
+    /// <summary>Available reminder presets for the picker.</summary>
+    public static KeyValuePair<int, string>[] ReminderOptions { get; } =
+    [
+        new(0, "None"),
+        new(5, "5 minutes before"),
+        new(10, "10 minutes before"),
+        new(15, "15 minutes before"),
+        new(30, "30 minutes before"),
+        new(60, "1 hour before"),
+        new(120, "2 hours before"),
+        new(1440, "1 day before"),
+    ];
+
     // ── Recurrence Editor ──────────────────────────────────────────
 
     /// <summary>Whether recurrence is enabled.</summary>
@@ -316,6 +360,16 @@ public sealed partial class EventEditViewModel : ObservableObject
                 IsRecurringEvent = true;
                 ParseRruleIntoFields(evt.RecurrenceRule);
             }
+
+            // Parse existing reminder into the editor
+            if (evt.Reminders.Count > 0)
+            {
+                // Use the first Notification-type reminder as the preset value
+                var firstReminder = evt.Reminders
+                    .FirstOrDefault(r => r.Method == ReminderMethod.Notification);
+                if (firstReminder is not null)
+                    ReminderMinutesBefore = firstReminder.MinutesBefore;
+            }
         }
         catch (Exception ex)
         {
@@ -376,6 +430,7 @@ public sealed partial class EventEditViewModel : ObservableObject
                         EndUtc = endUtc,
                         IsAllDay = IsAllDay,
                         Url = Url,
+                        Reminders = BuildReminderDtos(),
                     };
                     await _calendarApi.UpdateEventAsync(serverUrl, token, _eventId.Value, updateDto, ct);
                 }
@@ -392,6 +447,7 @@ public sealed partial class EventEditViewModel : ObservableObject
                         IsAllDay = IsAllDay,
                         RecurrenceRule = recurrenceRule,
                         Url = Url,
+                        Reminders = BuildReminderDtos(),
                     };
                     await _calendarApi.UpdateEventAsync(serverUrl, token, _eventId.Value, updateDto, ct);
                 }
@@ -410,6 +466,7 @@ public sealed partial class EventEditViewModel : ObservableObject
                     IsAllDay = IsAllDay,
                     RecurrenceRule = recurrenceRule,
                     Url = Url,
+                    Reminders = BuildReminderDtos(),
                 };
                 await _calendarApi.CreateEventAsync(serverUrl, token, createDto, ct);
             }
@@ -631,5 +688,22 @@ public sealed partial class EventEditViewModel : ObservableObject
             prefix += $", ending on {until}";
 
         return prefix;
+    }
+
+    // ── Reminder Helpers ───────────────────────────────────────────
+
+    private IReadOnlyList<EventReminderDto> BuildReminderDtos()
+    {
+        if (ReminderMinutesBefore <= 0)
+            return [];
+
+        return
+        [
+            new EventReminderDto
+            {
+                MinutesBefore = ReminderMinutesBefore,
+                Method = ReminderMethod.Notification,
+            }
+        ];
     }
 }

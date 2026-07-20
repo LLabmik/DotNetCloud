@@ -44,7 +44,8 @@ public sealed class CalendarBootReceiver : BroadcastReceiver
 
     private static ILogger<CalendarBootReceiver>? SafeResolveLogger()
     {
-        try { return Ioc.Default.GetService<ILogger<CalendarBootReceiver>>(); }
+        try
+        { return Ioc.Default.GetService<ILogger<CalendarBootReceiver>>(); }
         catch { return null; }
     }
 }
