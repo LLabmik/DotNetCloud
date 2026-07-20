@@ -212,6 +212,11 @@
                                         TextColor="#94A3B8"
                                         Text="🔕"
                                         IsVisible="{Binding IsMuted}">
+                                        <Label.GestureRecognizers>
+                                            <TapGestureRecognizer
+                                                Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.ToggleMuteCommand}"
+                                                CommandParameter="{Binding .}"/>
+                                        </Label.GestureRecognizers>
                                     </Label>
                                     <Label
                                         FontSize="16"
@@ -219,15 +224,16 @@
                                         TextColor="#64748B"
                                         Text="🔔"
                                         IsVisible="{Binding IsMuted, Converter={StaticResource InvertBool}}">
+                                        <Label.GestureRecognizers>
+                                            <TapGestureRecognizer
+                                                Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.ToggleMuteCommand}"
+                                                CommandParameter="{Binding .}"/>
+                                        </Label.GestureRecognizers>
                                     </Label>
 
                                 </HorizontalStackLayout>
 
                                 <Grid.GestureRecognizers>
-                                    <TapGestureRecognizer
-                                        Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.ToggleMuteCommand}"
-                                        CommandParameter="{Binding .}"
-                                        NumberOfTapsRequired="2"/>
                                     <TapGestureRecognizer
                                         Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.SelectChannelCommand}"
                                         CommandParameter="{Binding .}"/>

@@ -51,6 +51,8 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
     private readonly IPendingMessageQueue _pendingQueue;
     private readonly IChatRestClient _restClient;
     private readonly ISecureTokenStore _tokenStore;
+    private readonly IAppForegroundService _foregroundService;
+    private readonly IChannelMuteStateService _muteState;
     private string? _serverBaseUrl;
 
     // Tracks channel groups joined so they can be re-joined after reconnection.
@@ -67,12 +69,16 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
         ILogger<SignalRChatClient> logger,
         IPendingMessageQueue pendingQueue,
         IChatRestClient restClient,
-        ISecureTokenStore tokenStore)
+        ISecureTokenStore tokenStore,
+        IAppForegroundService foregroundService,
+        IChannelMuteStateService muteState)
     {
         _logger = logger;
         _pendingQueue = pendingQueue;
         _restClient = restClient;
         _tokenStore = tokenStore;
+        _foregroundService = foregroundService;
+        _muteState = muteState;
     }
 
     /// <summary>
@@ -131,6 +137,26 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
                 false,
                 payload.Message.SenderUserId,
                 attachmentsJson));
+
+#if ANDROID
+            Log.Info("DotNetCloud", $"SignalR notification: foreground={_foregroundService.IsInForeground}, channelId={payload.ChannelId}");
+
+            // Post an Android notification if the app is backgrounded and the channel isn't muted.
+            try
+            {
+                if (!_foregroundService.IsInForeground &&
+                    Guid.TryParse(payload.ChannelId, out var chId) &&
+                    !_muteState.IsMuted(chId))
+                {
+                    Log.Info("DotNetCloud", $"SignalR notification: posting for channel {payload.ChannelId}");
+                    PostSignalRNotification(payload.ChannelId, senderName, payload.Message.Content);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("DotNetCloud", $"SignalR notification failed: {ex.Message}");
+            }
+#endif
         });
 
         _hub.Reconnected += async connectionId =>
@@ -291,4 +317,48 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
         if (_hub is not null)
             await _hub.DisposeAsync().ConfigureAwait(false);
     }
+
+#if ANDROID
+    private void PostSignalRNotification(string channelId, string senderName, string content)
+    {
+        var channelGuid = Guid.TryParse(channelId, out var g) ? g : Guid.Empty;
+
+        var intent = new global::Android.Content.Intent(
+            global::Android.App.Application.Context,
+            typeof(DotNetCloud.Client.Android.MainActivity));
+        intent.SetAction(global::Android.Content.Intent.ActionMain);
+        intent.AddCategory(global::Android.Content.Intent.CategoryLauncher);
+        if (channelGuid != Guid.Empty)
+            intent.PutExtra("channelId", channelGuid.ToString());
+
+        var pendingIntent = global::Android.App.PendingIntent.GetActivity(
+            global::Android.App.Application.Context,
+            channelGuid.GetHashCode(),
+            intent,
+            global::Android.App.PendingIntentFlags.Immutable | global::Android.App.PendingIntentFlags.UpdateCurrent);
+
+        var iconRes = global::Android.App.Application.Context.Resources!
+            .GetIdentifier("ic_notification", "drawable",
+                global::Android.App.Application.Context.PackageName);
+        if (iconRes == 0)
+            iconRes = global::Android.Resource.Drawable.IcDialogInfo;
+
+        var notification = new global::Android.App.Notification.Builder(
+                global::Android.App.Application.Context,
+                DotNetCloud.Client.Android.MainApplication.ChannelIdMessages)
+            .SetContentTitle(senderName)
+            .SetContentText(content)
+            .SetSmallIcon(iconRes)
+            .SetContentIntent(pendingIntent)
+            .SetAutoCancel(true)
+            .SetGroup($"dnc_chat_{channelId}")
+            .Build();
+
+        var nm = (global::Android.App.NotificationManager?)
+            global::Android.App.Application.Context.GetSystemService(
+                global::Android.Content.Context.NotificationService);
+        var notificationId = 2000 + (channelGuid.GetHashCode() & 0x0FFF);
+        nm?.Notify(notificationId, notification);
+    }
+#endif
 }
