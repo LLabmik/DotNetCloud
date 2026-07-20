@@ -1,3 +1,20 @@
+## Archived: Android Chat Channel Mute — Client-Side E2E Testing (2026-07-19)
+
+**Target:** `monolith` — Android MAUI app
+
+**Result:** Client-side Android mute toggle implemented and committed. Build passes on `feature/android-chat-channel-mute` (commit `8c9aa713`).
+
+**Branch:** `feature/android-chat-channel-mute`
+
+**Summary of changes:**
+- Moved mute toggle from double-tap on row to single-tap on bell icon
+- Added `IAppForegroundService` + `IChannelMuteStateService` injection to `SignalRChatClient` for Android notification posting from SignalR handler
+- Added `PostSignalRNotification` helper method
+
+**Verification:** `dotnet build` passes.
+
+---
+
 ## Archived: Android Chat Channel Mute — Server-Side (2026-07-19)
 
 **Target:** `cloud.kimball.home` → production deploy
