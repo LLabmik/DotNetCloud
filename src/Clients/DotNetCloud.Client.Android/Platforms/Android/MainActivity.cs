@@ -1,4 +1,5 @@
 using Android.App;
+using Android.Content;
 using Android.Content.PM;
 using Android.OS;
 using Android.Views;
@@ -29,6 +30,17 @@ public class MainActivity : MauiAppCompatActivity
             Ioc.Default.GetService<IAppForegroundService>()?.SetForeground(true);
         }
         catch { /* Best effort */ }
+
+        // Handle deep-link from notification tap (both cold start and resume)
+        HandleCalendarDeepLink();
+    }
+
+    /// <inheritdoc />
+    protected override void OnNewIntent(Intent? intent)
+    {
+        base.OnNewIntent(intent);
+        if (intent is not null)
+            Intent = intent; // Ensure the latest intent is used for deep-link handling
     }
 
     /// <inheritdoc />
@@ -55,5 +67,19 @@ public class MainActivity : MauiAppCompatActivity
         {
             // Best effort — process is shutting down
         }
+    }
+
+    // ── Calendar notification deep-link ─────────────────────────────────────
+
+    private void HandleCalendarDeepLink()
+    {
+        var eventId = Intent?.GetStringExtra("eventId");
+        if (string.IsNullOrWhiteSpace(eventId))
+            return;
+
+        // Clear the extra so we don't re-navigate on subsequent OnResume calls
+        Intent?.RemoveExtra("eventId");
+
+        _ = Shell.Current?.GoToAsync($"EventDetail?EventId={eventId}");
     }
 }

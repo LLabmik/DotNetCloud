@@ -1,4 +1,5 @@
 using Android.App;
+using Android.Media;
 using Android.Runtime;
 
 namespace DotNetCloud.Client.Android;
@@ -17,6 +18,7 @@ public class MainApplication : MauiApplication
     internal const string ChannelIdAnnouncements = "chat_announcements";
     internal const string ChannelIdUpload = "photo_upload";
     internal const string ChannelIdMediaUpload = "media_upload";
+    internal const string ChannelIdCalendarReminders = "calendar_reminders";
 
     /// <summary>
     /// Initializes a new <see cref="MainApplication"/> and registers notification channels.
@@ -107,6 +109,24 @@ public class MainApplication : MauiApplication
         {
             Description = "Shows current track and playback controls."
         });
+
+        // Calendar event reminders — high importance (heads-up, makes sound).
+        // Uses the system alarm sound for a distinct tone vs regular notifications.
+        var calendarChannel = new NotificationChannel(
+            ChannelIdCalendarReminders,
+            "Calendar reminders",
+            NotificationImportance.High)
+        {
+            Description = "Reminders for upcoming calendar events.",
+            LockscreenVisibility = NotificationVisibility.Public
+        };
+        calendarChannel.SetSound(
+            RingtoneManager.GetDefaultUri(RingtoneType.Alarm),
+            new AudioAttributes.Builder()
+                .SetUsage(AudioUsageKind.Alarm)
+                .SetContentType(AudioContentType.Sonification)
+                .Build());
+        nm.CreateNotificationChannel(calendarChannel);
     }
 }
 

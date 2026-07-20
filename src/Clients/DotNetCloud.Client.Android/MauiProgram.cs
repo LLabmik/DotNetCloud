@@ -97,6 +97,7 @@ public static class MauiProgram
         builder.Services.AddHttpClient<ICalendarRestClient, HttpCalendarRestClient>()
             .AddHttpMessageHandler<AuthenticatedHttpClientHandler>()
             .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
+        builder.Services.AddSingleton<ICalendarReminderScheduler, CalendarReminderScheduler>();
 
         // ── Notes ───────────────────────────────────────────────────────
         builder.Services.AddHttpClient<INotesRestClient, HttpNotesRestClient>()

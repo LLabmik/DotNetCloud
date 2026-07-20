@@ -52,6 +52,16 @@ public sealed class FcmMessagingService : FirebaseMessagingService
             "FCM push received: type={Type}, channelId={ChannelId}.",
             type, channelId);
 
+        // Calendar reminders use a dedicated notification handler
+        if (string.Equals(type, "calendar_reminder", StringComparison.OrdinalIgnoreCase))
+        {
+            ShowCalendarReminderNotification(
+                eventId: channelId,
+                title: title ?? "Calendar reminder",
+                body: body ?? string.Empty);
+            return;
+        }
+
         ShowChatNotification(
             type ?? "message",
             channelId,
@@ -164,6 +174,63 @@ public sealed class FcmMessagingService : FirebaseMessagingService
         var nm = (NotificationManager?)GetSystemService(NotificationService);
         var notificationId = BaseNotificationId + (channelGuid.GetHashCode() & 0x0FFF);
         nm?.Notify(notificationId, notification);
+    }
+
+    private void ShowCalendarReminderNotification(string eventId, string title, string body)
+    {
+        // ── Foreground check: suppress if app is visible ──
+        try
+        {
+            var foreground = Ioc.Default.GetService<IAppForegroundService>();
+            if (foreground?.IsInForeground == true)
+            {
+                var logger = Ioc.Default.GetService<ILogger<FcmMessagingService>>();
+                logger?.LogDebug("Calendar reminder suppressed — app in foreground.");
+                return;
+            }
+        }
+        catch { /* Best effort */ }
+
+        // Deep-link intent: open MainActivity with eventId for EventDetailPage
+        var openIntent = new Intent(this, typeof(MainActivity));
+        openIntent.SetAction(Intent.ActionMain);
+        openIntent.AddCategory(Intent.CategoryLauncher);
+        openIntent.PutExtra("eventId", eventId);
+
+        var pendingIntent = PendingIntent.GetActivity(
+            this,
+            eventId.GetHashCode(),
+            openIntent,
+            PendingIntentFlags.Immutable | PendingIntentFlags.UpdateCurrent);
+
+        var iconRes = ApplicationContext!.Resources!
+            .GetIdentifier("ic_notification", "drawable", ApplicationContext.PackageName);
+        if (iconRes == 0)
+            iconRes = global::Android.Resource.Drawable.IcDialogInfo;
+
+        var notification = new Notification.Builder(this, MainApplication.ChannelIdCalendarReminders)
+            .SetContentTitle(title)
+            .SetContentText(body)
+            .SetSmallIcon(iconRes)
+            .SetContentIntent(pendingIntent)
+            .SetAutoCancel(true)
+            .SetCategory(Notification.CategoryAlarm)
+            .Build();
+
+        var nm = (NotificationManager?)GetSystemService(NotificationService);
+        var notificationId = 4000 + (eventId.GetHashCode() & 0x0FFF);
+        nm?.Notify(notificationId, notification);
+
+        // Cancel any local alarm for the same event to avoid duplicates
+        try
+        {
+            if (Guid.TryParse(eventId, out var evtId))
+            {
+                var scheduler = Ioc.Default.GetService<ICalendarReminderScheduler>();
+                scheduler?.CancelReminders(evtId);
+            }
+        }
+        catch { /* Best effort */ }
     }
 }
 #endif

@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-07-19 (Android Chat Channel Mute — client-side E2E testing)
+Last updated: 2026-07-19 (Android Calendar Alarm Reminders — server-side push dispatch)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -10,6 +10,7 @@ Archived context:
 - Additional history remains available in git.
 - VFS Phase 3 (Windows Cloud Filter API) completed on Windows11-TestDNC (2026-05-12).
 - VFS Phase 2 (core abstraction layer) completed on Windows11-TestDNC (previously).
+- **2026-07-19:** Android Chat Channel Mute — client-side E2E testing (archived).
 
 ## Process Rules
 
@@ -18,30 +19,49 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
-- **Current active branch:** `feature/android-chat-channel-mute`
+- **Current active branch:** `feature/android-calendar-reminders`
 
 ## Active Handoff
 
-**Summary:** Android client: test mute toggle end-to-end now that server endpoints are live.
+**Summary:** Add server-side `CalendarReminderDispatcher` background service to push calendar event reminders via FCM/UnifiedPush.
 
-**Branch:** `feature/android-chat-channel-mute`
+**Branch:** `feature/android-calendar-reminders`
 
-**Context:** Server-side mute API endpoints are deployed and verified (commit `ec3c87f52c07`). The Android client needs end-to-end testing against `cloud.dotnetcloud.net`.
+**Context:** Android client now has full local alarm scheduling (`CalendarReminderScheduler` + `CalendarAlarmReceiver` + `CalendarBootReceiver`, committed on this branch). The client handles `type=calendar_reminder` push notifications in both `FcmMessagingService` and `UnifiedPushReceiver`. The server needs to dispatch these pushes.
+
+The `CalendarEventDto.Reminders` list contains `EventReminderDto` with `MinutesBefore` and `Method` (Notification/Email). The server should dispatch `Notification` reminders only; `Email` reminders are handled separately.
 
 ---
 
+### Server Actions — `cloud.kimball.home`
+
+- [ ] Create `CalendarReminderDispatcher` — an `IHostedService` (or `BackgroundService`) that runs on a ~60-second timer in the Calendar module Host process.
+- [ ] On each tick, query all non-deleted events where `StartUtc - X minutes` falls within the next scan window (e.g., up to 120s ahead) and a reminder notification has not yet been sent for that (eventId, minutesBefore) pair.
+- [ ] Deduplication: add a `CalendarReminderLog` table (or expand the events schema) with columns `EventId`, `MinutesBefore`, `SentAtUtc` to prevent duplicate reminder sends.
+- [ ] Expand recurring events (RFC 5545 RRULE) within the scan window before checking for upcoming reminders — the server already has the recurrence engine.
+- [ ] Dispatch push notification via existing FCM/UnifiedPush infrastructure with payload:
+  ```json
+  {
+    "type": "calendar_reminder",
+    "channelId": "<eventId>",
+    "eventId": "<eventId>",
+    "title": "<event title>",
+    "body": "Starts in X minutes"
+  }
+  ```
+- [ ] Filter: only dispatch for events with `ReminderMethod.Notification` (skip `Email`).
+- [ ] Verify dispatch against `cloud.dotnetcloud.net` FCM configuration.
+- [ ] **(Optional, for local fallback bootstrap)** Add `GET /api/v1/calendars/reminders/upcoming?lookaheadHours=24` endpoint that returns all reminders due in the next N hours. The Android client uses this on first install or after prolonged offline.
+
+**Relevant files:**
+- Calendar module: `src/Modules/Calendar/DotNetCloud.Modules.Calendar/`
+- Host project: `src/Modules/Calendar/DotNetCloud.Modules.Calendar.Host/`
+- Existing push dispatch: follow pattern from the Notifications module or Chat push flow
+- Calendar DTOs: `src/Core/DotNetCloud.Core/DTOs/CalendarDtos.cs` — `EventReminderDto`, `ReminderMethod`
+
 ### Client Actions — `monolith`
 
-- [ ] Verify Android client builds cleanly: `dotnet build src\Clients\DotNetCloud.Client.Android\DotNetCloud.Client.Android.csproj`
-- [ ] Deploy to emulator and test mute toggle end-to-end:
-  - `GET /api/v1/chat/channels` returns `isMuted` for each channel
-  - `POST /api/v1/chat/channels/{id}/mute` returns 200 with `{ muted: true }`
-  - `DELETE /api/v1/chat/channels/{id}/mute` returns 200 with `{ muted: false }`
-  - Muting persists across app restarts (check DB: `SELECT IsMuted FROM [core].[ChannelMembers]`)
-- [ ] Open app on phone, navigate to Notes tab, verify existing notes load from server
-- [ ] Test creating, editing, and deleting notes
-- [ ] Verify search and folder filtering work
-- [ ] Verify Settings account section shows username + email
+*(No client actions — all Android-side work is complete on this branch. Client testing will follow after server deployment.)*
 
 **Active Handoff format (MANDATORY):**
 

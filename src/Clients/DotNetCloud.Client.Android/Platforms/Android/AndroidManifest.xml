@@ -40,6 +40,20 @@
 			</intent-filter>
 		</receiver>
 
+		<!-- Calendar reminder alarm receiver (internal only) -->
+		<receiver
+			android:name=".CalendarAlarmReceiver"
+			android:exported="false" />
+
+		<!-- Calendar boot receiver — reschedules alarms after device reboot -->
+		<receiver
+			android:name=".CalendarBootReceiver"
+			android:exported="true">
+			<intent-filter>
+				<action android:name="android.intent.action.BOOT_COMPLETED" />
+			</intent-filter>
+		</receiver>
+
 	</application>
 
 	<!-- Network -->
@@ -68,5 +82,11 @@
 
 	<!-- Battery optimization exemption — required for reliable background sync -->
 	<uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+	<!-- Exact alarm scheduling for calendar reminders (API 31+) -->
+	<uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+
+	<!-- Reschedule calendar alarms after device reboot -->
+	<uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
 </manifest>
