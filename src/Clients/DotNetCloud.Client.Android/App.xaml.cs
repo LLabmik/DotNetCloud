@@ -1,4 +1,5 @@
 using Android.Content;
+using Android.OS;
 using Android.Util;
 using DotNetCloud.Client.Android.Auth;
 using DotNetCloud.Client.Android.Services;
@@ -49,8 +50,40 @@ public partial class App : Application
     protected override async void OnStart()
     {
         base.OnStart();
+
+        // Request POST_NOTIFICATIONS permission on Android 13+ so that
+        // calendar reminders, chat messages, etc. are displayed.
+        await RequestNotificationPermissionAsync();
+
         await CheckAvailableModulesAsync();
         await NavigateToStartPageAsync();
+    }
+
+    /// <summary>
+    /// Requests <c>POST_NOTIFICATIONS</c> runtime permission on Android 13+.
+    /// On older API levels, this returns immediately.
+    /// </summary>
+    private static async Task RequestNotificationPermissionAsync()
+    {
+        if (Build.VERSION.SdkInt < BuildVersionCodes.Tiramisu)
+            return; // No runtime permission needed before Android 13
+
+        try
+        {
+            var status = await Permissions.CheckStatusAsync<Permissions.PostNotifications>();
+            Log.Info("DotNetCloud", $"POST_NOTIFICATIONS status: {status}");
+
+            if (status != PermissionStatus.Granted)
+            {
+                Log.Info("DotNetCloud", "Requesting POST_NOTIFICATIONS permission...");
+                status = await Permissions.RequestAsync<Permissions.PostNotifications>();
+                Log.Info("DotNetCloud", $"POST_NOTIFICATIONS request result: {status}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("DotNetCloud", $"POST_NOTIFICATIONS request failed: {ex.Message}");
+        }
     }
 
     protected override async void OnResume()

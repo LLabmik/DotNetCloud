@@ -1,3 +1,45 @@
+## Archived: Android Chat Channel Mute — Client-Side E2E Testing (2026-07-19)
+
+**Target:** `monolith` — Android MAUI app
+
+**Result:** Client-side Android mute toggle implemented and committed. Build passes on `feature/android-chat-channel-mute` (commit `8c9aa713`).
+
+**Branch:** `feature/android-chat-channel-mute`
+
+**Summary of changes:**
+- Moved mute toggle from double-tap on row to single-tap on bell icon
+- Added `IAppForegroundService` + `IChannelMuteStateService` injection to `SignalRChatClient` for Android notification posting from SignalR handler
+- Added `PostSignalRNotification` helper method
+
+**Verification:** `dotnet build` passes.
+
+---
+
+## Archived: Android Chat Channel Mute — Server-Side (2026-07-19)
+
+**Target:** `cloud.kimball.home` → production deploy
+
+**Result:** Server-side mute/unmute API endpoints implemented, deployed, and verified.
+
+**Branch:** `feature/android-chat-channel-mute` — commit `ec3c87f52c07`
+
+**Summary of changes:**
+- Added `IsMuted` to `ChannelDto` — populated from `ChannelMember.IsMuted` in `ListChannelsAsync`, `GetChannelAsync`, `UpdateChannelAsync`, `GetOrCreateDirectMessageAsync`
+- Added `POST /api/v1/chat/channels/{channelId}/mute` → calls `SetMuteAsync(muted: true)` → returns 200 `{ muted: true }`
+- Added `DELETE /api/v1/chat/channels/{channelId}/mute` → calls `SetMuteAsync(muted: false)` → returns 200 `{ muted: false }`
+- Existing `PUT .../mute` with body preserved for API compatibility
+- 23 new unit tests across ChannelService, ChannelMemberService, ChatController
+- 1295 chat tests all passing
+- Deployed with hash verification; all 14 modules healthy
+
+**Verification:**
+```
+curl -k https://localhost:5443/health → 200 Healthy, all 14 modules running
+sudo ./scripts/deploy.sh --verify → All assemblies verified
+```
+
+---
+
 ## Archived: Notes Required Module — Server Deploy (2026-07-14)
 
 **Target:** cloud.kimball.home → production deploy
@@ -21,6 +63,28 @@
 - ✅ CLI Tests: 120/120 passed
 - ✅ Migration snapshot shows `.HasDefaultSchema("core")`
 - ✅ Existing `notes` schema tables in production DB must be migrated (see Active Handoff)
+
+---
+
+## Archived: Notes Tab Android Client — Client Testing (2026-07-14)
+
+**Target:** monolith (Android client testing)
+
+**Result:** Notes module server-side deployment complete. Added Bearer token support (Introspection auth scheme) to Notes module host. Android client verification of Notes tab.
+
+**Branch:** `feature/android-notes-tab`
+
+**Server Actions (cloud.kimball.home):**
+- ✅ Added `AddTokenIntrospection()` and policy scheme to Notes module `Program.cs`
+- ✅ `PermissionAuthorizationHandler` and `AuthorizationPolicies.Configure()` registered
+- ✅ Controllers use bare `[Authorize]` (no scheme specified)
+- ✅ Deployed to production
+
+**Client Actions (monolith):**
+- ☐ Open app on phone, navigate to Notes tab
+- ☐ Verify existing notes load from server
+- ☐ Test creating, editing, deleting notes
+- ☐ Verify search and folder filtering work
 
 ---
 
@@ -5508,6 +5572,36 @@ Key confirmations:
 - Chat module runs as child process supervised by core, no separate systemd unit
 - Verify new Chat RPCs still pending (needs UI testing)
 - Android APK rebuild needed for 409 handler
+
+---
+
+## Calendar Reminder Push Dispatch — Completed (2026-07-20)
+
+**Summary:** ✅ Server-side calendar reminder push dispatch deployed to `cloud.kimball.home`. The existing `ReminderDispatchService` was enhanced with `ReminderMethod.Notification` filtering and a new `CalendarReminderEventSubscriber` that dispatches in-app notifications and real-time SignalR events via Core.Server's `CoreCapabilities` gRPC service.
+
+**Architecture notes:**
+- `ReminderDispatchService` (already deployed, running on 30s interval) was modified to skip `Email`-type reminders.
+- New `CalendarReminderEventHandler` + `CalendarReminderEventSubscriber` subscribe to `CalendarReminderTriggeredEvent` on the in-process event bus.
+- On reminder fire, dispatches via `CoreCapabilities.SendNotification` (in-app notification) and `BroadcastRealtimeEvent` (SignalR real-time push to connected clients).
+- FCM/UnifiedPush not configured in production config; if credentials are added later, the existing Chat module push pipeline can be extended.
+- No DB migration needed — `ReminderLog` table already exists.
+
+### Server Actions — `cloud.kimball.home` (2026-07-20)
+
+- [x] Add `ReminderMethod.Notification` filter to `ReminderDispatchService`
+- [x] Create `CalendarReminderEventHandler` — handles `CalendarReminderTriggeredEvent`, dispatches via gRPC to Core.Server
+- [x] Create `CalendarReminderEventSubscriber` — subscribes to events on startup, unsubscribes on shutdown
+- [x] Register `CoreCapabilitiesClient` gRPC client + subscriber in `Program.cs`
+- [x] Build (Debug + Release), full solution build succeeds
+- [x] Deploy with `--force` to `cloud.kimball.home`
+- [x] Verify health — all 14 modules healthy
+- [x] Verify hash — deployed `dotnetcloud.calendar.dll` matches build output
+- [x] Verify logs — `CalendarReminderEventSubscriber started — subscribed to CalendarReminderTriggeredEvent`
+
+### Client Actions — `monolith` (Android client)
+
+- [ ] Test calendar reminders end-to-end using `cloud.dotnetcloud.net` — verify local alarms fire, verify push notifications arrive when server push is available
+- [ ] Verify `type=calendar_reminder` notification payload format matches Android client expectations
 
 ---
 

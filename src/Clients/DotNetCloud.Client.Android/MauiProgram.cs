@@ -67,6 +67,10 @@ public static class MauiProgram
         // ── Platform services ─────────────────────────────────────────
         builder.Services.AddSingleton<IBatteryOptimizationService, AndroidBatteryOptimizationService>();
 
+        // ── Foreground tracking & mute state ──────────────────────────
+        builder.Services.AddSingleton<IAppForegroundService, AppForegroundService>();
+        builder.Services.AddSingleton<IChannelMuteStateService, ChannelMuteStateService>();
+
         // ── Update services ───────────────────────────────────────────
         builder.Services.AddHttpClient<IClientUpdateService, ClientUpdateService>()
             .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
@@ -93,6 +97,9 @@ public static class MauiProgram
         builder.Services.AddHttpClient<ICalendarRestClient, HttpCalendarRestClient>()
             .AddHttpMessageHandler<AuthenticatedHttpClientHandler>()
             .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
+        builder.Services.AddSingleton<ICalendarReminderScheduler, CalendarReminderScheduler>();
+        builder.Services.AddSingleton<IExactAlarmPermissionService, AndroidExactAlarmPermissionService>();
+        builder.Services.AddSingleton<INotificationPermissionService, AndroidNotificationPermissionService>();
 
         // ── Notes ───────────────────────────────────────────────────────
         builder.Services.AddHttpClient<INotesRestClient, HttpNotesRestClient>()

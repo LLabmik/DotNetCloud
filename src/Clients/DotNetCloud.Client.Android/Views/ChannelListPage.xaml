@@ -9,7 +9,7 @@
 
     <Shell.TitleView>
         <HorizontalStackLayout Spacing="6"
-                VerticalOptions="Center">
+                               VerticalOptions="Center">
             <Image Source="logo.png"
                    HeightRequest="36"
                    WidthRequest="36"
@@ -181,25 +181,57 @@
                                         Text="{Binding LastMessagePreview}"/>
                                 </VerticalStackLayout>
 
-                                <!-- Unread badge -->
-                                <Border
+                                <HorizontalStackLayout
                                     Grid.Column="2"
-                                    BackgroundColor="#0EA5E9"
-                                    IsVisible="{Binding UnreadCount, Converter={StaticResource IsNotZero}}"
-                                    HeightRequest="24"
-                                    MinimumWidthRequest="24"
-                                    Padding="8,0"
-                                    StrokeThickness="0"
-                                    StrokeShape="RoundRectangle 12"
+                                    Spacing="6"
                                     VerticalOptions="Center">
+
+                                    <!-- Unread badge -->
+                                    <Border
+                                        BackgroundColor="#0EA5E9"
+                                        IsVisible="{Binding UnreadCount, Converter={StaticResource IsNotZero}}"
+                                        HeightRequest="24"
+                                        MinimumWidthRequest="24"
+                                        Padding="8,0"
+                                        StrokeThickness="0"
+                                        StrokeShape="RoundRectangle 12"
+                                        VerticalOptions="Center">
+                                        <Label
+                                            FontSize="11"
+                                            FontAttributes="Bold"
+                                            HorizontalOptions="Center"
+                                            VerticalOptions="Center"
+                                            Text="{Binding UnreadCount}"
+                                            TextColor="White"/>
+                                    </Border>
+
+                                    <!-- Mute icon -->
                                     <Label
-                                        FontSize="11"
-                                        FontAttributes="Bold"
-                                        HorizontalOptions="Center"
+                                        FontSize="16"
                                         VerticalOptions="Center"
-                                        Text="{Binding UnreadCount}"
-                                        TextColor="White"/>
-                                </Border>
+                                        TextColor="#94A3B8"
+                                        Text="🔕"
+                                        IsVisible="{Binding IsMuted}">
+                                        <Label.GestureRecognizers>
+                                            <TapGestureRecognizer
+                                                Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.ToggleMuteCommand}"
+                                                CommandParameter="{Binding .}"/>
+                                        </Label.GestureRecognizers>
+                                    </Label>
+                                    <Label
+                                        FontSize="16"
+                                        VerticalOptions="Center"
+                                        TextColor="#64748B"
+                                        Text="🔔"
+                                        IsVisible="{Binding IsMuted, Converter={StaticResource InvertBool}}">
+                                        <Label.GestureRecognizers>
+                                            <TapGestureRecognizer
+                                                Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.ToggleMuteCommand}"
+                                                CommandParameter="{Binding .}"/>
+                                        </Label.GestureRecognizers>
+                                    </Label>
+
+                                </HorizontalStackLayout>
 
                                 <Grid.GestureRecognizers>
                                     <TapGestureRecognizer

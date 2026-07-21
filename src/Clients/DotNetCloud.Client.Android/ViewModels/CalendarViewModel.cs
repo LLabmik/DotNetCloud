@@ -73,6 +73,7 @@ public sealed partial class CalendarViewModel : ObservableObject
     private readonly ICalendarRestClient _calendarApi;
     private readonly IServerConnectionStore _serverStore;
     private readonly ISecureTokenStore _tokenStore;
+    private readonly ICalendarReminderScheduler _reminderScheduler;
     private readonly ILogger<CalendarViewModel> _logger;
 
     /// <summary>Initializes a new <see cref="CalendarViewModel"/>.</summary>
@@ -80,11 +81,13 @@ public sealed partial class CalendarViewModel : ObservableObject
         ICalendarRestClient calendarApi,
         IServerConnectionStore serverStore,
         ISecureTokenStore tokenStore,
+        ICalendarReminderScheduler reminderScheduler,
         ILogger<CalendarViewModel> logger)
     {
         _calendarApi = calendarApi;
         _serverStore = serverStore;
         _tokenStore = tokenStore;
+        _reminderScheduler = reminderScheduler;
         _logger = logger;
     }
 
@@ -229,6 +232,16 @@ public sealed partial class CalendarViewModel : ObservableObject
                 Events.Add(evt);
 
             RebuildGrids(allEvents);
+
+            // Schedule alarms for all future reminders across all calendars
+            try
+            {
+                await _reminderScheduler.ScheduleRemindersAsync(allEvents, ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to schedule reminder alarms.");
+            }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
         catch (Exception ex)
@@ -379,8 +392,8 @@ public sealed partial class CalendarViewModel : ObservableObject
             {
                 var day = startDate.AddDays(i);
                 var dayEvents = allEvents
-                    .Where(e => e.StartUtc.Date <= day.Date && e.EndUtc.Date >= day.Date)
-                    .OrderBy(e => e.StartUtc)
+                    .Where(e => e.StartUtc.ToLocalTime().Date <= day.Date && e.EndUtc.ToLocalTime().Date >= day.Date)
+                    .OrderBy(e => e.StartUtc.ToLocalTime())
                     .ToList();
 
                 var item = new CalendarDayItem

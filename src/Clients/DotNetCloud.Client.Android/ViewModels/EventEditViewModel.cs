@@ -49,6 +49,16 @@ public sealed partial class EventEditViewModel : ObservableObject
         _serverStore = serverStore;
         _tokenStore = tokenStore;
         _logger = logger;
+
+        // Populate reminder picker labels
+        ReminderLabels.Add("None");
+        ReminderLabels.Add("5 minutes before");
+        ReminderLabels.Add("10 minutes before");
+        ReminderLabels.Add("15 minutes before");
+        ReminderLabels.Add("30 minutes before");
+        ReminderLabels.Add("1 hour before");
+        ReminderLabels.Add("2 hours before");
+        ReminderLabels.Add("1 day before");
     }
 
     // ── Navigation Param Handlers ──────────────────────────────────
@@ -116,8 +126,41 @@ public sealed partial class EventEditViewModel : ObservableObject
     [ObservableProperty]
     private DateTime _endDate = DateTime.Today;
 
+    /// <summary>End time. Updated to start+1h when start moves past it.</summary>
     [ObservableProperty]
     private TimeSpan _endTime = new(10, 0, 0);
+
+    partial void OnStartDateChanged(DateTime value) => SetEndOneHourAfterStart();
+    partial void OnStartTimeChanged(TimeSpan value) => SetEndOneHourAfterStart();
+    partial void OnEndDateChanged(DateTime value) => EnsureEndAfterStart();
+    partial void OnEndTimeChanged(TimeSpan value) => EnsureEndAfterStart();
+
+    /// <summary>
+    /// Always sets the end time to start + 1 hour. Called when the start date or time changes.
+    /// </summary>
+    private void SetEndOneHourAfterStart()
+    {
+        var start = StartDate.Date + StartTime;
+        var newEnd = start + TimeSpan.FromHours(1);
+        EndDate = newEnd.Date;
+        EndTime = newEnd.TimeOfDay;
+    }
+
+    /// <summary>
+    /// Ensures the end time is after start time. Called when the end date or time is manually changed
+    /// — only pushes forward if the user drags end past/before start.
+    /// </summary>
+    private void EnsureEndAfterStart()
+    {
+        var start = StartDate.Date + StartTime;
+        var end = EndDate.Date + EndTime;
+        if (end <= start)
+        {
+            var newEnd = start + TimeSpan.FromHours(1);
+            EndDate = newEnd.Date;
+            EndTime = newEnd.TimeOfDay;
+        }
+    }
 
     [ObservableProperty]
     private bool _isAllDay;
@@ -142,6 +185,50 @@ public sealed partial class EventEditViewModel : ObservableObject
 
     /// <summary>Available calendars for the picker.</summary>
     public ObservableCollection<CalendarDto> Calendars { get; } = [];
+
+    // ── Reminder Editor ───────────────────────────────────────────
+
+    /// <summary>Minutes before the event to trigger a reminder. 0 means no reminder.
+    /// These correspond to the <see cref="EventReminderDto.MinutesBefore"/> value.</summary>
+    [ObservableProperty]
+    private int _reminderMinutesBefore;
+
+    /// <summary>Index into <see cref="ReminderLabels"/> for the Picker. -1 means no selection ("No reminder").</summary>
+    [ObservableProperty]
+    private int _reminderSelectedIndex = -1;
+
+    partial void OnReminderMinutesBeforeChanged(int value)
+    {
+        // Sync the picker index to match the minutes value
+        if (value <= 0)
+        {
+            ReminderSelectedIndex = -1; // "No reminder"
+            return;
+        }
+        for (var i = 0; i < ReminderMinutesValues.Length; i++)
+        {
+            if (ReminderMinutesValues[i] == value)
+            {
+                ReminderSelectedIndex = i;
+                return;
+            }
+        }
+        ReminderSelectedIndex = -1; // fallback
+    }
+
+    partial void OnReminderSelectedIndexChanged(int value)
+    {
+        if (value >= 0 && value < ReminderMinutesValues.Length)
+            ReminderMinutesBefore = ReminderMinutesValues[value];
+        else
+            ReminderMinutesBefore = 0;
+    }
+
+    /// <summary>Display labels for the reminder picker, indexed same as <see cref="ReminderMinutesValues"/>.</summary>
+    public ObservableCollection<string> ReminderLabels { get; } = [];
+
+    /// <summary>Minutes-before values corresponding to <see cref="ReminderLabels"/> by index.</summary>
+    private static int[] ReminderMinutesValues { get; } = [0, 5, 10, 15, 30, 60, 120, 1440];
 
     // ── Recurrence Editor ──────────────────────────────────────────
 
@@ -301,10 +388,10 @@ public sealed partial class EventEditViewModel : ObservableObject
             Title = evt.Title;
             Description = evt.Description;
             Location = evt.Location;
-            StartDate = evt.StartUtc.Date;
-            StartTime = evt.StartUtc.TimeOfDay;
-            EndDate = evt.EndUtc.Date;
-            EndTime = evt.EndUtc.TimeOfDay;
+            StartDate = evt.StartUtc.ToLocalTime().Date;
+            StartTime = evt.StartUtc.ToLocalTime().TimeOfDay;
+            EndDate = evt.EndUtc.ToLocalTime().Date;
+            EndTime = evt.EndUtc.ToLocalTime().TimeOfDay;
             IsAllDay = evt.IsAllDay;
             SelectedCalendarId = evt.CalendarId;
             Url = evt.Url;
@@ -315,6 +402,16 @@ public sealed partial class EventEditViewModel : ObservableObject
                 IsRecurring = true;
                 IsRecurringEvent = true;
                 ParseRruleIntoFields(evt.RecurrenceRule);
+            }
+
+            // Parse existing reminder into the editor
+            if (evt.Reminders.Count > 0)
+            {
+                // Use the first Notification-type reminder as the preset value
+                var firstReminder = evt.Reminders
+                    .FirstOrDefault(r => r.Method == ReminderMethod.Notification);
+                if (firstReminder is not null)
+                    ReminderMinutesBefore = firstReminder.MinutesBefore;
             }
         }
         catch (Exception ex)
@@ -340,8 +437,8 @@ public sealed partial class EventEditViewModel : ObservableObject
             return;
         }
 
-        var startUtc = StartDate.Date + StartTime;
-        var endUtc = EndDate.Date + EndTime;
+        var startUtc = (StartDate.Date + StartTime).ToUniversalTime();
+        var endUtc = (EndDate.Date + EndTime).ToUniversalTime();
 
         if (endUtc <= startUtc)
         {
@@ -376,6 +473,7 @@ public sealed partial class EventEditViewModel : ObservableObject
                         EndUtc = endUtc,
                         IsAllDay = IsAllDay,
                         Url = Url,
+                        Reminders = BuildReminderDtos(),
                     };
                     await _calendarApi.UpdateEventAsync(serverUrl, token, _eventId.Value, updateDto, ct);
                 }
@@ -392,6 +490,7 @@ public sealed partial class EventEditViewModel : ObservableObject
                         IsAllDay = IsAllDay,
                         RecurrenceRule = recurrenceRule,
                         Url = Url,
+                        Reminders = BuildReminderDtos(),
                     };
                     await _calendarApi.UpdateEventAsync(serverUrl, token, _eventId.Value, updateDto, ct);
                 }
@@ -410,6 +509,7 @@ public sealed partial class EventEditViewModel : ObservableObject
                     IsAllDay = IsAllDay,
                     RecurrenceRule = recurrenceRule,
                     Url = Url,
+                    Reminders = BuildReminderDtos(),
                 };
                 await _calendarApi.CreateEventAsync(serverUrl, token, createDto, ct);
             }
@@ -631,5 +731,22 @@ public sealed partial class EventEditViewModel : ObservableObject
             prefix += $", ending on {until}";
 
         return prefix;
+    }
+
+    // ── Reminder Helpers ───────────────────────────────────────────
+
+    private IReadOnlyList<EventReminderDto> BuildReminderDtos()
+    {
+        if (ReminderMinutesBefore <= 0)
+            return [];
+
+        return
+        [
+            new EventReminderDto
+            {
+                MinutesBefore = ReminderMinutesBefore,
+                Method = ReminderMethod.Notification,
+            }
+        ];
     }
 }

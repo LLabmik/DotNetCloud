@@ -129,6 +129,42 @@ public sealed class UnifiedPushReceiver : UnifiedPush.MessagingReceiver
 
     private static void ShowNotification(Context context, PushPayload payload)
     {
+        // Calendar reminders use a dedicated notification channel and deep-link
+        if (string.Equals(payload.Type, "calendar_reminder", StringComparison.OrdinalIgnoreCase))
+        {
+            ShowCalendarReminderNotification(context, payload);
+            return;
+        }
+
+        // ── Foreground check: suppress if app is visible ──
+        try
+        {
+            var foreground = Ioc.Default.GetService<IAppForegroundService>();
+            if (foreground?.IsInForeground == true)
+            {
+                var logger = Ioc.Default.GetService<ILogger<UnifiedPushReceiver>>();
+                logger?.LogDebug("App in foreground; suppressing notification for channel {ChannelId}.", payload.ChannelId);
+                return;
+            }
+        }
+        catch { /* Best effort — post notification if we can't check */ }
+
+        // ── Mute check: suppress if channel is muted ──
+        try
+        {
+            if (Guid.TryParse(payload.ChannelId, out var chId) && chId != Guid.Empty)
+            {
+                var muteState = Ioc.Default.GetService<IChannelMuteStateService>();
+                if (muteState?.IsMuted(chId) == true)
+                {
+                    var logger = Ioc.Default.GetService<ILogger<UnifiedPushReceiver>>();
+                    logger?.LogDebug("Channel {ChannelId} is muted; suppressing notification.", payload.ChannelId);
+                    return;
+                }
+            }
+        }
+        catch { /* Best effort */ }
+
         var channelGuid = Guid.TryParse(payload.ChannelId, out var g) ? g : Guid.Empty;
 
         var openIntent = new Intent(context, typeof(MainActivity));
@@ -175,6 +211,54 @@ public sealed class UnifiedPushReceiver : UnifiedPush.MessagingReceiver
         public string? ChannelId { get; init; }
         public string? Title { get; init; }
         public string? Body { get; init; }
+        public string? EventId { get; init; }
+    }
+
+    private static void ShowCalendarReminderNotification(Context context, PushPayload payload)
+    {
+        var eventId = payload.EventId ?? payload.ChannelId ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(eventId))
+            return;
+
+        var openIntent = new Intent(context, typeof(MainActivity));
+        openIntent.SetAction(Intent.ActionMain);
+        openIntent.AddCategory(Intent.CategoryLauncher);
+        openIntent.PutExtra("eventId", eventId);
+
+        var pendingIntent = PendingIntent.GetActivity(
+            context,
+            eventId.GetHashCode(),
+            openIntent,
+            PendingIntentFlags.Immutable | PendingIntentFlags.UpdateCurrent);
+
+        var iconRes = context.Resources!
+            .GetIdentifier("ic_notification", "drawable", context.PackageName);
+        if (iconRes == 0)
+            iconRes = global::Android.Resource.Drawable.IcDialogInfo;
+
+        var notification = new Notification.Builder(context, MainApplication.ChannelIdCalendarReminders)
+            .SetContentTitle(payload.Title ?? "Calendar reminder")
+            .SetContentText(payload.Body ?? string.Empty)
+            .SetSmallIcon(iconRes)
+            .SetContentIntent(pendingIntent)
+            .SetAutoCancel(true)
+            .SetCategory(Notification.CategoryAlarm)
+            .Build();
+
+        var nm = (NotificationManager?)context.GetSystemService(Context.NotificationService);
+        var notificationId = 5000 + (eventId.GetHashCode() & 0x0FFF);
+        nm?.Notify(notificationId, notification);
+
+        // Cancel any local alarm for the same event to avoid duplicates
+        try
+        {
+            if (Guid.TryParse(eventId, out var evtId))
+            {
+                var scheduler = Ioc.Default.GetService<ICalendarReminderScheduler>();
+                scheduler?.CancelReminders(evtId);
+            }
+        }
+        catch { /* Best effort */ }
     }
 }
 #endif

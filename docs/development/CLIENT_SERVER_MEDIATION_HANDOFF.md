@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-07-14 (Notes Required Module — deploy to production)
+Last updated: 2026-07-20 (Android Calendar Alarm Reminders — POST_NOTIFICATIONS fix applied)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -10,6 +10,8 @@ Archived context:
 - Additional history remains available in git.
 - VFS Phase 3 (Windows Cloud Filter API) completed on Windows11-TestDNC (2026-05-12).
 - VFS Phase 2 (core abstraction layer) completed on Windows11-TestDNC (previously).
+- **2026-07-19:** Android Chat Channel Mute — client-side E2E testing (archived).
+- **2026-07-20:** Android Calendar Alarm Reminders — initial implementation + partial E2E test
 
 ## Process Rules
 
@@ -18,37 +20,74 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
-- **Current active branch:** `feature/notes-required-module`
+- **Current active branch:** `feature/android-chat-channel-mute`
 
 ## Active Handoff
 
-**Summary:** ✅ Server-side deployment complete. Client testing in progress.
+**Summary:** Android Calendar Alarm Reminders — ALL core fixes complete and verified. POST_NOTIFICATIONS runtime permission fix, timezone bug fix in alarm scheduling, end-time auto-adjust fix.
 
-**Context:** Notes module now accepts Bearer tokens (Introspection auth scheme registered in `Program.cs`). Ready for Android client verification.
+**Branch:** `feature/android-chat-channel-mute`
 
-**Branch:** `feature/android-notes-tab`
+**Context:** Full calendar reminder system implemented. Server-side `ReminderDispatchService` deployed to `cloud.kimball.home`. Android client has local `AlarmManager` scheduling, `CalendarAlarmReceiver`, `CalendarBootReceiver`, reminder picker in event editor, exact alarm permission UI, and timezone-aware display. E2E testing confirmed scheduling works and broadcasts are received, but notifications don't appear on screen (not even when app is closed).
 
----
+**All changes committed in this session (commit pending):**
 
-### Client Actions — `monolith` (Android client)
+### What's Implemented (all client-side)
 
-Test the Android Notes tab against `cloud.dotnetcloud.net`:
+| Component | Files | Status |
+|-----------|-------|--------|
+| Notification channel `calendar_reminders` (High + alarm sound) | `MainApplication.cs` | ✅ |
+| `SCHEDULE_EXACT_ALARM` + `RECEIVE_BOOT_COMPLETED` permissions | `AndroidManifest.xml` | ✅ |
+| `CalendarAlarmReceiver` — alarm broadcast → notification with deep-link | `Platforms/Android/CalendarAlarmReceiver.cs` | ✅ |
+| `CalendarBootReceiver` — reschedule alarms after reboot | `Platforms/Android/CalendarBootReceiver.cs` | ✅ |
+| `CalendarReminderScheduler` — `AlarmManager.setExactAndAllowWhileIdle()` with permission-aware fallback | `Services/CalendarReminderScheduler.cs` | ✅ |
+| Reminder picker in event editor (blue bordered REMINDER section right below Title) | `EventEditViewModel.cs` + `EventEditPage.xaml` | ✅ |
+| Auto-adjust end time to start+1h | `EventEditViewModel.cs` | ✅ |
+| Timezone: save as UTC, display as local time | `EventEditViewModel.cs` + `CalendarViewModel.cs` | ✅ |
+| Scheduler logs via `Android.Util.Log.Info("DotNetCloud", ...)` for logcat | `CalendarReminderScheduler.cs` | ✅ |
+| `IExactAlarmPermissionService` + Settings card with Fix button | `AndroidExactAlarmPermissionService.cs` + `SettingsViewModel.cs` + `SettingsPage.xaml` | ✅ |
+| `type=calendar_reminder` push handler in FCM + UnifiedPush | `FcmMessagingService.cs` + `UnifiedPushReceiver.cs` | ✅ |
+| Foreground suppression removed (alarms sound always) | `CalendarAlarmReceiver.cs`, `FcmMessagingService.cs`, `UnifiedPushReceiver.cs` | ✅ |
 
-- [ ] Open app on phone
-- [ ] Navigate to Notes tab
-- [ ] Verify existing notes load from server (Bearer token auth should work now)
-- [ ] Test creating a new note
-- [ ] Test editing and deleting notes
-- [ ] Verify search and folder filtering work
-- [ ] Verify Settings account section shows username + email
+### What's Working (confirmed)
 
-**Role separation (MANDATORY):**
+- ✅ **POST_NOTIFICATIONS runtime permission granted** — notification works! Tested with "test 7" (10-min reminder, fired exactly at 05:20:00 UTC)
+- ✅ **Timezone fix verified** — `DateTime.SpecifyKind(triggerTimeUtc, DateTimeKind.Utc)` ensures alarms fire at correct UTC time (not 5h late due to `Kind=Unspecified` from JSON deserialization)
+- ✅ **End-time auto-adjust** — `SetEndOneHourAfterStart()` now always sets end = start + 1h when start changes
+- ✅ **Notification channel** — `calendar_reminders` is High importance with alarm sound, `POST_NOTIFICATIONS: GRANTED`, `nm.Notify()` succeeds
+- ✅ Event creation/deletion on server
+- ✅ Reminder picker visible and functional
+- ✅ `ScheduleRemindersAsync` processes events and schedules `AlarmManager` alarms
+- ✅ `SCHEDULE_EXACT_ALARM` permission — exact alarms confirmed working
+- ✅ `CalendarAlarmReceiver` receives broadcasts and displays notifications
+- ✅ Server-side `ReminderDispatchService` deployed on `cloud.kimball.home`
+- ✅ Battery optimization — standby bucket is 10 (ACTIVE), not restricted
 
-- **Client code** (`src/Clients/`, `src/UI/`) is handled ONLY by client machines (`mint-OptiPlex-7010`, `Windows11-TestDNC`, `mint-dnc-client`, `monolith`).
-- **Server code** (`src/Core/`, `src/Modules/`) is handled ONLY by server machines (`cloud.kimball.home`, `mint22`).
-- Each agent ONLY executes actions in the block matching their machine name (from the Environment table).
-- If no action block matches your machine, the handoff is not for you — relay it to the moderator.
-- Never cross role boundaries: a client agent never deploys server code, a server agent never builds client apps.
+### What's NOT Working
+
+- ❌ **Monthly calendar only shows event count, not titles.** `CalendarDayItem` shows `"{Events.Count} events"` label. Needs event dots/bars in month view cells.
+
+### Build Notes
+
+**CRITICAL:** `dotnet build` without `-r android-arm64` only builds for x64 (emulator). The arm64 APK at `bin/Debug/net10.0-android/android-arm64/` stays stale. Always use:
+```powershell
+dotnet build ... -f net10.0-android -c Debug -r android-arm64 /p:AndroidSdkDirectory="C:\Program Files (x86)\Android\android-sdk"
+```
+
+### Server Status
+
+`cloud.kimball.home` has `ReminderDispatchService` (30s scan, 24h lookahead, `ReminderMethod.Notification` filter, `ReminderLog` dedup table, recurrence expansion). No FCM credentials configured — push falls back to SignalR for connected clients and in-app notifications.
+
+### Next Session Priorities
+
+1. ✅ **POST_NOTIFICATIONS runtime permission fix** — confirmed working (test 7 notification appeared at correct time)
+2. ✅ **Timezone fix for alarm scheduling** — `DateTime.SpecifyKind(..., DateTimeKind.Utc)` in `ScheduleSingleAlarm` and trigger time computation
+3. ✅ **End time auto-adjust** — `SetEndOneHourAfterStart()` always sets end = start + 1h
+4. ✅ **Settings cards** — Notifications, Battery Optimization, Exact Alarm Permission all available
+5. **Fix monthly multi-event display** — show event titles/dots in month cells instead of just `"{Events.Count} events"`
+6. **Test with app fully closed** — create event with 2min reminder, fully close app, verify notification appears
+7. **Test recurring events** — verify dedup via `ReminderLog`
+8. **Test server-push** — verify `type=calendar_reminder` handler
 
 **Active Handoff format (MANDATORY):**
 

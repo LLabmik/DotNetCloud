@@ -2,6 +2,7 @@ using DotNetCloud.Core.Auth.Authorization;
 using DotNetCloud.Core.Auth.Introspection;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Grpc.Capabilities;
 using DotNetCloud.Modules.Calendar;
 using DotNetCloud.Modules.Calendar.Data;
 using DotNetCloud.Modules.Calendar.Host.Services;
@@ -11,6 +12,7 @@ using IContactDirectory = DotNetCloud.Core.Capabilities.IContactDirectory;
 using IOrganizationDirectory = DotNetCloud.Core.Capabilities.IOrganizationDirectory;
 using DotNetCloud.Core.Auth.Capabilities;
 using DotNetCloud.Core.Data.Context;
+using Grpc.Net.Client;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -178,6 +180,19 @@ builder.Services.AddScoped<IOrganizationDirectory, OrganizationDirectoryService>
 
 // Register all calendar business-logic services (Calendar, Event, Share, ICal)
 builder.Services.AddCalendarServices(builder.Configuration);
+
+// CoreCapabilities gRPC client — connects to Core.Server for in-app notifications
+// and real-time event broadcasting. The endpoint is provided by the ProcessSupervisor.
+var coreEndpoint = Environment.GetEnvironmentVariable("DOTNETCLOUD_CORE_ENDPOINT");
+if (!string.IsNullOrEmpty(coreEndpoint))
+{
+    _ = builder.Services.AddSingleton(_ =>
+    {
+        var channel = GrpcChannel.ForAddress(coreEndpoint);
+        return new CoreCapabilities.CoreCapabilitiesClient(channel);
+    });
+    builder.Services.AddHostedService<CalendarReminderEventSubscriber>();
+}
 
 // Contacts gRPC client for attendee contact search
 builder.Services.Configure<DotNetCloud.Modules.Calendar.Host.Configuration.ContactsGrpcClientOptions>(

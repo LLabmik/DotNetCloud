@@ -68,6 +68,20 @@ public interface IChatRestClient
         Guid channelId,
         CancellationToken ct = default);
 
+    // ── Notifications ──────────────────────────────────────────────────
+
+    /// <summary>Mutes notifications for a channel. New messages will not trigger alerts.</summary>
+    Task MuteChannelAsync(
+        string serverBaseUrl, string accessToken,
+        Guid channelId,
+        CancellationToken ct = default);
+
+    /// <summary>Unmutes notifications for a channel.</summary>
+    Task UnmuteChannelAsync(
+        string serverBaseUrl, string accessToken,
+        Guid channelId,
+        CancellationToken ct = default);
+
     // ── Image Upload ─────────────────────────────────────────────────
 
     /// <summary>
@@ -109,6 +123,7 @@ public sealed record PagedMessagesResult(
 /// <param name="Name">Display name.</param>
 /// <param name="UnreadCount">Number of unread messages.</param>
 /// <param name="HasMention">Whether unread messages contain a mention for the current user.</param>
+/// <param name="IsMuted">Whether notifications are muted for this channel.</param>
 /// <param name="LastMessagePreview">Preview text of the most recent message.</param>
 /// <param name="LastMessageAt">When the most recent message was sent (UTC), or <c>null</c>.</param>
 public sealed record ChannelSummary(
@@ -116,6 +131,7 @@ public sealed record ChannelSummary(
     string Name,
     int UnreadCount,
     bool HasMention,
+    bool IsMuted,
     string? LastMessagePreview,
     DateTimeOffset? LastMessageAt);
 
