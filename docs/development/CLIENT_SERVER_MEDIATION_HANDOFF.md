@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-07-20 (Android Calendar Alarm Reminders — server-side push dispatch deployed, ready for client E2E testing)
+Last updated: 2026-07-20 (Android Calendar Alarm Reminders — end of session, handoff to new session)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -11,6 +11,7 @@ Archived context:
 - VFS Phase 3 (Windows Cloud Filter API) completed on Windows11-TestDNC (2026-05-12).
 - VFS Phase 2 (core abstraction layer) completed on Windows11-TestDNC (previously).
 - **2026-07-19:** Android Chat Channel Mute — client-side E2E testing (archived).
+- **2026-07-20:** Android Calendar Alarm Reminders — initial implementation + partial E2E test
 
 ## Process Rules
 
@@ -23,25 +24,70 @@ Archived context:
 
 ## Active Handoff
 
-**Summary:** E2E test calendar reminders on Android client against deployed server.
+**Summary:** Android Calendar Alarm Reminders — scheduler works, alarm fires, but notification not appearing on device.
 
 **Branch:** `feature/android-chat-channel-mute`
 
-**Context:** Server-side calendar reminder push dispatch is deployed to `cloud.kimball.home`. The `ReminderDispatchService` (30s scan interval) now filters to `ReminderMethod.Notification` only and dispatches via Core.Server's `CoreCapabilities` gRPC (`SendNotification` in-app + `BroadcastRealtimeEvent` SignalR). The Android client already has local alarm scheduling and `type=calendar_reminder` push handling. No FCM credentials are configured on production — push delivery falls back to SignalR for connected clients and in-app notifications.
+**Context:** Full calendar reminder system implemented. Server-side `ReminderDispatchService` deployed to `cloud.kimball.home`. Android client has local `AlarmManager` scheduling, `CalendarAlarmReceiver`, `CalendarBootReceiver`, reminder picker in event editor, exact alarm permission UI, and timezone-aware display. E2E testing confirmed scheduling works and broadcasts are received, but notifications don't appear on screen (not even when app is closed).
 
----
+**All changes committed in this session (commit pending):**
 
-### Client Actions — `monolith` (Android client)
+### What's Implemented (all client-side)
 
-- [ ] Pull this branch on `monolith` (Windows 11).
-- [ ] Run the Android emulator and connect to `cloud.dotnetcloud.net` (not localhost).
-- [ ] Create a calendar event with a 5-minute reminder on the web UI or via CalDAV.
-- [ ] Verify: after ~30-90s, the local alarm fires on the Android device (handled by `CalendarAlarmReceiver`).
-- [ ] Verify: in-app notification appears in the notification bell on the web UI (handled by `SendNotification` gRPC → `INotificationService`).
-- [ ] Verify: SignalR-connected clients receive the `CalendarReminder` real-time event (handled by `BroadcastRealtimeEvent`).
-- [ ] Test edge case: create a recurring event with reminder — verify reminder fires for first occurrence only (dedup via `ReminderLog`).
-- [ ] Test edge case: set reminder to `Email` method — verify no push/in-app notification is dispatched.
-- [ ] If push notifications via FCM/UnifiedPush are desired, configure `Chat:Push:Fcm.CredentialsPath` and `Chat:Push:Fcm.ProjectId` in `/etc/dotnetcloud/config.json` on `cloud.kimball.home`.
+| Component | Files | Status |
+|-----------|-------|--------|
+| Notification channel `calendar_reminders` (High + alarm sound) | `MainApplication.cs` | ✅ |
+| `SCHEDULE_EXACT_ALARM` + `RECEIVE_BOOT_COMPLETED` permissions | `AndroidManifest.xml` | ✅ |
+| `CalendarAlarmReceiver` — alarm broadcast → notification with deep-link | `Platforms/Android/CalendarAlarmReceiver.cs` | ✅ |
+| `CalendarBootReceiver` — reschedule alarms after reboot | `Platforms/Android/CalendarBootReceiver.cs` | ✅ |
+| `CalendarReminderScheduler` — `AlarmManager.setExactAndAllowWhileIdle()` with permission-aware fallback | `Services/CalendarReminderScheduler.cs` | ✅ |
+| Reminder picker in event editor (blue bordered REMINDER section right below Title) | `EventEditViewModel.cs` + `EventEditPage.xaml` | ✅ |
+| Auto-adjust end time to start+1h | `EventEditViewModel.cs` | ✅ |
+| Timezone: save as UTC, display as local time | `EventEditViewModel.cs` + `CalendarViewModel.cs` | ✅ |
+| Scheduler logs via `Android.Util.Log.Info("DotNetCloud", ...)` for logcat | `CalendarReminderScheduler.cs` | ✅ |
+| `IExactAlarmPermissionService` + Settings card with Fix button | `AndroidExactAlarmPermissionService.cs` + `SettingsViewModel.cs` + `SettingsPage.xaml` | ✅ |
+| `type=calendar_reminder` push handler in FCM + UnifiedPush | `FcmMessagingService.cs` + `UnifiedPushReceiver.cs` | ✅ |
+| Foreground suppression removed (alarms sound always) | `CalendarAlarmReceiver.cs`, `FcmMessagingService.cs`, `UnifiedPushReceiver.cs` | ✅ |
+
+### What's Working (confirmed)
+
+- ✅ Event creation/deletion on server
+- ✅ Reminder picker visible and functional
+- ✅ `ScheduleRemindersAsync` processes events and schedules `AlarmManager` alarms
+- ✅ `SCHEDULE_EXACT_ALARM` permission — exact alarms confirmed working (`window=0 exactAllowReason=permission`)
+- ✅ `CalendarAlarmReceiver` receives broadcasts — confirmed in logcat (3 broadcasts at 23:42, 23:43, 23:53)
+- ✅ Server-side `ReminderDispatchService` deployed on `cloud.kimball.home`
+
+### What's NOT Working
+
+- ❌ **Notification never appears on device.** `CalendarAlarmReceiver.OnReceive` receives the broadcast but no notification is shown. Need to debug:
+  - Is `ShowReminderNotification` being called? (no Android.Util.Log in that method)
+  - Is `NotificationManager.Notify()` failing?
+  - Is the notification channel configured correctly?
+  - Add logcat logging to `ShowReminderNotification` to trace execution
+
+- ❌ **Monthly calendar only shows event count, not titles.** `CalendarDayItem` shows `"{Events.Count} events"` label. Needs event dots/bars in month view cells.
+
+### Build Notes
+
+**CRITICAL:** `dotnet build` without `-r android-arm64` only builds for x64 (emulator). The arm64 APK at `bin/Debug/net10.0-android/android-arm64/` stays stale. Always use:
+```powershell
+dotnet build ... -f net10.0-android -c Debug -r android-arm64 /p:AndroidSdkDirectory="C:\Program Files (x86)\Android\android-sdk"
+```
+
+### Server Status
+
+`cloud.kimball.home` has `ReminderDispatchService` (30s scan, 24h lookahead, `ReminderMethod.Notification` filter, `ReminderLog` dedup table, recurrence expansion). No FCM credentials configured — push falls back to SignalR for connected clients and in-app notifications.
+
+### Next Session Priorities
+
+1. **Debug notification not showing** — add logcat logging in `ShowReminderNotification`, verify `NotificationManager.Notify()` executes
+2. **Enable battery optimization exemption** — app is in standby bucket 30 (RESTRICTED), which defers alarm delivery. User needs to tap "Fix" on Settings → Battery Optimization card
+3. **Test with app closed** — after battery fix, create event with 2min reminder, close app, verify notification with alarm sound
+4. **Fix monthly multi-event display** — show event titles/dots in month cells
+5. **Test recurring events** — verify dedup via `ReminderLog`
+6. **Test server-push** — verify `type=calendar_reminder` handler
+7. **Record these findings to repo memory**
 
 **Active Handoff format (MANDATORY):**
 

@@ -23,6 +23,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly ISecureTokenStore _tokenStore;
     private readonly IMediaAutoUploadService _mediaUploadService;
     private readonly IBatteryOptimizationService _batteryService;
+    private readonly IExactAlarmPermissionService _exactAlarmPermission;
     private readonly IAppPreferences _preferences;
     private readonly IAndroidUpdateService _updateService;
     private readonly ILogger<SettingsViewModel> _logger;
@@ -36,6 +37,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         ISecureTokenStore tokenStore,
         IMediaAutoUploadService mediaUploadService,
         IBatteryOptimizationService batteryService,
+        IExactAlarmPermissionService exactAlarmPermission,
         IAppPreferences preferences,
         IAndroidUpdateService updateService,
         ILogger<SettingsViewModel> logger)
@@ -44,6 +46,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _tokenStore = tokenStore;
         _mediaUploadService = mediaUploadService;
         _batteryService = batteryService;
+        _exactAlarmPermission = exactAlarmPermission;
         _preferences = preferences;
         _updateService = updateService;
         _logger = logger;
@@ -116,6 +119,10 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private bool _isBatteryOptimized = true;
 
+    /// <summary>Whether exact alarm permission is denied (affects calendar reminder timing).</summary>
+    [ObservableProperty]
+    private bool _isExactAlarmDenied = true;
+
     [ObservableProperty]
     private string _batteryStatusText = "Checking…";
 
@@ -172,6 +179,22 @@ public sealed partial class SettingsViewModel : ObservableObject
     }
 
     // ── Commands ─────────────────────────────────────────────────────
+
+    /// <summary>Opens the system exact alarm permission settings.</summary>
+    [RelayCommand]
+    private void RequestExactAlarmPermission()
+    {
+        _exactAlarmPermission.OpenPermissionSettings();
+        // Refresh after a delay
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(2000);
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                IsExactAlarmDenied = !_exactAlarmPermission.HasExactAlarmPermission();
+            });
+        });
+    }
 
     /// <summary>Opens the system battery optimization exemption dialog.</summary>
     [RelayCommand]
@@ -306,6 +329,9 @@ public sealed partial class SettingsViewModel : ObservableObject
         IsBatteryOptimized = !exempt;
         BatteryStatusText = exempt ? "Unrestricted" : "Restricted — tap to fix";
         BatteryStatusColor = exempt ? Color.FromArgb("#22C55E") : Color.FromArgb("#F59E0B");
+
+        // Also refresh exact alarm permission
+        IsExactAlarmDenied = !_exactAlarmPermission.HasExactAlarmPermission();
     }
 
     // ── Update notification ──────────────────────────────────────────

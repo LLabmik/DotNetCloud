@@ -392,8 +392,8 @@ public sealed partial class CalendarViewModel : ObservableObject
             {
                 var day = startDate.AddDays(i);
                 var dayEvents = allEvents
-                    .Where(e => e.StartUtc.Date <= day.Date && e.EndUtc.Date >= day.Date)
-                    .OrderBy(e => e.StartUtc)
+                    .Where(e => e.StartUtc.ToLocalTime().Date <= day.Date && e.EndUtc.ToLocalTime().Date >= day.Date)
+                    .OrderBy(e => e.StartUtc.ToLocalTime())
                     .ToList();
 
                 var item = new CalendarDayItem

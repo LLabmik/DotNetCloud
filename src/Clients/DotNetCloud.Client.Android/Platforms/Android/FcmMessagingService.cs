@@ -178,19 +178,6 @@ public sealed class FcmMessagingService : FirebaseMessagingService
 
     private void ShowCalendarReminderNotification(string eventId, string title, string body)
     {
-        // ── Foreground check: suppress if app is visible ──
-        try
-        {
-            var foreground = Ioc.Default.GetService<IAppForegroundService>();
-            if (foreground?.IsInForeground == true)
-            {
-                var logger = Ioc.Default.GetService<ILogger<FcmMessagingService>>();
-                logger?.LogDebug("Calendar reminder suppressed — app in foreground.");
-                return;
-            }
-        }
-        catch { /* Best effort */ }
-
         // Deep-link intent: open MainActivity with eventId for EventDetailPage
         var openIntent = new Intent(this, typeof(MainActivity));
         openIntent.SetAction(Intent.ActionMain);

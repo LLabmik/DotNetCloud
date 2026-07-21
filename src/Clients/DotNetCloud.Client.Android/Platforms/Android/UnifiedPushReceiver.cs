@@ -220,19 +220,6 @@ public sealed class UnifiedPushReceiver : UnifiedPush.MessagingReceiver
         if (string.IsNullOrWhiteSpace(eventId))
             return;
 
-        // ── Foreground check: suppress if app is visible ──
-        try
-        {
-            var foreground = Ioc.Default.GetService<IAppForegroundService>();
-            if (foreground?.IsInForeground == true)
-            {
-                var logger = Ioc.Default.GetService<ILogger<UnifiedPushReceiver>>();
-                logger?.LogDebug("Calendar reminder suppressed — app in foreground.");
-                return;
-            }
-        }
-        catch { /* Best effort */ }
-
         var openIntent = new Intent(context, typeof(MainActivity));
         openIntent.SetAction(Intent.ActionMain);
         openIntent.AddCategory(Intent.CategoryLauncher);

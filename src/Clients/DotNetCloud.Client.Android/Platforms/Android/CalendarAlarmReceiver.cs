@@ -54,18 +54,6 @@ public sealed class CalendarAlarmReceiver : BroadcastReceiver
             "Calendar reminder firing: event={EventId}, title={Title}, minutesBefore={Minutes}.",
             eventId, title, minutesBefore);
 
-        // ── Foreground check: suppress if app is visible ──
-        try
-        {
-            var foreground = Ioc.Default.GetService<IAppForegroundService>();
-            if (foreground?.IsInForeground == true)
-            {
-                logger?.LogDebug("CalendarAlarmReceiver: app in foreground, suppressing notification.");
-                return;
-            }
-        }
-        catch { /* Best effort — post notification if we can't check */ }
-
         // ── Build the notification ──
         ShowReminderNotification(context, eventId, calendarId, title, minutesBefore);
 

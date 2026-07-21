@@ -1,5 +1,6 @@
 using Android.App;
 using Android.Content;
+using Android.Util;
 using DotNetCloud.Client.Android.Auth;
 using DotNetCloud.Client.Android.Calendar;
 using DotNetCloud.Core.DTOs;
@@ -56,11 +57,21 @@ internal sealed class CalendarReminderScheduler : ICalendarReminderScheduler
         var now = DateTime.UtcNow;
         var scheduledCount = 0;
 
+        Log.Info("DotNetCloud", $"ScheduleRemindersAsync: processing {events.Count} events at {now:O}");
+
         foreach (var evt in events)
         {
-            // Skip past events
-            if (evt.StartUtc <= now)
+            // Allow events that started up to 1 hour ago — they may still have
+            // pending reminders (e.g. a "5 min before" reminder for an event
+            // that started 3 min ago should still fire immediately).
+            var startWindow = now.AddHours(-1);
+            if (evt.StartUtc <= startWindow)
+            {
+                Log.Info("DotNetCloud", $"  Skip event {evt.Id}: start {evt.StartUtc:O} >1hr ago");
                 continue;
+            }
+
+            Log.Info("DotNetCloud", $"  Process event {evt.Id}: '{evt.Title}' at {evt.StartUtc:O}, {evt.Reminders.Count} reminders");
 
             // Cancel any existing alarms for this event first
             CancelReminders(evt.Id);
@@ -69,13 +80,24 @@ internal sealed class CalendarReminderScheduler : ICalendarReminderScheduler
             {
                 // Skip email reminders — those are handled server-side
                 if (reminder.Method != ReminderMethod.Notification)
+                {
+                    Log.Info("DotNetCloud", $"    Skip email reminder for event {evt.Id}");
                     continue;
+                }
 
                 var triggerTime = evt.StartUtc.AddMinutes(-reminder.MinutesBefore);
+                Log.Info("DotNetCloud", $"    Reminder T-{reminder.MinutesBefore}min: trigger={triggerTime:O}, now={now:O}");
 
-                // Skip reminders that are already past
+                // If trigger time is past but event hasn't started, fire now
                 if (triggerTime <= now)
+                {
+                    Log.Info("DotNetCloud", $"    -> Trigger time past, scheduling immediately");
+                    ScheduleSingleAlarm(
+                        context, alarmManager, evt, now, reminder.MinutesBefore,
+                        canScheduleExact);
+                    scheduledCount++;
                     continue;
+                }
 
                 ScheduleSingleAlarm(
                     context, alarmManager, evt, triggerTime, reminder.MinutesBefore,
