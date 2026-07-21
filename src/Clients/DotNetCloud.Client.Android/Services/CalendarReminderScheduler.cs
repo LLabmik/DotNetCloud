@@ -85,7 +85,8 @@ internal sealed class CalendarReminderScheduler : ICalendarReminderScheduler
                     continue;
                 }
 
-                var triggerTime = evt.StartUtc.AddMinutes(-reminder.MinutesBefore);
+                var triggerTime = DateTime.SpecifyKind(
+                    evt.StartUtc.AddMinutes(-reminder.MinutesBefore), DateTimeKind.Utc);
                 Log.Info("DotNetCloud", $"    Reminder T-{reminder.MinutesBefore}min: trigger={triggerTime:O}, now={now:O}");
 
                 // If trigger time is past but event hasn't started, fire now
@@ -227,7 +228,10 @@ internal sealed class CalendarReminderScheduler : ICalendarReminderScheduler
         var intent = CreateAlarmIntent(context, evt, minutesBefore);
         var pendingIntent = CreatePendingIntent(context, evt.Id.ToString(), intent);
 
-        var triggerMillis = new DateTimeOffset(triggerTimeUtc).ToUnixTimeMilliseconds();
+        var triggerMillis = new DateTimeOffset(
+            DateTime.SpecifyKind(triggerTimeUtc, DateTimeKind.Utc)).ToUnixTimeMilliseconds();
+
+        Log.Info("DotNetCloud", $"    triggerMillis={triggerMillis} for local-time {triggerTimeUtc:O} (device local={DateTime.Now:O})");
 
         if (hasExactAlarmPermission && CanScheduleExactAlarms(context))
         {

@@ -24,6 +24,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly IMediaAutoUploadService _mediaUploadService;
     private readonly IBatteryOptimizationService _batteryService;
     private readonly IExactAlarmPermissionService _exactAlarmPermission;
+    private readonly INotificationPermissionService _notificationPermission;
     private readonly IAppPreferences _preferences;
     private readonly IAndroidUpdateService _updateService;
     private readonly ILogger<SettingsViewModel> _logger;
@@ -38,6 +39,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         IMediaAutoUploadService mediaUploadService,
         IBatteryOptimizationService batteryService,
         IExactAlarmPermissionService exactAlarmPermission,
+        INotificationPermissionService notificationPermission,
         IAppPreferences preferences,
         IAndroidUpdateService updateService,
         ILogger<SettingsViewModel> logger)
@@ -47,6 +49,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _mediaUploadService = mediaUploadService;
         _batteryService = batteryService;
         _exactAlarmPermission = exactAlarmPermission;
+        _notificationPermission = notificationPermission;
         _preferences = preferences;
         _updateService = updateService;
         _logger = logger;
@@ -123,6 +126,10 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private bool _isExactAlarmDenied = true;
 
+    /// <summary>Whether notification permission is denied (Android 13+) — blocks all notifications.</summary>
+    [ObservableProperty]
+    private bool _isNotificationDenied = true;
+
     [ObservableProperty]
     private string _batteryStatusText = "Checking…";
 
@@ -192,6 +199,22 @@ public sealed partial class SettingsViewModel : ObservableObject
             MainThread.BeginInvokeOnMainThread(() =>
             {
                 IsExactAlarmDenied = !_exactAlarmPermission.HasExactAlarmPermission();
+            });
+        });
+    }
+
+    /// <summary>Opens the system notification permission settings (Android 13+).</summary>
+    [RelayCommand]
+    private void RequestNotificationPermission()
+    {
+        _notificationPermission.OpenNotificationSettings();
+        // Refresh after a delay
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(2000);
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                IsNotificationDenied = !_notificationPermission.HasNotificationPermission();
             });
         });
     }
@@ -332,6 +355,9 @@ public sealed partial class SettingsViewModel : ObservableObject
 
         // Also refresh exact alarm permission
         IsExactAlarmDenied = !_exactAlarmPermission.HasExactAlarmPermission();
+
+        // Also refresh notification permission (Android 13+)
+        IsNotificationDenied = !_notificationPermission.HasNotificationPermission();
     }
 
     // ── Update notification ──────────────────────────────────────────

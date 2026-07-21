@@ -130,11 +130,26 @@ public sealed partial class EventEditViewModel : ObservableObject
     [ObservableProperty]
     private TimeSpan _endTime = new(10, 0, 0);
 
-    partial void OnStartDateChanged(DateTime value) => EnsureEndAfterStart();
-    partial void OnStartTimeChanged(TimeSpan value) => EnsureEndAfterStart();
+    partial void OnStartDateChanged(DateTime value) => SetEndOneHourAfterStart();
+    partial void OnStartTimeChanged(TimeSpan value) => SetEndOneHourAfterStart();
     partial void OnEndDateChanged(DateTime value) => EnsureEndAfterStart();
     partial void OnEndTimeChanged(TimeSpan value) => EnsureEndAfterStart();
 
+    /// <summary>
+    /// Always sets the end time to start + 1 hour. Called when the start date or time changes.
+    /// </summary>
+    private void SetEndOneHourAfterStart()
+    {
+        var start = StartDate.Date + StartTime;
+        var newEnd = start + TimeSpan.FromHours(1);
+        EndDate = newEnd.Date;
+        EndTime = newEnd.TimeOfDay;
+    }
+
+    /// <summary>
+    /// Ensures the end time is after start time. Called when the end date or time is manually changed
+    /// — only pushes forward if the user drags end past/before start.
+    /// </summary>
     private void EnsureEndAfterStart()
     {
         var start = StartDate.Date + StartTime;

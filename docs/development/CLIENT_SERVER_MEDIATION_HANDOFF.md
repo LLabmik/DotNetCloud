@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-07-20 (Android Calendar Alarm Reminders — end of session, handoff to new session)
+Last updated: 2026-07-20 (Android Calendar Alarm Reminders — POST_NOTIFICATIONS fix applied)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -24,7 +24,7 @@ Archived context:
 
 ## Active Handoff
 
-**Summary:** Android Calendar Alarm Reminders — scheduler works, alarm fires, but notification not appearing on device.
+**Summary:** Android Calendar Alarm Reminders — ALL core fixes complete and verified. POST_NOTIFICATIONS runtime permission fix, timezone bug fix in alarm scheduling, end-time auto-adjust fix.
 
 **Branch:** `feature/android-chat-channel-mute`
 
@@ -51,20 +51,19 @@ Archived context:
 
 ### What's Working (confirmed)
 
+- ✅ **POST_NOTIFICATIONS runtime permission granted** — notification works! Tested with "test 7" (10-min reminder, fired exactly at 05:20:00 UTC)
+- ✅ **Timezone fix verified** — `DateTime.SpecifyKind(triggerTimeUtc, DateTimeKind.Utc)` ensures alarms fire at correct UTC time (not 5h late due to `Kind=Unspecified` from JSON deserialization)
+- ✅ **End-time auto-adjust** — `SetEndOneHourAfterStart()` now always sets end = start + 1h when start changes
+- ✅ **Notification channel** — `calendar_reminders` is High importance with alarm sound, `POST_NOTIFICATIONS: GRANTED`, `nm.Notify()` succeeds
 - ✅ Event creation/deletion on server
 - ✅ Reminder picker visible and functional
 - ✅ `ScheduleRemindersAsync` processes events and schedules `AlarmManager` alarms
-- ✅ `SCHEDULE_EXACT_ALARM` permission — exact alarms confirmed working (`window=0 exactAllowReason=permission`)
-- ✅ `CalendarAlarmReceiver` receives broadcasts — confirmed in logcat (3 broadcasts at 23:42, 23:43, 23:53)
+- ✅ `SCHEDULE_EXACT_ALARM` permission — exact alarms confirmed working
+- ✅ `CalendarAlarmReceiver` receives broadcasts and displays notifications
 - ✅ Server-side `ReminderDispatchService` deployed on `cloud.kimball.home`
+- ✅ Battery optimization — standby bucket is 10 (ACTIVE), not restricted
 
 ### What's NOT Working
-
-- ❌ **Notification never appears on device.** `CalendarAlarmReceiver.OnReceive` receives the broadcast but no notification is shown. Need to debug:
-  - Is `ShowReminderNotification` being called? (no Android.Util.Log in that method)
-  - Is `NotificationManager.Notify()` failing?
-  - Is the notification channel configured correctly?
-  - Add logcat logging to `ShowReminderNotification` to trace execution
 
 - ❌ **Monthly calendar only shows event count, not titles.** `CalendarDayItem` shows `"{Events.Count} events"` label. Needs event dots/bars in month view cells.
 
@@ -81,13 +80,14 @@ dotnet build ... -f net10.0-android -c Debug -r android-arm64 /p:AndroidSdkDirec
 
 ### Next Session Priorities
 
-1. **Debug notification not showing** — add logcat logging in `ShowReminderNotification`, verify `NotificationManager.Notify()` executes
-2. **Enable battery optimization exemption** — app is in standby bucket 30 (RESTRICTED), which defers alarm delivery. User needs to tap "Fix" on Settings → Battery Optimization card
-3. **Test with app closed** — after battery fix, create event with 2min reminder, close app, verify notification with alarm sound
-4. **Fix monthly multi-event display** — show event titles/dots in month cells
-5. **Test recurring events** — verify dedup via `ReminderLog`
-6. **Test server-push** — verify `type=calendar_reminder` handler
-7. **Record these findings to repo memory**
+1. ✅ **POST_NOTIFICATIONS runtime permission fix** — confirmed working (test 7 notification appeared at correct time)
+2. ✅ **Timezone fix for alarm scheduling** — `DateTime.SpecifyKind(..., DateTimeKind.Utc)` in `ScheduleSingleAlarm` and trigger time computation
+3. ✅ **End time auto-adjust** — `SetEndOneHourAfterStart()` always sets end = start + 1h
+4. ✅ **Settings cards** — Notifications, Battery Optimization, Exact Alarm Permission all available
+5. **Fix monthly multi-event display** — show event titles/dots in month cells instead of just `"{Events.Count} events"`
+6. **Test with app fully closed** — create event with 2min reminder, fully close app, verify notification appears
+7. **Test recurring events** — verify dedup via `ReminderLog`
+8. **Test server-push** — verify `type=calendar_reminder` handler
 
 **Active Handoff format (MANDATORY):**
 

@@ -99,6 +99,7 @@ public static class MauiProgram
             .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
         builder.Services.AddSingleton<ICalendarReminderScheduler, CalendarReminderScheduler>();
         builder.Services.AddSingleton<IExactAlarmPermissionService, AndroidExactAlarmPermissionService>();
+        builder.Services.AddSingleton<INotificationPermissionService, AndroidNotificationPermissionService>();
 
         // ── Notes ───────────────────────────────────────────────────────
         builder.Services.AddHttpClient<INotesRestClient, HttpNotesRestClient>()

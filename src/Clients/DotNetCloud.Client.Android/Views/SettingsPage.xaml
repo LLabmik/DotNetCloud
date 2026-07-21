@@ -506,6 +506,84 @@
                 </VerticalStackLayout>
             </Border>
 
+            <!-- ═══ Notification Permission card (Android 13+) ═══ -->
+            <Border
+                BackgroundColor="#1E293B"
+                StrokeThickness="0"
+                StrokeShape="RoundRectangle 16"
+                Padding="20,20"
+                IsVisible="{Binding IsNotificationDenied}">
+
+                <VerticalStackLayout Spacing="4">
+                    <Label
+                        FontAttributes="Bold"
+                        FontSize="12"
+                        TextColor="#64748B"
+                        Text="NOTIFICATIONS"
+                        TextTransform="Uppercase"
+                        Margin="0,0,0,12"/>
+
+                    <Grid ColumnDefinitions="Auto,*,Auto"
+                          Padding="0,6">
+                        <Border
+                            Grid.Column="0"
+                            BackgroundColor="#334155"
+                            HeightRequest="40"
+                            WidthRequest="40"
+                            StrokeThickness="0"
+                            StrokeShape="RoundRectangle 12"
+                            Margin="0,0,12,0">
+                            <Label
+                                FontSize="18"
+                                HorizontalOptions="Center"
+                                VerticalOptions="Center"
+                                Text="🔔"/>
+                        </Border>
+                        <VerticalStackLayout Grid.Column="1"
+                                             VerticalOptions="Center"
+                                             Spacing="1">
+                            <Label FontSize="15"
+                                   TextColor="#F1F5F9"
+                                   Text="Notifications Disabled"/>
+                            <Label FontSize="12"
+                                   TextColor="#EF4444"
+                                   Text="Calendar reminders &amp; messages blocked"/>
+                        </VerticalStackLayout>
+
+                        <!-- Fix button -->
+                        <Border
+                            Grid.Column="2"
+                            BackgroundColor="#EF4444"
+                            StrokeThickness="0"
+                            StrokeShape="RoundRectangle 8"
+                            Padding="14,6"
+                            VerticalOptions="Center">
+                            <Label FontSize="13"
+                                   FontAttributes="Bold"
+                                   TextColor="#FFFFFF"
+                                   Text="Fix"/>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding RequestNotificationPermissionCommand}"/>
+                            </Border.GestureRecognizers>
+                        </Border>
+                    </Grid>
+
+                    <!-- Explanatory note -->
+                    <Border
+                        BackgroundColor="#1C1917"
+                        StrokeThickness="0"
+                        StrokeShape="RoundRectangle 8"
+                        Padding="12,10"
+                        Margin="0,8,0,0">
+                        <Label
+                            FontSize="12"
+                            TextColor="#A3A3A3"
+                            LineBreakMode="WordWrap"
+                            Text="Android blocks notifications until you allow them. Tap 'Fix' to enable notifications for calendar reminders, chat messages, and alerts."/>
+                    </Border>
+                </VerticalStackLayout>
+            </Border>
+
             <!-- ═══ Updates card ═══ -->
             <Border
                 BackgroundColor="#1E293B"
