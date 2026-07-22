@@ -5711,3 +5711,26 @@ Key confirmations:
 
 **Pending:** Client-side APK build, install, and verification on `monolith`.
 
+---
+
+## 2026-07-22 — Server Redeploy: CalendarEventCreatedRealtimeHandler
+
+**Target:** `cloud.kimball.home`
+
+**Result:** Second server deploy — adding `CalendarEventCreatedRealtimeHandler` for Blazor-originated event creation broadcasts. All 14 modules healthy.
+
+**Branch:** `fix/android-calendar-alarm`
+
+**Completed actions:**
+- `git pull origin fix/android-calendar-alarm`
+- `dotnet build src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj -c Release` — 0 warnings, 0 errors
+- `dotnet publish src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj -c Release -o /opt/dotnetcloud/publish`
+- `sudo cp -r /opt/dotnetcloud/publish/* /opt/dotnetcloud/server/`
+- `sudo systemctl restart dotnetcloud`
+
+**Verification:** `curl -sk https://localhost:5443/health` → Healthy (all 14 modules)
+
+**New server files deployed:**
+- `Services/CalendarEventCreatedRealtimeHandler.cs`
+- Modified: `Services/NotificationEventSubscriber.cs`
+

@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-07-22 (Server deployment done — client actions on monolith pending)
+Last updated: 2026-07-22 (Server redeploy complete — CalendarEventCreatedRealtimeHandler active, all 14 modules healthy)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -20,36 +20,19 @@ Archived context:
 
 ## Active Handoff
 
-**Summary:** Server deploy needed — new `CalendarEventCreatedRealtimeHandler` to enable SignalR broadcast when events are created from Blazor UI.
+**Summary:** Server deployment complete — `CalendarEventCreatedRealtimeHandler` deployed. All SignalR calendar sync handlers now active.
 
 **Branch:** `fix/android-calendar-alarm`
 
-**Context:** Android client now auto-refreshes on `CalendarEventCreated`/`CalendarEventUpdated`/`CalendarEventDeleted` via SignalR. Client-side APK built and installed on `monolith` — timezone label ("UTC-5") confirmed working, event create/delete scheduling verified. Server is missing the `CalendarEventCreatedRealtimeHandler` — events created from Blazor UI are not broadcast to Android clients yet.
+**Context:** Both server and client sides are deployed and healthy. Server has `CalendarEventCreatedRealtimeHandler`, `CalendarEventDeletedRealtimeHandler`, and `CalendarEventUpdatedRealtimeHandler` all active. Android client APK installed with SignalR listeners for all three events. Remaining: end-to-end verification from Blazor UI.
 
-### Server Actions — `cloud.kimball.home`
+### Verification — `cloud.kimball.home` and `monolith`
 
-- [ ] `git pull origin fix/android-calendar-alarm`
-- [ ] `dotnet build src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj -c Release`
-- [ ] `dotnet publish src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj -c Release -o /opt/dotnetcloud/publish`
-- [ ] `sudo systemctl restart dotnetcloud`
-- [ ] Verify: `curl -k https://localhost:5443/health` → 200 Healthy
-- [ ] Verify: Create a calendar event from Blazor UI → Android client should show it immediately (no refresh needed)
+- [ ] End-to-end: Create a calendar event from Blazor UI → Android client auto-refreshes
+- [ ] End-to-end: Update a calendar event from Blazor UI → Android client auto-refreshes
+- [ ] End-to-end: Delete a calendar event from Blazor UI → Android alarm cancelled, UI refreshes
 
-**New server files deployed this round:**
-- `Services/CalendarEventCreatedRealtimeHandler.cs` — broadcasts `CalendarEventCreated` to the creating user's connected clients via SignalR
-- Modified: `Services/NotificationEventSubscriber.cs` — subscribes `CalendarEventCreatedEvent` alongside existing `Deleted` and `Updated` handlers
-
-**Previously deployed files (from prior handoff round):**
-- `Services/CalendarEventDeletedRealtimeHandler.cs`
-- `Services/CalendarEventUpdatedRealtimeHandler.cs`
-
-### Client Actions — `monolith` (Android client)
-
-- [x] APK built and installed
-- [x] Timezone label verified: "UTC-5" shown on event detail page
-- [x] Event create/delete with reminder: Scheduling and cleanup confirmed (logcat shows event count changing)
-- [ ] **Pending until server deploy:** Test Blazor-originated event create → auto-appears on Android (requires server to broadcast `CalendarEventCreated`)
-- [ ] **Pending until server deploy:** Test Blazor-originated event delete → alarm cancelled on Android (requires server to broadcast `CalendarEventDeleted`)
+**Server health:** ✅ `curl -sk https://localhost:5443/health` — all 14 modules healthy
 
 ### Build Notes
 
