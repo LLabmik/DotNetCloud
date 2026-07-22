@@ -5734,3 +5734,28 @@ Key confirmations:
 - `Services/CalendarEventCreatedRealtimeHandler.cs`
 - Modified: `Services/NotificationEventSubscriber.cs`
 
+---
+
+## 2026-07-22 — Calendar Module Redeploy: gRPC Bridge Handlers
+
+**Target:** `cloud.kimball.home`
+
+**Result:** Third server deploy — added `CalendarEventCreatedBroadcastHandler`, `CalendarEventDeletedBroadcastHandler`, `CalendarEventUpdatedBroadcastHandler` in Calendar module Host. Events now cross the process boundary via gRPC `BroadcastRealtimeEvent`. All 14 modules healthy.
+
+**Branch:** `fix/android-calendar-alarm`
+
+**Completed actions:**
+- Created missing broadcast handler files (were omitted from monolith commit)
+- `dotnet build` Calendar module Host — 0 warnings, 0 errors
+- `dotnet publish` Calendar module Host
+- `sudo cp` updated DLLs to `/opt/dotnetcloud/server/modules/dotnetcloud.calendar/`
+- `sudo systemctl restart dotnetcloud`
+
+**Verification:** `curl -sk https://localhost:5443/health` → Healthy (all 14 modules)
+
+**New Calendar module files deployed:**
+- `Services/CalendarEventCreatedBroadcastHandler.cs`
+- `Services/CalendarEventDeletedBroadcastHandler.cs`
+- `Services/CalendarEventUpdatedBroadcastHandler.cs`
+- Modified: `Services/CalendarReminderEventSubscriber.cs`
+

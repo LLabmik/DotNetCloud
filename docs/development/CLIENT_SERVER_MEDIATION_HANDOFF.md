@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-07-22 (Server redeploy complete — CalendarEventCreatedRealtimeHandler active, all 14 modules healthy)
+Last updated: 2026-07-22 (Calendar gRPC bridge deployed — all deployments complete, E2E verification pending)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -18,40 +18,28 @@ Archived context:
 - All actionable items, blockers, and technical details go directly in this document.
 - **Current active branch:** `fix/android-calendar-alarm`
 
-## Active Handoff
+## Active Handoff — ✅ All Deployments Complete
 
-**Summary:** Fixed root cause of Blazor→Android calendar sync. Calendar events never crossed process boundary — Calendar module publishes events on its local event bus, but handlers were subscribed to Core.Server's event bus. Added gRPC bridge handlers.
+**Summary:** Calendar process-isolation gRPC bridge deployed. Calendar module's local event bus events now cross to Core.Server via gRPC `BroadcastRealtimeEvent` for SignalR push to connected clients.
 
 **Branch:** `fix/android-calendar-alarm`
 
-**Context:** Three new broadcast handlers (`CalendarEventCreatedBroadcastHandler`, `CalendarEventDeletedBroadcastHandler`, `CalendarEventUpdatedBroadcastHandler`) added in the Calendar module's Host project. These subscribe to calendar CRUD events on the Calendar module's local `InProcessEventBus` and forward them to Core.Server via gRPC `BroadcastRealtimeEvent`, which pushes to connected SignalR clients.
+**Context:** Root cause fixed — calendar CRUD events were stuck on the Calendar module's local `InProcessEventBus` and never reached Core.Server's event bus. Three new gRPC bridge handlers in the Calendar module Host now forward `CalendarEventCreated`, `CalendarEventDeleted`, and `CalendarEventUpdated` events to Core.Server, which pushes them to connected SignalR clients. Server deployed and healthy.
 
-The Calendar module and its Host need to be rebuilt and redeployed to `cloud.kimball.home`.
+### Server Actions — `cloud.kimball.home` ✅ COMPLETED
 
-### Server Actions — `cloud.kimball.home`
+- ✓ `git pull origin fix/android-calendar-alarm`
+- ✓ Built & published Calendar module Host — 0 warnings, 0 errors
+- ✓ Deployed updated DLLs to `/opt/dotnetcloud/server/modules/dotnetcloud.calendar/` (hash verified)
+- ✓ `sudo systemctl restart dotnetcloud`
+- ✓ Verify: `curl -sk https://localhost:5443/health` → Healthy (all 14 modules)
+- ☐ End-to-end: Create/update/delete calendar event from Blazor → Android auto-refreshes
 
-- [ ] `git pull origin fix/android-calendar-alarm`
-- [ ] Build + publish the Calendar module host:
-  ```
-  dotnet publish src/Modules/Calendar/DotNetCloud.Modules.Calendar.Host/DotNetCloud.Modules.Calendar.Host.csproj -c Release -o /opt/dotnetcloud/modules/dotnetcloud.calendar
-  ```
-- [ ] `sudo systemctl restart dotnetcloud`
-- [ ] Verify all modules healthy: `curl -sk https://localhost:5443/health` → 200 Healthy
-- [ ] Verify end-to-end: Create calendar event from Blazor → Android auto-refreshes
+### Client Actions — `monolith` (Android client) ✅ COMPLETED
 
-**New Calendar module files deployed:**
-- `Services/CalendarEventCreatedBroadcastHandler.cs` — forwards `CalendarEventCreated` via gRPC
-- `Services/CalendarEventDeletedBroadcastHandler.cs` — forwards `CalendarEventDeleted` via gRPC
-- `Services/CalendarEventUpdatedBroadcastHandler.cs` — forwards `CalendarEventUpdated` via gRPC
-- Modified: `Services/CalendarReminderEventSubscriber.cs` — subscribes all three new handlers
-
-### Client Actions — `monolith` (Android client)
-
-- [x] APK already built and installed
-- [x] Timezone label "UTC-5" verified
-- [x] Android-originated event create/delete scheduling verified
-- [ ] **Pending server deploy:** Blazor-originated event create → auto-appears on Android
-- [ ] **Pending server deploy:** Blazor-originated event delete → alarm cancelled on Android
+- ✓ APK built and installed
+- ✓ Timezone label "UTC-5" verified
+- ✓ Android-originated event create/delete scheduling verified
 
 ### Build Notes
 
