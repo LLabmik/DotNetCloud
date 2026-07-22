@@ -1,3 +1,4 @@
+using Android.Util;
 using DotNetCloud.Client.Android.Auth;
 using DotNetCloud.Client.Android.Calendar;
 using DotNetCloud.Client.Android.Services;
@@ -67,6 +68,7 @@ internal sealed class CalendarSignalRClient : ICalendarSignalRClient, IAsyncDisp
                 {
                     _logger.LogInformation(
                         "CalendarSignalR: event {EventId} deleted — cancelling alarms.", eventId);
+                    Log.Info("DotNetCloud", $"CalendarSignalR: event {eventId} deleted — cancelling alarms.");
                     _reminderScheduler.CancelReminders(eventId);
                     CalendarsChanged?.Invoke();
                 }
@@ -83,6 +85,7 @@ internal sealed class CalendarSignalRClient : ICalendarSignalRClient, IAsyncDisp
             {
                 _logger.LogInformation(
                     "CalendarSignalR: event created — will refresh on next sync.");
+                Log.Info("DotNetCloud", "CalendarSignalR: event created received.");
                 CalendarsChanged?.Invoke();
             }
             catch (Exception ex)
@@ -130,6 +133,7 @@ internal sealed class CalendarSignalRClient : ICalendarSignalRClient, IAsyncDisp
         try
         {
             await _hub.StartAsync(cancellationToken).ConfigureAwait(false);
+            Log.Info("DotNetCloud", $"CalendarSignalR: connected to {hubUrl}.");
             _logger.LogInformation("CalendarSignalR: connected to {HubUrl}.", hubUrl);
 
             // Sync alarms on initial connect (catches events deleted while offline)
@@ -137,6 +141,7 @@ internal sealed class CalendarSignalRClient : ICalendarSignalRClient, IAsyncDisp
         }
         catch (Exception ex)
         {
+            Log.Warn("DotNetCloud", $"CalendarSignalR: failed to connect: {ex.Message}");
             _logger.LogWarning(ex, "CalendarSignalR: failed to connect to {HubUrl}.", hubUrl);
         }
     }

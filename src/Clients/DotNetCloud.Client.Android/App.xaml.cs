@@ -166,8 +166,12 @@ public partial class App : Application
             try
             {
                 var calSignalR = Ioc.Default.GetService<ICalendarSignalRClient>();
+                Log.Info("DotNetCloud", $"CheckAvailableModules: CalendarSignalR client resolved: {(calSignalR is not null)}");
                 if (calSignalR is not null)
+                {
+                    Log.Info("DotNetCloud", "CheckAvailableModules: starting CalendarSignalR connection...");
                     _ = calSignalR.ConnectAsync(baseUrl, token);
+                }
             }
             catch (Exception ex)
             {

@@ -25,9 +25,11 @@ public partial class CalendarPage : ContentPage
         {
             _vm.LoadCalendarsCommand.Execute(null);
         }
-        else if (CalendarViewModel.NeedsRefresh)
+        else if (_vm.LoadEventsCommand.CanExecute(null))
         {
-            CalendarViewModel.NeedsRefresh = false;
+            // Always reload events when the tab becomes visible, so events
+            // created/updated/deleted from other clients (e.g. Blazor UI)
+            // appear without requiring SignalR push to work.
             _vm.LoadEventsCommand.Execute(null);
         }
     }
