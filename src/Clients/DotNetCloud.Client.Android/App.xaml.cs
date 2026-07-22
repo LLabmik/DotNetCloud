@@ -1,7 +1,9 @@
 using Android.Content;
 using Android.OS;
 using Android.Util;
+using CommunityToolkit.Mvvm.DependencyInjection;
 using DotNetCloud.Client.Android.Auth;
+using DotNetCloud.Client.Android.Calendar;
 using DotNetCloud.Client.Android.Services;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -159,6 +161,18 @@ public partial class App : Application
             }
 
             var baseUrl = connection.ServerBaseUrl.TrimEnd('/');
+
+            // ── Start calendar SignalR connection for real-time event sync ──
+            try
+            {
+                var calSignalR = Ioc.Default.GetService<ICalendarSignalRClient>();
+                if (calSignalR is not null)
+                    _ = calSignalR.ConnectAsync(baseUrl, token);
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("DotNetCloud", $"CheckAvailableModules: calendar SignalR start failed: {ex.Message}");
+            }
 
             // ── Check Music module ──────────────────────────────────
             // Try the official module availability endpoint first.

@@ -14,6 +14,8 @@ public sealed class SettingsViewModelTests
     private Mock<ISecureTokenStore> _tokenStore = null!;
     private Mock<IMediaAutoUploadService> _mediaUploadService = null!;
     private Mock<IBatteryOptimizationService> _batteryService = null!;
+    private Mock<IExactAlarmPermissionService> _exactAlarmPermission = null!;
+    private Mock<INotificationPermissionService> _notificationPermission = null!;
     private Mock<IAppPreferences> _preferences = null!;
     private Mock<IAndroidUpdateService> _updateService = null!;
     private Mock<ILogger<SettingsViewModel>> _logger = null!;
@@ -25,6 +27,8 @@ public sealed class SettingsViewModelTests
         _tokenStore = new Mock<ISecureTokenStore>();
         _mediaUploadService = new Mock<IMediaAutoUploadService>();
         _batteryService = new Mock<IBatteryOptimizationService>();
+        _exactAlarmPermission = new Mock<IExactAlarmPermissionService>();
+        _notificationPermission = new Mock<INotificationPermissionService>();
         _preferences = new Mock<IAppPreferences>();
         _updateService = new Mock<IAndroidUpdateService>();
         _logger = new Mock<ILogger<SettingsViewModel>>();
@@ -326,6 +330,8 @@ public sealed class SettingsViewModelTests
             _tokenStore.Object,
             _mediaUploadService.Object,
             _batteryService.Object,
+            _exactAlarmPermission.Object,
+            _notificationPermission.Object,
             _preferences.Object,
             _updateService.Object,
             _logger.Object);

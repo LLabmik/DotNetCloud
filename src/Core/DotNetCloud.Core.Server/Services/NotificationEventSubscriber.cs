@@ -1,8 +1,10 @@
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Server.PushNotifications;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using IEventBus = DotNetCloud.Core.Events.IEventBus;
 
 namespace DotNetCloud.Core.Server.Services;
 
@@ -14,6 +16,7 @@ internal sealed class NotificationEventSubscriber : IHostedService
 {
     private readonly IEventBus _eventBus;
     private readonly IPushNotificationService _pushService;
+    private readonly IRealtimeBroadcaster _broadcaster;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILoggerFactory _loggerFactory;
     private FileSharedNotificationHandler? _fileSharedHandler;
@@ -24,15 +27,19 @@ internal sealed class NotificationEventSubscriber : IHostedService
     private UserMentionedNotificationHandler? _userMentionedHandler;
     private ReminderNotificationHandler? _reminderHandler;
     private InAppNotificationEventHandler? _inAppNotificationHandler;
+    private CalendarEventDeletedRealtimeHandler? _calDeletedHandler;
+    private CalendarEventUpdatedRealtimeHandler? _calUpdatedHandler;
 
     public NotificationEventSubscriber(
         IEventBus eventBus,
         IPushNotificationService pushService,
+        IRealtimeBroadcaster broadcaster,
         IServiceScopeFactory scopeFactory,
         ILoggerFactory loggerFactory)
     {
         _eventBus = eventBus;
         _pushService = pushService;
+        _broadcaster = broadcaster;
         _scopeFactory = scopeFactory;
         _loggerFactory = loggerFactory;
     }
@@ -70,6 +77,14 @@ internal sealed class NotificationEventSubscriber : IHostedService
 
         _inAppNotificationHandler = new InAppNotificationEventHandler(_scopeFactory);
 
+        _calDeletedHandler = new CalendarEventDeletedRealtimeHandler(
+            _broadcaster,
+            _loggerFactory.CreateLogger<CalendarEventDeletedRealtimeHandler>());
+
+        _calUpdatedHandler = new CalendarEventUpdatedRealtimeHandler(
+            _broadcaster,
+            _loggerFactory.CreateLogger<CalendarEventUpdatedRealtimeHandler>());
+
         await _eventBus.SubscribeAsync<FileSharedEvent>(_fileSharedHandler, cancellationToken);
         await _eventBus.SubscribeAsync<QuotaWarningEvent>(_quotaHandler, cancellationToken);
         await _eventBus.SubscribeAsync<QuotaCriticalEvent>(_quotaHandler, cancellationToken);
@@ -81,6 +96,8 @@ internal sealed class NotificationEventSubscriber : IHostedService
         await _eventBus.SubscribeAsync<ResourceSharedEvent>(_inAppNotificationHandler, cancellationToken);
         await _eventBus.SubscribeAsync<UserMentionedEvent>(_inAppNotificationHandler, cancellationToken);
         await _eventBus.SubscribeAsync<ReminderTriggeredEvent>(_inAppNotificationHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<CalendarEventDeletedEvent>(_calDeletedHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<CalendarEventUpdatedEvent>(_calUpdatedHandler, cancellationToken);
 
         _loggerFactory.CreateLogger<NotificationEventSubscriber>()
             .LogInformation("Notification event handlers subscribed (FileShared, QuotaWarning, QuotaCritical, PublicLinkAccessed, ShareExpiring, ResourceShared, UserMentioned, Reminder)");
@@ -119,5 +136,11 @@ internal sealed class NotificationEventSubscriber : IHostedService
             await _eventBus.UnsubscribeAsync<UserMentionedEvent>(_inAppNotificationHandler, cancellationToken);
             await _eventBus.UnsubscribeAsync<ReminderTriggeredEvent>(_inAppNotificationHandler, cancellationToken);
         }
+
+        if (_calDeletedHandler is not null)
+            await _eventBus.UnsubscribeAsync<CalendarEventDeletedEvent>(_calDeletedHandler, cancellationToken);
+
+        if (_calUpdatedHandler is not null)
+            await _eventBus.UnsubscribeAsync<CalendarEventUpdatedEvent>(_calUpdatedHandler, cancellationToken);
     }
 }

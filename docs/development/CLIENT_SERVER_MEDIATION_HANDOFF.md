@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-07-20 (Android Calendar Alarm Reminders — POST_NOTIFICATIONS fix applied)
+Last updated: 2026-07-22 (Android Calendar Timezone + Alarm Cleanup + SignalR Sync)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -8,10 +8,6 @@ Archived context:
 
 - Historical completed updates are in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
 - Additional history remains available in git.
-- VFS Phase 3 (Windows Cloud Filter API) completed on Windows11-TestDNC (2026-05-12).
-- VFS Phase 2 (core abstraction layer) completed on Windows11-TestDNC (previously).
-- **2026-07-19:** Android Chat Channel Mute — client-side E2E testing (archived).
-- **2026-07-20:** Android Calendar Alarm Reminders — initial implementation + partial E2E test
 
 ## Process Rules
 
@@ -20,52 +16,40 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
-- **Current active branch:** `feature/android-chat-channel-mute`
+- **Current active branch:** `fix/android-calendar-alarm`
 
 ## Active Handoff
 
-**Summary:** Android Calendar Alarm Reminders — ALL core fixes complete and verified. POST_NOTIFICATIONS runtime permission fix, timezone bug fix in alarm scheduling, end-time auto-adjust fix.
+**Summary:** Android Calendar timezone hardening, alarm cleanup on delete (Android + Blazor-originated), SignalR-based real-time calendar event sync, and pre-existing test build fix.
 
-**Branch:** `feature/android-chat-channel-mute`
+**Branch:** `fix/android-calendar-alarm`
 
-**Context:** Full calendar reminder system implemented. Server-side `ReminderDispatchService` deployed to `cloud.kimball.home`. Android client has local `AlarmManager` scheduling, `CalendarAlarmReceiver`, `CalendarBootReceiver`, reminder picker in event editor, exact alarm permission UI, and timezone-aware display. E2E testing confirmed scheduling works and broadcasts are received, but notifications don't appear on screen (not even when app is closed).
+**Context:** Full timezone awareness for calendar alarms/reminders, alarm cancellation when events are deleted from either Android or Blazor UI, and SignalR push for real-time calendar event sync. Server-side changes require deployment to enable Blazor-originated delete notifications.
 
-**All changes committed in this session (commit pending):**
+---
 
-### What's Implemented (all client-side)
+### Server Actions — `cloud.kimball.home`
 
-| Component | Files | Status |
-|-----------|-------|--------|
-| Notification channel `calendar_reminders` (High + alarm sound) | `MainApplication.cs` | ✅ |
-| `SCHEDULE_EXACT_ALARM` + `RECEIVE_BOOT_COMPLETED` permissions | `AndroidManifest.xml` | ✅ |
-| `CalendarAlarmReceiver` — alarm broadcast → notification with deep-link | `Platforms/Android/CalendarAlarmReceiver.cs` | ✅ |
-| `CalendarBootReceiver` — reschedule alarms after reboot | `Platforms/Android/CalendarBootReceiver.cs` | ✅ |
-| `CalendarReminderScheduler` — `AlarmManager.setExactAndAllowWhileIdle()` with permission-aware fallback | `Services/CalendarReminderScheduler.cs` | ✅ |
-| Reminder picker in event editor (blue bordered REMINDER section right below Title) | `EventEditViewModel.cs` + `EventEditPage.xaml` | ✅ |
-| Auto-adjust end time to start+1h | `EventEditViewModel.cs` | ✅ |
-| Timezone: save as UTC, display as local time | `EventEditViewModel.cs` + `CalendarViewModel.cs` | ✅ |
-| Scheduler logs via `Android.Util.Log.Info("DotNetCloud", ...)` for logcat | `CalendarReminderScheduler.cs` | ✅ |
-| `IExactAlarmPermissionService` + Settings card with Fix button | `AndroidExactAlarmPermissionService.cs` + `SettingsViewModel.cs` + `SettingsPage.xaml` | ✅ |
-| `type=calendar_reminder` push handler in FCM + UnifiedPush | `FcmMessagingService.cs` + `UnifiedPushReceiver.cs` | ✅ |
-| Foreground suppression removed (alarms sound always) | `CalendarAlarmReceiver.cs`, `FcmMessagingService.cs`, `UnifiedPushReceiver.cs` | ✅ |
+- [ ] `git pull origin fix/android-calendar-alarm`
+- [ ] `dotnet build src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj -c Release`
+- [ ] `dotnet publish src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj -c Release -o /opt/dotnetcloud/publish`
+- [ ] `sudo systemctl restart dotnetcloud`
+- [ ] Verify: `curl -k https://localhost:5443/health` → 200 Healthy
+- [ ] Verify: Create/delete a calendar event from Blazor UI while Android client is connected → logcat shows `CalendarEventDeleted` handler firing
 
-### What's Working (confirmed)
+**New server files deployed:**
+- `Services/CalendarEventDeletedRealtimeHandler.cs` — broadcasts `CalendarEventDeleted` to user's connected clients via SignalR
+- `Services/CalendarEventUpdatedRealtimeHandler.cs` — broadcasts `CalendarEventUpdated` to user's connected clients via SignalR
+- Modified: `Services/NotificationEventSubscriber.cs` — registers both handlers with `IEventBus`
 
-- ✅ **POST_NOTIFICATIONS runtime permission granted** — notification works! Tested with "test 7" (10-min reminder, fired exactly at 05:20:00 UTC)
-- ✅ **Timezone fix verified** — `DateTime.SpecifyKind(triggerTimeUtc, DateTimeKind.Utc)` ensures alarms fire at correct UTC time (not 5h late due to `Kind=Unspecified` from JSON deserialization)
-- ✅ **End-time auto-adjust** — `SetEndOneHourAfterStart()` now always sets end = start + 1h when start changes
-- ✅ **Notification channel** — `calendar_reminders` is High importance with alarm sound, `POST_NOTIFICATIONS: GRANTED`, `nm.Notify()` succeeds
-- ✅ Event creation/deletion on server
-- ✅ Reminder picker visible and functional
-- ✅ `ScheduleRemindersAsync` processes events and schedules `AlarmManager` alarms
-- ✅ `SCHEDULE_EXACT_ALARM` permission — exact alarms confirmed working
-- ✅ `CalendarAlarmReceiver` receives broadcasts and displays notifications
-- ✅ Server-side `ReminderDispatchService` deployed on `cloud.kimball.home`
-- ✅ Battery optimization — standby bucket is 10 (ACTIVE), not restricted
+### Client Actions — `monolith` (Android client)
 
-### What's NOT Working
-
-- ❌ **Monthly calendar only shows event count, not titles.** `CalendarDayItem` shows `"{Events.Count} events"` label. Needs event dots/bars in month view cells.
+- [ ] Deploy updated APK: `dotnet build src\Clients\DotNetCloud.Client.Android -f net10.0-android -c Debug -r android-arm64 /p:AndroidSdkDirectory="C:\Program Files (x86)\Android\android-sdk"`
+- [ ] `adb install -r src\Clients\DotNetCloud.Client.Android\bin\Debug\net10.0-android\android-arm64\net.dotnetcloud.client-Signed.apk`
+- [ ] Verify timezone label: Open any event detail → "UTC-5" (or your offset) shown next to date/time
+- [ ] Verify multi-reminder: Create event with two reminders (e.g. 30min + 10min) → both fire (check logcat)
+- [ ] Verify Android delete cleanup: Create event with reminder → delete from Android → logcat shows `CancelReminders`
+- [ ] Verify Blazor delete sync: Create event on Android → delete from Blazor UI → logcat shows `CalendarEventDeleted` handler → alarm cancelled
 
 ### Build Notes
 
@@ -73,51 +57,6 @@ Archived context:
 ```powershell
 dotnet build ... -f net10.0-android -c Debug -r android-arm64 /p:AndroidSdkDirectory="C:\Program Files (x86)\Android\android-sdk"
 ```
-
-### Server Status
-
-`cloud.kimball.home` has `ReminderDispatchService` (30s scan, 24h lookahead, `ReminderMethod.Notification` filter, `ReminderLog` dedup table, recurrence expansion). No FCM credentials configured — push falls back to SignalR for connected clients and in-app notifications.
-
-### Next Session Priorities
-
-1. ✅ **POST_NOTIFICATIONS runtime permission fix** — confirmed working (test 7 notification appeared at correct time)
-2. ✅ **Timezone fix for alarm scheduling** — `DateTime.SpecifyKind(..., DateTimeKind.Utc)` in `ScheduleSingleAlarm` and trigger time computation
-3. ✅ **End time auto-adjust** — `SetEndOneHourAfterStart()` always sets end = start + 1h
-4. ✅ **Settings cards** — Notifications, Battery Optimization, Exact Alarm Permission all available
-5. **Fix monthly multi-event display** — show event titles/dots in month cells instead of just `"{Events.Count} events"`
-6. **Test with app fully closed** — create event with 2min reminder, fully close app, verify notification appears
-7. **Test recurring events** — verify dedup via `ReminderLog`
-8. **Test server-push** — verify `type=calendar_reminder` handler
-
-**Active Handoff format (MANDATORY):**
-
-Every Active Handoff MUST use per-machine action blocks. Actions are grouped by the machine that executes them, using the exact machine names from the Environment table.
-
-```markdown
-### Active Handoff
-
-**Summary:** [one-line description of what's happening]
-
-[Context/background — what changed, why, relevant commits]
-
----
-
-### Server Actions — `cloud.kimball.home`
-
-- [ ] Action 1 with exact commands
-- [ ] Action 2
-
-### Client Actions — `mint-OptiPlex-7010`
-
-- [ ] Action 1 with exact commands
-- [ ] Action 2
-```
-
-**Critical rules:**
-- Each agent ONLY executes actions in the block matching their machine name (from the Environment table).
-- If no action block matches your machine, the handoff is not for you — relay it to the moderator.
-- Always include exact commands (ready to copy-paste).
-- Mark blocks with `✓` when complete; update status inline.
 - One handoff may have 1 or 2 action blocks depending on workflow stage.
 
 **Handoff management:**

@@ -48,6 +48,8 @@
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\IEqualizerService.cs" Link="AndroidApp\Services\IEqualizerService.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\IAlbumArtCache.cs" Link="AndroidApp\Services\IAlbumArtCache.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\AlbumArtCache.cs" Link="AndroidApp\Services\AlbumArtCache.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\IExactAlarmPermissionService.cs" Link="AndroidApp\Services\IExactAlarmPermissionService.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\INotificationPermissionService.cs" Link="AndroidApp\Services\INotificationPermissionService.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\ViewModels\MusicViewModel.cs" Link="AndroidApp\ViewModels\MusicViewModel.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\ViewModels\EqBandModel.cs" Link="AndroidApp\ViewModels\EqBandModel.cs" />
 

@@ -5633,3 +5633,54 @@ Key confirmations:
 - [x] Fix XAML Border/Grid layout bug (Image was never the Border's Content)
 - [x] Add `Android.Util.Log` diagnostics for future debugging
 
+---
+
+## Archived: Android Calendar Alarm Reminders — Initial E2E (2026-07-20)
+
+**Target:** `monolith` — Android MAUI app
+
+**Result:** Calendar alarm reminders E2E implemented and tested. POST_NOTIFICATIONS runtime permission fix, timezone bug fix, end-time auto-adjust fix. Alarms fire at correct UTC time. Notifications display on screen.
+
+**Branch:** `feature/android-chat-channel-mute`
+
+**Summary of changes:**
+- Notification channel `calendar_reminders` (High + alarm sound) in `MainApplication.cs`
+- `SCHEDULE_EXACT_ALARM` + `RECEIVE_BOOT_COMPLETED` permissions in `AndroidManifest.xml`
+- `CalendarAlarmReceiver` — alarm broadcast → notification with deep-link
+- `CalendarBootReceiver` — reschedule alarms after reboot
+- `CalendarReminderScheduler` — `AlarmManager.setExactAndAllowWhileIdle()` with permission-aware fallback
+- Reminder picker in event editor
+- Auto-adjust end time to start+1h
+- `IExactAlarmPermissionService` + Settings card
+- `type=calendar_reminder` push handler in FCM + UnifiedPush
+- Foreground suppression removed (alarms sound always)
+- POST_NOTIFICATIONS runtime permission fix (verified working)
+- Timezone fix: `DateTime.SpecifyKind(triggerTimeUtc, DateTimeKind.Utc)`
+- End-time auto-adjust: `SetEndOneHourAfterStart()` always sets end = start + 1h
+
+**Verification:** E2E tested — alarms fire at correct UTC time, notifications display.
+
+---
+
+## Archived: Android Calendar Timezone + Alarm Cleanup + SignalR Sync (2026-07-22)
+
+**Target:** `monolith` + `cloud.kimball.home`
+
+**Result:** Full timezone hardening, alarm cleanup on delete (Android + Blazor-originated), and SignalR-based calendar event sync.
+
+**Branch:** `fix/android-calendar-alarm`
+
+**Summary of client-side changes:**
+- **PendingIntent collision fix:** `CalendarReminderScheduler.CreatePendingIntent` now uses `HashCode.Combine(eventId, minutesBefore)` so multiple reminders per event don't overwrite each other
+- **Timezone display:** UTC offset label ("UTC-5") shown on `EventDetailPage` and `EventEditPage`
+- **DateTimeKind hardening:** `DateFormatHelper.EnsureUtc()` guard applied in scheduler, view model loads, and display formatting
+- **Alarm cleanup on delete:** `ICalendarReminderScheduler.CancelReminders()` called immediately after successful event deletion in both `EventDetailViewModel` and `EventEditViewModel`
+- **CalendarSignalRClient (new):** Connects to CoreHub, listens for `CalendarEventDeleted`/`CalendarEventUpdated`, cancels alarms and sets `NeedsRefresh`; syncs alarms on reconnect via `RescheduleAllAsync()`
+
+**Summary of server-side changes:**
+- `CalendarEventDeletedRealtimeHandler` (new) — forwards `CalendarEventDeletedEvent` → `IRealtimeBroadcaster.SendToUserAsync("CalendarEventDeleted", ...)`
+- `CalendarEventUpdatedRealtimeHandler` (new) — forwards `CalendarEventUpdatedEvent` → `IRealtimeBroadcaster.SendToUserAsync("CalendarEventUpdated", ...)`
+- `NotificationEventSubscriber` — subscribes both new handlers on startup
+
+**Verification:** Server build 0 errors, Android build 0 errors, 484 Core tests pass, 205/207 Android tests pass (1 pre-existing failure).
+

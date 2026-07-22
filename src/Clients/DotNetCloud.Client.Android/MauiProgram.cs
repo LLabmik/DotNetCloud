@@ -47,6 +47,7 @@ public static class MauiProgram
 
         // ── Chat / real-time ──────────────────────────────────────────
         builder.Services.AddSingleton<IChatSignalRClient, SignalRChatClient>();
+        builder.Services.AddSingleton<ICalendarSignalRClient, CalendarSignalRClient>();
         builder.Services.AddHttpClient<IChatRestClient, HttpChatRestClient>()
             .AddHttpMessageHandler<AuthenticatedHttpClientHandler>()
             .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);

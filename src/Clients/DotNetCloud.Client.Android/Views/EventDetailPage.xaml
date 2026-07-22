@@ -80,6 +80,10 @@
                             FontSize="14"
                            TextColor="#94A3B8"
                             LineBreakMode="WordWrap"/>
+                    <Label Text="{Binding TimeZoneDisplay}"
+                            FontSize="11"
+                            TextColor="#64748B"
+                            VerticalOptions="Center"/>
                 </HorizontalStackLayout>
 
                 <!-- Calendar name + color -->

@@ -18,6 +18,7 @@ public sealed partial class EventEditViewModel : ObservableObject
     private readonly ICalendarRestClient _calendarApi;
     private readonly IServerConnectionStore _serverStore;
     private readonly ISecureTokenStore _tokenStore;
+    private readonly ICalendarReminderScheduler _reminderScheduler;
     private readonly ILogger<EventEditViewModel> _logger;
 
     // ── Navigation Params (received as strings, parsed to typed fields) ──
@@ -43,15 +44,13 @@ public sealed partial class EventEditViewModel : ObservableObject
         ICalendarRestClient calendarApi,
         IServerConnectionStore serverStore,
         ISecureTokenStore tokenStore,
-        ILogger<EventEditViewModel> logger)
-    {
-        _calendarApi = calendarApi;
-        _serverStore = serverStore;
-        _tokenStore = tokenStore;
-        _logger = logger;
-
-        // Populate reminder picker labels
-        ReminderLabels.Add("None");
+      ICalendarReminderScheduler reminderScheduler,
+      ILogger<EventEditViewModel> logger)
+  {
+      _calendarApi = calendarApi;
+      _serverStore = serverStore;
+      _tokenStore = tokenStore;
+      _reminderScheduler = reminderScheduler;
         ReminderLabels.Add("5 minutes before");
         ReminderLabels.Add("10 minutes before");
         ReminderLabels.Add("15 minutes before");
@@ -302,6 +301,9 @@ public sealed partial class EventEditViewModel : ObservableObject
     [ObservableProperty]
     private bool _isSaving;
 
+    /// <summary>Device timezone offset label (e.g., "UTC-5").</summary>
+    public string TimeZoneDisplay => DateFormatHelper.GetTimeZoneDisplay();
+
     // ── Recurrence property change handlers ────────────────────────
 
     partial void OnRecurrenceFrequencyChanged(int value)
@@ -388,10 +390,12 @@ public sealed partial class EventEditViewModel : ObservableObject
             Title = evt.Title;
             Description = evt.Description;
             Location = evt.Location;
-            StartDate = evt.StartUtc.ToLocalTime().Date;
-            StartTime = evt.StartUtc.ToLocalTime().TimeOfDay;
-            EndDate = evt.EndUtc.ToLocalTime().Date;
-            EndTime = evt.EndUtc.ToLocalTime().TimeOfDay;
+            var startUtc = DateFormatHelper.EnsureUtc(evt.StartUtc);
+            var endUtc = DateFormatHelper.EnsureUtc(evt.EndUtc);
+            StartDate = startUtc.ToLocalTime().Date;
+            StartTime = startUtc.ToLocalTime().TimeOfDay;
+            EndDate = endUtc.ToLocalTime().Date;
+            EndTime = endUtc.ToLocalTime().TimeOfDay;
             IsAllDay = evt.IsAllDay;
             SelectedCalendarId = evt.CalendarId;
             Url = evt.Url;
@@ -561,6 +565,14 @@ public sealed partial class EventEditViewModel : ObservableObject
             }
 
             CalendarViewModel.NeedsRefresh = true;
+
+            // Cancel any pending reminder alarms for this event
+            if (_eventId.HasValue)
+            {
+                try { _reminderScheduler.CancelReminders(_eventId.Value); }
+                catch { /* best-effort */ }
+            }
+
             await Shell.Current.GoToAsync("../.."); // Go back to calendar
         }
         catch (Exception ex)
