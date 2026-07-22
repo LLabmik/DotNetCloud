@@ -77,6 +77,20 @@ internal sealed class CalendarSignalRClient : ICalendarSignalRClient, IAsyncDisp
             }
         });
 
+        _hub.On<JsonElement>("CalendarEventCreated", payload =>
+        {
+            try
+            {
+                _logger.LogInformation(
+                    "CalendarSignalR: event created — will refresh on next sync.");
+                CalendarsChanged?.Invoke();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "CalendarSignalR: failed to handle CalendarEventCreated.");
+            }
+        });
+
         _hub.On<JsonElement>("CalendarEventUpdated", payload =>
         {
             try
@@ -143,10 +157,10 @@ internal sealed class CalendarSignalRClient : ICalendarSignalRClient, IAsyncDisp
     }
 
     /// <summary>
-    /// Raised when the server notifies us of a calendar event change (deleted/updated).
+    /// Raised when the server notifies us of a calendar event change (created/deleted/updated).
     /// Consumers (e.g., CalendarViewModel) can listen and refresh their data.
     /// </summary>
-    internal event Action? CalendarsChanged;
+    public event Action? CalendarsChanged;
 
     /// <inheritdoc />
     public async ValueTask DisposeAsync()

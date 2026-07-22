@@ -29,6 +29,7 @@ internal sealed class NotificationEventSubscriber : IHostedService
     private InAppNotificationEventHandler? _inAppNotificationHandler;
     private CalendarEventDeletedRealtimeHandler? _calDeletedHandler;
     private CalendarEventUpdatedRealtimeHandler? _calUpdatedHandler;
+    private CalendarEventCreatedRealtimeHandler? _calCreatedHandler;
 
     public NotificationEventSubscriber(
         IEventBus eventBus,
@@ -85,6 +86,10 @@ internal sealed class NotificationEventSubscriber : IHostedService
             _broadcaster,
             _loggerFactory.CreateLogger<CalendarEventUpdatedRealtimeHandler>());
 
+        _calCreatedHandler = new CalendarEventCreatedRealtimeHandler(
+            _broadcaster,
+            _loggerFactory.CreateLogger<CalendarEventCreatedRealtimeHandler>());
+
         await _eventBus.SubscribeAsync<FileSharedEvent>(_fileSharedHandler, cancellationToken);
         await _eventBus.SubscribeAsync<QuotaWarningEvent>(_quotaHandler, cancellationToken);
         await _eventBus.SubscribeAsync<QuotaCriticalEvent>(_quotaHandler, cancellationToken);
@@ -98,6 +103,7 @@ internal sealed class NotificationEventSubscriber : IHostedService
         await _eventBus.SubscribeAsync<ReminderTriggeredEvent>(_inAppNotificationHandler, cancellationToken);
         await _eventBus.SubscribeAsync<CalendarEventDeletedEvent>(_calDeletedHandler, cancellationToken);
         await _eventBus.SubscribeAsync<CalendarEventUpdatedEvent>(_calUpdatedHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<CalendarEventCreatedEvent>(_calCreatedHandler, cancellationToken);
 
         _loggerFactory.CreateLogger<NotificationEventSubscriber>()
             .LogInformation("Notification event handlers subscribed (FileShared, QuotaWarning, QuotaCritical, PublicLinkAccessed, ShareExpiring, ResourceShared, UserMentioned, Reminder)");

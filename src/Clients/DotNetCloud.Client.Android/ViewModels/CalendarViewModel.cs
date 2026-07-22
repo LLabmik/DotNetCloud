@@ -74,6 +74,7 @@ public sealed partial class CalendarViewModel : ObservableObject
     private readonly IServerConnectionStore _serverStore;
     private readonly ISecureTokenStore _tokenStore;
     private readonly ICalendarReminderScheduler _reminderScheduler;
+    private readonly ICalendarSignalRClient _calendarSignalR;
     private readonly ILogger<CalendarViewModel> _logger;
 
     /// <summary>Initializes a new <see cref="CalendarViewModel"/>.</summary>
@@ -82,13 +83,30 @@ public sealed partial class CalendarViewModel : ObservableObject
         IServerConnectionStore serverStore,
         ISecureTokenStore tokenStore,
         ICalendarReminderScheduler reminderScheduler,
+        ICalendarSignalRClient calendarSignalR,
         ILogger<CalendarViewModel> logger)
     {
         _calendarApi = calendarApi;
         _serverStore = serverStore;
         _tokenStore = tokenStore;
         _reminderScheduler = reminderScheduler;
+        _calendarSignalR = calendarSignalR;
         _logger = logger;
+
+        // Listen for real-time calendar changes from other clients (e.g. Blazor UI)
+        _calendarSignalR.CalendarsChanged += OnCalendarsChanged;
+    }
+
+    private void OnCalendarsChanged()
+    {
+        if (IsActive && !IsLoading)
+        {
+            MainThread.BeginInvokeOnMainThread(() => LoadEventsCommand.Execute(null));
+        }
+        else
+        {
+            NeedsRefresh = true;
+        }
     }
 
     // ── View State ─────────────────────────────────────────────────

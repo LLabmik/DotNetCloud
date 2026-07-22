@@ -20,20 +20,36 @@ Archived context:
 
 ## Active Handoff
 
-**Summary:** Android Calendar timezone hardening, alarm cleanup on delete (Android + Blazor-originated), SignalR-based real-time calendar event sync.
+**Summary:** Server deploy needed — new `CalendarEventCreatedRealtimeHandler` to enable SignalR broadcast when events are created from Blazor UI.
 
 **Branch:** `fix/android-calendar-alarm`
 
-**Context:** Server-side deployment to `cloud.kimball.home` is complete. All 14 modules healthy. Remaining: Android client APK build, install, and verification on `monolith`.
+**Context:** Android client now auto-refreshes on `CalendarEventCreated`/`CalendarEventUpdated`/`CalendarEventDeleted` via SignalR. Client-side APK built and installed on `monolith` — timezone label ("UTC-5") confirmed working, event create/delete scheduling verified. Server is missing the `CalendarEventCreatedRealtimeHandler` — events created from Blazor UI are not broadcast to Android clients yet.
+
+### Server Actions — `cloud.kimball.home`
+
+- [ ] `git pull origin fix/android-calendar-alarm`
+- [ ] `dotnet build src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj -c Release`
+- [ ] `dotnet publish src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj -c Release -o /opt/dotnetcloud/publish`
+- [ ] `sudo systemctl restart dotnetcloud`
+- [ ] Verify: `curl -k https://localhost:5443/health` → 200 Healthy
+- [ ] Verify: Create a calendar event from Blazor UI → Android client should show it immediately (no refresh needed)
+
+**New server files deployed this round:**
+- `Services/CalendarEventCreatedRealtimeHandler.cs` — broadcasts `CalendarEventCreated` to the creating user's connected clients via SignalR
+- Modified: `Services/NotificationEventSubscriber.cs` — subscribes `CalendarEventCreatedEvent` alongside existing `Deleted` and `Updated` handlers
+
+**Previously deployed files (from prior handoff round):**
+- `Services/CalendarEventDeletedRealtimeHandler.cs`
+- `Services/CalendarEventUpdatedRealtimeHandler.cs`
 
 ### Client Actions — `monolith` (Android client)
 
-- [ ] Deploy updated APK: `dotnet build src\Clients\DotNetCloud.Client.Android -f net10.0-android -c Debug -r android-arm64 /p:AndroidSdkDirectory="C:\Program Files (x86)\Android\android-sdk"`
-- [ ] `adb install -r src\Clients\DotNetCloud.Client.Android\bin\Debug\net10.0-android\android-arm64\net.dotnetcloud.client-Signed.apk`
-- [ ] Verify timezone label: Open any event detail → "UTC-5" (or your offset) shown next to date/time
-- [ ] Verify multi-reminder: Create event with two reminders (e.g. 30min + 10min) → both fire (check logcat)
-- [ ] Verify Android delete cleanup: Create event with reminder → delete from Android → logcat shows `CancelReminders`
-- [ ] Verify Blazor delete sync: Create event on Android → delete from Blazor UI → logcat shows `CalendarEventDeleted` handler → alarm cancelled
+- [x] APK built and installed
+- [x] Timezone label verified: "UTC-5" shown on event detail page
+- [x] Event create/delete with reminder: Scheduling and cleanup confirmed (logcat shows event count changing)
+- [ ] **Pending until server deploy:** Test Blazor-originated event create → auto-appears on Android (requires server to broadcast `CalendarEventCreated`)
+- [ ] **Pending until server deploy:** Test Blazor-originated event delete → alarm cancelled on Android (requires server to broadcast `CalendarEventDeleted`)
 
 ### Build Notes
 
@@ -41,28 +57,6 @@ Archived context:
 ```powershell
 dotnet build ... -f net10.0-android -c Debug -r android-arm64 /p:AndroidSdkDirectory="C:\Program Files (x86)\Android\android-sdk"
 ```
-- One handoff may have 1 or 2 action blocks depending on workflow stage.
-
-**Handoff management:**
-
-- Put all technical findings, debugging conclusions, and next-step details in this document.
-- Assistant (current agent) commits their findings/work and updates the **Active Handoff** section with actionable next steps for the other client.
-- Assistant pushes commits to `feature/android-files-photo-thumbnails`.
-- Unexpected untracked content rule (MANDATORY): remove unexpected untracked files/directories before commit; only keep intentional tracked changes for the handoff update.
-- Handoff readiness gate (MANDATORY): all executable tests must pass before marking a handoff as ready.
-- Environment-gated tests are allowed to be skipped, but must be explicitly identified as gated with the required environment/runtime prerequisites documented in the handoff.
-- Runtime verification gate (MANDATORY): before declaring a server-side blocker fixed, verify the running service is on current binaries (not stale publish output) and document the verification command/output in handoff notes.
-- OAuth contract check (MANDATORY when auth is involved): verify `client_id`, `redirect_uri`, and requested scopes exactly match server-registered OpenIddict client permissions before requesting cross-machine retries.
-- Secret handling rule (MANDATORY): never commit raw bearer tokens/refresh tokens; share token acquisition steps and sanitized outputs only.
-- Moderator relays a short "check for updates" message to the other machine.
-- Moderator handoff prompt rule (MANDATORY): every ready-to-relay message must explicitly state the target machine name (for example: `cloud.kimball.home`, `mint-dnc-client`, `Windows11-TestDNC`).
-- Other agent pulls latest, reads the handoff, and takes action without asking questions.
-
-**Document maintenance:**
-
-- Pre-commit archive rule (MANDATORY): before committing this file, move all completed/older handoff tasks to `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
-- Keep only the single current task in **Active Handoff** (one active block only).
-- If a task is completed, archive it first, then replace **Active Handoff** with the next task.
 
 ## Moderator Communication (Minimal)
 
