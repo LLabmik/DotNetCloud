@@ -5684,3 +5684,30 @@ Key confirmations:
 
 **Verification:** Server build 0 errors, Android build 0 errors, 484 Core tests pass, 205/207 Android tests pass (1 pre-existing failure).
 
+---
+
+## 2026-07-22 — Server Deployment Complete (cloud.kimball.home)
+
+**Target:** `cloud.kimball.home`
+
+**Result:** Core.Server deployment with SignalR calendar event sync handlers. All 14 modules healthy.
+
+**Branch:** `fix/android-calendar-alarm`
+
+**Completed actions:**
+- `git pull origin fix/android-calendar-alarm`
+- `dotnet build src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj -c Release` — 0 warnings, 0 errors
+- `dotnet publish src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj -c Release -o /opt/dotnetcloud/publish`
+- `sudo cp -r /opt/dotnetcloud/publish/* /opt/dotnetcloud/server/`
+- `sudo systemctl restart dotnetcloud`
+
+**Verification:** `curl -sk https://localhost:5443/health` → Healthy (all 14 modules: chat, contacts, files, calendar, about, notes, photos, tracks, video, email, bookmarks, music, ai, search)
+**Hash verification:** `md5sum /opt/dotnetcloud/server/DotNetCloud.Core.Server.dll` = `c85dd279...` (matches publish output)
+
+**New server files deployed:**
+- `Services/CalendarEventDeletedRealtimeHandler.cs`
+- `Services/CalendarEventUpdatedRealtimeHandler.cs`
+- Modified: `Services/NotificationEventSubscriber.cs`
+
+**Pending:** Client-side APK build, install, and verification on `monolith`.
+

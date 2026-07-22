@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-07-22 (Android Calendar Timezone + Alarm Cleanup + SignalR Sync)
+Last updated: 2026-07-22 (Server deployment done — client actions on monolith pending)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -20,27 +20,11 @@ Archived context:
 
 ## Active Handoff
 
-**Summary:** Android Calendar timezone hardening, alarm cleanup on delete (Android + Blazor-originated), SignalR-based real-time calendar event sync, and pre-existing test build fix.
+**Summary:** Android Calendar timezone hardening, alarm cleanup on delete (Android + Blazor-originated), SignalR-based real-time calendar event sync.
 
 **Branch:** `fix/android-calendar-alarm`
 
-**Context:** Full timezone awareness for calendar alarms/reminders, alarm cancellation when events are deleted from either Android or Blazor UI, and SignalR push for real-time calendar event sync. Server-side changes require deployment to enable Blazor-originated delete notifications.
-
----
-
-### Server Actions — `cloud.kimball.home`
-
-- [ ] `git pull origin fix/android-calendar-alarm`
-- [ ] `dotnet build src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj -c Release`
-- [ ] `dotnet publish src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj -c Release -o /opt/dotnetcloud/publish`
-- [ ] `sudo systemctl restart dotnetcloud`
-- [ ] Verify: `curl -k https://localhost:5443/health` → 200 Healthy
-- [ ] Verify: Create/delete a calendar event from Blazor UI while Android client is connected → logcat shows `CalendarEventDeleted` handler firing
-
-**New server files deployed:**
-- `Services/CalendarEventDeletedRealtimeHandler.cs` — broadcasts `CalendarEventDeleted` to user's connected clients via SignalR
-- `Services/CalendarEventUpdatedRealtimeHandler.cs` — broadcasts `CalendarEventUpdated` to user's connected clients via SignalR
-- Modified: `Services/NotificationEventSubscriber.cs` — registers both handlers with `IEventBus`
+**Context:** Server-side deployment to `cloud.kimball.home` is complete. All 14 modules healthy. Remaining: Android client APK build, install, and verification on `monolith`.
 
 ### Client Actions — `monolith` (Android client)
 
