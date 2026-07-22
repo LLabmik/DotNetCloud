@@ -5633,3 +5633,129 @@ Key confirmations:
 - [x] Fix XAML Border/Grid layout bug (Image was never the Border's Content)
 - [x] Add `Android.Util.Log` diagnostics for future debugging
 
+---
+
+## Archived: Android Calendar Alarm Reminders — Initial E2E (2026-07-20)
+
+**Target:** `monolith` — Android MAUI app
+
+**Result:** Calendar alarm reminders E2E implemented and tested. POST_NOTIFICATIONS runtime permission fix, timezone bug fix, end-time auto-adjust fix. Alarms fire at correct UTC time. Notifications display on screen.
+
+**Branch:** `feature/android-chat-channel-mute`
+
+**Summary of changes:**
+- Notification channel `calendar_reminders` (High + alarm sound) in `MainApplication.cs`
+- `SCHEDULE_EXACT_ALARM` + `RECEIVE_BOOT_COMPLETED` permissions in `AndroidManifest.xml`
+- `CalendarAlarmReceiver` — alarm broadcast → notification with deep-link
+- `CalendarBootReceiver` — reschedule alarms after reboot
+- `CalendarReminderScheduler` — `AlarmManager.setExactAndAllowWhileIdle()` with permission-aware fallback
+- Reminder picker in event editor
+- Auto-adjust end time to start+1h
+- `IExactAlarmPermissionService` + Settings card
+- `type=calendar_reminder` push handler in FCM + UnifiedPush
+- Foreground suppression removed (alarms sound always)
+- POST_NOTIFICATIONS runtime permission fix (verified working)
+- Timezone fix: `DateTime.SpecifyKind(triggerTimeUtc, DateTimeKind.Utc)`
+- End-time auto-adjust: `SetEndOneHourAfterStart()` always sets end = start + 1h
+
+**Verification:** E2E tested — alarms fire at correct UTC time, notifications display.
+
+---
+
+## Archived: Android Calendar Timezone + Alarm Cleanup + SignalR Sync (2026-07-22)
+
+**Target:** `monolith` + `cloud.kimball.home`
+
+**Result:** Full timezone hardening, alarm cleanup on delete (Android + Blazor-originated), and SignalR-based calendar event sync.
+
+**Branch:** `fix/android-calendar-alarm`
+
+**Summary of client-side changes:**
+- **PendingIntent collision fix:** `CalendarReminderScheduler.CreatePendingIntent` now uses `HashCode.Combine(eventId, minutesBefore)` so multiple reminders per event don't overwrite each other
+- **Timezone display:** UTC offset label ("UTC-5") shown on `EventDetailPage` and `EventEditPage`
+- **DateTimeKind hardening:** `DateFormatHelper.EnsureUtc()` guard applied in scheduler, view model loads, and display formatting
+- **Alarm cleanup on delete:** `ICalendarReminderScheduler.CancelReminders()` called immediately after successful event deletion in both `EventDetailViewModel` and `EventEditViewModel`
+- **CalendarSignalRClient (new):** Connects to CoreHub, listens for `CalendarEventDeleted`/`CalendarEventUpdated`, cancels alarms and sets `NeedsRefresh`; syncs alarms on reconnect via `RescheduleAllAsync()`
+
+**Summary of server-side changes:**
+- `CalendarEventDeletedRealtimeHandler` (new) — forwards `CalendarEventDeletedEvent` → `IRealtimeBroadcaster.SendToUserAsync("CalendarEventDeleted", ...)`
+- `CalendarEventUpdatedRealtimeHandler` (new) — forwards `CalendarEventUpdatedEvent` → `IRealtimeBroadcaster.SendToUserAsync("CalendarEventUpdated", ...)`
+- `NotificationEventSubscriber` — subscribes both new handlers on startup
+
+**Verification:** Server build 0 errors, Android build 0 errors, 484 Core tests pass, 205/207 Android tests pass (1 pre-existing failure).
+
+---
+
+## 2026-07-22 — Server Deployment Complete (cloud.kimball.home)
+
+**Target:** `cloud.kimball.home`
+
+**Result:** Core.Server deployment with SignalR calendar event sync handlers. All 14 modules healthy.
+
+**Branch:** `fix/android-calendar-alarm`
+
+**Completed actions:**
+- `git pull origin fix/android-calendar-alarm`
+- `dotnet build src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj -c Release` — 0 warnings, 0 errors
+- `dotnet publish src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj -c Release -o /opt/dotnetcloud/publish`
+- `sudo cp -r /opt/dotnetcloud/publish/* /opt/dotnetcloud/server/`
+- `sudo systemctl restart dotnetcloud`
+
+**Verification:** `curl -sk https://localhost:5443/health` → Healthy (all 14 modules: chat, contacts, files, calendar, about, notes, photos, tracks, video, email, bookmarks, music, ai, search)
+**Hash verification:** `md5sum /opt/dotnetcloud/server/DotNetCloud.Core.Server.dll` = `c85dd279...` (matches publish output)
+
+**New server files deployed:**
+- `Services/CalendarEventDeletedRealtimeHandler.cs`
+- `Services/CalendarEventUpdatedRealtimeHandler.cs`
+- Modified: `Services/NotificationEventSubscriber.cs`
+
+**Pending:** Client-side APK build, install, and verification on `monolith`.
+
+---
+
+## 2026-07-22 — Server Redeploy: CalendarEventCreatedRealtimeHandler
+
+**Target:** `cloud.kimball.home`
+
+**Result:** Second server deploy — adding `CalendarEventCreatedRealtimeHandler` for Blazor-originated event creation broadcasts. All 14 modules healthy.
+
+**Branch:** `fix/android-calendar-alarm`
+
+**Completed actions:**
+- `git pull origin fix/android-calendar-alarm`
+- `dotnet build src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj -c Release` — 0 warnings, 0 errors
+- `dotnet publish src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj -c Release -o /opt/dotnetcloud/publish`
+- `sudo cp -r /opt/dotnetcloud/publish/* /opt/dotnetcloud/server/`
+- `sudo systemctl restart dotnetcloud`
+
+**Verification:** `curl -sk https://localhost:5443/health` → Healthy (all 14 modules)
+
+**New server files deployed:**
+- `Services/CalendarEventCreatedRealtimeHandler.cs`
+- Modified: `Services/NotificationEventSubscriber.cs`
+
+---
+
+## 2026-07-22 — Calendar Module Redeploy: gRPC Bridge Handlers
+
+**Target:** `cloud.kimball.home`
+
+**Result:** Third server deploy — added `CalendarEventCreatedBroadcastHandler`, `CalendarEventDeletedBroadcastHandler`, `CalendarEventUpdatedBroadcastHandler` in Calendar module Host. Events now cross the process boundary via gRPC `BroadcastRealtimeEvent`. All 14 modules healthy.
+
+**Branch:** `fix/android-calendar-alarm`
+
+**Completed actions:**
+- Created missing broadcast handler files (were omitted from monolith commit)
+- `dotnet build` Calendar module Host — 0 warnings, 0 errors
+- `dotnet publish` Calendar module Host
+- `sudo cp` updated DLLs to `/opt/dotnetcloud/server/modules/dotnetcloud.calendar/`
+- `sudo systemctl restart dotnetcloud`
+
+**Verification:** `curl -sk https://localhost:5443/health` → Healthy (all 14 modules)
+
+**New Calendar module files deployed:**
+- `Services/CalendarEventCreatedBroadcastHandler.cs`
+- `Services/CalendarEventDeletedBroadcastHandler.cs`
+- `Services/CalendarEventUpdatedBroadcastHandler.cs`
+- Modified: `Services/CalendarReminderEventSubscriber.cs`
+

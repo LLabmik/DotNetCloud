@@ -19,6 +19,7 @@ public sealed partial class EventDetailViewModel : ObservableObject
     private readonly ICalendarRestClient _calendarApi;
     private readonly IServerConnectionStore _serverStore;
     private readonly ISecureTokenStore _tokenStore;
+    private readonly ICalendarReminderScheduler _reminderScheduler;
     private readonly ILogger<EventDetailViewModel> _logger;
 
     private Guid _eventId;
@@ -28,11 +29,13 @@ public sealed partial class EventDetailViewModel : ObservableObject
         ICalendarRestClient calendarApi,
         IServerConnectionStore serverStore,
         ISecureTokenStore tokenStore,
+        ICalendarReminderScheduler reminderScheduler,
         ILogger<EventDetailViewModel> logger)
     {
         _calendarApi = calendarApi;
         _serverStore = serverStore;
         _tokenStore = tokenStore;
+        _reminderScheduler = reminderScheduler;
         _logger = logger;
     }
 
@@ -80,6 +83,9 @@ public sealed partial class EventDetailViewModel : ObservableObject
     /// <summary>Formatted date/time range for display.</summary>
     [ObservableProperty]
     private string? _dateTimeDisplay;
+
+    /// <summary>Device timezone offset label (e.g., "UTC-5").</summary>
+    public string TimeZoneDisplay => DateFormatHelper.GetTimeZoneDisplay();
 
     /// <summary>Attendee list as display strings.</summary>
     public ObservableCollection<string> AttendeeDisplayList { get; } = [];
@@ -258,6 +264,11 @@ public sealed partial class EventDetailViewModel : ObservableObject
             }
 
             CalendarViewModel.NeedsRefresh = true;
+
+            // Cancel any pending reminder alarms for this event
+            try { _reminderScheduler.CancelReminders(_eventId); }
+            catch { /* best-effort */ }
+
             await Shell.Current.GoToAsync("..");
         }
         catch (Exception ex)
@@ -334,20 +345,41 @@ internal static class DateFormatHelper
     /// <summary>Formats an event's date/time range as a human-readable string.</summary>
     public static void FormatEventDateTime(CalendarEventDto evt, out string display)
     {
+        var startLocal = EnsureUtc(evt.StartUtc).ToLocalTime();
+        var endLocal = EnsureUtc(evt.EndUtc).ToLocalTime();
+
         if (evt.IsAllDay)
         {
-            var start = evt.StartUtc.ToString("ddd, MMM d");
-            var end = evt.EndUtc.Date > evt.StartUtc.Date
-                ? evt.EndUtc.AddDays(-1).ToString("ddd, MMM d")
+            var start = startLocal.ToString("ddd, MMM d");
+            var end = endLocal.Date > startLocal.Date
+                ? endLocal.AddDays(-1).ToString("ddd, MMM d")
                 : null;
             display = end is not null ? $"{start} – {end} (All day)" : $"{start} (All day)";
             return;
         }
 
-        var startStr = evt.StartUtc.ToString("ddd, MMM d · h:mm tt");
-        var endStr = evt.EndUtc.Date == evt.StartUtc.Date
-            ? evt.EndUtc.ToString("h:mm tt")
-            : evt.EndUtc.ToString("ddd, MMM d · h:mm tt");
+        var startStr = startLocal.ToString("ddd, MMM d · h:mm tt");
+        var endStr = endLocal.Date == startLocal.Date
+            ? endLocal.ToString("h:mm tt")
+            : endLocal.ToString("ddd, MMM d · h:mm tt");
         display = $"{startStr} – {endStr}";
     }
+
+    /// <summary>Returns the device's current UTC offset as a display string (e.g., "UTC-5", "UTC+1").</summary>
+    public static string GetTimeZoneDisplay()
+    {
+        var offset = TimeZoneInfo.Local.GetUtcOffset(DateTime.UtcNow);
+        var sign = offset.TotalHours >= 0 ? "+" : "-";
+        var hours = Math.Abs(offset.Hours);
+        var minutes = offset.Minutes;
+        return minutes != 0
+            ? $"UTC{sign}{hours}:{minutes:D2}"
+            : $"UTC{sign}{hours}";
+    }
+
+    /// <summary>Ensures a DateTime has Kind=Utc. Workaround for JSON deserialization losing Kind.</summary>
+    public static DateTime EnsureUtc(DateTime dt) =>
+        dt.Kind == DateTimeKind.Unspecified
+            ? DateTime.SpecifyKind(dt, DateTimeKind.Utc)
+            : dt;
 }

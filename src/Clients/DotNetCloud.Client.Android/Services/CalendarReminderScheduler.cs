@@ -3,6 +3,7 @@ using Android.Content;
 using Android.Util;
 using DotNetCloud.Client.Android.Auth;
 using DotNetCloud.Client.Android.Calendar;
+using DotNetCloud.Client.Android.ViewModels;
 using DotNetCloud.Core.DTOs;
 using Microsoft.Extensions.Logging;
 
@@ -61,17 +62,20 @@ internal sealed class CalendarReminderScheduler : ICalendarReminderScheduler
 
         foreach (var evt in events)
         {
+            // Guard against JSON deserialization losing DateTimeKind
+            var startUtc = DateFormatHelper.EnsureUtc(evt.StartUtc);
+
             // Allow events that started up to 1 hour ago — they may still have
             // pending reminders (e.g. a "5 min before" reminder for an event
             // that started 3 min ago should still fire immediately).
             var startWindow = now.AddHours(-1);
-            if (evt.StartUtc <= startWindow)
+            if (startUtc <= startWindow)
             {
-                Log.Info("DotNetCloud", $"  Skip event {evt.Id}: start {evt.StartUtc:O} >1hr ago");
+                Log.Info("DotNetCloud", $"  Skip event {evt.Id}: start {startUtc:O} >1hr ago");
                 continue;
             }
 
-            Log.Info("DotNetCloud", $"  Process event {evt.Id}: '{evt.Title}' at {evt.StartUtc:O}, {evt.Reminders.Count} reminders");
+            Log.Info("DotNetCloud", $"  Process event {evt.Id}: '{evt.Title}' at {startUtc:O}, {evt.Reminders.Count} reminders");
 
             // Cancel any existing alarms for this event first
             CancelReminders(evt.Id);
@@ -86,7 +90,7 @@ internal sealed class CalendarReminderScheduler : ICalendarReminderScheduler
                 }
 
                 var triggerTime = DateTime.SpecifyKind(
-                    evt.StartUtc.AddMinutes(-reminder.MinutesBefore), DateTimeKind.Utc);
+                    startUtc.AddMinutes(-reminder.MinutesBefore), DateTimeKind.Utc);
                 Log.Info("DotNetCloud", $"    Reminder T-{reminder.MinutesBefore}min: trigger={triggerTime:O}, now={now:O}");
 
                 // If trigger time is past but event hasn't started, fire now
@@ -118,11 +122,15 @@ internal sealed class CalendarReminderScheduler : ICalendarReminderScheduler
         if (alarmManager is null)
             return;
 
-        // Cancel all pending intents for this event (one per reminder, but we use
-        // a single request code per event to keep it simple — cancels all at once)
-        var pendingIntent = CreatePendingIntent(context, eventId.ToString(), action: PendingIntentActions.Cancel);
-        alarmManager.Cancel(pendingIntent);
-        pendingIntent?.Cancel();
+        // Cancel each known reminder slot for this event. Each reminder
+        // uses a unique request code (eventId + minutesBefore hash).
+        foreach (var minutesBefore in KnownReminderMinutes)
+        {
+            var pendingIntent = CreatePendingIntent(
+                context, eventId.ToString(), minutesBefore, action: PendingIntentActions.Cancel);
+            alarmManager.Cancel(pendingIntent);
+            pendingIntent?.Cancel();
+        }
 
         _logger.LogDebug("Cancelled alarms for event {EventId}.", eventId);
     }
@@ -226,7 +234,7 @@ internal sealed class CalendarReminderScheduler : ICalendarReminderScheduler
         bool hasExactAlarmPermission)
     {
         var intent = CreateAlarmIntent(context, evt, minutesBefore);
-        var pendingIntent = CreatePendingIntent(context, evt.Id.ToString(), intent);
+        var pendingIntent = CreatePendingIntent(context, evt.Id.ToString(), minutesBefore, intent);
 
         var triggerMillis = new DateTimeOffset(
             DateTime.SpecifyKind(triggerTimeUtc, DateTimeKind.Utc)).ToUnixTimeMilliseconds();
@@ -268,13 +276,17 @@ internal sealed class CalendarReminderScheduler : ICalendarReminderScheduler
         return intent;
     }
 
+    /// <summary>Standard reminder minutes-before values used for cancellation.</summary>
+    private static readonly int[] KnownReminderMinutes = [0, 5, 10, 15, 30, 60, 120, 1440];
+
     private static PendingIntent CreatePendingIntent(
-        Context context, string eventId, Intent? intent = null,
+        Context context, string eventId, int minutesBefore, Intent? intent = null,
         PendingIntentActions action = PendingIntentActions.Set)
     {
-        // Use a deterministic request code based on eventId hash so that
-        // CancelReminders can match the same pending intent.
-        var requestCode = eventId.GetHashCode();
+        // Use a deterministic request code based on eventId + minutesBefore so that
+        // each reminder gets a unique PendingIntent (fixes collision bug where
+        // multiple reminders per event would overwrite each other).
+        var requestCode = HashCode.Combine(eventId.GetHashCode(), minutesBefore);
 
         if (intent is null)
         {

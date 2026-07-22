@@ -74,7 +74,10 @@ public sealed partial class CalendarViewModel : ObservableObject
     private readonly IServerConnectionStore _serverStore;
     private readonly ISecureTokenStore _tokenStore;
     private readonly ICalendarReminderScheduler _reminderScheduler;
+    private readonly ICalendarSignalRClient _calendarSignalR;
     private readonly ILogger<CalendarViewModel> _logger;
+    private readonly PeriodicTimer? _refreshTimer;
+    private CancellationTokenSource? _refreshCts;
 
     /// <summary>Initializes a new <see cref="CalendarViewModel"/>.</summary>
     public CalendarViewModel(
@@ -82,13 +85,55 @@ public sealed partial class CalendarViewModel : ObservableObject
         IServerConnectionStore serverStore,
         ISecureTokenStore tokenStore,
         ICalendarReminderScheduler reminderScheduler,
+        ICalendarSignalRClient calendarSignalR,
         ILogger<CalendarViewModel> logger)
     {
         _calendarApi = calendarApi;
         _serverStore = serverStore;
         _tokenStore = tokenStore;
         _reminderScheduler = reminderScheduler;
+        _calendarSignalR = calendarSignalR;
         _logger = logger;
+
+        // Listen for real-time calendar changes from other clients (e.g. Blazor UI)
+        _calendarSignalR.CalendarsChanged += OnCalendarsChanged;
+
+        // Periodic refresh every 6 minutes while the calendar tab is active
+        _refreshTimer = new PeriodicTimer(TimeSpan.FromMinutes(6));
+        _refreshCts = new CancellationTokenSource();
+        _ = RunPeriodicRefreshAsync(_refreshCts.Token);
+    }
+
+    private async Task RunPeriodicRefreshAsync(CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested && _refreshTimer is not null)
+        {
+            try
+            {
+                await _refreshTimer.WaitForNextTickAsync(ct);
+                if (IsActive && !IsLoading && Calendars.Count > 0)
+                {
+                    await LoadEventsCommand.ExecuteAsync(null);
+                }
+            }
+            catch (OperationCanceledException) { break; }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Periodic calendar refresh failed.");
+            }
+        }
+    }
+
+    private void OnCalendarsChanged()
+    {
+        if (IsActive && !IsLoading)
+        {
+            MainThread.BeginInvokeOnMainThread(() => LoadEventsCommand.Execute(null));
+        }
+        else
+        {
+            NeedsRefresh = true;
+        }
     }
 
     // ── View State ─────────────────────────────────────────────────

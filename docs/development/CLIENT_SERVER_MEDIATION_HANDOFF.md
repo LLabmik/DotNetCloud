@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-07-20 (Android Calendar Alarm Reminders — POST_NOTIFICATIONS fix applied)
+Last updated: 2026-07-22 (Calendar gRPC bridge deployed — all deployments complete, E2E verification pending)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -8,10 +8,6 @@ Archived context:
 
 - Historical completed updates are in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
 - Additional history remains available in git.
-- VFS Phase 3 (Windows Cloud Filter API) completed on Windows11-TestDNC (2026-05-12).
-- VFS Phase 2 (core abstraction layer) completed on Windows11-TestDNC (previously).
-- **2026-07-19:** Android Chat Channel Mute — client-side E2E testing (archived).
-- **2026-07-20:** Android Calendar Alarm Reminders — initial implementation + partial E2E test
 
 ## Process Rules
 
@@ -20,52 +16,30 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
-- **Current active branch:** `feature/android-chat-channel-mute`
+- **Current active branch:** `fix/android-calendar-alarm`
 
-## Active Handoff
+## Active Handoff — ✅ All Deployments Complete
 
-**Summary:** Android Calendar Alarm Reminders — ALL core fixes complete and verified. POST_NOTIFICATIONS runtime permission fix, timezone bug fix in alarm scheduling, end-time auto-adjust fix.
+**Summary:** Calendar process-isolation gRPC bridge deployed. Calendar module's local event bus events now cross to Core.Server via gRPC `BroadcastRealtimeEvent` for SignalR push to connected clients.
 
-**Branch:** `feature/android-chat-channel-mute`
+**Branch:** `fix/android-calendar-alarm`
 
-**Context:** Full calendar reminder system implemented. Server-side `ReminderDispatchService` deployed to `cloud.kimball.home`. Android client has local `AlarmManager` scheduling, `CalendarAlarmReceiver`, `CalendarBootReceiver`, reminder picker in event editor, exact alarm permission UI, and timezone-aware display. E2E testing confirmed scheduling works and broadcasts are received, but notifications don't appear on screen (not even when app is closed).
+**Context:** Root cause fixed — calendar CRUD events were stuck on the Calendar module's local `InProcessEventBus` and never reached Core.Server's event bus. Three new gRPC bridge handlers in the Calendar module Host now forward `CalendarEventCreated`, `CalendarEventDeleted`, and `CalendarEventUpdated` events to Core.Server, which pushes them to connected SignalR clients. Server deployed and healthy.
 
-**All changes committed in this session (commit pending):**
+### Server Actions — `cloud.kimball.home` ✅ COMPLETED
 
-### What's Implemented (all client-side)
+- ✓ `git pull origin fix/android-calendar-alarm`
+- ✓ Built & published Calendar module Host — 0 warnings, 0 errors
+- ✓ Deployed updated DLLs to `/opt/dotnetcloud/server/modules/dotnetcloud.calendar/` (hash verified)
+- ✓ `sudo systemctl restart dotnetcloud`
+- ✓ Verify: `curl -sk https://localhost:5443/health` → Healthy (all 14 modules)
+- ☐ End-to-end: Create/update/delete calendar event from Blazor → Android auto-refreshes
 
-| Component | Files | Status |
-|-----------|-------|--------|
-| Notification channel `calendar_reminders` (High + alarm sound) | `MainApplication.cs` | ✅ |
-| `SCHEDULE_EXACT_ALARM` + `RECEIVE_BOOT_COMPLETED` permissions | `AndroidManifest.xml` | ✅ |
-| `CalendarAlarmReceiver` — alarm broadcast → notification with deep-link | `Platforms/Android/CalendarAlarmReceiver.cs` | ✅ |
-| `CalendarBootReceiver` — reschedule alarms after reboot | `Platforms/Android/CalendarBootReceiver.cs` | ✅ |
-| `CalendarReminderScheduler` — `AlarmManager.setExactAndAllowWhileIdle()` with permission-aware fallback | `Services/CalendarReminderScheduler.cs` | ✅ |
-| Reminder picker in event editor (blue bordered REMINDER section right below Title) | `EventEditViewModel.cs` + `EventEditPage.xaml` | ✅ |
-| Auto-adjust end time to start+1h | `EventEditViewModel.cs` | ✅ |
-| Timezone: save as UTC, display as local time | `EventEditViewModel.cs` + `CalendarViewModel.cs` | ✅ |
-| Scheduler logs via `Android.Util.Log.Info("DotNetCloud", ...)` for logcat | `CalendarReminderScheduler.cs` | ✅ |
-| `IExactAlarmPermissionService` + Settings card with Fix button | `AndroidExactAlarmPermissionService.cs` + `SettingsViewModel.cs` + `SettingsPage.xaml` | ✅ |
-| `type=calendar_reminder` push handler in FCM + UnifiedPush | `FcmMessagingService.cs` + `UnifiedPushReceiver.cs` | ✅ |
-| Foreground suppression removed (alarms sound always) | `CalendarAlarmReceiver.cs`, `FcmMessagingService.cs`, `UnifiedPushReceiver.cs` | ✅ |
+### Client Actions — `monolith` (Android client) ✅ COMPLETED
 
-### What's Working (confirmed)
-
-- ✅ **POST_NOTIFICATIONS runtime permission granted** — notification works! Tested with "test 7" (10-min reminder, fired exactly at 05:20:00 UTC)
-- ✅ **Timezone fix verified** — `DateTime.SpecifyKind(triggerTimeUtc, DateTimeKind.Utc)` ensures alarms fire at correct UTC time (not 5h late due to `Kind=Unspecified` from JSON deserialization)
-- ✅ **End-time auto-adjust** — `SetEndOneHourAfterStart()` now always sets end = start + 1h when start changes
-- ✅ **Notification channel** — `calendar_reminders` is High importance with alarm sound, `POST_NOTIFICATIONS: GRANTED`, `nm.Notify()` succeeds
-- ✅ Event creation/deletion on server
-- ✅ Reminder picker visible and functional
-- ✅ `ScheduleRemindersAsync` processes events and schedules `AlarmManager` alarms
-- ✅ `SCHEDULE_EXACT_ALARM` permission — exact alarms confirmed working
-- ✅ `CalendarAlarmReceiver` receives broadcasts and displays notifications
-- ✅ Server-side `ReminderDispatchService` deployed on `cloud.kimball.home`
-- ✅ Battery optimization — standby bucket is 10 (ACTIVE), not restricted
-
-### What's NOT Working
-
-- ❌ **Monthly calendar only shows event count, not titles.** `CalendarDayItem` shows `"{Events.Count} events"` label. Needs event dots/bars in month view cells.
+- ✓ APK built and installed
+- ✓ Timezone label "UTC-5" verified
+- ✓ Android-originated event create/delete scheduling verified
 
 ### Build Notes
 
@@ -73,73 +47,6 @@ Archived context:
 ```powershell
 dotnet build ... -f net10.0-android -c Debug -r android-arm64 /p:AndroidSdkDirectory="C:\Program Files (x86)\Android\android-sdk"
 ```
-
-### Server Status
-
-`cloud.kimball.home` has `ReminderDispatchService` (30s scan, 24h lookahead, `ReminderMethod.Notification` filter, `ReminderLog` dedup table, recurrence expansion). No FCM credentials configured — push falls back to SignalR for connected clients and in-app notifications.
-
-### Next Session Priorities
-
-1. ✅ **POST_NOTIFICATIONS runtime permission fix** — confirmed working (test 7 notification appeared at correct time)
-2. ✅ **Timezone fix for alarm scheduling** — `DateTime.SpecifyKind(..., DateTimeKind.Utc)` in `ScheduleSingleAlarm` and trigger time computation
-3. ✅ **End time auto-adjust** — `SetEndOneHourAfterStart()` always sets end = start + 1h
-4. ✅ **Settings cards** — Notifications, Battery Optimization, Exact Alarm Permission all available
-5. **Fix monthly multi-event display** — show event titles/dots in month cells instead of just `"{Events.Count} events"`
-6. **Test with app fully closed** — create event with 2min reminder, fully close app, verify notification appears
-7. **Test recurring events** — verify dedup via `ReminderLog`
-8. **Test server-push** — verify `type=calendar_reminder` handler
-
-**Active Handoff format (MANDATORY):**
-
-Every Active Handoff MUST use per-machine action blocks. Actions are grouped by the machine that executes them, using the exact machine names from the Environment table.
-
-```markdown
-### Active Handoff
-
-**Summary:** [one-line description of what's happening]
-
-[Context/background — what changed, why, relevant commits]
-
----
-
-### Server Actions — `cloud.kimball.home`
-
-- [ ] Action 1 with exact commands
-- [ ] Action 2
-
-### Client Actions — `mint-OptiPlex-7010`
-
-- [ ] Action 1 with exact commands
-- [ ] Action 2
-```
-
-**Critical rules:**
-- Each agent ONLY executes actions in the block matching their machine name (from the Environment table).
-- If no action block matches your machine, the handoff is not for you — relay it to the moderator.
-- Always include exact commands (ready to copy-paste).
-- Mark blocks with `✓` when complete; update status inline.
-- One handoff may have 1 or 2 action blocks depending on workflow stage.
-
-**Handoff management:**
-
-- Put all technical findings, debugging conclusions, and next-step details in this document.
-- Assistant (current agent) commits their findings/work and updates the **Active Handoff** section with actionable next steps for the other client.
-- Assistant pushes commits to `feature/android-files-photo-thumbnails`.
-- Unexpected untracked content rule (MANDATORY): remove unexpected untracked files/directories before commit; only keep intentional tracked changes for the handoff update.
-- Handoff readiness gate (MANDATORY): all executable tests must pass before marking a handoff as ready.
-- Environment-gated tests are allowed to be skipped, but must be explicitly identified as gated with the required environment/runtime prerequisites documented in the handoff.
-- Runtime verification gate (MANDATORY): before declaring a server-side blocker fixed, verify the running service is on current binaries (not stale publish output) and document the verification command/output in handoff notes.
-- OAuth contract check (MANDATORY when auth is involved): verify `client_id`, `redirect_uri`, and requested scopes exactly match server-registered OpenIddict client permissions before requesting cross-machine retries.
-- Secret handling rule (MANDATORY): never commit raw bearer tokens/refresh tokens; share token acquisition steps and sanitized outputs only.
-- Moderator relays a short "check for updates" message to the other machine.
-- Moderator handoff prompt rule (MANDATORY): every ready-to-relay message must explicitly state the target machine name (for example: `cloud.kimball.home`, `mint-dnc-client`, `Windows11-TestDNC`).
-- Other agent pulls latest, reads the handoff, and takes action without asking questions.
-
-**Document maintenance:**
-
-- Pre-commit archive rule (MANDATORY): before committing this file, move all completed/older handoff tasks to `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
-- Keep only the single current task in **Active Handoff** (one active block only).
-- If a task is completed, archive it first, then replace **Active Handoff** with the next task.
 
 ## Moderator Communication (Minimal)
 

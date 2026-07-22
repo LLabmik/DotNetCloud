@@ -179,6 +179,12 @@
                             FontSize="11"
                             IsVisible="{Binding DateError, Converter={StaticResource IsNotNull}}"/>
 
+                     <!-- Timezone hint -->
+                     <Label Text="{Binding TimeZoneDisplay}"
+                            FontSize="11"
+                            TextColor="#64748B"
+                            HorizontalOptions="End"/>
+
                      <!-- All-day toggle -->
                      <HorizontalStackLayout Spacing="8">
                             <Switch IsToggled="{Binding IsAllDay}"

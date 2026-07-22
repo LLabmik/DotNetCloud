@@ -1,5 +1,7 @@
 using Android.Content;
 using Android.Util;
+using CommunityToolkit.Mvvm.DependencyInjection;
+using DotNetCloud.Client.Android.Calendar;
 using DotNetCloud.Client.Android.ViewModels;
 using Microsoft.Maui.ApplicationModel;
 
@@ -61,5 +63,21 @@ public partial class LoginPage : ContentPage
         intent.SetAction(ChatConnectionService.ActionStart);
         global::Android.App.Application.Context.StartForegroundService(intent);
         Log.Info("DotNetCloud", "LoginPage.OnLoginSucceeded: chat service started");
+
+        // Start the calendar SignalR connection for real-time event notifications
+        try
+        {
+            var serverUrl = _vm.ServerUrl?.TrimEnd('/');
+            if (!string.IsNullOrWhiteSpace(serverUrl))
+            {
+                var calSignalR = Ioc.Default.GetService<ICalendarSignalRClient>();
+                if (calSignalR is not null)
+                    _ = calSignalR.ConnectAsync(serverUrl);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("DotNetCloud", $"LoginPage: failed to start calendar SignalR: {ex.Message}");
+        }
     }
 }

@@ -44,9 +44,7 @@ internal sealed class CalendarReminderEventSubscriber : IHostedService
     public async Task StopAsync(CancellationToken cancellationToken)
     {
         if (_reminderHandler is not null)
-        {
             await _eventBus.UnsubscribeAsync<CalendarReminderTriggeredEvent>(_reminderHandler, cancellationToken);
-        }
 
         _logger.LogInformation("CalendarReminderEventSubscriber stopped");
     }

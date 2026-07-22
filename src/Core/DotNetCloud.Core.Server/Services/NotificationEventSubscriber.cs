@@ -3,6 +3,7 @@ using DotNetCloud.Core.Server.PushNotifications;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using IEventBus = DotNetCloud.Core.Events.IEventBus;
 
 namespace DotNetCloud.Core.Server.Services;
 
