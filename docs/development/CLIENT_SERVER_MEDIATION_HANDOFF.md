@@ -20,19 +20,38 @@ Archived context:
 
 ## Active Handoff
 
-**Summary:** Server deployment complete — `CalendarEventCreatedRealtimeHandler` deployed. All SignalR calendar sync handlers now active.
+**Summary:** Fixed root cause of Blazor→Android calendar sync. Calendar events never crossed process boundary — Calendar module publishes events on its local event bus, but handlers were subscribed to Core.Server's event bus. Added gRPC bridge handlers.
 
 **Branch:** `fix/android-calendar-alarm`
 
-**Context:** Both server and client sides are deployed and healthy. Server has `CalendarEventCreatedRealtimeHandler`, `CalendarEventDeletedRealtimeHandler`, and `CalendarEventUpdatedRealtimeHandler` all active. Android client APK installed with SignalR listeners for all three events. Remaining: end-to-end verification from Blazor UI.
+**Context:** Three new broadcast handlers (`CalendarEventCreatedBroadcastHandler`, `CalendarEventDeletedBroadcastHandler`, `CalendarEventUpdatedBroadcastHandler`) added in the Calendar module's Host project. These subscribe to calendar CRUD events on the Calendar module's local `InProcessEventBus` and forward them to Core.Server via gRPC `BroadcastRealtimeEvent`, which pushes to connected SignalR clients.
 
-### Verification — `cloud.kimball.home` and `monolith`
+The Calendar module and its Host need to be rebuilt and redeployed to `cloud.kimball.home`.
 
-- [ ] End-to-end: Create a calendar event from Blazor UI → Android client auto-refreshes
-- [ ] End-to-end: Update a calendar event from Blazor UI → Android client auto-refreshes
-- [ ] End-to-end: Delete a calendar event from Blazor UI → Android alarm cancelled, UI refreshes
+### Server Actions — `cloud.kimball.home`
 
-**Server health:** ✅ `curl -sk https://localhost:5443/health` — all 14 modules healthy
+- [ ] `git pull origin fix/android-calendar-alarm`
+- [ ] Build + publish the Calendar module host:
+  ```
+  dotnet publish src/Modules/Calendar/DotNetCloud.Modules.Calendar.Host/DotNetCloud.Modules.Calendar.Host.csproj -c Release -o /opt/dotnetcloud/modules/dotnetcloud.calendar
+  ```
+- [ ] `sudo systemctl restart dotnetcloud`
+- [ ] Verify all modules healthy: `curl -sk https://localhost:5443/health` → 200 Healthy
+- [ ] Verify end-to-end: Create calendar event from Blazor → Android auto-refreshes
+
+**New Calendar module files deployed:**
+- `Services/CalendarEventCreatedBroadcastHandler.cs` — forwards `CalendarEventCreated` via gRPC
+- `Services/CalendarEventDeletedBroadcastHandler.cs` — forwards `CalendarEventDeleted` via gRPC
+- `Services/CalendarEventUpdatedBroadcastHandler.cs` — forwards `CalendarEventUpdated` via gRPC
+- Modified: `Services/CalendarReminderEventSubscriber.cs` — subscribes all three new handlers
+
+### Client Actions — `monolith` (Android client)
+
+- [x] APK already built and installed
+- [x] Timezone label "UTC-5" verified
+- [x] Android-originated event create/delete scheduling verified
+- [ ] **Pending server deploy:** Blazor-originated event create → auto-appears on Android
+- [ ] **Pending server deploy:** Blazor-originated event delete → alarm cancelled on Android
 
 ### Build Notes
 
