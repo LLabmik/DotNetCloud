@@ -694,6 +694,20 @@
   cursor: none;
 }
 
+/* ── Fullscreen mode: video stretches to fill entire screen ── */
+
+.player-container:fullscreen {
+  width: 100vw;
+  height: 100vh;
+}
+
+.player-container:fullscreen .video-player {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  object-fit: contain;
+}
+
 /* ── Codec Error Overlay ── */
 
 .codec-error-overlay {
