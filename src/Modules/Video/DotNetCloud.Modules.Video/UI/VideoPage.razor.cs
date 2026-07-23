@@ -161,6 +161,15 @@ public partial class VideoPage : IAsyncDisposable
     private List<(Guid Id, string Name)> _dirBrowserBreadcrumbs = [];
     private string? _dirBrowserError;
 
+/// <summary>
+    /// Toggles fullscreen mode for the video player container via JS Fullscreen API.
+    /// </summary>
+    private async Task ToggleFullscreenAsync()
+    {
+        if (_playerVideo is null) return;
+        await Js.InvokeVoidAsync("DotNetCloudVideo.toggleFullscreen", "player-container");
+    }
+
     // Deep-link from Files module
     private string? _lastHandledNav;
 

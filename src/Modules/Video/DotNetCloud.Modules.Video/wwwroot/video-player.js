@@ -151,6 +151,22 @@
   };
 
   /**
+   * Toggles fullscreen on a container element using the Fullscreen API.
+   * If already fullscreen, exits; otherwise enters fullscreen.
+   * @param {string} elementId - The container element ID (e.g., "player-container").
+   */
+  videoPlayer.toggleFullscreen = function (elementId) {
+    var el = document.getElementById(elementId);
+    if (!el) return;
+
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(function () {});
+    } else {
+      el.requestFullscreen().catch(function () {});
+    }
+  };
+
+  /**
    * Attaches video playback with progress overlay support.
    *
    * When called with 2 args (elementId, streamUrl): legacy mode, plays immediately.
