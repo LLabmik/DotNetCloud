@@ -20,69 +20,342 @@ Archived context:
 
 ## Active Handoff — Server-Side Calendar Broadcasting (Production Deploy Required)
 
-**Summary:** Android battery optimization is complete on the client side (WakeLock removed, SignalR consolidated, FCM push handlers wired). The server now **must** send the SignalR broadcasts and FCM pushes for calendar event changes. The Android client listens for these but nobody is sending them yet.
+**Summary:** Android battery optimization is complete on the client side. The server now **must** broadcast calendar events via SignalR and send FCM pushes so the Android client gets real-time updates + Doze wake-up. Follow the exact `CalendarReminderEventHandler` pattern below — it already does the same thing for reminders.
 
-**Branch:** `fix/android-power-consumption` — commit `4a2d0d6e`
+**Branch:** `fix/android-power-consumption` — commit `25958dff`
 
-**Context:** Three changes needed on the server:
-1. Add `CalendarEvent` to `NotificationCategory` enum
-2. Calendar module must broadcast via `IRealtimeBroadcaster` on CRUD
-3. Calendar module must send FCM push alongside SignalR for Doze wake-up
+**Architecture:** The Calendar module is process-isolated. It uses `CoreCapabilities.CoreCapabilitiesClient` (gRPC) to call back into Core.Server. Two RPCs are available:
+- `BroadcastRealtimeEventAsync` — pushes SignalR events to connected clients (maps to `IRealtimeBroadcaster`)
+- `SendNotificationAsync` — delivers in-app notification + FCM push to user devices
 
-The Android side has already been built, committed, and pushed. Server changes must be deployed to production (`cloud.kimball.home`) before end-to-end validation can happen.
+The `CalendarReminderEventHandler` at `src/Modules/Calendar/DotNetCloud.Modules.Calendar.Host/Services/CalendarReminderEventHandler.cs` is the **exact pattern to copy**. It already does both calls correctly for reminders.
 
-### Step 1.1 — Add `CalendarEvent` to `NotificationCategory` enum
+### Step 1 — Create `CalendarEventBroadcastHandler`
 
-- **File:** `src/Core/DotNetCloud.Core.Server/PushNotifications/PushNotificationService.cs`
-- Add `CalendarEvent` value to the `NotificationCategory` enum
+**New file:** `src/Modules/Calendar/DotNetCloud.Modules.Calendar.Host/Services/CalendarEventBroadcastHandler.cs`
 
-### Step 1.2 — Calendar module: broadcast via `IRealtimeBroadcaster` on event changes
+```csharp
+using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Grpc.Capabilities;
+using Google.Protobuf;
+using Microsoft.Extensions.Logging;
 
-- **Files:** `src/Modules/Calendar/` — controller(s)/handler(s) that process Create/Update/Delete/Rsvp
-- After persisting a calendar event change, inject `IRealtimeBroadcaster` and call:
-  - `_broadcaster.SendToUserAsync(ownerUserId, "CalendarEventCreated", new { eventId = evt.Id })` for create
-  - `_broadcaster.SendToUserAsync(ownerUserId, "CalendarEventUpdated", new { eventId = evt.Id })` for update/rsvp
-  - `_broadcaster.SendToUserAsync(ownerUserId, "CalendarEventDeleted", new { eventId = evt.Id })` for delete
-- Also broadcast to shared calendar members (everyone who has access to that calendar)
-- The payload `{ eventId: "guid" }` must match what `Android SignalRChatClient` expects (it parses `payload.GetProperty("eventId")`)
+namespace DotNetCloud.Modules.Calendar.Host.Services;
 
-### Step 1.3 — Calendar module: send FCM push alongside SignalR broadcast
+/// <summary>
+/// Handles <see cref="CalendarEventCreatedEvent"/>, <see cref="CalendarEventUpdatedEvent"/>,
+/// and <see cref="CalendarEventDeletedEvent"/> by forwarding them to Core.Server via gRPC
+/// for SignalR broadcast + FCM push notification delivery.
+/// Uses the same pattern as <see cref="CalendarReminderEventHandler"/>.
+/// </summary>
+internal sealed class CalendarEventBroadcastHandler :
+    IEventHandler<CalendarEventCreatedEvent>,
+    IEventHandler<CalendarEventUpdatedEvent>,
+    IEventHandler<CalendarEventDeletedEvent>
+{
+    private readonly CoreCapabilities.CoreCapabilitiesClient _coreClient;
+    private readonly ILogger<CalendarEventBroadcastHandler> _logger;
 
-- **Files:** `src/Modules/Calendar/`
-- After the `IRealtimeBroadcaster` call, also call `_pushService.SendAsync(userId, notification)` where:
-  - `Title`: "Calendar Updated" / "New Event" / "Event Cancelled"
-  - `Body`: event title and time
-  - `Category`: `NotificationCategory.CalendarEvent`
-  - `Data`: `{ "type": "calendar_event", "eventId": "...", "calendarId": "..." }`
-- Push must go to ALL affected users (owner + sharees)
-- If push service is unavailable (NoOp), log and continue — do NOT block
+    public CalendarEventBroadcastHandler(
+        CoreCapabilities.CoreCapabilitiesClient coreClient,
+        ILogger<CalendarEventBroadcastHandler> logger)
+    {
+        _coreClient = coreClient;
+        _logger = logger;
+    }
 
-### Step 1.4 — Handle `CalendarEvent` push category in delivery pipeline
+    /// <summary>Forward created event to Core.Server.</summary>
+    public async Task HandleAsync(CalendarEventCreatedEvent @event, CancellationToken ct = default)
+    {
+        _logger.LogInformation("Calendar event created: {EventId} '{Title}' by user {UserId}",
+            @event.CalendarEventId, @event.Title, @event.CreatedByUserId);
 
-- The Chat module's gRPC push service must recognize the `CalendarEvent` category and send it through FCM/UnifiedPush
-- The endpoint `POST /api/v1/notifications/devices/register` already handles device registration
+        var usersToNotify = await GetAffectedUserIdsAsync(@event.CalendarId, @event.CreatedByUserId);
 
-### Deployment
+        foreach (var userId in usersToNotify)
+        {
+            // 1. SignalR broadcast for connected clients
+            await BroadcastRealtimeAsync(
+                userId, "CalendarEventCreated",
+                new { eventId = @event.CalendarEventId.ToString() },
+                ct);
 
-```bash
-# On cloud.kimball.home:
-git pull origin fix/android-power-consumption
-# Build & publish affected projects
-dotnet publish src/Modules/Calendar/Calendar.Host/
-dotnet publish src/Core/DotNetCloud.Core.Server/
-# Deploy to server directory
-sudo systemctl restart dotnetcloud
-# Verify health
-curl -sk https://localhost:5443/health
+            // 2. FCM push notification for dozed/wake-up delivery
+            await SendPushNotificationAsync(
+                userId,
+                "New Event",
+                $"{@event.Title}",
+                @event.CalendarEventId.ToString(),
+                @event.CalendarId.ToString(),
+                ct);
+        }
+    }
+
+    /// <summary>Forward updated event to Core.Server.</summary>
+    public async Task HandleAsync(CalendarEventUpdatedEvent @event, CancellationToken ct = default)
+    {
+        _logger.LogInformation("Calendar event updated: {EventId} by user {UserId}",
+            @event.CalendarEventId, @event.UpdatedByUserId);
+
+        var usersToNotify = await GetAffectedUserIdsAsync(@event.CalendarId, @event.UpdatedByUserId);
+
+        foreach (var userId in usersToNotify)
+        {
+            await BroadcastRealtimeAsync(
+                userId, "CalendarEventUpdated",
+                new { eventId = @event.CalendarEventId.ToString() },
+                ct);
+
+            await SendPushNotificationAsync(
+                userId,
+                "Calendar Updated",
+                "An event was modified",
+                @event.CalendarEventId.ToString(),
+                @event.CalendarId.ToString(),
+                ct);
+        }
+    }
+
+    /// <summary>Forward deleted event to Core.Server.</summary>
+    public async Task HandleAsync(CalendarEventDeletedEvent @event, CancellationToken ct = default)
+    {
+        _logger.LogInformation("Calendar event deleted: {EventId} by user {UserId}",
+            @event.CalendarEventId, @event.DeletedByUserId);
+
+        var usersToNotify = await GetAffectedUserIdsAsync(@event.CalendarId, @event.DeletedByUserId);
+
+        foreach (var userId in usersToNotify)
+        {
+            await BroadcastRealtimeAsync(
+                userId, "CalendarEventDeleted",
+                new { eventId = @event.CalendarEventId.ToString() },
+                ct);
+        }
+        // No push for deletions — the SignalR broadcast will trigger alarm cancellation.
+    }
+
+    /// <summary>Broadcasts a real-time SignalR event to a specific user.</summary>
+    private async Task BroadcastRealtimeAsync(Guid userId, string eventName, object payload, CancellationToken ct)
+    {
+        try
+        {
+            var json = System.Text.Json.JsonSerializer.Serialize(payload);
+            await _coreClient.BroadcastRealtimeEventAsync(new BroadcastRealtimeEventRequest
+            {
+                Caller = new CallerContextMessage
+                {
+                    UserId = userId.ToString(),
+                    CallerType = "System",
+                    ModuleId = "dotnetcloud.calendar"
+                },
+                EventName = eventName,
+                PayloadJson = json,
+                TargetUserId = userId.ToString()
+            }, cancellationToken: ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to broadcast {EventName} for user {UserId}", eventName, userId);
+        }
+    }
+
+    /// <summary>Sends an FCM push notification to a user.</summary>
+    private async Task SendPushNotificationAsync(Guid userId, string title, string body,
+        string eventId, string calendarId, CancellationToken ct)
+    {
+        try
+        {
+            var notifyPayload = new
+            {
+                type = "calendar_event",
+                eventId,
+                calendarId
+            };
+
+            await _coreClient.SendNotificationAsync(new SendNotificationRequest
+            {
+                Caller = new CallerContextMessage
+                {
+                    UserId = userId.ToString(),
+                    CallerType = "System",
+                    ModuleId = "dotnetcloud.calendar"
+                },
+                RecipientUserIds = { userId.ToString() },
+                Title = title,
+                Body = body,
+                Category = "CalendarEvent",
+                Link = $"/apps/calendar/events/{eventId}"
+            }, cancellationToken: ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to send push notification for event {EventId}", eventId);
+        }
+    }
+
+    /// <summary>
+    /// Gets all user IDs that should be notified about changes to this calendar.
+    /// Includes the owner and all sharees. Falls back to just the current user.
+    /// </summary>
+    private async Task<IReadOnlyList<Guid>> GetAffectedUserIdsAsync(Guid calendarId, Guid currentUserId)
+    {
+        try
+        {
+            // Resolve share service to find all users with access to this calendar
+            var shareService = GetShareService();
+            if (shareService is not null)
+            {
+                var caller = new DotNetCloud.Core.Authorization.CallerContext(
+                    currentUserId, Array.Empty<string>(), DotNetCloud.Core.Authorization.CallerType.User);
+                var shares = await shareService.ListSharesAsync(calendarId, caller);
+                var userIds = new List<Guid> { currentUserId };
+                foreach (var share in shares)
+                {
+                    if (share.UserId.HasValue && share.UserId.Value != currentUserId)
+                        userIds.Add(share.UserId.Value);
+                }
+                return userIds;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to get calendar shares, falling back to owner only.");
+        }
+
+        return [currentUserId];
+    }
+
+    private DotNetCloud.Modules.Calendar.Services.ICalendarShareService? GetShareService()
+    {
+        try
+        {
+            return CommunityToolkit.Mvvm.DependencyInjection.Ioc.Default
+                .GetService<DotNetCloud.Modules.Calendar.Services.ICalendarShareService>();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+}
 ```
 
-### Verification
+### Step 2 — Create `CalendarEventBroadcastSubscriber`
 
-1. Open Blazor UI → create/update/delete a calendar event
-2. On Android (with new APK built from `fix/android-power-consumption`):
-   - Foreground: verify SignalR update arrives within seconds
-   - Backgrounded: verify FCM push wakes device → calendar refreshes
-3. Verify chat still works (send message, unread counts, push notifications)
+**New file:** `src/Modules/Calendar/DotNetCloud.Modules.Calendar.Host/Services/CalendarEventBroadcastSubscriber.cs`
+
+Copy the exact pattern from `CalendarReminderEventSubscriber.cs` (`src/Modules/Calendar/DotNetCloud.Modules.Calendar.Host/Services/CalendarReminderEventSubscriber.cs`):
+
+```csharp
+using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Grpc.Capabilities;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Hosting;
+
+namespace DotNetCloud.Modules.Calendar.Host.Services;
+
+/// <summary>
+/// Subscribes to calendar CRUD events on startup and dispatches
+/// real-time SignalR events + FCM push notifications via Core.Server's
+/// CoreCapabilities gRPC service.
+/// </summary>
+internal sealed class CalendarEventBroadcastSubscriber : IHostedService
+{
+    private readonly IEventBus _eventBus;
+    private readonly CalendarEventBroadcastHandler _handler;
+    private readonly ILogger<CalendarEventBroadcastSubscriber> _logger;
+
+    public CalendarEventBroadcastSubscriber(
+        IEventBus eventBus,
+        CoreCapabilities.CoreCapabilitiesClient coreClient,
+        ILogger<CalendarEventBroadcastSubscriber> logger)
+    {
+        _eventBus = eventBus;
+        _handler = new CalendarEventBroadcastHandler(coreClient,
+            logger as ILogger<CalendarEventBroadcastHandler>
+            ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<CalendarEventBroadcastHandler>.Instance);
+        _logger = logger;
+    }
+
+    public async Task StartAsync(CancellationToken cancellationToken)
+    {
+        await _eventBus.SubscribeAsync<CalendarEventCreatedEvent>(_handler, cancellationToken);
+        await _eventBus.SubscribeAsync<CalendarEventUpdatedEvent>(_handler, cancellationToken);
+        await _eventBus.SubscribeAsync<CalendarEventDeletedEvent>(_handler, cancellationToken);
+
+        _logger.LogInformation(
+            "CalendarEventBroadcastSubscriber started — subscribed to CalendarEventCreated/Updated/Deleted events");
+    }
+
+    public async Task StopAsync(CancellationToken cancellationToken)
+    {
+        await _eventBus.UnsubscribeAsync<CalendarEventCreatedEvent>(_handler, cancellationToken);
+        await _eventBus.UnsubscribeAsync<CalendarEventUpdatedEvent>(_handler, cancellationToken);
+        await _eventBus.UnsubscribeAsync<CalendarEventDeletedEvent>(_handler, cancellationToken);
+
+        _logger.LogInformation("CalendarEventBroadcastSubscriber stopped");
+    }
+}
+```
+
+### Step 3 — Register subscriber in Program.cs
+
+**File:** `src/Modules/Calendar/DotNetCloud.Modules.Calendar.Host/Program.cs`
+
+Find the existing `CalendarReminderEventSubscriber` registration (around line 149):
+
+```csharp
+builder.Services.AddHostedService<CalendarReminderEventSubscriber>();
+```
+
+Add right after it:
+
+```csharp
+builder.Services.AddHostedService<CalendarEventBroadcastSubscriber>();
+```
+
+### Step 4 — Verify broadcast reaches Android
+
+The Android `SignalRChatClient` (already in `fix/android-power-consumption`) listens for these exact SignalR event names:
+
+| Server broadcasts | Android listens for |
+|---|---|
+| `"CalendarEventCreated"` | `"CalendarEventCreated"` |
+| `"CalendarEventUpdated"` | `"CalendarEventUpdated"` |
+| `"CalendarEventDeleted"` | `"CalendarEventDeleted"` |
+
+The payload `{ eventId: "guid" }` is deserialized by Android via `payload.GetProperty("eventId")` — match this format exactly.
+
+For FCM push, the Android `FcmMessagingService` (already deployed) handles:
+```
+data.type == "calendar_event" → triggers CalendarEventChangedMessage → calendar refreshes
+```
+
+### Step 5 — Build, Deploy, Verify
+
+```bash
+# Pull branch
+git pull origin fix/android-power-consumption
+
+# Build calendar module
+dotnet publish src/Modules/Calendar/DotNetCloud.Modules.Calendar.Host/
+
+# Deploy to production
+# Copy published DLLs to /opt/dotnetcloud/server/modules/dotnetcloud.calendar/
+sudo systemctl restart dotnetcloud
+
+# Verify health
+curl -sk https://localhost:5443/health
+# Expected: 200 Healthy, all modules running
+
+# E2E test:
+# 1. Open Blazor UI Calendar → create an event
+# 2. On Android (with APK built from fix/android-power-consumption):
+#    - Foreground: calendar should refresh within seconds via SignalR
+#    - Background + Doze: FCM push should wake device → calendar refreshes
+# 3. Update event → verify same behavior
+# 4. Delete event → verify event disappears + alarm cancelled
+```
 
 ## Moderator Communication (Minimal)
 
@@ -112,5 +385,6 @@ curl -sk https://localhost:5443/health
 - Desktop OAuth constant: `OAuthConstants.ClientId = "dotnetcloud-desktop"`.
 - ✅ **SignalR channel group naming:** `chat-channel-{channelId}` (used by `ChatHub.ChannelGroup()`, `CoreHub.JoinGroupAsync()`, and Android `SignalRChatClient`).
 - **Controller discovery:** Core.Server references Files.Host and Chat.Host via `ProjectReference`. ASP.NET Core auto-discovers controllers from referenced assemblies. Do NOT create duplicate controllers in Core.Server for routes already served by module Host assemblies.
+- ✅ **Calendar event broadcasting pattern:** Follow `CalendarReminderEventHandler` (`CalendarReminderEventSubscriber` + `CalendarEventBroadcastHandler`) as the reference implementation. It calls `CoreCapabilitiesClient.BroadcastRealtimeEventAsync` for SignalR and `SendNotificationAsync` for FCM push.
 
 <!-- carry-forward contracts and old Android changes archived to CLIENT_SERVER_MEDIATION_ARCHIVE.md -->
