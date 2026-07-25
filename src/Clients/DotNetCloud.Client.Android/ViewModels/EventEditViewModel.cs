@@ -1,8 +1,10 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
 using DotNetCloud.Client.Android.Auth;
 using DotNetCloud.Client.Android.Calendar;
+using DotNetCloud.Client.Android.Messages;
 using DotNetCloud.Client.Android.Services;
 using DotNetCloud.Core.DTOs;
 using Microsoft.Extensions.Logging;
@@ -46,11 +48,11 @@ public sealed partial class EventEditViewModel : ObservableObject
         ISecureTokenStore tokenStore,
       ICalendarReminderScheduler reminderScheduler,
       ILogger<EventEditViewModel> logger)
-  {
-      _calendarApi = calendarApi;
-      _serverStore = serverStore;
-      _tokenStore = tokenStore;
-      _reminderScheduler = reminderScheduler;
+    {
+        _calendarApi = calendarApi;
+        _serverStore = serverStore;
+        _tokenStore = tokenStore;
+        _reminderScheduler = reminderScheduler;
         ReminderLabels.Add("5 minutes before");
         ReminderLabels.Add("10 minutes before");
         ReminderLabels.Add("15 minutes before");
@@ -518,7 +520,7 @@ public sealed partial class EventEditViewModel : ObservableObject
                 await _calendarApi.CreateEventAsync(serverUrl, token, createDto, ct);
             }
 
-            CalendarViewModel.NeedsRefresh = true;
+            WeakReferenceMessenger.Default.Send(new CalendarEventChangedMessage());
             await Shell.Current.GoToAsync("..");
         }
         catch (Exception ex)
@@ -564,12 +566,13 @@ public sealed partial class EventEditViewModel : ObservableObject
                 await _calendarApi.DeleteEventAsync(serverUrl, token, _eventId.Value, ct);
             }
 
-            CalendarViewModel.NeedsRefresh = true;
+            WeakReferenceMessenger.Default.Send(new CalendarEventChangedMessage());
 
             // Cancel any pending reminder alarms for this event
             if (_eventId.HasValue)
             {
-                try { _reminderScheduler.CancelReminders(_eventId.Value); }
+                try
+                { _reminderScheduler.CancelReminders(_eventId.Value); }
                 catch { /* best-effort */ }
             }
 

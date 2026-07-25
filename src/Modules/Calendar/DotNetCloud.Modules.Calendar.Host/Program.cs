@@ -192,6 +192,7 @@ if (!string.IsNullOrEmpty(coreEndpoint))
         return new CoreCapabilities.CoreCapabilitiesClient(channel);
     });
     builder.Services.AddHostedService<CalendarReminderEventSubscriber>();
+    builder.Services.AddHostedService<CalendarEventBroadcastSubscriber>();
 }
 
 // Contacts gRPC client for attendee contact search

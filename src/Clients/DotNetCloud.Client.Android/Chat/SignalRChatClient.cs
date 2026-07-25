@@ -2,6 +2,7 @@
 using Android.Util;
 #endif
 using DotNetCloud.Client.Android.Auth;
+using DotNetCloud.Client.Android.Calendar;
 using DotNetCloud.Client.Android.Services;
 using DotNetCloud.Client.Core;
 using DotNetCloud.Client.Core.Auth;
@@ -40,11 +41,13 @@ internal sealed record NewMessagePayload(
     [property: JsonPropertyName("message")] SignalRMessageDto Message);
 
 /// <summary>
-/// <see cref="IChatSignalRClient"/> implementation that maintains a persistent SignalR
-/// connection to the DotNetCloud chat hub. Designed to be long-lived as a singleton;
-/// the foreground service keeps it alive when the app is backgrounded.
+/// <see cref="ICoreHubClient"/> implementation that maintains a persistent SignalR
+/// connection to the DotNetCloud CoreHub. Consolidates chat, calendar, and future
+/// module events into a single WebSocket connection.
+/// Designed to be long-lived as a singleton; the foreground service keeps it alive
+/// when the app is backgrounded.
 /// </summary>
-internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
+internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
 {
     private HubConnection? _hub;
     private readonly ILogger<SignalRChatClient> _logger;
@@ -53,6 +56,7 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
     private readonly ISecureTokenStore _tokenStore;
     private readonly IAppForegroundService _foregroundService;
     private readonly IChannelMuteStateService _muteState;
+    private readonly ICalendarReminderScheduler _reminderScheduler;
     private string? _serverBaseUrl;
 
     // Tracks channel groups joined so they can be re-joined after reconnection.
@@ -64,6 +68,9 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
     /// <inheritdoc />
     public event EventHandler<ChatMessageReceivedEventArgs>? OnNewChatMessage;
 
+    /// <inheritdoc />
+    public event Action? CalendarsChanged;
+
     /// <summary>Initializes a new <see cref="SignalRChatClient"/>.</summary>
     public SignalRChatClient(
         ILogger<SignalRChatClient> logger,
@@ -71,7 +78,8 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
         IChatRestClient restClient,
         ISecureTokenStore tokenStore,
         IAppForegroundService foregroundService,
-        IChannelMuteStateService muteState)
+        IChannelMuteStateService muteState,
+        ICalendarReminderScheduler reminderScheduler)
     {
         _logger = logger;
         _pendingQueue = pendingQueue;
@@ -79,6 +87,7 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
         _tokenStore = tokenStore;
         _foregroundService = foregroundService;
         _muteState = muteState;
+        _reminderScheduler = reminderScheduler;
     }
 
     /// <summary>
@@ -107,6 +116,7 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
                 options.HttpMessageHandlerFactory = static _ => OAuthHttpClientHandlerFactory.CreateHandler();
             })
             .WithAutomaticReconnect([TimeSpan.Zero, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(15)])
+            .WithKeepAliveInterval(TimeSpan.FromMinutes(2))
             .Build();
 
         _hub.On<UnreadCountUpdatedPayload>("UnreadCountUpdated", payload =>
@@ -159,6 +169,54 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
 #endif
         });
 
+        // ── Calendar event handlers ─────────────────────────────────
+        _hub.On<JsonElement>("CalendarEventDeleted", payload =>
+        {
+            try
+            {
+                var eventIdStr = payload.GetProperty("eventId").GetString();
+                if (Guid.TryParse(eventIdStr, out var eventId))
+                {
+                    _logger.LogInformation(
+                        "SignalR: calendar event {EventId} deleted — cancelling alarms.", eventId);
+                    Log.Info("DotNetCloud", $"SignalR: calendar event {eventId} deleted — cancelling alarms.");
+                    _reminderScheduler.CancelReminders(eventId);
+                    CalendarsChanged?.Invoke();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "SignalR: failed to handle CalendarEventDeleted.");
+            }
+        });
+
+        _hub.On<JsonElement>("CalendarEventCreated", payload =>
+        {
+            try
+            {
+                _logger.LogInformation("SignalR: calendar event created — will refresh on next sync.");
+                Log.Info("DotNetCloud", "SignalR: calendar event created received.");
+                CalendarsChanged?.Invoke();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "SignalR: failed to handle CalendarEventCreated.");
+            }
+        });
+
+        _hub.On<JsonElement>("CalendarEventUpdated", payload =>
+        {
+            try
+            {
+                _logger.LogInformation("SignalR: calendar event updated — will refresh on next sync.");
+                CalendarsChanged?.Invoke();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "SignalR: failed to handle CalendarEventUpdated.");
+            }
+        });
+
         _hub.Reconnected += async connectionId =>
         {
             _logger.LogInformation("SignalR reconnected (connId={ConnectionId}). Re-joining channel groups and flushing pending messages.", connectionId);
@@ -181,6 +239,16 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
             }
 
             await FlushPendingMessagesAsync().ConfigureAwait(false);
+
+            // Resync calendar alarms after reconnect to catch events deleted while offline.
+            try
+            {
+                await _reminderScheduler.RescheduleAllAsync().ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to resync calendar alarms after reconnect.");
+            }
         };
         _hub.Closed += error =>
         {
@@ -192,6 +260,16 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
         {
             await _hub.StartAsync(cancellationToken).ConfigureAwait(false);
             _logger.LogInformation("SignalR connected to {HubUrl}.", hubUrl);
+
+            // Sync calendar alarms on initial connect (catches events deleted while offline)
+            try
+            {
+                await _reminderScheduler.RescheduleAllAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to resync calendar alarms on initial connect.");
+            }
         }
         catch
         {

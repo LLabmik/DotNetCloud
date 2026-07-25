@@ -45,8 +45,9 @@ public static class MauiProgram
         builder.Services.AddSingleton<IOAuth2Service, MauiOAuth2Service>();
         builder.Services.AddTransient<AuthenticatedHttpClientHandler>();
 
-        // ── Chat / real-time ──────────────────────────────────────────
-        builder.Services.AddSingleton<IChatSignalRClient, SignalRChatClient>();
+        // ── Chat / real-time (single shared CoreHub connection) ─────
+        builder.Services.AddSingleton<ICoreHubClient, SignalRChatClient>();
+        builder.Services.AddSingleton<IChatSignalRClient>(sp => sp.GetRequiredService<ICoreHubClient>());
         builder.Services.AddSingleton<ICalendarSignalRClient, CalendarSignalRClient>();
         builder.Services.AddHttpClient<IChatRestClient, HttpChatRestClient>()
             .AddHttpMessageHandler<AuthenticatedHttpClientHandler>()

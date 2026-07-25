@@ -72,4 +72,7 @@ public enum NotificationCategory
 
     /// <summary>Video call notification.</summary>
     Call,
+
+    /// <summary>Calendar event notification.</summary>
+    CalendarEvent,
 }

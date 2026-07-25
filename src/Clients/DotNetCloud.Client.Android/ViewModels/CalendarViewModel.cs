@@ -1,8 +1,10 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
 using DotNetCloud.Client.Android.Auth;
 using DotNetCloud.Client.Android.Calendar;
+using DotNetCloud.Client.Android.Messages;
 using DotNetCloud.Client.Android.Services;
 using DotNetCloud.Core.DTOs;
 using Microsoft.Extensions.Logging;
@@ -68,7 +70,7 @@ public sealed class CalendarDayItem
 }
 
 /// <summary>Main ViewModel for the Calendar tab.</summary>
-public sealed partial class CalendarViewModel : ObservableObject
+public sealed partial class CalendarViewModel : ObservableObject, IDisposable
 {
     private readonly ICalendarRestClient _calendarApi;
     private readonly IServerConnectionStore _serverStore;
@@ -76,8 +78,9 @@ public sealed partial class CalendarViewModel : ObservableObject
     private readonly ICalendarReminderScheduler _reminderScheduler;
     private readonly ICalendarSignalRClient _calendarSignalR;
     private readonly ILogger<CalendarViewModel> _logger;
-    private readonly PeriodicTimer? _refreshTimer;
+    private PeriodicTimer? _refreshTimer;
     private CancellationTokenSource? _refreshCts;
+    private bool _disposed;
 
     /// <summary>Initializes a new <see cref="CalendarViewModel"/>.</summary>
     public CalendarViewModel(
@@ -98,10 +101,46 @@ public sealed partial class CalendarViewModel : ObservableObject
         // Listen for real-time calendar changes from other clients (e.g. Blazor UI)
         _calendarSignalR.CalendarsChanged += OnCalendarsChanged;
 
-        // Periodic refresh every 6 minutes while the calendar tab is active
+        // Listen for calendar event push notifications (FCM/UnifiedPush) that wake the device
+        WeakReferenceMessenger.Default.Register<CalendarEventChangedMessage>(this, (_, _) =>
+        {
+            if (IsActive && !IsLoading)
+            {
+                MainThread.BeginInvokeOnMainThread(() => LoadEventsCommand.Execute(null));
+            }
+            else
+            {
+                NeedsRefresh = true;
+            }
+        });
+    }
+
+    /// <summary>
+    /// Starts the periodic refresh timer. Called when the calendar tab becomes visible.
+    /// </summary>
+    public void StartRefreshTimer()
+    {
+        if (_refreshTimer is not null || _disposed)
+            return;
+
         _refreshTimer = new PeriodicTimer(TimeSpan.FromMinutes(6));
         _refreshCts = new CancellationTokenSource();
         _ = RunPeriodicRefreshAsync(_refreshCts.Token);
+    }
+
+    /// <summary>
+    /// Stops the periodic refresh timer. Called when the calendar tab is hidden.
+    /// </summary>
+    public void StopRefreshTimer()
+    {
+        if (_refreshCts is not null)
+        {
+            _refreshCts.Cancel();
+            _refreshCts.Dispose();
+            _refreshCts = null;
+        }
+        _refreshTimer?.Dispose();
+        _refreshTimer = null;
     }
 
     private async Task RunPeriodicRefreshAsync(CancellationToken ct)
@@ -166,7 +205,7 @@ public sealed partial class CalendarViewModel : ObservableObject
     /// so that the next <see cref="Views.CalendarPage.OnAppearing"/> triggers a reload of the events collection.
     /// Reset to <see langword="false"/> after the reload completes.
     /// </summary>
-    internal static bool NeedsRefresh { get; set; }
+    internal bool NeedsRefresh { get; set; }
 
     // ── Data Collections ───────────────────────────────────────────
 
@@ -463,5 +502,16 @@ public sealed partial class CalendarViewModel : ObservableObject
         var sunday = CurrentDate.AddDays(-diff);
         var saturday = sunday.AddDays(6);
         return $"{sunday:MMM d} – {saturday:MMM d, yyyy}";
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+        _disposed = true;
+
+        _calendarSignalR.CalendarsChanged -= OnCalendarsChanged;
+        StopRefreshTimer();
     }
 }

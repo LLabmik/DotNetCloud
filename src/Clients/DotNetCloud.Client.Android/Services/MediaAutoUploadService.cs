@@ -35,7 +35,9 @@ internal sealed class MediaAutoUploadService : IMediaAutoUploadService
     private readonly ISecureTokenStore _tokenStore;
     private readonly IFileRestClient _fileApi;
     private readonly ILogger<MediaAutoUploadService> _logger;
-    private readonly TimeSpan _scanInterval = TimeSpan.FromMinutes(15);
+    private readonly IAppForegroundService _foregroundService;
+    private readonly TimeSpan _foregroundScanInterval = TimeSpan.FromMinutes(15);
+    private readonly TimeSpan _backgroundScanInterval = TimeSpan.FromMinutes(60);
 
     // Cached folder IDs so we don't re-create folders on every upload.
     private Guid? _rootFolderId;
@@ -56,11 +58,13 @@ internal sealed class MediaAutoUploadService : IMediaAutoUploadService
         IServerConnectionStore connectionStore,
         ISecureTokenStore tokenStore,
         IFileRestClient fileApi,
+        IAppForegroundService foregroundService,
         ILogger<MediaAutoUploadService> logger)
     {
         _connectionStore = connectionStore;
         _tokenStore = tokenStore;
         _fileApi = fileApi;
+        _foregroundService = foregroundService;
         _logger = logger;
     }
 
@@ -157,7 +161,13 @@ internal sealed class MediaAutoUploadService : IMediaAutoUploadService
             try
             {
                 await UploadNewMediaAsync(ct).ConfigureAwait(false);
-                await Task.Delay(_scanInterval, ct).ConfigureAwait(false);
+
+                // Use a longer scan interval when backgrounded to conserve battery.
+                // When foregrounded, the MediaStoreContentObserver handles real-time detection.
+                var delay = _foregroundService.IsInForeground
+                    ? _foregroundScanInterval
+                    : _backgroundScanInterval;
+                await Task.Delay(delay, ct).ConfigureAwait(false);
             }
             catch (OperationCanceledException) { break; }
             catch (Exception ex)

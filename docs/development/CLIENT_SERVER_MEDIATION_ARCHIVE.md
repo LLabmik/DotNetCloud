@@ -228,6 +228,36 @@ Archived: 2026-07-07. Full git history preserved.
 
 ---
 
+## Archived: Calendar gRPC Bridge — Full Deployment (2026-07-22)
+
+**Target:** `cloud.kimball.home` → production deploy + `monolith` → Android client
+
+**Result:** Calendar process-isolation gRPC bridge deployed. Calendar module's local event bus events now cross to Core.Server via gRPC `BroadcastRealtimeEvent` for SignalR push to connected clients. Server deployed and healthy.
+
+**Branch:** `fix/android-calendar-alarm` — commit `a83c5f07`
+
+**Summary of changes:**
+- Root cause fixed — calendar CRUD events were stuck on the Calendar module's local `InProcessEventBus` and never reached Core.Server's event bus
+- Three new gRPC bridge handlers in the Calendar module Host now forward `CalendarEventCreated`, `CalendarEventDeleted`, `CalendarEventUpdated` events to Core.Server
+- Core.Server pushes them to connected SignalR clients
+- Android client (monolith) APK built and installed with timezone fixes
+- Android-originated event create/delete scheduling verified
+
+### Server Actions (cloud.kimball.home) — ✅ COMPLETED
+- ✅ `git pull origin fix/android-calendar-alarm`
+- ✅ Built & published Calendar module Host — 0 warnings, 0 errors
+- ✅ Deployed updated DLLs to `/opt/dotnetcloud/server/modules/dotnetcloud.calendar/` (hash verified)
+- ✅ `sudo systemctl restart dotnetcloud`
+- ✅ `curl -sk https://localhost:5443/health` → Healthy (all 14 modules)
+- ✅ All 14 modules healthy
+
+### Client Actions (monolith) — ✅ COMPLETED
+- ✅ APK built and installed
+- ✅ Timezone label "UTC-5" verified
+- ✅ Android-originated event create/delete scheduling verified
+
+---
+
 ## Archived: gRPC Conversion — Chat Proto Expansion & Stub Resolution (2026-07-12)
 
 **Target:** cloud.kimball.home → production deploy

@@ -13,8 +13,8 @@ namespace DotNetCloud.Client.Android;
 
 /// <summary>
 /// Android foreground service that maintains the SignalR chat connection while the
-/// app is backgrounded. Holds a <see cref="PowerManager.WakeLock"/> to prevent
-/// Doze mode from killing the CPU and terminating the WebSocket.
+/// app is backgrounded. Does NOT hold a WakeLock — relies on FCM push notifications
+/// to wake the device for real-time message delivery during Doze.
 /// </summary>
 /// <remarks>
 /// Declared in AndroidManifest.xml with <c>android:foregroundServiceType="dataSync"</c>.
@@ -35,7 +35,6 @@ public sealed class ChatConnectionService : Service
     internal const int NotificationId = 1001;
     internal const string ConnectionChannelId = "chat_connection";
 
-    private PowerManager.WakeLock? _wakeLock;
     private ILogger<ChatConnectionService>? _logger;
 
     /// <inheritdoc />
@@ -81,23 +80,7 @@ public sealed class ChatConnectionService : Service
                 _logger?.LogWarning(ex, "StartForeground failed; continuing without persistent notification.");
             }
 
-            // Acquire partial wake lock to prevent the CPU from sleeping while SignalR is active.
-            try
-            {
-                var pm = (PowerManager?)GetSystemService(PowerService);
-                if (pm is not null)
-                {
-                    _wakeLock = pm.NewWakeLock(WakeLockFlags.Partial, "DotNetCloud::ChatWakeLock");
-                    _wakeLock?.Acquire();
-                    Log.Info("DotNetCloud", "ChatConnectionService: wake lock acquired.");
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Warn("DotNetCloud", $"ChatConnectionService: wake lock failed: {ex.Message}");
-            }
-
-            _logger?.LogInformation("ChatConnectionService started; wake lock acquired.");
+            _logger?.LogInformation("ChatConnectionService started (no wake lock — relying on FCM push for Doze delivery).");
 
             // Ensure the SignalR connection is live.
             _ = EnsureSignalRConnectedAsync();
@@ -113,9 +96,7 @@ public sealed class ChatConnectionService : Service
     /// <inheritdoc />
     public override void OnDestroy()
     {
-        _wakeLock?.Release();
-        _wakeLock = null;
-        _logger?.LogInformation("ChatConnectionService destroyed; wake lock released.");
+        _logger?.LogInformation("ChatConnectionService destroyed.");
         base.OnDestroy();
     }
 
