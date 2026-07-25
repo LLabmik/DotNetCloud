@@ -8,8 +8,8 @@ namespace DotNetCloud.Modules.Calendar.Host.Services;
 
 /// <summary>
 /// Subscribes to calendar CRUD events on startup and dispatches
-/// real-time SignalR events + FCM push notifications via Core.Server's
-/// CoreCapabilities gRPC service.
+/// real-time SignalR events via Core.Server's CoreCapabilities gRPC service.
+/// FCM push delivery is handled by Core.Server's BroadcastRealtimeEvent handler.
 /// </summary>
 internal sealed class CalendarEventBroadcastSubscriber : IHostedService
 {
@@ -42,8 +42,7 @@ internal sealed class CalendarEventBroadcastSubscriber : IHostedService
         await _eventBus.SubscribeAsync<CalendarEventUpdatedEvent>(_handler, cancellationToken);
         await _eventBus.SubscribeAsync<CalendarEventDeletedEvent>(_handler, cancellationToken);
 
-        _logger.LogInformation(
-            "CalendarEventBroadcastSubscriber started — subscribed to CalendarEventCreated/Updated/Deleted events");
+        _logger.LogInformation("CalendarEventBroadcastSubscriber started");
     }
 
     /// <inheritdoc />

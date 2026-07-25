@@ -9,8 +9,8 @@ namespace DotNetCloud.Modules.Calendar.Host.Services;
 /// <summary>
 /// Handles <see cref="CalendarEventCreatedEvent"/>, <see cref="CalendarEventUpdatedEvent"/>,
 /// and <see cref="CalendarEventDeletedEvent"/> by forwarding them to Core.Server via gRPC
-/// for SignalR broadcast + FCM push notification delivery.
-/// Uses the same pattern as <see cref="CalendarReminderEventHandler"/>.
+/// for SignalR broadcast. FCM push delivery is handled by Core.Server's
+/// BroadcastRealtimeEvent handler when the user has no active SignalR connections.
 /// </summary>
 internal sealed class CalendarEventBroadcastHandler :
     IEventHandler<CalendarEventCreatedEvent>,
@@ -44,19 +44,9 @@ internal sealed class CalendarEventBroadcastHandler :
 
         foreach (var userId in usersToNotify)
         {
-            // 1. SignalR broadcast for connected clients
             await BroadcastRealtimeAsync(
                 userId, "CalendarEventCreated",
                 new { eventId = @event.CalendarEventId.ToString() },
-                ct);
-
-            // 2. FCM push notification for dozed/wake-up delivery
-            await SendPushNotificationAsync(
-                userId,
-                "New Event",
-                $"{@event.Title}",
-                @event.CalendarEventId.ToString(),
-                @event.CalendarId.ToString(),
                 ct);
         }
     }
@@ -74,14 +64,6 @@ internal sealed class CalendarEventBroadcastHandler :
             await BroadcastRealtimeAsync(
                 userId, "CalendarEventUpdated",
                 new { eventId = @event.CalendarEventId.ToString() },
-                ct);
-
-            await SendPushNotificationAsync(
-                userId,
-                "Calendar Updated",
-                "An event was modified",
-                @event.CalendarEventId.ToString(),
-                @event.CalendarId.ToString(),
                 ct);
         }
     }
@@ -101,7 +83,6 @@ internal sealed class CalendarEventBroadcastHandler :
                 new { eventId = @event.CalendarEventId.ToString() },
                 ct);
         }
-        // No push for deletions — the SignalR broadcast will trigger alarm cancellation.
     }
 
     /// <summary>Broadcasts a real-time SignalR event to a specific user.</summary>
@@ -126,40 +107,6 @@ internal sealed class CalendarEventBroadcastHandler :
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to broadcast {EventName} for user {UserId}", eventName, userId);
-        }
-    }
-
-    /// <summary>Sends an FCM push notification to a user.</summary>
-    private async Task SendPushNotificationAsync(Guid userId, string title, string body,
-        string eventId, string calendarId, CancellationToken ct)
-    {
-        try
-        {
-            var notifyPayload = new
-            {
-                type = "calendar_event",
-                eventId,
-                calendarId
-            };
-
-            await _coreClient.SendNotificationAsync(new SendNotificationRequest
-            {
-                Caller = new CallerContextMessage
-                {
-                    UserId = userId.ToString(),
-                    CallerType = "System",
-                    ModuleId = "dotnetcloud.calendar"
-                },
-                RecipientUserIds = { userId.ToString() },
-                Title = title,
-                Body = body,
-                Category = "CalendarEvent",
-                Link = $"/apps/calendar/events/{eventId}"
-            }, cancellationToken: ct);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to send push notification for event {EventId}", eventId);
         }
     }
 
