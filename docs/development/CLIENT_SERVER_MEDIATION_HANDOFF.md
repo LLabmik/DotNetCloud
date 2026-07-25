@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-07-22 (Calendar gRPC bridge deployed — all deployments complete, E2E verification pending)
+Last updated: 2026-07-25 (Android battery optimization + calendar push infrastructure — server-side SignalR & FCM push pending)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -16,37 +16,73 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
-- **Current active branch:** `fix/android-calendar-alarm`
+- **Current active branch:** `fix/android-power-consumption`
 
-## Active Handoff — ✅ All Deployments Complete
+## Active Handoff — Server-Side Calendar Broadcasting (Production Deploy Required)
 
-**Summary:** Calendar process-isolation gRPC bridge deployed. Calendar module's local event bus events now cross to Core.Server via gRPC `BroadcastRealtimeEvent` for SignalR push to connected clients.
+**Summary:** Android battery optimization is complete on the client side (WakeLock removed, SignalR consolidated, FCM push handlers wired). The server now **must** send the SignalR broadcasts and FCM pushes for calendar event changes. The Android client listens for these but nobody is sending them yet.
 
-**Branch:** `fix/android-calendar-alarm`
+**Branch:** `fix/android-power-consumption` — commit `4a2d0d6e`
 
-**Context:** Root cause fixed — calendar CRUD events were stuck on the Calendar module's local `InProcessEventBus` and never reached Core.Server's event bus. Three new gRPC bridge handlers in the Calendar module Host now forward `CalendarEventCreated`, `CalendarEventDeleted`, and `CalendarEventUpdated` events to Core.Server, which pushes them to connected SignalR clients. Server deployed and healthy.
+**Context:** Three changes needed on the server:
+1. Add `CalendarEvent` to `NotificationCategory` enum
+2. Calendar module must broadcast via `IRealtimeBroadcaster` on CRUD
+3. Calendar module must send FCM push alongside SignalR for Doze wake-up
 
-### Server Actions — `cloud.kimball.home` ✅ COMPLETED
+The Android side has already been built, committed, and pushed. Server changes must be deployed to production (`cloud.kimball.home`) before end-to-end validation can happen.
 
-- ✓ `git pull origin fix/android-calendar-alarm`
-- ✓ Built & published Calendar module Host — 0 warnings, 0 errors
-- ✓ Deployed updated DLLs to `/opt/dotnetcloud/server/modules/dotnetcloud.calendar/` (hash verified)
-- ✓ `sudo systemctl restart dotnetcloud`
-- ✓ Verify: `curl -sk https://localhost:5443/health` → Healthy (all 14 modules)
-- ☐ End-to-end: Create/update/delete calendar event from Blazor → Android auto-refreshes
+### Step 1.1 — Add `CalendarEvent` to `NotificationCategory` enum
 
-### Client Actions — `monolith` (Android client) ✅ COMPLETED
+- **File:** `src/Core/DotNetCloud.Core.Server/PushNotifications/PushNotificationService.cs`
+- Add `CalendarEvent` value to the `NotificationCategory` enum
 
-- ✓ APK built and installed
-- ✓ Timezone label "UTC-5" verified
-- ✓ Android-originated event create/delete scheduling verified
+### Step 1.2 — Calendar module: broadcast via `IRealtimeBroadcaster` on event changes
 
-### Build Notes
+- **Files:** `src/Modules/Calendar/` — controller(s)/handler(s) that process Create/Update/Delete/Rsvp
+- After persisting a calendar event change, inject `IRealtimeBroadcaster` and call:
+  - `_broadcaster.SendToUserAsync(ownerUserId, "CalendarEventCreated", new { eventId = evt.Id })` for create
+  - `_broadcaster.SendToUserAsync(ownerUserId, "CalendarEventUpdated", new { eventId = evt.Id })` for update/rsvp
+  - `_broadcaster.SendToUserAsync(ownerUserId, "CalendarEventDeleted", new { eventId = evt.Id })` for delete
+- Also broadcast to shared calendar members (everyone who has access to that calendar)
+- The payload `{ eventId: "guid" }` must match what `Android SignalRChatClient` expects (it parses `payload.GetProperty("eventId")`)
 
-**CRITICAL:** `dotnet build` without `-r android-arm64` only builds for x64 (emulator). The arm64 APK at `bin/Debug/net10.0-android/android-arm64/` stays stale. Always use:
-```powershell
-dotnet build ... -f net10.0-android -c Debug -r android-arm64 /p:AndroidSdkDirectory="C:\Program Files (x86)\Android\android-sdk"
+### Step 1.3 — Calendar module: send FCM push alongside SignalR broadcast
+
+- **Files:** `src/Modules/Calendar/`
+- After the `IRealtimeBroadcaster` call, also call `_pushService.SendAsync(userId, notification)` where:
+  - `Title`: "Calendar Updated" / "New Event" / "Event Cancelled"
+  - `Body`: event title and time
+  - `Category`: `NotificationCategory.CalendarEvent`
+  - `Data`: `{ "type": "calendar_event", "eventId": "...", "calendarId": "..." }`
+- Push must go to ALL affected users (owner + sharees)
+- If push service is unavailable (NoOp), log and continue — do NOT block
+
+### Step 1.4 — Handle `CalendarEvent` push category in delivery pipeline
+
+- The Chat module's gRPC push service must recognize the `CalendarEvent` category and send it through FCM/UnifiedPush
+- The endpoint `POST /api/v1/notifications/devices/register` already handles device registration
+
+### Deployment
+
+```bash
+# On cloud.kimball.home:
+git pull origin fix/android-power-consumption
+# Build & publish affected projects
+dotnet publish src/Modules/Calendar/Calendar.Host/
+dotnet publish src/Core/DotNetCloud.Core.Server/
+# Deploy to server directory
+sudo systemctl restart dotnetcloud
+# Verify health
+curl -sk https://localhost:5443/health
 ```
+
+### Verification
+
+1. Open Blazor UI → create/update/delete a calendar event
+2. On Android (with new APK built from `fix/android-power-consumption`):
+   - Foreground: verify SignalR update arrives within seconds
+   - Backgrounded: verify FCM push wakes device → calendar refreshes
+3. Verify chat still works (send message, unread counts, push notifications)
 
 ## Moderator Communication (Minimal)
 
