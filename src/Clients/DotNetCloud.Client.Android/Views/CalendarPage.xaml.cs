@@ -21,6 +21,7 @@ public partial class CalendarPage : ContentPage
         base.OnAppearing();
         _vm.IsActive = true;
         _vm.ErrorMessage = null;
+        _vm.StartRefreshTimer();
         if (_vm.Calendars.Count == 0 && _vm.LoadCalendarsCommand.CanExecute(null))
         {
             _vm.LoadCalendarsCommand.Execute(null);
@@ -40,6 +41,7 @@ public partial class CalendarPage : ContentPage
         base.OnDisappearing();
         _vm.IsActive = false;
         _vm.ErrorMessage = null;
+        _vm.StopRefreshTimer();
     }
 
     private void OnMonthClicked(object? sender, EventArgs e) =>

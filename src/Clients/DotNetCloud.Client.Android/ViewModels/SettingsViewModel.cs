@@ -1,3 +1,4 @@
+using Android.Content;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DotNetCloud.Client.Android.Auth;
@@ -144,9 +145,39 @@ public sealed partial class SettingsViewModel : ObservableObject
         _logger.LogInformation("Auto-upload {State}.", value ? "enabled" : "disabled");
 
         if (value)
+        {
             _ = _mediaUploadService.StartAsync();
+
+            // Start the foreground service so uploads survive backgrounding.
+            try
+            {
+                var ctx = global::Android.App.Application.Context;
+                var intent = new Intent(ctx, typeof(global::DotNetCloud.Client.Android.MediaUploadForegroundService));
+                intent.SetAction(global::DotNetCloud.Client.Android.MediaUploadForegroundService.ActionStart);
+                ctx.StartForegroundService(intent);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to start media upload foreground service.");
+            }
+        }
         else
+        {
             _ = _mediaUploadService.StopAsync();
+
+            // Stop the foreground service to release resources.
+            try
+            {
+                var ctx = global::Android.App.Application.Context;
+                var intent = new Intent(ctx, typeof(global::DotNetCloud.Client.Android.MediaUploadForegroundService));
+                intent.SetAction(global::DotNetCloud.Client.Android.MediaUploadForegroundService.ActionStop);
+                ctx.StartForegroundService(intent);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to stop media upload foreground service.");
+            }
+        }
     }
 
     partial void OnWifiOnlyEnabledChanged(bool value)

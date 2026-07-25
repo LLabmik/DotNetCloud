@@ -2,7 +2,9 @@
 using Android.App;
 using Android.Content;
 using CommunityToolkit.Mvvm.DependencyInjection;
+using CommunityToolkit.Mvvm.Messaging;
 using DotNetCloud.Client.Android.Auth;
+using DotNetCloud.Client.Android.Messages;
 using DotNetCloud.Client.Android.Services;
 using Firebase.Messaging;
 using Microsoft.Extensions.Logging;
@@ -59,6 +61,14 @@ public sealed class FcmMessagingService : FirebaseMessagingService
                 eventId: channelId,
                 title: title ?? "Calendar reminder",
                 body: body ?? string.Empty);
+            return;
+        }
+
+        // Calendar event changes (created/updated/deleted from Blazor UI) trigger a refresh
+        if (string.Equals(type, "calendar_event", StringComparison.OrdinalIgnoreCase))
+        {
+            logger?.LogInformation("FCM calendar_event push received — signaling calendar to refresh.");
+            WeakReferenceMessenger.Default.Send(new CalendarEventChangedMessage());
             return;
         }
 

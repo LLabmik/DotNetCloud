@@ -1,8 +1,10 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
 using DotNetCloud.Client.Android.Auth;
 using DotNetCloud.Client.Android.Calendar;
+using DotNetCloud.Client.Android.Messages;
 using DotNetCloud.Client.Android.Services;
 using DotNetCloud.Core.DTOs;
 using Microsoft.Extensions.Logging;
@@ -173,7 +175,7 @@ public sealed partial class EventDetailViewModel : ObservableObject
             var (serverUrl, token) = await GetCredentialsAsync(ct);
             var dto = new EventRsvpDto { Status = attendeeStatus };
             await _calendarApi.RsvpAsync(serverUrl, token, _eventId, dto, ct);
-            CalendarViewModel.NeedsRefresh = true;
+            WeakReferenceMessenger.Default.Send(new CalendarEventChangedMessage());
             await LoadEventAsync(ct);
         }
         catch (Exception ex)
@@ -263,10 +265,11 @@ public sealed partial class EventDetailViewModel : ObservableObject
                 await _calendarApi.DeleteEventAsync(serverUrl, token, _eventId, ct);
             }
 
-            CalendarViewModel.NeedsRefresh = true;
+            WeakReferenceMessenger.Default.Send(new CalendarEventChangedMessage());
 
             // Cancel any pending reminder alarms for this event
-            try { _reminderScheduler.CancelReminders(_eventId); }
+            try
+            { _reminderScheduler.CancelReminders(_eventId); }
             catch { /* best-effort */ }
 
             await Shell.Current.GoToAsync("..");

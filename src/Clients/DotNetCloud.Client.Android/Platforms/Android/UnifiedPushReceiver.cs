@@ -136,6 +136,16 @@ public sealed class UnifiedPushReceiver : UnifiedPush.MessagingReceiver
             return;
         }
 
+        // Calendar event changes (created/updated/deleted from Blazor UI) trigger a refresh
+        if (string.Equals(payload.Type, "calendar_event", StringComparison.OrdinalIgnoreCase))
+        {
+            var logger = Ioc.Default.GetService<ILogger<UnifiedPushReceiver>>();
+            logger?.LogInformation("UnifiedPush calendar_event received — signaling calendar to refresh.");
+            global::CommunityToolkit.Mvvm.Messaging.WeakReferenceMessenger.Default
+                .Send(new global::DotNetCloud.Client.Android.Messages.CalendarEventChangedMessage());
+            return;
+        }
+
         // ── Foreground check: suppress if app is visible ──
         try
         {

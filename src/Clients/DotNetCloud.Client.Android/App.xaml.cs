@@ -283,9 +283,13 @@ public partial class App : Application
             chatIntent.SetAction(ChatConnectionService.ActionStart);
             global::Android.App.Application.Context.StartForegroundService(chatIntent);
 
-            var uploadIntent = new Intent(global::Android.App.Application.Context, typeof(MediaUploadForegroundService));
-            uploadIntent.SetAction(MediaUploadForegroundService.ActionStart);
-            global::Android.App.Application.Context.StartForegroundService(uploadIntent);
+            // Only start the media upload foreground service if the user has enabled auto-upload.
+            if (Preferences.Default.Get("media_upload_enabled", false))
+            {
+                var uploadIntent = new Intent(global::Android.App.Application.Context, typeof(MediaUploadForegroundService));
+                uploadIntent.SetAction(MediaUploadForegroundService.ActionStart);
+                global::Android.App.Application.Context.StartForegroundService(uploadIntent);
+            }
         }
     }
 }
