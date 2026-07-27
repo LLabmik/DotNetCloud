@@ -3,7 +3,7 @@
 > **Document Version:** 1.0  
 > **Purpose:** Comprehensive task breakdown for implementing the DotNetCloud architecture  
 > **Scope:** All phases from Foundation (Phase 0) through Auto-Updates (Phase 11)  
-> **Last Updated:** 2026-03-03
+> **Last Updated:** 2026-07-26
 > **Audience:** Development team, project managers, technical leads
 
 ---
@@ -6066,3 +6066,16 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Unit tests for CloudFilterSyncProvider (8 tests)
 - ✓ Contract tests for FuseSyncFilesystem (updated for Phase 4 implementation)
 - ✓ Build: 0 errors on Debug + Release. Tests: 253/254 pass
+
+---
+
+## Bug Fixes (2026-07-26)
+
+### Files Module — Scrolling
+
+- ✓ Fix `.files-page-main` CSS `overflow: hidden` → `overflow-y: auto` to enable vertical scrolling when file listings exceed viewport height
+
+### Video Module — Series/Episode Detection
+
+- ✓ Fix `AutoDetectSeriesAsync` loop index bug: loop started at `i=1`, skipping the first path segment. When library source points directly at the show folder (e.g., `_dotnetcloud/TV/Star Trek/Discovery`), the relative scan path is `Season 1/Episode 1.mkv` and the `"Season 1"` folder at index 0 was never checked.
+- ✓ Pass `sourceName` to `AutoDetectSeriesAsync` so it can use the library source name as the series name fallback when the season folder is the first path segment (no parent folder to extract series name from)
