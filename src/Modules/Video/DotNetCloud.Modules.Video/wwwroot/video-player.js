@@ -897,39 +897,60 @@
    * Resume playback with forced A/V synchronization.
    *
    * Instead of calling play() directly (which can let audio and video decoder
-   * buffers drift during the pause), we force a seek to the current position
-   * and only start playback after the 'seeked' event fires.  The seek flushes
-   * both audio and video decoder pipelines so they restart from the same
-   * timestamp.
+   * buffers drift during the pause), we force a seek and only start playback
+   * after the 'seeked' event fires.  The seek flushes both audio and video
+   * decoder pipelines so they restart from the same timestamp.
+   *
+   * NOTE: Seeking to the *exact* currentTime the element is already at is
+   * unreliable — several browsers (notably Chromium via MSE) treat a same-value
+   * assignment as a no-op and never fire 'seeked', silently skipping the
+   * resync (previously this fell back to a plain play() after a timeout,
+   * which is exactly the unsynced behavior we're trying to avoid). To
+   * guarantee a *real* seek happens, we first nudge slightly backward to a
+   * different timestamp, then seek back to the original position once that
+   * nudge seek completes — two genuine seeks that reliably flush and
+   * re-align the decoder pipelines.
    *
    * @param {HTMLVideoElement} video - The video element.
    */
   function resumeWithSync(video) {
     if (!video) return;
-    var ct = video.currentTime;
-    if (ct <= 0) {
+    var target = video.currentTime;
+    if (target <= 0.1) {
       // At the very start — just play, no sync needed.
       video.play().catch(function () {});
       return;
     }
-    // Force a seek to the exact current position.  This flushes stale decoder
-    // buffers and re-aligns audio/video.  Playback resumes after seeked.
-    var seekedFired = false;
-    var onSeeked = function () {
-      seekedFired = true;
+
+    var nudged = Math.max(0, target - 0.25);
+    var stage = nudged === target ? 1 : 0; // skip nudge stage if no room to nudge
+    var settled = false;
+
+    function finish() {
+      if (settled) return;
+      settled = true;
       video.removeEventListener("seeked", onSeeked);
       video.play().catch(function () {});
-    };
-    video.addEventListener("seeked", onSeeked);
-    // Safety timeout: some browsers may not fire seeked when seeking to the
-    // same position while paused.  Fall back to direct play after 500ms.
-    setTimeout(function () {
-      if (!seekedFired) {
-        video.removeEventListener("seeked", onSeeked);
-        video.play().catch(function () {});
+    }
+
+    function onSeeked() {
+      if (stage === 0) {
+        stage = 1;
+        video.currentTime = target;
+        return;
       }
-    }, 500);
-    video.currentTime = ct;
+      finish();
+    }
+
+    video.addEventListener("seeked", onSeeked);
+    // Safety timeout: if 'seeked' never fires (unexpected), still resume.
+    setTimeout(finish, 800);
+
+    if (stage === 0) {
+      video.currentTime = nudged;
+    } else {
+      video.currentTime = target;
+    }
   }
 
   /**
