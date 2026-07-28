@@ -806,6 +806,7 @@ public partial class VideoPage : IAsyncDisposable
 
     private async Task OpenVideoDetailAsync(VideoDto video)
     {
+        _searchResults = null;
         try
         {
             // Tear down previous player state (without JS interop — old <video>
@@ -821,6 +822,14 @@ public partial class VideoPage : IAsyncDisposable
 
             var caller = await GetCallerAsync();
             _playerVideo = video;
+
+            // Increment view count (fire-and-forget — best-effort, don't block player)
+            _ = Task.Run(async () =>
+            {
+                try { await VideoService.IncrementViewCountAsync(video.Id); }
+                catch (Exception ex) { Logger.LogWarning(ex, "Failed to increment view count for {VideoId}", video.Id); }
+            });
+
             _playerSubtitles = (await SubtitleService.GetSubtitlesAsync(video.Id, caller)).ToList();
             _playerMetadata = await MetadataService.GetMetadataAsync(video.Id);
 
@@ -926,6 +935,7 @@ public partial class VideoPage : IAsyncDisposable
 
     private async Task OpenSeriesDetailAsync(VideoSeriesDto series)
     {
+        _searchResults = null;
         _section = Section.Series;
         _selectedSeries = series;
         _selectedSeason = null;

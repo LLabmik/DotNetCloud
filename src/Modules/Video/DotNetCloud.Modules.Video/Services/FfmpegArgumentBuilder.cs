@@ -80,9 +80,23 @@ public sealed class FfmpegArgumentBuilder
         sb.Append("-fflags +genpts ");  // Generate PTS if missing (common in MKV/AVI)
         if (startTime.HasValue && startTime.Value > TimeSpan.Zero)
         {
+            // Fast keyframe seek BEFORE -i (fast but imprecise — video lands at
+            // nearest keyframe which may be before the target).  Combined with
+            // -copyts + -avoid_negative_ts below, the original PTS values are
+            // preserved and shifted so output starts at audio/video time 0
+            // with their relative offset intact.
             sb.AppendFormat(CultureInfo.InvariantCulture, "-ss {0:F3} ", startTime.Value.TotalSeconds);
         }
         sb.AppendFormat(CultureInfo.InvariantCulture, "-i \"{0}\" ", EscapePath(inputPath));
+
+        // Preserve original PTS timestamps from the source, then shift the
+        // entire timeline so the first output frame is at 0.  Without -copyts,
+        // ffmpeg regenerates timestamps and audio/video can start at different
+        // positions after a fast -ss seek (video lands at keyframe, audio at
+        // precise position).  -copyts keeps the original A/V PTS relationship
+        // intact; -start_at_zero shifts the timeline; -avoid_negative_ts
+        // make_zero ensures no negative timestamps in the output.
+        sb.Append("-copyts -start_at_zero -avoid_negative_ts make_zero -max_interleave_delta 0 ");
 
         // Map streams
         sb.Append("-map 0:v:0? -map 0:a:0? ");
@@ -106,7 +120,10 @@ public sealed class FfmpegArgumentBuilder
             sb.Append("-bsf:v hevc_mp4toannexb=disable ");
         }
 
-        // Audio: stream copy if compatible, otherwise transcode to AAC
+        // Audio: stream copy if compatible, transcode to AAC otherwise.
+        // Audio re-encoding was tried but made sync worse — the AAC encoder
+        // adds its own encoder delay which offsets audio from video.
+        // -copyts -start_at_zero handles sync at the container level.
         if (audioCodec is not null && StreamCompatibilityMatrix.IsUniversalAudioCodec(audioCodec))
         {
             sb.Append("-c:a copy ");
@@ -351,14 +368,44 @@ public sealed class FfmpegArgumentBuilder
             sb.AppendFormat(CultureInfo.InvariantCulture, "-threads {0} ", options.ThreadCount);
         }
 
-        // --- Seeking (must come before -i) ---
+        // --- Seeking: combined fast + accurate seek (must come before -i / after -i) ---
+        // A fast (demuxer-level) "-ss" placed only before "-i" jumps to the nearest
+        // keyframe *for the video stream*, but the audio stream is positioned
+        // independently by the demuxer and can land at a different real timestamp.
+        // Combined with "-copyts -avoid_negative_ts disabled" below (which intentionally
+        // preserves raw source PTS so the player's currentTime matches the absolute
+        // seek target), that per-stream skew gets baked directly into the HLS
+        // segment timestamps and never self-corrects — this is what causes audio and
+        // video to drift out of sync after skipping/seeking mid-playback.
+        //
+        // Fix: split the seek into a large, fast pre-input seek that lands a few
+        // seconds *before* the target, followed by a small accurate post-input seek
+        // for the remainder. The post-input seek forces ffmpeg to actually decode
+        // (and discard) both the audio and video streams up to the exact target
+        // timestamp, so both streams start the encode from the same real instant.
+        const double AccurateSeekWindowSeconds = 10.0;
+        TimeSpan? fastSeek = null;
+        TimeSpan? accurateSeek = null;
         if (seekStart.HasValue && seekStart.Value > TimeSpan.Zero)
         {
-            sb.AppendFormat(CultureInfo.InvariantCulture, "-ss {0} ", seekStart.Value.TotalSeconds.ToString("F3", CultureInfo.InvariantCulture));
+            var fastSeekSeconds = Math.Max(0, seekStart.Value.TotalSeconds - AccurateSeekWindowSeconds);
+            fastSeek = TimeSpan.FromSeconds(fastSeekSeconds);
+            accurateSeek = seekStart.Value - fastSeek.Value;
+        }
+
+        if (fastSeek.HasValue && fastSeek.Value > TimeSpan.Zero)
+        {
+            sb.AppendFormat(CultureInfo.InvariantCulture, "-ss {0} ", fastSeek.Value.TotalSeconds.ToString("F3", CultureInfo.InvariantCulture));
         }
 
         // --- Input file ---
         sb.AppendFormat(CultureInfo.InvariantCulture, "-i \"{0}\" ", EscapePath(inputPath));
+
+        // --- Accurate seek remainder (decode-level, keeps audio/video aligned) ---
+        if (accurateSeek.HasValue && accurateSeek.Value > TimeSpan.Zero)
+        {
+            sb.AppendFormat(CultureInfo.InvariantCulture, "-ss {0} ", accurateSeek.Value.TotalSeconds.ToString("F3", CultureInfo.InvariantCulture));
+        }
 
         // --- Duration limit ---
         if (seekDuration.HasValue && seekDuration.Value > TimeSpan.Zero)
@@ -380,6 +427,20 @@ public sealed class FfmpegArgumentBuilder
         sb.Append("-pix_fmt yuv420p ");
         sb.Append("-sc_threshold:v:0 0 ");
 
+        // --- Force constant frame rate output ---
+        // Without this, ffmpeg's default vsync/fps_mode is "auto", which for
+        // variable-frame-rate (VFR) sources (common in HEVC rips/remuxes)
+        // passes through the source's uneven frame timestamps as-is. Combined
+        // with -copyts (below), any imprecision in the source's per-frame
+        // timing accumulates gradually over the video's runtime, causing
+        // audio/video to slowly drift apart — imperceptible for the first
+        // stretch of playback, but increasingly obvious once the viewer
+        // pauses/skips and re-anchors their sense of sync. Forcing CFR makes
+        // ffmpeg duplicate/drop frames as needed so output video timestamps
+        // are evenly spaced and locked to the encoder's real clock, matching
+        // the audio timeline throughout.
+        sb.Append("-fps_mode:v:0 cfr ");
+
         // --- Resolution scaling ---
         if (options.MaxWidth > 0 && options.MaxHeight > 0)
             sb.AppendFormat(CultureInfo.InvariantCulture,
@@ -391,6 +452,13 @@ public sealed class FfmpegArgumentBuilder
         // --- Keyframe alignment for HLS segments (Jellyfin-style) ---
         sb.Append("-g:v:0 150 -keyint_min:v:0 150 ");
         sb.Append("-force_key_frames:0 \"expr:gte(t,n_forced*6)\" ");
+        // When seeking, force a keyframe at the exact seek position so the
+        // HLS playlist starts on a clean boundary rather than a P-frame that
+        // depends on frames before the seek point.
+        if (seekStart.HasValue && seekStart.Value > TimeSpan.Zero)
+        {
+            sb.AppendFormat(CultureInfo.InvariantCulture, "-force_key_frames:0 {0:F3} ", seekStart.Value.TotalSeconds);
+        }
 
         // --- Audio codec + settings (smart: copy if compatible, transcode otherwise) ---
         var shouldCopyAudio = sourceAudioCodec is not null
@@ -407,6 +475,11 @@ public sealed class FfmpegArgumentBuilder
             sb.AppendFormat(CultureInfo.InvariantCulture, "-c:a:0 {0} ", MapAudioCodec(sourceAudioCodec, options.AudioCodec));
             sb.AppendFormat(CultureInfo.InvariantCulture, "-b:a {0}k ", options.AudioBitrateKbps);
             sb.Append("-ac 2 ");
+            // Actively correct any audio/video drift introduced by resampling
+            // or downmixing (e.g. 5.1/7.1 EAC3/DTS -> stereo AAC) by nudging
+            // the audio timeline back onto the real timestamps rather than
+            // letting small per-frame rounding errors accumulate over time.
+            sb.Append("-af aresample=async=1 ");
         }
 
         // --- Remove metadata ---

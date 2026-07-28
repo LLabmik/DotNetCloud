@@ -110,7 +110,7 @@
   };
 
   /**
-   * Global keydown: Space = play/pause toggle.
+   * Global keydown: Space = play/pause toggle with A/V sync on resume.
    */
   videoPlayer.attachKeyboardShortcuts = function (elementId) {
     var video = document.getElementById(elementId);
@@ -127,11 +127,7 @@
       )
         return;
       e.preventDefault();
-      if (video.paused) {
-        video.play();
-      } else {
-        video.pause();
-      }
+      videoPlayer.togglePlayPause(elementId);
     }
 
     document.addEventListener("keydown", onKeyDown);
@@ -697,7 +693,9 @@
     var m = Math.floor((seconds % 3600) / 60);
     var s = Math.floor(seconds % 60);
     if (h > 0) {
-      return h + ":" + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+      return (
+        h + ":" + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0")
+      );
     }
     return m + ":" + String(s).padStart(2, "0");
   }
@@ -728,10 +726,14 @@
     // Instead, reload the stream URL with a startSeconds parameter so the
     // server restarts ffmpeg from the seeked position.
     if (!video._hls) {
-      var baseUrl = video.getAttribute("data-stream-url") || video.src || ("/api/v1/videos/" + videoId + "/stream");
+      var baseUrl =
+        video.getAttribute("data-stream-url") ||
+        video.src ||
+        "/api/v1/videos/" + videoId + "/stream";
       // Strip existing query params and add startSeconds + cache-buster
       var sep = baseUrl.indexOf("?") === -1 ? "?" : "&";
-      var newUrl = baseUrl + sep + "startSeconds=" + targetSeconds + "&_=" + Date.now();
+      var newUrl =
+        baseUrl + sep + "startSeconds=" + targetSeconds + "&_=" + Date.now();
 
       // Store the absolute offset so the slider position reflects the full
       // video timeline, not the (restarted) stream's local time.
@@ -755,8 +757,18 @@
     }
 
     if (targetSeconds <= bufferedEnd + 1) {
-      // Within (or very near) buffered range — normal seek
+      // Within (or very near) buffered range — normal seek.
+      // Setting currentTime triggers a browser seek which flushes both audio
+      // and video decoder pipelines automatically.  Just ensure playback
+      // resumes after the seek completes.
       video.currentTime = targetSeconds;
+      var onSeeked2 = function () {
+        video.removeEventListener("seeked", onSeeked2);
+        if (video.paused) {
+          video.play().catch(function () {});
+        }
+      };
+      video.addEventListener("seeked", onSeeked2);
       if (dotNetRef) {
         dotNetRef
           .invokeMethodAsync("OnTranscodeSeekComplete", targetSeconds)
@@ -812,7 +824,8 @@
         // Re-initialize HLS with the same stream URL.
         var streamUrl = video.getAttribute("data-stream-url") || video.src;
         if (!streamUrl) {
-          streamUrl = "/api/v1/videos/" + videoId + "/stream?forceTranscode=true";
+          streamUrl =
+            "/api/v1/videos/" + videoId + "/stream?forceTranscode=true";
         }
 
         // Clear existing src to force a fresh load
@@ -881,6 +894,85 @@
   };
 
   /**
+   * Resume playback with forced A/V synchronization.
+   *
+   * Instead of calling play() directly (which can let audio and video decoder
+   * buffers drift during the pause), we force a seek and only start playback
+   * after the 'seeked' event fires.  The seek flushes both audio and video
+   * decoder pipelines so they restart from the same timestamp.
+   *
+   * NOTE: Seeking to the *exact* currentTime the element is already at is
+   * unreliable — several browsers (notably Chromium via MSE) treat a same-value
+   * assignment as a no-op and never fire 'seeked', silently skipping the
+   * resync (previously this fell back to a plain play() after a timeout,
+   * which is exactly the unsynced behavior we're trying to avoid). To
+   * guarantee a *real* seek happens, we first nudge slightly backward to a
+   * different timestamp, then seek back to the original position once that
+   * nudge seek completes — two genuine seeks that reliably flush and
+   * re-align the decoder pipelines.
+   *
+   * @param {HTMLVideoElement} video - The video element.
+   */
+  function resumeWithSync(video) {
+    if (!video) return;
+    var target = video.currentTime;
+    if (target <= 0.1) {
+      // At the very start — just play, no sync needed.
+      video.play().catch(function () {});
+      return;
+    }
+
+    var nudged = Math.max(0, target - 0.25);
+    var stage = nudged === target ? 1 : 0; // skip nudge stage if no room to nudge
+    var settled = false;
+
+    function finish() {
+      if (settled) return;
+      settled = true;
+      video.removeEventListener("seeked", onSeeked);
+      video.play().catch(function () {});
+    }
+
+    function onSeeked() {
+      if (stage === 0) {
+        stage = 1;
+        video.currentTime = target;
+        return;
+      }
+      finish();
+    }
+
+    video.addEventListener("seeked", onSeeked);
+    // Safety timeout: if 'seeked' never fires (unexpected), still resume.
+    setTimeout(finish, 800);
+
+    if (stage === 0) {
+      video.currentTime = nudged;
+    } else {
+      video.currentTime = target;
+    }
+  }
+
+  /**
+   * Toggles play/pause on the video element. On resume, applies A/V sync.
+   * Also updates the seek bar play/pause button icon.
+   *
+   * @param {string} elementId - The video element ID.
+   */
+  videoPlayer.togglePlayPause = function (elementId) {
+    var video = document.getElementById(elementId);
+    if (!video) return;
+    var btn = document.getElementById("seek-play-pause-btn");
+    if (video.paused) {
+      resumeWithSync(video);
+      if (btn) btn.textContent = "\u23F8"; // ⏸
+    } else {
+      video.pause();
+      if (btn) btn.textContent = "\u25B6"; // ▶
+    }
+  };
+
+  /**
    * Initializes the custom seek slider for transcode/progressive streams.
    * Attaches drag events to the Blazor-rendered div-based slider elements.
    *
@@ -919,7 +1011,8 @@
       if (!fill || !thumb || !bar) return;
 
       // Resolve max duration: prefer data-max-duration, fall back to fullDuration arg
-      var maxDuration = parseFloat(bar.getAttribute("data-max-duration")) || fullDuration || 0;
+      var maxDuration =
+        parseFloat(bar.getAttribute("data-max-duration")) || fullDuration || 0;
 
       // Set end time label
       if (timeEnd && maxDuration > 0) {
@@ -927,7 +1020,12 @@
       }
 
       // If still 0, try to get from video element (may update via durationchange)
-      if (maxDuration <= 0 && video && isFinite(video.duration) && video.duration > 0) {
+      if (
+        maxDuration <= 0 &&
+        video &&
+        isFinite(video.duration) &&
+        video.duration > 0
+      ) {
         maxDuration = video.duration;
       }
 
@@ -944,11 +1042,7 @@
         video._customControlsActive = true;
         // Click-to-toggle-playback on the video itself
         video.addEventListener("click", function (e) {
-          if (video.paused) {
-            video.play().catch(function () {});
-          } else {
-            video.pause();
-          }
+          videoPlayer.togglePlayPause("video-player");
         });
       }
 
@@ -983,15 +1077,21 @@
       function onEnd(e) {
         if (!dragging) return;
         dragging = false;
-        var clientX = (e.changedTouches && e.changedTouches[0])
-          ? e.changedTouches[0].clientX
-          : e.clientX;
+        var clientX =
+          e.changedTouches && e.changedTouches[0]
+            ? e.changedTouches[0].clientX
+            : e.clientX;
         var pct = getPercentFromClientX(clientX);
         var targetSeconds = (pct / 100) * maxDuration;
         if (targetSeconds < 0) targetSeconds = 0;
         if (targetSeconds > maxDuration) targetSeconds = maxDuration;
         updateFill(pct);
-        videoPlayer.seekTranscode("video-player", targetSeconds, videoId, dotNetRef);
+        videoPlayer.seekTranscode(
+          "video-player",
+          targetSeconds,
+          videoId,
+          dotNetRef,
+        );
       }
 
       // Mouse events
@@ -1003,6 +1103,27 @@
       track.addEventListener("touchstart", onStart, { passive: false });
       document.addEventListener("touchmove", onMove, { passive: false });
       document.addEventListener("touchend", onEnd);
+
+      // Play/pause button
+      var playBtn = document.getElementById("seek-play-pause-btn");
+      if (playBtn) {
+        playBtn.addEventListener("click", function (e) {
+          e.stopPropagation();
+          videoPlayer.togglePlayPause("video-player");
+        });
+      }
+
+      // Update play/pause button icon on video state changes
+      if (video) {
+        video.addEventListener("play", function () {
+          var b = document.getElementById("seek-play-pause-btn");
+          if (b) b.textContent = "\u23F8"; // ⏸
+        });
+        video.addEventListener("pause", function () {
+          var b = document.getElementById("seek-play-pause-btn");
+          if (b) b.textContent = "\u25B6"; // ▶
+        });
+      }
 
       // Update fill position on timeupdate (if not dragging)
       if (video) {
@@ -1050,5 +1171,4 @@
     a.click();
     document.body.removeChild(a);
   };
-
 })();

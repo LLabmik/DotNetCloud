@@ -1252,7 +1252,7 @@ textarea.input {
 .files-page-main {
   flex: 1;
   min-width: 0;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 .sidebar-nav-list {

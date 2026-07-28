@@ -24,11 +24,11 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
     private readonly IServiceScopeFactory _scopeFactory;
 
     private static readonly Regex TvSeriesPattern = new(
-        @"^(.+?)[._\s]+[Ss](\d{1,2})[Ee](\d{1,3})",
+        @"^(?:(.+?)[._\s]+)?[Ss](\d{1,2})[Ee](\d{1,3})$",
         RegexOptions.Compiled);
 
     private static readonly Regex SeasonFolderPattern = new(
-        @"[Ss]eason[\s._]*(\d{1,2})",
+        @"^(?:[Ss]eason[\s._]*|[Ss])(\d{1,2})$",
         RegexOptions.Compiled);
 
     /// <summary>
@@ -89,7 +89,7 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
             : storagePath ?? fileName;
         if (!string.IsNullOrWhiteSpace(seriesPath))
         {
-            await AutoDetectSeriesAsync(video.Id, seriesPath, caller, cancellationToken);
+            await AutoDetectSeriesAsync(video.Id, seriesPath, sourceName, caller, cancellationToken);
         }
 
         _logger.LogDebug("Video indexed for FileNode {FileNodeId} by user {OwnerId}", fileNodeId, ownerId);
@@ -217,7 +217,12 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
     /// Attempts to auto-detect a TV series and season from the video's storage path or filename,
     /// and assigns the video to the detected series/season.
     /// </summary>
-    private async Task AutoDetectSeriesAsync(Guid videoId, string path, CallerContext caller, CancellationToken cancellationToken)
+    /// <param name="videoId">The video entity ID.</param>
+    /// <param name="path">Relative path (subfolder/fileName) used for pattern detection.</param>
+    /// <param name="sourceName">Optional library source name (used as series name fallback when the season folder is the first path segment).</param>
+    /// <param name="caller">Caller context for authorization.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    private async Task AutoDetectSeriesAsync(Guid videoId, string path, string? sourceName, CallerContext caller, CancellationToken cancellationToken)
     {
         try
         {
@@ -231,13 +236,26 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
             {
                 // Try subfolder pattern: look for "Season 01" or "S01" in the path
                 var segments = normalizedPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-                for (var i = 1; i < segments.Length; i++)
+                for (var i = 0; i < segments.Length; i++)
                 {
                     var folderSeason = SeasonFolderPattern.Match(segments[i]);
-                    if (folderSeason.Success && i > 0)
+                    if (folderSeason.Success && i >= 0)
                     {
-                        // The parent folder is the series name
-                        var seriesName = CleanSeriesName(segments[i - 1]);
+                        // The parent folder is the series name.
+                        // When i == 0, the season folder is the first segment (library source
+                        // was pointed directly at the show folder, e.g. "Discovery/Season 1").
+                        // Use the sourceName as the series name in that case.
+                        string seriesName;
+                        if (i == 0)
+                        {
+                            seriesName = !string.IsNullOrWhiteSpace(sourceName)
+                                ? CleanSeriesName(sourceName)
+                                : CleanSeriesName(segments[i]);
+                        }
+                        else
+                        {
+                            seriesName = CleanSeriesName(segments[i - 1]);
+                        }
                         var seasonNumber = int.Parse(folderSeason.Groups[1].Value);
 
                         var series = await _seriesService.FindOrCreateByNameAsync(seriesName, "TvSeries", caller, cancellationToken);
@@ -331,6 +349,37 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
             var seasonNum = int.Parse(tvMatch.Groups[2].Value);
             var episodeNum = int.Parse(tvMatch.Groups[3].Value);
             var seriesNameClean = CleanSeriesName(rawSeriesName);
+
+            // If the TV match captured no series name (standalone "S01E01" pattern),
+            // try the subfolder pattern to derive the series name from the folder hierarchy.
+            if (string.IsNullOrWhiteSpace(seriesNameClean))
+            {
+                var pathForFolder = $"{normalizedPath}/";
+                var folderSegments = pathForFolder.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                for (var i = 0; i < folderSegments.Length; i++)
+                {
+                    var folderSeason = SeasonFolderPattern.Match(folderSegments[i]);
+                    if (folderSeason.Success)
+                    {
+                        if (i == 0)
+                        {
+                            seriesNameClean = !string.IsNullOrWhiteSpace(sourceName)
+                                ? CleanSeriesName(sourceName)
+                                : "Unknown Series";
+                        }
+                        else
+                        {
+                            seriesNameClean = CleanSeriesName(folderSegments[i - 1]);
+                        }
+                        break;
+                    }
+                }
+
+                if (string.IsNullOrWhiteSpace(seriesNameClean))
+                {
+                    seriesNameClean = "Unknown Series";
+                }
+            }
 
             // Find or create the series (default to TvSeries type)
             var seriesDto = await _seriesService.FindOrCreateByNameAsync(seriesNameClean, "TvSeries", caller, cancellationToken);

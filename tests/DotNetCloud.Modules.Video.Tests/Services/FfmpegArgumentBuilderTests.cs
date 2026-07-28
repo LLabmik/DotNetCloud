@@ -244,6 +244,97 @@ public sealed class FfmpegArgumentBuilderTests
         Assert.IsTrue(args.Contains("-v quiet"));
     }
 
+    // ─── BuildHlsArgs seek A/V sync tests ─────────────────────────
+
+    [TestMethod]
+    public void BuildHlsArgs_NoSeek_ContainsSingleInputSeekOnly()
+    {
+        var args = _builder.BuildHlsArgs("/i.mkv", "/out", _defaultOptions);
+
+        Assert.IsFalse(args.Contains("-ss"));
+        Assert.IsTrue(args.Contains("-i \"/i.mkv\""));
+    }
+
+    [TestMethod]
+    public void BuildHlsArgs_SmallSeek_UsesAccurateSeekOnlyNoFastSeek()
+    {
+        // Seek target within the 10s accurate-seek window — no fast pre-input
+        // seek needed, the whole seek happens as an accurate post-input seek
+        // so audio and video both land on the exact requested timestamp.
+        var args = _builder.BuildHlsArgs(
+            "/i.mkv", "/out", _defaultOptions,
+            seekStart: TimeSpan.FromSeconds(5));
+
+        var iIndex = args.IndexOf("-i \"/i.mkv\"", StringComparison.Ordinal);
+        Assert.IsTrue(iIndex >= 0);
+        // No -ss should appear before -i
+        Assert.IsFalse(args[..iIndex].Contains("-ss"));
+        // The accurate seek (5s) should appear after -i
+        Assert.IsTrue(args[iIndex..].Contains("-ss 5.000"));
+    }
+
+    [TestMethod]
+    public void BuildHlsArgs_LargeSeek_SplitsIntoFastAndAccurateSeek()
+    {
+        // Seeking to 90s should fast-seek to 80s (before -i) then accurately
+        // seek the remaining 10s (after -i), so both audio and video streams
+        // are decoded up to the exact same target instant and stay in sync.
+        var args = _builder.BuildHlsArgs(
+            "/i.mkv", "/out", _defaultOptions,
+            seekStart: TimeSpan.FromSeconds(90));
+
+        var iIndex = args.IndexOf("-i \"/i.mkv\"", StringComparison.Ordinal);
+        Assert.IsTrue(iIndex >= 0);
+        Assert.IsTrue(args[..iIndex].Contains("-ss 80.000"), $"Expected fast seek before -i. Args: {args}");
+        Assert.IsTrue(args[iIndex..].Contains("-ss 10.000"), $"Expected accurate seek after -i. Args: {args}");
+    }
+
+    [TestMethod]
+    public void BuildHlsArgs_ZeroSeek_OmitsSeekArgs()
+    {
+        var args = _builder.BuildHlsArgs(
+            "/i.mkv", "/out", _defaultOptions,
+            seekStart: TimeSpan.Zero);
+
+        Assert.IsFalse(args.Contains("-ss"));
+    }
+
+    [TestMethod]
+    public void BuildHlsArgs_AlwaysForcesConstantFrameRate()
+    {
+        // VFR sources (common in HEVC rips) drift out of sync with audio over
+        // time unless output frame timestamps are forced to be evenly spaced.
+        var args = _builder.BuildHlsArgs("/i.mkv", "/out", _defaultOptions);
+
+        Assert.IsTrue(args.Contains("-fps_mode:v:0 cfr"));
+    }
+
+    [TestMethod]
+    public void BuildHlsArgs_AudioTranscoded_AppliesResampleDriftCorrection()
+    {
+        // Audio that must be re-encoded (e.g. DTS -> AAC, not in the copyable
+        // codec set) gets an aresample filter to correct any drift introduced
+        // by resampling/downmixing.
+        var args = _builder.BuildHlsArgs(
+            "/i.mkv", "/out", _defaultOptions,
+            sourceVideoCodec: "hevc", sourceAudioCodec: "dts");
+
+        Assert.IsTrue(args.Contains("-af aresample=async=1"));
+    }
+
+    [TestMethod]
+    public void BuildHlsArgs_AudioCopied_OmitsResampleFilter()
+    {
+        // -af requires re-encoding; it must not be applied when audio is
+        // stream-copied (e.g. FLAC), which would break ffmpeg's argument mapping.
+        var args = _builder.BuildHlsArgs(
+            "/i.mkv", "/out", _defaultOptions,
+            sourceVideoCodec: "hevc", sourceAudioCodec: "flac");
+
+        Assert.IsFalse(args.Contains("-af "));
+        Assert.IsTrue(args.Contains("-c:a:0 copy"));
+    }
+
     // ─── Path escaping tests ──────────────────────────────────────
 
     [TestMethod]

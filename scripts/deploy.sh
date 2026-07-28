@@ -687,6 +687,42 @@ else
         fi
     done
     log "  Dependency sync complete."
+
+    # Phase 4c: Sync static web assets (JS, CSS, etc.) from module RCL wwwroot
+    #
+    # dotnet publish --no-build copies DLLs and NuGet packages but doesn't
+    # always propagate wwwroot files (JS, CSS, images) to all required locations.
+    # Module RCLs like DotNetCloud.Modules.Video ship video-player.js and other
+    # static assets in their wwwroot/ directory. These must be available in:
+    #  (a) the module host's wwwroot (served by module API controllers),
+    #  (b) the core server's wwwroot (served as _content static assets).
+    #
+    # This step rsyncs wwwroot from the source RCL project into both locations.
+    log "Syncing static web assets..."
+    for module in "${PUBLISHED_MODULES[@]}"; do
+        module_lower=$(echo "$module" | tr '[:upper:]' '[:lower:]')
+        rcl_wwwroot="$REPO_ROOT/src/Modules/$module/DotNetCloud.Modules.$module/wwwroot"
+
+        if [ ! -d "$rcl_wwwroot" ]; then
+            continue
+        fi
+
+        # Destination 1: module host wwwroot
+        host_wwwroot="$MODULES_DIR/dotnetcloud.$module_lower/wwwroot/_content/DotNetCloud.Modules.$module"
+        # Destination 2: core server wwwroot
+        core_wwwroot="$DEPLOY_DIR/wwwroot/_content/DotNetCloud.Modules.$module"
+
+        if ! $DRY_RUN; then
+            mkdir -p "$host_wwwroot" "$core_wwwroot"
+            # Copy static assets as-is (no compression — ASP.NET Core handles
+            # response compression at runtime).  Errors are surfaced so we
+            # catch permission or disk-full issues before the deploy "succeeds".
+            rsync -a --checksum "$rcl_wwwroot/" "$host_wwwroot/"
+            rsync -a --checksum "$rcl_wwwroot/" "$core_wwwroot/"
+        fi
+        echo "  ✓ $module static assets"
+    done
+    log "  Static asset sync complete."
 fi
 
 # ============================================================================

@@ -459,6 +459,14 @@
 .video-card {
   cursor: pointer;
   transition: transform var(--transition, 200ms ease);
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
 }
 
 .video-card:hover {
@@ -883,6 +891,9 @@
 }
 
 .btn-close-player {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 8px 16px;
   background: var(--color-bg, #f5f7fa);
   border: 1px solid var(--color-border, #e2e8f0);
@@ -890,6 +901,8 @@
   font-size: 0.8125rem;
   color: var(--color-text-secondary, #64748b);
   cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
   transition: all var(--transition, 200ms ease);
 }
 
@@ -1335,6 +1348,12 @@
   overflow: hidden;
   background: var(--color-surface, #ffffff);
   border: 1px solid var(--color-border, #e2e8f0);
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
 }
 
 .series-card:hover {
@@ -2066,10 +2085,13 @@
   border: 1px solid rgba(234, 179, 8, 0.3);
 }
 
-/* ── Transcode Seek Bar (between video and info panel during progressive streaming) ── */
+/* ── Transcode Seek Bar (inside player-container, visible in fullscreen) ── */
 .transcode-seek-bar {
-  position: relative;
-  z-index: 1;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -2079,6 +2101,11 @@
   padding: 8px 14px 6px;
   margin: 0;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Add bottom padding to player-container so the video doesn't go under the seek bar */
+.player-container {
+  padding-bottom: 36px;
 }
 
 .transcode-seek-time {
@@ -2131,4 +2158,28 @@
   box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
   cursor: pointer;
   pointer-events: none; /* parent track handles events */
+}
+
+/* ── Seek Bar Play/Pause Button ── */
+.seek-play-pause {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  border-radius: 50%;
+  background: #3b82f6;
+  color: #fff;
+  border: none;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+  line-height: 1;
+  transition: background 0.2s ease;
+}
+
+.seek-play-pause:hover {
+  background: #2563eb;
 }
