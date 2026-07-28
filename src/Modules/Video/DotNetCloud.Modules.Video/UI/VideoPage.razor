@@ -1329,6 +1329,7 @@
                         @if (_streamStrategy is not null && _streamStrategy != "direct" && _playerVideo is not null)
                         {
                             <div class="transcode-seek-bar" id="transcode-seek-bar" data-max-duration="@_playerVideo!.Duration.TotalSeconds">
+                                <button class="seek-play-pause" id="seek-play-pause-btn" title="Play / Pause" aria-label="Toggle playback">▶</button>
                                 <div class="transcode-seek-time transcode-seek-time-start" id="transcode-seek-time-start">0:00</div>
                                 <div class="transcode-seek-track" id="transcode-seek-track">
                                     <div class="transcode-seek-fill" id="transcode-seek-fill"></div>

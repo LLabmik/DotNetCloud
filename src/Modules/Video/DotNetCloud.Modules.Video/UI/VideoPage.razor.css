@@ -2154,3 +2154,27 @@
   cursor: pointer;
   pointer-events: none; /* parent track handles events */
 }
+
+/* ── Seek Bar Play/Pause Button ── */
+.seek-play-pause {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  border-radius: 50%;
+  background: #3b82f6;
+  color: #fff;
+  border: none;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+  line-height: 1;
+  transition: background 0.2s ease;
+}
+
+.seek-play-pause:hover {
+  background: #2563eb;
+}

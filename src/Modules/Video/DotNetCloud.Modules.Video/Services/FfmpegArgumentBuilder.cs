@@ -80,9 +80,17 @@ public sealed class FfmpegArgumentBuilder
         sb.Append("-fflags +genpts ");  // Generate PTS if missing (common in MKV/AVI)
         if (startTime.HasValue && startTime.Value > TimeSpan.Zero)
         {
+            // Fast keyframe seek BEFORE -i (imprecise for video, precise for audio).
+            // The avoid_negative_ts flag below re-bases timestamps so output starts at 0.
             sb.AppendFormat(CultureInfo.InvariantCulture, "-ss {0:F3} ", startTime.Value.TotalSeconds);
         }
         sb.AppendFormat(CultureInfo.InvariantCulture, "-i \"{0}\" ", EscapePath(inputPath));
+
+        // Re-base timestamps to start at 0 and ensure strict A/V interleaving.
+        // Without these, fast -ss before -i can cause audio/video to start at
+        // different positions because video seeks to a keyframe while audio seeks
+        // precisely — producing a persistent offset.
+        sb.Append("-avoid_negative_ts make_zero -max_interleave_delta 0 ");
 
         // Map streams
         sb.Append("-map 0:v:0? -map 0:a:0? ");
