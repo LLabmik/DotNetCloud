@@ -409,6 +409,20 @@ public sealed class VideoService : IVideoService
     }
 
     /// <inheritdoc />
+    public async Task IncrementViewCountAsync(Guid videoId, CancellationToken cancellationToken = default)
+    {
+        var userVideo = await _db.UserVideos
+            .FirstOrDefaultAsync(uv => uv.Id == videoId, cancellationToken);
+
+        if (userVideo is not null && !userVideo.IsDeleted)
+        {
+            userVideo.ViewCount++;
+            userVideo.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    /// <inheritdoc />
     public void InvalidateLibraryCache()
     {
         _cachedSeriesContentHashes = null;

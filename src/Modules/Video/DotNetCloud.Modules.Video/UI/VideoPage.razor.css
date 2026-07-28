@@ -459,6 +459,14 @@
 .video-card {
   cursor: pointer;
   transition: transform var(--transition, 200ms ease);
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
 }
 
 .video-card:hover {
@@ -1335,6 +1343,12 @@
   overflow: hidden;
   background: var(--color-surface, #ffffff);
   border: 1px solid var(--color-border, #e2e8f0);
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
 }
 
 .series-card:hover {
@@ -2066,10 +2080,13 @@
   border: 1px solid rgba(234, 179, 8, 0.3);
 }
 
-/* ── Transcode Seek Bar (between video and info panel during progressive streaming) ── */
+/* ── Transcode Seek Bar (inside player-container, visible in fullscreen) ── */
 .transcode-seek-bar {
-  position: relative;
-  z-index: 1;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -2079,6 +2096,11 @@
   padding: 8px 14px 6px;
   margin: 0;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Add bottom padding to player-container so the video doesn't go under the seek bar */
+.player-container {
+  padding-bottom: 36px;
 }
 
 .transcode-seek-time {

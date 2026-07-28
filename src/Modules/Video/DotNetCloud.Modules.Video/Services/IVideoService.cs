@@ -49,6 +49,9 @@ public interface IVideoService
     /// <summary>Deletes a video.</summary>
     Task DeleteVideoAsync(Guid videoId, CallerContext caller, CancellationToken cancellationToken = default);
 
+    /// <summary>Increments the view count for a video.</summary>
+    Task IncrementViewCountAsync(Guid videoId, CancellationToken cancellationToken = default);
+
     /// <summary>Invalidates the per-circuit library cache (called after a library scan).</summary>
     void InvalidateLibraryCache();
 }

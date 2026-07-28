@@ -946,6 +946,11 @@
         video.addEventListener("click", function (e) {
           if (video.paused) {
             video.play().catch(function () {});
+            // Force A/V re-sync when resuming from pause by re-seeking
+            // to the current position.  This flushes stale decoder buffers
+            // that can drift out of sync during the pause.
+            var ct = video.currentTime;
+            if (ct > 0) video.currentTime = ct;
           } else {
             video.pause();
           }
