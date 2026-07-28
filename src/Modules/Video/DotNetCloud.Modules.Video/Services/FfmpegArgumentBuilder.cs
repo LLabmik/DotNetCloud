@@ -119,15 +119,15 @@ public sealed class FfmpegArgumentBuilder
             sb.Append("-bsf:v hevc_mp4toannexb=disable ");
         }
 
-        // Audio: stream copy if compatible, otherwise transcode to AAC
-        if (audioCodec is not null && StreamCompatibilityMatrix.IsUniversalAudioCodec(audioCodec))
-        {
-            sb.Append("-c:a copy ");
-        }
-        else
-        {
-            sb.Append("-strict -2 -c:a aac -b:a 128k -ac 2 ");
-        }
+        // Audio: always re-encode to AAC with async=1.
+        //
+        // Stream-copying audio (-c:a copy) passes through raw PTS values that
+        // may be offset relative to video after a keyframe seek.  Re-encoding
+        // gives ffmpeg full control over audio timing — it generates fresh PTS
+        // values aligned to the video timeline.  -async 1 tells the encoder to
+        // stretch/squeeze audio samples to match video frame timestamps exactly.
+        // Audio encoding is cheap (~5% CPU) and guarantees A/V sync.
+        sb.Append("-strict -2 -c:a aac -b:a 128k -ac 2 -async 1 ");
 
         // Remove metadata (cleaner output)
         sb.Append("-map_metadata -1 ");
