@@ -80,17 +80,22 @@ public sealed class FfmpegArgumentBuilder
         sb.Append("-fflags +genpts ");  // Generate PTS if missing (common in MKV/AVI)
         if (startTime.HasValue && startTime.Value > TimeSpan.Zero)
         {
-            // Fast keyframe seek BEFORE -i (imprecise for video, precise for audio).
-            // The avoid_negative_ts flag below re-bases timestamps so output starts at 0.
+            // Fast keyframe seek BEFORE -i (fast but imprecise — video lands at
+            // nearest keyframe which may be before the target).  Combined with
+            // -copyts + -avoid_negative_ts below, the original PTS values are
+            // preserved and shifted so output starts at audio/video time 0
+            // with their relative offset intact.
             sb.AppendFormat(CultureInfo.InvariantCulture, "-ss {0:F3} ", startTime.Value.TotalSeconds);
         }
         sb.AppendFormat(CultureInfo.InvariantCulture, "-i \"{0}\" ", EscapePath(inputPath));
 
-        // Re-base timestamps to start at 0 and ensure strict A/V interleaving.
-        // Without these, fast -ss before -i can cause audio/video to start at
-        // different positions because video seeks to a keyframe while audio seeks
-        // precisely — producing a persistent offset.
-        sb.Append("-avoid_negative_ts make_zero -max_interleave_delta 0 ");
+        // Preserve original PTS timestamps from the source, then shift the
+        // entire timeline so the first output frame is at 0.  Without -copyts,
+        // ffmpeg regenerates timestamps and audio/video can start at different
+        // positions after a fast -ss seek (video lands at keyframe, audio at
+        // precise position).  -copyts keeps the original A/V PTS relationship
+        // intact; -avoid_negative_ts make_zero re-bases to zero.
+        sb.Append("-copyts -avoid_negative_ts make_zero -max_interleave_delta 0 ");
 
         // Map streams
         sb.Append("-map 0:v:0? -map 0:a:0? ");
@@ -399,6 +404,13 @@ public sealed class FfmpegArgumentBuilder
         // --- Keyframe alignment for HLS segments (Jellyfin-style) ---
         sb.Append("-g:v:0 150 -keyint_min:v:0 150 ");
         sb.Append("-force_key_frames:0 \"expr:gte(t,n_forced*6)\" ");
+        // When seeking, force a keyframe at the exact seek position so the
+        // HLS playlist starts on a clean boundary rather than a P-frame that
+        // depends on frames before the seek point.
+        if (seekStart.HasValue && seekStart.Value > TimeSpan.Zero)
+        {
+            sb.AppendFormat(CultureInfo.InvariantCulture, "-force_key_frames:0 {0:F3} ", seekStart.Value.TotalSeconds);
+        }
 
         // --- Audio codec + settings (smart: copy if compatible, transcode otherwise) ---
         var shouldCopyAudio = sourceAudioCodec is not null
