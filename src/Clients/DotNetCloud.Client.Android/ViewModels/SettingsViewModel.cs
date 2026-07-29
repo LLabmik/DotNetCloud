@@ -1,4 +1,6 @@
+#if ANDROID
 using Android.Content;
+#endif
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DotNetCloud.Client.Android.Auth;
@@ -148,6 +150,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         {
             _ = _mediaUploadService.StartAsync();
 
+#if ANDROID
             // Start the foreground service so uploads survive backgrounding.
             try
             {
@@ -160,11 +163,13 @@ public sealed partial class SettingsViewModel : ObservableObject
             {
                 _logger.LogWarning(ex, "Failed to start media upload foreground service.");
             }
+#endif
         }
         else
         {
             _ = _mediaUploadService.StopAsync();
 
+#if ANDROID
             // Stop the foreground service to release resources.
             try
             {
@@ -177,6 +182,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             {
                 _logger.LogWarning(ex, "Failed to stop media upload foreground service.");
             }
+#endif
         }
     }
 

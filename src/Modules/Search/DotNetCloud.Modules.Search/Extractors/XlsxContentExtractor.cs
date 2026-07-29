@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs.Search;
 using DocumentFormat.OpenXml.Packaging;
@@ -53,7 +53,7 @@ public sealed class XlsxContentExtractor : IContentExtractor
             cancellationToken.ThrowIfCancellationRequested();
             sheetCount++;
 
-            var sheetData = worksheetPart.Worksheet.GetFirstChild<SheetData>();
+            var sheetData = worksheetPart.Worksheet?.GetFirstChild<SheetData>();
             if (sheetData is null)
                 continue;
 
