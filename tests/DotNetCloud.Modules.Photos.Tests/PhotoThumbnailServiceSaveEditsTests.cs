@@ -1,4 +1,4 @@
-using DotNetCloud.Core.Authorization;
+﻿using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.Modules.Photos.Data;
@@ -50,7 +50,7 @@ public class PhotoThumbnailServiceSaveEditsTests
     private static Stream CreateTestImageStream(int width = 100, int height = 100)
     {
         var ms = new MemoryStream();
-        using (var image = new Image<Rgba32>(width, height, Color.CornflowerBlue))
+        using (var image = new Image<Rgba32>(Configuration.Default, width, height))
         {
             image.SaveAsJpeg(ms);
         }

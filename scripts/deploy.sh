@@ -580,6 +580,13 @@ fi
 CORE_SERVER_CSPROJ="$REPO_ROOT/src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj"
 CORE_PUBLISHED=false
 if $CORE_NEEDS_PUBLISH || [ ! -f "$DEPLOY_DIR/DotNetCloud.Core.Server.dll" ]; then
+    # Stale DLL guard: remove all .dll files from the deploy root before publishing.
+    # dotnet publish --no-build skips overwriting existing NuGet package DLLs when
+    # their versions change between deploys, leaving stale assemblies behind that
+    # cause FileNotFoundException at startup. Clearing them first forces publish
+    # to recopy every dependency from the current build output.
+    log "  Cleaning stale DLLs from $DEPLOY_DIR..."
+    find "$DEPLOY_DIR" -maxdepth 1 -name '*.dll' -delete 2>/dev/null || true
     do_publish "$CORE_SERVER_CSPROJ" "$DEPLOY_DIR"
     CORE_PUBLISHED=true
 else

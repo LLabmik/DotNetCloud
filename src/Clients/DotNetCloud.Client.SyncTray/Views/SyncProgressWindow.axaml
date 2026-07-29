@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:DotNetCloud.Client.SyncTray.ViewModels"
         x:Class="DotNetCloud.Client.SyncTray.Views.SyncProgressWindow"
+        x:DataType="vm:SyncProgressViewModel"
         Title="DotNetCloud Sync — Progress"
         Width="400"
         Height="360"

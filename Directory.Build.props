@@ -1,4 +1,4 @@
-<Project>
+﻿<Project>
   <!-- CRITICAL: Set output paths before Microsoft.Common.props is imported -->
   <!-- This prevents MSB3539 warning about BaseIntermediateOutputPath being modified after use -->
   <PropertyGroup>
@@ -8,6 +8,11 @@
     <!-- Prevent test SDK and other targets from overriding output paths -->
     <_UseCustomIntermediateOutputPath>true</_UseCustomIntermediateOutputPath>
     <DisablePathNormalization>true</DisablePathNormalization>
+  </PropertyGroup>
+  <!-- SixLabors.ImageSharp v4 license -->
+  <!-- Points to the actual license file from SixLabors at src\sixlabors.lic -->
+  <PropertyGroup>
+    <SixLaborsLicenseFile>$(MSBuildThisFileDirectory)src\sixlabors.lic</SixLaborsLicenseFile>
   </PropertyGroup>
 
   <!-- Common properties for all projects -->
@@ -62,6 +67,12 @@
   -->
   <ItemGroup>
     <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-pgww-w46g-26qg" />
+    <!-- Microsoft.OpenApi 2.0.0 vulnerability (GHSA-v5pm-xwqc-g5wc):
+         Transitive dependency from Microsoft.AspNetCore.OpenApi 10.0.10.
+         Explicit override to 3.9.0 breaks the source generator (IOpenApiMediaType.Example
+         is read-only in OpenApi 3.x). Suppressed until AspNetCore.OpenApi ships with
+         a compatible OpenApi 2.x with the fix. -->
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-v5pm-xwqc-g5wc" />
   </ItemGroup>
 
   <!-- Code analysis -->

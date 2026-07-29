@@ -3,6 +3,8 @@
         xmlns:vm="clr-namespace:DotNetCloud.Client.SyncTray.ViewModels"
         xmlns:vf="clr-namespace:DotNetCloud.Client.Core.VirtualFiles;assembly=DotNetCloud.Client.Core"
         x:Class="DotNetCloud.Client.SyncTray.Views.SettingsWindow"
+        x:DataType="vm:SettingsViewModel"
+        x:CompileBindings="False"
         Title="{Binding CurrentClientVersion, StringFormat='DotNetCloud Sync — Settings (v{0})'}"
         Width="520"
         Height="480"
