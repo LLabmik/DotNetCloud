@@ -124,13 +124,24 @@
             <div class="toolbar-left">
                 @if (_breadcrumb.Count > 0)
                 {
-                    @foreach (var crumb in _breadcrumb)
+                    @for (int i = 0; i < _breadcrumb.Count; i++)
                     {
-                        <button type="button" class="breadcrumb-item" @onclick="crumb.Action">@crumb.Label</button>
-                        <span class="breadcrumb-sep">›</span>
+                        var crumb = _breadcrumb[i];
+                        if (i == _breadcrumb.Count - 1)
+                        {
+                            <span class="breadcrumb-current">@crumb.Label</span>
+                        }
+                        else
+                        {
+                            <button type="button" class="breadcrumb-item" @onclick="crumb.Action">@crumb.Label</button>
+                            <span class="breadcrumb-sep">›</span>
+                        }
                     }
                 }
-                <h3 class="section-title">@GetSectionTitle()</h3>
+                else
+                {
+                    <h3 class="section-title">@GetSectionTitle()</h3>
+                }
             </div>
             <div class="toolbar-right">
                 <div class="search-box">
@@ -1278,7 +1289,7 @@
                                controls
                                autoplay
                                preload="auto"
-                               src="@GetStreamUrl(_playerVideo!.Id)">
+                               src="@(_currentPlayerSrc ?? GetStreamUrl(_playerVideo!.Id))">
                             @if (_playerSubtitles.Count > 0)
                             {
                                 @foreach (var sub in _playerSubtitles)
@@ -1329,7 +1340,7 @@
                         @if (_streamStrategy is not null && _streamStrategy != "direct" && _playerVideo is not null)
                         {
                             <div class="transcode-seek-bar" id="transcode-seek-bar" data-max-duration="@_playerVideo!.Duration.TotalSeconds">
-                                <button class="seek-play-pause" id="seek-play-pause-btn" title="Play / Pause" aria-label="Toggle playback">▶</button>
+                                <button class="seek-play-pause" id="seek-play-pause-btn" title="Play / Pause" aria-label="Toggle playback"></button>
                                 <div class="transcode-seek-time transcode-seek-time-start" id="transcode-seek-time-start">0:00</div>
                                 <div class="transcode-seek-track" id="transcode-seek-track">
                                     <div class="transcode-seek-fill" id="transcode-seek-fill"></div>

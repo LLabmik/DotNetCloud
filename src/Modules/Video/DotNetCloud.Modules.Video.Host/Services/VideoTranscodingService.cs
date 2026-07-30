@@ -111,6 +111,17 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
             (startTime.HasValue ? ", startTime={StartTime}" : ""),
             sourceFilePath, videoCodec, audioCodec, args, startTime);
 
+        // TEMP DIAGNOSTIC — remove after remux-seek bug is root-caused.
+        // Module Console/logger output does not reach the main systemd journal
+        // (process-isolated module), so write directly to a file we can read.
+        var debugId = Guid.NewGuid().ToString("N")[..8];
+        try
+        {
+            System.IO.File.AppendAllText("/tmp/dotnetcloud-video-debug.log",
+                $"[{DateTime.UtcNow:O}] [{debugId}] START source={sourceFilePath} startTime={startTime} ffmpegArgs={args}{Environment.NewLine}");
+        }
+        catch { /* best effort */ }
+
         var psi = new ProcessStartInfo
         {
             FileName = _options.FfmpegPath,
@@ -132,6 +143,16 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
             {
                 stderrCapture.AppendLine(e.Data);
                 _logger.LogDebug("ffmpeg(remux): {Line}", e.Data);
+
+                // TEMP DIAGNOSTIC — remove after remux-seek bug is root-caused.
+                // Write each stderr line live (Exited event can race with
+                // Kill()/Dispose() and never fire its summary line).
+                try
+                {
+                    System.IO.File.AppendAllText("/tmp/dotnetcloud-video-debug.log",
+                        $"[{DateTime.UtcNow:O}] [{debugId}] STDERR {e.Data}{Environment.NewLine}");
+                }
+                catch { /* best effort */ }
             }
         };
 
@@ -146,6 +167,14 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
                 var error = stderrCapture.ToString();
                 _logger.LogError("ffmpeg stream copy failed (exit={ExitCode}): {Error}", process.ExitCode, error);
             }
+
+            // TEMP DIAGNOSTIC — remove after remux-seek bug is root-caused.
+            try
+            {
+                System.IO.File.AppendAllText("/tmp/dotnetcloud-video-debug.log",
+                    $"[{DateTime.UtcNow:O}] [{debugId}] EXIT source={sourceFilePath} startTime={startTime} exitCode={process.ExitCode}{Environment.NewLine}");
+            }
+            catch { /* best effort */ }
         };
 
         return (process, args);
@@ -467,6 +496,81 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
     public TranscodingJob? GetActiveHlsJob(Guid videoId)
     {
         return _jobTracker.GetActiveHlsJob(videoId);
+    }
+
+    /// <inheritdoc />
+    public async Task<(string JobId, string OutputDir, string PlaylistPath)> SeekHlsTranscodeAsync(
+        Guid videoId,
+        Guid userId,
+        string sourceFilePath,
+        TimeSpan seekStart,
+        CancellationToken ct = default)
+    {
+        // Hold the per-video HLS lock EXCLUSIVELY across the whole cancel →
+        // cleanup → create sequence. Unlike TranscodeHlsAsync's lock (which
+        // short-circuits if a job already exists — fine for "create if
+        // missing" semantics), a seek must always win: it cancels whatever
+        // is currently active first. Holding the lock the whole time blocks
+        // any concurrent ordinary playlist-refresh request (no seek) from
+        // sneaking in and creating its own unseeked job in the gap, which
+        // this seek would otherwise mistakenly reuse via GetActiveHlsJob.
+        var hlsLock = await _jobTracker.AcquireHlsLockExclusiveAsync(videoId, TimeSpan.FromSeconds(30));
+        if (hlsLock is null)
+        {
+            throw new TimeoutException($"Timed out acquiring HLS lock for seek on video {videoId}");
+        }
+
+        using (hlsLock)
+        {
+            // Cancel the current job for this video+user (normal case).
+            var existingJob = _jobTracker.GetActiveJob(videoId, userId);
+            if (existingJob is not null)
+            {
+                _logger.LogInformation("SeekHlsTranscodeAsync: cancelling job {JobId} for video {VideoId}", existingJob.Id, videoId);
+                _processManager.CancelJob(existingJob.Id);
+            }
+
+            // Also cancel any other HLS job GetActiveHlsJob considers active for
+            // this video (it's keyed by videoId only, regardless of user), so a
+            // stale/foreign job can't be picked up as "existing" moments later.
+            var anyActiveHlsJob = _jobTracker.GetActiveHlsJob(videoId);
+            if (anyActiveHlsJob is not null && anyActiveHlsJob.Id != existingJob?.Id)
+            {
+                _logger.LogInformation("SeekHlsTranscodeAsync: cancelling additional active HLS job {JobId} for video {VideoId}", anyActiveHlsJob.Id, videoId);
+                _processManager.CancelJob(anyActiveHlsJob.Id);
+            }
+
+            // Delete old HLS output directory for this video+user.
+            var hlsRootDir = GetHlsRootDir();
+            var oldDirPattern = $"hls-{videoId:N}-{userId:N}";
+            if (Directory.Exists(hlsRootDir))
+            {
+                foreach (var dir in Directory.GetDirectories(hlsRootDir, oldDirPattern + "*"))
+                {
+                    try
+                    { Directory.Delete(dir, recursive: true); }
+                    catch (Exception ex)
+                    { _logger.LogWarning(ex, "Failed to clean old HLS dir for seek: {Dir}", dir); }
+                }
+            }
+
+            // Create the fresh output dir + job, still under the lock.
+            var actualOutputDir = Path.Combine(hlsRootDir, $"hls-{videoId:N}-{userId:N}");
+            Directory.CreateDirectory(actualOutputDir);
+            var actualPlaylistPath = Path.Combine(actualOutputDir, "playlist.m3u8");
+
+            var job = _jobTracker.CreateJob(videoId, userId, $"hls-{videoId:N}");
+            job.OutputPath = actualPlaylistPath;
+            job.IsHls = true;
+
+            await LaunchFfmpegAsync(job, sourceFilePath, actualOutputDir, actualPlaylistPath,
+                sourceVideoCodec: null, sourceAudioCodec: null, seekStart: seekStart, ct: ct);
+
+            return (job.Id, actualOutputDir, actualPlaylistPath);
+            // Lock released here (using block) — new job is now visible to
+            // concurrent requests via GetActiveHlsJob, and it's guaranteed to
+            // be the ONLY active job for this video at that point.
+        }
     }
 
     /// <summary>

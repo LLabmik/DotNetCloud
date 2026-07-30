@@ -82,6 +82,12 @@ public partial class VideoPage : IAsyncDisposable
     // ── Player state ──
     private bool _playerOpen;
     private VideoDto? _playerVideo;
+    // Tracks the exact URL currently assigned to <video src>. Kept in sync
+    // with any JS-side src mutation (e.g. transcode seeks) so that Blazor's
+    // automatic re-render after event handlers doesn't diff the Razor-bound
+    // src attribute back to the original (unseeked) URL — which was causing
+    // the video to silently restart from position 0 after every seek.
+    private string? _currentPlayerSrc;
     private VideoMetadataDto? _playerMetadata;
     private List<SubtitleDto> _playerSubtitles = [];
     private string? _codecErrorMessage;
@@ -161,12 +167,13 @@ public partial class VideoPage : IAsyncDisposable
     private List<(Guid Id, string Name)> _dirBrowserBreadcrumbs = [];
     private string? _dirBrowserError;
 
-/// <summary>
+    /// <summary>
     /// Toggles fullscreen mode for the video player container via JS Fullscreen API.
     /// </summary>
     private async Task ToggleFullscreenAsync()
     {
-        if (_playerVideo is null) return;
+        if (_playerVideo is null)
+            return;
         await Js.InvokeVoidAsync("DotNetCloudVideo.toggleFullscreen", "player-container");
     }
 
@@ -408,6 +415,18 @@ public partial class VideoPage : IAsyncDisposable
 
         _seekBarPosition = targetSeconds;
         _seekInProgress = true;
+
+        // Compute the seek URL here (in C#) instead of letting JS build its
+        // own, and store it in _currentPlayerSrc, which is what the Razor
+        // <video src="..."> binding now reads. This keeps Blazor's virtual
+        // DOM in sync with whatever JS sets on the live DOM element. Without
+        // this, Blazor's automatic re-render after this event handler
+        // completes would diff the src attribute back to the ORIGINAL
+        // (unseeked) GetStreamUrl(...) value — silently restarting playback
+        // from position 0 right after every seek, while the JS-tracked
+        // counter kept showing the (correct) seeked time.
+        var seekUrl = $"{GetStreamUrl(_playerVideo!.Id)}?startSeconds={targetSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture)}&_={DateTimeOffset.UtcNow.Ticks}";
+        _currentPlayerSrc = seekUrl;
         StateHasChanged();
 
         try
@@ -416,7 +435,8 @@ public partial class VideoPage : IAsyncDisposable
                 "video-player",
                 targetSeconds,
                 _playerVideo!.Id.ToString(),
-                _dotNetRef);
+                _dotNetRef,
+                seekUrl);
         }
         catch (Exception ex)
         {
@@ -822,11 +842,13 @@ public partial class VideoPage : IAsyncDisposable
 
             var caller = await GetCallerAsync();
             _playerVideo = video;
+            _currentPlayerSrc = GetStreamUrl(video.Id);
 
             // Increment view count (fire-and-forget — best-effort, don't block player)
             _ = Task.Run(async () =>
             {
-                try { await VideoService.IncrementViewCountAsync(video.Id); }
+                try
+                { await VideoService.IncrementViewCountAsync(video.Id); }
                 catch (Exception ex) { Logger.LogWarning(ex, "Failed to increment view count for {VideoId}", video.Id); }
             });
 
@@ -835,7 +857,8 @@ public partial class VideoPage : IAsyncDisposable
 
             _breadcrumb =
             [
-                new BreadcrumbItem(GetSectionLabel(), async () => { await ClosePlayer(); StateHasChanged(); })
+                new BreadcrumbItem(GetSectionLabel(), async () => { await ClosePlayer(); StateHasChanged(); }),
+                new BreadcrumbItem(video.Title, async () => { /* current view */ })
             ];
         }
         catch (Exception ex)
@@ -859,6 +882,7 @@ public partial class VideoPage : IAsyncDisposable
         _streamStrategy = null;
         _seekBarPosition = 0;
         _seekInProgress = false;
+        _currentPlayerSrc = null;
         try
         {
             await Js.InvokeVoidAsync("DotNetCloudVideo.disposeProgressTracking", "video-player");
@@ -914,7 +938,8 @@ public partial class VideoPage : IAsyncDisposable
 
         _breadcrumb =
         [
-            new BreadcrumbItem("Collections", async () => { _selectedCollection = null; _selectedCollectionId = null; _breadcrumb.Clear(); StateHasChanged(); })
+            new BreadcrumbItem("Collections", async () => { await SwitchSection(Section.Collections); }),
+            new BreadcrumbItem(_selectedCollection?.Name ?? "Collection", async () => { /* current view */ })
         ];
 
         try
@@ -944,7 +969,8 @@ public partial class VideoPage : IAsyncDisposable
 
         _breadcrumb =
         [
-            new BreadcrumbItem("Series", async () => { _selectedSeries = null; _selectedSeason = null; _seriesSeasons.Clear(); _seasonEpisodes.Clear(); _seriesVideos.Clear(); _breadcrumb.Clear(); StateHasChanged(); })
+            new BreadcrumbItem("Series", async () => { await SwitchSection(Section.Series); }),
+            new BreadcrumbItem(series.Name, async () => { /* current view */ })
         ];
 
         try
@@ -973,7 +999,8 @@ public partial class VideoPage : IAsyncDisposable
 
         _breadcrumb =
         [
-            new BreadcrumbItem("Series", async () => { _selectedSeason = null; _seasonEpisodes.Clear(); await OpenSeriesDetailAsync(_selectedSeries!); }),
+            new BreadcrumbItem("Series", async () => { await SwitchSection(Section.Series); }),
+            new BreadcrumbItem(_selectedSeries?.Name ?? "Series", async () => { _selectedSeason = null; _seasonEpisodes.Clear(); await OpenSeriesDetailAsync(_selectedSeries!); }),
             new BreadcrumbItem(season.Name ?? $"Season {season.SeasonNumber}", async () => { /* current view */ })
         ];
 

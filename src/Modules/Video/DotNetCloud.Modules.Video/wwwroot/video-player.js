@@ -710,12 +710,18 @@
    * @param {number} targetSeconds - The target position in seconds.
    * @param {string} videoId - The video GUID.
    * @param {object} dotNetRef - .NET reference for callbacks.
+   * @param {string=} explicitUrl - Pre-built seek URL from C# (remux/direct
+   *   path). When provided, used verbatim instead of building a URL here, so
+   *   it exactly matches the value Blazor's <video src> binding will render
+   *   on its next re-render (preventing Blazor from resetting src back to
+   *   the original unseeked URL right after this function sets it).
    */
   videoPlayer.seekTranscode = function (
     elementId,
     targetSeconds,
     videoId,
     dotNetRef,
+    explicitUrl,
   ) {
     var video = document.getElementById(elementId);
     if (!video) return;
@@ -726,20 +732,27 @@
     // Instead, reload the stream URL with a startSeconds parameter so the
     // server restarts ffmpeg from the seeked position.
     if (!video._hls) {
-      var baseUrl =
-        video.getAttribute("data-stream-url") ||
-        video.src ||
-        "/api/v1/videos/" + videoId + "/stream";
-      // Strip existing query params and add startSeconds + cache-buster
-      var sep = baseUrl.indexOf("?") === -1 ? "?" : "&";
-      var newUrl =
-        baseUrl + sep + "startSeconds=" + targetSeconds + "&_=" + Date.now();
+      var newUrl = explicitUrl;
+      if (!newUrl) {
+        var baseUrl =
+          video.getAttribute("data-stream-url") ||
+          video.src ||
+          "/api/v1/videos/" + videoId + "/stream";
+        // Strip existing query params and add startSeconds + cache-buster
+        var sep = baseUrl.indexOf("?") === -1 ? "?" : "&";
+        newUrl =
+          baseUrl + sep + "startSeconds=" + targetSeconds + "&_=" + Date.now();
+      }
 
       // Store the absolute offset so the slider position reflects the full
       // video timeline, not the (restarted) stream's local time.
       video._seekStartOffset = targetSeconds;
 
       video.src = newUrl;
+      // Play immediately — browsers queue the play() request and start
+      // playback as soon as there's enough data. Waiting for canplay first
+      // can cause A/V desync because the audio pipeline starts before the
+      // video decoder has caught up after the stream reload.
       video.play().catch(function () {});
 
       if (dotNetRef) {
@@ -761,11 +774,30 @@
       // Setting currentTime triggers a browser seek which flushes both audio
       // and video decoder pipelines automatically.  Just ensure playback
       // resumes after the seek completes.
+      // Store the offset for slider time display — even within buffered range
+      // the video's currentTime may jump relative to _seekStartOffset.
+      video._seekStartOffset = targetSeconds;
+
+      // If already at the target, no seek event will fire — just play.
+      if (Math.abs(video.currentTime - targetSeconds) < 0.1 && video.paused) {
+        video.play().catch(function (err) {
+          console.warn("DNC: seek play failed (already at target)", err);
+        });
+        if (dotNetRef) {
+          dotNetRef
+            .invokeMethodAsync("OnTranscodeSeekComplete", targetSeconds)
+            .catch(function () {});
+        }
+        return;
+      }
+
       video.currentTime = targetSeconds;
       var onSeeked2 = function () {
         video.removeEventListener("seeked", onSeeked2);
         if (video.paused) {
-          video.play().catch(function () {});
+          video.play().catch(function (err) {
+            console.warn("DNC: seek play failed after seeked", err);
+          });
         }
       };
       video.addEventListener("seeked", onSeeked2);
@@ -809,6 +841,10 @@
         return resp.json();
       })
       .then(function () {
+        // Store the absolute offset so the slider position reflects the full
+        // video timeline, not the restarted HLS stream's local time.
+        video._seekStartOffset = targetSeconds;
+
         // Destroy old HLS instance
         if (video._hls) {
           video._hls.destroy();
@@ -821,12 +857,25 @@
         // Remove overlay
         if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
 
-        // Re-initialize HLS with the same stream URL.
-        var streamUrl = video.getAttribute("data-stream-url") || video.src;
-        if (!streamUrl) {
-          streamUrl =
-            "/api/v1/videos/" + videoId + "/stream?forceTranscode=true";
-        }
+        // Re-initialize HLS pointed DIRECTLY at the job that /stream/seek just
+        // created and confirmed ready (via GetActiveHlsJob), instead of
+        // re-requesting the generic /stream endpoint. Re-requesting /stream
+        // re-probes the source file and calls TranscodeHlsAsync WITHOUT
+        // seekStart, relying on an "is there already a reusable job running"
+        // heuristic to avoid starting yet another transcode from position 0.
+        // That heuristic is a race: if it ever misses (e.g. timing, or a
+        // second concurrent viewer of the same video), the reload silently
+        // falls back to a fresh transcode starting at 0, which plays from
+        // the beginning while the client-side counter (driven by
+        // _seekStartOffset) keeps showing the seeked-to position — exactly
+        // the "counter is right but video plays from the start" symptom.
+        // The HLS segment route already serves playlist.m3u8 for whatever
+        // job GetActiveHlsJob(videoId) currently considers active — which,
+        // right after a successful /stream/seek response, is guaranteed to
+        // be the newly-seeked job. Segment paths inside that playlist are
+        // relative (e.g. "segment_00000.ts") and resolve against this same
+        // /stream/ prefix, so no server-side path rewriting is needed here.
+        var streamUrl = "/api/v1/videos/" + videoId + "/stream/playlist.m3u8";
 
         // Clear existing src to force a fresh load
         video.removeAttribute("src");
@@ -846,16 +895,30 @@
           hls.loadSource(streamUrl);
           hls.attachMedia(video);
           hls.on(Hls.Events.MANIFEST_PARSED, function () {
-            video.play().catch(function () {});
+            video.play().catch(function (err) {
+              console.warn("DNC: seek play failed after HLS reload", err);
+            });
           });
           hls.on(Hls.Events.ERROR, function (event, data) {
             if (data.fatal) {
               switch (data.type) {
                 case Hls.ErrorTypes.NETWORK_ERROR:
                   hls.startLoad();
+                  // After recovering from a network error, try to resume playback
+                  setTimeout(function () {
+                    if (video.paused) {
+                      video.play().catch(function () {});
+                    }
+                  }, 500);
                   break;
                 case Hls.ErrorTypes.MEDIA_ERROR:
                   hls.recoverMediaError();
+                  // After recovering from a media error, try to resume playback
+                  setTimeout(function () {
+                    if (video.paused) {
+                      video.play().catch(function () {});
+                    }
+                  }, 500);
                   break;
                 default:
                   hls.destroy();
@@ -1029,11 +1092,14 @@
         maxDuration = video.duration;
       }
 
-      // If duration is unknown, hide the seek bar and show a message
+      // If duration is still unknown, hide the seek bar — it will be shown
+      // when durationchange fires below.
       if (maxDuration <= 0) {
         if (bar) bar.style.display = "none";
-        return;
       }
+
+      // ── Event listeners (set up unconditionally so they're ready when
+      //    duration becomes available, e.g., HLS manifest loads late) ──
 
       // Hide native browser controls — the custom slider replaces them.
       // Click on the video toggles play/pause instead.
@@ -1123,6 +1189,15 @@
           var b = document.getElementById("seek-play-pause-btn");
           if (b) b.textContent = "\u25B6"; // ▶
         });
+
+        // Sync button icon with current playback state — the video may have
+        // already started playing via autoplay before the event listeners
+        // above were attached (e.g. remux strategy where video.play() is
+        // called synchronously right after OnStreamStrategy).
+        var initialBtn = document.getElementById("seek-play-pause-btn");
+        if (initialBtn) {
+          initialBtn.textContent = video.paused ? "\u25B6" : "\u23F8";
+        }
       }
 
       // Update fill position on timeupdate (if not dragging)
@@ -1138,6 +1213,50 @@
           // Update start time label
           if (timeStart) {
             timeStart.textContent = formatTime(effectiveTime);
+          }
+          // Keep play/pause button in sync (Blazor re-renders clear the icon)
+          var tb = document.getElementById("seek-play-pause-btn");
+          if (tb) {
+            tb.textContent = video.paused ? "\u25B6" : "\u23F8";
+          }
+        });
+
+        // Listen for durationchange — HLS streams may not have duration
+        // available until the manifest loads. When duration arrives, show
+        // the seek bar and enable it.
+        video.addEventListener("durationchange", function () {
+          if (
+            maxDuration > 0 ||
+            !isFinite(video.duration) ||
+            video.duration <= 0
+          )
+            return;
+          maxDuration = video.duration;
+          if (bar) {
+            bar.style.display = "";
+            bar.setAttribute("data-max-duration", maxDuration);
+          }
+          if (timeEnd) {
+            timeEnd.textContent = formatTime(maxDuration);
+          }
+        });
+
+        // Also listen for loadedmetadata as a fallback for browsers that
+        // don't fire durationchange reliably.
+        video.addEventListener("loadedmetadata", function () {
+          if (
+            maxDuration > 0 ||
+            !isFinite(video.duration) ||
+            video.duration <= 0
+          )
+            return;
+          maxDuration = video.duration;
+          if (bar) {
+            bar.style.display = "";
+            bar.setAttribute("data-max-duration", maxDuration);
+          }
+          if (timeEnd) {
+            timeEnd.textContent = formatTime(maxDuration);
           }
         });
       }

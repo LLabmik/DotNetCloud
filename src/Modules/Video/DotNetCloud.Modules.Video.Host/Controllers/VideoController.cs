@@ -485,40 +485,38 @@ public class VideoController : VideoControllerBase
         if (video is null)
             return NotFound(ErrorEnvelope(ErrorCodes.VideoNotFound, "Video not found."));
 
-        // Cancel any existing transcode for this video+user
-        _transcodingService.CancelTranscode(videoId, caller.UserId);
-
-        // Clean up old HLS output directory if it exists
-        var hlsRootDir = Path.Combine(Path.GetTempPath(), "dotnetcloud-hls");
-        var oldDirPattern = $"hls-{videoId:N}-{caller.UserId:N}";
-        if (Directory.Exists(hlsRootDir))
-        {
-            foreach (var dir in Directory.GetDirectories(hlsRootDir, oldDirPattern + "*"))
-            {
-                try
-                { Directory.Delete(dir, recursive: true); }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Failed to clean old HLS dir for seek: {Dir}", dir);
-                }
-            }
-        }
-
         // Reconstruct file path from storage
         var (filePath, _) = await SaveVideoToTempFile(video, caller);
         if (filePath is null)
             return NotFound(ErrorEnvelope("file_not_found", "Video file not found in storage."));
 
+        // IMPORTANT: Do NOT pass HttpContext.RequestAborted to SeekHlsTranscodeAsync.
+        // ffmpeg for this seek must keep running as a background job long after this
+        // POST /seek request's response has been sent — the same reason the main
+        // /stream handler below uses its own un-disposed transcodeCts instead of
+        // HttpContext.RequestAborted. If we used RequestAborted here, ffmpeg gets
+        // killed (SendGracefulQuit → process.Kill) as soon as this request's
+        // connection/context is torn down, which happens shortly after we return —
+        // producing exactly the "seek jumps ahead then freezes after a few seconds"
+        // symptom. WaitForHlsReadyAsync below is still fine to cancel on client
+        // disconnect since it only stops *waiting*, it doesn't touch ffmpeg.
+        var transcodeCts = new CancellationTokenSource();
+
         try
         {
-            // Start new HLS transcode from the seek position
-            var (jobId, outputDir, playlistPath) = await _transcodingService.TranscodeHlsAsync(
+            // Cancel the current transcode, clean up its output directory, and start
+            // a new one from the seek position — all atomically under the per-video
+            // HLS lock (see SeekHlsTranscodeAsync for why this must be atomic: an
+            // ordinary playlist-refresh request racing in between an unlocked
+            // cancel+delete and the new job's creation could otherwise create its
+            // own unseeked job that gets mistakenly reused, silently discarding the
+            // seek).
+            var (jobId, outputDir, playlistPath) = await _transcodingService.SeekHlsTranscodeAsync(
                 videoId,
                 caller.UserId,
                 filePath,
-                video.MimeType,
-                seekStart: seekStart,
-                ct: HttpContext.RequestAborted);
+                seekStart,
+                ct: transcodeCts.Token);
 
             _logger.LogInformation(
                 "SeekTranscode: Started new transcode job {JobId} for video {VideoId} at position {Position}s",
@@ -538,7 +536,11 @@ public class VideoController : VideoControllerBase
         }
         finally
         {
-            TryDeleteTempFile(filePath);
+            // NOTE: Do NOT delete filePath here — it's the ffmpeg source file for the
+            // background transcode job we just launched (fire-and-forget), which keeps
+            // reading it long after this method returns. VideoTranscodingService's
+            // LaunchFfmpegAsync already deletes sourceFilePath itself once the job
+            // completes, fails, or is cancelled (see TryDeleteFile calls there).
         }
     }
 
@@ -1027,14 +1029,39 @@ public class VideoController : VideoControllerBase
                 response.Headers["X-Stream-Diagnostics"] =
                     $"strategy=remux;total={totalElapsed.TotalMilliseconds:F0}ms;codec={videoCodec};container={container}";
 
+                // TEMP DIAGNOSTIC — remove after remux-seek bug is root-caused.
+                var reqDebugId = Guid.NewGuid().ToString("N")[..8];
+                long bytesCopied = 0;
+                try
+                {
+                    System.IO.File.AppendAllText("/tmp/dotnetcloud-video-debug.log",
+                        $"[{DateTime.UtcNow:O}] [REQ-{reqDebugId}] CopyToAsync BEGIN videoId={videoId} startSeconds={startSeconds}{Environment.NewLine}");
+                }
+                catch { /* best effort */ }
+
                 // Stream ffmpeg stdout directly to the HTTP response
                 try
                 {
-                    await ffmpegProcess.StandardOutput.BaseStream.CopyToAsync(
-                        response.Body, HttpContext.RequestAborted);
+                    var buffer = new byte[65536];
+                    int read;
+                    while ((read = await ffmpegProcess.StandardOutput.BaseStream.ReadAsync(
+                        buffer, HttpContext.RequestAborted)) > 0)
+                    {
+                        await response.Body.WriteAsync(buffer.AsMemory(0, read), HttpContext.RequestAborted);
+                        bytesCopied += read;
+                    }
                 }
                 finally
                 {
+                    // TEMP DIAGNOSTIC — remove after remux-seek bug is root-caused.
+                    try
+                    {
+                        System.IO.File.AppendAllText("/tmp/dotnetcloud-video-debug.log",
+                            $"[{DateTime.UtcNow:O}] [REQ-{reqDebugId}] CopyToAsync END videoId={videoId} bytesCopied={bytesCopied} " +
+                            $"requestAborted={HttpContext.RequestAborted.IsCancellationRequested} ffmpegExited={ffmpegProcess.HasExited}{Environment.NewLine}");
+                    }
+                    catch { /* best effort */ }
+
                     _streamProgress.Remove(videoId);
                     if (!ffmpegProcess.HasExited)
                     {

@@ -132,6 +132,26 @@ public sealed class TranscodingJobTracker
         }
     }
 
+    /// <summary>
+    /// Acquires the per-video HLS lock unconditionally (no "existing job" short-circuit),
+    /// waiting for any in-progress job creation/refresh to finish first. Used by seek
+    /// operations, which need exclusive access across cancelling the old job, deleting
+    /// its output directory, and registering the new (seeked) job as a single atomic
+    /// unit — otherwise a concurrent ordinary playlist-refresh request (no seek) can
+    /// race in between and create its own unseeked job, which the seek would then
+    /// mistakenly reuse via GetActiveHlsJob/IsJobReusable.
+    /// </summary>
+    /// <returns>A disposable that releases the lock, or null if the wait timed out.</returns>
+    public async Task<IDisposable?> AcquireHlsLockExclusiveAsync(Guid videoId, TimeSpan? timeout = null)
+    {
+        var semaphore = _hlsLocks.GetOrAdd(videoId, _ => new SemaphoreSlim(1, 1));
+        var acquired = await semaphore.WaitAsync(timeout ?? TimeSpan.FromSeconds(30));
+        if (!acquired)
+            return null;
+
+        return new HlsLockReleaser(semaphore, () => TryCleanupLock(videoId, semaphore));
+    }
+
     private void TryCleanupLock(Guid videoId, SemaphoreSlim semaphore)
     {
         // Only remove the semaphore from the dictionary if no one is waiting

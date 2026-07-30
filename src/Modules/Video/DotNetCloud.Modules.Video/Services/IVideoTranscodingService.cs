@@ -129,4 +129,27 @@ public interface IVideoTranscodingService
     /// Gets the active HLS transcode job for a given video ID, if any.
     /// </summary>
     TranscodingJob? GetActiveHlsJob(Guid videoId);
+
+    /// <summary>
+    /// Atomically cancels the current HLS transcode for a video+user and starts a
+    /// new one from <paramref name="seekStart"/>, holding the per-video HLS lock for
+    /// the entire cancel → cleanup → create sequence. This is required because a
+    /// concurrent, ordinary playlist-refresh request (hls.js periodically re-fetches
+    /// the growing HLS manifest via <see cref="TranscodeHlsAsync"/> with no seek) can
+    /// otherwise race in between an unlocked cancel+delete and the new job's creation,
+    /// spin up its own unseeked job, and have the seek wrongly reuse it — silently
+    /// discarding the seek and leaving playback at position 0.
+    /// </summary>
+    /// <param name="videoId">The Video entity ID.</param>
+    /// <param name="userId">The requesting user ID.</param>
+    /// <param name="sourceFilePath">Absolute path to the source video file.</param>
+    /// <param name="seekStart">Position to start the new transcode from.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>A tuple of (jobId, outputDirectory, playlistPath) for the new job.</returns>
+    Task<(string JobId, string OutputDir, string PlaylistPath)> SeekHlsTranscodeAsync(
+        Guid videoId,
+        Guid userId,
+        string sourceFilePath,
+        TimeSpan seekStart,
+        CancellationToken ct = default);
 }
