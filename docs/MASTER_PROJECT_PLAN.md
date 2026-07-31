@@ -6152,3 +6152,23 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - ✓ Step 5.2 — Main Popup Structure (complete
 
 
+
+---
+
+## Operational Bug Fixes
+
+### HLS Transcode Seek 504 / "Jumping to…" Hang
+
+**Status:** completed ✅
+**Date:** 2026-07-31
+
+**Deliverables:**
+
+- ✓ `FfmpegArgumentBuilder.BuildHlsArgs` rebases timestamps for seek operations (omits `-copyts -avoid_negative_ts disabled`) so ffmpeg does not write empty filler segments up to the seek target.
+- ✓ Seek keyframe forced at the accurate-seek offset (post-input `-ss` value) for clean rebased output.
+- ✓ `VideoController.SeekTranscode` returns `startOffsetSeconds` so the client can align playback time with the requested absolute position.
+- ✓ `video-player.js` applies `startOffsetSeconds`, sets `video.currentTime` after HLS manifest parse, and adds a 15s `AbortController` timeout with guaranteed overlay cleanup.
+- ✓ `cancelStreamProgress` now aborts in-flight seek requests and removes the seek overlay/error overlay.
+- ✓ Unit tests added for rebased-timestamp seek behavior and non-seek source-timestamp preservation.
+
+**Notes:** Manual ffmpeg benchmarks on the failing MPEG-PS source showed the old `-copyts` seek strategy took ~22s to produce two segments; the rebased strategy produces them in ~7-8s. Client timeout is a safety net so the overlay can never stick indefinitely. Deployed to production and health checks pass.

@@ -287,6 +287,10 @@ public sealed class FfmpegArgumentBuilderTests
         Assert.IsTrue(iIndex >= 0);
         Assert.IsTrue(args[..iIndex].Contains("-ss 80.000"), $"Expected fast seek before -i. Args: {args}");
         Assert.IsTrue(args[iIndex..].Contains("-ss 10.000"), $"Expected accurate seek after -i. Args: {args}");
+
+        // The forced keyframe for the seek must be at the accurate-seek offset
+        // (where rebased output content begins), not the absolute source time.
+        Assert.IsTrue(args.Contains("-force_key_frames:0 10.000"), $"Expected keyframe at accurate offset. Args: {args}");
     }
 
     [TestMethod]
@@ -297,6 +301,31 @@ public sealed class FfmpegArgumentBuilderTests
             seekStart: TimeSpan.Zero);
 
         Assert.IsFalse(args.Contains("-ss"));
+    }
+
+    [TestMethod]
+    public void BuildHlsArgs_NoSeek_PreservesSourceTimestamps()
+    {
+        // Non-seeking HLS output keeps source PTS so the timeline matches the
+        // original file and long-playback drift is avoided.
+        var args = _builder.BuildHlsArgs("/i.mkv", "/out", _defaultOptions);
+
+        Assert.IsTrue(args.Contains("-copyts"));
+        Assert.IsTrue(args.Contains("-avoid_negative_ts disabled"));
+    }
+
+    [TestMethod]
+    public void BuildHlsArgs_Seek_RebasesTimestampsToAvoidFillerSegments()
+    {
+        // Seeking with -copyts forces ffmpeg to write empty filler segments
+        // from t=0 to the seek target, which can take 20-30s. Seek output is
+        // therefore rebased to start immediately.
+        var args = _builder.BuildHlsArgs(
+            "/i.mkv", "/out", _defaultOptions,
+            seekStart: TimeSpan.FromSeconds(90));
+
+        Assert.IsFalse(args.Contains("-copyts"));
+        Assert.IsFalse(args.Contains("-avoid_negative_ts disabled"));
     }
 
     [TestMethod]

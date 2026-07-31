@@ -34,6 +34,24 @@ public sealed class FfmpegProcessManager : IDisposable
         RegexOptions.Compiled);
 
     /// <summary>
+    /// Writes a line to the shared HLS seek debug log. Process-isolated module hosts do
+    /// not reliably forward Console.Error to the main systemd journal, so a file-based
+    /// log is the only reliable way to correlate ffmpeg PIDs and cancellation events.
+    /// </summary>
+    private static void WriteFfmpegDiag(string message)
+    {
+        try
+        {
+            System.IO.File.AppendAllText("/tmp/dotnetcloud-hls-seek-debug.log",
+                $"[{DateTime.UtcNow:O}] {message}{Environment.NewLine}");
+        }
+        catch
+        {
+            // Best effort diagnostic logging.
+        }
+    }
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="FfmpegProcessManager"/> class.
     /// </summary>
     public FfmpegProcessManager(
@@ -71,6 +89,7 @@ public sealed class FfmpegProcessManager : IDisposable
             cancellationToken, perJobCts.Token);
 
         bool semaphoreAcquired = false;
+        var stderrPath = $"/tmp/ffmpeg-stderr-{job.Id}.log";
         try
         {
             await _concurrencyGate.WaitAsync(linkedCts.Token);
@@ -79,81 +98,118 @@ public sealed class FfmpegProcessManager : IDisposable
             _activeJobs[job.Id] = job;
             job.Status = TranscodingJobStatus.Running;
 
-            var processStartInfo = new ProcessStartInfo
-            {
-                FileName = _options.FfmpegPath,
-                // Override log level to info so ffmpeg outputs progress details to stderr
-                // (stderr is not redirected so it goes to the journal)
-                Arguments = arguments.Replace("-loglevel warning", "-loglevel info"),
-                RedirectStandardOutput = false,
-                RedirectStandardError = false,
-                RedirectStandardInput = false,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                WorkingDirectory = Path.GetDirectoryName(outputPath) ?? string.Empty
-            };
-
-            using var process = new Process { StartInfo = processStartInfo, EnableRaisingEvents = true };
-
-            _logger.LogInformation(
-                "Starting ffmpeg: {FfmpegPath} {Arguments}",
-                _options.FfmpegPath, arguments);
-
-            process.Start();
-            job.ProcessId = process.Id;
-            Console.Error.WriteLine($"[VIDEO-FFMPEG-LAUNCH] job={job.Id} pid={process.Id} hasExited={process.HasExited}");
-
-            // Poll for process exit with Task.Delay, avoiding WaitForExitAsync (which can have
-            // reliability issues on Linux) and the Exited event (which can fire prematurely).
-            // This is a proven pattern that works reliably across all .NET platforms.
-            var cancelReg = linkedCts.Token.Register(() =>
-            {
-                Console.Error.WriteLine($"[VIDEO-FFMPEG-CANCEL] job={job.Id} token cancelled");
-                SendGracefulQuit(process);
-            });
-
+            // Capture ffmpeg stderr to a dedicated log file so we can diagnose
+            // exit 137 / SIGKILL and other failures even when the module host's
+            // stderr is not forwarded to journald.
+            var stderrStream = new FileStream(stderrPath, FileMode.Create, FileAccess.Write, FileShare.Read);
             try
             {
-                while (!process.HasExited)
+                var processStartInfo = new ProcessStartInfo
                 {
-                    await Task.Delay(500, CancellationToken.None);
-                    if (linkedCts.Token.IsCancellationRequested)
+                    FileName = _options.FfmpegPath,
+                    // Override log level to info so ffmpeg outputs progress details to stderr.
+                    Arguments = arguments.Replace("-loglevel warning", "-loglevel info"),
+                    RedirectStandardOutput = false,
+                    RedirectStandardError = true,
+                    RedirectStandardInput = false,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    WorkingDirectory = Path.GetDirectoryName(outputPath) ?? string.Empty
+                };
+
+                using var process = new Process { StartInfo = processStartInfo, EnableRaisingEvents = true };
+
+                _logger.LogInformation(
+                    "Starting ffmpeg: {FfmpegPath} {Arguments}",
+                    _options.FfmpegPath, arguments);
+
+                process.Start();
+                job.ProcessId = process.Id;
+                var launchMsg = $"[VIDEO-FFMPEG-LAUNCH] job={job.Id} pid={process.Id} hasExited={process.HasExited} stderr={stderrPath}";
+                Console.Error.WriteLine(launchMsg);
+                WriteFfmpegDiag(launchMsg);
+
+                // Asynchronously drain ffmpeg stderr into the per-job log file.
+                var stderrDrain = process.StandardError.BaseStream.CopyToAsync(stderrStream, CancellationToken.None);
+
+                // Poll for process exit with Task.Delay, avoiding WaitForExitAsync (which can have
+                // reliability issues on Linux) and the Exited event (which can fire prematurely).
+                // This is a proven pattern that works reliably across all .NET platforms.
+                var cancelReg = linkedCts.Token.Register(() =>
+                {
+                    var callerStack = new System.Diagnostics.StackTrace(1, true).ToString().Replace("\n", " | ", StringComparison.Ordinal);
+                    var cancelMsg = $"[VIDEO-FFMPEG-CANCEL] job={job.Id} pid={process.Id} token cancelled caller={callerStack}";
+                    Console.Error.WriteLine(cancelMsg);
+                    WriteFfmpegDiag(cancelMsg);
+                    SendGracefulQuit(process);
+                });
+
+                try
+                {
+                    while (!process.HasExited)
                     {
-                        Console.Error.WriteLine($"[VIDEO-FFMPEG-CANCEL] job={job.Id} cancellation detected");
-                        SendGracefulQuit(process);
-                        break;
+                        await Task.Delay(500, CancellationToken.None);
+                        if (linkedCts.Token.IsCancellationRequested)
+                        {
+                            var detectMsg = $"[VIDEO-FFMPEG-CANCEL] job={job.Id} pid={process.Id} cancellation detected";
+                            Console.Error.WriteLine(detectMsg);
+                            WriteFfmpegDiag(detectMsg);
+                            SendGracefulQuit(process);
+                            break;
+                        }
                     }
                 }
+                finally
+                {
+                    cancelReg.Dispose();
+                }
+
+                // Ensure process is fully exited before reading ExitCode
+                if (!process.HasExited)
+                    process.WaitForExit(5000);
+
+                if (!process.HasExited)
+                {
+                    _logger.LogWarning("Force-killing ffmpeg job {JobId}", job.Id);
+                    // Do NOT use entireProcessTree: true. All ffmpeg child processes in this
+                    // process-isolated module host share the same process group on Linux; killing
+                    // the tree would terminate unrelated sibling ffmpeg jobs (e.g. the newly
+                    // launched seek transcode when cancelling the previous one).
+                    process.Kill(entireProcessTree: false);
+                }
+
+                try
+                {
+                    await stderrDrain.WaitAsync(TimeSpan.FromSeconds(5));
+                }
+                catch { /* best effort */ }
+
+                if (process.ExitCode != 0)
+                {
+                    var lastStderr = ReadTail(stderrPath, 4000);
+                    _logger.LogError(
+                        "ffmpeg exited with code {ExitCode} for job {JobId}. stderr tail: {StderrTail}",
+                        process.ExitCode, job.Id, lastStderr);
+                    var failMsg = $"[VIDEO-FFMPEG-FAIL] exit={process.ExitCode} job={job.Id} pid={process.Id} stderr={lastStderr}";
+                    Console.Error.WriteLine(failMsg);
+                    WriteFfmpegDiag(failMsg);
+                    throw new FfmpegException(
+                        $"ffmpeg exited with code {process.ExitCode}",
+                        process.ExitCode,
+                        lastStderr);
+                }
+
+                _logger.LogInformation("ffmpeg job {JobId} completed successfully", job.Id);
+                var doneMsg = $"[VIDEO-FFMPEG-DONE] job={job.Id} pid={process.Id} exitCode={process.ExitCode} hasExited={process.HasExited}";
+                Console.Error.WriteLine(doneMsg);
+                WriteFfmpegDiag(doneMsg);
             }
             finally
             {
-                cancelReg.Dispose();
+                try
+                { stderrStream.Dispose(); }
+                catch { /* best effort */ }
             }
-
-            // Ensure process is fully exited before reading ExitCode
-            if (!process.HasExited)
-                process.WaitForExit(5000);
-
-            if (!process.HasExited)
-            {
-                _logger.LogWarning("Force-killing ffmpeg job {JobId}", job.Id);
-                process.Kill(entireProcessTree: true);
-            }
-
-            if (process.ExitCode != 0)
-            {
-                _logger.LogError(
-                    "ffmpeg exited with code {ExitCode} for job {JobId}",
-                    process.ExitCode, job.Id);
-                Console.Error.WriteLine($"[VIDEO-FFMPEG-FAIL] exit={process.ExitCode} job={job.Id}");
-                throw new FfmpegException(
-                    $"ffmpeg exited with code {process.ExitCode}",
-                    process.ExitCode,
-                    null);
-            }
-
-            _logger.LogInformation("ffmpeg job {JobId} completed successfully", job.Id);
-            Console.Error.WriteLine($"[VIDEO-FFMPEG-DONE] job={job.Id} exitCode={process.ExitCode} hasExited={process.HasExited}");
         }
         finally
         {
@@ -172,6 +228,11 @@ public sealed class FfmpegProcessManager : IDisposable
     public void CancelJob(string jobId)
     {
         var sanitizedId = SanitizeForLog(jobId);
+        var callerStack = new System.Diagnostics.StackTrace(1, true).ToString().Replace("\n", " | ", StringComparison.Ordinal);
+        _logger.LogWarning("CancelJob called for job {JobId}. Caller stack: {CallerStack}", sanitizedId, callerStack);
+        var cancelJobMsg = $"[VIDEO-CANCELJOB] job={sanitizedId} stack={callerStack}";
+        Console.Error.WriteLine(cancelJobMsg);
+        WriteFfmpegDiag(cancelJobMsg);
 
         // 1. Cancel the per-job CTS — unblocks RunAsync which sends 'q' + force-kills
         if (_jobCts.TryRemove(jobId, out var cts))
@@ -197,8 +258,11 @@ public sealed class FfmpegProcessManager : IDisposable
     }
 
     /// <summary>
-    /// Kills a process by PID. Handles all common failure modes silently
-    /// (process already exited, PID recycled, permission denied).
+    /// Kills a specific ffmpeg process by PID. Handles all common failure modes silently
+    /// (process already exited, PID recycled, permission denied). Never uses
+    /// entireProcessTree because sibling ffmpeg processes in the module host share a
+    /// process group on Linux, and PID recycling could otherwise target an unrelated
+    /// process that reused this PID.
     /// </summary>
     private void KillProcessByPid(int pid, string jobId)
     {
@@ -208,26 +272,76 @@ public sealed class FfmpegProcessManager : IDisposable
         try
         {
             var process = Process.GetProcessById(pid);
-            if (!process.HasExited)
+            var actualName = process.ProcessName;
+            WriteFfmpegDiag($"[VIDEO-KILLBYPID] job={jobId} pid={pid} actualProcessName={actualName} hasExited={process.HasExited}");
+
+            // Guard against PID recycling: only kill if the process is actually ffmpeg.
+            if (!process.HasExited && string.Equals(actualName, "ffmpeg", StringComparison.OrdinalIgnoreCase))
             {
                 _logger.LogWarning("Direct-killing ffmpeg process pid={Pid} for job {JobId}", pid, jobId);
-                process.Kill(entireProcessTree: true);
+                process.Kill(entireProcessTree: false);
                 _logger.LogInformation("Direct-killed ffmpeg process pid={Pid} for job {JobId}", pid, jobId);
+                WriteFfmpegDiag($"[VIDEO-KILLBYPID] job={jobId} pid={pid} KILLED");
             }
         }
         catch (ArgumentException)
         {
             // Process already exited (PID no longer exists)
             _logger.LogDebug("ffmpeg process pid={Pid} already exited (job {JobId})", pid, jobId);
+            WriteFfmpegDiag($"[VIDEO-KILLBYPID] job={jobId} pid={pid} already exited (ArgumentException)");
         }
         catch (InvalidOperationException)
         {
             // Process already exited (HasExited would be true, or can't access)
             _logger.LogDebug("ffmpeg process pid={Pid} already exited (job {JobId})", pid, jobId);
+            WriteFfmpegDiag($"[VIDEO-KILLBYPID] job={jobId} pid={pid} already exited (InvalidOperationException)");
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to kill ffmpeg process pid={Pid} for job {JobId}", pid, jobId);
+            WriteFfmpegDiag($"[VIDEO-KILLBYPID] job={jobId} pid={pid} exception={ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Waits for a job's ffmpeg process to fully exit (i.e., it is no longer
+    /// in the active-jobs dictionary). Returns true if it exited within the
+    /// timeout, false otherwise. Used by seek operations to avoid deleting
+    /// an HLS output directory while the old ffmpeg process is still writing.
+    /// </summary>
+    public async Task<bool> WaitForProcessExitAsync(string jobId, TimeSpan timeout)
+    {
+        var sw = Stopwatch.StartNew();
+        while (sw.Elapsed < timeout)
+        {
+            if (!_activeJobs.ContainsKey(jobId))
+                return true;
+            await Task.Delay(100);
+        }
+        return !_activeJobs.ContainsKey(jobId);
+    }
+
+    private static string ReadTail(string path, int maxChars)
+    {
+        try
+        {
+            if (!File.Exists(path))
+                return string.Empty;
+
+            using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            if (fs.Length == 0)
+                return string.Empty;
+
+            var charsToRead = (int)Math.Min(maxChars, fs.Length);
+            fs.Seek(-charsToRead, SeekOrigin.End);
+            using var reader = new StreamReader(fs);
+            return reader.ReadToEnd()
+                .Replace("\r", " ", StringComparison.Ordinal)
+                .Replace("\n", " | ", StringComparison.Ordinal);
+        }
+        catch
+        {
+            return string.Empty;
         }
     }
 
@@ -281,14 +395,16 @@ public sealed class FfmpegProcessManager : IDisposable
     }
 
     /// <summary>
-    /// Attempts graceful quit by force-killing the process (stdin is not redirected
-    /// so we can't send 'q'). The caller has a 5-second timeout after this.
+    /// Attempts graceful quit by force-killing the specific ffmpeg process.
+    /// (stdin is not redirected so we can't send 'q'.) The caller has a 5-second
+    /// timeout after this. Never uses entireProcessTree because sibling ffmpeg
+    /// processes in the module host share a process group on Linux.
     /// </summary>
     private static void SendGracefulQuit(Process process)
     {
         try
         {
-            process.Kill(entireProcessTree: true);
+            process.Kill(entireProcessTree: false);
         }
         catch (Exception)
         {

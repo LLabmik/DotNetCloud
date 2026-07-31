@@ -4257,6 +4257,8 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Step 5.15 — Video Contracts & Data Model
 - ✓ Step 5.16 — Video Core Services (74 tests passing)
 - ✓ Step 5.17 — Video Streaming & API
+  - ✓ **Bug fix (2026-07-31):** HLS transcode seek now rebases output timestamps instead of preserving source PTS, eliminating the 20-30s filler-segment delay that caused "Jumping to…" overlay hangs and HTTP 504 timeouts on MPEG-PS sources.
+  - ✓ **Bug fix (2026-07-31):** Added client-side 15s seek timeout/abort and guaranteed overlay cleanup so the "Jumping to…" spinner can never stick if the server stalls or the player is closed.
 - ✓ Step 5.18 — Video Web UI
 
 ### Sub-Phase E: Integration & Quality (Steps 5.19–5.20)

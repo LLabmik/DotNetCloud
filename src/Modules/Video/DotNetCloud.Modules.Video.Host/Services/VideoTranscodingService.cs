@@ -506,6 +506,9 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
         TimeSpan seekStart,
         CancellationToken ct = default)
     {
+        var diagId = Guid.NewGuid().ToString("N")[..8];
+        WriteHlsSeekDiag($"[{diagId}] BEGIN seek videoId={videoId} userId={userId} seekStart={seekStart:hh\\:mm\\:ss\\.fff} source={sourceFilePath}");
+
         // Hold the per-video HLS lock EXCLUSIVELY across the whole cancel →
         // cleanup → create sequence. Unlike TranscodeHlsAsync's lock (which
         // short-circuits if a job already exists — fine for "create if
@@ -514,11 +517,15 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
         // any concurrent ordinary playlist-refresh request (no seek) from
         // sneaking in and creating its own unseeked job in the gap, which
         // this seek would otherwise mistakenly reuse via GetActiveHlsJob.
+        var lockAcquireStart = Stopwatch.GetTimestamp();
         var hlsLock = await _jobTracker.AcquireHlsLockExclusiveAsync(videoId, TimeSpan.FromSeconds(30));
+        var lockAcquireMs = Stopwatch.GetElapsedTime(lockAcquireStart).TotalMilliseconds;
         if (hlsLock is null)
         {
+            WriteHlsSeekDiag($"[{diagId}] LOCK TIMEOUT after {lockAcquireMs:F0}ms");
             throw new TimeoutException($"Timed out acquiring HLS lock for seek on video {videoId}");
         }
+        WriteHlsSeekDiag($"[{diagId}] LOCK ACQUIRED in {lockAcquireMs:F0}ms");
 
         using (hlsLock)
         {
@@ -527,7 +534,10 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
             if (existingJob is not null)
             {
                 _logger.LogInformation("SeekHlsTranscodeAsync: cancelling job {JobId} for video {VideoId}", existingJob.Id, videoId);
+                WriteHlsSeekDiag($"[{diagId}] CANCEL existing user job {existingJob.Id} status={existingJob.Status}");
                 _processManager.CancelJob(existingJob.Id);
+                var exited = await _processManager.WaitForProcessExitAsync(existingJob.Id, TimeSpan.FromSeconds(5));
+                WriteHlsSeekDiag($"[{diagId}] existing user job exit wait result: {exited}");
             }
 
             // Also cancel any other HLS job GetActiveHlsJob considers active for
@@ -537,10 +547,13 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
             if (anyActiveHlsJob is not null && anyActiveHlsJob.Id != existingJob?.Id)
             {
                 _logger.LogInformation("SeekHlsTranscodeAsync: cancelling additional active HLS job {JobId} for video {VideoId}", anyActiveHlsJob.Id, videoId);
+                WriteHlsSeekDiag($"[{diagId}] CANCEL additional active HLS job {anyActiveHlsJob.Id} status={anyActiveHlsJob.Status}");
                 _processManager.CancelJob(anyActiveHlsJob.Id);
+                var exited = await _processManager.WaitForProcessExitAsync(anyActiveHlsJob.Id, TimeSpan.FromSeconds(5));
+                WriteHlsSeekDiag($"[{diagId}] additional job exit wait result: {exited}");
             }
 
-            // Delete old HLS output directory for this video+user.
+            // Delete old HLS output directories for this video+user.
             var hlsRootDir = GetHlsRootDir();
             var oldDirPattern = $"hls-{videoId:N}-{userId:N}";
             if (Directory.Exists(hlsRootDir))
@@ -548,23 +561,37 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
                 foreach (var dir in Directory.GetDirectories(hlsRootDir, oldDirPattern + "*"))
                 {
                     try
-                    { Directory.Delete(dir, recursive: true); }
+                    {
+                        Directory.Delete(dir, recursive: true);
+                        WriteHlsSeekDiag($"[{diagId}] DELETED old dir {dir}");
+                    }
                     catch (Exception ex)
-                    { _logger.LogWarning(ex, "Failed to clean old HLS dir for seek: {Dir}", dir); }
+                    {
+                        _logger.LogWarning(ex, "Failed to clean old HLS dir for seek: {Dir}", dir);
+                        WriteHlsSeekDiag($"[{diagId}] FAILED to delete old dir {dir}: {ex.GetType().Name}: {ex.Message}");
+                    }
                 }
             }
 
-            // Create the fresh output dir + job, still under the lock.
-            var actualOutputDir = Path.Combine(hlsRootDir, $"hls-{videoId:N}-{userId:N}");
+            // Use a UNIQUE output directory for this seek attempt so any
+            // leftover/stale files from a previous (possibly still-dying) job
+            // cannot interfere with the new ffmpeg process.
+            var uniqueSuffix = $"{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.CreateVersion7():N}";
+            var actualOutputDir = Path.Combine(hlsRootDir, $"hls-{videoId:N}-{userId:N}-{uniqueSuffix}");
             Directory.CreateDirectory(actualOutputDir);
             var actualPlaylistPath = Path.Combine(actualOutputDir, "playlist.m3u8");
+            WriteHlsSeekDiag($"[{diagId}] NEW DIR {actualOutputDir}");
 
             var job = _jobTracker.CreateJob(videoId, userId, $"hls-{videoId:N}");
             job.OutputPath = actualPlaylistPath;
             job.IsHls = true;
+            WriteHlsSeekDiag($"[{diagId}] NEW JOB {job.Id}");
 
+            var launchStart = Stopwatch.GetTimestamp();
             await LaunchFfmpegAsync(job, sourceFilePath, actualOutputDir, actualPlaylistPath,
                 sourceVideoCodec: null, sourceAudioCodec: null, seekStart: seekStart, ct: ct);
+            var launchMs = Stopwatch.GetElapsedTime(launchStart).TotalMilliseconds;
+            WriteHlsSeekDiag($"[{diagId}] LAUNCHED job {job.Id} in {launchMs:F0}ms");
 
             return (job.Id, actualOutputDir, actualPlaylistPath);
             // Lock released here (using block) — new job is now visible to
@@ -705,6 +732,7 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
             seekStart);
 
         var args = _argBuilder.BuildHlsArgs(sourceFilePath, outputDir, _options, sourceVideoCodec, sourceAudioCodec, seekStart);
+        WriteHlsSeekDiag($"LAUNCH job={job.Id} outputDir={outputDir} seekStart={seekStart} args={args}");
 
         _ = Task.Run(async () =>
         {
@@ -729,6 +757,7 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
                 }
 
                 _logger.LogInformation("HLS transcode job {JobId} completed", job.Id);
+                WriteHlsSeekDiag($"DONE job={job.Id} outputDir={outputDir}");
 
                 _ = Task.Run(async () =>
                 {
@@ -743,6 +772,7 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
                 job.ErrorMessage = ex.FfmpegError ?? ex.Message;
                 job.CompletedAt = DateTime.UtcNow;
                 _logger.LogError(ex, "HLS transcode job {JobId} failed (exit={ExitCode}): {FfmpegError}", job.Id, ex.ExitCode, ex.FfmpegError ?? ex.Message);
+                WriteHlsSeekDiag($"FAILED job={job.Id} exit={ex.ExitCode} error={ex.FfmpegError ?? ex.Message}");
                 CleanupHlsDirectory(outputDir, job.Id);
                 TryDeleteFile(sourceFilePath);
             }
@@ -751,6 +781,7 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
                 job.Status = TranscodingJobStatus.Cancelled;
                 job.CompletedAt = DateTime.UtcNow;
                 _logger.LogInformation("HLS transcode job {JobId} cancelled", job.Id);
+                WriteHlsSeekDiag($"CANCELLED job={job.Id}");
                 CleanupHlsDirectory(outputDir, job.Id);
                 TryDeleteFile(sourceFilePath);
             }
@@ -760,6 +791,7 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
                 job.ErrorMessage = ex.Message;
                 job.CompletedAt = DateTime.UtcNow;
                 _logger.LogError(ex, "HLS transcode job {JobId} unexpected error", job.Id);
+                WriteHlsSeekDiag($"ERROR job={job.Id} {ex.GetType().Name}: {ex.Message}");
                 CleanupHlsDirectory(outputDir, job.Id);
                 TryDeleteFile(sourceFilePath);
             }
@@ -988,12 +1020,29 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
             {
                 Directory.Delete(dir, recursive: true);
                 _logger.LogDebug("Cleaned up HLS directory for job {JobId}: {Dir}", jobId, dir);
+                WriteHlsSeekDiag($"CLEANUP job={jobId} dir={dir}");
             }
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to clean up HLS directory for job {JobId}: {Dir}", jobId, dir);
+            WriteHlsSeekDiag($"CLEANUP-FAIL job={jobId} dir={dir}: {ex.GetType().Name}: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Writes a line to the HLS-seek diagnostic log file.
+    /// This file is intentionally separate from the main logger so that
+    /// process-isolated module output can be inspected directly.
+    /// </summary>
+    private static void WriteHlsSeekDiag(string message)
+    {
+        try
+        {
+            System.IO.File.AppendAllText("/tmp/dotnetcloud-hls-seek-debug.log",
+                $"[{DateTime.UtcNow:O}] {message}{Environment.NewLine}");
+        }
+        catch { /* best effort */ }
     }
 
     private static void TryDeleteFile(string? path)

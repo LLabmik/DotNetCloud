@@ -529,6 +529,8 @@
    */
   videoPlayer.cancelStreamProgress = function (videoId) {
     var bar = document.getElementById("dnc-progress-bar");
+    var seekOverlay = document.getElementById("dnc-seek-overlay");
+    var seekError = document.getElementById("dnc-seek-error");
     var playerContainer = document.getElementById("player-container");
     var vid =
       videoId ||
@@ -546,6 +548,20 @@
     );
     if (bar && bar._cancel) bar._cancel();
     if (bar) bar.remove();
+
+    // Abort any in-flight seek-transcode request and remove its overlay so
+    // closing the player never leaves "Jumping to…" stuck on screen.
+    if (seekOverlay) {
+      if (seekOverlay._dncSeekAbort) {
+        seekOverlay._dncSeekAbort();
+      } else if (seekOverlay.parentNode) {
+        seekOverlay.parentNode.removeChild(seekOverlay);
+      }
+    }
+    if (seekError && seekError.parentNode) {
+      seekError.parentNode.removeChild(seekError);
+    }
+
     if (vid) {
       var url = "/api/v1/videos/cancel-stream/" + vid;
       console.log("DNC CANCEL: fetching", url);
@@ -823,14 +839,31 @@
       "</div></div>";
     if (container) container.appendChild(overlay);
 
-    // Call the seek-transcode API
+    // Call the seek-transcode API with a client-side timeout so the overlay
+    // is never left dangling if the server stalls or the request is cancelled.
+    var abortController = new AbortController();
+    var seekTimeoutId = setTimeout(function () {
+      abortController.abort();
+    }, 15000);
+
+    // Allow ClosePlayer / teardown to abort this seek and remove its overlay.
+    overlay._dncSeekAbort = function () {
+      clearTimeout(seekTimeoutId);
+      try {
+        abortController.abort();
+      } catch (e) {}
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+    };
+
     fetch("/api/v1/videos/" + videoId + "/stream/seek", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
       body: JSON.stringify({ positionSeconds: targetSeconds }),
+      signal: abortController.signal,
     })
       .then(function (resp) {
+        clearTimeout(seekTimeoutId);
         if (!resp.ok) {
           return resp.json().then(function (err) {
             throw new Error(
@@ -840,14 +873,28 @@
         }
         return resp.json();
       })
-      .then(function () {
-        // Store the absolute offset so the slider position reflects the full
-        // video timeline, not the restarted HLS stream's local time.
-        video._seekStartOffset = targetSeconds;
+      .then(function (data) {
+        var d = data.data || data;
+        // startOffsetSeconds is the output-time where the seeked content
+        // actually begins in the rebased-timestamp HLS playlist (the
+        // post-input accurate seek offset). The slider/display must be
+        // offset by (target - startOffset) so currentTime 0 maps to the
+        // keyframe before the seek target and currentTime=startOffset maps
+        // to the requested position.
+        var startOffsetSeconds = d.startOffsetSeconds || 0;
+        video._seekStartOffset = targetSeconds - startOffsetSeconds;
 
-        // Destroy old HLS instance
+        // Destroy old HLS instance. Stop loading first so any in-flight
+        // segment requests for the old (now-deleted) job are cancelled
+        // before we wipe the instance; otherwise those XHRs can 404 after
+        // the directory has been removed and spam the console.
         if (video._hls) {
-          video._hls.destroy();
+          try {
+            video._hls.stopLoad();
+          } catch (e) {}
+          try {
+            video._hls.destroy();
+          } catch (e) {}
           delete video._hls;
         }
         if (videoPlayer._hls) {
@@ -875,26 +922,56 @@
         // be the newly-seeked job. Segment paths inside that playlist are
         // relative (e.g. "segment_00000.ts") and resolve against this same
         // /stream/ prefix, so no server-side path rewriting is needed here.
-        var streamUrl = "/api/v1/videos/" + videoId + "/stream/playlist.m3u8";
+        // Cache-buster is critical: without it the browser may reuse a stale
+        // playlist from the pre-seek job, whose segment files were deleted.
+        var streamUrl =
+          "/api/v1/videos/" + videoId + "/stream/playlist.m3u8?_=" + Date.now();
 
-        // Clear existing src to force a fresh load
+        // Fully reset the <video> element so no stale MSE buffers, cached
+        // playlist, or source state from the destroyed HLS instance survives.
+        video.pause();
         video.removeAttribute("src");
         video.load();
+        if (video.buffered) {
+          try {
+            video.currentTime = 0;
+          } catch (e) {}
+        }
 
         // Set flag to prevent error listener from firing during HLS re-init
         videoPlayer._expectingHlsResponse = true;
 
-        // Re-initialize HLS
+        // Re-initialize HLS. Use startPosition so hls.js begins loading at
+        // the seeked content immediately instead of starting at 0 and then
+        // jumping, which can leave stale fragment requests in flight. Cap
+        // forward buffering so it doesn't race too far ahead of the live
+        // transcode edge and spam 404s for segments that haven't been
+        // written yet.
         if (typeof Hls !== "undefined" && Hls.isSupported()) {
           if (!Hls.DefaultConfig._dncConfigured) {
             Hls.DefaultConfig.lowLatencyMode = false;
             Hls.DefaultConfig.backBufferLength = Infinity;
             Hls.DefaultConfig._dncConfigured = true;
           }
-          var hls = new Hls({ manifestLoadingTimeOut: 20000 });
+          var hls = new Hls({
+            manifestLoadingTimeOut: 20000,
+            startPosition: startOffsetSeconds,
+            maxBufferLength: 20,
+            maxMaxBufferLength: 40,
+            liveSyncDurationCount: 1,
+          });
           hls.loadSource(streamUrl);
           hls.attachMedia(video);
           hls.on(Hls.Events.MANIFEST_PARSED, function () {
+            // startPosition already set the load point; nudge currentTime
+            // in case the browser/media element needs it for the slider.
+            try {
+              if (Math.abs(video.currentTime - startOffsetSeconds) > 0.5) {
+                video.currentTime = startOffsetSeconds;
+              }
+            } catch (e) {
+              console.warn("DNC: failed to set seek currentTime", e);
+            }
             video.play().catch(function (err) {
               console.warn("DNC: seek play failed after HLS reload", err);
             });
@@ -903,8 +980,10 @@
             if (data.fatal) {
               switch (data.type) {
                 case Hls.ErrorTypes.NETWORK_ERROR:
-                  hls.startLoad();
-                  // After recovering from a network error, try to resume playback
+                  // Retry once from the current position; avoid startLoad()
+                  // which can jump to the (not-yet-ready) live edge and loop.
+                  console.warn("DNC: HLS network error, retrying load", data);
+                  hls.startLoad(hls.media ? hls.media.currentTime : -1);
                   setTimeout(function () {
                     if (video.paused) {
                       video.play().catch(function () {});
@@ -913,7 +992,6 @@
                   break;
                 case Hls.ErrorTypes.MEDIA_ERROR:
                   hls.recoverMediaError();
-                  // After recovering from a media error, try to resume playback
                   setTimeout(function () {
                     if (video.paused) {
                       video.play().catch(function () {});
@@ -937,8 +1015,20 @@
         }
       })
       .catch(function (err) {
+        clearTimeout(seekTimeoutId);
         console.error("DNC: seek-transcode failed", err);
         if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+
+        // Don't show an error overlay if the user explicitly aborted (closed
+        // the player) — the teardown already removed the overlay.
+        if (err && err.name === "AbortError") {
+          return;
+        }
+
+        var message =
+          err.name === "AbortError" || /timeout/i.test(err.message || "")
+            ? "Seek took too long. Please try again."
+            : err.message || "Could not jump to the selected position.";
 
         // Show error overlay
         var errOverlay = document.createElement("div");
@@ -948,7 +1038,7 @@
           '<div style="text-align:center;color:#fff;max-width:400px;padding:24px;">' +
           '<p style="font-size:18px;margin:0 0 8px;">&#9888; Seek Failed</p>' +
           '<p style="font-size:13px;color:rgba(255,255,255,0.7);margin:0 0 16px;">' +
-          (err.message || "Could not jump to the selected position.") +
+          message +
           "</p>" +
           '<button onclick="document.getElementById(\'dnc-seek-error\').remove()" style="background:#3b82f6;color:#fff;border:none;padding:8px 20px;border-radius:6px;cursor:pointer;font-size:13px;">Dismiss</button>' +
           "</div></div>";

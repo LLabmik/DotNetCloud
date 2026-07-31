@@ -416,8 +416,19 @@ public sealed class FfmpegArgumentBuilder
         // --- Map streams ---
         sb.Append("-map 0:v:0? -map 0:a:0? ");
 
-        // --- Jellyfin-style timestamp handling: preserve source timestamps ---
-        sb.Append("-copyts -avoid_negative_ts disabled ");
+        // --- Timestamp handling ---
+        // For non-seeking playback we preserve source timestamps so the HLS
+        // timeline matches the source and long-playback A/V drift is avoided.
+        // For seek operations we intentionally REBASE timestamps to zero:
+        // with -copyts the HLS muxer writes empty filler segments from t=0 up
+        // to the seek target, which for long videos can take 20-30 seconds
+        // before any real segment is produced and causes the client to time
+        // out. Rebased timestamps make the first segment appear immediately.
+        var isSeeking = seekStart.HasValue && seekStart.Value > TimeSpan.Zero;
+        if (!isSeeking)
+        {
+            sb.Append("-copyts -avoid_negative_ts disabled ");
+        }
 
         // --- Video codec + preset + quality (Jellyfin-style: no forced profile) ---
         sb.AppendFormat(CultureInfo.InvariantCulture, "-c:v:0 {0} ", options.VideoCodec);
@@ -452,12 +463,16 @@ public sealed class FfmpegArgumentBuilder
         // --- Keyframe alignment for HLS segments (Jellyfin-style) ---
         sb.Append("-g:v:0 150 -keyint_min:v:0 150 ");
         sb.Append("-force_key_frames:0 \"expr:gte(t,n_forced*6)\" ");
-        // When seeking, force a keyframe at the exact seek position so the
-        // HLS playlist starts on a clean boundary rather than a P-frame that
-        // depends on frames before the seek point.
+        // When seeking, force a keyframe at the exact output position where
+        // actual content begins. With rebased timestamps (no -copyts) that is
+        // the accurate-seek offset; with source timestamps it is the absolute
+        // seek target.
         if (seekStart.HasValue && seekStart.Value > TimeSpan.Zero)
         {
-            sb.AppendFormat(CultureInfo.InvariantCulture, "-force_key_frames:0 {0:F3} ", seekStart.Value.TotalSeconds);
+            var keyFrameSeconds = isSeeking && accurateSeek.HasValue
+                ? accurateSeek.Value.TotalSeconds
+                : seekStart.Value.TotalSeconds;
+            sb.AppendFormat(CultureInfo.InvariantCulture, "-force_key_frames:0 {0:F3} ", keyFrameSeconds);
         }
 
         // --- Audio codec + settings (smart: copy if compatible, transcode otherwise) ---

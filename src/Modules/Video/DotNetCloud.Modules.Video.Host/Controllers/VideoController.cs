@@ -493,15 +493,14 @@ public class VideoController : VideoControllerBase
         // IMPORTANT: Do NOT pass HttpContext.RequestAborted to SeekHlsTranscodeAsync.
         // ffmpeg for this seek must keep running as a background job long after this
         // POST /seek request's response has been sent — the same reason the main
-        // /stream handler below uses its own un-disposed transcodeCts instead of
-        // HttpContext.RequestAborted. If we used RequestAborted here, ffmpeg gets
-        // killed (SendGracefulQuit → process.Kill) as soon as this request's
-        // connection/context is torn down, which happens shortly after we return —
-        // producing exactly the "seek jumps ahead then freezes after a few seconds"
-        // symptom. WaitForHlsReadyAsync below is still fine to cancel on client
-        // disconnect since it only stops *waiting*, it doesn't touch ffmpeg.
-        var transcodeCts = new CancellationTokenSource();
-
+        // /stream handler below uses CancellationToken.None for the ffmpeg transcode.
+        // If we used a CancellationTokenSource here (or RequestAborted), the token
+        // could be cancelled/disposed when this request completes or when the linked
+        // token source inside RunAsync is torn down, sending SIGKILL to ffmpeg only
+        // seconds after launch. That produces the exact "seek jumps ahead then freezes
+        // after a few seconds" / HTTP 504 symptom. WaitForHlsReadyAsync below is still
+        // fine to cancel on client disconnect since it only stops *waiting*, it does
+        // not touch ffmpeg.
         try
         {
             // Cancel the current transcode, clean up its output directory, and start
@@ -516,7 +515,7 @@ public class VideoController : VideoControllerBase
                 caller.UserId,
                 filePath,
                 seekStart,
-                ct: transcodeCts.Token);
+                ct: CancellationToken.None);
 
             _logger.LogInformation(
                 "SeekTranscode: Started new transcode job {JobId} for video {VideoId} at position {Position}s",
@@ -528,7 +527,13 @@ public class VideoController : VideoControllerBase
 
             if (waitResult == HlsWaitResult.Ready)
             {
-                return Ok(Envelope(new { ready = true, jobId }));
+                // For rebased-timestamp seek playlists, actual content begins at the
+                // accurate-seek offset (the post-input -ss value). The client needs
+                // this to set video.currentTime and _seekStartOffset correctly so the
+                // displayed time matches the requested position.
+                const double AccurateSeekWindowSeconds = 10.0;
+                var startOffsetSeconds = Math.Min(dto.PositionSeconds, AccurateSeekWindowSeconds);
+                return Ok(Envelope(new { ready = true, jobId, startOffsetSeconds }));
             }
 
             return StatusCode(504, ErrorEnvelope("TRANSCODE_TIMEOUT",
@@ -1066,7 +1071,11 @@ public class VideoController : VideoControllerBase
                     if (!ffmpegProcess.HasExited)
                     {
                         try
-                        { ffmpegProcess.Kill(entireProcessTree: true); }
+                        {
+                            // Only kill this specific remux ffmpeg; the module host shares
+                            // a process group with other ffmpeg jobs on Linux.
+                            ffmpegProcess.Kill(entireProcessTree: false);
+                        }
                         catch { /* best effort */ }
                     }
                     ffmpegProcess.Dispose();
@@ -1291,6 +1300,15 @@ public class VideoController : VideoControllerBase
             ? "application/vnd.apple.mpegurl"
             : isTs ? "video/mp2t"
             : "video/mp4";
+
+        if (isM3u8)
+        {
+            // Playlists are constantly updated while the transcode runs and
+            // after a seek the active job changes. Never cache them.
+            Response.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
+            Response.Headers["Pragma"] = "no-cache";
+            Response.Headers["Expires"] = "0";
+        }
 
         return PhysicalFile(fullSegmentPath, contentType);
     }
