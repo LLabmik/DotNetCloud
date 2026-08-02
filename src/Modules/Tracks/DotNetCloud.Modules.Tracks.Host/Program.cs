@@ -114,6 +114,10 @@ builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
 // Register all business-logic services
 builder.Services.AddTracksServices(builder.Configuration);
 
+// Register the gRPC-based IUserDirectory so controllers/services can resolve
+// user display names by calling Core.Server's CoreCapabilities gRPC service.
+builder.Services.AddSingleton<DotNetCloud.Core.Capabilities.IUserDirectory, GrpcUserDirectoryService>();
+
 // gRPC
 builder.Services.AddGrpc();
 builder.Services.AddControllers();
