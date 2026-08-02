@@ -5,13 +5,18 @@
             var item = Items[i];
             var isLast = i == Items.Count - 1;
             <li class="breadcrumb-item @(isLast ? "active" : "")">
-                @if (isLast || item.Href is null)
+                @if (isLast || (item.Href is null && item.OnClick is null))
                 {
                     <span>@item.Label</span>
                 }
+                else if (item.OnClick is not null)
+                {
+                    var onClick = item.OnClick;
+                    <button type="button" class="breadcrumb-link" @onclick="() => onClick()">@item.Label</button>
+                }
                 else
                 {
-                    <a href="@item.Href">@item.Label</a>
+                    <a href="@item.Href" class="breadcrumb-link">@item.Label</a>
                 }
             </li>
         }

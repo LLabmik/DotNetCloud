@@ -195,28 +195,7 @@
         @if (_selectedProduct is not null)
         {
             <div class="tracks-breadcrumb">
-                <div class="tracks-breadcrumb-path">
-                @if (_selectedOrgId.HasValue)
-                {
-                    var orgName = _organizations.FirstOrDefault(o => o.Id == _selectedOrgId)?.Name ?? "Org";
-                    <span class="tracks-breadcrumb-item">@orgName</span>
-                    <span class="tracks-breadcrumb-sep">›</span>
-                }
-                <span class="tracks-breadcrumb-item @(_selectedEpic is null ? "active" : "")"
-                      @onclick="() => SelectProduct(_selectedProduct.Id)">@_selectedProduct.Name</span>
-                @if (_selectedEpic is not null)
-                {
-                    <span class="tracks-breadcrumb-sep">›</span>
-                    <span class="tracks-breadcrumb-item @(_selectedFeature is null ? "active" : "")"
-                          @onclick="() => OpenEpicKanban(_selectedEpic.Id)">#@_selectedEpic.ItemNumber @_selectedEpic.Title</span>
-                }
-                @if (_selectedFeature is not null)
-                {
-                    <span class="tracks-breadcrumb-sep">›</span>
-                    <span class="tracks-breadcrumb-item active"
-                          @onclick="() => OpenFeatureKanban(_selectedFeature.Id)">#@_selectedFeature.ItemNumber @_selectedFeature.Title</span>
-                }
-                </div>
+                <DncBreadcrumb Items="@BreadcrumbItems" />
             </div>
         }
 

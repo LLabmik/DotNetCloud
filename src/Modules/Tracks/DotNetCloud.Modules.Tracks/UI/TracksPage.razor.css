@@ -7294,13 +7294,6 @@
     justify-content: space-between;
   }
 
-  ::deep .tracks-breadcrumb-path {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    flex-wrap: wrap;
-  }
-
   /* ── Sidebar Tour Button ── */
 
   ::deep .tracks-nav--bottom {
