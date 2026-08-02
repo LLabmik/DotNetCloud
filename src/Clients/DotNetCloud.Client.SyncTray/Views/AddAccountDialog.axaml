@@ -1,6 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:vm="clr-namespace:DotNetCloud.Client.SyncTray.ViewModels"
+        xmlns:vm="clr-namespace:DotNetCloud.Client.SyncTray.Views"
         x:Class="DotNetCloud.Client.SyncTray.Views.AddAccountDialog"
         x:DataType="vm:AddAccountDialogViewModel"
         Title="Add DotNetCloud Account"

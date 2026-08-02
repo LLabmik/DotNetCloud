@@ -1,0 +1,62 @@
+@namespace DotNetCloud.Modules.Video.UI
+@using DotNetCloud.Core.DTOs
+
+@* ─── Manual Metadata Edit Dialog — lets the user correct wrong TMDB metadata ─── *@
+@if (Video is not null)
+{
+    <div class="dialog-overlay" @onclick="HandleClose">
+        <div class="dialog dialog-wide" @onclick:stopPropagation="true">
+            <div class="dialog-header">
+                <h3>Edit Metadata</h3>
+                <button class="btn-icon" @onclick="HandleClose" aria-label="Close" title="Close">
+                    <MaterialIcon Icon="close" />
+                </button>
+            </div>
+            <div class="dialog-body">
+                <p class="hint">
+                    Correct the metadata below if the automatic fetch matched the wrong movie. A re-fetch
+                    from TMDB will overwrite these manual corrections.
+                </p>
+                <div class="form-group">
+                    <label>Title</label>
+                    <input type="text" class="form-control" @bind="_title" placeholder="Movie title" />
+                </div>
+                <div class="form-group">
+                    <label>Overview</label>
+                    <textarea class="form-control" @bind="_overview" rows="4"
+                              placeholder="Movie overview / description"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Genres (comma-separated)</label>
+                    <input type="text" class="form-control" @bind="_genres" placeholder="e.g. Action, Adventure, Sci-Fi" />
+                </div>
+                <div class="form-group">
+                    <label>Release Date</label>
+                    <input type="date" class="form-control" @bind="_releaseDate" />
+                </div>
+                <div class="form-group">
+                    <label>Tagline</label>
+                    <input type="text" class="form-control" @bind="_tagline" placeholder="Tagline" />
+                </div>
+                @if (!string.IsNullOrEmpty(_error))
+                {
+                    <div class="alert alert-danger">@_error</div>
+                }
+            </div>
+            <div class="dialog-footer">
+                <button class="btn btn-outline" @onclick="HandleClose" disabled="@_saving">Cancel</button>
+                <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
+                    @if (_saving)
+                    {
+                        <span class="enrich-spinner"></span>
+                        <span> Saving…</span>
+                    }
+                    else
+                    {
+                        <text>Save</text>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}

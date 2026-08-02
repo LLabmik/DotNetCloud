@@ -61,10 +61,14 @@ internal sealed class DailyVideoEnrichmentService : BackgroundService
         var db = scope.ServiceProvider.GetRequiredService<VideoDbContext>();
 
         // Find users who have videos that still need enrichment.
+        // Only videos that have never been TMDB-enriched (TmdbId == null) count as
+        // "pending" — videos that already have a TMDB ID already have good metadata
+        // and must not be re-enriched (re-fetching would overwrite data and waste
+        // TMDB API quota).
         var userIds = await db.UserVideos
             .Where(uv => !uv.IsDeleted
                 && uv.CanonicalVideo != null
-                && !uv.CanonicalVideo.HasExternalPoster)
+                && uv.CanonicalVideo.TmdbId == null)
             .Select(uv => uv.OwnerId)
             .Distinct()
             .ToListAsync(stoppingToken);

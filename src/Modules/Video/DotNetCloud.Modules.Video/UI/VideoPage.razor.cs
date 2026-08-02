@@ -151,6 +151,9 @@ public partial class VideoPage : IAsyncDisposable
     private bool _autoFetchPosters = true;
     private bool _settingsEnriching;
 
+    // Manual metadata edit state
+    private bool _showMetadataEditDialog;
+
     // Post-scan enrichment status
     private LibraryScanProgress? _lastEnrichmentResult;
 
@@ -161,12 +164,13 @@ public partial class VideoPage : IAsyncDisposable
     private List<(Guid Id, string Name)> _dirBrowserBreadcrumbs = [];
     private string? _dirBrowserError;
 
-/// <summary>
+    /// <summary>
     /// Toggles fullscreen mode for the video player container via JS Fullscreen API.
     /// </summary>
     private async Task ToggleFullscreenAsync()
     {
-        if (_playerVideo is null) return;
+        if (_playerVideo is null)
+            return;
         await Js.InvokeVoidAsync("DotNetCloudVideo.toggleFullscreen", "player-container");
     }
 
@@ -826,7 +830,8 @@ public partial class VideoPage : IAsyncDisposable
             // Increment view count (fire-and-forget — best-effort, don't block player)
             _ = Task.Run(async () =>
             {
-                try { await VideoService.IncrementViewCountAsync(video.Id); }
+                try
+                { await VideoService.IncrementViewCountAsync(video.Id); }
                 catch (Exception ex) { Logger.LogWarning(ex, "Failed to increment view count for {VideoId}", video.Id); }
             });
 
@@ -1154,6 +1159,44 @@ public partial class VideoPage : IAsyncDisposable
         {
             Logger.LogError(ex, "Error adding video to collection");
         }
+    }
+
+    // ────────────────────────────────────────────────────────
+    //  Manual Metadata Edit
+    // ────────────────────────────────────────────────────────
+
+    private void OpenMetadataEditDialog()
+    {
+        if (_playerVideo is null)
+            return;
+        _showMetadataEditDialog = true;
+    }
+
+    private void CloseMetadataEditDialog()
+    {
+        _showMetadataEditDialog = false;
+    }
+
+    private async Task OnMetadataSavedAsync(VideoDto? updated)
+    {
+        _showMetadataEditDialog = false;
+
+        if (updated is null)
+            return;
+
+        // Refresh the player's displayed video and any lists that show it.
+        if (_playerVideo?.Id == updated.Id)
+        {
+            _playerVideo = updated;
+        }
+
+        ReplaceInLibraryContent(_libraryContent, updated);
+        ReplaceInList(_recentVideos, updated);
+        ReplaceInList(_favoriteVideos, updated);
+        ReplaceInCollectionContent(_collectionContent, updated);
+        _enrichmentToast = "Metadata saved.";
+
+        StateHasChanged();
     }
 
     // ────────────────────────────────────────────────────────

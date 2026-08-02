@@ -6078,76 +6078,76 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 
 ---
 
-## Browser Extension
 
-### Phase 1: Server-Side Extension Support ✅
+---
 
-**Deliverables:**
-
-- ✓ Device Authorization Grant enabled (`AllowDeviceCodeFlow()` in `AuthServiceExtensions.cs`)
-- ✓ `bookmarks:read` and `bookmarks:write` scopes registered
-- ✓ Browser extension OIDC client registered (`dotnetcloud-browser-extension` in `OidcClientSeeder.cs`)
-- ✓ Delta sync endpoint: `GET /api/v1/bookmarks/sync/changes?since=...` with `BookmarkSyncChangesResult`
-- ✓ Batch operations endpoint: `POST /api/v1/bookmarks/batch` with `BatchRequest`/`BatchResponse`
-- ✓ `IBookmarkService.GetSyncChangesAsync()` and `IBookmarkService.BatchAsync()` implemented
-
-### Phase 2: Extension Project Scaffold ✅
-
-**Deliverables:**
-
-- ✓ Project structure: `package.json`, `tsconfig.json`, `jest.config.js`, `.gitignore`, `vite.config.ts`
-- ✓ Dual manifests: `manifest.chrome.json` (MV3), `manifest.firefox.json` (MV3, FF ≥ 109)
-- ✓ Build scripts: `build-extension.ps1` (PowerShell), `build-extension.sh` (Bash)
-- ✓ API types (full DTOs in `src/api/types.ts`)
-- ✓ API client (typed fetch wrapper in `src/api/client.ts`)
-- ✓ Auth attachment (`src/api/auth.ts`)
-- ✓ Device flow initiator (`src/auth/device-flow.ts`) — full RFC 8628
-- ✓ Token manager (`src/auth/token-manager.ts`) — storage, refresh, alarm scheduling
-- ✓ Background service worker (`src/background/service-worker.ts`) — alarm handler, install hooks
-- ✓ Popup scaffold (`popup.html`, `popup.ts`, `styles/popup.css`)
-- ✓ Placeholder icons: 16×16, 48×48, 128×128 PNG
-
-### Phase 3: Authentication ✅
-
-**Deliverables:**
-
-- ✓ `src/auth/device-flow.ts` — `initiateDeviceFlow()` + `pollForToken()` with RFC 8628 compliance
-- ✓ `src/auth/token-manager.ts` — full token lifecycle (store, get, refresh, clear, scheduleRefresh, handleAlarm)
-- ✓ Background service worker alarm routing for `token-refresh`
-- ✓ Auth popup screen with device flow UI (server URL input, user code display, verification tab launch)
-
-**Notes:** Phase 3 complete. OAuth2 Device Authorization Grant flow implemented end-to-end. Device flow initiator posts to `/connect/device`, opens the verification URI in a new tab, and polls `/connect/token` with proper error handling (`authorization_pending`, `slow_down`, `access_denied`, `expired_token`). Token manager persists tokens to `chrome.storage.local`, auto-refreshes within 60s of expiry via `chrome.alarms`, and handles `invalid_grant`/`revoked` by clearing tokens. All error cases covered. Test coverage: 37 unit tests across 3 test suites, all passing. Build and typecheck clean.
-
-### Phase 4: Sync Engine ✅
+## Final Release: Blazor-Side Fixes (2026-08-02)
 
 **Status:** completed
-**Steps:**
+**Branch:** `fix/blazor-cleanup`
 
-- ✓ Step 4.1 — ID Mapping Store (`mapping-store.ts` scaffold was complete; no code changes needed)
-- ✓ Step 4.2 — Initial Sync (`initial-sync.ts` — server-first full sync with topological folder sort, browser-only bookmark batch upload, `isInitialSyncInProgress` guard flag)
-- ✓ Step 4.3 — Incremental Push (`push-sync.ts` — all 4 chrome.bookmarks event handlers with 500ms debounce, root node guards, offline pending queue)
-- ✓ Step 4.4 — Incremental Pull (`pull-sync.ts` — 5-min chrome.alarms poll, server-wins conflict resolution, pagination, cursor tracking)
+**Objective:** Pre-release polish batch covering media scan efficiency, SyncTray sleep resilience, and UI/UX cleanup.
+
+### Item 1 — Daily Scan Skips Already-Enriched Media
+
+**Status:** completed
 
 **Deliverables:**
 
-- ✓ `src/sync/initial-sync.ts` — `runInitialSync()` with full algorithm (fetch server tree → build browser tree → top-sort folders → create/map folders → create/map bookmarks → batch-upload browser-only items → set cursor)
-- ✓ `src/sync/push-sync.ts` — `startPushSync()` / `stopPushSync()` with handlers for onCreated (create bookmark/folder + store mapping), onRemoved (delete + remove mapping), onChanged (update title/url), onMoved (update folderId). Debounced 500ms per node ID. Skips `"0"/"1"/"2"/"3"` root nodes and events during initial sync. Pending operations queued in `chrome.storage.local` when offline.
-- ✓ `src/sync/pull-sync.ts` — `startPullSync()` / `stopPullSync()` + `runPullCycle()`. Applies server folder changes (create/update title), bookmark changes (create/update title/url/move), and deletions (removeTree for folders, remove for bookmarks). Multi-page support via immediate follow-up cycles when `hasMore` is true.
-- ✓ Integration: `src/background/service-worker.ts` updated to start push/pull sync on auth, listen to `chrome.storage.onChanged` for auth state transitions, run initial sync when no cursor exists, and route `bookmark-pull` alarms to `runPullCycle()`.
+- ✓ `DailyVideoEnrichmentService` — daily enqueue query now excludes videos that already have TMDB enrichment data (`CanonicalTmdbData` present). Previously every video with `HasExternalPoster == false` was re-enriched daily, re-fetching metadata for content that already had good metadata.
+- ✓ `VideoEnrichmentBackgroundQueue` — worker no longer re-fetches metadata for videos that already have a TMDB ID (posters/thumbnails still fetched if missing).
+- ✓ Music enrichment — verified the 30-day `LastEnrichedAt` cooldown is honored across all enrichment paths; no daily re-fetch of enriched albums/artists/tracks.
 
-**Tests:** 37 existing unit tests all pass (no regressions). Full sync engine test coverage completed in Phase 6 (42 new tests across mapping-store, initial-sync, push-sync, and conflict-resolution suites).
+**Notes:** The file *indexing* phase already skipped indexed files (`GetAlreadyIndexedIdsAsync`); the issue was the *enrichment* phase re-fetching metadata daily. Now both phases are efficient.
 
-**Build verification:**
-
-- `npx tsc --noEmit` — zero TypeScript errors
-- `npm run build:chrome` — 14 modules, clean build
-- `npm run build:firefox` — 14 modules, clean build
-- `npm test` — 3 suites, 37 tests, all passing
-
-### Phase 5: Popup UI ✅
+### Item 2 — SyncTray Wake-From-Sleep Handling
 
 **Status:** completed
-**Steps:**
 
-- ✓ Step 5.1 — Auth Screen (complete as scaffold)
-- ✓ Step 5.2 — Main Popup Structure (complete
+**Deliverables:**
+
+- ✓ New `SyncResumeService` background service — detects OS resume and restarts sync engines with fresh connections after a short network-settle delay.
+  - Windows: `Microsoft.Win32.SystemEvents.PowerModeChanged` (`Resume` event)
+  - Linux: `PosixSignalRegistration` on `SIGCONT`
+- ✓ Registered as singleton `IHostedService` in SyncTray DI (`App.axaml.cs`); stopped/disposed cleanly on shutdown.
+- ✓ Also fixed a pre-existing SyncTray XAML bug (`AddAccountDialog.axaml` referenced `vm:AddAccountDialogViewModel` but the class lives in the `Views` namespace) that broke the build after the Avalonia NuGet upgrade.
+
+**Notes:** Prevents stale/errored sync state after the machine wakes from sleep. Tray icon and status refresh on resume.
+
+### Item 3 — Remove Sign Out Button from Home Page
+
+**Status:** completed
+
+**Deliverables:**
+
+- ✓ Removed the redundant "Sign out" link from `Home.razor` header actions. The topbar "Logout" button (`MainLayout`) is now the single logout path.
+
+### Item 4 — Logout Confirmation Modal
+
+**Status:** completed
+
+**Deliverables:**
+
+- ✓ New `LogoutButton` component in `DotNetCloud.UI.Web/Components/Shared/` — shows a `ConfirmDialog` ("Are you sure you want to sign out?") before submitting the logout form.
+- ✓ New `logout-confirm.js` helper performs the POST to `/auth/session/logout` after confirmation.
+- ✓ Reuses the existing `ConfirmDialog` component (confirm = `btn-danger`).
+- ✓ Replaces the raw inline `<form method="post">` Logout button in `MainLayout.razor`.
+
+### Item 5 — Video Metadata Manual Edit (Parity with Music)
+
+**Status:** completed
+
+**Deliverables:**
+
+- ✓ Backend: `VideoDto` extended with editable metadata fields (`Overview`, `Year`, `Genres`, `TmdbRating`).
+- ✓ `IVideoService.UpdateMetadataAsync` + `VideoService` implementation (writes to canonical tables, shared across users).
+- ✓ `VideoController` — new `PUT /api/v1/videos/{videoId}/metadata` endpoint.
+- ✓ New `VideoMetadataEditDialog` component — edit Title / Overview / Year / Genres, plus a "Re-fetch from TMDB" action (`POST .../enrich?force=true`).
+- ✓ Wired into `VideoPage` video-detail view with an "Edit Metadata" action button.
+
+**Verification:**
+
+- ✓ `dotnet build DotNetCloud.CI.slnf` — zero compilation errors
+- ✓ Tests: Video 154, Music 382, SyncTray 123, UI.Shared 62 (all passing)
+
+**Next steps:** Deploy to server for user testing (`sudo ./scripts/deploy.sh`), then commit on `fix/blazor-cleanup` after user sign-off.

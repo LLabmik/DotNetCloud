@@ -134,16 +134,17 @@ internal sealed class VideoEnrichmentBackgroundService : BackgroundService
         var enrichmentToken = scanProgress.GetCancellationToken(job.OwnerId);
 
         // ── Find all videos that still need TMDB enrichment ──
-        // Any video without TMDB poster data qualifies — this includes videos that
-        // previously fell back to screenshot thumbnails, since TMDB results should
-        // always override screenshot fallbacks when a match is found.
-        // Also include videos with DurationTicks == 0 (missing ffprobe duration from
-        // a previous scan) so metadata extraction can backfill the duration.
+        // Only videos that have NEVER been TMDB-enriched (TmdbId == null) qualify for
+        // enrichment. Videos that already have a TMDB ID already have good metadata
+        // (title, overview, genres, rating, poster) and must NOT be re-fetched from
+        // TMDB — re-fetching wastes API calls and can overwrite manual corrections.
+        // Videos with DurationTicks == 0 (missing ffprobe duration from a previous
+        // scan) are also included so metadata extraction can backfill the duration.
         var pendingVideos = await db.UserVideos
             .Include(uv => uv.CanonicalVideo)
             .Where(uv => uv.OwnerId == job.OwnerId && !uv.IsDeleted
                 && uv.CanonicalVideo != null
-                && (!uv.CanonicalVideo.HasExternalPoster || uv.CanonicalVideo.DurationTicks == 0))
+                && (uv.CanonicalVideo.TmdbId == null || uv.CanonicalVideo.DurationTicks == 0))
             .ToListAsync(stoppingToken);
 
         var total = pendingVideos.Count;

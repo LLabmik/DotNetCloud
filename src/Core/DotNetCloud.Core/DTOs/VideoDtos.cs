@@ -558,3 +558,27 @@ public sealed record VideoMetadataDto
     /// <summary>Container format (e.g. "mp4", "mkv", "webm").</summary>
     public string? ContainerFormat { get; init; }
 }
+
+/// <summary>
+/// Request to manually correct a video's displayed metadata. Used when automatic
+/// TMDB enrichment matched the wrong title/overview/etc., so the user can fix it.
+/// Only the properties that are provided (non-null) are updated — partial edits
+/// are supported.
+/// </summary>
+public sealed record UpdateVideoDetailsDto
+{
+    /// <summary>Corrected video title. Empty/whitespace values are ignored.</summary>
+    public string? Title { get; init; }
+
+    /// <summary>Corrected overview/description.</summary>
+    public string? Overview { get; init; }
+
+    /// <summary>Corrected comma-separated genres.</summary>
+    public string? Genres { get; init; }
+
+    /// <summary>Corrected release date.</summary>
+    public DateTime? ReleaseDate { get; init; }
+
+    /// <summary>Corrected tagline.</summary>
+    public string? Tagline { get; init; }
+}
