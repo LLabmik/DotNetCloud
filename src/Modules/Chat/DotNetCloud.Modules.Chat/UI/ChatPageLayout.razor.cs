@@ -62,6 +62,26 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     private MessageViewModel? _replyToMessage;
     private MessageViewModel? _editingMessage;
 
+    // Pending post-render scroll action (consumed by OnAfterRenderAsync)
+    private PendingScrollAction _pendingScrollAction;
+    private double _pendingScrollOffset;
+
+    /// <summary>
+    /// Scroll action to apply after the next render completes. Centralizes all
+    /// post-render scrolling so the DOM is updated before any scroll JS runs.
+    /// </summary>
+    private enum PendingScrollAction
+    {
+        /// <summary>No pending scroll action.</summary>
+        None,
+
+        /// <summary>Scroll the message list to the bottom (new message / channel load).</summary>
+        ScrollToBottom,
+
+        /// <summary>Restore a previously captured scroll position (loading older messages).</summary>
+        RestoreScrollPosition
+    }
+
     // Pending image attachments (uploaded, waiting to be sent with next message)
     private readonly List<PendingAttachment> _pendingAttachments = [];
     private readonly string _fileInputId = $"chat-file-input-{Guid.CreateVersion7():N}";
@@ -216,6 +236,41 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     }
 
     /// <inheritdoc />
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Consume the pending action BEFORE awaiting so a re-entrant render can't re-run it.
+        var action = _pendingScrollAction;
+        _pendingScrollAction = PendingScrollAction.None;
+
+        if (action == PendingScrollAction.None)
+        {
+            return;
+        }
+
+        try
+        {
+            switch (action)
+            {
+                case PendingScrollAction.ScrollToBottom:
+                    await JS.InvokeVoidAsync("dotnetcloudChatScroll.scrollToBottom", ".chat-message-list");
+                    break;
+                case PendingScrollAction.RestoreScrollPosition:
+                    await JS.InvokeVoidAsync("dotnetcloudChatScroll.restoreScrollPosition", ".chat-message-list", _pendingScrollOffset);
+                    break;
+                default:
+                    break;
+            }
+
+            // Re-attach the sentinel observer (it may have been removed/re-added during re-render).
+            if (_hasMoreMessages && _dotNetRef is not null)
+            {
+                await JS.InvokeVoidAsync("dotnetcloudChatScroll.observeSentinel", "scroll-sentinel", _dotNetRef);
+            }
+        }
+        catch { /* JS interop may not be available during pre-render or after dispose */ }
+    }
+
+    /// <inheritdoc />
     protected override async Task OnInitializedAsync()
     {
         var caller = await GetCallerContextAsync();
@@ -324,14 +379,12 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
                 catch { wasNearBottom = true; }
 
                 _messages.Add(ToMessageViewModel(message));
-                StateHasChanged();
-
                 if (wasNearBottom)
                 {
-                    try
-                    { await JS.InvokeVoidAsync("dotnetcloudChatScroll.scrollToBottom", ".chat-message-list"); }
-                    catch { /* best-effort */ }
+                    // Applied in OnAfterRenderAsync after the DOM is updated.
+                    _pendingScrollAction = PendingScrollAction.ScrollToBottom;
                 }
+                StateHasChanged();
             }
             else
             {
@@ -904,19 +957,11 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             _isLoadingMessages = false;
         }
 
-        // After render: scroll to bottom so the user sees the latest messages,
-        // then start observing the sentinel for infinite scroll.
+        // After render: scroll to the latest messages. Scroll and sentinel
+        // re-observation are handled centrally in OnAfterRenderAsync once the
+        // DOM is updated.
+        _pendingScrollAction = PendingScrollAction.ScrollToBottom;
         StateHasChanged();
-        await Task.Yield(); // let Blazor flush the render
-        try
-        {
-            await JS.InvokeVoidAsync("dotnetcloudChatScroll.scrollToBottom", ".chat-message-list");
-            if (_hasMoreMessages && _dotNetRef is not null)
-            {
-                await JS.InvokeVoidAsync("dotnetcloudChatScroll.observeSentinel", "scroll-sentinel", _dotNetRef);
-            }
-        }
-        catch { /* JS interop may not be available during pre-render */ }
     }
 
     /// <summary>
@@ -959,21 +1004,11 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             _isLoadingMore = false;
         }
 
+        // Restore the scroll position after the render so the user stays at the same
+        // visual spot. Handled centrally in OnAfterRenderAsync once the DOM is updated.
+        _pendingScrollAction = PendingScrollAction.RestoreScrollPosition;
+        _pendingScrollOffset = previousScrollHeight;
         StateHasChanged();
-        await Task.Yield(); // let Blazor flush the render
-
-        // Restore scroll position so the user stays at the same visual spot
-        try
-        {
-            await JS.InvokeVoidAsync("dotnetcloudChatScroll.restoreScrollPosition", ".chat-message-list", previousScrollHeight);
-
-            // Re-attach the sentinel observer (it may have disappeared during re-render)
-            if (_hasMoreMessages && _dotNetRef is not null)
-            {
-                await JS.InvokeVoidAsync("dotnetcloudChatScroll.observeSentinel", "scroll-sentinel", _dotNetRef);
-            }
-        }
-        catch { /* best-effort */ }
     }
 
     /// <summary>Handles loading older messages (kept for internal use).</summary>
@@ -1024,10 +1059,9 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             await ChatRealtimeService.BroadcastNewMessageAsync(_selectedChannel.Id, sent);
             ChatMessageNotifier.NotifyMessageReceived(_selectedChannel.Id, sent);
 
-            // Scroll to bottom to show the just-sent message
-            try
-            { await JS.InvokeVoidAsync("dotnetcloudChatScroll.scrollToBottom", ".chat-message-list"); }
-            catch { /* best-effort */ }
+            // Scroll to bottom to show the just-sent message (applied in OnAfterRenderAsync).
+            _pendingScrollAction = PendingScrollAction.ScrollToBottom;
+            StateHasChanged();
 
             var members = await MemberService.ListMembersAsync(_selectedChannel.Id, caller);
             var preview = BuildMessagePreview(sent.Content);
