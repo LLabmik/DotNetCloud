@@ -56,12 +56,12 @@
 	</PropertyGroup>
 
 	<!-- ========================
-	     MAUI generates some XML doc / analyzer warnings that are out of scope
-	     to fix at the frameworks level. Allow warnings in this project.
+	     NU1608: transitive Xamarin.AndroidX package version constraints from the
+	     MAUI workload resolve to newer patch versions — expected; suppress rather
+	     than pinning third-party packages. CS1591 is suppressed for the same reason.
 	     ======================== -->
 	<PropertyGroup>
-		<TreatWarningsAsErrors>false</TreatWarningsAsErrors>
-		<NoWarn>$(NoWarn);CS1591</NoWarn>
+		<NoWarn>$(NoWarn);CS1591;NU1608</NoWarn>
 	</PropertyGroup>
 
 	<!-- ========================

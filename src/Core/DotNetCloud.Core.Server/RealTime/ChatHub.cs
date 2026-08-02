@@ -163,11 +163,13 @@ internal sealed class ChatHub : Hub
             await _chatApiClient.MarkChannelAsReadAsync(channelId, messageId, userId, Context.ConnectionAborted);
 
             var unread = await _chatApiClient.GetUnreadCountsAsync(userId, Context.ConnectionAborted);
-            var count = unread.FirstOrDefault(x => x.ChannelId == channelId)?.UnreadCount ?? 0;
+            var channelUnread = unread.FirstOrDefault(x => x.ChannelId == channelId);
+            var count = channelUnread?.UnreadCount ?? 0;
+            var hasMention = (channelUnread?.MentionCount ?? 0) > 0;
 
             await _broadcaster.SendToUserAsync(
                 userId, "UnreadCountUpdated",
-                new { channelId, count }, Context.ConnectionAborted);
+                new { channelId, count, hasMention }, Context.ConnectionAborted);
         }
         catch (Exception ex) when (TryConvertToHubException(ex, out var hubException))
         {

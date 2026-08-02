@@ -61,7 +61,8 @@
                 </Border>
 
                 <!-- Folder chips -->
-                <Border StrokeShape="RoundRectangle 16"
+                <Border x:DataType="core:NoteFolderDto"
+                        StrokeShape="RoundRectangle 16"
                         BackgroundColor="#1E293B"
                         Stroke="#334155"
                         Padding="12,4"

@@ -72,9 +72,13 @@ internal sealed class FcmPushService : IPushNotificationService
         var tcs = new TaskCompletionSource<string?>();
         ct.Register(() => tcs.TrySetCanceled(ct));
 
+        // The Firebase SDK marks GetToken() as deprecated but offers no replacement
+        // instance API in this binding; the behavior is still correct.
+#pragma warning disable CS0618
         Firebase.Messaging.FirebaseMessaging.Instance
             .GetToken()
             .AddOnCompleteListener(new FcmTokenListener(tcs));
+#pragma warning restore CS0618
 
         return await tcs.Task.ConfigureAwait(false);
     }

@@ -267,128 +267,142 @@
 
         </CollectionView>
 
-        <!-- Composer bar -->
-        <Border
+        <!-- Composer bar + offline queued-status banner -->
+        <VerticalStackLayout
             Grid.Row="2"
-            BackgroundColor="#1E293B"
-            StrokeThickness="0"
-            StrokeShape="RoundRectangle 0"
-            Padding="6,6">
+            Spacing="0">
 
-            <Grid
-                ColumnDefinitions="Auto,*,Auto,Auto"
-                ColumnSpacing="4">
+            <Label
+                IsVisible="{Binding QueuedStatusText, Converter={StaticResource IsNotNullOrEmpty}}"
+                Text="{Binding QueuedStatusText}"
+                TextColor="#FBBF24"
+                FontSize="12"
+                BackgroundColor="#1E293B"
+                HorizontalTextAlignment="Center"
+                Padding="0,4"/>
 
-                <!-- Attach file button -->
-                <Border
-                    Grid.Column="0"
-                    BackgroundColor="Transparent"
-                    StrokeThickness="0"
-                    Padding="10,0"
-                    VerticalOptions="End">
-                    <Label
-                        FontSize="20"
-                        HorizontalOptions="Center"
-                        VerticalOptions="Center"
-                        Text="📎"/>
-                    <Border.GestureRecognizers>
-                        <TapGestureRecognizer Command="{Binding AttachFileCommand}"/>
-                    </Border.GestureRecognizers>
-                </Border>
+            <Border
+                BackgroundColor="#1E293B"
+                StrokeThickness="0"
+                StrokeShape="RoundRectangle 0"
+                Padding="6,6">
 
-                <!-- Message input with @mention hint -->
-                <Grid Grid.Column="1">
+                <Grid
+                    ColumnDefinitions="Auto,*,Auto,Auto"
+                    ColumnSpacing="4">
+
+                    <!-- Attach file button -->
                     <Border
-                        BackgroundColor="#0F172A"
-                        StrokeShape="RoundRectangle 12"
-                        Stroke="#334155"
-                        StrokeThickness="1"
-                        Padding="4,0">
-                        <Editor
-                            x:Name="ComposerEditor"
-                            AutoSize="TextChanges"
-                            MaximumHeightRequest="120"
-                            Placeholder="Message…"
-                            PlaceholderColor="#475569"
-                            TextColor="#F1F5F9"
-                            BackgroundColor="Transparent"
-                            Text="{Binding ComposerText}"/>
+                        Grid.Column="0"
+                        BackgroundColor="Transparent"
+                        StrokeThickness="0"
+                        Padding="10,0"
+                        VerticalOptions="End">
+                        <Label
+                            FontSize="20"
+                            HorizontalOptions="Center"
+                            VerticalOptions="Center"
+                            Text="📎"/>
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding AttachFileCommand}"/>
+                        </Border.GestureRecognizers>
                     </Border>
 
-                    <!-- @mention autocomplete overlay -->
+                    <!-- Message input with @mention hint -->
+                    <Grid Grid.Column="1">
+                        <Border
+                            BackgroundColor="#0F172A"
+                            StrokeShape="RoundRectangle 12"
+                            Stroke="#334155"
+                            StrokeThickness="1"
+                            Padding="4,0">
+                            <Editor
+                                x:Name="ComposerEditor"
+                                AutoSize="TextChanges"
+                                MaximumHeightRequest="120"
+                                Placeholder="Message…"
+                                PlaceholderColor="#475569"
+                                TextColor="#F1F5F9"
+                                BackgroundColor="Transparent"
+                                Text="{Binding ComposerText}"/>
+                        </Border>
+
+                        <!-- @mention autocomplete overlay -->
+                        <Border
+                            BackgroundColor="#334155"
+                            IsVisible="{Binding ShowMentionSuggestions}"
+                            Stroke="#475569"
+                            StrokeShape="RoundRectangle 10"
+                            StrokeThickness="1"
+                            VerticalOptions="End"
+                            Margin="0,0,0,48">
+                            <CollectionView
+                                ItemsSource="{Binding MentionSuggestions}"
+                                MaximumHeightRequest="160"
+                                SelectionMode="None">
+                                <CollectionView.ItemTemplate>
+                                    <DataTemplate x:DataType="x:String">
+                                        <Grid Padding="14,10">
+                                            <Label Text="{Binding .}"
+                                                   FontSize="14"
+                                                   TextColor="#F1F5F9"/>
+                                            <Grid.GestureRecognizers>
+                                                <TapGestureRecognizer
+                                                    Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.SelectMentionCommand}"
+                                                    CommandParameter="{Binding .}"/>
+                                            </Grid.GestureRecognizers>
+                                        </Grid>
+                                    </DataTemplate>
+                                </CollectionView.ItemTemplate>
+                            </CollectionView>
+                        </Border>
+                    </Grid>
+
+                    <!-- Emoji picker button -->
                     <Border
-                        BackgroundColor="#334155"
-                        IsVisible="{Binding ShowMentionSuggestions}"
-                        Stroke="#475569"
+                        Grid.Column="2"
+                        BackgroundColor="Transparent"
+                        StrokeThickness="0"
+                        Padding="10,0"
+                        VerticalOptions="End">
+                        <Label
+                            FontSize="20"
+                            HorizontalOptions="Center"
+                            VerticalOptions="Center"
+                            Text="😊"/>
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding ToggleEmojiPickerCommand}"/>
+                        </Border.GestureRecognizers>
+                    </Border>
+
+                    <!-- Send button -->
+                    <Border
+                        Grid.Column="3"
+                        BackgroundColor="#0EA5E9"
+                        StrokeThickness="0"
                         StrokeShape="RoundRectangle 10"
-                        StrokeThickness="1"
-                        VerticalOptions="End"
-                        Margin="0,0,0,48">
-                        <CollectionView
-                            ItemsSource="{Binding MentionSuggestions}"
-                            MaximumHeightRequest="160"
-                            SelectionMode="None">
-                            <CollectionView.ItemTemplate>
-                                <DataTemplate x:DataType="x:String">
-                                    <Grid Padding="14,10">
-                                        <Label Text="{Binding .}"
-                                               FontSize="14"
-                                               TextColor="#F1F5F9"/>
-                                        <Grid.GestureRecognizers>
-                                            <TapGestureRecognizer
-                                                Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.SelectMentionCommand}"
-                                                CommandParameter="{Binding .}"/>
-                                        </Grid.GestureRecognizers>
-                                    </Grid>
-                                </DataTemplate>
-                            </CollectionView.ItemTemplate>
-                        </CollectionView>
+                        Padding="0"
+                        Margin="0,0,4,0"
+                        HeightRequest="40"
+                        WidthRequest="40"
+                        VerticalOptions="End">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding SendCommand}"/>
+                        </Border.GestureRecognizers>
+                        <Label
+                            FontSize="16"
+                            FontAttributes="Bold"
+                            HorizontalOptions="Center"
+                            VerticalOptions="Center"
+                            TextColor="White"
+                            Text="↑"
+                            IsEnabled="{Binding IsSending, Converter={StaticResource InvertBool}}"/>
                     </Border>
+
                 </Grid>
+            </Border>
 
-                <!-- Emoji picker button -->
-                <Border
-                    Grid.Column="2"
-                    BackgroundColor="Transparent"
-                    StrokeThickness="0"
-                    Padding="10,0"
-                    VerticalOptions="End">
-                    <Label
-                        FontSize="20"
-                        HorizontalOptions="Center"
-                        VerticalOptions="Center"
-                        Text="😊"/>
-                    <Border.GestureRecognizers>
-                        <TapGestureRecognizer Command="{Binding ToggleEmojiPickerCommand}"/>
-                    </Border.GestureRecognizers>
-                </Border>
-
-                <!-- Send button -->
-                <Border
-                    Grid.Column="3"
-                    BackgroundColor="#0EA5E9"
-                    StrokeThickness="0"
-                    StrokeShape="RoundRectangle 10"
-                    Padding="0"
-                    Margin="0,0,4,0"
-                    HeightRequest="40"
-                    WidthRequest="40"
-                    VerticalOptions="End">
-                    <Border.GestureRecognizers>
-                        <TapGestureRecognizer Command="{Binding SendCommand}"/>
-                    </Border.GestureRecognizers>
-                    <Label
-                        FontSize="16"
-                        FontAttributes="Bold"
-                        HorizontalOptions="Center"
-                        VerticalOptions="Center"
-                        TextColor="White"
-                        Text="↑"
-                        IsEnabled="{Binding IsSending, Converter={StaticResource InvertBool}}"/>
-                </Border>
-
-            </Grid>
-        </Border>
+        </VerticalStackLayout>
 
         <!-- Emoji picker panel -->
         <Border

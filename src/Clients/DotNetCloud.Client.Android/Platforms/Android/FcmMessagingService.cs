@@ -58,7 +58,7 @@ public sealed class FcmMessagingService : FirebaseMessagingService
         if (string.Equals(type, "calendar_reminder", StringComparison.OrdinalIgnoreCase))
         {
             ShowCalendarReminderNotification(
-                eventId: channelId,
+                eventId: channelId ?? string.Empty,
                 title: title ?? "Calendar reminder",
                 body: body ?? string.Empty);
             return;
@@ -80,6 +80,7 @@ public sealed class FcmMessagingService : FirebaseMessagingService
     }
 
     /// <inheritdoc />
+    [Obsolete("Base FirebaseMessagingService.OnNewToken is deprecated by the SDK; still required to receive token refresh callbacks.")]
     public override async void OnNewToken(string token)
     {
         var logger = Ioc.Default.GetService<ILogger<FcmMessagingService>>();

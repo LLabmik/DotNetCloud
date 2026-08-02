@@ -157,7 +157,7 @@ public sealed class ChatConnectionService : Service
 
         return new Notification.Builder(this, ConnectionChannelId)
             .SetContentTitle("DotNetCloud")
-            .SetContentText("Chat is connected")
+            .SetContentText("Connected")
             .SetSmallIcon(iconRes)
             .SetContentIntent(pendingIntent)
             .SetOngoing(true)
