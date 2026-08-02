@@ -120,12 +120,17 @@ public class MainApplication : MauiApplication
             Description = "Reminders for upcoming calendar events.",
             LockscreenVisibility = NotificationVisibility.Public
         };
-        calendarChannel.SetSound(
-            RingtoneManager.GetDefaultUri(RingtoneType.Alarm),
-            new AudioAttributes.Builder()
-                .SetUsage(AudioUsageKind.Alarm)
-                .SetContentType(AudioContentType.Sonification)
-                .Build());
+        var alarmUri = RingtoneManager.GetDefaultUri(RingtoneType.Alarm);
+        if (alarmUri is not null)
+        {
+            // The Android AudioAttributes.Builder chain is annotated nullable in the .NET
+            // binding but always returns non-null at runtime; apply null-forgiving.
+            var audioAttributes = new AudioAttributes.Builder()
+                .SetUsage(AudioUsageKind.Alarm)!
+                .SetContentType(AudioContentType.Sonification)!
+                .Build()!;
+            calendarChannel.SetSound(alarmUri, audioAttributes);
+        }
         nm.CreateNotificationChannel(calendarChannel);
     }
 }

@@ -30,7 +30,9 @@ internal sealed class AndroidExactAlarmPermissionService : IExactAlarmPermission
 
         var context = Application.Context;
         var alarmManager = context.GetSystemService(Context.AlarmService) as AlarmManager;
+#pragma warning disable CA1416 // guarded by the SDK check above (API < S returns true early)
         return alarmManager?.CanScheduleExactAlarms() == true;
+#pragma warning restore CA1416
     }
 
     /// <inheritdoc />
@@ -44,11 +46,16 @@ internal sealed class AndroidExactAlarmPermissionService : IExactAlarmPermission
 
         try
         {
+            if (Build.VERSION.SdkInt < BuildVersionCodes.S)
+                return; // SCHEDULE_EXACT_ALARM settings intent only exists on Android 12+
+
             var context = Application.Context;
+#pragma warning disable CA1416 // guarded by the SDK check above
             var intent = new Intent(
                 global::Android.Provider.Settings.ActionRequestScheduleExactAlarm,
                 global::Android.Net.Uri.FromParts("package", context.PackageName, null))
                 .AddFlags(ActivityFlags.NewTask);
+#pragma warning restore CA1416
 
             context.StartActivity(intent);
             _logger.LogInformation("Opened SCHEDULE_EXACT_ALARM permission settings.");

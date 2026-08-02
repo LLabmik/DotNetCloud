@@ -1,3 +1,5 @@
+using CommunityToolkit.Mvvm.Messaging;
+using DotNetCloud.Client.Android.Messages;
 using DotNetCloud.Client.Android.Services;
 using DotNetCloud.Client.Android.Views;
 
@@ -7,12 +9,14 @@ namespace DotNetCloud.Client.Android;
 public partial class AppShell : Shell
 {
     private static ShellContent? _musicTab;
+    private static ShellContent? _chatTab;
 
     /// <summary>Initializes a new <see cref="AppShell"/> and registers detail routes.</summary>
     public AppShell()
     {
         InitializeComponent();
         _musicTab = MusicTab;
+        _chatTab = ChatTab;
 
         // Register routes for detail pages not expressed in the ShellContent hierarchy
         Routing.RegisterRoute("MessageList", typeof(MessageListPage));
@@ -22,6 +26,13 @@ public partial class AppShell : Shell
         Routing.RegisterRoute("ImageViewer", typeof(ImageViewerPage));
         Routing.RegisterRoute("ChatImageViewer", typeof(Views.ChatImageViewerPage));
         Routing.RegisterRoute("NoteEdit", typeof(NoteEditPage));
+
+        // Reflect total unread chat count on the Chat tab label (e.g. "Chat" → "Chat 3").
+        WeakReferenceMessenger.Default.Register<TotalUnreadCountChangedMessage>(this, static (_, m) =>
+        {
+            if (_chatTab is not null)
+                _chatTab.Title = m.Value > 0 ? $"Chat {m.Value}" : "Chat";
+        });
     }
 
     /// <summary>

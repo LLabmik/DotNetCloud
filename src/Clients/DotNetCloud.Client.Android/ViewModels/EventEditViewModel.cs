@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
@@ -18,6 +19,8 @@ namespace DotNetCloud.Client.Android.ViewModels;
 public sealed partial class EventEditViewModel : ObservableObject
 {
     private readonly ICalendarRestClient _calendarApi;
+    private readonly IOfflineOperationQueue _offlineQueue;
+    private readonly IConnectivityMonitor _connectivity;
     private readonly IServerConnectionStore _serverStore;
     private readonly ISecureTokenStore _tokenStore;
     private readonly ICalendarReminderScheduler _reminderScheduler;
@@ -44,15 +47,20 @@ public sealed partial class EventEditViewModel : ObservableObject
     /// <summary>Initializes a new <see cref="EventEditViewModel"/>.</summary>
     public EventEditViewModel(
         ICalendarRestClient calendarApi,
+        IOfflineOperationQueue offlineQueue,
+        IConnectivityMonitor connectivity,
         IServerConnectionStore serverStore,
         ISecureTokenStore tokenStore,
       ICalendarReminderScheduler reminderScheduler,
       ILogger<EventEditViewModel> logger)
     {
         _calendarApi = calendarApi;
+        _offlineQueue = offlineQueue;
+        _connectivity = connectivity;
         _serverStore = serverStore;
         _tokenStore = tokenStore;
         _reminderScheduler = reminderScheduler;
+        _logger = logger;
         ReminderLabels.Add("5 minutes before");
         ReminderLabels.Add("10 minutes before");
         ReminderLabels.Add("15 minutes before");
@@ -462,15 +470,14 @@ public sealed partial class EventEditViewModel : ObservableObject
 
         try
         {
-            var (serverUrl, token) = await GetCredentialsAsync(ct);
             var recurrenceRule = IsRecurring && RecurrenceFrequency > 0 ? BuildRrule() : null;
+            // Fetch credentials once; tokens are cached locally so this also works offline.
+            var (serverUrl, token) = await GetCredentialsAsync(ct);
 
             if (IsEdit && _eventId.HasValue)
             {
-                if (IsRecurringEvent && _editScope == EditScope.ThisOccurrence)
-                {
-                    // Update the specific occurrence instance directly
-                    var updateDto = new UpdateCalendarEventDto
+                var updateDto = IsRecurringEvent && _editScope == EditScope.ThisOccurrence
+                    ? new UpdateCalendarEventDto
                     {
                         Title = Title,
                         Description = Description,
@@ -480,13 +487,8 @@ public sealed partial class EventEditViewModel : ObservableObject
                         IsAllDay = IsAllDay,
                         Url = Url,
                         Reminders = BuildReminderDtos(),
-                    };
-                    await _calendarApi.UpdateEventAsync(serverUrl, token, _eventId.Value, updateDto, ct);
-                }
-                else
-                {
-                    // Update the master event
-                    var updateDto = new UpdateCalendarEventDto
+                    }
+                    : new UpdateCalendarEventDto
                     {
                         Title = Title,
                         Description = Description,
@@ -498,12 +500,21 @@ public sealed partial class EventEditViewModel : ObservableObject
                         Url = Url,
                         Reminders = BuildReminderDtos(),
                     };
-                    await _calendarApi.UpdateEventAsync(serverUrl, token, _eventId.Value, updateDto, ct);
+
+                // Queue for later delivery when offline, then navigate away optimistically.
+                if (!_connectivity.IsOnline)
+                {
+                    await _offlineQueue.EnqueueAsync(OfflineOperationType.CalendarEventUpdate,
+                        JsonSerializer.Serialize(new OfflineCalendarEventUpdatePayload(_eventId.Value, updateDto)),
+                        ct).ConfigureAwait(false);
+                }
+                else
+                {
+                    await _calendarApi.UpdateEventAsync(serverUrl, token, _eventId.Value, updateDto, ct).ConfigureAwait(false);
                 }
             }
             else
             {
-                // Create new event
                 var createDto = new CreateCalendarEventDto
                 {
                     CalendarId = SelectedCalendarId,
@@ -517,7 +528,17 @@ public sealed partial class EventEditViewModel : ObservableObject
                     Url = Url,
                     Reminders = BuildReminderDtos(),
                 };
-                await _calendarApi.CreateEventAsync(serverUrl, token, createDto, ct);
+
+                if (!_connectivity.IsOnline)
+                {
+                    await _offlineQueue.EnqueueAsync(OfflineOperationType.CalendarEventCreate,
+                        JsonSerializer.Serialize(new OfflineCalendarEventCreatePayload(createDto)),
+                        ct).ConfigureAwait(false);
+                }
+                else
+                {
+                    await _calendarApi.CreateEventAsync(serverUrl, token, createDto, ct).ConfigureAwait(false);
+                }
             }
 
             WeakReferenceMessenger.Default.Send(new CalendarEventChangedMessage());
@@ -552,8 +573,17 @@ public sealed partial class EventEditViewModel : ObservableObject
                 if (action is null || action == "Cancel")
                     return;
 
-                var (serverUrl, token) = await GetCredentialsAsync(ct);
-                await _calendarApi.DeleteEventAsync(serverUrl, token, _eventId.Value, ct);
+                if (!_connectivity.IsOnline)
+                {
+                    await _offlineQueue.EnqueueAsync(OfflineOperationType.CalendarEventDelete,
+                        JsonSerializer.Serialize(new OfflineCalendarEventDeletePayload(_eventId.Value)),
+                        ct).ConfigureAwait(false);
+                }
+                else
+                {
+                    var (serverUrl, token) = await GetCredentialsAsync(ct);
+                    await _calendarApi.DeleteEventAsync(serverUrl, token, _eventId.Value, ct);
+                }
             }
             else
             {
@@ -562,8 +592,17 @@ public sealed partial class EventEditViewModel : ObservableObject
                 if (!confirmed)
                     return;
 
-                var (serverUrl, token) = await GetCredentialsAsync(ct);
-                await _calendarApi.DeleteEventAsync(serverUrl, token, _eventId.Value, ct);
+                if (!_connectivity.IsOnline)
+                {
+                    await _offlineQueue.EnqueueAsync(OfflineOperationType.CalendarEventDelete,
+                        JsonSerializer.Serialize(new OfflineCalendarEventDeletePayload(_eventId.Value)),
+                        ct).ConfigureAwait(false);
+                }
+                else
+                {
+                    var (serverUrl, token) = await GetCredentialsAsync(ct);
+                    await _calendarApi.DeleteEventAsync(serverUrl, token, _eventId.Value, ct);
+                }
             }
 
             WeakReferenceMessenger.Default.Send(new CalendarEventChangedMessage());

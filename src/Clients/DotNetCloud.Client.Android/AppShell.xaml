@@ -24,6 +24,7 @@
     <TabBar Route="Main">
 
         <ShellContent
+            x:Name="ChatTab"
             Route="ChannelList"
             Title="Chat"
             Icon="chat_icon.png"

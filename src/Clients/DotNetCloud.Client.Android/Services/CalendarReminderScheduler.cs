@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging;
 namespace DotNetCloud.Client.Android.Services;
 
 /// <summary>
-/// Schedules Android <see cref="AlarmManager"/> alarms for calendar event reminders.
+/// Schedules Android <see cref="global::Android.App.AlarmManager"/> alarms for calendar event reminders.
 /// Uses <c>SetExactAndAllowWhileIdle()</c> for precise timing that wakes from Doze mode.
 /// Supports cancellation, boot-time reschedule, and permission-aware fallback.
 /// </summary>
@@ -222,7 +222,9 @@ internal sealed class CalendarReminderScheduler : ICalendarReminderScheduler
             return true; // API 30 and below: exact alarms don't need a separate permission
 
         var alarmManager = GetAlarmManager(context);
+#pragma warning disable CA1416 // guarded by the SDK check above (API < S returns true early)
         return alarmManager?.CanScheduleExactAlarms() == true;
+#pragma warning restore CA1416
     }
 
     private void ScheduleSingleAlarm(
@@ -298,7 +300,9 @@ internal sealed class CalendarReminderScheduler : ICalendarReminderScheduler
 
         var flags = PendingIntentFlags.Immutable | PendingIntentFlags.UpdateCurrent;
 
-        return PendingIntent.GetBroadcast(context, requestCode, intent, flags);
+        // GetBroadcast is annotated nullable, but Android returns a valid PendingIntent
+        // for a well-formed request; it never yields null here.
+        return PendingIntent.GetBroadcast(context, requestCode, intent, flags)!;
     }
 
     private enum PendingIntentActions { Set, Cancel }

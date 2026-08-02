@@ -112,7 +112,7 @@ public sealed class MediaUploadForegroundService : Service
 
         return new Notification.Builder(appContext, MainApplication.ChannelIdMediaUpload)
             .SetContentTitle("Auto-upload")
-            .SetContentText("Watching for new photos...")
+            .SetContentText("Auto-upload active")
             .SetSmallIcon(global::Android.Resource.Drawable.IcMenuUpload)
             .SetContentIntent(pendingIntent)
             .SetOngoing(true)

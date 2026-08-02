@@ -2,8 +2,10 @@ using System.Collections.ObjectModel;
 using Android.Util;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
 using DotNetCloud.Client.Android.Auth;
 using DotNetCloud.Client.Android.Chat;
+using DotNetCloud.Client.Android.Messages;
 using DotNetCloud.Client.Android.Services;
 using DotNetCloud.Client.Core;
 using Microsoft.Extensions.Logging;
@@ -108,6 +110,7 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
                     _muteState.ReplaceAll(muteStates);
 
                     HasCompletedInitialLoad = true;
+                    RecalculateTotalUnread();
                     return;
                 }
                 catch (Exception ex) when ((ex is TaskCanceledException or OperationCanceledException) && Channels.Count > 0)
@@ -190,13 +193,25 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
     {
         MainThread.BeginInvokeOnMainThread(() =>
         {
-            var item = Channels.FirstOrDefault(c => c.ChannelId.ToString() == e.ChannelId);
+            // GUID string casing can differ between the server payload and Guid.ToString(),
+            // so match case-insensitively to avoid missing the target channel.
+            var item = Channels.FirstOrDefault(c =>
+                string.Equals(c.ChannelId.ToString(), e.ChannelId, StringComparison.OrdinalIgnoreCase));
             if (item is not null)
             {
                 item.UnreadCount = e.UnreadCount;
                 item.HasMention = e.HasMention;
             }
+
+            RecalculateTotalUnread();
         });
+    }
+
+    /// <summary>Recomputes the sum of unread counts and broadcasts it for the tab indicator.</summary>
+    private void RecalculateTotalUnread()
+    {
+        var total = Channels.Sum(c => c.UnreadCount);
+        WeakReferenceMessenger.Default.Send(new TotalUnreadCountChangedMessage(total));
     }
 
     private void OnNewMessage(object? sender, ChatMessageReceivedEventArgs e) { /* handled via unread update */ }
