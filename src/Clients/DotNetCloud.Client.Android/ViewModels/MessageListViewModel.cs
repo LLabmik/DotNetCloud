@@ -68,6 +68,12 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
     /// <summary>Raised after closing search, signaling the view should scroll to the tapped search result message.</summary>
     public event EventHandler<Guid>? ScrollToMessageRequested;
 
+    /// <summary>
+    /// Raised after a real-time message is appended to <see cref="Messages"/> (not a duplicate echo).
+    /// The view uses this to auto-scroll to the bottom when the user is already near it.
+    /// </summary>
+    public event EventHandler? NewMessageAdded;
+
     /// <summary>Whether there's an image uploaded and waiting to be sent with the next message.</summary>
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SendCommand))]
@@ -429,7 +435,12 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
             var isOwn = sentMessage.SenderUserId == _currentUserId;
             var vm = new MessageItemViewModel(sentMessage.Id, senderName, sentMessage.Content, sentMessage.SentAt, isOwn, sentMessage.Attachments, _serverUrl);
             if (Messages.All(m => m.Id != sentMessage.Id))
+            {
                 Messages.Add(vm);
+                // Own messages also auto-scroll when the user is near the bottom, so the
+                // sent message isn't left below the fold (the SignalR echo is deduped).
+                NewMessageAdded?.Invoke(this, EventArgs.Empty);
+            }
 
             // Cache the message locally for offline access
             _ = _cache.UpsertAsync([new CachedMessage(sentMessage.Id, sentMessage.ChannelId, senderName, sentMessage.Content, sentMessage.SentAt)]);
@@ -916,6 +927,10 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
             var isOwn = e.SenderUserId != Guid.Empty && e.SenderUserId == _currentUserId;
             var vm = new MessageItemViewModel(e.MessageId, e.SenderDisplayName, e.MessagePreview, new DateTimeOffset(e.SentAt, TimeSpan.Zero), isOwn, attachments, _serverUrl);
             Messages.Add(vm);
+
+            // Signal the view that a new real-time message arrived so it can auto-scroll
+            // to the bottom if the user is already near it.
+            NewMessageAdded?.Invoke(this, EventArgs.Empty);
 
             // Cache the message locally for offline access
             if (Guid.TryParse(e.ChannelId, out var channelGuid))
