@@ -394,6 +394,51 @@ public sealed class MessageListViewModelTests
             It.IsAny<CancellationToken>()), Times.AtLeastOnce);
     }
 
+    [TestMethod]
+    public async Task OnNewChatMessage_AddsMessage_RaisesNewMessageAdded()
+    {
+        await InitializeHappyPathAsync();
+
+        var raised = false;
+        _vm.NewMessageAdded += (_, _) => raised = true;
+
+        FireNewChatMessage(ChannelId.ToString(), OtherUserId, "User", "New arrival!", Guid.NewGuid(), DateTime.UtcNow);
+
+        Assert.IsTrue(raised, "NewMessageAdded must be raised when a real-time message is appended.");
+    }
+
+    [TestMethod]
+    public async Task OnNewChatMessage_Dedup_DoesNotRaiseNewMessageAdded()
+    {
+        await InitializeHappyPathAsync();
+
+        // Add a message via SignalR, then fire the identical echo (duplicate ID) — the
+        // dedup path must NOT re-raise the event (otherwise the view would double-scroll).
+        var messageId = Guid.NewGuid();
+        FireNewChatMessage(ChannelId.ToString(), OtherUserId, "User", "First", messageId, DateTime.UtcNow);
+
+        var raised = false;
+        _vm.NewMessageAdded += (_, _) => raised = true;
+
+        FireNewChatMessage(ChannelId.ToString(), OtherUserId, "User", "First", messageId, DateTime.UtcNow);
+
+        Assert.IsFalse(raised, "NewMessageAdded must NOT be raised for a deduped duplicate echo.");
+    }
+
+    [TestMethod]
+    public async Task OnNewChatMessage_WrongChannel_DoesNotRaiseNewMessageAdded()
+    {
+        await InitializeHappyPathAsync();
+
+        var raised = false;
+        _vm.NewMessageAdded += (_, _) => raised = true;
+
+        var otherChannelId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+        FireNewChatMessage(otherChannelId.ToString(), OtherUserId, "User", "Wrong channel!", Guid.NewGuid(), DateTime.UtcNow);
+
+        Assert.IsFalse(raised, "NewMessageAdded must NOT be raised for a message in a different channel.");
+    }
+
     // ══════════════════════════════════════════════════════════════════
     //  LoadMessagesAsync
     // ══════════════════════════════════════════════════════════════════

@@ -14,6 +14,14 @@ public partial class MessageListPage : ContentPage
     private bool _scrollSubscribed;
     private bool _initialized;
 
+    /// <summary>
+    /// Whether the user is currently at/near the newest messages. Used to keep the list
+    /// pinned to the bottom when real-time messages arrive without yanking users who
+    /// scrolled up to read history. Initialized true so short lists (and the initial
+    /// load, which scrolls to the bottom) behave correctly before the first scroll event.
+    /// </summary>
+    private bool _isNearBottom = true;
+
     /// <summary>Injected channel ID from Shell navigation query parameter.</summary>
     public string ChannelId
     {
@@ -35,6 +43,7 @@ public partial class MessageListPage : ContentPage
         vm.OlderMessagesLoaded += OnOlderMessagesLoaded;
         vm.ScrollToBottomRequested += OnScrollToBottomRequested;
         vm.ScrollToMessageRequested += OnScrollToMessageRequested;
+        vm.NewMessageAdded += OnNewMessageAdded;
     }
 
     /// <inheritdoc />
@@ -49,6 +58,12 @@ public partial class MessageListPage : ContentPage
                 MessageList.Scrolled += OnMessageListScrolled;
                 _scrollSubscribed = true;
             }
+
+            // Set the initial scroll mode based on whether we think the user is near the
+            // bottom. Kept alive across appearances (subscription survives detail-page pushes).
+            MessageList.ItemsUpdatingScrollMode = _isNearBottom
+                ? ItemsUpdatingScrollMode.KeepLastItemInView
+                : ItemsUpdatingScrollMode.KeepScrollOffset;
 
             // Only initialize on first appearance — subsequent appearances (e.g., returning
             // from ImageViewer or ChannelDetails) must preserve scroll position. Real-time
@@ -99,6 +114,27 @@ public partial class MessageListPage : ContentPage
     /// </summary>
     private void OnMessageListScrolled(object? sender, ItemsViewScrolledEventArgs e)
     {
+        // Track whether the user is at/near the newest messages so real-time messages
+        // auto-scroll only when the user is already at/near the bottom, not while reading
+        // history. Use a small look-ahead (3 items) and treat short lists as near-bottom
+        // to stay robust when RecyclerView reports a slightly stale LastVisibleItemIndex.
+        var isNearBottom = _vm.Messages.Count == 0
+            || (e.LastVisibleItemIndex >= 0 && e.LastVisibleItemIndex >= _vm.Messages.Count - 3);
+        if (isNearBottom != _isNearBottom)
+        {
+            System.Diagnostics.Debug.WriteLine(
+                $"[MessageListPage] nearBottom {_isNearBottom} -> {isNearBottom} (lastVisible={e.LastVisibleItemIndex}, count={_vm.Messages.Count}, offset={e.VerticalOffset:F0})");
+        }
+        _isNearBottom = isNearBottom;
+
+        // When the user is near the newest messages, let MAUI's KeepLastItemInView scroll
+        // as items are appended (no manual ScrollTo hacks — MAUI handles RecyclerView
+        // layout timing internally). When the user scrolls up to read history, switch back
+        // to KeepScrollOffset so incoming messages don't yank the scroll position.
+        MessageList.ItemsUpdatingScrollMode = _isNearBottom
+            ? ItemsUpdatingScrollMode.KeepLastItemInView
+            : ItemsUpdatingScrollMode.KeepScrollOffset;
+
         // When the first visible item is within the first few items and more pages exist,
         // but only if the initial load has already completed (not currently loading).
         if (e.FirstVisibleItemIndex <= 2 && _vm.HasMoreMessages && !_vm.IsLoadingMore && !_vm.IsLoading)
@@ -137,9 +173,20 @@ public partial class MessageListPage : ContentPage
         {
             if (_vm.Messages.Count > 0)
             {
+                _isNearBottom = true;
                 MessageList.ScrollTo(_vm.Messages.Count - 1, position: ScrollToPosition.End, animate: false);
             }
         });
+    }
+
+    /// <summary>
+    /// Diagnostic handler — logs when a new message was appended so we can verify
+    /// whether KeepLastItemInView auto-scrolled correctly (no manual ScrollTo needed).
+    /// </summary>
+    private void OnNewMessageAdded(object? sender, EventArgs e)
+    {
+        System.Diagnostics.Debug.WriteLine(
+            $"[MessageListPage] NewMessageAdded (isNearBottom={_isNearBottom}, count={_vm.Messages.Count}, mode={MessageList.ItemsUpdatingScrollMode})");
     }
 
     private async void OnViewDetailsRequested(object? sender, EventArgs e)
