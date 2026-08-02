@@ -280,6 +280,13 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     {
         _activeSection = FileSidebarSection.Tags;
         _activeTag = tag;
+        await LoadTaggedNodesAsync(tag);
+        StateHasChanged();
+    }
+
+    /// <summary>Loads the files tagged with the given tag.</summary>
+    private async Task LoadTaggedNodesAsync(FileTagViewModel tag)
+    {
         _taggedNodes = [];
         _isLoading = true;
         StateHasChanged();
@@ -308,14 +315,46 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         {
             _isLoading = false;
         }
-
-        StateHasChanged();
     }
 
     /// <summary>Called when the trash bin contents change (item restored, purged, or emptied).</summary>
     protected async Task HandleTrashChanged()
     {
         await LoadTrashCountAsync();
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Refreshes the content currently displayed in the browser — the current directory
+    /// contents, or the active sidebar view (favorites, recent, tags, shared, trash).
+    /// </summary>
+    protected async Task RefreshAsync()
+    {
+        switch (_activeSection)
+        {
+            case FileSidebarSection.AllFiles:
+                await LoadCurrentFolderAsync();
+                break;
+            case FileSidebarSection.Favorites:
+                await LoadFavoritesAsync();
+                break;
+            case FileSidebarSection.Recent:
+                await LoadRecentAsync();
+                break;
+            case FileSidebarSection.SharedWithMe:
+                await LoadSharedWithMeAsync();
+                break;
+            case FileSidebarSection.SharedByMe:
+                await LoadSharedByMeAsync();
+                break;
+            case FileSidebarSection.Tags when ActiveTag is not null:
+                await LoadTaggedNodesAsync(ActiveTag);
+                break;
+            case FileSidebarSection.Trash:
+                await HandleTrashChanged();
+                break;
+        }
+
         StateHasChanged();
     }
 
