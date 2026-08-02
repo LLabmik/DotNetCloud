@@ -49,9 +49,7 @@
                     <Authorized>
                         <div class="user-menu">
                             <a href="profile" class="user-name-link">@context.User.Identity?.Name</a>
-                            <form method="post" action="/auth/session/logout" class="inline" data-enhance-nav="false">
-                                <button type="submit" class="btn btn-sm btn-outline">Logout</button>
-                            </form>
+                            <LogoutButton @rendermode="InteractiveServer" />
                         </div>
                     </Authorized>
                 </AuthorizeView>

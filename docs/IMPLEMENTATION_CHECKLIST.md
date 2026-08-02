@@ -4432,6 +4432,39 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 
 ---
 
+## Final Release: Blazor-Side Fixes (2026-08-02)
+
+**Objective:** Pre-release polish batch — media scan efficiency, SyncTray sleep resilience, and UI/UX cleanup.
+
+### Media Scan — Skip Already-Enriched Content
+
+- ✓ `DailyVideoEnrichmentService` — skips videos that already have a TMDB ID (`CanonicalTmdbData` present), preventing daily re-enrichment of videos with good metadata
+- ✓ `VideoEnrichmentBackgroundQueue` — enrichment worker no longer re-fetches metadata for videos that already have TMDB enrichment data
+- ✓ Music enrichment — verified 30-day `LastEnrichedAt` cooldown is respected across all enrichment paths (no daily re-fetch of enriched albums/artists/tracks)
+
+### SyncTray — Wake-From-Sleep Handling
+
+- ✓ New `SyncResumeService` background service — detects OS resume (Windows `SystemEvents.PowerModeChanged` + Linux `SIGCONT`) and restarts sync engines with fresh connections
+- ✓ Registered in SyncTray DI (`App.axaml.cs`); disposed cleanly on shutdown
+- ✓ SyncTray tests pass (123)
+
+### UI Cleanup — Sign Out / Logout
+
+- ✓ Removed redundant "Sign out" link from home page (`Home.razor`) — topbar "Logout" is the single logout path
+- ✓ Topbar Logout now opens a confirmation modal (`ConfirmDialog`) before signing out — new `LogoutButton` component + `logout-confirm.js` helper
+
+### Video Metadata — Manual Edit (parity with Music)
+
+- ✓ Backend: `VideoDto` extended with editable metadata fields (Title, Overview, Year, Genres, TmdbRating)
+- ✓ `IVideoService.UpdateMetadataAsync` + `VideoService` implementation (canonical tables, dual-write)
+- ✓ `VideoController` — `PUT /api/v1/videos/{videoId}/metadata` endpoint
+- ✓ New `VideoMetadataEditDialog` component — edit title/overview/year/genres, re-fetch from TMDB (`force`)
+- ✓ Wired into `VideoPage` detail view with "Edit Metadata" action
+
+**Verification:** Full solution build `DotNetCloud.CI.slnf` ✅ (0 errors). Tests: Video 154 ✅, Music 382 ✅, SyncTray 123 ✅, UI.Shared 62 ✅.
+
+---
+
 ## Phase 9: AI Assistant
 
 ### Step 9.1 — Core AI Interfaces & Module Scaffold

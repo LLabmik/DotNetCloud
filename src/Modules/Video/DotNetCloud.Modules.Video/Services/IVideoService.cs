@@ -49,6 +49,14 @@ public interface IVideoService
     /// <summary>Deletes a video.</summary>
     Task DeleteVideoAsync(Guid videoId, CallerContext caller, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Manually corrects a video's displayed metadata (title, overview, genres,
+    /// release date, tagline). Used when automatic TMDB enrichment matched the
+    /// wrong metadata. Only the provided fields are updated.
+    /// Returns the updated video, or <c>null</c> if the video was not found.
+    /// </summary>
+    Task<VideoDto?> UpdateVideoDetailsAsync(Guid videoId, UpdateVideoDetailsDto dto, CallerContext caller, CancellationToken cancellationToken = default);
+
     /// <summary>Increments the view count for a video.</summary>
     Task IncrementViewCountAsync(Guid videoId, CancellationToken cancellationToken = default);
 
