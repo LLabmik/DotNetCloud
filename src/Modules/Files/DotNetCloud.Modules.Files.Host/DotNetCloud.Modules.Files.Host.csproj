@@ -18,6 +18,8 @@
     <PackageReference Include="Grpc.AspNetCore" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <!-- Override transitive vulnerable Microsoft.OpenApi 2.0.0 (GHSA-v5pm-xwqc-g5wc / CVE-2026-49451) to patched 2.7.5. -->
+    <PackageReference Include="Microsoft.OpenApi" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
