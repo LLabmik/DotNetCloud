@@ -14,6 +14,8 @@ using Microsoft.JSInterop;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+using SharedBreadcrumbItem = DotNetCloud.UI.Shared.Components.DataDisplay.BreadcrumbItem;
+
 namespace DotNetCloud.Modules.Files.UI;
 
 /// <summary>
@@ -434,6 +436,24 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         }
     }
     protected IReadOnlyList<BreadcrumbItem> Breadcrumbs => _breadcrumbs;
+
+    /// <summary>
+    /// Breadcrumb trail rendered by the shared <c>DncBreadcrumb</c> component
+    /// (Home + the current folder path). Each item navigates to its folder.
+    /// </summary>
+    protected IReadOnlyList<SharedBreadcrumbItem> BreadcrumbDisplayItems
+    {
+        get
+        {
+            var items = new List<SharedBreadcrumbItem> { new("Home", () => NavigateToFolder(null)) };
+            foreach (var crumb in _breadcrumbs)
+            {
+                items.Add(new SharedBreadcrumbItem(crumb.Name, () => NavigateToFolder(crumb.Id)));
+            }
+
+            return items;
+        }
+    }
     protected int SelectedCount => _selectedNodes.Count;
     protected Guid? CurrentFolderId => _currentFolderId;
     protected bool IsLoading => _isLoading;

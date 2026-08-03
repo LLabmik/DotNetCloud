@@ -46,7 +46,7 @@
                         </span>
                     </div>
                     <span class="files-header-subtitle">@TaggedNodes.Count @(TaggedNodes.Count == 1 ? "file" :
-                                     "files")</span>
+                                                             "files")</span>
                     </div>
 
                     @if (IsLoading)
@@ -146,22 +146,7 @@ else
                         </div>
                     </div>
 
-                    <nav class="files-breadcrumbs" aria-label="File path">
-                        <ol>
-                            <li>
-                                <a href="#" @onclick="() => NavigateToFolder(null)" @onclick:preventDefault>Home</a>
-                            </li>
-                            @foreach (var crumb in Breadcrumbs)
-                            {
-                                <li>
-                                    <span class="separator">/</span>
-                                    <a href="#" @onclick="() => NavigateToFolder(crumb.Id)" @onclick:preventDefault>
-                                        @crumb.Name
-                                    </a>
-                                </li>
-                            }
-                        </ol>
-                    </nav>
+                    <DncBreadcrumb Items="@BreadcrumbDisplayItems" />
 
                     @if (!_selectionMode)
                     {
@@ -437,7 +422,7 @@ else
                                                         @if (_tagTargetNodeIds.Count == 1)
                                                         {
                                                             <text>Tag: @(_nodes.FirstOrDefault(n => n.Id == _tagTargetNodeIds[0])?.Name ??
-                                                                                                "file")</text>
+                                                                                                                                                                "file")</text>
                                                             }
                         else
                                                             {
