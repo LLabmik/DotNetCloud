@@ -208,6 +208,12 @@ service TracksGrpcService {
   rpc GetProductCapacity (GetProductCapacityRequest) returns (ProductCapacityResponse);
   rpc GetSprintCapacity (GetSprintCapacityRequest) returns (SprintCapacityResponse);
 
+  // ─── Sprint & Review Discussions ───
+  rpc ListSprintDiscussions (ListSprintDiscussionsRequest) returns (ListSprintDiscussionsResponse);
+  rpc SendSprintDiscussion (SendSprintDiscussionRequest) returns (SprintDiscussionMessage);
+  rpc ListReviewDiscussions (ListReviewDiscussionsRequest) returns (ListReviewDiscussionsResponse);
+  rpc SendReviewDiscussion (SendReviewDiscussionRequest) returns (SprintDiscussionMessage);
+
   // ─── Search Integration ───
   rpc GetSearchableDocuments (GetSearchableDocumentsRequest) returns (stream SearchableDocument);
   rpc GetSearchableDocument (GetSearchableDocumentRequest) returns (SearchableDocumentResponse);
@@ -2153,4 +2159,52 @@ message SearchableDocument {
   string created_at = 9;
   string updated_at = 10;
   map<string, string> metadata = 11;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SPRINT & REVIEW DISCUSSION MESSAGES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+message SprintDiscussionMessage {
+  string id = 1;
+  string sprint_id = 2;
+  string review_session_id = 3;
+  string user_id = 4;
+  string user_display_name = 5;
+  string content = 6;
+  string created_at = 7;
+}
+
+message ListSprintDiscussionsRequest {
+  string sprint_id = 1;
+  int32 skip = 2;
+  int32 take = 3;
+}
+
+message ListSprintDiscussionsResponse {
+  bool success = 1;
+  repeated SprintDiscussionMessage messages = 2;
+}
+
+message SendSprintDiscussionRequest {
+  string sprint_id = 1;
+  string user_id = 2;
+  string content = 3;
+}
+
+message ListReviewDiscussionsRequest {
+  string review_session_id = 1;
+  int32 skip = 2;
+  int32 take = 3;
+}
+
+message ListReviewDiscussionsResponse {
+  bool success = 1;
+  repeated SprintDiscussionMessage messages = 2;
+}
+
+message SendReviewDiscussionRequest {
+  string review_session_id = 1;
+  string user_id = 2;
+  string content = 3;
 }

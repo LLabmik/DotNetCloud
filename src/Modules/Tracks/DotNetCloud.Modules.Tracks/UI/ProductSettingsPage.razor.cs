@@ -1,7 +1,7 @@
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Tracks.Models;
-using DotNetCloud.Modules.Tracks.Services;
+using DotNetCloud.Core.Services.ModuleApis;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 
@@ -581,7 +581,7 @@ public partial class ProductSettingsPage : ComponentBase
 
         try
         {
-            var rules = _transitionRules.Select(kvp => new SetTransitionRuleDto
+            var rules = _transitionRules.Select(kvp => new DotNetCloud.Core.Services.ModuleApis.SetTransitionRuleDto
             {
                 FromSwimlaneId = kvp.Key.Item1,
                 ToSwimlaneId = kvp.Key.Item2,

@@ -1,6 +1,6 @@
 @namespace DotNetCloud.Modules.Tracks.UI
 @using DotNetCloud.Modules.Tracks.Models
-@inject DotNetCloud.Modules.Tracks.Services.ITracksApiClient ApiClient
+@inject DotNetCloud.Core.Services.ModuleApis.ITracksApiClient ApiClient
 @inject NavigationManager Navigation
 
 @* Webhook management page — list, add, edit, delete, test webhook subscriptions *@
@@ -140,90 +140,379 @@
 </div>
 
 <style>
-    .wh-page { max-width: 800px; padding: 24px; }
+    .wh-page {
+        max-width: 800px;
+        padding: 24px;
+    }
 
-    .wh-header { margin-bottom: 24px; }
-    .wh-title { font-size: 22px; font-weight: 700; margin: 0 0 8px; color: var(--text-primary, #1a1a1a); }
-    .wh-description { font-size: 13px; color: var(--text-secondary, #888); margin: 0 0 16px; line-height: 1.5; }
-    .wh-description code { background: var(--surface-secondary, #f0f0f0); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+    .wh-header {
+        margin-bottom: 24px;
+    }
+
+    .wh-title {
+        font-size: 22px;
+        font-weight: 700;
+        margin: 0 0 8px;
+        color: var(--text-primary, #1a1a1a);
+    }
+
+    .wh-description {
+        font-size: 13px;
+        color: var(--text-secondary, #888);
+        margin: 0 0 16px;
+        line-height: 1.5;
+    }
+
+    .wh-description code {
+        background: var(--surface-secondary, #f0f0f0);
+        padding: 1px 5px;
+        border-radius: 4px;
+        font-size: 12px;
+    }
 
     .wh-btn {
-        padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; border: none;
-        transition: opacity 0.15s; display: inline-flex; align-items: center; gap: 6px;
+        padding: 8px 16px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+        border: none;
+        transition: opacity 0.15s;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
     }
-    .wh-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-    .wh-btn-primary { background: var(--accent-color, #4f46e5); color: #fff; }
-    .wh-btn-secondary { background: var(--surface-secondary, #f0f0f0); color: var(--text-primary, #1a1a1a); border: 1px solid var(--border-color, #ddd); }
-    .wh-btn-sm { padding: 4px 8px; font-size: 14px; background: transparent; border: 1px solid var(--border-color, #ddd); border-radius: 6px; }
-    .wh-btn-danger { color: #ef4444; border-color: #fecaca; }
-    .wh-btn-danger:hover { background: #fef2f2; }
 
-    .wh-loading, .wh-empty { padding: 40px; text-align: center; color: var(--text-secondary, #888); }
-    .wh-empty-icon { font-size: 32px; margin-bottom: 8px; }
-    .wh-empty-hint { font-size: 12px; color: var(--text-tertiary, #aaa); }
+    .wh-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
 
-    .wh-list { display: flex; flex-direction: column; gap: 12px; }
+    .wh-btn-primary {
+        background: var(--accent-color, #4f46e5);
+        color: #fff;
+    }
+
+    .wh-btn-secondary {
+        background: var(--surface-secondary, #f0f0f0);
+        color: var(--text-primary, #1a1a1a);
+        border: 1px solid var(--border-color, #ddd);
+    }
+
+    .wh-btn-sm {
+        padding: 4px 8px;
+        font-size: 14px;
+        background: transparent;
+        border: 1px solid var(--border-color, #ddd);
+        border-radius: 6px;
+    }
+
+    .wh-btn-danger {
+        color: #ef4444;
+        border-color: #fecaca;
+    }
+
+    .wh-btn-danger:hover {
+        background: #fef2f2;
+    }
+
+    .wh-loading,
+    .wh-empty {
+        padding: 40px;
+        text-align: center;
+        color: var(--text-secondary, #888);
+    }
+
+    .wh-empty-icon {
+        font-size: 32px;
+        margin-bottom: 8px;
+    }
+
+    .wh-empty-hint {
+        font-size: 12px;
+        color: var(--text-tertiary, #aaa);
+    }
+
+    .wh-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
 
     .wh-card {
-        display: flex; align-items: center; justify-content: space-between;
-        padding: 14px 18px; border: 1px solid var(--border-color, #e0e0e0); border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 18px;
+        border: 1px solid var(--border-color, #e0e0e0);
+        border-radius: 10px;
         background: var(--surface-bg, #fff);
     }
-    .wh-card-inactive { opacity: 0.6; }
 
-    .wh-card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
-    .wh-card-status { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
-    .wh-status-active { background: #dcfce7; color: #166534; }
-    .wh-status-inactive { background: #f3f4f6; color: #6b7280; }
-    .wh-card-url { font-size: 13px; font-weight: 500; color: var(--text-primary, #1a1a1a); max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .wh-card-meta { font-size: 11px; color: var(--text-tertiary, #aaa); margin-bottom: 6px; }
-    .wh-failures { color: #ef4444; }
-    .wh-card-events { display: flex; gap: 4px; flex-wrap: wrap; }
-    .wh-event-tag { font-size: 10px; padding: 1px 6px; background: var(--surface-secondary, #f0f0f0); border-radius: 3px; color: var(--text-secondary, #888); font-family: monospace; }
-    .wh-card-actions { display: flex; gap: 4px; flex-shrink: 0; }
+    .wh-card-inactive {
+        opacity: 0.6;
+    }
 
-    .wh-modal-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.45); display: flex; align-items: center; justify-content: center; z-index: 10000; }
-    .wh-modal { width: 480px; max-width: 95vw; background: var(--surface-bg, #fff); border-radius: 12px; box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18); }
-    .wh-modal-wide { width: 640px; }
-    .wh-modal-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--border-color, #e0e0e0); }
-    .wh-modal-header h3 { margin: 0; font-size: 16px; }
-    .wh-modal-close { background: none; border: none; font-size: 22px; cursor: pointer; color: var(--text-secondary, #888); }
-    .wh-modal-body { padding: 20px; }
-    .wh-modal-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 20px; border-top: 1px solid var(--border-color, #e0e0e0); }
+    .wh-card-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 6px;
+    }
 
-    .wh-form-group { margin-bottom: 16px; }
-    .wh-label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; color: var(--text-primary, #1a1a1a); }
-    .wh-input { width: 100%; padding: 8px 12px; border: 1px solid var(--border-color, #ddd); border-radius: 8px; font-size: 13px; background: var(--surface-bg, #fff); color: var(--text-primary, #1a1a1a); box-sizing: border-box; }
+    .wh-card-status {
+        font-size: 11px;
+        font-weight: 600;
+        padding: 2px 8px;
+        border-radius: 4px;
+    }
 
-    .wh-event-checkboxes { display: flex; flex-direction: column; gap: 8px; }
-    .wh-checkbox-label { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; color: var(--text-primary, #1a1a1a); }
-    .wh-checkbox-label code { font-size: 12px; background: var(--surface-secondary, #f0f0f0); padding: 2px 6px; border-radius: 4px; }
+    .wh-status-active {
+        background: #dcfce7;
+        color: #166534;
+    }
 
-    .wh-error { padding: 10px 20px; color: #ef4444; font-size: 13px; background: #fef2f2; border-top: 1px solid #fecaca; }
+    .wh-status-inactive {
+        background: #f3f4f6;
+        color: #6b7280;
+    }
 
-    .wh-toast { position: fixed; bottom: 24px; right: 24px; padding: 10px 18px; border-radius: 8px; font-size: 13px; z-index: 10001; animation: wh-fade-in 0.2s; }
-    .wh-toast-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
-    .wh-toast-error { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+    .wh-card-url {
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--text-primary, #1a1a1a);
+        max-width: 400px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
 
-    .wh-delivery-list { max-height: 300px; overflow-y: auto; }
-    .wh-delivery-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border-color-light, #f0f0f0); font-size: 12px; }
-    .wh-delivery-status { font-weight: 600; padding: 2px 6px; border-radius: 4px; min-width: 40px; text-align: center; }
-    .wh-delivery-event { font-family: monospace; font-size: 11px; }
-    .wh-delivery-time { color: var(--text-secondary, #888); margin-left: auto; }
-    .wh-delivery-duration { color: var(--text-tertiary, #aaa); min-width: 50px; text-align: right; }
+    .wh-card-meta {
+        font-size: 11px;
+        color: var(--text-tertiary, #aaa);
+        margin-bottom: 6px;
+    }
 
-    @@keyframes wh-fade-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .wh-failures {
+        color: #ef4444;
+    }
 
-    :global(.dark) .wh-modal { --surface-bg: #1e1e2e; --border-color: #3a3a4a; --text-primary: #e0e0e0; }
+    .wh-card-events {
+        display: flex;
+        gap: 4px;
+        flex-wrap: wrap;
+    }
+
+    .wh-event-tag {
+        font-size: 10px;
+        padding: 1px 6px;
+        background: var(--surface-secondary, #f0f0f0);
+        border-radius: 3px;
+        color: var(--text-secondary, #888);
+        font-family: monospace;
+    }
+
+    .wh-card-actions {
+        display: flex;
+        gap: 4px;
+        flex-shrink: 0;
+    }
+
+    .wh-modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.45);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+    }
+
+    .wh-modal {
+        width: 480px;
+        max-width: 95vw;
+        background: var(--surface-bg, #fff);
+        border-radius: 12px;
+        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18);
+    }
+
+    .wh-modal-wide {
+        width: 640px;
+    }
+
+    .wh-modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--border-color, #e0e0e0);
+    }
+
+    .wh-modal-header h3 {
+        margin: 0;
+        font-size: 16px;
+    }
+
+    .wh-modal-close {
+        background: none;
+        border: none;
+        font-size: 22px;
+        cursor: pointer;
+        color: var(--text-secondary, #888);
+    }
+
+    .wh-modal-body {
+        padding: 20px;
+    }
+
+    .wh-modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        padding: 14px 20px;
+        border-top: 1px solid var(--border-color, #e0e0e0);
+    }
+
+    .wh-form-group {
+        margin-bottom: 16px;
+    }
+
+    .wh-label {
+        display: block;
+        font-size: 13px;
+        font-weight: 500;
+        margin-bottom: 6px;
+        color: var(--text-primary, #1a1a1a);
+    }
+
+    .wh-input {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid var(--border-color, #ddd);
+        border-radius: 8px;
+        font-size: 13px;
+        background: var(--surface-bg, #fff);
+        color: var(--text-primary, #1a1a1a);
+        box-sizing: border-box;
+    }
+
+    .wh-event-checkboxes {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .wh-checkbox-label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        cursor: pointer;
+        color: var(--text-primary, #1a1a1a);
+    }
+
+    .wh-checkbox-label code {
+        font-size: 12px;
+        background: var(--surface-secondary, #f0f0f0);
+        padding: 2px 6px;
+        border-radius: 4px;
+    }
+
+    .wh-error {
+        padding: 10px 20px;
+        color: #ef4444;
+        font-size: 13px;
+        background: #fef2f2;
+        border-top: 1px solid #fecaca;
+    }
+
+    .wh-toast {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        padding: 10px 18px;
+        border-radius: 8px;
+        font-size: 13px;
+        z-index: 10001;
+        animation: wh-fade-in 0.2s;
+    }
+
+    .wh-toast-success {
+        background: #dcfce7;
+        color: #166534;
+        border: 1px solid #bbf7d0;
+    }
+
+    .wh-toast-error {
+        background: #fef2f2;
+        color: #991b1b;
+        border: 1px solid #fecaca;
+    }
+
+    .wh-delivery-list {
+        max-height: 300px;
+        overflow-y: auto;
+    }
+
+    .wh-delivery-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 0;
+        border-bottom: 1px solid var(--border-color-light, #f0f0f0);
+        font-size: 12px;
+    }
+
+    .wh-delivery-status {
+        font-weight: 600;
+        padding: 2px 6px;
+        border-radius: 4px;
+        min-width: 40px;
+        text-align: center;
+    }
+
+    .wh-delivery-event {
+        font-family: monospace;
+        font-size: 11px;
+    }
+
+    .wh-delivery-time {
+        color: var(--text-secondary, #888);
+        margin-left: auto;
+    }
+
+    .wh-delivery-duration {
+        color: var(--text-tertiary, #aaa);
+        min-width: 50px;
+        text-align: right;
+    }
+
+    @@keyframes wh-fade-in {
+        from {
+            opacity: 0;
+            transform: translateY(8px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    :global(.dark) .wh-modal {
+        --surface-bg: #1e1e2e;
+        --border-color: #3a3a4a;
+        --text-primary: #e0e0e0;
+    }
 </style>
 
 @code {
-    private List<WebhookSubscription> _subscriptions = [];
+    private List<DotNetCloud.Core.Services.ModuleApis.WebhookSubscriptionDto> _subscriptions = [];
     private bool _isLoading = true;
     private bool _showModal;
     private bool _saving;
     private string? _error;
-    private WebhookSubscription? _editingSubscription;
+    private DotNetCloud.Core.Services.ModuleApis.WebhookSubscriptionDto? _editingSubscription;
 
     private string _formUrl = string.Empty;
     private List<string> _formEvents = [];
@@ -267,7 +556,7 @@
         _showModal = true;
     }
 
-    private void OpenEditModal(WebhookSubscription sub)
+    private void OpenEditModal(DotNetCloud.Core.Services.ModuleApis.WebhookSubscriptionDto sub)
     {
         _editingSubscription = sub;
         _formUrl = sub.Url;
@@ -325,7 +614,7 @@
         }
     }
 
-    private async Task DeleteWebhook(WebhookSubscription sub)
+    private async Task DeleteWebhook(DotNetCloud.Core.Services.ModuleApis.WebhookSubscriptionDto sub)
     {
         try
         {
@@ -335,7 +624,7 @@
         catch { }
     }
 
-    private async Task TestWebhook(WebhookSubscription sub)
+    private async Task TestWebhook(DotNetCloud.Core.Services.ModuleApis.WebhookSubscriptionDto sub)
     {
         try
         {

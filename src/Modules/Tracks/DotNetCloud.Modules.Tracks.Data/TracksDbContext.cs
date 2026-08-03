@@ -49,6 +49,7 @@ public class TracksDbContext : DbContext
     public DbSet<ItemTemplate> ItemTemplates => Set<ItemTemplate>();
     public DbSet<ReviewSession> ReviewSessions => Set<ReviewSession>();
     public DbSet<ReviewSessionParticipant> ReviewSessionParticipants => Set<ReviewSessionParticipant>();
+    public DbSet<SprintDiscussion> SprintDiscussions => Set<SprintDiscussion>();
     public DbSet<WorkItemWatcher> WorkItemWatchers => Set<WorkItemWatcher>();
     public DbSet<CustomView> CustomViews => Set<CustomView>();
     public DbSet<CustomField> CustomFields => Set<CustomField>();

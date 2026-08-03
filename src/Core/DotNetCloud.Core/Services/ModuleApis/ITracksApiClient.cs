@@ -209,6 +209,20 @@ public interface ITracksApiClient
     // Capacity Planning
     Task<ProductCapacityDto?> GetProductCapacityAsync(Guid productId, CancellationToken ct = default);
     Task<SprintCapacityDto?> GetSprintCapacityAsync(Guid sprintId, CancellationToken ct = default);
+
+    // ─── Sprint & Review Discussions ───
+
+    /// <summary>Lists discussion messages for a sprint.</summary>
+    Task<IReadOnlyList<SprintDiscussionDto>> ListSprintDiscussionsAsync(Guid sprintId, int skip = 0, int take = 50, CancellationToken ct = default);
+
+    /// <summary>Sends a discussion message to a sprint.</summary>
+    Task<SprintDiscussionDto?> SendSprintDiscussionAsync(Guid sprintId, string content, CancellationToken ct = default);
+
+    /// <summary>Lists discussion messages for a review session.</summary>
+    Task<IReadOnlyList<SprintDiscussionDto>> ListReviewDiscussionsAsync(Guid reviewSessionId, int skip = 0, int take = 50, CancellationToken ct = default);
+
+    /// <summary>Sends a discussion message to a review session.</summary>
+    Task<SprintDiscussionDto?> SendReviewDiscussionAsync(Guid reviewSessionId, string content, CancellationToken ct = default);
 }
 
 // ── Supporting DTOs (moved from module Models to keep Core dependency-free) ──
@@ -240,6 +254,8 @@ public sealed class WebhookSubscriptionDto
     public string Url { get; set; } = "";
     public bool IsActive { get; set; }
     public Guid CreatedByUserId { get; set; }
+    /// <summary>JSON array of event type strings this subscription listens for.</summary>
+    public string EventsJson { get; set; } = "";
     public DateTime? LastDeliveryAt { get; set; }
     public int FailedDeliveryCount { get; set; }
     public DateTime CreatedAt { get; set; }
@@ -248,3 +264,17 @@ public sealed class WebhookSubscriptionDto
 
 /// <summary>Result of a webhook test ping.</summary>
 public sealed record WebhookTestResult(bool Success, int? StatusCode, long DurationMs, string? Error);
+
+/// <summary>DTO for a sprint/review discussion message.</summary>
+public sealed record SprintDiscussionDto(
+    Guid Id,
+    Guid? SprintId,
+    Guid? ReviewSessionId,
+    Guid UserId,
+    string UserDisplayName,
+    string Content,
+    DateTime CreatedAt
+);
+
+/// <summary>Request DTO for sending a discussion message.</summary>
+public sealed record SendSprintDiscussionDto(string Content);

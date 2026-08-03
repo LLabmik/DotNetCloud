@@ -2799,7 +2799,7 @@
 
 ::deep .tracks-planning-panels {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 320px;
   gap: 16px;
   flex: 1;
   min-height: 0;
@@ -7310,4 +7310,59 @@
   ::deep .tracks-nav-item--tour:hover {
     background: color-mix(in srgb, var(--color-primary) 10%, var(--color-bg));
   }
+}
+
+/* ── Sprint Discussion Panel ── */
+
+::deep .tracks-discussion-messages {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px;
+}
+
+::deep .tracks-discussion-message {
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--color-bg) 60%, var(--color-surface));
+}
+
+::deep .tracks-discussion-message-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 2px;
+  font-size: 0.78rem;
+}
+
+::deep .tracks-discussion-author {
+  font-weight: 600;
+}
+
+::deep .tracks-discussion-time {
+  color: var(--color-text-secondary, #9ca3af);
+}
+
+::deep .tracks-discussion-content {
+  font-size: 0.88rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+::deep .tracks-discussion-input {
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--color-border);
+}
+
+::deep .tracks-discussion-input textarea {
+  flex: 1;
+  resize: none;
+}
+
+::deep .discussion-empty {
+  padding: 20px;
+  text-align: center;
 }

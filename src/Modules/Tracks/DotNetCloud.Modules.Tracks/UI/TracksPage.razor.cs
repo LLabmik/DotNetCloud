@@ -24,7 +24,7 @@ public partial class TracksPage : ComponentBase, IDisposable
     [Parameter]
     public string? KanbanId { get; set; }
 
-    [Inject] private ITracksApiClient ApiClient { get; set; } = default!;
+    [Inject] private DotNetCloud.Core.Services.ModuleApis.ITracksApiClient ApiClient { get; set; } = default!;
     [Inject] private ITracksSignalRService SignalRService { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthStateProvider { get; set; } = default!;
     [Inject] private IOrganizationDirectory OrgDirectory { get; set; } = default!;

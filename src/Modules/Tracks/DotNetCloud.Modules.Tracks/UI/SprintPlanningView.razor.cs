@@ -1,7 +1,8 @@
 using DotNetCloud.Core.DTOs;
-using DotNetCloud.Modules.Tracks.Services;
+using DotNetCloud.Core.Services.ModuleApis;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
+using Microsoft.JSInterop;
 using static DotNetCloud.Core.DTOs.SprintStatus;
 
 namespace DotNetCloud.Modules.Tracks.UI;
@@ -9,7 +10,7 @@ namespace DotNetCloud.Modules.Tracks.UI;
 /// <summary>
 /// Side-by-side sprint planning view with product backlog (left) and sprint backlog (right).
 /// </summary>
-public partial class SprintPlanningView : ComponentBase
+public partial class SprintPlanningView : ComponentBase, IDisposable
 {
     [Inject] private ITracksApiClient ApiClient { get; set; } = default!;
 
@@ -210,4 +211,89 @@ public partial class SprintPlanningView : ComponentBase
         SprintStatus.Completed => "badge-secondary",
         _ => "badge-secondary"
     };
+
+    // ── Discussion ──
+
+    [Inject] private DotNetCloud.Modules.Tracks.Services.ITracksSignalRService SignalRService { get; set; } = default!;
+    [Inject] private IJSRuntime JsRuntime { get; set; } = default!;
+
+    private readonly List<SprintDiscussionDto> _discussionMessages = [];
+    private string _discussionInput = string.Empty;
+    private bool _isSending;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDiscussionMessagesAsync();
+        SignalRService.SprintDiscussionMessageReceived += HandleDiscussionMessageReceived;
+    }
+
+    private void HandleDiscussionMessageReceived(Guid sprintId, SprintDiscussionDto message)
+    {
+        if (sprintId != Sprint.Id)
+            return;
+        _discussionMessages.Add(message);
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadDiscussionMessagesAsync()
+    {
+        try
+        {
+            var messages = await ApiClient.ListSprintDiscussionsAsync(Sprint.Id);
+            _discussionMessages.Clear();
+            _discussionMessages.AddRange(messages);
+            await InvokeAsync(StateHasChanged);
+        }
+        catch
+        {
+            // Log but don't disrupt the planning UI
+        }
+    }
+
+    private async Task SendDiscussionMessageAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_discussionInput) || _isSending)
+            return;
+
+        _isSending = true;
+        try
+        {
+            await ApiClient.SendSprintDiscussionAsync(Sprint.Id, _discussionInput.Trim());
+            _discussionInput = string.Empty;
+            await LoadDiscussionMessagesAsync();
+        }
+        catch
+        {
+            // Silent fail
+        }
+        finally
+        {
+            _isSending = false;
+        }
+    }
+
+    private async Task HandleDiscussionKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+        {
+            await SendDiscussionMessageAsync();
+        }
+    }
+
+    private string GetRelativeTime(DateTime dateTime)
+    {
+        var diff = DateTime.UtcNow - dateTime;
+        if (diff.TotalSeconds < 60)
+            return "just now";
+        if (diff.TotalMinutes < 60)
+            return $"{(int)diff.TotalMinutes}m ago";
+        if (diff.TotalHours < 24)
+            return $"{(int)diff.TotalHours}h ago";
+        return dateTime.ToString("MMM d");
+    }
+
+    public void Dispose()
+    {
+        SignalRService.SprintDiscussionMessageReceived -= HandleDiscussionMessageReceived;
+    }
 }

@@ -224,6 +224,39 @@
                     </div>
                 }
             </div>
+
+            @* Discussion Panel *@
+            <div class="review-discussion">
+                <h4>💬 Discussion</h4>
+                <div class="tracks-discussion-messages">
+                    @if (_discussionMessages.Count == 0)
+                    {
+                        <p class="tracks-muted discussion-empty">No messages yet.</p>
+                    }
+                    else
+                    {
+                        @foreach (var msg in _discussionMessages)
+                        {
+                            <div class="tracks-discussion-message">
+                                <div class="tracks-discussion-message-header">
+                                    <span class="tracks-discussion-author">@msg.UserDisplayName</span>
+                                    <span class="tracks-discussion-time">@GetRelativeDiscussionTime(msg.CreatedAt)</span>
+                                </div>
+                                <div class="tracks-discussion-content">@msg.Content</div>
+                            </div>
+                        }
+                    }
+                </div>
+                <div class="tracks-discussion-input">
+                    <textarea class="form-control" @bind="_discussionInput" @onkeydown="HandleDiscussionKeyDown"
+                              placeholder="Type a message..." rows="2" maxlength="2000"
+                              disabled="@_isSendingDiscussion"></textarea>
+                    <button class="btn btn-sm btn-primary" @onclick="SendDiscussionMessageAsync"
+                            disabled="@(string.IsNullOrWhiteSpace(_discussionInput) || _isSendingDiscussion)">
+                        Send
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 

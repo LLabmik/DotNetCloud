@@ -14,138 +14,139 @@
 
 ## Quick Status Summary
 
-| Phase                            | Steps   | Completed | In Progress | Pending |
-| -------------------------------- | ------- | --------- | ----------- | ------- |
-| Pre-Implementation               | 4       | 4         | 0           | 0       |
-| Phase 0.1                        | 11      | 11        | 0           | 0       |
-| Phase 0.2                        | 12      | 12        | 0           | 0       |
-| Phase 0.3                        | 8       | 8         | 0           | 0       |
-| Phase 0.4                        | 20      | 20        | 0           | 0       |
-| Phase 0.5                        | 9       | 9         | 0           | 0       |
-| Phase 0.6                        | 14      | 14        | 0           | 0       |
-| Phase 0.7                        | 16      | 16        | 0           | 0       |
-| Phase 0.8                        | 11      | 11        | 0           | 0       |
-| Phase 0.9                        | 13      | 13        | 0           | 0       |
-| Phase 0.10                       | 11      | 11        | 0           | 0       |
-| Phase 0.11                       | 18      | 18        | 0           | 0       |
-| Phase 0.12                       | 25      | 25        | 0           | 0       |
-| Phase 0.13                       | 20      | 20        | 0           | 0       |
-| Phase 0.14                       | 18      | 18        | 0           | 0       |
-| Phase 0.15                       | 12      | 12        | 0           | 0       |
-| Phase 0.16                       | 12      | 12        | 0           | 0       |
-| Phase 0.17                       | 10      | 10        | 0           | 0       |
-| Phase 0.18                       | 8       | 8         | 0           | 0       |
-| Phase 0.19                       | 11      | 11        | 0           | 0       |
-| Phase 0.20 (About)               | 3       | 3         | 0           | 0       |
-| Phase 1.1                        | 6       | 6         | 0           | 0       |
-| Phase 1.2                        | 5       | 5         | 0           | 0       |
-| Phase 1.3                        | 15      | 15        | 0           | 0       |
-| Phase 1.4                        | 15      | 15        | 0           | 0       |
-| Phase 1.5                        | 10      | 10        | 0           | 0       |
-| Phase 1.6                        | 9       | 9         | 0           | 0       |
-| Phase 1.7                        | 11      | 11        | 0           | 0       |
-| Phase 1.8                        | 8       | 8         | 0           | 0       |
-| Phase 1.9                        | 14      | 14        | 0           | 0       |
-| Phase 1.10                       | 24      | 24        | 0           | 0       |
-| Phase 1.11                       | 8       | 8         | 0           | 0       |
-| Phase 1.12                       | 17      | 17        | 0           | 0       |
-| Phase 1.13                       | 4       | 4         | 0           | 0       |
-| Phase 1.14                       | 32      | 32        | 0           | 0       |
-| Phase 1.15                       | 25      | 25        | 0           | 0       |
-| Phase 1.16                       | 20      | 20        | 0           | 0       |
-| Phase 1.17                       | 25      | 25        | 0           | 0       |
-| Phase 1.18                       | 6       | 6         | 0           | 0       |
-| Phase 1.19                       | 20      | 20        | 0           | 0       |
-| Phase 1.20                       | 20      | 20        | 0           | 0       |
-| Phase 2.1                        | 6       | 6         | 0           | 0       |
-| Phase 2.2                        | 4       | 4         | 0           | 0       |
-| Phase 2.3                        | 7       | 7         | 0           | 0       |
-| Phase 2.4                        | 5       | 5         | 0           | 0       |
-| Phase 2.5                        | 4       | 4         | 0           | 0       |
-| Phase 2.6                        | 4       | 4         | 0           | 0       |
-| Phase 2.7                        | 4       | 4         | 0           | 0       |
-| Phase 2.8                        | 11      | 11        | 0           | 0       |
-| Phase 2.9                        | 3       | 3         | 0           | 0       |
-| Phase 2.10                       | 10      | 10        | 0           | 0       |
-| Phase 2.10.1                     | 1       | 1         | 0           | 0       |
-| Phase 2.11                       | 3       | 3         | 0           | 0       |
-| Phase 2.12                       | 2       | 2         | 0           | 0       |
-| Phase 2.13                       | 3       | 3         | 0           | 0       |
-| Integration Testing Sprint       | 3       | 3         | 0           | 0       |
-| Sync Batch 1                     | 10      | 10        | 0           | 0       |
-| Sync Batch 2                     | 6       | 6         | 0           | 0       |
-| Sync Batch 3                     | 6       | 6         | 0           | 0       |
-| Sync Batch 4                     | 5       | 5         | 0           | 0       |
-| Sync Batch 5                     | 2       | 2         | 0           | 0       |
-| Sync Verification                | 1       | 1         | 0           | 0       |
-| Sync Hardening P0                | 3       | 3         | 0           | 0       |
-| Calendar Recurrence+Org          | 6       | 6         | 0           | 0       |
-| Calendar Attendee Contact Search | 14      | 14        | 0           | 0       |
-| Module Help Sidebar              | 1       | 1         | 0           | 0       |
-| Client Security Remediation      | 1       | 1         | 0           | 0       |
-| Phase 3.1                        | 4       | 4         | 0           | 0       |
-| Phase 3.2                        | 6       | 6         | 0           | 0       |
-| Phase 3.3                        | 6       | 6         | 0           | 0       |
-| Phase 3.4                        | 6       | 6         | 0           | 0       |
-| Phase 3.5                        | 4       | 4         | 0           | 0       |
-| Phase 3.6                        | 4       | 4         | 0           | 0       |
-| Phase 3.7                        | 5       | 5         | 0           | 0       |
-| Phase 3.8                        | 4       | 4         | 0           | 0       |
-| Phase 4.1                        | 11      | 11        | 0           | 0       |
-| Phase 4.2                        | 7       | 7         | 0           | 0       |
-| Phase 4.3                        | 21      | 21        | 0           | 0       |
-| Phase 4.4                        | 17      | 17        | 0           | 0       |
-| Phase 4.5                        | 9       | 9         | 0           | 0       |
-| Phase 4.6                        | 4       | 4         | 0           | 0       |
-| Phase 4.7                        | 6       | 6         | 0           | 0       |
-| Phase 4.8                        | 8       | 8         | 0           | 0       |
-| Required Modules Schema 1        | 5       | 5         | 0           | 0       |
-| Required Modules Schema 2        | 17      | 17        | 0           | 0       |
-| Required Modules Schema 3        | 12      | 12        | 0           | 0       |
-| Required Modules Schema 4        | 1       | 1         | 0           | 0       |
-| Required Modules Schema 5        | 3       | 3         | 0           | 0       |
-| Required Modules Schema 6        | 8       | 8         | 0           | 0       |
-| Required Modules Schema 7        | 7       | 7         | 0           | 0       |
-| Phase 4.9                        | 42      | 42        | 0           | 0       |
-| Phase 4.10 — Hierarchy           | 17      | 14        | 0           | 3       |
-| Phase 5-8                        | Summary | 10        | 0           | 0       |
-| Media Content Dedup — Music      | 4       | 4         | 0           | 0       |
-| Media Content Dedup — Video      | 4       | 4         | 0           | 0       |
-| Media Content Dedup — Cache      | 1       | 1         | 0           | 0       |
-| Media Content Dedup — TMDB       | 2       | 2         | 0           | 0       |
-| Media Content Dedup — gRPC       | 1       | 1         | 0           | 0       |
-| Phase 6 (Email & Bookmarks)      | 9       | 9         | 0           | 0       |
-| Phase 8 (Full-Text Search)       | 18      | 18        | 0           | 0       |
-| Phase 7 (Video Calling)          | 11      | 11        | 0           | 0       |
-| Phase 9                          | 7       | 4         | 1           | 2       |
-| Phase 11 (Auto-Updates)          | 16      | 7         | 0           | 9       |
-| DM & Host Calls — Phase A        | 3       | 3         | 0           | 0       |
-| DM & Host Calls — Phase B        | 2       | 0         | 0           | 2       |
-| DM & Host Calls — Phase C–G      | 10      | 1         | 1           | 8       |
-| Shared File Folders              | 6       | 6         | 0           | 0       |
-| Tracks Prof. — Phase B           | 4       | 4         | 0           | 0       |
-| Tracks Prof. — Phase C           | 2       | 2         | 0           | 0       |
-| Tracks Prof. — Phase D           | 3       | 3         | 0           | 0       |
-| Tracks Prof. — Phase E           | 3       | 3         | 0           | 0       |
-| Tracks Prof. — Phase F           | 3       | 3         | 0           | 0       |
-| Tracks Prof. — Phase G           | 4       | 4         | 0           | 0       |
-| Tracks Prof. — Phase H           | 3       | 3         | 0           | 0       |
-| Infrastructure                   | Summary | 0         | 0           | 1       |
-| Documentation                    | Summary | 0         | 0           | 1       |
-| Browser Ext — Phase 1            | 4       | 4         | 0           | 0       |
-| Browser Ext — Phase 2            | 8       | 8         | 0           | 0       |
-| Browser Ext — Phase 3            | 3       | 3         | 0           | 0       |
-| Browser Ext — Phase 4            | 4       | 4         | 0           | 0       |
-| Browser Ext — Phase 5            | 6       | 6         | 0           | 0       |
-| Browser Ext — Phase 6            | 3       | 0         | 0           | 3       |
-| Closed System Mode               | 7       | 1         | 0           | 6       |
-| Demo Mode                        | 6       | 6         | 0           | 0       |
-| VFS Phase 1 (Server)             | 2       | 2         | 0           | 0       |
-| VFS Phase 2 (Core)               | 5       | 5         | 0           | 0       |
-| VFS Phase 3 (Windows)            | 3       | 3         | 0           | 0       |
-| VFS Phase 4 (Linux)              | 4       | 4         | 0           | 0       |
-| VFS Phase 5 (UI)                 | 3       | 3         | 0           | 0       |
-| VFS Phase 6 (Testing)            | 3       | 3         | 0           | 0       |
+| Phase                                | Steps   | Completed | In Progress | Pending |
+| ------------------------------------ | ------- | --------- | ----------- | ------- |
+| Pre-Implementation                   | 4       | 4         | 0           | 0       |
+| Phase 0.1                            | 11      | 11        | 0           | 0       |
+| Phase 0.2                            | 12      | 12        | 0           | 0       |
+| Phase 0.3                            | 8       | 8         | 0           | 0       |
+| Phase 0.4                            | 20      | 20        | 0           | 0       |
+| Phase 0.5                            | 9       | 9         | 0           | 0       |
+| Phase 0.6                            | 14      | 14        | 0           | 0       |
+| Phase 0.7                            | 16      | 16        | 0           | 0       |
+| Phase 0.8                            | 11      | 11        | 0           | 0       |
+| Phase 0.9                            | 13      | 13        | 0           | 0       |
+| Phase 0.10                           | 11      | 11        | 0           | 0       |
+| Phase 0.11                           | 18      | 18        | 0           | 0       |
+| Phase 0.12                           | 25      | 25        | 0           | 0       |
+| Phase 0.13                           | 20      | 20        | 0           | 0       |
+| Phase 0.14                           | 18      | 18        | 0           | 0       |
+| Phase 0.15                           | 12      | 12        | 0           | 0       |
+| Phase 0.16                           | 12      | 12        | 0           | 0       |
+| Phase 0.17                           | 10      | 10        | 0           | 0       |
+| Phase 0.18                           | 8       | 8         | 0           | 0       |
+| Phase 0.19                           | 11      | 11        | 0           | 0       |
+| Phase 0.20 (About)                   | 3       | 3         | 0           | 0       |
+| Phase 1.1                            | 6       | 6         | 0           | 0       |
+| Phase 1.2                            | 5       | 5         | 0           | 0       |
+| Phase 1.3                            | 15      | 15        | 0           | 0       |
+| Phase 1.4                            | 15      | 15        | 0           | 0       |
+| Phase 1.5                            | 10      | 10        | 0           | 0       |
+| Phase 1.6                            | 9       | 9         | 0           | 0       |
+| Phase 1.7                            | 11      | 11        | 0           | 0       |
+| Phase 1.8                            | 8       | 8         | 0           | 0       |
+| Phase 1.9                            | 14      | 14        | 0           | 0       |
+| Phase 1.10                           | 24      | 24        | 0           | 0       |
+| Phase 1.11                           | 8       | 8         | 0           | 0       |
+| Phase 1.12                           | 17      | 17        | 0           | 0       |
+| Phase 1.13                           | 4       | 4         | 0           | 0       |
+| Phase 1.14                           | 32      | 32        | 0           | 0       |
+| Phase 1.15                           | 25      | 25        | 0           | 0       |
+| Phase 1.16                           | 20      | 20        | 0           | 0       |
+| Phase 1.17                           | 25      | 25        | 0           | 0       |
+| Phase 1.18                           | 6       | 6         | 0           | 0       |
+| Phase 1.19                           | 20      | 20        | 0           | 0       |
+| Phase 1.20                           | 20      | 20        | 0           | 0       |
+| Phase 2.1                            | 6       | 6         | 0           | 0       |
+| Phase 2.2                            | 4       | 4         | 0           | 0       |
+| Phase 2.3                            | 7       | 7         | 0           | 0       |
+| Phase 2.4                            | 5       | 5         | 0           | 0       |
+| Phase 2.5                            | 4       | 4         | 0           | 0       |
+| Phase 2.6                            | 4       | 4         | 0           | 0       |
+| Phase 2.7                            | 4       | 4         | 0           | 0       |
+| Phase 2.8                            | 11      | 11        | 0           | 0       |
+| Phase 2.9                            | 3       | 3         | 0           | 0       |
+| Phase 2.10                           | 10      | 10        | 0           | 0       |
+| Phase 2.10.1                         | 1       | 1         | 0           | 0       |
+| Phase 2.11                           | 3       | 3         | 0           | 0       |
+| Phase 2.12                           | 2       | 2         | 0           | 0       |
+| Phase 2.13                           | 3       | 3         | 0           | 0       |
+| Integration Testing Sprint           | 3       | 3         | 0           | 0       |
+| Sync Batch 1                         | 10      | 10        | 0           | 0       |
+| Sync Batch 2                         | 6       | 6         | 0           | 0       |
+| Sync Batch 3                         | 6       | 6         | 0           | 0       |
+| Sync Batch 4                         | 5       | 5         | 0           | 0       |
+| Sync Batch 5                         | 2       | 2         | 0           | 0       |
+| Sync Verification                    | 1       | 1         | 0           | 0       |
+| Sync Hardening P0                    | 3       | 3         | 0           | 0       |
+| Calendar Recurrence+Org              | 6       | 6         | 0           | 0       |
+| Calendar Attendee Contact Search     | 14      | 14        | 0           | 0       |
+| Module Help Sidebar                  | 1       | 1         | 0           | 0       |
+| Client Security Remediation          | 1       | 1         | 0           | 0       |
+| Phase 3.1                            | 4       | 4         | 0           | 0       |
+| Phase 3.2                            | 6       | 6         | 0           | 0       |
+| Phase 3.3                            | 6       | 6         | 0           | 0       |
+| Phase 3.4                            | 6       | 6         | 0           | 0       |
+| Phase 3.5                            | 4       | 4         | 0           | 0       |
+| Phase 3.6                            | 4       | 4         | 0           | 0       |
+| Phase 3.7                            | 5       | 5         | 0           | 0       |
+| Phase 3.8                            | 4       | 4         | 0           | 0       |
+| Phase 4.1                            | 11      | 11        | 0           | 0       |
+| Phase 4.2                            | 7       | 7         | 0           | 0       |
+| Phase 4.3                            | 21      | 21        | 0           | 0       |
+| Phase 4.4                            | 17      | 17        | 0           | 0       |
+| Phase 4.5                            | 9       | 9         | 0           | 0       |
+| Phase 4.6                            | 4       | 4         | 0           | 0       |
+| Phase 4.7                            | 6       | 6         | 0           | 0       |
+| Phase 4.8                            | 8       | 8         | 0           | 0       |
+| Required Modules Schema 1            | 5       | 5         | 0           | 0       |
+| Required Modules Schema 2            | 17      | 17        | 0           | 0       |
+| Required Modules Schema 3            | 12      | 12        | 0           | 0       |
+| Required Modules Schema 4            | 1       | 1         | 0           | 0       |
+| Required Modules Schema 5            | 3       | 3         | 0           | 0       |
+| Required Modules Schema 6            | 8       | 8         | 0           | 0       |
+| Required Modules Schema 7            | 7       | 7         | 0           | 0       |
+| Phase 4.9                            | 42      | 42        | 0           | 0       |
+| Phase 4.10 — Hierarchy               | 17      | 14        | 0           | 3       |
+| Phase 5-8                            | Summary | 10        | 0           | 0       |
+| Media Content Dedup — Music          | 4       | 4         | 0           | 0       |
+| Media Content Dedup — Video          | 4       | 4         | 0           | 0       |
+| Media Content Dedup — Cache          | 1       | 1         | 0           | 0       |
+| Media Content Dedup — TMDB           | 2       | 2         | 0           | 0       |
+| Media Content Dedup — gRPC           | 1       | 1         | 0           | 0       |
+| Phase 6 (Email & Bookmarks)          | 9       | 9         | 0           | 0       |
+| Phase 8 (Full-Text Search)           | 18      | 18        | 0           | 0       |
+| Phase 7 (Video Calling)              | 11      | 11        | 0           | 0       |
+| Phase 9                              | 7       | 4         | 1           | 2       |
+| Phase 11 (Auto-Updates)              | 16      | 7         | 0           | 9       |
+| DM & Host Calls — Phase A            | 3       | 3         | 0           | 0       |
+| DM & Host Calls — Phase B            | 2       | 0         | 0           | 2       |
+| DM & Host Calls — Phase C–G          | 10      | 1         | 1           | 8       |
+| Shared File Folders                  | 6       | 6         | 0           | 0       |
+| Tracks Prof. — Phase B               | 4       | 4         | 0           | 0       |
+| Tracks Prof. — Phase C               | 2       | 2         | 0           | 0       |
+| Tracks Prof. — Phase D               | 3       | 3         | 0           | 0       |
+| Tracks Prof. — Phase E               | 3       | 3         | 0           | 0       |
+| Tracks Prof. — Phase F               | 3       | 3         | 0           | 0       |
+| Tracks — gRPC Isolation & Discussion | 40      | 40        | 0           | 0       |
+| Tracks Prof. — Phase G               | 4       | 4         | 0           | 0       |
+| Tracks Prof. — Phase H               | 3       | 3         | 0           | 0       |
+| Infrastructure                       | Summary | 0         | 0           | 1       |
+| Documentation                        | Summary | 0         | 0           | 1       |
+| Browser Ext — Phase 1                | 4       | 4         | 0           | 0       |
+| Browser Ext — Phase 2                | 8       | 8         | 0           | 0       |
+| Browser Ext — Phase 3                | 3       | 3         | 0           | 0       |
+| Browser Ext — Phase 4                | 4       | 4         | 0           | 0       |
+| Browser Ext — Phase 5                | 6       | 6         | 0           | 0       |
+| Browser Ext — Phase 6                | 3       | 0         | 0           | 3       |
+| Closed System Mode                   | 7       | 1         | 0           | 6       |
+| Demo Mode                            | 6       | 6         | 0           | 0       |
+| VFS Phase 1 (Server)                 | 2       | 2         | 0           | 0       |
+| VFS Phase 2 (Core)                   | 5       | 5         | 0           | 0       |
+| VFS Phase 3 (Windows)                | 3       | 3         | 0           | 0       |
+| VFS Phase 4 (Linux)                  | 4       | 4         | 0           | 0       |
+| VFS Phase 5 (UI)                     | 3       | 3         | 0           | 0       |
+| VFS Phase 6 (Testing)                | 3       | 3         | 0           | 0       |
 
 Maintenance note: local install/setup health verification now follows configured Kestrel ports and accepts self-signed local HTTPS during startup checks. Fresh Linux installs now invoke `dotnetcloud setup --beginner` by default, which auto-selects the recommended local PostgreSQL path and then branches cleanly between the three real deployment shapes: private/local test, public behind a reverse proxy, and public served directly by DotNetCloud itself. The local branch uses self-signed HTTPS on DotNetCloud directly. The reverse-proxy public branch keeps DotNetCloud on local HTTP and ends with explicit reverse-proxy/TLS guidance instead of pretending automatic public-certificate setup exists; it now also points beginners to a dedicated Apache-first reverse-proxy guide with a Caddy alternative. The public-direct branch lets the user point DotNetCloud at an existing public certificate file and explains the extra tradeoffs, while still explicitly recommending a reverse proxy for most public installs because it simplifies ports 80/443, TLS renewal, and future services on the same machine. All branches print explicit direct local access URLs and health probe URLs and end with a plain-language summary of the selected defaults plus the beginner user's next steps. Upgrade runs now also end with a plain-language summary that confirms existing data/configuration were preserved, states clearly whether a one-time setup review is still required, and re-shows the access URLs plus the user's next step. This also clarifies the internal app defaults HTTP `5080` / HTTPS `5443` versus reverse-proxy/public HTTPS ports such as `15443`. Windows now has a separate IIS-first installation path via `tools/install-windows.ps1`, with IIS reverse proxying to `http://localhost:5080`, a beginner-focused IIS guide, a dedicated architecture rationale note, native Windows Service hosting support in the core server, and machine-level config/data environment propagation during setup and service runtime so Windows self-hosters do not need to follow the Linux installer path. The bare-metal redeploy helper now also repairs build-output ownership and purges stale normal and malformed Debug output trees before Release build/publish runs so local Linux redeploys do not inherit broken artifacts from prior attempts.
 
@@ -1974,6 +1975,29 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ `TracksPage.razor.css` — Full CSS for wizards, hierarchy indicators, type badges, depth styling
 
 **Notes:** Addresses user confusion about hierarchy levels. All kanban boards looked identical across Product/Epic/Feature/Item levels — now visually distinct with level indicators, type badges, and depth styling. Guided wizard creation replaces simple modal/inline forms. Builds with 0 errors, 435 core tests pass. **Bug fix:** Swimlane drag-and-drop reordering was missing from Step 2 (Color & Settings) of ProductCreationWizard — drag handle had `cursor: grab` but no event handlers. Added HTML5 native drag-and-drop with `draggable`, `@ondragstart`, `@ondragover`, `@ondrop`, `@ondragend`. Same fix applied to ProductSettingsPage swimlane list.
+
+### Section: Phase 4.11 — gRPC Isolation & Sprint Planning Chat
+
+**Status:** completed ✅
+**Duration:** ~10 hours
+**Description:** Full gRPC UI migration for Tracks module + real-time discussion chat for Sprint Planning and Review Sessions.
+
+**Deliverables:**
+
+- ✓ Migrated all ~35 Tracks UI files from HTTP ITracksApiClient to Core gRPC interface
+- ✓ Removed HTTP ITracksApiClient registration from Core.Server Program.cs
+- ✓ Replaced AddTracksUiServices with individual in-process registrations
+- ✓ SprintDiscussion entity, EF configuration, dual-provider migrations
+- ✓ SprintDiscussionService with CRUD, validation, real-time SignalR broadcast
+- ✓ SprintDiscussionsController with 4 REST endpoints
+- ✓ 4 gRPC RPCs in tracks_service.proto + 6 message types
+- ✓ Core ITracksApiClient + TracksGrpcApiClient discussion methods
+- ✓ ITracksRealtimeService/ITracksSignalRService discussion events + implementations
+- ✓ Discussion panels in SprintPlanningView, ReviewSessionHost, ReviewSessionParticipant
+- ✓ 12 new unit tests (SprintDiscussionService + GrpcApiClient)
+- ✓ All 145 Tracks tests passing (0 failures)
+
+**Notes:** Sprint planning and review sessions now have real-time chat. Tracks module is fully process-isolated with gRPC-only communication from the UI layer. Builds with 0 errors, 0 warnings.
 
 ---
 
@@ -6078,7 +6102,6 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 
 ---
 
-
 ---
 
 ## Final Release: Blazor-Side Fixes (2026-08-02)
@@ -6098,7 +6121,7 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - ✓ `VideoEnrichmentBackgroundQueue` — worker no longer re-fetches metadata for videos that already have a TMDB ID (posters/thumbnails still fetched if missing).
 - ✓ Music enrichment — verified the 30-day `LastEnrichedAt` cooldown is honored across all enrichment paths; no daily re-fetch of enriched albums/artists/tracks.
 
-**Notes:** The file *indexing* phase already skipped indexed files (`GetAlreadyIndexedIdsAsync`); the issue was the *enrichment* phase re-fetching metadata daily. Now both phases are efficient.
+**Notes:** The file _indexing_ phase already skipped indexed files (`GetAlreadyIndexedIdsAsync`); the issue was the _enrichment_ phase re-fetching metadata daily. Now both phases are efficient.
 
 ### Item 2 — SyncTray Wake-From-Sleep Handling
 

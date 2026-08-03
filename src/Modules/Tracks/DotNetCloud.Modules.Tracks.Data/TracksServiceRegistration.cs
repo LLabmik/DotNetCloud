@@ -64,6 +64,7 @@ public static class TracksServiceRegistration
         services.AddScoped<AutomationRuleService>();
         services.AddScoped<GoalService>();
         services.AddScoped<IAutomationRuleExecutionService, AutomationRuleExecutionService>();
+        services.AddScoped<SprintDiscussionService>();
 
         // Cross-module services
         services.AddScoped<ICardAttachmentCleanupService, AttachmentCleanupService>();
@@ -131,6 +132,7 @@ public static class TracksServiceRegistration
         services.AddScoped<AutomationRuleService>();
         services.AddScoped<GoalService>();
         services.AddScoped<IAutomationRuleExecutionService, AutomationRuleExecutionService>();
+        services.AddScoped<SprintDiscussionService>();
 
         // Cross-module services
         services.AddScoped<ICardAttachmentCleanupService, AttachmentCleanupService>();

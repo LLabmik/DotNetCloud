@@ -1,6 +1,7 @@
 # Tracks Module — Hierarchy Expansion Plan
 
-> **Status:** Implemented — source code clean, UI + tests pending
+> **Status:** ✅ Complete — data model, services, API, and UI fully implemented.
+> Tests: `tests/DotNetCloud.Modules.Tracks.Tests/` (145 tests, 21+ test files)
 > **Scope:** Rewrite Tracks module data model, services, API, and UI for multi-level project hierarchy
 > **Phase 0 (Foundation)** — breaking changes acceptable
 
@@ -26,12 +27,12 @@ After evaluating two options, the plan uses a **unified `WorkItem` entity with a
 
 ### Option A (Chosen): Unified WorkItem
 
-| Pros | Cons |
-|------|------|
+| Pros                                          | Cons                                                                  |
+| --------------------------------------------- | --------------------------------------------------------------------- |
 | One DTO and one component path for all levels | Lose DB-level FK enforcement for "Epic must be in a Product swimlane" |
-| ~60% fewer entity/config/service files | App-level validation required |
-| Hierarchy via simple `ParentWorkItemId` | Single table may grow large |
-| Adding/removing levels in future is trivial |  |
+| ~60% fewer entity/config/service files        | App-level validation required                                         |
+| Hierarchy via simple `ParentWorkItemId`       | Single table may grow large                                           |
+| Adding/removing levels in future is trivial   |                                                                       |
 
 ### Option B (Rejected): Separate Entities per Level
 
@@ -78,85 +79,90 @@ Core.Organization
 ### 3.2 Entity Definitions
 
 #### Product
+
 Replaces `Board` as the top-level Tracks container. Belongs to a Core Organization.
 
-| Column | Type | Notes |
-|--------|------|-------|
-| `Id` | `Guid` | PK |
-| `OrganizationId` | `Guid` | FK to Core `Organization`. No DB-level FK (cross-module). |
-| `Name` | `string` | Required, max 200 |
-| `Description` | `string?` | Markdown, nullable |
-| `Color` | `string?` | Hex color, max 20 |
-| `OwnerId` | `Guid` | Creator user ID |
-| `SubItemsEnabled` | `bool` | Default `false`. `true` = Items use SubItems; `false` = Items use Checklists |
-| `IsArchived` | `bool` | |
-| `IsDeleted` | `bool` | Soft-delete |
-| `DeletedAt` | `DateTime?` | |
-| `ETag` | `string` | Optimistic concurrency, max 64 |
-| `CreatedAt` | `DateTime` | |
-| `UpdatedAt` | `DateTime` | |
+| Column            | Type        | Notes                                                                        |
+| ----------------- | ----------- | ---------------------------------------------------------------------------- |
+| `Id`              | `Guid`      | PK                                                                           |
+| `OrganizationId`  | `Guid`      | FK to Core `Organization`. No DB-level FK (cross-module).                    |
+| `Name`            | `string`    | Required, max 200                                                            |
+| `Description`     | `string?`   | Markdown, nullable                                                           |
+| `Color`           | `string?`   | Hex color, max 20                                                            |
+| `OwnerId`         | `Guid`      | Creator user ID                                                              |
+| `SubItemsEnabled` | `bool`      | Default `false`. `true` = Items use SubItems; `false` = Items use Checklists |
+| `IsArchived`      | `bool`      |                                                                              |
+| `IsDeleted`       | `bool`      | Soft-delete                                                                  |
+| `DeletedAt`       | `DateTime?` |                                                                              |
+| `ETag`            | `string`    | Optimistic concurrency, max 64                                               |
+| `CreatedAt`       | `DateTime`  |                                                                              |
+| `UpdatedAt`       | `DateTime`  |                                                                              |
 
 Navigation properties: `Swimlanes`, `Members`, `Labels`, `WorkItems` (all items in the product tree), `Activities`
 
 #### ProductMember
+
 Replaces `BoardMember`. Membership with role.
 
-| Column | Type | Notes |
-|--------|------|-------|
-| `ProductId` | `Guid` | Composite PK part 1, FK → Product (cascade) |
-| `UserId` | `Guid` | Composite PK part 2. Cross-module ref, no FK. |
-| `Role` | `ProductMemberRole` | Enum stored as string: Viewer, Member, Admin, Owner |
-| `JoinedAt` | `DateTime` | |
+| Column      | Type                | Notes                                               |
+| ----------- | ------------------- | --------------------------------------------------- |
+| `ProductId` | `Guid`              | Composite PK part 1, FK → Product (cascade)         |
+| `UserId`    | `Guid`              | Composite PK part 2. Cross-module ref, no FK.       |
+| `Role`      | `ProductMemberRole` | Enum stored as string: Viewer, Member, Admin, Owner |
+| `JoinedAt`  | `DateTime`          |                                                     |
 
 #### Swimlane
+
 Unified kanban column. Replaces `BoardSwimlane`.
 
-| Column | Type | Notes |
-|--------|------|-------|
-| `Id` | `Guid` | PK |
-| `ContainerType` | `SwimlaneContainerType` | Enum stored as string: `Product`, `WorkItem` |
-| `ContainerId` | `Guid` | Product.Id for Product-level; WorkItem.Id for Epic/Feature-level |
-| `Title` | `string` | Required, max 200 |
-| `Color` | `string?` | Hex color, max 20 |
-| `Position` | `double` | Gap-based ordering |
-| `CardLimit` | `int?` | WIP limit |
-| `IsDone` | `bool` | Items in this swimlane count as "done" for sprint tracking |
-| `IsArchived` | `bool` | |
-| `CreatedAt` | `DateTime` | |
-| `UpdatedAt` | `DateTime` | |
+| Column          | Type                    | Notes                                                            |
+| --------------- | ----------------------- | ---------------------------------------------------------------- |
+| `Id`            | `Guid`                  | PK                                                               |
+| `ContainerType` | `SwimlaneContainerType` | Enum stored as string: `Product`, `WorkItem`                     |
+| `ContainerId`   | `Guid`                  | Product.Id for Product-level; WorkItem.Id for Epic/Feature-level |
+| `Title`         | `string`                | Required, max 200                                                |
+| `Color`         | `string?`               | Hex color, max 20                                                |
+| `Position`      | `double`                | Gap-based ordering                                               |
+| `CardLimit`     | `int?`                  | WIP limit                                                        |
+| `IsDone`        | `bool`                  | Items in this swimlane count as "done" for sprint tracking       |
+| `IsArchived`    | `bool`                  |                                                                  |
+| `CreatedAt`     | `DateTime`              |                                                                  |
+| `UpdatedAt`     | `DateTime`              |                                                                  |
 
 Navigation: `WorkItems` (items currently in this swimlane)
 
 **App-level constraint:** When `ContainerType=Product`, `ContainerId` has FK to `Product.Id`. When `ContainerType=WorkItem`, the WorkItem must have `Type ∈ {Epic, Feature}`.
 
 #### WorkItem
+
 Unified work item. Replaces `Card` and adds Epic/Feature/SubItem levels.
 
-| Column | Type | Notes |
-|--------|------|-------|
-| `Id` | `Guid` | PK |
-| `ProductId` | `Guid` | FK → Product (cascade). Root product — always set. |
-| `ParentWorkItemId` | `Guid?` | Self-referencing FK (restrict). `null` for Epics, set for Features→Epic, Items→Feature, SubItems→Item. |
-| `Type` | `WorkItemType` | Enum stored as string: `Epic`, `Feature`, `Item`, `SubItem` |
-| `SwimlaneId` | `Guid?` | FK → Swimlane (set null on swimlane delete). Current kanban column. |
-| `ItemNumber` | `int` | Sequential number, scoped to Product (unique per product, not per-type) |
-| `Title` | `string` | Required, max 500 |
-| `Description` | `string?` | Markdown |
-| `Position` | `double` | Gap-based ordering within swimlane |
-| `Priority` | `Priority` | Enum stored as string: None, Low, Medium, High, Urgent |
-| `DueDate` | `DateTime?` | UTC |
-| `StoryPoints` | `int?` | Fibonacci estimate |
-| `IsArchived` | `bool` | |
-| `IsDeleted` | `bool` | Soft-delete |
-| `DeletedAt` | `DateTime?` | |
-| `CreatedByUserId` | `Guid` | Creator |
-| `ETag` | `string` | Optimistic concurrency, max 64 |
-| `CreatedAt` | `DateTime` | |
-| `UpdatedAt` | `DateTime` | |
+| Column             | Type           | Notes                                                                                                  |
+| ------------------ | -------------- | ------------------------------------------------------------------------------------------------------ |
+| `Id`               | `Guid`         | PK                                                                                                     |
+| `ProductId`        | `Guid`         | FK → Product (cascade). Root product — always set.                                                     |
+| `ParentWorkItemId` | `Guid?`        | Self-referencing FK (restrict). `null` for Epics, set for Features→Epic, Items→Feature, SubItems→Item. |
+| `Type`             | `WorkItemType` | Enum stored as string: `Epic`, `Feature`, `Item`, `SubItem`                                            |
+| `SwimlaneId`       | `Guid?`        | FK → Swimlane (set null on swimlane delete). Current kanban column.                                    |
+| `ItemNumber`       | `int`          | Sequential number, scoped to Product (unique per product, not per-type)                                |
+| `Title`            | `string`       | Required, max 500                                                                                      |
+| `Description`      | `string?`      | Markdown                                                                                               |
+| `Position`         | `double`       | Gap-based ordering within swimlane                                                                     |
+| `Priority`         | `Priority`     | Enum stored as string: None, Low, Medium, High, Urgent                                                 |
+| `DueDate`          | `DateTime?`    | UTC                                                                                                    |
+| `StoryPoints`      | `int?`         | Fibonacci estimate                                                                                     |
+| `IsArchived`       | `bool`         |                                                                                                        |
+| `IsDeleted`        | `bool`         | Soft-delete                                                                                            |
+| `DeletedAt`        | `DateTime?`    |                                                                                                        |
+| `CreatedByUserId`  | `Guid`         | Creator                                                                                                |
+| `ETag`             | `string`       | Optimistic concurrency, max 64                                                                         |
+| `CreatedAt`        | `DateTime`     |                                                                                                        |
+| `UpdatedAt`        | `DateTime`     |                                                                                                        |
 
 Navigation: `Product`, `ParentWorkItem`, `ChildWorkItems`, `Swimlane`, `Assignments`, `WorkItemLabels`, `Comments`, `Attachments`, `Dependencies`, `Dependents`, `TimeEntries`, `SprintItems`, `Checklists`, `PokerSessions`
 
 **Constraints:**
+
 - `Type=Epic` ⇒ `ParentWorkItemId` is null (direct child of Product), lives in Product-level Swimlane
 - `Type=Feature` ⇒ `ParentWorkItemId` points to an Epic, lives in an Epic-level Swimlane
 - `Type=Item` ⇒ `ParentWorkItemId` points to a Feature, lives in a Feature-level Swimlane
@@ -164,192 +170,210 @@ Navigation: `Product`, `ParentWorkItem`, `ChildWorkItems`, `Swimlane`, `Assignme
 - `Type=SubItem` only allowed when `Product.SubItemsEnabled = true`
 
 #### WorkItemAssignment
+
 Unified assignment table. Replaces `CardAssignment`.
 
-| Column | Type | Notes |
-|--------|------|-------|
-| `Id` | `Guid` | PK |
-| `WorkItemId` | `Guid` | FK → WorkItem (cascade) |
-| `UserId` | `Guid` | Cross-module ref |
-| `AssignedAt` | `DateTime` | |
+| Column       | Type       | Notes                   |
+| ------------ | ---------- | ----------------------- |
+| `Id`         | `Guid`     | PK                      |
+| `WorkItemId` | `Guid`     | FK → WorkItem (cascade) |
+| `UserId`     | `Guid`     | Cross-module ref        |
+| `AssignedAt` | `DateTime` |                         |
 
 Unique index on `(WorkItemId, UserId)`.
 
 #### WorkItemLabel
+
 Unified many-to-many join. Replaces `CardLabel`.
 
-| Column | Type | Notes |
-|--------|------|-------|
-| `WorkItemId` | `Guid` | Composite PK part 1, FK → WorkItem (cascade) |
-| `LabelId` | `Guid` | Composite PK part 2, FK → Label (cascade) |
-| `AppliedAt` | `DateTime` | |
+| Column       | Type       | Notes                                        |
+| ------------ | ---------- | -------------------------------------------- |
+| `WorkItemId` | `Guid`     | Composite PK part 1, FK → WorkItem (cascade) |
+| `LabelId`    | `Guid`     | Composite PK part 2, FK → Label (cascade)    |
+| `AppliedAt`  | `DateTime` |                                              |
 
 #### WorkItemComment
+
 Unified comments. Replaces `CardComment`.
 
-| Column | Type | Notes |
-|--------|------|-------|
-| `Id` | `Guid` | PK |
-| `WorkItemId` | `Guid` | FK → WorkItem (cascade) |
-| `UserId` | `Guid` | Cross-module ref |
-| `Content` | `string` | Markdown |
-| `IsEdited` | `bool` | |
-| `IsDeleted` | `bool` | Soft-delete |
-| `DeletedAt` | `DateTime?` | |
-| `CreatedAt` | `DateTime` | |
-| `UpdatedAt` | `DateTime` | |
+| Column       | Type        | Notes                   |
+| ------------ | ----------- | ----------------------- |
+| `Id`         | `Guid`      | PK                      |
+| `WorkItemId` | `Guid`      | FK → WorkItem (cascade) |
+| `UserId`     | `Guid`      | Cross-module ref        |
+| `Content`    | `string`    | Markdown                |
+| `IsEdited`   | `bool`      |                         |
+| `IsDeleted`  | `bool`      | Soft-delete             |
+| `DeletedAt`  | `DateTime?` |                         |
+| `CreatedAt`  | `DateTime`  |                         |
+| `UpdatedAt`  | `DateTime`  |                         |
 
 #### WorkItemAttachment
+
 Unified attachments. Replaces `CardAttachment`.
 
-| Column | Type | Notes |
-|--------|------|-------|
-| `Id` | `Guid` | PK |
-| `WorkItemId` | `Guid` | FK → WorkItem (cascade) |
-| `FileNodeId` | `Guid?` | Cross-module ref to Files module |
-| `Url` | `string?` | External URL, max 2000 |
-| `FileName` | `string` | Max 500 |
-| `FileSize` | `long?` | Bytes |
-| `MimeType` | `string?` | Max 255 |
-| `UploadedByUserId` | `Guid` | |
-| `CreatedAt` | `DateTime` | |
+| Column             | Type       | Notes                            |
+| ------------------ | ---------- | -------------------------------- |
+| `Id`               | `Guid`     | PK                               |
+| `WorkItemId`       | `Guid`     | FK → WorkItem (cascade)          |
+| `FileNodeId`       | `Guid?`    | Cross-module ref to Files module |
+| `Url`              | `string?`  | External URL, max 2000           |
+| `FileName`         | `string`   | Max 500                          |
+| `FileSize`         | `long?`    | Bytes                            |
+| `MimeType`         | `string?`  | Max 255                          |
+| `UploadedByUserId` | `Guid`     |                                  |
+| `CreatedAt`        | `DateTime` |                                  |
 
 #### WorkItemDependency
+
 Unified dependencies. Replaces `CardDependency`.
 
-| Column | Type | Notes |
-|--------|------|-------|
-| `Id` | `Guid` | PK |
-| `WorkItemId` | `Guid` | FK → WorkItem (cascade) — the dependent item |
-| `DependsOnWorkItemId` | `Guid` | FK → WorkItem (restrict) — the blocker |
-| `Type` | `DependencyType` | Enum stored as string: BlockedBy, RelatesTo |
-| `CreatedAt` | `DateTime` | |
+| Column                | Type             | Notes                                        |
+| --------------------- | ---------------- | -------------------------------------------- |
+| `Id`                  | `Guid`           | PK                                           |
+| `WorkItemId`          | `Guid`           | FK → WorkItem (cascade) — the dependent item |
+| `DependsOnWorkItemId` | `Guid`           | FK → WorkItem (restrict) — the blocker       |
+| `Type`                | `DependencyType` | Enum stored as string: BlockedBy, RelatesTo  |
+| `CreatedAt`           | `DateTime`       |                                              |
 
 Unique index on `(WorkItemId, DependsOnWorkItemId, Type)`.
 
 #### Label
+
 Updated FK from Board → Product.
 
-| Column | Type | Notes |
-|--------|------|-------|
-| `Id` | `Guid` | PK |
-| `ProductId` | `Guid` | FK → Product (cascade) |
-| `Title` | `string` | Max 100 |
-| `Color` | `string` | Max 20 |
-| `CreatedAt` | `DateTime` | |
+| Column      | Type       | Notes                  |
+| ----------- | ---------- | ---------------------- |
+| `Id`        | `Guid`     | PK                     |
+| `ProductId` | `Guid`     | FK → Product (cascade) |
+| `Title`     | `string`   | Max 100                |
+| `Color`     | `string`   | Max 20                 |
+| `CreatedAt` | `DateTime` |                        |
 
 Unique index on `(ProductId, Title)`.
 
 #### Checklist
+
 Updated FK from Card → WorkItem (Item type only). Only used when `Product.SubItemsEnabled = false`.
 
-| Column | Type | Notes |
-|--------|------|-------|
-| `Id` | `Guid` | PK |
-| `ItemId` | `Guid` | FK → WorkItem (cascade) |
-| `Title` | `string` | Max 200 |
-| `Position` | `double` | |
-| `CreatedAt` | `DateTime` | |
+| Column      | Type       | Notes                   |
+| ----------- | ---------- | ----------------------- |
+| `Id`        | `Guid`     | PK                      |
+| `ItemId`    | `Guid`     | FK → WorkItem (cascade) |
+| `Title`     | `string`   | Max 200                 |
+| `Position`  | `double`   |                         |
+| `CreatedAt` | `DateTime` |                         |
 
 #### ChecklistItem
+
 Unchanged structurally.
 
-| Column | Type | Notes |
-|--------|------|-------|
-| `Id` | `Guid` | PK |
-| `ChecklistId` | `Guid` | FK → Checklist (cascade) |
-| `Title` | `string` | Max 500 |
-| `IsCompleted` | `bool` | |
-| `Position` | `double` | |
-| `AssignedToUserId` | `Guid?` | |
-| `CreatedAt` | `DateTime` | |
-| `UpdatedAt` | `DateTime` | |
+| Column             | Type       | Notes                    |
+| ------------------ | ---------- | ------------------------ |
+| `Id`               | `Guid`     | PK                       |
+| `ChecklistId`      | `Guid`     | FK → Checklist (cascade) |
+| `Title`            | `string`   | Max 500                  |
+| `IsCompleted`      | `bool`     |                          |
+| `Position`         | `double`   |                          |
+| `AssignedToUserId` | `Guid?`    |                          |
+| `CreatedAt`        | `DateTime` |                          |
+| `UpdatedAt`        | `DateTime` |                          |
 
 #### Sprint
+
 Reparented from Board → Epic (WorkItem with Type=Epic).
 
-| Column | Type | Notes |
-|--------|------|-------|
-| `Id` | `Guid` | PK |
-| `EpicId` | `Guid` | FK → WorkItem (cascade) |
-| `Title` | `string` | Max 200 |
-| `Goal` | `string?` | Markdown |
-| `StartDate` | `DateTime?` | |
-| `EndDate` | `DateTime?` | |
-| `Status` | `SprintStatus` | Enum: Planning, Active, Completed |
-| `TargetStoryPoints` | `int?` | |
-| `DurationWeeks` | `int?` | |
-| `PlannedOrder` | `int?` | |
-| `CreatedAt` | `DateTime` | |
-| `UpdatedAt` | `DateTime` | |
+| Column              | Type           | Notes                             |
+| ------------------- | -------------- | --------------------------------- |
+| `Id`                | `Guid`         | PK                                |
+| `EpicId`            | `Guid`         | FK → WorkItem (cascade)           |
+| `Title`             | `string`       | Max 200                           |
+| `Goal`              | `string?`      | Markdown                          |
+| `StartDate`         | `DateTime?`    |                                   |
+| `EndDate`           | `DateTime?`    |                                   |
+| `Status`            | `SprintStatus` | Enum: Planning, Active, Completed |
+| `TargetStoryPoints` | `int?`         |                                   |
+| `DurationWeeks`     | `int?`         |                                   |
+| `PlannedOrder`      | `int?`         |                                   |
+| `CreatedAt`         | `DateTime`     |                                   |
+| `UpdatedAt`         | `DateTime`     |                                   |
 
 #### SprintItem
+
 Replaces `SprintCard`. Only Items (leaf WorkItems) can be sprint members.
 
-| Column | Type | Notes |
-|--------|------|-------|
-| `SprintId` | `Guid` | Composite PK part 1, FK → Sprint (cascade) |
-| `ItemId` | `Guid` | Composite PK part 2, FK → WorkItem (cascade) |
-| `AddedAt` | `DateTime` | |
+| Column     | Type       | Notes                                        |
+| ---------- | ---------- | -------------------------------------------- |
+| `SprintId` | `Guid`     | Composite PK part 1, FK → Sprint (cascade)   |
+| `ItemId`   | `Guid`     | Composite PK part 2, FK → WorkItem (cascade) |
+| `AddedAt`  | `DateTime` |                                              |
 
 #### PokerSession
+
 Reparented from Board → Epic.
 
-| Column | Type | Notes |
-|--------|------|-------|
-| `Id` | `Guid` | PK |
-| `EpicId` | `Guid` | FK → WorkItem (restrict) — the owning Epic |
-| `ItemId` | `Guid` | FK → WorkItem (cascade) — the Item being estimated |
-| `CreatedByUserId` | `Guid` | |
-| `Scale` | `PokerScale` | Fibonacci, TShirt, PowersOfTwo, Custom |
-| `CustomScaleValues` | `string?` | |
-| `Status` | `PokerStatus` | |
-| `AcceptedEstimate` | `string?` | |
-| `Round` | `int` | Default 1 |
-| `ReviewSessionId` | `Guid?` | FK → ReviewSession (set null) |
-| `CreatedAt` | `DateTime` | |
-| `UpdatedAt` | `DateTime` | |
+| Column              | Type          | Notes                                              |
+| ------------------- | ------------- | -------------------------------------------------- |
+| `Id`                | `Guid`        | PK                                                 |
+| `EpicId`            | `Guid`        | FK → WorkItem (restrict) — the owning Epic         |
+| `ItemId`            | `Guid`        | FK → WorkItem (cascade) — the Item being estimated |
+| `CreatedByUserId`   | `Guid`        |                                                    |
+| `Scale`             | `PokerScale`  | Fibonacci, TShirt, PowersOfTwo, Custom             |
+| `CustomScaleValues` | `string?`     |                                                    |
+| `Status`            | `PokerStatus` |                                                    |
+| `AcceptedEstimate`  | `string?`     |                                                    |
+| `Round`             | `int`         | Default 1                                          |
+| `ReviewSessionId`   | `Guid?`       | FK → ReviewSession (set null)                      |
+| `CreatedAt`         | `DateTime`    |                                                    |
+| `UpdatedAt`         | `DateTime`    |                                                    |
 
 #### PokerVote
+
 Unchanged.
 
 #### ReviewSession
+
 Reparented from Board → Epic.
 
-| Column | Type | Notes |
-|--------|------|-------|
-| `Id` | `Guid` | PK |
-| `EpicId` | `Guid` | FK → WorkItem (cascade) |
-| `HostUserId` | `Guid` | |
-| `CurrentItemId` | `Guid?` | FK → WorkItem (set null) |
-| `Status` | `ReviewStatus` | Active, Paused, Ended |
-| `CreatedAt` | `DateTime` | |
-| `EndedAt` | `DateTime?` | |
+| Column          | Type           | Notes                    |
+| --------------- | -------------- | ------------------------ |
+| `Id`            | `Guid`         | PK                       |
+| `EpicId`        | `Guid`         | FK → WorkItem (cascade)  |
+| `HostUserId`    | `Guid`         |                          |
+| `CurrentItemId` | `Guid?`        | FK → WorkItem (set null) |
+| `Status`        | `ReviewStatus` | Active, Paused, Ended    |
+| `CreatedAt`     | `DateTime`     |                          |
+| `EndedAt`       | `DateTime?`    |                          |
 
 #### ReviewSessionParticipant
+
 Unchanged.
 
 #### Activity
+
 Reparented from Board → Product.
 
-| Column | Type | Notes |
-|--------|------|-------|
-| `Id` | `Guid` | PK |
-| `ProductId` | `Guid` | FK → Product (cascade) |
-| `UserId` | `Guid` | |
-| `Action` | `string` | e.g. "workitem.created", "sprint.started" |
-| `EntityType` | `string` | e.g. "WorkItem", "Sprint", "Swimlane" |
-| `EntityId` | `Guid` | |
-| `Details` | `string?` | JSON |
-| `CreatedAt` | `DateTime` | |
+| Column       | Type       | Notes                                     |
+| ------------ | ---------- | ----------------------------------------- |
+| `Id`         | `Guid`     | PK                                        |
+| `ProductId`  | `Guid`     | FK → Product (cascade)                    |
+| `UserId`     | `Guid`     |                                           |
+| `Action`     | `string`   | e.g. "workitem.created", "sprint.started" |
+| `EntityType` | `string`   | e.g. "WorkItem", "Sprint", "Swimlane"     |
+| `EntityId`   | `Guid`     |                                           |
+| `Details`    | `string?`  | JSON                                      |
+| `CreatedAt`  | `DateTime` |                                           |
 
 #### ProductTemplate
+
 Replaces `BoardTemplate`. FK shifted from Board → Product.
 
 #### ItemTemplate
+
 Replaces `CardTemplate`. FK shifted.
 
 #### TeamRole
+
 Minor rename: `CoreTeamId` → `TeamId`. Clarifies it references a Core Team.
 
 ### 3.3 Entities to Delete
@@ -397,6 +421,7 @@ Since this is Phase 0 (pre-release, no production data), use a **single breaking
 All DTOs in `src/Core/DotNetCloud.Core/DTOs/TracksDtos.cs`.
 
 **ProductDto:**
+
 ```csharp
 public sealed record ProductDto(
     Guid Id, Guid OrganizationId, string Name, string? Description, string? Color,
@@ -408,6 +433,7 @@ public sealed record ProductDto(
 ```
 
 **WorkItemDto** (serves Epic, Feature, Item, SubItem):
+
 ```csharp
 public sealed record WorkItemDto(
     Guid Id, Guid ProductId, Guid? ParentWorkItemId, WorkItemType Type,
@@ -426,6 +452,7 @@ public sealed record WorkItemDto(
 ```
 
 **SwimlaneDto:**
+
 ```csharp
 public sealed record SwimlaneDto(
     Guid Id, SwimlaneContainerType ContainerType, Guid ContainerId,
@@ -439,21 +466,21 @@ public sealed record SwimlaneDto(
 
 New events in `src/Core/DotNetCloud.Core/Events/TracksEvents.cs`:
 
-| Event | Payload |
-|-------|---------|
-| `ProductCreatedEvent` | ProductId, OrganizationId, OwnerId |
-| `ProductDeletedEvent` | ProductId |
-| `WorkItemCreatedEvent` | WorkItemId, ProductId, Type, ParentWorkItemId? |
-| `WorkItemUpdatedEvent` | WorkItemId, Type |
-| `WorkItemMovedEvent` | WorkItemId, Type, FromSwimlaneId, ToSwimlaneId |
-| `WorkItemDeletedEvent` | WorkItemId, Type |
-| `WorkItemAssignedEvent` | WorkItemId, UserId |
-| `WorkItemCommentAddedEvent` | WorkItemId, CommentId, UserId |
-| `SprintStartedEvent` | SprintId, EpicId |
-| `SprintCompletedEvent` | SprintId, EpicId |
-| `PokerSessionStartedEvent` | SessionId, EpicId, ItemId |
-| `PokerSessionRevealedEvent` | SessionId, EpicId |
-| `PokerSessionCompletedEvent` | SessionId, EpicId |
+| Event                        | Payload                                        |
+| ---------------------------- | ---------------------------------------------- |
+| `ProductCreatedEvent`        | ProductId, OrganizationId, OwnerId             |
+| `ProductDeletedEvent`        | ProductId                                      |
+| `WorkItemCreatedEvent`       | WorkItemId, ProductId, Type, ParentWorkItemId? |
+| `WorkItemUpdatedEvent`       | WorkItemId, Type                               |
+| `WorkItemMovedEvent`         | WorkItemId, Type, FromSwimlaneId, ToSwimlaneId |
+| `WorkItemDeletedEvent`       | WorkItemId, Type                               |
+| `WorkItemAssignedEvent`      | WorkItemId, UserId                             |
+| `WorkItemCommentAddedEvent`  | WorkItemId, CommentId, UserId                  |
+| `SprintStartedEvent`         | SprintId, EpicId                               |
+| `SprintCompletedEvent`       | SprintId, EpicId                               |
+| `PokerSessionStartedEvent`   | SessionId, EpicId, ItemId                      |
+| `PokerSessionRevealedEvent`  | SessionId, EpicId                              |
+| `PokerSessionCompletedEvent` | SessionId, EpicId                              |
 
 Delete all old `Board`/`Card`-prefixed events.
 
@@ -463,21 +490,21 @@ Delete all old `Board`/`Card`-prefixed events.
 
 All services in `src/Modules/Tracks/DotNetCloud.Modules.Tracks.Data/Services/`.
 
-| Service | Replaces | Key Methods |
-|---------|----------|-------------|
-| `ProductService` | BoardService, LabelService, BoardMemberService | Create, Get, Update, Delete, ListByOrganization, AddMember, RemoveMember, UpdateMemberRole, CreateLabel, DeleteLabel |
-| `SwimlaneService` | SwimlaneService (old) | Create, Get, Update, Delete, Reorder — parameterized by ContainerType + ContainerId |
-| `WorkItemService` | CardService, BulkOperationService | Create, Get, GetByNumber, Update, Delete, Move, Assign, AddLabel, RemoveLabel, ListBySwimlane, ListByParent |
-| `CommentService` | CommentService (old) | Create, Update, Delete, ListByWorkItem |
-| `AttachmentService` | AttachmentService (old) | Add, Remove, ListByWorkItem |
-| `DependencyService` | DependencyService (old) | Add, Remove, ListByWorkItem |
-| `ChecklistService` | ChecklistService (old) | Create, Delete, AddItem, ToggleItem, DeleteItem, ListByItem |
-| `SprintService` | SprintService, SprintPlanningService, SprintReportService | Create, Update, Delete, Start, Complete, AddItem, RemoveItem, ListByEpic, GetBacklog, GetVelocity |
-| `PokerService` | PokerService (old) | StartSession, SubmitVote, Reveal, AcceptEstimate, NewRound |
-| `ReviewSessionService` | ReviewSessionService (old) | Start, Join, Leave, SetCurrentItem, End |
-| `TimeTrackingService` | TimeTrackingService (old) | StartTimer, StopTimer, AddEntry, DeleteEntry, GetTotalForItem |
-| `ActivityService` | ActivityService (old) | ListByProduct, ListByWorkItem |
-| `AnalyticsService` | AnalyticsService (old) | GetProductAnalytics, GetSprintReport, GetBurndown |
+| Service                | Replaces                                                  | Key Methods                                                                                                          |
+| ---------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `ProductService`       | BoardService, LabelService, BoardMemberService            | Create, Get, Update, Delete, ListByOrganization, AddMember, RemoveMember, UpdateMemberRole, CreateLabel, DeleteLabel |
+| `SwimlaneService`      | SwimlaneService (old)                                     | Create, Get, Update, Delete, Reorder — parameterized by ContainerType + ContainerId                                  |
+| `WorkItemService`      | CardService, BulkOperationService                         | Create, Get, GetByNumber, Update, Delete, Move, Assign, AddLabel, RemoveLabel, ListBySwimlane, ListByParent          |
+| `CommentService`       | CommentService (old)                                      | Create, Update, Delete, ListByWorkItem                                                                               |
+| `AttachmentService`    | AttachmentService (old)                                   | Add, Remove, ListByWorkItem                                                                                          |
+| `DependencyService`    | DependencyService (old)                                   | Add, Remove, ListByWorkItem                                                                                          |
+| `ChecklistService`     | ChecklistService (old)                                    | Create, Delete, AddItem, ToggleItem, DeleteItem, ListByItem                                                          |
+| `SprintService`        | SprintService, SprintPlanningService, SprintReportService | Create, Update, Delete, Start, Complete, AddItem, RemoveItem, ListByEpic, GetBacklog, GetVelocity                    |
+| `PokerService`         | PokerService (old)                                        | StartSession, SubmitVote, Reveal, AcceptEstimate, NewRound                                                           |
+| `ReviewSessionService` | ReviewSessionService (old)                                | Start, Join, Leave, SetCurrentItem, End                                                                              |
+| `TimeTrackingService`  | TimeTrackingService (old)                                 | StartTimer, StopTimer, AddEntry, DeleteEntry, GetTotalForItem                                                        |
+| `ActivityService`      | ActivityService (old)                                     | ListByProduct, ListByWorkItem                                                                                        |
+| `AnalyticsService`     | AnalyticsService (old)                                    | GetProductAnalytics, GetSprintReport, GetBurndown                                                                    |
 
 ### App-Level Validation in WorkItemService
 
@@ -637,11 +664,13 @@ The card template from `KanbanBoard.razor` (lines 112–218) and the detail pane
 ### 8.2 Components to Adapt
 
 **KanbanBoard.razor** — Parameterized to work at any level:
+
 - Receives: `ContainerType` + `ContainerId`, `Swimlanes` (List<SwimlaneDto>), `WorkItemsBySwimlane` (Dictionary<Guid, List<WorkItemDto>>), `OnItemSelected`, `OnItemCreated`, `OnItemMoved` callbacks
 - Card rendering is identical — `WorkItemDto` carries the same display fields as the old `CardDto`
 - Swimlane header shows swimlane title, card count, WIP limit
 
 **WorkItemDetailPanel.razor** (adapted from `CardDetailPanel.razor`):
+
 - **Always shown** (all levels): Inline-editable title with item number, Labels (color pills), Description (Markdown editor), Comments, Activity log, Priority selector, Due Date, Story Points, Assignees, Labels picker, Attachments, Dependencies, Archive/Delete
 - **Epic only** (Type=Epic): Sprint list + create, Poker sessions, Review sessions, "Open Kanban" button (navigates to Epic's Feature kanban), list of child Features
 - **Feature only** (Type=Feature): "Open Kanban" button (navigates to Feature's Item kanban), list of child Items
@@ -650,6 +679,7 @@ The card template from `KanbanBoard.razor` (lines 112–218) and the detail pane
 ### 8.3 Components to Rewrite
 
 **TracksPage.razor** — New navigation architecture:
+
 1. **Header**: Organization selector dropdown (loads from Core `IOrganizationDirectory`) + breadcrumb trail
 2. **Breadcrumb**: `Org Name > Product Name > Epic #N > Feature #N > Item #N`
 3. **Views**: Product List (grid of products) → Product Kanban (Epics in swimlanes) → Epic Kanban (Features in swimlanes) → Feature Kanban (Items in swimlanes) → Item Detail (slide-out panel)
@@ -684,6 +714,7 @@ The card template from `KanbanBoard.razor` (lines 112–218) and the detail pane
 ## 9. gRPC
 
 Update `Protos/tracks_service.proto`:
+
 - Replace `BoardMessage` with `ProductMessage`
 - Replace `CardMessage` with `WorkItemMessage` (with `type` field)
 - Add `SwimlaneMessage` (with `container_type`, `container_id`)
@@ -698,6 +729,7 @@ Regenerate `TracksGrpcService.cs`.
 ### 10.1 ITracksDirectory
 
 Add methods for new entity lookups:
+
 ```csharp
 Task<string?> GetProductTitleAsync(Guid productId, CancellationToken ct);
 Task<string?> GetWorkItemTitleAsync(Guid workItemId, CancellationToken ct);
@@ -706,6 +738,7 @@ Task<string?> GetWorkItemTitleAsync(Guid workItemId, CancellationToken ct);
 ### 10.2 Event Handlers
 
 In `TracksModule.cs`:
+
 - Subscribe to new event names
 - `FileDeletedEventHandler` — resolve to ItemId (was CardId)
 - `ChatMessageTracksHandler` — update entity references
@@ -713,12 +746,14 @@ In `TracksModule.cs`:
 ### 10.3 Manifest
 
 Update `TracksModuleManifest.cs`:
+
 - Published events: replace old names with new ones
 - Subscribed events: unchanged (FileDeleted, MessageSent, ChannelCreated, ChannelDeleted)
 
 ### 10.4 Service Registration
 
 Update `TracksServiceRegistration.cs`:
+
 - Replace old service registrations with new ones
 - SignalR service updated for new event types
 - Null-object patterns updated for new interfaces
@@ -727,22 +762,22 @@ Update `TracksServiceRegistration.cs`:
 
 ## 11. Implementation Order
 
-| Step | Area | Description | Files Affected |
-|------|------|-------------|----------------|
-| 1 | Models | Delete all old models, create new ones | `Models/` — ~18 files deleted, ~20 files created |
-| 2 | Config | Delete old EF configs, create new ones | `Data/Configuration/` — ~22 files deleted, ~20 files created |
-| 3 | DbContext | Rewrite TracksDbContext, delete old migrations, generate InitialCreate | `TracksDbContext.cs`, `Migrations/`, `TracksDbInitializer.cs` |
-| 4 | DTOs | Rewrite TracksDtos.cs | `src/Core/DotNetCloud.Core/DTOs/TracksDtos.cs` |
-| 5 | Events | Rewrite TracksEvents.cs | `src/Core/DotNetCloud.Core/Events/TracksEvents.cs` |
-| 6 | Services | Implement all new services | `Data/Services/` — ~16 files |
-| 7 | Controllers | Implement all new controllers | `Host/Controllers/` — ~14 files |
-| 8 | API Client | Rewrite ITracksApiClient + TracksApiClient | `Services/ITracksApiClient.cs`, `Services/TracksApiClient.cs` |
-| 9 | UI — Core | Adapt KanbanBoard + create WorkItemDetailPanel | `UI/KanbanBoard.razor*`, `UI/WorkItemDetailPanel.razor*` |
-| 10 | UI — Pages | Rewrite TracksPage + ProductListView + WorkItemFullscreenPage | `UI/TracksPage.razor*`, `UI/ProductListView.razor*`, `UI/WorkItemFullscreenPage.razor*` |
-| 11 | UI — Epic | Rewrite sprint/planning/review components for Epic scope | `UI/SprintPanel.razor*`, `UI/SprintPlanningView.razor*`, etc. |
-| 12 | Cross-module | Update TracksModule, manifest, SignalR, gRPC, service registration | Multiple files |
-| 13 | Docs | Update IMPLEMENTATION_CHECKLIST.md + MASTER_PROJECT_PLAN.md | `docs/` — 2 files |
-| 14 | Build | `dotnet build -c Release` with CI solution filter | Verify no compilation errors |
+| Step | Area         | Description                                                            | Files Affected                                                                          |
+| ---- | ------------ | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| 1    | Models       | Delete all old models, create new ones                                 | `Models/` — ~18 files deleted, ~20 files created                                        |
+| 2    | Config       | Delete old EF configs, create new ones                                 | `Data/Configuration/` — ~22 files deleted, ~20 files created                            |
+| 3    | DbContext    | Rewrite TracksDbContext, delete old migrations, generate InitialCreate | `TracksDbContext.cs`, `Migrations/`, `TracksDbInitializer.cs`                           |
+| 4    | DTOs         | Rewrite TracksDtos.cs                                                  | `src/Core/DotNetCloud.Core/DTOs/TracksDtos.cs`                                          |
+| 5    | Events       | Rewrite TracksEvents.cs                                                | `src/Core/DotNetCloud.Core/Events/TracksEvents.cs`                                      |
+| 6    | Services     | Implement all new services                                             | `Data/Services/` — ~16 files                                                            |
+| 7    | Controllers  | Implement all new controllers                                          | `Host/Controllers/` — ~14 files                                                         |
+| 8    | API Client   | Rewrite ITracksApiClient + TracksApiClient                             | `Services/ITracksApiClient.cs`, `Services/TracksApiClient.cs`                           |
+| 9    | UI — Core    | Adapt KanbanBoard + create WorkItemDetailPanel                         | `UI/KanbanBoard.razor*`, `UI/WorkItemDetailPanel.razor*`                                |
+| 10   | UI — Pages   | Rewrite TracksPage + ProductListView + WorkItemFullscreenPage          | `UI/TracksPage.razor*`, `UI/ProductListView.razor*`, `UI/WorkItemFullscreenPage.razor*` |
+| 11   | UI — Epic    | Rewrite sprint/planning/review components for Epic scope               | `UI/SprintPanel.razor*`, `UI/SprintPlanningView.razor*`, etc.                           |
+| 12   | Cross-module | Update TracksModule, manifest, SignalR, gRPC, service registration     | Multiple files                                                                          |
+| 13   | Docs         | Update IMPLEMENTATION_CHECKLIST.md + MASTER_PROJECT_PLAN.md            | `docs/` — 2 files                                                                       |
+| 14   | Build        | `dotnet build -c Release` with CI solution filter                      | Verify no compilation errors                                                            |
 
 Steps 1–3 (data layer) must be sequential. Steps 4–5 can run in parallel. Steps 6–8 depend on 1–5. Steps 9–11 depend on 8. Step 12 depends on 6–8. Steps 13–14 final.
 
@@ -762,18 +797,23 @@ The following decisions are deferred until implementation reaches the relevant s
 ## 13. Verification
 
 ### Build
+
 ```bash
 dotnet build -c Release
 ```
+
 Must succeed with zero warnings (TreatWarningsAsErrors).
 
 ### Database
+
 ```bash
 dotnet ef migrations add InitialCreate --project src/Modules/Tracks/DotNetCloud.Modules.Tracks.Data --context TracksDbContext
 ```
+
 Verify the generated migration SQL is valid and creates all expected tables and indexes.
 
 ### Manual UI Smoke Test
+
 1. Create an Organization (via Core admin endpoint or seed data)
 2. Create a Product under that Organization → verify it appears in product list
 3. Add swimlanes to Product → verify they render as columns

@@ -2778,6 +2778,72 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         }
     }
 
+    // ─── Sprint & Review Discussions ───────────────────────────────────────
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<SprintDiscussionDto>> ListSprintDiscussionsAsync(Guid sprintId, int skip = 0, int take = 50, CancellationToken ct = default)
+    {
+        var request = new ListSprintDiscussionsRequest { SprintId = sprintId.ToString(), Skip = skip, Take = take };
+        try
+        {
+            var response = await _client.Value.ListSprintDiscussionsAsync(request, DeadlineHeaders(ct)).ResponseAsync;
+            return !response.Success ? [] : response.Messages.Select(ToSprintDiscussionDto).Where(d => d is not null).Select(d => d!).ToList();
+        }
+        catch (RpcException ex)
+        {
+            _logger.LogError(ex, "TracksGrpcApiClient.ListSprintDiscussionsAsync failed");
+            return [];
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<SprintDiscussionDto?> SendSprintDiscussionAsync(Guid sprintId, string content, CancellationToken ct = default)
+    {
+        var request = new SendSprintDiscussionRequest { SprintId = sprintId.ToString(), UserId = GetUserId(), Content = content };
+        try
+        {
+            var response = await _client.Value.SendSprintDiscussionAsync(request, DeadlineHeaders(ct)).ResponseAsync;
+            return ToSprintDiscussionDto(response);
+        }
+        catch (RpcException ex)
+        {
+            _logger.LogError(ex, "TracksGrpcApiClient.SendSprintDiscussionAsync failed");
+            return null;
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<SprintDiscussionDto>> ListReviewDiscussionsAsync(Guid reviewSessionId, int skip = 0, int take = 50, CancellationToken ct = default)
+    {
+        var request = new ListReviewDiscussionsRequest { ReviewSessionId = reviewSessionId.ToString(), Skip = skip, Take = take };
+        try
+        {
+            var response = await _client.Value.ListReviewDiscussionsAsync(request, DeadlineHeaders(ct)).ResponseAsync;
+            return !response.Success ? [] : response.Messages.Select(ToSprintDiscussionDto).Where(d => d is not null).Select(d => d!).ToList();
+        }
+        catch (RpcException ex)
+        {
+            _logger.LogError(ex, "TracksGrpcApiClient.ListReviewDiscussionsAsync failed");
+            return [];
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<SprintDiscussionDto?> SendReviewDiscussionAsync(Guid reviewSessionId, string content, CancellationToken ct = default)
+    {
+        var request = new SendReviewDiscussionRequest { ReviewSessionId = reviewSessionId.ToString(), UserId = GetUserId(), Content = content };
+        try
+        {
+            var response = await _client.Value.SendReviewDiscussionAsync(request, DeadlineHeaders(ct)).ResponseAsync;
+            return ToSprintDiscussionDto(response);
+        }
+        catch (RpcException ex)
+        {
+            _logger.LogError(ex, "TracksGrpcApiClient.SendReviewDiscussionAsync failed");
+            return null;
+        }
+    }
+
     // ─── Proto-to-DTO Mapping Helpers ──────────────────────────────────────
 
     private static string FormatDateTime(DateTime? dt) =>
@@ -3301,11 +3367,27 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
             Url = m.Url,
             IsActive = m.IsActive,
             CreatedByUserId = Guid.Parse(m.CreatedByUserId),
+            EventsJson = m.EventsJson,
             LastDeliveryAt = string.IsNullOrEmpty(m.LastDeliveryAt) ? null : ParseDateTime(m.LastDeliveryAt),
             FailedDeliveryCount = m.FailedDeliveryCount,
             CreatedAt = ParseDateTime(m.CreatedAt),
             UpdatedAt = ParseDateTime(m.UpdatedAt)
         };
+    }
+
+    private static SprintDiscussionDto? ToSprintDiscussionDto(SprintDiscussionMessage? m)
+    {
+        if (m is null || string.IsNullOrEmpty(m.Id))
+            return null;
+        return new SprintDiscussionDto(
+            Id: Guid.Parse(m.Id),
+            SprintId: string.IsNullOrEmpty(m.SprintId) ? null : Guid.Parse(m.SprintId),
+            ReviewSessionId: string.IsNullOrEmpty(m.ReviewSessionId) ? null : Guid.Parse(m.ReviewSessionId),
+            UserId: Guid.Parse(m.UserId),
+            UserDisplayName: m.UserDisplayName,
+            Content: m.Content,
+            CreatedAt: ParseDateTime(m.CreatedAt)
+        );
     }
 
     private static RoadmapDataDto? ToRoadmapDataDto(RoadmapDataMessage? m)

@@ -18,7 +18,7 @@ namespace DotNetCloud.Modules.Tracks.Data.SqlServer.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasDefaultSchema("tracks")
-                .HasAnnotation("ProductVersion", "10.0.3")
+                .HasAnnotation("ProductVersion", "10.0.10")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -1118,6 +1118,48 @@ namespace DotNetCloud.Modules.Tracks.Data.SqlServer.Migrations
                     b.ToTable("Sprints", "tracks");
                 });
 
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.SprintDiscussion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid?>("ReviewSessionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("SprintId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("UserDisplayName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReviewSessionId", "CreatedAt")
+                        .HasDatabaseName("ix_sprint_discussions_review_created");
+
+                    b.HasIndex("SprintId", "CreatedAt")
+                        .HasDatabaseName("ix_sprint_discussions_sprint_created");
+
+                    b.ToTable("SprintDiscussions", "tracks");
+                });
+
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.SprintItem", b =>
                 {
                     b.Property<Guid>("SprintId")
@@ -2175,6 +2217,23 @@ namespace DotNetCloud.Modules.Tracks.Data.SqlServer.Migrations
                         .IsRequired();
 
                     b.Navigation("Epic");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.SprintDiscussion", b =>
+                {
+                    b.HasOne("DotNetCloud.Modules.Tracks.Models.ReviewSession", "ReviewSession")
+                        .WithMany()
+                        .HasForeignKey("ReviewSessionId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("DotNetCloud.Modules.Tracks.Models.Sprint", "Sprint")
+                        .WithMany()
+                        .HasForeignKey("SprintId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("ReviewSession");
+
+                    b.Navigation("Sprint");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.SprintItem", b =>
