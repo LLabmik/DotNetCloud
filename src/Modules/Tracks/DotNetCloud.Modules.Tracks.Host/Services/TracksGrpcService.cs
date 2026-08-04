@@ -129,7 +129,7 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
         try
         {
             var products = await _productService.ListProductsByOrganizationAsync(
-                Guid.Empty, context.CancellationToken);
+                Guid.Parse(request.OrganizationId), context.CancellationToken);
 
             if (request.IncludeArchived == false)
                 products = products.Where(p => !p.IsArchived).ToList();
@@ -514,6 +514,7 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
         return new ProductMessage
         {
             Id = dto.Id.ToString(),
+            OrganizationId = dto.OrganizationId.ToString(),
             OwnerId = dto.OwnerId.ToString(),
             Name = dto.Name,
             Description = dto.Description ?? "",
@@ -549,18 +550,32 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
         var msg = new WorkItemMessage
         {
             Id = dto.Id.ToString(),
+            ProductId = dto.ProductId.ToString(),
+            Type = dto.Type.ToString(),
+            ParentWorkItemId = dto.ParentWorkItemId?.ToString() ?? "",
             SwimlaneId = dto.SwimlaneId.ToString(),
+            SwimlaneTitle = dto.SwimlaneTitle ?? "",
+            ItemNumber = dto.ItemNumber,
             Title = dto.Title,
             Description = dto.Description ?? "",
             Position = dto.Position,
-            DueDate = dto.DueDate?.ToString("O") ?? "",
             Priority = dto.Priority.ToString(),
+            StartDate = dto.StartDate?.ToString("O") ?? "",
+            DueDate = dto.DueDate?.ToString("O") ?? "",
             StoryPoints = dto.StoryPoints ?? 0,
             IsArchived = dto.IsArchived,
+            SprintId = dto.SprintId?.ToString() ?? "",
+            SprintTitle = dto.SprintTitle ?? "",
+            TotalTrackedMinutes = (int)(dto.TotalTrackedMinutes ?? 0),
+            MilestoneId = dto.MilestoneId?.ToString() ?? "",
+            MilestoneTitle = dto.MilestoneTitle ?? "",
             CreatedByUserId = "",
             Etag = dto.ETag,
             CreatedAt = dto.CreatedAt.ToString("O"),
             UpdatedAt = dto.UpdatedAt.ToString("O"),
+            DeletedAt = dto.DeletedAt?.ToString("O") ?? "",
+            DeletedByUserId = dto.DeletedByUserId?.ToString() ?? "",
+            DeletedByDisplayName = dto.DeletedByDisplayName ?? "",
             CommentCount = dto.CommentCount,
             AttachmentCount = dto.AttachmentCount
         };
