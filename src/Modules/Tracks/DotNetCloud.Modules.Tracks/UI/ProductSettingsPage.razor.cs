@@ -603,13 +603,6 @@ public partial class ProductSettingsPage : ComponentBase
         }
     }
 
-    private static string Truncate(string text, int maxLength)
-    {
-        if (string.IsNullOrEmpty(text))
-            return "";
-        return text.Length <= maxLength ? text : text[..maxLength] + "…";
-    }
-
     // ── Local Model ─────────────────────────────────────────
 
     private sealed record SettingsSwimlane

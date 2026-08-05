@@ -118,13 +118,13 @@
                                 <span class="tracks-transition-corner">From ↓ / To →</span>
                                 @foreach (var sl in _transitionSwimlanes)
                                 {
-                                    <span class="tracks-transition-col-header" title="@sl.Title">@Truncate(sl.Title, 8)</span>
+                                    <span class="tracks-transition-col-header" title="@sl.Title">@sl.Title</span>
                                 }
                             </div>
                             @foreach (var fromSl in _transitionSwimlanes)
                             {
                                 <div class="tracks-transition-matrix-row">
-                                    <span class="tracks-transition-row-header" title="@fromSl.Title">@Truncate(fromSl.Title, 8)</span>
+                                    <span class="tracks-transition-row-header" title="@fromSl.Title">@fromSl.Title</span>
                                     @foreach (var toSl in _transitionSwimlanes)
                                     {
                                         var key = (fromSl.Id, toSl.Id);
