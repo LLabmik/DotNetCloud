@@ -2118,7 +2118,10 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
         try
         {
             var a = await _analyticsService.GetProductAnalyticsAsync(Guid.Parse(request.ProductId), context.CancellationToken);
-            return new ProductAnalyticsResponse { Success = true, Analytics = new ProductAnalyticsMessage { TotalItems = a.TotalItems, TotalEpics = a.TotalEpics, TotalFeatures = a.TotalFeatures, ItemsCompletedThisWeek = a.ItemsCompletedThisWeek, ActiveSprints = a.ActiveSprints, AvgCycleTimeDays = a.AvgCycleTimeDays } };
+            var analytics = new ProductAnalyticsMessage { TotalItems = a.TotalItems, TotalEpics = a.TotalEpics, TotalFeatures = a.TotalFeatures, ItemsCompletedThisWeek = a.ItemsCompletedThisWeek, ActiveSprints = a.ActiveSprints, AvgCycleTimeDays = a.AvgCycleTimeDays };
+            foreach (var dc in a.DailyCompletions)
+                analytics.DailyCompletions.Add(new DailyCompletionMessage { Date = dc.Date.ToString("O"), CompletedCount = dc.CompletedCount });
+            return new ProductAnalyticsResponse { Success = true, Analytics = analytics };
         }
         catch (Exception ex)
         {
@@ -2180,7 +2183,18 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
         try
         {
             var d = await _analyticsService.GetProductDashboardAsync(Guid.Parse(request.ProductId), context.CancellationToken);
-            return new ProductDashboardResponse { Success = true, Dashboard = new ProductDashboardMessage { ProductId = d.ProductId.ToString(), ProductName = d.ProductName ?? "", TotalItems = d.TotalItems, TotalEpics = d.TotalEpics, TotalFeatures = d.TotalFeatures, ActiveSprints = d.ActiveSprints, AvgCycleTimeDays = d.AvgCycleTimeDays, ItemsCompletedThisWeek = d.ItemsCompletedThisWeek, UnassignedItems = d.UnassignedItems } };
+            var dashboard = new ProductDashboardMessage { ProductId = d.ProductId.ToString(), ProductName = d.ProductName ?? "", TotalItems = d.TotalItems, TotalEpics = d.TotalEpics, TotalFeatures = d.TotalFeatures, ActiveSprints = d.ActiveSprints, AvgCycleTimeDays = d.AvgCycleTimeDays, ItemsCompletedThisWeek = d.ItemsCompletedThisWeek, UnassignedItems = d.UnassignedItems };
+            foreach (var sb in d.StatusBreakdown)
+                dashboard.StatusBreakdown.Add(new StatusBreakdownMessage { SwimlaneId = sb.SwimlaneId.ToString(), SwimlaneTitle = sb.SwimlaneTitle, Color = sb.Color ?? "", Count = sb.Count });
+            foreach (var pb in d.PriorityBreakdown)
+                dashboard.PriorityBreakdown.Add(new PriorityBreakdownMessage { Priority = pb.Priority.ToString(), Count = pb.Count });
+            foreach (var wl in d.Workload)
+                dashboard.Workload.Add(new WorkloadMessage { UserId = wl.UserId.ToString(), DisplayName = wl.DisplayName ?? "", AssignedItems = wl.AssignedItems, TotalStoryPoints = wl.TotalStoryPoints });
+            foreach (var ru in d.RecentlyUpdated)
+                dashboard.RecentlyUpdated.Add(new RecentlyUpdatedItemMessage { Id = ru.Id.ToString(), ItemNumber = ru.ItemNumber, Title = ru.Title, Type = ru.Type.ToString(), Priority = ru.Priority.ToString(), SwimlaneTitle = ru.SwimlaneTitle ?? "", SprintId = ru.SprintId?.ToString() ?? "", SprintTitle = ru.SprintTitle ?? "", UpdatedAt = ru.UpdatedAt.ToString("O") });
+            foreach (var ud in d.UpcomingDueDates)
+                dashboard.UpcomingDueDates.Add(new UpcomingDueDateMessage { Id = ud.Id.ToString(), ItemNumber = ud.ItemNumber, Title = ud.Title, Type = ud.Type.ToString(), Priority = ud.Priority.ToString(), SwimlaneTitle = ud.SwimlaneTitle ?? "", DueDate = ud.DueDate.ToString("O") });
+            return new ProductDashboardResponse { Success = true, Dashboard = dashboard };
         }
         catch (Exception ex)
         {
@@ -2616,10 +2630,44 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
         try
         {
             var data = await _analyticsService.GetRoadmapDataAsync(Guid.Parse(request.ProductId), context.CancellationToken);
-            var response = new RoadmapDataResponse { Success = true };
+            var roadmap = new RoadmapDataMessage { ProductId = data.ProductId.ToString(), ProductName = data.ProductName ?? "" };
             foreach (var item in data.Items)
-                response.Roadmap.Items.Add(new RoadmapItemMessage { Id = item.Id.ToString(), ItemNumber = item.ItemNumber, Title = item.Title, Type = item.Type.ToString(), Priority = item.Priority.ToString(), SwimlaneTitle = item.SwimlaneTitle ?? "", SwimlaneColor = item.SwimlaneColor ?? "", StartDate = item.StartDate?.ToString("O") ?? "", DueDate = item.DueDate?.ToString("O") ?? "", MilestoneId = item.MilestoneId?.ToString() ?? "" });
-            return response;
+            {
+                var msg = new RoadmapItemMessage
+                {
+                    Id = item.Id.ToString(),
+                    ItemNumber = item.ItemNumber,
+                    Title = item.Title,
+                    Type = item.Type.ToString(),
+                    Priority = item.Priority.ToString(),
+                    SwimlaneTitle = item.SwimlaneTitle ?? "",
+                    SwimlaneColor = item.SwimlaneColor ?? "",
+                    StartDate = item.StartDate?.ToString("O") ?? "",
+                    DueDate = item.DueDate?.ToString("O") ?? "",
+                    MilestoneId = item.MilestoneId?.ToString() ?? "",
+                    MilestoneTitle = item.MilestoneTitle ?? "",
+                    AssigneeUserId = item.AssigneeUserId?.ToString() ?? "",
+                    AssigneeDisplayName = item.AssigneeDisplayName ?? ""
+                };
+                msg.DependencyIds.AddRange(item.DependencyIds.Select(id => id.ToString()));
+                roadmap.Items.Add(msg);
+            }
+            foreach (var ml in data.Milestones)
+                roadmap.Milestones.Add(new MilestoneMessage
+                {
+                    Id = ml.Id.ToString(),
+                    ProductId = ml.ProductId.ToString(),
+                    Title = ml.Title,
+                    Description = ml.Description ?? "",
+                    DueDate = ml.DueDate?.ToString("O") ?? "",
+                    Status = ml.Status.ToString(),
+                    Color = ml.Color ?? "",
+                    WorkItemCount = ml.WorkItemCount,
+                    CompletedWorkItemCount = ml.CompletedWorkItemCount,
+                    CreatedAt = ml.CreatedAt.ToString("O"),
+                    UpdatedAt = ml.UpdatedAt.ToString("O")
+                });
+            return new RoadmapDataResponse { Success = true, Roadmap = roadmap };
         }
         catch (Exception ex)
         {
@@ -2803,9 +2851,13 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
         try
         {
             var capacity = await _analyticsService.GetProductCapacityAsync(Guid.Parse(request.ProductId), context.CancellationToken);
-            var response = new ProductCapacityResponse { Success = true, Capacity = new ProductCapacityMessage { ProductId = capacity.ProductId.ToString(), TotalAssignedStoryPoints = capacity.TotalAssignedStoryPoints, TotalMembers = capacity.TotalMembers } };
+            var response = new ProductCapacityResponse { Success = true, Capacity = new ProductCapacityMessage { ProductId = capacity.ProductId.ToString(), TotalAssignedStoryPoints = capacity.TotalAssignedStoryPoints, TotalMembers = capacity.TotalMembers, OverloadedMembers = capacity.OverloadedMembers } };
             foreach (var m in capacity.Members)
-                response.Capacity.Members.Add(new MemberCapacityMessage { UserId = m.UserId.ToString(), DisplayName = m.DisplayName ?? "", AssignedStoryPoints = m.AssignedStoryPoints, AssignedItemCount = m.AssignedItemCount });
+            {
+                var mc = new MemberCapacityMessage { UserId = m.UserId.ToString(), DisplayName = m.DisplayName ?? "", AssignedStoryPoints = m.AssignedStoryPoints, AssignedItemCount = m.AssignedItemCount, CapacityPercent = m.CapacityPercent };
+                mc.SprintTitles.AddRange(m.SprintTitles);
+                response.Capacity.Members.Add(mc);
+            }
             return response;
         }
         catch (Exception ex)
