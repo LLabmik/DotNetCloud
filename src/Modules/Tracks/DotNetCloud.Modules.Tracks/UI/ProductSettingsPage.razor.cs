@@ -38,6 +38,7 @@ public partial class ProductSettingsPage : ComponentBase
     private readonly List<ProductMemberDto> _members = [];
     private bool _showAddMember;
     private string _memberSearchTerm = "";
+    private ProductMemberRole _addMemberRole = ProductMemberRole.Member;
     private readonly List<UserSearchResult> _memberSearchResults = [];
 
     // Labels
@@ -157,7 +158,7 @@ public partial class ProductSettingsPage : ComponentBase
             for (var i = 0; i < _members.Count; i++)
             {
                 var member = _members[i];
-                if (member.DisplayName is null && displayNames.TryGetValue(member.UserId, out var name))
+                if (string.IsNullOrEmpty(member.DisplayName) && displayNames.TryGetValue(member.UserId, out var name))
                 {
                     _members[i] = member with { DisplayName = name };
                 }
@@ -309,7 +310,7 @@ public partial class ProductSettingsPage : ComponentBase
 
         try
         {
-            var results = await ApiClient.SearchUsersAsync(_memberSearchTerm, 8);
+            var results = await UserDirectory.SearchUsersAsync(_memberSearchTerm, 8);
             _memberSearchResults.Clear();
             _memberSearchResults.AddRange(results.Where(r => !_members.Any(m => m.UserId == r.Id)));
         }
@@ -326,7 +327,7 @@ public partial class ProductSettingsPage : ComponentBase
             await ApiClient.AddProductMemberAsync(Product.Id, new AddProductMemberDto
             {
                 UserId = userId,
-                Role = ProductMemberRole.Member
+                Role = _addMemberRole
             });
             _showAddMember = false;
             _memberSearchTerm = "";
@@ -504,6 +505,7 @@ public partial class ProductSettingsPage : ComponentBase
     {
         _showAddMember = true;
         _memberSearchTerm = "";
+        _addMemberRole = ProductMemberRole.Member;
     }
 
     private void CancelArchiveConfirm()

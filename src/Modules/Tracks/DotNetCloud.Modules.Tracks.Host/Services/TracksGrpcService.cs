@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Services.ModuleApis;
 using DotNetCloud.Modules.Tracks.Data;
@@ -34,6 +35,7 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
     private readonly GoalService _goalService;
     private readonly WebhookService _webhookService;
     private readonly SprintDiscussionService _discussionService;
+    private readonly IUserDirectory _userDirectory;
     private readonly ILogger<TracksGrpcService> _logger;
 
     public TracksGrpcService(
@@ -57,6 +59,7 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
         GoalService goalService,
         WebhookService webhookService,
         SprintDiscussionService discussionService,
+        IUserDirectory userDirectory,
         ILogger<TracksGrpcService> logger)
     {
         _db = db;
@@ -79,6 +82,7 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
         _goalService = goalService;
         _webhookService = webhookService;
         _discussionService = discussionService;
+        _userDirectory = userDirectory;
         _logger = logger;
     }
 
@@ -817,12 +821,25 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
             var members = await _db.ProductMembers
                 .Where(pm => pm.ProductId == productId)
                 .ToListAsync(context.CancellationToken);
+
+            // Batch-resolve display names via IUserDirectory
+            var userIds = members.Select(m => m.UserId).Distinct().ToList();
+            IReadOnlyDictionary<Guid, string> displayNames;
+            try
+            {
+                displayNames = await _userDirectory.GetDisplayNamesAsync(userIds, context.CancellationToken);
+            }
+            catch
+            {
+                displayNames = new Dictionary<Guid, string>();
+            }
+
             var response = new ListProductMembersResponse { Success = true };
             foreach (var m in members)
                 response.Members.Add(new ProductMemberMessage
                 {
                     UserId = m.UserId.ToString(),
-                    DisplayName = "",
+                    DisplayName = displayNames.TryGetValue(m.UserId, out var name) ? name : "",
                     Role = m.Role.ToString(),
                     JoinedAt = m.JoinedAt.ToString("O")
                 });
