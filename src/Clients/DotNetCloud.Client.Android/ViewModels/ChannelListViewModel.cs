@@ -412,7 +412,7 @@ public sealed partial class ChannelItemViewModel : ObservableObject
     public ChannelItemViewModel(Guid channelId, string name, string? channelType, int unreadCount, bool hasMention, bool isMuted, string? lastMessagePreview)
     {
         ChannelId = channelId;
-        Name = name;
+        _name = name;
         ChannelType = channelType;
         UnreadCount = unreadCount;
         HasMention = hasMention;
@@ -424,7 +424,7 @@ public sealed partial class ChannelItemViewModel : ObservableObject
     public Guid ChannelId { get; }
 
     /// <summary>Display name of the channel.</summary>
-    public string Name { get; set; }
+    [ObservableProperty] private string _name;
 
     /// <summary>Channel type: Public, Private, DirectMessage, or Group.</summary>
     public string? ChannelType { get; }
