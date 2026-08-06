@@ -18,24 +18,13 @@ Archived context:
 - All actionable items, blockers, and technical details go directly in this document.
 - **Current active branch:** `fix/chat-dm-notification`
 
-## Active Handoff — Server: Deploy resolve-names endpoint (URGENT)
+## Active Handoff — Server: Deploy DM name resolution fix (URGENT)
 
-**Summary:** Android DM channels show `DM-{guid}-{guid}`. The Android client calls `POST /api/v1/chat/users/resolve-names` but this endpoint isn't deployed. Deploy needed for DM names to display correctly.
+**Summary:** DM channel names resolved server-side in `ListChannelsAsync`. No new endpoint needed — the fix is in the existing channel list API. Deploy and all DMs show display names immediately.
 
-**Deploy steps:**
-1. `git pull`
-2. `sudo ./scripts/deploy.sh`
+**Deploy:** `git pull && sudo ./scripts/deploy.sh`
 
-**New endpoint (not yet deployed):**
-```
-POST /api/v1/chat/users/resolve-names
-Body: { "userIds": ["guid1", "guid2"] }
-Response: { "success": true, "data": { "guid1": "Alice", "guid2": "Bob" } }
-```
-
-**Verify:** `curl -sk -X POST "https://cloud.dotnetcloud.net/api/v1/chat/users/resolve-names" -H "Content-Type: application/json" -d '{"userIds":["00000000-0000-0000-0000-000000000000"]}'` → should return 400 (validation), NOT 404.
-
-**Already deployed:** DM accept/reply/ignore endpoints, notification preferences GET/PUT, DmChannelCreatedEventHandler, Blazor DM notification, DND toggles.
+**What changed:** `ChannelService.cs` — `ListChannelsAsync` now resolves `DM-{guid}-{guid}` to the other user's display name via `IUserDirectory`.
 
 ## Moderator Communication (Minimal)
 
