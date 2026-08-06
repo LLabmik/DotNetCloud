@@ -29,14 +29,15 @@
             }
             @if (!_isEditingTarget)
             {
-                <button class="tracks-link-btn" @onclick="() => { _isEditingTarget = true; _editTargetSp = targetSp.ToString(); }">
+                <button class="tracks-link-btn"
+                        @onclick="() => { _isEditingTarget = true; _editTargetSp = targetSp.ToString(); }">
                     @(targetSp > 0 ? "Edit" : "Set target")
                 </button>
             }
             else
             {
-                <input type="number" class="form-control form-control-sm tracks-target-input"
-                       @bind="_editTargetSp" @onkeydown="HandleTargetKeyDown" min="0" />
+                <input type="number" class="form-control form-control-sm tracks-target-input" @bind="_editTargetSp"
+                       @onkeydown="HandleTargetKeyDown" min="0" />
                 <button class="btn btn-sm btn-primary" @onclick="SaveTargetAsync">Save</button>
                 <button class="btn btn-sm btn-secondary" @onclick="() => _isEditingTarget = false">Cancel</button>
             }
@@ -77,8 +78,7 @@
                             <div class="tracks-planning-group-header">@GetPriorityLabel(group.Key)</div>
                             @foreach (var item in group)
                             {
-                                <div class="tracks-planning-card"
-                                     @onclick="() => AddToSprintAsync(item.Id)">
+                                <div class="tracks-planning-card" @onclick="() => AddToSprintAsync(item.Id)">
                                     <span class="tracks-card-number">#@item.ItemNumber</span>
                                     <span class="tracks-planning-card-title">@item.Title</span>
                                     @if (item.StoryPoints.HasValue)
@@ -169,7 +169,12 @@
             @{
                 var memberWorkload = _sprintItems
                     .Where(i => !i.IsArchived)
-                    .SelectMany(i => i.Assignments.Select(a => new { a.UserId, DisplayName = a.DisplayName ?? "User", i.StoryPoints }))
+                    .SelectMany(i => i.Assignments.Select(a => new
+                    {
+                        a.UserId,
+                        DisplayName = a.DisplayName ?? "User",
+                        i.StoryPoints
+                    }))
                     .GroupBy(x => new { x.UserId, x.DisplayName })
                     .Select(g => new { g.Key.DisplayName, TotalSp = g.Sum(x => x.StoryPoints ?? 0), Count = g.Count() })
                     .OrderByDescending(m => m.TotalSp)
@@ -193,6 +198,43 @@
                     }
                 </div>
             }
+        </div>
+
+        @* ── Right Panel: Discussion ── *@
+        <div class="tracks-planning-panel discussion">
+            <div class="tracks-planning-panel-header">
+                <h3>💬 Discussion</h3>
+                <span class="tracks-muted">@_discussionMessages.Count messages</span>
+            </div>
+
+            <div class="tracks-discussion-messages">
+                @if (_discussionMessages.Count == 0)
+                {
+                    <p class="tracks-muted discussion-empty">No messages yet. Start the discussion!</p>
+                }
+                else
+                {
+                    @foreach (var msg in _discussionMessages)
+                    {
+                        <div class="tracks-discussion-message">
+                            <div class="tracks-discussion-message-header">
+                                <span class="tracks-discussion-author">@msg.UserDisplayName</span>
+                                <span class="tracks-discussion-time">@GetRelativeTime(msg.CreatedAt)</span>
+                            </div>
+                            <div class="tracks-discussion-content">@msg.Content</div>
+                        </div>
+                    }
+                }
+            </div>
+
+            <div class="tracks-discussion-input">
+                <textarea class="form-control" @bind="_discussionInput" @onkeydown="HandleDiscussionKeyDown"
+                          placeholder="Type a message..." rows="2" maxlength="2000" disabled="@_isSending"></textarea>
+                <button class="btn btn-sm btn-primary" @onclick="SendDiscussionMessageAsync"
+                        disabled="@(string.IsNullOrWhiteSpace(_discussionInput) || _isSending)">
+                    Send
+                </button>
+            </div>
         </div>
     </div>
 

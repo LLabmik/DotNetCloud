@@ -334,10 +334,16 @@ public sealed class WorkItemService
             workItem.Description = dto.Description;
         if (dto.Priority.HasValue)
             workItem.Priority = dto.Priority.Value;
+        if (dto.StartDate is not null)
+            workItem.StartDate = dto.StartDate;
         if (dto.DueDate is not null)
             workItem.DueDate = dto.DueDate;
         if (dto.StoryPoints.HasValue)
             workItem.StoryPoints = dto.StoryPoints.Value;
+        if (dto.IsArchived.HasValue)
+            workItem.IsArchived = dto.IsArchived.Value;
+        if (dto.MilestoneId is not null)
+            workItem.MilestoneId = dto.MilestoneId;
 
         workItem.ETag = Guid.CreateVersion7().ToString("N");
         workItem.UpdatedAt = DateTime.UtcNow;

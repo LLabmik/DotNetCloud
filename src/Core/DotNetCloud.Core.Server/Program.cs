@@ -24,6 +24,8 @@ using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.Modules.Notes.Data;
 using DotNetCloud.Modules.Tracks.Data;
+using DotNetCloud.Modules.Tracks.Data.Services;
+using DotNetCloud.Modules.Tracks.Services;
 using DotNetCloud.Modules.Music.Data;
 using DotNetCloud.Modules.Photos.Data;
 using DotNetCloud.Modules.Video.Data;
@@ -296,7 +298,16 @@ public class Program
         // Each module's .Data project owns its Add*UiServices registration, including
         // the DbContext configuration.
         builder.Services.AddNotesUiServices(builder.Configuration!, provider, connectionString);
-        builder.Services.AddTracksUiServices(builder.Configuration!, provider, connectionString);
+        // Tracks module in-process UI services (SignalR real-time, command palette, CSV import).
+        // All other Tracks API calls go through the gRPC ITracksApiClient (registered below).
+        builder.Services.AddDbContext<TracksDbContext>(options =>
+            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Tracks.Data.SqlServer"),
+            ServiceLifetime.Transient);
+        builder.Services.AddSingleton<TracksInProcessSignalRService>();
+        builder.Services.AddSingleton<ITracksSignalRService>(sp => sp.GetRequiredService<TracksInProcessSignalRService>());
+        builder.Services.AddSingleton<ITracksRealtimeService, TracksRealtimeService>();
+        builder.Services.AddScoped<ICommandPaletteService, CommandPaletteService>();
+        builder.Services.AddScoped<ICsvImportUiService, CsvImportUiService>();
         builder.Services.AddMusicUiServices(builder.Configuration!, provider, connectionString);
         builder.Services.AddPhotosUiServices(builder.Configuration!, provider, connectionString);
         builder.Services.AddVideoUiServices(builder.Configuration!, provider, connectionString);
@@ -575,15 +586,6 @@ public class Program
 
         // Bookmarks API client for the Blazor BookmarksPage component.
         builder.Services.AddHttpClient<DotNetCloud.Modules.Bookmarks.Services.IBookmarksApiClient, DotNetCloud.Modules.Bookmarks.Services.BookmarksApiClient>(client =>
-            client.BaseAddress = new Uri($"https://localhost:{httpsPort}"))
-            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
-            {
-                ServerCertificateCustomValidationCallback = AcceptLoopbackCertificate
-            })
-            .AddHttpMessageHandler<DotNetCloud.Core.Server.Middleware.CookieForwardingHandler>();
-
-        // Tracks API client for the Blazor TracksPage component.
-        builder.Services.AddHttpClient<DotNetCloud.Modules.Tracks.Services.ITracksApiClient, DotNetCloud.Modules.Tracks.Services.TracksApiClient>(client =>
             client.BaseAddress = new Uri($"https://localhost:{httpsPort}"))
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
             {

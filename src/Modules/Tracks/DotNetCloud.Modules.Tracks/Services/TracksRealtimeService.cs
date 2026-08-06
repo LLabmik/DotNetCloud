@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Capabilities;
+using DotNetCloud.Core.Services.ModuleApis;
 using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Modules.Tracks.Services;
@@ -8,7 +9,7 @@ namespace DotNetCloud.Modules.Tracks.Services;
 /// When no broadcaster is available (module running standalone), operations are no-ops.
 /// Broadcasts lightweight action signals — clients receive the signal and refresh data from the API.
 /// </summary>
-internal sealed class TracksRealtimeService : ITracksRealtimeService
+public sealed class TracksRealtimeService : ITracksRealtimeService
 {
     private readonly IRealtimeBroadcaster? _broadcaster;
     private readonly TracksInProcessSignalRService _eventBridge;
@@ -27,6 +28,8 @@ internal sealed class TracksRealtimeService : ITracksRealtimeService
     private static string ProductGroup(Guid productId) => $"tracks-product-{productId}";
     private static string TeamGroup(Guid teamId) => $"tracks-team-{teamId}";
     private static string ReviewGroup(Guid sessionId) => $"tracks-review-{sessionId}";
+    private static string SprintDiscussionGroup(Guid sprintId) => $"tracks-sprint-discussion-{sprintId}";
+    private static string ReviewDiscussionGroup(Guid reviewSessionId) => $"tracks-review-discussion-{reviewSessionId}";
 
     /// <inheritdoc />
     public async Task BroadcastWorkItemActionAsync(Guid productId, Guid workItemId, string action, Guid? fromSwimlaneId, Guid? toSwimlaneId, Guid? targetUserId, CancellationToken cancellationToken)
@@ -175,5 +178,23 @@ internal sealed class TracksRealtimeService : ITracksRealtimeService
             return;
         await _broadcaster.RemoveFromGroupAsync(userId, ReviewGroup(sessionId), cancellationToken);
         _logger.LogDebug("Removed user {UserId} from review group {SessionId}", userId, sessionId);
+    }
+
+    /// <inheritdoc />
+    public async Task BroadcastSprintDiscussionMessageAsync(Guid sprintId, SprintDiscussionDto message, CancellationToken cancellationToken)
+    {
+        if (_broadcaster is not null)
+            await _broadcaster.BroadcastAsync(SprintDiscussionGroup(sprintId), "TracksSprintDiscussionMessage",
+                new { sprintId, message }, cancellationToken);
+        _eventBridge.OnSprintDiscussionMessageReceived(sprintId, message);
+    }
+
+    /// <inheritdoc />
+    public async Task BroadcastReviewDiscussionMessageAsync(Guid reviewSessionId, SprintDiscussionDto message, CancellationToken cancellationToken)
+    {
+        if (_broadcaster is not null)
+            await _broadcaster.BroadcastAsync(ReviewDiscussionGroup(reviewSessionId), "TracksReviewDiscussionMessage",
+                new { reviewSessionId, message }, cancellationToken);
+        _eventBridge.OnReviewDiscussionMessageReceived(reviewSessionId, message);
     }
 }

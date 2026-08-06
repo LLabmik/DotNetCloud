@@ -4151,6 +4151,40 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ☐ Tracks.Tests excluded from CI build — 248 errors, needs full rewrite for new service/controller layer
 - ✓ All source and retained test projects build with 0 errors (DotNetCloud.CI.slnf)
 
+### Phase 4.10a: Tracks gRPC Process Isolation & Sprint Planning Chat
+
+#### gRPC UI Migration
+
+- ✓ Migrate ~35 Tracks UI files from HTTP ITracksApiClient to Core gRPC interface
+- ✓ Remove HTTP ITracksApiClient registration from Core.Server Program.cs
+- ✓ Replace AddTracksUiServices with individual in-process registrations
+- ✓ Add EventsJson to Core WebhookSubscriptionDto
+- ✓ Fix dual-definition DTO conflicts (SetTransitionRuleDto, WebhookSubscription, SprintDiscussionDto)
+
+#### Sprint Planning Discussion Chat
+
+- ✓ SprintDiscussion entity with dual-scoped FKs (SprintId OR ReviewSessionId)
+- ✓ SprintDiscussionConfiguration (EF config with indexes + cascade deletes)
+- ✓ PostgreSQL + SQL Server migrations (AddSprintDiscussion)
+- ✓ SprintDiscussionDto + SendSprintDiscussionDto (Core + Models)
+- ✓ SprintDiscussionService (CRUD, validation, real-time broadcast)
+- ✓ SprintDiscussionsController (4 REST endpoints)
+- ✓ 4 discussion RPCs in tracks_service.proto + 6 message types
+- ✓ Core ITracksApiClient discussion methods
+- ✓ TracksGrpcApiClient discussion methods + proto-to-DTO mapper
+- ✓ ITracksRealtimeService broadcast methods + TracksRealtimeService impl
+- ✓ ITracksSignalRService discussion events + TracksInProcessSignalRService impl
+- ✓ SprintPlanningView discussion panel (UI + code-behind)
+- ✓ ReviewSessionHost discussion panel (UI + code-behind)
+- ✓ ReviewSessionParticipant discussion panel (UI + code-behind)
+- ✓ Discussion CSS in TracksPage.razor.css
+
+#### Tests
+
+- ✓ SprintDiscussionServiceTests (8 tests: CRUD, validation, pagination, broadcast)
+- ✓ TracksGrpcApiClientTests (4 tests: method existence, proto mapping)
+- ✓ All 145 Tracks tests passing (0 failures)
+
 ---
 
 ## Phase 5: Media (Photos, Music, Video)
@@ -5603,6 +5637,19 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `ProductSettingsPage.razor` — CardLimit input per swimlane + "Enforce WIP limits" checkbox
 - ✓ `ProductSettingsPage.razor.cs` — `SettingsSwimlane.CardLimit`, `_enforceWipStrictly` state
 - ✓ WIP toast CSS + transition matrix CSS styles
+
+### H-4: Epic/Feature Swimlane Auto-Creation Fix
+
+- ✓ `SwimlaneService.EnsureWorkItemSwimlanesExistAsync()` — lazy creation on first fetch
+- ✓ `GetSwimlanesAsync` calls `EnsureWorkItemSwimlanesExistAsync` for WorkItem containers
+- ✓ Replicates product-level swimlanes to epic/feature on first fetch (idempotent, fast-path skip)
+- ✓ Falls back to 3 defaults (To Do, In Progress, Done) if product has no swimlanes
+- ✓ Retroactively fixes all existing epics/features created before replication was added
+
+### H-5: Side-Panel Kanban Spinner Fix
+
+- ✓ `OpenEpicKanban` / `OpenFeatureKanban` call `StateHasChanged()` after setting `_isLoading = true`
+- ✓ `OnOpenKanban` razor handler changed from `InvokeAsync(() => ...)` to `await OpenEpicKanban(...)`
 
 ## Required Modules & Schema Separation
 

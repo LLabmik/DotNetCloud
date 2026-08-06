@@ -22,9 +22,11 @@
   <ItemGroup>
     <PackageReference Include="Grpc.AspNetCore" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" />
-    <!-- Microsoft.OpenApi version comes transitively from Microsoft.AspNetCore.OpenApi;
-         explicit override to 3.9.0 breaks the OpenApi source generator (IOpenApiMediaType.Example is read-only in 3.x). -->
+    <!-- Microsoft.OpenApi comes transitively from Microsoft.AspNetCore.OpenApi at a vulnerable
+         2.0.0 (GHSA-v5pm-xwqc-g5wc / CVE-2026-49451). Override to patched 2.7.5 — NOT 3.x,
+         which breaks the OpenApi source generator (IOpenApiMediaType.Example is read-only in 3.x). -->
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Microsoft.OpenApi" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>

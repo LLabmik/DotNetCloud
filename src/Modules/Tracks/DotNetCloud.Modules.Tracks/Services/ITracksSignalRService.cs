@@ -1,3 +1,5 @@
+using DotNetCloud.Core.Services.ModuleApis;
+
 namespace DotNetCloud.Modules.Tracks.Services;
 
 /// <summary>
@@ -86,6 +88,18 @@ public interface ITracksSignalRService
     /// Args: sessionId, userId, action.
     /// </summary>
     event Action<Guid, Guid, string>? ReviewParticipantChanged;
+
+    /// <summary>
+    /// Raised when a discussion message is received for a sprint.
+    /// Args: sprintId, message.
+    /// </summary>
+    event Action<Guid, SprintDiscussionDto>? SprintDiscussionMessageReceived;
+
+    /// <summary>
+    /// Raised when a discussion message is received for a review session.
+    /// Args: reviewSessionId, message.
+    /// </summary>
+    event Action<Guid, SprintDiscussionDto>? ReviewDiscussionMessageReceived;
 }
 
 /// <summary>
@@ -122,5 +136,9 @@ internal sealed class NullTracksSignalRService : ITracksSignalRService
     public event Action<Guid, Guid, Guid, string>? ReviewPokerStateChanged;
     /// <inheritdoc />
     public event Action<Guid, Guid, string>? ReviewParticipantChanged;
+    /// <inheritdoc />
+    public event Action<Guid, SprintDiscussionDto>? SprintDiscussionMessageReceived;
+    /// <inheritdoc />
+    public event Action<Guid, SprintDiscussionDto>? ReviewDiscussionMessageReceived;
 #pragma warning restore CS0067
 }

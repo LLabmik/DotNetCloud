@@ -1,5 +1,6 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.Services.ModuleApis;
 using DotNetCloud.Modules.Tracks.Data;
 using DotNetCloud.Modules.Tracks.Models;
 using DotNetCloud.Modules.Tracks.Services;
@@ -28,6 +29,8 @@ internal sealed class NullTracksRealtimeService : ITracksRealtimeService
     public Task RemoveUserFromProductGroupAsync(Guid userId, Guid productId, CancellationToken cancellationToken = default) => Task.CompletedTask;
     public Task AddUserToReviewGroupAsync(Guid userId, Guid sessionId, CancellationToken cancellationToken = default) => Task.CompletedTask;
     public Task RemoveUserFromReviewGroupAsync(Guid userId, Guid sessionId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task BroadcastSprintDiscussionMessageAsync(Guid sprintId, DotNetCloud.Core.Services.ModuleApis.SprintDiscussionDto message, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task BroadcastReviewDiscussionMessageAsync(Guid reviewSessionId, DotNetCloud.Core.Services.ModuleApis.SprintDiscussionDto message, CancellationToken cancellationToken = default) => Task.CompletedTask;
 }
 
 /// <summary>

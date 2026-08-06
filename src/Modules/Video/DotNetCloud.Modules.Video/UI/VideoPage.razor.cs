@@ -976,10 +976,29 @@ public partial class VideoPage : IAsyncDisposable
         _selectedSeason = season;
         _seasonEpisodes.Clear();
 
+        // Breadcrumb trail: Series › {SeriesName} — the current season is shown as
+        // the section title (h3), so the full trail reads Series › American Gods › Season 1.
+        var series = _selectedSeries;
         _breadcrumb =
         [
-            new BreadcrumbItem("Series", async () => { _selectedSeason = null; _seasonEpisodes.Clear(); await OpenSeriesDetailAsync(_selectedSeries!); }),
-            new BreadcrumbItem(season.Name ?? $"Season {season.SeasonNumber}", async () => { /* current view */ })
+            new BreadcrumbItem("Series", async () =>
+            {
+                _selectedSeries = null;
+                _selectedSeason = null;
+                _seriesSeasons.Clear();
+                _seasonEpisodes.Clear();
+                _seriesVideos.Clear();
+                _breadcrumb.Clear();
+                StateHasChanged();
+            }),
+            new BreadcrumbItem(series?.Name ?? "Series", async () =>
+            {
+                if (series is null)
+                    return;
+                _selectedSeason = null;
+                _seasonEpisodes.Clear();
+                await OpenSeriesDetailAsync(series);
+            })
         ];
 
         try
@@ -1232,6 +1251,7 @@ public partial class VideoPage : IAsyncDisposable
     {
         Section.Home => "Home",
         Section.Library => "Library",
+        Section.Series when _selectedSeason is not null => _selectedSeason.Name ?? $"Season {_selectedSeason.SeasonNumber}",
         Section.Series when _selectedSeries is not null => _selectedSeries.Name,
         Section.Series => "Series",
         Section.Collections when _selectedCollection is not null => _selectedCollection.Name,

@@ -311,7 +311,7 @@ public sealed record ItemTemplateDto
 public sealed record TracksTeamDto
 {
     public required Guid Id { get; init; }
-    public required Guid TeamId { get; init; }
+    public Guid? TeamId { get; init; }
     public required string Name { get; init; }
     public string? Description { get; init; }
     public int MemberCount { get; init; }

@@ -749,4 +749,86 @@ public class TracksDtosTests
         var dto = new SubmitPokerVoteDto { Estimate = "13" };
         Assert.AreEqual("13", dto.Estimate);
     }
+
+    // -- TracksTeamDto (TeamId is now nullable) --
+
+    [TestMethod]
+    public void TracksTeamDto_CanBeCreated_WithNullTeamId()
+    {
+        // Arrange & Act — TeamId is nullable; should be creatable without it
+        var team = new TracksTeamDto
+        {
+            Id = Guid.CreateVersion7(),
+            Name = "Engineering",
+            Description = "Core engineering team",
+            MemberCount = 5,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        // Assert
+        Assert.AreEqual("Engineering", team.Name);
+        Assert.IsNull(team.TeamId);
+        Assert.AreEqual(5, team.MemberCount);
+    }
+
+    [TestMethod]
+    public void TracksTeamDto_CanBeCreated_WithTeamIdSet()
+    {
+        var id = Guid.CreateVersion7();
+
+        // Arrange & Act
+        var team = new TracksTeamDto
+        {
+            Id = id,
+            TeamId = id, // Still allowed but redundant; nullable means it's optional
+            Name = "Design",
+            CreatedAt = DateTime.UtcNow
+        };
+
+        // Assert
+        Assert.AreEqual(id, team.Id);
+        Assert.AreEqual(id, team.TeamId);
+    }
+
+    [TestMethod]
+    public void TracksTeamDto_TeamId_DefaultsToNull()
+    {
+        // Arrange & Act — verify the default is null (no required modifier)
+        var team = new TracksTeamDto
+        {
+            Id = Guid.CreateVersion7(),
+            Name = "Test",
+            CreatedAt = DateTime.UtcNow
+        };
+
+        // Assert
+        Assert.IsNull(team.TeamId);
+    }
+
+    [TestMethod]
+    public void TracksTeamMemberDto_CanBeCreated()
+    {
+        // Arrange & Act
+        var member = new TracksTeamMemberDto
+        {
+            UserId = Guid.CreateVersion7(),
+            DisplayName = "Alice",
+            Role = TracksTeamMemberRole.Manager,
+            AssignedAt = DateTime.UtcNow
+        };
+
+        // Assert
+        Assert.AreEqual("Alice", member.DisplayName);
+        Assert.AreEqual(TracksTeamMemberRole.Manager, member.Role);
+    }
+
+    [TestMethod]
+    public void TracksTeamMemberRole_AllValuesExist()
+    {
+        // Act
+        var values = Enum.GetValues(typeof(TracksTeamMemberRole));
+
+        // Assert
+        Assert.AreEqual(3, values.Length); // Member, Manager, Owner
+    }
 }

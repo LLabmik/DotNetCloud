@@ -24,6 +24,12 @@ public static class TracksServiceRegistration
         services.AddSingleton<ITracksSignalRService>(sp => sp.GetRequiredService<TracksInProcessSignalRService>());
         services.AddSingleton<ITracksRealtimeService, TracksRealtimeService>();
 
+        // HTTP client factory for outbound webhook deliveries (IHttpClientFactory)
+        services.AddHttpClient("Webhooks", client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(30);
+        });
+
         // Data services (scoped — one per request, shares the scoped TracksDbContext)
         services.AddScoped<ProductService>();
         services.AddScoped<WorkItemService>();
@@ -58,6 +64,7 @@ public static class TracksServiceRegistration
         services.AddScoped<AutomationRuleService>();
         services.AddScoped<GoalService>();
         services.AddScoped<IAutomationRuleExecutionService, AutomationRuleExecutionService>();
+        services.AddScoped<SprintDiscussionService>();
 
         // Cross-module services
         services.AddScoped<ICardAttachmentCleanupService, AttachmentCleanupService>();
@@ -125,6 +132,7 @@ public static class TracksServiceRegistration
         services.AddScoped<AutomationRuleService>();
         services.AddScoped<GoalService>();
         services.AddScoped<IAutomationRuleExecutionService, AutomationRuleExecutionService>();
+        services.AddScoped<SprintDiscussionService>();
 
         // Cross-module services
         services.AddScoped<ICardAttachmentCleanupService, AttachmentCleanupService>();

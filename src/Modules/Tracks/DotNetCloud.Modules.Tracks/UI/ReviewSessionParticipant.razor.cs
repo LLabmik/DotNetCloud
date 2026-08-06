@@ -1,6 +1,8 @@
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.Services.ModuleApis;
 using DotNetCloud.Modules.Tracks.Services;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 
 namespace DotNetCloud.Modules.Tracks.UI;
 
@@ -10,7 +12,7 @@ namespace DotNetCloud.Modules.Tracks.UI;
 /// </summary>
 public partial class ReviewSessionParticipant : ComponentBase, IDisposable
 {
-    [Inject] private ITracksApiClient ApiClient { get; set; } = default!;
+    [Inject] private DotNetCloud.Core.Services.ModuleApis.ITracksApiClient ApiClient { get; set; } = default!;
     [Inject] private ITracksSignalRService SignalRService { get; set; } = default!;
 
     /// <summary>The active review session.</summary>
@@ -44,6 +46,7 @@ public partial class ReviewSessionParticipant : ComponentBase, IDisposable
     protected override async Task OnInitializedAsync()
     {
         SubscribeToEvents();
+        await LoadDiscussionMessagesAsync();
         // Poker session loaded via separate API when available
 
         // Load the current item if session has one
@@ -142,6 +145,7 @@ public partial class ReviewSessionParticipant : ComponentBase, IDisposable
         SignalRService.ReviewPokerStateChanged += OnReviewPokerStateChanged;
         SignalRService.ReviewParticipantChanged += OnReviewParticipantChanged;
         SignalRService.ReviewSessionStateChanged += OnReviewSessionStateChanged;
+        SignalRService.ReviewDiscussionMessageReceived += HandleDiscussionMessageReceived;
     }
 
     private async void OnReviewItemChanged(Guid sessionId, Guid productId, Guid workItemId)
@@ -247,5 +251,65 @@ public partial class ReviewSessionParticipant : ComponentBase, IDisposable
         SignalRService.ReviewPokerStateChanged -= OnReviewPokerStateChanged;
         SignalRService.ReviewParticipantChanged -= OnReviewParticipantChanged;
         SignalRService.ReviewSessionStateChanged -= OnReviewSessionStateChanged;
+        SignalRService.ReviewDiscussionMessageReceived -= HandleDiscussionMessageReceived;
+    }
+
+    // ── Discussion ──
+
+    private readonly List<DotNetCloud.Core.Services.ModuleApis.SprintDiscussionDto> _discussionMessages = [];
+    private string _discussionInput = string.Empty;
+    private bool _isSendingDiscussion;
+
+    private async Task LoadDiscussionMessagesAsync()
+    {
+        try
+        {
+            var messages = await ApiClient.ListReviewDiscussionsAsync(Session.Id);
+            _discussionMessages.Clear();
+            _discussionMessages.AddRange(messages);
+            await InvokeAsync(StateHasChanged);
+        }
+        catch { }
+    }
+
+    private async Task SendDiscussionMessageAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_discussionInput) || _isSendingDiscussion)
+            return;
+        _isSendingDiscussion = true;
+        try
+        {
+            await ApiClient.SendReviewDiscussionAsync(Session.Id, _discussionInput.Trim());
+            _discussionInput = string.Empty;
+            await LoadDiscussionMessagesAsync();
+        }
+        catch { }
+        finally { _isSendingDiscussion = false; }
+    }
+
+    private async Task HandleDiscussionKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+            await SendDiscussionMessageAsync();
+    }
+
+    private void HandleDiscussionMessageReceived(Guid reviewSessionId, SprintDiscussionDto message)
+    {
+        if (reviewSessionId != Session.Id)
+            return;
+        _discussionMessages.Add(message);
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private static string GetRelativeDiscussionTime(DateTime dateTime)
+    {
+        var diff = DateTime.UtcNow - dateTime;
+        if (diff.TotalSeconds < 60)
+            return "just now";
+        if (diff.TotalMinutes < 60)
+            return $"{(int)diff.TotalMinutes}m ago";
+        if (diff.TotalHours < 24)
+            return $"{(int)diff.TotalHours}h ago";
+        return dateTime.ToString("MMM d");
     }
 }

@@ -118,13 +118,13 @@
                                 <span class="tracks-transition-corner">From ↓ / To →</span>
                                 @foreach (var sl in _transitionSwimlanes)
                                 {
-                                    <span class="tracks-transition-col-header" title="@sl.Title">@Truncate(sl.Title, 8)</span>
+                                    <span class="tracks-transition-col-header" title="@sl.Title">@sl.Title</span>
                                 }
                             </div>
                             @foreach (var fromSl in _transitionSwimlanes)
                             {
                                 <div class="tracks-transition-matrix-row">
-                                    <span class="tracks-transition-row-header" title="@fromSl.Title">@Truncate(fromSl.Title, 8)</span>
+                                    <span class="tracks-transition-row-header" title="@fromSl.Title">@fromSl.Title</span>
                                     @foreach (var toSl in _transitionSwimlanes)
                                     {
                                         var key = (fromSl.Id, toSl.Id);
@@ -181,6 +181,12 @@
                         <div class="tracks-settings-add-member">
                             <input type="text" class="form-control form-control-sm" placeholder="Search users..."
                                    @bind="_memberSearchTerm" @bind:event="oninput" @onkeyup="HandleMemberSearch" />
+                            <select class="form-control form-control-sm" @bind="_addMemberRole"
+                                    style="width: auto; margin-left: 0.5rem;">
+                                <option value="Viewer">Viewer</option>
+                                <option value="Member">Member</option>
+                                <option value="Admin">Admin</option>
+                            </select>
                             @if (_memberSearchResults.Count > 0)
                             {
                                 <div class="tracks-settings-member-dropdown">

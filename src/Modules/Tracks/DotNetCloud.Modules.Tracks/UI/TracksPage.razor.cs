@@ -3,6 +3,7 @@ using System.Text.Json;
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Tracks.Services;
+using DotNetCloud.UI.Shared.Components.DataDisplay;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Web;
@@ -23,7 +24,7 @@ public partial class TracksPage : ComponentBase, IDisposable
     [Parameter]
     public string? KanbanId { get; set; }
 
-    [Inject] private ITracksApiClient ApiClient { get; set; } = default!;
+    [Inject] private DotNetCloud.Core.Services.ModuleApis.ITracksApiClient ApiClient { get; set; } = default!;
     [Inject] private ITracksSignalRService SignalRService { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthStateProvider { get; set; } = default!;
     [Inject] private IOrganizationDirectory OrgDirectory { get; set; } = default!;
@@ -306,6 +307,7 @@ public partial class TracksPage : ComponentBase, IDisposable
         _isLoading = true;
         _selectedFeature = null;
         _selectedWorkItem = null;
+        StateHasChanged();
 
         try
         {
@@ -330,6 +332,7 @@ public partial class TracksPage : ComponentBase, IDisposable
     {
         _isLoading = true;
         _selectedWorkItem = null;
+        StateHasChanged();
 
         try
         {
@@ -642,6 +645,68 @@ public partial class TracksPage : ComponentBase, IDisposable
         _selectedEpic = null;
         _selectedFeature = null;
         _selectedWorkItem = null;
+    }
+
+    /// <summary>
+    /// Builds the breadcrumb trail for the current navigation context
+    /// (Organization → Product → Epic → Feature). Each item navigates to its target view.
+    /// </summary>
+    /// <remarks>
+    /// The handlers run inside the child <c>DncBreadcrumb</c> component's render context, so
+    /// Blazor only re-renders the child. Each handler calls <c>StateHasChanged()</c> after
+    /// mutating state so this page re-renders with the new view.
+    /// </remarks>
+    private IReadOnlyList<BreadcrumbItem> BreadcrumbItems
+    {
+        get
+        {
+            var items = new List<BreadcrumbItem>();
+
+            if (_selectedOrgId is Guid orgId)
+            {
+                var orgName = _organizations.FirstOrDefault(o => o.Id == orgId)?.Name ?? "Org";
+                items.Add(new BreadcrumbItem(orgName, OnClick: async () =>
+                {
+                    await SelectOrganization(orgId);
+                    StateHasChanged();
+                }));
+            }
+
+            if (_selectedProduct is { } product)
+            {
+                items.Add(new BreadcrumbItem(
+                    product.Name,
+                    OnClick: async () =>
+                    {
+                        await SelectProduct(product.Id);
+                        StateHasChanged();
+                    }));
+            }
+
+            if (_selectedEpic is { } epic)
+            {
+                items.Add(new BreadcrumbItem(
+                    $"#{epic.ItemNumber} {epic.Title}",
+                    OnClick: async () =>
+                    {
+                        await OpenEpicKanban(epic.Id);
+                        StateHasChanged();
+                    }));
+            }
+
+            if (_selectedFeature is { } feature)
+            {
+                items.Add(new BreadcrumbItem(
+                    $"#{feature.ItemNumber} {feature.Title}",
+                    OnClick: async () =>
+                    {
+                        await OpenFeatureKanban(feature.Id);
+                        StateHasChanged();
+                    }));
+            }
+
+            return items;
+        }
     }
 
     private TracksView GetKanbanView() => _selectedFeature is not null ? TracksView.FeatureKanban

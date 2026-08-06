@@ -1,5 +1,5 @@
 using DotNetCloud.Core.Capabilities;
-using DotNetCloud.Modules.Tracks.Services;
+using DotNetCloud.Core.Services.ModuleApis;
 using Microsoft.AspNetCore.Components;
 
 namespace DotNetCloud.Modules.Tracks.UI;

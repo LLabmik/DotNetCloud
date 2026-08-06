@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text;
 using DotNetCloud.Core.DTOs;
-using DotNetCloud.Modules.Tracks.Services;
+using DotNetCloud.Core.Services.ModuleApis;
 using Microsoft.AspNetCore.Components;
 
 namespace DotNetCloud.Modules.Tracks.UI;
