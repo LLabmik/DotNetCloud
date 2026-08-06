@@ -9,7 +9,8 @@
     Shell.PresentationMode="Modal">
 
     <Shell.TitleView>
-        <Grid ColumnDefinitions="*,Auto" Padding="0,0,8,0">
+        <Grid ColumnDefinitions="*,Auto"
+                Padding="0,0,8,0">
             <Label Grid.Column="0"
                    Text="New Direct Message"
                    FontSize="18"
