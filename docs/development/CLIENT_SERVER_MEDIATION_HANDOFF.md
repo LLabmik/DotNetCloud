@@ -18,51 +18,24 @@ Archived context:
 - All actionable items, blockers, and technical details go directly in this document.
 - **Current active branch:** `fix/chat-dm-notification`
 
-## Active Handoff — Server: Deploy DM Channel Notification System
+## Active Handoff — Server: Deploy resolve-names endpoint (URGENT)
 
-**Summary:** DM channel notification system is implemented and needs deployment to production (`cloud.kimball.home`). When a user creates a DM channel, the target receives a high-priority push notification (Android) + in-app toast (Blazor) with 4 actions: Reply & Join, Reply without Joining, Ignore, Set Do Not Disturb.
+**Summary:** Android DM channels show `DM-{guid}-{guid}`. The Android client calls `POST /api/v1/chat/users/resolve-names` but this endpoint isn't deployed. Deploy needed for DM names to display correctly.
 
 **Deploy steps:**
-1. `git pull` on `cloud.kimball.home` — branch `fix/chat-dm-notification` (or merge to main first)
-2. Publish Chat.Host + Core.Server:
-   ```
-   sudo ./scripts/deploy.sh
-   ```
-   This rebuilds and deploys `DotNetCloud.Modules.Chat.Host` (new endpoints + event handler) and `DotNetCloud.Core.Server` (updated `IChatMessageNotifier`).
+1. `git pull`
+2. `sudo ./scripts/deploy.sh`
 
-**New API endpoints to verify:**
+**New endpoint (not yet deployed):**
 ```
-POST /api/v1/chat/dm/{channelId}/accept   → { accepted: true [, message: {...} ] }
-POST /api/v1/chat/dm/{channelId}/reply     → { replied: true, message: {...} }
-POST /api/v1/chat/dm/{channelId}/ignore    → { acknowledged: true }
-GET  /api/v1/notifications/preferences     → { pushEnabled, doNotDisturb, mutedChannelIds }
-PUT  /api/v1/notifications/preferences     → { updated: true }
+POST /api/v1/chat/users/resolve-names
+Body: { "userIds": ["guid1", "guid2"] }
+Response: { "success": true, "data": { "guid1": "Alice", "guid2": "Bob" } }
 ```
 
-**Server-side changes summary (13 files, +351 lines):**
-- `IPushNotificationService.cs` — Added `DmChannelCreated` notification category
-- `IChatMessageNotifier.cs` — Added `DmChannelCreatedNotification` record, event, notify method
-- `DmChannelCreatedEventHandler.cs` (NEW) — Sends push + in-process notification on DM creation
-- `ChatEventSubscriber.cs` — Wired new handler with DI dependencies
-- `ChannelMember.cs` — Added `IsDmAccepted` property
-- `ChannelService.cs` — DM target gets `IsDmAccepted = false`
-- `IChannelMemberService.cs` / `ChannelMemberService.cs` — Added `SetDmAcceptedAsync`
-- `ChatController.cs` — 3 new endpoints (accept/reply/ignore)
-- `ChatDtos.cs` — Added `AcceptDmDto`, `ReplyToDmDto`
-- `GlobalChatNotificationState.cs` — DM notification state, timer, accept/dismiss
-- `DmNotification.razor/.cs/.css` (NEW) — Blazor DM toast overlay with 4 action buttons
-- `GlobalChatNotifications.razor/.cs` — Wired DM notification into global overlay
-- `UserDndToggle.razor` (NEW) — Quick DND toggle in top bar user menu
-- `MainLayout.razor` — Wired DND toggle
+**Verify:** `curl -sk -X POST "https://cloud.dotnetcloud.net/api/v1/chat/users/resolve-names" -H "Content-Type: application/json" -d '{"userIds":["00000000-0000-0000-0000-000000000000"]}'` → should return 400 (validation), NOT 404.
 
-**Android client changes (already in branch, no server deploy needed):**
-- `MainApplication.cs` — DM notification channel (High importance)
-- `FcmMessagingService.cs` / `UnifiedPushReceiver.cs` — `dm_channel_created` push handler
-- `DmNotificationActionReceiver.cs` (NEW) — Handles notification action intents
-- `IChatRestClient.cs` / `HttpChatRestClient.cs` — Accept/Reply/Ignore/DND API methods
-- `SettingsViewModel.cs` / `SettingsPage.xaml` — DND toggle in settings
-
-**Verification:** `dotnet test` — 1301/1301 Chat tests pass. 576/576 Core.Server tests pass. All projects build clean.
+**Already deployed:** DM accept/reply/ignore endpoints, notification preferences GET/PUT, DmChannelCreatedEventHandler, Blazor DM notification, DND toggles.
 
 ## Moderator Communication (Minimal)
 
