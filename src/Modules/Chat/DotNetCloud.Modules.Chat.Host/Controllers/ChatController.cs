@@ -34,6 +34,7 @@ public class ChatController : ChatControllerBase
     private readonly IVideoCallService _videoCallService;
     private readonly IUserBlockService _userBlockService;
     private readonly IChatImageStore _chatImageStore;
+    private readonly IUserDirectory _userDirectory;
     private readonly ILogger<ChatController> _logger;
 
     /// <summary>
@@ -57,6 +58,7 @@ public class ChatController : ChatControllerBase
         IVideoCallService videoCallService,
         IUserBlockService userBlockService,
         IChatImageStore chatImageStore,
+        IUserDirectory userDirectory,
         ILogger<ChatController> logger)
     {
         _channelService = channelService;
@@ -76,6 +78,7 @@ public class ChatController : ChatControllerBase
         _videoCallService = videoCallService;
         _userBlockService = userBlockService;
         _chatImageStore = chatImageStore;
+        _userDirectory = userDirectory;
         _logger = logger;
     }
 
@@ -1422,6 +1425,35 @@ public class ChatController : ChatControllerBase
             _logger.LogError(ex, "Error getting ICE server configuration");
             return StatusCode(500, ErrorEnvelope("INTERNAL_ERROR", "An unexpected error occurred."));
         }
+    }
+
+    /// <summary>Searches active users by display name or email for starting a direct message.</summary>
+    [HttpGet("users/search")]
+    public async Task<IActionResult> SearchUsersAsync(
+        [FromQuery] string q,
+        [FromQuery] int maxResults = 20)
+    {
+        return await ExecuteAsync(async () =>
+        {
+            if (string.IsNullOrWhiteSpace(q))
+                return BadRequest(ErrorEnvelope("VALIDATION_ERROR", "Search query is required."));
+
+            var results = await _userDirectory.SearchUsersAsync(q, maxResults);
+            var userIds = results.Select(r => r.Id).ToList();
+            var avatarUrls = userIds.Count > 0
+                ? await _userDirectory.GetAvatarUrlsAsync(userIds)
+                : new Dictionary<Guid, string>();
+
+            var data = results.Select(r => new
+            {
+                userId = r.Id,
+                displayName = r.DisplayName,
+                email = r.Email,
+                avatarUrl = avatarUrls.GetValueOrDefault(r.Id)
+            }).ToList();
+
+            return Ok(Envelope(data));
+        });
     }
 
     private static string BuildMessagePreview(string? content)
