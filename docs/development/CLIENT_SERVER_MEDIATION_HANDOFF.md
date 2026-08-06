@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-08-05 (Chat user search endpoint — cloud deploy needed before Android client continues)
+Last updated: 2026-08-05 (Chat user search endpoint deployed to production — Android client unblocked)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -18,43 +18,24 @@ Archived context:
 - All actionable items, blockers, and technical details go directly in this document.
 - **Current active branch:** `feature/android-chat-direct-conversation`
 
-## Active Handoff — Deploy Chat User Search Endpoint to Production (Critical Path)
+## Active Handoff — Android Client: Chat DM Phases 1.3–4 (Unblocked)
 
-**Summary:** The Android chat DM feature requires a user search REST endpoint. This endpoint (`GET api/v1/chat/users/search`) has been implemented and committed on `feature/android-chat-direct-conversation`. It must be deployed to production (`cloud.kimball.home`) before the Android client work can continue. The Android client phases 1.3–4 are blocked on this endpoint being live.
+**Summary:** The chat user search endpoint (`GET api/v1/chat/users/search`) is now deployed and live on production. The Android client (on `monolith`) can now continue with Phases 1.3–4 of the chat direct messaging feature.
 
-**Branch:** `feature/android-chat-direct-conversation` — commit `de26f1aa`
-
-**What changed:**
-
-1. **`src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Controllers/ChatController.cs`**
-   - Added `IUserDirectory _userDirectory` field and constructor injection
-   - New endpoint: `GET api/v1/chat/users/search?q={query}&maxResults=20`
-   - Calls `IUserDirectory.SearchUsersAsync` + `GetAvatarUrlsAsync` for avatar enrichment
-   - Returns `{ success: true, data: [{ userId, displayName, email, avatarUrl }] }`
-
-2. **`tests/DotNetCloud.Modules.Chat.Tests/ChatControllerTests.cs`**
-   - Added `Mock<IUserDirectory>` + 6 new test methods (empty query, whitespace, success, no results, no avatars, maxResults)
-3. **`ChatImageUploadControllerTests.cs`, `DirectCallAndDmTests.cs`, `VideoCallControllerTests.cs`**
-   - Updated constructor calls with `new Mock<IUserDirectory>().Object`
-
-**Verification:**
+**Endpoint verification:**
 ```
-dotnet test tests/DotNetCloud.Modules.Chat.Tests/
-  → Passed! - Failed: 0, Passed: 1301, Skipped: 0, Total: 1301
-
 curl -sk "https://cloud.dotnetcloud.net/api/v1/chat/users/search?q=alice"
-  → 200 { "success": true, "data": [...] }
+  → 401 (auth required — endpoint is live, requires valid bearer token)
 ```
 
-**Deploy steps:**
-```bash
-git pull origin feature/android-chat-direct-conversation
-dotnet publish src/Modules/Chat/DotNetCloud.Modules.Chat.Host/
-sudo systemctl restart dotnetcloud
-curl -sk https://localhost:5443/health
-```
+**Deploy commit:** `69cb1b5d76ce` (deployed via `sudo ./scripts/deploy.sh`, Chat.Host + Core.Server published)
 
-**After deploy:** Android client work (Phases 1.3–4) unblocks and continues on `monolith`.
+**What was deployed:**
+- `DotNetCloud.Modules.Chat.Host` — ChatController with `GET api/v1/chat/users/search?q={query}&maxResults=20`
+- `DotNetCloud.Modules.Tracks.Host` — picked up by incremental deploy alongside Chat changes
+- `DotNetCloud.Core.Server` — rebuilt with updated module RCL dependencies
+
+**Next for Android client (monolith):** Resume Phases 1.3–4 of the chat DM feature. The user search endpoint is available at `https://cloud.dotnetcloud.net/api/v1/chat/users/search?q={query}&maxResults=20`.
 
 ## Moderator Communication (Minimal)
 
