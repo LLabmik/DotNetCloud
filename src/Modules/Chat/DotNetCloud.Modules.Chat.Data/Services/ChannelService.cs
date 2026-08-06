@@ -362,7 +362,7 @@ internal sealed class ChannelService : IChannelService
 
         _db.Channels.Add(channel);
         _db.ChannelMembers.Add(new ChannelMember { ChannelId = channel.Id, UserId = caller.UserId, Role = ChannelMemberRole.Member });
-        _db.ChannelMembers.Add(new ChannelMember { ChannelId = channel.Id, UserId = otherUserId, Role = ChannelMemberRole.Member });
+        _db.ChannelMembers.Add(new ChannelMember { ChannelId = channel.Id, UserId = otherUserId, Role = ChannelMemberRole.Member, IsDmAccepted = false });
 
         await _db.SaveChangesAsync(cancellationToken);
 

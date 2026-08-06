@@ -13,11 +13,34 @@ public sealed class GlobalChatNotificationState : IDisposable
     private readonly IUserDirectory? _userDirectory;
     private System.Timers.Timer? _ringTimer;
     private System.Timers.Timer? _toastTimer;
+    private System.Timers.Timer? _dmTimer;
     private Guid _currentUserId;
     private Guid? _activeCallId;
 
     /// <summary>Whether an incoming call notification should be displayed.</summary>
     public bool ShowIncomingCall { get; private set; }
+
+    // ── DM Notification State ──────────────────────────────────────
+
+    /// <summary>Whether a DM creation notification should be displayed.</summary>
+    public bool ShowDmNotification { get; private set; }
+
+    /// <summary>The DM channel ID.</summary>
+    public Guid? DmChannelId { get; private set; }
+
+    /// <summary>The DM initiator's user ID.</summary>
+    public Guid? DmInitiatorUserId { get; private set; }
+
+    /// <summary>The DM initiator's display name.</summary>
+    public string DmInitiatorName { get; private set; } = string.Empty;
+
+    /// <summary>The DM channel name.</summary>
+    public string DmChannelName { get; private set; } = string.Empty;
+
+    /// <summary>Remaining seconds before the DM notification auto-dismisses.</summary>
+    public int DmRemainingSeconds { get; private set; }
+
+    // ── Call Notification State ────────────────────────────────────
 
     /// <summary>The call ID of the incoming call.</summary>
     public Guid? IncomingCallId { get; private set; }
@@ -90,6 +113,7 @@ public sealed class GlobalChatNotificationState : IDisposable
         _notifier.CallInviteReceived += HandleCallInviteReceived;
         _notifier.CallEnded += HandleCallEnded;
         _notifier.NewMessageToast += HandleNewMessageToast;
+        _notifier.DmChannelCreated += HandleDmChannelCreated;
     }
 
     /// <summary>
@@ -255,6 +279,85 @@ public sealed class GlobalChatNotificationState : IDisposable
         OnChange?.Invoke();
     }
 
+    // ── DM Notification ─────────────────────────────────────────
+
+    private void HandleDmChannelCreated(DmChannelCreatedNotification notification)
+    {
+        if (_currentUserId == Guid.Empty)
+            return;
+        if (notification.InitiatorUserId == _currentUserId)
+            return;
+        if (notification.TargetUserId != _currentUserId)
+            return;
+
+        DmChannelId = notification.ChannelId;
+        DmInitiatorUserId = notification.InitiatorUserId;
+        DmInitiatorName = notification.InitiatorDisplayName;
+        DmChannelName = notification.ChannelName;
+        ShowDmNotification = true;
+        DmRemainingSeconds = 60;
+
+        StartDmTimer();
+        OnChange?.Invoke();
+    }
+
+    /// <summary>
+    /// Accepts the DM: dismisses notification, raises event so ChatPageLayout navigates to the DM channel.
+    /// </summary>
+    public void AcceptDm()
+    {
+        if (DmChannelId is null)
+            return;
+
+        var channelId = DmChannelId.Value;
+        DismissDmNotification();
+        // ChatPageLayout listens to OnDmAccepted to handle navigation
+        OnDmAccepted?.Invoke(channelId);
+        OnChange?.Invoke();
+    }
+
+    /// <summary>
+    /// Dismisses the DM notification (ignore action).
+    /// </summary>
+    public void DismissDmNotification()
+    {
+        ShowDmNotification = false;
+        DmChannelId = null;
+        DmInitiatorUserId = null;
+        DmInitiatorName = string.Empty;
+        DmChannelName = string.Empty;
+        StopDmTimer();
+    }
+
+    /// <summary>
+    /// Raised when the user accepts a DM invitation from the global notification overlay.
+    /// Subscribers (e.g. ChatPageLayout) use this to navigate to the DM channel.
+    /// </summary>
+    public event Action<Guid>? OnDmAccepted;
+
+    private void StartDmTimer()
+    {
+        StopDmTimer();
+        _dmTimer = new System.Timers.Timer(1000);
+        _dmTimer.Elapsed += (_, _) =>
+        {
+            DmRemainingSeconds--;
+            if (DmRemainingSeconds <= 0)
+            {
+                DismissDmNotification();
+            }
+            OnChange?.Invoke();
+        };
+        _dmTimer.Start();
+    }
+
+    private void StopDmTimer()
+    {
+        _dmTimer?.Stop();
+        _dmTimer?.Dispose();
+        _dmTimer = null;
+    }
+
     private void DismissIncomingCall()
     {
         ShowIncomingCall = false;
@@ -352,8 +455,10 @@ public sealed class GlobalChatNotificationState : IDisposable
         _notifier.CallInviteReceived -= HandleCallInviteReceived;
         _notifier.CallEnded -= HandleCallEnded;
         _notifier.NewMessageToast -= HandleNewMessageToast;
+        _notifier.DmChannelCreated -= HandleDmChannelCreated;
         StopRingTimer();
         StopToastTimer();
+        StopDmTimer();
     }
 }
 

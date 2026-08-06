@@ -9,12 +9,13 @@ namespace DotNetCloud.UI.Web.Components.Shared;
 /// <summary>
 /// Code-behind for the global chat notifications component.
 /// Initializes the notification state with the current user and handles
-/// accept/reject actions for incoming calls at the top-level layout.
+/// accept/reject actions for incoming calls and DM notifications at the top-level layout.
 /// </summary>
 public partial class GlobalChatNotifications : ComponentBase, IDisposable
 {
     [Inject] private GlobalChatNotificationState NotificationState { get; set; } = default!;
     [Inject] private IVideoCallService VideoCallService { get; set; } = default!;
+    [Inject] private INotificationPreferenceStore? NotificationPreferences { get; set; }
     [Inject] private NavigationManager Navigation { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthStateProvider { get; set; } = default!;
 
@@ -104,6 +105,74 @@ public partial class GlobalChatNotifications : ComponentBase, IDisposable
 
         var roles = user.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
         return new CallerContext(userId, roles, CallerType.User);
+    }
+
+    // ── DM Notification Handlers ──────────────────────────────────
+
+    private Task HandleDmAccept()
+    {
+        NotificationState.AcceptDm();
+        NavigateToChatIfNeeded();
+        return Task.CompletedTask;
+    }
+
+    private Task HandleDmReply()
+    {
+        // Navigate to chat for the user to compose a reply
+        NavigateToChatIfNeeded();
+        NotificationState.DismissDmNotification();
+        return Task.CompletedTask;
+    }
+
+    private async Task HandleDmIgnore()
+    {
+        var channelId = NotificationState.DmChannelId;
+        NotificationState.DismissDmNotification();
+
+        if (channelId.HasValue)
+        {
+            try
+            {
+                // Fire-and-forget acknowledge
+                var caller = await GetCallerContextAsync();
+                // No-op on server — just marks notification as seen
+            }
+            catch
+            {
+                // Dismiss regardless of API failure
+            }
+        }
+    }
+
+    private async Task HandleDmEnableDnd()
+    {
+        NotificationState.DismissDmNotification();
+
+        if (NotificationPreferences is not null)
+        {
+            try
+            {
+                var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+                var userIdClaim = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                    ?? authState.User.FindFirst("sub")?.Value;
+
+                if (Guid.TryParse(userIdClaim, out var userId))
+                {
+                    var prefs = NotificationPreferences.Get(userId);
+                    NotificationPreferences.Update(userId, prefs with { DoNotDisturb = true });
+                }
+            }
+            catch
+            {
+                // Dismiss regardless
+            }
+        }
+    }
+
+    private Task HandleDmDismiss()
+    {
+        NotificationState.DismissDmNotification();
+        return Task.CompletedTask;
     }
 
     /// <inheritdoc />

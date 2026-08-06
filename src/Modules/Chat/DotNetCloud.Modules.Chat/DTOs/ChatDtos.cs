@@ -661,3 +661,21 @@ public sealed record TransferHostRequest
     /// <summary>The user ID to transfer host role to.</summary>
     public Guid UserId { get; init; }
 }
+
+/// <summary>
+/// Request DTO for accepting a DM channel invitation with an optional first message.
+/// </summary>
+public sealed record AcceptDmDto
+{
+    /// <summary>Optional first message to send when accepting the DM.</summary>
+    public string? Message { get; init; }
+}
+
+/// <summary>
+/// Request DTO for replying to a DM without joining the channel.
+/// </summary>
+public sealed record ReplyToDmDto
+{
+    /// <summary>The reply message content.</summary>
+    public required string Message { get; init; }
+}

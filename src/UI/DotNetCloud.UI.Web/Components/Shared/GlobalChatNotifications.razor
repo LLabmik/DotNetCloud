@@ -24,6 +24,15 @@
                                   OnAcceptAudio="@HandleAcceptAudio"
                                   OnReject="@HandleReject" />
 
+        <DmNotification IsVisible="@NotificationState.ShowDmNotification"
+                        InitiatorName="@NotificationState.DmInitiatorName"
+                        RemainingSeconds="@NotificationState.DmRemainingSeconds"
+                        OnAccept="@HandleDmAccept"
+                        OnReply="@HandleDmReply"
+                        OnIgnore="@HandleDmIgnore"
+                        OnEnableDnd="@HandleDmEnableDnd"
+                        OnDismiss="@HandleDmDismiss" />
+
         @if (ShouldShowMessageToast)
         {
             <div class="global-message-toast" role="status" aria-live="polite">

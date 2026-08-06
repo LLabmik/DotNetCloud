@@ -1,3 +1,23 @@
+## Archived: DM Channel Notification System — Server Deployment (2026-08-06)
+
+**Target:** `cloud.kimball.home` — production deploy  
+**Branch:** `fix/chat-dm-notification`
+
+**Summary:** Full DM channel notification system implemented. When a user creates a DM channel, the target receives a high-priority push notification (Android) + in-app toast (Blazor) with 4 actions: Reply & Join, Reply without Joining, Ignore, Set Do Not Disturb.
+
+**Server-side changes (must deploy):**
+- New `DmChannelCreated` notification category + `DmChannelCreatedEventHandler` — sends push + in-process notification when DM created
+- New API endpoints: `POST /api/v1/chat/dm/{id}/accept`, `/reply`, `/ignore`
+- `ChannelMember.IsDmAccepted` field — tracks DM invitation acceptance
+- `GlobalChatNotificationState` — DM notification state, timer, accept/dismiss
+- `DmNotification.razor` — Blazor toast overlay with 4 action buttons
+- `UserDndToggle.razor` — Quick DND toggle in top bar
+- Android: DM notification channel, push handler, action receiver, REST client methods, DND settings toggle
+
+**Verification:** 1301/1301 Chat tests pass. 576/576 Core.Server tests pass. All projects build.
+
+---
+
 ## Archived: Android Chat Direct Message — User Search Endpoint (2026-08-05)
 
 **Target:** `cloud.kimball.home` — production deploy

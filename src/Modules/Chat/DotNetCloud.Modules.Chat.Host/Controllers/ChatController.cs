@@ -200,6 +200,81 @@ public class ChatController : ChatControllerBase
         });
     }
 
+    /// <summary>Accepts a DM channel invitation: sends an optional first message and marks the membership as accepted.</summary>
+    [HttpPost("channels/dm/{channelId:guid}/accept")]
+    public async Task<IActionResult> AcceptDmAsync(Guid channelId, [FromBody] AcceptDmDto? dto)
+    {
+        try
+        {
+            var caller = GetAuthenticatedCaller();
+
+            // Set IsDmAccepted = true on the caller's membership
+            await _memberService.SetDmAcceptedAsync(channelId, accepted: true, caller);
+
+            // Send optional first message
+            if (dto is not null && !string.IsNullOrWhiteSpace(dto.Message))
+            {
+                var sendDto = new SendMessageDto { Content = dto.Message };
+                var message = await _messageService.SendMessageAsync(channelId, sendDto, caller);
+
+                return Ok(Envelope(new
+                {
+                    accepted = true,
+                    message
+                }));
+            }
+
+            return Ok(Envelope(new { accepted = true }));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(ErrorEnvelope("CHAT_CHANNEL_NOT_FOUND", ex.Message));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+    }
+
+    /// <summary>Replies to a DM without joining: sends a message but does not mark the membership as accepted.</summary>
+    [HttpPost("channels/dm/{channelId:guid}/reply")]
+    public async Task<IActionResult> ReplyToDmAsync(Guid channelId, [FromBody] ReplyToDmDto dto)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(dto.Message))
+                return BadRequest(ErrorEnvelope("VALIDATION_ERROR", "Message is required."));
+
+            var caller = GetAuthenticatedCaller();
+            var sendDto = new SendMessageDto { Content = dto.Message };
+            var message = await _messageService.SendMessageAsync(channelId, sendDto, caller);
+
+            return Ok(Envelope(new { replied = true, message }));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(ErrorEnvelope("CHAT_CHANNEL_NOT_FOUND", ex.Message));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+    }
+
+    /// <summary>Ignores a DM channel notification. The channel remains but no action is taken. Acknowledges receipt.</summary>
+    [HttpPost("channels/dm/{channelId:guid}/ignore")]
+    public async Task<IActionResult> IgnoreDmAsync(Guid channelId)
+    {
+        return await ExecuteAsync(async () =>
+        {
+            // No-op on server — channel already exists, membership already created.
+            // This endpoint exists so the client can record that the notification was seen.
+            // Future: track dismissal timestamp on ChannelMember for analytics.
+            await Task.CompletedTask;
+            return Ok(Envelope(new { acknowledged = true }));
+        });
+    }
+
     // ── Member Endpoints ────────────────────────────────────────────
 
     /// <summary>Adds a member to a channel.</summary>

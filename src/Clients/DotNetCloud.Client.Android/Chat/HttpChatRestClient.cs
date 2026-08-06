@@ -282,6 +282,69 @@ internal sealed class HttpChatRestClient : IChatRestClient
     }
 
     /// <inheritdoc />
+    public async Task AcceptDmAsync(
+        string serverBaseUrl, string accessToken,
+        Guid channelId, string? message,
+        CancellationToken ct = default)
+    {
+        SetAuth(accessToken);
+        var url = $"{serverBaseUrl.TrimEnd('/')}/api/v1/chat/channels/dm/{channelId}/accept";
+        var body = message is not null ? JsonContent.Create(new { message }) : null;
+        using var response = await _http.PostAsync(url, body, ct).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+            Log.Info("DotNetCloud", $"AcceptDm returned {(int)response.StatusCode} for channel {channelId}");
+    }
+
+    /// <inheritdoc />
+    public async Task<ChatMessage> ReplyToDmAsync(
+        string serverBaseUrl, string accessToken,
+        Guid channelId, string message,
+        CancellationToken ct = default)
+    {
+        SetAuth(accessToken);
+        var url = $"{serverBaseUrl.TrimEnd('/')}/api/v1/chat/channels/dm/{channelId}/reply";
+        using var response = await _http.PostAsJsonAsync(url, new { message }, ct).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        var envelope = await response.Content.ReadFromJsonAsync<Envelope<ReplyToDmResult>>(JsonOpts, ct).ConfigureAwait(false)
+                       ?? throw new InvalidOperationException("Empty response from reply to DM.");
+        return envelope.Data?.Message is null
+            ? throw new InvalidOperationException("Reply to DM response did not include message data.")
+            : ToChatMessage(envelope.Data.Message);
+    }
+
+    /// <inheritdoc />
+    public async Task IgnoreDmAsync(
+        string serverBaseUrl, string accessToken,
+        Guid channelId,
+        CancellationToken ct = default)
+    {
+        SetAuth(accessToken);
+        var url = $"{serverBaseUrl.TrimEnd('/')}/api/v1/chat/channels/dm/{channelId}/ignore";
+        using var response = await _http.PostAsync(url, null, ct).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+            Log.Info("DotNetCloud", $"IgnoreDm returned {(int)response.StatusCode} for channel {channelId}");
+    }
+
+    /// <inheritdoc />
+    public async Task SetDoNotDisturbAsync(
+        string serverBaseUrl, string accessToken,
+        bool enabled,
+        CancellationToken ct = default)
+    {
+        SetAuth(accessToken);
+        var url = $"{serverBaseUrl.TrimEnd('/')}/api/v1/notifications/preferences";
+        var body = JsonContent.Create(new
+        {
+            pushEnabled = true,
+            doNotDisturb = enabled,
+            mutedChannelIds = Array.Empty<Guid>()
+        });
+        using var response = await _http.PutAsync(url, body, ct).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+            Log.Info("DotNetCloud", $"SetDoNotDisturb returned {(int)response.StatusCode}");
+    }
+
+    /// <inheritdoc />
     public async Task<ChatMessage> SendFileMessageAsync(
         string serverBaseUrl, string accessToken,
         Guid channelId, Guid fileId, string fileName,
@@ -374,6 +437,12 @@ internal sealed class HttpChatRestClient : IChatRestClient
     {
         public bool Success { get; init; }
         public T? Data { get; init; }
+    }
+
+    private sealed class ReplyToDmResult
+    {
+        public bool Replied { get; init; }
+        public ChatMessageDto? Message { get; init; }
     }
 
     /// <summary>

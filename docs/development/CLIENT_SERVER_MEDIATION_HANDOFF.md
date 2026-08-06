@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-08-05 (Chat user search endpoint deployed to production — Android client unblocked)
+Last updated: 2026-08-06 (DM channel notification system — ready for server deploy)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -16,26 +16,53 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
-- **Current active branch:** `feature/android-chat-direct-conversation`
+- **Current active branch:** `fix/chat-dm-notification`
 
-## Active Handoff — Android Client: Chat DM Phases 1.3–4 (Unblocked)
+## Active Handoff — Server: Deploy DM Channel Notification System
 
-**Summary:** The chat user search endpoint (`GET api/v1/chat/users/search`) is now deployed and live on production. The Android client (on `monolith`) can now continue with Phases 1.3–4 of the chat direct messaging feature.
+**Summary:** DM channel notification system is implemented and needs deployment to production (`cloud.kimball.home`). When a user creates a DM channel, the target receives a high-priority push notification (Android) + in-app toast (Blazor) with 4 actions: Reply & Join, Reply without Joining, Ignore, Set Do Not Disturb.
 
-**Endpoint verification:**
+**Deploy steps:**
+1. `git pull` on `cloud.kimball.home` — branch `fix/chat-dm-notification` (or merge to main first)
+2. Publish Chat.Host + Core.Server:
+   ```
+   sudo ./scripts/deploy.sh
+   ```
+   This rebuilds and deploys `DotNetCloud.Modules.Chat.Host` (new endpoints + event handler) and `DotNetCloud.Core.Server` (updated `IChatMessageNotifier`).
+
+**New API endpoints to verify:**
 ```
-curl -sk "https://cloud.dotnetcloud.net/api/v1/chat/users/search?q=alice"
-  → 401 (auth required — endpoint is live, requires valid bearer token)
+POST /api/v1/chat/dm/{channelId}/accept   → { accepted: true [, message: {...} ] }
+POST /api/v1/chat/dm/{channelId}/reply     → { replied: true, message: {...} }
+POST /api/v1/chat/dm/{channelId}/ignore    → { acknowledged: true }
+GET  /api/v1/notifications/preferences     → { pushEnabled, doNotDisturb, mutedChannelIds }
+PUT  /api/v1/notifications/preferences     → { updated: true }
 ```
 
-**Deploy commit:** `69cb1b5d76ce` (deployed via `sudo ./scripts/deploy.sh`, Chat.Host + Core.Server published)
+**Server-side changes summary (13 files, +351 lines):**
+- `IPushNotificationService.cs` — Added `DmChannelCreated` notification category
+- `IChatMessageNotifier.cs` — Added `DmChannelCreatedNotification` record, event, notify method
+- `DmChannelCreatedEventHandler.cs` (NEW) — Sends push + in-process notification on DM creation
+- `ChatEventSubscriber.cs` — Wired new handler with DI dependencies
+- `ChannelMember.cs` — Added `IsDmAccepted` property
+- `ChannelService.cs` — DM target gets `IsDmAccepted = false`
+- `IChannelMemberService.cs` / `ChannelMemberService.cs` — Added `SetDmAcceptedAsync`
+- `ChatController.cs` — 3 new endpoints (accept/reply/ignore)
+- `ChatDtos.cs` — Added `AcceptDmDto`, `ReplyToDmDto`
+- `GlobalChatNotificationState.cs` — DM notification state, timer, accept/dismiss
+- `DmNotification.razor/.cs/.css` (NEW) — Blazor DM toast overlay with 4 action buttons
+- `GlobalChatNotifications.razor/.cs` — Wired DM notification into global overlay
+- `UserDndToggle.razor` (NEW) — Quick DND toggle in top bar user menu
+- `MainLayout.razor` — Wired DND toggle
 
-**What was deployed:**
-- `DotNetCloud.Modules.Chat.Host` — ChatController with `GET api/v1/chat/users/search?q={query}&maxResults=20`
-- `DotNetCloud.Modules.Tracks.Host` — picked up by incremental deploy alongside Chat changes
-- `DotNetCloud.Core.Server` — rebuilt with updated module RCL dependencies
+**Android client changes (already in branch, no server deploy needed):**
+- `MainApplication.cs` — DM notification channel (High importance)
+- `FcmMessagingService.cs` / `UnifiedPushReceiver.cs` — `dm_channel_created` push handler
+- `DmNotificationActionReceiver.cs` (NEW) — Handles notification action intents
+- `IChatRestClient.cs` / `HttpChatRestClient.cs` — Accept/Reply/Ignore/DND API methods
+- `SettingsViewModel.cs` / `SettingsPage.xaml` — DND toggle in settings
 
-**Next for Android client (monolith):** Resume Phases 1.3–4 of the chat DM feature. The user search endpoint is available at `https://cloud.dotnetcloud.net/api/v1/chat/users/search?q={query}&maxResults=20`.
+**Verification:** `dotnet test` — 1301/1301 Chat tests pass. 576/576 Core.Server tests pass. All projects build clean.
 
 ## Moderator Communication (Minimal)
 
@@ -66,5 +93,6 @@ curl -sk "https://cloud.dotnetcloud.net/api/v1/chat/users/search?q=alice"
 - ✅ **SignalR channel group naming:** `chat-channel-{channelId}` (used by `ChatHub.ChannelGroup()`, `CoreHub.JoinGroupAsync()`, and Android `SignalRChatClient`).
 - **Controller discovery:** Core.Server references Files.Host and Chat.Host via `ProjectReference`. ASP.NET Core auto-discovers controllers from referenced assemblies. Do NOT create duplicate controllers in Core.Server for routes already served by module Host assemblies.
 - ✅ **Calendar event broadcasting pattern:** Follow `CalendarReminderEventHandler` (`CalendarReminderEventSubscriber` + `CalendarEventBroadcastHandler`) as the reference implementation. It calls `CoreCapabilitiesClient.BroadcastRealtimeEventAsync` for SignalR and `SendNotificationAsync` for FCM push.
+- ✅ **DM notification flow:** `DmChannelCreatedEventHandler` subscribes to `ChannelCreatedEvent`. For `DirectMessage` channels only, it sends push via `IPushNotificationService` and raises `IChatMessageNotifier.DmChannelCreated` for in-process Blazor. `GlobalChatNotificationState` handles the Blazor-side toast. Android handles the push-side with 3 inline notification actions.
 
 <!-- carry-forward contracts and old Android changes archived to CLIENT_SERVER_MEDIATION_ARCHIVE.md -->

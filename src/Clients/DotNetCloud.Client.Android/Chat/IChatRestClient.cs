@@ -98,6 +98,32 @@ public interface IChatRestClient
         Guid channelId,
         CancellationToken ct = default);
 
+    // ── DM Notification Actions ────────────────────────────────────────
+
+    /// <summary>Accepts a DM channel invitation, optionally sending a first message.</summary>
+    Task AcceptDmAsync(
+        string serverBaseUrl, string accessToken,
+        Guid channelId, string? message,
+        CancellationToken ct = default);
+
+    /// <summary>Replies to a DM without accepting the invitation.</summary>
+    Task<ChatMessage> ReplyToDmAsync(
+        string serverBaseUrl, string accessToken,
+        Guid channelId, string message,
+        CancellationToken ct = default);
+
+    /// <summary>Ignores a DM channel notification.</summary>
+    Task IgnoreDmAsync(
+        string serverBaseUrl, string accessToken,
+        Guid channelId,
+        CancellationToken ct = default);
+
+    /// <summary>Enables or disables Do Not Disturb mode for chat notifications.</summary>
+    Task SetDoNotDisturbAsync(
+        string serverBaseUrl, string accessToken,
+        bool enabled,
+        CancellationToken ct = default);
+
     // ── Image Upload ─────────────────────────────────────────────────
 
     /// <summary>
