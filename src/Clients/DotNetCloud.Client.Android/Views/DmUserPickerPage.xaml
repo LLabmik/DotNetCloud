@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="DotNetCloud.Client.Android.Views.DmUserPickerPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:chat="clr-namespace:DotNetCloud.Client.Android.Chat"
+    Title="New Direct Message"
+    BackgroundColor="#0F172A"
+    Shell.PresentationMode="Modal">
+
+    <Shell.TitleView>
+        <Grid ColumnDefinitions="*,Auto"
+                Padding="0,0,8,0">
+            <Label Grid.Column="0"
+                   Text="New Direct Message"
+                   FontSize="18"
+                   FontAttributes="Bold"
+                   TextColor="#F1F5F9"
+                   VerticalOptions="Center"/>
+            <Button Grid.Column="1"
+                    Text="Cancel"
+                    FontSize="14"
+                    TextColor="#94A3B8"
+                    BackgroundColor="Transparent"
+                    Clicked="OnCancelClicked"
+                    VerticalOptions="Center"/>
+        </Grid>
+    </Shell.TitleView>
+
+    <Grid RowDefinitions="Auto,*">
+
+        <!-- Search bar -->
+        <Border Grid.Row="0"
+                BackgroundColor="#1E293B"
+                StrokeThickness="0"
+                StrokeShape="RoundRectangle 12"
+                Margin="12,12,12,0"
+                Padding="12,4">
+            <SearchBar
+                x:Name="SearchField"
+                Placeholder="Search by name or email…"
+                PlaceholderColor="#64748B"
+                TextColor="#F1F5F9"
+                BackgroundColor="Transparent"
+                CancelButtonColor="#0EA5E9"
+                TextChanged="OnSearchTextChanged"/>
+        </Border>
+
+        <!-- Loading indicator -->
+        <ActivityIndicator
+            Grid.Row="1"
+            IsRunning="{Binding IsDmSearching}"
+            IsVisible="{Binding IsDmSearching}"
+            Color="#0EA5E9"
+            HorizontalOptions="Center"
+            VerticalOptions="Start"
+            Margin="0,40,0,0"
+            HeightRequest="36"
+            WidthRequest="36"/>
+
+        <!-- Error message -->
+        <Label Grid.Row="1"
+               IsVisible="{Binding DmSearchError, Converter={StaticResource IsNotNullOrEmpty}}"
+               Text="{Binding DmSearchError}"
+               FontSize="13"
+               TextColor="#FCA5A5"
+               HorizontalOptions="Center"
+               Margin="24,40,24,0"/>
+
+        <!-- Search results -->
+        <CollectionView Grid.Row="1"
+                        ItemsSource="{Binding DmSearchResults}"
+                        SelectionMode="None"
+                        Margin="0,8,0,0">
+
+            <CollectionView.ItemTemplate>
+                <DataTemplate x:DataType="chat:UserSearchResult">
+                    <Border
+                        BackgroundColor="#1E293B"
+                        StrokeThickness="0"
+                        StrokeShape="RoundRectangle 12"
+                        Margin="12,4"
+                        Padding="14,14">
+
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+
+                            <!-- Avatar placeholder -->
+                            <Border BackgroundColor="#334155"
+                                    HeightRequest="44"
+                                    WidthRequest="44"
+                                    StrokeThickness="0"
+                                    StrokeShape="RoundRectangle 12"
+                                    VerticalOptions="Center"
+                                    Margin="0,0,12,0">
+                                <Label FontSize="18"
+                                       HorizontalOptions="Center"
+                                       VerticalOptions="Center"
+                                       TextColor="#94A3B8"
+                                       Text="{Binding DisplayName, Converter={StaticResource FirstChar}}"/>
+                            </Border>
+
+                            <!-- Name + email -->
+                            <VerticalStackLayout Grid.Column="1"
+                                                 VerticalOptions="Center"
+                                                 Spacing="2">
+                                <Label FontSize="15"
+                                       FontAttributes="Bold"
+                                       TextColor="#F1F5F9"
+                                       LineBreakMode="TailTruncation"
+                                       Text="{Binding DisplayName}"/>
+                                <Label FontSize="13"
+                                       TextColor="#64748B"
+                                       LineBreakMode="TailTruncation"
+                                       Text="{Binding Email}"/>
+                            </VerticalStackLayout>
+
+                            <!-- Chevron -->
+                            <Label Grid.Column="2"
+                                   FontSize="20"
+                                   TextColor="#475569"
+                                   VerticalOptions="Center"
+                                   Text="›"/>
+
+                            <Grid.GestureRecognizers>
+                                <TapGestureRecognizer
+                                    Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.StartDmCommand}"
+                                    CommandParameter="{Binding .}"/>
+                            </Grid.GestureRecognizers>
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+
+            <!-- Empty state -->
+            <CollectionView.EmptyView>
+                <VerticalStackLayout
+                    HorizontalOptions="Center"
+                    Padding="32"
+                    Spacing="12"
+                    VerticalOptions="Center">
+                    <Label FontSize="40"
+                           HorizontalOptions="Center"
+                           Text="💬"/>
+                    <Label FontSize="16"
+                           FontAttributes="Bold"
+                           HorizontalOptions="Center"
+                           TextColor="#F1F5F9"
+                           Text="Search for a user"/>
+                    <Label FontSize="13"
+                           HorizontalOptions="Center"
+                           HorizontalTextAlignment="Center"
+                           TextColor="#64748B"
+                           Text="Type a name or email to find someone to message."/>
+                </VerticalStackLayout>
+            </CollectionView.EmptyView>
+
+        </CollectionView>
+    </Grid>
+
+</ContentPage>

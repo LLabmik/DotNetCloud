@@ -331,3 +331,32 @@ public sealed class BoolToStringConverter : IValueConverter
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
         throw new NotSupportedException();
 }
+
+/// <summary>Returns the first character of a string, upper-cased, or "?" if null/empty.</summary>
+public sealed class FirstCharConverter : IValueConverter
+{
+    /// <inheritdoc />
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is string s && s.Length > 0 ? s[..1].ToUpperInvariant() : "?";
+
+    /// <inheritdoc />
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>Maps channel type to an icon character.</summary>
+public sealed class ChannelTypeToIconConverter : IValueConverter
+{
+    /// <inheritdoc />
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is string type ? type switch
+        {
+            "DirectMessage" or "Group" => "💬",
+            "Private" => "🔒",
+            _ => "#"
+        } : "#";
+
+    /// <inheritdoc />
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}

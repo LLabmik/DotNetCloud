@@ -76,6 +76,7 @@ public class ChatImageUploadControllerTests
             videoCallService.Object,
             userBlockService.Object,
             _chatImageStore.Object,
+            new Mock<IUserDirectory>().Object,
             NullLogger<ChatController>.Instance);
 
         SetupHttpContext("image/png");

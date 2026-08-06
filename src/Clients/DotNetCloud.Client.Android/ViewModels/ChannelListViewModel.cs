@@ -104,7 +104,7 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
                     foreach (var ch in channels)
                     {
                         muteStates[ch.Id] = ch.IsMuted;
-                        Channels.Add(new ChannelItemViewModel(ch.Id, ch.Name, ch.UnreadCount, ch.HasMention, ch.IsMuted, ch.LastMessagePreview));
+                        Channels.Add(new ChannelItemViewModel(ch.Id, ch.Name, ch.ChannelType, ch.UnreadCount, ch.HasMention, ch.IsMuted, ch.LastMessagePreview));
                     }
 
                     _muteState.ReplaceAll(muteStates);
@@ -159,6 +159,109 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
     {
         _signalR.OnUnreadCountUpdated -= OnUnreadCountUpdated;
         _signalR.OnNewChatMessage -= OnNewMessage;
+    }
+
+    // ── Direct Message ──────────────────────────────────────────────
+
+    /// <summary>Raised when a DM is created and the app should navigate to it.</summary>
+    public event EventHandler<(Guid ChannelId, string Name)>? DmCreated;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsDmPickerVisible))]
+    private bool _isDmPickerOpen;
+
+    [ObservableProperty]
+    private string _dmSearchQuery = string.Empty;
+
+    [ObservableProperty]
+    private bool _isDmSearching;
+
+    [ObservableProperty]
+    private string? _dmSearchError;
+
+    /// <summary>User search results for the DM picker.</summary>
+    public ObservableCollection<UserSearchResult> DmSearchResults { get; } = [];
+
+    /// <summary>Whether the DM user picker is visible.</summary>
+    public bool IsDmPickerVisible => IsDmPickerOpen;
+
+    /// <summary>Opens the DM user picker.</summary>
+    [RelayCommand]
+    private void OpenDmPicker()
+    {
+        IsDmPickerOpen = true;
+        DmSearchQuery = string.Empty;
+        DmSearchResults.Clear();
+        DmSearchError = null;
+    }
+
+    /// <summary>Closes the DM user picker.</summary>
+    [RelayCommand]
+    private void CloseDmPicker()
+    {
+        IsDmPickerOpen = false;
+        DmSearchQuery = string.Empty;
+        DmSearchResults.Clear();
+        DmSearchError = null;
+    }
+
+    /// <summary>Searches users for DM creation with debounce via the UI binding.</summary>
+    [RelayCommand]
+    private async Task SearchDmUsersAsync(string query, CancellationToken ct)
+    {
+        DmSearchQuery = query;
+
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            DmSearchResults.Clear();
+            DmSearchError = null;
+            return;
+        }
+
+        IsDmSearching = true;
+        DmSearchError = null;
+
+        try
+        {
+            var (serverUrl, token) = await GetActiveCredentialsAsync(ct);
+            var results = await _chatApi.SearchUsersAsync(serverUrl, token, query, maxResults: 20, ct);
+
+            DmSearchResults.Clear();
+            foreach (var user in results)
+                DmSearchResults.Add(user);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "DM user search failed for query '{Query}'.", query);
+            DmSearchError = "Search failed. Please try again.";
+            DmSearchResults.Clear();
+        }
+        finally
+        {
+            IsDmSearching = false;
+        }
+    }
+
+    /// <summary>Creates or opens a DM channel with the selected user and navigates to it.</summary>
+    [RelayCommand]
+    private async Task StartDmAsync(UserSearchResult user, CancellationToken ct)
+    {
+        try
+        {
+            var (serverUrl, token) = await GetActiveCredentialsAsync(ct);
+            var channel = await _chatApi.GetOrCreateDmAsync(serverUrl, token, user.UserId, ct);
+
+            IsDmPickerOpen = false;
+            DmSearchQuery = string.Empty;
+            DmSearchResults.Clear();
+
+            DmCreated?.Invoke(this, (channel.Id, channel.Name));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to create DM with user {UserId}.", user.UserId);
+            DmSearchError = "Failed to start conversation. Please try again.";
+        }
     }
 
     // ── Mute toggle ──────────────────────────────────────────────────
@@ -249,10 +352,11 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
 public sealed partial class ChannelItemViewModel : ObservableObject
 {
     /// <summary>Initializes a channel list item.</summary>
-    public ChannelItemViewModel(Guid channelId, string name, int unreadCount, bool hasMention, bool isMuted, string? lastMessagePreview)
+    public ChannelItemViewModel(Guid channelId, string name, string? channelType, int unreadCount, bool hasMention, bool isMuted, string? lastMessagePreview)
     {
         ChannelId = channelId;
         Name = name;
+        ChannelType = channelType;
         UnreadCount = unreadCount;
         HasMention = hasMention;
         IsMuted = isMuted;
@@ -264,6 +368,9 @@ public sealed partial class ChannelItemViewModel : ObservableObject
 
     /// <summary>Display name of the channel.</summary>
     public string Name { get; }
+
+    /// <summary>Channel type: Public, Private, DirectMessage, or Group.</summary>
+    public string? ChannelType { get; }
 
     /// <summary>Unread message count (updated in real-time).</summary>
     [ObservableProperty] private int _unreadCount;

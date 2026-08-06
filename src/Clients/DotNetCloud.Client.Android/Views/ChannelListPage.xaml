@@ -21,6 +21,12 @@
         </HorizontalStackLayout>
     </Shell.TitleView>
 
+    <Shell.ToolbarItems>
+        <ToolbarItem Text="+"
+                     Order="Primary"
+                     Clicked="OnNewDmClicked"/>
+    </Shell.ToolbarItems>
+
     <Grid>
 
         <!-- Landing overlay — shown on first launch, hidden permanently on first tab switch -->
@@ -159,7 +165,7 @@
                                         HorizontalOptions="Center"
                                         VerticalOptions="Center"
                                         TextColor="#94A3B8"
-                                        Text="#"/>
+                                        Text="{Binding ChannelType, Converter={StaticResource ChannelTypeToIcon}}"/>
                                 </Border>
 
                                 <!-- Channel info -->

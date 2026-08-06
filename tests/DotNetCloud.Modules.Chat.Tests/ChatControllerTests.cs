@@ -32,6 +32,7 @@ public class ChatControllerTests
     private Mock<IChatMessageNotifier> _chatMessageNotifier = null!;
     private Mock<IPushNotificationService> _pushNotificationService = null!;
     private Mock<INotificationPreferenceStore> _notificationPreferenceStore = null!;
+    private Mock<IUserDirectory> _userDirectory = null!;
     private ChatController _controller = null!;
 
     [TestInitialize]
@@ -53,6 +54,7 @@ public class ChatControllerTests
         var iceServerService = new Mock<IIceServerService>();
         var videoCallService = new Mock<IVideoCallService>();
         var userBlockService = new Mock<IUserBlockService>();
+        _userDirectory = new Mock<IUserDirectory>();
 
         _notificationPreferenceStore
             .Setup(s => s.Get(It.IsAny<Guid>()))
@@ -81,6 +83,7 @@ public class ChatControllerTests
             videoCallService.Object,
             userBlockService.Object,
             new Mock<IChatImageStore>().Object,
+            _userDirectory.Object,
             NullLogger<ChatController>.Instance)
         {
             ControllerContext = new ControllerContext
@@ -485,5 +488,104 @@ public class ChatControllerTests
         var result = await _controller.UnmuteChannelAsync(Guid.CreateVersion7());
 
         Assert.IsInstanceOfType<ForbidResult>(result);
+    }
+
+    // ── User Search Endpoint Tests ──────────────────────────────────
+
+    [TestMethod]
+    public async Task SearchUsersAsync_WhenQueryIsEmpty_ThenReturnsBadRequest()
+    {
+        var result = await _controller.SearchUsersAsync("");
+
+        var badRequest = result as BadRequestObjectResult;
+        Assert.IsNotNull(badRequest);
+    }
+
+    [TestMethod]
+    public async Task SearchUsersAsync_WhenQueryIsWhitespace_ThenReturnsBadRequest()
+    {
+        var result = await _controller.SearchUsersAsync("   ");
+
+        var badRequest = result as BadRequestObjectResult;
+        Assert.IsNotNull(badRequest);
+    }
+
+    [TestMethod]
+    public async Task SearchUsersAsync_WhenSuccessful_ThenReturnsEnvelopeWithResults()
+    {
+        var userId = Guid.CreateVersion7();
+        var avatarUrl = "https://example.com/avatar.png";
+        _userDirectory
+            .Setup(d => d.SearchUsersAsync("alice", 20, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new UserSearchResult(userId, "Alice", "alice@example.com")]);
+        _userDirectory
+            .Setup(d => d.GetAvatarUrlsAsync(It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, string> { [userId] = avatarUrl });
+
+        var result = await _controller.SearchUsersAsync("alice");
+
+        var ok = result as OkObjectResult;
+        Assert.IsNotNull(ok);
+
+        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(ok.Value));
+        Assert.IsTrue(doc.RootElement.GetProperty("success").GetBoolean());
+
+        var data = doc.RootElement.GetProperty("data");
+        Assert.AreEqual(1, data.GetArrayLength());
+        Assert.AreEqual(userId.ToString(), data[0].GetProperty("userId").GetString());
+        Assert.AreEqual("Alice", data[0].GetProperty("displayName").GetString());
+        Assert.AreEqual("alice@example.com", data[0].GetProperty("email").GetString());
+        Assert.AreEqual(avatarUrl, data[0].GetProperty("avatarUrl").GetString());
+    }
+
+    [TestMethod]
+    public async Task SearchUsersAsync_WhenNoResults_ThenReturnsEmptyList()
+    {
+        _userDirectory
+            .Setup(d => d.SearchUsersAsync("zzzz", It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        var result = await _controller.SearchUsersAsync("zzzz");
+
+        var ok = result as OkObjectResult;
+        Assert.IsNotNull(ok);
+
+        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(ok.Value));
+        Assert.IsTrue(doc.RootElement.GetProperty("success").GetBoolean());
+        Assert.AreEqual(0, doc.RootElement.GetProperty("data").GetArrayLength());
+    }
+
+    [TestMethod]
+    public async Task SearchUsersAsync_WhenNoAvatars_ThenReturnsNullAvatarUrls()
+    {
+        var userId = Guid.CreateVersion7();
+        _userDirectory
+            .Setup(d => d.SearchUsersAsync("bob", It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new UserSearchResult(userId, "Bob", "bob@example.com")]);
+        _userDirectory
+            .Setup(d => d.GetAvatarUrlsAsync(It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, string>());
+
+        var result = await _controller.SearchUsersAsync("bob");
+
+        var ok = result as OkObjectResult;
+        Assert.IsNotNull(ok);
+
+        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(ok.Value));
+        var data = doc.RootElement.GetProperty("data");
+        Assert.AreEqual(1, data.GetArrayLength());
+        Assert.AreEqual(JsonValueKind.Null, data[0].GetProperty("avatarUrl").ValueKind);
+    }
+
+    [TestMethod]
+    public async Task SearchUsersAsync_RespectsMaxResultsParameter()
+    {
+        _userDirectory
+            .Setup(d => d.SearchUsersAsync("charlie", 5, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        await _controller.SearchUsersAsync("charlie", 5);
+
+        _userDirectory.Verify(d => d.SearchUsersAsync("charlie", 5, It.IsAny<CancellationToken>()), Times.Once);
     }
 }
