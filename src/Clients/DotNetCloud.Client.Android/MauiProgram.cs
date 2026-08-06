@@ -142,6 +142,7 @@ public static class MauiProgram
         builder.Services.AddTransient<ImageViewerPage>();
         builder.Services.AddTransient<NotesPage>();
         builder.Services.AddTransient<NoteEditPage>();
+        builder.Services.AddTransient<DmUserPickerPage>();
 
 #if DEBUG
         builder.Logging.AddDebug();

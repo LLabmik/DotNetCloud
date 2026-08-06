@@ -26,6 +26,7 @@ public partial class AppShell : Shell
         Routing.RegisterRoute("ImageViewer", typeof(ImageViewerPage));
         Routing.RegisterRoute("ChatImageViewer", typeof(Views.ChatImageViewerPage));
         Routing.RegisterRoute("NoteEdit", typeof(NoteEditPage));
+        Routing.RegisterRoute("DmUserPicker", typeof(DmUserPickerPage));
 
         // Reflect total unread chat count on the Chat tab label (e.g. "Chat" → "Chat 3").
         WeakReferenceMessenger.Default.Register<TotalUnreadCountChangedMessage>(this, static (_, m) =>

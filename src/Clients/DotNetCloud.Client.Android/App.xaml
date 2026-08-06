@@ -27,6 +27,8 @@
             <converters:IntToBoolConverter x:Key="IntToBoolConverter"/>
             <converters:BoolToColorConverter x:Key="BoolToColorConverter"/>
             <converters:BoolToStringConverter x:Key="BoolToString"/>
+            <converters:FirstCharConverter x:Key="FirstChar"/>
+            <converters:ChannelTypeToIconConverter x:Key="ChannelTypeToIcon"/>
 
             <!-- Calendar FAB shadow -->
             <Shadow x:Key="FabShadow"
