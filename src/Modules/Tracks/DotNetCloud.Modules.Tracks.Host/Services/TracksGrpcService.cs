@@ -35,6 +35,7 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
     private readonly GoalService _goalService;
     private readonly WebhookService _webhookService;
     private readonly SprintDiscussionService _discussionService;
+    private readonly SwimlaneTransitionService _transitionService;
     private readonly IUserDirectory _userDirectory;
     private readonly ILogger<TracksGrpcService> _logger;
 
@@ -59,6 +60,7 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
         GoalService goalService,
         WebhookService webhookService,
         SprintDiscussionService discussionService,
+        SwimlaneTransitionService transitionService,
         IUserDirectory userDirectory,
         ILogger<TracksGrpcService> logger)
     {
@@ -82,6 +84,7 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
         _goalService = goalService;
         _webhookService = webhookService;
         _discussionService = discussionService;
+        _transitionService = transitionService;
         _userDirectory = userDirectory;
         _logger = logger;
     }
@@ -93,15 +96,16 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
         try
         {
             var ownerId = Guid.Parse(request.UserId);
+            var organizationId = string.IsNullOrEmpty(request.OrganizationId) ? Guid.Empty : Guid.Parse(request.OrganizationId);
             var dto = new CreateProductDto
             {
                 Name = request.Name,
                 Description = string.IsNullOrEmpty(request.Description) ? null : request.Description,
                 Color = string.IsNullOrEmpty(request.Color) ? null : request.Color,
-                SubItemsEnabled = false
+                SubItemsEnabled = request.SubItemsEnabled
             };
             var product = await _productService.CreateProductAsync(
-                Guid.Empty, ownerId, dto, context.CancellationToken);
+                organizationId, ownerId, dto, context.CancellationToken);
             return new ProductResponse { Success = true, Product = MapProduct(product) };
         }
         catch (Exception ex)
@@ -182,6 +186,12 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
             var priority = Enum.TryParse<Priority>(request.Priority, true, out var p) ? p : Priority.None;
             DateTime? dueDate = DateTime.TryParse(request.DueDate, out var dd) ? dd : null;
 
+            // Resolve product from the swimlane
+            var swimlane = await _db.Swimlanes.FirstOrDefaultAsync(s => s.Id == swimlaneId, context.CancellationToken);
+            var productId = swimlane is not null && swimlane.ContainerType == SwimlaneContainerType.Product
+                ? swimlane.ContainerId
+                : Guid.Empty;
+
             var dto = new CreateWorkItemDto
             {
                 Title = request.Title,
@@ -189,11 +199,11 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
                 Priority = priority,
                 DueDate = dueDate,
                 StoryPoints = request.StoryPoints > 0 ? request.StoryPoints : null,
-                AssigneeIds = [],
-                LabelIds = []
+                AssigneeIds = request.AssigneeIds?.Select(Guid.Parse).ToList() ?? [],
+                LabelIds = request.LabelIds?.Select(Guid.Parse).ToList() ?? []
             };
             var workItem = await _workItemService.CreateWorkItemAsync(
-                Guid.Empty, swimlaneId, WorkItemType.Epic, userId, dto, context.CancellationToken);
+                productId, swimlaneId, WorkItemType.Epic, userId, dto, context.CancellationToken);
             return new WorkItemResponse { Success = true, WorkItem = MapWorkItem(workItem) };
         }
         catch (Exception ex)
@@ -1171,7 +1181,7 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
                     ProductId = r.ProductId.ToString(),
                     FromSwimlaneId = r.FromSwimlaneId.ToString(),
                     ToSwimlaneId = r.ToSwimlaneId.ToString(),
-                    IsAllowed = true,
+                    IsAllowed = r.IsAllowed,
                     CreatedAt = r.CreatedAt.ToString("O")
                 });
             return response;
@@ -1199,7 +1209,8 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
                 {
                     ProductId = productId,
                     FromSwimlaneId = Guid.Parse(rule.FromSwimlaneId),
-                    ToSwimlaneId = Guid.Parse(rule.ToSwimlaneId)
+                    ToSwimlaneId = Guid.Parse(rule.ToSwimlaneId),
+                    IsAllowed = rule.IsAllowed
                 });
             await _db.SaveChangesAsync(context.CancellationToken);
             return new SetSwimlaneTransitionMatrixResponse { Success = true };
@@ -1250,7 +1261,16 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
             var swimlaneId = Guid.Parse(request.SwimlaneId);
             var swimlane = await _db.Swimlanes.FirstOrDefaultAsync(s => s.Id == swimlaneId, context.CancellationToken);
             var productId = swimlane is not null && swimlane.ContainerType == SwimlaneContainerType.Product ? swimlane.ContainerId : Guid.Empty;
-            var dto = new CreateWorkItemDto { Title = request.Title, Description = string.IsNullOrEmpty(request.Description) ? null : request.Description, Priority = Enum.TryParse<Priority>(request.Priority, true, out var p) ? p : Priority.None, DueDate = DateTime.TryParse(request.DueDate, out var dd) ? dd : null, StoryPoints = request.StoryPoints > 0 ? request.StoryPoints : null, AssigneeIds = [], LabelIds = [] };
+            var dto = new CreateWorkItemDto
+            {
+                Title = request.Title,
+                Description = string.IsNullOrEmpty(request.Description) ? null : request.Description,
+                Priority = Enum.TryParse<Priority>(request.Priority, true, out var ep) ? ep : Priority.None,
+                DueDate = DateTime.TryParse(request.DueDate, out var edd) ? edd : null,
+                StoryPoints = request.StoryPoints > 0 ? request.StoryPoints : null,
+                AssigneeIds = request.AssigneeIds?.Select(Guid.Parse).ToList() ?? [],
+                LabelIds = request.LabelIds?.Select(Guid.Parse).ToList() ?? []
+            };
             var workItem = await _workItemService.CreateWorkItemAsync(productId, swimlaneId, WorkItemType.Epic, Guid.Parse(request.UserId), dto, context.CancellationToken);
             return new WorkItemResponse { Success = true, WorkItem = MapWorkItem(workItem) };
         }
@@ -1268,7 +1288,16 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
             var swimlaneId = Guid.Parse(request.SwimlaneId);
             var swimlane = await _db.Swimlanes.FirstOrDefaultAsync(s => s.Id == swimlaneId, context.CancellationToken);
             var productId = swimlane is not null && swimlane.ContainerType == SwimlaneContainerType.Product ? swimlane.ContainerId : Guid.Empty;
-            var dto = new CreateWorkItemDto { Title = request.Title, Description = string.IsNullOrEmpty(request.Description) ? null : request.Description, Priority = Enum.TryParse<Priority>(request.Priority, true, out var p) ? p : Priority.None, DueDate = DateTime.TryParse(request.DueDate, out var dd) ? dd : null, StoryPoints = request.StoryPoints > 0 ? request.StoryPoints : null, AssigneeIds = [], LabelIds = [] };
+            var dto = new CreateWorkItemDto
+            {
+                Title = request.Title,
+                Description = string.IsNullOrEmpty(request.Description) ? null : request.Description,
+                Priority = Enum.TryParse<Priority>(request.Priority, true, out var fp) ? fp : Priority.None,
+                DueDate = DateTime.TryParse(request.DueDate, out var fdd) ? fdd : null,
+                StoryPoints = request.StoryPoints > 0 ? request.StoryPoints : null,
+                AssigneeIds = request.AssigneeIds?.Select(Guid.Parse).ToList() ?? [],
+                LabelIds = request.LabelIds?.Select(Guid.Parse).ToList() ?? []
+            };
             var workItem = await _workItemService.CreateWorkItemAsync(productId, swimlaneId, WorkItemType.Feature, Guid.Parse(request.UserId), dto, context.CancellationToken);
             return new WorkItemResponse { Success = true, WorkItem = MapWorkItem(workItem) };
         }
@@ -1286,7 +1315,16 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
             var swimlaneId = Guid.Parse(request.SwimlaneId);
             var swimlane = await _db.Swimlanes.FirstOrDefaultAsync(s => s.Id == swimlaneId, context.CancellationToken);
             var productId = swimlane is not null && swimlane.ContainerType == SwimlaneContainerType.Product ? swimlane.ContainerId : Guid.Empty;
-            var dto = new CreateWorkItemDto { Title = request.Title, Description = string.IsNullOrEmpty(request.Description) ? null : request.Description, Priority = Enum.TryParse<Priority>(request.Priority, true, out var p) ? p : Priority.None, DueDate = DateTime.TryParse(request.DueDate, out var dd) ? dd : null, StoryPoints = request.StoryPoints > 0 ? request.StoryPoints : null, AssigneeIds = [], LabelIds = [] };
+            var dto = new CreateWorkItemDto
+            {
+                Title = request.Title,
+                Description = string.IsNullOrEmpty(request.Description) ? null : request.Description,
+                Priority = Enum.TryParse<Priority>(request.Priority, true, out var ip) ? ip : Priority.None,
+                DueDate = DateTime.TryParse(request.DueDate, out var idd) ? idd : null,
+                StoryPoints = request.StoryPoints > 0 ? request.StoryPoints : null,
+                AssigneeIds = request.AssigneeIds?.Select(Guid.Parse).ToList() ?? [],
+                LabelIds = request.LabelIds?.Select(Guid.Parse).ToList() ?? []
+            };
             var workItem = await _workItemService.CreateWorkItemAsync(productId, swimlaneId, WorkItemType.Item, Guid.Parse(request.UserId), dto, context.CancellationToken);
             return new WorkItemResponse { Success = true, WorkItem = MapWorkItem(workItem) };
         }
@@ -1305,8 +1343,28 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
             var parent = await _db.WorkItems.FirstOrDefaultAsync(wi => wi.Id == parentId, context.CancellationToken);
             if (parent is null)
                 return new WorkItemResponse { Success = false, ErrorMessage = "Parent work item not found" };
-            var dto = new CreateWorkItemDto { Title = request.Title, Description = string.IsNullOrEmpty(request.Description) ? null : request.Description, Priority = Enum.TryParse<Priority>(request.Priority, true, out var p) ? p : Priority.None, DueDate = DateTime.TryParse(request.DueDate, out var dd) ? dd : null, StoryPoints = request.StoryPoints > 0 ? request.StoryPoints : null, AssigneeIds = [], LabelIds = [] };
-            var workItem = await _workItemService.CreateWorkItemAsync(parent.ProductId, parent.SwimlaneId ?? Guid.Empty, WorkItemType.SubItem, Guid.Parse(request.UserId), dto, context.CancellationToken);
+
+            // Find the first child swimlane of the parent (SubItems must be created in WorkItem-type swimlanes)
+            var childSwimlane = await _db.Swimlanes
+                .Where(s => s.ContainerType == SwimlaneContainerType.WorkItem && s.ContainerId == parentId && !s.IsArchived)
+                .OrderBy(s => s.Position)
+                .FirstOrDefaultAsync(context.CancellationToken);
+
+            if (childSwimlane is null)
+                return new WorkItemResponse { Success = false, ErrorMessage = "Parent work item has no child swimlanes. Create swimlanes first." };
+
+            var dto = new CreateWorkItemDto
+            {
+                Title = request.Title,
+                Description = string.IsNullOrEmpty(request.Description) ? null : request.Description,
+                Priority = Enum.TryParse<Priority>(request.Priority, true, out var p) ? p : Priority.None,
+                DueDate = DateTime.TryParse(request.DueDate, out var dd) ? dd : null,
+                StoryPoints = request.StoryPoints > 0 ? request.StoryPoints : null,
+                AssigneeIds = request.AssigneeIds?.Select(Guid.Parse).ToList() ?? [],
+                LabelIds = request.LabelIds?.Select(Guid.Parse).ToList() ?? []
+            };
+            var workItem = await _workItemService.CreateWorkItemAsync(
+                parent.ProductId, childSwimlane.Id, WorkItemType.SubItem, Guid.Parse(request.UserId), dto, context.CancellationToken);
             return new WorkItemResponse { Success = true, WorkItem = MapWorkItem(workItem) };
         }
         catch (Exception ex)
@@ -1524,7 +1582,7 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
     {
         try
         {
-            await _workItemService.RemoveAssignmentAsync(Guid.Parse(request.WorkItemId), Guid.Parse(request.UserId), context.CancellationToken);
+            await _workItemService.RemoveAssignmentAsync(Guid.Parse(request.WorkItemId), Guid.Parse(request.AssigneeUserId), context.CancellationToken);
             return new GenericResponse { Success = true };
         }
         catch (Exception ex)
@@ -2224,6 +2282,7 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
     {
         try
         {
+            var userId = Guid.Parse(request.UserId);
             int count = 0;
             foreach (var itemId in request.WorkItemIds)
             {
@@ -2231,14 +2290,50 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
                 switch (request.Action)
                 {
                     case "delete":
-                        await _workItemService.DeleteWorkItemAsync(wid, Guid.Parse(request.UserId), context.CancellationToken);
+                        await _workItemService.DeleteWorkItemAsync(wid, userId, context.CancellationToken);
                         count++;
                         break;
+                    case "archive":
+                    {
+                        var adto = new UpdateWorkItemDto { IsArchived = true };
+                        await _workItemService.UpdateWorkItemAsync(wid, adto, context.CancellationToken);
+                        count++;
+                        break;
+                    }
                     case "move":
                         if (!string.IsNullOrEmpty(request.TargetSwimlaneId))
                         {
                             var mdto = new MoveWorkItemDto { TargetSwimlaneId = Guid.Parse(request.TargetSwimlaneId), Position = 0 };
                             await _workItemService.MoveWorkItemAsync(wid, mdto, context.CancellationToken);
+                            count++;
+                        }
+                        break;
+                    case "add-label":
+                        if (!string.IsNullOrEmpty(request.LabelId))
+                        {
+                            await _workItemService.AddLabelAsync(wid, Guid.Parse(request.LabelId), context.CancellationToken);
+                            count++;
+                        }
+                        break;
+                    case "assign":
+                        if (!string.IsNullOrEmpty(request.AssigneeUserId))
+                        {
+                            await _workItemService.AssignUserAsync(wid, Guid.Parse(request.AssigneeUserId), context.CancellationToken);
+                            count++;
+                        }
+                        break;
+                    case "set-priority":
+                        if (!string.IsNullOrEmpty(request.Priority) && Enum.TryParse<Priority>(request.Priority, true, out var pr))
+                        {
+                            var udto = new UpdateWorkItemDto { Priority = pr };
+                            await _workItemService.UpdateWorkItemAsync(wid, udto, context.CancellationToken);
+                            count++;
+                        }
+                        break;
+                    case "assign-to-sprint":
+                        if (!string.IsNullOrEmpty(request.SprintId))
+                        {
+                            await _sprintService.AddItemToSprintAsync(Guid.Parse(request.SprintId), wid, context.CancellationToken);
                             count++;
                         }
                         break;
@@ -2496,7 +2591,32 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
     {
         try
         {
-            return new SearchUsersResponse { Success = true };
+            var searchTerm = request.SearchTerm?.Trim() ?? string.Empty;
+            var maxResults = request.MaxResults > 0 ? request.MaxResults : 8;
+            var response = new SearchUsersResponse { Success = true };
+
+            if (!string.IsNullOrEmpty(searchTerm))
+            {
+                try
+                {
+                    var results = await _userDirectory.SearchUsersAsync(searchTerm, maxResults, context.CancellationToken);
+                    foreach (var r in results.Take(maxResults))
+                    {
+                        response.Results.Add(new UserSearchResultMessage
+                        {
+                            Id = r.Id.ToString(),
+                            DisplayName = r.DisplayName ?? string.Empty,
+                            Email = r.Email ?? string.Empty
+                        });
+                    }
+                }
+                catch
+                {
+                    // IUserDirectory search not available — return empty results gracefully
+                }
+            }
+
+            return response;
         }
         catch (Exception ex)
         {
@@ -2633,7 +2753,44 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
     {
         try
         {
-            return new TestProductWebhookResponse { Success = true, DeliverySuccess = true, StatusCode = 200, DurationMs = 0, Error = "" };
+            var subscription = await _webhookService.GetSubscriptionAsync(
+                Guid.Parse(request.SubscriptionId), context.CancellationToken);
+
+            if (subscription is null)
+                return new TestProductWebhookResponse { Success = false, ErrorMessage = "Webhook subscription not found" };
+
+            // Send a test ping to the webhook URL
+            try
+            {
+                var httpClient = context.GetHttpContext().RequestServices.GetRequiredService<IHttpClientFactory>().CreateClient("WebhookClient");
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(context.CancellationToken);
+                cts.CancelAfter(TimeSpan.FromSeconds(10));
+                var httpResponse = await httpClient.PostAsync(subscription.Url,
+                    new StringContent("{\"type\":\"ping\",\"timestamp\":\"" + DateTime.UtcNow.ToString("O") + "\"}",
+                        System.Text.Encoding.UTF8, "application/json"), cts.Token);
+                sw.Stop();
+
+                return new TestProductWebhookResponse
+                {
+                    Success = true,
+                    DeliverySuccess = httpResponse.IsSuccessStatusCode,
+                    StatusCode = (int)httpResponse.StatusCode,
+                    DurationMs = sw.ElapsedMilliseconds,
+                    Error = httpResponse.IsSuccessStatusCode ? string.Empty : $"HTTP {(int)httpResponse.StatusCode}"
+                };
+            }
+            catch (Exception ex)
+            {
+                return new TestProductWebhookResponse
+                {
+                    Success = true,
+                    DeliverySuccess = false,
+                    StatusCode = 0,
+                    DurationMs = 0,
+                    Error = ex.Message
+                };
+            }
         }
         catch (Exception ex)
         {
@@ -2961,8 +3118,8 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
     }
     // ─── Mapper stubs ────────────────────────────────────────────────────
 
-    private static SprintMessage MapSprint(SprintDto dto) => new() { Id = dto.Id.ToString(), EpicId = dto.EpicId.ToString(), Title = dto.Title, Goal = dto.Goal ?? "", StartDate = dto.StartDate?.ToString("O") ?? "", EndDate = dto.EndDate?.ToString("O") ?? "", Status = dto.Status.ToString(), DurationWeeks = dto.DurationWeeks ?? 0, ItemCount = dto.ItemCount, TotalStoryPoints = dto.TotalStoryPoints, CompletedStoryPoints = dto.CompletedStoryPoints, CreatedAt = dto.CreatedAt.ToString("O"), UpdatedAt = dto.UpdatedAt.ToString("O") };
-    private static SprintDiscussionMessage MapSprintDiscussion(DotNetCloud.Modules.Tracks.Models.SprintDiscussionDto dto) => new() { Id = dto.Id.ToString(), SprintId = dto.SprintId?.ToString() ?? "", ReviewSessionId = dto.ReviewSessionId?.ToString() ?? "", UserId = dto.UserId.ToString(), UserDisplayName = dto.UserDisplayName ?? "", Content = dto.Content ?? "", CreatedAt = dto.CreatedAt.ToString("O") };
+    private static SprintMessage MapSprint(SprintDto dto) => MapSprints([dto]).First();
+    private static SprintDiscussionMessage MapSprintDiscussion(DotNetCloud.Modules.Tracks.Models.SprintDiscussionDto dto) => MapDiscussionMessage(dto);
     private static WorkItemCommentMessage MapComment(WorkItemCommentDto dto) => new() { Id = dto.Id.ToString(), WorkItemId = dto.WorkItemId.ToString(), UserId = dto.UserId.ToString(), DisplayName = dto.DisplayName ?? "", Content = dto.Content ?? "", IsEdited = dto.IsEdited, IsDeleted = dto.IsDeleted, DeletedAt = dto.DeletedAt?.ToString("O") ?? "", CreatedAt = dto.CreatedAt.ToString("O"), UpdatedAt = dto.UpdatedAt.ToString("O") };
     private static ChecklistMessage MapChecklist(ChecklistDto dto) { var m = new ChecklistMessage { Id = dto.Id.ToString(), ItemId = dto.ItemId.ToString(), Title = dto.Title ?? "", Position = dto.Position, CreatedAt = dto.CreatedAt.ToString("O") }; if (dto.Items is not null) foreach (var i in dto.Items) m.Items.Add(new ChecklistItemMessage { Id = i.Id.ToString(), ChecklistId = i.ChecklistId.ToString(), Title = i.Title ?? "", IsCompleted = i.IsCompleted, Position = i.Position, AssignedToUserId = i.AssignedToUserId?.ToString() ?? "", CreatedAt = i.CreatedAt.ToString("O"), UpdatedAt = i.UpdatedAt.ToString("O") }); return m; }
     private static TimeEntryMessage MapTimeEntry(TimeEntryDto dto) => new() { Id = dto.Id.ToString(), WorkItemId = dto.WorkItemId.ToString(), UserId = dto.UserId.ToString(), Description = dto.Description ?? "", StartTime = dto.StartTime?.ToString("O") ?? "", EndTime = dto.EndTime?.ToString("O") ?? "", DurationMinutes = dto.DurationMinutes, CreatedAt = dto.CreatedAt.ToString("O"), UpdatedAt = dto.UpdatedAt.ToString("O") };
