@@ -1,3 +1,23 @@
+## Archived: Android Chat Direct Message — User Search Endpoint (2026-08-05)
+
+**Target:** `cloud.kimball.home` — production deploy
+
+**Result:** New `GET api/v1/chat/users/search` endpoint added to ChatController.
+
+**Branch:** `feature/android-chat-direct-conversation` — commit `de26f1aa`
+
+**Summary of changes:**
+- Added `IUserDirectory` injection to `ChatController`
+- New endpoint: `GET api/v1/chat/users/search?q={query}&maxResults=20`
+- Returns `{ success: true, data: [{ userId, displayName, email, avatarUrl }] }`
+- Validates non-empty query, enriches results with avatar URLs via `IUserDirectory.GetAvatarUrlsAsync`
+- 6 new unit tests: empty query, whitespace, success with avatars, no results, missing avatars, maxResults forwarding
+- Updated 3 other test files for new constructor parameter
+
+**Verification:** `dotnet test` — 1301/1301 passed. `dotnet build` — 0 errors.
+
+---
+
 ## Archived: Android Chat Channel Mute — Client-Side E2E Testing (2026-07-19)
 
 **Target:** `monolith` — Android MAUI app
