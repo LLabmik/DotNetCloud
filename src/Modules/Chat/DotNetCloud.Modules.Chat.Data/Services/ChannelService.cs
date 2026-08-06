@@ -185,10 +185,8 @@ internal sealed class ChannelService : IChannelService
 
     private async Task ResolveDmChannelNamesAsync(List<ChannelDto> channels, Guid currentUserId, CancellationToken cancellationToken)
     {
-        if (_userDirectory is null)
-            return;
-
         var dmChannels = channels.Where(c => c.Type == "DirectMessage").ToList();
+        _logger.LogInformation("ResolveDmChannelNames: found {Count} DM channels for user {UserId}", dmChannels.Count, currentUserId);
         if (dmChannels.Count == 0)
             return;
 
@@ -199,6 +197,7 @@ internal sealed class ChannelService : IChannelService
         foreach (var dm in dmChannels)
         {
             var parts = dm.Name.Split('-');
+            _logger.LogDebug("ResolveDmChannelNames: parsing name '{Name}', parts={Parts}", dm.Name, parts.Length);
             if (parts.Length >= 3
                 && Guid.TryParse(parts[1], out var guid1)
                 && Guid.TryParse(parts[2], out var guid2))
@@ -209,19 +208,33 @@ internal sealed class ChannelService : IChannelService
             }
         }
 
+        _logger.LogInformation("ResolveDmChannelNames: found {Count} other user IDs to resolve", otherUserIds.Count);
         if (otherUserIds.Count == 0)
             return;
+
+        if (_userDirectory is null)
+        {
+            _logger.LogWarning("ResolveDmChannelNames: IUserDirectory not available, using fallback names");
+            foreach (var kvp in channelToOtherUser)
+            {
+                var idx = channels.FindIndex(c => c.Id == kvp.Key);
+                if (idx >= 0)
+                    channels[idx] = channels[idx] with { Name = kvp.Value.ToString()[..8] };
+            }
+            return;
+        }
 
         try
         {
             var names = await _userDirectory.GetDisplayNamesAsync(otherUserIds, cancellationToken);
+            _logger.LogInformation("ResolveDmChannelNames: resolved {Count} names", names.Count);
             foreach (var kvp in channelToOtherUser)
             {
                 if (names.TryGetValue(kvp.Value, out var displayName))
                 {
-                    var dm = dmChannels.First(c => c.Id == kvp.Key);
-                    // ChannelDto is a record — use 'with' expression to create updated copy
-                    channels[channels.FindIndex(c => c.Id == dm.Id)] = dm with { Name = displayName };
+                    var idx = channels.FindIndex(c => c.Id == kvp.Key);
+                    if (idx >= 0)
+                        channels[idx] = channels[idx] with { Name = displayName };
                 }
             }
         }

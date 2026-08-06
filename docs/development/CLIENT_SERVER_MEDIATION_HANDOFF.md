@@ -18,13 +18,21 @@ Archived context:
 - All actionable items, blockers, and technical details go directly in this document.
 - **Current active branch:** `fix/chat-dm-notification`
 
-## Active Handoff — Server: Deploy DM name resolution fix (URGENT)
+## Active Handoff — Server: Deploy DM name resolution with diagnostics
 
-**Summary:** DM channel names resolved server-side in `ListChannelsAsync`. No new endpoint needed — the fix is in the existing channel list API. Deploy and all DMs show display names immediately.
+**Summary:** DM channel names resolved server-side with logging. If `IUserDirectory` is available, resolves display names; otherwise falls back to 8-char user ID prefix. Deploy and check server logs for `ResolveDmChannelNames` to diagnose.
 
 **Deploy:** `git pull && sudo ./scripts/deploy.sh`
 
-**What changed:** `ChannelService.cs` — `ListChannelsAsync` now resolves `DM-{guid}-{guid}` to the other user's display name via `IUserDirectory`.
+**Check logs after deploy:**
+```bash
+sudo journalctl -u dotnetcloud -f | grep ResolveDmChannelNames
+```
+Look for:
+- `found {Count} DM channels` — confirms the method runs
+- `found {Count} other user IDs to resolve` — parsing worked
+- `resolved {Count} names` — `IUserDirectory` worked
+- `IUserDirectory not available` — DI issue, fallback used
 
 ## Moderator Communication (Minimal)
 

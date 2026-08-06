@@ -1,3 +1,12 @@
+## Archived: DM Name Resolution — Server-Side Fix (2026-08-06)
+
+**Target:** `cloud.kimball.home`  
+**Branch:** `fix/chat-dm-notification`
+
+**Result:** DM channel names resolved in `ChannelService.ListChannelsAsync`. Parses `DM-{guid}-{guid}` and resolves to display names via `IUserDirectory`, with 8-char fallback. Includes diagnostic logging.
+
+---
+
 ## Archived: DM Channel Notification System — Server Deployment (2026-08-06)
 
 **Target:** `cloud.kimball.home` — production deploy  
