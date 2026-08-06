@@ -345,6 +345,22 @@ internal sealed class HttpChatRestClient : IChatRestClient
     }
 
     /// <inheritdoc />
+    public async Task<NotificationPreferences> GetNotificationPreferencesAsync(
+        string serverBaseUrl, string accessToken,
+        CancellationToken ct = default)
+    {
+        SetAuth(accessToken);
+        var url = $"{serverBaseUrl.TrimEnd('/')}/api/v1/notifications/preferences";
+        using var response = await _http.GetAsync(url, ct).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        var envelope = await response.Content.ReadFromJsonAsync<Envelope<NotificationPreferencesDto>>(JsonOpts, ct).ConfigureAwait(false)
+                       ?? throw new InvalidOperationException("Empty response from get notification preferences.");
+        return envelope.Data is null
+            ? new NotificationPreferences(true, false, [])
+            : new NotificationPreferences(envelope.Data.PushEnabled, envelope.Data.DoNotDisturb, envelope.Data.MutedChannelIds);
+    }
+
+    /// <inheritdoc />
     public async Task<ChatMessage> SendFileMessageAsync(
         string serverBaseUrl, string accessToken,
         Guid channelId, Guid fileId, string fileName,
@@ -523,5 +539,12 @@ internal sealed class HttpChatRestClient : IChatRestClient
         public string DisplayName { get; init; } = string.Empty;
         public string Email { get; init; } = string.Empty;
         public string? AvatarUrl { get; init; }
+    }
+
+    private sealed class NotificationPreferencesDto
+    {
+        public bool PushEnabled { get; init; } = true;
+        public bool DoNotDisturb { get; init; }
+        public List<Guid> MutedChannelIds { get; init; } = [];
     }
 }

@@ -124,6 +124,11 @@ public interface IChatRestClient
         bool enabled,
         CancellationToken ct = default);
 
+    /// <summary>Gets current notification preferences from the server.</summary>
+    Task<NotificationPreferences> GetNotificationPreferencesAsync(
+        string serverBaseUrl, string accessToken,
+        CancellationToken ct = default);
+
     // ── Image Upload ─────────────────────────────────────────────────
 
     /// <summary>
@@ -255,3 +260,12 @@ public sealed record UserSearchResult(
     string DisplayName,
     string Email,
     string? AvatarUrl);
+
+/// <summary>Notification preferences returned by the server.</summary>
+/// <param name="PushEnabled">Whether push notifications are globally enabled.</param>
+/// <param name="DoNotDisturb">Whether Do Not Disturb mode is active.</param>
+/// <param name="MutedChannelIds">Channel IDs muted for push notifications.</param>
+public sealed record NotificationPreferences(
+    bool PushEnabled,
+    bool DoNotDisturb,
+    IReadOnlyList<Guid> MutedChannelIds);

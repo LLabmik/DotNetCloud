@@ -285,10 +285,9 @@ public sealed partial class SettingsViewModel : ObservableObject
             if (token is null)
                 return;
 
-            // Load preferences from server — reuse the SetDoNotDisturb pattern to get current state
-            // (We don't have a GET endpoint exposed via IChatRestClient, so use the Set with current state first)
-            // For now, default to false until we add a GET endpoint
-            IsDoNotDisturb = false;
+            var prefs = await _chatApi.GetNotificationPreferencesAsync(connection.ServerBaseUrl, token);
+            IsDoNotDisturb = prefs.DoNotDisturb;
+            _logger.LogInformation("DND preference loaded from server: {Dnd}", prefs.DoNotDisturb);
         }
         catch (Exception ex)
         {
