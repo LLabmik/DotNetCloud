@@ -129,6 +129,12 @@ public interface IChatRestClient
         string serverBaseUrl, string accessToken,
         CancellationToken ct = default);
 
+    /// <summary>Resolves display names for a batch of user IDs.</summary>
+    Task<IReadOnlyDictionary<Guid, string>> ResolveDisplayNamesAsync(
+        string serverBaseUrl, string accessToken,
+        IReadOnlyList<Guid> userIds,
+        CancellationToken ct = default);
+
     // ── Image Upload ─────────────────────────────────────────────────
 
     /// <summary>

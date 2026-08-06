@@ -109,6 +109,8 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
 
                     _muteState.ReplaceAll(muteStates);
 
+                    await ResolveDmChannelNamesAsync(serverUrl, token, ct);
+
                     HasCompletedInitialLoad = true;
                     RecalculateTotalUnread();
                     return;
@@ -255,7 +257,9 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
             DmSearchQuery = string.Empty;
             DmSearchResults.Clear();
 
-            DmCreated?.Invoke(this, (channel.Id, channel.Name));
+            // Use the target user's display name as the channel name
+            var displayName = user.DisplayName ?? user.UserId.ToString()[..8];
+            DmCreated?.Invoke(this, (channel.Id, displayName));
         }
         catch (Exception ex)
         {
@@ -317,6 +321,59 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
         WeakReferenceMessenger.Default.Send(new TotalUnreadCountChangedMessage(total));
     }
 
+    /// <summary>Resolves DM channel names to show the other participant's display name.</summary>
+    private async Task ResolveDmChannelNamesAsync(string serverUrl, string token, CancellationToken ct)
+    {
+        var dmChannels = Channels.Where(c => c.ChannelType == "DirectMessage").ToList();
+        if (dmChannels.Count == 0)
+            return;
+
+        try
+        {
+            // Get current user ID from the access token
+            var currentUserId = AccessTokenUserIdExtractor.ExtractUserId(token);
+            if (currentUserId == Guid.Empty)
+                return;
+
+            // Parse DM channel names (format: DM-{userId1}-{userId2}) to find other user IDs
+            var otherUserIds = new List<Guid>();
+            var channelToOtherUser = new Dictionary<Guid, Guid>(); // channelId → otherUserId
+
+            foreach (var dm in dmChannels)
+            {
+                var parts = dm.Name.Split('-');
+                if (parts.Length >= 3
+                    && Guid.TryParse(parts[1], out var guid1)
+                    && Guid.TryParse(parts[2], out var guid2))
+                {
+                    var other = guid1 == currentUserId ? guid2 : guid1;
+                    channelToOtherUser[dm.ChannelId] = other;
+                    otherUserIds.Add(other);
+                }
+            }
+
+            if (otherUserIds.Count == 0)
+                return;
+
+            // Resolve display names from server
+            var names = await _chatApi.ResolveDisplayNamesAsync(serverUrl, token, otherUserIds.Distinct().ToList(), ct);
+
+            // Update channel names
+            foreach (var dm in dmChannels)
+            {
+                if (channelToOtherUser.TryGetValue(dm.ChannelId, out var otherUserId)
+                    && names.TryGetValue(otherUserId, out var displayName))
+                {
+                    dm.Name = displayName;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to resolve DM channel display names.");
+        }
+    }
+
     private void OnNewMessage(object? sender, ChatMessageReceivedEventArgs e) { /* handled via unread update */ }
 
     private async Task<(string serverUrl, string token)> GetActiveCredentialsAsync(CancellationToken ct)
@@ -367,7 +424,7 @@ public sealed partial class ChannelItemViewModel : ObservableObject
     public Guid ChannelId { get; }
 
     /// <summary>Display name of the channel.</summary>
-    public string Name { get; }
+    public string Name { get; set; }
 
     /// <summary>Channel type: Public, Private, DirectMessage, or Group.</summary>
     public string? ChannelType { get; }

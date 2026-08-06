@@ -679,3 +679,12 @@ public sealed record ReplyToDmDto
     /// <summary>The reply message content.</summary>
     public required string Message { get; init; }
 }
+
+/// <summary>
+/// Request DTO for batch-resolving user display names.
+/// </summary>
+public sealed record ResolveNamesRequestDto
+{
+    /// <summary>User IDs to resolve display names for.</summary>
+    public required IReadOnlyList<Guid> UserIds { get; init; }
+}

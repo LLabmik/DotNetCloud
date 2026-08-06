@@ -361,6 +361,32 @@ internal sealed class HttpChatRestClient : IChatRestClient
     }
 
     /// <inheritdoc />
+    public async Task<IReadOnlyDictionary<Guid, string>> ResolveDisplayNamesAsync(
+        string serverBaseUrl, string accessToken,
+        IReadOnlyList<Guid> userIds,
+        CancellationToken ct = default)
+    {
+        if (userIds.Count == 0)
+            return new Dictionary<Guid, string>();
+
+        SetAuth(accessToken);
+        var url = $"{serverBaseUrl.TrimEnd('/')}/api/v1/chat/users/resolve-names";
+        using var response = await _http.PostAsJsonAsync(url, new { userIds }, ct).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        var envelope = await response.Content.ReadFromJsonAsync<Envelope<Dictionary<string, string>>>(JsonOpts, ct).ConfigureAwait(false);
+        if (envelope?.Data is null)
+            return new Dictionary<Guid, string>();
+
+        var result = new Dictionary<Guid, string>();
+        foreach (var kvp in envelope.Data)
+        {
+            if (Guid.TryParse(kvp.Key, out var id))
+                result[id] = kvp.Value;
+        }
+        return result;
+    }
+
+    /// <inheritdoc />
     public async Task<ChatMessage> SendFileMessageAsync(
         string serverBaseUrl, string accessToken,
         Guid channelId, Guid fileId, string fileName,

@@ -200,6 +200,26 @@ public class ChatController : ChatControllerBase
         });
     }
 
+    /// <summary>Resolves display names for a batch of user IDs.</summary>
+    [HttpPost("users/resolve-names")]
+    public async Task<IActionResult> ResolveDisplayNamesAsync([FromBody] ResolveNamesRequestDto dto)
+    {
+        if (dto.UserIds is null || dto.UserIds.Count == 0)
+            return BadRequest(ErrorEnvelope("VALIDATION_ERROR", "At least one user ID is required."));
+
+        try
+        {
+            var names = await _userDirectory.GetDisplayNamesAsync(dto.UserIds);
+            var result = dto.UserIds.ToDictionary(id => id.ToString(), id => names.GetValueOrDefault(id, id.ToString()[..8]));
+            return Ok(Envelope(result));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error resolving display names for {Count} users", dto.UserIds.Count);
+            return StatusCode(500, ErrorEnvelope("INTERNAL_ERROR", "Failed to resolve display names."));
+        }
+    }
+
     /// <summary>Accepts a DM channel invitation: sends an optional first message and marks the membership as accepted.</summary>
     [HttpPost("channels/dm/{channelId:guid}/accept")]
     public async Task<IActionResult> AcceptDmAsync(Guid channelId, [FromBody] AcceptDmDto? dto)
