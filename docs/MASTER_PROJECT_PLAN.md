@@ -2373,6 +2373,31 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 **Notes:** Soft enforcement by default (backward compatible). Strict mode must be explicitly enabled. KanbanBoard provides client-side preview before server call to avoid unnecessary network round-trips. Server-side enforcement is the authoritative check.
 
+#### Step: tracks-prof-h4 - Epic/Feature Swimlane Auto-Creation Fix
+
+**Status:** completed ✅
+**Duration:** ~1 hour
+**Deliverables:**
+
+- ✓ `SwimlaneService.EnsureWorkItemSwimlanesExistAsync()` — private method, idempotent, fast-path AnyAsync check
+- ✓ Lazy creation on fetch: replicates product swimlanes (or 3 defaults) when fetching WorkItem swimlanes and none exist
+- ✓ `GetSwimlanesAsync` calls `EnsureWorkItemSwimlanesExistAsync` for WorkItem containers before querying
+- ✓ Retroactively fixes all existing epics/features created before the replication feature was added
+- ✓ Only acts on Epic/Feature work items (Items/SubItems don't get their own swimlane boards)
+
+**Notes:** Bug fix — epic swimlanes were not always created. The creation-time replication in `WorkItemService.CreateWorkItemAsync` works correctly (both REST and gRPC paths), but there was no safety net for epics created before the feature existed, or if replication silently failed. Now, the first time anyone fetches an epic's swimlanes, they're auto-created. The gRPC handlers (`CreateEpic`/`CreateFeature`/`CreateItem`/`CreateSubItem`) already correctly resolve `productId` from the swimlane — no gRPC changes were needed.
+
+#### Step: tracks-prof-h5 - Side-Panel Kanban Spinner Fix
+
+**Status:** completed ✅
+**Duration:** ~30 min
+**Deliverables:**
+
+- ✓ `OpenEpicKanban` and `OpenFeatureKanban` now call `StateHasChanged()` after setting `_isLoading = true`
+- ✓ `TracksPage.razor` OnOpenKanban handler changed to `async epicOrFeatureId => await OpenEpicKanban(epicOrFeatureId)`
+
+**Notes:** UI bug — clicking "Open Kanban" from the side-view `WorkItemDetailPanel` showed a spinner forever. Root cause: `InvokeAsync` was not awaited, so `EventCallback` called `StateHasChanged()` before `_isLoading` was set. The async work ran but no render was triggered, making the UI appear stuck. Fix: (1) properly await the async handler, (2) call `StateHasChanged()` after `_isLoading = true` so the spinner renders before async work begins.
+
 ---
 
 ## Phase 5: Photos Module (Sub-Phase B)

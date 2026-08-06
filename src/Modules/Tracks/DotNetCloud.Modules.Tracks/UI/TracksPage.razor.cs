@@ -307,6 +307,7 @@ public partial class TracksPage : ComponentBase, IDisposable
         _isLoading = true;
         _selectedFeature = null;
         _selectedWorkItem = null;
+        StateHasChanged();
 
         try
         {
@@ -331,6 +332,7 @@ public partial class TracksPage : ComponentBase, IDisposable
     {
         _isLoading = true;
         _selectedWorkItem = null;
+        StateHasChanged();
 
         try
         {

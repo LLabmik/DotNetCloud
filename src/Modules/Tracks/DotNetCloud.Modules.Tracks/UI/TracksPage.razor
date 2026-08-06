@@ -278,11 +278,11 @@
                                                  OnClose="CloseWorkItemDetail"
                                                  OnWorkItemUpdated="HandleWorkItemUpdated"
                                                  OnWorkItemDeleted="HandleWorkItemDeleted"
-                                                 OnOpenKanban="epicOrFeatureId => {
+                                                 OnOpenKanban="async epicOrFeatureId => {
                                                      if (_selectedWorkItem?.Type == WorkItemType.Epic)
-                                                         InvokeAsync(() => OpenEpicKanban(epicOrFeatureId));
+                                                         await OpenEpicKanban(epicOrFeatureId);
                                                      else
-                                                         InvokeAsync(() => OpenFeatureKanban(epicOrFeatureId));
+                                                         await OpenFeatureKanban(epicOrFeatureId);
                                                  }" />
                         }
                     }

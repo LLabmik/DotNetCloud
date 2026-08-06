@@ -43,6 +43,14 @@ public sealed class SwimlaneService
     public async Task<List<SwimlaneDto>> GetSwimlanesAsync(
         SwimlaneContainerType containerType, Guid containerId, CancellationToken ct)
     {
+        // Ensure swimlanes exist for WorkItem containers (epics/features).
+        // This lazily creates them if they were never created at epic-creation time
+        // (e.g., epics created before replication was added, or failed gRPC calls).
+        if (containerType == SwimlaneContainerType.WorkItem)
+        {
+            await EnsureWorkItemSwimlanesExistAsync(containerId, ct);
+        }
+
         var swimlanes = await _db.Swimlanes
             .Where(s => s.ContainerType == containerType
                      && s.ContainerId == containerId
@@ -126,6 +134,69 @@ public sealed class SwimlaneService
             .ToList();
 
         return ordered.Select(s => MapToDto(s, s.WorkItems.Count(wi => !wi.IsArchived))).ToList();
+    }
+
+    /// <summary>
+    /// Ensures a WorkItem (epic/feature) has swimlanes. If none exist, replicates
+    /// them from the parent product's swimlanes. Falls back to 3 defaults if the
+    /// product also has no swimlanes. Idempotent — does nothing if swimlanes exist.
+    /// </summary>
+    private async Task EnsureWorkItemSwimlanesExistAsync(Guid workItemId, CancellationToken ct)
+    {
+        // Fast path: swimlanes already exist for this work item
+        var anyExist = await _db.Swimlanes
+            .AnyAsync(s => s.ContainerType == SwimlaneContainerType.WorkItem
+                        && s.ContainerId == workItemId
+                        && !s.IsArchived, ct);
+        if (anyExist)
+            return;
+
+        // Look up the work item to get its ProductId
+        var workItem = await _db.WorkItems
+            .AsNoTracking()
+            .FirstOrDefaultAsync(wi => wi.Id == workItemId && !wi.IsDeleted, ct);
+
+        if (workItem is null)
+            return; // Work item not found — nothing to do
+
+        // Only epics and features get their own swimlane boards
+        if (workItem.Type is not WorkItemType.Epic and not WorkItemType.Feature)
+            return;
+
+        // Replicate product-level swimlanes (same logic as WorkItemService.CreateWorkItemAsync)
+        var productSwimlanes = await _db.Swimlanes
+            .Where(s => s.ContainerType == SwimlaneContainerType.Product
+                     && s.ContainerId == workItem.ProductId
+                     && !s.IsArchived)
+            .OrderBy(s => s.Position)
+            .ToListAsync(ct);
+
+        if (productSwimlanes.Count > 0)
+        {
+            var childSwimlanes = productSwimlanes.Select(s => new Swimlane
+            {
+                ContainerType = SwimlaneContainerType.WorkItem,
+                ContainerId = workItemId,
+                Title = s.Title,
+                Color = s.Color,
+                Position = s.Position,
+                CardLimit = s.CardLimit,
+                IsDone = s.IsDone
+            }).ToList();
+
+            _db.Swimlanes.AddRange(childSwimlanes);
+        }
+        else
+        {
+            // Fallback: create 3 default swimlanes
+            _db.Swimlanes.AddRange(
+                new Swimlane { ContainerType = SwimlaneContainerType.WorkItem, ContainerId = workItemId, Title = "To Do", Position = 1000 },
+                new Swimlane { ContainerType = SwimlaneContainerType.WorkItem, ContainerId = workItemId, Title = "In Progress", Position = 2000 },
+                new Swimlane { ContainerType = SwimlaneContainerType.WorkItem, ContainerId = workItemId, Title = "Done", Position = 3000, IsDone = true }
+            );
+        }
+
+        await _db.SaveChangesAsync(ct);
     }
 
     /// <summary>

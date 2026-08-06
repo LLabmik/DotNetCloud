@@ -5638,6 +5638,19 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `ProductSettingsPage.razor.cs` — `SettingsSwimlane.CardLimit`, `_enforceWipStrictly` state
 - ✓ WIP toast CSS + transition matrix CSS styles
 
+### H-4: Epic/Feature Swimlane Auto-Creation Fix
+
+- ✓ `SwimlaneService.EnsureWorkItemSwimlanesExistAsync()` — lazy creation on first fetch
+- ✓ `GetSwimlanesAsync` calls `EnsureWorkItemSwimlanesExistAsync` for WorkItem containers
+- ✓ Replicates product-level swimlanes to epic/feature on first fetch (idempotent, fast-path skip)
+- ✓ Falls back to 3 defaults (To Do, In Progress, Done) if product has no swimlanes
+- ✓ Retroactively fixes all existing epics/features created before replication was added
+
+### H-5: Side-Panel Kanban Spinner Fix
+
+- ✓ `OpenEpicKanban` / `OpenFeatureKanban` call `StateHasChanged()` after setting `_isLoading = true`
+- ✓ `OnOpenKanban` razor handler changed from `InvokeAsync(() => ...)` to `await OpenEpicKanban(...)`
+
 ## Required Modules & Schema Separation
 
 > **Reference:** `docs/REQUIRED_MODULES_AND_SCHEMA_SEPARATION_PLAN.md`
