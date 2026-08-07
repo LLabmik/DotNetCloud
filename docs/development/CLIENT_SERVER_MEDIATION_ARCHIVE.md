@@ -1,3 +1,19 @@
+## Archived: DM Name Resolution — Server Deploy with Diagnostics (2026-08-07)
+
+**Target:** `cloud.kimball.home`  
+**Branch:** `fix/chat-dm-notification`  
+**Commit:** `260c17fd`
+
+**Result:** Deployed to production. `ChannelService.ResolveDmChannelNamesAsync` now has detailed diagnostic logging:
+- `found {Count} DM channels` — confirms method runs
+- `found {Count} other user IDs to resolve` — parsing worked
+- `resolved {Count} names` — `IUserDirectory` worked
+- `IUserDirectory not available` — DI issue, fallback to 8-char prefix
+
+Service healthy, all modules passing health checks. Diagnostic logs fire when user hits channel list API (not at startup). No Android code changes — server-side only.
+
+---
+
 ## Archived: DM Name Resolution — Server-Side Fix (2026-08-06)
 
 **Target:** `cloud.kimball.home`  

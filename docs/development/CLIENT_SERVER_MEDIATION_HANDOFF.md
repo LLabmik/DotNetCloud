@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-08-06 (DM channel notification system — ready for server deploy)
+Last updated: 2026-08-07 (Server DM name resolution deployed — verify Android)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -18,21 +18,24 @@ Archived context:
 - All actionable items, blockers, and technical details go directly in this document.
 - **Current active branch:** `fix/chat-dm-notification`
 
-## Active Handoff — Server: Deploy DM name resolution with diagnostics
+## Active Handoff — Monolith: Verify Android DM display names after server-side resolution
 
-**Summary:** DM channel names resolved server-side with logging. If `IUserDirectory` is available, resolves display names; otherwise falls back to 8-char user ID prefix. Deploy and check server logs for `ResolveDmChannelNames` to diagnose.
+**Summary:** Server now resolves DM channel names to display names in `ChannelService.ListChannelsAsync` (deployed to cloud, commit `260c17fd`). No Android code changes needed — the API response now returns display names instead of `DM-{guid}-{guid}`. Verify Android client shows correct DM names.
 
-**Deploy:** `git pull && sudo ./scripts/deploy.sh`
+**Steps:**
+1. `git pull` on `fix/chat-dm-notification` branch
+2. Build and deploy Android app to emulator/device
+3. Open Chat → verify DM channels show display names (not `DM-{guid}-{guid}`)
+4. Send a DM → verify push notification arrives with correct display name
+5. Verify the 3 inline notification actions (reply, mark read, dismiss) still work
 
-**Check logs after deploy:**
+**Expected:** All DM channels show the other user's display name. If `IUserDirectory` isn't resolving, fallback shows 8-char user ID prefix.
+
+**Server log check (optional):**
 ```bash
-sudo journalctl -u dotnetcloud -f | grep ResolveDmChannelNames
+# On cloud: confirm resolution is working
+sudo journalctl -u dotnetcloud --no-pager | grep ResolveDmChannelNames
 ```
-Look for:
-- `found {Count} DM channels` — confirms the method runs
-- `found {Count} other user IDs to resolve` — parsing worked
-- `resolved {Count} names` — `IUserDirectory` worked
-- `IUserDirectory not available` — DI issue, fallback used
 
 ## Moderator Communication (Minimal)
 
