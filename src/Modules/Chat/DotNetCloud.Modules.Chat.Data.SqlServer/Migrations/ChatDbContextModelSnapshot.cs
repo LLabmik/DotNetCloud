@@ -18,7 +18,7 @@ namespace DotNetCloud.Modules.Chat.Data.SqlServer.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasDefaultSchema("core")
-                .HasAnnotation("ProductVersion", "10.0.3")
+                .HasAnnotation("ProductVersion", "10.0.10")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -319,6 +319,9 @@ namespace DotNetCloud.Modules.Chat.Data.SqlServer.Migrations
 
                     b.Property<Guid>("ChannelId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsDmAccepted")
+                        .HasColumnType("bit");
 
                     b.Property<bool>("IsMuted")
                         .HasColumnType("bit");

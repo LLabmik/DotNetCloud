@@ -1,3 +1,16 @@
+## Archived: Two Server Issues Resolved — IsDmAccepted Migration + JWE Confirmation (2026-08-07)
+
+**Target:** `cloud.kimball.home`  
+**Branch:** `fix/chat-dm-notification`
+
+**Issue 1 — `IsDmAccepted` column missing:** ✅ Fixed. Created EF Core migration for both providers (SQL Server + PostgreSQL). Migration applied to production DB during deploy. Column `[core].[ChannelMembers].[IsDmAccepted]` (bit, NOT NULL, default false) now exists.
+
+**Issue 2 — JWE access token encryption:** ✅ Confirmed intentional. `AuthServiceExtensions.cs` line 198 documents: "Access tokens are encrypted (JWE) using the shared RSA encryption keys." This is standard OpenIddict configuration with persistent RSA keys loaded from the `oidc-keys` directory. The gRPC introspection service decrypts them server-side. Clients should use `id_token` (signed JWT, not encrypted) or the userinfo endpoint for claim extraction — never attempt to decode the access token.
+
+**Android `id_token` workaround is correct.** Desktop clients (SyncTray, Avalonia) should follow the same pattern if they decode access tokens.
+
+---
+
 ## Archived: DM Name Resolution — Server Deploy with Diagnostics (2026-08-07)
 
 **Target:** `cloud.kimball.home`  

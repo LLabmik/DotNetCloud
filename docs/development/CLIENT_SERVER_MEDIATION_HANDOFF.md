@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-08-07 (Android: DM display names fixed client-side, two server issues found)
+Last updated: 2026-08-07 (Server issues resolved — monolith re-verify DM)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -18,44 +18,30 @@ Archived context:
 - All actionable items, blockers, and technical details go directly in this document.
 - **Current active branch:** `fix/chat-dm-notification`
 
-## Active Handoff — Cloud (`cloud.kimball.home`): Fix two server-side issues found during Android DM verification
+## Active Handoff — Monolith: Re-verify Android DM after server-side fixes
 
-**Summary:** Android DM verification revealed two server-side issues on `cloud.dotnetcloud.net` that block DM functionality. Android client-side DM name resolution is now fixed (commit `d618e2b2`) using the `id_token` instead of the encrypted access token.
+**Summary:** Both server-side issues found during Android DM verification are now resolved on `cloud.dotnetcloud.net`. Re-test Android DM functionality.
 
-### Issue 1: `IsDmAccepted` column missing — 500 on channel members endpoint
+### Issue 1 — `IsDmAccepted` column missing: ✅ FIXED
+- EF Core migration created for both SQL Server and PostgreSQL
+- Applied to production DB during deploy (`ba9bd2d6`)
+- Column `[core].[ChannelMembers].[IsDmAccepted]` (bit, NOT NULL) now exists
+- `GET /api/v1/chat/channels/{id}/members` and messages endpoint should return 200 now
 
-**Symptom:** `GET /api/v1/chat/channels/{id}/members` returns **500 Internal Server Error**.
+### Issue 2 — JWE access token encryption: ✅ CONFIRMED INTENTIONAL
+- `AuthServiceExtensions.cs`: "Access tokens are encrypted (JWE) using the shared RSA encryption keys"
+- This is standard OpenIddict config — NOT a bug
+- The Android `id_token` workaround (commit `d618e2b2`) is the CORRECT approach
+- Other clients (desktop SyncTray, Avalonia) should follow same pattern if they decode access tokens
 
-**Root cause:** SQL error `Invalid column name 'IsDmAccepted'` — a DB migration adding this column has not been applied to the production database.
-
-**Fix:** Apply the pending EF Core migration that adds the `IsDmAccepted` column.
-
-**Impact:** Android cannot load DM channel members, which blocks the members list UI and DM channel detail screens.
-
-### Issue 2: Access token switched to JWE encryption — client-side token parsing broken
-
-**Symptom:** The access token from `/connect/token` is now a 5-part JWE token (header: `{"alg":"RSA-OAEP","enc":"A256CBC-HS512"}`) instead of a 3-part signed JWT. Client-side base64-decode of the payload yields ciphertext, not JSON.
-
-**Impact:** Any code that decodes the access token client-side (extracting `sub`, `email`, `name` claims) fails silently. The Android `LoginViewModel` and `AccessTokenUserIdExtractor` were both affected.
-
-**Android fix applied (commit `d618e2b2`):** The Android client now captures the `id_token` from the OIDC `/connect/token` response (it's a standard signed JWT, not encrypted) and uses it for user ID and claim extraction. Changes:
-- `OAuth2Result` / `TokenResponse`: capture `id_token`
-- `ISecureTokenStore` / `AndroidKeyStoreTokenStore`: store/retrieve `id_token`
-- `LoginViewModel`: extract claims from `id_token` instead of access token
-- `ResolveDmChannelNamesAsync`: use `id_token`'s `sub` claim to identify current user, then resolve OTHER participant's display name
-
-**⚠️ Users must log out and back in** to capture the `id_token` from a fresh login.
-
-**Server-side question:** Was the switch to JWE intentional? If so, the `id_token` workaround is sufficient for Android. Other clients (desktop, web) may also be affected.
-
-### Verification status
-
-| Step | Status |
-|------|--------|
-| DM channels show display names | ✅ Fixed client-side (requires re-login for id_token capture) |
-| Push notification with correct display name | ⏳ Blocked by Issue 1 (500 on members endpoint) |
-| 3 inline notification actions | ⏳ Blocked by Issue 1 |
-| SignalR connection | ✅ Connected successfully after transient 401 |
+### Monolith verification steps:
+1. `git pull` on `fix/chat-dm-notification` branch
+2. Build and deploy Android app to emulator/device
+3. **Verify DM channel list** — should show display names (not `DM-{guid}-{guid}`)
+4. **Verify DM channel members** — should load without 500 error (previously blocked)
+5. **Verify push notifications** — send a DM, check push arrives with correct display name
+6. **Verify 3 inline notification actions** — reply, mark read, dismiss (previously blocked)
+7. **⚠️ Users must log out and back in** to capture the `id_token` from a fresh login
 
 ## Moderator Communication (Minimal)
 
