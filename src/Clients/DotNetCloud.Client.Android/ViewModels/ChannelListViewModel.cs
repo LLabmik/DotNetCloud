@@ -346,9 +346,11 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
             foreach (var dm in dmChannels)
             {
                 var parts = dm.Name.Split('-');
-                if (parts.Length >= 3
-                    && Guid.TryParse(parts[1], out var guid1)
-                    && Guid.TryParse(parts[2], out var guid2))
+                // DM name format: DM-{guid1}-{guid2}
+                // Each GUID has 5 dash-segments, so total = 1 (DM) + 5 + 5 = 11 parts
+                if (parts.Length == 11
+                    && Guid.TryParse(string.Join("-", parts[1..6]), out var guid1)
+                    && Guid.TryParse(string.Join("-", parts[6..11]), out var guid2))
                 {
                     var other = guid1 == currentUserId ? guid2 : guid1;
                     channelToOtherUser[dm.ChannelId] = other;
@@ -357,7 +359,7 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
                 }
                 else
                 {
-                    Log.Warn("DotNetCloud", $"ResolveDmChannelNamesAsync: failed to parse DM name='{dm.Name}'");
+                    Log.Warn("DotNetCloud", $"ResolveDmChannelNamesAsync: failed to parse DM name='{dm.Name}' (parts={parts.Length})");
                 }
             }
 
