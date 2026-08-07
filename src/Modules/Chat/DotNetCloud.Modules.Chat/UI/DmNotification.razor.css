@@ -1,0 +1,195 @@
+/* ============================================================
+   DmNotification — Toast overlay for DM channel creation.
+   Initiator info with four action buttons: Accept, Reply, Ignore, DND.
+   ============================================================ */
+
+/* --- Overlay (top-right toast positioning) --- */
+
+.dm-notification-overlay {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1100;
+  animation: dmSlideInRight 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes dmSlideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(100px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* --- Card --- */
+
+.dm-notification-card {
+  width: 360px;
+  background: var(--color-surface, #ffffff);
+  border-radius: 14px;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.2),
+    0 2px 8px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  border: 1px solid var(--color-border, #e2e8f0);
+}
+
+/* --- Header --- */
+
+.dm-notification-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: var(--color-primary, #3b82f6);
+  color: #ffffff;
+}
+
+.dm-notification-type {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.dm-timer {
+  font-size: 0.75rem;
+  opacity: 0.85;
+  margin-left: auto;
+  margin-right: 8px;
+}
+
+.dm-dismiss-btn {
+  background: none;
+  border: none;
+  color: #ffffff;
+  cursor: pointer;
+  opacity: 0.8;
+  padding: 2px;
+  border-radius: 4px;
+  transition: opacity 0.15s;
+}
+
+.dm-dismiss-btn:hover {
+  opacity: 1;
+}
+
+/* --- Body --- */
+
+.dm-notification-body {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  gap: 12px;
+}
+
+.initiator-avatar {
+  flex-shrink: 0;
+}
+
+.avatar-circle {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--color-primary, #3b82f6);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.avatar-circle-img {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.initiator-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.initiator-name {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-text, #1e293b);
+}
+
+.initiator-action {
+  font-size: 0.8rem;
+  color: var(--color-text-secondary, #64748b);
+}
+
+/* --- Actions --- */
+
+.dm-notification-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  gap: 4px;
+  padding: 8px 12px 12px;
+}
+
+.dm-action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 4px;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 8px;
+  background: var(--color-surface-alt, #f8fafc);
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+  font-size: 0.7rem;
+  color: var(--color-text, #1e293b);
+}
+
+.dm-action-btn:hover {
+  background: var(--color-surface-hover, #f1f5f9);
+}
+
+.dm-action-btn.accept {
+  border-color: #22c55e;
+}
+
+.dm-action-btn.accept:hover {
+  background: #f0fdf4;
+}
+
+.dm-action-btn.reply {
+  border-color: #3b82f6;
+}
+
+.dm-action-btn.reply:hover {
+  background: #eff6ff;
+}
+
+.dm-action-btn.ignore {
+  border-color: #94a3b8;
+}
+
+.dm-action-btn.ignore:hover {
+  background: #f8fafc;
+}
+
+.dm-action-btn.dnd {
+  border-color: #ef4444;
+}
+
+.dm-action-btn.dnd:hover {
+  background: #fef2f2;
+}
+
+.action-label {
+  font-weight: 500;
+  white-space: nowrap;
+}

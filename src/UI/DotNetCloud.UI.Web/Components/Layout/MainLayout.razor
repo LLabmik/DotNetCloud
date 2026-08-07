@@ -47,6 +47,7 @@
                 </button>
                 <AuthorizeView>
                     <Authorized>
+                        <UserDndToggle @rendermode="InteractiveServer" />
                         <div class="user-menu">
                             <a href="profile" class="user-name-link">@context.User.Identity?.Name</a>
                             <LogoutButton @rendermode="InteractiveServer" />

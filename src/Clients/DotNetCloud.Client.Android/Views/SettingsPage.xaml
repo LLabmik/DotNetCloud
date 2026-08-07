@@ -584,6 +584,68 @@
                 </VerticalStackLayout>
             </Border>
 
+            <!-- ═══ Chat Notifications card ═══ -->
+            <Border
+                BackgroundColor="#1E293B"
+                StrokeThickness="0"
+                StrokeShape="RoundRectangle 16"
+                Padding="20,20">
+
+                <VerticalStackLayout Spacing="4">
+                    <Label
+                        FontAttributes="Bold"
+                        FontSize="12"
+                        TextColor="#64748B"
+                        Text="CHAT NOTIFICATIONS"
+                        TextTransform="Uppercase"
+                        Margin="0,0,0,12"/>
+
+                    <!-- Do Not Disturb toggle -->
+                    <Grid ColumnDefinitions="Auto,*,Auto"
+                          Padding="0,6">
+                        <Border
+                            Grid.Column="0"
+                            BackgroundColor="#334155"
+                            HeightRequest="40"
+                            WidthRequest="40"
+                            StrokeThickness="0"
+                            StrokeShape="RoundRectangle 12"
+                            Margin="0,0,12,0">
+                            <Label
+                                FontSize="18"
+                                HorizontalOptions="Center"
+                                VerticalOptions="Center"
+                                Text="🌙"/>
+                        </Border>
+                        <VerticalStackLayout Grid.Column="1"
+                                             VerticalOptions="Center"
+                                             Spacing="1">
+                            <Label FontSize="15"
+                                   TextColor="#F1F5F9"
+                                   Text="Do Not Disturb"/>
+                            <Label FontSize="12"
+                                   TextColor="#64748B"
+                                   Text="Block notifications from new direct messages"/>
+                        </VerticalStackLayout>
+                        <ActivityIndicator
+                            Grid.Column="2"
+                            IsRunning="{Binding IsDndLoading}"
+                            IsVisible="{Binding IsDndLoading}"
+                            Color="#0EA5E9"
+                            HeightRequest="24"
+                            WidthRequest="24"
+                            VerticalOptions="Center"/>
+                        <Switch
+                            Grid.Column="2"
+                            VerticalOptions="Center"
+                            OnColor="#EF4444"
+                            ThumbColor="#F1F5F9"
+                            IsToggled="{Binding IsDoNotDisturb}"
+                            IsVisible="{Binding IsDndLoading, Converter={StaticResource InvertBool}}"/>
+                    </Grid>
+                </VerticalStackLayout>
+            </Border>
+
             <!-- ═══ Updates card ═══ -->
             <Border
                 BackgroundColor="#1E293B"

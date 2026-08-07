@@ -32,6 +32,9 @@ public sealed class ChannelMember
     /// <summary>Whether the user has muted this channel.</summary>
     public bool IsMuted { get; set; }
 
+    /// <summary>Whether the user has accepted a direct message channel invitation. Defaults to <c>true</c> for the creator, <c>false</c> for the target.</summary>
+    public bool IsDmAccepted { get; set; } = true;
+
     /// <summary>Whether the user has pinned this channel in their sidebar.</summary>
     public bool IsPinned { get; set; }
 

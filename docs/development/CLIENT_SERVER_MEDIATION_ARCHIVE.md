@@ -1,3 +1,61 @@
+## Archived: Two Server Issues Resolved — IsDmAccepted Migration + JWE Confirmation (2026-08-07)
+
+**Target:** `cloud.kimball.home`  
+**Branch:** `fix/chat-dm-notification`
+
+**Issue 1 — `IsDmAccepted` column missing:** ✅ Fixed. Created EF Core migration for both providers (SQL Server + PostgreSQL). Migration applied to production DB during deploy. Column `[core].[ChannelMembers].[IsDmAccepted]` (bit, NOT NULL, default false) now exists.
+
+**Issue 2 — JWE access token encryption:** ✅ Confirmed intentional. `AuthServiceExtensions.cs` line 198 documents: "Access tokens are encrypted (JWE) using the shared RSA encryption keys." This is standard OpenIddict configuration with persistent RSA keys loaded from the `oidc-keys` directory. The gRPC introspection service decrypts them server-side. Clients should use `id_token` (signed JWT, not encrypted) or the userinfo endpoint for claim extraction — never attempt to decode the access token.
+
+**Android `id_token` workaround is correct.** Desktop clients (SyncTray, Avalonia) should follow the same pattern if they decode access tokens.
+
+---
+
+## Archived: DM Name Resolution — Server Deploy with Diagnostics (2026-08-07)
+
+**Target:** `cloud.kimball.home`  
+**Branch:** `fix/chat-dm-notification`  
+**Commit:** `260c17fd`
+
+**Result:** Deployed to production. `ChannelService.ResolveDmChannelNamesAsync` now has detailed diagnostic logging:
+- `found {Count} DM channels` — confirms method runs
+- `found {Count} other user IDs to resolve` — parsing worked
+- `resolved {Count} names` — `IUserDirectory` worked
+- `IUserDirectory not available` — DI issue, fallback to 8-char prefix
+
+Service healthy, all modules passing health checks. Diagnostic logs fire when user hits channel list API (not at startup). No Android code changes — server-side only.
+
+---
+
+## Archived: DM Name Resolution — Server-Side Fix (2026-08-06)
+
+**Target:** `cloud.kimball.home`  
+**Branch:** `fix/chat-dm-notification`
+
+**Result:** DM channel names resolved in `ChannelService.ListChannelsAsync`. Parses `DM-{guid}-{guid}` and resolves to display names via `IUserDirectory`, with 8-char fallback. Includes diagnostic logging.
+
+---
+
+## Archived: DM Channel Notification System — Server Deployment (2026-08-06)
+
+**Target:** `cloud.kimball.home` — production deploy  
+**Branch:** `fix/chat-dm-notification`
+
+**Summary:** Full DM channel notification system implemented. When a user creates a DM channel, the target receives a high-priority push notification (Android) + in-app toast (Blazor) with 4 actions: Reply & Join, Reply without Joining, Ignore, Set Do Not Disturb.
+
+**Server-side changes (must deploy):**
+- New `DmChannelCreated` notification category + `DmChannelCreatedEventHandler` — sends push + in-process notification when DM created
+- New API endpoints: `POST /api/v1/chat/dm/{id}/accept`, `/reply`, `/ignore`
+- `ChannelMember.IsDmAccepted` field — tracks DM invitation acceptance
+- `GlobalChatNotificationState` — DM notification state, timer, accept/dismiss
+- `DmNotification.razor` — Blazor toast overlay with 4 action buttons
+- `UserDndToggle.razor` — Quick DND toggle in top bar
+- Android: DM notification channel, push handler, action receiver, REST client methods, DND settings toggle
+
+**Verification:** 1301/1301 Chat tests pass. 576/576 Core.Server tests pass. All projects build.
+
+---
+
 ## Archived: Android Chat Direct Message — User Search Endpoint (2026-08-05)
 
 **Target:** `cloud.kimball.home` — production deploy

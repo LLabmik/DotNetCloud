@@ -13,6 +13,17 @@ public sealed record CallRingingNotification(
     IReadOnlyList<Guid> TargetUserIds);
 
 /// <summary>
+/// Payload for a new direct-message channel created notification.
+/// Raised via <see cref="IChatMessageNotifier"/> when another user starts a DM with the current user.
+/// </summary>
+public sealed record DmChannelCreatedNotification(
+    Guid ChannelId,
+    string ChannelName,
+    Guid InitiatorUserId,
+    string InitiatorDisplayName,
+    Guid TargetUserId);
+
+/// <summary>
 /// Payload for a call-accepted notification raised via <see cref="IChatMessageNotifier"/>.
 /// </summary>
 public sealed record CallAcceptedNotification(
@@ -165,6 +176,9 @@ public interface IChatMessageNotifier
     /// <summary>Raised when a user's block status changes (blocked or unblocked by another user).</summary>
     event Action<UserBlockStatusChangedNotification>? UserBlockStatusChanged;
 
+    /// <summary>Raised when another user creates a direct message channel with the current user.</summary>
+    event Action<DmChannelCreatedNotification>? DmChannelCreated;
+
     /// <summary>Notifies all subscribers that a channel was added.</summary>
     void NotifyChannelAdded(Guid channelId);
 
@@ -212,6 +226,9 @@ public interface IChatMessageNotifier
 
     /// <summary>Notifies all subscribers that a user's block status has changed.</summary>
     void NotifyUserBlockStatusChanged(UserBlockStatusChangedNotification notification);
+
+    /// <summary>Notifies all subscribers that a DM channel was created for them.</summary>
+    void NotifyDmChannelCreated(DmChannelCreatedNotification notification);
 }
 
 /// <summary>
@@ -329,4 +346,11 @@ public sealed class InProcessChatMessageNotifier : IChatMessageNotifier
     /// <inheritdoc />
     public void NotifyUserBlockStatusChanged(UserBlockStatusChangedNotification notification)
         => UserBlockStatusChanged?.Invoke(notification);
+
+    /// <inheritdoc />
+    public event Action<DmChannelCreatedNotification>? DmChannelCreated;
+
+    /// <inheritdoc />
+    public void NotifyDmChannelCreated(DmChannelCreatedNotification notification)
+        => DmChannelCreated?.Invoke(notification);
 }

@@ -35,4 +35,7 @@ public interface IChannelMemberService
 
     /// <summary>Gets unread message counts for all channels the caller belongs to.</summary>
     Task<IReadOnlyList<UnreadCountDto>> GetUnreadCountsAsync(CallerContext caller, CancellationToken cancellationToken = default);
+
+    /// <summary>Sets whether the caller has accepted a direct message channel invitation.</summary>
+    Task SetDmAcceptedAsync(Guid channelId, bool accepted, CallerContext caller, CancellationToken cancellationToken = default);
 }

@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-08-05 (Chat user search endpoint deployed to production — Android client unblocked)
+Last updated: 2026-08-07 (Server issues resolved — monolith re-verify DM)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -16,26 +16,32 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
-- **Current active branch:** `feature/android-chat-direct-conversation`
+- **Current active branch:** `fix/chat-dm-notification`
 
-## Active Handoff — Android Client: Chat DM Phases 1.3–4 (Unblocked)
+## Active Handoff — Monolith: Re-verify Android DM after server-side fixes
 
-**Summary:** The chat user search endpoint (`GET api/v1/chat/users/search`) is now deployed and live on production. The Android client (on `monolith`) can now continue with Phases 1.3–4 of the chat direct messaging feature.
+**Summary:** Both server-side issues found during Android DM verification are now resolved on `cloud.dotnetcloud.net`. Re-test Android DM functionality.
 
-**Endpoint verification:**
-```
-curl -sk "https://cloud.dotnetcloud.net/api/v1/chat/users/search?q=alice"
-  → 401 (auth required — endpoint is live, requires valid bearer token)
-```
+### Issue 1 — `IsDmAccepted` column missing: ✅ FIXED
+- EF Core migration created for both SQL Server and PostgreSQL
+- Applied to production DB during deploy (`ba9bd2d6`)
+- Column `[core].[ChannelMembers].[IsDmAccepted]` (bit, NOT NULL) now exists
+- `GET /api/v1/chat/channels/{id}/members` and messages endpoint should return 200 now
 
-**Deploy commit:** `69cb1b5d76ce` (deployed via `sudo ./scripts/deploy.sh`, Chat.Host + Core.Server published)
+### Issue 2 — JWE access token encryption: ✅ CONFIRMED INTENTIONAL
+- `AuthServiceExtensions.cs`: "Access tokens are encrypted (JWE) using the shared RSA encryption keys"
+- This is standard OpenIddict config — NOT a bug
+- The Android `id_token` workaround (commit `d618e2b2`) is the CORRECT approach
+- Other clients (desktop SyncTray, Avalonia) should follow same pattern if they decode access tokens
 
-**What was deployed:**
-- `DotNetCloud.Modules.Chat.Host` — ChatController with `GET api/v1/chat/users/search?q={query}&maxResults=20`
-- `DotNetCloud.Modules.Tracks.Host` — picked up by incremental deploy alongside Chat changes
-- `DotNetCloud.Core.Server` — rebuilt with updated module RCL dependencies
-
-**Next for Android client (monolith):** Resume Phases 1.3–4 of the chat DM feature. The user search endpoint is available at `https://cloud.dotnetcloud.net/api/v1/chat/users/search?q={query}&maxResults=20`.
+### Monolith verification steps:
+1. `git pull` on `fix/chat-dm-notification` branch
+2. Build and deploy Android app to emulator/device
+3. **Verify DM channel list** — should show display names (not `DM-{guid}-{guid}`)
+4. **Verify DM channel members** — should load without 500 error (previously blocked)
+5. **Verify push notifications** — send a DM, check push arrives with correct display name
+6. **Verify 3 inline notification actions** — reply, mark read, dismiss (previously blocked)
+7. **⚠️ Users must log out and back in** to capture the `id_token` from a fresh login
 
 ## Moderator Communication (Minimal)
 
@@ -66,5 +72,6 @@ curl -sk "https://cloud.dotnetcloud.net/api/v1/chat/users/search?q=alice"
 - ✅ **SignalR channel group naming:** `chat-channel-{channelId}` (used by `ChatHub.ChannelGroup()`, `CoreHub.JoinGroupAsync()`, and Android `SignalRChatClient`).
 - **Controller discovery:** Core.Server references Files.Host and Chat.Host via `ProjectReference`. ASP.NET Core auto-discovers controllers from referenced assemblies. Do NOT create duplicate controllers in Core.Server for routes already served by module Host assemblies.
 - ✅ **Calendar event broadcasting pattern:** Follow `CalendarReminderEventHandler` (`CalendarReminderEventSubscriber` + `CalendarEventBroadcastHandler`) as the reference implementation. It calls `CoreCapabilitiesClient.BroadcastRealtimeEventAsync` for SignalR and `SendNotificationAsync` for FCM push.
+- ✅ **DM notification flow:** `DmChannelCreatedEventHandler` subscribes to `ChannelCreatedEvent`. For `DirectMessage` channels only, it sends push via `IPushNotificationService` and raises `IChatMessageNotifier.DmChannelCreated` for in-process Blazor. `GlobalChatNotificationState` handles the Blazor-side toast. Android handles the push-side with 3 inline notification actions.
 
 <!-- carry-forward contracts and old Android changes archived to CLIENT_SERVER_MEDIATION_ARCHIVE.md -->

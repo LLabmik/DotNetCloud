@@ -4,6 +4,7 @@ using Android.Content;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DotNetCloud.Client.Android.Auth;
+using DotNetCloud.Client.Android.Chat;
 using DotNetCloud.Client.Android.Services;
 using DotNetCloud.Core.DTOs;
 using Microsoft.Extensions.Logging;
@@ -30,6 +31,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly INotificationPermissionService _notificationPermission;
     private readonly IAppPreferences _preferences;
     private readonly IAndroidUpdateService _updateService;
+    private readonly IChatRestClient? _chatApi;
     private readonly ILogger<SettingsViewModel> _logger;
 
     /// <summary>Raised when the user logs out and the app should return to login.</summary>
@@ -45,7 +47,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         INotificationPermissionService notificationPermission,
         IAppPreferences preferences,
         IAndroidUpdateService updateService,
-        ILogger<SettingsViewModel> logger)
+        ILogger<SettingsViewModel> logger,
+        IChatRestClient? chatApi = null)
     {
         _serverStore = serverStore;
         _tokenStore = tokenStore;
@@ -55,6 +58,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _notificationPermission = notificationPermission;
         _preferences = preferences;
         _updateService = updateService;
+        _chatApi = chatApi;
         _logger = logger;
 
         var active = serverStore.GetActive();
@@ -132,6 +136,16 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>Whether notification permission is denied (Android 13+) — blocks all notifications.</summary>
     [ObservableProperty]
     private bool _isNotificationDenied = true;
+
+    // ── Chat notification preferences ───────────────────────────────
+
+    /// <summary>Whether Do Not Disturb is enabled for chat notifications.</summary>
+    [ObservableProperty]
+    private bool _isDoNotDisturb;
+
+    /// <summary>Whether DND preference is still loading from server.</summary>
+    [ObservableProperty]
+    private bool _isDndLoading;
 
     [ObservableProperty]
     private string _batteryStatusText = "Checking…";
@@ -220,6 +234,69 @@ public sealed partial class SettingsViewModel : ObservableObject
             BatteryThreshold = clamped;
         _preferences.Set(PrefBatteryThreshold, clamped);
         _logger.LogInformation("Battery upload threshold set to {Value}%.", clamped);
+    }
+
+    // ── DND toggle ──────────────────────────────────────────────────
+
+    partial void OnIsDoNotDisturbChanged(bool value)
+    {
+        _ = UpdateDndOnServerAsync(value);
+    }
+
+    private async Task UpdateDndOnServerAsync(bool enabled)
+    {
+        if (_chatApi is null)
+            return;
+
+        try
+        {
+            var connection = _serverStore.GetActive();
+            if (connection is null)
+                return;
+
+            var token = await _tokenStore.GetAccessTokenAsync(connection.ServerBaseUrl);
+            if (token is null)
+                return;
+
+            await _chatApi.SetDoNotDisturbAsync(connection.ServerBaseUrl, token, enabled);
+            _logger.LogInformation("DND set to {Enabled} on server.", enabled);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to update DND on server. Reverting toggle.");
+            // Revert the toggle on failure
+            MainThread.BeginInvokeOnMainThread(() => IsDoNotDisturb = !enabled);
+        }
+    }
+
+    private async Task LoadDndFromServerAsync()
+    {
+        if (_chatApi is null)
+            return;
+
+        IsDndLoading = true;
+        try
+        {
+            var connection = _serverStore.GetActive();
+            if (connection is null)
+                return;
+
+            var token = await _tokenStore.GetAccessTokenAsync(connection.ServerBaseUrl);
+            if (token is null)
+                return;
+
+            var prefs = await _chatApi.GetNotificationPreferencesAsync(connection.ServerBaseUrl, token);
+            IsDoNotDisturb = prefs.DoNotDisturb;
+            _logger.LogInformation("DND preference loaded from server: {Dnd}", prefs.DoNotDisturb);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to load DND preference from server.");
+        }
+        finally
+        {
+            IsDndLoading = false;
+        }
     }
 
     // ── Commands ─────────────────────────────────────────────────────
@@ -395,6 +472,9 @@ public sealed partial class SettingsViewModel : ObservableObject
 
         // Also refresh notification permission (Android 13+)
         IsNotificationDenied = !_notificationPermission.HasNotificationPermission();
+
+        // Also refresh DND from server
+        _ = LoadDndFromServerAsync();
     }
 
     // ── Update notification ──────────────────────────────────────────

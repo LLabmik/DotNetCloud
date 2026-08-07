@@ -98,6 +98,43 @@ public interface IChatRestClient
         Guid channelId,
         CancellationToken ct = default);
 
+    // ── DM Notification Actions ────────────────────────────────────────
+
+    /// <summary>Accepts a DM channel invitation, optionally sending a first message.</summary>
+    Task AcceptDmAsync(
+        string serverBaseUrl, string accessToken,
+        Guid channelId, string? message,
+        CancellationToken ct = default);
+
+    /// <summary>Replies to a DM without accepting the invitation.</summary>
+    Task<ChatMessage> ReplyToDmAsync(
+        string serverBaseUrl, string accessToken,
+        Guid channelId, string message,
+        CancellationToken ct = default);
+
+    /// <summary>Ignores a DM channel notification.</summary>
+    Task IgnoreDmAsync(
+        string serverBaseUrl, string accessToken,
+        Guid channelId,
+        CancellationToken ct = default);
+
+    /// <summary>Enables or disables Do Not Disturb mode for chat notifications.</summary>
+    Task SetDoNotDisturbAsync(
+        string serverBaseUrl, string accessToken,
+        bool enabled,
+        CancellationToken ct = default);
+
+    /// <summary>Gets current notification preferences from the server.</summary>
+    Task<NotificationPreferences> GetNotificationPreferencesAsync(
+        string serverBaseUrl, string accessToken,
+        CancellationToken ct = default);
+
+    /// <summary>Resolves display names for a batch of user IDs.</summary>
+    Task<IReadOnlyDictionary<Guid, string>> ResolveDisplayNamesAsync(
+        string serverBaseUrl, string accessToken,
+        IReadOnlyList<Guid> userIds,
+        CancellationToken ct = default);
+
     // ── Image Upload ─────────────────────────────────────────────────
 
     /// <summary>
@@ -229,3 +266,12 @@ public sealed record UserSearchResult(
     string DisplayName,
     string Email,
     string? AvatarUrl);
+
+/// <summary>Notification preferences returned by the server.</summary>
+/// <param name="PushEnabled">Whether push notifications are globally enabled.</param>
+/// <param name="DoNotDisturb">Whether Do Not Disturb mode is active.</param>
+/// <param name="MutedChannelIds">Channel IDs muted for push notifications.</param>
+public sealed record NotificationPreferences(
+    bool PushEnabled,
+    bool DoNotDisturb,
+    IReadOnlyList<Guid> MutedChannelIds);

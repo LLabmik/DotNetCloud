@@ -97,7 +97,8 @@ internal sealed class MauiOAuth2Service : IOAuth2Service
         return new OAuth2Result(
             json.AccessToken,
             json.RefreshToken,
-            DateTimeOffset.UtcNow.AddSeconds(json.ExpiresIn - 30));
+            DateTimeOffset.UtcNow.AddSeconds(json.ExpiresIn - 30),
+            json.IdToken);
     }
 
     private static string ExtractCode(string callbackUrl, string expectedState)
@@ -151,5 +152,8 @@ internal sealed class MauiOAuth2Service : IOAuth2Service
 
         [JsonPropertyName("expires_in")]
         public int ExpiresIn { get; init; }
+
+        [JsonPropertyName("id_token")]
+        public string? IdToken { get; init; }
     }
 }

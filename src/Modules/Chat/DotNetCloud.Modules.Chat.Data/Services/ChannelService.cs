@@ -6,6 +6,7 @@ using DotNetCloud.Modules.Chat.Models;
 using DotNetCloud.Modules.Chat.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using IUserDirectory = DotNetCloud.Core.Capabilities.IUserDirectory;
 
 using ValidationException = DotNetCloud.Core.Errors.ValidationException;
 
@@ -21,17 +22,20 @@ internal sealed class ChannelService : IChannelService
     private readonly ChatDbContext _db;
     private readonly IEventBus _eventBus;
     private readonly IChatRealtimeService? _realtimeService;
+    private readonly IUserDirectory? _userDirectory;
     private readonly ILogger<ChannelService> _logger;
 
     public ChannelService(
         ChatDbContext db,
         IEventBus eventBus,
         ILogger<ChannelService> logger,
-        IChatRealtimeService? realtimeService = null)
+        IChatRealtimeService? realtimeService = null,
+        IUserDirectory? userDirectory = null)
     {
         _db = db;
         _eventBus = eventBus;
         _realtimeService = realtimeService;
+        _userDirectory = userDirectory;
         _logger = logger;
     }
 
@@ -169,9 +173,75 @@ internal sealed class ChannelService : IChannelService
             .OrderByDescending(c => c.LastActivityAt ?? c.CreatedAt)
             .ToListAsync(cancellationToken);
 
-        return channels
+        var result = channels
             .Select(c => ToChannelDto(c, memberCounts.GetValueOrDefault(c.Id, 0), muteStates.GetValueOrDefault(c.Id)))
             .ToList();
+
+        // Resolve DM channel names to the other participant's display name
+        await ResolveDmChannelNamesAsync(result, caller.UserId, cancellationToken);
+
+        return result;
+    }
+
+    private async Task ResolveDmChannelNamesAsync(List<ChannelDto> channels, Guid currentUserId, CancellationToken cancellationToken)
+    {
+        var dmChannels = channels.Where(c => c.Type == "DirectMessage").ToList();
+        _logger.LogInformation("ResolveDmChannelNames: found {Count} DM channels for user {UserId}", dmChannels.Count, currentUserId);
+        if (dmChannels.Count == 0)
+            return;
+
+        // Parse DM-{guid1}-{guid2} names to find the other user
+        var otherUserIds = new HashSet<Guid>();
+        var channelToOtherUser = new Dictionary<Guid, Guid>();
+
+        foreach (var dm in dmChannels)
+        {
+            var parts = dm.Name.Split('-');
+            _logger.LogDebug("ResolveDmChannelNames: parsing name '{Name}', parts={Parts}", dm.Name, parts.Length);
+            if (parts.Length >= 3
+                && Guid.TryParse(parts[1], out var guid1)
+                && Guid.TryParse(parts[2], out var guid2))
+            {
+                var other = guid1 == currentUserId ? guid2 : guid1;
+                channelToOtherUser[dm.Id] = other;
+                otherUserIds.Add(other);
+            }
+        }
+
+        _logger.LogInformation("ResolveDmChannelNames: found {Count} other user IDs to resolve", otherUserIds.Count);
+        if (otherUserIds.Count == 0)
+            return;
+
+        if (_userDirectory is null)
+        {
+            _logger.LogWarning("ResolveDmChannelNames: IUserDirectory not available, using fallback names");
+            foreach (var kvp in channelToOtherUser)
+            {
+                var idx = channels.FindIndex(c => c.Id == kvp.Key);
+                if (idx >= 0)
+                    channels[idx] = channels[idx] with { Name = kvp.Value.ToString()[..8] };
+            }
+            return;
+        }
+
+        try
+        {
+            var names = await _userDirectory.GetDisplayNamesAsync(otherUserIds, cancellationToken);
+            _logger.LogInformation("ResolveDmChannelNames: resolved {Count} names", names.Count);
+            foreach (var kvp in channelToOtherUser)
+            {
+                if (names.TryGetValue(kvp.Value, out var displayName))
+                {
+                    var idx = channels.FindIndex(c => c.Id == kvp.Key);
+                    if (idx >= 0)
+                        channels[idx] = channels[idx] with { Name = displayName };
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to resolve DM channel display names for user {UserId}", currentUserId);
+        }
     }
 
     private async Task EnsureDefaultPublicChannelForUserAsync(CallerContext caller, CancellationToken cancellationToken)
@@ -362,7 +432,7 @@ internal sealed class ChannelService : IChannelService
 
         _db.Channels.Add(channel);
         _db.ChannelMembers.Add(new ChannelMember { ChannelId = channel.Id, UserId = caller.UserId, Role = ChannelMemberRole.Member });
-        _db.ChannelMembers.Add(new ChannelMember { ChannelId = channel.Id, UserId = otherUserId, Role = ChannelMemberRole.Member });
+        _db.ChannelMembers.Add(new ChannelMember { ChannelId = channel.Id, UserId = otherUserId, Role = ChannelMemberRole.Member, IsDmAccepted = false });
 
         await _db.SaveChangesAsync(cancellationToken);
 

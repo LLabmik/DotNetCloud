@@ -19,6 +19,7 @@ public class MainApplication : MauiApplication
     internal const string ChannelIdUpload = "photo_upload";
     internal const string ChannelIdMediaUpload = "media_upload";
     internal const string ChannelIdCalendarReminders = "calendar_reminders";
+    internal const string ChannelIdDmNotifications = "dm_notifications";
 
     /// <summary>
     /// Initializes a new <see cref="MainApplication"/> and registers notification channels.
@@ -132,6 +133,17 @@ public class MainApplication : MauiApplication
             calendarChannel.SetSound(alarmUri, audioAttributes);
         }
         nm.CreateNotificationChannel(calendarChannel);
+
+        // DM channel creation notifications — high importance (sound + vibration).
+        var dmChannel = new NotificationChannel(
+            ChannelIdDmNotifications,
+            "Direct Messages",
+            NotificationImportance.High)
+        {
+            Description = "Notifications when someone starts a direct message with you.",
+            LockscreenVisibility = NotificationVisibility.Public
+        };
+        nm.CreateNotificationChannel(dmChannel);
     }
 }
 
