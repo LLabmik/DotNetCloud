@@ -325,19 +325,23 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
     private async Task ResolveDmChannelNamesAsync(string serverUrl, string token, CancellationToken ct)
     {
         var dmChannels = Channels.Where(c => c.ChannelType == "DirectMessage").ToList();
+        Log.Info("DotNetCloud", $"ResolveDmChannelNamesAsync: totalChannels={Channels.Count}, dmChannels={dmChannels.Count}");
+
         if (dmChannels.Count == 0)
+        {
+            Log.Info("DotNetCloud", "ResolveDmChannelNamesAsync: no DM channels found, skipping resolution.");
             return;
+        }
 
         try
         {
-            // Get current user ID from the access token
-            var currentUserId = AccessTokenUserIdExtractor.ExtractUserId(token);
-            if (currentUserId == Guid.Empty)
-                return;
+            // Extract current user ID from the id_token (signed JWT, not encrypted JWE).
+            // The access token is JWE-encrypted and cannot be decoded client-side.
+            var currentUserId = await GetCurrentUserIdAsync(serverUrl, ct);
 
-            // Parse DM channel names (format: DM-{userId1}-{userId2}) to find other user IDs
+            // Parse DM channel names (format: DM-{userId1}-{userId2}) to find the other user's ID.
             var otherUserIds = new List<Guid>();
-            var channelToOtherUser = new Dictionary<Guid, Guid>(); // channelId → otherUserId
+            var channelToOtherUser = new Dictionary<Guid, Guid>();
 
             foreach (var dm in dmChannels)
             {
@@ -349,29 +353,61 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
                     var other = guid1 == currentUserId ? guid2 : guid1;
                     channelToOtherUser[dm.ChannelId] = other;
                     otherUserIds.Add(other);
+                    Log.Info("DotNetCloud", $"ResolveDmChannelNamesAsync: DM channel {dm.ChannelId} → other user={other}");
+                }
+                else
+                {
+                    Log.Warn("DotNetCloud", $"ResolveDmChannelNamesAsync: failed to parse DM name='{dm.Name}'");
                 }
             }
 
             if (otherUserIds.Count == 0)
+            {
+                Log.Warn("DotNetCloud", "ResolveDmChannelNamesAsync: no other user IDs extracted.");
                 return;
+            }
 
-            // Resolve display names from server
+            Log.Info("DotNetCloud", $"ResolveDmChannelNamesAsync: calling ResolveDisplayNamesAsync for {otherUserIds.Count} userIds");
             var names = await _chatApi.ResolveDisplayNamesAsync(serverUrl, token, otherUserIds.Distinct().ToList(), ct);
+            Log.Info("DotNetCloud", $"ResolveDmChannelNamesAsync: resolved {names.Count} display names");
 
-            // Update channel names
             foreach (var dm in dmChannels)
             {
                 if (channelToOtherUser.TryGetValue(dm.ChannelId, out var otherUserId)
                     && names.TryGetValue(otherUserId, out var displayName))
                 {
+                    Log.Info("DotNetCloud", $"ResolveDmChannelNamesAsync: updating DM name '{dm.Name}' → '{displayName}'");
                     dm.Name = displayName;
                 }
             }
         }
         catch (Exception ex)
         {
+            Log.Error("DotNetCloud", $"ResolveDmChannelNamesAsync FAILED: {ex.GetType().Name}: {ex.Message}");
             _logger.LogWarning(ex, "Failed to resolve DM channel display names.");
         }
+    }
+
+    /// <summary>Gets the current user's ID from the id_token's <c>sub</c> claim.</summary>
+    private async Task<Guid> GetCurrentUserIdAsync(string serverUrl, CancellationToken ct)
+    {
+        try
+        {
+            var idToken = await _tokenStore.GetIdTokenAsync(serverUrl, ct);
+            if (!string.IsNullOrWhiteSpace(idToken))
+            {
+                var userId = AccessTokenUserIdExtractor.ExtractUserId(idToken);
+                Log.Info("DotNetCloud", $"GetCurrentUserIdAsync: extracted from id_token: {userId}");
+                return userId;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("DotNetCloud", $"GetCurrentUserIdAsync: failed to extract from id_token: {ex.Message}");
+        }
+
+        Log.Warn("DotNetCloud", "GetCurrentUserIdAsync: no id_token available, cannot resolve DM names.");
+        return Guid.Empty;
     }
 
     private void OnNewMessage(object? sender, ChatMessageReceivedEventArgs e) { /* handled via unread update */ }

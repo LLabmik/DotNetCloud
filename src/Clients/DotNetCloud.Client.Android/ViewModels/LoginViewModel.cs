@@ -95,14 +95,15 @@ public sealed partial class LoginViewModel : ObservableObject
             var normalizedUrl = NormalizeUrl(ServerUrl);
             var result = await _oauth.AuthenticateAsync(normalizedUrl, ct);
 
-            await _tokenStore.SaveTokensAsync(normalizedUrl, result.AccessToken, result.RefreshToken, ct);
+            await _tokenStore.SaveTokensAsync(normalizedUrl, result.AccessToken, result.RefreshToken, result.IdToken, ct);
 
-            // Extract user info from the access token
-            var email = ExtractClaimFromToken(result.AccessToken, "email")
-                        ?? ExtractClaimFromToken(result.AccessToken, "preferred_username")
-                        ?? ExtractClaimFromToken(result.AccessToken, "name")
+            // Extract user info from the id_token (signed JWT, decodable client-side).
+            // The access token is JWE-encrypted so we cannot decode it here.
+            var email = ExtractClaimFromToken(result.IdToken ?? result.AccessToken, "email")
+                        ?? ExtractClaimFromToken(result.IdToken ?? result.AccessToken, "preferred_username")
+                        ?? ExtractClaimFromToken(result.IdToken ?? result.AccessToken, "name")
                         ?? new Uri(normalizedUrl).Host;
-            var displayName = ExtractClaimFromToken(result.AccessToken, "name")
+            var displayName = ExtractClaimFromToken(result.IdToken ?? result.AccessToken, "name")
                               ?? new Uri(normalizedUrl).Host;
             _serverStore.Save(new ServerConnection(normalizedUrl, displayName, email));
             _serverStore.SetActive(normalizedUrl);

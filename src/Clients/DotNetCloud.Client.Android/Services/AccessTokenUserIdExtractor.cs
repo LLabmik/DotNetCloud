@@ -12,7 +12,7 @@ internal static class AccessTokenUserIdExtractor
     /// <summary>
     /// Extracts the caller user ID from a bearer access token.
     /// </summary>
-    /// <param name="accessToken">JWT access token string.</param>
+    /// <param name="accessToken">JWT access token string (id_token for signed JWT, not JWE).</param>
     /// <returns>User ID parsed from token claims.</returns>
     /// <exception cref="InvalidOperationException">Thrown when the token does not contain a GUID user ID.</exception>
     public static Guid ExtractUserId(string accessToken)
@@ -47,6 +47,10 @@ internal static class AccessTokenUserIdExtractor
         value = value.Replace('-', '+').Replace('_', '/');
         value = value.PadRight(value.Length + (4 - value.Length % 4) % 4, '=');
         var bytes = Convert.FromBase64String(value);
-        return Encoding.UTF8.GetString(bytes);
+        var json = Encoding.UTF8.GetString(bytes);
+        // Strip UTF-8 BOM character (U+FEFF) if present at start of string.
+        if (json.Length > 0 && json[0] == '\uFEFF')
+            json = json[1..];
+        return json;
     }
 }
