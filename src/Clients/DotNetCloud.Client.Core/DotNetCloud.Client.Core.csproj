@@ -49,12 +49,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Core\DotNetCloud.Core\DotNetCloud.Core.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Protobuf Include="..\..\Modules\Files\DotNetCloud.Modules.Files.Host\Protos\files_service.proto"
-              GrpcServices="Client"
-              Link="Protos\files_service.proto" />
+    <ProjectReference Include="..\..\Modules\Files\DotNetCloud.Modules.Files.Client\DotNetCloud.Modules.Files.Client.csproj" />
   </ItemGroup>
 
 </Project>
