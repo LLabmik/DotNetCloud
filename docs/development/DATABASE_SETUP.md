@@ -20,7 +20,7 @@
 
 ## Overview
 
-DotNetCloud supports three database engines for flexibility and portability:
+DotNetCloud supports two database engines for flexibility and portability:
 
 | Database | Platform | Use Case | Provider |
 |----------|----------|----------|----------|
@@ -31,7 +31,7 @@ DotNetCloud supports three database engines for flexibility and portability:
 
 1. **Primary Development:** PostgreSQL (fastest setup, most common in Linux environments)
 2. **Cross-Testing:** Set up one additional database locally
-3. **Full Matrix:** Docker Compose handles all three for CI/CD
+3. **Full Matrix:** Docker Compose handles both for CI/CD
 
 ### Naming Convention
 
@@ -270,110 +270,6 @@ See [DOCKER_SETUP.md](./DOCKER_SETUP.md) for containerized SQL Server.
 
 ---
 
-
-### Windows
-
-
-
-2. **Run Installer**
-   ```bash
-   ```
-   - Port: `3306` (default)
-   - Root password: Choose strong password
-   - Install as Windows Service: Yes
-
-3. **Verify Installation**
-   ```bash
-   mysql --version
-   ```
-
-#### Option 2: Chocolatey
-
-```bash
-```
-
-### Linux (Ubuntu/Debian)
-
-```bash
-# Update package lists
-sudo apt update
-
-
-# Secure installation
-sudo mysql_secure_installation
-
-# Start and enable service
-
-# Verify
-mysql --version
-```
-
-### macOS
-
-#### Using Homebrew
-
-```bash
-# Install
-
-# Start service (one-time)
-
-# Secure installation
-mysql_secure_installation
-
-# Verify
-mysql --version
-```
-
-### Post-Installation Setup
-
-   ```bash
-   mysql -u root -p
-   # Enter root password
-   ```
-
-2. **Create Development Database & User**
-   ```sql
-   -- Create database
-   CREATE DATABASE dotnetcloud_dev;
-
-   -- Create user
-   CREATE USER 'dotnetcloud'@'localhost' IDENTIFIED BY 'dotnetcloud_dev_password';
-
-   -- Grant permissions
-   GRANT ALL PRIVILEGES ON dotnetcloud_dev.* TO 'dotnetcloud'@'localhost';
-   FLUSH PRIVILEGES;
-
-   -- Verify
-   SHOW GRANTS FOR 'dotnetcloud'@'localhost';
-   ```
-
-3. **Connection String**
-   ```
-   Server=localhost;Port=3306;Database=dotnetcloud_dev;Uid=dotnetcloud;Pwd=dotnetcloud_dev_password;
-   ```
-
-4. **Verify Connection**
-   ```bash
-   mysql -u dotnetcloud -p -h localhost dotnetcloud_dev
-   ```
-
-### Additional Configuration
-
-   ```bash
-   # Linux
-
-   # Windows
-   ```
-
-2. **Configure Character Set (UTF-8)**
-   - Add to `[mysqld]` section:
-     ```ini
-     default-character-set = utf8mb4
-     collation-server = utf8mb4_unicode_ci
-     ```
-
----
-
 ## Connection Strings
 
 ### Configuration Files
@@ -384,7 +280,7 @@ Store connection strings in `appsettings.json` or `appsettings.Development.json`
 {
   "ConnectionStrings": {
     "PostgreSQL": "Server=localhost;Port=5432;Database=dotnetcloud_dev;User Id=dotnetcloud;Password=dotnetcloud_dev_password;",
-    "SqlServer": "Server=localhost\\SQLEXPRESS;Database=dotnetcloud_dev;User Id=dotnetcloud;Password=DotNetCloud2024!Dev;MultipleActiveResultSets=True;",
+    "SqlServer": "Server=localhost\\SQLEXPRESS;Database=dotnetcloud_dev;User Id=dotnetcloud;Password=DotNetCloud2024!Dev;MultipleActiveResultSets=True;"
   },
   "Database": {
   }
@@ -498,7 +394,7 @@ using (var scope = app.Services.CreateScope())
 ### Local Testing Strategy
 
 1. **Development:** Use single database (PostgreSQL recommended)
-2. **Before Committing:** Test against all three databases
+2. **Before Committing:** Test against both databases
 3. **CI/CD:** Docker Compose runs full matrix
 
 ### Running Tests Against Different Databases
@@ -538,8 +434,6 @@ public class DatabaseFixture : IAsyncLifetime
                             break;
                         case "SqlServer":
                             options.UseSqlServer("Server=localhost\\SQLEXPRESS;Database=dotnetcloud_test;User Id=sa;Password=Test@123;MultipleActiveResultSets=True;");
-                            break;
-                            options.UseMySql("Server=localhost;Port=3306;Database=dotnetcloud_test;Uid=root;Pwd=test_password;", ServerVersion.AutoDetect("Server=localhost;Port=3306;Uid=root;Pwd=test_password;"));
                             break;
                     }
                 });
@@ -608,28 +502,6 @@ netstat -ano | findstr :1433
 
 # Restart SQL Server
 Restart-Service -Name "MSSQL$SQLEXPRESS"
-```
-
-
-- **Check Port:** Default is `3306`
-
-#### "Access Denied for User"
-- **Verify Credentials:** Check username and password
-- **Reset Root Password:**
-  ```bash
-  # Linux
-  sudo mysqld_safe --skip-grant-tables &
-  mysql -u root
-  FLUSH PRIVILEGES;
-  ALTER USER 'root'@'localhost' IDENTIFIED BY 'new_password';
-  ```
-
-#### "Database/User Already Exists"
-```sql
-DROP DATABASE dotnetcloud_dev;
-DROP USER 'dotnetcloud'@'localhost';
-
--- Then recreate as shown in setup steps
 ```
 
 ### General Issues

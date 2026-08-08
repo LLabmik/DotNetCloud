@@ -1010,7 +1010,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 
 - ✓ `dotnetcloud backup` - Create backup
 - ✓ `dotnetcloud backup --output {path}` - Backup to specific location
-- ✓ `dotnetcloud backup --db-dump` - Include database dump (pg_dump/mysqldump/sqlcmd)
+- ✓ `dotnetcloud backup --db-dump` - Include database dump (pg_dump/sqlcmd)
 - ✓ `dotnetcloud backup --server {url}` - Trigger backup via server API
 - ✓ `dotnetcloud restore {file}` - Restore from backup (with optional DB restore)
 - ✓ `dotnetcloud restore {file}` with `database.sql` - Restore includes DB dump

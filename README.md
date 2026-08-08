@@ -355,7 +355,6 @@ For full details, see the [Architecture Document](docs/architecture/ARCHITECTURE
 | ---------- | ------------ |
 | PostgreSQL | ✅ Supported |
 | SQL Server | ✅ Supported |
-| Oracle     | 🔜 Future    |
 
 ---
 

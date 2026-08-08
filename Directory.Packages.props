@@ -1,7 +1,6 @@
 ﻿<Project>
   <ItemGroup>
     <!-- Health checks -->
-    <PackageVersion Include="AspNetCore.HealthChecks.MySql" Version="9.0.0" />
     <PackageVersion Include="AspNetCore.HealthChecks.NpgSql" Version="9.0.0" />
     <PackageVersion Include="AspNetCore.HealthChecks.SqlServer" Version="9.0.0" />
     <!-- Avalonia UI -->

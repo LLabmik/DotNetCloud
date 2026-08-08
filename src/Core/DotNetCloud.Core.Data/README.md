@@ -352,8 +352,6 @@ services.AddDbContext<CoreDbContext>((serviceProvider, options) =>
         case DatabaseProvider.SqlServer:
             options.UseSqlServer(connectionString);
             break;
-            options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
-            break;
     }
 });
 
