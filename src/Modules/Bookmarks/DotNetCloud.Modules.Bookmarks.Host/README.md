@@ -22,8 +22,7 @@ The gRPC host process for the Bookmarks module. Runs as a separate process manag
 - `DotNetCloud.Core.Grpc` — gRPC protocol definitions
 - `DotNetCloud.Core.ServiceDefaults` — Logging, telemetry, health checks
 - `DotNetCloud.Modules.Bookmarks` — Module logic and Blazor components
-- `DotNetCloud.Modules.Bookmarks.Data` — Data access layer
-- `DotNetCloud.Modules.Bookmarks.Data.SqlServer` — SQL Server migration assembly (runtime)
+- `DotNetCloud.Modules.Bookmarks.Data` — Data access layer (SQL Server migrations in Migrations/SqlServer/)
 
 ### Dependent Projects
 - `DotNetCloud.Core.Server` — Launches and manages this process via `ProcessSupervisor`

@@ -35,10 +35,8 @@ All inter-module communication is mediated through this server; modules never ta
 ### Direct Dependencies (Core)
 - `DotNetCloud.Core` — Core interfaces and DTOs
 - `DotNetCloud.Core.Auth` — Authentication and authorization pipeline
-- `DotNetCloud.Core.Data` — EF Core data access and migrations
-- `DotNetCloud.Core.Data.SqlServer` — SQL Server migration assembly (runtime resolution)
+- `DotNetCloud.Core.Data` — EF Core data access and migrations (both PostgreSQL and SQL Server)
 - `DotNetCloud.Core.Grpc` — gRPC proto definitions and client generation
-- `DotNetCloud.Core.Schema` — Database schema coordination across modules
 - `DotNetCloud.Core.ServiceDefaults` — Logging, telemetry, health checks, security middleware
 
 ### Direct Dependencies (UI)
@@ -46,7 +44,7 @@ All inter-module communication is mediated through this server; modules never ta
 - `DotNetCloud.UI.Web.Client` — Blazor WebAssembly client
 
 ### Direct Dependencies (Modules — all 15 modules)
-Every module's main RCL, Data, and Data.SqlServer project is referenced for:
+Every module's main RCL and Data project is referenced for:
 - Blazor UI component registration
 - EF Core migration assembly discovery at runtime
 - Assembly.Load resolution for `GetPendingMigrationsAsync()`

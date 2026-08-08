@@ -10,7 +10,7 @@
 
 ## Key Features
 
-- **Database Migrations** — `dotnetcloud migrate` runs pending EF Core migrations across all modules (Core + all 14 module Data.SqlServer projects)
+- **Database Migrations** — `dotnetcloud migrate` runs pending EF Core migrations across all modules (Core + all 14 module Data projects, with SQL Server migrations in Migrations/SqlServer/ subdirectories)
 - **TLS Certificate Management** — Generate and manage SSL/TLS certificates via Certes (Let's Encrypt ACME client)
 - **Telemetry** — OpenTelemetry configuration and export
 - **System Administration** — Configuration management and system health checks
@@ -21,11 +21,12 @@
 ### Direct Dependencies (Core)
 - `DotNetCloud.Core` — Core interfaces
 - `DotNetCloud.Core.Data` — Core data access and EF Core setup
-- `DotNetCloud.Core.Schema` — DbContext discovery and schema coordination
+- `DotNetCloud.Core.Server` — Server infrastructure and DbContext schema coordination
 - `DotNetCloud.Core.ServiceDefaults` — Logging configuration
 
-### Direct Dependencies (SQL Server Migration Assemblies — all 15)
-Every module's `.Data.SqlServer` project plus `DotNetCloud.Core.Data.SqlServer` is referenced for runtime migration discovery and execution.
+### Direct Dependencies (Module Data Assemblies — all 15)
+Every module's `.Data` project is referenced for runtime migration discovery and execution.
+SQL Server migrations live in `Migrations/SqlServer/` subdirectories within each `.Data` project.
 
 ### Dependent Projects
 - (None — this is a leaf application project)
