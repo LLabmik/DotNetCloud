@@ -2,7 +2,7 @@ using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Extensions;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Modules;
-using DotNetCloud.Core.Schema.Services;
+using DotNetCloud.Core.Server.Services;
 using DotNetCloud.Modules.AI.Data;
 using DotNetCloud.Modules.Bookmarks.Data;
 using DotNetCloud.Modules.Calendar.Data;

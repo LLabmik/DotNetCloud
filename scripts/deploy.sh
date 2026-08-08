@@ -45,7 +45,6 @@ CORE_PROJECTS=(
     "src/Core/DotNetCloud.Core.Auth"
     "src/Core/DotNetCloud.Core.Data"
     "src/Core/DotNetCloud.Core.Grpc"
-    "src/Core/DotNetCloud.Core.Schema"
     "src/Core/DotNetCloud.Core.Server"
     "src/Core/DotNetCloud.Core.ServiceDefaults"
 )

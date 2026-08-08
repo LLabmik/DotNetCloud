@@ -19,7 +19,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Data.Common;
 
-namespace DotNetCloud.Core.Schema.Services;
+namespace DotNetCloud.Core.Server.Services;
 
 /// <summary>
 /// Core-managed schema provider. Resolves a module's DbContext from DI and
