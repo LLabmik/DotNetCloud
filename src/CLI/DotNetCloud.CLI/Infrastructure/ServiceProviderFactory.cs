@@ -118,19 +118,19 @@ internal static class ServiceProviderFactory
             ? new SqlServerNamingStrategy()
             : new PostgreSqlNamingStrategy());
 
-        const string AiMigrationsAssembly = "DotNetCloud.Modules.AI.Data.SqlServer";
-        const string BookmarksMigrationsAssembly = "DotNetCloud.Modules.Bookmarks.Data.SqlServer";
-        const string CalendarMigrationsAssembly = "DotNetCloud.Modules.Calendar.Data.SqlServer";
-        const string ChatMigrationsAssembly = "DotNetCloud.Modules.Chat.Data.SqlServer";
-        const string ContactsMigrationsAssembly = "DotNetCloud.Modules.Contacts.Data.SqlServer";
-        const string EmailMigrationsAssembly = "DotNetCloud.Modules.Email.Data.SqlServer";
-        const string FilesMigrationsAssembly = "DotNetCloud.Modules.Files.Data.SqlServer";
-        const string MusicMigrationsAssembly = "DotNetCloud.Modules.Music.Data.SqlServer";
-        const string NotesMigrationsAssembly = "DotNetCloud.Modules.Notes.Data.SqlServer";
-        const string PhotosMigrationsAssembly = "DotNetCloud.Modules.Photos.Data.SqlServer";
-        const string SearchMigrationsAssembly = "DotNetCloud.Modules.Search.Data.SqlServer";
-        const string TracksMigrationsAssembly = "DotNetCloud.Modules.Tracks.Data.SqlServer";
-        const string VideoMigrationsAssembly = "DotNetCloud.Modules.Video.Data.SqlServer";
+        const string AiMigrationsAssembly = "DotNetCloud.Modules.AI.Data";
+        const string BookmarksMigrationsAssembly = "DotNetCloud.Modules.Bookmarks.Data";
+        const string CalendarMigrationsAssembly = "DotNetCloud.Modules.Calendar.Data";
+        const string ChatMigrationsAssembly = "DotNetCloud.Modules.Chat.Data";
+        const string ContactsMigrationsAssembly = "DotNetCloud.Modules.Contacts.Data";
+        const string EmailMigrationsAssembly = "DotNetCloud.Modules.Email.Data";
+        const string FilesMigrationsAssembly = "DotNetCloud.Modules.Files.Data";
+        const string MusicMigrationsAssembly = "DotNetCloud.Modules.Music.Data";
+        const string NotesMigrationsAssembly = "DotNetCloud.Modules.Notes.Data";
+        const string PhotosMigrationsAssembly = "DotNetCloud.Modules.Photos.Data";
+        const string SearchMigrationsAssembly = "DotNetCloud.Modules.Search.Data";
+        const string TracksMigrationsAssembly = "DotNetCloud.Modules.Tracks.Data";
+        const string VideoMigrationsAssembly = "DotNetCloud.Modules.Video.Data";
 
         services.AddDbContext<AiDbContext>(options =>
             ConfigureModuleDbContext(options, provider, connectionString, AiMigrationsAssembly));

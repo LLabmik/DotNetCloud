@@ -4,7 +4,7 @@ using DotNetCloud.Modules.Notes.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
-namespace DotNetCloud.Modules.Notes.Data.SqlServer;
+namespace DotNetCloud.Modules.Notes.Data;
 
 /// <summary>
 /// Design-time factory for generating SQL Server migrations for NotesDbContext.

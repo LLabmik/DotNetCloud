@@ -4,7 +4,7 @@ using DotNetCloud.Modules.Contacts.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
-namespace DotNetCloud.Modules.Contacts.Data.SqlServer;
+namespace DotNetCloud.Modules.Contacts.Data;
 
 /// <summary>
 /// Design-time factory for generating SQL Server migrations for ContactsDbContext.

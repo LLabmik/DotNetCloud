@@ -4,7 +4,7 @@ using DotNetCloud.Modules.Calendar.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
-namespace DotNetCloud.Modules.Calendar.Data.SqlServer;
+namespace DotNetCloud.Modules.Calendar.Data;
 
 /// <summary>
 /// Design-time factory for generating SQL Server migrations for CalendarDbContext.

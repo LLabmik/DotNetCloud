@@ -301,7 +301,7 @@ public class Program
         // Tracks module in-process UI services (SignalR real-time, command palette, CSV import).
         // All other Tracks API calls go through the gRPC ITracksApiClient (registered below).
         builder.Services.AddDbContext<TracksDbContext>(options =>
-            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Tracks.Data.SqlServer"),
+            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Tracks.Data"),
             ServiceLifetime.Transient);
         builder.Services.AddSingleton<TracksInProcessSignalRService>();
         builder.Services.AddSingleton<ITracksSignalRService>(sp => sp.GetRequiredService<TracksInProcessSignalRService>());
@@ -316,13 +316,13 @@ public class Program
         // Files module UI services (FileBrowser and related Blazor components).
         // Registers FilesDbContext and the scoped services needed for in-process rendering.
         builder.Services.AddDbContext<FilesDbContext>(options =>
-            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Files.Data.SqlServer"),
+            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Files.Data"),
             ServiceLifetime.Transient);
         builder.Services.AddFilesUiServices(builder.Configuration!);
 
         // Chat module UI services (ChatPageLayout and related Blazor components).
         builder.Services.AddDbContext<ChatDbContext>(options =>
-            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Chat.Data.SqlServer"),
+            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Chat.Data"),
             ServiceLifetime.Transient);
         builder.Services.AddChatServices(builder.Configuration!);
 

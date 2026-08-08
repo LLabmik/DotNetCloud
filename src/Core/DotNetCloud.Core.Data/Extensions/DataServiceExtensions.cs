@@ -68,7 +68,7 @@ public static class DataServiceExtensions
                 {
                     sqlServerOptions.EnableRetryOnFailure(maxRetryCount: 3);
                     sqlServerOptions.CommandTimeout(30);
-                    sqlServerOptions.MigrationsAssembly("DotNetCloud.Core.Data.SqlServer");
+                    sqlServerOptions.MigrationsAssembly("DotNetCloud.Core.Data");
                 });
                 break;
 
