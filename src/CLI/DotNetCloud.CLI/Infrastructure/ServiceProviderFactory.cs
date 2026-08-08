@@ -17,6 +17,7 @@ using DotNetCloud.Modules.Search.Data;
 using DotNetCloud.Modules.Tracks.Data;
 using DotNetCloud.Modules.Video.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DotNetCloud.CLI.Infrastructure;
@@ -108,6 +109,8 @@ internal static class ServiceProviderFactory
                 });
                 break;
         }
+
+        options.ReplaceService<IMigrationsAssembly, DotNetCloud.Core.Data.Infrastructure.ProviderAwareMigrationsAssembly>();
     }
 
     private static IServiceCollection AddModuleDbContexts(

@@ -112,9 +112,9 @@ public static class MusicServiceRegistration
     {
         // Register MusicDbContext for Blazor Server interactive rendering
         services.AddDbContextFactory<MusicDbContext>(options =>
-            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Music.Data.SqlServer"));
+            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Music.Data"));
         services.AddDbContext<MusicDbContext>(options =>
-            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Music.Data.SqlServer"),
+            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Music.Data"),
             ServiceLifetime.Transient);
 
         // Business services

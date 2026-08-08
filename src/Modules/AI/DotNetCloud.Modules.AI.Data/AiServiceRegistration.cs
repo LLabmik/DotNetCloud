@@ -49,7 +49,7 @@ public static class AiServiceRegistration
     {
         // Register AiDbContext for Blazor Server interactive rendering
         services.AddDbContext<AiDbContext>(options =>
-            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.AI.Data.SqlServer"),
+            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.AI.Data"),
             ServiceLifetime.Transient);
 
         services.AddScoped<IAiSettingsProvider, AiSettingsProvider>();

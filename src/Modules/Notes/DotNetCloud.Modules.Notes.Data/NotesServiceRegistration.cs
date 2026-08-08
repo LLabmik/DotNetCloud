@@ -41,7 +41,7 @@ public static class NotesServiceRegistration
     {
         // Register NotesDbContext for Blazor Server interactive rendering
         services.AddDbContext<NotesDbContext>(options =>
-            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Notes.Data.SqlServer"),
+            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Notes.Data"),
             ServiceLifetime.Transient);
 
         services.AddSingleton<IMarkdownRenderer, MarkdownRenderer>();
