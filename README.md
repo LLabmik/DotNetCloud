@@ -134,6 +134,7 @@ graph TB
         BlazorUI["🌐 Blazor Web UI<br/><small>Interactive Server + WASM</small>"]
         Desktop["🖥️ Desktop Sync Client<br/><small>Avalonia · Windows &amp; Linux</small>"]
         Android["📱 Android App<br/><small>.NET MAUI</small>"]
+        BrowserExt["🧩 Browser Extension<br/><small>Bookmark Sync</small>"]
         CLI["⌨️ CLI<br/><small>dotnetcloud setup / serve / …</small>"]
     end
 
@@ -147,6 +148,7 @@ graph TB
             AuthServer["OpenIddict<br/>OAuth2 / OIDC"]
             Identity["ASP.NET Core<br/>Identity + MFA"]
             SignalR["SignalR Hub<br/><small>Real-time · Presence</small>"]
+            PushNotif["Push<br/>Notifications<br/><small>FCM · APNs</small>"]
             CapSystem["Capability<br/>System"]
             EventBus["Event Bus<br/><small>Pub / Sub</small>"]
         end
@@ -229,6 +231,39 @@ graph TB
             VideoDB[("Video DB<br/><small>video.*</small>")]
             VideoLogic --- VideoDB
         end
+
+        subgraph EmailM["📧 Email Module"]
+            direction TB
+            EmailLogic["SMTP · IMAP<br/>Gmail · Folders"]
+            EmailDB[("Email DB<br/><small>email.*</small>")]
+            EmailLogic --- EmailDB
+        end
+
+        subgraph BookmarksM["🔖 Bookmarks Module"]
+            direction TB
+            BookmarksLogic["Sync · Tags<br/>Collections"]
+            BookmarksDB[("Bookmarks DB<br/><small>bookmarks.*</small>")]
+            BookmarksLogic --- BookmarksDB
+        end
+
+        subgraph SearchM["🔍 Search Module"]
+            direction TB
+            SearchLogic["Full-Text Search<br/>Cross-Module Index"]
+            SearchDB[("Search DB<br/><small>search.*</small>")]
+            SearchLogic --- SearchDB
+        end
+
+        subgraph AIM["🤖 AI Module"]
+            direction TB
+            AILogic["LLM Assistant<br/>Ollama · Claude · OpenAI"]
+            AIDB[("AI DB<br/><small>ai.*</small>")]
+            AILogic --- AIDB
+        end
+
+        subgraph AboutM["ℹ️ About Module"]
+            direction TB
+            AboutLogic["Server Info<br/>Licenses · Credits"]
+        end
     end
 
     %% ── External / Managed Components ────────────────────────
@@ -245,6 +280,7 @@ graph TB
     BlazorUI -- "HTTP · SignalR<br/>WebSocket" --> RESTAPI
     Desktop -- "REST API<br/>OAuth2 PKCE" --> RESTAPI
     Android -- "REST API · SignalR<br/>OAuth2 PKCE" --> RESTAPI
+    BrowserExt -- "REST API<br/>OAuth2 PKCE" --> RESTAPI
     CLI -- "HTTP" --> RESTAPI
 
     %% ── Connections: Core ↔ Modules (gRPC) ───────────────────
@@ -257,6 +293,11 @@ graph TB
     RESTAPI -- "gRPC<br/><small>Unix Socket / Named Pipe</small>" --> PhotosLogic
     RESTAPI -- "gRPC<br/><small>Unix Socket / Named Pipe</small>" --> MusicLogic
     RESTAPI -- "gRPC<br/><small>Unix Socket / Named Pipe</small>" --> VideoLogic
+    RESTAPI -- "gRPC<br/><small>Unix Socket / Named Pipe</small>" --> EmailLogic
+    RESTAPI -- "gRPC<br/><small>Unix Socket / Named Pipe</small>" --> BookmarksLogic
+    RESTAPI -- "gRPC<br/><small>Unix Socket / Named Pipe</small>" --> SearchLogic
+    RESTAPI -- "gRPC<br/><small>Unix Socket / Named Pipe</small>" --> AILogic
+    RESTAPI -- "gRPC<br/><small>Unix Socket / Named Pipe</small>" --> AboutLogic
 
     %% ── Connections: Core → Database ─────────────────────────
     CoreServices --> CoreDB
@@ -277,11 +318,11 @@ graph TB
     classDef managedNode fill:#95a5a6,stroke:#7f8c8d,color:#fff
     classDef infraNode fill:#1abc9c,stroke:#148f77,color:#fff
 
-    class BlazorUI,Desktop,Android,CLI,SyncService clientNode
-    class Supervisor,AuthServer,Identity,SignalR,CapSystem,EventBus,RESTAPI coreNode
+    class BlazorUI,Desktop,Android,BrowserExt,CLI,SyncService clientNode
+    class Supervisor,AuthServer,Identity,SignalR,PushNotif,CapSystem,EventBus,RESTAPI coreNode
     class Serilog,OTel,HealthChecks,SecurityMW infraNode
-    class FilesLogic,FilesWOPI,ChatLogic,CalLogic,ConLogic,NotesLogic,TracksLogic,PhotosLogic,MusicLogic,VideoLogic moduleNode
-    class CoreDB,FilesDB,ChatDB,CalDB,ConDB,NotesDB,TracksDB,PhotosDB,MusicDB,VideoDB dbNode
+    class FilesLogic,FilesWOPI,ChatLogic,CalLogic,ConLogic,NotesLogic,TracksLogic,PhotosLogic,MusicLogic,VideoLogic,EmailLogic,BookmarksLogic,SearchLogic,AILogic,AboutLogic moduleNode
+    class CoreDB,FilesDB,ChatDB,CalDB,ConDB,NotesDB,TracksDB,PhotosDB,MusicDB,VideoDB,EmailDB,BookmarksDB,SearchDB,AIDB dbNode
     class Collabora,LiveKit managedNode
 ```
 
