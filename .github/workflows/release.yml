@@ -62,7 +62,7 @@ jobs:
         run: dotnet restore DotNetCloud.CI.slnf
 
       - name: Build
-        run: dotnet build DotNetCloud.CI.slnf --no-restore --configuration Release
+        run: dotnet build DotNetCloud.CI.slnf --configuration Release
 
       - name: Test
         run: dotnet test DotNetCloud.CI.slnf --no-build --configuration Release --verbosity normal --settings .runsettings
