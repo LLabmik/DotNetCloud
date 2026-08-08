@@ -9,6 +9,7 @@ using DotNetCloud.Modules.Video.Host.Services;
 using DotNetCloud.Modules.Video.Services;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
@@ -106,7 +107,7 @@ builder.Services.AddSingleton<ITableNamingStrategy>(provider == DatabaseProvider
 // Register EF Core with the configured database provider
 builder.Services.AddDbContext<VideoDbContext>(options =>
 {
-    const string migrationsAssembly = "DotNetCloud.Modules.Video.Data.SqlServer";
+    const string migrationsAssembly = "DotNetCloud.Modules.Video.Data";
 
     switch (provider)
     {
@@ -141,7 +142,7 @@ builder.Services.AddDbContext<VideoDbContext>(options =>
 // Register Files DbContext and storage engine so IDownloadService can be resolved.
 builder.Services.AddDbContext<FilesDbContext>(options =>
 {
-    const string filesMigrationsAssembly = "DotNetCloud.Modules.Files.Data.SqlServer";
+    const string filesMigrationsAssembly = "DotNetCloud.Modules.Files.Data";
 
     switch (provider)
     {
@@ -155,6 +156,9 @@ builder.Services.AddDbContext<FilesDbContext>(options =>
             });
             break;
     }
+
+    options.ReplaceService<IMigrationsAssembly, DotNetCloud.Core.Data.Infrastructure.ProviderAwareMigrationsAssembly>();
+
     options.ConfigureWarnings(warnings =>
     {
         warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning);

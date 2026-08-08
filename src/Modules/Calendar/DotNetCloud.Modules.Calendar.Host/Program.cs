@@ -14,6 +14,7 @@ using DotNetCloud.Core.Auth.Capabilities;
 using DotNetCloud.Core.Data.Context;
 using Grpc.Net.Client;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
@@ -147,6 +148,8 @@ if (!string.IsNullOrEmpty(connStr) && !string.IsNullOrEmpty(dbProvider))
             o.UseNpgsql(connStr);
         else
             o.UseSqlServer(connStr);
+
+        o.ReplaceService<IMigrationsAssembly, DotNetCloud.Core.Data.Infrastructure.ProviderAwareMigrationsAssembly>();
     });
 }
 else
@@ -164,6 +167,8 @@ builder.Services.AddDbContext<ContactsDbContext>(o =>
         o.UseNpgsql(connStr);
     else
         o.UseSqlServer(connStr);
+
+    o.ReplaceService<IMigrationsAssembly, DotNetCloud.Core.Data.Infrastructure.ProviderAwareMigrationsAssembly>();
 }, ServiceLifetime.Transient);
 builder.Services.AddScoped<IContactDirectory, ContactDirectoryService>();
 
@@ -175,6 +180,8 @@ builder.Services.AddDbContext<CoreDbContext>(o =>
         o.UseNpgsql(connStr);
     else
         o.UseSqlServer(connStr);
+
+    o.ReplaceService<IMigrationsAssembly, DotNetCloud.Core.Data.Infrastructure.ProviderAwareMigrationsAssembly>();
 }, ServiceLifetime.Transient);
 builder.Services.AddScoped<IOrganizationDirectory, OrganizationDirectoryService>();
 

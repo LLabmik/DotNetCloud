@@ -1260,7 +1260,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Remove all `.Host` ProjectReferences from csproj
 - ✓ Add gRPC client proto references for all 12 modules
 - ✓ Remove all `AddXxxServices()` calls from Program.cs
-- ✓ Remove all `.Data.SqlServer` migration assembly ProjectReferences from Core.Server.csproj (handled by DbContextSchemaProvider in Core.Schema)
+- ✓ Remove all `.Data.SqlServer` migration assembly ProjectReferences from Core.Server.csproj — .Data.SqlServer projects eliminated; migrations now in .Data/Migrations/SqlServer/
 - ✓ Remove `ModuleServiceRegistrationExtensions.cs` — module DbContext registrations moved into each module's own Add\*UiServices method via `ModuleDbContextConfiguration` helper in Core.Data
 - ✓ Replace in-process API clients with gRPC clients (Notes, Bookmarks, Email, Tracks done; remaining modules already gRPC)
 - ✓ Add options bindings for all gRPC clients
@@ -5711,7 +5711,8 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 
 ### Phase 6 — install.sh ✓
 
-- ✓ Create `DotNetCloud.Core.Schema` project to host `DbContextSchemaProvider`
+- ✓ Create `DotNetCloud.Core.Schema` project to host `DbContextSchemaProvider` (later consolidated into Core.Server — see projects-maintenance)
+- ✓ `DbContextSchemaProvider` moved to `Core.Server/Services/`; `Core.Schema` project eliminated
 - ✓ Move `ModuleSchemaService` to `Core.Data` with `IEnumerable<IModuleSchemaProvider>` dispatch
 - ✓ Add `--migrate-only` flag to `SetupCommand` (mutually exclusive with `--beginner`)
 - ✓ `RunMigrateOnlyAsync` applies core migrations, syncs module registry, and initializes module schemas

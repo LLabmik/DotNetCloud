@@ -1,6 +1,7 @@
 using DotNetCloud.Core.Data.Naming;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace DotNetCloud.Core.Data.Extensions;
 
@@ -16,7 +17,7 @@ public static class ModuleDbContextConfiguration
     /// <param name="options">The DbContext options builder.</param>
     /// <param name="provider">The configured database provider.</param>
     /// <param name="connectionString">The database connection string.</param>
-    /// <param name="migrationsAssembly">Optional migration assembly name (e.g., "DotNetCloud.Modules.Tracks.Data.SqlServer").</param>
+    /// <param name="migrationsAssembly">Optional migration assembly name (e.g., "DotNetCloud.Modules.Tracks.Data").</param>
     public static void Configure(
         DbContextOptionsBuilder options,
         DatabaseProvider provider,
@@ -49,6 +50,8 @@ public static class ModuleDbContextConfiguration
             default:
                 throw new ArgumentException($"Unsupported database provider: {provider}", nameof(provider));
         }
+
+        options.ReplaceService<IMigrationsAssembly, Infrastructure.ProviderAwareMigrationsAssembly>();
 
         // Suppress pending model changes warning for modules that don't have
         // a dedicated SQL Server migrations assembly. Their migrations were
