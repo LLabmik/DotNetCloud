@@ -61,6 +61,7 @@ internal sealed class ChatHostWebApplicationFactory : WebApplicationFactory<Chat
             services.PostConfigure<AuthenticationSchemeOptions>(
                 "OpenIddict.Validation.AspNetCore", opts =>
                 {
+                    // Forward validation to our test handler
                     opts.ForwardDefault = TestAuthHandler.SchemeName;
                 });
 
@@ -102,11 +103,12 @@ internal sealed class ChatHostWebApplicationFactory : WebApplicationFactory<Chat
                         Guid.TryParse(userHeader.ToString(), out var userId))
                     {
                         var identity = new ClaimsIdentity(
-                        [
-                            new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
-                            new Claim("sub", userId.ToString())
-                        ],
-                        authenticationType: "IntegrationTest");
+                            new[]
+                            {
+                                new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+                                new Claim("sub", userId.ToString())
+                            },
+                            authenticationType: "IntegrationTest");
 
                         context.User = new ClaimsPrincipal(identity);
                     }
@@ -129,8 +131,9 @@ internal sealed class ChatHostWebApplicationFactory : WebApplicationFactory<Chat
         public TestAuthHandler(
             IOptionsMonitor<AuthenticationSchemeOptions> options,
             ILoggerFactory logger,
-            UrlEncoder encoder)
-            : base(options, logger, encoder)
+            UrlEncoder encoder,
+            ISystemClock clock)
+            : base(options, logger, encoder, clock)
         {
         }
 
@@ -140,11 +143,12 @@ internal sealed class ChatHostWebApplicationFactory : WebApplicationFactory<Chat
                 Guid.TryParse(userHeader.ToString(), out var userId))
             {
                 var identity = new ClaimsIdentity(
-                [
-                    new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
-                    new Claim("sub", userId.ToString())
-                ],
-                authenticationType: SchemeName);
+                    new[]
+                    {
+                        new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+                        new Claim("sub", userId.ToString())
+                    },
+                    authenticationType: SchemeName);
 
                 var principal = new ClaimsPrincipal(identity);
                 var ticket = new AuthenticationTicket(principal, SchemeName);
