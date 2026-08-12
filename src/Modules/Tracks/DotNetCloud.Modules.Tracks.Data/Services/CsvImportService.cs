@@ -5,6 +5,7 @@ using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Tracks.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DotNetCloud.Modules.Tracks.Data.Services;
 
@@ -26,12 +27,16 @@ public sealed class CsvImportService
         TracksDbContext db,
         WorkItemService workItemService,
         ILogger<CsvImportService> logger,
-        IUserDirectory? userDirectory = null)
+        IServiceProvider serviceProvider)
     {
         _db = db;
         _workItemService = workItemService;
         _logger = logger;
-        _userDirectory = userDirectory;
+
+        // Resolve optional capability interfaces using GetService so the
+        // DI container does not throw when the capability hasn't been granted
+        // in test or minimal host environments.
+        _userDirectory = serviceProvider.GetService<IUserDirectory>();
     }
 
     /// <summary>
