@@ -1,6 +1,7 @@
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Chat.Services;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Modules.Chat.Events;
@@ -12,26 +13,23 @@ namespace DotNetCloud.Modules.Chat.Events;
 /// </summary>
 public sealed class DmChannelCreatedEventHandler : IEventHandler<ChannelCreatedEvent>
 {
-    private readonly IChannelMemberService _memberService;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly IPushNotificationService _pushService;
     private readonly IChatMessageNotifier _notifier;
-    private readonly IUserDirectory _userDirectory;
     private readonly ILogger<DmChannelCreatedEventHandler> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DmChannelCreatedEventHandler"/> class.
     /// </summary>
     public DmChannelCreatedEventHandler(
-        IChannelMemberService memberService,
+        IServiceScopeFactory scopeFactory,
         IPushNotificationService pushService,
         IChatMessageNotifier notifier,
-        IUserDirectory userDirectory,
         ILogger<DmChannelCreatedEventHandler> logger)
     {
-        _memberService = memberService;
+        _scopeFactory = scopeFactory;
         _pushService = pushService;
         _notifier = notifier;
-        _userDirectory = userDirectory;
         _logger = logger;
     }
 
@@ -52,7 +50,15 @@ public sealed class DmChannelCreatedEventHandler : IEventHandler<ChannelCreatedE
         var caller = new Core.Authorization.CallerContext(
             @event.CreatedByUserId, ["user"], Core.Authorization.CallerType.User);
 
-        var members = await _memberService.ListMembersAsync(@event.ChannelId, caller, cancellationToken);
+        // IChannelMemberService and IUserDirectory are scoped; resolve them per
+        // event from a new scope so the singleton event handler does not capture
+        // scoped dependencies (which fails DI validation and risks sharing a
+        // disposed DbContext across events).
+        using var scope = _scopeFactory.CreateScope();
+        var memberService = scope.ServiceProvider.GetRequiredService<IChannelMemberService>();
+        var userDirectory = scope.ServiceProvider.GetRequiredService<IUserDirectory>();
+
+        var members = await memberService.ListMembersAsync(@event.ChannelId, caller, cancellationToken);
 
         var targetUserId = members
             .Select(m => m.UserId)
@@ -67,7 +73,7 @@ public sealed class DmChannelCreatedEventHandler : IEventHandler<ChannelCreatedE
         }
 
         // Resolve initiator display name
-        var names = await _userDirectory.GetDisplayNamesAsync(
+        var names = await userDirectory.GetDisplayNamesAsync(
             [@event.CreatedByUserId], cancellationToken);
         var initiatorName = names.TryGetValue(@event.CreatedByUserId, out var name)
             ? name

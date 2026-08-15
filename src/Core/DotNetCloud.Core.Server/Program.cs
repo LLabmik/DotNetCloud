@@ -299,14 +299,9 @@ public class Program
         builder.Services.AddNotesUiServices(builder.Configuration!, provider, connectionString);
         // Tracks module in-process UI services (SignalR real-time, command palette, CSV import).
         // All other Tracks API calls go through the gRPC ITracksApiClient (registered below).
-        builder.Services.AddDbContext<TracksDbContext>(options =>
-            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Tracks.Data"),
-            ServiceLifetime.Transient);
-        builder.Services.AddSingleton<TracksInProcessSignalRService>();
-        builder.Services.AddSingleton<ITracksSignalRService>(sp => sp.GetRequiredService<TracksInProcessSignalRService>());
-        builder.Services.AddSingleton<ITracksRealtimeService, TracksRealtimeService>();
-        builder.Services.AddScoped<ICommandPaletteService, CommandPaletteService>();
-        builder.Services.AddScoped<ICsvImportUiService, CsvImportUiService>();
+        // Uses the module's dedicated UI registration so the full dependency graph
+        // (e.g. CsvImportService behind ICsvImportUiService) is present.
+        builder.Services.AddTracksUiServices(builder.Configuration!, provider, connectionString);
         builder.Services.AddMusicUiServices(builder.Configuration!, provider, connectionString);
         builder.Services.AddPhotosUiServices(builder.Configuration!, provider, connectionString);
         builder.Services.AddVideoUiServices(builder.Configuration!, provider, connectionString);

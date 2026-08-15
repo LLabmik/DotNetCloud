@@ -2,9 +2,9 @@ using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Chat.Events;
 using DotNetCloud.Modules.Chat.Services;
 using DotNetCloud.Modules.Chat.Data.Services;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using IUserDirectory = DotNetCloud.Core.Capabilities.IUserDirectory;
 
 namespace DotNetCloud.Modules.Chat.Data.Services;
 
@@ -17,9 +17,8 @@ internal sealed class ChatEventSubscriber : IHostedService
 {
     private readonly IEventBus _eventBus;
     private readonly IChatMessageNotifier _notifier;
-    private readonly IChannelMemberService _memberService;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly IPushNotificationService _pushService;
-    private readonly IUserDirectory _userDirectory;
     private readonly ILoggerFactory _loggerFactory;
     private ChannelCreatedEventHandler? _channelCreatedHandler;
     private ChannelDeletedEventHandler? _channelDeletedHandler;
@@ -31,16 +30,14 @@ internal sealed class ChatEventSubscriber : IHostedService
     public ChatEventSubscriber(
         IEventBus eventBus,
         IChatMessageNotifier notifier,
-        IChannelMemberService memberService,
+        IServiceScopeFactory scopeFactory,
         IPushNotificationService pushService,
-        IUserDirectory userDirectory,
         ILoggerFactory loggerFactory)
     {
         _eventBus = eventBus;
         _notifier = notifier;
-        _memberService = memberService;
+        _scopeFactory = scopeFactory;
         _pushService = pushService;
-        _userDirectory = userDirectory;
         _loggerFactory = loggerFactory;
     }
 
@@ -56,10 +53,9 @@ internal sealed class ChatEventSubscriber : IHostedService
             _loggerFactory.CreateLogger<ChannelDeletedEventHandler>());
 
         _dmChannelCreatedHandler = new DmChannelCreatedEventHandler(
-            _memberService,
+            _scopeFactory,
             _pushService,
             _notifier,
-            _userDirectory,
             _loggerFactory.CreateLogger<DmChannelCreatedEventHandler>());
 
         await _eventBus.SubscribeAsync(_channelCreatedHandler, cancellationToken);

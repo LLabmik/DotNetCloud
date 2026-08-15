@@ -114,13 +114,8 @@ public sealed class ReminderDispatchService : BackgroundService
         {
             foreach (var reminder in evt.Reminders)
             {
-                // Only dispatch Notification-type reminders via push/in-app.
-                // Email-type reminders are handled separately.
-                if (reminder.Method != ReminderMethod.Notification)
-                {
-                    continue;
-                }
-
+                // Dispatch every due reminder. Delivery routing (push vs email)
+                // is decided downstream by the event consumer based on Method.
                 var triggerTime = evt.StartUtc.AddMinutes(-reminder.MinutesBefore);
 
                 // Is it due now?
@@ -192,13 +187,8 @@ public sealed class ReminderDispatchService : BackgroundService
                 {
                     foreach (var reminder in master.Reminders)
                     {
-                        // Only dispatch Notification-type reminders via push/in-app.
-                        // Email-type reminders are handled separately.
-                        if (reminder.Method != ReminderMethod.Notification)
-                        {
-                            continue;
-                        }
-
+                        // Dispatch every due reminder. Delivery routing (push vs email)
+                        // is decided downstream by the event consumer based on Method.
                         var triggerTime = occ.StartUtc.AddMinutes(-reminder.MinutesBefore);
 
                         if (triggerTime > now)
