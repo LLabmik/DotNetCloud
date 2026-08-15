@@ -26,7 +26,7 @@
 
         <div class="dashboard-grid">
             <section class="dashboard-card">
-                <MaterialIcon Icon="person" CssClass="card-icon" Size="MaterialIconSize.Lg" />
+                <div class="card-icon">👤</div>
                 <div class="card-content">
                     <h3>Account</h3>
                     <p class="card-value card-value-small">@accountName</p>
@@ -43,7 +43,7 @@
             </section>
 
             <section class="dashboard-card">
-                <MaterialIcon Icon="extension" CssClass="card-icon" Size="MaterialIconSize.Lg" />
+                <div class="card-icon">🧩</div>
                 <div class="card-content">
                     <h3>Available Apps</h3>
                     <p class="card-value">@ModuleRegistry.NavItems.Count</p>
@@ -54,7 +54,7 @@
             <AuthorizeView Policy="RequireAdmin">
                 <Authorized Context="adminContext">
                     <section class="dashboard-card card-healthy">
-                        <MaterialIcon Icon="build" CssClass="card-icon" Size="MaterialIconSize.Lg" />
+                        <div class="card-icon">🛠</div>
                         <div class="card-content">
                             <h3>Administration</h3>
                             <p class="text-muted">You have administrative access.</p>
@@ -64,7 +64,7 @@
                 </Authorized>
                 <NotAuthorized>
                     <section class="dashboard-card">
-                        <MaterialIcon Icon="lock" CssClass="card-icon" Size="MaterialIconSize.Lg" />
+                        <div class="card-icon">🔐</div>
                         <div class="card-content">
                             <h3>Security</h3>
                             <p class="text-muted">Your account has standard user permissions.</p>
@@ -86,7 +86,7 @@
                     @foreach (var item in ModuleRegistry.NavItems)
                     {
                         <a href="@item.Href" class="module-card">
-                            <MaterialIcon Icon="@item.Icon" CssClass="module-card-icon" />
+                            <span class="module-card-icon">@item.Icon</span>
                             <span class="module-card-label">@item.Label</span>
                             <span class="module-card-action">Open</span>
                         </a>

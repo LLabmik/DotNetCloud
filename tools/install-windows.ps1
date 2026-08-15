@@ -1,11 +1,46 @@
 ﻿<#
-DotNetCloud - Windows + IIS Install Script
+.SYNOPSIS
+Installs DotNetCloud on Windows with IIS acting as a reverse proxy to the
+internal Kestrel listener on http://localhost:5080.
 
-This script installs DotNetCloud on Windows with IIS acting as a reverse proxy
-to the internal Kestrel listener on http://localhost:5080.
+.DESCRIPTION
+This is the dedicated Windows installation path for self-hosting on Windows
+Server / Windows 10+. It verifies the ASP.NET Core 10 runtime, enables IIS
+features, installs URL Rewrite + ARR and PostgreSQL, configures the IIS reverse
+proxy, registers the DotNetCloud Windows Service, and (when -HostName is
+provided) requests a Let's Encrypt certificate via win-acme.
 
-It intentionally does not modify tools/install.sh. This is the dedicated
-Windows installation path for self-hosting on Windows Server / Windows 10+.
+It intentionally does not modify tools/install.sh.
+
+.PARAMETER SourcePath
+Path to a published DotNetCloud layout (default: artifacts\publish).
+
+.PARAMETER HostName
+Public domain name for the IIS site. When provided, the installer automatically
+replaces the self-signed certificate with a Let's Encrypt certificate via
+win-acme. HTTP-01 validation requires -PublicHttpPort 80.
+
+.PARAMETER LetsEncryptEmail
+Email address for the Let's Encrypt account. Defaults to the admin email.
+
+.PARAMETER SkipLetsEncrypt
+Skip the automatic Let's Encrypt / win-acme certificate setup and keep the
+self-signed HTTPS certificate.
+
+.PARAMETER SkipHttps
+Skip HTTPS entirely (no self-signed certificate and no HTTPS binding).
+
+.PARAMETER SkipIisConfiguration
+Skip IIS site configuration (reverse proxy, bindings, app pool).
+
+.PARAMETER Beginner
+Use the simplified prompt flow (admin email + password) instead of the CLI wizard.
+
+.PARAMETER Advanced
+Run the full CLI setup wizard.
+
+.EXAMPLE
+powershell.exe -ExecutionPolicy Bypass -File .\tools\install-windows.ps1 -SourcePath .\artifacts\publish -HostName cloud.example.com -LetsEncryptEmail admin@example.com
 #>
 
 [CmdletBinding()]
@@ -28,6 +63,8 @@ param(
     [switch]$SkipServiceInstall,
     [switch]$SkipDatabaseInstall,
     [switch]$SkipHttps,
+    [switch]$SkipLetsEncrypt,
+    [string]$LetsEncryptEmail = "",
     [switch]$Force
 )
 
@@ -774,6 +811,10 @@ function Ensure-IisSite {
     <rewrite>
       <rules>
         <clear />
+        <rule name="AcmeChallenge" stopProcessing="true">
+          <match url="^\.well-known/acme-challenge/" />
+          <action type="None" />
+        </rule>
         <rule name="DotNetCloudReverseProxy" stopProcessing="true">
           <match url="(.*)" />
           <conditions logicalGrouping="MatchAll">
@@ -845,7 +886,103 @@ function Ensure-HttpsBinding {
 
     Write-Ok "HTTPS binding configured on port 443 with certificate '$certSubject'."
     Write-Warn "This is a self-signed certificate. Browsers will show a security warning."
-    Write-Warn "For a production domain, use win-acme to get a real certificate from Let's Encrypt."
+    Write-Warn "If you provided -HostName, the next step will replace it with a Let's Encrypt certificate via win-acme."
+}
+
+function Find-WinAcme {
+    # Prefer an existing install, whether on PATH or in the standard location.
+    $cmd = Get-Command wacs.exe -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+
+    $programFilesX86 = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::ProgramFilesX86)
+    $candidates = @(
+        (Join-Path $env:ProgramFiles "win-acme\wacs.exe"),
+        (Join-Path $programFilesX86 "win-acme\wacs.exe")
+    )
+    foreach ($candidate in $candidates) {
+        if (Test-Path $candidate) { return $candidate }
+    }
+
+    # Install via winget (best-effort).
+    $winget = Get-Command winget -ErrorAction SilentlyContinue
+    if ($winget) {
+        Write-Info "Installing win-acme via winget..."
+        & winget install --id win-acme.win-acme -e --silent --accept-source-agreements --accept-package-agreements 2>&1 | Out-Null
+        foreach ($candidate in $candidates) {
+            if (Test-Path $candidate) { return $candidate }
+        }
+        $cmd = Get-Command wacs.exe -ErrorAction SilentlyContinue
+        if ($cmd) { return $cmd.Source }
+    }
+
+    return $null
+}
+
+function Ensure-LetsEncryptCertificate {
+    if ($SkipLetsEncrypt) {
+        Write-Warn "Skipping Let's Encrypt certificate setup because -SkipLetsEncrypt was specified."
+        return
+    }
+    if ($SkipHttps -or $SkipIisConfiguration) {
+        return
+    }
+    if ([string]::IsNullOrWhiteSpace($HostName)) {
+        Write-Warn "Skipping Let's Encrypt because no -HostName was provided. A public domain name is required."
+        return
+    }
+    if ($PublicHttpPort -ne 80) {
+        Write-Warn "Skipping Let's Encrypt because -PublicHttpPort is not 80 (HTTP-01 validation requires port 80)."
+        return
+    }
+
+    Import-Module WebAdministration -ErrorAction Stop
+
+    $wacsExe = Find-WinAcme
+    if (-not $wacsExe) {
+        Write-Warn "win-acme could not be installed automatically."
+        Write-Warn "Install it manually from https://www.win-acme.com/ and run it to replace the self-signed certificate."
+        return
+    }
+
+    $site = Get-Website -Name $SiteName -ErrorAction SilentlyContinue
+    if ($null -eq $site) {
+        Write-Warn "IIS site '$SiteName' was not found. Skipping Let's Encrypt setup."
+        return
+    }
+
+    $email = $LetsEncryptEmail
+    if ([string]::IsNullOrWhiteSpace($email) -and $Script:AdminEmail) {
+        $email = $Script:AdminEmail
+    }
+    if ([string]::IsNullOrWhiteSpace($email)) {
+        $email = Read-Host "Enter an email address for the Let's Encrypt account"
+    }
+
+    Write-Info "Requesting a Let's Encrypt certificate for '$HostName' via win-acme..."
+    Write-Info "win-acme will validate ownership, store the certificate, and bind it to the IIS site '$SiteName'."
+
+    $wacsArgs = @(
+        "--source", "manual",
+        "--host", $HostName,
+        "--installation", "iis",
+        "--installationsiteid", $site.Id,
+        "--sslport", "443",
+        "--validation", "filesystem",
+        "--webroot", $Script:ServerRoot,
+        "--accepttos",
+        "--emailaddress", $email,
+        "--setuptaskscheduler"
+    )
+
+    & $wacsExe @wacsArgs 2>&1 | ForEach-Object { Write-Host $_ }
+
+    if ($LASTEXITCODE -eq 0) {
+        Write-Ok "Let's Encrypt certificate installed and bound to IIS. Automatic renewal was scheduled in Task Scheduler."
+    }
+    else {
+        Write-Warn "win-acme exited with code $LASTEXITCODE. The self-signed certificate remains in place."
+        Write-Warn "Run win-acme manually to troubleshoot, or re-run this script after resolving the issue."
+    }
 }
 
 function Ensure-FirewallRules {
@@ -932,7 +1069,12 @@ function Print-Summary {
     }
 
     if (-not $SkipHttps) {
-        Write-Host "  3. For a production domain, use win-acme to replace the self-signed certificate."
+        if ([string]::IsNullOrWhiteSpace($HostName) -or $SkipLetsEncrypt) {
+            Write-Host "  3. For a production domain, run win-acme (or re-run this script with -HostName and -LetsEncryptEmail) to get a Let's Encrypt certificate."
+        }
+        else {
+            Write-Host "  3. Let's Encrypt was configured via win-acme. Renewals run automatically in Task Scheduler."
+        }
     }
     else {
         Write-Host "  3. If you want HTTPS, re-run without -SkipHttps or add a certificate in IIS Manager."
@@ -1018,5 +1160,6 @@ Start-WindowsService
 Wait-ForHealth
 Ensure-IisSite
 Ensure-HttpsBinding
+Ensure-LetsEncryptCertificate
 Ensure-FirewallRules
 Print-Summary

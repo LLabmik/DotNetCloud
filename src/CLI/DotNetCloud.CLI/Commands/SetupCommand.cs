@@ -1427,6 +1427,12 @@ internal static class SetupCommand
             adminEmail = $"admin@{domain}";
         }
 
+        // Ensure certbot is installed for issuance and automatic renewal. On
+        // Linux this installs certbot via apt-get when missing; on Windows it is
+        // a no-op (certbot dropped Windows support), so the built-in ACME client
+        // is used there. A failure here does not block provisioning.
+        CertbotInstaller.EnsureInstalled();
+
         // Check DNS resolution first
         ConsoleOutput.WriteInfo($"Checking DNS for {domain}...");
         if (!AcmeService.CanDomainResolveToLocalMachine(domain))
