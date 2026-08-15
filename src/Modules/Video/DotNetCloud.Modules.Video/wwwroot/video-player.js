@@ -730,6 +730,12 @@
         video.getAttribute("data-stream-url") ||
         video.src ||
         "/api/v1/videos/" + videoId + "/stream";
+      // Only allow same-origin relative paths or http(s) URLs. Reject
+      // javascript: and other schemes so DOM text can never be reinterpreted
+      // as executable content when assigned to video.src.
+      if (!/^https?:\/\//i.test(baseUrl) && baseUrl.charAt(0) !== "/") {
+        baseUrl = "/api/v1/videos/" + videoId + "/stream";
+      }
       // Strip existing query params and add startSeconds + cache-buster
       var sep = baseUrl.indexOf("?") === -1 ? "?" : "&";
       var newUrl =
@@ -884,11 +890,20 @@
           '<div style="position:absolute;top:0;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.8);z-index:20;">' +
           '<div style="text-align:center;color:#fff;max-width:400px;padding:24px;">' +
           '<p style="font-size:18px;margin:0 0 8px;">&#9888; Seek Failed</p>' +
-          '<p style="font-size:13px;color:rgba(255,255,255,0.7);margin:0 0 16px;">' +
-          (err.message || "Could not jump to the selected position.") +
-          "</p>" +
+          '<p id="dnc-seek-error-message" style="font-size:13px;color:rgba(255,255,255,0.7);margin:0 0 16px;"></p>' +
           '<button onclick="document.getElementById(\'dnc-seek-error\').remove()" style="background:#3b82f6;color:#fff;border:none;padding:8px 20px;border-radius:6px;cursor:pointer;font-size:13px;">Dismiss</button>' +
           "</div></div>";
+
+        // Set the dynamic error message via textContent (never innerHTML) so
+        // exception text cannot be reinterpreted as HTML.
+        var errMsg = errOverlay.querySelector("#dnc-seek-error-message");
+        if (errMsg) {
+          errMsg.textContent =
+            err && err.message
+              ? err.message
+              : "Could not jump to the selected position.";
+        }
+
         if (container) container.appendChild(errOverlay);
       });
   };
