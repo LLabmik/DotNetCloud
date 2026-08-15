@@ -150,13 +150,20 @@ To skip HTTPS during install, use `-SkipHttps`.
 
 ### Upgrading to a Real Certificate
 
-For a public domain, replace the self-signed certificate with a real one using `win-acme`:
+For a public domain, the installer can obtain a Let's Encrypt certificate automatically via `win-acme`. Re-run the script with `-HostName`:
 
-1. Point `cloud.example.com` to your server.
-2. Make sure ports `80` and `443` are reachable from the internet.
-3. Install `win-acme`.
-4. Request a certificate for your IIS site.
-5. Let `win-acme` create or update the HTTPS binding.
+```powershell
+powershell.exe -ExecutionPolicy Bypass -File .\tools\install-windows.ps1 -HostName cloud.example.com -LetsEncryptEmail admin@example.com
+```
+
+This:
+
+1. Installs `win-acme` (via winget) if it is not already present.
+2. Requests a certificate for `cloud.example.com` using HTTP-01 validation (requires port 80 reachable from the internet).
+3. Stores the certificate and updates the IIS HTTPS binding on port 443.
+4. Creates a Task Scheduler job so win-acme renews the certificate automatically.
+
+To skip this step and keep the self-signed certificate, pass `-SkipLetsEncrypt`.
 
 This is the recommended public-internet path because it keeps certificate issuance and renewal inside the normal IIS workflow.
 
@@ -333,7 +340,7 @@ After the site is live:
 
 1. open `https://localhost/` and sign in with the admin credentials you created during install
 2. confirm the app loads correctly through IIS
-3. for a public domain, use win-acme to replace the self-signed certificate
+3. for a public domain, re-run the installer with `-HostName` to configure Let's Encrypt via win-acme (or pass `-SkipLetsEncrypt` to keep the self-signed certificate)
 4. verify the reverse-proxy URL is the one you will use long-term
 5. back up `config.json` and the data directory
 

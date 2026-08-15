@@ -389,7 +389,8 @@ The script:
 8. Creates and starts the DotNetCloud Windows Service
 9. Configures IIS reverse proxy to `http://localhost:5080`
 10. Generates a self-signed HTTPS certificate on port 443
-11. Opens firewall ports 80/443
+11. If `-HostName` is set, replaces the self-signed certificate with Let's Encrypt via win-acme and schedules automatic renewal
+12. Opens firewall ports 80/443
 
 After completion, open `https://localhost/` and log in.
 
@@ -398,6 +399,8 @@ After completion, open `https://localhost/` and log in.
 - `-SkipHttps` — skip self-signed certificate + HTTPS binding
 - `-Advanced` — use the full CLI setup wizard instead of the simplified prompts
 - `-HostName cloud.example.com` — set a specific hostname for the IIS site
+- `-LetsEncryptEmail admin@example.com` — email for the Let's Encrypt account
+- `-SkipLetsEncrypt` — keep the self-signed certificate (skip win-acme)
 - `-SkipFirewall` — skip Windows Firewall configuration
 
 For detailed IIS-specific guidance, see [WINDOWS_IIS_INSTALL_GUIDE.md](WINDOWS_IIS_INSTALL_GUIDE.md).
@@ -931,6 +934,7 @@ The setup wizard now supports three HTTPS certificate modes:
 
 1. **Public internet (Let's Encrypt)**
   - Use when your server is publicly reachable and has a real DNS name.
+  - On Linux, the wizard installs `certbot` automatically for issuance and automatic renewal.
 2. **Private testing (self-signed)**
   - Use for LAN/private environments where you do not want to expose the server publicly.
   - The wizard generates a self-signed PFX certificate and configures DotNetCloud to use it.
@@ -961,6 +965,16 @@ sudo certbot --apache -d cloud.example.com
 ```
 
 ### Windows with win-acme
+
+The `install-windows.ps1` installer obtains a Let's Encrypt certificate automatically when you pass `-HostName`:
+
+```powershell
+powershell.exe -ExecutionPolicy Bypass -File .\tools\install-windows.ps1 -HostName cloud.example.com
+```
+
+This installs win-acme if needed, requests the certificate (HTTP-01 on port 80), binds it to the IIS site on port 443, and schedules automatic renewal. Use `-SkipLetsEncrypt` to keep the self-signed certificate.
+
+To use win-acme manually:
 
 1. Download [win-acme](https://www.win-acme.com/)
 2. Run `wacs.exe` as Administrator
