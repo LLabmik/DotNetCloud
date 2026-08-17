@@ -90,8 +90,8 @@ public sealed class NotificationsController : ControllerBase
         /// <summary>Whether push notifications are globally enabled.</summary>
         public bool PushEnabled { get; init; } = true;
 
-        /// <summary>Whether do-not-disturb mode is enabled.</summary>
-        public bool DoNotDisturb { get; init; }
+        /// <summary>Whether do-not-disturb mode is enabled (default: disabled).</summary>
+        public bool DoNotDisturb { get; init; } = false;
 
         /// <summary>Channel IDs muted for push notifications.</summary>
         public List<Guid> MutedChannelIds { get; init; } = new();

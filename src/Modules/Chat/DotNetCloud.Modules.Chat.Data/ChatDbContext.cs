@@ -81,6 +81,9 @@ public class ChatDbContext : DbContext
     /// <summary>Per-user call blocking records.</summary>
     public DbSet<BlockedUser> BlockedUsers => Set<BlockedUser>();
 
+    /// <summary>Per-user push notification preferences (push enabled, DND, channel mutes).</summary>
+    public DbSet<UserNotificationPreference> UserNotificationPreferences => Set<UserNotificationPreference>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -100,6 +103,7 @@ public class ChatDbContext : DbContext
         modelBuilder.ApplyConfiguration(new VideoCallConfiguration());
         modelBuilder.ApplyConfiguration(new CallParticipantConfiguration());
         modelBuilder.ApplyConfiguration(new BlockedUserConfiguration());
+        modelBuilder.ApplyConfiguration(new UserNotificationPreferenceConfiguration());
 
         SequentialGuidConfigurationExtensions.ApplySequentialGuidDefaults(modelBuilder, _namingStrategy.Provider);
     }

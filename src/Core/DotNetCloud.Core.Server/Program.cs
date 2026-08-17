@@ -318,6 +318,11 @@ public class Program
         builder.Services.AddDbContext<ChatDbContext>(options =>
             ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Chat.Data"),
             ServiceLifetime.Transient);
+        // Custom factory for the DB-backed notification preference store — persists DND/mute
+        // state in the chat schema so it's consistent across processes and machines.
+        // (ChatDbContext's two constructors break the built-in AddDbContextFactory activator
+        // when ITableNamingStrategy is registered in DI, so we use ChatDbContextFactory.)
+        builder.Services.AddSingleton<IDbContextFactory<ChatDbContext>, ChatDbContextFactory>();
         builder.Services.AddChatServices(builder.Configuration!);
 
         // Calendar DbContext for schema creation by DbContextSchemaProvider.

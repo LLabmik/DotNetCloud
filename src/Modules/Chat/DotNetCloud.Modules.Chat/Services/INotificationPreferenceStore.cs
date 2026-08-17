@@ -32,8 +32,9 @@ public sealed record UserNotificationPreferences
 
     /// <summary>
     /// Gets a value indicating whether do-not-disturb mode is enabled.
+    /// Defaults to <c>false</c> — DND is disabled for new users.
     /// </summary>
-    public bool DoNotDisturb { get; init; }
+    public bool DoNotDisturb { get; init; } = false;
 
     /// <summary>
     /// Gets channel IDs muted for push notifications.

@@ -36,7 +36,7 @@ public static class ChatServiceRegistration
         services.AddScoped<IAnnouncementService, AnnouncementService>();
         services.AddScoped<IChannelInviteService, ChannelInviteService>();
         services.AddScoped<IMentionNotificationService, MentionNotificationService>();
-        services.AddSingleton<INotificationPreferenceStore, InMemoryNotificationPreferenceStore>();
+        services.AddSingleton<INotificationPreferenceStore, DbNotificationPreferenceStore>();
         services.AddSingleton<INotificationDeliveryQueue, InMemoryNotificationDeliveryQueue>();
         services.AddSingleton<IFcmTransport>(sp =>
         {
