@@ -553,6 +553,28 @@ namespace DotNetCloud.Modules.Chat.Data.Migrations
                     b.ToTable("PinnedMessages", "core");
                 });
 
+            modelBuilder.Entity("DotNetCloud.Modules.Chat.Models.UserNotificationPreference", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("DoNotDisturb")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("MutedChannelIdsJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("MutedChannelIds");
+
+                    b.Property<bool>("PushEnabled")
+                        .HasColumnType("boolean");
+
+                    b.HasKey("UserId");
+
+                    b.ToTable("UserNotificationPreferences", "core");
+                });
+
             modelBuilder.Entity("DotNetCloud.Modules.Chat.Models.VideoCall", b =>
                 {
                     b.Property<Guid>("Id")

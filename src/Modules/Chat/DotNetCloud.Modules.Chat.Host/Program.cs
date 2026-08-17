@@ -1,5 +1,6 @@
 using DotNetCloud.Core.Auth.Authorization;
 using DotNetCloud.Core.Auth.Introspection;
+using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Chat;
 using DotNetCloud.Modules.Chat.Data;
@@ -117,20 +118,31 @@ var connectionString = builder.Configuration["connectionString"]
 var dbProvider = builder.Configuration["databaseProvider"]
     ?? builder.Configuration["database:provider"];
 
+Action<DbContextOptionsBuilder> configureChatDb = options =>
+{
+    if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
+        options.UseNpgsql(connectionString);
+    else
+        options.UseSqlServer(connectionString);
+};
+
+// Naming strategy matching the configured provider (used by ChatDbContextFactory).
+builder.Services.AddSingleton<ITableNamingStrategy>(string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase)
+    ? new PostgreSqlNamingStrategy()
+    : new SqlServerNamingStrategy());
+
 if (!string.IsNullOrEmpty(connectionString) && !string.IsNullOrEmpty(dbProvider))
 {
-    builder.Services.AddDbContext<ChatDbContext>(options =>
-    {
-        if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
-            options.UseNpgsql(connectionString);
-        else
-            options.UseSqlServer(connectionString);
-    });
+    builder.Services.AddDbContext<ChatDbContext>(configureChatDb);
+    // Custom factory for the DB-backed notification preference store (shared across processes).
+    // ChatDbContext's two constructors break the built-in AddDbContextFactory activator.
+    builder.Services.AddSingleton<IDbContextFactory<ChatDbContext>, ChatDbContextFactory>();
 }
 else
 {
     builder.Services.AddDbContext<ChatDbContext>(options =>
         options.UseInMemoryDatabase("ChatModule"));
+    builder.Services.AddSingleton<IDbContextFactory<ChatDbContext>, ChatDbContextFactory>();
 }
 
 // In-process event bus for standalone operation
