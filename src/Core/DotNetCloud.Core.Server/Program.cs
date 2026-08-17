@@ -371,6 +371,11 @@ public class Program
         });
         builder.Services.AddSingleton<DotNetCloud.Core.Services.IUpdateService, DotNetCloud.Core.Server.Services.GitHubUpdateService>();
         builder.Services.AddScoped<DotNetCloud.Core.Capabilities.INotificationService, NotificationService>();
+
+        // Notification fan-out channels
+        builder.Services.AddScoped<INotificationChannel, RealtimeNotificationChannel>();
+        builder.Services.AddScoped<INotificationChannel, PushNotificationChannel>();
+        builder.Services.AddScoped<INotificationChannel, NullEmailChannel>();
         builder.Services.AddScoped<DotNetCloud.Modules.Files.Services.IUserOrganizationResolver, UserOrganizationResolver>();
         builder.Services.AddScoped<DotNetCloud.Core.Import.IImportPipeline, ImportPipelineService>();
         builder.Services.AddScoped<DotNetCloud.Core.Server.Services.MediaFolderImportService>();
@@ -676,10 +681,6 @@ public class Program
         // Register initialization services
         builder.Services.AddScoped<AdminSeeder>();
         builder.Services.AddScoped<OidcClientSeeder>();
-
-        // Push notification service (no-op in Core.Server — handled by Chat module gRPC)
-        builder.Services.AddSingleton<DotNetCloud.Core.Server.PushNotifications.IPushNotificationService,
-            DotNetCloud.Core.Server.Services.NoOpPushNotificationService>();
 
         builder.Services.AddHostedService<ModuleUiRegistrationHostedService>();
         builder.Services.AddHostedService<NotificationEventSubscriber>();

@@ -36,6 +36,7 @@ public class VideoCallGrpcServiceTests
         _channelMemberService = new Mock<IChannelMemberService>();
         _callSignalingService = new Mock<ICallSignalingService>();
         _videoCallService = new Mock<IVideoCallService>();
+        var pushService = new Mock<IPushNotificationService>();
 
         _service = new ChatGrpcService(
             _db,
@@ -43,6 +44,7 @@ public class VideoCallGrpcServiceTests
             _channelMemberService.Object,
             _callSignalingService.Object,
             _videoCallService.Object,
+            pushService.Object,
             NullLogger<ChatGrpcService>.Instance);
 
         _context = new MockServerCallContext();

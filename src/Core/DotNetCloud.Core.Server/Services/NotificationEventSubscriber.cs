@@ -1,5 +1,4 @@
 using DotNetCloud.Core.Events;
-using DotNetCloud.Core.Server.PushNotifications;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -14,26 +13,17 @@ namespace DotNetCloud.Core.Server.Services;
 internal sealed class NotificationEventSubscriber : IHostedService
 {
     private readonly IEventBus _eventBus;
-    private readonly IPushNotificationService _pushService;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILoggerFactory _loggerFactory;
-    private FileSharedNotificationHandler? _fileSharedHandler;
-    private QuotaNotificationHandler? _quotaHandler;
-    private PublicLinkAccessedNotificationHandler? _publicLinkHandler;
-    private ShareExpiringNotificationHandler? _shareExpiringHandler;
-    private ResourceSharedNotificationHandler? _resourceSharedHandler;
-    private UserMentionedNotificationHandler? _userMentionedHandler;
-    private ReminderNotificationHandler? _reminderHandler;
-    private InAppNotificationEventHandler? _inAppNotificationHandler;
+    private NotificationProducer? _producer;
+    private NotificationFanOutDispatcher? _fanOutDispatcher;
 
     public NotificationEventSubscriber(
         IEventBus eventBus,
-        IPushNotificationService pushService,
         IServiceScopeFactory scopeFactory,
         ILoggerFactory loggerFactory)
     {
         _eventBus = eventBus;
-        _pushService = pushService;
         _scopeFactory = scopeFactory;
         _loggerFactory = loggerFactory;
     }
@@ -41,84 +31,45 @@ internal sealed class NotificationEventSubscriber : IHostedService
     /// <inheritdoc />
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        _fileSharedHandler = new FileSharedNotificationHandler(
-            _pushService,
-            _loggerFactory.CreateLogger<FileSharedNotificationHandler>());
+        _producer = new NotificationProducer(_scopeFactory);
 
-        _quotaHandler = new QuotaNotificationHandler(
-            _pushService,
-            _loggerFactory.CreateLogger<QuotaNotificationHandler>());
+        _fanOutDispatcher = new NotificationFanOutDispatcher(
+            _scopeFactory,
+            _loggerFactory.CreateLogger<NotificationFanOutDispatcher>());
 
-        _publicLinkHandler = new PublicLinkAccessedNotificationHandler(
-            _pushService,
-            _loggerFactory.CreateLogger<PublicLinkAccessedNotificationHandler>());
+        await _eventBus.SubscribeAsync<FileSharedEvent>(_producer, cancellationToken);
+        await _eventBus.SubscribeAsync<QuotaWarningEvent>(_producer, cancellationToken);
+        await _eventBus.SubscribeAsync<QuotaCriticalEvent>(_producer, cancellationToken);
+        await _eventBus.SubscribeAsync<PublicLinkAccessedEvent>(_producer, cancellationToken);
+        await _eventBus.SubscribeAsync<ShareExpiringEvent>(_producer, cancellationToken);
+        await _eventBus.SubscribeAsync<ResourceSharedEvent>(_producer, cancellationToken);
+        await _eventBus.SubscribeAsync<UserMentionedEvent>(_producer, cancellationToken);
+        await _eventBus.SubscribeAsync<ReminderTriggeredEvent>(_producer, cancellationToken);
 
-        _shareExpiringHandler = new ShareExpiringNotificationHandler(
-            _pushService,
-            _loggerFactory.CreateLogger<ShareExpiringNotificationHandler>());
-
-        _resourceSharedHandler = new ResourceSharedNotificationHandler(
-            _pushService,
-            _loggerFactory.CreateLogger<ResourceSharedNotificationHandler>());
-
-        _userMentionedHandler = new UserMentionedNotificationHandler(
-            _pushService,
-            _loggerFactory.CreateLogger<UserMentionedNotificationHandler>());
-
-        _reminderHandler = new ReminderNotificationHandler(
-            _pushService,
-            _loggerFactory.CreateLogger<ReminderNotificationHandler>());
-
-        _inAppNotificationHandler = new InAppNotificationEventHandler(_scopeFactory);
-
-        await _eventBus.SubscribeAsync<FileSharedEvent>(_fileSharedHandler, cancellationToken);
-        await _eventBus.SubscribeAsync<QuotaWarningEvent>(_quotaHandler, cancellationToken);
-        await _eventBus.SubscribeAsync<QuotaCriticalEvent>(_quotaHandler, cancellationToken);
-        await _eventBus.SubscribeAsync<PublicLinkAccessedEvent>(_publicLinkHandler, cancellationToken);
-        await _eventBus.SubscribeAsync<ShareExpiringEvent>(_shareExpiringHandler, cancellationToken);
-        await _eventBus.SubscribeAsync<ResourceSharedEvent>(_resourceSharedHandler, cancellationToken);
-        await _eventBus.SubscribeAsync<UserMentionedEvent>(_userMentionedHandler, cancellationToken);
-        await _eventBus.SubscribeAsync<ReminderTriggeredEvent>(_reminderHandler, cancellationToken);
-        await _eventBus.SubscribeAsync<ResourceSharedEvent>(_inAppNotificationHandler, cancellationToken);
-        await _eventBus.SubscribeAsync<UserMentionedEvent>(_inAppNotificationHandler, cancellationToken);
-        await _eventBus.SubscribeAsync<ReminderTriggeredEvent>(_inAppNotificationHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<NotificationCreatedEvent>(_fanOutDispatcher, cancellationToken);
 
         _loggerFactory.CreateLogger<NotificationEventSubscriber>()
-            .LogInformation("Notification event handlers subscribed (FileShared, QuotaWarning, QuotaCritical, PublicLinkAccessed, ShareExpiring, ResourceShared, UserMentioned, Reminder)");
+            .LogInformation("Notification producers + fan-out dispatcher subscribed (8 events -> 1 pipeline)");
     }
 
     /// <inheritdoc />
     public async Task StopAsync(CancellationToken cancellationToken)
     {
-        if (_fileSharedHandler is not null)
-            await _eventBus.UnsubscribeAsync<FileSharedEvent>(_fileSharedHandler, cancellationToken);
-
-        if (_quotaHandler is not null)
+        if (_producer is not null)
         {
-            await _eventBus.UnsubscribeAsync<QuotaWarningEvent>(_quotaHandler, cancellationToken);
-            await _eventBus.UnsubscribeAsync<QuotaCriticalEvent>(_quotaHandler, cancellationToken);
+            await _eventBus.UnsubscribeAsync<FileSharedEvent>(_producer, cancellationToken);
+            await _eventBus.UnsubscribeAsync<QuotaWarningEvent>(_producer, cancellationToken);
+            await _eventBus.UnsubscribeAsync<QuotaCriticalEvent>(_producer, cancellationToken);
+            await _eventBus.UnsubscribeAsync<PublicLinkAccessedEvent>(_producer, cancellationToken);
+            await _eventBus.UnsubscribeAsync<ShareExpiringEvent>(_producer, cancellationToken);
+            await _eventBus.UnsubscribeAsync<ResourceSharedEvent>(_producer, cancellationToken);
+            await _eventBus.UnsubscribeAsync<UserMentionedEvent>(_producer, cancellationToken);
+            await _eventBus.UnsubscribeAsync<ReminderTriggeredEvent>(_producer, cancellationToken);
         }
 
-        if (_publicLinkHandler is not null)
-            await _eventBus.UnsubscribeAsync<PublicLinkAccessedEvent>(_publicLinkHandler, cancellationToken);
-
-        if (_shareExpiringHandler is not null)
-            await _eventBus.UnsubscribeAsync<ShareExpiringEvent>(_shareExpiringHandler, cancellationToken);
-
-        if (_resourceSharedHandler is not null)
-            await _eventBus.UnsubscribeAsync<ResourceSharedEvent>(_resourceSharedHandler, cancellationToken);
-
-        if (_userMentionedHandler is not null)
-            await _eventBus.UnsubscribeAsync<UserMentionedEvent>(_userMentionedHandler, cancellationToken);
-
-        if (_reminderHandler is not null)
-            await _eventBus.UnsubscribeAsync<ReminderTriggeredEvent>(_reminderHandler, cancellationToken);
-
-        if (_inAppNotificationHandler is not null)
+        if (_fanOutDispatcher is not null)
         {
-            await _eventBus.UnsubscribeAsync<ResourceSharedEvent>(_inAppNotificationHandler, cancellationToken);
-            await _eventBus.UnsubscribeAsync<UserMentionedEvent>(_inAppNotificationHandler, cancellationToken);
-            await _eventBus.UnsubscribeAsync<ReminderTriggeredEvent>(_inAppNotificationHandler, cancellationToken);
+            await _eventBus.UnsubscribeAsync<NotificationCreatedEvent>(_fanOutDispatcher, cancellationToken);
         }
     }
 }

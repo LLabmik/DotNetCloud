@@ -6199,3 +6199,27 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - ✓ Tests: Video 154, Music 382, SyncTray 123, UI.Shared 62 (all passing)
 
 **Next steps:** Deploy to server for user testing (`sudo ./scripts/deploy.sh`), then commit on `fix/blazor-cleanup` after user sign-off.
+
+---
+
+## Notification Fan-Out Unification (2026-08-16)
+
+> **Reference:** `docs/NOTIFICATION_FANOUT_UNIFICATION_PLAN.md` — branch `fix/notification-flow`
+
+**Status:** completed ✅
+**Duration:** one implementation session
+**Deliverables:**
+
+- ✓ Single notification pipeline — every cross-module event produces **one** persisted `NotificationDto` via `NotificationProducer` (8 events → 1 bell pipeline; closes the 5-event gap: file-shared, quota warning/critical, public-link-accessed, share-expiring now reach the bell)
+- ✓ `NotificationCreatedEvent` published by `NotificationService` (after `SaveChangesAsync`) in both `SendAsync` and `SendToManyAsync`
+- ✓ `INotificationChannel` + `NotificationFanOutDispatcher` — per-channel failure isolation (one broken channel never blocks the others)
+- ✓ `RealtimeNotificationChannel` — SignalR `notification.created` to recipient for live bell badge refresh
+- ✓ `PushNotificationChannel` — delivers push via new `SendPushNotification` gRPC RPC to the Chat module's `NotificationRouter` (FCM/UnifiedPush); preference/presence/DND gating stays inside Chat, not duplicated
+- ✓ `NullEmailChannel` stub (real email deferred to follow-up)
+- ✓ New gRPC RPC `SendPushNotification` in `chat_service.proto` + `ChatGrpcService.SendPushNotification` + `IChatApiClient.SendPushNotificationAsync` + `ChatGrpcApiClient`
+- ✓ `GrpcHealthServiceImpl` calendar-event push fallback rewired from Core's (now removed) `IPushNotificationService` to `IChatApiClient.SendPushNotificationAsync`
+- ✓ Removed dead code: `NoOpPushNotificationService`, Core.Server `PushNotifications` namespace, 8 push handlers, `InAppNotificationEventHandler`
+- ✓ Chat message/DM delivery untouched — out of scope, no regression
+- ✓ 23 new tests (11 `NotificationProducerTests`, 2 `NotificationFanOutDispatcherTests`, 7 `PushNotificationChannelTests`, 3 `ChatGrpcServicePushTests`); obsolete `NotificationHandlerTests.cs` removed
+
+**Notes:** All in-scope cross-module notification events now flow through one persisted bell notification and fan out to real-time (SignalR) and push (via Chat gRPC). The `NotificationsController` ↔ Chat `INotificationPreferenceStore` cross-module reference remains as a documented pre-existing follow-up. Verification: `dotnet build DotNetCloud.CI.slnf -c Release` (0 errors); Core.Server 590 passed, Chat 1311 passed, Core 489 passed.

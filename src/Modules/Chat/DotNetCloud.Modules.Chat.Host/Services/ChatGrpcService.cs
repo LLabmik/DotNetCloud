@@ -21,6 +21,7 @@ public sealed class ChatGrpcService : ChatService.ChatServiceBase
     private readonly IChannelMemberService _channelMemberService;
     private readonly ICallSignalingService _callSignalingService;
     private readonly IVideoCallService _videoCallService;
+    private readonly IPushNotificationService _pushService;
     private readonly ILogger<ChatGrpcService> _logger;
 
     /// <summary>
@@ -32,6 +33,7 @@ public sealed class ChatGrpcService : ChatService.ChatServiceBase
         IChannelMemberService channelMemberService,
         ICallSignalingService callSignalingService,
         IVideoCallService videoCallService,
+        IPushNotificationService pushService,
         ILogger<ChatGrpcService> logger)
     {
         _db = db;
@@ -39,6 +41,7 @@ public sealed class ChatGrpcService : ChatService.ChatServiceBase
         _channelMemberService = channelMemberService;
         _callSignalingService = callSignalingService;
         _videoCallService = videoCallService;
+        _pushService = pushService;
         _logger = logger;
     }
 
@@ -843,6 +846,40 @@ public sealed class ChatGrpcService : ChatService.ChatServiceBase
             Found = true,
             Document = MapToSearchableDocument(message)
         };
+    }
+
+    /// <inheritdoc />
+    public override async Task<SendPushNotificationResponse> SendPushNotification(
+        SendPushNotificationRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.UserId, out var userId))
+        {
+            return new SendPushNotificationResponse { Success = false, ErrorMessage = "Invalid user ID format." };
+        }
+
+        if (!Enum.TryParse<NotificationCategory>(request.Category, ignoreCase: true, out var category))
+        {
+            category = NotificationCategory.System;
+        }
+
+        var push = new PushNotification
+        {
+            Title = request.Title,
+            Body = request.Body,
+            Category = category,
+            Data = new Dictionary<string, string>(request.Data)
+        };
+
+        try
+        {
+            await _pushService.SendAsync(userId, push, context.CancellationToken);
+            return new SendPushNotificationResponse { Success = true };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "SendPushNotification failed for user {UserId}", userId);
+            return new SendPushNotificationResponse { Success = false, ErrorMessage = ex.Message };
+        }
     }
 
     private static SearchableDocument MapToSearchableDocument(Message message)
