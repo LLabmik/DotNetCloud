@@ -106,4 +106,15 @@ public interface IChatApiClient
 
     /// <summary>Transfers the host role of an active call to another participant.</summary>
     Task<bool> TransferCallHostAsync(Guid callId, Guid newHostUserId, Guid userId, CancellationToken cancellationToken = default);
+
+    // ── Push Notification Operations ───────────────────────────────────
+
+    /// <summary>Sends a push notification to a user's registered devices via the Chat module.</summary>
+    Task SendPushNotificationAsync(
+        Guid userId,
+        string title,
+        string body,
+        string category,
+        IReadOnlyDictionary<string, string>? data = null,
+        CancellationToken cancellationToken = default);
 }

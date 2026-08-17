@@ -4,7 +4,6 @@ using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Grpc.Capabilities;
 using DotNetCloud.Core.Modules.Supervisor;
-using DotNetCloud.Core.Server.PushNotifications;
 using DotNetCloud.Core.Server.Services;
 using DotNetCloud.Modules.Chat.DTOs;
 using DotNetCloud.Modules.Chat.Services;
@@ -361,12 +360,14 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
 
                 await broadcaster.SendToUserAsync(targetUserId, request.EventName, payload ?? request.PayloadJson, context.CancellationToken);
 
-                // For calendar events, always send FCM push as fallback for dozed devices
                 if (request.EventName is "CalendarEventCreated" or "CalendarEventUpdated" or "CalendarEventDeleted")
                 {
                     try
                     {
-                        var pushService = _serviceProvider.GetRequiredService<DotNetCloud.Core.Server.PushNotifications.IPushNotificationService>();
+                        using var pushScope = _serviceProvider.CreateScope();
+                        var chatApiClient = pushScope.ServiceProvider
+                            .GetRequiredService<DotNetCloud.Core.Services.ModuleApis.IChatApiClient>();
+
                         var eventId = string.Empty;
                         if (!string.IsNullOrEmpty(request.PayloadJson))
                         {
@@ -375,27 +376,27 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
                                 eventId = evtIdProp.GetString() ?? string.Empty;
                         }
 
-                        await pushService.SendAsync(targetUserId, new DotNetCloud.Core.Server.PushNotifications.PushNotification
-                        {
-                            Title = request.EventName switch
+                        await chatApiClient.SendPushNotificationAsync(
+                            targetUserId,
+                            request.EventName switch
                             {
                                 "CalendarEventCreated" => "New Event",
                                 "CalendarEventUpdated" => "Calendar Updated",
                                 "CalendarEventDeleted" => "Event Cancelled",
                                 _ => "Calendar Update"
                             },
-                            Body = string.Empty,
-                            Category = DotNetCloud.Core.Server.PushNotifications.NotificationCategory.CalendarEvent,
-                            Data = new Dictionary<string, string>
+                            string.Empty,
+                            "System",
+                            new Dictionary<string, string>
                             {
                                 ["type"] = "calendar_event",
                                 ["eventId"] = eventId
-                            }
-                        }, context.CancellationToken);
+                            },
+                            context.CancellationToken);
                     }
                     catch (Exception pushEx)
                     {
-                        _logger.LogWarning(pushEx, "Failed to send FCM push for calendar event {EventName} to user {UserId}",
+                        _logger.LogWarning(pushEx, "Failed to send push for calendar event {EventName} to user {UserId}",
                             request.EventName, targetUserId);
                     }
                 }

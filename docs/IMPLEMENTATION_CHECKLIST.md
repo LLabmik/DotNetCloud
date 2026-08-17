@@ -6161,3 +6161,67 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 
 - ✓ Fix `AutoDetectSeriesAsync` loop index bug: loop started at `i=1`, skipping the first path segment. When library source points directly at the show folder (e.g., `_dotnetcloud/TV/Star Trek/Discovery`), the relative scan path is `Season 1/Episode 1.mkv` and the `"Season 1"` folder at index 0 was never checked.
 - ✓ Pass `sourceName` to `AutoDetectSeriesAsync` so it can use the library source name as the series name fallback when the season folder is the first path segment (no parent folder to extract series name from)
+
+---
+
+## Notification Fan-Out Unification (2026-08-16)
+
+> **Reference:** `docs/NOTIFICATION_FANOUT_UNIFICATION_PLAN.md` (branch `fix/notification-flow`)
+
+### Phase 1 — Consolidate Producers (close the 5-event gap)
+
+- ✓ `NotificationProducer` — single bell producer for all 8 cross-module events
+- ✓ File shared (user-targeted) → bell "File shared with you" (the fix)
+- ✓ Quota warning / quota critical → bell system alerts
+- ✓ Public link accessed / share expiring → bell to share creator
+- ✓ Resource shared / user mentioned / reminder triggered → bell (unchanged titles/types)
+
+### Phase 2 — `NotificationCreatedEvent` + Dispatcher
+
+- ✓ `NotificationCreatedEvent` published by `NotificationService` after `SaveChangesAsync`
+- ✓ `INotificationChannel` abstraction + `NotificationFanOutDispatcher` (per-channel failure isolation)
+- ✓ `SendToManyAsync` publishes one `NotificationCreatedEvent` per persisted row
+
+### Phase 3 — Channel Implementations
+
+- ✓ `RealtimeNotificationChannel` — SignalR `notification.created` to recipient (bell live refresh)
+- ✓ `PushNotificationChannel` — gRPC to Chat module `NotificationRouter` (FCM/UnifiedPush)
+- ✓ `NullEmailChannel` — stub (real email deferred)
+
+### Phase 4 — gRPC Push RPC (Core.Server → Chat)
+
+- ✓ `SendPushNotification` RPC in `chat_service.proto` + `ChatGrpcService`
+- ✓ `IChatApiClient.SendPushNotificationAsync` + `ChatGrpcApiClient` implementation
+- ✓ Chat `NotificationRouter` owns preference/presence/DND gating — not duplicated in Core
+
+### Phase 5 — Rewire `NotificationEventSubscriber`
+
+- ✓ Subscribes `NotificationProducer` to all 8 events + `NotificationFanOutDispatcher` to `NotificationCreatedEvent`
+- ✓ Unsubscribes all 9 subscriptions on shutdown
+
+### Phase 6 — DI Registration + Cleanup
+
+- ✓ Removed `NoOpPushNotificationService` + Core.Server `PushNotifications` namespace (dead code)
+- ✓ Deleted 9 obsolete push/in-app handler files
+- ✓ Registered 3 fan-out channels (scoped)
+- ✓ `GrpcHealthServiceImpl` calendar push fallback now uses `IChatApiClient` (no Core push service)
+
+### Phase 7 — Tests
+
+- ✓ `NotificationProducerTests` — 11 tests (null recipient, quota, public link, share expiry, PIM events)
+- ✓ `NotificationFanOutDispatcherTests` — 2 tests (all channels called, throwing channel isolation)
+- ✓ `PushNotificationChannelTests` — 7 tests (category mapping per `NotificationType`)
+- ✓ `ChatGrpcServicePushTests` — 3 tests (invalid user id, forward to push service, unknown category)
+- ✓ Removed obsolete `NotificationHandlerTests.cs` (tested deleted push handlers)
+
+### Phase 8 — Documentation
+
+- ✓ `IMPLEMENTATION_CHECKLIST.md` updated (this section)
+- ✓ `MASTER_PROJECT_PLAN.md` updated
+
+### Verification
+
+- ✓ `dotnet build DotNetCloud.CI.slnf -c Release` — 0 errors
+- ✓ Core.Server tests: 590 passed
+- ✓ Chat tests: 1311 passed
+- ✓ Core tests: 489 passed

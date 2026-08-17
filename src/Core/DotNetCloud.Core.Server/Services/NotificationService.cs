@@ -1,8 +1,11 @@
+using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Entities.Notifications;
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.Events;
 using Microsoft.EntityFrameworkCore;
+using IEventBus = DotNetCloud.Core.Events.IEventBus;
 
 namespace DotNetCloud.Core.Server.Services;
 
@@ -12,10 +15,12 @@ namespace DotNetCloud.Core.Server.Services;
 internal sealed class NotificationService : INotificationService
 {
     private readonly CoreDbContext _db;
+    private readonly IEventBus _eventBus;
 
-    public NotificationService(CoreDbContext db)
+    public NotificationService(CoreDbContext db, IEventBus eventBus)
     {
         _db = db;
+        _eventBus = eventBus;
     }
 
     /// <inheritdoc />
@@ -41,6 +46,13 @@ internal sealed class NotificationService : INotificationService
 
         _db.Notifications.Add(entity);
         await _db.SaveChangesAsync(cancellationToken);
+
+        await _eventBus.PublishAsync(new NotificationCreatedEvent
+        {
+            EventId = Guid.CreateVersion7(),
+            CreatedAt = DateTime.UtcNow,
+            Notification = MapToDto(entity)
+        }, CallerContext.CreateSystemContext(), cancellationToken);
     }
 
     /// <inheritdoc />
@@ -71,6 +83,16 @@ internal sealed class NotificationService : INotificationService
 
         _db.Notifications.AddRange(entities);
         await _db.SaveChangesAsync(cancellationToken);
+
+        foreach (var entity in entities)
+        {
+            await _eventBus.PublishAsync(new NotificationCreatedEvent
+            {
+                EventId = Guid.CreateVersion7(),
+                CreatedAt = DateTime.UtcNow,
+                Notification = MapToDto(entity)
+            }, CallerContext.CreateSystemContext(), cancellationToken);
+        }
     }
 
     /// <inheritdoc />
