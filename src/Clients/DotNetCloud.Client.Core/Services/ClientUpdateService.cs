@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.IO.Compression;
 using System.Net.Http.Json;
 using System.Reflection;
 using System.Security.Cryptography;
@@ -81,16 +83,46 @@ public sealed class ClientUpdateService : IClientUpdateService
         IProgress<double>? progress = null,
         CancellationToken ct = default)
     {
-        ArgumentNullException.ThrowIfNull(asset);
-        ArgumentException.ThrowIfNullOrWhiteSpace(asset.DownloadUrl);
-
         var tempDir = Path.Combine(
             Path.GetTempPath(),
             "DotNetCloud",
             "updates");
-        Directory.CreateDirectory(tempDir);
 
-        var destPath = Path.Combine(tempDir, asset.Name);
+        // Adapt the legacy 0.0–1.0 reporter to the detailed progress model.
+        IProgress<DownloadProgress>? adapted = null;
+        if (progress is not null)
+        {
+            adapted = new Progress<DownloadProgress>(p => progress.Report(p.Percent));
+        }
+
+        var result = await DownloadCoreAsync(asset, tempDir, adapted, ct);
+        return result.FilePath;
+    }
+
+    /// <inheritdoc/>
+    public Task<DownloadedUpdate> DownloadUpdateAsync(
+        ReleaseAsset asset,
+        string destinationDirectory,
+        IProgress<DownloadProgress>? progress = null,
+        CancellationToken ct = default)
+    {
+        return DownloadCoreAsync(asset, destinationDirectory, progress, ct);
+    }
+
+    private async Task<DownloadedUpdate> DownloadCoreAsync(
+        ReleaseAsset asset,
+        string destinationDirectory,
+        IProgress<DownloadProgress>? progress,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        ArgumentException.ThrowIfNullOrWhiteSpace(asset.DownloadUrl);
+        ArgumentException.ThrowIfNullOrWhiteSpace(destinationDirectory);
+
+        Directory.CreateDirectory(destinationDirectory);
+
+        var safeName = SanitizeFileName(asset.Name);
+        var destPath = Path.Combine(destinationDirectory, safeName);
 
         _logger.LogInformation("Downloading update asset {Name} ({Size} bytes) to {Dest}.",
             asset.Name, asset.Size, destPath);
@@ -100,27 +132,71 @@ public sealed class ClientUpdateService : IClientUpdateService
 
         var totalBytes = response.Content.Headers.ContentLength ?? asset.Size;
         long bytesRead = 0;
+        var stopwatch = Stopwatch.StartNew();
 
-        await using var contentStream = await response.Content.ReadAsStreamAsync(ct);
-        await using var fileStream = new FileStream(destPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true);
-
-        var buffer = new byte[81920];
-        int read;
-        while ((read = await contentStream.ReadAsync(buffer, ct)) > 0)
+        try
         {
-            await fileStream.WriteAsync(buffer.AsMemory(0, read), ct);
-            bytesRead += read;
-            if (totalBytes > 0)
-                progress?.Report((double)bytesRead / totalBytes);
+            await using var contentStream = await response.Content.ReadAsStreamAsync(ct);
+            await using var fileStream = new FileStream(destPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true);
+
+            var buffer = new byte[81920];
+            int read;
+            while ((read = await contentStream.ReadAsync(buffer, ct)) > 0)
+            {
+                await fileStream.WriteAsync(buffer.AsMemory(0, read), ct);
+                bytesRead += read;
+
+                if (progress is not null)
+                {
+                    progress.Report(new DownloadProgress
+                    {
+                        BytesDownloaded = bytesRead,
+                        TotalBytes = totalBytes > 0 ? totalBytes : null,
+                        Percent = totalBytes > 0 ? (double)bytesRead / totalBytes : 0.0,
+                        BytesPerSecond = bytesRead / Math.Max(stopwatch.Elapsed.TotalSeconds, 0.001),
+                    });
+                }
+            }
+        }
+        catch
+        {
+            TryDeleteFile(destPath);
+            throw;
         }
 
-        progress?.Report(1.0);
+        stopwatch.Stop();
+
+        if (progress is not null)
+        {
+            progress.Report(new DownloadProgress
+            {
+                BytesDownloaded = bytesRead,
+                TotalBytes = bytesRead,
+                Percent = 1.0,
+                BytesPerSecond = bytesRead / Math.Max(stopwatch.Elapsed.TotalSeconds, 0.001),
+            });
+        }
+
         _logger.LogInformation("Download complete: {Path} ({Bytes} bytes).", destPath, bytesRead);
 
-        // Verify SHA256 checksum if a .sha256 sidecar exists alongside the asset.
-        await VerifyChecksumAsync(asset, destPath, ct);
+        bool verified;
+        try
+        {
+            verified = await VerifyChecksumAsync(asset, destPath, ct);
+        }
+        catch
+        {
+            TryDeleteFile(destPath);
+            throw;
+        }
 
-        return destPath;
+        return new DownloadedUpdate
+        {
+            FilePath = destPath,
+            FileName = safeName,
+            SizeBytes = bytesRead,
+            Sha256Verified = verified,
+        };
     }
 
     /// <inheritdoc/>
@@ -248,12 +324,54 @@ public sealed class ClientUpdateService : IClientUpdateService
             }
 
             // Direct match: the binary is directly inside.
-            if (File.Exists(Path.Combine(dir, "dotnetcloud-sync-tray")))
+            if (File.Exists(Path.Combine(dir, "dotnetcloud-sync-tray")) ||
+                File.Exists(Path.Combine(dir, "dotnetcloud-sync-tray.exe")))
             {
                 return dir;
             }
         }
         return null;
+    }
+
+    private static string? LocateUpdaterHelper(string payloadDir, string installDir)
+    {
+        const string helperName = "dotnetcloud-updater.exe";
+
+        var payloadCandidate = Path.Combine(payloadDir, helperName);
+        if (File.Exists(payloadCandidate))
+            return payloadCandidate;
+
+        var installCandidate = Path.Combine(installDir, helperName);
+        if (File.Exists(installCandidate))
+            return installCandidate;
+
+        // Fall back to a recursive search of the extracted payload tree.
+        foreach (var file in Directory.EnumerateFiles(payloadDir, helperName, SearchOption.AllDirectories))
+        {
+            return file;
+        }
+
+        return null;
+    }
+
+    private static string SanitizeFileName(string fileName)
+    {
+        var name = Path.GetFileName(fileName);
+        return string.IsNullOrWhiteSpace(name) ? "dotnetcloud-update" : name;
+    }
+
+    private static void TryDeleteFile(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+                File.Delete(path);
+        }
+        catch (Exception ex)
+        {
+            // Best-effort cleanup; never mask the original download error.
+            System.Diagnostics.Debug.WriteLine($"Failed to delete partial download {path}: {ex.Message}");
+        }
     }
 
     /// <summary>
@@ -277,14 +395,70 @@ public sealed class ClientUpdateService : IClientUpdateService
         }
     }
 
-    private Task ApplyUpdateWindowsAsync(string archivePath, string installDir, CancellationToken ct)
+    private async Task ApplyUpdateWindowsAsync(string archivePath, string installDir, CancellationToken ct)
     {
-        // Windows update apply — deferred. On Windows the zip-based update
-        // will use a similar updater-helper pattern.
+        // Stage 1: extract the zip archive to a temp directory.
+        var extractDir = Path.Combine(
+            Path.GetTempPath(),
+            "DotNetCloud",
+            "updates",
+            "extract-" + Guid.CreateVersion7().ToString("N"));
+        Directory.CreateDirectory(extractDir);
+
+        _logger.LogInformation("Extracting zip archive to {ExtractDir}...", extractDir);
+
+        await Task.Run(() => ZipFile.ExtractToDirectory(archivePath, extractDir, overwriteFiles: true), ct);
+
+        ValidateNoZipSlip(extractDir);
+
+        // Stage 2: locate the payload directory.
+        // Expected structure: {extractDir}/win-x64/payload/SyncTray/
+        var payloadDir = FindPayloadDirectory(extractDir);
+        if (payloadDir is null)
+        {
+            throw new InvalidOperationException(
+                "Could not locate payload directory in the update archive.");
+        }
+
+        // Stage 3: locate the updater helper and copy it to a stable temp location
+        // so it is not replaced while it runs.
+        var helperPath = LocateUpdaterHelper(payloadDir, installDir);
+        if (helperPath is null)
+        {
+            throw new InvalidOperationException(
+                "Could not locate the updater helper executable (dotnetcloud-updater.exe).");
+        }
+
+        var helperTemp = Path.Combine(
+            Path.GetTempPath(),
+            "DotNetCloud",
+            "updates",
+            "dotnetcloud-updater-" + Guid.CreateVersion7().ToString("N") + ".exe");
+        File.Copy(helperPath, helperTemp, overwrite: true);
+
+        // Stage 4: launch the updater helper. It waits for this process to exit,
+        // copies the new files over the install directory, and relaunches the app.
+        var targetExe = Path.Combine(installDir, "dotnetcloud-sync-tray.exe");
+
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = helperTemp,
+            UseShellExecute = true,
+            CreateNoWindow = true,
+        };
+        startInfo.ArgumentList.Add("--pid");
+        startInfo.ArgumentList.Add(Environment.ProcessId.ToString());
+        startInfo.ArgumentList.Add("--source");
+        startInfo.ArgumentList.Add(payloadDir);
+        startInfo.ArgumentList.Add("--target");
+        startInfo.ArgumentList.Add(installDir);
+        startInfo.ArgumentList.Add("--exe");
+        startInfo.ArgumentList.Add(targetExe);
+
+        Process.Start(startInfo);
         _logger.LogInformation(
-            "Windows update apply from {Path} to {InstallDir} is not yet implemented.",
-            archivePath, installDir);
-        return Task.CompletedTask;
+            "Windows updater helper launched ({Helper}) — awaiting application shutdown.",
+            helperTemp);
     }
 
     // ── Private helpers ───────────────────────────────────────────────────
@@ -345,6 +519,9 @@ public sealed class ClientUpdateService : IClientUpdateService
                     Size = a.TryGetProperty("size", out var sz) ? sz.GetInt64() : 0,
                     ContentType = a.TryGetProperty("content_type", out var ct2) ? ct2.GetString() : null,
                     Platform = InferPlatform(a.GetProperty("name").GetString() ?? ""),
+                    Sha256Checksum = a.TryGetProperty("digest", out var digest) && digest.ValueKind == JsonValueKind.String
+                        ? digest.GetString()
+                        : null,
                 });
             }
         }
@@ -361,14 +538,32 @@ public sealed class ClientUpdateService : IClientUpdateService
         };
     }
 
-    private async Task VerifyChecksumAsync(ReleaseAsset asset, string filePath, CancellationToken ct)
+    private async Task<bool> VerifyChecksumAsync(ReleaseAsset asset, string filePath, CancellationToken ct)
     {
-        // Look for a companion .sha256 asset in the same release.
-        var checksumName = asset.Name + ".sha256";
-        // We can't easily access all assets from here, so skip if no direct URL is available.
-        // The server-side update check already validates checksums when proxying.
-        _logger.LogDebug("Checksum verification for {Asset} deferred (sidecar download not yet implemented).", asset.Name);
-        await Task.CompletedTask;
+        if (string.IsNullOrWhiteSpace(asset.Sha256Checksum))
+        {
+            _logger.LogWarning("SHA256 checksum not available for {Asset}; skipping verification.", asset.Name);
+            return false;
+        }
+
+        // GitHub digests look like "sha256:abcdef…" — strip the algorithm prefix if present.
+        var expected = asset.Sha256Checksum.Trim();
+        var colonIdx = expected.IndexOf(':');
+        if (colonIdx >= 0)
+            expected = expected[(colonIdx + 1)..];
+        expected = expected.Trim().ToLowerInvariant();
+
+        await using var stream = File.OpenRead(filePath);
+        var actual = Convert.ToHexString(await SHA256.HashDataAsync(stream, ct)).ToLowerInvariant();
+
+        if (!string.Equals(expected, actual, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Checksum verification failed for {asset.Name}: expected {expected}, got {actual}.");
+        }
+
+        _logger.LogInformation("SHA256 checksum verified for {Asset}.", asset.Name);
+        return true;
     }
 
     private static string GetCurrentVersion()

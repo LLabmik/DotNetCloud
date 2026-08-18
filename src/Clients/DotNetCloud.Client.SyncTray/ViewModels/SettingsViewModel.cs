@@ -68,6 +68,7 @@ public sealed class SettingsViewModel : ViewModelBase
 
     // Update settings
     private bool _autoCheckForUpdates = true;
+    private bool _autoDownloadUpdates;
 
     // VFS (virtual file system / files on-demand) settings
     private readonly VirtualFileSettings _vfsSettings;
@@ -314,6 +315,17 @@ public sealed class SettingsViewModel : ViewModelBase
         set
         {
             if (SetProperty(ref _autoCheckForUpdates, value))
+                _ = PersistLocalSettingsAsync();
+        }
+    }
+
+    /// <summary>Whether to automatically download updates in the background once found.</summary>
+    public bool AutoDownloadUpdates
+    {
+        get => _autoDownloadUpdates;
+        set
+        {
+            if (SetProperty(ref _autoDownloadUpdates, value))
                 _ = PersistLocalSettingsAsync();
         }
     }
@@ -858,6 +870,7 @@ public sealed class SettingsViewModel : ViewModelBase
             _startOnLogin = settings.StartOnLogin;
             _isMuteChatNotifications = settings.IsMuteChatNotifications;
             _autoCheckForUpdates = settings.AutoCheckForUpdates;
+            _autoDownloadUpdates = settings.AutoDownloadUpdates;
 
             // Restore VFS settings
             if (settings.StorageMode != _vfsSettings.StorageMode)
@@ -894,6 +907,7 @@ public sealed class SettingsViewModel : ViewModelBase
                     StartOnLogin = _startOnLogin,
                     IsMuteChatNotifications = _isMuteChatNotifications,
                     AutoCheckForUpdates = _autoCheckForUpdates,
+                    AutoDownloadUpdates = _autoDownloadUpdates,
                     StorageMode = _vfsSettings.StorageMode,
                     MaxCacheSizeBytes = _vfsSettings.MaxCacheSizeBytes,
                 },
@@ -1101,6 +1115,8 @@ internal sealed class SyncTrayLocalSettings
     public bool IsMuteChatNotifications { get; init; }
 
     public bool AutoCheckForUpdates { get; init; } = true;
+
+    public bool AutoDownloadUpdates { get; init; }
 
     public VirtualFileStorageMode StorageMode { get; init; } = VirtualFileStorageMode.DownloadAll;
 

@@ -45,6 +45,7 @@ public sealed class TrayIconManager : IDisposable
     private NativeMenuItem? _pauseResumeItem;
     private NativeMenuItem? _quickReplyItem;
     private NativeMenuItem? _updateItem;
+    private NativeMenuItem? _applyUpdateItem;
 
     /// <summary>Initializes a new <see cref="TrayIconManager"/>.</summary>
     public TrayIconManager(TrayViewModel trayVm, IServiceProvider services, ILogger<TrayIconManager> logger)
@@ -143,6 +144,11 @@ public sealed class TrayIconManager : IDisposable
         _updateItem.Click += (_, _) => Dispatcher.UIThread.Post(OpenUpdateDialog);
         menu.Items.Add(_updateItem);
 
+        // Apply a downloaded update (hidden until a download completes).
+        _applyUpdateItem = new NativeMenuItem("Restart to apply update…") { IsVisible = false };
+        _applyUpdateItem.Click += (_, _) => Dispatcher.UIThread.Post(OpenUpdateDialog);
+        menu.Items.Add(_applyUpdateItem);
+
         // Settings
         var settingsItem = new NativeMenuItem("Settings…");
         settingsItem.Click += OnSettingsClicked;
@@ -216,6 +222,11 @@ public sealed class TrayIconManager : IDisposable
                         ? $"Update Available ({_trayVm.UpdateVersion})…"
                         : "Check for Updates…";
                 }
+            }
+            else if (e.PropertyName is nameof(TrayViewModel.IsUpdateDownloaded))
+            {
+                if (_applyUpdateItem is not null)
+                    _applyUpdateItem.IsVisible = _trayVm.IsUpdateDownloaded;
             }
         });
     }
@@ -383,7 +394,12 @@ public sealed class TrayIconManager : IDisposable
         var updateService = _services.GetRequiredService<IClientUpdateService>();
         var backgroundService = _services.GetRequiredService<UpdateCheckBackgroundService>();
         var loggerFactory = _services.GetRequiredService<ILoggerFactory>();
-        var vm = new UpdateViewModel(updateService, backgroundService, loggerFactory.CreateLogger<UpdateViewModel>());
+        var vm = new UpdateViewModel(
+            updateService,
+            backgroundService,
+            loggerFactory.CreateLogger<UpdateViewModel>(),
+            _trayVm.DownloadedUpdatePath,
+            _trayVm.DownloadedUpdateVersion);
         var dialog = new UpdateDialog(vm);
 
         // When the update has been applied and a restart is needed,

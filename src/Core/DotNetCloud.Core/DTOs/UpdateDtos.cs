@@ -111,4 +111,10 @@ public class ReleaseAsset
     /// Gets or sets the target platform (e.g., "linux-x64", "win-x64", "android").
     /// </summary>
     public string? Platform { get; set; }
+
+    /// <summary>
+    /// Gets or sets the SHA256 checksum of the asset, if published with the release.
+    /// May include an algorithm prefix (e.g., "sha256:…").
+    /// </summary>
+    public string? Sha256Checksum { get; set; }
 }

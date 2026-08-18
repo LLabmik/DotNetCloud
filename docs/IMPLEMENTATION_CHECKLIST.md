@@ -3,7 +3,7 @@
 > **Document Version:** 1.0  
 > **Purpose:** Comprehensive task breakdown for implementing the DotNetCloud architecture  
 > **Scope:** All phases from Foundation (Phase 0) through Auto-Updates (Phase 11)  
-> **Last Updated:** 2026-07-26
+> **Last Updated:** 2026-08-18
 > **Audience:** Development team, project managers, technical leads
 
 ---
@@ -5198,6 +5198,9 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Download with `IProgress<double>` reporting
 - ✓ Version comparison logic (semver + pre-release)
 - ✓ DI registration via `ClientCoreServiceExtensions`
+- ✓ Download to user's `~/Downloads/DotNetCloud/updates/` with byte-level `DownloadProgress` (bytes + speed) and `DownloadedUpdate` result
+- ✓ SHA256 checksum verification when a release digest is published (mismatch aborts and removes the file)
+- ✓ Windows zip apply — extract via `System.IO.Compression`, locate `payload/SyncTray`, launch updater helper
 
 #### Step 11.9 — Background Update Checker (SyncTray)
 
@@ -5210,12 +5213,24 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `UpdateDialog.axaml` — dark themed Avalonia window (version cards, status badges, release notes, progress bar)
 - ✓ `UpdateViewModel` — check/download/apply commands, platform asset matching
 - ✓ Settings "Updates" tab — current version display, auto-check toggle
+- ✓ Two-step flow: Download → separate "Restart to apply" action (apply is no longer automatic)
+- ✓ Download destination path + file size surfaced; byte-level progress + speed shown; cancel button during download
+- ✓ Close guarded while a download/apply is in flight (button disabled + window `OnClosing` cancel)
+- ✓ Background auto-download (opt-in `AutoDownloadUpdates` setting) with "Update Downloaded" notification and tray "Restart to apply update…" item
+
+#### Step 11.10.1 — Windows Updater Helper
+
+- ✓ `DotNetCloud.Client.Updater` console project — self-contained single-file, `requireAdministrator` manifest
+- ✓ Helper contract `--pid --source --target --exe`: waits for exit → copies files → relaunches
+- ✓ `build-desktop-client-bundles.ps1` publishes and embeds `dotnetcloud-updater.exe` in the win-x64 payload
 
 #### Step 11.11 — Desktop Client Update Tests
 
 - ✓ `ClientUpdateServiceTests` — 10 tests (server check, fallback, download, events, error handling)
 - ✓ `UpdateCheckBackgroundServiceTests` — 8 tests (event firing, error resilience, lifecycle, defaults)
 - ✓ All 18 Phase B tests passing
+- ✓ `ClientUpdateServiceTests` — destination + detailed-progress, read-failure cleanup, checksum verify/mismatch tests
+- ✓ `UpdateViewModelTests` — background check pre-population and downloaded-state surfacing
 
 ### Phase C: Android Client Update Notification
 

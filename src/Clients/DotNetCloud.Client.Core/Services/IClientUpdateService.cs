@@ -25,6 +25,21 @@ public interface IClientUpdateService
     Task<string> DownloadUpdateAsync(ReleaseAsset asset, IProgress<double>? progress = null, CancellationToken ct = default);
 
     /// <summary>
+    /// Downloads the specified release asset to <paramref name="destinationDirectory"/> with
+    /// detailed byte-level progress reporting.
+    /// </summary>
+    /// <param name="asset">The asset to download.</param>
+    /// <param name="destinationDirectory">Directory the file should be written to.</param>
+    /// <param name="progress">Optional detailed progress reporter.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>Details of the downloaded file.</returns>
+    Task<DownloadedUpdate> DownloadUpdateAsync(
+        ReleaseAsset asset,
+        string destinationDirectory,
+        IProgress<DownloadProgress>? progress = null,
+        CancellationToken ct = default);
+
+    /// <summary>
     /// Applies a previously downloaded update from the given path.
     /// </summary>
     /// <param name="downloadPath">Path to the downloaded update archive.</param>

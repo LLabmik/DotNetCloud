@@ -232,6 +232,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotNetCloud.Modules.Files.C
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotNetCloud.Modules.Contacts.Client", "src\Modules\Contacts\DotNetCloud.Modules.Contacts.Client\DotNetCloud.Modules.Contacts.Client.csproj", "{6D9BE29C-A53E-4EFA-8610-90D2A9FAA7BA}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotNetCloud.Client.Updater", "src\Clients\DotNetCloud.Client.Updater\DotNetCloud.Client.Updater.csproj", "{A070BE41-9923-4A65-81AC-3D9A4CB93401}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Clients", "Clients", "{9123F88B-E531-3118-42D7-ED8CEF4BD00E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -1285,6 +1289,18 @@ Global
 		{6D9BE29C-A53E-4EFA-8610-90D2A9FAA7BA}.Release|x64.Build.0 = Release|Any CPU
 		{6D9BE29C-A53E-4EFA-8610-90D2A9FAA7BA}.Release|x86.ActiveCfg = Release|Any CPU
 		{6D9BE29C-A53E-4EFA-8610-90D2A9FAA7BA}.Release|x86.Build.0 = Release|Any CPU
+		{A070BE41-9923-4A65-81AC-3D9A4CB93401}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A070BE41-9923-4A65-81AC-3D9A4CB93401}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A070BE41-9923-4A65-81AC-3D9A4CB93401}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{A070BE41-9923-4A65-81AC-3D9A4CB93401}.Debug|x64.Build.0 = Debug|Any CPU
+		{A070BE41-9923-4A65-81AC-3D9A4CB93401}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{A070BE41-9923-4A65-81AC-3D9A4CB93401}.Debug|x86.Build.0 = Debug|Any CPU
+		{A070BE41-9923-4A65-81AC-3D9A4CB93401}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A070BE41-9923-4A65-81AC-3D9A4CB93401}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A070BE41-9923-4A65-81AC-3D9A4CB93401}.Release|x64.ActiveCfg = Release|Any CPU
+		{A070BE41-9923-4A65-81AC-3D9A4CB93401}.Release|x64.Build.0 = Release|Any CPU
+		{A070BE41-9923-4A65-81AC-3D9A4CB93401}.Release|x86.ActiveCfg = Release|Any CPU
+		{A070BE41-9923-4A65-81AC-3D9A4CB93401}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -1399,6 +1415,7 @@ Global
 		{34A9DEA1-B698-4B47-90CA-45D516B8109B} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{3B7FF4F3-88C8-439A-A1B5-38BBE192DE7F} = {5E5414C4-745C-10B3-C49B-D38F53A77034}
 		{6D9BE29C-A53E-4EFA-8610-90D2A9FAA7BA} = {A5184081-C298-9467-D182-E9016AE72437}
+		{A070BE41-9923-4A65-81AC-3D9A4CB93401} = {00B920E4-100F-D869-D8B1-04B3A2ED45DA}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {54E6D1AE-D504-4776-81EB-21EFFFDA4627}
