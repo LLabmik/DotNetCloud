@@ -41,8 +41,8 @@
   <!-- Versioning -->
   <PropertyGroup>
     <MajorVersion>0</MajorVersion>
-    <MinorVersion>3</MinorVersion>
-    <PatchVersion>9</PatchVersion>
+    <MinorVersion>4</MinorVersion>
+    <PatchVersion>01</PatchVersion>
     <PreReleaseVersion>alpha</PreReleaseVersion>
     <Version>$(MajorVersion).$(MinorVersion).$(PatchVersion)</Version>
     <AssemblyVersion>$(Version)</AssemblyVersion>
