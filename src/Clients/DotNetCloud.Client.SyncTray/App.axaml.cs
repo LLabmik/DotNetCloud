@@ -31,6 +31,7 @@ public partial class App : Application
     private TrayIconManager? _trayIconManager;
     private ISyncContextManager? _syncManager;
     private UpdateCheckBackgroundService? _updateChecker;
+    private UpdateDownloadBackgroundService? _updateDownloader;
     private SyncResumeService? _resumeService;
     private VirtualFileSyncEngine? _vfsEngine;
     private VirtualFileSettings? _vfsSettings;
@@ -71,6 +72,10 @@ public partial class App : Application
             var trayViewModel = _services.GetRequiredService<TrayViewModel>();
             _updateChecker.UpdateAvailable += trayViewModel.OnUpdateAvailable;
             _updateChecker.Start();
+
+            // Start background update downloader (opt-in via settings).
+            _updateDownloader = _services.GetRequiredService<UpdateDownloadBackgroundService>();
+            _updateDownloader.Start();
 
             // Start the sleep/resume monitor so sync catches up after the machine wakes.
             _resumeService = _services.GetRequiredService<SyncResumeService>();
@@ -162,6 +167,9 @@ public partial class App : Application
 
         // Background update checker.
         services.AddSingleton<UpdateCheckBackgroundService>();
+
+        // Background update downloader (opt-in auto-download).
+        services.AddSingleton<UpdateDownloadBackgroundService>();
 
         // Sleep/resume monitor — re-syncs all contexts when the machine wakes.
         services.AddSingleton<SyncResumeService>();
@@ -299,6 +307,10 @@ public partial class App : Application
 
         try
         { _updateChecker?.Dispose(); }
+        catch { /* best-effort */ }
+
+        try
+        { _updateDownloader?.Dispose(); }
         catch { /* best-effort */ }
 
         try

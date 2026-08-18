@@ -30,6 +30,10 @@ public sealed class TrayViewModel : ViewModelBase
     private bool _isMuteChatNotifications;
     private bool _isUpdateAvailable;
     private string? _updateVersion;
+    private bool _isUpdateDownloaded;
+    private bool _isUpdateDownloading;
+    private string? _downloadedUpdateVersion;
+    private string? _downloadedUpdatePath;
 
     // Keyed by context ID for O(1) lookup on push events.
     private readonly Dictionary<Guid, AccountViewModel> _accounts = [];
@@ -145,6 +149,34 @@ public sealed class TrayViewModel : ViewModelBase
     {
         get => _updateVersion;
         private set => SetProperty(ref _updateVersion, value);
+    }
+
+    /// <summary>Whether an update has been downloaded and is ready to apply.</summary>
+    public bool IsUpdateDownloaded
+    {
+        get => _isUpdateDownloaded;
+        private set => SetProperty(ref _isUpdateDownloaded, value);
+    }
+
+    /// <summary>Whether a background update download is in progress.</summary>
+    public bool IsUpdateDownloading
+    {
+        get => _isUpdateDownloading;
+        internal set => SetProperty(ref _isUpdateDownloading, value);
+    }
+
+    /// <summary>Version of the downloaded update, if any.</summary>
+    public string? DownloadedUpdateVersion
+    {
+        get => _downloadedUpdateVersion;
+        private set => SetProperty(ref _downloadedUpdateVersion, value);
+    }
+
+    /// <summary>Path of the downloaded update file, if any.</summary>
+    public string? DownloadedUpdatePath
+    {
+        get => _downloadedUpdatePath;
+        private set => SetProperty(ref _downloadedUpdatePath, value);
     }
 
     // ── VFS (files on-demand) properties ──────────────────────────────────
@@ -404,6 +436,32 @@ public sealed class TrayViewModel : ViewModelBase
                 groupKey: "updates",
                 replaceKey: "update-available");
         }
+    }
+
+    /// <summary>
+    /// Records that an update has finished downloading in the background.
+    /// </summary>
+    /// <param name="version">Version of the downloaded update.</param>
+    /// <param name="path">Path to the downloaded update file.</param>
+    public void SetDownloadedUpdate(string? version, string? path)
+    {
+        DownloadedUpdateVersion = version;
+        DownloadedUpdatePath = path;
+        IsUpdateDownloaded = !string.IsNullOrWhiteSpace(path);
+    }
+
+    /// <summary>
+    /// Shows a notification that an update has been downloaded and is ready to apply.
+    /// </summary>
+    /// <param name="version">Version of the downloaded update.</param>
+    public void NotifyUpdateDownloaded(string version)
+    {
+        _notifications.ShowNotification(
+            "DotNetCloud Update Downloaded",
+            $"Version {version} is ready — restart to apply.",
+            NotificationType.Info,
+            groupKey: "updates",
+            replaceKey: "update-downloaded");
     }
 
     // ── VFS status helpers ──────────────────────────────────────────────

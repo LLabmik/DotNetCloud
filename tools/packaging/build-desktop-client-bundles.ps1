@@ -91,6 +91,20 @@ dotnet publish $SyncTrayProject `
     --self-contained true `
     --output $WindowsTrayPublish
 
+Write-Host "[2b/6] Publishing Windows updater helper (self-contained single-file)..." -ForegroundColor Yellow
+
+$UpdaterProject = Join-Path $SolutionRoot "src/Clients/DotNetCloud.Client.Updater/DotNetCloud.Client.Updater.csproj"
+$UpdaterPublish = Join-Path $StagingRoot "updater-staging"
+
+dotnet publish $UpdaterProject `
+    --configuration $Configuration `
+    --runtime win-x64 `
+    --self-contained true `
+    --output $UpdaterPublish
+
+Copy-Item -Path (Join-Path $UpdaterPublish "dotnetcloud-updater.exe") `
+    -Destination $WindowsTrayPublish -Force
+
 Write-Host "[3/6] Writing Linux installer scripts..." -ForegroundColor Yellow
 
 $LinuxInstallScript = @(

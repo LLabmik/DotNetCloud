@@ -90,10 +90,19 @@
             <Button Content="Download"
                     Classes="primary"
                     Command="{Binding DownloadUpdateCommand}"
-                    IsVisible="{Binding IsUpdateAvailable}"
-                    IsEnabled="{Binding !IsDownloading}" />
+                    IsVisible="{Binding CanDownload}"
+                    IsEnabled="{Binding !IsBusy}" />
+            <Button Content="Cancel"
+                    Command="{Binding CancelDownloadCommand}"
+                    IsVisible="{Binding IsDownloading}" />
+            <Button Content="Restart to apply"
+                    Classes="primary"
+                    Command="{Binding ApplyUpdateCommand}"
+                    IsVisible="{Binding IsDownloadComplete}"
+                    IsEnabled="{Binding !IsBusy}" />
             <Button Content="Close"
-                    Command="{Binding CloseCommand}" />
+                    Command="{Binding CloseCommand}"
+                    IsEnabled="{Binding !IsBusy}" />
         </StackPanel>
 
         <!-- Main content -->
@@ -165,12 +174,38 @@
                 <Border Classes="card" IsVisible="{Binding IsDownloading}">
                     <StackPanel Spacing="8">
                         <TextBlock Text="{Binding StatusMessage}"
-                                   FontSize="12" Foreground="#A4B6D0" />
+                                   FontSize="12" Foreground="#A4B6D0" TextWrapping="Wrap" />
                         <ProgressBar Value="{Binding DownloadProgress}"
                                      Minimum="0" Maximum="100"
                                      Height="8" />
+                        <TextBlock Text="{Binding DownloadSpeedText}"
+                                   FontSize="11" Foreground="#6B7D96"
+                                   IsVisible="{Binding DownloadSpeedText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                     </StackPanel>
                 </Border>
+
+                <!-- Downloaded (ready to apply) -->
+                <Border Classes="card" IsVisible="{Binding IsDownloadComplete}">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="Download complete"
+                                   FontSize="13" FontWeight="SemiBold" Foreground="#5CBA6F" />
+                        <TextBlock FontSize="12" Foreground="#C8D4E8">
+                            <TextBlock.Text>
+                                <MultiBinding StringFormat="{}{0} — {1}">
+                                    <Binding Path="DownloadedFileName" />
+                                    <Binding Path="DownloadedSizeText" />
+                                </MultiBinding>
+                            </TextBlock.Text>
+                        </TextBlock>
+                        <TextBlock Text="{Binding DownloadedFilePath}"
+                                   FontSize="11" Foreground="#6B7D96" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Applying spinner -->
+                <ProgressBar IsIndeterminate="True"
+                             Height="4"
+                             IsVisible="{Binding IsApplying}" />
 
                 <!-- Status message (when not downloading) -->
                 <TextBlock Text="{Binding StatusMessage}"
