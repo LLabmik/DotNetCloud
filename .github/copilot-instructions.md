@@ -83,6 +83,8 @@ When the moderator sends a relay (commit hash, "pull main", "check for updates",
 
 ### Pre-Commit Checklist (MANDATORY)
 
+**🚫 Do NOT commit until testing is complete.** A change may only be committed after it has been fully verified — builds cleanly, tests pass, and (where applicable) installed and confirmed working end-to-end. Committing before verification is a process violation.
+
 Before every commit:
 
 1. Run `git status --short`.
