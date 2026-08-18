@@ -63,6 +63,7 @@ internal sealed class AdminModuleService : IAdminModuleService
         ArgumentNullException.ThrowIfNull(moduleId);
 
         var module = await _dbContext.InstalledModules
+            .AsTracking()
             .FirstOrDefaultAsync(m => m.ModuleId == moduleId, cancellationToken);
 
         if (module is null)
@@ -85,6 +86,7 @@ internal sealed class AdminModuleService : IAdminModuleService
         ArgumentNullException.ThrowIfNull(moduleId);
 
         var module = await _dbContext.InstalledModules
+            .AsTracking()
             .FirstOrDefaultAsync(m => m.ModuleId == moduleId, cancellationToken);
 
         if (module is null)

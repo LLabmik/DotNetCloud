@@ -125,6 +125,7 @@ public sealed class MfaService : IMfaService
         var hash = HashCode(code);
 
         var backupCode = await _dbContext.UserBackupCodes
+            .AsTracking()
             .FirstOrDefaultAsync(c => c.UserId == userId && c.CodeHash == hash && !c.IsUsed);
 
         if (backupCode is null)

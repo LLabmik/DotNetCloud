@@ -721,6 +721,18 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Set up WebSocket keep-alive
 - ✓ Configure connection limits
 
+#### Notification Bell (Read-State Fix + Real-Time Auto-Check)
+
+- ✓ Fix global `NoTracking` persistence bug (9 sites) — add `.AsTracking()` to entity-modifying queries:
+  - ✓ `NotificationService.MarkReadAsync` / `MarkAllReadAsync` (reported "mark all read doesn't stick")
+  - ✓ `AdminModuleService.StartModuleAsync` / `StopModuleAsync` (module status persistence)
+  - ✓ `MfaService.UseBackupCodeAsync` (backup codes single-use enforcement)
+  - ✓ `GroupManagerService.UpdateGroupAsync` / `DeleteGroupAsync`
+  - ✓ `TeamManagerService.UpdateTeamAsync` / `DeleteTeamAsync`
+- ✓ Regression tests (NoTracking contexts + verify contexts): `NotificationServiceTests`, `AdminModuleServiceTests`, `TeamManagerServiceTests`, extended `MfaServiceTests` + `GroupManagerServiceTests`
+- ✓ Real-time SignalR client — `IRealtimeNotificationClient` + `RealtimeNotificationClient` (server-circuit, cookie-forwarded, SSE/LongPolling) listening for `notification.created` on `/hubs/core`
+- ✓ Bell auto-check: SignalR push + 5-minute polling fallback (`NotificationBell.razor`)
+
 ---
 
 ## Phase 0.9: Authentication API Endpoints

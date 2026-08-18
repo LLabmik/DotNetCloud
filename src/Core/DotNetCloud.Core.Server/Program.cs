@@ -568,6 +568,10 @@ public class Program
             })
             .AddHttpMessageHandler<DotNetCloud.Core.Server.Middleware.CookieForwardingHandler>();
 
+        // Server-circuit SignalR listener for notification.created events. Scoped so it
+        // shares the circuit's CookieCaptureStore and forwards the correct user's cookie.
+        builder.Services.AddScoped<DotNetCloud.UI.Web.Client.Services.IRealtimeNotificationClient, DotNetCloud.Core.Server.RealTime.RealtimeNotificationClient>();
+
         // Contacts module HTTP client for the Blazor ContactsPage component.
         // The Contacts module is process-isolated, but the UI page renders in-process
         // and needs an HTTP client to call the module's REST API (proxied by Core.Server).

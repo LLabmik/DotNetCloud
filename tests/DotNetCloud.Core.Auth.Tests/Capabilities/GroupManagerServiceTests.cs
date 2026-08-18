@@ -279,4 +279,91 @@ public class GroupManagerServiceTests
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(
             () => _service.RemoveMemberAsync(group.Id, _alice.Id));
     }
+
+    [TestMethod]
+    public async Task UpdateGroupAsync_PersistsNameAndDescription()
+    {
+        var dbName = $"GroupUpdatePersistenceTests_{Guid.NewGuid():N}";
+        Guid groupId;
+        using (var seed = CreateNoTrackingContext(dbName))
+        {
+            var org = new Organization
+            {
+                Id = Guid.CreateVersion7(),
+                Name = "Acme",
+                CreatedAt = DateTime.UtcNow
+            };
+            var group = new Group
+            {
+                Id = Guid.CreateVersion7(),
+                OrganizationId = org.Id,
+                Name = "Editors",
+                Description = "Old description",
+                CreatedAt = DateTime.UtcNow
+            };
+            seed.Organizations.Add(org);
+            seed.Groups.Add(group);
+            await seed.SaveChangesAsync();
+            groupId = group.Id;
+
+            var service = new GroupManagerService(seed);
+            var result = await service.UpdateGroupAsync(groupId, "Reviewers", "New description");
+            Assert.IsNotNull(result);
+        }
+
+        using var verify = CreateNoTrackingContext(dbName);
+        var persisted = await verify.Groups.AsNoTracking()
+            .FirstOrDefaultAsync(g => g.Id == groupId);
+        Assert.IsNotNull(persisted);
+        Assert.AreEqual("Reviewers", persisted!.Name);
+        Assert.AreEqual("New description", persisted.Description);
+    }
+
+    [TestMethod]
+    public async Task DeleteGroupAsync_PersistsSoftDelete()
+    {
+        var dbName = $"GroupDeletePersistenceTests_{Guid.NewGuid():N}";
+        Guid groupId;
+        using (var seed = CreateNoTrackingContext(dbName))
+        {
+            var org = new Organization
+            {
+                Id = Guid.CreateVersion7(),
+                Name = "Acme",
+                CreatedAt = DateTime.UtcNow
+            };
+            var group = new Group
+            {
+                Id = Guid.CreateVersion7(),
+                OrganizationId = org.Id,
+                Name = "Editors",
+                CreatedAt = DateTime.UtcNow
+            };
+            seed.Organizations.Add(org);
+            seed.Groups.Add(group);
+            await seed.SaveChangesAsync();
+            groupId = group.Id;
+
+            var service = new GroupManagerService(seed);
+            var result = await service.DeleteGroupAsync(groupId);
+            Assert.IsTrue(result);
+        }
+
+        using var verify = CreateNoTrackingContext(dbName);
+        var persisted = await verify.Groups
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(g => g.Id == groupId);
+        Assert.IsNotNull(persisted);
+        Assert.IsTrue(persisted!.IsDeleted);
+        Assert.IsNotNull(persisted.DeletedAt);
+    }
+
+    private static CoreDbContext CreateNoTrackingContext(string databaseName) =>
+        new(
+            new DbContextOptionsBuilder<CoreDbContext>()
+                .UseInMemoryDatabase(databaseName)
+                .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking)
+                .Options,
+            new PostgreSqlNamingStrategy());
 }
