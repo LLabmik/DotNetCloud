@@ -6252,3 +6252,31 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - ✓ 23 new tests (11 `NotificationProducerTests`, 2 `NotificationFanOutDispatcherTests`, 7 `PushNotificationChannelTests`, 3 `ChatGrpcServicePushTests`); obsolete `NotificationHandlerTests.cs` removed
 
 **Notes:** All in-scope cross-module notification events now flow through one persisted bell notification and fan out to real-time (SignalR) and push (via Chat gRPC). The `NotificationsController` ↔ Chat `INotificationPreferenceStore` cross-module reference remains as a documented pre-existing follow-up. Verification: `dotnet build DotNetCloud.CI.slnf -c Release` (0 errors); Core.Server 590 passed, Chat 1311 passed, Core 489 passed.
+
+---
+
+## Notification Bell — Read-State Fix + Real-Time Auto-Check (2026-08-18)
+
+> **Reference:** `docs/NOTIFICATION_BELL_READSTATE_AND_REALTIME_PLAN.md` — branch `fix/bell-notifications`
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ Root cause: global `QueryTrackingBehavior.NoTracking` in `CoreDbContext` — entity-modify + `SaveChangesAsync()` paths silently wrote nothing
+- ✓ Fixed 9 sites with `.AsTracking()`:
+  - ✓ `NotificationService.MarkReadAsync` + `MarkAllReadAsync` (the reported "mark all read doesn't stick" bug)
+  - ✓ `AdminModuleService.StartModuleAsync` + `StopModuleAsync` (module status persistence)
+  - ✓ `MfaService.UseBackupCodeAsync` (backup code single-use enforcement — security)
+  - ✓ `GroupManagerService.UpdateGroupAsync` + `DeleteGroupAsync`
+  - ✓ `TeamManagerService.UpdateTeamAsync` + `DeleteTeamAsync`
+- ✓ Real-time SignalR client: `IRealtimeNotificationClient` (in `DotNetCloud.UI.Web.Client`) + `RealtimeNotificationClient` (server-circuit, auth cookie forwarding over SSE/LongPolling) listening on `/hubs/core` for `notification.created`
+- ✓ `LoopbackCertificateValidator` shared TLS callback; `Microsoft.AspNetCore.SignalR.Client` package added
+- ✓ Bell auto-check: SignalR subscription + 5-minute polling fallback + badge refresh on open (`NotificationBell.razor`)
+
+**Verification:**
+
+- ✓ `dotnet build DotNetCloud.CI.slnf -c Release` — 0 errors
+- ✓ Core.Server 597 passed, Core.Auth 156 passed, Integration (Notifications filter) 7 passed
+- ✓ Negative verification confirmed regression tests fail without the fix
+
+**Next steps:** Deploy to server for user testing (`sudo ./scripts/deploy.sh`), then commit on `fix/bell-notifications` after user sign-off.

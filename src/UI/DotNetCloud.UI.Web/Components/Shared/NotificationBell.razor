@@ -1,7 +1,9 @@
 @using DotNetCloud.Core.DTOs
 @using DotNetCloud.UI.Web.Client.Services
 @inject DotNetCloudApiClient ApiClient
+@inject IRealtimeNotificationClient RealtimeClient
 @inject NavigationManager Navigation
+@implements IAsyncDisposable
 
 <div class="notification-bell-container">
     <button type="button" class="notification-bell-btn" title="Notifications" @onclick="ToggleDropdown">
@@ -52,17 +54,79 @@
 </div>
 
 @code {
+    private static readonly TimeSpan PollInterval = TimeSpan.FromMinutes(5);
+
     private bool _isOpen;
     private bool _isLoading;
     private int _unreadCount;
     private readonly List<NotificationDto> _notifications = [];
 
+    private CancellationTokenSource? _pollCts;
+    private Task? _pollTask;
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender)
+        if (!firstRender)
         {
-            try { await RefreshUnreadCountAsync(); }
-            catch { /* silent — notification API not yet implemented */ }
+            return;
+        }
+
+        RealtimeClient.NotificationCreated += OnNotificationCreated;
+
+        try { await RealtimeClient.StartAsync(); }
+        catch { /* silent — polling fallback still works */ }
+
+        await RefreshUnreadCountAsync();
+        StartPolling();
+    }
+
+    private void StartPolling()
+    {
+        _pollCts?.Cancel();
+        _pollCts?.Dispose();
+        _pollCts = new CancellationTokenSource();
+        _pollTask = PollLoopAsync(_pollCts.Token);
+    }
+
+    private async Task PollLoopAsync(CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(PollInterval);
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                await RefreshFromServerAsync();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected when the component is disposed.
+        }
+    }
+
+    private void OnNotificationCreated(NotificationDto notification)
+    {
+        _ = RefreshFromServerAsync();
+    }
+
+    private async Task RefreshFromServerAsync()
+    {
+        await RefreshUnreadCountAsync();
+
+        if (_isOpen)
+        {
+            _isLoading = true;
+            try
+            {
+                var latest = await ApiClient.GetUnreadNotificationsAsync(25);
+                _notifications.Clear();
+                _notifications.AddRange(latest);
+            }
+            catch { /* silent */ }
+            finally
+            {
+                _isLoading = false;
+            }
         }
     }
 
@@ -88,7 +152,7 @@
     private async Task RefreshUnreadCountAsync()
     {
         try { _unreadCount = await ApiClient.GetUnreadNotificationCountAsync(); }
-        catch { /* silent — notification API not yet implemented */ }
+        catch { /* silent */ }
     }
 
     private async Task OpenNotificationAsync(NotificationDto notification)
@@ -107,5 +171,20 @@
         await ApiClient.MarkAllNotificationsReadAsync();
         _notifications.Clear();
         await RefreshUnreadCountAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        RealtimeClient.NotificationCreated -= OnNotificationCreated;
+
+        _pollCts?.Cancel();
+
+        if (_pollTask is not null)
+        {
+            try { await _pollTask; }
+            catch { /* ignore */ }
+        }
+
+        _pollCts?.Dispose();
     }
 }

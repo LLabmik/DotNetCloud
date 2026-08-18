@@ -26,6 +26,7 @@
          2.0.0 (GHSA-v5pm-xwqc-g5wc / CVE-2026-49451). Override to patched 2.7.5 — NOT 3.x,
          which breaks the OpenApi source generator (IOpenApiMediaType.Example is read-only in 3.x). -->
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" />
     <PackageReference Include="Microsoft.OpenApi" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

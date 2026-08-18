@@ -112,6 +112,7 @@ internal sealed class NotificationService : INotificationService
     public async Task MarkReadAsync(Guid notificationId, Guid userId, CancellationToken cancellationToken = default)
     {
         var notification = await _db.Notifications
+            .AsTracking()
             .FirstOrDefaultAsync(n => n.Id == notificationId && n.UserId == userId, cancellationToken);
 
         if (notification is null)
@@ -127,6 +128,7 @@ internal sealed class NotificationService : INotificationService
     public async Task MarkAllReadAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         var unread = await _db.Notifications
+            .AsTracking()
             .Where(n => n.UserId == userId && n.ReadAtUtc == null)
             .ToListAsync(cancellationToken);
 

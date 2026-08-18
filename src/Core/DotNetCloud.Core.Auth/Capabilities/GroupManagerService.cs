@@ -59,6 +59,7 @@ public sealed class GroupManagerService : IGroupManager
     public async Task<GroupInfo?> UpdateGroupAsync(Guid groupId, string? name, string? description, CancellationToken cancellationToken = default)
     {
         var group = await _dbContext.Groups
+            .AsTracking()
             .Include(g => g.Members)
             .FirstOrDefaultAsync(g => g.Id == groupId && !g.IsDeleted, cancellationToken);
 
@@ -92,6 +93,7 @@ public sealed class GroupManagerService : IGroupManager
     public async Task<bool> DeleteGroupAsync(Guid groupId, CancellationToken cancellationToken = default)
     {
         var group = await _dbContext.Groups
+            .AsTracking()
             .FirstOrDefaultAsync(g => g.Id == groupId && !g.IsDeleted, cancellationToken);
 
         if (group is null)

@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 using DotNetCloud.Core.Auth.Services;
 using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Entities.Auth;
@@ -231,5 +233,49 @@ public class MfaServiceTests
 
         // Assert
         Assert.IsFalse(result);
+    }
+
+    [TestMethod]
+    public async Task UseBackupCode_PersistsUsedStateAcrossContexts()
+    {
+        var dbName = $"MfaBackupPersistenceTests_{Guid.NewGuid():N}";
+        Guid userId;
+        string codeHash;
+
+        using (var seed = CreateNoTrackingContext(dbName))
+        {
+            var userManager = new Mock<UserManager<ApplicationUser>>(
+                new Mock<IUserStore<ApplicationUser>>().Object, null, null, null, null, null, null, null, null);
+            var service = new MfaService(userManager.Object, seed, new Mock<ILogger<MfaService>>().Object);
+
+            userId = Guid.CreateVersion7();
+            var response = await service.GenerateBackupCodesAsync(userId);
+            var validCode = response.Codes[0];
+            codeHash = ComputeHash(validCode);
+
+            var result = await service.UseBackupCodeAsync(userId, validCode);
+            Assert.IsTrue(result);
+        }
+
+        using var verify = CreateNoTrackingContext(dbName);
+        var used = await verify.UserBackupCodes.AsNoTracking()
+            .FirstOrDefaultAsync(c => c.CodeHash == codeHash);
+        Assert.IsNotNull(used);
+        Assert.IsTrue(used!.IsUsed);
+        Assert.IsNotNull(used.UsedAt);
+    }
+
+    private static CoreDbContext CreateNoTrackingContext(string databaseName) =>
+        new(
+            new DbContextOptionsBuilder<CoreDbContext>()
+                .UseInMemoryDatabase(databaseName)
+                .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking)
+                .Options,
+            new PostgreSqlNamingStrategy());
+
+    private static string ComputeHash(string code)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(code.ToUpperInvariant()));
+        return Convert.ToHexString(bytes);
     }
 }

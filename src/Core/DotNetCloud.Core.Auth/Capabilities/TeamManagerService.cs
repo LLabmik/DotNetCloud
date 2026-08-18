@@ -75,6 +75,7 @@ public sealed class TeamManagerService : ITeamManager
     public async Task<TeamInfo?> UpdateTeamAsync(Guid teamId, string? name, string? description, CancellationToken cancellationToken = default)
     {
         var team = await _dbContext.Teams
+            .AsTracking()
             .Include(t => t.Members)
             .FirstOrDefaultAsync(t => t.Id == teamId && !t.IsDeleted, cancellationToken);
 
@@ -103,6 +104,7 @@ public sealed class TeamManagerService : ITeamManager
     public async Task<bool> DeleteTeamAsync(Guid teamId, CancellationToken cancellationToken = default)
     {
         var team = await _dbContext.Teams
+            .AsTracking()
             .FirstOrDefaultAsync(t => t.Id == teamId && !t.IsDeleted, cancellationToken);
 
         if (team is null)
