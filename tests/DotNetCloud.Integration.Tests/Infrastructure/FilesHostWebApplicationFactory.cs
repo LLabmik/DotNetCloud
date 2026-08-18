@@ -3,6 +3,7 @@ extern alias FilesHost;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using DotNetCloud.Core.Auth.Authorization;
+using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Modules.Files.Data;
 using FilesHost::DotNetCloud.Modules.Files.Host;
 using FilesHost::DotNetCloud.Modules.Files.Host.Protos;
@@ -29,6 +30,18 @@ internal sealed class FilesHostWebApplicationFactory : WebApplicationFactory<Fil
 {
     private readonly string _databaseName = $"FilesHostInt_{Guid.CreateVersion7():N}";
 
+    public FilesHostWebApplicationFactory()
+    {
+        // The Files host reads connectionString/databaseProvider from builder.Configuration
+        // at the very top of Program.Main (top-level statements). WebApplicationFactory's
+        // ConfigureAppConfiguration is applied after top-level statements run, so it can't
+        // satisfy the host's fail-fast DB guard. Provide the values via environment variables
+        // instead (WebApplicationBuilder loads env vars into configuration automatically).
+        // The DbContexts are replaced with InMemory below, so this is never used.
+        Environment.SetEnvironmentVariable("connectionString", "Host=localhost;Database=integration_test;Username=test;Password=test");
+        Environment.SetEnvironmentVariable("databaseProvider", "PostgreSql");
+    }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Development");
@@ -45,6 +58,16 @@ internal sealed class FilesHostWebApplicationFactory : WebApplicationFactory<Fil
                     .UseInMemoryDatabase(_databaseName)
                     .Options);
             services.AddScoped<FilesDbContext>();
+
+            // The Files host also registers a transient CoreDbContext (for querying identity
+            // tables during group validation). Replace it with InMemory too so it never hits
+            // the real database.
+            services.RemoveAll<CoreDbContext>();
+            services.AddSingleton<DbContextOptions<CoreDbContext>>(_ =>
+                new DbContextOptionsBuilder<CoreDbContext>()
+                    .UseInMemoryDatabase(_databaseName)
+                    .Options);
+            services.AddScoped<CoreDbContext>();
 
             // Inject a deterministic test identity from request header for auth-bound gRPC checks.
             services.AddSingleton<IStartupFilter, TestUserStartupFilter>();

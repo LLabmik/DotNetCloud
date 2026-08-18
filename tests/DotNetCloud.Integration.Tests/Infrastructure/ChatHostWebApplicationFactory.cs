@@ -25,6 +25,18 @@ internal sealed class ChatHostWebApplicationFactory : WebApplicationFactory<Chat
 {
     private readonly string _databaseName = $"ChatHostInt_{Guid.CreateVersion7():N}";
 
+    public ChatHostWebApplicationFactory()
+    {
+        // The Chat host reads connectionString/databaseProvider from builder.Configuration
+        // at the very top of Program.Main (top-level statements). WebApplicationFactory's
+        // ConfigureAppConfiguration is applied after top-level statements run, so it can't
+        // satisfy the host's fail-fast DB guard. Provide the values via environment variables
+        // instead (WebApplicationBuilder loads env vars into configuration automatically).
+        // The ChatDbContext is replaced with InMemory below, so this is never used.
+        Environment.SetEnvironmentVariable("connectionString", "Host=localhost;Database=integration_test;Username=test;Password=test");
+        Environment.SetEnvironmentVariable("databaseProvider", "PostgreSql");
+    }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Development");

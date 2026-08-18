@@ -112,7 +112,7 @@ builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHand
 // Register the Chat module as a singleton for lifecycle management
 builder.Services.AddSingleton<ChatModule>();
 
-// Register EF Core with config-driven database, falling back to in-memory
+// Register EF Core with the configured database provider (no in-memory fallback)
 var connectionString = builder.Configuration["connectionString"]
     ?? builder.Configuration.GetConnectionString("DefaultConnection");
 var dbProvider = builder.Configuration["databaseProvider"]
@@ -131,19 +131,17 @@ builder.Services.AddSingleton<ITableNamingStrategy>(string.Equals(dbProvider, "P
     ? new PostgreSqlNamingStrategy()
     : new SqlServerNamingStrategy());
 
-if (!string.IsNullOrEmpty(connectionString) && !string.IsNullOrEmpty(dbProvider))
+if (string.IsNullOrEmpty(connectionString) || string.IsNullOrEmpty(dbProvider))
 {
-    builder.Services.AddDbContext<ChatDbContext>(configureChatDb);
-    // Custom factory for the DB-backed notification preference store (shared across processes).
-    // ChatDbContext's two constructors break the built-in AddDbContextFactory activator.
-    builder.Services.AddSingleton<IDbContextFactory<ChatDbContext>, ChatDbContextFactory>();
+    throw new InvalidOperationException(
+        "The Chat module requires a database connection string and provider. " +
+        "These are provided via config.json (DOTNETCLOUD_CONFIG_DIR) when launched by the core server.");
 }
-else
-{
-    builder.Services.AddDbContext<ChatDbContext>(options =>
-        options.UseInMemoryDatabase("ChatModule"));
-    builder.Services.AddSingleton<IDbContextFactory<ChatDbContext>, ChatDbContextFactory>();
-}
+
+builder.Services.AddDbContext<ChatDbContext>(configureChatDb);
+// Custom factory for the DB-backed notification preference store (shared across processes).
+// ChatDbContext's two constructors break the built-in AddDbContextFactory activator.
+builder.Services.AddSingleton<IDbContextFactory<ChatDbContext>, ChatDbContextFactory>();
 
 // In-process event bus for standalone operation
 builder.Services.AddSingleton<IEventBus, InProcessEventBus>();

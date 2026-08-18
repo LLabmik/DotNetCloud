@@ -133,20 +133,20 @@ For each module: edit the Host `Program.cs` as above AND remove the
 `<PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />` line from the matching
 `.csproj`.
 
-| # | Module | Program.cs (DB section approx. lines) | DbContext(s) in the `if` | Quirks to watch |
-|---|---|---|---|---|
-| 1 | AI | `src/Modules/AI/DotNetCloud.Modules.AI.Host/Program.cs` (~84–103) | `AiDbContext` | Simple single DbContext. |
-| 2 | Bookmarks | `src/Modules/Bookmarks/DotNetCloud.Modules.Bookmarks.Host/Program.cs` (~89–109) | `BookmarksDbContext` | Simple. `else` has a `// Fallback to in-memory...` comment — delete it with the else. |
-| 3 | Calendar | `src/Modules/Calendar/DotNetCloud.Modules.Calendar.Host/Program.cs` (~128–157) | `CalendarDbContext` (+ `ReplaceService<IMigrationsAssembly, ProviderAwareMigrationsAssembly>`) | Naming strategy is registered INSIDE the `if` (keep it). After the if/else there are more unconditional registrations (`ContactsDbContext`, `CoreDbContext`) that use `dbProvider` directly — leave them untouched. |
-| 4 | Chat | `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Program.cs` (~116–147) | `ChatDbContext` (via a local `configureChatDb` delegate) + `ChatDbContextFactory` | Naming strategy is registered BEFORE the if/else (keep it where it is). Keep the `configureChatDb` delegate and the `ChatDbContextFactory` registration; delete only the `else` block. |
-| 5 | Contacts | `src/Modules/Contacts/DotNetCloud.Modules.Contacts.Host/Program.cs` (~98–121) | `ContactsDbContext`, `CalendarDbContext`, `NotesDbContext` (via local `ConfigureDb` delegate) | Delete the `else` that registers the three InMemory contexts. |
-| 6 | Email | `src/Modules/Email/DotNetCloud.Modules.Email.Host/Program.cs` (~90–116) | `EmailDbContext` | Naming strategy inside the `if` (keep it). |
-| 7 | Files | `src/Modules/Files/DotNetCloud.Modules.Files.Host/Program.cs` (~124–159) | `FilesDbContext` + transient `CoreDbContext` + `ITableNamingStrategy` | The `else` also registers a transient `CoreDbContext` InMemory and a `PostgreSqlNamingStrategy` — delete the whole `else`. The `if` already registers both DbContexts + naming strategy. |
-| 8 | Music | `src/Modules/Music/DotNetCloud.Modules.Music.Host/Program.cs` (~120–161) | `MusicDbContext` (factory + context), `FilesDbContext` (factory + context), `IFileStorageEngine`, `ITableNamingStrategy` | The `else` registers a `PostgreSqlNamingStrategy` + InMemory `MusicDbContext` factory/context — delete the whole `else`. The `if` already registers naming strategy + all DbContexts + storage. |
-| 9 | Notes | `src/Modules/Notes/DotNetCloud.Modules.Notes.Host/Program.cs` (~109–129) | `NotesDbContext` | Simple. |
-| 10 | Photos | `src/Modules/Photos/DotNetCloud.Modules.Photos.Host/Program.cs` (~85–122) | `PhotosDbContext`, `FilesDbContext` (factory + context), `IFileStorageEngine`, `ITableNamingStrategy` | Delete the `else`. The `if` already registers everything needed. |
-| 11 | Search | `src/Modules/Search/DotNetCloud.Modules.Search.Host/Program.cs` (~91–111) | `SearchDbContext` | Simple. Note: later in the file `ResolveDatabaseProvider(...)` already throws when the provider is missing — so the DbContext guard just brings the two in line. |
-| 12 | Tracks | `src/Modules/Tracks/DotNetCloud.Modules.Tracks.Host/Program.cs` (~88–108) | `TracksDbContext` | Simple. |
+| #   | Module    | Program.cs (DB section approx. lines)                                           | DbContext(s) in the `if`                                                                                                 | Quirks to watch                                                                                                                                                                                                     |
+| --- | --------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | AI        | `src/Modules/AI/DotNetCloud.Modules.AI.Host/Program.cs` (~84–103)               | `AiDbContext`                                                                                                            | Simple single DbContext.                                                                                                                                                                                            |
+| 2   | Bookmarks | `src/Modules/Bookmarks/DotNetCloud.Modules.Bookmarks.Host/Program.cs` (~89–109) | `BookmarksDbContext`                                                                                                     | Simple. `else` has a `// Fallback to in-memory...` comment — delete it with the else.                                                                                                                               |
+| 3   | Calendar  | `src/Modules/Calendar/DotNetCloud.Modules.Calendar.Host/Program.cs` (~128–157)  | `CalendarDbContext` (+ `ReplaceService<IMigrationsAssembly, ProviderAwareMigrationsAssembly>`)                           | Naming strategy is registered INSIDE the `if` (keep it). After the if/else there are more unconditional registrations (`ContactsDbContext`, `CoreDbContext`) that use `dbProvider` directly — leave them untouched. |
+| 4   | Chat      | `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Program.cs` (~116–147)          | `ChatDbContext` (via a local `configureChatDb` delegate) + `ChatDbContextFactory`                                        | Naming strategy is registered BEFORE the if/else (keep it where it is). Keep the `configureChatDb` delegate and the `ChatDbContextFactory` registration; delete only the `else` block.                              |
+| 5   | Contacts  | `src/Modules/Contacts/DotNetCloud.Modules.Contacts.Host/Program.cs` (~98–121)   | `ContactsDbContext`, `CalendarDbContext`, `NotesDbContext` (via local `ConfigureDb` delegate)                            | Delete the `else` that registers the three InMemory contexts.                                                                                                                                                       |
+| 6   | Email     | `src/Modules/Email/DotNetCloud.Modules.Email.Host/Program.cs` (~90–116)         | `EmailDbContext`                                                                                                         | Naming strategy inside the `if` (keep it).                                                                                                                                                                          |
+| 7   | Files     | `src/Modules/Files/DotNetCloud.Modules.Files.Host/Program.cs` (~124–159)        | `FilesDbContext` + transient `CoreDbContext` + `ITableNamingStrategy`                                                    | The `else` also registers a transient `CoreDbContext` InMemory and a `PostgreSqlNamingStrategy` — delete the whole `else`. The `if` already registers both DbContexts + naming strategy.                            |
+| 8   | Music     | `src/Modules/Music/DotNetCloud.Modules.Music.Host/Program.cs` (~120–161)        | `MusicDbContext` (factory + context), `FilesDbContext` (factory + context), `IFileStorageEngine`, `ITableNamingStrategy` | The `else` registers a `PostgreSqlNamingStrategy` + InMemory `MusicDbContext` factory/context — delete the whole `else`. The `if` already registers naming strategy + all DbContexts + storage.                     |
+| 9   | Notes     | `src/Modules/Notes/DotNetCloud.Modules.Notes.Host/Program.cs` (~109–129)        | `NotesDbContext`                                                                                                         | Simple.                                                                                                                                                                                                             |
+| 10  | Photos    | `src/Modules/Photos/DotNetCloud.Modules.Photos.Host/Program.cs` (~85–122)       | `PhotosDbContext`, `FilesDbContext` (factory + context), `IFileStorageEngine`, `ITableNamingStrategy`                    | Delete the `else`. The `if` already registers everything needed.                                                                                                                                                    |
+| 11  | Search    | `src/Modules/Search/DotNetCloud.Modules.Search.Host/Program.cs` (~91–111)       | `SearchDbContext`                                                                                                        | Simple. Note: later in the file `ResolveDatabaseProvider(...)` already throws when the provider is missing — so the DbContext guard just brings the two in line.                                                    |
+| 12  | Tracks    | `src/Modules/Tracks/DotNetCloud.Modules.Tracks.Host/Program.cs` (~88–108)       | `TracksDbContext`                                                                                                        | Simple.                                                                                                                                                                                                             |
 
 ### 1c. csproj reference removal (13 files)
 
@@ -458,14 +458,14 @@ Run in this order (bash; repo is on Linux here, but `dotnet` commands are cross-
 
 ## Definition of done
 
-- ☐ All 13 `UseInMemoryDatabase` call sites removed from `src/` (12 mechanical + Example rewrite).
-- ☐ All 14 `Microsoft.EntityFrameworkCore.InMemory` package references removed from `src/**/*.csproj`.
-- ☐ Example module uses config.json + dual-provider + provider-aware migrations + SQL Server
-      migration set + `ExampleDbContextSqlServerDesignTimeFactory`.
-- ☐ `dotnet build DotNetCloud.CI.slnf -c Release` passes.
-- ☐ `dotnet test tests/DotNetCloud.Modules.Example.Tests` passes.
-- ☐ `rg "UseInMemoryDatabase" src/` returns nothing.
-- ☐ `Directory.Packages.props` still pins `Microsoft.EntityFrameworkCore.InMemory` 10.0.10 (tests need it).
+- ✓ All 13 `UseInMemoryDatabase` call sites removed from `src/` (12 mechanical + Example rewrite).
+- ✓ All 14 `Microsoft.EntityFrameworkCore.InMemory` package references removed from `src/**/*.csproj`.
+- ✓ Example module uses config.json + dual-provider + provider-aware migrations + SQL Server
+  migration set + `ExampleDbContextSqlServerDesignTimeFactory`.
+- ✓ `dotnet build DotNetCloud.CI.slnf -c Release` passes (0 warnings, 0 errors).
+- ✓ `dotnet test tests/DotNetCloud.Modules.Example.Tests` passes (51/51).
+- ✓ `rg "UseInMemoryDatabase" src/` returns nothing.
+- ✓ `Directory.Packages.props` still pins `Microsoft.EntityFrameworkCore.InMemory` 10.0.10 (tests need it).
 
 ## Risks / notes
 

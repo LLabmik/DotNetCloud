@@ -126,36 +126,36 @@ builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHand
 // Register the Calendar module as a singleton for lifecycle management
 builder.Services.AddSingleton<CalendarModule>();
 
-// Use shared database from core server config, fall back to in-memory
+// Use shared database from core server config (fail fast if missing)
 var connStr = builder.Configuration["connectionString"]
     ?? builder.Configuration.GetConnectionString("DefaultConnection");
 var dbProvider = builder.Configuration["databaseProvider"]
     ?? builder.Configuration["database:provider"];
 
-if (!string.IsNullOrEmpty(connStr) && !string.IsNullOrEmpty(dbProvider))
+if (string.IsNullOrEmpty(connStr) || string.IsNullOrEmpty(dbProvider))
 {
-    // Register the naming strategy so CalendarDbContext uses the correct
-    // table/column naming for the active provider (snake_case for PostgreSQL,
-    // PascalCase for SQL Server).
-    if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
-        builder.Services.AddSingleton<ITableNamingStrategy, PostgreSqlNamingStrategy>();
-    else
-        builder.Services.AddSingleton<ITableNamingStrategy, SqlServerNamingStrategy>();
-
-    builder.Services.AddDbContext<CalendarDbContext>(o =>
-    {
-        if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
-            o.UseNpgsql(connStr);
-        else
-            o.UseSqlServer(connStr);
-
-        o.ReplaceService<IMigrationsAssembly, DotNetCloud.Core.Data.Infrastructure.ProviderAwareMigrationsAssembly>();
-    });
+    throw new InvalidOperationException(
+        "The Calendar module requires a database connection string and provider. " +
+        "These are provided via config.json (DOTNETCLOUD_CONFIG_DIR) when launched by the core server.");
 }
+
+// Register the naming strategy so CalendarDbContext uses the correct
+// table/column naming for the active provider (snake_case for PostgreSQL,
+// PascalCase for SQL Server).
+if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
+    builder.Services.AddSingleton<ITableNamingStrategy, PostgreSqlNamingStrategy>();
 else
+    builder.Services.AddSingleton<ITableNamingStrategy, SqlServerNamingStrategy>();
+
+builder.Services.AddDbContext<CalendarDbContext>(o =>
 {
-    builder.Services.AddDbContext<CalendarDbContext>(o => o.UseInMemoryDatabase("CalendarModule"));
-}
+    if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
+        o.UseNpgsql(connStr);
+    else
+        o.UseSqlServer(connStr);
+
+    o.ReplaceService<IMigrationsAssembly, DotNetCloud.Core.Data.Infrastructure.ProviderAwareMigrationsAssembly>();
+});
 
 // In-process event bus for standalone operation
 builder.Services.AddSingleton<IEventBus, InProcessEventBus>();

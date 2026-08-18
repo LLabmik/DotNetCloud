@@ -81,27 +81,26 @@ builder.Services.AddAuthorization();
 // Register the module as singleton
 builder.Services.AddSingleton<AiModule>();
 
-// Register EF Core with config-driven database, falling back to in-memory
+// Register EF Core with the configured database provider (no in-memory fallback)
 var connectionString = builder.Configuration["connectionString"]
     ?? builder.Configuration.GetConnectionString("DefaultConnection");
 var dbProvider = builder.Configuration["databaseProvider"]
     ?? builder.Configuration["database:provider"];
 
-if (!string.IsNullOrEmpty(connectionString) && !string.IsNullOrEmpty(dbProvider))
+if (string.IsNullOrEmpty(connectionString) || string.IsNullOrEmpty(dbProvider))
 {
-    builder.Services.AddDbContext<AiDbContext>(options =>
-    {
-        if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
-            options.UseNpgsql(connectionString);
-        else
-            options.UseSqlServer(connectionString);
-    });
+    throw new InvalidOperationException(
+        "The AI module requires a database connection string and provider. " +
+        "These are provided via config.json (DOTNETCLOUD_CONFIG_DIR) when launched by the core server.");
 }
-else
+
+builder.Services.AddDbContext<AiDbContext>(options =>
 {
-    builder.Services.AddDbContext<AiDbContext>(options =>
-        options.UseInMemoryDatabase("AiModule"));
-}
+    if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
+        options.UseNpgsql(connectionString);
+    else
+        options.UseSqlServer(connectionString);
+});
 
 // In-process event bus for standalone operation
 builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
