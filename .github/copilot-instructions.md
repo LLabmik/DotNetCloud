@@ -523,6 +523,8 @@ Find step phase-0.1.1:
 - ❌ `grep` → Use `Select-String`
 - ❌ `find` → Use `Get-ChildItem -Recurse`
 
+**Cross-platform (Linux/bash shell):** When searching files in a bash terminal, use `rg` (ripgrep) instead of `grep`.
+
 ### Example: Correct PowerShell Usage
 
 **✅ CORRECT:**
