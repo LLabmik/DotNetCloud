@@ -726,26 +726,33 @@
     // Instead, reload the stream URL with a startSeconds parameter so the
     // server restarts ffmpeg from the seeked position.
     if (!video._hls) {
-      var baseUrl =
-        video.getAttribute("data-stream-url") ||
-        video.src ||
-        "/api/v1/videos/" + videoId + "/stream";
-      // Only allow same-origin relative paths or http(s) URLs. Reject
-      // javascript: and other schemes so DOM text can never be reinterpreted
-      // as executable content when assigned to video.src.
-      if (!/^https?:\/\//i.test(baseUrl) && baseUrl.charAt(0) !== "/") {
-        baseUrl = "/api/v1/videos/" + videoId + "/stream";
+      var fallbackPath = "/api/v1/videos/" + videoId + "/stream";
+      var streamUrlCandidate =
+        video.getAttribute("data-stream-url") || video.src || fallbackPath;
+
+      // Parse and validate URL from DOM text before assigning to video.src.
+      // Allow only same-origin http(s) URLs with absolute-path names.
+      var safeUrl;
+      try {
+        safeUrl = new URL(streamUrlCandidate, window.location.origin);
+        var isHttp = safeUrl.protocol === "http:" || safeUrl.protocol === "https:";
+        var isSameOrigin = safeUrl.origin === window.location.origin;
+        var hasAbsolutePath = safeUrl.pathname && safeUrl.pathname.charAt(0) === "/";
+        if (!isHttp || !isSameOrigin || !hasAbsolutePath) {
+          safeUrl = new URL(fallbackPath, window.location.origin);
+        }
+      } catch (e) {
+        safeUrl = new URL(fallbackPath, window.location.origin);
       }
-      // Strip existing query params and add startSeconds + cache-buster
-      var sep = baseUrl.indexOf("?") === -1 ? "?" : "&";
-      var newUrl =
-        baseUrl + sep + "startSeconds=" + targetSeconds + "&_=" + Date.now();
+
+      safeUrl.searchParams.set("startSeconds", String(targetSeconds));
+      safeUrl.searchParams.set("_", String(Date.now()));
 
       // Store the absolute offset so the slider position reflects the full
       // video timeline, not the (restarted) stream's local time.
       video._seekStartOffset = targetSeconds;
 
-      video.src = newUrl;
+      video.src = safeUrl.toString();
       video.play().catch(function () {});
 
       if (dotNetRef) {
