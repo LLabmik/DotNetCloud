@@ -92,22 +92,20 @@ var connectionString = builder.Configuration["connectionString"]
 var dbProvider = builder.Configuration["databaseProvider"]
     ?? builder.Configuration["database:provider"];
 
-if (!string.IsNullOrEmpty(connectionString) && !string.IsNullOrEmpty(dbProvider))
+if (string.IsNullOrEmpty(connectionString) || string.IsNullOrEmpty(dbProvider))
 {
-    builder.Services.AddDbContext<BookmarksDbContext>(options =>
-    {
-        if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
-            options.UseNpgsql(connectionString);
-        else
-            options.UseSqlServer(connectionString);
-    });
+    throw new InvalidOperationException(
+        "The Bookmarks module requires a database connection string and provider. " +
+        "These are provided via config.json (DOTNETCLOUD_CONFIG_DIR) when launched by the core server.");
 }
-else
+
+builder.Services.AddDbContext<BookmarksDbContext>(options =>
 {
-    // Fallback to in-memory for development/testing
-    builder.Services.AddDbContext<BookmarksDbContext>(options =>
-        options.UseInMemoryDatabase("BookmarksModule"));
-}
+    if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
+        options.UseNpgsql(connectionString);
+    else
+        options.UseSqlServer(connectionString);
+});
 
 // In-process event bus for standalone operation
 builder.Services.AddSingleton<IEventBus, InProcessEventBus>();

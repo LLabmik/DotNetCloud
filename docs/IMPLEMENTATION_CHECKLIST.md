@@ -5723,10 +5723,12 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 
 - ✓ Add `"schemaProvider": "self"` to Example module `manifest.json` (already present)
 - ✓ Update `ExampleDbContext` to inject `ITableNamingStrategy` and call `HasDefaultSchema`
-- ✓ Update `Program.cs` for self-managed migration pattern (`async Task Main`, env var, in-memory fallback)
+- ✓ Update `Program.cs` for self-managed migration pattern (`async Task Main`, config-driven dual-provider DB via `DOTNETCLOUD_CONFIG_DIR`, fail-fast when DB config missing)
 - ✓ Add `Npgsql.EntityFrameworkCore.PostgreSQL` and `Microsoft.EntityFrameworkCore.Design` package references
 - ✓ Create `ExampleDbContextFactory` for design-time EF tooling
 - ✓ Add EF `InitialCreate` migration for the `example` schema
+- ✓ Add `ExampleDbContextSqlServerDesignTimeFactory` + SQL Server migration set (`Migrations/SqlServer/`) — canonical dual-provider pattern
+- ✓ Remove `UseInMemoryDatabase` fallback + `Microsoft.EntityFrameworkCore.InMemory` package refs from all production module Hosts (fail-fast `InvalidOperationException`)
 - ✓ Update `README.md` with schema management documentation
 
 ---

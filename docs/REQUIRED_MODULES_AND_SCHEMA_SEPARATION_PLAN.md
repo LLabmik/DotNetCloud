@@ -46,6 +46,8 @@ Root cause: most module DbContexts don't call `HasDefaultSchema`, so tables land
 
 Module migrations are **not** run by module Host processes (they all use `UseInMemoryDatabase`). The **core server** (`DotNetCloud.Core.Server/Program.cs`) registers every module DbContext with the same connection string and runs all of their migrations on startup — unconditionally. There is no check against the `InstalledModules` table before migrating.
 
+> **Note (historical):** This is a planning document written before the in-memory fallback was removed. Module hosts no longer use `UseInMemoryDatabase` — they load `config.json` from `DOTNETCLOUD_CONFIG_DIR` and fail fast if the database configuration is missing. See `REMOVE_INMEMORY_FROM_MODULES_PLAN.md`.
+
 ### Current core server migration strategies (Program.cs lines 120-209)
 
 | Module   | Strategy                                                                       |

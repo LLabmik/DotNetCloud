@@ -3973,14 +3973,16 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 
 - ✓ `manifest.json` — `"schemaProvider": "self"` already present
 - ✓ `ExampleDbContext` — inject `ITableNamingStrategy`, call `HasDefaultSchema` for self-managed schema
-- ✓ `Program.cs` — `async Task Main`, register naming strategy, read `DOTNETCLOUD_CONNECTION_STRING`, in-memory fallback, `MigrateAsync()` on startup
-- ✓ `DotNetCloud.Modules.Example.Host.csproj` — add `Npgsql.EntityFrameworkCore.PostgreSQL` package reference
-- ✓ `DotNetCloud.Modules.Example.Data.csproj` — add `Microsoft.EntityFrameworkCore.Design` package reference
-- ✓ `ExampleDbContextFactory` — design-time factory for EF Core CLI tools
+- ✓ `Program.cs` — `async Task Main`, load `config.json` via `DOTNETCLOUD_CONFIG_DIR`, canonical dual-provider (PostgreSQL/SQL Server) registration with provider-aware migrations, fail-fast when DB config missing, unconditional `MigrateAsync()` on startup
+- ✓ `DotNetCloud.Modules.Example.Host.csproj` — add `Npgsql.EntityFrameworkCore.PostgreSQL` + `Microsoft.EntityFrameworkCore.SqlServer` package references
+- ✓ `DotNetCloud.Modules.Example.Data.csproj` — add `Microsoft.EntityFrameworkCore.Design` + `Microsoft.EntityFrameworkCore.SqlServer` package references
+- ✓ `ExampleDbContextFactory` — PostgreSQL design-time factory for EF Core CLI tools
+- ✓ `ExampleDbContextSqlServerDesignTimeFactory` + SQL Server migration set (`Migrations/SqlServer/`, namespace `...Data.SqlServer.Migrations`) — canonical dual-provider pattern
 - ✓ EF `InitialCreate` migration — creates `example` schema with `Notes` table
-- ✓ `README.md` — document schema management: `schemaProvider`, `ITableNamingStrategy`, connection string, self-migrate pattern, in-memory fallback
+- ✓ Removed `UseInMemoryDatabase` fallback + `Microsoft.EntityFrameworkCore.InMemory` package refs from all 13 production module Hosts and 14 Host csproj files (fail-fast `InvalidOperationException`)
+- ✓ `README.md` — document schema management: `schemaProvider`, `ITableNamingStrategy`, connection string, dual-provider migrations layout
 
-**Notes:** Phase 7 complete. The Example module is now the reference implementation for third-party module developers demonstrating the self-managed schema pattern. Key patterns: `"schemaProvider": "self"` in manifest prevents core from trying to migrate the module; `ITableNamingStrategy.GetSchemaForModule("example")` returns `"example"` schema; `DOTNETCLOUD_CONNECTION_STRING` env var is set by core server's `ProcessSupervisor`; module self-migrates on startup via `MigrateAsync()`; migration history table is scoped to `example` schema to avoid collisions; in-memory fallback for local development. Build passes with 0 errors; all 51 Example module tests pass.
+**Notes:** Phase 7 complete. The Example module is now the reference implementation for third-party module developers demonstrating the self-managed schema pattern. Key patterns: `"schemaProvider": "self"` in manifest prevents core from trying to migrate the module; `ITableNamingStrategy.GetSchemaForModule("example")` returns `"example"` schema; host loads `config.json` via `DOTNETCLOUD_CONFIG_DIR` (set by `ProcessSupervisor`) and requires `connectionString` + `databaseProvider` (fail-fast — no in-memory fallback); module self-migrates unconditionally on startup via `MigrateAsync()`; migration history table is scoped to `example` schema. Dual-provider migrations: `Migrations/` = PostgreSQL, `Migrations/SqlServer/` = SQL Server, filtered at runtime by `ProviderAwareMigrationsAssembly`. Build passes with 0 errors; all 51 Example module tests pass.
 
 ---
 
@@ -6116,14 +6118,16 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 
 - ✓ `manifest.json` — `"schemaProvider": "self"` already present
 - ✓ `ExampleDbContext` — inject `ITableNamingStrategy`, call `HasDefaultSchema` for self-managed schema
-- ✓ `Program.cs` — `async Task Main`, register naming strategy, read `DOTNETCLOUD_CONNECTION_STRING`, in-memory fallback, `MigrateAsync()` on startup
-- ✓ `DotNetCloud.Modules.Example.Host.csproj` — add `Npgsql.EntityFrameworkCore.PostgreSQL` package reference
-- ✓ `DotNetCloud.Modules.Example.Data.csproj` — add `Microsoft.EntityFrameworkCore.Design` package reference
-- ✓ `ExampleDbContextFactory` — design-time factory for EF Core CLI tools
+- ✓ `Program.cs` — `async Task Main`, load `config.json` via `DOTNETCLOUD_CONFIG_DIR`, canonical dual-provider (PostgreSQL/SQL Server) registration with provider-aware migrations, fail-fast when DB config missing, unconditional `MigrateAsync()` on startup
+- ✓ `DotNetCloud.Modules.Example.Host.csproj` — add `Npgsql.EntityFrameworkCore.PostgreSQL` + `Microsoft.EntityFrameworkCore.SqlServer` package references
+- ✓ `DotNetCloud.Modules.Example.Data.csproj` — add `Microsoft.EntityFrameworkCore.Design` + `Microsoft.EntityFrameworkCore.SqlServer` package references
+- ✓ `ExampleDbContextFactory` — PostgreSQL design-time factory for EF Core CLI tools
+- ✓ `ExampleDbContextSqlServerDesignTimeFactory` + SQL Server migration set (`Migrations/SqlServer/`, namespace `...Data.SqlServer.Migrations`) — canonical dual-provider pattern
 - ✓ EF `InitialCreate` migration — creates `example` schema with `Notes` table
-- ✓ `README.md` — document schema management: `schemaProvider`, `ITableNamingStrategy`, connection string, self-migrate pattern, in-memory fallback
+- ✓ Removed `UseInMemoryDatabase` fallback + `Microsoft.EntityFrameworkCore.InMemory` package refs from all 13 production module Hosts and 14 Host csproj files (fail-fast `InvalidOperationException`)
+- ✓ `README.md` — document schema management: `schemaProvider`, `ITableNamingStrategy`, connection string, dual-provider migrations layout
 
-**Notes:** Phase 7 complete. The Example module is now the reference implementation for third-party module developers demonstrating the self-managed schema pattern. Key patterns: `"schemaProvider": "self"` in manifest prevents core from trying to migrate the module; `ITableNamingStrategy.GetSchemaForModule("example")` returns `"example"` schema; `DOTNETCLOUD_CONNECTION_STRING` env var is set by core server's `ProcessSupervisor`; module self-migrates on startup via `MigrateAsync()`; migration history table is scoped to `example` schema to avoid collisions; in-memory fallback for local development. Build passes with 0 errors; all 51 Example module tests pass.
+**Notes:** Phase 7 complete. The Example module is now the reference implementation for third-party module developers demonstrating the self-managed schema pattern. Key patterns: `"schemaProvider": "self"` in manifest prevents core from trying to migrate the module; `ITableNamingStrategy.GetSchemaForModule("example")` returns `"example"` schema; host loads `config.json` via `DOTNETCLOUD_CONFIG_DIR` (set by `ProcessSupervisor`) and requires `connectionString` + `databaseProvider` (fail-fast — no in-memory fallback); module self-migrates unconditionally on startup via `MigrateAsync()`; migration history table is scoped to `example` schema. Dual-provider migrations: `Migrations/` = PostgreSQL, `Migrations/SqlServer/` = SQL Server, filtered at runtime by `ProviderAwareMigrationsAssembly`. Build passes with 0 errors; all 51 Example module tests pass.
 
 ---
 

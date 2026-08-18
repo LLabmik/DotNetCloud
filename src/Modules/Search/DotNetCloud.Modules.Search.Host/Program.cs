@@ -89,27 +89,26 @@ builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHand
 // Register the Search module as a singleton for lifecycle management
 builder.Services.AddSingleton<SearchModule>();
 
-// Register EF Core with config-driven database, falling back to in-memory
+// Register EF Core with the configured database provider (no in-memory fallback)
 var connectionString = builder.Configuration["connectionString"]
     ?? builder.Configuration.GetConnectionString("DefaultConnection");
 var dbProviderFromConfig = builder.Configuration["databaseProvider"]
     ?? builder.Configuration["database:provider"];
 
-if (!string.IsNullOrEmpty(connectionString) && !string.IsNullOrEmpty(dbProviderFromConfig))
+if (string.IsNullOrEmpty(connectionString) || string.IsNullOrEmpty(dbProviderFromConfig))
 {
-    builder.Services.AddDbContext<SearchDbContext>(options =>
-    {
-        if (string.Equals(dbProviderFromConfig, "PostgreSql", StringComparison.OrdinalIgnoreCase))
-            options.UseNpgsql(connectionString);
-        else
-            options.UseSqlServer(connectionString);
-    });
+    throw new InvalidOperationException(
+        "The Search module requires a database connection string and provider. " +
+        "These are provided via config.json (DOTNETCLOUD_CONFIG_DIR) when launched by the core server.");
 }
-else
+
+builder.Services.AddDbContext<SearchDbContext>(options =>
 {
-    builder.Services.AddDbContext<SearchDbContext>(options =>
-        options.UseInMemoryDatabase("SearchModule"));
-}
+    if (string.Equals(dbProviderFromConfig, "PostgreSql", StringComparison.OrdinalIgnoreCase))
+        options.UseNpgsql(connectionString);
+    else
+        options.UseSqlServer(connectionString);
+});
 
 // In-process event bus for standalone operation
 builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
