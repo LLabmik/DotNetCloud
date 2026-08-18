@@ -45,7 +45,7 @@
    .\Install-DesktopClient.ps1
    ```
 
-   The installer also creates a **Start Menu** shortcut (`DotNetCloud SyncTray`) so the app appears in Start-menu search, and registers auto-start on login.
+   The installer also creates a **Start Menu** shortcut (`DotNetCloud SyncTray`, branded with the DotNetCloud logo) so the app appears in Start-menu search, and registers auto-start on login.
 
 5. **Verify package is installed:**
 
