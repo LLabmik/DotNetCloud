@@ -2308,6 +2308,11 @@ This phase implements the core Files module, which is the primary public-facing 
   - ✓ Empty state placeholder ("No files yet — upload or create a folder")
   - ✓ Loading skeleton while fetching data
   - ✓ Root and folder listings deduplicate tagged nodes from data-service queries
+  - ✓ Context menu actions operate on the full current selection — right-clicking inside a multi-selection keeps it; right-clicking outside selects just that card
+  - ✓ Bulk share dialog (`BulkShareDialog`) — apply one recipient + permission to all selected nodes
+  - ✓ Multi-item ZIP download (files + folders) with configurable `MaxZipSizeBytes` limit (4 GiB default) and informational modal on HTTP 413
+  - ✓ Delete confirmation dialog for both context-menu Delete and bulk toolbar Trash
+  - ✓ Download context-menu item available for folders (single file → direct download; folder/multi → single ZIP)
 
 #### File Upload Component
 

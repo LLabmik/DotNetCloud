@@ -69,7 +69,11 @@ public class FilesController : FilesControllerBase
     [AllowAnonymous]
     public IActionResult GetConfig()
     {
-        return Ok(new { maxUploadSizeBytes = _uploadOptions.MaxFileSizeBytes });
+        return Ok(new
+        {
+            maxUploadSizeBytes = _uploadOptions.MaxFileSizeBytes,
+            maxZipSizeBytes = _uploadOptions.MaxZipSizeBytes
+        });
     }
 
     /// <summary>

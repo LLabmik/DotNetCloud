@@ -22,6 +22,7 @@ internal sealed class DownloadService : IDownloadService
     private readonly IPermissionService _permissions;
     private readonly IShareAccessMembershipResolver? _shareAccessMembershipResolver;
     private readonly string _tmpPath;
+    private readonly long _maxZipSizeBytes;
 
     public DownloadService(
         FilesDbContext db,
@@ -37,6 +38,9 @@ internal sealed class DownloadService : IDownloadService
         _permissions = permissions;
         _shareAccessMembershipResolver = shareAccessMembershipResolver;
         _tmpPath = uploadOptions.Value.TmpPath ?? Path.GetTempPath();
+        _maxZipSizeBytes = uploadOptions.Value.MaxZipSizeBytes > 0
+            ? uploadOptions.Value.MaxZipSizeBytes
+            : 4_294_967_296L;
     }
 
     /// <inheritdoc />
@@ -445,12 +449,15 @@ internal sealed class DownloadService : IDownloadService
 
                     if (node.NodeType == FileNodeType.Folder)
                     {
-                        await AddFolderToZipAsync(archive, node, node.Name, caller, cancellationToken);
+                        await AddFolderToZipAsync(archive, node, node.Name, caller, zipStream, cancellationToken);
                     }
                     else
                     {
-                        await AddFileToZipAsync(archive, node, node.Name, cancellationToken);
+                        await AddFileToZipAsync(archive, node, node.Name, zipStream, cancellationToken);
                     }
+
+                    if (zipStream.Length > _maxZipSizeBytes)
+                        throw new ZipSizeLimitExceededException(_maxZipSizeBytes);
                 }
             }
 
@@ -473,7 +480,13 @@ internal sealed class DownloadService : IDownloadService
         }
     }
 
-    private async Task AddFolderToZipAsync(ZipArchive archive, FileNode folder, string pathPrefix, CallerContext caller, CancellationToken cancellationToken)
+    private async Task AddFolderToZipAsync(
+        ZipArchive archive,
+        FileNode folder,
+        string pathPrefix,
+        CallerContext caller,
+        Stream zipStream,
+        CancellationToken cancellationToken)
     {
         // Add an empty directory entry
         archive.CreateEntry(pathPrefix + "/");
@@ -489,16 +502,24 @@ internal sealed class DownloadService : IDownloadService
 
             if (child.NodeType == FileNodeType.Folder)
             {
-                await AddFolderToZipAsync(archive, child, childPath, caller, cancellationToken);
+                await AddFolderToZipAsync(archive, child, childPath, caller, zipStream, cancellationToken);
             }
             else
             {
-                await AddFileToZipAsync(archive, child, childPath, cancellationToken);
+                await AddFileToZipAsync(archive, child, childPath, zipStream, cancellationToken);
             }
+
+            if (zipStream.Length > _maxZipSizeBytes)
+                throw new ZipSizeLimitExceededException(_maxZipSizeBytes);
         }
     }
 
-    private async Task AddFileToZipAsync(ZipArchive archive, FileNode fileNode, string entryPath, CancellationToken cancellationToken)
+    private async Task AddFileToZipAsync(
+        ZipArchive archive,
+        FileNode fileNode,
+        string entryPath,
+        Stream zipStream,
+        CancellationToken cancellationToken)
     {
         var latestVersion = await _db.FileVersions
             .AsNoTracking()
@@ -511,34 +532,38 @@ internal sealed class DownloadService : IDownloadService
         if (latestVersion is null)
             return;
 
-        await using var entryStream = entry.Open();
-
-        var versionChunks = await _db.FileVersionChunks
-            .AsNoTracking()
-            .Include(vc => vc.FileChunk)
-            .Where(vc => vc.FileVersionId == latestVersion.Id)
-            .OrderBy(vc => vc.SequenceIndex)
-            .ToListAsync(cancellationToken);
-
-        foreach (var vc in versionChunks)
+        await using (var entryStream = entry.Open())
         {
-            if (vc.FileChunk!.Size == 0)
-                continue;
+            var versionChunks = await _db.FileVersionChunks
+                .AsNoTracking()
+                .Include(vc => vc.FileChunk)
+                .Where(vc => vc.FileVersionId == latestVersion.Id)
+                .OrderBy(vc => vc.SequenceIndex)
+                .ToListAsync(cancellationToken);
 
-            var chunkStream = await _storageEngine.OpenReadStreamAsync(vc.FileChunk.StoragePath, cancellationToken);
-            if (chunkStream is null)
+            foreach (var vc in versionChunks)
             {
-                _logger.LogWarning("Chunk blob missing from storage for hash '{ChunkHash}' during ZIP assembly for file '{EntryPath}'.",
-                    vc.FileChunk.ChunkHash, entryPath);
-                throw new NotFoundException(
-                    $"File content is unavailable: chunk '{vc.FileChunk.ChunkHash[..8]}…' blob is missing from storage.");
-            }
+                if (vc.FileChunk!.Size == 0)
+                    continue;
 
-            await using (chunkStream)
-            {
-                await chunkStream.CopyToAsync(entryStream, cancellationToken);
+                var chunkStream = await _storageEngine.OpenReadStreamAsync(vc.FileChunk.StoragePath, cancellationToken);
+                if (chunkStream is null)
+                {
+                    _logger.LogWarning("Chunk blob missing from storage for hash '{ChunkHash}' during ZIP assembly for file '{EntryPath}'.",
+                        vc.FileChunk.ChunkHash, entryPath);
+                    throw new NotFoundException(
+                        $"File content is unavailable: chunk '{vc.FileChunk.ChunkHash[..8]}…' blob is missing from storage.");
+                }
+
+                await using (chunkStream)
+                {
+                    await chunkStream.CopyToAsync(entryStream, cancellationToken);
+                }
             }
         }
+
+        if (zipStream.Length > _maxZipSizeBytes)
+            throw new ZipSizeLimitExceededException(_maxZipSizeBytes);
     }
 
     /// <summary>

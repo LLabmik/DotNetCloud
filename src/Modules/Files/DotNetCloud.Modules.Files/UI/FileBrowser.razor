@@ -406,6 +406,14 @@ else
                                                      InitialShares="_shareDialogShares" IsLoadingShares="_isLoadingShareDialogShares" />
                                     }
 
+                                    @if (_showBulkShareDialog && _bulkShareTargetIds.Count > 1)
+                                    {
+                                        <BulkShareDialog Nodes="BulkShareTargetNodes"
+                                                         OnClose="HideBulkShareDialog"
+                                                         OnSearch="HandleShareSearchAsync"
+                                                         OnShareCreated="HandleBulkShareCreatedAsync" />
+                                    }
+
                                     <FileContextMenu IsVisible="_showContextMenu" X="_contextMenuX" Y="_contextMenuY"
                                                      NodeId="_contextMenuNodeId" NodeType="_contextMenuNodeType" IsReadOnly="_contextMenuNodeIsReadOnly"
                                                      OnOpen="HandleContextOpen" OnRename="HandleContextRename" OnMove="HandleContextMove"
@@ -453,6 +461,25 @@ else
                                                     </div>
                                                     <div class="dialog-footer">
                                                         <button class="btn btn-sm" @onclick="HideSingleTagDialog">Close</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        }
+
+                                        @if (_showDeleteConfirm)
+                                        {
+                                            <div class="dialog-overlay" @onclick="CancelDelete">
+                                                <div class="dialog" @onclick:stopPropagation>
+                                                    <div class="dialog-header">
+                                                        <h3>Move to trash?</h3>
+                                                        <button class="btn-icon" @onclick="CancelDelete" aria-label="Close" title="Close">X</button>
+                                                    </div>
+                                                    <div class="dialog-body">
+                                                        <p>Move @_deleteTargetNodeIds.Count @(_deleteTargetNodeIds.Count == 1 ? "item" : "items") to the trash? You can restore them from the Trash view.</p>
+                                                    </div>
+                                                    <div class="dialog-footer">
+                                                        <button class="btn btn-danger btn-sm" @onclick="ConfirmDeleteAsync">Delete</button>
+                                                        <button class="btn btn-sm" @onclick="CancelDelete">Cancel</button>
                                                     </div>
                                                 </div>
                                             </div>
@@ -541,6 +568,25 @@ else
                                                     @(_folderPickerMode == FolderPickerMode.Move ? "Move here" : "Copy here")
                                                 </button>
                                                 <button class="btn btn-sm" @onclick="HideFolderPicker">Cancel</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+
+                                @if (_showZipErrorModal)
+                                {
+                                    <div class="dialog-overlay" @onclick="HideZipErrorModal">
+                                        <div class="dialog" @onclick:stopPropagation>
+                                            <div class="dialog-header">
+                                                <h3>Download too large</h3>
+                                                <button class="btn-icon" @onclick="HideZipErrorModal" aria-label="Close" title="Close">X</button>
+                                            </div>
+                                            <div class="dialog-body">
+                                                <p>@_zipErrorMessage</p>
+                                                <p class="text-muted">Tip: select fewer or smaller files and folders, then try downloading again.</p>
+                                            </div>
+                                            <div class="dialog-footer">
+                                                <button class="btn btn-sm" @onclick="HideZipErrorModal">OK</button>
                                             </div>
                                         </div>
                                     </div>

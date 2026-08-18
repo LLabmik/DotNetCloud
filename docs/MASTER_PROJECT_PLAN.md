@@ -147,6 +147,7 @@
 | VFS Phase 4 (Linux)                  | 4       | 4         | 0           | 0       |
 | VFS Phase 5 (UI)                     | 3       | 3         | 0           | 0       |
 | VFS Phase 6 (Testing)                | 3       | 3         | 0           | 0       |
+| Files Multi-Select Context Menu      | 1       | 1         | 0           | 0       |
 
 Maintenance note: local install/setup health verification now follows configured Kestrel ports and accepts self-signed local HTTPS during startup checks. Fresh Linux installs now invoke `dotnetcloud setup --beginner` by default, which auto-selects the recommended local PostgreSQL path and then branches cleanly between the three real deployment shapes: private/local test, public behind a reverse proxy, and public served directly by DotNetCloud itself. The local branch uses self-signed HTTPS on DotNetCloud directly. The reverse-proxy public branch keeps DotNetCloud on local HTTP and ends with explicit reverse-proxy/TLS guidance instead of pretending automatic public-certificate setup exists; it now also points beginners to a dedicated Apache-first reverse-proxy guide with a Caddy alternative. The public-direct branch lets the user point DotNetCloud at an existing public certificate file and explains the extra tradeoffs, while still explicitly recommending a reverse proxy for most public installs because it simplifies ports 80/443, TLS renewal, and future services on the same machine. All branches print explicit direct local access URLs and health probe URLs and end with a plain-language summary of the selected defaults plus the beginner user's next steps. Upgrade runs now also end with a plain-language summary that confirms existing data/configuration were preserved, states clearly whether a one-time setup review is still required, and re-shows the access URLs plus the user's next step. This also clarifies the internal app defaults HTTP `5080` / HTTPS `5443` versus reverse-proxy/public HTTPS ports such as `15443`. Windows now has a separate IIS-first installation path via `tools/install-windows.ps1`, with IIS reverse proxying to `http://localhost:5080`, a beginner-focused IIS guide, a dedicated architecture rationale note, native Windows Service hosting support in the core server, and machine-level config/data environment propagation during setup and service runtime so Windows self-hosters do not need to follow the Linux installer path. The bare-metal redeploy helper now also repairs build-output ownership and purges stale normal and malformed Debug output trees before Release build/publish runs so local Linux redeploys do not inherit broken artifacts from prior attempts.
 
@@ -3879,6 +3880,30 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - ☐ Add unit tests for cleanup service and enhanced delete flow
 
 **Notes:** The admin share deletion now performs search document cleanup in the Files module directly (gRPC calls to Search module's `RemoveDocument` RPC). An `AdminSharedFolderCleanupStatus` record tracks progress through cleanup phases, and a status endpoint allows the admin UI to poll for updates. Core.Server's `AdminSharedFolderCleanupService` handles media source and entity cleanup when the event bus is wired across process boundaries. The delete API now returns a `DeleteAdminSharedFolderResult` with the `CleanupJobId` for progress tracking. A pre-existing Video module migration corruption prevents full solution build verification — modified projects build individually.
+
+#### Step: files-multiselect-1 — Multi-Select Context Menu Actions
+
+**Status:** completed ✅
+**Duration:** ~1 day
+**Description:** Make the Files browser context menu actions operate on the full current multi-select selection: Move/Copy (folder picker on all selected), Share (new bulk-share dialog), Download (single ZIP with size limit), Tag, and Delete (with confirmation).
+
+**Deliverables:**
+
+- ✓ Add `MaxZipSizeBytes` option (4 GiB default) to `FileUploadOptions` and configure it in `appsettings.json`
+- ✓ Add `ZipSizeLimitExceededException` + `FILE_ZIP_SIZE_LIMIT_EXCEEDED` error code; map to HTTP 413 in `FilesControllerBase.ExecuteAsync`
+- ✓ Enforce ZIP size limit in `DownloadService` (checks after each entry and top-level node)
+- ✓ Expose `maxZipSizeBytes` in `GET /api/v1/files/config`
+- ✓ `files-bulk.js` `downloadZip` returns structured `{ ok, code, message }` result
+- ✓ Context-menu selection normalization in `OnContextMenu` + `GetContextMenuTargetIds` helper
+- ✓ Rewritten context-menu handlers (Move, Copy, Share, Download, Delete, Tag) target the full selection
+- ✓ ZIP download error modal on 413 (select fewer/smaller items)
+- ✓ Delete confirmation dialog for context-menu Delete and bulk toolbar Trash
+- ✓ New `BulkShareDialog` component (one recipient + permission applied to all selected nodes)
+- ✓ Download context-menu item available for folders (single file → direct download; folder/multi → single ZIP)
+- ✓ Tests: `DownloadService` ZIP size-limit tests + 413 mapping test
+- ✓ Docs: `docs/admin/CONFIGURATION.md`, `docs/IMPLEMENTATION_CHECKLIST.md`, and this plan updated
+
+**Notes:** Single-item behavior preserved when only one card is selected or when right-clicking a card outside the current selection. Implementation follows `docs/FILES_MULTISELECT_CONTEXT_MENU_PLAN.md`. Full build (`dotnet build DotNetCloud.CI.slnf`) passes with 0 errors; all 25 targeted Files tests pass.
 
 ---
 

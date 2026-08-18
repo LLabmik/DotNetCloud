@@ -55,12 +55,13 @@
                 <span>Share</span>
             </button>
 
+            <button class="context-menu-item" role="menuitem" @onclick="HandleDownload">
+                <span class="context-menu-icon" aria-hidden="true">⬇</span>
+                <span>Download</span>
+            </button>
+
             @if (NodeType != "Folder")
             {
-                <button class="context-menu-item" role="menuitem" @onclick="HandleDownload">
-                    <span class="context-menu-icon" aria-hidden="true">⬇</span>
-                    <span>Download</span>
-                </button>
                 <button class="context-menu-item" role="menuitem" @onclick="HandleVersionHistory">
                     <span class="context-menu-icon" aria-hidden="true">📋</span>
                     <span>Version History</span>
@@ -86,7 +87,7 @@
                 <span>Delete</span>
             </button>
         }
-        else if (NodeType != "Folder")
+        else
         {
             <div class="context-menu-separator" role="separator"></div>
             <button class="context-menu-item" role="menuitem" @onclick="HandleDownload">
