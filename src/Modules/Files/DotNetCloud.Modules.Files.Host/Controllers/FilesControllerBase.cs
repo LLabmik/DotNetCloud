@@ -106,6 +106,10 @@ public abstract class FilesControllerBase : ControllerBase
         {
             return BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
         }
+        catch (ZipSizeLimitExceededException ex)
+        {
+            return StatusCode(StatusCodes.Status413PayloadTooLarge, ErrorEnvelope(ex.ErrorCode, ex.Message));
+        }
         catch (Exception ex)
         {
             var logger = HttpContext.RequestServices.GetService<ILoggerFactory>()

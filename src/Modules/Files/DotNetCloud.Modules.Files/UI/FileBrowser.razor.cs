@@ -119,6 +119,18 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     private bool _showSingleTagDialog;
     private Guid? _singleTagNodeId;
     private List<Guid> _tagTargetNodeIds = [];
+
+    // Bulk share dialog
+    private bool _showBulkShareDialog;
+    private List<Guid> _bulkShareTargetIds = [];
+
+    // ZIP download error modal
+    private bool _showZipErrorModal;
+    private string _zipErrorMessage = string.Empty;
+
+    // Delete confirmation dialog
+    private bool _showDeleteConfirm;
+    private List<Guid> _deleteTargetNodeIds = [];
     private string _newFolderName = string.Empty;
     private string _newDocumentName = "Untitled";
     private string _selectedDocumentExtension = "docx";
@@ -938,6 +950,14 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     {
         if (Guid.TryParse(nodeId, out var id))
         {
+            // Right-clicking a card inside the current multi-selection keeps the
+            // selection; right-clicking any other card selects just that card.
+            if (_selectedNodes.Count <= 1 || !_selectedNodes.Contains(id))
+            {
+                _selectedNodes.Clear();
+                _selectedNodes.Add(id);
+            }
+
             var node = _nodes.FirstOrDefault(candidate => candidate.Id == id);
             _contextMenuNodeId = id;
             _contextMenuNodeType = node?.NodeType ?? nodeType;
@@ -963,6 +983,12 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         _showContextMenu = false;
         _contextMenuNodeIsReadOnly = false;
     }
+
+    /// <summary>Returns the node IDs a context-menu action should target.</summary>
+    private IReadOnlyList<Guid> GetContextMenuTargetIds(Guid nodeId)
+        => _selectedNodes.Count > 0 && _selectedNodes.Contains(nodeId)
+            ? [.. _selectedNodes]
+            : [nodeId];
 
     /// <summary>Context menu: Open file or folder.</summary>
     protected async Task HandleContextOpen(Guid nodeId)
@@ -991,52 +1017,79 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         _showRenameDialog = true;
     }
 
-    /// <summary>Context menu: Show move folder picker for a single item.</summary>
+    /// <summary>Context menu: Show move folder picker for the target item(s).</summary>
     protected async Task HandleContextMove(Guid nodeId)
     {
         _showContextMenu = false;
+
+        var targetIds = GetContextMenuTargetIds(nodeId);
         _selectedNodes.Clear();
-        _selectedNodes.Add(nodeId);
+        foreach (var id in targetIds)
+            _selectedNodes.Add(id);
+
         _folderPickerMode = FolderPickerMode.Move;
         await OpenFolderPicker();
     }
 
-    /// <summary>Context menu: Show copy folder picker for a single item.</summary>
+    /// <summary>Context menu: Show copy folder picker for the target item(s).</summary>
     protected async Task HandleContextCopy(Guid nodeId)
     {
         _showContextMenu = false;
+
+        var targetIds = GetContextMenuTargetIds(nodeId);
         _selectedNodes.Clear();
-        _selectedNodes.Add(nodeId);
+        foreach (var id in targetIds)
+            _selectedNodes.Add(id);
+
         _folderPickerMode = FolderPickerMode.Copy;
         await OpenFolderPicker();
     }
 
-    /// <summary>Context menu: Open share dialog for a node.</summary>
+    /// <summary>Context menu: Open share dialog for the target item(s).</summary>
     protected async Task HandleContextShare(Guid nodeId)
     {
         _showContextMenu = false;
-        var node = _nodes.FirstOrDefault(n => n.Id == nodeId);
+
+        var targetIds = GetContextMenuTargetIds(nodeId);
+        if (targetIds.Count > 1)
+        {
+            _bulkShareTargetIds = [.. targetIds];
+            _showBulkShareDialog = true;
+            StateHasChanged();
+            return;
+        }
+
+        var node = _nodes.FirstOrDefault(n => n.Id == targetIds[0]);
         if (node is not null)
             await ShowShareDialogAsync(node);
     }
 
-    /// <summary>Context menu: Download a file.</summary>
+    /// <summary>Context menu: Download the target item(s).</summary>
     protected async Task HandleContextDownload(Guid nodeId)
     {
         _showContextMenu = false;
-        var node = _nodes.FirstOrDefault(n => n.Id == nodeId);
-        if (node is not null)
-            await DownloadNodeAsync(node);
+
+        var targetIds = GetContextMenuTargetIds(nodeId);
+
+        if (targetIds.Count == 1)
+        {
+            var node = _nodes.FirstOrDefault(n => n.Id == targetIds[0]);
+            if (node is not null
+                && string.Equals(node.NodeType, "File", StringComparison.OrdinalIgnoreCase))
+            {
+                await DownloadNodeAsync(node);
+                return;
+            }
+        }
+
+        await DownloadSelectedAsZipAsync(targetIds);
     }
 
-    /// <summary>Context menu: Delete (trash) a node.</summary>
-    protected async Task HandleContextDelete(Guid nodeId)
+    /// <summary>Context menu: Delete (trash) the target item(s).</summary>
+    protected void HandleContextDelete(Guid nodeId)
     {
         _showContextMenu = false;
-        var caller = await GetCallerContextAsync();
-        await FileService.DeleteAsync(nodeId, caller);
-        await LoadCurrentFolderAsync();
-        await LoadTrashCountAsync();
+        OpenDeleteConfirmation(GetContextMenuTargetIds(nodeId));
     }
 
     /// <summary>Context menu: Open version history panel for a file.</summary>
@@ -1311,42 +1364,61 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         }
     }
 
-    protected async Task DeleteSelected()
+    /// <summary>Opens the delete confirmation dialog for the given nodes.</summary>
+    private void OpenDeleteConfirmation(IReadOnlyList<Guid> nodeIds)
     {
-        if (_selectedNodes.Count == 0)
-        {
+        _deleteTargetNodeIds = [.. nodeIds];
+        _showDeleteConfirm = true;
+        StateHasChanged();
+    }
+
+    /// <summary>Cancels the delete confirmation dialog.</summary>
+    protected void CancelDelete() => _showDeleteConfirm = false;
+
+    /// <summary>Moves the confirmed target nodes to trash.</summary>
+    protected async Task ConfirmDeleteAsync()
+    {
+        _showDeleteConfirm = false;
+
+        if (_deleteTargetNodeIds.Count == 0)
             return;
-        }
 
         var caller = await GetCallerContextAsync();
-        var nodeIds = _selectedNodes.ToList();
 
-        foreach (var nodeId in nodeIds)
+        foreach (var nodeId in _deleteTargetNodeIds)
         {
             await FileService.DeleteAsync(nodeId, caller);
         }
 
+        _deleteTargetNodeIds = [];
         _selectedNodes.Clear();
+        _selectionMode = false;
+
         await LoadCurrentFolderAsync();
+        await LoadTrashCountAsync();
+        StateHasChanged();
     }
 
     // ── Bulk actions ─────────────────────────────────────────────────────────
 
-    /// <summary>Moves all selected items to trash.</summary>
-    protected async Task BulkTrashSelected()
-    {
-        await DeleteSelected();
-        await LoadTrashCountAsync();
-    }
-
-    /// <summary>Downloads all selected items as a ZIP archive.</summary>
-    protected async Task BulkDownloadZip()
+    /// <summary>Opens the delete confirmation for all selected items.</summary>
+    protected void BulkTrashSelected()
     {
         if (_selectedNodes.Count == 0)
             return;
 
-        var nodeIds = _selectedNodes.ToList();
-        var idsParam = string.Join(",", nodeIds);
+        OpenDeleteConfirmation([.. _selectedNodes]);
+    }
+
+    /// <summary>Downloads all selected items as a ZIP archive.</summary>
+    protected Task BulkDownloadZip() => DownloadSelectedAsZipAsync([.. _selectedNodes]);
+
+    /// <summary>Downloads the given node IDs as a single ZIP archive.</summary>
+    private async Task DownloadSelectedAsZipAsync(IReadOnlyList<Guid> nodeIds)
+    {
+        if (nodeIds.Count == 0)
+            return;
+
         var effectiveUserId = UserId;
         if (effectiveUserId == Guid.Empty)
             effectiveUserId = (await GetCallerContextAsync()).UserId;
@@ -1354,9 +1426,21 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         var baseUrl = string.IsNullOrWhiteSpace(ApiBaseUrl) ? string.Empty : ApiBaseUrl.TrimEnd('/');
         var url = $"{baseUrl}/api/v1/files/download-zip?userId={Uri.EscapeDataString(effectiveUserId.ToString())}";
 
-        // Use JS to POST the node IDs and trigger a browser download
-        await Js.InvokeVoidAsync("dotnetcloudFiles.downloadZip", url, nodeIds);
+        var result = await Js.InvokeAsync<ZipDownloadResult>(
+            "dotnetcloudFiles.downloadZip", url, nodeIds.ToList());
+
+        if (result is not null && !result.Ok)
+        {
+            _zipErrorMessage = string.IsNullOrWhiteSpace(result.Message)
+                ? "The selected items could not be downloaded as a ZIP file."
+                : result.Message;
+            _showZipErrorModal = true;
+            StateHasChanged();
+        }
     }
+
+    /// <summary>Closes the ZIP download error modal.</summary>
+    protected void HideZipErrorModal() => _showZipErrorModal = false;
 
     /// <summary>Shows the folder picker for moving selected items.</summary>
     protected async Task ShowMoveDialog()
@@ -1513,22 +1597,12 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
 
     // ── Single-file tag dialog ───────────────────────────────────────────────
 
-    /// <summary>Context menu: Open tag dialog. If multiple nodes are selected, tags all of them.</summary>
+    /// <summary>Context menu: Open tag dialog. Tags all target item(s).</summary>
     protected void HandleContextTag(Guid nodeId)
     {
         _showContextMenu = false;
 
-        // If the right-clicked node is part of the current selection, target all selected nodes.
-        // Otherwise, target just the right-clicked node.
-        if (_selectedNodes.Count > 1 && _selectedNodes.Contains(nodeId))
-        {
-            _tagTargetNodeIds = [.. _selectedNodes];
-        }
-        else
-        {
-            _tagTargetNodeIds = [nodeId];
-        }
-
+        _tagTargetNodeIds = [.. GetContextMenuTargetIds(nodeId)];
         _singleTagNodeId = nodeId;
         _showSingleTagDialog = true;
     }
@@ -1665,6 +1739,43 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     }
 
     protected void HideShareDialog() => _showShareDialog = false;
+
+    /// <summary>Nodes targeted by the bulk-share dialog.</summary>
+    protected IReadOnlyList<FileNodeViewModel> BulkShareTargetNodes
+        => _nodes.Where(n => _bulkShareTargetIds.Contains(n.Id)).ToList();
+
+    /// <summary>Closes the bulk-share dialog.</summary>
+    protected void HideBulkShareDialog()
+    {
+        _showBulkShareDialog = false;
+        _bulkShareTargetIds = [];
+    }
+
+    /// <summary>Creates the chosen share on every targeted node.</summary>
+    protected async Task HandleBulkShareCreatedAsync(BulkShareCreatedEventArgs args)
+    {
+        if (_bulkShareTargetIds.Count == 0)
+            return;
+
+        var caller = await GetCallerContextAsync();
+        var dto = new CreateShareDto
+        {
+            ShareType = args.ShareType,
+            SharedWithUserId = args.ShareType == "User" ? args.TargetId : null,
+            SharedWithTeamId = args.ShareType == "Team" ? args.TargetId : null,
+            SharedWithGroupId = args.ShareType == "Group" ? args.TargetId : null,
+            Permission = args.Permission,
+            ExpiresAt = args.ExpirationDays > 0 ? DateTime.UtcNow.AddDays(args.ExpirationDays) : null,
+            Note = args.Note
+        };
+
+        foreach (var nodeId in _bulkShareTargetIds)
+        {
+            await ShareService.CreateShareAsync(nodeId, dto, caller);
+        }
+
+        HideBulkShareDialog();
+    }
 
     private List<ShareViewModel> _shareDialogShares = [];
     private bool _isLoadingShareDialogShares;
@@ -2518,4 +2629,17 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
 
     private sealed record ModuleAvailabilityData(bool Installed);
     private sealed record ModuleAvailabilityResponse(bool Success, ModuleAvailabilityData? Data);
+
+    /// <summary>Result returned by the JS ZIP download helper.</summary>
+    private sealed class ZipDownloadResult
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("ok")]
+        public bool Ok { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("code")]
+        public string? Code { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("message")]
+        public string? Message { get; set; }
+    }
 }

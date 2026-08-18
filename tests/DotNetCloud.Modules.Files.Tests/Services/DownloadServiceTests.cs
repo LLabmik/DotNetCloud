@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Text;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Events;
@@ -597,5 +598,108 @@ public class DownloadServiceTests
 
         await Assert.ThrowsExactlyAsync<NotFoundException>(
             () => service.DownloadZipAsync([node.Id], UserCaller(userId)));
+    }
+
+    [TestMethod]
+    public async Task DownloadZipAsync_ExceedsMaxZipSize_ThrowsZipSizeLimitExceededException()
+    {
+        using var db = CreateContext();
+        var userId = Guid.CreateVersion7();
+
+        // Incompressible data ensures the generated ZIP exceeds the 128-byte limit.
+        var chunkData = new byte[1024];
+        new Random(42).NextBytes(chunkData);
+        var node = new FileNode { Name = "big.bin", NodeType = FileNodeType.File, OwnerId = userId, Size = chunkData.Length };
+        db.FileNodes.Add(node);
+
+        var chunk = new FileChunk { ChunkHash = "hash1", StoragePath = "chunks/ha/sh/hash1", Size = chunkData.Length };
+        db.FileChunks.Add(chunk);
+
+        var version = new FileVersion
+        {
+            FileNodeId = node.Id,
+            VersionNumber = 1,
+            Size = chunkData.Length,
+            ContentHash = "hash1",
+            StoragePath = "files/test",
+            CreatedByUserId = userId
+        };
+        db.FileVersions.Add(version);
+        db.FileVersionChunks.Add(new FileVersionChunk
+        {
+            FileVersionId = version.Id,
+            FileChunkId = chunk.Id,
+            SequenceIndex = 0
+        });
+        await db.SaveChangesAsync();
+
+        var storageMock = new Mock<IFileStorageEngine>();
+        storageMock.Setup(s => s.OpenReadStreamAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MemoryStream(chunkData));
+
+        var options = Microsoft.Extensions.Options.Options.Create(new FileUploadOptions { MaxZipSizeBytes = 128 });
+        var service = new DownloadService(
+            db,
+            storageMock.Object,
+            NullLogger<DownloadService>.Instance,
+            new PermissionService(db),
+            options);
+
+        await Assert.ThrowsExactlyAsync<ZipSizeLimitExceededException>(
+            () => service.DownloadZipAsync([node.Id], UserCaller(userId)));
+    }
+
+    [TestMethod]
+    public async Task DownloadZipAsync_WithinZipSizeLimit_ReturnsReadableStream()
+    {
+        using var db = CreateContext();
+        var userId = Guid.CreateVersion7();
+
+        var chunkData = Encoding.UTF8.GetBytes(new string('b', 1024));
+        var node = new FileNode { Name = "ok.bin", NodeType = FileNodeType.File, OwnerId = userId, Size = chunkData.Length };
+        db.FileNodes.Add(node);
+
+        var chunk = new FileChunk { ChunkHash = "hash2", StoragePath = "chunks/ha/sh/hash2", Size = chunkData.Length };
+        db.FileChunks.Add(chunk);
+
+        var version = new FileVersion
+        {
+            FileNodeId = node.Id,
+            VersionNumber = 1,
+            Size = chunkData.Length,
+            ContentHash = "hash2",
+            StoragePath = "files/test2",
+            CreatedByUserId = userId
+        };
+        db.FileVersions.Add(version);
+        db.FileVersionChunks.Add(new FileVersionChunk
+        {
+            FileVersionId = version.Id,
+            FileChunkId = chunk.Id,
+            SequenceIndex = 0
+        });
+        await db.SaveChangesAsync();
+
+        var storageMock = new Mock<IFileStorageEngine>();
+        storageMock.Setup(s => s.OpenReadStreamAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MemoryStream(chunkData));
+
+        var options = Microsoft.Extensions.Options.Options.Create(new FileUploadOptions { MaxZipSizeBytes = 1_000_000 });
+        var service = new DownloadService(
+            db,
+            storageMock.Object,
+            NullLogger<DownloadService>.Instance,
+            new PermissionService(db),
+            options);
+
+        await using var stream = await service.DownloadZipAsync([node.Id], UserCaller(userId));
+        Assert.IsNotNull(stream);
+
+        using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
+        var entry = archive.GetEntry("ok.bin");
+        Assert.IsNotNull(entry);
+        using var reader = new StreamReader(entry.Open());
+        var content = await reader.ReadToEndAsync();
+        Assert.AreEqual(new string('b', 1024), content);
     }
 }
