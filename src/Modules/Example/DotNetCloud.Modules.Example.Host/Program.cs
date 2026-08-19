@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Data.Naming;
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Modules.Example;
 using DotNetCloud.Modules.Example.Data;
 using DotNetCloud.Modules.Example.Host.Services;
@@ -56,13 +57,14 @@ public static partial class Program
                 {
                     sql.EnableRetryOnFailure(maxRetryCount: 3);
                     sql.CommandTimeout(30);
-                    sql.MigrationsAssembly(typeof(ExampleDbContext).Assembly.FullName);
+                    sql.MigrationsAssembly("DotNetCloud.Modules.Example.Data.SqlServer");
                     sql.MigrationsHistoryTable("__EFMigrationsHistory", "example");
                 });
             }
-
-            options.ReplaceService<IMigrationsAssembly, DotNetCloud.Core.Data.Infrastructure.ProviderAwareMigrationsAssembly>();
         });
+
+        // Register the gRPC-backed audit logger (SOC 2 CC4) — routes to Core.Server.
+        builder.Services.AddAuditLogger();
 
         // gRPC + health checks
         builder.Services.AddGrpc();

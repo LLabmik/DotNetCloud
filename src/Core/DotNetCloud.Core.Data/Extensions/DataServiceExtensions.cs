@@ -4,7 +4,6 @@ using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Data.Services;
 using DotNetCloud.Core.Modules;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DotNetCloud.Core.Data.Extensions;
@@ -69,15 +68,13 @@ public static class DataServiceExtensions
                 {
                     sqlServerOptions.EnableRetryOnFailure(maxRetryCount: 3);
                     sqlServerOptions.CommandTimeout(30);
-                    sqlServerOptions.MigrationsAssembly("DotNetCloud.Core.Data");
+                    sqlServerOptions.MigrationsAssembly("DotNetCloud.Core.Data.SqlServer");
                 });
                 break;
 
             default:
                 throw new InvalidOperationException($"Unsupported database provider: {provider}");
         }
-
-        options.ReplaceService<IMigrationsAssembly, Infrastructure.ProviderAwareMigrationsAssembly>();
 
         // Common options
         options.UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking);

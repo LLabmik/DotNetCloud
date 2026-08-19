@@ -25,7 +25,7 @@ public class TrackServiceSearchIndexTests
     {
         _db = TestHelpers.CreateDb();
         _eventBusMock = new Mock<IEventBus>();
-        _service = new TrackService(_db, _eventBusMock.Object, NullLogger<TrackService>.Instance);
+        _service = new TrackService(_db, _eventBusMock.Object, Mock.Of<DotNetCloud.Core.Capabilities.IAuditLogger>(), NullLogger<TrackService>.Instance);
         _caller = TestHelpers.CreateCaller();
     }
 

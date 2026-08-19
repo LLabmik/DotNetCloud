@@ -7,6 +7,9 @@ using DotNetCloud.Modules.Music.Models;
 using DotNetCloud.Modules.Music.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using IAuditLogger = DotNetCloud.Core.Capabilities.IAuditLogger;
+using AuditEntry = DotNetCloud.Core.Capabilities.AuditEntry;
+using AuditAction = DotNetCloud.Core.Capabilities.AuditAction;
 
 namespace DotNetCloud.Modules.Music.Data.Services;
 
@@ -18,15 +21,17 @@ public sealed class TrackService : ITrackService
 {
     private readonly MusicDbContext _db;
     private readonly IEventBus _eventBus;
+    private readonly IAuditLogger _auditLogger;
     private readonly ILogger<TrackService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TrackService"/> class.
     /// </summary>
-    public TrackService(MusicDbContext db, IEventBus eventBus, ILogger<TrackService> logger)
+    public TrackService(MusicDbContext db, IEventBus eventBus, IAuditLogger auditLogger, ILogger<TrackService> logger)
     {
         _db = db;
         _eventBus = eventBus;
+        _auditLogger = auditLogger;
         _logger = logger;
     }
 
@@ -184,6 +189,16 @@ public sealed class TrackService : ITrackService
 
         _db.UserTracks.Remove(userTrack);
         await _db.SaveChangesAsync(cancellationToken);
+
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = caller,
+            ModuleId = "dotnetcloud.music",
+            Action = AuditAction.Delete,
+            EntityType = "Track",
+            EntityId = trackId,
+            Description = "delete-track",
+        }, cancellationToken);
 
         _logger.LogInformation("Track {TrackId} hard-deleted by user {UserId}", trackId, caller.UserId);
 

@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Migrations;
 using DotNetCloud.Core.Data.Naming;
 
 namespace DotNetCloud.Core.Data.Context;
@@ -82,14 +81,12 @@ public class DefaultDbContextFactory : IDbContextFactory
                 {
                     sqlServerOptions.EnableRetryOnFailure(maxRetryCount: 3);
                     sqlServerOptions.CommandTimeout(30);
-                    sqlServerOptions.MigrationsAssembly("DotNetCloud.Core.Data");
+                    sqlServerOptions.MigrationsAssembly("DotNetCloud.Core.Data.SqlServer");
                 });
                 break;
 
             default:
                 throw new InvalidOperationException($"Unsupported database provider: {_provider}");
         }
-
-        options.ReplaceService<IMigrationsAssembly, Infrastructure.ProviderAwareMigrationsAssembly>();
     }
 }

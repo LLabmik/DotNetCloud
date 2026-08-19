@@ -1,6 +1,7 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.Modules.Video;
@@ -84,6 +85,9 @@ builder.Services.AddAuthentication("Identity.Application")
 
 builder.Services.AddAuthorization();
 
+// Register the gRPC-backed audit logger (SOC 2 CC4) — routes to Core.Server.
+builder.Services.AddAuditLogger();
+
 // Register the module as singleton
 builder.Services.AddSingleton<VideoModule>();
 
@@ -107,7 +111,7 @@ builder.Services.AddSingleton<ITableNamingStrategy>(provider == DatabaseProvider
 // Register EF Core with the configured database provider
 builder.Services.AddDbContext<VideoDbContext>(options =>
 {
-    const string migrationsAssembly = "DotNetCloud.Modules.Video.Data";
+    const string migrationsAssembly = "DotNetCloud.Modules.Video.Data.SqlServer";
 
     switch (provider)
     {
@@ -142,7 +146,7 @@ builder.Services.AddDbContext<VideoDbContext>(options =>
 // Register Files DbContext and storage engine so IDownloadService can be resolved.
 builder.Services.AddDbContext<FilesDbContext>(options =>
 {
-    const string filesMigrationsAssembly = "DotNetCloud.Modules.Files.Data";
+    const string filesMigrationsAssembly = "DotNetCloud.Modules.Files.Data.SqlServer";
 
     switch (provider)
     {
@@ -156,8 +160,6 @@ builder.Services.AddDbContext<FilesDbContext>(options =>
             });
             break;
     }
-
-    options.ReplaceService<IMigrationsAssembly, DotNetCloud.Core.Data.Infrastructure.ProviderAwareMigrationsAssembly>();
 
     options.ConfigureWarnings(warnings =>
     {

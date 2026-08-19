@@ -1,4 +1,6 @@
 using DotNetCloud.Core.Auth.Security;
+using DotNetCloud.Core.Constants;
+using DotNetCloud.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -33,6 +35,10 @@ public sealed class OidcKeyRotationService : BackgroundService
     /// <inheritdoc />
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // After a restart the newest keys are active, so clear any pending-restart
+        // flag left by an earlier rotation (the admin UI banner relies on this).
+        await ClearPendingRestartFlagAsync(stoppingToken);
+
         // Run initial rotation check on startup
         await RotateKeysIfNeededAsync(stoppingToken);
 
@@ -42,6 +48,25 @@ public sealed class OidcKeyRotationService : BackgroundService
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
             await RotateKeysIfNeededAsync(stoppingToken);
+        }
+    }
+
+    /// <summary>
+    /// Removes the <c>core.OidcKeysPendingRestart</c> system setting if present.
+    /// </summary>
+    private async Task ClearPendingRestartFlagAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var settings = scope.ServiceProvider.GetRequiredService<IAdminSettingsService>();
+            await settings.DeleteSettingAsync(SystemSettingKeys.CoreModule, SystemSettingKeys.OidcKeysPendingRestart);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Non-fatal: if the flag can't be cleared (e.g. settings store unavailable)
+            // the banner will simply persist until the next start.
+            _logger.LogDebug(ex, "Could not clear OidcKeysPendingRestart flag on startup.");
         }
     }
 

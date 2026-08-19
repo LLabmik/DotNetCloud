@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Modules.AI;
 using DotNetCloud.Modules.AI.Data;
 using DotNetCloud.Modules.AI.Host.Services;
@@ -77,6 +78,9 @@ builder.Services.AddAuthentication("Identity.Application")
     });
 
 builder.Services.AddAuthorization();
+
+// Register the gRPC-backed audit logger (SOC 2 CC4) — routes to Core.Server.
+builder.Services.AddAuditLogger();
 
 // Register the module as singleton
 builder.Services.AddSingleton<AiModule>();

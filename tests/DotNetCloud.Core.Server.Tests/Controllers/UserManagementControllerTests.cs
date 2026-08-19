@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using DotNetCloud.Core.Auth.Authorization;
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.Data.Entities.Identity;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Security;
@@ -35,7 +36,7 @@ public sealed class UserManagementControllerTests : IDisposable
         _fileValidationMock = new Mock<IFileValidationService>();
         _fileValidationMock.Setup(v => v.Validate(It.IsAny<IFormFile>(), It.IsAny<AllowedFileTypes.FileTypeDefinition[]>(), It.IsAny<long?>()))
             .Returns(FileValidationResult.Success());
-        _controller = new UserManagementController(_serviceMock.Object, _fileValidationMock.Object, _userManagerMock.Object, _loggerMock.Object)
+        _controller = new UserManagementController(_serviceMock.Object, _fileValidationMock.Object, _userManagerMock.Object, Mock.Of<IAuditLogger>(), _loggerMock.Object)
         {
             ControllerContext = new ControllerContext
             {

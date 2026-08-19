@@ -32,7 +32,7 @@ public class NoteSecurityTests
             .Options;
         _db = new NotesDbContext(options);
         var eventBusMock = new Mock<IEventBus>();
-        _noteService = new NoteService(_db, eventBusMock.Object, NullLogger<NoteService>.Instance);
+        _noteService = new NoteService(_db, eventBusMock.Object, Mock.Of<DotNetCloud.Core.Capabilities.IAuditLogger>(), NullLogger<NoteService>.Instance);
         _folderService = new NoteFolderService(_db, NullLogger<NoteFolderService>.Instance);
         _shareService = new NoteShareService(_db, eventBusMock.Object, NullLogger<NoteShareService>.Instance);
         _userA = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);

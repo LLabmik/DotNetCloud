@@ -44,7 +44,7 @@ public class TracksGrpcServiceTests
         var activityService = new ActivityService(_db, _userDirMock.Object);
         var productService = new ProductService(_db);
         var swimlaneService = new SwimlaneService(_db);
-        var workItemService = new WorkItemService(_db, transitionService, _eventBusMock.Object, activityService);
+        var workItemService = new WorkItemService(_db, transitionService, _eventBusMock.Object, activityService, Mock.Of<IAuditLogger>());
         var commentService = new CommentService(_db, _eventBusMock.Object, activityService);
         var checklistService = new ChecklistService(_db);
         var attachmentService = new AttachmentService(_db);

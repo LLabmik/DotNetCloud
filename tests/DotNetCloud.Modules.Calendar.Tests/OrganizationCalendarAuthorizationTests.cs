@@ -44,7 +44,7 @@ public class OrganizationCalendarAuthorizationTests
         _eventBusMock = new Mock<IEventBus>();
         _orgDirMock = new Mock<OrgDirectory>();
 
-        _calendarService = new CalendarService(_db, _eventBusMock.Object, _orgDirMock.Object, NullLogger<CalendarService>.Instance);
+        _calendarService = new CalendarService(_db, _eventBusMock.Object, _orgDirMock.Object, Mock.Of<DotNetCloud.Core.Capabilities.IAuditLogger>(), NullLogger<CalendarService>.Instance);
         _eventService = new CalendarEventService(_db, _eventBusMock.Object, _orgDirMock.Object, NullLogger<CalendarEventService>.Instance);
         _shareService = new CalendarShareService(_db, _eventBusMock.Object, NullLogger<CalendarShareService>.Instance);
 

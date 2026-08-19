@@ -6,6 +6,9 @@ using DotNetCloud.Modules.Notes.Models;
 using DotNetCloud.Modules.Notes.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using IAuditLogger = DotNetCloud.Core.Capabilities.IAuditLogger;
+using AuditEntry = DotNetCloud.Core.Capabilities.AuditEntry;
+using AuditAction = DotNetCloud.Core.Capabilities.AuditAction;
 
 namespace DotNetCloud.Modules.Notes.Data.Services;
 
@@ -16,15 +19,17 @@ public sealed class NoteService : INoteService
 {
     private readonly NotesDbContext _db;
     private readonly IEventBus _eventBus;
+    private readonly IAuditLogger _auditLogger;
     private readonly ILogger<NoteService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="NoteService"/> class.
     /// </summary>
-    public NoteService(NotesDbContext db, IEventBus eventBus, ILogger<NoteService> logger)
+    public NoteService(NotesDbContext db, IEventBus eventBus, IAuditLogger auditLogger, ILogger<NoteService> logger)
     {
         _db = db;
         _eventBus = eventBus;
+        _auditLogger = auditLogger;
         _logger = logger;
     }
 
@@ -76,6 +81,16 @@ public sealed class NoteService : INoteService
 
         _db.Notes.Add(note);
         await _db.SaveChangesAsync(cancellationToken);
+
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = caller,
+            ModuleId = "dotnetcloud.notes",
+            Action = AuditAction.Create,
+            EntityType = "Note",
+            EntityId = note.Id,
+            Description = "create-note",
+        }, cancellationToken);
 
         _logger.LogInformation("Note {NoteId} '{Title}' created by user {UserId}",
             note.Id, note.Title, caller.UserId);

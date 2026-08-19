@@ -1,5 +1,6 @@
 using DotNetCloud.Core.Auth.Introspection;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Modules.Notes;
 using DotNetCloud.Modules.Notes.Data;
 using DotNetCloud.Modules.Notes.Host.Services;
@@ -45,6 +46,9 @@ builder.Services.AddDataProtection()
 // Register token introspection client (replaces local JWT key validation).
 // Bearer tokens are validated by calling Core.Server's TokenIntrospection gRPC service.
 builder.Services.AddTokenIntrospection();
+
+// Register the gRPC-backed audit logger (SOC 2 CC4) — routes to Core.Server.
+builder.Services.AddAuditLogger();
 
 // Authentication: supports both cookie (browser/Blazor) and introspection (desktop/mobile).
 // A policy scheme automatically routes to the correct handler based on the request.

@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.Data.Entities.Identity;
 using DotNetCloud.Core.Server.Controllers;
 using DotNetCloud.Core.Services;
@@ -41,6 +42,7 @@ public sealed class AuthSessionControllerTests
             _signInManagerMock.Object,
             _userManagerMock.Object,
             _adminSettingsMock.Object,
+            Mock.Of<IAuditLogger>(),
             _loggerMock.Object)
         {
             ControllerContext = new ControllerContext

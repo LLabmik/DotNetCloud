@@ -25,7 +25,7 @@ public class NoteServiceTests
             .Options;
         _db = new NotesDbContext(options);
         _eventBusMock = new Mock<IEventBus>();
-        _service = new NoteService(_db, _eventBusMock.Object, NullLogger<NoteService>.Instance);
+        _service = new NoteService(_db, _eventBusMock.Object, Mock.Of<DotNetCloud.Core.Capabilities.IAuditLogger>(), NullLogger<NoteService>.Instance);
         _caller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
     }
 

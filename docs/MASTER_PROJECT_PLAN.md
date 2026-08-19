@@ -148,6 +148,7 @@
 | VFS Phase 5 (UI)                     | 3       | 3         | 0           | 0       |
 | VFS Phase 6 (Testing)                | 3       | 3         | 0           | 0       |
 | Files Multi-Select Context Menu      | 1       | 1         | 0           | 0       |
+| SOC 2 Type II Compliance             | 13      | 13        | 0           | 0       |
 
 Maintenance note: local install/setup health verification now follows configured Kestrel ports and accepts self-signed local HTTPS during startup checks. Fresh Linux installs now invoke `dotnetcloud setup --beginner` by default, which auto-selects the recommended local PostgreSQL path and then branches cleanly between the three real deployment shapes: private/local test, public behind a reverse proxy, and public served directly by DotNetCloud itself. The local branch uses self-signed HTTPS on DotNetCloud directly. The reverse-proxy public branch keeps DotNetCloud on local HTTP and ends with explicit reverse-proxy/TLS guidance instead of pretending automatic public-certificate setup exists; it now also points beginners to a dedicated Apache-first reverse-proxy guide with a Caddy alternative. The public-direct branch lets the user point DotNetCloud at an existing public certificate file and explains the extra tradeoffs, while still explicitly recommending a reverse proxy for most public installs because it simplifies ports 80/443, TLS renewal, and future services on the same machine. All branches print explicit direct local access URLs and health probe URLs and end with a plain-language summary of the selected defaults plus the beginner user's next steps. Upgrade runs now also end with a plain-language summary that confirms existing data/configuration were preserved, states clearly whether a one-time setup review is still required, and re-shows the access URLs plus the user's next step. This also clarifies the internal app defaults HTTP `5080` / HTTPS `5443` versus reverse-proxy/public HTTPS ports such as `15443`. Windows now has a separate IIS-first installation path via `tools/install-windows.ps1`, with IIS reverse proxying to `http://localhost:5080`, a beginner-focused IIS guide, a dedicated architecture rationale note, native Windows Service hosting support in the core server, and machine-level config/data environment propagation during setup and service runtime so Windows self-hosters do not need to follow the Linux installer path. The bare-metal redeploy helper now also repairs build-output ownership and purges stale normal and malformed Debug output trees before Release build/publish runs so local Linux redeploys do not inherit broken artifacts from prior attempts.
 
@@ -6280,3 +6281,31 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - ✓ Negative verification confirmed regression tests fail without the fix
 
 **Next steps:** Deploy to server for user testing (`sudo ./scripts/deploy.sh`), then commit on `fix/bell-notifications` after user sign-off.
+
+---
+
+## SOC 2 Type II Compliance (2026-08-18)
+
+> **Reference:** `docs/SOC2_TYPE_II_COMPLIANCE_PLAN.md` — branch `feature/soc2-level-ii-compliance`
+
+**Status:** completed ✅ (code + evidence; CPA attestation out of scope)
+
+**Deliverables:**
+
+- ✓ **A — Scanner:** `scripts/soc2-compliance-scan.sh` rewritten with 13 criteria-tagged checks, module/project coverage (15/15 + clients/UI/CLI, 0 missing), `--markdown`/`--txt`/`--ci` modes; **Windows-native `.ps1` scanner (no ripgrep)**; **offline-only execution** (2026-08-19 — online admin page/coordinator reverted; run with source available, see admin guide §3)
+- ✓ **B — Audit trail:** `AuditLog` entity + config + dual-provider migrations; `AuditLogService`; gRPC `LogAudit` rpc + `AuditLoggerGrpcClient` + `AddAuditLogger` in all 15 hosts; instrumentation in Core.Server auth/admin controllers + all 15 modules; **dual-provider migration split** (separate `*.Data.SqlServer` projects for Core + 14 modules, `ProviderAwareMigrationsAssembly` removed); applied `AddAuditLog_SqlServer` to production SQL Server
+- ✓ **C — Retention:** `AuditLogPurgeHostedService` + `core.AuditLogRetentionDays` (365) / `core.TrashRetentionDays` (30)
+- ✓ **D — Upload validation:** all upload endpoints verified using `IFileValidationService` + size limits
+- ✓ **E — Dependencies:** vulnerable-scan clean; dated compensating controls added to both `NuGetAuditSuppress` entries
+- ✓ **F — Key rotation:** automatic 90-day `OidcKeyRotationService` (explicit `Auth:KeyRotation` config); `scripts/rotate-oidc-keys.sh`; admin **Rotate OIDC Keys** button + audited rotation endpoint; **restart-to-activate banner + Activate now button** (graceful restart, `Restart=always` systemd)
+- ✓ **G–K — Availability/Confidentiality/Integrity/Privacy/Client:** verified + documented (PII inventory, control matrix, auditor guide, admin guide)
+- ✓ **L — Evidence docs:** `docs/security/SOC2_CONTROL_MATRIX.md`, `docs/security/SOC2_TYPE_II_AUDITOR_REPORT.md`, `docs/security/PII_INVENTORY.md`
+- ✓ **M — Tracking:** this plan + `IMPLEMENTATION_CHECKLIST.md` updated
+
+**Notes:** All workstreams A–M complete. Build verified on Core.Server, Core.Data, Core.Grpc and all 15 module hosts (0 errors). Scanner report generated with full module coverage. Two pre-existing items documented as accepted risks: (1) Blazor CSP `unsafe-*` and video `nosniff` removal; (2) PostgreSQL migration generation blocked by a pre-existing EF/OpenIddict model-differ NRE — the `AddAuditLog` PostgreSQL migration was authored by hand to match provider conventions, and the repo's PostgreSQL migration pipeline has been paused since May (production is SQL Server).
+
+**2026-08-19 update:** Completed the repo-wide dual-provider migration split — separate `*.Data.SqlServer` projects for Core + all 14 modules (SQL Server migrations + design-time factories moved into their own assemblies), removed the `ProviderAwareMigrationsAssembly` runtime filter, wired host/CLI/Core.Server references + solution/CI filter. Verified: `dotnet build DotNetCloud.CI.slnf -c Release` = 0 warnings/errors; all unit test projects pass (Core.Data 175, Core.Server 601, CLI 120, all modules). Applied `AddAuditLog_SqlServer` (plus 2 pre-existing pending Core migrations: `AddMfaSetupRequiredColumn_SqlServer`, `AddSequentialGuidDefaults`) to production SQL Server; verified `dbo.AuditLogs` table (10 columns, 0 rows) + model snapshot synced (no pending-model-changes).
+
+**2026-08-19 (offline scan):** the SOC 2 scanner is now an **offline audit tool** (source available; SAST-style). Reverted the server-side coordinator/admin page so production has no source access; `deploy.sh` no longer ships the scanner or grants a traverse ACL; the `/home/benk` ACL was revoked. Walkthrough in `docs/admin/SOC2_COMPLIANCE_ADMIN_GUIDE.md` §3.
+
+**Next:** deploy the split to production (`sudo ./scripts/deploy.sh`), user testing (audit rows on login, key rotation, offline SOC 2 scan per admin guide §3), then commit on `feature/soc2-level-ii-compliance`.

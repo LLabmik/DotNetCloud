@@ -69,7 +69,7 @@ public static class PhotosServiceRegistration
     {
         // Register PhotosDbContext for Blazor Server interactive rendering
         services.AddDbContext<PhotosDbContext>(options =>
-            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Photos.Data"),
+            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Photos.Data.SqlServer"),
             ServiceLifetime.Transient);
 
         // Business services

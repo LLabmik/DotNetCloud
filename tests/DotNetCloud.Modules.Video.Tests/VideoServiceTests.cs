@@ -18,7 +18,7 @@ public class VideoServiceTests
     public void Setup()
     {
         _db = TestHelpers.CreateDb();
-        _service = new VideoService(_db, Mock.Of<IEventBus>(), Mock.Of<IVideoSeriesService>(), Mock.Of<DotNetCloud.Core.Data.Naming.ITableNamingStrategy>(), Mock.Of<ILogger<VideoService>>());
+        _service = new VideoService(_db, Mock.Of<IEventBus>(), Mock.Of<IVideoSeriesService>(), Mock.Of<DotNetCloud.Core.Data.Naming.ITableNamingStrategy>(), Mock.Of<DotNetCloud.Core.Capabilities.IAuditLogger>(), Mock.Of<ILogger<VideoService>>());
     }
 
     [TestCleanup]

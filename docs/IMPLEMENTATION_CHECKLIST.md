@@ -1272,7 +1272,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Remove all `.Host` ProjectReferences from csproj
 - ✓ Add gRPC client proto references for all 12 modules
 - ✓ Remove all `AddXxxServices()` calls from Program.cs
-- ✓ Remove all `.Data.SqlServer` migration assembly ProjectReferences from Core.Server.csproj — .Data.SqlServer projects eliminated; migrations now in .Data/Migrations/SqlServer/
+- ✓ Re-established separate `.Data.SqlServer` migration projects (2026-08-19) — Core + all 14 modules now ship SQL Server migrations in their own assemblies; `ProviderAwareMigrationsAssembly` runtime filter removed; each provider applies only its own migration set
 - ✓ Remove `ModuleServiceRegistrationExtensions.cs` — module DbContext registrations moved into each module's own Add\*UiServices method via `ModuleDbContextConfiguration` helper in Core.Data
 - ✓ Replace in-process API clients with gRPC clients (Notes, Bookmarks, Email, Tracks done; remaining modules already gRPC)
 - ✓ Add options bindings for all gRPC clients
@@ -6259,3 +6259,83 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Core.Server tests: 590 passed
 - ✓ Chat tests: 1311 passed
 - ✓ Core tests: 489 passed
+
+---
+
+## SOC 2 Type II Compliance (2026-08-18)
+
+> **Reference:** `docs/SOC2_TYPE_II_COMPLIANCE_PLAN.md` — branch `feature/soc2-level-ii-compliance`
+
+### Workstream A — Compliance scanner (offline audit tool)
+
+- ✓ Rewrote `scripts/soc2-compliance-scan.sh` in place with 13 criteria-tagged checks (CC6/CC7, C1, PI1, CC7, C2/P6, P6) + IPv4/.deps/minified-JS false-positive fixes
+- ✓ Added `--markdown` (default), `--txt`, and `--ci` (JSON + exit 1 on untriaged findings) output modes
+- ✓ Added module & project coverage section (all 15 modules + clients/UI/CLI, 0 missing)
+- ✓ Exclusion globs per plan §3.3 (tests, bin, obj, root `modules/`, `wwwroot`, minified, `.deps.json`, Designer.cs); scanner scripts self-excluded; excludes applied **after** include globs (ripgrep last-match-wins — verified: no self-matches, no `wwwroot`/`*.min.js`/`blazor.web.js` blobs); `SOC2_REPORT_DIR` honored to redirect the report
+- ✓ Added **Windows-native PowerShell scanner** `scripts/soc2-compliance-scan.ps1` (Select-String, no ripgrep)
+- ✓ **Offline-only execution** (2026-08-19): scan runs as an **offline, administrator-run audit** with source available — no server-side execution. Reverted the online implementation (`Soc2ScanCoordinator`, `POST/GET /api/v1/core/admin/soc2/scan`, `/admin/soc2` page + nav item, `Soc2` config, `deploy.sh` shipping step + marker + traverse-ACL grant) so the production service has **no access** to the source repo. Walkthrough: `docs/admin/SOC2_COMPLIANCE_ADMIN_GUIDE.md` §3
+
+### Workstream B — Persisted audit trail (CC4/P7)
+
+- ✓ `AuditLog` entity + `AuditLogConfiguration` (indexes: timestamp, module+timestamp, entity, caller-user)
+- ✓ `CoreDbContext` `AuditLogs` DbSet + model configuration
+- ✓ Migrations for both providers: `AddAuditLog` (PostgreSQL) + `AddAuditLog_SqlServer` (SQL Server)
+- ✓ **Dual-provider migration split** (2026-08-19) — created separate `*.Data.SqlServer` projects for Core + all 14 modules; moved SQL Server migrations + design-time factories into them; removed `ProviderAwareMigrationsAssembly`; wired host/CLI/Core.Server project references + solution/CI filter; full CI build 0 errors, unit tests green
+- ✓ Applied `AddAuditLog_SqlServer` (+ 2 pre-existing pending Core migrations) to production SQL Server; verified `dbo.AuditLogs` table + all 10 columns + 0 rows; model snapshot synced (no pending-model-changes)
+- ✓ `AuditLogService` (write-through, scoped, mirrors Serilog audit sink)
+- ✓ gRPC `CoreCapabilities.LogAudit` rpc + messages + handler in `GrpcHealthServiceImpl`
+- ✓ `AuditLoggerGrpcClient` + `AddAuditLogger()` registered in all 15 module hosts
+- ✓ Instrumentation: Core.Server auth controllers (Auth, AuthSession, Mfa, UserManagement, Admin) + all 15 modules (`rg "LogAsync" src/Modules` hits in 15/15)
+
+### Workstream C — Retention & disposal (C2/P6)
+
+- ✓ `core.AuditLogRetentionDays` (365) + `core.TrashRetentionDays` (30) system-setting keys
+- ✓ `AuditLogPurgeHostedService` — daily batched purge, logs purged count, registered in `Program.cs`
+
+### Workstream D — Upload validation (PI1/CC6)
+
+- ✓ Verified all upload endpoints use `IFileValidationService` (avatar, contacts avatar/attachment, bookmarks import, email attachment, tracks CSV) + `RequestSizeLimit`
+- ✓ `IFileValidationService` registered in Core.Server + Bookmarks/Email/Tracks/Contacts hosts
+
+### Workstream E — Dependency remediations (CC7)
+
+- ✓ `dotnet list package --vulnerable --include-transitive` clean (no new advisories)
+- ✓ Added dated compensating controls + review date (2026-11-18) to both `NuGetAuditSuppress` entries
+
+### Workstream F — OpenIddict key rotation (CC6/C1)
+
+- ✓ Confirmed automatic `OidcKeyRotationService` (90-day rotation, 120-day retention) registered; explicit `Auth:KeyRotation` defaults in appsettings.json
+- ✓ Added `scripts/rotate-oidc-keys.sh` (backup + new signing key + verification)
+- ✓ Added admin **Rotate OIDC Keys** button (`/admin/settings`) → `POST /api/v1/core/admin/security/rotate-oidc-keys` (backs up keys, generates signing + encryption keys, sets `core.OidcKeysPendingRestart` flag, cleans old keys, audited)
+- ✓ Added **restart-to-activate banner** + **Activate now** button → `POST /api/v1/core/admin/restart` (graceful restart; flag cleared on startup by `OidcKeyRotationService`)
+- ✓ systemd units set to `Restart=always` (install.sh + `SystemdServiceHelper`) so graceful restarts recover
+- ✓ Documented manual + emergency rotation in `DEPLOYMENT_HARDENING.md` §11 and admin guide §5
+
+### Workstreams G–I — Availability, confidentiality, processing integrity
+
+- ✓ Verified `BackupHostedService` + health endpoints; restore-test runbook in admin guide §6
+- ✓ TLS bypass hits verified env-gated; raw SQL verified parameterized (constant SQL, parameterized inputs)
+- ✓ PII inventory + data-subject procedure documented
+
+### Workstream J — Privacy (P1–P8)
+
+- ✓ `docs/security/PII_INVENTORY.md` — PII categories, field-level table, retention/disposal, DSAR procedure
+
+### Workstream K — Client hardening (CC6/C1)
+
+- ✓ Verified `EncryptedFileTokenStore`, `AndroidKeyStoreTokenStore`, TLS validation, updater signature checks (static audit)
+
+### Workstream L — Control matrix, evidence + auditor report
+
+- ✓ `docs/security/SOC2_CONTROL_MATRIX.md`
+- ✓ `docs/security/SOC2_TYPE_II_AUDITOR_REPORT.md` (draft template)
+- ✓ `docs/security/SOC2_AUDITOR_GUIDE.md`, `docs/admin/SOC2_COMPLIANCE_ADMIN_GUIDE.md` (already present, referenced)
+
+### Verification
+
+- ✓ `dotnet build` — Core.Server, Core.Data, Core.Grpc, all 15 module hosts (0 errors)
+- ✓ Scanner `--markdown` report generated; module coverage 15/15 + clients/UI/CLI, 0 missing
+- ✓ `dotnet list package --vulnerable` clean
+- ✓ Core.Server tests pass (597; the 4 online-scan coordinator tests were removed with the revert)
+- ✓ Deployed to production (2026-08-19) — online scan removed; scanner is offline-only (admin guide §3)
+- ☐ Commit on `feature/soc2-level-ii-compliance` (awaiting user sign-off)

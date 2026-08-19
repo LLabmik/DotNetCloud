@@ -3,6 +3,9 @@ using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Tracks.Models;
 using Microsoft.EntityFrameworkCore;
+using IAuditLogger = DotNetCloud.Core.Capabilities.IAuditLogger;
+using AuditEntry = DotNetCloud.Core.Capabilities.AuditEntry;
+using AuditAction = DotNetCloud.Core.Capabilities.AuditAction;
 
 namespace DotNetCloud.Modules.Tracks.Data.Services;
 
@@ -12,13 +15,15 @@ public sealed class WorkItemService
     private readonly SwimlaneTransitionService _transitionService;
     private readonly IEventBus _eventBus;
     private readonly ActivityService _activityService;
+    private readonly IAuditLogger _auditLogger;
 
-    public WorkItemService(TracksDbContext db, SwimlaneTransitionService transitionService, IEventBus eventBus, ActivityService activityService)
+    public WorkItemService(TracksDbContext db, SwimlaneTransitionService transitionService, IEventBus eventBus, ActivityService activityService, IAuditLogger auditLogger)
     {
         _db = db;
         _transitionService = transitionService;
         _eventBus = eventBus;
         _activityService = activityService;
+        _auditLogger = auditLogger;
     }
 
     public async Task<WorkItemDto> CreateWorkItemAsync(
@@ -372,6 +377,17 @@ public sealed class WorkItemService
 
         // Publish deletion event
         var caller = new CallerContext(deletedByUserId, Array.Empty<string>(), CallerType.User);
+
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = caller,
+            ModuleId = "dotnetcloud.tracks",
+            Action = AuditAction.Delete,
+            EntityType = "WorkItem",
+            EntityId = workItemId,
+            Description = "delete-workitem",
+        }, ct);
+
         await _eventBus.PublishAsync(new WorkItemDeletedEvent
         {
             EventId = Guid.CreateVersion7(),

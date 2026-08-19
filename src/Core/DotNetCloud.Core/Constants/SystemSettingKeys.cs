@@ -81,4 +81,60 @@ public static class SystemSettingKeys
     /// Default value for <see cref="AdminMfaRequired"/> when the setting is not present.
     /// </summary>
     public const string AdminMfaRequiredDefault = "false";
+
+    // ──────────────────────────────────────────────
+    //  Retention / Disposal Settings (SOC 2 C2 / P6)
+    // ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Setting key for the audit log retention window in days. Rows older than this
+    /// window are purged daily by <c>AuditLogPurgeHostedService</c>.
+    /// </summary>
+    /// <remarks>
+    /// <b>Module:</b> <see cref="CoreModule"/><br/>
+    /// <b>Type:</b> <c>int</c> serialized as a decimal string<br/>
+    /// <b>Default:</b> <c>"365"</c><br/>
+    /// <b>Effect:</b> Controls how long the persisted audit trail (SOC 2 CC4) is kept.
+    /// </remarks>
+    public const string AuditLogRetentionDays = "AuditLogRetentionDays";
+
+    /// <summary>
+    /// Default value for <see cref="AuditLogRetentionDays"/>.
+    /// </summary>
+    public const string AuditLogRetentionDaysDefault = "365";
+
+    /// <summary>
+    /// Setting key for the soft-deleted user-data retention window in days. Soft-deleted
+    /// records (trash) older than this window are candidates for permanent purge.
+    /// </summary>
+    /// <remarks>
+    /// <b>Module:</b> <see cref="CoreModule"/><br/>
+    /// <b>Type:</b> <c>int</c> serialized as a decimal string<br/>
+    /// <b>Default:</b> <c>"30"</c><br/>
+    /// <b>Effect:</b> Controls how long soft-deleted user data is kept before permanent
+    /// disposal (SOC 2 C2 / P6).
+    /// </remarks>
+    public const string TrashRetentionDays = "TrashRetentionDays";
+
+    /// <summary>
+    /// Default value for <see cref="TrashRetentionDays"/>.
+    /// </summary>
+    public const string TrashRetentionDaysDefault = "30";
+
+    // ──────────────────────────────────────────────
+    //  OpenIddict Key Rotation (SOC 2 CC6 / C1)
+    // ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Setting key for the OpenIddict key-rotation pending-restart flag. When present,
+    /// keys were rotated after the last server start and a restart is required to activate
+    /// them. The value stores the rotation timestamp (<c>DateTime.UtcNow</c>, ISO 8601).
+    /// Cleared automatically on the next server start.
+    /// </summary>
+    /// <remarks>
+    /// <b>Module:</b> <see cref="CoreModule"/><br/>
+    /// <b>Type:</b> <c>string</c> ISO-8601 UTC timestamp<br/>
+    /// <b>Effect:</b> The admin UI shows a "restart to activate keys" banner while set.
+    /// </remarks>
+    public const string OidcKeysPendingRestart = "OidcKeysPendingRestart";
 }

@@ -6,6 +6,9 @@ using DotNetCloud.Modules.Contacts.Models;
 using DotNetCloud.Modules.Contacts.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using IAuditLogger = DotNetCloud.Core.Capabilities.IAuditLogger;
+using AuditEntry = DotNetCloud.Core.Capabilities.AuditEntry;
+using AuditAction = DotNetCloud.Core.Capabilities.AuditAction;
 
 namespace DotNetCloud.Modules.Contacts.Data.Services;
 
@@ -16,15 +19,17 @@ public sealed class ContactService : IContactService
 {
     private readonly ContactsDbContext _db;
     private readonly IEventBus _eventBus;
+    private readonly IAuditLogger _auditLogger;
     private readonly ILogger<ContactService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ContactService"/> class.
     /// </summary>
-    public ContactService(ContactsDbContext db, IEventBus eventBus, ILogger<ContactService> logger)
+    public ContactService(ContactsDbContext db, IEventBus eventBus, IAuditLogger auditLogger, ILogger<ContactService> logger)
     {
         _db = db;
         _eventBus = eventBus;
+        _auditLogger = auditLogger;
         _logger = logger;
     }
 
@@ -97,6 +102,16 @@ public sealed class ContactService : IContactService
 
         _db.Contacts.Add(contact);
         await _db.SaveChangesAsync(cancellationToken);
+
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = caller,
+            ModuleId = "dotnetcloud.contacts",
+            Action = AuditAction.Create,
+            EntityType = "Contact",
+            EntityId = contact.Id,
+            Description = "create-contact",
+        }, cancellationToken);
 
         _logger.LogInformation("Contact {ContactId} '{DisplayName}' created by user {UserId}",
             contact.Id, contact.DisplayName, caller.UserId);

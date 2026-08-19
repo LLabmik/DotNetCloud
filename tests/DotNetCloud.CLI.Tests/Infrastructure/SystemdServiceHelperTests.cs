@@ -100,7 +100,9 @@ public class SystemdServiceHelperTests
     {
         var unit = SystemdServiceHelper.GenerateUnitFile(hardened: false);
 
-        Assert.IsTrue(unit.Contains("Restart=on-failure"));
+        // Restart=always is required so the server restarts after the admin
+        // "Activate now" OIDC key rotation action (graceful StopApplication).
+        Assert.IsTrue(unit.Contains("Restart=always"));
         Assert.IsTrue(unit.Contains("RestartSec=10"));
     }
 

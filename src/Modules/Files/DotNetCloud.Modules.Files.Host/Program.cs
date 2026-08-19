@@ -3,6 +3,7 @@ using DotNetCloud.Core.Auth.Introspection;
 using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Core.ServiceDefaults.Media;
 using DotNetCloud.Modules.Files;
 using DotNetCloud.Modules.Files.Data;
@@ -53,6 +54,9 @@ builder.Services.AddDataProtection()
 // Register token introspection client (replaces local JWT key validation).
 // Bearer tokens are validated by calling Core.Server's TokenIntrospection gRPC service.
 builder.Services.AddTokenIntrospection();
+
+// Register the gRPC-backed audit logger (SOC 2 CC4) — routes to Core.Server.
+builder.Services.AddAuditLogger();
 
 // Authentication: supports both cookie (browser/Blazor) and introspection (desktop/mobile).
 // A policy scheme automatically routes to the correct handler based on the request.
@@ -139,7 +143,7 @@ builder.Services.AddDbContext<FilesDbContext>(options =>
     if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
         options.UseNpgsql(connectionString);
     else
-        options.UseSqlServer(connectionString);
+        options.UseSqlServer(connectionString, sql => sql.MigrationsAssembly("DotNetCloud.Modules.Files.Data.SqlServer"));
 });
 
 // Register a read-only CoreDbContext for querying identity tables (dbo.Groups)

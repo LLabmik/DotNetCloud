@@ -32,7 +32,7 @@ public class ContactSecurityTests
             .Options;
         _db = new ContactsDbContext(options);
         _eventBusMock = new Mock<IEventBus>();
-        _contactService = new ContactService(_db, _eventBusMock.Object, NullLogger<ContactService>.Instance);
+        _contactService = new ContactService(_db, _eventBusMock.Object, Mock.Of<DotNetCloud.Core.Capabilities.IAuditLogger>(), NullLogger<ContactService>.Instance);
         _groupService = new ContactGroupService(_db, NullLogger<ContactGroupService>.Instance);
         _shareService = new ContactShareService(_db, _eventBusMock.Object, NullLogger<ContactShareService>.Instance);
         _userA = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);

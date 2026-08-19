@@ -1,6 +1,10 @@
+using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Grpc.Lifecycle;
 using DotNetCloud.Core.Modules;
 using Grpc.Core;
+using IAuditLogger = DotNetCloud.Core.Capabilities.IAuditLogger;
+using AuditEntry = DotNetCloud.Core.Capabilities.AuditEntry;
+using AuditAction = DotNetCloud.Core.Capabilities.AuditAction;
 
 namespace DotNetCloud.Modules.About.Host.Services;
 
@@ -11,14 +15,16 @@ namespace DotNetCloud.Modules.About.Host.Services;
 public sealed class AboutLifecycleService : ModuleLifecycle.ModuleLifecycleBase
 {
     private readonly AboutModule _module;
+    private readonly IAuditLogger _auditLogger;
     private readonly ILogger<AboutLifecycleService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AboutLifecycleService"/> class.
     /// </summary>
-    public AboutLifecycleService(AboutModule module, ILogger<AboutLifecycleService> logger)
+    public AboutLifecycleService(AboutModule module, IAuditLogger auditLogger, ILogger<AboutLifecycleService> logger)
     {
         _module = module;
+        _auditLogger = auditLogger;
         _logger = logger;
     }
 
@@ -42,6 +48,16 @@ public sealed class AboutLifecycleService : ModuleLifecycle.ModuleLifecycleBase
             };
 
             await _module.InitializeAsync(initContext, context.CancellationToken);
+
+            await _auditLogger.LogAsync(new AuditEntry
+            {
+                Caller = Core.Authorization.CallerContext.CreateSystemContext(),
+                ModuleId = "dotnetcloud.about",
+                Action = AuditAction.Read,
+                EntityType = "Module",
+                EntityId = Guid.CreateVersion7(),
+                Description = "initialize-module",
+            }, context.CancellationToken);
 
             return new InitializeResponse { Success = true };
         }

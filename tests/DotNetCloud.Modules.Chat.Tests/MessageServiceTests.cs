@@ -34,7 +34,7 @@ public class MessageServiceTests
             .Options;
         _db = new ChatDbContext(options);
         _eventBusMock = new Mock<IEventBus>();
-        _service = new MessageService(_db, _eventBusMock.Object, NullLogger<MessageService>.Instance);
+        _service = new MessageService(_db, _eventBusMock.Object, Mock.Of<IAuditLogger>(), NullLogger<MessageService>.Instance);
         _caller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
 
         // Create a channel and add caller as member
@@ -264,7 +264,7 @@ public class MessageServiceTests
             .ReturnsAsync(targetUserId);
 
         var service = new MessageService(
-            _db, _eventBusMock.Object, NullLogger<MessageService>.Instance,
+            _db, _eventBusMock.Object, Mock.Of<IAuditLogger>(), NullLogger<MessageService>.Instance,
             userDirectoryMock.Object);
 
         var dto = new SendMessageDto { Content = "Hey @alice check this" };
@@ -286,7 +286,7 @@ public class MessageServiceTests
             .ReturnsAsync((Guid?)null);
 
         var service = new MessageService(
-            _db, _eventBusMock.Object, NullLogger<MessageService>.Instance,
+            _db, _eventBusMock.Object, Mock.Of<IAuditLogger>(), NullLogger<MessageService>.Instance,
             userDirectoryMock.Object);
 
         var dto = new SendMessageDto { Content = "Hey @nonexistent check this" };
@@ -310,7 +310,7 @@ public class MessageServiceTests
             .ReturnsAsync((Guid?)null); // @all should be handled as MentionType.All, not user lookup
 
         var service = new MessageService(
-            _db, _eventBusMock.Object, NullLogger<MessageService>.Instance,
+            _db, _eventBusMock.Object, Mock.Of<IAuditLogger>(), NullLogger<MessageService>.Instance,
             userDirectoryMock.Object);
 
         var dto = new SendMessageDto { Content = "@all please review @alice" };
@@ -329,7 +329,7 @@ public class MessageServiceTests
     {
         // No IUserDirectory injected — @username mentions should be silently skipped
         var service = new MessageService(
-            _db, _eventBusMock.Object, NullLogger<MessageService>.Instance,
+            _db, _eventBusMock.Object, Mock.Of<IAuditLogger>(), NullLogger<MessageService>.Instance,
             userDirectory: null);
 
         var dto = new SendMessageDto { Content = "Hey @alice and @all" };
@@ -347,7 +347,7 @@ public class MessageServiceTests
     {
         var mentionNotifierMock = new Mock<IMentionNotificationService>();
         var service = new MessageService(
-            _db, _eventBusMock.Object, NullLogger<MessageService>.Instance,
+            _db, _eventBusMock.Object, Mock.Of<IAuditLogger>(), NullLogger<MessageService>.Instance,
             mentionNotifier: mentionNotifierMock.Object);
 
         var dto = new SendMessageDto { Content = "Hey @all check this" };
@@ -367,7 +367,7 @@ public class MessageServiceTests
     {
         var mentionNotifierMock = new Mock<IMentionNotificationService>();
         var service = new MessageService(
-            _db, _eventBusMock.Object, NullLogger<MessageService>.Instance,
+            _db, _eventBusMock.Object, Mock.Of<IAuditLogger>(), NullLogger<MessageService>.Instance,
             mentionNotifier: mentionNotifierMock.Object);
 
         var dto = new SendMessageDto { Content = "No mentions here" };
@@ -387,7 +387,7 @@ public class MessageServiceTests
     {
         var mentionNotifierMock = new Mock<IMentionNotificationService>();
         var service = new MessageService(
-            _db, _eventBusMock.Object, NullLogger<MessageService>.Instance,
+            _db, _eventBusMock.Object, Mock.Of<IAuditLogger>(), NullLogger<MessageService>.Instance,
             mentionNotifier: mentionNotifierMock.Object);
 
         // Send original without mentions

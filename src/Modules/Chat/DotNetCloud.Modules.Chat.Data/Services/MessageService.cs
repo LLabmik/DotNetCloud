@@ -7,6 +7,9 @@ using DotNetCloud.Modules.Chat.Models;
 using DotNetCloud.Modules.Chat.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using IAuditLogger = DotNetCloud.Core.Capabilities.IAuditLogger;
+using AuditEntry = DotNetCloud.Core.Capabilities.AuditEntry;
+using AuditAction = DotNetCloud.Core.Capabilities.AuditAction;
 using IUserDirectory = DotNetCloud.Core.Capabilities.IUserDirectory;
 
 namespace DotNetCloud.Modules.Chat.Data.Services;
@@ -18,6 +21,7 @@ internal sealed class MessageService : IMessageService
 {
     private readonly ChatDbContext _db;
     private readonly IEventBus _eventBus;
+    private readonly IAuditLogger _auditLogger;
     private readonly IUserDirectory? _userDirectory;
     private readonly IMentionNotificationService? _mentionNotifier;
     private readonly IUserBlockService? _userBlockService;
@@ -26,6 +30,7 @@ internal sealed class MessageService : IMessageService
     public MessageService(
         ChatDbContext db,
         IEventBus eventBus,
+        IAuditLogger auditLogger,
         ILogger<MessageService> logger,
         IUserDirectory? userDirectory = null,
         IMentionNotificationService? mentionNotifier = null,
@@ -33,6 +38,7 @@ internal sealed class MessageService : IMessageService
     {
         _db = db;
         _eventBus = eventBus;
+        _auditLogger = auditLogger;
         _logger = logger;
         _userDirectory = userDirectory;
         _mentionNotifier = mentionNotifier;
@@ -126,6 +132,16 @@ internal sealed class MessageService : IMessageService
         }
 
         await _db.SaveChangesAsync(cancellationToken);
+
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = caller,
+            ModuleId = "dotnetcloud.chat",
+            Action = AuditAction.Create,
+            EntityType = "Message",
+            EntityId = message.Id,
+            Description = $"send-message:{channelId}",
+        }, cancellationToken);
 
         await _eventBus.PublishAsync(new MessageSentEvent
         {

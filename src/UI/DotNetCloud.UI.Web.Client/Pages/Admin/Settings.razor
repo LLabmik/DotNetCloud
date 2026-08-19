@@ -9,95 +9,120 @@
 </div>
 
 <div class="toolbar">
-    <input type="text" class="input" placeholder="Filter by module..."
-           @bind="_moduleFilter" @bind:event="oninput" @bind:after="LoadSettingsAsync" />
+    <input type="text" class="input" placeholder="Filter by module..." @bind="_moduleFilter" @bind:event="oninput"
+           @bind:after="LoadSettingsAsync" />
+    <button class="btn btn-outline" @onclick="RotateOidcKeysAsync" disabled="@_actionInProgress"
+            title="Backs up and regenerates OpenIddict signing + encryption keys (SOC 2). New keys activate on restart.">
+        Rotate OIDC Keys
+    </button>
 </div>
 
-@if (_loading)
+@if (_rotationStatus?.RestartPending == true && !_restartBannerDismissed)
 {
-    <LoadingIndicator Message="Loading settings..." />
-}
-else
-{
-    <div class="table-container">
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Module</th>
-                    <th>Key</th>
-                    <th>Value</th>
-                    <th>Description</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                @if (_settings.Count == 0)
-                {
-                    <tr>
-                        <td colspan="5" class="text-center">No settings found.</td>
-                    </tr>
-                }
-                @foreach (var setting in _settings)
-                {
-                    <tr>
-                        <td><code>@setting.Module</code></td>
-                        <td><code>@setting.Key</code></td>
-                        <td>
-                            @if (setting.IsSensitive)
-                            {
-                                <span class="text-muted">••••••••</span>
-                            }
-                            else
-                            {
-                                <span>@Truncate(setting.Value, 60)</span>
-                            }
-                        </td>
-                        <td>@(setting.Description ?? "—")</td>
-                        <td class="actions">
-                            <button class="btn btn-sm btn-outline" @onclick="() => EditSetting(setting)">Edit</button>
-                            <button class="btn btn-sm btn-danger" @onclick="() => DeleteSettingAsync(setting)"
-                                    disabled="@_actionInProgress">Delete</button>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    </div>
-}
+    <div class="alert alert-warning alert-dismissible">
+        <div>
+            <strong>OpenIddict keys were rotated</strong>
+            @if (_rotationStatus.RotatedAtUtc is not null)
+            {
+                <span> at <code>@_rotationStatus.RotatedAtUtc.Value.ToLocalTime().ToString("g")</code>.</span>
+            }
+            <span> Restart the server to activate the new keys. The service restarts in a few seconds — connected clients
+                will briefly disconnect.</span>
+            </div>
+            <div style="display:flex; gap:8px; align-items:center; flex-shrink:0;">
+                <button class="btn btn-primary btn-sm" @onclick="RestartServerAsync" disabled="@_actionInProgress">Activate
+                    now</button>
+                    <button class="btn btn-outline btn-sm" @onclick="DismissRestartBanner"
+                            title="Dismiss for this session (banner returns until the server is restarted)">Dismiss</button>
+                </div>
+            </div>
+        }
 
-@if (_editing is not null)
-{
-    <div class="dialog-overlay" @onclick="CancelEdit">
-        <div class="dialog dialog-wide" @onclick:stopPropagation="true">
-            <div class="dialog-header">
-                <h3>Edit Setting</h3>
-                <button class="btn-icon" @onclick="CancelEdit" aria-label="Close" title="Close">X</button>
+        @if (_loading)
+        {
+            <LoadingIndicator Message="Loading settings..." />
+        }
+        else
+        {
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Module</th>
+                            <th>Key</th>
+                            <th>Value</th>
+                            <th>Description</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (_settings.Count == 0)
+                        {
+                            <tr>
+                                <td colspan="5" class="text-center">No settings found.</td>
+                            </tr>
+                        }
+                        @foreach (var setting in _settings)
+                        {
+                            <tr>
+                                <td><code>@setting.Module</code></td>
+                                <td><code>@setting.Key</code></td>
+                                <td>
+                                    @if (setting.IsSensitive)
+                                    {
+                                        <span class="text-muted">••••••••</span>
+                                    }
+                                    else
+                                    {
+                                        <span>@Truncate(setting.Value, 60)</span>
+                                    }
+                                </td>
+                                <td>@(setting.Description ?? "—")</td>
+                                <td class="actions">
+                                    <button class="btn btn-sm btn-outline" @onclick="() => EditSetting(setting)">Edit</button>
+                                    <button class="btn btn-sm btn-danger" @onclick="() => DeleteSettingAsync(setting)"
+                                            disabled="@_actionInProgress">Delete</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
             </div>
-            <div class="dialog-body">
-                <div class="form-group">
-                    <label>Module</label>
-                    <input type="text" class="input" value="@_editing.Module" disabled />
-                </div>
-                <div class="form-group">
-                    <label>Key</label>
-                    <input type="text" class="input" value="@_editing.Key" disabled />
-                </div>
-                <div class="form-group">
-                    <label>Value</label>
-                    <textarea class="input" rows="3" @bind="_editValue"></textarea>
-                </div>
-                <div class="form-group">
-                    <label>Description</label>
-                    <input type="text" class="input" @bind="_editDescription" />
+        }
+
+        @if (_editing is not null)
+        {
+            <div class="dialog-overlay" @onclick="CancelEdit">
+                <div class="dialog dialog-wide" @onclick:stopPropagation="true">
+                    <div class="dialog-header">
+                        <h3>Edit Setting</h3>
+                        <button class="btn-icon" @onclick="CancelEdit" aria-label="Close" title="Close">X</button>
+                    </div>
+                    <div class="dialog-body">
+                        <div class="form-group">
+                            <label>Module</label>
+                            <input type="text" class="input" value="@_editing.Module" disabled />
+                        </div>
+                        <div class="form-group">
+                            <label>Key</label>
+                            <input type="text" class="input" value="@_editing.Key" disabled />
+                        </div>
+                        <div class="form-group">
+                            <label>Value</label>
+                            <textarea class="input" rows="3" @bind="_editValue"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>Description</label>
+                            <input type="text" class="input" @bind="_editDescription" />
+                        </div>
+                    </div>
+                    <div class="dialog-footer">
+                        <button class="btn btn-primary" @onclick="SaveSettingAsync" disabled="@_actionInProgress">Save</button>
+                        <button class="btn btn-outline" @onclick="CancelEdit">Cancel</button>
+                    </div>
                 </div>
             </div>
-            <div class="dialog-footer">
-                <button class="btn btn-primary" @onclick="SaveSettingAsync" disabled="@_actionInProgress">Save</button>
-                <button class="btn btn-outline" @onclick="CancelEdit">Cancel</button>
-            </div>
-        </div>
-    </div>
-}
+        }
 
 <ConfirmDialog @ref="_confirmDialog" />
 
@@ -107,8 +132,10 @@ else
 
     private bool _loading = true;
     private bool _actionInProgress;
+    private bool _restartBannerDismissed;
     private string _moduleFilter = string.Empty;
     private IReadOnlyList<SystemSettingDto> _settings = [];
+    private OidcKeyRotationStatus? _rotationStatus;
     private SystemSettingDto? _editing;
     private string _editValue = string.Empty;
     private string _editDescription = string.Empty;
@@ -117,6 +144,19 @@ else
     protected override async Task OnInitializedAsync()
     {
         await LoadSettingsAsync();
+        await LoadOidcKeyRotationStatusAsync();
+    }
+
+    private async Task LoadOidcKeyRotationStatusAsync()
+    {
+        try
+        {
+            _rotationStatus = await Api.GetOidcKeyRotationStatusAsync();
+        }
+        catch
+        {
+            _rotationStatus = null;
+        }
     }
 
     private async Task LoadSettingsAsync()
@@ -181,4 +221,73 @@ else
 
     private static string Truncate(string value, int maxLength) =>
         value.Length > maxLength ? string.Concat(value.AsSpan(0, maxLength), "...") : value;
+
+    private async Task RotateOidcKeysAsync()
+    {
+        if (!await _confirmDialog.ShowAsync(
+                "Rotate OpenIddict signing and encryption keys now? Existing keys will be backed up. " +
+                "New keys take effect on the next server restart.",
+                "Rotate OIDC Keys"))
+            return;
+
+        _actionInProgress = true;
+        try
+        {
+            var result = await Api.RotateOidcKeysAsync();
+            if (result is null)
+            {
+                Toast.ShowError("Failed to rotate OIDC keys.");
+            }
+            else
+            {
+                var backup = string.IsNullOrEmpty(result.BackupPath) ? "(no previous keys)" : $" Backup: {result.BackupPath}";
+                Toast.ShowSuccess($"OIDC keys rotated. {result.Note}{backup}");
+
+                // Refresh the banner state — a restart is now pending.
+                _restartBannerDismissed = false;
+                await LoadOidcKeyRotationStatusAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to rotate OIDC keys: {ex.Message}");
+        }
+        finally
+        {
+            _actionInProgress = false;
+        }
+    }
+
+    private async Task RestartServerAsync()
+    {
+        if (!await _confirmDialog.ShowAsync(
+                "Restart the DotNetCloud server now? The service will stop and restart in a few seconds. " +
+                "All connected clients will briefly disconnect.",
+                "Restart Server"))
+            return;
+
+        _actionInProgress = true;
+        try
+        {
+            var ok = await Api.RestartServerAsync();
+            if (ok)
+            {
+                Toast.ShowSuccess("Restart requested. The server will restart in a few seconds...");
+            }
+            else
+            {
+                Toast.ShowError("Failed to request restart.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to request restart: {ex.Message}");
+        }
+        finally
+        {
+            _actionInProgress = false;
+        }
+    }
+
+    private void DismissRestartBanner() => _restartBannerDismissed = true;
 }

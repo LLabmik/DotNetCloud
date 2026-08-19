@@ -27,7 +27,7 @@ public class BookmarkServiceTests
             .Options;
         _db = new BookmarksDbContext(options);
         _eventBusMock = new Mock<IEventBus>();
-        _service = new BookmarkService(_db, _eventBusMock.Object, NullLogger<BookmarkService>.Instance);
+        _service = new BookmarkService(_db, _eventBusMock.Object, Mock.Of<DotNetCloud.Core.Capabilities.IAuditLogger>(), NullLogger<BookmarkService>.Instance);
         _caller = new CallerContext(UserId, new[] { "user" }, CallerType.User);
     }
 

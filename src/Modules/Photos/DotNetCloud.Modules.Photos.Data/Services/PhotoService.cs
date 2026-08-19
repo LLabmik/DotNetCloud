@@ -8,6 +8,9 @@ using DotNetCloud.Modules.Photos.Models;
 using DotNetCloud.Modules.Photos.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using IAuditLogger = DotNetCloud.Core.Capabilities.IAuditLogger;
+using AuditEntry = DotNetCloud.Core.Capabilities.AuditEntry;
+using AuditAction = DotNetCloud.Core.Capabilities.AuditAction;
 
 namespace DotNetCloud.Modules.Photos.Data.Services;
 
@@ -18,15 +21,17 @@ public sealed class PhotoService : IPhotoService
 {
     private readonly PhotosDbContext _db;
     private readonly IEventBus _eventBus;
+    private readonly IAuditLogger _auditLogger;
     private readonly ILogger<PhotoService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PhotoService"/> class.
     /// </summary>
-    public PhotoService(PhotosDbContext db, IEventBus eventBus, ILogger<PhotoService> logger)
+    public PhotoService(PhotosDbContext db, IEventBus eventBus, IAuditLogger auditLogger, ILogger<PhotoService> logger)
     {
         _db = db;
         _eventBus = eventBus;
+        _auditLogger = auditLogger;
         _logger = logger;
     }
 
@@ -60,6 +65,16 @@ public sealed class PhotoService : IPhotoService
 
         _db.Photos.Add(photo);
         await _db.SaveChangesAsync(cancellationToken);
+
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = caller,
+            ModuleId = "dotnetcloud.photos",
+            Action = AuditAction.Create,
+            EntityType = "Photo",
+            EntityId = photo.Id,
+            Description = "create-photo",
+        }, cancellationToken);
 
         _logger.LogInformation("Photo {PhotoId} created for file {FileNodeId} by user {UserId}", photo.Id, fileNodeId, ownerId);
 

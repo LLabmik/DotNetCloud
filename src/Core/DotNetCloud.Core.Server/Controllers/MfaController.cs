@@ -1,3 +1,5 @@
+using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -14,14 +16,16 @@ namespace DotNetCloud.Core.Server.Controllers;
 public class MfaController : ControllerBase
 {
     private readonly IMfaService _mfaService;
+    private readonly IAuditLogger _auditLogger;
     private readonly ILogger<MfaController> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MfaController"/> class.
     /// </summary>
-    public MfaController(IMfaService mfaService, ILogger<MfaController> logger)
+    public MfaController(IMfaService mfaService, IAuditLogger auditLogger, ILogger<MfaController> logger)
     {
         _mfaService = mfaService ?? throw new ArgumentNullException(nameof(mfaService));
+        _auditLogger = auditLogger ?? throw new ArgumentNullException(nameof(auditLogger));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -42,6 +46,15 @@ public class MfaController : ControllerBase
         }
 
         var response = await _mfaService.GetTotpSetupAsync(userId);
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = BuildCaller(userId),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.Update,
+            EntityType = "User",
+            EntityId = userId,
+            Description = "totp-setup",
+        });
         _logger.LogInformation("TOTP setup retrieved for user {UserId}", userId);
         return Ok(new { success = true, data = response });
     }
@@ -66,6 +79,15 @@ public class MfaController : ControllerBase
             return BadRequest(new { success = false, error = new { code = "INVALID_CODE", message = "The TOTP code is invalid or expired." } });
         }
 
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = BuildCaller(userId),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.Update,
+            EntityType = "User",
+            EntityId = userId,
+            Description = "totp-verified",
+        });
         _logger.LogInformation("TOTP verified for user {UserId}", userId);
         return Ok(new { success = true, message = "TOTP verified successfully." });
     }
@@ -83,6 +105,15 @@ public class MfaController : ControllerBase
         }
 
         await _mfaService.DisableMfaAsync(userId);
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = BuildCaller(userId),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.Update,
+            EntityType = "User",
+            EntityId = userId,
+            Description = "totp-disabled",
+        });
         _logger.LogInformation("TOTP disabled for user {UserId}", userId);
         return Ok(new { success = true, message = "TOTP has been disabled." });
     }
@@ -167,6 +198,15 @@ public class MfaController : ControllerBase
         }
 
         var response = await _mfaService.GenerateBackupCodesAsync(userId);
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = BuildCaller(userId),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.Update,
+            EntityType = "User",
+            EntityId = userId,
+            Description = "backup-codes-regenerated",
+        });
         _logger.LogInformation("Backup codes generated for user {UserId}", userId);
         return Ok(new { success = true, data = response });
     }
@@ -204,5 +244,15 @@ public class MfaController : ControllerBase
         var claim = User.FindFirst("sub")?.Value
             ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         return Guid.TryParse(claim, out userId);
+    }
+
+    private CallerContext BuildCaller(Guid userId)
+    {
+        var roles = User.FindAll("role")
+            .Concat(User.FindAll(System.Security.Claims.ClaimTypes.Role))
+            .Select(c => c.Value)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        return new CallerContext(userId, roles, CallerType.User);
     }
 }

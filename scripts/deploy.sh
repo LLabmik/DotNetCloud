@@ -481,7 +481,7 @@ fi
 # compile. With `set -e`, a failed build exits here — the live service is left
 # running untouched.
 # ============================================================================
-TOTAL_STEPS=7
+TOTAL_STEPS=6
 if $VERIFY; then ((TOTAL_STEPS++)); fi
 
 START_TIME=$(date +%s)
