@@ -163,12 +163,13 @@ The migration history table is scoped to the `example` schema (`__EFMigrationsHi
 
 The module follows the canonical dual-provider pattern (PostgreSQL + SQL Server), mirroring the real modules:
 
-- `Migrations/` — PostgreSQL migrations (namespace `DotNetCloud.Modules.Example.Data.Migrations`)
-- `Migrations/SqlServer/` — SQL Server migrations (namespace `DotNetCloud.Modules.Example.Data.SqlServer.Migrations`)
+- `DotNetCloud.Modules.Example.Data` — PostgreSQL migrations (`Migrations/`, namespace `DotNetCloud.Modules.Example.Data.Migrations`)
+- `DotNetCloud.Modules.Example.Data.SqlServer` — SQL Server migrations (separate project, `Migrations/`)
 
-At runtime `ProviderAwareMigrationsAssembly` filters the migration set to the active provider, so a single `ExampleDbContext` assembly can safely hold both sets.
+Each provider's migrations live in their own assembly, so the runtime applies only the active
+provider's migration set — no provider filtering is required.
 
-Two design-time factories exist for the EF CLI:
+Two design-time factories exist for the EF CLI (one per project):
 
 - `ExampleDbContextFactory` — PostgreSQL (Npgsql)
 - `ExampleDbContextSqlServerDesignTimeFactory` — SQL Server

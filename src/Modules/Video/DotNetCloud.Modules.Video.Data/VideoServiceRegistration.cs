@@ -108,7 +108,7 @@ public static class VideoServiceRegistration
     {
         // Register VideoDbContext for Blazor Server interactive rendering
         services.AddDbContext<VideoDbContext>(options =>
-            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Video.Data"),
+            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Video.Data.SqlServer"),
             ServiceLifetime.Transient);
 
         // Business services

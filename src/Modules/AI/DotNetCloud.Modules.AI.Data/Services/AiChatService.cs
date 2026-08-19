@@ -5,6 +5,9 @@ using DotNetCloud.Modules.AI.Models;
 using DotNetCloud.Modules.AI.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using IAuditLogger = DotNetCloud.Core.Capabilities.IAuditLogger;
+using AuditEntry = DotNetCloud.Core.Capabilities.AuditEntry;
+using AuditAction = DotNetCloud.Core.Capabilities.AuditAction;
 
 namespace DotNetCloud.Modules.AI.Data.Services;
 
@@ -16,15 +19,17 @@ public sealed class AiChatService : IAiChatService
 {
     private readonly AiDbContext _db;
     private readonly IOllamaClient _ollamaClient;
+    private readonly IAuditLogger _auditLogger;
     private readonly ILogger<AiChatService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AiChatService"/> class.
     /// </summary>
-    public AiChatService(AiDbContext db, IOllamaClient ollamaClient, ILogger<AiChatService> logger)
+    public AiChatService(AiDbContext db, IOllamaClient ollamaClient, IAuditLogger auditLogger, ILogger<AiChatService> logger)
     {
         _db = db;
         _ollamaClient = ollamaClient;
+        _auditLogger = auditLogger;
         _logger = logger;
     }
 
@@ -49,6 +54,16 @@ public sealed class AiChatService : IAiChatService
 
         _db.Conversations.Add(conversation);
         await _db.SaveChangesAsync(cancellationToken);
+
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = caller,
+            ModuleId = "dotnetcloud.ai",
+            Action = AuditAction.Create,
+            EntityType = "Conversation",
+            EntityId = conversation.Id,
+            Description = "create-conversation",
+        }, cancellationToken);
 
         _logger.LogInformation("Created conversation {ConversationId} for user {UserId} with model {Model}",
             conversation.Id, caller.UserId, model);

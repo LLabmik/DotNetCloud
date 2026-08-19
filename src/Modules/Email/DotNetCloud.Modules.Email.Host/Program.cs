@@ -1,5 +1,6 @@
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Core.Security;
 using DotNetCloud.Modules.Email;
 using DotNetCloud.Modules.Email.Data;
@@ -81,6 +82,9 @@ builder.Services.AddAuthentication("Identity.Application")
 
 builder.Services.AddAuthorization();
 
+// Register the gRPC-backed audit logger (SOC 2 CC4) — routes to Core.Server.
+builder.Services.AddAuditLogger();
+
 // Register the module as singleton
 builder.Services.AddSingleton<EmailModule>();
 
@@ -112,7 +116,7 @@ builder.Services.AddDbContext<EmailDbContext>(options =>
     if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
         options.UseNpgsql(connectionString);
     else
-        options.UseSqlServer(connectionString);
+        options.UseSqlServer(connectionString, sql => sql.MigrationsAssembly("DotNetCloud.Modules.Email.Data.SqlServer"));
 });
 
 // In-process event bus for standalone operation

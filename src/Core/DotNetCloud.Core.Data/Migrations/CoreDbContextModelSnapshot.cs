@@ -14,6 +14,7 @@ namespace DotNetCloud.Core.Data.Migrations
     [DbContext(typeof(CoreDbContext))]
     partial class CoreDbContextModelSnapshot : ModelSnapshot
     {
+        /// <inheritdoc />
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
@@ -1571,6 +1572,73 @@ namespace DotNetCloud.Core.Data.Migrations
                 {
                     b.Navigation("RolePermissions");
                 });
+            modelBuilder.Entity("DotNetCloud.Core.Data.Entities.Audit.AuditLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Action")
+                        .HasColumnType("integer")
+                        .HasColumnName("action");
+
+                    b.Property<string>("CallerRoles")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("caller_roles");
+
+                    b.Property<string>("CallerType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("caller_type");
+
+                    b.Property<Guid?>("CallerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("caller_user_id");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("description");
+
+                    b.Property<Guid>("EntityId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("entity_id");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("entity_type");
+
+                    b.Property<string>("ModuleId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("module_id");
+
+                    b.Property<DateTime>("TimestampUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("timestamp_utc");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CallerUserId")
+                        .HasDatabaseName("IX_audit_logs_caller_user");
+
+                    b.HasIndex("TimestampUtc")
+                        .HasDatabaseName("IX_audit_logs_timestamp_utc");
+
+                    b.HasIndex("EntityType", "EntityId")
+                        .HasDatabaseName("IX_audit_logs_entity");
+
+                    b.HasIndex("ModuleId", "TimestampUtc")
+                        .HasDatabaseName("IX_audit_logs_module_timestamp");
+
+                    b.ToTable("AuditLogs");
+                });
+
 #pragma warning restore 612, 618
         }
     }

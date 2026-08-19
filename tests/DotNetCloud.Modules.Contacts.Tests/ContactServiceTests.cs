@@ -30,7 +30,7 @@ public class ContactServiceTests
             .Options;
         _db = new ContactsDbContext(options);
         _eventBusMock = new Mock<IEventBus>();
-        _service = new ContactService(_db, _eventBusMock.Object, NullLogger<ContactService>.Instance);
+        _service = new ContactService(_db, _eventBusMock.Object, Mock.Of<DotNetCloud.Core.Capabilities.IAuditLogger>(), NullLogger<ContactService>.Instance);
         _caller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
     }
 

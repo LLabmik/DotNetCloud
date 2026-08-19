@@ -2,6 +2,7 @@ using DotNetCloud.Core.Auth.Authorization;
 using DotNetCloud.Core.Auth.Introspection;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Core.Grpc.Capabilities;
 using DotNetCloud.Modules.Calendar;
 using DotNetCloud.Modules.Calendar.Data;
@@ -61,6 +62,9 @@ builder.Services.AddDataProtection()
 // Register token introspection client (replaces local JWT key validation).
 // Bearer tokens are validated by calling Core.Server's TokenIntrospection gRPC service.
 builder.Services.AddTokenIntrospection();
+
+// Register the gRPC-backed audit logger (SOC 2 CC4) — routes to Core.Server.
+builder.Services.AddAuditLogger();
 
 // Authentication: supports both cookie (browser/Blazor) and introspection (desktop/mobile).
 // A policy scheme automatically routes to the correct handler based on the request.
@@ -152,9 +156,7 @@ builder.Services.AddDbContext<CalendarDbContext>(o =>
     if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
         o.UseNpgsql(connStr);
     else
-        o.UseSqlServer(connStr);
-
-    o.ReplaceService<IMigrationsAssembly, DotNetCloud.Core.Data.Infrastructure.ProviderAwareMigrationsAssembly>();
+        o.UseSqlServer(connStr, sql => sql.MigrationsAssembly("DotNetCloud.Modules.Calendar.Data.SqlServer"));
 });
 
 // In-process event bus for standalone operation
@@ -166,9 +168,7 @@ builder.Services.AddDbContext<ContactsDbContext>(o =>
     if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
         o.UseNpgsql(connStr);
     else
-        o.UseSqlServer(connStr);
-
-    o.ReplaceService<IMigrationsAssembly, DotNetCloud.Core.Data.Infrastructure.ProviderAwareMigrationsAssembly>();
+        o.UseSqlServer(connStr, sql => sql.MigrationsAssembly("DotNetCloud.Modules.Contacts.Data.SqlServer"));
 }, ServiceLifetime.Transient);
 builder.Services.AddScoped<IContactDirectory, ContactDirectoryService>();
 
@@ -179,9 +179,7 @@ builder.Services.AddDbContext<CoreDbContext>(o =>
     if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
         o.UseNpgsql(connStr);
     else
-        o.UseSqlServer(connStr);
-
-    o.ReplaceService<IMigrationsAssembly, DotNetCloud.Core.Data.Infrastructure.ProviderAwareMigrationsAssembly>();
+        o.UseSqlServer(connStr, sql => sql.MigrationsAssembly("DotNetCloud.Core.Data.SqlServer"));
 }, ServiceLifetime.Transient);
 builder.Services.AddScoped<IOrganizationDirectory, OrganizationDirectoryService>();
 

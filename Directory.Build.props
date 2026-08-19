@@ -64,6 +64,10 @@
     Fixed in AngleSharp 1.5.0+, but AngleSharp.Css 0.17.0 and HtmlSanitizer 9.0.892
     both pin AngleSharp to < 0.18.0. Suppressed until those packages release
     AngleSharp 1.x-compatible versions.
+    SOC 2 compensating control (CC7): user-generated HTML is sanitized with
+    HtmlSanitizer and rendered only to authenticated users; no admin is exposed to
+    unauthenticated attacker-controlled HTML. REVIEW DATE: 2026-11-18 (re-check for
+    AngleSharp 1.x-compatible HtmlSanitizer/AngleSharp.Css releases).
   -->
   <ItemGroup>
     <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-pgww-w46g-26qg" />
@@ -71,7 +75,11 @@
          Transitive dependency from Microsoft.AspNetCore.OpenApi 10.0.10.
          Explicit override to 3.9.0 breaks the source generator (IOpenApiMediaType.Example
          is read-only in OpenApi 3.x). Suppressed until AspNetCore.OpenApi ships with
-         a compatible OpenApi 2.x with the fix. -->
+         a compatible OpenApi 2.x with the fix.
+         SOC 2 compensating control (CC7): OpenApi metadata is only served by the
+         module hosts over the loopback/internal gRPC surface in development; no
+         production-facing endpoint exposes the affected generator path.
+         REVIEW DATE: 2026-11-18. -->
     <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-v5pm-xwqc-g5wc" />
   </ItemGroup>
 

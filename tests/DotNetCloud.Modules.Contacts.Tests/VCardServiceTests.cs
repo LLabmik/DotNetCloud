@@ -32,7 +32,7 @@ public class VCardServiceTests
             .Options;
         _db = new ContactsDbContext(options);
         _eventBusMock = new Mock<IEventBus>();
-        _contactService = new ContactService(_db, _eventBusMock.Object, NullLogger<ContactService>.Instance);
+        _contactService = new ContactService(_db, _eventBusMock.Object, Mock.Of<DotNetCloud.Core.Capabilities.IAuditLogger>(), NullLogger<ContactService>.Instance);
         _tempStoragePath = Path.Combine(Path.GetTempPath(), "dnc-vcard-tests", Guid.CreateVersion7().ToString("N"));
         Directory.CreateDirectory(_tempStoragePath);
         _avatarService = new ContactAvatarService(_db, NullLogger<ContactAvatarService>.Instance, _tempStoragePath);

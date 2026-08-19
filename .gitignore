@@ -423,3 +423,8 @@ data-protection-keys/
 
 # Transient deploy solution filter (scripts/deploy.sh)
 .deploy-generated.slnf
+
+# SOC 2 compliance scanner generated output (offline audit reports; run with source available)
+soc2-compliance-report-*.md
+soc2-compliance-report.json
+.soc2-counts.tmp

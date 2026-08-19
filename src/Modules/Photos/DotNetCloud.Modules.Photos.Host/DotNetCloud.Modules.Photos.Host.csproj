@@ -30,6 +30,7 @@
   <ItemGroup>
     <ProjectReference Include="..\DotNetCloud.Modules.Photos\DotNetCloud.Modules.Photos.csproj" />
     <ProjectReference Include="..\DotNetCloud.Modules.Photos.Data\DotNetCloud.Modules.Photos.Data.csproj" />
+    <ProjectReference Include="..\DotNetCloud.Modules.Photos.Data.SqlServer\DotNetCloud.Modules.Photos.Data.SqlServer.csproj" />
     <ProjectReference Include="..\..\..\Core\DotNetCloud.Core.Grpc\DotNetCloud.Core.Grpc.csproj" />
     <!-- Cross-module: needed for IDownloadService to serve full-size originals -->
     <ProjectReference Include="..\..\Files\DotNetCloud.Modules.Files.Data\DotNetCloud.Modules.Files.Data.csproj" />

@@ -6,6 +6,9 @@ using DotNetCloud.Modules.Bookmarks.Models;
 using DotNetCloud.Modules.Bookmarks.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using IAuditLogger = DotNetCloud.Core.Capabilities.IAuditLogger;
+using AuditEntry = DotNetCloud.Core.Capabilities.AuditEntry;
+using AuditAction = DotNetCloud.Core.Capabilities.AuditAction;
 
 namespace DotNetCloud.Modules.Bookmarks.Data.Services;
 
@@ -16,15 +19,17 @@ public sealed class BookmarkService : IBookmarkService
 {
     private readonly BookmarksDbContext _db;
     private readonly IEventBus _eventBus;
+    private readonly IAuditLogger _auditLogger;
     private readonly ILogger<BookmarkService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="BookmarkService"/> class.
     /// </summary>
-    public BookmarkService(BookmarksDbContext db, IEventBus eventBus, ILogger<BookmarkService> logger)
+    public BookmarkService(BookmarksDbContext db, IEventBus eventBus, IAuditLogger auditLogger, ILogger<BookmarkService> logger)
     {
         _db = db;
         _eventBus = eventBus;
+        _auditLogger = auditLogger;
         _logger = logger;
     }
 
@@ -68,6 +73,17 @@ public sealed class BookmarkService : IBookmarkService
 
         _db.Bookmarks.Add(bookmark);
         await _db.SaveChangesAsync(ct);
+
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = caller,
+            ModuleId = "dotnetcloud.bookmarks",
+            Action = AuditAction.Create,
+            EntityType = "Bookmark",
+            EntityId = bookmark.Id,
+            Description = "create-bookmark",
+        }, ct);
+
         _logger.LogInformation("Bookmark created: {BookmarkId} '{Title}'", bookmark.Id, bookmark.Title);
 
         await _eventBus.PublishAsync(new SearchIndexRequestEvent

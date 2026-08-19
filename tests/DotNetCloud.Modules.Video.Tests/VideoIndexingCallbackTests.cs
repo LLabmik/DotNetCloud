@@ -29,7 +29,7 @@ public class VideoIndexingCallbackTests
         _eventBusMock = new Mock<IEventBus>();
         _eventBusMock.Setup(x => x.PublishAsync(It.IsAny<VideoAddedEvent>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         _eventBusMock.Setup(x => x.PublishAsync(It.IsAny<SearchIndexRequestEvent>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
-        _videoService = new VideoService(_db, _eventBusMock.Object, Mock.Of<IVideoSeriesService>(), Mock.Of<DotNetCloud.Core.Data.Naming.ITableNamingStrategy>(), Mock.Of<ILogger<VideoService>>());
+        _videoService = new VideoService(_db, _eventBusMock.Object, Mock.Of<IVideoSeriesService>(), Mock.Of<DotNetCloud.Core.Data.Naming.ITableNamingStrategy>(), Mock.Of<DotNetCloud.Core.Capabilities.IAuditLogger>(), Mock.Of<ILogger<VideoService>>());
         _collectionServiceMock = new Mock<IVideoCollectionService>();
         _collectionServiceMock
             .Setup(x => x.FindOrCreateByNameAsync(It.IsAny<string>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))

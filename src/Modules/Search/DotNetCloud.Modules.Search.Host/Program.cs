@@ -1,6 +1,7 @@
 using DotNetCloud.Core.Auth.Authorization;
 using DotNetCloud.Core.Data.Infrastructure;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Modules.Search;
 using DotNetCloud.Modules.Search.Data;
 using DotNetCloud.Modules.Search.Host.Services;
@@ -82,6 +83,9 @@ builder.Services.AddAuthentication("Identity.Application")
     });
 
 builder.Services.AddAuthorization(options => AuthorizationPolicies.Configure(options));
+
+// Register the gRPC-backed audit logger (SOC 2 CC4) — routes to Core.Server.
+builder.Services.AddAuditLogger();
 builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
 
 // --- Services ---
@@ -107,7 +111,7 @@ builder.Services.AddDbContext<SearchDbContext>(options =>
     if (string.Equals(dbProviderFromConfig, "PostgreSql", StringComparison.OrdinalIgnoreCase))
         options.UseNpgsql(connectionString);
     else
-        options.UseSqlServer(connectionString);
+        options.UseSqlServer(connectionString, sql => sql.MigrationsAssembly("DotNetCloud.Modules.Search.Data.SqlServer"));
 });
 
 // In-process event bus for standalone operation

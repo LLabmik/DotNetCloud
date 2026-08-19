@@ -1145,6 +1145,52 @@ public sealed class DotNetCloudApiClient
     }
 
     /// <summary>
+    /// Rotates the OpenIddict signing and encryption keys immediately (admin).
+    /// Backs up the existing keys, generates fresh keys, and returns the new key IDs.
+    /// </summary>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The rotation result (new key IDs + backup path), or null on failure.</returns>
+    public async Task<OidcKeyRotationResult?> RotateOidcKeysAsync(CancellationToken ct = default)
+    {
+        var url = "api/v1/core/admin/security/rotate-oidc-keys";
+        var response = await _http.PostAsync(url, null, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await ReadApiErrorMessageAsync(response, ct);
+            throw new HttpRequestException(error, null, response.StatusCode);
+        }
+
+        var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<OidcKeyRotationResult>>(JsonOptions, ct);
+        return envelope?.Data;
+    }
+
+    /// <summary>
+    /// Gets the OpenIddict key-rotation status (whether a restart is pending to activate
+    /// newly rotated keys).
+    /// </summary>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The rotation status, or null on failure.</returns>
+    public async Task<OidcKeyRotationStatus?> GetOidcKeyRotationStatusAsync(CancellationToken ct = default)
+    {
+        var envelope = await _http.GetFromJsonAsync<ApiEnvelope<OidcKeyRotationStatus>>(
+            "api/v1/core/admin/security/oidc-key-rotation-status", JsonOptions, ct);
+        return envelope?.Data;
+    }
+
+    /// <summary>
+    /// Gracefully restarts the DotNetCloud server (admin). Returns 202 immediately; the
+    /// server stops after a short delay and systemd (Restart=always) brings it back up.
+    /// </summary>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns><c>true</c> if the restart was accepted.</returns>
+    public async Task<bool> RestartServerAsync(CancellationToken ct = default)
+    {
+        var url = "api/v1/core/admin/restart";
+        var response = await _http.PostAsync(url, null, ct);
+        return response.IsSuccessStatusCode;
+    }
+
+    /// <summary>
     /// Gets the current backup status (whether a backup is running and last backup info).
     /// </summary>
     /// <param name="ct">Cancellation token.</param>

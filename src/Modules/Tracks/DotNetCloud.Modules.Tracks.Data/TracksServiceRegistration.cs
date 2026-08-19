@@ -90,7 +90,7 @@ public static class TracksServiceRegistration
     {
         // Register TracksDbContext for Blazor Server interactive rendering
         services.AddDbContext<TracksDbContext>(options =>
-            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Tracks.Data"),
+            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Tracks.Data.SqlServer"),
             ServiceLifetime.Transient);
 
         // Real-time services (singletons)

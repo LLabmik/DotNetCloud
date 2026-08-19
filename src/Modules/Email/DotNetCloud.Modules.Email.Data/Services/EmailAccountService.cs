@@ -4,6 +4,9 @@ using DotNetCloud.Modules.Email.Models;
 using DotNetCloud.Modules.Email.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using IAuditLogger = DotNetCloud.Core.Capabilities.IAuditLogger;
+using AuditEntry = DotNetCloud.Core.Capabilities.AuditEntry;
+using AuditAction = DotNetCloud.Core.Capabilities.AuditAction;
 
 namespace DotNetCloud.Modules.Email.Data.Services;
 
@@ -14,15 +17,17 @@ public sealed class EmailAccountService : IEmailAccountService
 {
     private readonly EmailDbContext _db;
     private readonly EmailCredentialEncryptionService _encryption;
+    private readonly IAuditLogger _auditLogger;
     private readonly ILogger<EmailAccountService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="EmailAccountService"/> class.
     /// </summary>
-    public EmailAccountService(EmailDbContext db, EmailCredentialEncryptionService encryption, ILogger<EmailAccountService> logger)
+    public EmailAccountService(EmailDbContext db, EmailCredentialEncryptionService encryption, IAuditLogger auditLogger, ILogger<EmailAccountService> logger)
     {
         _db = db;
         _encryption = encryption;
+        _auditLogger = auditLogger;
         _logger = logger;
     }
 
@@ -78,6 +83,17 @@ public sealed class EmailAccountService : IEmailAccountService
 
         _db.EmailAccounts.Add(account);
         await _db.SaveChangesAsync(ct);
+
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = caller,
+            ModuleId = "dotnetcloud.email",
+            Action = AuditAction.Create,
+            EntityType = "EmailAccount",
+            EntityId = account.Id,
+            Description = "create-email-account",
+        }, ct);
+
         _logger.LogInformation("Email account created: {AccountId}", account.Id);
         return account;
     }

@@ -23,7 +23,7 @@ public class VideoServiceCreateTests
         _eventBusMock = new Mock<IEventBus>();
         _eventBusMock.Setup(x => x.PublishAsync(It.IsAny<VideoAddedEvent>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         _eventBusMock.Setup(x => x.PublishAsync(It.IsAny<SearchIndexRequestEvent>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
-        _service = new VideoService(_db, _eventBusMock.Object, Mock.Of<IVideoSeriesService>(), Mock.Of<DotNetCloud.Core.Data.Naming.ITableNamingStrategy>(), Mock.Of<ILogger<VideoService>>());
+        _service = new VideoService(_db, _eventBusMock.Object, Mock.Of<IVideoSeriesService>(), Mock.Of<DotNetCloud.Core.Data.Naming.ITableNamingStrategy>(), Mock.Of<DotNetCloud.Core.Capabilities.IAuditLogger>(), Mock.Of<ILogger<VideoService>>());
     }
 
     [TestCleanup]

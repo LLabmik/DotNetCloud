@@ -19,7 +19,7 @@ public class RecommendationServiceTests
     public void Setup()
     {
         _db = TestHelpers.CreateDb();
-        _trackService = new TrackService(_db, new Mock<IEventBus>().Object, NullLogger<TrackService>.Instance);
+        _trackService = new TrackService(_db, new Mock<IEventBus>().Object, Mock.Of<DotNetCloud.Core.Capabilities.IAuditLogger>(), NullLogger<TrackService>.Instance);
         _service = new RecommendationService(_db, _trackService, NullLogger<RecommendationService>.Instance);
         _caller = TestHelpers.CreateCaller();
     }

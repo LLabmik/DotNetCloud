@@ -18,7 +18,7 @@ public class PhotoIndexingCallbackTests
     public void Setup()
     {
         _db = TestHelpers.CreateDb();
-        _photoService = new PhotoService(_db, Mock.Of<IEventBus>(), Mock.Of<ILogger<PhotoService>>());
+        _photoService = new PhotoService(_db, Mock.Of<IEventBus>(), Mock.Of<DotNetCloud.Core.Capabilities.IAuditLogger>(), Mock.Of<ILogger<PhotoService>>());
         _callback = new PhotoIndexingCallback(_photoService, Mock.Of<IPhotoThumbnailService>(), _db, Mock.Of<ILogger<PhotoIndexingCallback>>());
     }
 

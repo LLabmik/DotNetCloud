@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.Constants;
 using DotNetCloud.Core.Data.Entities.Identity;
 using DotNetCloud.Core.Services;
@@ -21,6 +22,7 @@ public sealed class AuthSessionController : ControllerBase
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly IAdminSettingsService _adminSettings;
+    private readonly IAuditLogger _auditLogger;
     private readonly ILogger<AuthSessionController> _logger;
 
     /// <summary>
@@ -30,11 +32,13 @@ public sealed class AuthSessionController : ControllerBase
         SignInManager<ApplicationUser> signInManager,
         UserManager<ApplicationUser> userManager,
         IAdminSettingsService adminSettings,
+        IAuditLogger auditLogger,
         ILogger<AuthSessionController> logger)
     {
         _signInManager = signInManager;
         _userManager = userManager;
         _adminSettings = adminSettings;
+        _auditLogger = auditLogger;
         _logger = logger;
     }
 
@@ -65,6 +69,18 @@ public sealed class AuthSessionController : ControllerBase
 
                 // Check if password change is required (closed system mode)
                 var user = await _userManager.FindByEmailAsync(email);
+                if (user is not null)
+                {
+                    await _auditLogger.LogAsync(new AuditEntry
+                    {
+                        Caller = new CallerContext(user.Id, Array.Empty<string>(), CallerType.User),
+                        ModuleId = "dotnetcloud.core",
+                        Action = AuditAction.Read,
+                        EntityType = "User",
+                        EntityId = user.Id,
+                        Description = "form-login-success",
+                    });
+                }
                 if (user is not null && user.PasswordChangeRequired)
                 {
                     _logger.LogInformation(
@@ -162,6 +178,16 @@ public sealed class AuthSessionController : ControllerBase
         user.PasswordChangeRequired = false;
         await _userManager.UpdateAsync(user);
 
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = new CallerContext(user.Id, Array.Empty<string>(), CallerType.User),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.Update,
+            EntityType = "User",
+            EntityId = user.Id,
+            Description = "password-changed",
+        });
+
         _logger.LogInformation("Password changed for user {UserId} (forced change)", user.Id);
 
         var encodedReturn = Uri.EscapeDataString(safeReturn);
@@ -236,6 +262,20 @@ public sealed class AuthSessionController : ControllerBase
         }
 
         _logger.LogInformation("User logged out via form POST");
+
+        var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (Guid.TryParse(userIdClaim, out var loggedOutUserId))
+        {
+            await _auditLogger.LogAsync(new AuditEntry
+            {
+                Caller = new CallerContext(loggedOutUserId, Array.Empty<string>(), CallerType.User),
+                ModuleId = "dotnetcloud.core",
+                Action = AuditAction.Read,
+                EntityType = "User",
+                EntityId = loggedOutUserId,
+                Description = "form-logout",
+            });
+        }
 
         var safeReturn = IsSafeLocalReturnUrl(returnUrl) ? returnUrl! : "/auth/login";
         return LocalRedirect(safeReturn);

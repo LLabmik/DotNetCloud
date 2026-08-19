@@ -180,6 +180,68 @@ public sealed class OidcKeyManagerTests
             "Newest file should contain today's date");
     }
 
+    // ── GetOidcKeysDirectory ──────────────────────────────────────────
+
+    [TestMethod]
+    public void GetOidcKeysDirectory_UsesDataDir_WhenSet()
+    {
+        var original = Environment.GetEnvironmentVariable("DOTNETCLOUD_DATA_DIR");
+        try
+        {
+            Environment.SetEnvironmentVariable("DOTNETCLOUD_DATA_DIR", _tempDir);
+            var result = OidcKeyManager.GetOidcKeysDirectory();
+            Assert.AreEqual(Path.Combine(_tempDir, "oidc-keys"), result);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("DOTNETCLOUD_DATA_DIR", original);
+        }
+    }
+
+    [TestMethod]
+    public void GetOidcKeysDirectory_FallsBackToBaseDirectory()
+    {
+        var original = Environment.GetEnvironmentVariable("DOTNETCLOUD_DATA_DIR");
+        try
+        {
+            Environment.SetEnvironmentVariable("DOTNETCLOUD_DATA_DIR", null);
+            var result = OidcKeyManager.GetOidcKeysDirectory();
+            Assert.IsTrue(result.EndsWith("oidc-keys"), "Should end with oidc-keys");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("DOTNETCLOUD_DATA_DIR", original);
+        }
+    }
+
+    // ── Rotation flow (backup + generate + cleanup — matches admin endpoint) ──
+
+    [TestMethod]
+    public void Rotate_GeneratesSigningAndEncryptionKeys_AndBacksUpOld()
+    {
+        // Seed an initial key set.
+        OidcKeyManager.GenerateRotatedKey(_tempDir, OidcKeyManager.SigningKeyPrefix);
+        OidcKeyManager.GenerateRotatedKey(_tempDir, OidcKeyManager.EncryptionKeyPrefix);
+        var existing = Directory.GetFiles(_tempDir, "*.pem").Length;
+        Assert.AreEqual(2, existing, "Seeded signing + encryption keys");
+
+        // Simulate the admin endpoint: back up, then rotate both key types.
+        var backupDir = Path.Combine(_tempDir, "backup");
+        Directory.CreateDirectory(backupDir);
+        foreach (var f in Directory.GetFiles(_tempDir, "*.pem"))
+        {
+            File.Copy(f, Path.Combine(backupDir, Path.GetFileName(f)));
+        }
+
+        var signingKey = OidcKeyManager.GenerateRotatedKey(_tempDir, OidcKeyManager.SigningKeyPrefix);
+        var encryptionKey = OidcKeyManager.GenerateRotatedKey(_tempDir, OidcKeyManager.EncryptionKeyPrefix);
+
+        Assert.IsNotNull(signingKey);
+        Assert.IsNotNull(encryptionKey);
+        Assert.AreEqual(2, Directory.GetFiles(backupDir, "*.pem").Length, "Backup should contain prior keys");
+        Assert.AreEqual(4, Directory.GetFiles(_tempDir, "*.pem").Length, "New keys added alongside old");
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────
 
     private static void GenerateKeyFile(string filePath)

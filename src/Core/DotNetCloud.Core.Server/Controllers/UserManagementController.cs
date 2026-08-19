@@ -1,6 +1,7 @@
 using DotNetCloud.Core.Auth.Authorization;
 using DotNetCloud.Core.Auth.Extensions;
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.Data.Entities.Identity;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Security;
@@ -22,6 +23,7 @@ public class UserManagementController : ControllerBase
     private readonly IUserManagementService _userManagementService;
     private readonly IFileValidationService _fileValidation;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly IAuditLogger _auditLogger;
     private readonly ILogger<UserManagementController> _logger;
 
     /// <summary>
@@ -31,11 +33,13 @@ public class UserManagementController : ControllerBase
         IUserManagementService userManagementService,
         IFileValidationService fileValidation,
         UserManager<ApplicationUser> userManager,
+        IAuditLogger auditLogger,
         ILogger<UserManagementController> logger)
     {
         _userManagementService = userManagementService ?? throw new ArgumentNullException(nameof(userManagementService));
         _fileValidation = fileValidation ?? throw new ArgumentNullException(nameof(fileValidation));
         _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
+        _auditLogger = auditLogger ?? throw new ArgumentNullException(nameof(auditLogger));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -119,6 +123,15 @@ public class UserManagementController : ControllerBase
                 return NotFound(new { success = false, error = new { code = "USER_NOT_FOUND", message = "User not found." } });
             }
 
+            await _auditLogger.LogAsync(new AuditEntry
+            {
+                Caller = BuildCaller(),
+                ModuleId = "dotnetcloud.core",
+                Action = AuditAction.Update,
+                EntityType = "User",
+                EntityId = userId,
+                Description = "user-updated",
+            });
             _logger.LogInformation("User {UserId} updated", userId);
             return Ok(new { success = true, data = user });
         }
@@ -149,6 +162,15 @@ public class UserManagementController : ControllerBase
             return NotFound(new { success = false, error = new { code = "USER_NOT_FOUND", message = "User not found." } });
         }
 
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = BuildCaller(),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.Delete,
+            EntityType = "User",
+            EntityId = userId,
+            Description = "user-deleted-by-admin",
+        });
         _logger.LogInformation("User {UserId} deleted by admin", userId);
         return Ok(new { success = true, message = "User deleted successfully." });
     }
@@ -174,6 +196,15 @@ public class UserManagementController : ControllerBase
             return NotFound(new { success = false, error = new { code = "USER_NOT_FOUND", message = "User not found." } });
         }
 
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = BuildCaller(),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.Update,
+            EntityType = "User",
+            EntityId = userId,
+            Description = "user-disabled-by-admin",
+        });
         _logger.LogInformation("User {UserId} disabled by admin", userId);
         return Ok(new { success = true, message = "User disabled successfully." });
     }
@@ -193,6 +224,15 @@ public class UserManagementController : ControllerBase
             return NotFound(new { success = false, error = new { code = "USER_NOT_FOUND", message = "User not found." } });
         }
 
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = BuildCaller(),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.Update,
+            EntityType = "User",
+            EntityId = userId,
+            Description = "user-enabled-by-admin",
+        });
         _logger.LogInformation("User {UserId} enabled by admin", userId);
         return Ok(new { success = true, message = "User enabled successfully." });
     }
@@ -213,6 +253,15 @@ public class UserManagementController : ControllerBase
             return BadRequest(new { success = false, error = new { code = "ADMIN_PASSWORD_RESET_FAILED", message = "Password reset failed. User may not exist or password does not meet requirements." } });
         }
 
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = BuildCaller(),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.Update,
+            EntityType = "User",
+            EntityId = userId,
+            Description = "admin-password-reset",
+        });
         _logger.LogInformation("Admin reset password for user {UserId}", userId);
         return Ok(new { success = true, message = "Password reset successfully." });
     }
@@ -359,6 +408,15 @@ public class UserManagementController : ControllerBase
             var avatarUrl = $"/api/v1/core/users/{userId}/avatar";
             await _userManagementService.UpdateUserAsync(userId, new UpdateUserDto { AvatarUrl = avatarUrl });
 
+            await _auditLogger.LogAsync(new AuditEntry
+            {
+                Caller = BuildCaller(),
+                ModuleId = "dotnetcloud.core",
+                Action = AuditAction.Update,
+                EntityType = "User",
+                EntityId = userId,
+                Description = "avatar-uploaded",
+            });
             _logger.LogInformation("Avatar uploaded for user {UserId}", userId);
             return Ok(new { success = true, data = new { avatarUrl } });
         }
@@ -427,6 +485,15 @@ public class UserManagementController : ControllerBase
 
         await _userManagementService.UpdateUserAsync(userId, new UpdateUserDto { AvatarUrl = null });
 
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = BuildCaller(),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.Delete,
+            EntityType = "User",
+            EntityId = userId,
+            Description = "avatar-deleted",
+        });
         _logger.LogInformation("Avatar deleted for user {UserId}", userId);
         return Ok(new { success = true, message = "Avatar deleted." });
     }
@@ -456,4 +523,17 @@ public class UserManagementController : ControllerBase
     }
 
     private bool IsAdmin() => User.IsSystemAdmin();
+
+    private CallerContext BuildCaller()
+    {
+        if (!TryGetUserId(out var userId) || userId == Guid.Empty)
+            return CallerContext.CreateSystemContext();
+
+        var roles = User.FindAll("role")
+            .Concat(User.FindAll(System.Security.Claims.ClaimTypes.Role))
+            .Select(c => c.Value)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        return new CallerContext(userId, roles, CallerType.User);
+    }
 }

@@ -32,7 +32,7 @@ public class MessageServiceSearchIndexTests
             .Options;
         _db = new ChatDbContext(options);
         _eventBusMock = new Mock<IEventBus>();
-        _service = new MessageService(_db, _eventBusMock.Object, NullLogger<MessageService>.Instance);
+        _service = new MessageService(_db, _eventBusMock.Object, Mock.Of<DotNetCloud.Core.Capabilities.IAuditLogger>(), NullLogger<MessageService>.Instance);
         _caller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
 
         // Seed channel with caller as member

@@ -11,7 +11,7 @@ namespace DotNetCloud.Modules.Example.Data;
 /// <remarks>
 /// To generate a SQL Server migration:
 /// <code>
-/// dotnet ef migrations add MigrationName --project src/Modules/Example/DotNetCloud.Modules.Example.Data --startup-project src/Modules/Example/DotNetCloud.Modules.Example.Data --context DotNetCloud.Modules.Example.Data.ExampleDbContext --output-dir Migrations/SqlServer
+/// dotnet ef migrations add MigrationName --project src/Modules/Example/DotNetCloud.Modules.Example.Data.SqlServer --context DotNetCloud.Modules.Example.Data.ExampleDbContext
 /// </code>
 /// </remarks>
 public class ExampleDbContextSqlServerDesignTimeFactory : IDesignTimeDbContextFactory<ExampleDbContext>

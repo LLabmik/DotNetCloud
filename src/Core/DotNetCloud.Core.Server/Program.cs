@@ -293,6 +293,11 @@ public class Program
         builder.Services.AddSingleton<IFileValidationService, FileValidationService>();
         builder.Services.AddSingleton<IModuleSchemaProvider, DbContextSchemaProvider>();
 
+        // Register the persisted audit trail service (SOC 2 CC4). Scoped because it
+        // depends on the scoped CoreDbContext. Used directly by Core.Server controllers
+        // and by the CoreCapabilities LogAudit gRPC handler for module-originated events.
+        builder.Services.AddScoped<DotNetCloud.Core.Capabilities.IAuditLogger, AuditLogService>();
+
         // Register in-process module data services for interactive Blazor UI components.
         // Each module's .Data project owns its Add*UiServices registration, including
         // the DbContext configuration.
@@ -689,6 +694,9 @@ public class Program
         builder.Services.AddHostedService<ModuleUiRegistrationHostedService>();
         builder.Services.AddHostedService<NotificationEventSubscriber>();
         builder.Services.AddHostedService<SearchEventSubscriber>();
+
+        // Enforce audit-log retention (SOC 2 C2/P6): daily purge of expired rows.
+        builder.Services.AddHostedService<AuditLogPurgeHostedService>();
 
         // Register admin shared folder cleanup handler
         builder.Services.AddSingleton<AdminSharedFolderCleanupService>();

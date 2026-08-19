@@ -64,7 +64,7 @@ public class MusicControllerTests
         var albumService = new MusicAlbumService(
             _db, albumArtService, _downloadMock.Object, contentStorage,
             config, NullLogger<MusicAlbumService>.Instance);
-        var trackService = new TrackService(_db, eventBus.Object, NullLogger<TrackService>.Instance);
+        var trackService = new TrackService(_db, eventBus.Object, Mock.Of<DotNetCloud.Core.Capabilities.IAuditLogger>(), NullLogger<TrackService>.Instance);
 
         _controller = new MusicController(
             artistService,
@@ -184,7 +184,9 @@ public class MusicControllerTests
         Assert.IsTrue(fileResult.FileDownloadName.EndsWith(".zip"));
 
         // Clean up
-        try { fileResult.FileStream?.Dispose(); } catch { }
+        try
+        { fileResult.FileStream?.Dispose(); }
+        catch { }
     }
 
     // ── Successful download ───────────────────────────────────────────
@@ -255,6 +257,8 @@ public class MusicControllerTests
         Assert.AreEqual("Unknown_Artist - Test_Album.zip", fileResult.FileDownloadName);
 
         // Clean up
-        try { fileResult.FileStream?.Dispose(); } catch { }
+        try
+        { fileResult.FileStream?.Dispose(); }
+        catch { }
     }
 }

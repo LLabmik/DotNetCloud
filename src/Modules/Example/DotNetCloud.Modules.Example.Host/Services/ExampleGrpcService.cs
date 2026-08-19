@@ -1,9 +1,13 @@
+using DotNetCloud.Core.Authorization;
 using DotNetCloud.Modules.Example.Host.Protos;
 using DotNetCloud.Modules.Example.Data;
 using DotNetCloud.Modules.Example.Models;
 using Grpc.Core;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using IAuditLogger = DotNetCloud.Core.Capabilities.IAuditLogger;
+using AuditEntry = DotNetCloud.Core.Capabilities.AuditEntry;
+using AuditAction = DotNetCloud.Core.Capabilities.AuditAction;
 
 namespace DotNetCloud.Modules.Example.Host.Services;
 
@@ -14,14 +18,16 @@ namespace DotNetCloud.Modules.Example.Host.Services;
 public sealed class ExampleGrpcService : ExampleService.ExampleServiceBase
 {
     private readonly ExampleDbContext _db;
+    private readonly IAuditLogger _auditLogger;
     private readonly ILogger<ExampleGrpcService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ExampleGrpcService"/> class.
     /// </summary>
-    public ExampleGrpcService(ExampleDbContext db, ILogger<ExampleGrpcService> logger)
+    public ExampleGrpcService(ExampleDbContext db, IAuditLogger auditLogger, ILogger<ExampleGrpcService> logger)
     {
         _db = db;
+        _auditLogger = auditLogger;
         _logger = logger;
     }
 
@@ -56,6 +62,16 @@ public sealed class ExampleGrpcService : ExampleService.ExampleServiceBase
 
         _db.Notes.Add(note);
         await _db.SaveChangesAsync(context.CancellationToken);
+
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = new CallerContext(userId, Array.Empty<string>(), CallerType.User),
+            ModuleId = "dotnetcloud.example",
+            Action = AuditAction.Create,
+            EntityType = "ExampleNote",
+            EntityId = note.Id,
+            Description = "create-note",
+        }, context.CancellationToken);
 
         _logger.LogInformation("Note {NoteId} created by user {UserId}", note.Id, userId);
 

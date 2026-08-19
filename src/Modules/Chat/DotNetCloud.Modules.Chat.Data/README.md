@@ -35,25 +35,25 @@ DotNetCloud.Modules.Chat.Data/
 
 ## Database Support
 
-| Provider | Status | Package |
-|----------|--------|---------|
-| PostgreSQL | Supported | `Npgsql.EntityFrameworkCore.PostgreSQL` 10.0.0 |
+| Provider   | Status    | Package                                          |
+| ---------- | --------- | ------------------------------------------------ |
+| PostgreSQL | Supported | `Npgsql.EntityFrameworkCore.PostgreSQL` 10.0.0   |
 | SQL Server | Supported | `Microsoft.EntityFrameworkCore.SqlServer` 10.0.3 |
 
 ## DbContext
 
 `ChatDbContext` exposes the following `DbSet` properties:
 
-| DbSet | Entity |
-|-------|--------|
-| `Channels` | `Channel` |
-| `ChannelMembers` | `ChannelMember` |
-| `Messages` | `Message` |
-| `MessageAttachments` | `MessageAttachment` |
-| `MessageReactions` | `MessageReaction` |
-| `MessageMentions` | `MessageMention` |
-| `PinnedMessages` | `PinnedMessage` |
-| `Announcements` | `Announcement` |
+| DbSet                          | Entity                        |
+| ------------------------------ | ----------------------------- |
+| `Channels`                     | `Channel`                     |
+| `ChannelMembers`               | `ChannelMember`               |
+| `Messages`                     | `Message`                     |
+| `MessageAttachments`           | `MessageAttachment`           |
+| `MessageReactions`             | `MessageReaction`             |
+| `MessageMentions`              | `MessageMention`              |
+| `PinnedMessages`               | `PinnedMessage`               |
+| `Announcements`                | `Announcement`                |
 | `AnnouncementAcknowledgements` | `AnnouncementAcknowledgement` |
 
 All entities use soft-delete query filters and automatic timestamp interceptors inherited from the core framework.
@@ -61,6 +61,7 @@ All entities use soft-delete query filters and automatic timestamp interceptors 
 ## Entity Configurations
 
 Each entity has a dedicated `IEntityTypeConfiguration<T>` that defines:
+
 - Table names (schema-aware for PostgreSQL/SQL Server)
 - Indexes for common query patterns
 - Relationships and cascade behavior
@@ -69,16 +70,16 @@ Each entity has a dedicated `IEntityTypeConfiguration<T>` that defines:
 
 ## Service Implementations
 
-| Service | Interface | Key Operations |
-|---------|-----------|---------------|
-| `ChannelService` | `IChannelService` | CRUD, search by name/type |
-| `ChannelMemberService` | `IChannelMemberService` | Join/leave, role management, last-owner protection |
-| `MessageService` | `IMessageService` | Send, edit, delete, paginated history |
-| `ReactionService` | `IReactionService` | Add/remove/toggle, normalized emoji validation |
-| `PinService` | `IPinService` | Pin/unpin, `PinnedAt` timestamp preservation |
-| `TypingIndicatorService` | `ITypingIndicatorService` | Start/stop with in-memory TTL cache |
-| `AnnouncementService` | `IAnnouncementService` | Channel-scoped announcements + acknowledgements |
-| `MentionNotificationService` | `IMentionNotificationService` | Unread count with `@all`/`@channel` support |
+| Service                      | Interface                     | Key Operations                                     |
+| ---------------------------- | ----------------------------- | -------------------------------------------------- |
+| `ChannelService`             | `IChannelService`             | CRUD, search by name/type                          |
+| `ChannelMemberService`       | `IChannelMemberService`       | Join/leave, role management, last-owner protection |
+| `MessageService`             | `IMessageService`             | Send, edit, delete, paginated history              |
+| `ReactionService`            | `IReactionService`            | Add/remove/toggle, normalized emoji validation     |
+| `PinService`                 | `IPinService`                 | Pin/unpin, `PinnedAt` timestamp preservation       |
+| `TypingIndicatorService`     | `ITypingIndicatorService`     | Start/stop with in-memory TTL cache                |
+| `AnnouncementService`        | `IAnnouncementService`        | Channel-scoped announcements + acknowledgements    |
+| `MentionNotificationService` | `IMentionNotificationService` | Unread count with `@all`/`@channel` support        |
 
 ## Migrations
 
@@ -90,17 +91,20 @@ dotnet ef migrations add <MigrationName> \
   --project src/Modules/Chat/DotNetCloud.Modules.Chat.Data \
   --context ChatDbContext
 
-# SQL Server
+# SQL Server (separate project)
 dotnet ef migrations add <MigrationName>_SqlServer \
-  --project src/Modules/Chat/DotNetCloud.Modules.Chat.Data \
-  --context ChatDbContext \
-  --output-dir Migrations/SqlServer
+  --project src/Modules/Chat/DotNetCloud.Modules.Chat.Data.SqlServer \
+  --context ChatDbContext
 ```
 
 ### Apply Migrations
 
 ```bash
-dotnet ef database update --context ChatDbContext
+# PostgreSQL
+dotnet ef database update --project src/Modules/Chat/DotNetCloud.Modules.Chat.Data --context ChatDbContext
+
+# SQL Server (DOTNETCLOUD_DB_CONNECTION points at the SQL Server)
+dotnet ef database update --project src/Modules/Chat/DotNetCloud.Modules.Chat.Data.SqlServer --context ChatDbContext
 ```
 
 ## Dependency Injection
