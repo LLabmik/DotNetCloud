@@ -726,9 +726,13 @@ public class Program
         });
     }
 
-    private static DatabaseProvider ResolveConfiguredDatabaseProvider(IConfiguration configuration)
+    internal static DatabaseProvider ResolveConfiguredDatabaseProvider(IConfiguration configuration)
     {
-        var configuredProvider = configuration["Database:Provider"] ?? configuration["databaseProvider"];
+        // Prefer the CLI's flat config.json key (the user's explicit choice, written
+        // by `dotnetcloud setup`) over the appsettings.json "Database:Provider" default.
+        // Legacy configs only have the flat key; appsettings.json defaults to SqlServer
+        // for development and must not silently override a configured PostgreSQL install.
+        var configuredProvider = configuration["databaseProvider"] ?? configuration["Database:Provider"];
 
         if (string.IsNullOrWhiteSpace(configuredProvider))
         {
