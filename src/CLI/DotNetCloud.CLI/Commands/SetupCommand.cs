@@ -232,7 +232,7 @@ internal static class SetupCommand
                     ? "Setting up the local DotNetCloud database automatically."
                     : "The database or user may not exist yet.");
 
-                if (beginnerMode || ConsoleOutput.PromptConfirm("Create the database and user now?", defaultValue: true))
+                if (beginnerMode || ConsoleOutput.PromptConfirm("Set up the database and user now (updates the password to match — does not delete existing data)?", defaultValue: true))
                 {
                     var parts = ParseConnectionString(config.ConnectionString);
                     var dbName = parts.GetValueOrDefault("database", DefaultPostgreSqlDatabase);
@@ -266,9 +266,14 @@ internal static class SetupCommand
                 return 1;
             }
 
-            if (!canConnect && !ConsoleOutput.PromptConfirm("Continue anyway?"))
+            if (!canConnect)
             {
-                return 1;
+                ConsoleOutput.WriteWarning("The database connection still isn't working.");
+                ConsoleOutput.WriteInfo("DotNetCloud will NOT start until the configured credentials match the database.");
+                if (!ConsoleOutput.PromptConfirm("Continue anyway and save this broken database configuration?", defaultValue: false))
+                {
+                    return 1;
+                }
             }
 
             if (canConnect)
