@@ -55,15 +55,17 @@ internal static class DatabaseSetupHelper
     /// <returns><c>true</c> if the user and database were created successfully.</returns>
     public static bool CreatePostgreSqlDatabase(string dbName, string dbUser, string dbPassword)
     {
-        // Create the role (ignore error if it already exists)
+        // Create the role (ignore error if it already exists). CREATEDB lets
+        // the server recreate the database at startup if it was dropped (e.g.
+        // by an uninstall that opted to drop the database).
         var createUser = RunSudoPostgres(
-            $"-c \"CREATE ROLE {dbUser} WITH LOGIN PASSWORD '{EscapeSql(dbPassword)}';\"");
+            $"-c \"CREATE ROLE {dbUser} WITH LOGIN PASSWORD '{EscapeSql(dbPassword)}' CREATEDB;\"");
 
         if (!createUser)
         {
             // Role might already exist — try ALTER instead
             RunSudoPostgres(
-                $"-c \"ALTER ROLE {dbUser} WITH LOGIN PASSWORD '{EscapeSql(dbPassword)}';\"");
+                $"-c \"ALTER ROLE {dbUser} WITH LOGIN PASSWORD '{EscapeSql(dbPassword)}' CREATEDB;\"");
         }
 
         // Create the database (ignore error if it already exists)
