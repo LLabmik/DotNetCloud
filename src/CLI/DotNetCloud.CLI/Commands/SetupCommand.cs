@@ -1648,7 +1648,9 @@ internal static class SetupCommand
             }
 
             ConsoleOutput.WriteSuccess($"Generated self-signed TLS certificate: {certPath}");
-            ConsoleOutput.WriteInfo($"Root CA exported to {rootCaPath}. Install it as a trusted root on client devices.");
+            ConsoleOutput.WriteInfo($"Root CA exported to {rootCaPath}.");
+            ConsoleOutput.WriteInfo("To trust this server from another device, download the root CA at:");
+            ConsoleOutput.WriteInfo($"  http://{config.SelfSignedTlsHost ?? "localhost"}:{config.HttpPort}/root-ca.crt");
             return true;
         }
         catch (Exception ex)

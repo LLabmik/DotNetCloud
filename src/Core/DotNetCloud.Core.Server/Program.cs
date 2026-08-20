@@ -814,6 +814,9 @@ public class Program
         // Map health checks
         app.MapDotNetCloudHealthChecks();
 
+        // Serve the self-signed root CA for one-click download (private/test installs only).
+        MapRootCaDownload(app);
+
         // Map Prometheus metrics scraping endpoint (/metrics) when enabled
         app.MapDotNetCloudPrometheus();
 
@@ -866,9 +869,12 @@ public class Program
             });
 
         // Redirect HTTP→HTTPS for browser traffic, but NOT for internal gRPC
-        // calls (modules use cleartext HTTP/2 on the gRPC port).
+        // calls (modules use cleartext HTTP/2 on the gRPC port) and NOT for the
+        // root-CA download (must stay reachable over plain HTTP so untrusted
+        // browsers can fetch it).
         app.UseWhen(
-            ctx => !ctx.Request.ContentType?.StartsWith("application/grpc", StringComparison.OrdinalIgnoreCase) is true,
+            ctx => ctx.Request.ContentType?.StartsWith("application/grpc", StringComparison.OrdinalIgnoreCase) is not true
+                && !ctx.Request.Path.StartsWithSegments("/root-ca.crt"),
             then => then.UseHttpsRedirection());
 
         // Capture the auth cookie from the initial HTTP request into a scoped store
@@ -935,6 +941,47 @@ public class Program
                 typeof(DotNetCloud.Modules.Bookmarks.UI.BookmarksPage).Assembly,
                 typeof(DotNetCloud.Modules.Email.UI.EmailPage).Assembly,
                 typeof(DotNetCloud.Modules.About.UI.AboutPage).Assembly);
+    }
+
+    private static void MapRootCaDownload(WebApplication app)
+    {
+        // Self-signed ("private/test") installs generate a root CA next to the TLS
+        // certificate. Serve it over HTTP so clients can download and trust it with
+        // a single click. Let's Encrypt and existing-certificate installs do not
+        // generate this file, so the endpoint simply returns 404 for them.
+        var rootCaPath = GetRootCaPath(app.Configuration["Kestrel:CertificatePath"]);
+
+        app.MapGet("/root-ca.crt", () =>
+        {
+            if (rootCaPath is null || !File.Exists(rootCaPath))
+            {
+                return Results.NotFound();
+            }
+
+            return Results.File(rootCaPath, "application/x-x509-ca-cert", "dotnetcloud-root-ca.crt");
+        });
+    }
+
+    /// <summary>
+    /// Derives the root-CA certificate path from the configured TLS certificate
+    /// path. The CLI writes the root CA as <c>dotnetcloud-root-ca.crt</c> next to
+    /// the PFX for self-signed installs. Returns <c>null</c> when no certificate
+    /// path is configured.
+    /// </summary>
+    internal static string? GetRootCaPath(string? certificatePath)
+    {
+        if (string.IsNullOrWhiteSpace(certificatePath))
+        {
+            return null;
+        }
+
+        var directory = Path.GetDirectoryName(certificatePath);
+        if (string.IsNullOrEmpty(directory))
+        {
+            directory = ".";
+        }
+
+        return Path.Combine(directory, "dotnetcloud-root-ca.crt");
     }
 
     private static void MapCollaboraReverseProxy(WebApplication app)
