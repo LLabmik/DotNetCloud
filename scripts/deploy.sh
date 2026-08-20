@@ -25,6 +25,10 @@ DEPLOY_DIR="/opt/dotnetcloud/server"
 MODULES_DIR="$DEPLOY_DIR/modules"
 SERVICE_USER="dotnetcloud"
 STATE_FILE="$DEPLOY_DIR/.last-deploy-commit"
+CLI_INSTALL_ROOT="/opt/dotnetcloud"
+CLI_PROJECT_PATH="$REPO_ROOT/src/CLI/DotNetCloud.CLI/DotNetCloud.CLI.csproj"
+CLI_STAGING="$REPO_ROOT/artifacts/publish/cli-deploy"
+MIGRATE_LOG="/var/log/dotnetcloud/deploy-migrate.log"
 
 # Must run as root (directly or via sudo) — systemctl, chown, and writing to
 # DEPLOY_DIR all require elevated privileges and prompt via polkit otherwise.
@@ -272,6 +276,83 @@ print_summary() {
     echo "════════════════════════════════════════════"
 }
 
+# Run database migrations with the freshly deployed CLI. Aborts the deploy with a
+# newbie-friendly explanation if migrations fail — the service must never start
+# against a half-updated database.
+run_migrations() {
+    local migrate_bin="$CLI_INSTALL_ROOT/dotnetcloud"
+
+    if [ ! -x "$migrate_bin" ]; then
+        echo ""
+        echo "[ERROR] CLI not found at $migrate_bin. Cannot run database migrations."
+        echo "        Re-run with: sudo ./scripts/deploy.sh --force"
+        exit 1
+    fi
+
+    mkdir -p "$(dirname "$MIGRATE_LOG")" 2>/dev/null || true
+
+    set +e
+    set +o pipefail
+    "$migrate_bin" migrate 2>&1 | tee "$MIGRATE_LOG"
+    local exit_code=${PIPESTATUS[0]}
+    set -o pipefail
+    set -e
+
+    if [ "$exit_code" -ne 0 ]; then
+        print_migration_failure "$exit_code"
+        exit 1
+    fi
+
+    log "  Migrations applied successfully."
+}
+
+# Plain-language explanation shown when `dotnetcloud migrate` fails. Written for
+# a first-time installing user so they know what broke and exactly what to do next.
+print_migration_failure() {
+    local exit_code="$1"
+    echo ""
+    echo "════════════════════════════════════════════════════════════════"
+    echo "  DotNetCloud was updated, but the database upgrade did not finish."
+    echo "════════════════════════════════════════════════════════════════"
+    echo ""
+    echo "What happened:"
+    echo "  • The new DotNetCloud program files were copied onto this machine."
+    echo "  • The step that updates the database to match them did not complete."
+    echo "  • DotNetCloud was left STOPPED so it won't start with a half-updated database."
+    echo ""
+    echo "Good news:"
+    echo "  • No data was lost or deleted. Your existing data is exactly as it was before."
+    echo ""
+    echo "Right now:"
+    echo "  • New program files are installed on disk."
+    echo "  • The database is still on its previous version."
+    echo "  • The DotNetCloud service is stopped."
+    echo ""
+    echo "The database error was (last lines from $MIGRATE_LOG):"
+    tail -n 15 "$MIGRATE_LOG" 2>/dev/null | sed 's/^/    /' || true
+    echo ""
+    echo "Common causes and fixes:"
+    echo "  • The database is not running"
+    echo "      Start it:  sudo systemctl start postgresql"
+    echo "  • The database connection details are wrong"
+    echo "      Fix them:  sudo dotnetcloud setup"
+    echo "  • The database user does not have permission"
+    echo "      See the 'Database Permissions Notice' shown during setup"
+    echo "  • The disk is full"
+    echo "      Check:     df -h"
+    echo ""
+    echo "To try again:"
+    echo "  1. Fix the cause above."
+    echo "  2. Run:  sudo dotnetcloud migrate"
+    echo "     (repeat until it finishes without errors)"
+    echo "  3. Then: sudo ./scripts/deploy.sh --force"
+    echo ""
+    echo "  If you're stuck, open an issue:"
+    echo "      https://github.com/LLabmik/DotNetCloud/issues"
+    echo "════════════════════════════════════════════════════════════════"
+    echo ""
+}
+
 # Verify deployed assemblies match build output
 verify_assemblies() {
     echo ""
@@ -465,6 +546,8 @@ if $DRY_RUN; then
         _core_note=$( { $CORE_CHANGED || $UI_CHANGED || [ "${#CHANGED_DATA_MODULES[@]}" -gt 0 ]; } && echo "Core.Server + " || echo "(Core.Server unchanged, skipped) ")
         echo "    [publish] ${_core_note}$_publish_count module host(s)"
     fi
+    if $FULL_BUILD || $SKIP_BUILD; then echo "    [publish] CLI (dotnetcloud) → /opt/dotnetcloud"; fi
+    echo "    [migrate] dotnetcloud migrate (applies all pending database migrations)"
     if ! $SKIP_STOP; then echo "    [start]  dotnetcloud service"; fi
     if [ -n "$LAST_DEPLOYED" ]; then echo "    [save]   .last-deploy-commit = ${CURRENT_HEAD:0:12}"; fi
     if $VERIFY; then echo "    [verify] Assembly hash checks"; fi
@@ -481,7 +564,15 @@ fi
 # compile. With `set -e`, a failed build exits here — the live service is left
 # running untouched.
 # ============================================================================
-TOTAL_STEPS=6
+# CLI is refreshed on full builds only (mint22 fresh-deploy path). --skip-build
+# forces a full publish, which includes the CLI using existing build output.
+CLI_NEEDS_PUBLISH=false
+if $FULL_BUILD || $SKIP_BUILD; then
+    CLI_NEEDS_PUBLISH=true
+fi
+
+TOTAL_STEPS=7
+if $CLI_NEEDS_PUBLISH; then ((TOTAL_STEPS++)); fi
 if $VERIFY; then ((TOTAL_STEPS++)); fi
 
 START_TIME=$(date +%s)
@@ -506,6 +597,8 @@ elif $FULL_BUILD; then
     DEPLOY_SLNF="$(generate_deploy_slnf)"
     log "  Building deploy solution filter (server + module hosts; CLI/clients/tests/Example excluded)..."
     do_build "$DEPLOY_SLNF"
+    log "  Building CLI (dotnetcloud)..."
+    do_build "$CLI_PROJECT_PATH"
 else
     step "Building..."
     BUILD_TARGETS=()
@@ -591,6 +684,43 @@ else
     # Core.Server's inputs are unchanged, so the deployed copy is already current.
     # Skipping the republish avoids re-copying its full (~hundreds of MB) closure.
     log "  Core.Server unchanged — skipping republish (deployed copy is current)."
+fi
+
+# CLI lives at /opt/dotnetcloud (root) — the location the forking systemd unit
+# expects for `dotnetcloud start`. It must ship the same Data assemblies as the
+# server so `dotnetcloud migrate` applies the NEW migration classes.
+if $CLI_NEEDS_PUBLISH; then
+    step "Publishing CLI..."
+    if $DRY_RUN; then
+        echo "    [DRY-RUN] publish CLI → $CLI_INSTALL_ROOT"
+    else
+        rm -rf "$CLI_STAGING"
+        do_publish "$CLI_PROJECT_PATH" "$CLI_STAGING"
+
+        # Older installs symlinked /opt/dotnetcloud/dotnetcloud into
+        # /opt/dotnetcloud/cli. Replace it with the real apphost so the CLI
+        # resolves the server at /opt/dotnetcloud/server (not cli/server).
+        if [ -L "$CLI_INSTALL_ROOT/dotnetcloud" ]; then
+            rm -f "$CLI_INSTALL_ROOT/dotnetcloud"
+        fi
+
+        # Stale DLL guard on the CLI root (mirrors the core-server guard).
+        find "$CLI_INSTALL_ROOT" -maxdepth 1 -name '*.dll' -delete 2>/dev/null || true
+
+        # Preserve service-user ownership from staging, then make the apphost executable.
+        chown -R "$SERVICE_USER:$SERVICE_USER" "$CLI_STAGING" 2>/dev/null || true
+        cp -a "$CLI_STAGING/." "$CLI_INSTALL_ROOT/"
+        chmod 755 "$CLI_INSTALL_ROOT/dotnetcloud" 2>/dev/null || true
+
+        # The CLI publish output also contains a copy of the server apphost
+        # (the CLI references Core.Server). Remove it so `dotnetcloud start`
+        # resolves the real server at /opt/dotnetcloud/server — not this
+        # dependency copy, whose content root is read-only under systemd.
+        rm -f "$CLI_INSTALL_ROOT/DotNetCloud.Core.Server" \
+              "$CLI_INSTALL_ROOT/DotNetCloud.Core.Server.exe" 2>/dev/null || true
+
+        log "  CLI installed to $CLI_INSTALL_ROOT."
+    fi
 fi
 
 # Determine which module hosts to publish
@@ -752,12 +882,22 @@ chown "$SERVICE_USER:$SERVICE_USER" "$DEPLOY_DIR" "$MODULES_DIR" 2>/dev/null || 
 # Revert repo build artifacts back to the original user
 ORIGINAL_USER="${SUDO_USER:-$(who am i | awk '{print $1}')}"
 if [ -n "$ORIGINAL_USER" ] && [ "$ORIGINAL_USER" != "root" ]; then
-    chown -R "$ORIGINAL_USER:$ORIGINAL_USER" "$REPO_ROOT/src" "$REPO_ROOT/tests" "$REPO_ROOT/tools" 2>/dev/null || true
+    chown -R "$ORIGINAL_USER:$ORIGINAL_USER" "$REPO_ROOT/src" "$REPO_ROOT/tests" "$REPO_ROOT/tools" "$REPO_ROOT/artifacts" 2>/dev/null || true
 fi
 log "  Permissions set."
 
 # ============================================================================
-# Phase 6: Start service
+# Phase 6: Apply database migrations (before starting the service)
+# ============================================================================
+step "Applying database migrations..."
+if $DRY_RUN; then
+    echo "    [DRY-RUN] dotnetcloud migrate"
+else
+    run_migrations
+fi
+
+# ============================================================================
+# Phase 7: Start service
 # ============================================================================
 step "Starting service..."
 if $SKIP_STOP; then
@@ -768,7 +908,7 @@ else
 fi
 
 # ============================================================================
-# Phase 7: Save deploy state (optional)
+# Phase 8: Save deploy state (optional)
 # ============================================================================
 if [ -n "$CURRENT_HEAD" ] && [ "$CURRENT_HEAD" != "unknown" ]; then
     echo "$CURRENT_HEAD" > "$STATE_FILE" 2>/dev/null || log "  ⚠ Could not save deploy commit to $STATE_FILE"
@@ -779,7 +919,7 @@ if [ -n "$CURRENT_HEAD" ] && [ "$CURRENT_HEAD" != "unknown" ]; then
 fi
 
 # ============================================================================
-# Phase 8: Verify (optional)
+# Phase 9: Verify (optional)
 # ============================================================================
 if $VERIFY; then
     step "Verifying deployed assemblies..."

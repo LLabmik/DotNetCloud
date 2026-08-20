@@ -1528,34 +1528,62 @@ internal static class SetupCommand
                 ? "localhost"
                 : config.SelfSignedTlsHost.Trim();
 
-            using var rsa = RSA.Create(2048);
-            var request = new CertificateRequest(
-                $"CN={host}",
-                rsa,
+            // Generate a root CA (the trust anchor users install) and a leaf
+            // server certificate signed by it. A single self-signed leaf cannot
+            // be installed as a trusted root on Windows/Firefox/NSS; a proper
+            // root + leaf chain is required.
+            using var rootRsa = RSA.Create(2048);
+            var rootRequest = new CertificateRequest(
+                "CN=DotNetCloud Local Root CA",
+                rootRsa,
                 HashAlgorithmName.SHA256,
                 RSASignaturePadding.Pkcs1);
+            rootRequest.CertificateExtensions.Add(
+                new X509BasicConstraintsExtension(true, false, 0, true));
+            rootRequest.CertificateExtensions.Add(
+                new X509KeyUsageExtension(X509KeyUsageFlags.KeyCertSign, true));
+            rootRequest.CertificateExtensions.Add(
+                new X509SubjectKeyIdentifierExtension(rootRequest.PublicKey, false));
 
-            request.CertificateExtensions.Add(
-                new X509BasicConstraintsExtension(false, false, 0, false));
-            request.CertificateExtensions.Add(
+            using var rootCert = rootRequest.CreateSelfSigned(
+                DateTimeOffset.UtcNow.AddMinutes(-5),
+                DateTimeOffset.UtcNow.AddYears(10));
+
+            using var leafRsa = RSA.Create(2048);
+            var leafRequest = new CertificateRequest(
+                $"CN={host}",
+                leafRsa,
+                HashAlgorithmName.SHA256,
+                RSASignaturePadding.Pkcs1);
+            leafRequest.CertificateExtensions.Add(
+                new X509BasicConstraintsExtension(false, false, 0, true));
+            leafRequest.CertificateExtensions.Add(
                 new X509KeyUsageExtension(
                     X509KeyUsageFlags.DigitalSignature | X509KeyUsageFlags.KeyEncipherment,
                     false));
-            request.CertificateExtensions.Add(
-                new X509SubjectKeyIdentifierExtension(request.PublicKey, false));
+            leafRequest.CertificateExtensions.Add(
+                new X509EnhancedKeyUsageExtension(
+                    new OidCollection { new Oid("1.3.6.1.5.5.7.3.1") },
+                    false));
+            leafRequest.CertificateExtensions.Add(
+                new X509SubjectKeyIdentifierExtension(leafRequest.PublicKey, false));
 
             var sanBuilder = new SubjectAlternativeNameBuilder();
             sanBuilder.AddDnsName(host);
             sanBuilder.AddDnsName("localhost");
             sanBuilder.AddIpAddress(System.Net.IPAddress.Loopback);
             sanBuilder.AddIpAddress(System.Net.IPAddress.IPv6Loopback);
-            request.CertificateExtensions.Add(sanBuilder.Build());
+            leafRequest.CertificateExtensions.Add(sanBuilder.Build());
 
-            using var cert = request.CreateSelfSigned(
+            using var leafCert = leafRequest.Create(
+                rootCert,
                 DateTimeOffset.UtcNow.AddMinutes(-5),
-                DateTimeOffset.UtcNow.AddYears(1));
+                DateTimeOffset.UtcNow.AddYears(2),
+                RandomNumberGenerator.GetBytes(16));
 
-            var pfxBytes = cert.Export(X509ContentType.Pfx, string.Empty);
+            using var leafWithKey = leafCert.CopyWithPrivateKey(leafRsa);
+            var pfxBytes = new X509Certificate2Collection(new[] { leafWithKey, rootCert })
+                .Export(X509ContentType.Pfx, string.Empty)!;
             File.WriteAllBytes(certPath, pfxBytes);
 
             if (!EnsureCertificateFilePermissions(certPath))
@@ -1563,24 +1591,33 @@ internal static class SetupCommand
                 return false;
             }
 
-            // Also export PEM for tools that need separate key/cert/chain files (e.g. coolwsd)
+            // PEM bundle (leaf key + leaf cert + root cert) for Collabora/coolwsd.
             var pemPath = Path.ChangeExtension(certPath, ".pem");
-            var certPem = cert.ExportCertificatePem();
-            var keyPem = cert.GetRSAPrivateKey()?.ExportRSAPrivateKeyPem();
-            if (keyPem != null)
+            var pemContent = leafRsa.ExportRSAPrivateKeyPem()
+                + leafCert.ExportCertificatePem()
+                + rootCert.ExportCertificatePem();
+            File.WriteAllText(pemPath, pemContent);
+            if (!OperatingSystem.IsWindows())
             {
-                var pemContent = keyPem + "\n" + certPem;
-                File.WriteAllText(pemPath, pemContent);
-                if (!OperatingSystem.IsWindows())
-                {
-                    File.SetUnixFileMode(pemPath,
-                        UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead);
-                    SystemdServiceHelper.FixOwnership(pemPath);
-                }
+                File.SetUnixFileMode(pemPath,
+                    UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead);
+                SystemdServiceHelper.FixOwnership(pemPath);
+            }
+
+            // Export the root CA alone so it can be installed as a trust anchor.
+            var rootCaPath = Path.Combine(
+                string.IsNullOrWhiteSpace(certDir) ? "." : certDir,
+                "dotnetcloud-root-ca.crt");
+            File.WriteAllText(rootCaPath, rootCert.ExportCertificatePem());
+            if (!OperatingSystem.IsWindows())
+            {
+                File.SetUnixFileMode(rootCaPath,
+                    UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead);
+                SystemdServiceHelper.FixOwnership(rootCaPath);
             }
 
             ConsoleOutput.WriteSuccess($"Generated self-signed TLS certificate: {certPath}");
-            ConsoleOutput.WriteInfo("Browsers/devices will show a trust warning unless this certificate is explicitly trusted.");
+            ConsoleOutput.WriteInfo($"Root CA exported to {rootCaPath}. Install it as a trusted root on client devices.");
             return true;
         }
         catch (Exception ex)
