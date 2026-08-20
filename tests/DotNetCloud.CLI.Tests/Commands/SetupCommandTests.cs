@@ -1,4 +1,5 @@
 using DotNetCloud.CLI.Commands;
+using DotNetCloud.CLI.Infrastructure;
 
 namespace DotNetCloud.CLI.Tests.Commands;
 
@@ -103,5 +104,47 @@ public class SetupCommandTests
         var option = command.Options.FirstOrDefault(o => o.Name == "--migrate-only");
 
         Assert.IsNotNull(option, "Expected --migrate-only option");
+    }
+
+    [TestMethod]
+    public void HasExistingCertificate_NullPath_ReturnsFalse()
+    {
+        var config = new CliConfig { TlsCertificatePath = null };
+
+        Assert.IsFalse(SetupCommand.HasExistingCertificate(config));
+    }
+
+    [TestMethod]
+    public void HasExistingCertificate_WhitespacePath_ReturnsFalse()
+    {
+        var config = new CliConfig { TlsCertificatePath = "   " };
+
+        Assert.IsFalse(SetupCommand.HasExistingCertificate(config));
+    }
+
+    [TestMethod]
+    public void HasExistingCertificate_MissingFile_ReturnsFalse()
+    {
+        var config = new CliConfig { TlsCertificatePath = "/nonexistent/dotnetcloud-cert.pfx" };
+
+        Assert.IsFalse(SetupCommand.HasExistingCertificate(config));
+    }
+
+    [TestMethod]
+    public void HasExistingCertificate_ExistingFile_ReturnsTrue()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"dotnetcloud-test-{Guid.NewGuid():N}.pfx");
+        File.WriteAllText(path, "test");
+
+        try
+        {
+            var config = new CliConfig { TlsCertificatePath = path };
+
+            Assert.IsTrue(SetupCommand.HasExistingCertificate(config));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
     }
 }

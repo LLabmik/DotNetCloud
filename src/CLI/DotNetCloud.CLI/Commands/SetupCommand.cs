@@ -413,7 +413,9 @@ internal static class SetupCommand
 
                 var tlsModeDefaultIndex = config.UseLetsEncrypt
                     ? 0
-                    : config.UseSelfSignedTls ? 1 : 2;
+                    : config.UseSelfSignedTls
+                        ? 1
+                        : HasExistingCertificate(config) ? 2 : 1;
 
                 var tlsModeChoice = ConsoleOutput.PromptChoice(
                     "TLS certificate mode:",
@@ -1310,7 +1312,18 @@ internal static class SetupCommand
         return config.EnableHttps
             && !config.UseSelfSignedTls
             && !string.IsNullOrWhiteSpace(config.LetsEncryptDomain)
-            && !string.IsNullOrWhiteSpace(config.TlsCertificatePath);
+            && HasExistingCertificate(config);
+    }
+
+    /// <summary>
+    /// Returns <c>true</c> when a previously-configured TLS certificate file
+    /// actually exists on disk. Used to decide whether "use existing
+    /// certificate" should be offered as the default TLS mode.
+    /// </summary>
+    internal static bool HasExistingCertificate(CliConfig config)
+    {
+        return !string.IsNullOrWhiteSpace(config.TlsCertificatePath)
+            && File.Exists(config.TlsCertificatePath);
     }
 
     private static string GetBeginnerInstallType(CliConfig config)
