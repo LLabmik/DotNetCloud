@@ -147,4 +147,32 @@ public class SetupCommandTests
             File.Delete(path);
         }
     }
+
+    [TestMethod]
+    public void OptionalModules_ExcludesAllRequiredModules()
+    {
+        var required = DotNetCloud.Core.Modules.RequiredModules.ModuleIds;
+
+        foreach (var moduleId in SetupCommand.OptionalModules)
+        {
+            Assert.IsFalse(required.Contains(moduleId), $"{moduleId} is required but listed as optional");
+        }
+    }
+
+    [TestMethod]
+    public void OptionalModules_ContainsExpectedSet()
+    {
+        CollectionAssert.AreEquivalent(
+            new[]
+            {
+                "dotnetcloud.tracks",
+                "dotnetcloud.music",
+                "dotnetcloud.photos",
+                "dotnetcloud.video",
+                "dotnetcloud.bookmarks",
+                "dotnetcloud.email",
+                "dotnetcloud.ai"
+            },
+            SetupCommand.OptionalModules);
+    }
 }

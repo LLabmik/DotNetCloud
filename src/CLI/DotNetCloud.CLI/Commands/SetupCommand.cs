@@ -22,6 +22,22 @@ internal static class SetupCommand
     private const string ReverseProxyBeginnerGuideUrl = "https://github.com/LLabmik/DotNetCloud/blob/main/docs/admin/server/REVERSE_PROXY_BEGINNER_GUIDE.md";
 
     /// <summary>
+    /// Optional modules offered during setup. Required modules (see
+    /// <see cref="DotNetCloud.Core.Modules.RequiredModules"/>) are always
+    /// enabled and are intentionally excluded here.
+    /// </summary>
+    internal static readonly string[] OptionalModules = new[]
+    {
+        "dotnetcloud.tracks",
+        "dotnetcloud.music",
+        "dotnetcloud.photos",
+        "dotnetcloud.video",
+        "dotnetcloud.bookmarks",
+        "dotnetcloud.email",
+        "dotnetcloud.ai"
+    };
+
+    /// <summary>
     /// Creates the <c>setup</c> command.
     /// </summary>
     public static Command Create()
@@ -474,10 +490,7 @@ internal static class SetupCommand
 
         // Required modules (Files, Chat, Search, Contacts, Calendar, Notes, About) are always enabled.
         var requiredModules = DotNetCloud.Core.Modules.RequiredModules.ModuleIds;
-        var optionalModules = new[]
-        {
-            "dotnetcloud.tracks"
-        };
+        var optionalModules = OptionalModules;
 
         var previouslyEnabled = config.EnabledModules.ToHashSet(StringComparer.OrdinalIgnoreCase);
         config.EnabledModules.Clear();
@@ -492,7 +505,7 @@ internal static class SetupCommand
         if (beginnerMode)
         {
             ConsoleOutput.WriteInfo("Keeping the first install simple: only the required modules are enabled.");
-            ConsoleOutput.WriteInfo("You can enable Tracks later from the admin UI.");
+            ConsoleOutput.WriteInfo("Optional modules (Tracks, Music, Photos, Video, Bookmarks, Email, AI) can be enabled later from the admin UI.");
         }
         else if (optionalModules.Length > 0)
         {
