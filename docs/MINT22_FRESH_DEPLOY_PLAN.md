@@ -202,13 +202,26 @@ To try again:
 - ☐ All 14 module hosts healthy (`dotnetcloud status` / process list / journal)
 - ☐ Log in at `https://mint22:5443` and smoke-test Files, Notes, Chat, Calendar
 
-## 8. Out of Scope (separate future work)
+## 8. Out of Scope (separate future work) — COMPLETED 2026-08-20
 
-- `install.sh` fixes: CLI DLL path, missing Notes host in `release.yml`,
-  first-boot `env` file ordering, and the Kestrel unit regression.
-- The `v0.4.04` release (created only after this deploy proves current source is stable).
-- `uninstall.sh` database-drop prompt (still desired later; not needed for an
-  in-place redeploy).
+Addressed on branch `fix/test-install-process` after the deploy validated the
+current source:
+
+- ✓ `install.sh` fixes — CLI DLL path (`dotnetcloud.dll` at root, was
+  `server/dotnetcloud.dll` in ~10 places), Kestrel unit regression (now
+  `Type=forking`, `PIDFile=/run/dotnetcloud/dotnetcloud.pid`, `GuessMainPID=no`,
+  `ExecStart=/opt/dotnetcloud/dotnetcloud start`), stray server apphost removal,
+  first-boot `env` file ordering (`EnvironmentFile=-${CONFIG_DIR}/env`).
+- ✓ `release.yml` fixes — publishes all 14 module hosts (added Notes, Tracks,
+  Music, Photos, Video, Bookmarks, Email, AI) and names module dirs
+  `dotnetcloud.<name>/` (was `<name>/`, which `ModuleDiscoveryService` could not
+  discover).
+- ✓ `uninstall.sh` database-drop prompt — reads provider + DB name/user from
+  `config.json` and asks "Drop the DotNetCloud database? [y/N]" (default keeps
+  data; PostgreSQL via `runuser`/`sudo -u postgres psql`, SQL Server via
+  `sqlcmd`).
+- ☐ The `v0.4.04` release — cut only after this work is merged and the real
+  uninstall → `install.sh` test passes on `mint22`.
 
 ## 9. Relevant Files
 
