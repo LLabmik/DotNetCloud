@@ -208,16 +208,16 @@ maybe_drop_database
 echo "[INFO] Step 3/3: Removing installed DotNetCloud footprint..."
 if [[ -n "$SUDO" ]]; then
     run_cmd sudo systemctl disable dotnetcloud.service || true
-    run_cmd sudo rm -f /etc/systemd/system/dotnetcloud.service
-    run_cmd sudo systemctl daemon-reload
-    run_cmd sudo rm -rf /opt/dotnetcloud /etc/dotnetcloud /var/lib/dotnetcloud /var/log/dotnetcloud /run/dotnetcloud
-    run_cmd sudo rm -f /usr/local/bin/dotnetcloud
+    run_cmd sudo rm -f /etc/systemd/system/dotnetcloud.service || true
+    run_cmd sudo systemctl daemon-reload || true
+    run_cmd sudo rm -rf /opt/dotnetcloud /etc/dotnetcloud /var/lib/dotnetcloud /var/log/dotnetcloud /run/dotnetcloud || true
+    run_cmd sudo rm -f /usr/local/bin/dotnetcloud || true
 else
     run_cmd systemctl disable dotnetcloud.service || true
-    run_cmd rm -f /etc/systemd/system/dotnetcloud.service
-    run_cmd systemctl daemon-reload
-    run_cmd rm -rf /opt/dotnetcloud /etc/dotnetcloud /var/lib/dotnetcloud /var/log/dotnetcloud /run/dotnetcloud
-    run_cmd rm -f /usr/local/bin/dotnetcloud
+    run_cmd rm -f /etc/systemd/system/dotnetcloud.service || true
+    run_cmd systemctl daemon-reload || true
+    run_cmd rm -rf /opt/dotnetcloud /etc/dotnetcloud /var/lib/dotnetcloud /var/log/dotnetcloud /run/dotnetcloud || true
+    run_cmd rm -f /usr/local/bin/dotnetcloud || true
 fi
 
 echo ""

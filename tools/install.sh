@@ -31,6 +31,7 @@ REQUIRED_CONFIG_SCHEMA_VERSION=2
 
 # --- State (set during execution) ---
 IS_UPGRADE=false
+HAS_PARTIAL_INSTALL=false
 INSTALLED_VERSION=""
 LATEST_VERSION=""
 SETUP_MODE=""     # "beginner" or "normal"; set by ask_setup_mode
@@ -369,15 +370,36 @@ version_compare() {
 
 # --- Detect existing installation ---
 detect_existing_install() {
+    # A completed setup writes config.json. Binaries alone (the VERSION file or
+    # the CLI DLL) remain behind when the setup wizard is cancelled mid-way —
+    # that is an INCOMPLETE install, not an upgrade, so we re-run setup instead
+    # of claiming "already installed".
+    local has_config=false
+    if get_runtime_config_file >/dev/null 2>&1; then
+        has_config=true
+    fi
+
     if [[ -f "${INSTALL_DIR}/VERSION" ]]; then
         INSTALLED_VERSION=$(cat "${INSTALL_DIR}/VERSION" | tr -d '[:space:]')
-        IS_UPGRADE=true
-        info "Existing installation detected: v${INSTALLED_VERSION}"
+        if [[ "$has_config" == true ]]; then
+            IS_UPGRADE=true
+            info "Existing installation detected: v${INSTALLED_VERSION}"
+        else
+            HAS_PARTIAL_INSTALL=true
+            warn "DotNetCloud binaries found but setup was never completed (no config.json)."
+            warn "Re-running setup as a fresh install."
+        fi
     elif [[ -f "${INSTALL_DIR}/dotnetcloud.dll" ]]; then
         # Binary exists but no VERSION file (pre-VERSION-file install)
-        INSTALLED_VERSION="unknown"
-        IS_UPGRADE=true
-        warn "Existing installation detected (version unknown — no VERSION file)."
+        if [[ "$has_config" == true ]]; then
+            INSTALLED_VERSION="unknown"
+            IS_UPGRADE=true
+            warn "Existing installation detected (version unknown — no VERSION file)."
+        else
+            HAS_PARTIAL_INSTALL=true
+            warn "DotNetCloud binaries found but setup was never completed (no config.json)."
+            warn "Re-running setup as a fresh install."
+        fi
     fi
 }
 
@@ -500,9 +522,14 @@ install_dotnetcloud() {
     $SUDO mkdir -p "${DATA_DIR}/files"
     $SUDO mkdir -p "${DATA_DIR}/storage/chat-uploads" "${DATA_DIR}/storage/.video-posters" "${DATA_DIR}/storage/.video-screenshots" "${DATA_DIR}/storage/.media-cache/images"
 
-    # On upgrade: remove old binaries to prevent stale files
-    if [[ "$IS_UPGRADE" == true ]]; then
-        info "Removing old binaries (config and data are preserved)..."
+    # On upgrade (or after an interrupted first install): remove old binaries to
+    # prevent stale files.
+    if [[ "$IS_UPGRADE" == true || "$HAS_PARTIAL_INSTALL" == true ]]; then
+        if [[ "$IS_UPGRADE" == true ]]; then
+            info "Removing old binaries (config and data are preserved)..."
+        else
+            info "Removing incomplete-install binaries (setup never completed)..."
+        fi
         # Remove old binary directories but preserve VERSION for rollback reference
         $SUDO rm -rf "${INSTALL_DIR}/server" "${INSTALL_DIR}/modules"
         # Remove old top-level binaries (CLI, DLLs, etc.) but not directories we just cleaned
