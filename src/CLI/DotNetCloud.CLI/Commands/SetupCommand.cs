@@ -1647,6 +1647,12 @@ internal static class SetupCommand
                 SystemdServiceHelper.FixOwnership(rootCaPath);
             }
 
+            // Trust the root CA on the server itself so its own processes (module
+            // gRPC clients, module hosts, Blazor Server loopback HTTP calls) can
+            // validate the self-signed certificate. Without this, module loading
+            // fails with "The SSL connection could not be established".
+            InstallRootCaIntoSystemTrustStore(rootCaPath);
+
             ConsoleOutput.WriteSuccess($"Generated self-signed TLS certificate: {certPath}");
             ConsoleOutput.WriteInfo($"Root CA exported to {rootCaPath}.");
             ConsoleOutput.WriteInfo("To trust this server from another device, download the root CA at:");
@@ -1658,6 +1664,54 @@ internal static class SetupCommand
             ConsoleOutput.WriteError($"Failed to generate self-signed TLS certificate: {ex.Message}");
             ConsoleOutput.WriteInfo("You can switch to an existing certificate path or rerun setup.");
             return false;
+        }
+    }
+
+    /// <summary>
+    /// Installs the generated root CA into the Linux system trust store so the
+    /// server's own processes (module gRPC clients, module hosts, Blazor Server
+    /// loopback calls) can validate the self-signed certificate. Also removes
+    /// stale DotNetCloud certs from previous installs (same subject name, but a
+    /// different key) so chain validation doesn't pick the wrong issuer.
+    /// Best-effort — a failure here does not block setup.
+    /// </summary>
+    private static void InstallRootCaIntoSystemTrustStore(string rootCaPath)
+    {
+        if (!OperatingSystem.IsLinux())
+        {
+            return;
+        }
+
+        try
+        {
+            const string caDir = "/usr/local/share/ca-certificates";
+            const string targetPath = caDir + "/dotnetcloud-root-ca.crt";
+
+            var targetFullPath = Path.GetFullPath(targetPath);
+            foreach (var stale in Directory.EnumerateFiles(caDir, "dotnetcloud*.crt"))
+            {
+                if (!string.Equals(Path.GetFullPath(stale), targetFullPath, StringComparison.Ordinal))
+                {
+                    File.Delete(stale);
+                }
+            }
+
+            File.Copy(rootCaPath, targetPath, overwrite: true);
+            File.SetUnixFileMode(targetPath,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead | UnixFileMode.OtherRead);
+
+            var psi = new ProcessStartInfo("update-ca-certificates")
+            {
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+            using var process = Process.Start(psi);
+            process?.WaitForExit();
+        }
+        catch
+        {
+            ConsoleOutput.WriteWarning("Could not install the root CA into the system trust store.");
         }
     }
 
