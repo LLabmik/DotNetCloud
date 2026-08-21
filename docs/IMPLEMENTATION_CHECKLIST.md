@@ -5756,7 +5756,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `SystemdServiceHelper` — add `DOTNET_ROOT`, `EnvironmentFile=-/etc/dotnetcloud/env`, and default TMDB key to the unit template
 - ✓ `uninstall.sh` — remove the DotNetCloud root CA from the trust store on uninstall
 - ✓ `deploy.sh` — write `/opt/dotnetcloud/VERSION` (latest release tag) for correct later install detection
-- ✓ SQL Server install support — setup wizard defaults to SQL auth on Linux, OS-aware advanced template, provider-neutral migration-failure hints, systemd unit orders after `mssql-server`
+- ✓ SQL Server install support — setup wizard defaults to SQL authentication (password) for SQL Server, provider-neutral migration-failure hints, systemd unit orders after `mssql-server`
 
 ### Phase 7 — Update Example module ✓
 

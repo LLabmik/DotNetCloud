@@ -203,9 +203,7 @@ internal static class SetupCommand
                     var defaultConnStr = config.DatabaseProvider switch
                     {
                         "PostgreSQL" => "Host=localhost;Database=dotnetcloud;Username=dotnetcloud;Password=yourpassword",
-                        "SqlServer" => OperatingSystem.IsWindows()
-                            ? "Server=localhost;Database=dotnetcloud;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=True"
-                            : "Server=localhost;Database=dotnetcloud;User Id=sa;Password=yourpassword;TrustServerCertificate=True;MultipleActiveResultSets=True",
+                        "SqlServer" => "Server=localhost;Database=dotnetcloud;User Id=dotnetcloud;Password=yourpassword;TrustServerCertificate=True;MultipleActiveResultSets=True",
                         _ => ""
                     };
                     config.ConnectionString = ConsoleOutput.Prompt("Connection string", defaultConnStr);
@@ -1081,17 +1079,11 @@ internal static class SetupCommand
                 var server = ConsoleOutput.Prompt("Server address", "localhost");
                 var database = ConsoleOutput.Prompt("Database name", "dotnetcloud");
 
-                // Windows Authentication (Trusted_Connection) requires SSPI, which
-                // only exists on Windows. On Linux/macOS the SQL Server provider
-                // has no integrated auth, so default to SQL authentication.
-                var canUseWindowsAuth = OperatingSystem.IsWindows();
-                var trusted = canUseWindowsAuth && ConsoleOutput.PromptConfirm(
-                    "Use Windows Authentication (Trusted Connection)?", defaultValue: true);
-
-                if (!canUseWindowsAuth)
-                {
-                    ConsoleOutput.WriteInfo("SQL authentication is used on Linux/macOS (Windows Authentication is unavailable).");
-                }
+                // Trusted_Connection (Windows/AD authentication) only works on
+                // domain-joined Windows hosts. Default to SQL authentication
+                // (password) so the wizard works on a stock Linux server too.
+                var trusted = ConsoleOutput.PromptConfirm(
+                    "Use Windows Authentication (Trusted Connection)?", defaultValue: false);
 
                 if (trusted)
                 {
@@ -1099,7 +1091,7 @@ internal static class SetupCommand
                         server, database, null, null, trustedConnection: true);
                 }
 
-                var username = ConsoleOutput.Prompt("Database username", "sa");
+                var username = ConsoleOutput.Prompt("Database username", "dotnetcloud");
 
                 while (true)
                 {
