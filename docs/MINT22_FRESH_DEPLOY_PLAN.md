@@ -247,6 +247,10 @@ branch `fix/installation-issues`:
   documents leftover Collabora CODE packages.
 - ✓ `deploy.sh` — writes `/opt/dotnetcloud/VERSION` (latest release tag) so a
   later `install.sh` detects the install correctly.
+- ✓ SQL Server support in the install path — the setup wizard now defaults to
+  SQL authentication on Linux (Windows auth is Windows-only), the advanced
+  connection-string template is OS-aware, migration-failure hints are
+  provider-neutral, and the systemd unit orders after `mssql-server` too.
 
 ## 9. Relevant Files
 

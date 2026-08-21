@@ -97,6 +97,16 @@ public class SystemdServiceHelperTests
     }
 
     [TestMethod]
+    public void GenerateUnitFile_OrdersAfterDatabaseServices()
+    {
+        var unit = SystemdServiceHelper.GenerateUnitFile(hardened: false);
+
+        // The service must wait for the configured database engine to be up
+        // before running migrations at startup — PostgreSQL and SQL Server both.
+        Assert.IsTrue(unit.Contains("After=network.target postgresql.service mssql-server.service"));
+    }
+
+    [TestMethod]
     public void GenerateUnitFile_IncludesServiceUserAndGroup()
     {
         var unit = SystemdServiceHelper.GenerateUnitFile(hardened: false);

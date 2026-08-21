@@ -333,7 +333,7 @@ print_migration_failure() {
     echo ""
     echo "Common causes and fixes:"
     echo "  • The database is not running"
-    echo "      Start it:  sudo systemctl start postgresql"
+    echo "      Start it:  sudo systemctl start postgresql   (or mssql-server for SQL Server)"
     echo "  • The database connection details are wrong"
     echo "      Fix them:  sudo dotnetcloud setup"
     echo "  • The database user does not have permission"

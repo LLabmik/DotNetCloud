@@ -123,7 +123,7 @@ internal static class SystemdServiceHelper
             [Unit]
             Description=DotNetCloud Core Server
             Documentation=https://github.com/LLabmik/DotNetCloud
-            After=network.target postgresql.service
+            After=network.target postgresql.service mssql-server.service
             Requires=network.target
 
             [Service]

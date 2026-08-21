@@ -203,7 +203,9 @@ internal static class SetupCommand
                     var defaultConnStr = config.DatabaseProvider switch
                     {
                         "PostgreSQL" => "Host=localhost;Database=dotnetcloud;Username=dotnetcloud;Password=yourpassword",
-                        "SqlServer" => "Server=localhost;Database=dotnetcloud;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=True",
+                        "SqlServer" => OperatingSystem.IsWindows()
+                            ? "Server=localhost;Database=dotnetcloud;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=True"
+                            : "Server=localhost;Database=dotnetcloud;User Id=sa;Password=yourpassword;TrustServerCertificate=True;MultipleActiveResultSets=True",
                         _ => ""
                     };
                     config.ConnectionString = ConsoleOutput.Prompt("Connection string", defaultConnStr);
@@ -1078,8 +1080,18 @@ internal static class SetupCommand
             {
                 var server = ConsoleOutput.Prompt("Server address", "localhost");
                 var database = ConsoleOutput.Prompt("Database name", "dotnetcloud");
-                var trusted = ConsoleOutput.PromptConfirm(
+
+                // Windows Authentication (Trusted_Connection) requires SSPI, which
+                // only exists on Windows. On Linux/macOS the SQL Server provider
+                // has no integrated auth, so default to SQL authentication.
+                var canUseWindowsAuth = OperatingSystem.IsWindows();
+                var trusted = canUseWindowsAuth && ConsoleOutput.PromptConfirm(
                     "Use Windows Authentication (Trusted Connection)?", defaultValue: true);
+
+                if (!canUseWindowsAuth)
+                {
+                    ConsoleOutput.WriteInfo("SQL authentication is used on Linux/macOS (Windows Authentication is unavailable).");
+                }
 
                 if (trusted)
                 {
@@ -1087,7 +1099,7 @@ internal static class SetupCommand
                         server, database, null, null, trustedConnection: true);
                 }
 
-                var username = ConsoleOutput.Prompt("Database username", "dotnetcloud");
+                var username = ConsoleOutput.Prompt("Database username", "sa");
 
                 while (true)
                 {
