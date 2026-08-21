@@ -2,6 +2,7 @@ using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Files.Data.Services;
+using DotNetCloud.Modules.Files.Data.Security;
 using DotNetCloud.Modules.Files.Data.Services.Background;
 using DotNetCloud.Modules.Files.Events;
 using DotNetCloud.Modules.Files.Options;
@@ -106,7 +107,7 @@ public static class FilesServiceRegistration
 
                 if (options.AllowInsecureTls)
                 {
-                    handler.ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
+                    handler.ServerCertificateCustomValidationCallback = LoopbackTlsCertificateValidator.Validate;
                 }
 
                 return handler;
@@ -203,7 +204,7 @@ public static class FilesServiceRegistration
                 var options = sp.GetRequiredService<IOptions<CollaboraOptions>>().Value;
                 var handler = new HttpClientHandler();
                 if (options.AllowInsecureTls)
-                    handler.ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
+                    handler.ServerCertificateCustomValidationCallback = LoopbackTlsCertificateValidator.Validate;
                 return handler;
             });
 
