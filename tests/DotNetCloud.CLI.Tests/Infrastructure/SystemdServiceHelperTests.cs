@@ -87,6 +87,26 @@ public class SystemdServiceHelperTests
     }
 
     [TestMethod]
+    public void GenerateUnitFile_IncludesRuntimeEnvironmentFileAndRoot()
+    {
+        var unit = SystemdServiceHelper.GenerateUnitFile(hardened: false);
+
+        Assert.IsTrue(unit.Contains("DOTNET_ROOT=/usr/lib/dotnet"));
+        Assert.IsTrue(unit.Contains("EnvironmentFile=-/etc/dotnetcloud/env"));
+        Assert.IsTrue(unit.Contains("Video__Enrichment__TmdbApiKey="));
+    }
+
+    [TestMethod]
+    public void GenerateUnitFile_OrdersAfterDatabaseServices()
+    {
+        var unit = SystemdServiceHelper.GenerateUnitFile(hardened: false);
+
+        // The service must wait for the configured database engine to be up
+        // before running migrations at startup — PostgreSQL and SQL Server both.
+        Assert.IsTrue(unit.Contains("After=network.target postgresql.service mssql-server.service"));
+    }
+
+    [TestMethod]
     public void GenerateUnitFile_IncludesServiceUserAndGroup()
     {
         var unit = SystemdServiceHelper.GenerateUnitFile(hardened: false);

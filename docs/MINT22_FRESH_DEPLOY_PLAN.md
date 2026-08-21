@@ -223,6 +223,34 @@ current source:
 - ☐ The `v0.4.04` release — cut only after this work is merged and the real
   uninstall → `install.sh` test passes on `mint22`.
 
+### 8.1 Follow-up hardening after first re-install (2026-08-21)
+
+After the first largely-working uninstall → `install.sh` re-install, a second
+review of the install/uninstall/deploy path found and fixed these issues on
+branch `fix/installation-issues`:
+
+- ✓ `SetupCommand` — persist a stable WOPI token signing key during setup and
+  set `config.json` to `root:dotnetcloud 640` so the service can read it (a
+  standalone `sudo dotnetcloud setup` previously left it root-only and the key
+  regenerated on every restart).
+- ✓ `DatabaseSetupHelper` — validate and quote PostgreSQL role/database
+  identifiers (SQL injection + broken-statement hardening).
+- ✓ `install.sh` — gate the upgrade path on a successful `dotnetcloud migrate`
+  (full output captured to `/var/log/dotnetcloud/install-migrate.log`; a
+  failure prints a plain-language block and does not start the service).
+- ✓ `install.sh` — `version_compare` now handles pre-release suffixes
+  (`0.4.05` > `0.4.05-alpha`); fuse-group check now targets `$SUDO_USER`.
+- ✓ `SystemdServiceHelper` — unified with the installer unit: adds
+  `DOTNET_ROOT`, `EnvironmentFile=-/etc/dotnetcloud/env`, and the default TMDB
+  key so a CLI-regenerated unit loses nothing.
+- ✓ `uninstall.sh` — removes the DotNetCloud root CA from the trust store and
+  documents leftover Collabora CODE packages.
+- ✓ `deploy.sh` — writes `/opt/dotnetcloud/VERSION` (latest release tag) so a
+  later `install.sh` detects the install correctly.
+- ✓ SQL Server support in the install path — the setup wizard defaults to SQL
+  authentication (password) for SQL Server, migration-failure hints are
+  provider-neutral, and the systemd unit orders after `mssql-server` too.
+
 ## 9. Relevant Files
 
 - `scripts/deploy.sh` — add CLI refresh + explicit migrate phase

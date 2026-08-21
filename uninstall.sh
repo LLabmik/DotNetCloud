@@ -212,12 +212,18 @@ if [[ -n "$SUDO" ]]; then
     run_cmd sudo systemctl daemon-reload || true
     run_cmd sudo rm -rf /opt/dotnetcloud /etc/dotnetcloud /var/lib/dotnetcloud /var/log/dotnetcloud /run/dotnetcloud || true
     run_cmd sudo rm -f /usr/local/bin/dotnetcloud || true
+    # Remove the DotNetCloud root CA from the system trust store so an
+    # uninstalled machine stops trusting the (now-removed) private root.
+    run_cmd sudo rm -f /usr/local/share/ca-certificates/dotnetcloud*.crt || true
+    run_cmd sudo update-ca-certificates 2>/dev/null || true
 else
     run_cmd systemctl disable dotnetcloud.service || true
     run_cmd rm -f /etc/systemd/system/dotnetcloud.service || true
     run_cmd systemctl daemon-reload || true
     run_cmd rm -rf /opt/dotnetcloud /etc/dotnetcloud /var/lib/dotnetcloud /var/log/dotnetcloud /run/dotnetcloud || true
     run_cmd rm -f /usr/local/bin/dotnetcloud || true
+    run_cmd rm -f /usr/local/share/ca-certificates/dotnetcloud*.crt || true
+    run_cmd update-ca-certificates 2>/dev/null || true
 fi
 
 echo ""
@@ -227,3 +233,7 @@ if [[ "$DRY_RUN" == "true" ]]; then
 fi
 echo "[INFO] Backup directory: ${BACKUP_DIR}"
 echo "[INFO] Next: pull latest from GitHub, then run install.sh when ready."
+echo "[INFO] Note: Collabora CODE packages (coolwsd/code-brand) and its APT"
+echo "[INFO]       repository, if installed, are left in place. To remove them:"
+echo "[INFO]         sudo apt-get remove --purge -y coolwsd code-brand"
+echo "[INFO]         sudo rm -f /etc/apt/sources.list.d/collaboraonline.sources /usr/share/keyrings/collaboraonline-release-keyring.gpg"
