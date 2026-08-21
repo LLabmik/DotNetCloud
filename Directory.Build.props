@@ -42,12 +42,13 @@
   <PropertyGroup>
     <MajorVersion>0</MajorVersion>
     <MinorVersion>4</MinorVersion>
-    <PatchVersion>02</PatchVersion>
-    <PreReleaseVersion>alpha</PreReleaseVersion>
+    <PatchVersion>06</PatchVersion>
+    <PreReleaseVersion></PreReleaseVersion>
     <Version>$(MajorVersion).$(MinorVersion).$(PatchVersion)</Version>
     <AssemblyVersion>$(Version)</AssemblyVersion>
     <FileVersion>$(Version)</FileVersion>
-    <InformationalVersion>$(Version)-$(PreReleaseVersion)</InformationalVersion>
+    <InformationalVersion Condition="'$(PreReleaseVersion)' == ''">$(Version)</InformationalVersion>
+    <InformationalVersion Condition="'$(PreReleaseVersion)' != ''">$(Version)-$(PreReleaseVersion)</InformationalVersion>
   </PropertyGroup>
 
   <!-- Output settings -->
