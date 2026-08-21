@@ -5750,6 +5750,12 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `RunMigrateOnlyAsync` applies core migrations, syncs module registry, and initializes module schemas
 - ✓ Register `DbContextSchemaProvider` via `IModuleSchemaProvider` in both CLI `ServiceProviderFactory` and server `Program.cs`
 - ✓ Update `install.sh` fallback warning
+- ✓ `SetupCommand` — persist a stable WOPI token signing key during setup and set `config.json` to `root:dotnetcloud 640` so the service can read it
+- ✓ `DatabaseSetupHelper` — validate/quote PostgreSQL identifiers (SQL injection + broken-statement hardening)
+- ✓ `install.sh` — gate the upgrade path on a successful `dotnetcloud migrate`; pre-release-aware `version_compare`
+- ✓ `SystemdServiceHelper` — add `DOTNET_ROOT`, `EnvironmentFile=-/etc/dotnetcloud/env`, and default TMDB key to the unit template
+- ✓ `uninstall.sh` — remove the DotNetCloud root CA from the trust store on uninstall
+- ✓ `deploy.sh` — write `/opt/dotnetcloud/VERSION` (latest release tag) for correct later install detection
 
 ### Phase 7 — Update Example module ✓
 

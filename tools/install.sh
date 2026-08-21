@@ -326,10 +326,11 @@ check_prerequisites() {
         $SUDO apt-get update -qq && $SUDO apt-get install -y -qq fuse3
     fi
 
-    if ! groups "$USER" | grep -q '\bfuse\b' 2>/dev/null; then
-        warn "Your user is not in the 'fuse' group. Virtual file system (Files On-Demand)"
-        warn "will not work until you add yourself to the fuse group:"
-        warn "  sudo usermod -a -G fuse $USER"
+    local fuse_check_user="${SUDO_USER:-$USER}"
+    if ! groups "$fuse_check_user" | grep -q '\bfuse\b' 2>/dev/null; then
+        warn "The desktop user '$fuse_check_user' is not in the 'fuse' group."
+        warn "Virtual file system (Files On-Demand) will not work until that user is added:"
+        warn "  sudo usermod -a -G fuse $fuse_check_user"
         warn "  (log out and back in for this to take effect)"
     fi
 
@@ -338,13 +339,22 @@ check_prerequisites() {
 
 # --- Semantic version comparison ---
 # Returns: 0 if equal, 1 if $1 > $2, 2 if $1 < $2
+# Handles pre-release suffixes: 1.0.0 > 1.0.0-alpha; 1.0.0-alpha < 1.0.0-beta.
 version_compare() {
     if [[ "$1" == "$2" ]]; then
         return 0
     fi
 
+    # Split each version into a numeric core and an optional pre-release suffix.
+    local a_core="${1%%[-+]*}"
+    local b_core="${2%%[-+]*}"
+    local a_pre="${1#"$a_core"}"
+    local b_pre="${2#"$b_core"}"
+    a_pre="${a_pre#[+-]}"
+    b_pre="${b_pre#[+-]}"
+
     local IFS=.
-    local i ver1=($1) ver2=($2)
+    local i ver1=($a_core) ver2=($b_core)
 
     # Pad shorter version with zeros
     for ((i=${#ver1[@]}; i<${#ver2[@]}; i++)); do
@@ -355,17 +365,31 @@ version_compare() {
     done
 
     for ((i=0; i<${#ver1[@]}; i++)); do
-        # Strip any pre-release suffix for numeric comparison
-        local v1="${ver1[i]%%[-+]*}"
-        local v2="${ver2[i]%%[-+]*}"
-        if ((v1 > v2)); then
+        # Base-10 arithmetic guards against empty components and leading zeros.
+        local v1="${ver1[i]:-0}"
+        local v2="${ver2[i]:-0}"
+        if ((10#$v1 > 10#$v2)); then
             return 1
         fi
-        if ((v1 < v2)); then
+        if ((10#$v1 < 10#$v2)); then
             return 2
         fi
     done
-    return 0
+
+    # Core versions are equal — compare pre-release suffixes.
+    if [[ -z "$a_pre" && -n "$b_pre" ]]; then
+        return 1   # 1.0.0 > 1.0.0-alpha
+    fi
+    if [[ -n "$a_pre" && -z "$b_pre" ]]; then
+        return 2   # 1.0.0-alpha < 1.0.0
+    fi
+    if [[ "$a_pre" == "$b_pre" ]]; then
+        return 0
+    fi
+    if [[ "$a_pre" > "$b_pre" ]]; then
+        return 1
+    fi
+    return 2
 }
 
 # --- Detect existing installation ---
@@ -676,6 +700,47 @@ EOF
     ok "Systemd service installed."
 }
 
+# --- Plain-language failure block when migrations fail during upgrade ---
+print_upgrade_migration_failure() {
+    local MIGRATE_LOG="$1"
+
+    echo ""
+    echo "════════════════════════════════════════════════════════════════"
+    echo "  DotNetCloud was updated, but the database upgrade did not finish."
+    echo "════════════════════════════════════════════════════════════════"
+    echo ""
+    echo "What happened:"
+    echo "  • The new DotNetCloud program files were copied onto this machine."
+    echo "  • The step that updates the database to match them did not complete."
+    echo "  • DotNetCloud was left STOPPED so it won't start with a half-updated database."
+    echo ""
+    echo "Good news:"
+    echo "  • No data was lost or deleted. Your existing data is exactly as it was before."
+    echo ""
+    echo "The database error was (last lines from ${MIGRATE_LOG}):"
+    $SUDO tail -n 15 "$MIGRATE_LOG" 2>/dev/null | sed 's/^/    /' || true
+    echo ""
+    echo "Common causes and fixes:"
+    echo "  • The database is not running"
+    echo "      Start it:  sudo systemctl start postgresql"
+    echo "  • The database connection details are wrong"
+    echo "      Fix them:  sudo dotnetcloud setup"
+    echo "  • The database user does not have permission"
+    echo "      See the 'Database Permissions Notice' shown during setup"
+    echo "  • The disk is full"
+    echo "      Check:     df -h"
+    echo ""
+    echo "To try again:"
+    echo "  1. Fix the cause above."
+    echo "  2. Run:  sudo dotnetcloud migrate"
+    echo "     (repeat until it finishes without errors)"
+    echo "  3. Then: sudo systemctl start dotnetcloud"
+    echo ""
+    echo "  If you're stuck, open an issue:"
+    echo "      https://github.com/${REPO}/issues"
+    echo "════════════════════════════════════════════════════════════════"
+}
+
 # --- Post-upgrade: migrate database and restart ---
 post_upgrade() {
     if [[ "$IS_UPGRADE" != true ]]; then
@@ -683,14 +748,18 @@ post_upgrade() {
     fi
 
     info "Running database migrations..."
-    # Run as root (this script already has root). The CLI's SudoHelper detects
-    # root via geteuid() and skips sudo re-exec. Migrations only need database
-    # access (from config), not service-user filesystem ownership.
-    if /usr/bin/dotnet "${INSTALL_DIR}/dotnetcloud.dll" migrate 2>/dev/null; then
+    local MIGRATE_LOG="${LOG_DIR}/install-migrate.log"
+    $SUDO mkdir -p "${LOG_DIR}" 2>/dev/null || true
+
+    # Run as root (via sudo when this script is not already root). Capture the
+    # full output to a log and echo it to the terminal — never suppress stderr,
+    # so a failed migration is visible instead of surfacing later as a startup
+    # crash-loop.
+    if $SUDO /usr/bin/dotnet "${INSTALL_DIR}/dotnetcloud.dll" migrate 2>&1 | $SUDO tee "$MIGRATE_LOG"; then
         ok "Database migrations complete."
     else
-        warn "Database migration skipped (migrations will run automatically on next startup)."
-        warn "Migrations will run automatically on next startup."
+        print_upgrade_migration_failure "$MIGRATE_LOG"
+        exit 1
     fi
 
     info "Starting DotNetCloud service..."

@@ -87,6 +87,16 @@ public class SystemdServiceHelperTests
     }
 
     [TestMethod]
+    public void GenerateUnitFile_IncludesRuntimeEnvironmentFileAndRoot()
+    {
+        var unit = SystemdServiceHelper.GenerateUnitFile(hardened: false);
+
+        Assert.IsTrue(unit.Contains("DOTNET_ROOT=/usr/lib/dotnet"));
+        Assert.IsTrue(unit.Contains("EnvironmentFile=-/etc/dotnetcloud/env"));
+        Assert.IsTrue(unit.Contains("Video__Enrichment__TmdbApiKey="));
+    }
+
+    [TestMethod]
     public void GenerateUnitFile_IncludesServiceUserAndGroup()
     {
         var unit = SystemdServiceHelper.GenerateUnitFile(hardened: false);

@@ -175,4 +175,23 @@ public class SetupCommandTests
             },
             SetupCommand.OptionalModules);
     }
+
+    [TestMethod]
+    public void GenerateWopiTokenSigningKey_ReturnsBase64Key()
+    {
+        var key = SetupCommand.GenerateWopiTokenSigningKey();
+
+        Assert.IsNotNull(key);
+        var decoded = Convert.FromBase64String(key);
+        Assert.AreEqual(32, decoded.Length);
+    }
+
+    [TestMethod]
+    public void GenerateWopiTokenSigningKey_TwoCalls_Differ()
+    {
+        var first = SetupCommand.GenerateWopiTokenSigningKey();
+        var second = SetupCommand.GenerateWopiTokenSigningKey();
+
+        Assert.AreNotEqual(first, second);
+    }
 }

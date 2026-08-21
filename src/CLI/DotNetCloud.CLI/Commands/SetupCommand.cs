@@ -688,6 +688,17 @@ internal static class SetupCommand
         config.SetupCompletedAt = DateTime.UtcNow;
         config.ConfigSchemaVersion = CliConfiguration.CurrentConfigSchemaVersion;
 
+        // Persist a stable WOPI token signing key for Collabora document editing.
+        // The server can generate one at startup, but it cannot persist it
+        // (config.json is root-owned and not writable by the service user), so
+        // setup writes it once here as root. Without this, the key would change
+        // on every service restart and invalidate in-flight Collabora tokens.
+        if (string.IsNullOrWhiteSpace(config.WopiTokenSigningKey)
+            && config.CollaboraMode is "BuiltIn" or "External")
+        {
+            config.WopiTokenSigningKey = GenerateWopiTokenSigningKey();
+        }
+
         try
         {
             CliConfiguration.Save(config);
@@ -702,6 +713,10 @@ internal static class SetupCommand
         }
 
         ConsoleOutput.WriteSuccess($"Configuration saved to {CliConfiguration.GetConfigFilePath()}");
+
+        // Ensure the dotnetcloud service user can read config.json on system
+        // installs (setup runs as root, so the file would otherwise be root-only).
+        EnsureConfigFilePermissions();
 
         // Write a one-time seed file with the admin password.
         // The server reads and deletes this file on first startup.
@@ -1751,6 +1766,39 @@ internal static class SetupCommand
         {
             ConsoleOutput.WriteError($"Failed to set TLS certificate permissions: {ex.Message}");
             return false;
+        }
+    }
+
+    /// <summary>
+    /// Generates a cryptographically random WOPI token signing key (base64).
+    /// </summary>
+    internal static string GenerateWopiTokenSigningKey()
+    {
+        return Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+    }
+
+    /// <summary>
+    /// Ensures <c>config.json</c> is readable by the dotnetcloud service user on
+    /// system installs. Setup runs as root, so without this the file would be
+    /// root-only and the service could not load its configuration.
+    /// </summary>
+    private static void EnsureConfigFilePermissions()
+    {
+        if (!CliConfiguration.IsSystemInstall || OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        try
+        {
+            var configPath = CliConfiguration.GetConfigFilePath();
+            TryRunCommand("chown", "root:dotnetcloud", configPath);
+            File.SetUnixFileMode(configPath,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead);
+        }
+        catch (Exception ex)
+        {
+            ConsoleOutput.WriteWarning($"Could not set config.json permissions: {ex.Message}");
         }
     }
 

@@ -918,6 +918,22 @@ if [ -n "$CURRENT_HEAD" ] && [ "$CURRENT_HEAD" != "unknown" ]; then
     fi
 fi
 
+# Record a version number for tooling that reads /opt/dotnetcloud/VERSION
+# (install.sh uses it to detect existing installs and decide upgrade vs fresh).
+# A source deploy has no single authoritative version, so derive it from the
+# most recent release tag and fall back to a safe placeholder when there are
+# no tags yet.
+deployed_version=$(cd "$REPO_ROOT" && git describe --tags --abbrev=0 2>/dev/null | sed -E 's/^v//' || true)
+if [ -z "$deployed_version" ]; then
+    deployed_version="0.0.0"
+fi
+if [ -d "$CLI_INSTALL_ROOT" ]; then
+    echo "$deployed_version" > "$CLI_INSTALL_ROOT/VERSION" 2>/dev/null \
+        || log "  ⚠ Could not write $CLI_INSTALL_ROOT/VERSION"
+    chown "$SERVICE_USER:$SERVICE_USER" "$CLI_INSTALL_ROOT/VERSION" 2>/dev/null || true
+    log "  Saved installed version: ${deployed_version}"
+fi
+
 # ============================================================================
 # Phase 9: Verify (optional)
 # ============================================================================
