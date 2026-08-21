@@ -1651,7 +1651,7 @@ internal static class SetupCommand
             {
                 File.SetUnixFileMode(pemPath,
                     UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead);
-                SystemdServiceHelper.FixOwnership(pemPath);
+                TryRunCommand("chown", "root:dotnetcloud", pemPath);
             }
 
             // Export the root CA alone so it can be installed as a trust anchor.
@@ -1663,7 +1663,7 @@ internal static class SetupCommand
             {
                 File.SetUnixFileMode(rootCaPath,
                     UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead);
-                SystemdServiceHelper.FixOwnership(rootCaPath);
+                TryRunCommand("chown", "root:dotnetcloud", rootCaPath);
             }
 
             // Trust the root CA on the server itself so its own processes (module
