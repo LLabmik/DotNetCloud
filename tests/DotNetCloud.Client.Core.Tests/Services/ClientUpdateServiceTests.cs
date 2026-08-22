@@ -334,6 +334,20 @@ public sealed class ClientUpdateServiceTests
         var result = await svc.DownloadUpdateAsync(
             asset, destDir, new Progress<DownloadProgress>(snapshots.Add));
 
+        // Progress<T> delivers callbacks asynchronously (it falls back to the
+        // thread pool when no SynchronizationContext is present), so the final
+        // snapshots may not have arrived yet when DownloadUpdateAsync returns.
+        // Wait (bounded) for the terminal 1.0 snapshot before asserting — same
+        // pattern as MetadataEnrichmentServiceTests. Without this, the test
+        // flakes under CI's parallel test load: Assert.IsTrue(snapshots.Count > 0)
+        // can observe an empty list right after the download completes.
+        var snapshotDeadline = DateTime.UtcNow.AddSeconds(5);
+        while ((snapshots.Count == 0 || snapshots[^1].Percent < 1.0) &&
+               DateTime.UtcNow < snapshotDeadline)
+        {
+            await Task.Delay(10);
+        }
+
         Assert.IsTrue(File.Exists(result.FilePath));
         Assert.AreEqual(content.Length, result.SizeBytes);
         Assert.IsTrue(result.FilePath.StartsWith(destDir, StringComparison.Ordinal));
