@@ -22,10 +22,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 DEPLOY_DIR="/opt/dotnetcloud/server"
-MODULES_DIR="$DEPLOY_DIR/modules"
+CLI_INSTALL_ROOT="/opt/dotnetcloud"
 SERVICE_USER="dotnetcloud"
 STATE_FILE="$DEPLOY_DIR/.last-deploy-commit"
-CLI_INSTALL_ROOT="/opt/dotnetcloud"
+MODULES_DIR="$CLI_INSTALL_ROOT/modules"   # real module root (matches install.sh)
+MODULES_LINK="$DEPLOY_DIR/modules"        # symlink the server scans
 CLI_PROJECT_PATH="$REPO_ROOT/src/CLI/DotNetCloud.CLI/DotNetCloud.CLI.csproj"
 CLI_STAGING="$REPO_ROOT/artifacts/publish/cli-deploy"
 MIGRATE_LOG="/var/log/dotnetcloud/deploy-migrate.log"
@@ -274,6 +275,42 @@ print_summary() {
         echo "  Result:  ⚠ $success_count/$total succeeded, $failures failed"
     fi
     echo "════════════════════════════════════════════"
+}
+
+# Ensure the module directory layout matches install.sh: real module hosts live
+# under /opt/dotnetcloud/modules, and /opt/dotnetcloud/server/modules is a symlink
+# to ../modules (the path ModuleDiscoveryService scans). Idempotent; migrates the
+# legacy real-directory layout on first run.
+ensure_module_layout() {
+    mkdir -p "$MODULES_DIR"
+
+    if [ -L "$MODULES_LINK" ]; then
+        local target
+        target=$(readlink "$MODULES_LINK" 2>/dev/null || true)
+        case "$target" in
+            ../modules|/opt/dotnetcloud/modules)
+                return 0
+                ;;
+            *)
+                log "  Replacing unexpected modules symlink ($target)"
+                rm -f "$MODULES_LINK"
+                ln -s ../modules "$MODULES_LINK"
+                ;;
+        esac
+    elif [ -d "$MODULES_LINK" ]; then
+        log "  Migrating module hosts from server/modules to modules/ (one-time)..."
+        local d name
+        for d in "$MODULES_LINK"/*/; do
+            [ -d "$d" ] || continue
+            name=$(basename "$d")
+            rm -rf "$MODULES_DIR/$name"
+            mv "$d" "$MODULES_DIR/$name"
+        done
+        rm -rf "$MODULES_LINK"
+        ln -s ../modules "$MODULES_LINK"
+    else
+        ln -s ../modules "$MODULES_LINK"
+    fi
 }
 
 # Run database migrations with the freshly deployed CLI. Aborts the deploy with a
@@ -659,6 +696,13 @@ fi
 # ============================================================================
 # Phase 4: Publish
 # ============================================================================
+step "Ensuring module layout..."
+if $DRY_RUN; then
+    echo "    [DRY-RUN] ensure server/modules -> ../modules symlink"
+else
+    ensure_module_layout
+fi
+
 step "Publishing Core.Server..."
 
 # Ensure the CI solution filter is restored (including browser-wasm RID for
@@ -878,7 +922,11 @@ for module in "${PUBLISHED_MODULES[@]}"; do
     chown -R "$SERVICE_USER:$SERVICE_USER" "$MODULES_DIR/dotnetcloud.$module_lower" 2>/dev/null || true
 done
 # Ensure the container dirs themselves are owned correctly (cheap, non-recursive).
-chown "$SERVICE_USER:$SERVICE_USER" "$DEPLOY_DIR" "$MODULES_DIR" 2>/dev/null || true
+chown "$SERVICE_USER:$SERVICE_USER" "$CLI_INSTALL_ROOT" "$DEPLOY_DIR" "$MODULES_DIR" 2>/dev/null || true
+# Ensure the server log dir exists and is writable (Serilog writes logs/ relative
+# to the server working directory).
+mkdir -p "$DEPLOY_DIR/logs"
+chown "$SERVICE_USER:$SERVICE_USER" "$DEPLOY_DIR/logs" 2>/dev/null || true
 # Revert repo build artifacts back to the original user
 ORIGINAL_USER="${SUDO_USER:-$(who am i | awk '{print $1}')}"
 if [ -n "$ORIGINAL_USER" ] && [ "$ORIGINAL_USER" != "root" ]; then
