@@ -1021,7 +1021,7 @@
                             else
                             {
                                 <button class="btn btn-outline btn-sm" @onclick="ScanLibraryAsync"
-                                        disabled="@(_settingsScanning || _librarySources.Count == 0 || IsScanActive)">
+                                        disabled="@(_settingsScanning || _settingsResetting || _librarySources.Count == 0 || IsScanActive)">
                                     @(_settingsScanning ? "Scanning..." : "Scan Now")
                                 </button>
                             }
