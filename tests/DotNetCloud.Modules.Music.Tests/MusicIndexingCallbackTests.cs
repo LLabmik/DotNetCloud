@@ -236,6 +236,114 @@ public class MusicIndexingCallbackTests
         Assert.IsFalse(userBTrack.IsDeleted, "User B's track should not be deleted");
     }
 
+    // ── Corrupt-tag / unreadable-metadata fallback regression tests ──
+    // Production bug (2026-08-22): files with a corrupt ID3 embedded-art (APIC) frame
+    // make TagLib throw, so metadata extraction returns null. The old fallback created
+    // the track as "Unknown Artist / Unknown Album" instead of deriving Artist/Album
+    // from the directory structure — the "Duran Duran / Rio" album never appeared.
+
+    [TestMethod]
+    public async Task IndexFileAsync_MetadataExtractionFails_DerivesArtistAlbumFromPath()
+    {
+        // Arrange: a file whose tags cannot be read — pass a non-existent path so
+        // TagLib extraction fails entirely (same failure mode as a corrupt
+        // embedded-art frame).
+        var fileNodeId = Guid.CreateVersion7();
+        var ownerId = Guid.CreateVersion7();
+        var filePath = Path.Combine("music", "Duran Duran", "Rio", "03  Lonely In Your Nightmare.mp3");
+
+        // Act: index a file whose metadata extraction fails
+        var track = await _libraryScanService.IndexFileAsync(
+            fileNodeId, "03  Lonely In Your Nightmare.mp3", "audio/mpeg", 9_000_000, ownerId,
+            metadataFilePath: filePath, cancellationToken: CancellationToken.None);
+
+        // Assert: track created with Artist/Album/Title derived from the path convention
+        Assert.IsNotNull(track);
+        var canonical = _db.CanonicalTracks.First(ct => ct.ContentHash == track.CanonicalTrackHash);
+        Assert.AreEqual("03  Lonely In Your Nightmare", canonical.Title);
+
+        var canonicalAlbum = _db.CanonicalAlbums.FirstOrDefault(a => a.Id == track.CanonicalAlbumId);
+        Assert.IsNotNull(canonicalAlbum, "Album should be created from the path");
+        Assert.AreEqual("Rio", canonicalAlbum.Title, "Album should come from the parent directory");
+
+        var primaryJunction = _db.CanonicalTrackArtists
+            .First(cta => cta.TrackContentHash == track.CanonicalTrackHash && cta.IsPrimary);
+        var artist = _db.CanonicalArtists.First(a => a.Id == primaryJunction.ArtistId);
+        Assert.AreEqual("Duran Duran", artist.Name, "Artist should come from the grandparent directory");
+    }
+
+    // ── Clone & bulk-index dedup regression tests ──
+    // Production bug (2026-08-22): the same FileNodeId is often indexed by multiple source
+    // owners (shared folders / cross-owner copies). CloneLibraryFromExistingAsync cloned ALL
+    // of them into a new owner's empty library, inserting duplicate UserTrack rows and violating
+    // uq_user_tracks_file_node_owner_id →
+    // "Scan failed: An error occurred while saving the entity changes."
+
+    [TestMethod]
+    public async Task CloneLibraryFromExistingAsync_SharedFileNodeMultipleOwners_CreatesSingleTrack()
+    {
+        // Arrange: two source owners each indexed the SAME FileNodeId (shared library file)
+        var fileNodeId = Guid.CreateVersion7();
+        var userA = Guid.CreateVersion7();
+        var userB = Guid.CreateVersion7();
+        var targetOwner = Guid.CreateVersion7();
+
+        var hashA = Guid.CreateVersion7().ToString("N");
+        var hashB = Guid.CreateVersion7().ToString("N");
+
+        var artist = await TestHelpers.SeedCanonicalArtistAsync(_db, "Shared Artist");
+        await TestHelpers.SeedCanonicalTrackArtistAsync(_db, hashA, artist.Id);
+        await TestHelpers.SeedCanonicalTrackArtistAsync(_db, hashB, artist.Id);
+        await TestHelpers.SeedCanonicalTrackAsync(_db, hashA, "Track A");
+        await TestHelpers.SeedCanonicalTrackAsync(_db, hashB, "Track B");
+
+        // User A and User B each have a UserTrack for the same FileNodeId
+        await TestHelpers.SeedUserTrackAsync(_db, userA, fileNodeId, hashA);
+        await TestHelpers.SeedUserTrackAsync(_db, userB, fileNodeId, hashB);
+
+        // Act: target owner has an empty library → clone from existing users
+        var cloned = await _libraryScanService.CloneLibraryFromExistingAsync(targetOwner);
+
+        // Assert: exactly one UserTrack for the shared FileNodeId — no duplicates
+        var targetTracks = _db.UserTracks
+            .IgnoreQueryFilters()
+            .Where(ut => ut.OwnerId == targetOwner && ut.FileNodeId == fileNodeId)
+            .ToList();
+        Assert.AreEqual(1, targetTracks.Count,
+            "Clone must not create duplicate UserTrack rows for a FileNodeId shared by multiple owners");
+        Assert.AreEqual(1, cloned);
+    }
+
+    [TestMethod]
+    public async Task TryBulkIndexFromExistingAsync_DuplicateFileNodeIdsInInput_CreatesSingleTrack()
+    {
+        // Arrange: one source owner has the track; target owner is new
+        var fileNodeId = Guid.CreateVersion7();
+        var sourceOwner = Guid.CreateVersion7();
+        var targetOwner = Guid.CreateVersion7();
+        var hash = Guid.CreateVersion7().ToString("N");
+
+        var artist = await TestHelpers.SeedCanonicalArtistAsync(_db, "Bulk Artist");
+        await TestHelpers.SeedCanonicalTrackArtistAsync(_db, hash, artist.Id);
+        await TestHelpers.SeedCanonicalTrackAsync(_db, hash, "Bulk Track");
+        await TestHelpers.SeedUserTrackAsync(_db, sourceOwner, fileNodeId, hash);
+
+        var contentHashMap = new Dictionary<Guid, string?> { [fileNodeId] = hash };
+
+        // Act: caller passes the same FileNodeId twice
+        var indexed = await _libraryScanService.TryBulkIndexFromExistingAsync(
+            new[] { fileNodeId, fileNodeId }, contentHashMap, targetOwner);
+
+        // Assert: only one UserTrack for the target owner, and the result set has one entry
+        var targetTracks = _db.UserTracks
+            .IgnoreQueryFilters()
+            .Where(ut => ut.OwnerId == targetOwner && ut.FileNodeId == fileNodeId)
+            .ToList();
+        Assert.AreEqual(1, targetTracks.Count,
+            "Bulk index must not create duplicate UserTrack rows when input contains duplicate FileNodeIds");
+        Assert.AreEqual(1, indexed.Count);
+    }
+
     // ── Reset collection owner-scoping tests ──
 
     [TestMethod]

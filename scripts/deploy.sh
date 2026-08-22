@@ -722,7 +722,24 @@ if $CORE_NEEDS_PUBLISH || [ ! -f "$DEPLOY_DIR/DotNetCloud.Core.Server.dll" ]; th
     # to recopy every dependency from the current build output.
     log "  Cleaning stale DLLs from $DEPLOY_DIR..."
     find "$DEPLOY_DIR" -maxdepth 1 -name '*.dll' -delete 2>/dev/null || true
-    do_publish "$CORE_SERVER_CSPROJ" "$DEPLOY_DIR"
+
+    # Stale static-asset guard: the precompressed Blazor/WASM assets under
+    # wwwroot/_framework (blazor.web.js.br/.gz, hashed *.wasm) are only regenerated
+    # during a full publish. `dotnet publish --no-build` regenerates the static web
+    # assets manifest but REUSES the old files on disk, so the manifest
+    # Content-Length no longer matches the file sizes → SendFileFallback throws
+    # ArgumentOutOfRangeException (HTTP 400) when serving _framework/blazor.web.js,
+    # which prevents Blazor from booting (login/logout/navigation all break).
+    # Clearing the framework assets + manifest forces a full publish to regenerate
+    # a self-consistent set.
+    log "  Cleaning stale static assets from $DEPLOY_DIR/wwwroot/_framework..."
+    rm -rf "$DEPLOY_DIR/wwwroot/_framework" 2>/dev/null || true
+    rm -f "$DEPLOY_DIR/DotNetCloud.Core.Server.staticwebassets.endpoints.json" 2>/dev/null || true
+
+    # Full publish (NO --no-build) so the Blazor/WASM static assets are regenerated
+    # consistently with the manifest. The build step above already compiled
+    # everything, so this is mostly up-to-date plus publish-time asset generation.
+    dotnet publish "$CORE_SERVER_CSPROJ" "${BUILD_FLAGS[@]}" -o "$DEPLOY_DIR" --no-self-contained --no-restore 2>&1 | sed "s/^/    /"
     CORE_PUBLISHED=true
 else
     # Core.Server's inputs are unchanged, so the deployed copy is already current.

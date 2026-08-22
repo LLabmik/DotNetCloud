@@ -280,42 +280,43 @@ public sealed class LibraryScanService
             metadata = _metadataService.ExtractMetadata(audioStream, mimeType, fileName);
         }
 
+        // Directory-convention fallback (Artist/Album/Track parsed from the path).
+        // Used in two ways below: (1) merged into garbage tag values, and (2) when
+        // TagLib fails to read the tags entirely (e.g. a corrupt embedded-art frame) —
+        // see the null branch further down. Without this, corrupt-tag files all end up
+        // under "Unknown Artist / Unknown Album" instead of their Artist/Album folder.
+        var parsedFromPath = resolvedPath is not null
+            ? TryParseMetadataFromPath(resolvedPath, fileName)
+            : null;
+
         // Filepath fallback: if TagLib# produced garbage, merge with Artist/Album/Track
         // parsed from directory structure when available.
-        if (metadata is not null && resolvedPath is not null)
+        if (metadata is not null && parsedFromPath is not null)
         {
-            var parsed = TryParseMetadataFromPath(resolvedPath, fileName);
-            if (parsed is not null)
+            if (IsGarbageValue(metadata.Artist) || IsGarbageValue(metadata.Album) || IsGarbageValue(metadata.Title))
             {
-                var hasGarbageArtist = IsGarbageValue(metadata.Artist);
-                var hasGarbageAlbum = IsGarbageValue(metadata.Album);
-                var hasGarbageTitle = IsGarbageValue(metadata.Title);
-
-                if (hasGarbageArtist || hasGarbageAlbum || hasGarbageTitle)
+                metadata = new AudioMetadata
                 {
-                    metadata = new AudioMetadata
-                    {
-                        Title = hasGarbageTitle
-                            ? (parsed.Title ?? Path.GetFileNameWithoutExtension(fileName))
-                            : metadata.Title,
-                        Artist = (hasGarbageArtist && !string.IsNullOrWhiteSpace(parsed.Artist))
-                            ? parsed.Artist
-                            : metadata.Artist,
-                        Album = (hasGarbageAlbum && !string.IsNullOrWhiteSpace(parsed.Album))
-                            ? parsed.Album
-                            : metadata.Album,
-                        AlbumArtist = metadata.AlbumArtist,
-                        TrackNumber = metadata.TrackNumber,
-                        DiscNumber = metadata.DiscNumber,
-                        Year = metadata.Year,
-                        Genre = metadata.Genre,
-                        DurationTicks = metadata.DurationTicks,
-                        Bitrate = metadata.Bitrate,
-                        SampleRate = metadata.SampleRate,
-                        Channels = metadata.Channels,
-                        HasEmbeddedArt = metadata.HasEmbeddedArt,
-                    };
-                }
+                    Title = IsGarbageValue(metadata.Title)
+                        ? (parsedFromPath.Title ?? Path.GetFileNameWithoutExtension(fileName))
+                        : metadata.Title,
+                    Artist = (IsGarbageValue(metadata.Artist) && !string.IsNullOrWhiteSpace(parsedFromPath.Artist))
+                        ? parsedFromPath.Artist
+                        : metadata.Artist,
+                    Album = (IsGarbageValue(metadata.Album) && !string.IsNullOrWhiteSpace(parsedFromPath.Album))
+                        ? parsedFromPath.Album
+                        : metadata.Album,
+                    AlbumArtist = metadata.AlbumArtist,
+                    TrackNumber = metadata.TrackNumber,
+                    DiscNumber = metadata.DiscNumber,
+                    Year = metadata.Year,
+                    Genre = metadata.Genre,
+                    DurationTicks = metadata.DurationTicks,
+                    Bitrate = metadata.Bitrate,
+                    SampleRate = metadata.SampleRate,
+                    Channels = metadata.Channels,
+                    HasEmbeddedArt = metadata.HasEmbeddedArt,
+                };
             }
         }
 
@@ -323,11 +324,22 @@ public sealed class LibraryScanService
         {
             _logger.LogWarning("Could not extract metadata for {FileName} (stream={HasStream}, path={Path}), creating track from filename",
                 fileName, audioStream is not null, resolvedPath);
+
+            // TagLib could not read the tags at all (e.g. a corrupt embedded-art frame).
+            // Derive Artist/Album/Title from the standard Artist/Album/Track directory
+            // convention so the album still imports with correct grouping instead of
+            // everything landing under "Unknown Artist / Unknown Album".
             metadata = new AudioMetadata
             {
-                Title = Path.GetFileNameWithoutExtension(fileName),
-                Artist = "Unknown Artist",
-                Album = "Unknown Album",
+                Title = !string.IsNullOrWhiteSpace(parsedFromPath?.Title)
+                    ? parsedFromPath!.Title!
+                    : Path.GetFileNameWithoutExtension(fileName) ?? "Unknown Track",
+                Artist = !string.IsNullOrWhiteSpace(parsedFromPath?.Artist)
+                    ? parsedFromPath!.Artist!
+                    : "Unknown Artist",
+                Album = !string.IsNullOrWhiteSpace(parsedFromPath?.Album)
+                    ? parsedFromPath!.Album!
+                    : "Unknown Album",
                 DurationTicks = 0,
                 TrackNumber = TryExtractTrackNumberFromFileName(fileName)
             };
@@ -613,7 +625,10 @@ public sealed class LibraryScanService
         Guid ownerId,
         CancellationToken cancellationToken = default)
     {
-        if (fileNodeIds.Count == 0)
+        // Deduplicate input — the same FileNodeId must never produce two UserTrack rows for
+        // a single owner (unique index uq_user_tracks_file_node_owner_id).
+        var distinctFileNodeIds = fileNodeIds.Distinct().ToList();
+        if (distinctFileNodeIds.Count == 0)
             return [];
 
         // Get all distinct content hashes
@@ -647,7 +662,7 @@ public sealed class LibraryScanService
             .Include(ut => ut.CanonicalTrack).ThenInclude(ct => ct!.TrackGenres).ThenInclude(ctg => ctg.Genre)
             .Include(ut => ut.CanonicalAlbum)
             .IgnoreQueryFilters()
-            .Where(ut => fileNodeIds.Contains(ut.FileNodeId) && ut.OwnerId != ownerId && !ut.IsDeleted)
+            .Where(ut => distinctFileNodeIds.Contains(ut.FileNodeId) && ut.OwnerId != ownerId && !ut.IsDeleted)
             .ToListAsync(cancellationToken);
 
         foreach (var ut in fileNodeIdTracks)
@@ -661,7 +676,7 @@ public sealed class LibraryScanService
 
         // Get already-indexed FileNodeIds for this user
         var alreadyIndexed = await _db.UserTracks
-            .Where(ut => ut.OwnerId == ownerId && fileNodeIds.Contains(ut.FileNodeId) && !ut.IsDeleted)
+            .Where(ut => ut.OwnerId == ownerId && distinctFileNodeIds.Contains(ut.FileNodeId) && !ut.IsDeleted)
             .Select(ut => ut.FileNodeId)
             .ToListAsync(cancellationToken);
         var alreadyIndexedSet = alreadyIndexed.ToHashSet();
@@ -669,7 +684,7 @@ public sealed class LibraryScanService
         // Build all records in memory
         var copiedIds = new HashSet<Guid>();
 
-        foreach (var fileNodeId in fileNodeIds)
+        foreach (var fileNodeId in distinctFileNodeIds)
         {
             if (alreadyIndexedSet.Contains(fileNodeId))
                 continue;
@@ -1493,7 +1508,11 @@ public sealed class LibraryScanService
     /// </summary>
     public async Task<int> CloneLibraryFromExistingAsync(Guid ownerId, IProgress<MediaScanProgress>? progress = null, CancellationToken cancellationToken = default)
     {
+        // Include soft-deleted tracks: the unique index on (FileNodeId, OwnerId) applies to all
+        // rows, so a soft-deleted UserTrack still blocks re-insert. Treat any existing row as
+        // "already present" and let the per-file indexing path restore soft-deleted tracks.
         var existingUserTrackFileNodeIds = await _db.UserTracks
+            .IgnoreQueryFilters()
             .Where(ut => ut.OwnerId == ownerId)
             .Select(ut => ut.FileNodeId)
             .ToListAsync(cancellationToken);
@@ -1513,9 +1532,15 @@ public sealed class LibraryScanService
         if (sourceUserTracks.Count == 0)
             return 0;
 
-        // Filter to only source tracks that are not already indexed for this owner
+        // Filter to only source tracks that are not already indexed for this owner.
+        // DistinctBy(FileNodeId): the same file is often indexed by multiple source owners
+        // (shared folders / cross-owner copies). Without dedup, cloning all of them into this
+        // owner would insert duplicate UserTrack rows, violating uq_user_tracks_file_node_owner_id.
+        // OrderByDescending keeps a candidate with a usable content hash when duplicates exist.
         var candidates = sourceUserTracks
             .Where(ut => !existingSet.Contains(ut.FileNodeId))
+            .OrderByDescending(ut => ut.CanonicalTrackHash != null)
+            .DistinctBy(ut => ut.FileNodeId)
             .ToList();
 
         var totalCandidates = candidates.Count;

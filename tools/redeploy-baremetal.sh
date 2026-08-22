@@ -128,7 +128,16 @@ info "Building $SOLUTION_FILTER ($CONFIGURATION)..."
 dotnet build "$SOLUTION_FILTER" --configuration "$CONFIGURATION"
 
 info "Publishing server to $OUTPUT_DIR..."
-dotnet publish "$PROJECT_PATH" --configuration "$CONFIGURATION" --no-build --output "$OUTPUT_DIR"
+# Stale static-asset guard: the precompressed Blazor/WASM assets under
+# wwwroot/_framework (blazor.web.js.br/.gz, hashed *.wasm) are only regenerated
+# during a full publish. Publishing with --no-build regenerates the static web
+# assets manifest but reuses the old files, so the manifest Content-Lengths stop
+# matching file sizes -> SendFileFallback throws ArgumentOutOfRangeException
+# (HTTP 400) on _framework/blazor.web.js, which prevents Blazor from booting
+# (login/logout/navigation all break). Clean + publish WITHOUT --no-build.
+rm -rf "$OUTPUT_DIR/wwwroot/_framework" 2>/dev/null || true
+rm -f "$OUTPUT_DIR/DotNetCloud.Core.Server.staticwebassets.endpoints.json" 2>/dev/null || true
+dotnet publish "$PROJECT_PATH" --configuration "$CONFIGURATION" --output "$OUTPUT_DIR"
 
 info "Publishing CLI to $CLI_OUTPUT_DIR (framework-dependent, portable)..."
 dotnet publish "$CLI_PROJECT_PATH" --configuration "$CONFIGURATION" \
