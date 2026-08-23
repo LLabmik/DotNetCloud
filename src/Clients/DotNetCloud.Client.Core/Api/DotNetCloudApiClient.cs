@@ -431,8 +431,24 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
     {
         // Server returns IReadOnlyList<string> (chunk hashes only), not an object.
         var hashes = await GetAsync<List<string>>($"api/v1/files/{nodeId}/chunks", cancellationToken) ?? [];
+
+        // The chunks endpoint does not include the total file size. Fetch the node
+        // metadata to populate TotalSize for accurate transfer progress. Best-effort:
+        // if the node cannot be fetched, leave TotalSize at 0 (UI shows "unknown").
+        long totalSize = 0;
+        try
+        {
+            var node = await GetNodeAsync(nodeId, cancellationToken);
+            totalSize = node.Size;
+        }
+        catch
+        {
+            totalSize = 0;
+        }
+
         return new ChunkManifestResponse
         {
+            TotalSize = totalSize,
             Chunks = hashes.Select((h, i) => new ChunkManifestEntry { Index = i, Hash = h }).ToList(),
         };
     }

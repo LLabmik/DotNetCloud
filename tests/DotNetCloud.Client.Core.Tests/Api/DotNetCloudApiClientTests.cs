@@ -221,6 +221,50 @@ public class DotNetCloudApiClientTests
         Assert.AreEqual("retry.txt", result.Name);
     }
 
+    // ── GetChunkManifestAsync ───────────────────────────────────────────────
+
+    [TestMethod]
+    public async Task GetChunkManifestAsync_PopulatesTotalSizeFromNode()
+    {
+        var nodeId = Guid.CreateVersion7();
+        var client = CreateMockHttpClient(req =>
+        {
+            if (req.RequestUri!.PathAndQuery.Contains("/chunks"))
+                return JsonOk(new List<string> { "aaaa", "bbbb" });
+            return JsonOk(new FileNodeResponse
+            {
+                Id = nodeId,
+                Name = "f.bin",
+                NodeType = "File",
+                Size = 2048,
+            });
+        });
+        var apiClient = new DotNetCloudApiClient(client, NullLogger<DotNetCloudApiClient>.Instance);
+
+        var result = await apiClient.GetChunkManifestAsync(nodeId);
+
+        Assert.AreEqual(2, result.Chunks.Count);
+        Assert.AreEqual(2048, result.TotalSize);
+    }
+
+    [TestMethod]
+    public async Task GetChunkManifestAsync_NodeFetchFails_TotalSizeFallsBackToZero()
+    {
+        var nodeId = Guid.CreateVersion7();
+        var client = CreateMockHttpClient(req =>
+        {
+            if (req.RequestUri!.PathAndQuery.Contains("/chunks"))
+                return JsonOk(new List<string> { "aaaa" });
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
+        });
+        var apiClient = new DotNetCloudApiClient(client, NullLogger<DotNetCloudApiClient>.Instance);
+
+        var result = await apiClient.GetChunkManifestAsync(nodeId);
+
+        Assert.AreEqual(1, result.Chunks.Count);
+        Assert.AreEqual(0, result.TotalSize);
+    }
+
     // ── Compression (Task 2.3) ──────────────────────────────────────────────
 
     [TestMethod]

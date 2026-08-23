@@ -40,6 +40,7 @@ public sealed class SyncProgressViewModel : ViewModelBase, IDisposable
         _trayVm.ActiveTransfers.CollectionChanged += OnActiveTransfersChanged;
         _trayVm.SyncStatusUpdated += OnSyncStatusUpdated;
         _trayVm.SyncErrorRaised += OnSyncError;
+        _trayVm.PendingCountsUpdated += UpdateDerivedProperties;
 
         OpenSettingsCommand = new RelayCommand(OnOpenSettings);
         OpenConflictsCommand = new RelayCommand(OnOpenConflicts);
@@ -503,5 +504,6 @@ public sealed class SyncProgressViewModel : ViewModelBase, IDisposable
         _trayVm.ActiveTransfers.CollectionChanged -= OnActiveTransfersChanged;
         _trayVm.SyncStatusUpdated -= OnSyncStatusUpdated;
         _trayVm.SyncErrorRaised -= OnSyncError;
+        _trayVm.PendingCountsUpdated -= UpdateDerivedProperties;
     }
 }

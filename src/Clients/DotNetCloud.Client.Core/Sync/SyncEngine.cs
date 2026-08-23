@@ -296,11 +296,23 @@ public sealed class SyncEngine : ISyncEngine
                 {
                     _fullSyncTotalItems = totalPending;
                     _fullSyncCompletedItems = 0;
-                    ReportFullSyncProgress(context, $"Syncing {totalPending} files…", 0, totalPending);
+                    ReportFullSyncProgress(
+                        context,
+                        $"Syncing {totalPending} files…",
+                        0,
+                        totalPending,
+                        pendingCount.Uploads,
+                        pendingCount.Downloads);
                 }
                 else
                 {
-                    ReportPhaseProgress(context, $"Syncing {totalPending} files…", 0, totalPending);
+                    ReportPhaseProgress(
+                        context,
+                        $"Syncing {totalPending} files…",
+                        0,
+                        totalPending,
+                        pendingCount.Uploads,
+                        pendingCount.Downloads);
                 }
             }
 
@@ -2996,7 +3008,13 @@ public sealed class SyncEngine : ISyncEngine
     /// Fires a <see cref="StatusChanged"/> event with full-sync progress information.
     /// Used during full re-sync to show meaningful progress to the user.
     /// </summary>
-    private void ReportFullSyncProgress(SyncContext context, string phaseLabel, int completedItems, int totalItems)
+    private void ReportFullSyncProgress(
+        SyncContext context,
+        string phaseLabel,
+        int completedItems,
+        int totalItems,
+        int pendingUploads = 0,
+        int pendingDownloads = 0)
     {
         _fullSyncCompletedItems = completedItems;
         _fullSyncTotalItems = totalItems;
@@ -3011,6 +3029,8 @@ public sealed class SyncEngine : ISyncEngine
                 FullSyncPhaseLabel = phaseLabel,
                 FullSyncCompletedItems = completedItems,
                 FullSyncTotalItems = totalItems,
+                PendingUploads = pendingUploads,
+                PendingDownloads = pendingDownloads,
             },
         });
     }
@@ -3021,7 +3041,13 @@ public sealed class SyncEngine : ISyncEngine
     /// to be <see langword="true"/> and sets <see cref="SyncStatus.IsFullSync"/> to <see langword="false"/>,
     /// making it suitable for reporting progress during regular (non-full) sync cycles.
     /// </summary>
-    private void ReportPhaseProgress(SyncContext context, string phaseLabel, int completedItems, int totalItems)
+    private void ReportPhaseProgress(
+        SyncContext context,
+        string phaseLabel,
+        int completedItems,
+        int totalItems,
+        int pendingUploads = 0,
+        int pendingDownloads = 0)
     {
         StatusChanged?.Invoke(this, new SyncStatusChangedEventArgs
         {
@@ -3033,6 +3059,8 @@ public sealed class SyncEngine : ISyncEngine
                 FullSyncPhaseLabel = phaseLabel,
                 FullSyncCompletedItems = completedItems,
                 FullSyncTotalItems = totalItems,
+                PendingUploads = pendingUploads,
+                PendingDownloads = pendingDownloads,
             },
         });
     }

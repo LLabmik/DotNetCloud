@@ -75,9 +75,14 @@ public sealed class ActiveTransferViewModel : ViewModelBase
             ? $"{SpeedBytesPerSec / 1024.0 / 1024.0:F1} MB/s"
             : $"{SpeedBytesPerSec / 1024.0:F0} KB/s";
 
-    /// <summary>Human-readable transferred/total string (e.g. "12.3 MB / 100 MB").</summary>
+    /// <summary>
+    /// Human-readable transferred/total string (e.g. "12.3 MB / 100 MB").
+    /// When the total size is unknown, shows "12.3 MB / unknown".
+    /// </summary>
     public string BytesLabel =>
-        $"{FormatBytes(BytesTransferred)} / {FormatBytes(TotalBytes)}";
+        TotalBytes > 0
+            ? $"{FormatBytes(BytesTransferred)} / {FormatBytes(TotalBytes)}"
+            : $"{FormatBytes(BytesTransferred)} / unknown";
 
     /// <summary>Initializes a new <see cref="ActiveTransferViewModel"/>.</summary>
     public ActiveTransferViewModel(Guid contextId, string fileName, string direction)
