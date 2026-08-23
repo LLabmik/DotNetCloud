@@ -984,12 +984,13 @@ resolve_public_origin_from_config() {
         http_port="5080"
     fi
 
-    local host
+    local host letsencrypt_host=""
     # Prefer selfSignedTlsHost (matches the CLI's hostname resolution order),
     # then letsEncryptDomain, then system hostname.
     host=$(grep -oP '"(?:selfSignedTlsHost|SelfSignedTlsHost)"\s*:\s*"\K[^"]+' "$config_file" 2>/dev/null | head -n1 || true)
     if [[ -z "$host" ]]; then
-        host=$(grep -oP '"(?:letsEncryptDomain|LetsEncryptDomain)"\s*:\s*"\K[^"]+' "$config_file" 2>/dev/null | head -n1 || true)
+        letsencrypt_host=$(grep -oP '"(?:letsEncryptDomain|LetsEncryptDomain)"\s*:\s*"\K[^"]+' "$config_file" 2>/dev/null | head -n1 || true)
+        host="$letsencrypt_host"
     fi
     if [[ -z "$host" ]]; then
         host=$(hostname -f 2>/dev/null || true)
@@ -1011,6 +1012,16 @@ resolve_public_origin_from_config() {
         port="$http_port"
     fi
 
+    # When a public Let's Encrypt domain is configured the server sits behind a
+    # reverse proxy / NAT that terminates the standard HTTPS port (443). The public
+    # origin must NOT include the internal Kestrel port (:5443) — otherwise the
+    # Collabora editor iframe points at an unreachable host:port (blank frame).
+    # Mirrors the CLI publicOrigin logic in ServiceCommands.cs.
+    if [[ -n "$letsencrypt_host" ]]; then
+        echo "${scheme}://${letsencrypt_host}"
+        return 0
+    fi
+
     if [[ "$scheme" == "https" && "$port" == "443" ]] || [[ "$scheme" == "http" && "$port" == "80" ]]; then
         echo "${scheme}://${host}"
     else
@@ -1018,9 +1029,56 @@ resolve_public_origin_from_config() {
     fi
 }
 
+# --- Prompt for Collabora deployment topology + hostnames (BuiltIn mode only) ---
+# Generic for any server/domain: asks how DotNetCloud is exposed (standard-port
+# reverse proxy/NAT vs direct custom-port access) and which hostnames to authorize.
+# Non-interactive installs fall back to the config-derived public origin.
+ask_collabora_deployment() {
+    local default_origin="$1"
+    local public_origin="${default_origin}"
+    local internal_host=""
+
+    # Mirror ask_setup_mode: interactive when stdin is a terminal or a tty exists.
+    local interactive=false
+    if [[ -t 0 ]]; then
+        interactive=true
+    elif { exec 3</dev/tty; } 2>/dev/null; then
+        interactive=true
+        exec 3<&-
+    fi
+
+    if [[ "$interactive" != true ]]; then
+        info "Non-interactive: using configured public origin '${default_origin}' for Collabora."
+        COLLABORA_PUBLIC_ORIGIN="${public_origin}"
+        COLLABORA_INTERNAL_HOST=""
+        return 0
+    fi
+
+    echo ""
+    echo -e "${BLUE}Collabora document-editing setup${NC}"
+    echo "Users open documents in a browser through Collabora. DotNetCloud must be"
+    echo "reachable over HTTPS, and the hostname(s) used must be allowed."
+    echo ""
+    read -r -p "Public URL/domain users type to reach this server (e.g., https://cloud.example.com) [${default_origin}]: " answer < /dev/tty
+    if [[ -n "$answer" ]]; then
+        # Normalize: keep scheme://host[:port], strip any path.
+        public_origin=$(echo "$answer" | sed -E 's#^((https?)://[^/]+).*$#\1#')
+    fi
+    echo ""
+    echo "Optional: an internal/LAN hostname for this server can also be allowed to"
+    echo "open documents (e.g., cloud.lan). Blank to skip."
+    read -r -p "  Internal hostname: " internal_host < /dev/tty
+    internal_host=$(echo "$internal_host" | sed -E 's#^[a-zA-Z]+://##; s#/.*$##; s#:.*$##')
+    echo ""
+
+    COLLABORA_PUBLIC_ORIGIN="${public_origin}"
+    COLLABORA_INTERNAL_HOST="${internal_host}"
+}
+
 # --- Ensure coolwsd allows DotNetCloud public single-origin WOPI host ---
 configure_collabora_wopi_alias_groups() {
     local public_origin="$1"
+    local internal_host="${2:-}"
     local coolwsd_config="/etc/coolwsd/coolwsd.xml"
 
     if [[ -z "$public_origin" ]]; then
@@ -1033,12 +1091,32 @@ configure_collabora_wopi_alias_groups() {
         return
     fi
 
-    local host_with_port
+    local scheme host_with_port host_only port_only
+    scheme=$(echo "$public_origin" | sed -E 's#^([a-zA-Z]+)://.*#\1#')
     host_with_port=$(echo "$public_origin" | sed -E 's#^[a-zA-Z]+://##; s#/.*$##')
-    local host_only
     host_only=$(echo "$host_with_port" | sed -E 's#:[0-9]+$##')
-    local port_only
     port_only=$(echo "$host_with_port" | grep -oP ':\K[0-9]+$' || echo "443")
+
+    # The WOPI host/alias values are regexes matched by Collabora against the full
+    # "scheme://host:port" of the WOPISrc URL (the default port, e.g. :443, is included).
+    # Escape regex metacharacters (dots) and include the port so the configured origin
+    # actually matches. A bare "https://cloud.example.net" (no port) does NOT match the
+    # "https://cloud.example.net:443" string Collabora compares against, which silently
+    # rejects every document load (blank editor frame).
+    local host_regex escaped_host
+    # Hostnames only contain dots (plus alphanumerics/hyphens), so escaping the
+    # dots is sufficient to turn the host into a regex-safe pattern.
+    escaped_host=$(echo "$host_only" | sed 's#\.#\\.#g')
+    host_regex="${scheme}://${escaped_host}:${port_only}"
+
+    # Optional internal/LAN hostname — Collabora parses each host as a URI and
+    # matches the hostname, so use the same scheme://host:port form.
+    local internal_regex="" internal_escaped=""
+    if [[ -n "$internal_host" ]]; then
+        internal_escaped=$(echo "$internal_host" | sed 's#\.#\\.#g')
+        internal_regex="${scheme}://${internal_escaped}:${port_only}"
+        info "Also allowing internal hostname: ${internal_host}"
+    fi
 
     local tmp_without_managed
     tmp_without_managed=$(mktemp)
@@ -1060,17 +1138,27 @@ configure_collabora_wopi_alias_groups() {
     cat > "$managed_block" <<EOF
         <!-- dotnetcloud-managed-start -->
         <group>
-            <host desc="DotNetCloud single-origin public host" allow="true">${public_origin}</host>
-            <alias>${public_origin}</alias>
-            <alias>https://${host_with_port}</alias>
-            <alias>https://${host_only}</alias>
-            <alias>http://${host_with_port}</alias>
-            <alias>http://${host_only}</alias>
+            <host desc="DotNetCloud single-origin public host" allow="true">${host_regex}</host>
+            <alias>${host_regex}</alias>
+            <alias>${scheme}://${escaped_host}</alias>
+            <alias>http://${escaped_host}:80</alias>
+            <alias>http://${escaped_host}</alias>
             <alias>https://localhost:${port_only}</alias>
             <alias>https://127.0.0.1:${port_only}</alias>
             <alias>http://localhost:5080</alias>
             <alias>http://127.0.0.1:5080</alias>
         </group>
+EOF
+    if [[ -n "$internal_regex" ]]; then
+        cat >> "$managed_block" <<EOF
+        <group>
+            <host desc="DotNetCloud internal LAN host" allow="true">${internal_regex}</host>
+            <alias>${internal_regex}</alias>
+            <alias>${scheme}://${internal_escaped}</alias>
+        </group>
+EOF
+    fi
+    cat >> "$managed_block" <<EOF
         <!-- dotnetcloud-managed-end -->
 EOF
 
@@ -1323,8 +1411,11 @@ maybe_install_collabora() {
 
         local public_origin
         if public_origin=$(resolve_public_origin_from_config "$CONFIG_FILE"); then
+            ask_collabora_deployment "$public_origin"
+            public_origin="${COLLABORA_PUBLIC_ORIGIN:-$public_origin}"
+            local internal_host="${COLLABORA_INTERNAL_HOST:-}"
             info "Configuring coolwsd WOPI allowlist for DotNetCloud origin: ${public_origin}"
-            configure_collabora_wopi_alias_groups "$public_origin"
+            configure_collabora_wopi_alias_groups "$public_origin" "$internal_host"
         else
             warn "Could not derive DotNetCloud public origin from ${CONFIG_FILE}; skipping coolwsd alias_groups automation."
         fi

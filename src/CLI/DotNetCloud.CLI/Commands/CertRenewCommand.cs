@@ -164,7 +164,15 @@ internal static class CertRenewCommand
                    ?? config.LetsEncryptDomain
                    ?? Environment.MachineName
                    ?? "localhost";
-        var publicOrigin = $"{scheme}://{host}:{port}";
+
+        // When a public Let's Encrypt domain is configured the server sits behind a
+        // reverse proxy / NAT that terminates the standard HTTPS port (443), so the public
+        // origin must NOT carry the internal Kestrel port (:5443). Including it would make
+        // the Collabora editor URL unreachable from browsers (blank frame). Direct-access
+        // deployments (self-signed host) keep the explicit port.
+        var publicOrigin = !string.IsNullOrEmpty(config.LetsEncryptDomain)
+            ? $"{scheme}://{config.LetsEncryptDomain}"
+            : $"{scheme}://{host}:{port}";
 
         try
         {
