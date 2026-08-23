@@ -1,3 +1,16 @@
+## Archived: Monolith — Re-verify Android DM after server-side fixes (2026-08-07)
+
+**Target:** Android client (monolith)
+**Branch:** `fix/chat-dm-notification`
+
+Server-side fixes for Android DM were confirmed deployed on `cloud.dotnetcloud.net`:
+- `IsDmAccepted` column migration applied to production (both providers); `[core].[ChannelMembers].[IsDmAccepted]` now exists.
+- JWE access-token encryption confirmed intentional (standard OpenIddict config); the Android `id_token` workaround (commit `d618e2b2`) is the correct approach. Desktop clients should follow the same pattern if they decode access tokens.
+
+Remaining for the monolith: rebuild/deploy the Android app and verify DM channel list, DM members endpoint, push notifications, and the 3 inline notification actions. Users must log out/in to capture a fresh `id_token`.
+
+---
+
 ## Archived: Two Server Issues Resolved — IsDmAccepted Migration + JWE Confirmation (2026-08-07)
 
 **Target:** `cloud.kimball.home`  

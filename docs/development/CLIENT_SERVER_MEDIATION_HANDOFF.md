@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-08-07 (Server issues resolved — monolith re-verify DM)
+Last updated: 2026-08-23 (SyncTray multi-folder sync — server deploy to cloud.kimball.home)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -16,32 +16,52 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
-- **Current active branch:** `fix/chat-dm-notification`
+- **Current active branch:** `fix/synctray-issues`
 
-## Active Handoff — Monolith: Re-verify Android DM after server-side fixes
+## Active Handoff — cloud.kimball.home: Deploy Multi-Folder Sync Server Code
 
-**Summary:** Both server-side issues found during Android DM verification are now resolved on `cloud.dotnetcloud.net`. Re-test Android DM functionality.
+**Target:** `cloud.kimball.home` (production `https://cloud.dotnetcloud.net/`)
+**Branch:** `fix/synctray-issues`
+**Commit:** `a470c992`
 
-### Issue 1 — `IsDmAccepted` column missing: ✅ FIXED
-- EF Core migration created for both SQL Server and PostgreSQL
-- Applied to production DB during deploy (`ba9bd2d6`)
-- Column `[core].[ChannelMembers].[IsDmAccepted]` (bit, NOT NULL) now exists
-- `GET /api/v1/chat/channels/{id}/members` and messages endpoint should return 200 now
+**Summary:** Deploy the server-side portion of the SyncTray multi-folder sync + folder size limit feature. After the deploy is confirmed, client testing happens on `mint-OptiPlex-7010`.
 
-### Issue 2 — JWE access token encryption: ✅ CONFIRMED INTENTIONAL
-- `AuthServiceExtensions.cs`: "Access tokens are encrypted (JWE) using the shared RSA encryption keys"
-- This is standard OpenIddict config — NOT a bug
-- The Android `id_token` workaround (commit `d618e2b2`) is the CORRECT approach
-- Other clients (desktop SyncTray, Avalonia) should follow same pattern if they decode access tokens
+### Server changes included (all under `src/Modules/Files/`)
 
-### Monolith verification steps:
-1. `git pull` on `fix/chat-dm-notification` branch
-2. Build and deploy Android app to emulator/device
-3. **Verify DM channel list** — should show display names (not `DM-{guid}-{guid}`)
-4. **Verify DM channel members** — should load without 500 error (previously blocked)
-5. **Verify push notifications** — send a DM, check push arrives with correct display name
-6. **Verify 3 inline notification actions** — reply, mark read, dismiss (previously blocked)
-7. **⚠️ Users must log out and back in** to capture the `id_token` from a fresh login
+1. **New table + migrations:** `SyncFolderRegistration` entity + EF config + `FilesDbContext` DbSet. Migrations committed for **both providers**:
+   - PostgreSQL: `src/Modules/Files/DotNetCloud.Modules.Files.Data/Migrations/20260823053819_SyncFolderRegistration.cs`
+   - SQL Server: `src/Modules/Files/DotNetCloud.Modules.Files.Data/Migrations/SqlServer/20260823053837_SyncFolderRegistration_SqlServer.cs`
+2. **New REST endpoints:** `api/v1/files/sync/folders` (GET list / POST register / DELETE unregister) via `SyncFoldersController` + `ISyncFolderRegistrationService`. Validates folder ownership, folder type, and **remote-overlap** (rejects equal/descendant/ancestor registrations via `MaterializedPath`). Re-registration is idempotent.
+3. **Recursive folder scoping:** `SyncService.GetChangesSinceAsync` / `GetChangesSinceCursorAsync` now scope `folderId` to a folder **and all descendants** (previously one level deep).
+4. **DI:** `ISyncFolderRegistrationService` registered in `FilesServiceRegistration.AddFilesServices`.
+
+### Deploy steps (cloud.kimball.home)
+
+1. `git fetch origin && git checkout fix/synctray-issues && git pull`
+2. **Back up before migrating** (production is SQL Server): DB backup + file storage + config per `docs/admin/server/UPGRADING.md`.
+3. **Apply the Files migration** (SQL Server production):
+   ```bash
+   dotnet ef database update \
+     --project src/Modules/Files/DotNetCloud.Modules.Files.Data \
+     --context FilesDbContext
+   ```
+   Set `DOTNETCLOUD_DB_CONNECTION` to the SQL Server connection so the SqlServer design-time factory is selected. Apply the PostgreSQL variant too if a PG database is in use.
+4. **Build/publish + deploy** (existing pattern):
+   ```bash
+   sudo systemctl stop dotnetcloud
+   dotnet publish DotNetCloud.CI.slnf -c Release -o /tmp/dotnetcloud-publish
+   sudo cp -r /tmp/dotnetcloud-publish/* /opt/dotnetcloud/server/
+   sudo systemctl restart dotnetcloud
+   ```
+5. **Verify:**
+   - Service healthy; module hosts pass `/health` and `/health/ready`
+   - New table exists: `[core].[SyncFolderRegistrations]` (SQL Server)
+   - `GET /api/v1/files/sync/folders` returns 200 `{ success = true, data: [] }` for an authenticated user
+   - `GET /api/v1/files/sync/changes` still returns 200 (recursive scoping did not break existing sync)
+
+### Follow-up
+
+After the server deploy is confirmed, **hand back to `mint-OptiPlex-7010`** to test the SyncTray client changes against `cloud.dotnetcloud.net`: multi-folder add flow, folder size limit prompt, per-root tray "Open Folder" entries.
 
 ## Moderator Communication (Minimal)
 
