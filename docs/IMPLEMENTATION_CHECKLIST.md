@@ -2264,6 +2264,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Add in-app YARP Collabora path proxying (`/hosting`, `/browser`, `/cool`, `/lool`) in `DotNetCloud.Core.Server` for single-origin deployments on one public HTTPS port, with optional `Files:Collabora:ProxyUpstreamUrl` to avoid self-proxy loops
 - ✓ Add startup diagnostics for Collabora proxy misconfiguration (warn when `ServerUrl` is invalid while enabled, and when `ServerUrl` + `WopiBaseUrl` share origin but `ProxyUpstreamUrl` is unset)
 - ✓ Create Collabora health check
+- ✓ Fix Collabora editing behind a NAT/reverse-proxy on standard ports: derive the public origin (`ServerUrl`/`WopiBaseUrl`) without the internal Kestrel port so editor iframe URLs are browser-reachable; write URI-parseable `coolwsd.xml` WOPI host allowlist entries compatible with Collabora 26.04 host matching; make `tools/install.sh` prompt generically for deployment topology and public/internal hostnames (non-interactive fallback to config)
 
 #### Collabora Configuration
 

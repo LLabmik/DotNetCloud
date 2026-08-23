@@ -134,10 +134,19 @@ internal static class ServiceCommands
 
             // Bridge Collabora CLI config to server configuration.
             // For BuiltIn mode, ServerUrl is the PUBLIC origin (same as WopiBaseUrl) so
-            // discovery URLs are rewritten to the DotNetCloud port — the built-in YARP
+            // discovery URLs are rewritten to the DotNetCloud origin — the built-in YARP
             // reverse proxy forwards /browser, /cool, /hosting, /lool to Collabora.
             // ProxyUpstreamUrl tells the proxy where coolwsd actually listens (localhost:9980).
-            var publicOrigin = $"{scheme}://{host}:{port}";
+            //
+            // When a public Let's Encrypt domain is configured the server sits behind a
+            // reverse proxy / NAT that terminates the standard HTTPS port (443). The public
+            // origin MUST NOT include the internal Kestrel port (e.g. :5443) — browsers can
+            // only reach the standard port, so including the internal port makes the
+            // Collabora editor iframe point at an unreachable host:port (blank frame).
+            // Direct-access deployments (self-signed host) keep the explicit port.
+            var publicOrigin = !string.IsNullOrEmpty(config.LetsEncryptDomain)
+                ? $"{scheme}://{config.LetsEncryptDomain}"
+                : $"{scheme}://{host}:{port}";
 
             if (string.Equals(config.CollaboraMode, "BuiltIn", StringComparison.OrdinalIgnoreCase))
             {
