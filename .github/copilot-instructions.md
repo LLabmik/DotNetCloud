@@ -551,6 +551,15 @@ dotnet build src/Core/DotNetCloud.Core/DotNetCloud.Core.csproj
 
 When the user says the keyword **"remember"**, it means this information should be added to this instructions file for permanent reference across all future sessions.
 
+### Backup Compression — use `pigz` (MANDATORY)
+
+**Always use `pigz` instead of `gzip` for compression** (e.g., when tarring the storage directory for backups). `pigz` is much faster (parallel gzip).
+
+- ✅ `tar -I pigz -czf /path/to/backup.tar.gz -C /dir storage`
+- ❌ `tar -czf /path/to/backup.tar.gz -C /dir storage` (gzip)
+
+Applies to all backup operations (DB dumps, file storage, config archives).
+
 ### Mediator Command Execution Rule (MANDATORY)
 
 When the assistant needs the mediator to run a command:
