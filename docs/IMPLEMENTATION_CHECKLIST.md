@@ -6362,7 +6362,7 @@ mapped 1:1 to a chosen remote folder), track registrations server-side, replace 
 - ✓ `SyncFoldersController` (`api/v1/files/sync/folders` GET/POST/DELETE)
 - ✓ DI registration in `FilesServiceRegistration.AddFilesServices`
 - ✓ Recursive `folderId` scoping in `SyncService.GetChangesSinceAsync` / `GetChangesSinceCursorAsync`
-- ☐ End-to-end manual verification against a running server
+- ✓ End-to-end manual verification against a running server (cloud.dotnetcloud.net, 2026-08-23): register/unregister/idempotent re-registration, descendant + ancestor rejection (HTTP 409), disjoint registration, recursive scoped changes — all PASS
 
 ### Client — multi-folder model & engine
 
@@ -6371,7 +6371,8 @@ mapped 1:1 to a chosen remote folder), track registrations server-side, replace 
 - ✓ Folder-scoped `SyncEngine`: scoped tree/changes calls, path-map re-rooting, `EnsureParentFolderAsync` scoped parent
 - ✓ `SyncContextManager.AddFolderAsync` (reuses account tokens, no re-auth) + server registration/unregistration/reconcile
 - ✓ `SyncFolderOverlapGuard` (bidirectional local overlap)
-- ☐ Manual verification: two folders on one account sync independently into distinct remote folders
+- ✓ Manual verification (mint-OptiPlex-7010, 2026-08-23): two folders on one account sync independently into distinct remote folders (client `AddFolderAsync` + server registrations + per-root engine verified)
+- ✓ Fixed upgrade bug found during testing: `StartContextInternalAsync` now runs `stateDb.InitializeAsync` before `SelectiveSyncConfig.LoadAsync` so the `SyncFolderRules` table is created/evolved on pre-existing DBs
 
 ### Client — DB-backed sync folder rules (no `.selective-sync.json`)
 
@@ -6380,14 +6381,14 @@ mapped 1:1 to a chosen remote folder), track registrations server-side, replace 
 - ✓ `ISelectiveSyncConfig` / `SelectiveSyncConfig` persist to SQLite (context-scoped)
 - ✓ `SyncContextManager` load/save via DB + one-time legacy `.selective-sync.json` import
 - ✓ `FolderBrowserViewModel` no longer takes a config-file path
-- ☐ Verify no `.selective-sync.json` is created and legacy rules import once
+- ✓ Verified (mint-OptiPlex-7010, 2026-08-23): legacy `.selective-sync.json` imported once into `SyncFolderRules` (state.db) and the file removed locally + remotely; no new `.selective-sync.json` created
 
 ### Client — folder size limit
 
 - ✓ `SyncFolderSizePlanner` (drill-down/walk-up, maximize included folders, whole-folder exclusion)
 - ✓ `LimitFolderSizeEnabled` + `MaxFolderSizeMb` settings + Settings UI
 - ✓ `ISyncContextManager.ApplySizeLimitDecisionAsync` (SizeLimit rules)
-- ☐ Prompt UX + automatic planner run at sync start (surfaces `SizeLimitDecisionRequested`)
+- ✓ Prompt UX + automatic planner run at sync start (surfaces `SizeLimitDecisionRequested`) — verified end-to-end (mint-OptiPlex-7010, 2026-08-23): planner excludes deepest over-limit folders (parents/root kept), prompt raised once per folder, decision persisted as a `SizeLimit` rule, no re-prompt after decision, over-limit file content not downloaded
 
 ### Tests
 

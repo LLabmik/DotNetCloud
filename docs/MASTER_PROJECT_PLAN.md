@@ -3012,7 +3012,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ## Multi-Root Sync — Implemented (2026-08-23)
 
 > **Status:** ✅ Implemented (formerly "Future: Multi-Root Sync"). See `docs/SYNCTRAY_MULTI_FOLDER_SYNC_PLAN.md`.
-> **Remaining polish:** per-root tray menu entries; per-root SSE scoping.
+> **Remaining polish:** per-root SSE scoping (tray per-root "Open Folder" entries verified on mint-OptiPlex-7010, 2026-08-23).
 
 ### Overview
 
@@ -3043,7 +3043,7 @@ Allow users to sync multiple local folders (e.g. Documents, Pictures, Desktop) t
 - ✓ Each root has independent selective sync (SQLite-backed `SyncFolderRules`), state DB, and chunk cache
 - ✓ Overlap guard prevents nested/duplicate local folders; server rejects nested remote folders
 - ✓ Folder size limit (default 250 MB) skips over-limit folders after a one-time per-folder prompt
-- ☐ Tray menu shows per-root "Open Folder" entries
+- ✓ Tray menu shows per-root "Open Folder" entries (verified on mint-OptiPlex-7010, 2026-08-23 — one entry per synced root via `RefreshOpenFolderMenu`)
 
 #### UX Flow
 

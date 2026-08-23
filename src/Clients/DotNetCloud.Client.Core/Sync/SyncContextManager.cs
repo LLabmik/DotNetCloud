@@ -571,6 +571,13 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
 
         var stateDatabasePath = Path.Combine(registration.DataDirectory, "state.db");
         var (engine, conflictResolver, stateDb, apiClient, selectiveSync) = CreateEngine(registration);
+
+        // Ensure the per-context state DB schema is current BEFORE loading selective-sync
+        // rules. On a brand-new DB, EnsureCreatedAsync creates every table; on an existing
+        // DB it is a no-op and RunSchemaEvolutionAsync must run explicitly to add newer
+        // tables (e.g. SyncFolderRules). SyncEngine.StartAsync runs this again later, which
+        // is idempotent.
+        await stateDb.InitializeAsync(stateDatabasePath, cancellationToken);
         await selectiveSync.LoadAsync(stateDb, stateDatabasePath, registration.Id, cancellationToken);
 
         // One-time migration from the legacy per-folder .selective-sync.json file (if present).
