@@ -22,7 +22,7 @@ public sealed class FolderBrowserViewModelTests
            .ReturnsAsync(tree);
 
         var selectiveSync = new SelectiveSyncConfig();
-        var vm = new FolderBrowserViewModel(syncMock.Object, _contextId, selectiveSync, "test-config.json");
+        var vm = new FolderBrowserViewModel(syncMock.Object, _contextId, selectiveSync);
 
         // Act
         await vm.LoadTreeAsync();
@@ -48,7 +48,7 @@ public sealed class FolderBrowserViewModelTests
            .ReturnsAsync(tree);
 
         var selectiveSync = new SelectiveSyncConfig();
-        var vm = new FolderBrowserViewModel(syncMock.Object, _contextId, selectiveSync, "test-config.json");
+        var vm = new FolderBrowserViewModel(syncMock.Object, _contextId, selectiveSync);
         await vm.LoadTreeAsync();
 
         // Verify placeholder before expand.
@@ -101,7 +101,7 @@ public sealed class FolderBrowserViewModelTests
         var tempFile = Path.GetTempFileName();
         try
         {
-            var vm = new FolderBrowserViewModel(syncMock.Object, _contextId, selectiveSync, tempFile);
+            var vm = new FolderBrowserViewModel(syncMock.Object, _contextId, selectiveSync);
             await vm.LoadTreeAsync();
 
             // Act: uncheck "Trash"
@@ -161,7 +161,7 @@ public sealed class FolderBrowserViewModelTests
             Directory.CreateDirectory(removeDir);
             File.WriteAllText(Path.Combine(removeDir, "file.txt"), "test");
 
-            var vm = new FolderBrowserViewModel(syncMock.Object, _contextId, selectiveSync, tempConfigFile)
+            var vm = new FolderBrowserViewModel(syncMock.Object, _contextId, selectiveSync)
             {
                 LocalSyncRoot = tempSyncRoot,
                 ConfirmDeletionAsync = _ => Task.FromResult(true), // Auto-confirm.
@@ -217,7 +217,7 @@ public sealed class FolderBrowserViewModelTests
         {
             Directory.CreateDirectory(protectedDir);
 
-            var vm = new FolderBrowserViewModel(syncMock.Object, _contextId, selectiveSync, tempConfigFile)
+            var vm = new FolderBrowserViewModel(syncMock.Object, _contextId, selectiveSync)
             {
                 LocalSyncRoot = tempSyncRoot,
                 ConfirmDeletionAsync = _ => Task.FromResult(false), // Decline deletion.
@@ -264,7 +264,7 @@ public sealed class FolderBrowserViewModelTests
            .ReturnsAsync(tree);
 
         var selectiveSync = new SelectiveSyncConfig();
-        var vm = new FolderBrowserViewModel(syncMock.Object, _contextId, selectiveSync, "test-config.json");
+        var vm = new FolderBrowserViewModel(syncMock.Object, _contextId, selectiveSync);
 
         await vm.LoadTreeAsync();
 
@@ -306,7 +306,7 @@ public sealed class FolderBrowserViewModelTests
             .ReturnsAsync(tree);
 
         var selectiveSync = new SelectiveSyncConfig();
-        var vm = new FolderBrowserViewModel(syncMock.Object, _contextId, selectiveSync, "test-config.json");
+        var vm = new FolderBrowserViewModel(syncMock.Object, _contextId, selectiveSync);
 
         await vm.LoadTreeAsync();
 

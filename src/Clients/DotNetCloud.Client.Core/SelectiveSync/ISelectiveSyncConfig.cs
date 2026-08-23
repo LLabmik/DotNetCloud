@@ -1,3 +1,5 @@
+using DotNetCloud.Client.Core.LocalState;
+
 namespace DotNetCloud.Client.Core.SelectiveSync;
 
 /// <summary>
@@ -17,17 +19,22 @@ public interface ISelectiveSyncConfig
     /// <summary>Adds an exclude rule for a folder path.</summary>
     void Exclude(Guid contextId, string folderPath);
 
+    /// <summary>
+    /// Adds or replaces a rule with an explicit <paramref name="source"/> (e.g. <c>"SizeLimit"</c>).
+    /// </summary>
+    void SetRule(Guid contextId, string folderPath, bool isInclude, string source);
+
     /// <summary>Removes all rules for a context.</summary>
     void ClearRules(Guid contextId);
 
     /// <summary>Gets all include/exclude rules for a context.</summary>
     IReadOnlyList<SelectiveSyncRule> GetRules(Guid contextId);
 
-    /// <summary>Persists rules to the given file path.</summary>
-    Task SaveAsync(string filePath, CancellationToken cancellationToken = default);
+    /// <summary>Persists the rules for <paramref name="contextId"/> to the per-context state database.</summary>
+    Task SaveAsync(ILocalStateDb stateDb, string dbPath, Guid contextId, CancellationToken cancellationToken = default);
 
-    /// <summary>Loads rules from the given file path.</summary>
-    Task LoadAsync(string filePath, CancellationToken cancellationToken = default);
+    /// <summary>Loads the rules for <paramref name="contextId"/> from the per-context state database.</summary>
+    Task LoadAsync(ILocalStateDb stateDb, string dbPath, Guid contextId, CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -40,4 +47,7 @@ public sealed class SelectiveSyncRule
 
     /// <summary>True = include; false = exclude.</summary>
     public bool IsInclude { get; init; }
+
+    /// <summary>Rule origin: <c>"Manual"</c> (selective-sync UI) or <c>"SizeLimit"</c> (folder size limit).</summary>
+    public string Source { get; init; } = "Manual";
 }

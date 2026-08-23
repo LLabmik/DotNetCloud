@@ -1,3 +1,42 @@
+## Archived: SyncTray Multi-Folder Sync — Server Deploy Complete (2026-08-23)
+
+**Target:** `cloud.kimball.home`
+**Branch:** `fix/synctray-issues`
+**Commits:** feature `a470c992`; deployed HEAD `ffe882d5` (v0.4.07)
+
+**Result:** ✅ Server-side multi-folder sync + folder size limit feature deployed & verified on production (`https://cloud.dotnetcloud.net/`).
+
+**Deployed changes (src/Modules/Files/):**
+- New `SyncFolderRegistration` entity + `FilesDbContext` DbSet; migrations committed for both providers (PostgreSQL + SQL Server).
+- New REST endpoints `api/v1/files/sync/folders` (GET list / POST register / DELETE unregister) via `SyncFoldersController` + `ISyncFolderRegistrationService` — validates folder ownership/type and remote-overlap (MaterializedPath); idempotent re-registration.
+- Recursive folder scoping in `SyncService.GetChangesSinceAsync`/`GetChangesSinceCursorAsync` (folder + all descendants).
+- `ISyncFolderRegistrationService` registered in `FilesServiceRegistration.AddFilesServices`.
+
+**Backup (pre-deploy):** SQL Server backup `DotNetCloud-pre-synctray-20260823.bak` on hyperdrive (`D:\MSSQL\MSSQL16.MSSQLSERVER\MSSQL\Backup\`); storage `storage-pre-synctray-20260823.tar.gz`; config `config.json.pre-synctray-20260823.bak`.
+
+**Verification:**
+- `scripts/deploy.sh --force --verify` — all 15 targets succeeded, assembly hashes verified.
+- `/health` + `/health/ready` → Healthy, 14/14 modules (Files Running).
+- `[core].[SyncFolderRegistrations]` table + PK / user-id / unique `(UserId, RemoteFolderNodeId)` indexes present on SQL Server.
+- `GET /api/v1/files/sync/folders` + `GET /api/v1/files/sync/changes` routes registered (401 unauthenticated).
+
+**Next:** Hand back to `mint-OptiPlex-7010` to test SyncTray client multi-folder add flow, folder size limit prompt, per-root "Open Folder" tray entries.
+
+---
+
+## Archived: Monolith — Re-verify Android DM after server-side fixes (2026-08-07)
+
+**Target:** Android client (monolith)
+**Branch:** `fix/chat-dm-notification`
+
+Server-side fixes for Android DM were confirmed deployed on `cloud.dotnetcloud.net`:
+- `IsDmAccepted` column migration applied to production (both providers); `[core].[ChannelMembers].[IsDmAccepted]` now exists.
+- JWE access-token encryption confirmed intentional (standard OpenIddict config); the Android `id_token` workaround (commit `d618e2b2`) is the correct approach. Desktop clients should follow the same pattern if they decode access tokens.
+
+Remaining for the monolith: rebuild/deploy the Android app and verify DM channel list, DM members endpoint, push notifications, and the 3 inline notification actions. Users must log out/in to capture a fresh `id_token`.
+
+---
+
 ## Archived: Two Server Issues Resolved — IsDmAccepted Migration + JWE Confirmation (2026-08-07)
 
 **Target:** `cloud.kimball.home`  

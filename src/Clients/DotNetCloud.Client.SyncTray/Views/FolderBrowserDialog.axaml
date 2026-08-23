@@ -1,7 +1,9 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:DotNetCloud.Client.SyncTray.ViewModels"
         xmlns:views="clr-namespace:DotNetCloud.Client.SyncTray.Views"
         x:Class="DotNetCloud.Client.SyncTray.Views.FolderBrowserDialog"
+        x:DataType="vm:FolderBrowserViewModel"
         Title="Choose Folders to Sync"
         Width="420"
         Height="480"
@@ -25,9 +27,14 @@
                     Margin="12">
             <Button Content="Cancel"
                     Click="OnSkip" />
+            <Button Content="Select Folder"
+                    Classes="accent"
+                    Click="OnSelect"
+                    IsVisible="{Binding IsSingleSelect}" />
             <Button Content="Save Selection"
                     Classes="accent"
-                    Click="OnSave" />
+                    Click="OnSave"
+                    IsVisible="{Binding IsSingleSelect, Converter={x:Static BoolConverters.Not}}" />
         </StackPanel>
 
         <views:FolderBrowserView x:Name="BrowserView"

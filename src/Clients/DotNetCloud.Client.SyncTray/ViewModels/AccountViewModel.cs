@@ -61,6 +61,9 @@ public sealed class AccountViewModel : ViewModelBase
         set => SetProperty(ref _lastError, value);
     }
 
+    /// <summary>The local sync folders under this account (one per sync context).</summary>
+    public IReadOnlyList<SyncFolderViewModel> Folders { get; }
+
     /// <summary>Initializes a new <see cref="AccountViewModel"/> from a <see cref="SyncContextRegistration"/>.</summary>
     public AccountViewModel(SyncContextRegistration registration)
     {
@@ -69,5 +72,31 @@ public sealed class AccountViewModel : ViewModelBase
         ServerBaseUrl = registration.ServerBaseUrl;
         LocalFolderPath = registration.LocalFolderPath;
         _state = "Idle";
+        Folders = [new SyncFolderViewModel(registration)];
+    }
+}
+
+/// <summary>
+/// View-model for a single local sync folder shown under an account.
+/// </summary>
+public sealed class SyncFolderViewModel : ViewModelBase
+{
+    /// <summary>Unique context identifier (matches the sync context ID).</summary>
+    public Guid ContextId { get; }
+
+    /// <summary>Absolute local sync folder path.</summary>
+    public string LocalFolderPath { get; }
+
+    /// <summary>Remote folder display path, or <c>"Whole account"</c> when not scoped.</summary>
+    public string RemoteFolderPath { get; }
+
+    /// <summary>Initializes a new <see cref="SyncFolderViewModel"/> from a <see cref="SyncContextRegistration"/>.</summary>
+    public SyncFolderViewModel(SyncContextRegistration registration)
+    {
+        ContextId = registration.Id;
+        LocalFolderPath = registration.LocalFolderPath;
+        RemoteFolderPath = string.IsNullOrWhiteSpace(registration.ServerFolderDisplayPath)
+            ? "Whole account"
+            : registration.ServerFolderDisplayPath;
     }
 }

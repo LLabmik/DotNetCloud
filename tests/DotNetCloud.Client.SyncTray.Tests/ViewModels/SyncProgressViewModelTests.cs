@@ -543,6 +543,33 @@ public sealed class SyncProgressViewModelTests
             "Disposed SyncProgressViewModel should not raise PropertyChanged.");
     }
 
+    [TestMethod]
+    public async Task PendingCounts_RefreshAfterTransferComplete()
+    {
+        var (vm, trayVm, syncMock) = BuildVm();
+        var contextId = Guid.CreateVersion7();
+
+        await SeedAccountAsync(trayVm, syncMock, contextId, "Syncing");
+
+        syncMock.Raise(
+            i => i.SyncProgress += null,
+            syncMock.Object,
+            new SyncProgressEventArgs
+            {
+                ContextId = contextId,
+                Status = new SyncStatus { State = SyncState.Syncing, PendingUploads = 2, PendingDownloads = 1 },
+            });
+
+        Assert.AreEqual(2, vm.TotalPendingUploads);
+        Assert.AreEqual(1, vm.TotalPendingDownloads);
+
+        syncMock.Raise(i => i.TransferComplete += null, syncMock.Object,
+            new ContextTransferCompleteEventArgs { ContextId = contextId, FileName = "a.txt", Direction = "upload", TotalBytes = 100 });
+
+        Assert.AreEqual(1, vm.TotalPendingUploads);
+        Assert.AreEqual(1, vm.TotalPendingDownloads);
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────
 
     private static (SyncProgressViewModel vm, TrayViewModel trayVm, Mock<ISyncContextManager> syncMock) BuildVm()

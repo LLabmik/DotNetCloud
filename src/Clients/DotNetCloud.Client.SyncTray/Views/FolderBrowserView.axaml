@@ -39,7 +39,9 @@
                    IsVisible="{Binding NoFoldersFound}" />
 
         <!-- Folder tree -->
-        <TreeView ItemsSource="{Binding RootItems}">
+        <TreeView ItemsSource="{Binding RootItems}"
+                  SelectionMode="Single"
+                  SelectionChanged="OnSelectionChanged">
             <TreeView.ItemTemplate>
                 <TreeDataTemplate ItemsSource="{Binding Children}">
                     <StackPanel Orientation="Horizontal" Spacing="6">

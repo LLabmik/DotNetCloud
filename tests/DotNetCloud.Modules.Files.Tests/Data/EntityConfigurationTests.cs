@@ -425,4 +425,33 @@ public class EntityConfigurationTests
         Assert.IsNotNull(loaded);
         Assert.AreEqual(UploadSessionStatus.Completed, loaded.Status);
     }
+
+    // ---- SyncFolderRegistration: Unique (UserId, RemoteFolderNodeId) ----
+
+    [TestMethod]
+    public void WhenSyncFolderRegistrationConfiguredThenHasUniqueIndexOnUserAndFolder()
+    {
+        using var context = CreateContext();
+        var entityType = context.Model.FindEntityType(typeof(SyncFolderRegistration));
+        Assert.IsNotNull(entityType);
+
+        var index = entityType.GetIndexes()
+            .FirstOrDefault(i => i.Properties.Select(p => p.Name).SequenceEqual(
+                new[] { nameof(SyncFolderRegistration.UserId), nameof(SyncFolderRegistration.RemoteFolderNodeId) }));
+
+        Assert.IsNotNull(index);
+        Assert.IsTrue(index.IsUnique);
+    }
+
+    [TestMethod]
+    public void WhenSyncFolderRegistrationConfiguredThenRemoteFolderPathHasMaxLength()
+    {
+        using var context = CreateContext();
+        var entityType = context.Model.FindEntityType(typeof(SyncFolderRegistration));
+        Assert.IsNotNull(entityType);
+
+        var property = entityType.FindProperty(nameof(SyncFolderRegistration.RemoteFolderPath));
+        Assert.IsNotNull(property);
+        Assert.AreEqual(4000, property.GetMaxLength());
+    }
 }

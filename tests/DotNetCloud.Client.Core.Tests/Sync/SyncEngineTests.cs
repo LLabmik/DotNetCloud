@@ -68,7 +68,7 @@ public class SyncEngineTests
 
         _apiMock.Setup(a => a.GetChangesSinceAsync(It.IsAny<DateTime>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
-        _apiMock.Setup(a => a.GetChangesSinceAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+        _apiMock.Setup(a => a.GetChangesSinceAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PagedSyncChangesResponse { Changes = [], NextCursor = null, HasMore = false });
         _apiMock.Setup(a => a.GetNodeAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new FileNodeResponse { Id = Guid.CreateVersion7(), Name = "file", NodeType = "File" });
@@ -262,7 +262,7 @@ public class SyncEngineTests
             .ReturnsAsync(localRecord);
 
         _apiMock
-            .Setup(a => a.GetChangesSinceAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Setup(a => a.GetChangesSinceAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PagedSyncChangesResponse
             {
                 Changes =
@@ -797,7 +797,7 @@ public class SyncEngineTests
         };
 
         var callCount = 0;
-        _apiMock.Setup(a => a.GetChangesSinceAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+        _apiMock.Setup(a => a.GetChangesSinceAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(() => callCount++ == 0 ? page1 : page2);
 
         string? savedCursor = null;
@@ -826,8 +826,8 @@ public class SyncEngineTests
             .ReturnsAsync("storedCursor");
 
         string? receivedCursor = null;
-        _apiMock.Setup(a => a.GetChangesSinceAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .Callback<string?, int, CancellationToken>((c, _, __) => receivedCursor = c)
+        _apiMock.Setup(a => a.GetChangesSinceAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .Callback<string?, int, Guid?, CancellationToken>((c, _, __, ___) => receivedCursor = c)
             .ReturnsAsync(new PagedSyncChangesResponse { Changes = [], NextCursor = null, HasMore = false });
 
         await _engine.StartAsync(_context);
@@ -936,7 +936,7 @@ public class SyncEngineTests
                 ],
             });
 
-        _apiMock.SetupSequence(a => a.GetChangesSinceAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+        _apiMock.SetupSequence(a => a.GetChangesSinceAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PagedSyncChangesResponse
             {
                 Changes =
@@ -1350,7 +1350,7 @@ public class SyncEngineTests
     {
         _apiMock.Setup(a => a.GetFolderTreeAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new SyncTreeNodeResponse { NodeId = Guid.Empty, Name = "/", NodeType = "Folder" });
-        _apiMock.Setup(a => a.GetChangesSinceAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+        _apiMock.Setup(a => a.GetChangesSinceAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PagedSyncChangesResponse
             {
                 Changes =
@@ -1399,6 +1399,189 @@ public class SyncEngineTests
         {
             Tier2RetryDelay = TimeSpan.Zero,
         };
+
+    // ── Folder-scoped sync (multi-folder per account) ──────────────────────
+
+    [TestMethod]
+    public void BuildPathMap_ScopedRoot_DoesNotPrependFolderName()
+    {
+        var folderId = Guid.CreateVersion7();
+        var fileId = Guid.CreateVersion7();
+        var scopedTree = new SyncTreeNodeResponse
+        {
+            NodeId = folderId,
+            Name = "Docs",
+            NodeType = "Folder",
+            Children =
+            [
+                new SyncTreeNodeResponse { NodeId = fileId, Name = "notes.txt", NodeType = "File" },
+            ],
+        };
+
+        var map = new Dictionary<Guid, string>();
+        SyncEngine.BuildPathMap(scopedTree, "", map, isRoot: true);
+
+        Assert.AreEqual("", map[folderId], "Scoped root should be a path-less anchor.");
+        Assert.AreEqual("notes.txt", map[fileId], "Children should be relative to the local root, not the folder name.");
+    }
+
+    [TestMethod]
+    public void BuildPathMap_FullTreeRoot_KeepsRootRelativePaths()
+    {
+        var rootId = Guid.CreateVersion7();
+        var fileId = Guid.CreateVersion7();
+        var fullTree = new SyncTreeNodeResponse
+        {
+            NodeId = Guid.Empty,
+            Name = "/",
+            NodeType = "Folder",
+            Children =
+            [
+                new SyncTreeNodeResponse
+                {
+                    NodeId = rootId,
+                    Name = "Docs",
+                    NodeType = "Folder",
+                    Children =
+                    [
+                        new SyncTreeNodeResponse { NodeId = fileId, Name = "notes.txt", NodeType = "File" },
+                    ],
+                },
+            ],
+        };
+
+        var map = new Dictionary<Guid, string>();
+        SyncEngine.BuildPathMap(fullTree, "", map, isRoot: true);
+
+        Assert.AreEqual("Docs", map[rootId]);
+        Assert.AreEqual(Path.Combine("Docs", "notes.txt"), map[fileId]);
+    }
+
+    [TestMethod]
+    public async Task ApplyRemoteChanges_WithServerFolderId_PassesFolderIdToTree()
+    {
+        var folderId = Guid.CreateVersion7();
+        _context = new SyncContext
+        {
+            Id = _context.Id,
+            ServerBaseUrl = _context.ServerBaseUrl,
+            UserId = _context.UserId,
+            LocalFolderPath = _tempDir,
+            StateDatabasePath = _context.StateDatabasePath,
+            AccountKey = _context.AccountKey,
+            ServerFolderId = folderId,
+        };
+
+        Guid? receivedFolderId = null;
+        _apiMock.Setup(a => a.GetFolderTreeAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .Callback<Guid?, CancellationToken>((fid, _) => receivedFolderId = fid)
+            .ReturnsAsync(new SyncTreeNodeResponse
+            {
+                NodeId = folderId,
+                Name = "Docs",
+                NodeType = "Folder",
+            });
+
+        await using var engine = BuildEngine();
+        await engine.StartAsync(_context);
+        await engine.SyncAsync(_context);
+        await engine.StopAsync();
+
+        Assert.AreEqual(folderId, receivedFolderId, "Tree fetch should be scoped to the folder.");
+    }
+
+    [TestMethod]
+    public async Task EnsureParentFolder_WithServerFolderId_SeedsScopedParentForRootFile()
+    {
+        var folderId = Guid.CreateVersion7();
+        _context = new SyncContext
+        {
+            Id = _context.Id,
+            ServerBaseUrl = _context.ServerBaseUrl,
+            UserId = _context.UserId,
+            LocalFolderPath = _tempDir,
+            StateDatabasePath = _context.StateDatabasePath,
+            AccountKey = _context.AccountKey,
+            ServerFolderId = folderId,
+        };
+
+        var filePath = Path.Combine(_tempDir, "root-file.txt");
+        File.WriteAllText(filePath, "hello");
+
+        var transferMock = new Mock<IChunkedTransferClient>();
+        Guid? capturedParentFolderId = null;
+        transferMock
+            .Setup(t => t.UploadAsync(
+                It.IsAny<Guid?>(), filePath, It.IsAny<Stream>(), It.IsAny<IProgress<TransferProgress>?>(),
+                It.IsAny<CancellationToken>(), It.IsAny<string?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<Guid?>()))
+            .Callback<Guid?, string, Stream, IProgress<TransferProgress>?, CancellationToken, string?, int?, string?, Guid?>((_, _, _, _, _, _, _, _, parentFolderId) => capturedParentFolderId = parentFolderId)
+            .ReturnsAsync(new UploadResult(Guid.CreateVersion7(), null));
+
+        _stateDbMock.Setup(db => db.RemoveOperationAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _stateDbMock.Setup(db => db.UpsertFileRecordAsync(It.IsAny<string>(), It.IsAny<LocalFileRecord>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _stateDbMock.Setup(db => db.GetPendingOperationsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new PendingUpload { Id = 1, LocalPath = filePath, RetryCount = 0 }]);
+
+        await using var engine = BuildEngine(transferMock.Object);
+        await engine.StartAsync(_context);
+        await engine.SyncAsync(_context);
+        await engine.StopAsync();
+
+        Assert.AreEqual(folderId, capturedParentFolderId, "Root-level upload should be placed inside the scoped folder.");
+    }
+
+    [TestMethod]
+    public async Task SyncAsync_SizeLimit_ExcludesOverLimitFolderAndRaisesPrompt()
+    {
+        // Arrange: a server tree with one over-limit folder containing a huge file.
+        var tree = new SyncTreeNodeResponse
+        {
+            NodeId = Guid.Empty,
+            Name = "/",
+            NodeType = "Folder",
+            Children =
+            [
+                new SyncTreeNodeResponse
+                {
+                    NodeId = Guid.CreateVersion7(),
+                    Name = "bigfiles",
+                    NodeType = "Folder",
+                    Children =
+                    [
+                        new SyncTreeNodeResponse
+                        {
+                            NodeId = Guid.CreateVersion7(),
+                            Name = "huge.bin",
+                            NodeType = "File",
+                            Size = 300L * 1024 * 1024,
+                        },
+                    ],
+                },
+            ],
+        };
+
+        _apiMock.Setup(a => a.GetFolderTreeAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(tree);
+
+        string? promptedPath = null;
+        var engine = BuildEngine();
+        engine.SizeLimitEnabled = true;
+        engine.MaxFolderSizeBytes = 250L * 1024 * 1024;
+        engine.SizeLimitDecisionRequested += (_, e) => promptedPath = e.RelativePath;
+
+        await using var _ = engine;
+        await engine.StartAsync(_context);
+        await engine.SyncAsync(_context);
+        await engine.StopAsync();
+
+        // The over-limit folder's file must NOT be queued for download.
+        _stateDbMock.Verify(
+            db => db.QueueOperationAsync(It.IsAny<string>(), It.IsAny<PendingDownload>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        Assert.AreEqual("bigfiles", promptedPath, "A prompt should be raised for the undecided over-limit folder.");
+    }
 
     // ── Issue #51: Case-conflict detection ──────────────────────────────────
 
@@ -1997,7 +2180,7 @@ public class SyncEngineTests
             });
 
         // Change feed reports a folder deletion. ParentId points to Music so path resolves to Music/Tool.
-        _apiMock.Setup(a => a.GetChangesSinceAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+        _apiMock.Setup(a => a.GetChangesSinceAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PagedSyncChangesResponse
             {
                 Changes =

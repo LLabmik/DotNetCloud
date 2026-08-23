@@ -1,4 +1,6 @@
+using DotNetCloud.Client.Core.LocalState;
 using DotNetCloud.Client.Core.SelectiveSync;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace DotNetCloud.Client.Core.Tests.SelectiveSync;
@@ -110,21 +112,23 @@ public class SelectiveSyncConfigTests
         Assert.IsTrue(_config.IsIncluded(ctx2, "/private/doc.txt")); // ctx2 unaffected
     }
 
-    // ── Persistence ─────────────────────────────────────────────────────────
+    // ── Persistence (per-context SQLite state DB) ───────────────────────────
 
     [TestMethod]
     public async Task SaveAndLoad_PersistsRules()
     {
         _config.Exclude(_contextId, "/private");
         _config.Include(_contextId, "/work");
-        var filePath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".json");
+        var dbPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".db");
+        var stateDb = new LocalStateDb(NullLogger<LocalStateDb>.Instance);
 
         try
         {
-            await _config.SaveAsync(filePath);
+            await stateDb.InitializeAsync(dbPath);
+            await _config.SaveAsync(stateDb, dbPath, _contextId);
 
             var loaded = new SelectiveSyncConfig();
-            await loaded.LoadAsync(filePath);
+            await loaded.LoadAsync(stateDb, dbPath, _contextId);
 
             var rules = loaded.GetRules(_contextId);
             Assert.AreEqual(2, rules.Count);
@@ -133,15 +137,56 @@ public class SelectiveSyncConfigTests
         }
         finally
         {
-            if (File.Exists(filePath))
-                File.Delete(filePath);
+            if (File.Exists(dbPath))
+                File.Delete(dbPath);
         }
     }
 
     [TestMethod]
-    public async Task LoadAsync_NonExistentFile_NoOp()
+    public async Task Load_EmptyDb_NoOp()
     {
-        // Should not throw
-        await _config.LoadAsync("/no/such/file.json");
+        var dbPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".db");
+        var stateDb = new LocalStateDb(NullLogger<LocalStateDb>.Instance);
+
+        try
+        {
+            await stateDb.InitializeAsync(dbPath);
+            await _config.LoadAsync(stateDb, dbPath, _contextId); // Should not throw
+            Assert.AreEqual(0, _config.GetRules(_contextId).Count);
+        }
+        finally
+        {
+            if (File.Exists(dbPath))
+                File.Delete(dbPath);
+        }
+    }
+
+    [TestMethod]
+    public async Task Load_SizeLimitRule_PreservesSource()
+    {
+        var dbPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".db");
+        var stateDb = new LocalStateDb(NullLogger<LocalStateDb>.Instance);
+
+        try
+        {
+            await stateDb.InitializeAsync(dbPath);
+            await stateDb.ReplaceSyncFolderRulesAsync(
+                dbPath,
+                [new SyncFolderRule { RelativePath = "bigfiles", IsInclude = false, Source = "SizeLimit" }]);
+
+            var loaded = new SelectiveSyncConfig();
+            await loaded.LoadAsync(stateDb, dbPath, _contextId);
+
+            var rules = loaded.GetRules(_contextId);
+            Assert.AreEqual(1, rules.Count);
+            Assert.AreEqual("/bigfiles", rules[0].FolderPath);
+            Assert.IsFalse(rules[0].IsInclude);
+            Assert.AreEqual("SizeLimit", rules[0].Source);
+        }
+        finally
+        {
+            if (File.Exists(dbPath))
+                File.Delete(dbPath);
+        }
     }
 }

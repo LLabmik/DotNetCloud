@@ -3009,11 +3009,10 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 ---
 
-## Future: Multi-Root Sync (Scoped for Future Phase)
+## Multi-Root Sync — Implemented (2026-08-23)
 
-> **Priority:** Medium — enhances sync client usability significantly  
-> **Prerequisite:** Phase 1 sync client stable and shipping  
-> **Effort estimate:** Medium (client changes are straightforward; server already supports `folderId` scoping)
+> **Status:** ✅ Implemented (formerly "Future: Multi-Root Sync"). See `docs/SYNCTRAY_MULTI_FOLDER_SYNC_PLAN.md`.
+> **Remaining polish:** per-root SSE scoping (tray per-root "Open Folder" entries verified on mint-OptiPlex-7010, 2026-08-23).
 
 ### Overview
 
@@ -3030,18 +3029,21 @@ Allow users to sync multiple local folders (e.g. Documents, Pictures, Desktop) t
 
 #### Server-Side
 
-- ☐ API for managing per-device sync root mappings (`POST /api/v1/sync/roots`, `GET /api/v1/sync/roots`)
-- ☐ Each root maps a server folder ID to a client-chosen local path label
-- ☐ SSE stream scoped per root (or multiplexed with root ID in event payload)
+- ✓ Sync folder registration API: `api/v1/files/sync/folders` (GET/POST/DELETE) via `SyncFoldersController`
+- ✓ `SyncFolderRegistration` entity + migrations (PostgreSQL + SQL Server)
+- ✓ Each registration maps a server folder (`FileNode.Id`) to the user; remote-overlap validation via `MaterializedPath`
+- ☐ SSE stream scoped per root (currently whole-account stream; client scopes by `folderId`)
 
 #### Client-Side
 
-- ☐ `SyncContextRegistration` gains a `ServerFolderId` (nullable `Guid?`) — when set, the engine passes it to `sync/changes` and `sync/tree`
-- ☐ `SyncEngine` passes `folderId` query param to API calls when `ServerFolderId` is set
-- ☐ Settings UI: "Add Sync Folder" button under the account — opens a server folder picker + local folder chooser
-- ☐ Each sync root gets its own card in the Accounts tab showing local path, server path, status, and remove button
-- ☐ Each root has independent selective sync, state DB, and chunk cache
-- ☐ Tray menu shows per-root "Open Folder" entries
+- ✓ `SyncContextRegistration` gains `ServerFolderId` (nullable `Guid?`) — engine passes it to `sync/changes` and `sync/tree`
+- ✓ `SyncEngine` folder-scoped: scoped tree/changes calls, path-map re-rooting, scoped upload parent
+- ✓ Settings UI: "Add Folder" button under the account — opens local chooser + optional remote folder picker (`AddFolderDialog`)
+- ✓ Each sync root gets its own entry in the Accounts tab (Synced Folders list: local path, remote path, open)
+- ✓ Each root has independent selective sync (SQLite-backed `SyncFolderRules`), state DB, and chunk cache
+- ✓ Overlap guard prevents nested/duplicate local folders; server rejects nested remote folders
+- ✓ Folder size limit (default 250 MB) skips over-limit folders after a one-time per-folder prompt
+- ✓ Tray menu shows per-root "Open Folder" entries (verified on mint-OptiPlex-7010, 2026-08-23 — one entry per synced root via `RefreshOpenFolderMenu`)
 
 #### UX Flow
 

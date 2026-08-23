@@ -17,6 +17,15 @@ public sealed class SyncContext
     /// <summary>Local file system folder that is synced.</summary>
     public required string LocalFolderPath { get; init; }
 
+    /// <summary>
+    /// The remote folder (its <c>FileNode.Id</c>) this local folder is scoped to, or
+    /// <c>null</c> to sync the whole account (all remote folders).
+    /// </summary>
+    public Guid? ServerFolderId { get; init; }
+
+    /// <summary>Human-readable remote path of <see cref="ServerFolderId"/> (e.g. "/Documents/Work"), if any.</summary>
+    public string? ServerFolderDisplayPath { get; init; }
+
     /// <summary>Friendly display name (e.g. "Ben @ cloud.example.com").</summary>
     public string DisplayName { get; init; } = string.Empty;
 

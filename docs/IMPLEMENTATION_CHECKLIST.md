@@ -3,7 +3,7 @@
 > **Document Version:** 1.0  
 > **Purpose:** Comprehensive task breakdown for implementing the DotNetCloud architecture  
 > **Scope:** All phases from Foundation (Phase 0) through Auto-Updates (Phase 11)  
-> **Last Updated:** 2026-08-18
+> **Last Updated:** 2026-08-23
 > **Audience:** Development team, project managers, technical leads
 
 ---
@@ -6346,3 +6346,52 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Core.Server tests pass (597; the 4 online-scan coordinator tests were removed with the revert)
 - ✓ Deployed to production (2026-08-19) — online scan removed; scanner is offline-only (admin guide §3)
 - ☐ Commit on `feature/soc2-level-ii-compliance` (awaiting user sign-off)
+
+## SyncTray Multi-Folder Sync & Folder Size Limit (2026-08-23)
+
+**Objective:** Allow SyncTray users to register multiple local sync folders per account (each
+mapped 1:1 to a chosen remote folder), track registrations server-side, replace the
+`.selective-sync.json` "mystery file" with SQLite-backed rules, and add a folder size limit
+(default 250 MB) that skips over-limit folders after a one-time per-folder prompt.
+
+### Server — Sync folder registrations
+
+- ✓ `SyncFolderRegistration` entity + EF config + DbSet (`FilesDbContext`)
+- ✓ PostgreSQL + SQL Server migrations (`SyncFolderRegistration`, `SyncFolderRegistration_SqlServer`)
+- ✓ `ISyncFolderRegistrationService` / `SyncFolderRegistrationService` (list/register/unregister; ownership, folder-type, and remote-overlap validation via `MaterializedPath`)
+- ✓ `SyncFoldersController` (`api/v1/files/sync/folders` GET/POST/DELETE)
+- ✓ DI registration in `FilesServiceRegistration.AddFilesServices`
+- ✓ Recursive `folderId` scoping in `SyncService.GetChangesSinceAsync` / `GetChangesSinceCursorAsync`
+- ✓ End-to-end manual verification against a running server (cloud.dotnetcloud.net, 2026-08-23): register/unregister/idempotent re-registration, descendant + ancestor rejection (HTTP 409), disjoint registration, recursive scoped changes — all PASS
+
+### Client — multi-folder model & engine
+
+- ✓ `Guid? ServerFolderId` + `ServerFolderDisplayPath` on `SyncContext` / `SyncContextRegistration` / `AddAccountRequest`
+- ✓ `folderId` added to cursor `GetChangesSinceAsync` + sync-folder registration methods in `DotNetCloudApiClient`
+- ✓ Folder-scoped `SyncEngine`: scoped tree/changes calls, path-map re-rooting, `EnsureParentFolderAsync` scoped parent
+- ✓ `SyncContextManager.AddFolderAsync` (reuses account tokens, no re-auth) + server registration/unregistration/reconcile
+- ✓ `SyncFolderOverlapGuard` (bidirectional local overlap)
+- ✓ Manual verification (mint-OptiPlex-7010, 2026-08-23): two folders on one account sync independently into distinct remote folders (client `AddFolderAsync` + server registrations + per-root engine verified)
+- ✓ Fixed upgrade bug found during testing: `StartContextInternalAsync` now runs `stateDb.InitializeAsync` before `SelectiveSyncConfig.LoadAsync` so the `SyncFolderRules` table is created/evolved on pre-existing DBs
+
+### Client — DB-backed sync folder rules (no `.selective-sync.json`)
+
+- ✓ `SyncFolderRule` table + `RunSchemaEvolutionAsync` upgrade for existing DBs
+- ✓ `ILocalStateDb.GetSyncFolderRulesAsync` / `ReplaceSyncFolderRulesAsync`
+- ✓ `ISelectiveSyncConfig` / `SelectiveSyncConfig` persist to SQLite (context-scoped)
+- ✓ `SyncContextManager` load/save via DB + one-time legacy `.selective-sync.json` import
+- ✓ `FolderBrowserViewModel` no longer takes a config-file path
+- ✓ Verified (mint-OptiPlex-7010, 2026-08-23): legacy `.selective-sync.json` imported once into `SyncFolderRules` (state.db) and the file removed locally + remotely; no new `.selective-sync.json` created
+
+### Client — folder size limit
+
+- ✓ `SyncFolderSizePlanner` (drill-down/walk-up, maximize included folders, whole-folder exclusion)
+- ✓ `LimitFolderSizeEnabled` + `MaxFolderSizeMb` settings + Settings UI
+- ✓ `ISyncContextManager.ApplySizeLimitDecisionAsync` (SizeLimit rules)
+- ✓ Prompt UX + automatic planner run at sync start (surfaces `SizeLimitDecisionRequested`) — verified end-to-end (mint-OptiPlex-7010, 2026-08-23): planner excludes deepest over-limit folders (parents/root kept), prompt raised once per folder, decision persisted as a `SizeLimit` rule, no re-prompt after decision, over-limit file content not downloaded
+
+### Tests
+
+- ✓ Server: `SyncFolderRegistrationServiceTests`, `SyncServiceTests` (recursive scope), `EntityConfigurationTests`
+- ✓ Client: `DotNetCloudApiClientTests`, `SyncEngineTests` (scoped), `SyncFolderOverlapGuardTests`, `SyncFolderSizePlannerTests`, `LocalStateDbTests`, `SelectiveSyncConfigTests`, `FolderBrowserViewModelTests` (ctor)
+- ✓ Full suites pass: Files 760, Client.Core 296, SyncTray 130

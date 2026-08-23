@@ -517,6 +517,12 @@ public sealed class TrayViewModel : ViewModelBase
     /// </summary>
     public event Action<SyncStatus>? SyncStatusUpdated;
 
+    /// <summary>
+    /// Raised when pending upload/download counts change (e.g. after a file
+    /// finishes transferring). Lets the Sync Progress window refresh its counts.
+    /// </summary>
+    public event Action? PendingCountsUpdated;
+
     private void OnSyncProgress(object? sender, SyncProgressEventArgs e)
     {
         if (_accounts.TryGetValue(e.ContextId, out var vm))
@@ -533,8 +539,16 @@ public sealed class TrayViewModel : ViewModelBase
             }
 
             vm.State = stateStr;
-            vm.PendingUploads = e.Status.PendingUploads;
-            vm.PendingDownloads = e.Status.PendingDownloads;
+
+            // Only apply pending counts when the engine reports a non-zero value.
+            // State/phase-transition events (e.g. the initial "Syncing" state) carry
+            // 0 counts and must not wipe the live counts that OnTransferComplete
+            // decrements as each file completes.
+            if (e.Status.PendingUploads > 0 || e.Status.PendingDownloads > 0)
+            {
+                vm.PendingUploads = e.Status.PendingUploads;
+                vm.PendingDownloads = e.Status.PendingDownloads;
+            }
         }
 
         // Forward the full status snapshot to any subscribers (e.g. SyncProgressViewModel).
@@ -848,6 +862,18 @@ public sealed class TrayViewModel : ViewModelBase
                 _cycleTransfers[e.ContextId] = (counts.Uploads + 1, counts.Downloads);
             else
                 _cycleTransfers[e.ContextId] = (counts.Uploads, counts.Downloads + 1);
+        }
+
+        // Decrement the remaining pending count as each file finishes transferring.
+        if (_accounts.TryGetValue(e.ContextId, out var account))
+        {
+            if (e.Direction == "upload")
+                account.PendingUploads = Math.Max(0, account.PendingUploads - 1);
+            else
+                account.PendingDownloads = Math.Max(0, account.PendingDownloads - 1);
+
+            PendingCountsUpdated?.Invoke();
+            UpdateAggregateState();
         }
 
         // Auto-dismiss after 5 seconds.

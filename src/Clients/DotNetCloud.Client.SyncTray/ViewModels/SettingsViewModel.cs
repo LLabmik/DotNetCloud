@@ -35,6 +35,7 @@ public sealed class SettingsViewModel : ViewModelBase
     private string _addAccountClientId = "dotnetcloud-desktop";
     private string _addAccountError = string.Empty;
     private bool _isAddingAccount;
+    private bool _isAddingFolder;
     private bool _startOnLogin;
     private bool _isMuteChatNotifications;
     private decimal _uploadLimitKbps;
@@ -69,6 +70,10 @@ public sealed class SettingsViewModel : ViewModelBase
     // Update settings
     private bool _autoCheckForUpdates = true;
     private bool _autoDownloadUpdates;
+
+    // Sync folder size limit settings
+    private bool _limitFolderSizeEnabled;
+    private int _maxFolderSizeMb = 250;
 
     // VFS (virtual file system / files on-demand) settings
     private readonly VirtualFileSettings _vfsSettings;
@@ -165,6 +170,16 @@ public sealed class SettingsViewModel : ViewModelBase
 
     /// <summary>Whether adding a new account is currently allowed.</summary>
     public bool CanAddAccount => !IsAddingAccount && !HasAccount;
+
+    /// <summary>Whether an additional local sync folder can be added (an account exists).</summary>
+    public bool CanAddFolder => HasAccount && !IsAddingFolder;
+
+    /// <summary>Whether the add-folder flow is currently in progress.</summary>
+    public bool IsAddingFolder
+    {
+        get => _isAddingFolder;
+        private set => SetProperty(ref _isAddingFolder, value);
+    }
 
     /// <summary>Exposes the tray view-model for bindings that need it (e.g. conflict badge).</summary>
     public TrayViewModel TrayVm => _trayVm;
@@ -330,6 +345,53 @@ public sealed class SettingsViewModel : ViewModelBase
         }
     }
 
+    // ── Sync folder size limit settings ──────────────────────────────────
+
+    /// <summary>
+    /// Whether the folder size limit is enabled. When enabled, folders whose recursive total
+    /// size exceeds <see cref="MaxFolderSizeMb"/> are skipped (after a one-time per-folder prompt).
+    /// </summary>
+    public bool LimitFolderSizeEnabled
+    {
+        get => _limitFolderSizeEnabled;
+        set
+        {
+            if (SetProperty(ref _limitFolderSizeEnabled, value))
+            {
+                _ = PersistLocalSettingsAsync();
+                PushSizeLimitSettings();
+            }
+        }
+    }
+
+    /// <summary>Maximum folder size (in MB) before a folder is considered over-limit. Default 250.</summary>
+    public int MaxFolderSizeMb
+    {
+        get => _maxFolderSizeMb;
+        set
+        {
+            var clamped = Math.Clamp(value, 1, 1_000_000);
+            if (SetProperty(ref _maxFolderSizeMb, clamped))
+            {
+                _ = PersistLocalSettingsAsync();
+                PushSizeLimitSettings();
+            }
+        }
+    }
+
+    /// <summary>Pushes the current folder size limit settings to all running sync engines.</summary>
+    private void PushSizeLimitSettings()
+    {
+        try
+        {
+            _ = _syncManager.SetSizeLimitSettingsAsync(_limitFolderSizeEnabled, (long)_maxFolderSizeMb * 1024 * 1024);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to push folder size limit settings.");
+        }
+    }
+
     // ── VFS (files on-demand) properties ──────────────────────────────────
 
     /// <summary>Storage mode: download all files eagerly or use placeholders with on-demand hydration.</summary>
@@ -390,6 +452,9 @@ public sealed class SettingsViewModel : ViewModelBase
     /// <summary>Opens the Add Account dialog and completes the OAuth2 flow on confirmation.</summary>
     public ICommand ConnectCommand { get; }
 
+    /// <summary>Opens the Add Folder dialog to add another local sync folder to the account.</summary>
+    public ICommand AddFolderCommand { get; }
+
     /// <summary>Removes the account whose context ID is passed as the command parameter.</summary>
     public ICommand RemoveAccountCommand { get; }
 
@@ -445,6 +510,7 @@ public sealed class SettingsViewModel : ViewModelBase
         _logger.LogInformation("SettingsViewModel initialized. Client version: {Version}", _currentClientVersion);
 
         ConnectCommand = new AsyncRelayCommand(BeginAddAccountFlowAsync);
+        AddFolderCommand = new AsyncRelayCommand(BeginAddFolderFlowAsync);
         RemoveAccountCommand = new AsyncRelayCommand<Guid>(id => _trayVm.RemoveAccountAsync(id));
         CloseCommand = new RelayCommand(static () => { /* handled by the view via CloseCommand binding */ });
         AddIgnorePatternCommand = new AsyncRelayCommand(AddIgnorePatternAsync);
@@ -464,11 +530,62 @@ public sealed class SettingsViewModel : ViewModelBase
                 OnPropertyChanged(nameof(HasAccount));
                 OnPropertyChanged(nameof(PrimaryAccount));
                 OnPropertyChanged(nameof(CanAddAccount));
+                OnPropertyChanged(nameof(CanAddFolder));
             }
         };
 
         LoadLocalSettings();
+        PushSizeLimitSettings();
         _trayVm.IsMuteChatNotifications = _isMuteChatNotifications;
+    }
+
+    // ── Add folder flow ────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Starts the interactive add-folder flow: opens the Add Folder dialog and, on confirm,
+    /// adds a new local sync folder to the existing account (reusing its stored tokens).
+    /// </summary>
+    public async Task BeginAddFolderFlowAsync()
+    {
+        var account = _trayVm.Accounts.FirstOrDefault(a => a.ContextId != Guid.Empty);
+        if (account is null)
+        {
+            AddAccountError = "No account is configured yet.";
+            return;
+        }
+
+        var registrations = await _syncManager.GetContextsAsync();
+        var existingRoots = registrations.Select(r => r.LocalFolderPath).ToList();
+
+        var dialog = new AddFolderDialog(_syncManager, account.ContextId, existingRoots);
+        dialog.Show();
+
+        var tcs = new TaskCompletionSource<AddFolderResult?>();
+        dialog.Closed += (_, _) => tcs.TrySetResult(
+            dialog.DataContext is AddFolderDialogViewModel vm ? vm.DialogResult : null);
+        var result = await tcs.Task;
+        if (result is null)
+            return;
+
+        IsAddingFolder = true;
+        try
+        {
+            await _syncManager.AddFolderAsync(
+                account.ContextId,
+                result.LocalFolderPath,
+                result.RemoteFolderNodeId == Guid.Empty ? null : result.RemoteFolderNodeId,
+                result.RemoteFolderNodeId == Guid.Empty ? null : result.RemoteFolderPath);
+
+            await _trayVm.RefreshAccountsAsync();
+        }
+        catch (Exception ex)
+        {
+            AddAccountError = $"Failed to add folder: {ex.Message}";
+        }
+        finally
+        {
+            IsAddingFolder = false;
+        }
     }
 
     // ── Add account flow ──────────────────────────────────────────────────
@@ -803,13 +920,19 @@ public sealed class SettingsViewModel : ViewModelBase
     {
         try
         {
-            var account = _trayVm.Accounts.FirstOrDefault(a => a.ContextId == contextId);
-            var configDir = account?.LocalFolderPath ?? string.Empty;
-            var configPath = Path.Combine(configDir, ".selective-sync.json");
+            // Load the current rules from the per-context state DB into the in-memory
+            // selective-sync config used by the folder browser UI (no config file).
+            var rules = await _syncManager.GetSelectiveSyncRulesAsync(contextId);
+            _selectiveSync.ClearRules(contextId);
+            foreach (var rule in rules)
+            {
+                if (rule.IsInclude)
+                    _selectiveSync.Include(contextId, rule.FolderPath);
+                else
+                    _selectiveSync.Exclude(contextId, rule.FolderPath);
+            }
 
-            await _selectiveSync.LoadAsync(configPath);
-
-            var vm = new FolderBrowserViewModel(_syncManager, contextId, _selectiveSync, configPath);
+            var vm = new FolderBrowserViewModel(_syncManager, contextId, _selectiveSync);
             var dialog = new FolderBrowserDialog(vm);
             dialog.Show();
 
@@ -871,6 +994,9 @@ public sealed class SettingsViewModel : ViewModelBase
             _isMuteChatNotifications = settings.IsMuteChatNotifications;
             _autoCheckForUpdates = settings.AutoCheckForUpdates;
             _autoDownloadUpdates = settings.AutoDownloadUpdates;
+            _limitFolderSizeEnabled = settings.LimitFolderSizeEnabled;
+            if (settings.MaxFolderSizeBytes > 0)
+                _maxFolderSizeMb = (int)Math.Round(settings.MaxFolderSizeBytes / (double)(1024 * 1024));
 
             // Restore VFS settings
             if (settings.StorageMode != _vfsSettings.StorageMode)
@@ -908,6 +1034,8 @@ public sealed class SettingsViewModel : ViewModelBase
                     IsMuteChatNotifications = _isMuteChatNotifications,
                     AutoCheckForUpdates = _autoCheckForUpdates,
                     AutoDownloadUpdates = _autoDownloadUpdates,
+                    LimitFolderSizeEnabled = _limitFolderSizeEnabled,
+                    MaxFolderSizeBytes = (long)_maxFolderSizeMb * 1024 * 1024,
                     StorageMode = _vfsSettings.StorageMode,
                     MaxCacheSizeBytes = _vfsSettings.MaxCacheSizeBytes,
                 },
@@ -1121,6 +1249,12 @@ internal sealed class SyncTrayLocalSettings
     public VirtualFileStorageMode StorageMode { get; init; } = VirtualFileStorageMode.DownloadAll;
 
     public long MaxCacheSizeBytes { get; init; }
+
+    /// <summary>Whether the folder size limit is enabled.</summary>
+    public bool LimitFolderSizeEnabled { get; init; }
+
+    /// <summary>Folder size limit in bytes (default 250 MiB when enabled).</summary>
+    public long MaxFolderSizeBytes { get; init; } = 250L * 1024 * 1024;
 }
 
 // ── Command helpers ────────────────────────────────────────────────────────────

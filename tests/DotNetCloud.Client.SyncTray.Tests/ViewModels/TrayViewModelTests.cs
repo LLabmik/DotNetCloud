@@ -557,6 +557,65 @@ public sealed class TrayViewModelTests
             Times.Once);
     }
 
+    [TestMethod]
+    public async Task OnTransferComplete_DecrementsPendingCounts()
+    {
+        var (vm, syncMock, _, _) = BuildVm();
+        var contextId = Guid.CreateVersion7();
+
+        await SeedAccountAsync(vm, syncMock, contextId, "Syncing");
+
+        // Seed the initial pending counts.
+        syncMock.Raise(
+            i => i.SyncProgress += null,
+            syncMock.Object,
+            new SyncProgressEventArgs
+            {
+                ContextId = contextId,
+                Status = new SyncStatus { State = SyncState.Syncing, PendingUploads = 2, PendingDownloads = 1 },
+            });
+
+        syncMock.Raise(i => i.TransferComplete += null, syncMock.Object,
+            new ContextTransferCompleteEventArgs { ContextId = contextId, FileName = "a.txt", Direction = "upload", TotalBytes = 100 });
+
+        var account = vm.Accounts.First(a => a.ContextId == contextId);
+        Assert.AreEqual(1, account.PendingUploads);
+        Assert.AreEqual(1, account.PendingDownloads);
+    }
+
+    [TestMethod]
+    public async Task OnSyncProgress_SyncingWithZeroCounts_DoesNotWipePendingCounts()
+    {
+        var (vm, syncMock, _, _) = BuildVm();
+        var contextId = Guid.CreateVersion7();
+
+        await SeedAccountAsync(vm, syncMock, contextId, "Idle");
+
+        // Seed counts.
+        syncMock.Raise(
+            i => i.SyncProgress += null,
+            syncMock.Object,
+            new SyncProgressEventArgs
+            {
+                ContextId = contextId,
+                Status = new SyncStatus { State = SyncState.Syncing, PendingUploads = 3, PendingDownloads = 2 },
+            });
+
+        // A later phase event with zero counts must not wipe them.
+        syncMock.Raise(
+            i => i.SyncProgress += null,
+            syncMock.Object,
+            new SyncProgressEventArgs
+            {
+                ContextId = contextId,
+                Status = new SyncStatus { State = SyncState.Syncing, PendingUploads = 0, PendingDownloads = 0 },
+            });
+
+        var account = vm.Accounts.First(a => a.ContextId == contextId);
+        Assert.AreEqual(3, account.PendingUploads);
+        Assert.AreEqual(2, account.PendingDownloads);
+    }
+
     private static (TrayViewModel vm, Mock<ISyncContextManager> syncMock, Mock<IChatSignalRClient> chatMock, Mock<INotificationService> notifMock) BuildVm()
     {
         var syncMock = new Mock<ISyncContextManager>();

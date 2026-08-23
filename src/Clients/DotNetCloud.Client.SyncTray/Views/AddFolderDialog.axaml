@@ -1,0 +1,60 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:DotNetCloud.Client.SyncTray.Views"
+        x:Class="DotNetCloud.Client.SyncTray.Views.AddFolderDialog"
+        x:DataType="vm:AddFolderDialogViewModel"
+        Title="Add Sync Folder"
+        Width="440"
+        Height="260"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        SizeToContent="Height">
+
+    <StackPanel Margin="20" Spacing="12">
+
+        <TextBlock Text="Add a local folder to sync"
+                   FontSize="16" FontWeight="SemiBold" />
+
+        <TextBlock Text="Choose a local folder and (optionally) the remote folder it maps to. Each folder syncs independently."
+                   TextWrapping="Wrap"
+                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" RowSpacing="6">
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="Local folder"
+                       VerticalAlignment="Center" Margin="0,0,12,0" />
+            <Grid Grid.Row="0" Grid.Column="1" ColumnDefinitions="*,Auto">
+                <TextBox Grid.Column="0"
+                         Watermark="Choose a local folder…"
+                         Text="{Binding LocalFolderPath}"
+                         IsReadOnly="True" />
+                <Button Grid.Column="1" Content="…" Margin="6,0,0,0"
+                        Command="{Binding BrowseFolderCommand}" />
+            </Grid>
+
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="Remote folder (optional)"
+                       VerticalAlignment="Center" Margin="0,0,12,0" />
+            <Grid Grid.Row="1" Grid.Column="1" ColumnDefinitions="*,Auto">
+                <TextBox Grid.Column="0"
+                         Text="{Binding RemoteFolderPath}"
+                         Watermark="Whole account (or choose a folder)…"
+                         IsReadOnly="True" />
+                <Button Grid.Column="1" Content="Choose…" Margin="6,0,0,0"
+                        Command="{Binding ChooseRemoteFolderCommand}" />
+            </Grid>
+        </Grid>
+
+        <TextBlock Text="{Binding ErrorMessage}"
+                   Foreground="Red" FontSize="11"
+                   IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                   TextWrapping="Wrap" />
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <Button Content="Cancel"
+                    Command="{Binding CancelCommand}" />
+            <Button Content="Add Folder"
+                    Classes="accent"
+                    Command="{Binding ConfirmCommand}" />
+        </StackPanel>
+
+    </StackPanel>
+</Window>

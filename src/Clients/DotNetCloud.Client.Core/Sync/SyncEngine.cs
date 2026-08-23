@@ -48,6 +48,21 @@ public sealed class SyncEngine : ISyncEngine
     private CancellationTokenSource? _cts;
     private Task? _periodicScanTask;
     private SyncContext? _activeContext;
+
+    /// <summary>
+    /// The remote folder (its <c>FileNode.Id</c>) this engine is scoped to, or <c>null</c>
+    /// to sync the whole account. When set, all tree/changes calls are scoped to that folder
+    /// and its recursive descendants.
+    /// </summary>
+    private Guid? _serverFolderId;
+
+    /// <summary>
+    /// Relative paths (forward slashes) of folders excluded by the folder size limit for the
+    /// current sync pass. Cleared at the start of each pass.
+    /// </summary>
+    private HashSet<string> _sizeLimitExcludedPaths = new(
+        OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+
     private SyncState _state = SyncState.Idle;
     private string? _lastError;
     private bool _paused;
@@ -88,6 +103,15 @@ public sealed class SyncEngine : ISyncEngine
     /// <inheritdoc/>
     public event EventHandler<FileTransferCompleteEventArgs>? FileTransferComplete;
 
+    /// <inheritdoc/>
+    public bool SizeLimitEnabled { get; set; }
+
+    /// <inheritdoc/>
+    public long MaxFolderSizeBytes { get; set; } = 250L * 1024 * 1024;
+
+    /// <inheritdoc/>
+    public event EventHandler<SizeLimitDecisionRequestedEventArgs>? SizeLimitDecisionRequested;
+
     /// <summary>Initializes a new <see cref="SyncEngine"/>.</summary>
     public SyncEngine(
         IDotNetCloudApiClient api,
@@ -117,6 +141,7 @@ public sealed class SyncEngine : ISyncEngine
     public async Task StartAsync(SyncContext context, CancellationToken cancellationToken = default)
     {
         _activeContext = context;
+        _serverFolderId = context.ServerFolderId;
         _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
         await _stateDb.InitializeAsync(context.StateDatabasePath, cancellationToken);
@@ -296,11 +321,23 @@ public sealed class SyncEngine : ISyncEngine
                 {
                     _fullSyncTotalItems = totalPending;
                     _fullSyncCompletedItems = 0;
-                    ReportFullSyncProgress(context, $"Syncing {totalPending} files…", 0, totalPending);
+                    ReportFullSyncProgress(
+                        context,
+                        $"Syncing {totalPending} files…",
+                        0,
+                        totalPending,
+                        pendingCount.Uploads,
+                        pendingCount.Downloads);
                 }
                 else
                 {
-                    ReportPhaseProgress(context, $"Syncing {totalPending} files…", 0, totalPending);
+                    ReportPhaseProgress(
+                        context,
+                        $"Syncing {totalPending} files…",
+                        0,
+                        totalPending,
+                        pendingCount.Uploads,
+                        pendingCount.Downloads);
                 }
             }
 
@@ -523,7 +560,7 @@ public sealed class SyncEngine : ISyncEngine
 
         // Build a lookup of server files by relative path for dedup against the remote tree.
         var serverFilesByRelPath = new Dictionary<string, SyncTreeNodeResponse>(StringComparer.OrdinalIgnoreCase);
-        BuildServerFileMap(serverTree, "", serverFilesByRelPath);
+        BuildServerFileMap(serverTree, "", serverFilesByRelPath, isRoot: true);
 
         // Build a set of all server NodeIds (files + folders) to detect stale tracked records.
         var serverNodeIds = new HashSet<Guid>();
@@ -532,7 +569,7 @@ public sealed class SyncEngine : ISyncEngine
         // Build a mapping of server folder relative paths → NodeId for resolving
         // parent folder IDs when checking server file existence via ListChildrenAsync.
         var serverFolderPaths = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
-        BuildFolderPathMap(serverTree, "", serverFolderPaths);
+        BuildFolderPathMap(serverTree, "", serverFolderPaths, isRoot: true);
 
         var dbFetchMs = scanStopwatch.ElapsedMilliseconds;
 
@@ -894,7 +931,7 @@ public sealed class SyncEngine : ISyncEngine
 
         // Build server folder map for folder-level deletion support.
         var serverFoldersByRelPath = new Dictionary<string, SyncTreeNodeResponse>(StringComparer.OrdinalIgnoreCase);
-        BuildServerFolderMap(serverTree, "", serverFoldersByRelPath);
+        BuildServerFolderMap(serverTree, "", serverFoldersByRelPath, isRoot: true);
 
         // Phase 1: Collect all missing tracked files.
         var missingFiles = new List<LocalFileRecord>();
@@ -1123,16 +1160,20 @@ public sealed class SyncEngine : ISyncEngine
         var cursor = await _stateDb.GetSyncCursorAsync(context.StateDatabasePath, cancellationToken);
         var appliedChanges = 0;
 
-        // Build nodeId → relative-path map once (shared across all pages)
-        var tree = await _api.GetFolderTreeAsync(null, cancellationToken);
+        // Build nodeId → relative-path map once (shared across all pages).
+        // When scoped to a remote folder, the tree root is that folder (a path-less anchor).
+        var tree = await _api.GetFolderTreeAsync(_serverFolderId, cancellationToken);
         var pathMap = new Dictionary<Guid, string>();
-        BuildPathMap(tree, "", pathMap);
+        BuildPathMap(tree, "", pathMap, isRoot: true);
+
+        // Apply folder size-limit exclusions (skips over-limit folders; prompts for undecided ones).
+        ApplySizeLimitExclusions(context, tree);
 
         // Paginated cursor loop — keeps fetching until HasMore == false
         var hasMore = true;
         while (hasMore)
         {
-            var page = await _api.GetChangesSinceAsync(cursor, limit: 500, cancellationToken);
+            var page = await _api.GetChangesSinceAsync(cursor, limit: 500, folderId: _serverFolderId, cancellationToken);
             _logger.LogDebug("Fetched {Count} remote changes (cursor={Cursor}, hasMore={HasMore}).",
                 page.Changes.Count, cursor ?? "(none)", page.HasMore);
 
@@ -1162,6 +1203,13 @@ public sealed class SyncEngine : ISyncEngine
                 var relativePathForIgnore = Path.GetRelativePath(context.LocalFolderPath, localPath);
                 if (!_selectiveSync.IsIncluded(context.Id, relativePathForIgnore))
                     continue;
+
+                if (IsUnderSizeLimitExclusion(relativePathForIgnore))
+                {
+                    _logger.LogDebug("Skipping remote change {RelPath} for context {ContextId} (folder over size limit).",
+                        relativePathForIgnore, context.Id);
+                    continue;
+                }
 
                 if (_syncIgnore.IsIgnored(relativePathForIgnore))
                 {
@@ -1224,6 +1272,89 @@ public sealed class SyncEngine : ISyncEngine
     }
 
     /// <summary>
+    /// Computes the folders excluded by the folder size limit for this sync pass and raises
+    /// <see cref="SizeLimitDecisionRequested"/> for over-limit folders without a stored decision.
+    /// </summary>
+    private void ApplySizeLimitExclusions(SyncContext context, SyncTreeNodeResponse tree)
+    {
+        _sizeLimitExcludedPaths.Clear();
+        if (!SizeLimitEnabled)
+            return;
+
+        var exclusions = SyncFolderSizePlanner.PlanExclusions(tree, MaxFolderSizeBytes);
+        if (exclusions.Count == 0)
+            return;
+
+        var existingRules = _selectiveSync.GetRules(context.Id);
+
+        foreach (var relativePath in exclusions)
+        {
+            var normalized = NormalizeRelativePath(relativePath);
+            var rule = existingRules.FirstOrDefault(r => r.Source == "SizeLimit"
+                && string.Equals(NormalizeRelativePath(r.FolderPath), normalized, StringComparison.OrdinalIgnoreCase));
+
+            if (rule is not null)
+            {
+                // Decided: skip only if the user chose to exclude.
+                if (!rule.IsInclude)
+                    _sizeLimitExcludedPaths.Add(normalized);
+                continue;
+            }
+
+            // Undecided — skip this pass and prompt the user.
+            _sizeLimitExcludedPaths.Add(normalized);
+            SizeLimitDecisionRequested?.Invoke(this, new SizeLimitDecisionRequestedEventArgs
+            {
+                RelativePath = relativePath,
+                SizeBytes = ComputeFolderSize(tree, relativePath),
+                LimitBytes = MaxFolderSizeBytes,
+            });
+        }
+    }
+
+    /// <summary>Returns true when <paramref name="relativePath"/> is under a size-limit-excluded folder.</summary>
+    private bool IsUnderSizeLimitExclusion(string relativePath)
+    {
+        if (_sizeLimitExcludedPaths.Count == 0)
+            return false;
+
+        var normalized = NormalizeRelativePath(relativePath);
+        if (_sizeLimitExcludedPaths.Contains(normalized))
+            return true;
+
+        var comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+        return _sizeLimitExcludedPaths.Any(ex => normalized.StartsWith(ex + "/", comparison));
+    }
+
+    private static string NormalizeRelativePath(string path) => path.Replace('\\', '/').Trim('/');
+
+    private static long ComputeFolderSize(SyncTreeNodeResponse tree, string relativePath)
+    {
+        var node = tree;
+        foreach (var segment in relativePath.Split('/'))
+        {
+            if (node is null)
+                return 0;
+            node = node.Children.FirstOrDefault(c => string.Equals(c.Name, segment, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return node is null ? 0 : SumNode(node);
+    }
+
+    private static long SumNode(SyncTreeNodeResponse node)
+    {
+        long total = node.Size;
+        foreach (var child in node.Children)
+        {
+            total += SumNode(child);
+        }
+
+        return total;
+    }
+
+    /// <summary>
     /// Walks the server tree and queues downloads for files that exist on the server
     /// but are missing locally. Also detects tracked local files whose NodeIds are
     /// absent from the server tree (remote deletions missed by the change feed) and
@@ -1237,7 +1368,7 @@ public sealed class SyncEngine : ISyncEngine
         CancellationToken cancellationToken)
     {
         var serverFiles = new Dictionary<string, SyncTreeNodeResponse>(StringComparer.OrdinalIgnoreCase);
-        BuildServerFileMap(tree, "", serverFiles);
+        BuildServerFileMap(tree, "", serverFiles, isRoot: true);
 
         // Build a set of all server node IDs (files + folders) for reverse-reconciliation.
         var serverNodeIds = new HashSet<Guid>();
@@ -1254,6 +1385,9 @@ public sealed class SyncEngine : ISyncEngine
             var localPath = Path.Combine(context.LocalFolderPath, relativePath);
 
             if (!_selectiveSync.IsIncluded(context.Id, relativePath))
+                continue;
+
+            if (IsUnderSizeLimitExclusion(relativePath))
                 continue;
 
             if (_syncIgnore.IsIgnored(relativePath))
@@ -1785,7 +1919,7 @@ public sealed class SyncEngine : ISyncEngine
 
         // Build folder relativePath → NodeId map for parent folder resolution during uploads.
         var folderPathMap = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
-        BuildFolderPathMap(serverTree, "", folderPathMap);
+        BuildFolderPathMap(serverTree, "", folderPathMap, isRoot: true);
 
         var parallelOptions = new ParallelOptions
         {
@@ -2354,10 +2488,10 @@ public sealed class SyncEngine : ISyncEngine
     private static bool IsSymlinkNodeType(string? nodeType) =>
         string.Equals(nodeType, "SymbolicLink", StringComparison.OrdinalIgnoreCase);
 
-    private static void BuildPathMap(SyncTreeNodeResponse node, string parentPath, Dictionary<Guid, string> map)
+    internal static void BuildPathMap(SyncTreeNodeResponse node, string parentPath, Dictionary<Guid, string> map, bool isRoot = false)
     {
-        // The virtual root (NodeId == Guid.Empty, Name == "/") has no path segment
-        var currentPath = node.NodeId == Guid.Empty
+        // Root anchor: the virtual root (NodeId == Guid.Empty) and a folder-scoped root both add NO path segment.
+        var currentPath = isRoot || node.NodeId == Guid.Empty
             ? parentPath
             : string.IsNullOrEmpty(parentPath) ? node.Name : Path.Combine(parentPath, node.Name);
 
@@ -2372,9 +2506,9 @@ public sealed class SyncEngine : ISyncEngine
     /// Recursively flattens a server tree into a relative-path → node lookup for files only.
     /// Used by <see cref="ScanLocalDirectoryAsync"/> to detect files already on the server.
     /// </summary>
-    private static void BuildServerFileMap(SyncTreeNodeResponse node, string parentPath, Dictionary<string, SyncTreeNodeResponse> map)
+    private static void BuildServerFileMap(SyncTreeNodeResponse node, string parentPath, Dictionary<string, SyncTreeNodeResponse> map, bool isRoot = false)
     {
-        var currentPath = node.NodeId == Guid.Empty
+        var currentPath = isRoot || node.NodeId == Guid.Empty
             ? parentPath
             : string.IsNullOrEmpty(parentPath) ? node.Name : Path.Combine(parentPath, node.Name);
 
@@ -2389,9 +2523,9 @@ public sealed class SyncEngine : ISyncEngine
     /// Recursively builds a relative-path → NodeId map for folders only.
     /// Used by <see cref="ApplyLocalChangesAsync"/> to resolve parent folder IDs during uploads.
     /// </summary>
-    private static void BuildFolderPathMap(SyncTreeNodeResponse node, string parentPath, Dictionary<string, Guid> map)
+    private static void BuildFolderPathMap(SyncTreeNodeResponse node, string parentPath, Dictionary<string, Guid> map, bool isRoot = false)
     {
-        var currentPath = node.NodeId == Guid.Empty
+        var currentPath = isRoot || node.NodeId == Guid.Empty
             ? parentPath
             : string.IsNullOrEmpty(parentPath) ? node.Name : Path.Combine(parentPath, node.Name);
 
@@ -2434,7 +2568,7 @@ public sealed class SyncEngine : ISyncEngine
             : StringComparison.Ordinal;
 
         if (string.Equals(parentDir, context.LocalFolderPath, pathComparison))
-            return null; // File is at sync root
+            return _serverFolderId; // File is at sync root → lands directly in the scoped folder (or null for whole-account)
 
         var relativeDir = Path.GetRelativePath(context.LocalFolderPath, parentDir);
 
@@ -2443,8 +2577,9 @@ public sealed class SyncEngine : ISyncEngine
             return existingId;
 
         // Walk the directory segments and create any missing folders on the server.
+        // For a folder-scoped sync, folder creation starts inside the scoped root.
         var segments = relativeDir.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        Guid? currentParentId = null;
+        Guid? currentParentId = _serverFolderId;
         var currentPath = "";
 
         foreach (var segment in segments)
@@ -2493,9 +2628,9 @@ public sealed class SyncEngine : ISyncEngine
     /// Recursively flattens a server tree into a relative-path → node lookup for folders only.
     /// Used by <see cref="ScanLocalDirectoryAsync"/> to detect deleted directories.
     /// </summary>
-    private static void BuildServerFolderMap(SyncTreeNodeResponse node, string parentPath, Dictionary<string, SyncTreeNodeResponse> map)
+    private static void BuildServerFolderMap(SyncTreeNodeResponse node, string parentPath, Dictionary<string, SyncTreeNodeResponse> map, bool isRoot = false)
     {
-        var currentPath = node.NodeId == Guid.Empty
+        var currentPath = isRoot || node.NodeId == Guid.Empty
             ? parentPath
             : string.IsNullOrEmpty(parentPath) ? node.Name : Path.Combine(parentPath, node.Name);
 
@@ -2996,7 +3131,13 @@ public sealed class SyncEngine : ISyncEngine
     /// Fires a <see cref="StatusChanged"/> event with full-sync progress information.
     /// Used during full re-sync to show meaningful progress to the user.
     /// </summary>
-    private void ReportFullSyncProgress(SyncContext context, string phaseLabel, int completedItems, int totalItems)
+    private void ReportFullSyncProgress(
+        SyncContext context,
+        string phaseLabel,
+        int completedItems,
+        int totalItems,
+        int pendingUploads = 0,
+        int pendingDownloads = 0)
     {
         _fullSyncCompletedItems = completedItems;
         _fullSyncTotalItems = totalItems;
@@ -3011,6 +3152,8 @@ public sealed class SyncEngine : ISyncEngine
                 FullSyncPhaseLabel = phaseLabel,
                 FullSyncCompletedItems = completedItems,
                 FullSyncTotalItems = totalItems,
+                PendingUploads = pendingUploads,
+                PendingDownloads = pendingDownloads,
             },
         });
     }
@@ -3021,7 +3164,13 @@ public sealed class SyncEngine : ISyncEngine
     /// to be <see langword="true"/> and sets <see cref="SyncStatus.IsFullSync"/> to <see langword="false"/>,
     /// making it suitable for reporting progress during regular (non-full) sync cycles.
     /// </summary>
-    private void ReportPhaseProgress(SyncContext context, string phaseLabel, int completedItems, int totalItems)
+    private void ReportPhaseProgress(
+        SyncContext context,
+        string phaseLabel,
+        int completedItems,
+        int totalItems,
+        int pendingUploads = 0,
+        int pendingDownloads = 0)
     {
         StatusChanged?.Invoke(this, new SyncStatusChangedEventArgs
         {
@@ -3033,6 +3182,8 @@ public sealed class SyncEngine : ISyncEngine
                 FullSyncPhaseLabel = phaseLabel,
                 FullSyncCompletedItems = completedItems,
                 FullSyncTotalItems = totalItems,
+                PendingUploads = pendingUploads,
+                PendingDownloads = pendingDownloads,
             },
         });
     }

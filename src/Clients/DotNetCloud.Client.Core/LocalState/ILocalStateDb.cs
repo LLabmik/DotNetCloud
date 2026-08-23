@@ -186,4 +186,15 @@ public interface ILocalStateDb
     /// <paramref name="resolution"/> string. Returns the number of conflicts resolved.
     /// </summary>
     Task<int> BatchResolveConflictsAsync(string dbPath, string resolution, CancellationToken cancellationToken = default);
+
+    // ── Sync Folder Rules ───────────────────────────────────────────────────
+
+    /// <summary>Gets all sync folder rules (manual selective-sync + size-limit decisions) for a context.</summary>
+    Task<IReadOnlyList<SyncFolderRule>> GetSyncFolderRulesAsync(string dbPath, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Replaces the full set of sync folder rules for a context in one transaction.
+    /// Any previously stored rules are deleted and the provided set is inserted.
+    /// </summary>
+    Task ReplaceSyncFolderRulesAsync(string dbPath, IReadOnlyList<SyncFolderRule> rules, CancellationToken cancellationToken = default);
 }
