@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-08-23 (SyncTray multi-folder sync — server deploy to cloud.kimball.home)
+Last updated: 2026-08-23 (SyncTray multi-folder sync — server deployed ✅, hand back to client mint-OptiPlex-7010 for testing)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -18,50 +18,41 @@ Archived context:
 - All actionable items, blockers, and technical details go directly in this document.
 - **Current active branch:** `fix/synctray-issues`
 
-## Active Handoff — cloud.kimball.home: Deploy Multi-Folder Sync Server Code
+## Active Handoff — mint-OptiPlex-7010: Test SyncTray Multi-Folder Sync Client
 
-**Target:** `cloud.kimball.home` (production `https://cloud.dotnetcloud.net/`)
+**Target:** `mint-OptiPlex-7010` (production client → `https://cloud.dotnetcloud.net/`)
 **Branch:** `fix/synctray-issues`
-**Commit:** `a470c992`
+**Server deploy:** ✅ COMPLETE — deployed & verified on `cloud.kimball.home` (v0.4.07, HEAD `ffe882d5`; feature commit `a470c992`)
 
-**Summary:** Deploy the server-side portion of the SyncTray multi-folder sync + folder size limit feature. After the deploy is confirmed, client testing happens on `mint-OptiPlex-7010`.
+**Summary:** The server-side multi-folder sync + folder size limit feature is **deployed and verified** on production. Hand back to the client: pull the latest client code and test the SyncTray multi-folder sync changes against `cloud.dotnetcloud.net`.
 
-### Server changes included (all under `src/Modules/Files/`)
+### Server status (completed — verified 2026-08-23)
 
-1. **New table + migrations:** `SyncFolderRegistration` entity + EF config + `FilesDbContext` DbSet. Migrations committed for **both providers**:
-   - PostgreSQL: `src/Modules/Files/DotNetCloud.Modules.Files.Data/Migrations/20260823053819_SyncFolderRegistration.cs`
-   - SQL Server: `src/Modules/Files/DotNetCloud.Modules.Files.Data/Migrations/SqlServer/20260823053837_SyncFolderRegistration_SqlServer.cs`
-2. **New REST endpoints:** `api/v1/files/sync/folders` (GET list / POST register / DELETE unregister) via `SyncFoldersController` + `ISyncFolderRegistrationService`. Validates folder ownership, folder type, and **remote-overlap** (rejects equal/descendant/ancestor registrations via `MaterializedPath`). Re-registration is idempotent.
-3. **Recursive folder scoping:** `SyncService.GetChangesSinceAsync` / `GetChangesSinceCursorAsync` now scope `folderId` to a folder **and all descendants** (previously one level deep).
-4. **DI:** `ISyncFolderRegistrationService` registered in `FilesServiceRegistration.AddFilesServices`.
+- ✅ Deployed via `scripts/deploy.sh --force --verify` on `cloud.kimball.home` — all 15 targets succeeded, assembly hashes verified.
+- ✅ `/health` + `/health/ready` → Healthy, 14/14 modules (Files Running).
+- ✅ New table `[core].[SyncFolderRegistrations]` created on SQL Server (hyperdrive): columns `Id, UserId, RemoteFolderNodeId, RemoteFolderPath, CreatedAt, UpdatedAt, IsActive`; PK + user-id index + unique `(UserId, RemoteFolderNodeId)` index.
+- ✅ `GET /api/v1/files/sync/folders` and `GET /api/v1/files/sync/changes` routes registered (401 unauthenticated — not 404).
+- ⚠️ Authenticated 200 checks (`{ success = true, data: [] }`) still pending — confirm during client testing below.
 
-### Deploy steps (cloud.kimball.home)
+### Client task — test SyncTray multi-folder sync against cloud.dotnetcloud.net
 
-1. `git fetch origin && git checkout fix/synctray-issues && git pull`
-2. **Back up before migrating** (production is SQL Server): DB backup + file storage + config per `docs/admin/server/UPGRADING.md`.
-3. **Apply the Files migration** (SQL Server production):
-   ```bash
-   dotnet ef database update \
-     --project src/Modules/Files/DotNetCloud.Modules.Files.Data \
-     --context FilesDbContext
-   ```
-   Set `DOTNETCLOUD_DB_CONNECTION` to the SQL Server connection so the SqlServer design-time factory is selected. Apply the PostgreSQL variant too if a PG database is in use.
-4. **Build/publish + deploy** (existing pattern):
-   ```bash
-   sudo systemctl stop dotnetcloud
-   dotnet publish DotNetCloud.CI.slnf -c Release -o /tmp/dotnetcloud-publish
-   sudo cp -r /tmp/dotnetcloud-publish/* /opt/dotnetcloud/server/
-   sudo systemctl restart dotnetcloud
-   ```
-5. **Verify:**
-   - Service healthy; module hosts pass `/health` and `/health/ready`
-   - New table exists: `[core].[SyncFolderRegistrations]` (SQL Server)
-   - `GET /api/v1/files/sync/folders` returns 200 `{ success = true, data: [] }` for an authenticated user
-   - `GET /api/v1/files/sync/changes` still returns 200 (recursive scoping did not break existing sync)
+1. Pull `fix/synctray-issues` on `mint-OptiPlex-7010` and ensure the client build is current.
+2. **Multi-folder add flow:** register 2+ local folders for sync; verify each registers via `POST /api/v1/files/sync/folders` (re-registration is idempotent), appears in the tray, and syncs correctly.
+3. **Folder size limit prompt:** verify the client enforces the server folder size limit and prompts when a registered folder exceeds it.
+4. **Per-root tray "Open Folder" entries:** verify each synced root has its own tray "Open Folder" entry that opens the correct local folder.
+5. **Remote-overlap validation:** confirm the server rejects registering an equal/descendant/ancestor folder.
+6. **Regression — existing single-folder sync:** confirm `GET /api/v1/files/sync/changes` (now recursive scoping) still syncs the original folder with no regressions.
+
+### Useful server contract details for testing
+
+- Endpoints: `GET/POST/DELETE /api/v1/files/sync/folders`; `GET /api/v1/files/sync/changes`.
+- Responses are wrapped in the API envelope — unwrap via envelope helpers.
+- Desktop OAuth client id: `OAuthConstants.ClientId = "dotnetcloud-desktop"`.
+- Server version: 0.4.07.
 
 ### Follow-up
 
-After the server deploy is confirmed, **hand back to `mint-OptiPlex-7010`** to test the SyncTray client changes against `cloud.dotnetcloud.net`: multi-folder add flow, folder size limit prompt, per-root tray "Open Folder" entries.
+After client testing, report results (pass/fail + any blockers) here and hand back to the server agent for fixes if needed.
 
 ## Moderator Communication (Minimal)
 
