@@ -25,6 +25,9 @@ public sealed class LocalStateDbContext : DbContext
     /// <summary>Detected file conflict records (unresolved and history).</summary>
     public DbSet<ConflictRecord> ConflictRecords => Set<ConflictRecord>();
 
+    /// <summary>Per-context sync folder rules (manual selective-sync and size-limit decisions).</summary>
+    public DbSet<SyncFolderRule> SyncFolderRules => Set<SyncFolderRule>();
+
     /// <summary>Initializes a new <see cref="LocalStateDbContext"/>.</summary>
     public LocalStateDbContext(DbContextOptions<LocalStateDbContext> options) : base(options) { }
 
@@ -69,6 +72,13 @@ public sealed class LocalStateDbContext : DbContext
             e.Property(r => r.OriginalPath).IsRequired();
             e.HasIndex(r => r.DetectedAt);
             e.HasIndex(r => r.ResolvedAt);
+        });
+
+        modelBuilder.Entity<SyncFolderRule>(e =>
+        {
+            e.HasKey(r => r.Id);
+            e.Property(r => r.RelativePath).IsRequired();
+            e.HasIndex(r => new { r.RelativePath, r.Source }).IsUnique();
         });
     }
 }
@@ -188,4 +198,27 @@ public sealed class SyncCheckpointRow
 
     /// <summary>Opaque server-issued cursor for cursor-based incremental sync. Null = never synced (triggers full sync).</summary>
     public string? SyncCursor { get; set; }
+}
+
+/// <summary>
+/// Flat DB row for a per-context sync folder rule. Rules tell the engine whether a
+/// folder relative to the sync root is included or excluded. <see cref="Source"/>
+/// distinguishes manual selective-sync rules from automatic folder size-limit decisions.
+/// </summary>
+public sealed class SyncFolderRule
+{
+    /// <summary>Row ID.</summary>
+    public int Id { get; set; }
+
+    /// <summary>Folder path relative to the sync root, forward slashes, no leading slash (e.g. "Documents/BigFiles").</summary>
+    public required string RelativePath { get; set; }
+
+    /// <summary>Whether this folder is included (<c>true</c>) or excluded (<c>false</c>).</summary>
+    public bool IsInclude { get; set; }
+
+    /// <summary>Rule origin: <c>"Manual"</c> (selective-sync UI) or <c>"SizeLimit"</c> (folder size limit).</summary>
+    public string Source { get; set; } = "Manual";
+
+    /// <summary>UTC time the rule was last updated.</summary>
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

@@ -16,11 +16,13 @@ public sealed class FolderBrowserViewModel : ViewModelBase
     private readonly ISyncContextManager _syncManager;
     private readonly Guid _contextId;
     private readonly ISelectiveSyncConfig _selectiveSync;
-    private readonly string _configFilePath;
     private SyncTreeNodeResponse? _fullTree;
 
     private bool _isLoading;
     private string? _errorMessage;
+    private bool _isSingleSelect;
+    private Guid? _selectedNodeId;
+    private string? _selectedRelativePath;
 
     /// <summary>Root-level folder nodes.</summary>
     public ObservableCollection<FolderBrowserItemViewModel> RootItems { get; } = [];
@@ -64,24 +66,55 @@ public sealed class FolderBrowserViewModel : ViewModelBase
     /// </summary>
     public Func<string, Task<bool>>? ConfirmDeletionAsync { get; set; }
 
+    /// <summary>
+    /// When <c>true</c>, the browser acts as a single-select remote folder picker
+    /// (clicking a folder selects it as the destination) instead of the include/exclude UI.
+    /// </summary>
+    public bool IsSingleSelect
+    {
+        get => _isSingleSelect;
+        set => SetProperty(ref _isSingleSelect, value);
+    }
+
+    /// <summary>NodeId of the folder selected in single-select mode, or <c>null</c>.</summary>
+    public Guid? SelectedNodeId
+    {
+        get => _selectedNodeId;
+        private set => SetProperty(ref _selectedNodeId, value);
+    }
+
+    /// <summary>Relative path of the folder selected in single-select mode (e.g. "Documents/Work"), or <c>null</c>.</summary>
+    public string? SelectedRelativePath
+    {
+        get => _selectedRelativePath;
+        private set => SetProperty(ref _selectedRelativePath, value);
+    }
+
     /// <summary>Initializes a new <see cref="FolderBrowserViewModel"/>.</summary>
     /// <param name="syncManager">Sync context manager for direct access.</param>
     /// <param name="contextId">Sync context ID to load the tree for.</param>
     /// <param name="selectiveSync">Selective sync config to persist rules to.</param>
-    /// <param name="configFilePath">Path to the selective sync config JSON file.</param>
     public FolderBrowserViewModel(
         ISyncContextManager syncManager,
         Guid contextId,
-        ISelectiveSyncConfig selectiveSync,
-        string configFilePath)
+        ISelectiveSyncConfig selectiveSync)
     {
         _syncManager = syncManager;
         _contextId = contextId;
         _selectiveSync = selectiveSync;
-        _configFilePath = configFilePath;
 
         LoadTreeCommand = new AsyncRelayCommand(LoadTreeAsync);
         SaveCommand = new AsyncRelayCommand(SaveAsync);
+    }
+
+    /// <summary>Selects a folder when in single-select (remote picker) mode.</summary>
+    public void SelectFolder(FolderBrowserItemViewModel item)
+    {
+        if (!IsSingleSelect || item is null || item.NodeId == Guid.Empty)
+            return;
+
+        SelectedNodeId = item.NodeId;
+        SelectedRelativePath = item.RelativePath;
     }
 
     /// <summary>Fetches the folder tree from the server and populates <see cref="RootItems"/>.</summary>

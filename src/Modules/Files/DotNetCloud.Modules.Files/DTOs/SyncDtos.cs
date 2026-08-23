@@ -241,3 +241,33 @@ public sealed record SetDeviceActiveDto
     /// <summary>Whether the device should be active.</summary>
     public bool IsActive { get; init; }
 }
+
+/// <summary>
+/// A server-side sync folder registration (the server's view of a client's "folder to sync").
+/// </summary>
+public sealed record SyncFolderRegistrationDto
+{
+    /// <summary>Registration identifier.</summary>
+    public Guid Id { get; init; }
+
+    /// <summary>The <c>FileNode.Id</c> of the remote folder being synced.</summary>
+    public Guid RemoteFolderNodeId { get; init; }
+
+    /// <summary>Denormalized human-readable remote path (e.g. "/Documents/Work").</summary>
+    public required string RemoteFolderPath { get; init; }
+
+    /// <summary>When the registration was created (UTC).</summary>
+    public DateTime CreatedAt { get; init; }
+
+    /// <summary>When the registration was last updated (UTC).</summary>
+    public DateTime UpdatedAt { get; init; }
+}
+
+/// <summary>
+/// Request body for <c>POST /api/v1/files/sync/folders</c>.
+/// </summary>
+public sealed record SyncFolderRegistrationRequestDto
+{
+    /// <summary>The <c>FileNode.Id</c> of the remote folder to register.</summary>
+    public Guid RemoteFolderNodeId { get; init; }
+}

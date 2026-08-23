@@ -84,8 +84,8 @@ public interface IDotNetCloudApiClient
     /// <summary>Gets all changes since a given timestamp (legacy timestamp-based sync).</summary>
     Task<IReadOnlyList<SyncChangeResponse>> GetChangesSinceAsync(DateTime since, Guid? folderId, CancellationToken cancellationToken = default);
 
-    /// <summary>Gets a paginated page of changes using a server-issued cursor. Pass null cursor for the initial (full) sync.</summary>
-    Task<PagedSyncChangesResponse> GetChangesSinceAsync(string? cursor, int limit = 500, CancellationToken cancellationToken = default);
+    /// <summary>Gets a paginated page of changes using a server-issued cursor. Pass null cursor for the initial (full) sync. Pass <paramref name="folderId"/> to scope changes to a remote folder subtree.</summary>
+    Task<PagedSyncChangesResponse> GetChangesSinceAsync(string? cursor, int limit = 500, Guid? folderId = null, CancellationToken cancellationToken = default);
 
     /// <summary>Gets a full folder tree snapshot.</summary>
     Task<SyncTreeNodeResponse> GetFolderTreeAsync(Guid? folderId, CancellationToken cancellationToken = default);
@@ -98,6 +98,15 @@ public interface IDotNetCloudApiClient
 
     /// <summary>Gets the server-side cursor for a specific device (for recovery after reinstall).</summary>
     Task<DeviceCursorResponse?> GetDeviceCursorAsync(Guid deviceId, CancellationToken cancellationToken = default);
+
+    /// <summary>Lists the server-side sync folder registrations for the current user.</summary>
+    Task<IReadOnlyList<SyncFolderRegistrationResponse>> ListSyncFoldersAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Registers a remote folder as a server-side sync target for the current user.</summary>
+    Task<SyncFolderRegistrationResponse?> RegisterSyncFolderAsync(Guid remoteFolderNodeId, CancellationToken cancellationToken = default);
+
+    /// <summary>Removes the server-side sync folder registration for the given remote folder.</summary>
+    Task DeleteSyncFolderAsync(Guid remoteFolderNodeId, CancellationToken cancellationToken = default);
 
     // ── Quota Operations ────────────────────────────────────────────────────
 

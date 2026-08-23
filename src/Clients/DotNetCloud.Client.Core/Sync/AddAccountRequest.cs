@@ -16,6 +16,15 @@ public sealed class AddAccountRequest
     /// <summary>Absolute path of the local folder to synchronise.</summary>
     public required string LocalFolderPath { get; init; }
 
+    /// <summary>
+    /// The remote folder (its <c>FileNode.Id</c>) this local folder maps to, or <c>null</c>
+    /// to sync the whole account.
+    /// </summary>
+    public Guid? ServerFolderId { get; init; }
+
+    /// <summary>Human-readable remote path of <see cref="ServerFolderId"/> (e.g. "/Documents/Work"), if any.</summary>
+    public string? ServerFolderDisplayPath { get; init; }
+
     /// <summary>Human-readable display name for the tray UI.</summary>
     public required string DisplayName { get; init; }
 

@@ -17,6 +17,19 @@ public interface ISyncEngine : IAsyncDisposable
     event EventHandler<FileTransferCompleteEventArgs>? FileTransferComplete;
 
     /// <summary>
+    /// Whether the folder size limit is active. When enabled, folders whose recursive total
+    /// size exceeds <see cref="MaxFolderSizeBytes"/> are excluded from sync after a one-time
+    /// per-folder prompt. Applied at the start of each sync pass.
+    /// </summary>
+    bool SizeLimitEnabled { get; set; }
+
+    /// <summary>Maximum recursive folder size (bytes) before a folder is considered over-limit. Default 250 MiB.</summary>
+    long MaxFolderSizeBytes { get; set; }
+
+    /// <summary>Raised when a folder exceeds the size limit and no decision has been recorded yet.</summary>
+    event EventHandler<SizeLimitDecisionRequestedEventArgs>? SizeLimitDecisionRequested;
+
+    /// <summary>
     /// Starts the sync engine (enables FileSystemWatcher and periodic scan).
     /// </summary>
     Task StartAsync(SyncContext context, CancellationToken cancellationToken = default);
@@ -78,4 +91,24 @@ public sealed class FileTransferCompleteEventArgs : EventArgs
 
     /// <summary>Total chunks transferred.</summary>
     public int TotalChunks { get; init; }
+}
+
+/// <summary>
+/// Raised when a folder's recursive total size exceeds the folder size limit and the user has
+/// not yet decided whether to sync it. When forwarded by the sync context manager,
+/// <see cref="ContextId"/> identifies the sync context.
+/// </summary>
+public sealed class SizeLimitDecisionRequestedEventArgs : EventArgs
+{
+    /// <summary>The sync context ID (set when forwarded by the context manager).</summary>
+    public Guid? ContextId { get; init; }
+
+    /// <summary>Folder path relative to the sync root (forward slashes, no leading slash).</summary>
+    public required string RelativePath { get; init; }
+
+    /// <summary>The folder's recursive total size in bytes.</summary>
+    public long SizeBytes { get; init; }
+
+    /// <summary>The configured size limit in bytes.</summary>
+    public long LimitBytes { get; init; }
 }

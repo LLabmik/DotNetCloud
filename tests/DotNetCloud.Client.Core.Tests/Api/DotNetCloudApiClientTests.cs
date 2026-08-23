@@ -590,4 +590,89 @@ public class DotNetCloudApiClientTests
 
         Assert.AreEqual("gzip", capturedEncoding, "Content-Encoding should be 'gzip' when no extension is provided.");
     }
+
+    // ── Sync folder registrations ───────────────────────────────────────────
+
+    [TestMethod]
+    public async Task GetChangesSince_WithFolderId_AppendsQueryParam()
+    {
+        var folderId = Guid.CreateVersion7();
+        string? capturedQuery = null;
+        var client = CreateMockHttpClient(req =>
+        {
+            capturedQuery = req.RequestUri?.Query;
+            return JsonOk(new PagedSyncChangesResponse { Changes = [], HasMore = false });
+        });
+        var apiClient = new DotNetCloudApiClient(client, NullLogger<DotNetCloudApiClient>.Instance);
+
+        await apiClient.GetChangesSinceAsync(cursor: null, limit: 500, folderId);
+
+        Assert.IsNotNull(capturedQuery);
+        StringAssert.Contains(capturedQuery, $"folderId={folderId}");
+    }
+
+    [TestMethod]
+    public async Task GetChangesSince_WithoutFolderId_OmitsQueryParam()
+    {
+        string? capturedQuery = null;
+        var client = CreateMockHttpClient(req =>
+        {
+            capturedQuery = req.RequestUri?.Query;
+            return JsonOk(new PagedSyncChangesResponse { Changes = [], HasMore = false });
+        });
+        var apiClient = new DotNetCloudApiClient(client, NullLogger<DotNetCloudApiClient>.Instance);
+
+        await apiClient.GetChangesSinceAsync(cursor: null);
+
+        Assert.IsNotNull(capturedQuery);
+        Assert.IsFalse(capturedQuery.Contains("folderId="), "folderId must be omitted when not provided.");
+    }
+
+    [TestMethod]
+    public async Task RegisterSyncFolder_PostsToFoldersEndpoint()
+    {
+        var folderId = Guid.CreateVersion7();
+        var expected = new SyncFolderRegistrationResponse
+        {
+            Id = Guid.CreateVersion7(),
+            RemoteFolderNodeId = folderId,
+            RemoteFolderPath = "/Docs",
+        };
+
+        string? capturedMethod = null;
+        string? capturedPath = null;
+        var client = CreateMockHttpClient(req =>
+        {
+            capturedMethod = req.Method.ToString();
+            capturedPath = req.RequestUri?.AbsolutePath;
+            return JsonOk(expected);
+        });
+        var apiClient = new DotNetCloudApiClient(client, NullLogger<DotNetCloudApiClient>.Instance);
+
+        var result = await apiClient.RegisterSyncFolderAsync(folderId);
+
+        Assert.AreEqual("POST", capturedMethod);
+        StringAssert.EndsWith(capturedPath ?? "", "/api/v1/files/sync/folders");
+        Assert.AreEqual(folderId, result!.RemoteFolderNodeId);
+    }
+
+    [TestMethod]
+    public async Task DeleteSyncFolder_SendsDeleteToFolderEndpoint()
+    {
+        var folderId = Guid.CreateVersion7();
+        string? capturedMethod = null;
+        string? capturedPath = null;
+        var client = CreateMockHttpClient(req =>
+        {
+            capturedMethod = req.Method.ToString();
+            capturedPath = req.RequestUri?.AbsolutePath;
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        });
+        var apiClient = new DotNetCloudApiClient(client, NullLogger<DotNetCloudApiClient>.Instance);
+
+        await apiClient.DeleteSyncFolderAsync(folderId);
+
+        Assert.AreEqual("DELETE", capturedMethod);
+        StringAssert.EndsWith(capturedPath ?? "", $"/api/v1/files/sync/folders/{folderId}");
+    }
 }

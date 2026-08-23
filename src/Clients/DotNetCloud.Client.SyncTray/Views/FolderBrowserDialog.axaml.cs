@@ -13,6 +13,12 @@ public partial class FolderBrowserDialog : Window
     /// <summary>Whether the user saved their selection (vs. skipping/closing).</summary>
     public bool Saved { get; private set; }
 
+    /// <summary>NodeId of the folder selected in single-select mode, or <c>null</c>.</summary>
+    public Guid? SelectedNodeId { get; private set; }
+
+    /// <summary>Relative path of the folder selected in single-select mode, or <c>null</c>.</summary>
+    public string? SelectedRelativePath { get; private set; }
+
     /// <summary>Initializes a new <see cref="FolderBrowserDialog"/>.</summary>
     public FolderBrowserDialog()
     {
@@ -25,6 +31,7 @@ public partial class FolderBrowserDialog : Window
     /// </summary>
     public FolderBrowserDialog(FolderBrowserViewModel vm) : this()
     {
+        DataContext = vm;
         BrowserView.DataContext = vm;
         Opened += async (_, _) => await vm.LoadTreeAsync();
     }
@@ -48,6 +55,20 @@ public partial class FolderBrowserDialog : Window
         {
             vm.SetSaveError($"Failed to save folder selection: {ex.Message}");
         }
+    }
+
+    private void OnSelect(object? sender, RoutedEventArgs e)
+    {
+        if (BrowserView.DataContext is not FolderBrowserViewModel vm)
+        {
+            Close();
+            return;
+        }
+
+        SelectedNodeId = vm.SelectedNodeId;
+        SelectedRelativePath = vm.SelectedRelativePath;
+        Saved = vm.SelectedNodeId.HasValue;
+        Close();
     }
 
     private void OnSkip(object? sender, RoutedEventArgs e) => Close();

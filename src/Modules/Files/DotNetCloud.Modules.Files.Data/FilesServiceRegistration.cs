@@ -70,6 +70,7 @@ public static class FilesServiceRegistration
         services.AddScoped<ICommentService, CommentService>();
         services.AddScoped<ISyncService, SyncService>();
         services.AddScoped<ISyncDeviceResolver, SyncDeviceResolver>();
+        services.AddScoped<ISyncFolderRegistrationService, SyncFolderRegistrationService>();
         services.AddScoped<IDeviceContext, DeviceContext>();
         services.AddSingleton<ISyncChangeNotifier, SyncChangeNotifier>();
         services.AddScoped<IStorageMetricsService, StorageMetricsService>();
@@ -183,6 +184,7 @@ public static class FilesServiceRegistration
         services.AddScoped<ICommentService, CommentService>();
         services.AddScoped<ISyncService, SyncService>();
         services.AddScoped<ISyncDeviceResolver, SyncDeviceResolver>();
+        services.AddScoped<ISyncFolderRegistrationService, SyncFolderRegistrationService>();
         services.AddScoped<IDeviceContext, DeviceContext>();
         services.AddSingleton<ISyncChangeNotifier, SyncChangeNotifier>();
         services.AddScoped<IStorageMetricsService, StorageMetricsService>();

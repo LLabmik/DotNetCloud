@@ -28,6 +28,41 @@ internal sealed class SyncService : ISyncService
         _deviceContext = deviceContext;
     }
 
+    /// <summary>
+    /// Resolves the materialized-path prefix for a folder-scoped sync query, or <c>null</c>
+    /// when no folder scope is requested (or the folder does not exist).
+    /// </summary>
+    private async Task<string?> ResolveScopePathAsync(Guid? folderId, Guid userId, CancellationToken cancellationToken)
+    {
+        if (!folderId.HasValue)
+        {
+            return null;
+        }
+
+        return await _db.FileNodes
+            .AsNoTracking()
+            .Where(n => n.Id == folderId.Value && n.OwnerId == userId)
+            .Select(n => n.MaterializedPath)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Filters a node query to a folder and its recursive descendants. Direct children are
+    /// matched by <c>ParentId</c> (defensive for rows with stale paths); deeper descendants are
+    /// matched by the materialized-path prefix. When the scope path is unknown, only the
+    /// folder itself and its direct children match.
+    /// </summary>
+    private static IQueryable<FileNode> ApplyFolderScope(IQueryable<FileNode> query, Guid folderId, string? scopePath)
+    {
+        if (scopePath is null)
+        {
+            return query.Where(n => n.Id == folderId || n.ParentId == folderId);
+        }
+
+        var prefix = scopePath + "/";
+        return query.Where(n => n.Id == folderId || n.ParentId == folderId || n.MaterializedPath.StartsWith(prefix));
+    }
+
     /// <inheritdoc />
     public async Task<IReadOnlyList<SyncChangeDto>> GetChangesSinceAsync(DateTime since, Guid? folderId, CallerContext caller, CancellationToken cancellationToken = default)
     {
@@ -38,8 +73,9 @@ internal sealed class SyncService : ISyncService
             .AsNoTracking()
             .Where(n => n.OwnerId == caller.UserId && n.UpdatedAt >= since);
 
+        var activeScopePath = await ResolveScopePathAsync(folderId, caller.UserId, cancellationToken);
         if (folderId.HasValue)
-            activeQuery = activeQuery.Where(n => n.ParentId == folderId.Value || n.Id == folderId.Value);
+            activeQuery = ApplyFolderScope(activeQuery, folderId.Value, activeScopePath);
 
         var activeChanges = await activeQuery
             .Select(n => new SyncChangeDto
@@ -67,7 +103,7 @@ internal sealed class SyncService : ISyncService
             .Where(n => n.OwnerId == caller.UserId && n.IsDeleted && n.DeletedAt >= since);
 
         if (folderId.HasValue)
-            deletedQuery = deletedQuery.Where(n => n.ParentId == folderId.Value || n.Id == folderId.Value);
+            deletedQuery = ApplyFolderScope(deletedQuery, folderId.Value, activeScopePath);
 
         var deletedChanges = await deletedQuery
             .Select(n => new SyncChangeDto
@@ -145,8 +181,9 @@ internal sealed class SyncService : ISyncService
                         n.SyncSequence != null &&
                         n.SyncSequence > sinceSequence);
 
+        var cursorScopePath = await ResolveScopePathAsync(folderId, caller.UserId, cancellationToken);
         if (folderId.HasValue)
-            activeQuery = activeQuery.Where(n => n.ParentId == folderId.Value || n.Id == folderId.Value);
+            activeQuery = ApplyFolderScope(activeQuery, folderId.Value, cursorScopePath);
 
         // Deleted nodes with SyncSequence > sinceSequence
         var deletedQuery = _db.FileNodes
@@ -158,7 +195,7 @@ internal sealed class SyncService : ISyncService
                         n.SyncSequence > sinceSequence);
 
         if (folderId.HasValue)
-            deletedQuery = deletedQuery.Where(n => n.ParentId == folderId.Value || n.Id == folderId.Value);
+            deletedQuery = ApplyFolderScope(deletedQuery, folderId.Value, cursorScopePath);
 
         // Fetch one extra item to determine hasMore
         var fetchLimit = effectiveLimit + 1;

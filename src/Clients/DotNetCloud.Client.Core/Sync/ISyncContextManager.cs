@@ -36,6 +36,17 @@ public interface ISyncContextManager
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Adds an additional local sync folder to an existing account, reusing its stored tokens.
+    /// Each folder becomes its own sync context, optionally scoped to a remote folder.
+    /// </summary>
+    Task<SyncContextRegistration> AddFolderAsync(
+        Guid existingContextId,
+        string localFolderPath,
+        Guid? serverFolderId,
+        string? serverFolderDisplayPath,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Removes a sync context, stops and disposes its engine, deletes its
     /// stored tokens, and removes it from the persisted registry.
     /// </summary>
@@ -84,12 +95,29 @@ public interface ISyncContextManager
 
     /// <summary>
     /// Applies selective sync rules for the given context and persists them to the
-    /// context's local sync folder configuration file.
+    /// context's per-context state database.
     /// </summary>
     Task UpdateSelectiveSyncAsync(
         Guid contextId,
         IReadOnlyList<SelectiveSyncRule> rules,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns the current selective sync rules for the given context (loaded from the
+    /// per-context state database).
+    /// </summary>
+    Task<IReadOnlyList<SelectiveSyncRule>> GetSelectiveSyncRulesAsync(
+        Guid contextId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Applies a folder size-limit decision for the given context: records a <c>SizeLimit</c>
+    /// rule (include or exclude) and persists it, so the engine skips (or syncs) the folder.
+    /// </summary>
+    Task ApplySizeLimitDecisionAsync(
+        Guid contextId, string relativePath, bool syncFolder, CancellationToken cancellationToken = default);
+
+    /// <summary>Applies the folder size limit settings to all running contexts.</summary>
+    Task SetSizeLimitSettingsAsync(bool enabled, long maxFolderSizeBytes, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Persists conflict resolution settings to <c>sync-settings.json</c> and
@@ -127,4 +155,7 @@ public interface ISyncContextManager
 
     /// <summary>Raised when an individual file transfer completes in any context.</summary>
     event EventHandler<ContextTransferCompleteEventArgs>? TransferComplete;
+
+    /// <summary>Raised when a folder exceeds the folder size limit and no decision has been recorded yet.</summary>
+    event EventHandler<SizeLimitDecisionRequestedEventArgs>? SizeLimitDecisionRequested;
 }

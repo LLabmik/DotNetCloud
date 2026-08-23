@@ -684,6 +684,30 @@ public sealed class LocalStateDb : ILocalStateDb
         return count;
     }
 
+    // ── Sync Folder Rules ─────────────────────────────────────────────────
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<SyncFolderRule>> GetSyncFolderRulesAsync(string dbPath, CancellationToken cancellationToken = default)
+    {
+        await using var ctx = CreateContext(dbPath);
+        return await ctx.SyncFolderRules
+            .OrderBy(r => r.RelativePath)
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task ReplaceSyncFolderRulesAsync(string dbPath, IReadOnlyList<SyncFolderRule> rules, CancellationToken cancellationToken = default)
+    {
+        await using var ctx = CreateContext(dbPath);
+        ctx.SyncFolderRules.RemoveRange(ctx.SyncFolderRules);
+        if (rules.Count > 0)
+        {
+            ctx.SyncFolderRules.AddRange(rules);
+        }
+
+        await ctx.SaveChangesAsync(cancellationToken);
+    }
+
     // ── Private helpers ─────────────────────────────────────────────────────
 
     private static string BuildConnectionString(string dbPath) =>
@@ -763,6 +787,20 @@ public sealed class LocalStateDb : ILocalStateDb
                 BaseContentHash TEXT NULL,
                 AutoResolved INTEGER NOT NULL DEFAULT 0
             )", cancellationToken);
+
+        // Create SyncFolderRules table for manual selective-sync and size-limit decisions
+        await ExecuteNonQueryAsync(conn, @"
+            CREATE TABLE IF NOT EXISTS SyncFolderRules (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                RelativePath TEXT NOT NULL,
+                IsInclude INTEGER NOT NULL,
+                Source TEXT NOT NULL DEFAULT 'Manual',
+                UpdatedAt TEXT NOT NULL DEFAULT '0001-01-01 00:00:00'
+            )", cancellationToken);
+        await ExecuteNonQueryAsync(conn, @"
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_sync_folder_rules_path_source
+                ON SyncFolderRules (RelativePath, Source)
+        ", cancellationToken);
 
         // Add SyncCursor column to Checkpoints table if it predates cursor-based sync
         var checkpointColumns = await GetColumnNamesAsync(conn, "Checkpoints", cancellationToken);

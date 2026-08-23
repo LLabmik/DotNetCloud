@@ -127,6 +127,97 @@ public class SyncServiceTests
     }
 
     [TestMethod]
+    public async Task GetChangesSinceAsync_WithNestedFolder_ReturnsDescendantChanges()
+    {
+        using var db = CreateContext();
+        var userId = Guid.CreateVersion7();
+        var now = DateTime.UtcNow;
+        var folder = new FileNode { Name = "Folder", NodeType = FileNodeType.Folder, OwnerId = userId, UpdatedAt = now };
+        folder.MaterializedPath = $"/{folder.Id}";
+        var child = new FileNode
+        {
+            Name = "Child",
+            NodeType = FileNodeType.Folder,
+            OwnerId = userId,
+            ParentId = folder.Id,
+            UpdatedAt = now,
+        };
+        child.MaterializedPath = $"{folder.MaterializedPath}/{child.Id}";
+        db.FileNodes.AddRange(folder, child);
+        var grandchild = new FileNode
+        {
+            Name = "grandchild.txt",
+            NodeType = FileNodeType.File,
+            OwnerId = userId,
+            ParentId = child.Id,
+            UpdatedAt = now,
+        };
+        grandchild.MaterializedPath = $"{child.MaterializedPath}/{grandchild.Id}";
+        db.FileNodes.Add(grandchild);
+        db.FileNodes.Add(new FileNode
+        {
+            Name = "outside.txt",
+            NodeType = FileNodeType.File,
+            OwnerId = userId,
+            UpdatedAt = now,
+        });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var changes = await service.GetChangesSinceAsync(now.AddMinutes(-1), folder.Id, UserCaller(userId));
+
+        Assert.IsTrue(changes.Any(c => c.Name == "grandchild.txt"), "Nested descendant change should be included.");
+        Assert.IsTrue(changes.All(c => c.Name != "outside.txt"), "Outside change should be excluded.");
+    }
+
+    [TestMethod]
+    public async Task GetChangesSinceCursorAsync_WithNestedFolder_ReturnsDescendantChanges()
+    {
+        using var db = CreateContext();
+        var userId = Guid.CreateVersion7();
+        var now = DateTime.UtcNow;
+        var folder = new FileNode { Name = "Folder", NodeType = FileNodeType.Folder, OwnerId = userId, UpdatedAt = now, SyncSequence = 1 };
+        folder.MaterializedPath = $"/{folder.Id}";
+        var child = new FileNode
+        {
+            Name = "Child",
+            NodeType = FileNodeType.Folder,
+            OwnerId = userId,
+            ParentId = folder.Id,
+            UpdatedAt = now,
+            SyncSequence = 2,
+        };
+        child.MaterializedPath = $"{folder.MaterializedPath}/{child.Id}";
+        db.FileNodes.AddRange(folder, child);
+        var grandchild = new FileNode
+        {
+            Name = "grandchild.txt",
+            NodeType = FileNodeType.File,
+            OwnerId = userId,
+            ParentId = child.Id,
+            UpdatedAt = now,
+            SyncSequence = 3,
+        };
+        grandchild.MaterializedPath = $"{child.MaterializedPath}/{grandchild.Id}";
+        db.FileNodes.Add(grandchild);
+        db.FileNodes.Add(new FileNode
+        {
+            Name = "outside.txt",
+            NodeType = FileNodeType.File,
+            OwnerId = userId,
+            UpdatedAt = now,
+            SyncSequence = 4,
+        });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var result = await service.GetChangesSinceCursorAsync(null, folder.Id, 500, UserCaller(userId));
+
+        Assert.IsTrue(result.Changes.Any(c => c.Name == "grandchild.txt"), "Nested descendant change should be included.");
+        Assert.IsTrue(result.Changes.All(c => c.Name != "outside.txt"), "Outside change should be excluded.");
+    }
+
+    [TestMethod]
     public async Task GetChangesSinceAsync_OtherUsersNodes_NotIncluded()
     {
         using var db = CreateContext();

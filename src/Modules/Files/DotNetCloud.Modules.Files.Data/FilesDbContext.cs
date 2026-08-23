@@ -84,6 +84,9 @@ public class FilesDbContext : DbContext
     /// <summary>Per-device sync cursor for server-side tracking and recovery.</summary>
     public DbSet<SyncDeviceCursor> SyncDeviceCursors => Set<SyncDeviceCursor>();
 
+    /// <summary>Per-user registered remote sync folders.</summary>
+    public DbSet<SyncFolderRegistration> SyncFolderRegistrations => Set<SyncFolderRegistration>();
+
     /// <summary>Persisted virtual mounted node descriptors for admin shared folders.</summary>
     public DbSet<MountedNodeEntry> MountedNodeEntries => Set<MountedNodeEntry>();
 
@@ -111,6 +114,7 @@ public class FilesDbContext : DbContext
         modelBuilder.ApplyConfiguration(new UserSyncCounterConfiguration());
         modelBuilder.ApplyConfiguration(new SyncDeviceConfiguration());
         modelBuilder.ApplyConfiguration(new SyncDeviceCursorConfiguration());
+        modelBuilder.ApplyConfiguration(new SyncFolderRegistrationConfiguration());
         modelBuilder.ApplyConfiguration(new MountedNodeEntryConfiguration());
         modelBuilder.ApplyConfiguration(new AdminSharedFolderCleanupStatusConfiguration());
 

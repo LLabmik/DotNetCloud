@@ -15,6 +15,7 @@ using DotNetCloud.Client.SyncTray.Notifications;
 using DotNetCloud.Client.SyncTray.Services;
 using DotNetCloud.Client.SyncTray.Startup;
 using DotNetCloud.Client.SyncTray.ViewModels;
+using DotNetCloud.Client.SyncTray.Views;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
@@ -38,6 +39,7 @@ public partial class App : Application
     private CancellationTokenSource? _cts;
     private int _shutdownRequested;
     private int _cleanupDone;
+    private ILogger<App>? _logger;
 
     // Must be kept alive for the lifetime of the process — GC kills the handlers otherwise.
     private readonly List<PosixSignalRegistration> _signalRegistrations = [];
@@ -63,6 +65,9 @@ public partial class App : Application
             _vfsEngine = _services.GetRequiredService<VirtualFileSyncEngine>();
             _vfsSettings = _services.GetRequiredService<VirtualFileSettings>();
             _trayIconManager = _services.GetRequiredService<TrayIconManager>();
+
+            _logger = logger;
+            _syncManager.SizeLimitDecisionRequested += OnSizeLimitDecisionRequested;
 
             _trayIconManager.Initialize();
             logger.LogInformation("Tray icon manager initialized");
@@ -225,6 +230,9 @@ public partial class App : Application
             var trayVm = _services.GetRequiredService<TrayViewModel>();
             await trayVm.RefreshAccountsAsync();
 
+            // Load persisted size-limit settings so running engines pick them up at startup.
+            _ = _services.GetRequiredService<SettingsViewModel>();
+
             // First-run onboarding: prompt for account when none exist.
             var contexts2 = await _syncManager.GetContextsAsync();
             if (contexts2.Count == 0)
@@ -245,6 +253,52 @@ public partial class App : Application
         {
             logger.LogError(ex, "Failed to start sync context manager.");
         }
+    }
+
+    private void OnSizeLimitDecisionRequested(object? sender, SizeLimitDecisionRequestedEventArgs e)
+    {
+        if (e.ContextId is null)
+            return;
+
+        Dispatcher.UIThread.Post(async () =>
+        {
+            try
+            {
+                var size = FormatBytes(e.SizeBytes);
+                var limit = FormatBytes(e.LimitBytes);
+                var dialog = new MessageBoxDialog(
+                    "Folder exceeds size limit",
+                    $"The folder '{e.RelativePath}' is {size} — over your {limit} limit. Sync it anyway, or skip it?",
+                    MessageBoxButtons.YesNo);
+                dialog.Show();
+
+                var tcs = new TaskCompletionSource();
+                dialog.Closed += (_, _) => tcs.TrySetResult();
+                await tcs.Task;
+
+                var syncFolder = dialog.DialogResult == MessageBoxResult.Yes;
+                await _syncManager!.ApplySizeLimitDecisionAsync(e.ContextId.Value, e.RelativePath, syncFolder);
+                await _syncManager.SyncNowAsync(e.ContextId.Value);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Failed to apply folder size limit decision.");
+            }
+        });
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        var value = (double)bytes;
+        var unit = 0;
+        while (value >= 1024 && unit < units.Length - 1)
+        {
+            value /= 1024;
+            unit++;
+        }
+
+        return unit == 0 ? $"{bytes} B" : $"{value:0.#} {units[unit]}";
     }
 
     // ── Shutdown ──────────────────────────────────────────────────────────

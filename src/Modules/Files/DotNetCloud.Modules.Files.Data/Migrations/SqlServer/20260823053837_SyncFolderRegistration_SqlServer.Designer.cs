@@ -3,17 +3,20 @@ using System;
 using DotNetCloud.Modules.Files.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace DotNetCloud.Modules.Files.Data.Migrations
+namespace DotNetCloud.Modules.Files.Data.Migrations.SqlServer
 {
     [DbContext(typeof(FilesDbContext))]
-    partial class FilesDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260823053837_SyncFolderRegistration_SqlServer")]
+    partial class SyncFolderRegistration_SqlServer
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

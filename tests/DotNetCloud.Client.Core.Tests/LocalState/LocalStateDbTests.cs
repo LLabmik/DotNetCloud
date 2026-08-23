@@ -1,5 +1,6 @@
 using DotNetCloud.Client.Core.LocalState;
 using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -551,5 +552,80 @@ public class LocalStateDbTests
 
         var remaining = await _db.GetAllFileRecordsAsync(_dbPath);
         Assert.AreEqual(1, remaining.Count);
+    }
+
+    // ── Sync Folder Rules ───────────────────────────────────────────────────
+
+    [TestMethod]
+    public async Task SyncFolderRules_RoundTrip_Persists()
+    {
+        var rule = new SyncFolderRule
+        {
+            RelativePath = "Documents/BigFiles",
+            IsInclude = false,
+            Source = "Manual",
+            UpdatedAt = DateTime.UtcNow,
+        };
+
+        await _db.ReplaceSyncFolderRulesAsync(_dbPath, [rule]);
+
+        var loaded = await _db.GetSyncFolderRulesAsync(_dbPath);
+        Assert.AreEqual(1, loaded.Count);
+        Assert.AreEqual("Documents/BigFiles", loaded[0].RelativePath);
+        Assert.IsFalse(loaded[0].IsInclude);
+        Assert.AreEqual("Manual", loaded[0].Source);
+    }
+
+    [TestMethod]
+    public async Task ReplaceSyncFolderRules_ReplacesExistingSet()
+    {
+        await _db.ReplaceSyncFolderRulesAsync(_dbPath,
+        [
+            new SyncFolderRule { RelativePath = "a", IsInclude = false, Source = "Manual" },
+            new SyncFolderRule { RelativePath = "b", IsInclude = true, Source = "SizeLimit" },
+        ]);
+
+        await _db.ReplaceSyncFolderRulesAsync(_dbPath,
+        [
+            new SyncFolderRule { RelativePath = "c", IsInclude = true, Source = "Manual" },
+        ]);
+
+        var loaded = await _db.GetSyncFolderRulesAsync(_dbPath);
+        Assert.AreEqual(1, loaded.Count);
+        Assert.AreEqual("c", loaded[0].RelativePath);
+    }
+
+    [TestMethod]
+    public async Task Initialize_ExistingDb_AddsSyncFolderRulesTable()
+    {
+        // Create a DB with an "older" schema (no SyncFolderRules table), then run
+        // InitializeAsync and assert the table exists (exercises RunSchemaEvolutionAsync).
+        SqliteConnection.ClearAllPools();
+        var legacyDbPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".db");
+        try
+        {
+            var options = new Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<LocalStateDbContext>()
+                .UseSqlite($"Data Source={legacyDbPath}")
+                .Options;
+            await using (var legacy = new LocalStateDbContext(options))
+            {
+                await legacy.Database.EnsureCreatedAsync();
+            }
+
+            await _db.InitializeAsync(legacyDbPath);
+
+            await using var ctx = new LocalStateDbContext(
+                new Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<LocalStateDbContext>()
+                    .UseSqlite($"Data Source={legacyDbPath}")
+                    .Options);
+            var rows = await ctx.SyncFolderRules.ToListAsync();
+            Assert.AreEqual(0, rows.Count, "SyncFolderRules table should exist after schema evolution.");
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (File.Exists(legacyDbPath))
+                File.Delete(legacyDbPath);
+        }
     }
 }

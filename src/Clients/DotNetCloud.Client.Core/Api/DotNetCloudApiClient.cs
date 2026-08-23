@@ -465,11 +465,13 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
     }
 
     /// <inheritdoc/>
-    public async Task<PagedSyncChangesResponse> GetChangesSinceAsync(string? cursor, int limit = 500, CancellationToken cancellationToken = default)
+    public async Task<PagedSyncChangesResponse> GetChangesSinceAsync(string? cursor, int limit = 500, Guid? folderId = null, CancellationToken cancellationToken = default)
     {
         var query = $"limit={limit}";
         if (cursor is not null)
             query += $"&cursor={Uri.EscapeDataString(cursor)}";
+        if (folderId.HasValue)
+            query += $"&folderId={folderId}";
 
         var path = $"api/v1/files/sync/changes?{query}";
         using var response = await SendWithRetryAsync(
@@ -540,6 +542,27 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
     public async Task<DeviceCursorResponse?> GetDeviceCursorAsync(Guid deviceId, CancellationToken cancellationToken = default)
     {
         return await GetAsync<DeviceCursorResponse>($"api/v1/files/sync/device-cursor?deviceId={deviceId}", cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<SyncFolderRegistrationResponse>> ListSyncFoldersAsync(CancellationToken cancellationToken = default)
+    {
+        return await GetAsync<List<SyncFolderRegistrationResponse>>("api/v1/files/sync/folders", cancellationToken) ?? [];
+    }
+
+    /// <inheritdoc/>
+    public async Task<SyncFolderRegistrationResponse?> RegisterSyncFolderAsync(Guid remoteFolderNodeId, CancellationToken cancellationToken = default)
+    {
+        return await PostJsonAsync<SyncFolderRegistrationResponse>("api/v1/files/sync/folders", new { remoteFolderNodeId }, cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task DeleteSyncFolderAsync(Guid remoteFolderNodeId, CancellationToken cancellationToken = default)
+    {
+        using var response = await SendWithRetryAsync(
+            () => CreateAuthenticatedRequest(HttpMethod.Delete, $"api/v1/files/sync/folders/{remoteFolderNodeId}"),
+            cancellationToken);
+        response.EnsureSuccessStatusCode();
     }
 
     // ── Quota Operations ────────────────────────────────────────────────────

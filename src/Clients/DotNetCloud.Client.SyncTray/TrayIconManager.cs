@@ -46,6 +46,7 @@ public sealed class TrayIconManager : IDisposable
     private NativeMenuItem? _quickReplyItem;
     private NativeMenuItem? _updateItem;
     private NativeMenuItem? _applyUpdateItem;
+    private readonly NativeMenu _openFolderMenu = new();
 
     /// <summary>Initializes a new <see cref="TrayIconManager"/>.</summary>
     public TrayIconManager(TrayViewModel trayVm, IServiceProvider services, ILogger<TrayIconManager> logger)
@@ -117,10 +118,11 @@ public sealed class TrayIconManager : IDisposable
 
         menu.Items.Add(new NativeMenuItemSeparator());
 
-        // Open sync folder
+        // Open sync folder(s) — a submenu with one entry per synced folder
         var openFolderItem = new NativeMenuItem("Open sync folder");
-        openFolderItem.Click += OnOpenSyncFolderClicked;
+        openFolderItem.Menu = _openFolderMenu;
         menu.Items.Add(openFolderItem);
+        RefreshOpenFolderMenu();
 
         // Open sync logs
         var openLogsItem = new NativeMenuItem("Open Sync Logs");
@@ -228,6 +230,10 @@ public sealed class TrayIconManager : IDisposable
                 if (_applyUpdateItem is not null)
                     _applyUpdateItem.IsVisible = _trayVm.IsUpdateDownloaded;
             }
+            else if (e.PropertyName == nameof(TrayViewModel.Accounts))
+            {
+                RefreshOpenFolderMenu();
+            }
         });
     }
 
@@ -241,13 +247,19 @@ public sealed class TrayIconManager : IDisposable
             _ = _trayVm.PauseAllAsync();
     }
 
-    private void OnOpenSyncFolderClicked(object? sender, EventArgs e)
+    /// <summary>
+    /// Repopulates the "Open sync folder" submenu with one entry per synced folder.
+    /// </summary>
+    private void RefreshOpenFolderMenu()
     {
-        var firstAccount = _trayVm.Accounts.FirstOrDefault();
-        if (firstAccount is null)
-            return;
-
-        OpenFolderInExplorer(firstAccount.LocalFolderPath);
+        _openFolderMenu.Items.Clear();
+        foreach (var account in _trayVm.Accounts)
+        {
+            var path = account.LocalFolderPath;
+            var item = new NativeMenuItem(path);
+            item.Click += (_, _) => OpenFolderInExplorer(path);
+            _openFolderMenu.Items.Add(item);
+        }
     }
 
     private void OnOpenLogsClicked(object? sender, EventArgs e)

@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using DotNetCloud.Client.SyncTray.ViewModels;
 
 namespace DotNetCloud.Client.SyncTray.Views;
 
@@ -11,5 +12,14 @@ public partial class FolderBrowserView : UserControl
     public FolderBrowserView()
     {
         InitializeComponent();
+    }
+
+    private void OnSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (DataContext is FolderBrowserViewModel vm && e.AddedItems.Count > 0
+            && e.AddedItems[0] is FolderBrowserItemViewModel item)
+        {
+            vm.SelectFolder(item);
+        }
     }
 }

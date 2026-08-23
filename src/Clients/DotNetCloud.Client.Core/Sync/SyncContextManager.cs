@@ -54,6 +54,9 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
     /// <inheritdoc/>
     public event EventHandler<ContextTransferCompleteEventArgs>? TransferComplete;
 
+    /// <inheritdoc/>
+    public event EventHandler<SizeLimitDecisionRequestedEventArgs>? SizeLimitDecisionRequested;
+
     /// <summary>Initializes a new <see cref="SyncContextManager"/>.</summary>
     public SyncContextManager(
         IHttpClientFactory httpClientFactory,
@@ -83,6 +86,11 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
             {
                 // Called at startup (sequential, before IPC accepts connections — no lock needed).
                 await StartContextInternalAsync(reg, cancellationToken);
+
+                // Best-effort reconcile of the server-side sync folder registration.
+                var startedRunning = await GetRunningContextAsync(reg.Id);
+                if (startedRunning is not null)
+                    await TryReconcileServerRegistrationAsync(startedRunning, cancellationToken);
             }
             catch (Exception ex)
             {
@@ -164,6 +172,8 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
             OsUserName = request.OsUserName,
             DataDirectory = dataDirectory,
             FullScanInterval = request.FullScanInterval,
+            ServerFolderId = request.ServerFolderId,
+            ServerFolderDisplayPath = request.ServerFolderDisplayPath,
         };
 
         // Persist tokens before starting the engine so RefreshAccessTokenAsync finds them
@@ -202,12 +212,95 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
 
         _logger.LogInformation("Added sync context {ContextId} ({DisplayName}).",
             contextId, request.DisplayName);
+
+        // Best-effort server-side registration of the sync folder.
+        var addedRunning = await GetRunningContextAsync(contextId);
+        if (addedRunning is not null)
+            await TryRegisterSyncFolderOnServerAsync(addedRunning, cancellationToken);
+
         return registration;
+    }
+
+    /// <inheritdoc/>
+    public async Task<SyncContextRegistration> AddFolderAsync(
+        Guid existingContextId,
+        string localFolderPath,
+        Guid? serverFolderId,
+        string? serverFolderDisplayPath,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(localFolderPath))
+            throw new ArgumentException("A local folder path is required.", nameof(localFolderPath));
+
+        var source = await GetRunningContextAsync(existingContextId);
+        if (source is null)
+            throw new InvalidOperationException("Source sync context not found.");
+
+        var sourceRegistration = source.Registration;
+        var contextId = Guid.CreateVersion7();
+        var dataDirectory = Path.Combine(_dataRoot, contextId.ToString("N"));
+        Directory.CreateDirectory(dataDirectory);
+
+        // Copy the existing account's tokens so the new folder shares the same account (no re-auth).
+        var sourceTokenStore = CreateTokenStore(sourceRegistration.DataDirectory);
+        var token = await sourceTokenStore.LoadAsync(sourceRegistration.AccountKey, cancellationToken);
+        if (token is null)
+            throw new InvalidOperationException("No stored tokens are available for the account.");
+
+        var newTokenStore = CreateTokenStore(dataDirectory);
+        await newTokenStore.SaveAsync(sourceRegistration.AccountKey, token, cancellationToken);
+
+        var newRegistration = new SyncContextRegistration
+        {
+            Id = contextId,
+            ServerBaseUrl = sourceRegistration.ServerBaseUrl,
+            UserId = sourceRegistration.UserId,
+            LocalFolderPath = localFolderPath,
+            DisplayName = sourceRegistration.DisplayName,
+            AccountKey = sourceRegistration.AccountKey,
+            OsUserName = sourceRegistration.OsUserName,
+            DataDirectory = dataDirectory,
+            FullScanInterval = sourceRegistration.FullScanInterval,
+            ServerFolderId = serverFolderId,
+            ServerFolderDisplayPath = serverFolderDisplayPath,
+        };
+
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            try
+            {
+                await StartContextInternalAsync(newRegistration, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to start sync engine for new folder context {ContextId}.", contextId);
+                RegisterOfflineContext(newRegistration);
+            }
+
+            await SaveRegistrationsAsync(cancellationToken);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+
+        // Best-effort server-side registration of the sync folder.
+        var addedRunning = await GetRunningContextAsync(contextId);
+        if (addedRunning is not null)
+            await TryRegisterSyncFolderOnServerAsync(addedRunning, cancellationToken);
+
+        _logger.LogInformation("Added sync folder {LocalFolder} for context {ContextId}.",
+            localFolderPath, existingContextId);
+        return newRegistration;
     }
 
     /// <inheritdoc/>
     public async Task RemoveContextAsync(Guid contextId, CancellationToken cancellationToken = default)
     {
+        IDotNetCloudApiClient? removedApiClient = null;
+        Guid? removedServerFolderId = null;
+
         await _lock.WaitAsync(cancellationToken);
         try
         {
@@ -223,6 +316,10 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
                 await running.Engine.DisposeAsync();
             }
 
+            // Capture before removal so the best-effort server unregister (outside the lock) can use it.
+            removedApiClient = running.ApiClient;
+            removedServerFolderId = running.Registration.ServerFolderId;
+
             var tokenStore = CreateTokenStore(running.Registration.DataDirectory);
             await tokenStore.DeleteAsync(running.Registration.AccountKey, cancellationToken);
 
@@ -233,6 +330,9 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
         {
             _lock.Release();
         }
+
+        // Best-effort server-side unregistration of the sync folder.
+        await TryUnregisterSyncFolderOnServerAsync(removedApiClient, removedServerFolderId, cancellationToken);
 
         _logger.LogInformation("Removed sync context {ContextId}.", contextId);
     }
@@ -361,7 +461,7 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
         CancellationToken cancellationToken = default)
     {
         var running = await GetRunningContextAsync(contextId);
-        if (running?.SelectiveSync is null)
+        if (running is null || running.SelectiveSync is null || running.StateDb is null)
             return;
 
         running.SelectiveSync.ClearRules(contextId);
@@ -373,7 +473,51 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
                 running.SelectiveSync.Exclude(contextId, rule.FolderPath);
         }
 
-        await running.SelectiveSync.SaveAsync(GetSelectiveSyncConfigPath(running.Registration), cancellationToken);
+        await running.SelectiveSync.SaveAsync(running.StateDb, running.SyncContext.StateDatabasePath, contextId, cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<SelectiveSyncRule>> GetSelectiveSyncRulesAsync(
+        Guid contextId, CancellationToken cancellationToken = default)
+    {
+        var running = await GetRunningContextAsync(contextId);
+        if (running?.SelectiveSync is null)
+            return [];
+
+        return running.SelectiveSync.GetRules(contextId);
+    }
+
+    /// <inheritdoc/>
+    public async Task ApplySizeLimitDecisionAsync(
+        Guid contextId, string relativePath, bool syncFolder, CancellationToken cancellationToken = default)
+    {
+        var running = await GetRunningContextAsync(contextId);
+        if (running is null || running.SelectiveSync is null || running.StateDb is null)
+            return;
+
+        running.SelectiveSync.SetRule(contextId, "/" + relativePath.TrimStart('/'), syncFolder, "SizeLimit");
+        await running.SelectiveSync.SaveAsync(running.StateDb, running.SyncContext.StateDatabasePath, contextId, cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task SetSizeLimitSettingsAsync(bool enabled, long maxFolderSizeBytes, CancellationToken cancellationToken = default)
+    {
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            foreach (var running in _contexts.Values)
+            {
+                if (running.Engine is not null)
+                {
+                    running.Engine.SizeLimitEnabled = enabled;
+                    running.Engine.MaxFolderSizeBytes = maxFolderSizeBytes;
+                }
+            }
+        }
+        finally
+        {
+            _lock.Release();
+        }
     }
 
     /// <inheritdoc/>
@@ -421,10 +565,16 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
             FullScanInterval = registration.FullScanInterval,
             UploadLimitKbps = registration.UploadLimitKbps,
             DownloadLimitKbps = registration.DownloadLimitKbps,
+            ServerFolderId = registration.ServerFolderId,
+            ServerFolderDisplayPath = registration.ServerFolderDisplayPath,
         };
 
+        var stateDatabasePath = Path.Combine(registration.DataDirectory, "state.db");
         var (engine, conflictResolver, stateDb, apiClient, selectiveSync) = CreateEngine(registration);
-        await selectiveSync.LoadAsync(GetSelectiveSyncConfigPath(registration), cancellationToken);
+        await selectiveSync.LoadAsync(stateDb, stateDatabasePath, registration.Id, cancellationToken);
+
+        // One-time migration from the legacy per-folder .selective-sync.json file (if present).
+        await MigrateLegacySelectiveSyncAsync(registration, stateDb, stateDatabasePath, selectiveSync, cancellationToken);
 
         // Forward conflict events with the context ID
         conflictResolver.ConflictDetected += (_, args) =>
@@ -485,6 +635,16 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
 
         // Forward status changes as service-level events
         engine.StatusChanged += (_, args) => OnEngineStatusChanged(registration.Id, args.Status);
+
+        // Forward folder size-limit prompts with the context ID.
+        engine.SizeLimitDecisionRequested += (_, args) =>
+            SizeLimitDecisionRequested?.Invoke(this, new SizeLimitDecisionRequestedEventArgs
+            {
+                ContextId = registration.Id,
+                RelativePath = args.RelativePath,
+                SizeBytes = args.SizeBytes,
+                LimitBytes = args.LimitBytes,
+            });
 
         await engine.StartAsync(syncContext, cancellationToken);
 
@@ -637,8 +797,47 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
         return (engine, conflictResolver, stateDb, apiClient, selectiveSync);
     }
 
-    private static string GetSelectiveSyncConfigPath(SyncContextRegistration registration) =>
-        Path.Combine(registration.LocalFolderPath, ".selective-sync.json");
+    private async Task MigrateLegacySelectiveSyncAsync(
+        SyncContextRegistration registration,
+        LocalStateDb stateDb,
+        string stateDatabasePath,
+        ISelectiveSyncConfig selectiveSync,
+        CancellationToken cancellationToken)
+    {
+        var legacyConfigPath = Path.Combine(registration.LocalFolderPath, ".selective-sync.json");
+        if (!File.Exists(legacyConfigPath))
+            return;
+
+        try
+        {
+            var legacyRules = await ReadLegacySelectiveSyncJsonAsync(legacyConfigPath, cancellationToken);
+            foreach (var rule in legacyRules)
+            {
+                if (rule.IsInclude)
+                    selectiveSync.Include(registration.Id, rule.FolderPath);
+                else
+                    selectiveSync.Exclude(registration.Id, rule.FolderPath);
+            }
+
+            await selectiveSync.SaveAsync(stateDb, stateDatabasePath, registration.Id, cancellationToken);
+            File.Delete(legacyConfigPath);
+            _logger.LogInformation("Migrated legacy selective-sync config for context {ContextId}.", registration.Id);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to migrate legacy selective-sync config for context {ContextId}.", registration.Id);
+        }
+    }
+
+    private static async Task<List<SelectiveSyncRule>> ReadLegacySelectiveSyncJsonAsync(string filePath, CancellationToken cancellationToken)
+    {
+        await using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        var loaded = await JsonSerializer.DeserializeAsync<Dictionary<string, List<SelectiveSyncRule>>>(stream, cancellationToken: cancellationToken);
+        if (loaded is null)
+            return [];
+
+        return loaded.Values.SelectMany(v => v).ToList();
+    }
 
     /// <summary>
     /// Ensures the API client for <paramref name="running"/> has a valid access token loaded.
@@ -715,6 +914,57 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
                 ContextId = contextId,
                 ErrorMessage = status.LastError,
             });
+        }
+    }
+
+    private async Task TryRegisterSyncFolderOnServerAsync(RunningContext running, CancellationToken cancellationToken)
+    {
+        if (running.ApiClient is null || !running.Registration.ServerFolderId.HasValue)
+            return;
+
+        try
+        {
+            await EnsureAccessTokenAsync(running, cancellationToken);
+            await running.ApiClient.RegisterSyncFolderAsync(running.Registration.ServerFolderId.Value, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to register sync folder on server for context {ContextId}.", running.Registration.Id);
+        }
+    }
+
+    private async Task TryUnregisterSyncFolderOnServerAsync(IDotNetCloudApiClient? apiClient, Guid? serverFolderId, CancellationToken cancellationToken)
+    {
+        if (apiClient is null || !serverFolderId.HasValue)
+            return;
+
+        try
+        {
+            await apiClient.DeleteSyncFolderAsync(serverFolderId.Value, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to unregister sync folder on server.");
+        }
+    }
+
+    private async Task TryReconcileServerRegistrationAsync(RunningContext running, CancellationToken cancellationToken)
+    {
+        if (running.ApiClient is null || !running.Registration.ServerFolderId.HasValue)
+            return;
+
+        try
+        {
+            await EnsureAccessTokenAsync(running, cancellationToken);
+            var serverRegistrations = await running.ApiClient.ListSyncFoldersAsync(cancellationToken);
+            if (serverRegistrations.All(r => r.RemoteFolderNodeId != running.Registration.ServerFolderId.Value))
+            {
+                await running.ApiClient.RegisterSyncFolderAsync(running.Registration.ServerFolderId.Value, cancellationToken);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to reconcile sync folder registration for context {ContextId}.", running.Registration.Id);
         }
     }
 
