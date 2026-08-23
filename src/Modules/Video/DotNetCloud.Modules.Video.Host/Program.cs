@@ -1,6 +1,7 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.Modules.Video;
@@ -9,6 +10,7 @@ using DotNetCloud.Modules.Video.Host.Services;
 using DotNetCloud.Modules.Video.Services;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
@@ -83,6 +85,9 @@ builder.Services.AddAuthentication("Identity.Application")
 
 builder.Services.AddAuthorization();
 
+// Register the gRPC-backed audit logger (SOC 2 CC4) — routes to Core.Server.
+builder.Services.AddAuditLogger();
+
 // Register the module as singleton
 builder.Services.AddSingleton<VideoModule>();
 
@@ -155,6 +160,7 @@ builder.Services.AddDbContext<FilesDbContext>(options =>
             });
             break;
     }
+
     options.ConfigureWarnings(warnings =>
     {
         warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning);

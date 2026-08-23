@@ -1266,7 +1266,13 @@ public partial class MusicPage : IAsyncDisposable
             return;
         }
 
+        // Cancel the active scan/enrichment cancellation token, then immediately
+        // clear the scan state so the UI unsticks even if a background enrichment
+        // job is slow to observe the cancellation (e.g. long-running MusicBrainz /
+        // cover-art HTTP calls). Without CompleteScan here, "Cancel Scan" appeared
+        // to do nothing after the scan finished and enrichment was queued.
         ScanProgress.Cancel(_caller.UserId);
+        ScanProgress.CompleteScan(_caller.UserId);
     }
 
     private async Task ResetCollectionAsync()

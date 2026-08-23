@@ -31,27 +31,32 @@ public class TeamsController : TracksControllerBase
     {
         var caller = GetAuthenticatedCaller();
 
-        var teams = await _db.TeamRoles
+        // Get the team IDs the user belongs to, then query teams with real member counts.
+        var userTeamIds = await _db.TeamRoles
             .Where(tr => tr.UserId == caller.UserId)
+            .Select(tr => tr.TeamId)
+            .Distinct()
+            .ToListAsync(ct);
+
+        if (userTeamIds.Count == 0)
+            return Ok(Envelope(Array.Empty<TracksTeamDto>()));
+
+        var memberCounts = await _db.TeamRoles
+            .Where(tr => userTeamIds.Contains(tr.TeamId))
             .GroupBy(tr => tr.TeamId)
-            .Select(g => new
+            .Select(g => new { TeamId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.TeamId, x => x.Count, ct);
+
+        var teams = await _db.Teams
+            .Where(t => userTeamIds.Contains(t.Id))
+            .Select(t => new TracksTeamDto
             {
-                TeamId = g.Key,
-                MemberCount = g.Count(),
-                CreatedAt = g.Min(tr => tr.AssignedAt)
+                Id = t.Id,
+                Name = t.Name,
+                Description = t.Description,
+                MemberCount = memberCounts.ContainsKey(t.Id) ? memberCounts[t.Id] : 0,
+                CreatedAt = t.CreatedAt
             })
-            .Join(_db.Teams,
-                g => g.TeamId,
-                t => t.Id,
-                (g, t) => new TracksTeamDto
-                {
-                    Id = t.Id,
-                    TeamId = t.Id,
-                    Name = t.Name,
-                    Description = t.Description,
-                    MemberCount = g.MemberCount,
-                    CreatedAt = t.CreatedAt
-                })
             .ToListAsync(ct);
 
         return Ok(Envelope(teams));
@@ -66,7 +71,6 @@ public class TeamsController : TracksControllerBase
             .Select(t => new TracksTeamDto
             {
                 Id = t.Id,
-                TeamId = t.Id,
                 Name = t.Name,
                 Description = t.Description,
                 MemberCount = t.TeamRoles.Count,
@@ -118,7 +122,6 @@ public class TeamsController : TracksControllerBase
         var result = new TracksTeamDto
         {
             Id = teamId,
-            TeamId = teamId,
             Name = team.Name,
             Description = team.Description,
             MemberCount = 1,
@@ -156,7 +159,6 @@ public class TeamsController : TracksControllerBase
         var result = new TracksTeamDto
         {
             Id = team.Id,
-            TeamId = team.Id,
             Name = team.Name,
             Description = team.Description,
             MemberCount = await _db.TeamRoles.CountAsync(tr => tr.TeamId == teamId, ct),

@@ -26,7 +26,7 @@ public class PhotoServiceSearchIndexTests
     {
         _db = TestHelpers.CreateDb();
         _eventBusMock = new Mock<IEventBus>();
-        _service = new PhotoService(_db, _eventBusMock.Object, NullLogger<PhotoService>.Instance);
+        _service = new PhotoService(_db, _eventBusMock.Object, Mock.Of<DotNetCloud.Core.Capabilities.IAuditLogger>(), NullLogger<PhotoService>.Instance);
         _caller = TestHelpers.CreateCaller();
     }
 

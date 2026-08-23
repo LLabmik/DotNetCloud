@@ -22,9 +22,12 @@
   <ItemGroup>
     <PackageReference Include="Grpc.AspNetCore" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" />
-    <!-- Microsoft.OpenApi version comes transitively from Microsoft.AspNetCore.OpenApi;
-         explicit override to 3.9.0 breaks the OpenApi source generator (IOpenApiMediaType.Example is read-only in 3.x). -->
+    <!-- Microsoft.OpenApi comes transitively from Microsoft.AspNetCore.OpenApi at a vulnerable
+         2.0.0 (GHSA-v5pm-xwqc-g5wc / CVE-2026-49451). Override to patched 2.7.5 — NOT 3.x,
+         which breaks the OpenApi source generator (IOpenApiMediaType.Example is read-only in 3.x). -->
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" />
+    <PackageReference Include="Microsoft.OpenApi" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
@@ -46,11 +49,8 @@
     <ProjectReference Include="..\DotNetCloud.Core.Data\DotNetCloud.Core.Data.csproj" />
     <ProjectReference Include="..\DotNetCloud.Core.Data.SqlServer\DotNetCloud.Core.Data.SqlServer.csproj" />
     <ProjectReference Include="..\DotNetCloud.Core.Grpc\DotNetCloud.Core.Grpc.csproj" />
-    <ProjectReference Include="..\DotNetCloud.Core.Schema\DotNetCloud.Core.Schema.csproj" />
     <ProjectReference Include="..\DotNetCloud.Core.ServiceDefaults\DotNetCloud.Core.ServiceDefaults.csproj" />
-    <!-- Module main (RCL) projects retained for Blazor UI component registration.
-         Module .Data.SqlServer migration assemblies included so Assembly.Load()
-         resolution works at runtime for EF Core GetPendingMigrationsAsync(). -->
+    <!-- Module main (RCL) projects retained for Blazor UI component registration. -->
     <ProjectReference Include="..\..\Modules\Calendar\DotNetCloud.Modules.Calendar\DotNetCloud.Modules.Calendar.csproj" />
     <ProjectReference Include="..\..\Modules\Calendar\DotNetCloud.Modules.Calendar.Data\DotNetCloud.Modules.Calendar.Data.csproj" />
     <ProjectReference Include="..\..\Modules\Calendar\DotNetCloud.Modules.Calendar.Data.SqlServer\DotNetCloud.Modules.Calendar.Data.SqlServer.csproj" />
@@ -61,7 +61,6 @@
     <ProjectReference Include="..\..\Modules\Contacts\DotNetCloud.Modules.Contacts.Data\DotNetCloud.Modules.Contacts.Data.csproj" />
     <ProjectReference Include="..\..\Modules\Contacts\DotNetCloud.Modules.Contacts.Data.SqlServer\DotNetCloud.Modules.Contacts.Data.SqlServer.csproj" />
     <ProjectReference Include="..\..\Modules\Files\DotNetCloud.Modules.Files\DotNetCloud.Modules.Files.csproj" />
-    <ProjectReference Include="..\..\Modules\Files\DotNetCloud.Modules.Files.Data.SqlServer\DotNetCloud.Modules.Files.Data.SqlServer.csproj" />
     <ProjectReference Include="..\..\Modules\Notes\DotNetCloud.Modules.Notes\DotNetCloud.Modules.Notes.csproj" />
     <ProjectReference Include="..\..\Modules\Notes\DotNetCloud.Modules.Notes.Data\DotNetCloud.Modules.Notes.Data.csproj" />
     <ProjectReference Include="..\..\Modules\Notes\DotNetCloud.Modules.Notes.Data.SqlServer\DotNetCloud.Modules.Notes.Data.SqlServer.csproj" />
@@ -86,8 +85,11 @@
     <ProjectReference Include="..\..\Modules\Email\DotNetCloud.Modules.Email\DotNetCloud.Modules.Email.csproj" />
     <ProjectReference Include="..\..\Modules\Email\DotNetCloud.Modules.Email.Data\DotNetCloud.Modules.Email.Data.csproj" />
     <ProjectReference Include="..\..\Modules\Email\DotNetCloud.Modules.Email.Data.SqlServer\DotNetCloud.Modules.Email.Data.SqlServer.csproj" />
-    <ProjectReference Include="..\..\Modules\About\DotNetCloud.Modules.About\DotNetCloud.Modules.About.csproj" />
+    <ProjectReference Include="..\..\Modules\Files\DotNetCloud.Modules.Files.Data\DotNetCloud.Modules.Files.Data.csproj" />
+    <ProjectReference Include="..\..\Modules\Files\DotNetCloud.Modules.Files.Data.SqlServer\DotNetCloud.Modules.Files.Data.SqlServer.csproj" />
+    <ProjectReference Include="..\..\Modules\Search\DotNetCloud.Modules.Search.Data\DotNetCloud.Modules.Search.Data.csproj" />
     <ProjectReference Include="..\..\Modules\Search\DotNetCloud.Modules.Search.Data.SqlServer\DotNetCloud.Modules.Search.Data.SqlServer.csproj" />
+    <ProjectReference Include="..\..\Modules\About\DotNetCloud.Modules.About\DotNetCloud.Modules.About.csproj" />
     <ProjectReference Include="..\..\UI\DotNetCloud.UI.Web\DotNetCloud.UI.Web.csproj" />
     <ProjectReference Include="..\..\UI\DotNetCloud.UI.Web.Client\DotNetCloud.UI.Web.Client.csproj" />
   </ItemGroup>

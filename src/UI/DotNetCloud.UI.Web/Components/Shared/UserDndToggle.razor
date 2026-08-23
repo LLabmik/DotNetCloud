@@ -1,0 +1,90 @@
+@namespace DotNetCloud.UI.Web.Components.Shared
+@using DotNetCloud.Modules.Chat.Services
+@using System.Security.Claims
+@inject INotificationPreferenceStore NotificationPrefs
+@inject AuthenticationStateProvider AuthStateProvider
+
+@*
+    Quick Do Not Disturb toggle for the top bar user menu area.
+    Renders a toggling icon that indicates the current DND state:
+      - DND OFF → outline circle with slash (normal)
+      - DND ON → filled "no entry" circle (red / active)
+    NOTE: DND affects CHAT notifications only (chat toasts + incoming call rings).
+*@
+
+@if (_isLoaded)
+{
+    <button class="dnd-toggle @(_isDnd ? "dnd-active" : "")" type="button" role="switch" aria-checked="@_isDnd"
+            title="@(_isDnd ? "Do Not Disturb is ON — chat notifications suppressed. Click to disable." : "Do Not Disturb is OFF — click to enable (affects chat notifications only)")"
+            aria-label="@(_isDnd ? "Disable Do Not Disturb (chat)" : "Enable Do Not Disturb (chat)")" @onclick="ToggleDndAsync">
+        <MaterialIcon Icon="@(_isDnd ? "do_not_disturb_on" : "do_not_disturb_off")" Size="MaterialIconSize.Sm" />
+    </button>
+}
+
+<style>
+    .dnd-toggle {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: 6px;
+        cursor: pointer;
+        padding: 6px 10px;
+        color: var(--color-text-secondary, #94a3b8);
+        transition: all 0.15s;
+        display: flex;
+        align-items: center;
+    }
+
+    .dnd-toggle .material-icon {
+        width: 18px;
+        height: 18px;
+    }
+
+    .dnd-toggle:hover {
+        background: var(--color-surface-hover, rgba(255, 255, 255, 0.08));
+        border-color: var(--color-primary);
+        color: var(--color-text, #f1f5f9);
+    }
+
+    .dnd-toggle.dnd-active {
+        color: #ef4444;
+        border-color: rgba(239, 68, 68, 0.5);
+        background: rgba(239, 68, 68, 0.08);
+    }
+
+    .dnd-toggle.dnd-active:hover {
+        border-color: #ef4444;
+        background: rgba(239, 68, 68, 0.12);
+    }
+</style>
+
+@code {
+    private bool _isLoaded;
+    private bool _isDnd;
+    private Guid _userId;
+
+    /// <inheritdoc />
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var userIdClaim = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+            ?? authState.User.FindFirst("sub")?.Value;
+
+        if (Guid.TryParse(userIdClaim, out _userId))
+        {
+            var prefs = NotificationPrefs.Get(_userId);
+            _isDnd = prefs.DoNotDisturb;
+            _isLoaded = true;
+        }
+    }
+
+    private async Task ToggleDndAsync()
+    {
+        if (_userId == Guid.Empty)
+            return;
+
+        _isDnd = !_isDnd;
+        NotificationPrefs.Update(_userId, NotificationPrefs.Get(_userId) with { DoNotDisturb = _isDnd });
+
+        await InvokeAsync(StateHasChanged);
+    }
+}

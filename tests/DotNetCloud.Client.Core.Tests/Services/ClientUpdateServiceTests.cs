@@ -1,4 +1,5 @@
 using System.Net;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using DotNetCloud.Client.Core.Services;
@@ -296,7 +297,174 @@ public sealed class ClientUpdateServiceTests
         var svc = new ClientUpdateService(http, NullLogger<ClientUpdateService>.Instance);
 
         await Assert.ThrowsExactlyAsync<ArgumentNullException>(
-            () => svc.DownloadUpdateAsync(null!, null));
+            () => svc.DownloadUpdateAsync(null!, (IProgress<double>?)null));
+    }
+
+    [TestMethod]
+    public async Task DownloadUpdateAsync_ToDestination_WritesFileAndReportsDetailedProgress()
+    {
+        var content = new byte[2048];
+        new Random(7).NextBytes(content);
+
+        var handler = new Mock<HttpMessageHandler>();
+        handler.Protected()
+            .Setup<Task<HttpResponseMessage>>("SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .ReturnsAsync(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(content)
+                {
+                    Headers = { ContentLength = content.Length }
+                }
+            });
+
+        var http = new HttpClient(handler.Object);
+        var svc = new ClientUpdateService(http, NullLogger<ClientUpdateService>.Instance);
+
+        var destDir = Path.Combine(Path.GetTempPath(), "DotNetCloud", "updates", "test-" + Guid.NewGuid().ToString("N"));
+        var snapshots = new List<DownloadProgress>();
+        var asset = new ReleaseAsset
+        {
+            Name = "dotnetcloud-desktop-client-linux-x64-1.2.3.tar.gz",
+            DownloadUrl = "https://example.com/update.tar.gz",
+            Size = content.Length,
+        };
+
+        var result = await svc.DownloadUpdateAsync(
+            asset, destDir, new Progress<DownloadProgress>(snapshots.Add));
+
+        // Progress<T> delivers callbacks asynchronously (it falls back to the
+        // thread pool when no SynchronizationContext is present), so the final
+        // snapshots may not have arrived yet when DownloadUpdateAsync returns.
+        // Wait (bounded) for the terminal 1.0 snapshot before asserting — same
+        // pattern as MetadataEnrichmentServiceTests. Without this, the test
+        // flakes under CI's parallel test load: Assert.IsTrue(snapshots.Count > 0)
+        // can observe an empty list right after the download completes.
+        var snapshotDeadline = DateTime.UtcNow.AddSeconds(5);
+        while ((snapshots.Count == 0 || snapshots[^1].Percent < 1.0) &&
+               DateTime.UtcNow < snapshotDeadline)
+        {
+            await Task.Delay(10);
+        }
+
+        Assert.IsTrue(File.Exists(result.FilePath));
+        Assert.AreEqual(content.Length, result.SizeBytes);
+        Assert.IsTrue(result.FilePath.StartsWith(destDir, StringComparison.Ordinal));
+        Assert.IsFalse(result.Sha256Verified);
+        Assert.IsTrue(snapshots.Count > 0);
+        Assert.IsTrue(snapshots.Any(p => p.BytesDownloaded > 0));
+        Assert.AreEqual(1.0, snapshots[^1].Percent);
+
+        File.Delete(result.FilePath);
+        Directory.Delete(destDir, recursive: true);
+    }
+
+    [TestMethod]
+    public async Task DownloadUpdateAsync_ReadFails_DeletesPartialFile()
+    {
+        var handler = new Mock<HttpMessageHandler>();
+        handler.Protected()
+            .Setup<Task<HttpResponseMessage>>("SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .ReturnsAsync(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StreamContent(new ThrowingReadStream())
+            });
+
+        var http = new HttpClient(handler.Object);
+        var svc = new ClientUpdateService(http, NullLogger<ClientUpdateService>.Instance);
+
+        var destDir = Path.Combine(Path.GetTempPath(), "DotNetCloud", "updates", "test-" + Guid.NewGuid().ToString("N"));
+        var asset = new ReleaseAsset
+        {
+            Name = "cancel-me.tar.gz",
+            DownloadUrl = "https://example.com/cancel-me.tar.gz",
+            Size = 1024,
+        };
+
+        await Assert.ThrowsExactlyAsync<OperationCanceledException>(
+            () => svc.DownloadUpdateAsync(asset, destDir, progress: null));
+
+        Assert.IsFalse(File.Exists(Path.Combine(destDir, "cancel-me.tar.gz")));
+        Directory.Delete(destDir, recursive: true);
+    }
+
+    [TestMethod]
+    public async Task DownloadUpdateAsync_WithMatchingChecksum_Verifies()
+    {
+        var content = Encoding.UTF8.GetBytes("hello update");
+        var expected = Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
+
+        var handler = new Mock<HttpMessageHandler>();
+        handler.Protected()
+            .Setup<Task<HttpResponseMessage>>("SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .ReturnsAsync(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(content)
+                {
+                    Headers = { ContentLength = content.Length }
+                }
+            });
+
+        var http = new HttpClient(handler.Object);
+        var svc = new ClientUpdateService(http, NullLogger<ClientUpdateService>.Instance);
+
+        var destDir = Path.Combine(Path.GetTempPath(), "DotNetCloud", "updates", "test-" + Guid.NewGuid().ToString("N"));
+        var asset = new ReleaseAsset
+        {
+            Name = "verified.tar.gz",
+            DownloadUrl = "https://example.com/verified.tar.gz",
+            Size = content.Length,
+            Sha256Checksum = "sha256:" + expected,
+        };
+
+        var result = await svc.DownloadUpdateAsync(asset, destDir, progress: null);
+
+        Assert.IsTrue(result.Sha256Verified);
+
+        File.Delete(result.FilePath);
+        Directory.Delete(destDir, recursive: true);
+    }
+
+    [TestMethod]
+    public async Task DownloadUpdateAsync_WithMismatchedChecksum_ThrowsAndDeletesFile()
+    {
+        var content = Encoding.UTF8.GetBytes("hello update");
+
+        var handler = new Mock<HttpMessageHandler>();
+        handler.Protected()
+            .Setup<Task<HttpResponseMessage>>("SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .ReturnsAsync(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(content)
+                {
+                    Headers = { ContentLength = content.Length }
+                }
+            });
+
+        var http = new HttpClient(handler.Object);
+        var svc = new ClientUpdateService(http, NullLogger<ClientUpdateService>.Instance);
+
+        var destDir = Path.Combine(Path.GetTempPath(), "DotNetCloud", "updates", "test-" + Guid.NewGuid().ToString("N"));
+        var asset = new ReleaseAsset
+        {
+            Name = "bad-checksum.tar.gz",
+            DownloadUrl = "https://example.com/bad-checksum.tar.gz",
+            Size = content.Length,
+            Sha256Checksum = "sha256:" + new string('0', 64),
+        };
+
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => svc.DownloadUpdateAsync(asset, destDir, progress: null));
+
+        Assert.IsFalse(File.Exists(Path.Combine(destDir, "bad-checksum.tar.gz")));
+        Directory.Delete(destDir, recursive: true);
     }
 
     // ── ApplyUpdateAsync ──────────────────────────────────────────────────
@@ -335,5 +503,45 @@ public sealed class ClientUpdateServiceTests
                 Content = new StringContent(responseJson, Encoding.UTF8, "application/json")
             });
         return handler.Object;
+    }
+
+    /// <summary>
+    /// A read stream that fails immediately with <see cref="OperationCanceledException"/>,
+    /// used to exercise partial-download cleanup without timing-dependent delays.
+    /// </summary>
+    private sealed class ThrowingReadStream : Stream
+    {
+        public override bool CanRead => true;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => false;
+
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position
+        {
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public override void Flush()
+        {
+        }
+
+        public override int Read(byte[] buffer, int offset, int count)
+            => throw new OperationCanceledException();
+
+        public override long Seek(long offset, SeekOrigin origin)
+            => throw new NotSupportedException();
+
+        public override void SetLength(long value)
+            => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count)
+            => throw new NotSupportedException();
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+            => Task.FromException<int>(new OperationCanceledException(cancellationToken));
     }
 }

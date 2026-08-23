@@ -20,6 +20,19 @@ public static class OidcKeyManager
     public const string EncryptionKeyPrefix = "encryption-key";
 
     /// <summary>
+    /// Resolves the default OpenIddict keys directory: <c>{DOTNETCLOUD_DATA_DIR}/oidc-keys</c>
+    /// or <c>{AppContext.BaseDirectory}/oidc-keys</c> when the data dir is not set.
+    /// </summary>
+    /// <returns>The absolute path to the oidc-keys directory.</returns>
+    public static string GetOidcKeysDirectory()
+    {
+        var dataRoot = Environment.GetEnvironmentVariable("DOTNETCLOUD_DATA_DIR");
+        return Path.Combine(
+            !string.IsNullOrWhiteSpace(dataRoot) ? dataRoot : AppContext.BaseDirectory,
+            "oidc-keys");
+    }
+
+    /// <summary>
     /// Loads or generates a persistent RSA security key from a PEM file.
     /// </summary>
     /// <param name="filePath">Absolute path to the PEM key file.</param>

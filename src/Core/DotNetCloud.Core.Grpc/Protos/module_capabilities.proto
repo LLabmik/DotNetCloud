@@ -41,6 +41,9 @@ service CoreCapabilities {
   // events (new messages, typing indicators, etc.) to web/mobile clients
   // connected via Core.Server's SignalR hubs.
   rpc BroadcastRealtimeEvent (BroadcastRealtimeEventRequest) returns (BroadcastRealtimeEventResponse);
+
+  // Records an audit trail entry (IAuditLogger capability, SOC 2 CC4).
+  rpc LogAudit (LogAuditRequest) returns (LogAuditResponse);
 }
 
 // Caller context passed with every capability request for authorization.
@@ -51,6 +54,21 @@ message CallerContextMessage {
   string caller_type = 3;
   // The calling module ID (populated when caller_type is "Module").
   string module_id = 4;
+}
+
+// --- IAuditLogger ---
+
+message LogAuditRequest {
+  CallerContextMessage caller = 1;   // required; attributes the action
+  string module_id = 2;              // module where the action occurred
+  int32 action = 3;                  // DotNetCloud.Core.Capabilities.AuditAction enum value
+  string entity_type = 4;
+  string entity_id = 5;              // GUID string
+  string description = 6;
+}
+
+message LogAuditResponse {
+  bool success = 1;
 }
 
 // --- IUserDirectory ---

@@ -11,7 +11,7 @@
             <ul class="nav-list">
                 <li class="nav-item">
                     <NavLink href="/" Match="NavLinkMatch.All" class="nav-link" title="Home" aria-label="Home">
-                        <MaterialIcon Icon="home" CssClass="nav-icon" />
+                        <span class="nav-icon">🏠</span>
                         @if (!Collapsed)
                         {
                             <span class="nav-text">Home</span>
@@ -27,7 +27,7 @@
                         <li class="nav-item">
                             <NavLink href="/admin" Match="NavLinkMatch.All" class="nav-link" title="Dashboard"
                                      aria-label="Dashboard">
-                                <MaterialIcon Icon="dashboard" CssClass="nav-icon" />
+                                <span class="nav-icon">📊</span>
                                 @if (!Collapsed)
                                 {
                                     <span class="nav-text">Dashboard</span>
@@ -37,7 +37,7 @@
                         <li class="nav-item">
                             <NavLink href="/admin/users" Match="NavLinkMatch.Prefix" class="nav-link" title="Users"
                                      aria-label="Users">
-                                <MaterialIcon Icon="group" CssClass="nav-icon" />
+                                <span class="nav-icon">👥</span>
                                 @if (!Collapsed)
                                 {
                                     <span class="nav-text">Users</span>
@@ -47,7 +47,7 @@
                         <li class="nav-item">
                             <NavLink href="/admin/organizations" Match="NavLinkMatch.Prefix" class="nav-link"
                                      title="Organizations" aria-label="Organizations">
-                                <MaterialIcon Icon="business" CssClass="nav-icon" />
+                                <span class="nav-icon">🏢</span>
                                 @if (!Collapsed)
                                 {
                                     <span class="nav-text">Organizations</span>
@@ -57,7 +57,7 @@
                         <li class="nav-item">
                             <NavLink href="/admin/groups" Match="NavLinkMatch.Prefix" class="nav-link" title="Groups"
                                      aria-label="Groups">
-                                <MaterialIcon Icon="extension" CssClass="nav-icon" />
+                                <span class="nav-icon">🧩</span>
                                 @if (!Collapsed)
                                 {
                                     <span class="nav-text">Groups</span>
@@ -67,7 +67,7 @@
                         <li class="nav-item">
                             <NavLink href="/admin/files/shared-folders" Match="NavLinkMatch.Prefix" class="nav-link"
                                      title="Shared Folders" aria-label="Shared Folders">
-                                <MaterialIcon Icon="folder_shared" CssClass="nav-icon" />
+                                <span class="nav-icon">🗂</span>
                                 @if (!Collapsed)
                                 {
                                     <span class="nav-text">Shared Folders</span>
@@ -77,7 +77,7 @@
                         <li class="nav-item">
                             <NavLink href="/admin/modules" Match="NavLinkMatch.Prefix" class="nav-link" title="Modules"
                                      aria-label="Modules">
-                                <MaterialIcon Icon="widgets" CssClass="nav-icon" />
+                                <span class="nav-icon">📦</span>
                                 @if (!Collapsed)
                                 {
                                     <span class="nav-text">Modules</span>
@@ -87,7 +87,7 @@
                         <li class="nav-item">
                             <NavLink href="/admin/settings" Match="NavLinkMatch.Prefix" class="nav-link"
                                      title="Settings" aria-label="Settings">
-                                <MaterialIcon Icon="settings" CssClass="nav-icon" />
+                                <span class="nav-icon">⚙</span>
                                 @if (!Collapsed)
                                 {
                                     <span class="nav-text">Settings</span>
@@ -97,7 +97,7 @@
                         <li class="nav-item">
                             <NavLink href="/admin/health" Match="NavLinkMatch.Prefix" class="nav-link" title="Health"
                                      aria-label="Health">
-                                <MaterialIcon Icon="favorite" CssClass="nav-icon" />
+                                <span class="nav-icon">💚</span>
                                 @if (!Collapsed)
                                 {
                                     <span class="nav-text">Health</span>
@@ -107,7 +107,7 @@
                         <li class="nav-item">
                             <NavLink href="/admin/search" Match="NavLinkMatch.Prefix" class="nav-link" title="Search"
                                      aria-label="Search">
-                                <MaterialIcon Icon="search" CssClass="nav-icon" />
+                                <span class="nav-icon">🔍</span>
                                 @if (!Collapsed)
                                 {
                                     <span class="nav-text">Search</span>
@@ -117,7 +117,7 @@
                         <li class="nav-item">
                             <NavLink href="/admin/sync-devices" Match="NavLinkMatch.Prefix" class="nav-link"
                                      title="Sync Devices" aria-label="Sync Devices">
-                                <MaterialIcon Icon="sync" CssClass="nav-icon" />
+                                <span class="nav-icon">🔄</span>
                                 @if (!Collapsed)
                                 {
                                     <span class="nav-text">Sync Devices</span>
@@ -127,7 +127,7 @@
                         <li class="nav-item">
                             <NavLink href="/admin/backup" Match="NavLinkMatch.Prefix" class="nav-link" title="Backup"
                                      aria-label="Backup">
-                                <MaterialIcon Icon="save" CssClass="nav-icon" />
+                                <span class="nav-icon">💾</span>
                                 @if (!Collapsed)
                                 {
                                     <span class="nav-text">Backup</span>
@@ -135,9 +135,9 @@
                             </NavLink>
                         </li>
                         <li class="nav-item">
-                            <NavLink href="/admin/video" Match="NavLinkMatch.Prefix" class="nav-link" title="Video Settings"
-                                     aria-label="Video Settings">
-                                <MaterialIcon Icon="movie" CssClass="nav-icon" />
+                            <NavLink href="/admin/video" Match="NavLinkMatch.Prefix" class="nav-link"
+                                     title="Video Settings" aria-label="Video Settings">
+                                <span class="nav-icon">🎬</span>
                                 @if (!Collapsed)
                                 {
                                     <span class="nav-text">Video</span>
@@ -147,7 +147,7 @@
                         <li class="nav-item">
                             <NavLink href="/admin/updates" Match="NavLinkMatch.Prefix" class="nav-link" title="Updates"
                                      aria-label="Updates">
-                                <MaterialIcon Icon="upload" CssClass="nav-icon" />
+                                <span class="nav-icon">⬆</span>
                                 @if (!Collapsed)
                                 {
                                     <span class="nav-text">Updates</span>
@@ -176,7 +176,7 @@
                         <li class="nav-item">
                             <NavLink href="@item.Href" Match="NavLinkMatch.Prefix" class="nav-link" title="@item.Label"
                                      aria-label="@item.Label">
-                                <MaterialIcon Icon="@item.Icon" CssClass="nav-icon" />
+                                <span class="nav-icon">@item.Icon</span>
                                 @if (!Collapsed)
                                 {
                                     <span class="nav-text">@item.Label</span>
@@ -196,7 +196,7 @@
                         <li class="nav-item">
                             <NavLink href="@item.Href" Match="NavLinkMatch.Prefix" class="nav-link" title="@item.Label"
                                      aria-label="@item.Label">
-                                <MaterialIcon Icon="@item.Icon" CssClass="nav-icon" />
+                                <span class="nav-icon">@item.Icon</span>
                                 @if (!Collapsed)
                                 {
                                     <span class="nav-text">@item.Label</span>
@@ -211,7 +211,7 @@
             <ul class="nav-list">
                 <li class="nav-item">
                     <NavLink href="/auth/login" class="nav-link" title="Login" aria-label="Login">
-                        <MaterialIcon Icon="key" CssClass="nav-icon" />
+                        <span class="nav-icon">🔑</span>
                         @if (!Collapsed)
                         {
                             <span class="nav-text">Login</span>

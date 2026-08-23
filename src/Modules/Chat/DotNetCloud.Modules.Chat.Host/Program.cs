@@ -1,6 +1,8 @@
 using DotNetCloud.Core.Auth.Authorization;
 using DotNetCloud.Core.Auth.Introspection;
+using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Modules.Chat;
 using DotNetCloud.Modules.Chat.Data;
 using DotNetCloud.Modules.Chat.Host.Services;
@@ -46,6 +48,9 @@ builder.Services.AddDataProtection()
 // Register token introspection client (replaces local JWT key validation).
 // Bearer tokens are validated by calling Core.Server's TokenIntrospection gRPC service.
 builder.Services.AddTokenIntrospection();
+
+// Register the gRPC-backed audit logger (SOC 2 CC4) — routes to Core.Server.
+builder.Services.AddAuditLogger();
 
 // Authentication: supports both cookie (browser/Blazor) and introspection (desktop/mobile).
 // A policy scheme automatically routes to the correct handler based on the request.
@@ -111,27 +116,36 @@ builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHand
 // Register the Chat module as a singleton for lifecycle management
 builder.Services.AddSingleton<ChatModule>();
 
-// Register EF Core with config-driven database, falling back to in-memory
+// Register EF Core with the configured database provider (no in-memory fallback)
 var connectionString = builder.Configuration["connectionString"]
     ?? builder.Configuration.GetConnectionString("DefaultConnection");
 var dbProvider = builder.Configuration["databaseProvider"]
     ?? builder.Configuration["database:provider"];
 
-if (!string.IsNullOrEmpty(connectionString) && !string.IsNullOrEmpty(dbProvider))
+Action<DbContextOptionsBuilder> configureChatDb = options =>
 {
-    builder.Services.AddDbContext<ChatDbContext>(options =>
-    {
-        if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
-            options.UseNpgsql(connectionString);
-        else
-            options.UseSqlServer(connectionString);
-    });
-}
-else
+    if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
+        options.UseNpgsql(connectionString);
+    else
+        options.UseSqlServer(connectionString, sql => sql.MigrationsAssembly("DotNetCloud.Modules.Chat.Data.SqlServer"));
+};
+
+// Naming strategy matching the configured provider (used by ChatDbContextFactory).
+builder.Services.AddSingleton<ITableNamingStrategy>(string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase)
+    ? new PostgreSqlNamingStrategy()
+    : new SqlServerNamingStrategy());
+
+if (string.IsNullOrEmpty(connectionString) || string.IsNullOrEmpty(dbProvider))
 {
-    builder.Services.AddDbContext<ChatDbContext>(options =>
-        options.UseInMemoryDatabase("ChatModule"));
+    throw new InvalidOperationException(
+        "The Chat module requires a database connection string and provider. " +
+        "These are provided via config.json (DOTNETCLOUD_CONFIG_DIR) when launched by the core server.");
 }
+
+builder.Services.AddDbContext<ChatDbContext>(configureChatDb);
+// Custom factory for the DB-backed notification preference store (shared across processes).
+// ChatDbContext's two constructors break the built-in AddDbContextFactory activator.
+builder.Services.AddSingleton<IDbContextFactory<ChatDbContext>, ChatDbContextFactory>();
 
 // In-process event bus for standalone operation
 builder.Services.AddSingleton<IEventBus, InProcessEventBus>();

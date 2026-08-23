@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Core.Security;
 using DotNetCloud.Modules.Tracks;
 using DotNetCloud.Modules.Tracks.Data;
@@ -80,39 +81,45 @@ builder.Services.AddAuthentication("Identity.Application")
 
 builder.Services.AddAuthorization();
 
+// Register the gRPC-backed audit logger (SOC 2 CC4) — routes to Core.Server.
+builder.Services.AddAuditLogger();
+
 // Register the module as singleton
 builder.Services.AddSingleton<TracksModule>();
 
 // File validation service for upload security
 builder.Services.AddSingleton<IFileValidationService, FileValidationService>();
 
-// Register EF Core with config-driven database, falling back to in-memory
+// Register EF Core with the configured database provider (no in-memory fallback)
 var connectionString = builder.Configuration["connectionString"]
     ?? builder.Configuration.GetConnectionString("DefaultConnection");
 var dbProvider = builder.Configuration["databaseProvider"]
     ?? builder.Configuration["database:provider"];
 
-if (!string.IsNullOrEmpty(connectionString) && !string.IsNullOrEmpty(dbProvider))
+if (string.IsNullOrEmpty(connectionString) || string.IsNullOrEmpty(dbProvider))
 {
-    builder.Services.AddDbContext<TracksDbContext>(options =>
-    {
-        if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
-            options.UseNpgsql(connectionString);
-        else
-            options.UseSqlServer(connectionString);
-    });
+    throw new InvalidOperationException(
+        "The Tracks module requires a database connection string and provider. " +
+        "These are provided via config.json (DOTNETCLOUD_CONFIG_DIR) when launched by the core server.");
 }
-else
+
+builder.Services.AddDbContext<TracksDbContext>(options =>
 {
-    builder.Services.AddDbContext<TracksDbContext>(options =>
-        options.UseInMemoryDatabase("TracksModule"));
-}
+    if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
+        options.UseNpgsql(connectionString);
+    else
+        options.UseSqlServer(connectionString);
+});
 
 // In-process event bus for standalone operation
 builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
 
 // Register all business-logic services
 builder.Services.AddTracksServices(builder.Configuration);
+
+// Register the gRPC-based IUserDirectory so controllers/services can resolve
+// user display names by calling Core.Server's CoreCapabilities gRPC service.
+builder.Services.AddSingleton<DotNetCloud.Core.Capabilities.IUserDirectory, GrpcUserDirectoryService>();
 
 // gRPC
 builder.Services.AddGrpc();

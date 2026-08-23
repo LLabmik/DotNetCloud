@@ -5,6 +5,9 @@ using DotNetCloud.Modules.Calendar.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using OrgDirectory = DotNetCloud.Core.Capabilities.IOrganizationDirectory;
+using IAuditLogger = DotNetCloud.Core.Capabilities.IAuditLogger;
+using AuditEntry = DotNetCloud.Core.Capabilities.AuditEntry;
+using AuditAction = DotNetCloud.Core.Capabilities.AuditAction;
 
 namespace DotNetCloud.Modules.Calendar.Data.Services;
 
@@ -16,6 +19,7 @@ public sealed class CalendarService : ICalendarService
     private readonly CalendarDbContext _db;
     private readonly IEventBus _eventBus;
     private readonly OrgDirectory _orgDirectory;
+    private readonly IAuditLogger _auditLogger;
     private readonly ILogger<CalendarService> _logger;
 
     /// <summary>
@@ -25,11 +29,13 @@ public sealed class CalendarService : ICalendarService
         CalendarDbContext db,
         IEventBus eventBus,
         DotNetCloud.Core.Capabilities.IOrganizationDirectory orgDirectory,
+        IAuditLogger auditLogger,
         ILogger<CalendarService> logger)
     {
         _db = db;
         _eventBus = eventBus;
         _orgDirectory = orgDirectory;
+        _auditLogger = auditLogger;
         _logger = logger;
     }
 
@@ -56,6 +62,16 @@ public sealed class CalendarService : ICalendarService
 
         _db.Calendars.Add(calendar);
         await _db.SaveChangesAsync(cancellationToken);
+
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = caller,
+            ModuleId = "dotnetcloud.calendar",
+            Action = AuditAction.Create,
+            EntityType = "Calendar",
+            EntityId = calendar.Id,
+            Description = "create-calendar",
+        }, cancellationToken);
 
         _logger.LogInformation("Calendar {CalendarId} '{Name}' created by user {UserId} (org={OrgId})",
             calendar.Id, calendar.Name, caller.UserId, calendar.OrganizationId);

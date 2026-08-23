@@ -325,12 +325,37 @@ a:hover {
 }
 
 /* Full-bleed pages: all other module sidebars */
-.page-content:has(.files-page-layout, .calendar-page-layout, .email-layout, .notes-page-layout, .tracks-layout, .music-layout, .video-layout, .contacts-page-layout, .photos-layout, .ai-layout, .about-layout) {
+.page-content:has(
+  .files-page-layout,
+  .calendar-page-layout,
+  .email-layout,
+  .notes-page-layout,
+  .tracks-layout,
+  .music-layout,
+  .video-layout,
+  .contacts-page-layout,
+  .photos-layout,
+  .ai-layout,
+  .about-layout
+) {
   padding: 0;
   overflow: hidden;
 }
 
-.page-content:has(.files-page-layout, .calendar-page-layout, .email-layout, .notes-page-layout, .tracks-layout, .music-layout, .video-layout, .contacts-page-layout, .photos-layout, .ai-layout, .about-layout) .content-area {
+.page-content:has(
+    .files-page-layout,
+    .calendar-page-layout,
+    .email-layout,
+    .notes-page-layout,
+    .tracks-layout,
+    .music-layout,
+    .video-layout,
+    .contacts-page-layout,
+    .photos-layout,
+    .ai-layout,
+    .about-layout
+  )
+  .content-area {
   max-width: none;
   margin: 0;
   height: 100%;
@@ -1741,6 +1766,18 @@ textarea.input {
   margin: 0;
   font-size: 40px;
   line-height: 1.1;
+}
+
+.files-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.files-header-actions .btn {
+  height: 32px;
+  font-size: 12px;
+  line-height: 1;
 }
 
 .files-breadcrumbs {

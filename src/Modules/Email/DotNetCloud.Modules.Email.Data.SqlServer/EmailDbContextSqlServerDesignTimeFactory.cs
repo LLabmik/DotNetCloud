@@ -3,7 +3,7 @@ using DotNetCloud.Modules.Email.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
-namespace DotNetCloud.Modules.Email.Data.SqlServer;
+namespace DotNetCloud.Modules.Email.Data;
 
 public class EmailDbContextSqlServerDesignTimeFactory : IDesignTimeDbContextFactory<EmailDbContext>
 {

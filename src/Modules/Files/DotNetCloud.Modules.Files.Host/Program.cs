@@ -3,6 +3,7 @@ using DotNetCloud.Core.Auth.Introspection;
 using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Core.ServiceDefaults.Media;
 using DotNetCloud.Modules.Files;
 using DotNetCloud.Modules.Files.Data;
@@ -53,6 +54,9 @@ builder.Services.AddDataProtection()
 // Register token introspection client (replaces local JWT key validation).
 // Bearer tokens are validated by calling Core.Server's TokenIntrospection gRPC service.
 builder.Services.AddTokenIntrospection();
+
+// Register the gRPC-backed audit logger (SOC 2 CC4) — routes to Core.Server.
+builder.Services.AddAuditLogger();
 
 // Authentication: supports both cookie (browser/Blazor) and introspection (desktop/mobile).
 // A policy scheme automatically routes to the correct handler based on the request.
@@ -121,44 +125,40 @@ builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHand
 // Register the Files module as a singleton for lifecycle management
 builder.Services.AddSingleton<FilesModule>();
 
-// Register EF Core with config-driven database, falling back to in-memory
+// Register EF Core with the configured database provider (no in-memory fallback)
 var connectionString = builder.Configuration["connectionString"]
     ?? builder.Configuration.GetConnectionString("DefaultConnection");
 var dbProvider = builder.Configuration["databaseProvider"]
     ?? builder.Configuration["database:provider"];
 
-if (!string.IsNullOrEmpty(connectionString) && !string.IsNullOrEmpty(dbProvider))
+if (string.IsNullOrEmpty(connectionString) || string.IsNullOrEmpty(dbProvider))
 {
-    builder.Services.AddDbContext<FilesDbContext>(options =>
-    {
-        if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
-            options.UseNpgsql(connectionString);
-        else
-            options.UseSqlServer(connectionString);
-    });
-
-    // Register a read-only CoreDbContext for querying identity tables (dbo.Groups)
-    // directly from the Files module, avoiding gRPC round-trips for group validation.
-    builder.Services.AddDbContext<CoreDbContext>(options =>
-    {
-        if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
-            options.UseNpgsql(connectionString);
-        else
-            options.UseSqlServer(connectionString);
-    }, ServiceLifetime.Transient);
-
-    builder.Services.AddSingleton<ITableNamingStrategy>(string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase)
-        ? new PostgreSqlNamingStrategy()
-        : new SqlServerNamingStrategy());
+    throw new InvalidOperationException(
+        "The Files module requires a database connection string and provider. " +
+        "These are provided via config.json (DOTNETCLOUD_CONFIG_DIR) when launched by the core server.");
 }
-else
+
+builder.Services.AddDbContext<FilesDbContext>(options =>
 {
-    builder.Services.AddDbContext<FilesDbContext>(options =>
-        options.UseInMemoryDatabase("FilesModule"));
-    builder.Services.AddDbContext<CoreDbContext>(options =>
-        options.UseInMemoryDatabase("FilesModule"), ServiceLifetime.Transient);
-    builder.Services.AddSingleton<ITableNamingStrategy>(new PostgreSqlNamingStrategy());
-}
+    if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
+        options.UseNpgsql(connectionString);
+    else
+        options.UseSqlServer(connectionString, sql => sql.MigrationsAssembly("DotNetCloud.Modules.Files.Data.SqlServer"));
+});
+
+// Register a read-only CoreDbContext for querying identity tables (dbo.Groups)
+// directly from the Files module, avoiding gRPC round-trips for group validation.
+builder.Services.AddDbContext<CoreDbContext>(options =>
+{
+    if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
+        options.UseNpgsql(connectionString);
+    else
+        options.UseSqlServer(connectionString);
+}, ServiceLifetime.Transient);
+
+builder.Services.AddSingleton<ITableNamingStrategy>(string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase)
+    ? new PostgreSqlNamingStrategy()
+    : new SqlServerNamingStrategy());
 
 // Files module business logic services
 builder.Services.AddFilesServices(builder.Configuration);

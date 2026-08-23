@@ -116,6 +116,9 @@ public enum NotificationCategory
     /// <summary>User was mentioned in a note or comment.</summary>
     Mention,
 
+    /// <summary>A new DM channel was created for the user.</summary>
+    DmChannelCreated,
+
     /// <summary>System notification.</summary>
     System
 }

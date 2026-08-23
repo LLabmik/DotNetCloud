@@ -22,6 +22,22 @@ internal static class SetupCommand
     private const string ReverseProxyBeginnerGuideUrl = "https://github.com/LLabmik/DotNetCloud/blob/main/docs/admin/server/REVERSE_PROXY_BEGINNER_GUIDE.md";
 
     /// <summary>
+    /// Optional modules offered during setup. Required modules (see
+    /// <see cref="DotNetCloud.Core.Modules.RequiredModules"/>) are always
+    /// enabled and are intentionally excluded here.
+    /// </summary>
+    internal static readonly string[] OptionalModules = new[]
+    {
+        "dotnetcloud.tracks",
+        "dotnetcloud.music",
+        "dotnetcloud.photos",
+        "dotnetcloud.video",
+        "dotnetcloud.bookmarks",
+        "dotnetcloud.email",
+        "dotnetcloud.ai"
+    };
+
+    /// <summary>
     /// Creates the <c>setup</c> command.
     /// </summary>
     public static Command Create()
@@ -187,7 +203,7 @@ internal static class SetupCommand
                     var defaultConnStr = config.DatabaseProvider switch
                     {
                         "PostgreSQL" => "Host=localhost;Database=dotnetcloud;Username=dotnetcloud;Password=yourpassword",
-                        "SqlServer" => "Server=localhost;Database=dotnetcloud;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=True",
+                        "SqlServer" => "Server=localhost;Database=dotnetcloud;User Id=dotnetcloud;Password=yourpassword;TrustServerCertificate=True;MultipleActiveResultSets=True",
                         _ => ""
                     };
                     config.ConnectionString = ConsoleOutput.Prompt("Connection string", defaultConnStr);
@@ -216,7 +232,7 @@ internal static class SetupCommand
                     ? "Setting up the local DotNetCloud database automatically."
                     : "The database or user may not exist yet.");
 
-                if (beginnerMode || ConsoleOutput.PromptConfirm("Create the database and user now?", defaultValue: true))
+                if (beginnerMode || ConsoleOutput.PromptConfirm("Set up the database and user now (updates the password to match — does not delete existing data)?", defaultValue: true))
                 {
                     var parts = ParseConnectionString(config.ConnectionString);
                     var dbName = parts.GetValueOrDefault("database", DefaultPostgreSqlDatabase);
@@ -250,9 +266,14 @@ internal static class SetupCommand
                 return 1;
             }
 
-            if (!canConnect && !ConsoleOutput.PromptConfirm("Continue anyway?"))
+            if (!canConnect)
             {
-                return 1;
+                ConsoleOutput.WriteWarning("The database connection still isn't working.");
+                ConsoleOutput.WriteInfo("DotNetCloud will NOT start until the configured credentials match the database.");
+                if (!ConsoleOutput.PromptConfirm("Continue anyway and save this broken database configuration?", defaultValue: false))
+                {
+                    return 1;
+                }
             }
 
             if (canConnect)
@@ -413,7 +434,9 @@ internal static class SetupCommand
 
                 var tlsModeDefaultIndex = config.UseLetsEncrypt
                     ? 0
-                    : config.UseSelfSignedTls ? 1 : 2;
+                    : config.UseSelfSignedTls
+                        ? 1
+                        : HasExistingCertificate(config) ? 2 : 1;
 
                 var tlsModeChoice = ConsoleOutput.PromptChoice(
                     "TLS certificate mode:",
@@ -472,10 +495,7 @@ internal static class SetupCommand
 
         // Required modules (Files, Chat, Search, Contacts, Calendar, Notes, About) are always enabled.
         var requiredModules = DotNetCloud.Core.Modules.RequiredModules.ModuleIds;
-        var optionalModules = new[]
-        {
-            "dotnetcloud.tracks"
-        };
+        var optionalModules = OptionalModules;
 
         var previouslyEnabled = config.EnabledModules.ToHashSet(StringComparer.OrdinalIgnoreCase);
         config.EnabledModules.Clear();
@@ -490,7 +510,7 @@ internal static class SetupCommand
         if (beginnerMode)
         {
             ConsoleOutput.WriteInfo("Keeping the first install simple: only the required modules are enabled.");
-            ConsoleOutput.WriteInfo("You can enable Tracks later from the admin UI.");
+            ConsoleOutput.WriteInfo("Optional modules (Tracks, Music, Photos, Video, Bookmarks, Email, AI) can be enabled later from the admin UI.");
         }
         else if (optionalModules.Length > 0)
         {
@@ -668,6 +688,17 @@ internal static class SetupCommand
         config.SetupCompletedAt = DateTime.UtcNow;
         config.ConfigSchemaVersion = CliConfiguration.CurrentConfigSchemaVersion;
 
+        // Persist a stable WOPI token signing key for Collabora document editing.
+        // The server can generate one at startup, but it cannot persist it
+        // (config.json is root-owned and not writable by the service user), so
+        // setup writes it once here as root. Without this, the key would change
+        // on every service restart and invalidate in-flight Collabora tokens.
+        if (string.IsNullOrWhiteSpace(config.WopiTokenSigningKey)
+            && config.CollaboraMode is "BuiltIn" or "External")
+        {
+            config.WopiTokenSigningKey = GenerateWopiTokenSigningKey();
+        }
+
         try
         {
             CliConfiguration.Save(config);
@@ -682,6 +713,10 @@ internal static class SetupCommand
         }
 
         ConsoleOutput.WriteSuccess($"Configuration saved to {CliConfiguration.GetConfigFilePath()}");
+
+        // Ensure the dotnetcloud service user can read config.json on system
+        // installs (setup runs as root, so the file would otherwise be root-only).
+        EnsureConfigFilePermissions();
 
         // Write a one-time seed file with the admin password.
         // The server reads and deletes this file on first startup.
@@ -1043,8 +1078,12 @@ internal static class SetupCommand
             {
                 var server = ConsoleOutput.Prompt("Server address", "localhost");
                 var database = ConsoleOutput.Prompt("Database name", "dotnetcloud");
+
+                // Trusted_Connection (Windows/AD authentication) only works on
+                // domain-joined Windows hosts. Default to SQL authentication
+                // (password) so the wizard works on a stock Linux server too.
                 var trusted = ConsoleOutput.PromptConfirm(
-                    "Use Windows Authentication (Trusted Connection)?", defaultValue: true);
+                    "Use Windows Authentication (Trusted Connection)?", defaultValue: false);
 
                 if (trusted)
                 {
@@ -1310,7 +1349,18 @@ internal static class SetupCommand
         return config.EnableHttps
             && !config.UseSelfSignedTls
             && !string.IsNullOrWhiteSpace(config.LetsEncryptDomain)
-            && !string.IsNullOrWhiteSpace(config.TlsCertificatePath);
+            && HasExistingCertificate(config);
+    }
+
+    /// <summary>
+    /// Returns <c>true</c> when a previously-configured TLS certificate file
+    /// actually exists on disk. Used to decide whether "use existing
+    /// certificate" should be offered as the default TLS mode.
+    /// </summary>
+    internal static bool HasExistingCertificate(CliConfig config)
+    {
+        return !string.IsNullOrWhiteSpace(config.TlsCertificatePath)
+            && File.Exists(config.TlsCertificatePath);
     }
 
     private static string GetBeginnerInstallType(CliConfig config)
@@ -1427,6 +1477,12 @@ internal static class SetupCommand
             adminEmail = $"admin@{domain}";
         }
 
+        // Ensure certbot is installed for issuance and automatic renewal. On
+        // Linux this installs certbot via apt-get when missing; on Windows it is
+        // a no-op (certbot dropped Windows support), so the built-in ACME client
+        // is used there. A failure here does not block provisioning.
+        CertbotInstaller.EnsureInstalled();
+
         // Check DNS resolution first
         ConsoleOutput.WriteInfo($"Checking DNS for {domain}...");
         if (!AcmeService.CanDomainResolveToLocalMachine(domain))
@@ -1522,34 +1578,62 @@ internal static class SetupCommand
                 ? "localhost"
                 : config.SelfSignedTlsHost.Trim();
 
-            using var rsa = RSA.Create(2048);
-            var request = new CertificateRequest(
-                $"CN={host}",
-                rsa,
+            // Generate a root CA (the trust anchor users install) and a leaf
+            // server certificate signed by it. A single self-signed leaf cannot
+            // be installed as a trusted root on Windows/Firefox/NSS; a proper
+            // root + leaf chain is required.
+            using var rootRsa = RSA.Create(2048);
+            var rootRequest = new CertificateRequest(
+                "CN=DotNetCloud Local Root CA",
+                rootRsa,
                 HashAlgorithmName.SHA256,
                 RSASignaturePadding.Pkcs1);
+            rootRequest.CertificateExtensions.Add(
+                new X509BasicConstraintsExtension(true, false, 0, true));
+            rootRequest.CertificateExtensions.Add(
+                new X509KeyUsageExtension(X509KeyUsageFlags.KeyCertSign, true));
+            rootRequest.CertificateExtensions.Add(
+                new X509SubjectKeyIdentifierExtension(rootRequest.PublicKey, false));
 
-            request.CertificateExtensions.Add(
-                new X509BasicConstraintsExtension(false, false, 0, false));
-            request.CertificateExtensions.Add(
+            using var rootCert = rootRequest.CreateSelfSigned(
+                DateTimeOffset.UtcNow.AddMinutes(-5),
+                DateTimeOffset.UtcNow.AddYears(10));
+
+            using var leafRsa = RSA.Create(2048);
+            var leafRequest = new CertificateRequest(
+                $"CN={host}",
+                leafRsa,
+                HashAlgorithmName.SHA256,
+                RSASignaturePadding.Pkcs1);
+            leafRequest.CertificateExtensions.Add(
+                new X509BasicConstraintsExtension(false, false, 0, true));
+            leafRequest.CertificateExtensions.Add(
                 new X509KeyUsageExtension(
                     X509KeyUsageFlags.DigitalSignature | X509KeyUsageFlags.KeyEncipherment,
                     false));
-            request.CertificateExtensions.Add(
-                new X509SubjectKeyIdentifierExtension(request.PublicKey, false));
+            leafRequest.CertificateExtensions.Add(
+                new X509EnhancedKeyUsageExtension(
+                    new OidCollection { new Oid("1.3.6.1.5.5.7.3.1") },
+                    false));
+            leafRequest.CertificateExtensions.Add(
+                new X509SubjectKeyIdentifierExtension(leafRequest.PublicKey, false));
 
             var sanBuilder = new SubjectAlternativeNameBuilder();
             sanBuilder.AddDnsName(host);
             sanBuilder.AddDnsName("localhost");
             sanBuilder.AddIpAddress(System.Net.IPAddress.Loopback);
             sanBuilder.AddIpAddress(System.Net.IPAddress.IPv6Loopback);
-            request.CertificateExtensions.Add(sanBuilder.Build());
+            leafRequest.CertificateExtensions.Add(sanBuilder.Build());
 
-            using var cert = request.CreateSelfSigned(
+            using var leafCert = leafRequest.Create(
+                rootCert,
                 DateTimeOffset.UtcNow.AddMinutes(-5),
-                DateTimeOffset.UtcNow.AddYears(1));
+                DateTimeOffset.UtcNow.AddYears(2),
+                RandomNumberGenerator.GetBytes(16));
 
-            var pfxBytes = cert.Export(X509ContentType.Pfx, string.Empty);
+            using var leafWithKey = leafCert.CopyWithPrivateKey(leafRsa);
+            var pfxBytes = new X509Certificate2Collection(new[] { leafWithKey, rootCert })
+                .Export(X509ContentType.Pfx, string.Empty)!;
             File.WriteAllBytes(certPath, pfxBytes);
 
             if (!EnsureCertificateFilePermissions(certPath))
@@ -1557,24 +1641,41 @@ internal static class SetupCommand
                 return false;
             }
 
-            // Also export PEM for tools that need separate key/cert/chain files (e.g. coolwsd)
+            // PEM bundle (leaf key + leaf cert + root cert) for Collabora/coolwsd.
             var pemPath = Path.ChangeExtension(certPath, ".pem");
-            var certPem = cert.ExportCertificatePem();
-            var keyPem = cert.GetRSAPrivateKey()?.ExportRSAPrivateKeyPem();
-            if (keyPem != null)
+            var pemContent = leafRsa.ExportRSAPrivateKeyPem()
+                + leafCert.ExportCertificatePem()
+                + rootCert.ExportCertificatePem();
+            File.WriteAllText(pemPath, pemContent);
+            if (!OperatingSystem.IsWindows())
             {
-                var pemContent = keyPem + "\n" + certPem;
-                File.WriteAllText(pemPath, pemContent);
-                if (!OperatingSystem.IsWindows())
-                {
-                    File.SetUnixFileMode(pemPath,
-                        UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead);
-                    SystemdServiceHelper.FixOwnership(pemPath);
-                }
+                File.SetUnixFileMode(pemPath,
+                    UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead);
+                TryRunCommand("chown", "root:dotnetcloud", pemPath);
             }
 
+            // Export the root CA alone so it can be installed as a trust anchor.
+            var rootCaPath = Path.Combine(
+                string.IsNullOrWhiteSpace(certDir) ? "." : certDir,
+                "dotnetcloud-root-ca.crt");
+            File.WriteAllText(rootCaPath, rootCert.ExportCertificatePem());
+            if (!OperatingSystem.IsWindows())
+            {
+                File.SetUnixFileMode(rootCaPath,
+                    UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead);
+                TryRunCommand("chown", "root:dotnetcloud", rootCaPath);
+            }
+
+            // Trust the root CA on the server itself so its own processes (module
+            // gRPC clients, module hosts, Blazor Server loopback HTTP calls) can
+            // validate the self-signed certificate. Without this, module loading
+            // fails with "The SSL connection could not be established".
+            InstallRootCaIntoSystemTrustStore(rootCaPath);
+
             ConsoleOutput.WriteSuccess($"Generated self-signed TLS certificate: {certPath}");
-            ConsoleOutput.WriteInfo("Browsers/devices will show a trust warning unless this certificate is explicitly trusted.");
+            ConsoleOutput.WriteInfo($"Root CA exported to {rootCaPath}.");
+            ConsoleOutput.WriteInfo("To trust this server from another device, download the root CA at:");
+            ConsoleOutput.WriteInfo($"  http://{config.SelfSignedTlsHost ?? "localhost"}:{config.HttpPort}/root-ca.crt");
             return true;
         }
         catch (Exception ex)
@@ -1582,6 +1683,54 @@ internal static class SetupCommand
             ConsoleOutput.WriteError($"Failed to generate self-signed TLS certificate: {ex.Message}");
             ConsoleOutput.WriteInfo("You can switch to an existing certificate path or rerun setup.");
             return false;
+        }
+    }
+
+    /// <summary>
+    /// Installs the generated root CA into the Linux system trust store so the
+    /// server's own processes (module gRPC clients, module hosts, Blazor Server
+    /// loopback calls) can validate the self-signed certificate. Also removes
+    /// stale DotNetCloud certs from previous installs (same subject name, but a
+    /// different key) so chain validation doesn't pick the wrong issuer.
+    /// Best-effort — a failure here does not block setup.
+    /// </summary>
+    private static void InstallRootCaIntoSystemTrustStore(string rootCaPath)
+    {
+        if (!OperatingSystem.IsLinux())
+        {
+            return;
+        }
+
+        try
+        {
+            const string caDir = "/usr/local/share/ca-certificates";
+            const string targetPath = caDir + "/dotnetcloud-root-ca.crt";
+
+            var targetFullPath = Path.GetFullPath(targetPath);
+            foreach (var stale in Directory.EnumerateFiles(caDir, "dotnetcloud*.crt"))
+            {
+                if (!string.Equals(Path.GetFullPath(stale), targetFullPath, StringComparison.Ordinal))
+                {
+                    File.Delete(stale);
+                }
+            }
+
+            File.Copy(rootCaPath, targetPath, overwrite: true);
+            File.SetUnixFileMode(targetPath,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead | UnixFileMode.OtherRead);
+
+            var psi = new ProcessStartInfo("update-ca-certificates")
+            {
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+            using var process = Process.Start(psi);
+            process?.WaitForExit();
+        }
+        catch
+        {
+            ConsoleOutput.WriteWarning("Could not install the root CA into the system trust store.");
         }
     }
 
@@ -1621,6 +1770,39 @@ internal static class SetupCommand
         {
             ConsoleOutput.WriteError($"Failed to set TLS certificate permissions: {ex.Message}");
             return false;
+        }
+    }
+
+    /// <summary>
+    /// Generates a cryptographically random WOPI token signing key (base64).
+    /// </summary>
+    internal static string GenerateWopiTokenSigningKey()
+    {
+        return Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+    }
+
+    /// <summary>
+    /// Ensures <c>config.json</c> is readable by the dotnetcloud service user on
+    /// system installs. Setup runs as root, so without this the file would be
+    /// root-only and the service could not load its configuration.
+    /// </summary>
+    private static void EnsureConfigFilePermissions()
+    {
+        if (!CliConfiguration.IsSystemInstall || OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        try
+        {
+            var configPath = CliConfiguration.GetConfigFilePath();
+            TryRunCommand("chown", "root:dotnetcloud", configPath);
+            File.SetUnixFileMode(configPath,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead);
+        }
+        catch (Exception ex)
+        {
+            ConsoleOutput.WriteWarning($"Could not set config.json permissions: {ex.Message}");
         }
     }
 

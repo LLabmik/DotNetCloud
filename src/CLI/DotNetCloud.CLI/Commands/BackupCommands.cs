@@ -8,7 +8,7 @@ namespace DotNetCloud.CLI.Commands;
 
 /// <summary>
 /// Backup and restore commands: create backup, restore from backup, schedule backups.
-/// Now supports optional database dumps via provider-native tools (pg_dump, mysqldump, sqlcmd).
+/// Now supports optional database dumps via provider-native tools (pg_dump, sqlcmd).
 /// </summary>
 internal static class BackupCommands
 {
@@ -26,7 +26,7 @@ internal static class BackupCommands
 
         var dbDumpOption = new Option<bool>("--db-dump")
         {
-            Description = "Include a database dump in the backup (requires pg_dump/mysqldump/sqlcmd)",
+            Description = "Include a database dump in the backup (requires pg_dump/sqlcmd)",
             DefaultValueFactory = _ => false
         };
 
@@ -335,7 +335,7 @@ internal static class BackupCommands
                     dumpEntry.ExtractToFile(tempDumpPath, overwrite: true);
                     ConsoleOutput.WriteInfo("Restoring database...");
                     ConsoleOutput.WriteInfo($"Dump file extracted to: {tempDumpPath}");
-                    ConsoleOutput.WriteInfo("Use your database provider's restore tool (psql, mysql, sqlcmd) to apply it.");
+                    ConsoleOutput.WriteInfo("Use your database provider's restore tool (psql, sqlcmd) to apply it.");
                 }
                 finally
                 {

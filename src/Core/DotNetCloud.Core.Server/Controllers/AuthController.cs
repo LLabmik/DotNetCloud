@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Services;
 using Microsoft.AspNetCore.Authentication;
@@ -15,14 +16,16 @@ namespace DotNetCloud.Core.Server.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
+    private readonly IAuditLogger _auditLogger;
     private readonly ILogger<AuthController> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AuthController"/> class.
     /// </summary>
-    public AuthController(IAuthService authService, ILogger<AuthController> logger)
+    public AuthController(IAuthService authService, IAuditLogger auditLogger, ILogger<AuthController> logger)
     {
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
+        _auditLogger = auditLogger ?? throw new ArgumentNullException(nameof(auditLogger));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -44,6 +47,15 @@ public class AuthController : ControllerBase
             var caller = BuildCallerContext();
             var response = await _authService.RegisterAsync(request, caller);
             _logger.LogInformation("User registered: {Email} ({UserId})", LogSanitizer.Sanitize(request.Email), response.UserId);
+            await _auditLogger.LogAsync(new AuditEntry
+            {
+                Caller = caller,
+                ModuleId = "dotnetcloud.core",
+                Action = AuditAction.Create,
+                EntityType = "User",
+                EntityId = response.UserId,
+                Description = "user-registered",
+            });
             return Ok(new { success = true, data = response });
         }
         catch (Errors.ValidationException ex)
@@ -76,10 +88,28 @@ public class AuthController : ControllerBase
             var caller = BuildCallerContext();
             var response = await _authService.LoginAsync(request, caller);
             _logger.LogInformation("User logged in: {Email}", LogSanitizer.Sanitize(request.Email));
+            await _auditLogger.LogAsync(new AuditEntry
+            {
+                Caller = caller,
+                ModuleId = "dotnetcloud.core",
+                Action = AuditAction.Read,
+                EntityType = "User",
+                EntityId = response.UserId,
+                Description = "login-success",
+            });
             return Ok(new { success = true, data = response });
         }
         catch (UnauthorizedAccessException)
         {
+            await _auditLogger.LogAsync(new AuditEntry
+            {
+                Caller = CallerContext.CreateSystemContext(),
+                ModuleId = "dotnetcloud.core",
+                Action = AuditAction.Read,
+                EntityType = "User",
+                EntityId = Guid.Empty,
+                Description = $"login-failed:{LogSanitizer.Sanitize(request.Email)}",
+            });
             return Unauthorized(new { success = false, error = new { code = "INVALID_CREDENTIALS", message = "Invalid email or password" } });
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("MFA"))
@@ -110,6 +140,15 @@ public class AuthController : ControllerBase
             {
                 var caller = BuildCallerContext();
                 await _authService.LogoutAsync(userId, null, caller);
+                await _auditLogger.LogAsync(new AuditEntry
+                {
+                    Caller = caller,
+                    ModuleId = "dotnetcloud.core",
+                    Action = AuditAction.Read,
+                    EntityType = "User",
+                    EntityId = userId,
+                    Description = "logout",
+                });
                 _logger.LogInformation("User logged out: {UserId}", userId);
             }
             catch (Exception ex)

@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs.Search;
 using DotNetCloud.Modules.Search.Host.Protos;
@@ -5,6 +6,9 @@ using DotNetCloud.Modules.Search.Services;
 using Grpc.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using IAuditLogger = DotNetCloud.Core.Capabilities.IAuditLogger;
+using AuditEntry = DotNetCloud.Core.Capabilities.AuditEntry;
+using AuditAction = DotNetCloud.Core.Capabilities.AuditAction;
 
 namespace DotNetCloud.Modules.Search.Host.Services;
 
@@ -18,16 +22,19 @@ public sealed class SearchGrpcService : Protos.SearchService.SearchServiceBase
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly SearchQueryService _queryService;
+    private readonly IAuditLogger _auditLogger;
     private readonly ILogger<SearchGrpcService> _logger;
 
     /// <summary>Initializes a new instance of the <see cref="SearchGrpcService"/> class.</summary>
     public SearchGrpcService(
         IServiceScopeFactory scopeFactory,
         SearchQueryService queryService,
+        IAuditLogger auditLogger,
         ILogger<SearchGrpcService> logger)
     {
         _scopeFactory = scopeFactory;
         _queryService = queryService;
+        _auditLogger = auditLogger;
         _logger = logger;
     }
 
@@ -94,6 +101,16 @@ public sealed class SearchGrpcService : Protos.SearchService.SearchServiceBase
             {
                 response.FacetCounts[kvp.Key] = kvp.Value;
             }
+
+            await _auditLogger.LogAsync(new AuditEntry
+            {
+                Caller = new CallerContext(userId, Array.Empty<string>(), CallerType.User),
+                ModuleId = "dotnetcloud.search",
+                Action = AuditAction.Read,
+                EntityType = "SearchQuery",
+                EntityId = Guid.CreateVersion7(),
+                Description = "search",
+            }, context.CancellationToken);
 
             return response;
         }

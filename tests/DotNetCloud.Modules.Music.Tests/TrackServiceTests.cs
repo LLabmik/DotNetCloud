@@ -19,7 +19,7 @@ public class TrackServiceTests
     public void Setup()
     {
         _db = TestHelpers.CreateDb();
-        _service = new TrackService(_db, new Mock<IEventBus>().Object, NullLogger<TrackService>.Instance);
+        _service = new TrackService(_db, new Mock<IEventBus>().Object, Mock.Of<DotNetCloud.Core.Capabilities.IAuditLogger>(), NullLogger<TrackService>.Instance);
         _caller = TestHelpers.CreateCaller();
     }
 

@@ -27,7 +27,7 @@ public class NotesImportProviderTests
             .Options;
         _db = new NotesDbContext(options);
         _eventBusMock = new Mock<IEventBus>();
-        _noteService = new NoteService(_db, _eventBusMock.Object, NullLogger<NoteService>.Instance);
+        _noteService = new NoteService(_db, _eventBusMock.Object, Mock.Of<DotNetCloud.Core.Capabilities.IAuditLogger>(), NullLogger<NoteService>.Instance);
         _provider = new NotesImportProvider(_noteService, NullLogger<NotesImportProvider>.Instance);
         _caller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
     }

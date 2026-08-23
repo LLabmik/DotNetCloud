@@ -472,6 +472,40 @@ public sealed class ChatGrpcApiClient : IChatApiClient, IDisposable
         }
     }
 
+    // ── Push Notification Operations ───────────────────────────────────
+
+    /// <inheritdoc />
+    public async Task SendPushNotificationAsync(
+        Guid userId,
+        string title,
+        string body,
+        string category,
+        IReadOnlyDictionary<string, string>? data = null,
+        CancellationToken cancellationToken = default)
+    {
+        var request = new SendPushNotificationRequest
+        {
+            UserId = userId.ToString(),
+            Title = title,
+            Body = body,
+            Category = category
+        };
+
+        if (data is not null)
+        {
+            foreach (var (key, value) in data)
+            {
+                request.Data[key] = value;
+            }
+        }
+
+        var response = await Client.SendPushNotificationAsync(request, GetCallOptions(cancellationToken));
+        if (!response.Success)
+        {
+            _logger.LogWarning("Chat SendPushNotification failed: {Error}", response.ErrorMessage);
+        }
+    }
+
     // ── Mapping Methods ─────────────────────────────────────────────────
 
     private static ChatChannelDto? ToChatChannelDto(ChannelMessage? msg)

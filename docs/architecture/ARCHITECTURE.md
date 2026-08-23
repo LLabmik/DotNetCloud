@@ -144,8 +144,6 @@ All inter-module communication **MUST** use gRPC exclusively. This is a hard arc
 | ---------- | ------------------ | --------------------------------------------- |
 | PostgreSQL | ✅ Initial release | Npgsql (PostgreSQL License)                   |
 | SQL Server | ✅ Initial release | Microsoft.EntityFrameworkCore.SqlServer (MIT) |
-|            |
-| Oracle     | 🔜 Future          | Oracle.EntityFrameworkCore                    |
 
 ### Schema Isolation
 

@@ -3,7 +3,7 @@ using DotNetCloud.Modules.Bookmarks.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
-namespace DotNetCloud.Modules.Bookmarks.Data.SqlServer;
+namespace DotNetCloud.Modules.Bookmarks.Data;
 
 public class BookmarksDbContextSqlServerDesignTimeFactory : IDesignTimeDbContextFactory<BookmarksDbContext>
 {

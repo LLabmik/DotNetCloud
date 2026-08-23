@@ -17,18 +17,18 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
     <PackageReference Include="OpenIddict.Validation.AspNetCore" />
   </ItemGroup>
 
   <ItemGroup>
     <Protobuf Include="Protos\email_service.proto" GrpcServices="Server" />
-    <Protobuf Include="..\..\Files\DotNetCloud.Modules.Files.Host\Protos\files_service.proto" GrpcServices="Client" Link="Protos\files_service.proto" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\DotNetCloud.Modules.Email\DotNetCloud.Modules.Email.csproj" />
     <ProjectReference Include="..\DotNetCloud.Modules.Email.Data\DotNetCloud.Modules.Email.Data.csproj" />
+    <ProjectReference Include="..\DotNetCloud.Modules.Email.Data.SqlServer\DotNetCloud.Modules.Email.Data.SqlServer.csproj" />
+    <ProjectReference Include="..\..\Files\DotNetCloud.Modules.Files.Client\DotNetCloud.Modules.Files.Client.csproj" />
     <ProjectReference Include="..\..\..\Core\DotNetCloud.Core.Grpc\DotNetCloud.Core.Grpc.csproj" />
     <ProjectReference Include="..\..\Search\DotNetCloud.Modules.Search.Client\DotNetCloud.Modules.Search.Client.csproj" />
   </ItemGroup>

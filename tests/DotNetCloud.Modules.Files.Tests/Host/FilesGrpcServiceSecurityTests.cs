@@ -26,7 +26,7 @@ public class FilesGrpcServiceSecurityTests
 
     private static FilesGrpcService CreateService(FilesDbContext db)
     {
-        return new FilesGrpcService(db, new Mock<IEventBus>().Object, new Mock<IFileStorageEngine>().Object, NullLogger<FilesGrpcService>.Instance);
+        return new FilesGrpcService(db, new Mock<IEventBus>().Object, new Mock<IFileStorageEngine>().Object, Mock.Of<DotNetCloud.Core.Capabilities.IAuditLogger>(), NullLogger<FilesGrpcService>.Instance);
     }
 
     [TestMethod]

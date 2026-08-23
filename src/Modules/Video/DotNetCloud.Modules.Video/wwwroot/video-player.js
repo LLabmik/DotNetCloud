@@ -748,16 +748,36 @@
     // Instead, reload the stream URL with a startSeconds parameter so the
     // server restarts ffmpeg from the seeked position.
     if (!video._hls) {
+      // Pre-built seek URL from C# (remux/direct path) is used verbatim — it
+      // exactly matches the value Blazor's <video src> binding will render on
+      // its next re-render (preventing Blazor from resetting src back to the
+      // original unseeked URL).
       var newUrl = explicitUrl;
       if (!newUrl) {
+        var fallbackPath = "/api/v1/videos/" + videoId + "/stream";
         var baseUrl =
           video.getAttribute("data-stream-url") ||
           video.src ||
-          "/api/v1/videos/" + videoId + "/stream";
-        // Strip existing query params and add startSeconds + cache-buster
-        var sep = baseUrl.indexOf("?") === -1 ? "?" : "&";
-        newUrl =
-          baseUrl + sep + "startSeconds=" + targetSeconds + "&_=" + Date.now();
+          fallbackPath;
+
+        // Parse and validate URL from DOM text before assigning to video.src.
+        // Allow only same-origin http(s) URLs with absolute-path names.
+        var safeUrl;
+        try {
+          safeUrl = new URL(baseUrl, window.location.origin);
+          var isHttp = safeUrl.protocol === "http:" || safeUrl.protocol === "https:";
+          var isSameOrigin = safeUrl.origin === window.location.origin;
+          var hasAbsolutePath = safeUrl.pathname && safeUrl.pathname.charAt(0) === "/";
+          if (!isHttp || !isSameOrigin || !hasAbsolutePath) {
+            safeUrl = new URL(fallbackPath, window.location.origin);
+          }
+        } catch (e) {
+          safeUrl = new URL(fallbackPath, window.location.origin);
+        }
+
+        safeUrl.searchParams.set("startSeconds", String(targetSeconds));
+        safeUrl.searchParams.set("_", String(Date.now()));
+        newUrl = safeUrl.toString();
       }
 
       // Store the absolute offset so the slider position reflects the full
@@ -1037,11 +1057,17 @@
           '<div style="position:absolute;top:0;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.8);z-index:20;">' +
           '<div style="text-align:center;color:#fff;max-width:400px;padding:24px;">' +
           '<p style="font-size:18px;margin:0 0 8px;">&#9888; Seek Failed</p>' +
-          '<p style="font-size:13px;color:rgba(255,255,255,0.7);margin:0 0 16px;">' +
-          message +
-          "</p>" +
+          '<p id="dnc-seek-error-message" style="font-size:13px;color:rgba(255,255,255,0.7);margin:0 0 16px;"></p>' +
           '<button onclick="document.getElementById(\'dnc-seek-error\').remove()" style="background:#3b82f6;color:#fff;border:none;padding:8px 20px;border-radius:6px;cursor:pointer;font-size:13px;">Dismiss</button>' +
           "</div></div>";
+
+        // Set the dynamic error message via textContent (never innerHTML) so
+        // exception text cannot be reinterpreted as HTML.
+        var errMsg = errOverlay.querySelector("#dnc-seek-error-message");
+        if (errMsg) {
+          errMsg.textContent = message;
+        }
+
         if (container) container.appendChild(errOverlay);
       });
   };

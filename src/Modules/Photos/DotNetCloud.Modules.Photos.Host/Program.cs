@@ -1,5 +1,6 @@
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.Modules.Photos;
@@ -82,45 +83,47 @@ builder.Services.AddAuthentication("Identity.Application")
 
 builder.Services.AddAuthorization();
 
+// Register the gRPC-backed audit logger (SOC 2 CC4) — routes to Core.Server.
+builder.Services.AddAuditLogger();
+
 // Register the module as singleton
 builder.Services.AddSingleton<PhotosModule>();
 
-// Register EF Core with config-driven database, falling back to in-memory
+// Register EF Core with the configured database provider (no in-memory fallback)
 var connectionString = builder.Configuration["connectionString"]
     ?? builder.Configuration.GetConnectionString("DefaultConnection");
 var dbProvider = builder.Configuration["databaseProvider"]
     ?? builder.Configuration["database:provider"];
 
-if (!string.IsNullOrEmpty(connectionString) && !string.IsNullOrEmpty(dbProvider))
+if (string.IsNullOrEmpty(connectionString) || string.IsNullOrEmpty(dbProvider))
 {
-    builder.Services.AddSingleton<ITableNamingStrategy>(
-        string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase)
-            ? new PostgreSqlNamingStrategy()
-            : new SqlServerNamingStrategy());
-
-    void ConfigureDb(DbContextOptionsBuilder o)
-    {
-        if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
-            o.UseNpgsql(connectionString);
-        else
-            o.UseSqlServer(connectionString);
-    }
-
-    builder.Services.AddDbContext<PhotosDbContext>(ConfigureDb);
-
-    // Register Files DbContext and storage engine so IDownloadService can be resolved.
-    builder.Services.AddDbContextFactory<FilesDbContext>(ConfigureDb);
-    builder.Services.AddDbContext<FilesDbContext>(ConfigureDb);
-    builder.Services.AddSingleton<IFileStorageEngine>(
-        sp => new LocalFileStorageEngine(
-            builder.Configuration["Files:Storage:RootPath"] ?? "/var/lib/dotnetcloud/storage",
-            sp.GetRequiredService<ILogger<LocalFileStorageEngine>>()));
+    throw new InvalidOperationException(
+        "The Photos module requires a database connection string and provider. " +
+        "These are provided via config.json (DOTNETCLOUD_CONFIG_DIR) when launched by the core server.");
 }
-else
+
+builder.Services.AddSingleton<ITableNamingStrategy>(
+    string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase)
+        ? new PostgreSqlNamingStrategy()
+        : new SqlServerNamingStrategy());
+
+void ConfigureDb(DbContextOptionsBuilder o)
 {
-    builder.Services.AddDbContext<PhotosDbContext>(options =>
-        options.UseInMemoryDatabase("PhotosModule"));
+    if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
+        o.UseNpgsql(connectionString);
+    else
+        o.UseSqlServer(connectionString);
 }
+
+builder.Services.AddDbContext<PhotosDbContext>(ConfigureDb);
+
+// Register Files DbContext and storage engine so IDownloadService can be resolved.
+builder.Services.AddDbContextFactory<FilesDbContext>(ConfigureDb);
+builder.Services.AddDbContext<FilesDbContext>(ConfigureDb);
+builder.Services.AddSingleton<IFileStorageEngine>(
+    sp => new LocalFileStorageEngine(
+        builder.Configuration["Files:Storage:RootPath"] ?? "/var/lib/dotnetcloud/storage",
+        sp.GetRequiredService<ILogger<LocalFileStorageEngine>>()));
 
 // In-process event bus for standalone operation
 builder.Services.AddSingleton<IEventBus, InProcessEventBus>();

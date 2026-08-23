@@ -134,4 +134,126 @@ public class ProductServiceTests
         var labels = _db.Labels.Where(l => l.ProductId == product.Id).ToList();
         Assert.AreEqual(0, labels.Count(l => l.Id == label.Id));
     }
+
+    // ── Member Role Management ──────────────────────────────
+
+    [TestMethod]
+    public async Task UpdateMemberRoleAsync_ChangesMemberRole()
+    {
+        var ownerId = Guid.CreateVersion7();
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), ownerId);
+        var memberId = Guid.CreateVersion7();
+        await TestHelpers.AddMemberAsync(_db, product.Id, memberId, ProductMemberRole.Viewer);
+
+        var result = await _service.UpdateMemberRoleAsync(product.Id, memberId, ProductMemberRole.Admin, CancellationToken.None);
+
+        Assert.AreEqual(ProductMemberRole.Admin, result.Role);
+        Assert.AreEqual(memberId, result.UserId);
+    }
+
+    [TestMethod]
+    public async Task UpdateMemberRoleAsync_DemotingLastOwner_ThrowsInvalidOperationException()
+    {
+        var ownerId = Guid.CreateVersion7();
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), ownerId);
+
+        try
+        {
+            await _service.UpdateMemberRoleAsync(product.Id, ownerId, ProductMemberRole.Member, CancellationToken.None);
+            Assert.Fail("Expected InvalidOperationException was not thrown.");
+        }
+        catch (InvalidOperationException ex)
+        {
+            StringAssert.Contains(ex.Message, "last Owner");
+        }
+    }
+
+    [TestMethod]
+    public async Task UpdateMemberRoleAsync_NonExistentMember_ThrowsInvalidOperationException()
+    {
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
+        var nonMemberId = Guid.CreateVersion7();
+
+        try
+        {
+            await _service.UpdateMemberRoleAsync(product.Id, nonMemberId, ProductMemberRole.Member, CancellationToken.None);
+            Assert.Fail("Expected InvalidOperationException was not thrown.");
+        }
+        catch (InvalidOperationException ex)
+        {
+            StringAssert.Contains(ex.Message, "not a member");
+        }
+    }
+
+    [TestMethod]
+    public async Task AddMemberAsync_DuplicateMember_ThrowsInvalidOperationException()
+    {
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
+        var memberId = Guid.CreateVersion7();
+        await TestHelpers.AddMemberAsync(_db, product.Id, memberId, ProductMemberRole.Member);
+
+        var dto = new AddProductMemberDto { UserId = memberId, Role = ProductMemberRole.Viewer };
+
+        try
+        {
+            await _service.AddMemberAsync(product.Id, dto, CancellationToken.None);
+            Assert.Fail("Expected InvalidOperationException was not thrown.");
+        }
+        catch (InvalidOperationException ex)
+        {
+            StringAssert.Contains(ex.Message, "already a member");
+        }
+    }
+
+    [TestMethod]
+    public async Task RemoveMemberAsync_RemovingLastOwner_ThrowsInvalidOperationException()
+    {
+        var ownerId = Guid.CreateVersion7();
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), ownerId);
+
+        try
+        {
+            await _service.RemoveMemberAsync(product.Id, ownerId, CancellationToken.None);
+            Assert.Fail("Expected InvalidOperationException was not thrown.");
+        }
+        catch (InvalidOperationException ex)
+        {
+            StringAssert.Contains(ex.Message, "last Owner");
+        }
+    }
+
+    [TestMethod]
+    public async Task RemoveMemberAsync_NonExistentMember_ThrowsInvalidOperationException()
+    {
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
+        var nonMemberId = Guid.CreateVersion7();
+
+        try
+        {
+            await _service.RemoveMemberAsync(product.Id, nonMemberId, CancellationToken.None);
+            Assert.Fail("Expected InvalidOperationException was not thrown.");
+        }
+        catch (InvalidOperationException ex)
+        {
+            StringAssert.Contains(ex.Message, "not a member");
+        }
+    }
+
+    [TestMethod]
+    public async Task UpdateMemberRoleAsync_DemotingNonLastOwner_Succeeds()
+    {
+        var orgId = Guid.CreateVersion7();
+        var owner1Id = Guid.CreateVersion7();
+        var owner2Id = Guid.CreateVersion7();
+
+        // Create product with owner1
+        var product = await TestHelpers.SeedProductAsync(_db, orgId, owner1Id);
+        // Add owner2 as second Owner
+        await TestHelpers.AddMemberAsync(_db, product.Id, owner2Id, ProductMemberRole.Owner);
+
+        // Demoting owner1 should succeed (owner2 remains)
+        var result = await _service.UpdateMemberRoleAsync(product.Id, owner1Id, ProductMemberRole.Admin, CancellationToken.None);
+
+        Assert.AreEqual(ProductMemberRole.Admin, result.Role);
+    }
 }

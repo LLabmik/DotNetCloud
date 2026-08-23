@@ -20,7 +20,6 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
   </ItemGroup>
 
   <ItemGroup>
@@ -30,6 +29,7 @@
   <ItemGroup>
     <ProjectReference Include="..\DotNetCloud.Modules.Search\DotNetCloud.Modules.Search.csproj" />
     <ProjectReference Include="..\DotNetCloud.Modules.Search.Data\DotNetCloud.Modules.Search.Data.csproj" />
+    <ProjectReference Include="..\DotNetCloud.Modules.Search.Data.SqlServer\DotNetCloud.Modules.Search.Data.SqlServer.csproj" />
     <ProjectReference Include="..\..\..\Core\DotNetCloud.Core.Auth\DotNetCloud.Core.Auth.csproj" />
     <ProjectReference Include="..\..\..\Core\DotNetCloud.Core.Grpc\DotNetCloud.Core.Grpc.csproj" />
   </ItemGroup>

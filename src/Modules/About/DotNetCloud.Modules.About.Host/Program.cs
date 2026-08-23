@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Modules.About;
 using DotNetCloud.Modules.About.Host.Services;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
@@ -78,6 +79,9 @@ public static partial class Program
             });
 
         builder.Services.AddAuthorization();
+
+        // Register the gRPC-backed audit logger (SOC 2 CC4) — routes to Core.Server.
+        builder.Services.AddAuditLogger();
 
         builder.Services.AddSingleton<AboutModule>();
 

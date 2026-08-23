@@ -1,10 +1,10 @@
 using System.Text.Json;
+using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Grpc.Capabilities;
 using DotNetCloud.Core.Modules.Supervisor;
-using DotNetCloud.Core.Server.PushNotifications;
 using DotNetCloud.Core.Server.Services;
 using DotNetCloud.Modules.Chat.DTOs;
 using DotNetCloud.Modules.Chat.Services;
@@ -361,12 +361,14 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
 
                 await broadcaster.SendToUserAsync(targetUserId, request.EventName, payload ?? request.PayloadJson, context.CancellationToken);
 
-                // For calendar events, always send FCM push as fallback for dozed devices
                 if (request.EventName is "CalendarEventCreated" or "CalendarEventUpdated" or "CalendarEventDeleted")
                 {
                     try
                     {
-                        var pushService = _serviceProvider.GetRequiredService<DotNetCloud.Core.Server.PushNotifications.IPushNotificationService>();
+                        using var pushScope = _serviceProvider.CreateScope();
+                        var chatApiClient = pushScope.ServiceProvider
+                            .GetRequiredService<DotNetCloud.Core.Services.ModuleApis.IChatApiClient>();
+
                         var eventId = string.Empty;
                         if (!string.IsNullOrEmpty(request.PayloadJson))
                         {
@@ -375,27 +377,27 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
                                 eventId = evtIdProp.GetString() ?? string.Empty;
                         }
 
-                        await pushService.SendAsync(targetUserId, new DotNetCloud.Core.Server.PushNotifications.PushNotification
-                        {
-                            Title = request.EventName switch
+                        await chatApiClient.SendPushNotificationAsync(
+                            targetUserId,
+                            request.EventName switch
                             {
                                 "CalendarEventCreated" => "New Event",
                                 "CalendarEventUpdated" => "Calendar Updated",
                                 "CalendarEventDeleted" => "Event Cancelled",
                                 _ => "Calendar Update"
                             },
-                            Body = string.Empty,
-                            Category = DotNetCloud.Core.Server.PushNotifications.NotificationCategory.CalendarEvent,
-                            Data = new Dictionary<string, string>
+                            string.Empty,
+                            "System",
+                            new Dictionary<string, string>
                             {
                                 ["type"] = "calendar_event",
                                 ["eventId"] = eventId
-                            }
-                        }, context.CancellationToken);
+                            },
+                            context.CancellationToken);
                     }
                     catch (Exception pushEx)
                     {
-                        _logger.LogWarning(pushEx, "Failed to send FCM push for calendar event {EventName} to user {UserId}",
+                        _logger.LogWarning(pushEx, "Failed to send push for calendar event {EventName} to user {UserId}",
                             request.EventName, targetUserId);
                     }
                 }
@@ -423,6 +425,79 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
                 request.Group, request.EventName, moduleId);
             return new BroadcastRealtimeEventResponse { Success = false };
         }
+    }
+
+    /// <summary>
+    /// Records an audit trail entry (IAuditLogger capability, SOC 2 CC4).
+    /// Called by process-isolated module hosts to persist create/update/delete/share
+    /// operations to the <c>AuditLog</c> table in Core.Server.
+    /// </summary>
+    public override async Task<LogAuditResponse> LogAudit(LogAuditRequest request, ServerCallContext context)
+    {
+        var moduleId = GetModuleId(context);
+        _logger.LogDebug("LogAudit called for {EntityType} by module {ModuleId}",
+            request.EntityType, moduleId);
+
+        try
+        {
+            // Prefer the authenticated caller injected by CallerContextInterceptor;
+            // fall back to mapping the request's caller context message.
+            var caller = context.UserState.TryGetValue("CallerContext", out var cc) && cc is CallerContext ctx
+                ? ctx
+                : MapCallerContext(request.Caller);
+
+            if (!Guid.TryParse(request.EntityId, out var entityId))
+            {
+                _logger.LogWarning("LogAudit called with invalid EntityId '{RawId}'", LogSanitizer.Sanitize(request.EntityId));
+                return new LogAuditResponse { Success = false };
+            }
+
+            var entry = new AuditEntry
+            {
+                Caller = caller,
+                ModuleId = string.IsNullOrWhiteSpace(request.ModuleId) ? moduleId : request.ModuleId,
+                Action = Enum.IsDefined(typeof(AuditAction), request.Action)
+                    ? (AuditAction)request.Action
+                    : AuditAction.Read,
+                EntityType = request.EntityType,
+                EntityId = entityId,
+                Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description,
+            };
+
+            using var scope = _serviceProvider.CreateScope();
+            var auditLogger = scope.ServiceProvider.GetRequiredService<IAuditLogger>();
+            await auditLogger.LogAsync(entry, context.CancellationToken);
+
+            return new LogAuditResponse { Success = true };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "LogAudit failed for {EntityType} by module {ModuleId}", request.EntityType, moduleId);
+            return new LogAuditResponse { Success = false };
+        }
+    }
+
+    /// <summary>
+    /// Maps a <see cref="CallerContextMessage"/> to a <see cref="CallerContext"/>,
+    /// defaulting to a system context when the message is missing or unparseable.
+    /// </summary>
+    private static CallerContext MapCallerContext(CallerContextMessage? message)
+    {
+        if (message is null)
+            return CallerContext.CreateSystemContext();
+
+        var callerType = Enum.TryParse<CallerType>(message.CallerType, ignoreCase: true, out var ct)
+            ? ct
+            : CallerType.System;
+
+        var userId = Guid.TryParse(message.UserId, out var uid) ? uid : Guid.Empty;
+
+        // CallerContext validation forbids Guid.Empty for User/Module types; fall
+        // back to System so a malformed message cannot throw.
+        if (userId == Guid.Empty && callerType != CallerType.System)
+            return CallerContext.CreateSystemContext();
+
+        return new CallerContext(userId, message.Roles.ToArray(), callerType);
     }
 
     /// <summary>

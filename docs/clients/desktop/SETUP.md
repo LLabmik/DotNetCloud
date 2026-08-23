@@ -1,6 +1,6 @@
 # Desktop Client — Setup & Installation
 
-> **Last Updated:** 2026-03-29
+> **Last Updated:** 2026-08-18
 
 ---
 
@@ -44,6 +44,8 @@
    ```powershell
    .\Install-DesktopClient.ps1
    ```
+
+   The installer also creates a **Start Menu** shortcut (`DotNetCloud SyncTray`, branded with the DotNetCloud logo) so the app appears in Start-menu search, and registers auto-start on login.
 
 5. **Verify package is installed:**
 

@@ -2,8 +2,10 @@ using System.Collections.ObjectModel;
 using Android.Util;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
 using DotNetCloud.Client.Android.Auth;
 using DotNetCloud.Client.Android.Chat;
+using DotNetCloud.Client.Android.Messages;
 using DotNetCloud.Client.Android.Services;
 using DotNetCloud.Client.Core;
 using Microsoft.Extensions.Logging;
@@ -102,12 +104,15 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
                     foreach (var ch in channels)
                     {
                         muteStates[ch.Id] = ch.IsMuted;
-                        Channels.Add(new ChannelItemViewModel(ch.Id, ch.Name, ch.UnreadCount, ch.HasMention, ch.IsMuted, ch.LastMessagePreview));
+                        Channels.Add(new ChannelItemViewModel(ch.Id, ch.Name, ch.ChannelType, ch.UnreadCount, ch.HasMention, ch.IsMuted, ch.LastMessagePreview));
                     }
 
                     _muteState.ReplaceAll(muteStates);
 
+                    await ResolveDmChannelNamesAsync(serverUrl, token, ct);
+
                     HasCompletedInitialLoad = true;
+                    RecalculateTotalUnread();
                     return;
                 }
                 catch (Exception ex) when ((ex is TaskCanceledException or OperationCanceledException) && Channels.Count > 0)
@@ -158,6 +163,111 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
         _signalR.OnNewChatMessage -= OnNewMessage;
     }
 
+    // ── Direct Message ──────────────────────────────────────────────
+
+    /// <summary>Raised when a DM is created and the app should navigate to it.</summary>
+    public event EventHandler<(Guid ChannelId, string Name)>? DmCreated;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsDmPickerVisible))]
+    private bool _isDmPickerOpen;
+
+    [ObservableProperty]
+    private string _dmSearchQuery = string.Empty;
+
+    [ObservableProperty]
+    private bool _isDmSearching;
+
+    [ObservableProperty]
+    private string? _dmSearchError;
+
+    /// <summary>User search results for the DM picker.</summary>
+    public ObservableCollection<UserSearchResult> DmSearchResults { get; } = [];
+
+    /// <summary>Whether the DM user picker is visible.</summary>
+    public bool IsDmPickerVisible => IsDmPickerOpen;
+
+    /// <summary>Opens the DM user picker.</summary>
+    [RelayCommand]
+    private void OpenDmPicker()
+    {
+        IsDmPickerOpen = true;
+        DmSearchQuery = string.Empty;
+        DmSearchResults.Clear();
+        DmSearchError = null;
+    }
+
+    /// <summary>Closes the DM user picker.</summary>
+    [RelayCommand]
+    private void CloseDmPicker()
+    {
+        IsDmPickerOpen = false;
+        DmSearchQuery = string.Empty;
+        DmSearchResults.Clear();
+        DmSearchError = null;
+    }
+
+    /// <summary>Searches users for DM creation with debounce via the UI binding.</summary>
+    [RelayCommand]
+    private async Task SearchDmUsersAsync(string query, CancellationToken ct)
+    {
+        DmSearchQuery = query;
+
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            DmSearchResults.Clear();
+            DmSearchError = null;
+            return;
+        }
+
+        IsDmSearching = true;
+        DmSearchError = null;
+
+        try
+        {
+            var (serverUrl, token) = await GetActiveCredentialsAsync(ct);
+            var results = await _chatApi.SearchUsersAsync(serverUrl, token, query, maxResults: 20, ct);
+
+            DmSearchResults.Clear();
+            foreach (var user in results)
+                DmSearchResults.Add(user);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "DM user search failed for query '{Query}'.", query);
+            DmSearchError = "Search failed. Please try again.";
+            DmSearchResults.Clear();
+        }
+        finally
+        {
+            IsDmSearching = false;
+        }
+    }
+
+    /// <summary>Creates or opens a DM channel with the selected user and navigates to it.</summary>
+    [RelayCommand]
+    private async Task StartDmAsync(UserSearchResult user, CancellationToken ct)
+    {
+        try
+        {
+            var (serverUrl, token) = await GetActiveCredentialsAsync(ct);
+            var channel = await _chatApi.GetOrCreateDmAsync(serverUrl, token, user.UserId, ct);
+
+            IsDmPickerOpen = false;
+            DmSearchQuery = string.Empty;
+            DmSearchResults.Clear();
+
+            // Use the target user's display name as the channel name
+            var displayName = user.DisplayName ?? user.UserId.ToString()[..8];
+            DmCreated?.Invoke(this, (channel.Id, displayName));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to create DM with user {UserId}.", user.UserId);
+            DmSearchError = "Failed to start conversation. Please try again.";
+        }
+    }
+
     // ── Mute toggle ──────────────────────────────────────────────────
 
     /// <summary>Toggles the mute state for a channel.</summary>
@@ -190,13 +300,116 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
     {
         MainThread.BeginInvokeOnMainThread(() =>
         {
-            var item = Channels.FirstOrDefault(c => c.ChannelId.ToString() == e.ChannelId);
+            // GUID string casing can differ between the server payload and Guid.ToString(),
+            // so match case-insensitively to avoid missing the target channel.
+            var item = Channels.FirstOrDefault(c =>
+                string.Equals(c.ChannelId.ToString(), e.ChannelId, StringComparison.OrdinalIgnoreCase));
             if (item is not null)
             {
                 item.UnreadCount = e.UnreadCount;
                 item.HasMention = e.HasMention;
             }
+
+            RecalculateTotalUnread();
         });
+    }
+
+    /// <summary>Recomputes the sum of unread counts and broadcasts it for the tab indicator.</summary>
+    private void RecalculateTotalUnread()
+    {
+        var total = Channels.Sum(c => c.UnreadCount);
+        WeakReferenceMessenger.Default.Send(new TotalUnreadCountChangedMessage(total));
+    }
+
+    /// <summary>Resolves DM channel names to show the other participant's display name.</summary>
+    private async Task ResolveDmChannelNamesAsync(string serverUrl, string token, CancellationToken ct)
+    {
+        var dmChannels = Channels.Where(c => c.ChannelType == "DirectMessage").ToList();
+        Log.Info("DotNetCloud", $"ResolveDmChannelNamesAsync: totalChannels={Channels.Count}, dmChannels={dmChannels.Count}");
+
+        if (dmChannels.Count == 0)
+        {
+            Log.Info("DotNetCloud", "ResolveDmChannelNamesAsync: no DM channels found, skipping resolution.");
+            return;
+        }
+
+        try
+        {
+            // Extract current user ID from the id_token (signed JWT, not encrypted JWE).
+            // The access token is JWE-encrypted and cannot be decoded client-side.
+            var currentUserId = await GetCurrentUserIdAsync(serverUrl, ct);
+
+            // Parse DM channel names (format: DM-{userId1}-{userId2}) to find the other user's ID.
+            var otherUserIds = new List<Guid>();
+            var channelToOtherUser = new Dictionary<Guid, Guid>();
+
+            foreach (var dm in dmChannels)
+            {
+                var parts = dm.Name.Split('-');
+                // DM name format: DM-{guid1}-{guid2}
+                // Each GUID has 5 dash-segments, so total = 1 (DM) + 5 + 5 = 11 parts
+                if (parts.Length == 11
+                    && Guid.TryParse(string.Join("-", parts[1..6]), out var guid1)
+                    && Guid.TryParse(string.Join("-", parts[6..11]), out var guid2))
+                {
+                    var other = guid1 == currentUserId ? guid2 : guid1;
+                    channelToOtherUser[dm.ChannelId] = other;
+                    otherUserIds.Add(other);
+                    Log.Info("DotNetCloud", $"ResolveDmChannelNamesAsync: DM channel {dm.ChannelId} → other user={other}");
+                }
+                else
+                {
+                    Log.Warn("DotNetCloud", $"ResolveDmChannelNamesAsync: failed to parse DM name='{dm.Name}' (parts={parts.Length})");
+                }
+            }
+
+            if (otherUserIds.Count == 0)
+            {
+                Log.Warn("DotNetCloud", "ResolveDmChannelNamesAsync: no other user IDs extracted.");
+                return;
+            }
+
+            Log.Info("DotNetCloud", $"ResolveDmChannelNamesAsync: calling ResolveDisplayNamesAsync for {otherUserIds.Count} userIds");
+            var names = await _chatApi.ResolveDisplayNamesAsync(serverUrl, token, otherUserIds.Distinct().ToList(), ct);
+            Log.Info("DotNetCloud", $"ResolveDmChannelNamesAsync: resolved {names.Count} display names");
+
+            foreach (var dm in dmChannels)
+            {
+                if (channelToOtherUser.TryGetValue(dm.ChannelId, out var otherUserId)
+                    && names.TryGetValue(otherUserId, out var displayName))
+                {
+                    Log.Info("DotNetCloud", $"ResolveDmChannelNamesAsync: updating DM name '{dm.Name}' → '{displayName}'");
+                    dm.Name = displayName;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error("DotNetCloud", $"ResolveDmChannelNamesAsync FAILED: {ex.GetType().Name}: {ex.Message}");
+            _logger.LogWarning(ex, "Failed to resolve DM channel display names.");
+        }
+    }
+
+    /// <summary>Gets the current user's ID from the id_token's <c>sub</c> claim.</summary>
+    private async Task<Guid> GetCurrentUserIdAsync(string serverUrl, CancellationToken ct)
+    {
+        try
+        {
+            var idToken = await _tokenStore.GetIdTokenAsync(serverUrl, ct);
+            if (!string.IsNullOrWhiteSpace(idToken))
+            {
+                var userId = AccessTokenUserIdExtractor.ExtractUserId(idToken);
+                Log.Info("DotNetCloud", $"GetCurrentUserIdAsync: extracted from id_token: {userId}");
+                return userId;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("DotNetCloud", $"GetCurrentUserIdAsync: failed to extract from id_token: {ex.Message}");
+        }
+
+        Log.Warn("DotNetCloud", "GetCurrentUserIdAsync: no id_token available, cannot resolve DM names.");
+        return Guid.Empty;
     }
 
     private void OnNewMessage(object? sender, ChatMessageReceivedEventArgs e) { /* handled via unread update */ }
@@ -234,10 +447,11 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
 public sealed partial class ChannelItemViewModel : ObservableObject
 {
     /// <summary>Initializes a channel list item.</summary>
-    public ChannelItemViewModel(Guid channelId, string name, int unreadCount, bool hasMention, bool isMuted, string? lastMessagePreview)
+    public ChannelItemViewModel(Guid channelId, string name, string? channelType, int unreadCount, bool hasMention, bool isMuted, string? lastMessagePreview)
     {
         ChannelId = channelId;
-        Name = name;
+        _name = name;
+        ChannelType = channelType;
         UnreadCount = unreadCount;
         HasMention = hasMention;
         IsMuted = isMuted;
@@ -248,7 +462,10 @@ public sealed partial class ChannelItemViewModel : ObservableObject
     public Guid ChannelId { get; }
 
     /// <summary>Display name of the channel.</summary>
-    public string Name { get; }
+    [ObservableProperty] private string _name;
+
+    /// <summary>Channel type: Public, Private, DirectMessage, or Group.</summary>
+    public string? ChannelType { get; }
 
     /// <summary>Unread message count (updated in real-time).</summary>
     [ObservableProperty] private int _unreadCount;

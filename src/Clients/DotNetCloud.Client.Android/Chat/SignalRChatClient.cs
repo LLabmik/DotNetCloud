@@ -15,11 +15,12 @@ using System.Text.Json.Serialization;
 namespace DotNetCloud.Client.Android.Chat;
 
 /// <summary>
-/// Server payload for unread count updates: { channelId, count }.
+/// Server payload for unread count updates: { channelId, count, hasMention }.
 /// </summary>
 internal sealed record UnreadCountUpdatedPayload(
     [property: JsonPropertyName("channelId")] string ChannelId,
-    [property: JsonPropertyName("count")] int Count);
+    [property: JsonPropertyName("count")] int Count,
+    [property: JsonPropertyName("hasMention")] bool HasMention = false);
 
 /// <summary>
 /// Lightweight client-side mirror of the server's MessageDto for SignalR deserialization.
@@ -51,13 +52,11 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
 {
     private HubConnection? _hub;
     private readonly ILogger<SignalRChatClient> _logger;
-    private readonly IPendingMessageQueue _pendingQueue;
-    private readonly IChatRestClient _restClient;
+    private readonly IOfflineSyncService _offlineSync;
     private readonly ISecureTokenStore _tokenStore;
     private readonly IAppForegroundService _foregroundService;
     private readonly IChannelMuteStateService _muteState;
     private readonly ICalendarReminderScheduler _reminderScheduler;
-    private string? _serverBaseUrl;
 
     // Tracks channel groups joined so they can be re-joined after reconnection.
     private readonly ConcurrentDictionary<Guid, byte> _joinedChannels = new();
@@ -74,16 +73,14 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
     /// <summary>Initializes a new <see cref="SignalRChatClient"/>.</summary>
     public SignalRChatClient(
         ILogger<SignalRChatClient> logger,
-        IPendingMessageQueue pendingQueue,
-        IChatRestClient restClient,
+        IOfflineSyncService offlineSync,
         ISecureTokenStore tokenStore,
         IAppForegroundService foregroundService,
         IChannelMuteStateService muteState,
         ICalendarReminderScheduler reminderScheduler)
     {
         _logger = logger;
-        _pendingQueue = pendingQueue;
-        _restClient = restClient;
+        _offlineSync = offlineSync;
         _tokenStore = tokenStore;
         _foregroundService = foregroundService;
         _muteState = muteState;
@@ -102,8 +99,6 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
         if (_hub is not null)
             await _hub.DisposeAsync().ConfigureAwait(false);
 
-        _serverBaseUrl = serverBaseUrl;
-
         var hubUrl = $"{serverBaseUrl.TrimEnd('/')}/hubs/core";
 
         _hub = new HubConnectionBuilder()
@@ -120,7 +115,7 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
             .Build();
 
         _hub.On<UnreadCountUpdatedPayload>("UnreadCountUpdated", payload =>
-            OnUnreadCountUpdated?.Invoke(this, new ChatUnreadCountUpdatedEventArgs(payload.ChannelId, payload.Count, false)));
+            OnUnreadCountUpdated?.Invoke(this, new ChatUnreadCountUpdatedEventArgs(payload.ChannelId, payload.Count, payload.HasMention)));
 
         _hub.On<NewMessagePayload>("NewMessage", payload =>
         {
@@ -238,7 +233,7 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
                 }
             }
 
-            await FlushPendingMessagesAsync().ConfigureAwait(false);
+            await _offlineSync.FlushAllAsync().ConfigureAwait(false);
 
             // Resync calendar alarms after reconnect to catch events deleted while offline.
             try
@@ -285,42 +280,6 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
     Task IChatSignalRClient.ConnectAsync(CancellationToken cancellationToken) =>
         Task.FromException(new InvalidOperationException(
             "Use the overload that accepts serverBaseUrl and accessToken."));
-
-    private async Task FlushPendingMessagesAsync()
-    {
-        if (_serverBaseUrl is null)
-            return;
-
-        var accessToken = await _tokenStore.GetAccessTokenAsync(_serverBaseUrl).ConfigureAwait(false);
-        if (accessToken is null)
-            return;
-
-        var pending = await _pendingQueue.GetAllAsync().ConfigureAwait(false);
-        if (pending.Count == 0)
-            return;
-
-        _logger.LogInformation("Flushing {Count} pending message(s) after reconnect.", pending.Count);
-        var flushed = new List<long>(pending.Count);
-        foreach (var msg in pending)
-        {
-            try
-            {
-                await _restClient.SendMessageAsync(
-                    _serverBaseUrl, accessToken,
-                    msg.ChannelId, msg.Content)
-                    .ConfigureAwait(false);
-                flushed.Add(msg.RowId);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to flush pending message {RowId}; will retry on next reconnect.", msg.RowId);
-                break; // stop on first failure to preserve ordering
-            }
-        }
-
-        if (flushed.Count > 0)
-            await _pendingQueue.RemoveAsync(flushed).ConfigureAwait(false);
-    }
 
     /// <inheritdoc />
     public async Task JoinChannelGroupAsync(Guid channelId, CancellationToken cancellationToken = default)

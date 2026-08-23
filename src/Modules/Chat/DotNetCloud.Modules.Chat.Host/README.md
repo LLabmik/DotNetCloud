@@ -32,19 +32,19 @@ DotNetCloud.Modules.Chat.Host/
 
 The `ChatController` exposes all chat endpoints under `/api/v1/chat/`:
 
-| Group | Endpoints | Description |
-|-------|-----------|-------------|
-| Channels | `POST/GET/PUT/DELETE /channels` | Channel CRUD + listing |
-| Members | `POST/DELETE/GET /channels/{id}/members` | Join, leave, list members |
-| Messages | `POST/GET/PUT/DELETE /channels/{id}/messages` | Message CRUD + history |
-| Reactions | `POST/DELETE /messages/{id}/reactions` | Add/remove emoji reactions |
-| Pins | `POST/DELETE/GET /channels/{id}/pins` | Pin/unpin messages |
-| Typing | `POST/DELETE /channels/{id}/typing` | Typing indicators |
-| Announcements | `POST/GET/PUT/DELETE /channels/{id}/announcements` | Channel announcements |
-| Attachments | `POST /messages/{id}/attachments` | File attachments |
-| Push | `POST/DELETE /devices/register` | Push notification registration |
-| Read Status | `POST /channels/{id}/read` | Mark channel as read |
-| Health | `GET /health`, `GET /info` | Health check and module info |
+| Group         | Endpoints                                          | Description                    |
+| ------------- | -------------------------------------------------- | ------------------------------ |
+| Channels      | `POST/GET/PUT/DELETE /channels`                    | Channel CRUD + listing         |
+| Members       | `POST/DELETE/GET /channels/{id}/members`           | Join, leave, list members      |
+| Messages      | `POST/GET/PUT/DELETE /channels/{id}/messages`      | Message CRUD + history         |
+| Reactions     | `POST/DELETE /messages/{id}/reactions`             | Add/remove emoji reactions     |
+| Pins          | `POST/DELETE/GET /channels/{id}/pins`              | Pin/unpin messages             |
+| Typing        | `POST/DELETE /channels/{id}/typing`                | Typing indicators              |
+| Announcements | `POST/GET/PUT/DELETE /channels/{id}/announcements` | Channel announcements          |
+| Attachments   | `POST /messages/{id}/attachments`                  | File attachments               |
+| Push          | `POST/DELETE /devices/register`                    | Push notification registration |
+| Read Status   | `POST /channels/{id}/read`                         | Mark channel as read           |
+| Health        | `GET /health`, `GET /info`                         | Health check and module info   |
 
 Full API reference: [docs/modules/chat/API.md](../../../docs/modules/chat/API.md)
 
@@ -60,7 +60,7 @@ Full API reference: [docs/modules/chat/API.md](../../../docs/modules/chat/API.md
 dotnet run --project src/Modules/Chat/DotNetCloud.Modules.Chat.Host
 ```
 
-Uses EF Core InMemory database by default for development.
+Requires a database connection string and provider (via `config.json` in `DOTNETCLOUD_CONFIG_DIR` or `ConnectionStrings:DefaultConnection`). The host throws if the database configuration is missing.
 
 ### As a Module (Production)
 
@@ -74,7 +74,6 @@ dotnetcloud (core process)
 ## Dependencies
 
 - `Grpc.AspNetCore` 2.71.0 — gRPC server
-- `Microsoft.EntityFrameworkCore.InMemory` 10.0.3 — development database
 - `DotNetCloud.Modules.Chat` — domain models and interfaces
 - `DotNetCloud.Modules.Chat.Data` — EF Core data layer
 - `DotNetCloud.Core.Grpc` — shared gRPC infrastructure

@@ -3,7 +3,7 @@ using DotNetCloud.Modules.AI.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
-namespace DotNetCloud.Modules.AI.Data.SqlServer;
+namespace DotNetCloud.Modules.AI.Data;
 
 public class AiDbContextSqlServerDesignTimeFactory : IDesignTimeDbContextFactory<AiDbContext>
 {

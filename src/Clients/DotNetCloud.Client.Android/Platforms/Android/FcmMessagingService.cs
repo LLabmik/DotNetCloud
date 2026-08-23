@@ -58,9 +58,20 @@ public sealed class FcmMessagingService : FirebaseMessagingService
         if (string.Equals(type, "calendar_reminder", StringComparison.OrdinalIgnoreCase))
         {
             ShowCalendarReminderNotification(
-                eventId: channelId,
+                eventId: channelId ?? string.Empty,
                 title: title ?? "Calendar reminder",
                 body: body ?? string.Empty);
+            return;
+        }
+
+        // DM channel created — high-priority notification with action buttons
+        if (string.Equals(type, "dm_channel_created", StringComparison.OrdinalIgnoreCase))
+        {
+            ShowDmChannelNotification(
+                channelId ?? string.Empty,
+                title ?? "DotNetCloud",
+                body ?? string.Empty,
+                data);
             return;
         }
 
@@ -80,6 +91,7 @@ public sealed class FcmMessagingService : FirebaseMessagingService
     }
 
     /// <inheritdoc />
+    [Obsolete("Base FirebaseMessagingService.OnNewToken is deprecated by the SDK; still required to receive token refresh callbacks.")]
     public override async void OnNewToken(string token)
     {
         var logger = Ioc.Default.GetService<ILogger<FcmMessagingService>>();
@@ -183,6 +195,73 @@ public sealed class FcmMessagingService : FirebaseMessagingService
 
         var nm = (NotificationManager?)GetSystemService(NotificationService);
         var notificationId = BaseNotificationId + (channelGuid.GetHashCode() & 0x0FFF);
+        nm?.Notify(notificationId, notification);
+    }
+
+    private void ShowDmChannelNotification(string channelId, string title, string body, IDictionary<string, string> data)
+    {
+        var channelGuid = Guid.TryParse(channelId, out var g) ? g : Guid.Empty;
+
+        // Deep-link intent: open MainActivity and route to the DM channel.
+        var openIntent = new Intent(this, typeof(MainActivity));
+        openIntent.SetAction(Intent.ActionMain);
+        openIntent.AddCategory(Intent.CategoryLauncher);
+        if (channelGuid != Guid.Empty)
+            openIntent.PutExtra("channelId", channelGuid.ToString());
+
+        var pendingIntent = PendingIntent.GetActivity(
+            this,
+            channelGuid.GetHashCode(),
+            openIntent,
+            PendingIntentFlags.Immutable | PendingIntentFlags.UpdateCurrent);
+
+        // Accept action: open chat directly
+        var acceptIntent = new Intent(this, typeof(DmNotificationActionReceiver));
+        acceptIntent.SetAction("DOTNETCLOUD_DM_ACCEPT");
+        acceptIntent.PutExtra("channelId", channelId);
+        acceptIntent.PutExtra("initiatorName", data.TryGetValue("initiatorName", out var iname) ? iname : "Someone");
+        var acceptPending = PendingIntent.GetBroadcast(
+            this, channelGuid.GetHashCode() ^ 1, acceptIntent,
+            PendingIntentFlags.Immutable | PendingIntentFlags.UpdateCurrent);
+
+        // Ignore action
+        var ignoreIntent = new Intent(this, typeof(DmNotificationActionReceiver));
+        ignoreIntent.SetAction("DOTNETCLOUD_DM_IGNORE");
+        ignoreIntent.PutExtra("channelId", channelId);
+        var ignorePending = PendingIntent.GetBroadcast(
+            this, channelGuid.GetHashCode() ^ 2, ignoreIntent,
+            PendingIntentFlags.Immutable | PendingIntentFlags.UpdateCurrent);
+
+        // DND action
+        var dndIntent = new Intent(this, typeof(DmNotificationActionReceiver));
+        dndIntent.SetAction("DOTNETCLOUD_DM_DND");
+        dndIntent.PutExtra("channelId", channelId);
+        var dndPending = PendingIntent.GetBroadcast(
+            this, channelGuid.GetHashCode() ^ 3, dndIntent,
+            PendingIntentFlags.Immutable | PendingIntentFlags.UpdateCurrent);
+
+        var iconRes = ApplicationContext!.Resources!
+            .GetIdentifier("ic_notification", "drawable", ApplicationContext.PackageName);
+        if (iconRes == 0)
+            iconRes = global::Android.Resource.Drawable.IcDialogInfo;
+
+        var notification = new Notification.Builder(this, MainApplication.ChannelIdDmNotifications)
+            .SetContentTitle(title)
+            .SetContentText(body)
+            .SetSmallIcon(iconRes)
+            .SetContentIntent(pendingIntent)
+            .SetAutoCancel(true)
+            .AddAction(new Notification.Action.Builder(
+                null, "Reply & Join", acceptPending).Build())
+            .AddAction(new Notification.Action.Builder(
+                null, "Ignore", ignorePending).Build())
+            .AddAction(new Notification.Action.Builder(
+                null, "DND", dndPending).Build())
+            .WithBadgeCount(this)
+            .Build();
+
+        var nm = (NotificationManager?)GetSystemService(NotificationService);
+        var notificationId = 6000 + (channelGuid.GetHashCode() & 0x0FFF);
         nm?.Notify(notificationId, notification);
     }
 

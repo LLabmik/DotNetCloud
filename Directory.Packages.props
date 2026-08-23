@@ -1,7 +1,6 @@
 ﻿<Project>
   <ItemGroup>
     <!-- Health checks -->
-    <PackageVersion Include="AspNetCore.HealthChecks.MySql" Version="9.0.0" />
     <PackageVersion Include="AspNetCore.HealthChecks.NpgSql" Version="9.0.0" />
     <PackageVersion Include="AspNetCore.HealthChecks.SqlServer" Version="9.0.0" />
     <!-- Avalonia UI -->
@@ -78,7 +77,10 @@
     <PackageVersion Include="Microsoft.Maui.Controls.Compatibility" Version="10.0.90" />
     <!-- Test infrastructure -->
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
-    <PackageVersion Include="Microsoft.OpenApi" Version="3.9.0" />
+    <!-- Patched to 2.7.5 (GHSA-v5pm-xwqc-g5wc / CVE-2026-49451): Microsoft.AspNetCore.OpenApi
+         brings a vulnerable Microsoft.OpenApi 2.0.0 transitively. 3.x breaks the OpenApi source
+         generator, so stay on the patched 2.x line. -->
+    <PackageVersion Include="Microsoft.OpenApi" Version="2.7.5" />
     <PackageVersion Include="Moq" Version="4.20.72" />
     <PackageVersion Include="MSTest.TestAdapter" Version="4.3.3" />
     <PackageVersion Include="MSTest.TestFramework" Version="4.3.3" />

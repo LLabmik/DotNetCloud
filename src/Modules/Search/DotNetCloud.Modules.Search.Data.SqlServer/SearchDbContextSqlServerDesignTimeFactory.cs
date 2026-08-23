@@ -3,7 +3,7 @@ using DotNetCloud.Modules.Search.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
-namespace DotNetCloud.Modules.Search.Data.SqlServer;
+namespace DotNetCloud.Modules.Search.Data;
 
 public class SearchDbContextSqlServerDesignTimeFactory : IDesignTimeDbContextFactory<SearchDbContext>
 {

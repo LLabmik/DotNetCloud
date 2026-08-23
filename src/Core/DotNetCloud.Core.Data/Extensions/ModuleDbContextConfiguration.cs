@@ -16,7 +16,7 @@ public static class ModuleDbContextConfiguration
     /// <param name="options">The DbContext options builder.</param>
     /// <param name="provider">The configured database provider.</param>
     /// <param name="connectionString">The database connection string.</param>
-    /// <param name="migrationsAssembly">Optional migration assembly name (e.g., "DotNetCloud.Modules.Tracks.Data.SqlServer").</param>
+    /// <param name="migrationsAssembly">Optional migration assembly name (e.g., "DotNetCloud.Modules.Tracks.Data").</param>
     public static void Configure(
         DbContextOptionsBuilder options,
         DatabaseProvider provider,

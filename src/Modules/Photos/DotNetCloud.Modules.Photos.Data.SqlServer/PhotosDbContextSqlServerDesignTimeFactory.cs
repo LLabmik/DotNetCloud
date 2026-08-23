@@ -3,7 +3,7 @@ using DotNetCloud.Modules.Photos.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
-namespace DotNetCloud.Modules.Photos.Data.SqlServer;
+namespace DotNetCloud.Modules.Photos.Data;
 
 public class PhotosDbContextSqlServerDesignTimeFactory : IDesignTimeDbContextFactory<PhotosDbContext>
 {

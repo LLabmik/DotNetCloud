@@ -2,7 +2,7 @@ using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Extensions;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Modules;
-using DotNetCloud.Core.Schema.Services;
+using DotNetCloud.Core.Server.Services;
 using DotNetCloud.Modules.AI.Data;
 using DotNetCloud.Modules.Bookmarks.Data;
 using DotNetCloud.Modules.Calendar.Data;
@@ -17,6 +17,7 @@ using DotNetCloud.Modules.Search.Data;
 using DotNetCloud.Modules.Tracks.Data;
 using DotNetCloud.Modules.Video.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DotNetCloud.CLI.Infrastructure;
@@ -108,6 +109,7 @@ internal static class ServiceProviderFactory
                 });
                 break;
         }
+
     }
 
     private static IServiceCollection AddModuleDbContexts(

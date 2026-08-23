@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.Net.Sockets;
+using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DotNetCloud.Client.Android.Auth;
@@ -20,6 +22,8 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
     private readonly IChatRestClient _chatApi;
     private readonly IChatSignalRClient _signalR;
     private readonly ILocalMessageCache _cache;
+    private readonly IOfflineOperationQueue _offlineQueue;
+    private readonly IConnectivityMonitor _connectivity;
     private readonly IServerConnectionStore _serverStore;
     private readonly ISecureTokenStore _tokenStore;
     private readonly ILogger<MessageListViewModel> _logger;
@@ -68,6 +72,12 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
     /// <summary>Raised after closing search, signaling the view should scroll to the tapped search result message.</summary>
     public event EventHandler<Guid>? ScrollToMessageRequested;
 
+    /// <summary>
+    /// Raised after a real-time message is appended to <see cref="Messages"/> (not a duplicate echo).
+    /// The view uses this to auto-scroll to the bottom when the user is already near it.
+    /// </summary>
+    public event EventHandler? NewMessageAdded;
+
     /// <summary>Whether there's an image uploaded and waiting to be sent with the next message.</summary>
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SendCommand))]
@@ -78,6 +88,8 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
         IChatRestClient chatApi,
         IChatSignalRClient signalR,
         ILocalMessageCache cache,
+        IOfflineOperationQueue offlineQueue,
+        IConnectivityMonitor connectivity,
         IServerConnectionStore serverStore,
         ISecureTokenStore tokenStore,
         ILogger<MessageListViewModel> logger)
@@ -85,6 +97,8 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
         _chatApi = chatApi;
         _signalR = signalR;
         _cache = cache;
+        _offlineQueue = offlineQueue;
+        _connectivity = connectivity;
         _serverStore = serverStore;
         _tokenStore = tokenStore;
         _logger = logger;
@@ -115,6 +129,10 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     private string? _errorMessage;
+
+    /// <summary>Status text shown when a message was queued for offline delivery.</summary>
+    [ObservableProperty]
+    private string? _queuedStatusText;
 
     /// <summary>Whether the emoji picker panel is currently open.</summary>
     [ObservableProperty]
@@ -409,6 +427,25 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
 
         try
         {
+            // If the device has no signal, queue plain-text messages for delivery when
+            // connectivity returns instead of failing. Attachments require a server upload
+            // first, so they can't be queued offline.
+            if (!_connectivity.IsOnline)
+            {
+                if (attachment is not null)
+                {
+                    ErrorMessage = "Cannot send attachments while offline.";
+                    ComposerText = content;
+                    _pendingAttachment = attachment;
+                    HasPendingAttachment = true;
+                }
+                else
+                {
+                    await QueueMessageOfflineAsync(content, ct).ConfigureAwait(false);
+                }
+                return;
+            }
+
             ChatMessage sentMessage;
             if (attachment is not null)
             {
@@ -429,10 +466,32 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
             var isOwn = sentMessage.SenderUserId == _currentUserId;
             var vm = new MessageItemViewModel(sentMessage.Id, senderName, sentMessage.Content, sentMessage.SentAt, isOwn, sentMessage.Attachments, _serverUrl);
             if (Messages.All(m => m.Id != sentMessage.Id))
+            {
                 Messages.Add(vm);
+                // Own messages also auto-scroll when the user is near the bottom, so the
+                // sent message isn't left below the fold (the SignalR echo is deduped).
+                NewMessageAdded?.Invoke(this, EventArgs.Empty);
+            }
 
             // Cache the message locally for offline access
             _ = _cache.UpsertAsync([new CachedMessage(sentMessage.Id, sentMessage.ChannelId, senderName, sentMessage.Content, sentMessage.SentAt)]);
+        }
+        catch (Exception ex) when (IsOfflineException(ex) && !ct.IsCancellationRequested)
+        {
+            // Network dropped mid-send — queue the plain-text message for later delivery.
+            if (attachment is not null)
+            {
+                _logger.LogWarning(ex, "Attachment send failed while going offline; restoring composer.");
+                ComposerText = content;
+                _pendingAttachment = attachment;
+                HasPendingAttachment = true;
+                ErrorMessage = "Network lost while sending attachment. Please try again.";
+            }
+            else
+            {
+                _logger.LogWarning(ex, "Send failed due to connectivity; queueing message for offline delivery.");
+                await QueueMessageOfflineAsync(content, CancellationToken.None).ConfigureAwait(false);
+            }
         }
         catch (Exception ex)
         {
@@ -447,6 +506,37 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
             IsSending = false;
         }
     }
+
+    /// <summary>
+    /// Persists a plain-text message to the offline operation queue and shows it locally
+    /// so the user sees their message was accepted despite being offline.
+    /// </summary>
+    private async Task QueueMessageOfflineAsync(string content, CancellationToken ct)
+    {
+        var payload = new OfflineChatMessagePayload(_channelId, content);
+        await _offlineQueue.EnqueueAsync(
+            OfflineOperationType.ChatMessage,
+            JsonSerializer.Serialize(payload),
+            ct).ConfigureAwait(false);
+
+        var localId = Guid.NewGuid();
+        var now = DateTimeOffset.UtcNow;
+        var senderName = ResolveSenderName(_currentUserId, string.Empty);
+
+        Messages.Add(new MessageItemViewModel(localId, senderName, content, now, true, null, _serverUrl));
+        NewMessageAdded?.Invoke(this, EventArgs.Empty);
+        _ = _cache.UpsertAsync([new CachedMessage(localId, _channelId, senderName, content, now)]);
+
+        QueuedStatusText = "Message queued — will send when you're back online.";
+        _logger.LogInformation("Queued chat message for offline delivery to channel {ChannelId}.", _channelId);
+    }
+
+    /// <summary>Returns true when the exception indicates a loss of connectivity.</summary>
+    private static bool IsOfflineException(Exception ex) =>
+        ex is HttpRequestException
+        or IOException
+        or SocketException
+        or OperationCanceledException;
 
     /// <summary>Toggles the emoji picker panel visibility.</summary>
     [RelayCommand]
@@ -916,6 +1006,10 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
             var isOwn = e.SenderUserId != Guid.Empty && e.SenderUserId == _currentUserId;
             var vm = new MessageItemViewModel(e.MessageId, e.SenderDisplayName, e.MessagePreview, new DateTimeOffset(e.SentAt, TimeSpan.Zero), isOwn, attachments, _serverUrl);
             Messages.Add(vm);
+
+            // Signal the view that a new real-time message arrived so it can auto-scroll
+            // to the bottom if the user is already near it.
+            NewMessageAdded?.Invoke(this, EventArgs.Empty);
 
             // Cache the message locally for offline access
             if (Guid.TryParse(e.ChannelId, out var channelGuid))

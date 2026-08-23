@@ -1,3 +1,7 @@
+using DotNetCloud.Core.Authorization;
+using IAuditLogger = DotNetCloud.Core.Capabilities.IAuditLogger;
+using AuditEntry = DotNetCloud.Core.Capabilities.AuditEntry;
+using AuditAction = DotNetCloud.Core.Capabilities.AuditAction;
 using DotNetCloud.Core.DTOs.Media;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Services;
@@ -24,6 +28,7 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
     private readonly FilesDbContext _db;
     private readonly IEventBus _eventBus;
     private readonly IFileStorageEngine _storageEngine;
+    private readonly IAuditLogger _auditLogger;
     private readonly ILogger<FilesGrpcService> _logger;
 
     /// <summary>
@@ -33,11 +38,13 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
         FilesDbContext db,
         IEventBus eventBus,
         IFileStorageEngine storageEngine,
+        IAuditLogger auditLogger,
         ILogger<FilesGrpcService> logger)
     {
         _db = db;
         _eventBus = eventBus;
         _storageEngine = storageEngine;
+        _auditLogger = auditLogger;
         _logger = logger;
     }
 
@@ -108,6 +115,16 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
 
         _db.FileNodes.Add(folder);
         await _db.SaveChangesAsync(context.CancellationToken);
+
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = new CallerContext(userId, Array.Empty<string>(), CallerType.User),
+            ModuleId = "dotnetcloud.files",
+            Action = AuditAction.Create,
+            EntityType = "Folder",
+            EntityId = folder.Id,
+            Description = $"create-folder:{folder.Name}",
+        }, context.CancellationToken);
 
         _logger.LogInformation("Folder {FolderId} '{Name}' created by user {UserId}", folder.Id, folder.Name, userId);
 
@@ -379,6 +396,16 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
         node.OriginalParentId = node.ParentId;
 
         await _db.SaveChangesAsync(context.CancellationToken);
+
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = new CallerContext(userId, Array.Empty<string>(), CallerType.User),
+            ModuleId = "dotnetcloud.files",
+            Action = AuditAction.Delete,
+            EntityType = node.NodeType.ToString(),
+            EntityId = node.Id,
+            Description = $"delete-node:{node.Name}",
+        }, context.CancellationToken);
 
         _logger.LogInformation("Node {NodeId} moved to trash by user {UserId}", nodeId, userId);
 
@@ -1124,6 +1151,16 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
         _db.FileShares.Add(share);
         await _db.SaveChangesAsync(context.CancellationToken);
 
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = new CallerContext(userId, Array.Empty<string>(), CallerType.User),
+            ModuleId = "dotnetcloud.files",
+            Action = AuditAction.Share,
+            EntityType = "FileShare",
+            EntityId = share.Id,
+            Description = $"create-share:{nodeId}:{shareType}:{permission}",
+        }, context.CancellationToken);
+
         _logger.LogInformation("Share {ShareId} created for node {NodeId} by user {UserId}", share.Id, nodeId, userId);
 
         return new CreateShareResponse { Success = true, Share = ToShareMessage(share) };
@@ -1187,6 +1224,16 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
 
         _db.FileShares.Remove(share);
         await _db.SaveChangesAsync(context.CancellationToken);
+
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = new CallerContext(userId, Array.Empty<string>(), CallerType.User),
+            ModuleId = "dotnetcloud.files",
+            Action = AuditAction.Unshare,
+            EntityType = "FileShare",
+            EntityId = share.Id,
+            Description = $"revoke-share:{share.FileNodeId}",
+        }, context.CancellationToken);
 
         _logger.LogInformation("Share {ShareId} revoked", shareId);
 

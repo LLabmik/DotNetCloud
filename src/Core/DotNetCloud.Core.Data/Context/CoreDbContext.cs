@@ -5,6 +5,7 @@ using DotNetCloud.Core.Data.Entities.Organizations;
 using DotNetCloud.Core.Data.Entities.Permissions;
 using DotNetCloud.Core.Data.Entities.Settings;
 using DotNetCloud.Core.Data.Entities.Notifications;
+using DotNetCloud.Core.Data.Entities.Audit;
 using DotNetCloud.Core.Data.Configuration.Identity;
 using DotNetCloud.Core.Data.Configuration.Modules;
 using DotNetCloud.Core.Data.Configuration.Organizations;
@@ -12,6 +13,7 @@ using DotNetCloud.Core.Data.Configuration.Permissions;
 using DotNetCloud.Core.Data.Configuration.Settings;
 using DotNetCloud.Core.Data.Configuration.Auth;
 using DotNetCloud.Core.Data.Configuration.Notifications;
+using DotNetCloud.Core.Data.Configuration.Audit;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Data.Interceptors;
 using DotNetCloud.Core.Data.Configuration.Extensions;
@@ -152,6 +154,16 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
     public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
 
     /// <summary>
+    /// Gets or sets the AuditLogs DbSet.
+    /// </summary>
+    /// <remarks>
+    /// Persistent, attributable audit trail of security-relevant operations (SOC 2 CC4).
+    /// Entries are written by <c>AuditLogService</c> and purged by
+    /// <c>AuditLogPurgeHostedService</c> per <c>core.AuditLogRetentionDays</c>.
+    /// </remarks>
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+
+    /// <summary>
     /// Gets or sets the OrganizationSettings DbSet.
     /// </summary>
     /// <remarks>
@@ -279,6 +291,7 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
         ConfigureSettingModels(modelBuilder);
         ConfigureDeviceModels(modelBuilder);
         ConfigureNotificationModels(modelBuilder);
+        ConfigureAuditModels(modelBuilder);
         ConfigureModuleModels(modelBuilder);
         ConfigureAuthenticationModels(modelBuilder);
 
@@ -340,6 +353,15 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
         modelBuilder.ApplyConfiguration(new SystemSettingConfiguration());
         modelBuilder.ApplyConfiguration(new OrganizationSettingConfiguration());
         modelBuilder.ApplyConfiguration(new UserSettingConfiguration());
+    }
+
+    /// <summary>
+    /// Configures audit trail entities.
+    /// Includes <see cref="AuditLog"/> for the persisted audit trail (SOC 2 CC4).
+    /// </summary>
+    private void ConfigureAuditModels(ModelBuilder modelBuilder)
+    {
+        modelBuilder.ApplyConfiguration(new AuditLogConfiguration());
     }
 
     /// <summary>

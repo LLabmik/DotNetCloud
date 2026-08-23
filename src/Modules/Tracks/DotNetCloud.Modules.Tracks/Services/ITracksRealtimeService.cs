@@ -1,3 +1,5 @@
+using DotNetCloud.Core.Services.ModuleApis;
+
 namespace DotNetCloud.Modules.Tracks.Services;
 
 /// <summary>
@@ -53,4 +55,10 @@ public interface ITracksRealtimeService
 
     /// <summary>Removes a user from a review session's broadcast group.</summary>
     Task RemoveUserFromReviewGroupAsync(Guid userId, Guid sessionId, CancellationToken cancellationToken = default);
+
+    /// <summary>Broadcasts a new discussion message to all sprint planning participants.</summary>
+    Task BroadcastSprintDiscussionMessageAsync(Guid sprintId, SprintDiscussionDto message, CancellationToken cancellationToken = default);
+
+    /// <summary>Broadcasts a new discussion message to all review session participants.</summary>
+    Task BroadcastReviewDiscussionMessageAsync(Guid reviewSessionId, SprintDiscussionDto message, CancellationToken cancellationToken = default);
 }

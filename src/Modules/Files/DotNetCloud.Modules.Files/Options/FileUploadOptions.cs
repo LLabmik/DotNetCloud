@@ -15,6 +15,12 @@ public sealed class FileUploadOptions
     public long MaxFileSizeBytes { get; set; } = 16_106_127_360L;
 
     /// <summary>
+    /// Maximum size of a generated multi-item ZIP download, in bytes.
+    /// Default: 4 GiB (4,294,967,296 bytes). Downloads exceeding this fail with a 413.
+    /// </summary>
+    public long MaxZipSizeBytes { get; set; } = 4_294_967_296L;
+
+    /// <summary>
     /// Directory used for temporary file assembly during downloads.
     /// Set programmatically at startup from <c>DOTNETCLOUD_DATA_DIR</c>.
     /// Falls back to <see cref="Path.GetTempPath"/> when not set.

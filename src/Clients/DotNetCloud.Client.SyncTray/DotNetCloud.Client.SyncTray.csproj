@@ -8,6 +8,7 @@
     <!-- Suppress Avalonia XAML compiler diagnostics and XML doc warnings on generated files -->
     <NoWarn>$(NoWarn);XA0002;AVLN0002;CS1591</NoWarn>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <ApplicationIcon>Assets\dotnetcloud.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -39,6 +40,9 @@
 
   <ItemGroup>
     <None Include="Assets\dotnetcloud-sync-cloud.svg">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="Assets\dotnetcloud.ico">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

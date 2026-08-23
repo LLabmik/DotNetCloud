@@ -42,7 +42,7 @@
             <DncErrorDisplay Message="@_error" />
         </div>
     }
-    else if (_data?.Items.Count == 0)
+    else if (_data is null || _data.Items.Count == 0)
     {
         <div class="roadmap-empty">
             <div class="roadmap-empty-icon">🗺️</div>
@@ -52,7 +52,7 @@
     }
     else
     {
-        var data = _data!;
+        var data = _data;
         <div class="roadmap-timeline" @ref="_timelineRef">
             @* Today marker *@
             <div class="roadmap-today-marker" style="left: @(_todayPositionPercent.ToString("F2"))%">

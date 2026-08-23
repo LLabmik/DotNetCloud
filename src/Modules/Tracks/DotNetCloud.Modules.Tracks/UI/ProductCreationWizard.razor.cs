@@ -1,6 +1,6 @@
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
-using DotNetCloud.Modules.Tracks.Services;
+using DotNetCloud.Core.Services.ModuleApis;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 

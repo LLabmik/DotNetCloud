@@ -91,6 +91,20 @@ dotnet publish $SyncTrayProject `
     --self-contained true `
     --output $WindowsTrayPublish
 
+Write-Host "[2b/6] Publishing Windows updater helper (self-contained single-file)..." -ForegroundColor Yellow
+
+$UpdaterProject = Join-Path $SolutionRoot "src/Clients/DotNetCloud.Client.Updater/DotNetCloud.Client.Updater.csproj"
+$UpdaterPublish = Join-Path $StagingRoot "updater-staging"
+
+dotnet publish $UpdaterProject `
+    --configuration $Configuration `
+    --runtime win-x64 `
+    --self-contained true `
+    --output $UpdaterPublish
+
+Copy-Item -Path (Join-Path $UpdaterPublish "dotnetcloud-updater.exe") `
+    -Destination $WindowsTrayPublish -Force
+
 Write-Host "[3/6] Writing Linux installer scripts..." -ForegroundColor Yellow
 
 $LinuxInstallScript = @(
@@ -295,11 +309,24 @@ $WindowsInstallScript = @(
     'New-Item -ItemType Directory -Force -Path $startup | Out-Null',
     '$shortcutPath = Join-Path $startup "DotNetCloud SyncTray.lnk"',
     '$trayExe = Join-Path $InstallPath "SyncTray\dotnetcloud-sync-tray.exe"',
+    '$iconPath = Join-Path $InstallPath "SyncTray\Assets\dotnetcloud.ico"',
     '$wsh = New-Object -ComObject WScript.Shell',
     '$shortcut = $wsh.CreateShortcut($shortcutPath)',
     '$shortcut.TargetPath = $trayExe',
     '$shortcut.WorkingDirectory = Split-Path $trayExe -Parent',
+    '$shortcut.IconLocation = "$iconPath,0"',
     '$shortcut.Save()',
+    '',
+    '# Create a Start Menu shortcut so SyncTray appears in Start menu search.',
+    '$startMenuDir = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs"',
+    'New-Item -ItemType Directory -Force -Path $startMenuDir | Out-Null',
+    '$startMenuShortcut = Join-Path $startMenuDir "DotNetCloud SyncTray.lnk"',
+    '$startMenuShortcutObj = $wsh.CreateShortcut($startMenuShortcut)',
+    '$startMenuShortcutObj.TargetPath = $trayExe',
+    '$startMenuShortcutObj.WorkingDirectory = Split-Path $trayExe -Parent',
+    '$startMenuShortcutObj.IconLocation = "$iconPath,0"',
+    '$startMenuShortcutObj.Description = "DotNetCloud SyncTray"',
+    '$startMenuShortcutObj.Save()',
     '',
     'Write-Host "Install complete."',
     'Write-Host "Legacy SyncService removed if previously installed."' ,
@@ -329,6 +356,11 @@ $WindowsUninstallScript = @(
     '$startupShortcut = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup\DotNetCloud SyncTray.lnk"',
     'if (Test-Path $startupShortcut) {',
     '    Remove-Item $startupShortcut -Force',
+    '}',
+    '',
+    '$startMenuShortcut = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\DotNetCloud SyncTray.lnk"',
+    'if (Test-Path $startMenuShortcut) {',
+    '    Remove-Item $startMenuShortcut -Force',
     '}',
     '',
     'if (Test-Path $InstallPath) {',
@@ -379,6 +411,10 @@ $WindowsInstallCmd = @(
     '  reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v DotNetCloudSyncTray /t REG_SZ /d "\"%TRAY_EXE%\"" /f >nul',
     ')',
     '',
+    'if exist "%TRAY_EXE%" (',
+    '  powershell -NoProfile -ExecutionPolicy Bypass -Command "$ws=New-Object -ComObject WScript.Shell; $sc=$ws.CreateShortcut([Environment]::GetFolderPath(''Programs'')+''\DotNetCloud SyncTray.lnk''); $sc.TargetPath=''%TRAY_EXE%''; $sc.WorkingDirectory=''%INSTALL_PATH%\SyncTray''; $sc.Description=''DotNetCloud SyncTray''; $sc.IconLocation=''%INSTALL_PATH%\SyncTray\Assets\dotnetcloud.ico,0''; $sc.Save()" >nul 2>&1',
+    ')',
+    '',
     'echo Install complete.',
     'echo Legacy SyncService removed if previously installed.',
     'if exist "%TRAY_EXE%" (',
@@ -405,6 +441,8 @@ $WindowsUninstallCmd = @(
     'sc stop "%SERVICE_NAME%" >nul 2>&1',
     'sc delete "%SERVICE_NAME%" >nul 2>&1',
     'reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v DotNetCloudSyncTray /f >nul 2>&1',
+    'set "STARTMENU=%APPDATA%\Microsoft\Windows\Start Menu\Programs\DotNetCloud SyncTray.lnk"',
+    'if exist "%STARTMENU%" del /f /q "%STARTMENU%" >nul 2>&1',
     '',
     'if exist "%INSTALL_PATH%" (',
     '  rmdir /s /q "%INSTALL_PATH%"',

@@ -276,7 +276,50 @@ Override defaults in `appsettings.json`:
 
 ### Manual Rotation
 
-To force immediate rotation:
+Two supported ways to force immediate rotation (both back up `oidc-keys/`, generate
+fresh signing + encryption keys, and audit the action):
+
+**1. Admin UI (recommended).** In the admin console, open **System Settings**
+(`/admin/settings`) and click **Rotate OIDC Keys**. The server backs up the existing
+keys, generates fresh RSA keys, sets the `core.OidcKeysPendingRestart` flag, and
+records the rotation in the audit trail (`oidc-key-rotation`).
+
+After rotation the page shows a **"restart to activate keys" banner**. Two choices:
+
+- **Activate now** — calls `POST /api/v1/core/admin/restart`, which returns 202 and
+  triggers a graceful stop after ~3 seconds. systemd (`Restart=always`) brings the
+  service back up and the banner clears on startup.
+- **Dismiss** — hides the banner for the session; it returns on the next page load
+  until the server is restarted.
+
+> **Existing installs:** the "Activate now" button requires the systemd unit to use
+> `Restart=always` (new installs get this automatically). If your unit still says
+> `Restart=on-failure`, a graceful stop would leave the service **down** — either
+> update the unit (`sudo systemctl edit --full dotnetcloud` → `Restart=always` →
+> `daemon-reload`) or restart manually with the script.
+
+**2. Script.** From the repo root:
+
+```bash
+bash scripts/rotate-oidc-keys.sh
+```
+
+The script backs up `oidc-keys/` to `oidc-keys-backup-<timestamp>/`, generates a
+fresh `signing-key-<date>.pem`, verifies it with `openssl rsa -check`, and prints
+the restart command. **Record the backup path + date in the audit evidence**
+(the auditor asks for rotation history). Restart the service for the new key to
+take effect:
+
+```bash
+sudo systemctl restart dotnetcloud
+```
+
+The rotation API (`POST /api/v1/core/admin/security/rotate-oidc-keys`) backs up the
+entire `oidc-keys/` directory, generates **both** signing and encryption keys, and
+cleans up keys past the retention window — the same operations the automatic
+90-day rotation performs.
+
+Manual fallback (without the script or UI):
 
 1. Delete the oldest key files from `oidc-keys/`
 2. Restart the server — it will generate new keys automatically

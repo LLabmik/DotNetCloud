@@ -204,6 +204,9 @@ public static class ErrorCodes
     /// <summary>Error code for file size exceeds maximum allowed.</summary>
     public const string FileTooLarge = "FILE_TOO_LARGE";
 
+    /// <summary>Error code for a ZIP download exceeding the maximum allowed archive size.</summary>
+    public const string ZipSizeLimitExceeded = "FILE_ZIP_SIZE_LIMIT_EXCEEDED";
+
     /// <summary>Error code for file content does not match its extension.</summary>
     public const string FileContentMismatch = "FILE_CONTENT_MISMATCH";
 

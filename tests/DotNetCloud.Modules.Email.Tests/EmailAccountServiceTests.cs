@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Modules.Email.Data;
 using DotNetCloud.Modules.Email.Data.Services;
 using DotNetCloud.Modules.Email.Models;
@@ -6,6 +7,7 @@ using DotNetCloud.Modules.Email.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 
 namespace DotNetCloud.Modules.Email.Tests;
 
@@ -26,7 +28,7 @@ public class EmailAccountServiceTests
         _db = new EmailDbContext(options);
         var protectionProvider = DataProtectionProvider.Create("DotNetCloud.Test");
         var encryption = new EmailCredentialEncryptionService(protectionProvider);
-        _service = new EmailAccountService(_db, encryption, NullLogger<EmailAccountService>.Instance);
+        _service = new EmailAccountService(_db, encryption, Mock.Of<IAuditLogger>(), NullLogger<EmailAccountService>.Instance);
         _caller = new CallerContext(UserId, new[] { "user" }, CallerType.User);
     }
 

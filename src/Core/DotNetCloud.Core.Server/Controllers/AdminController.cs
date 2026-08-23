@@ -1,4 +1,8 @@
 using DotNetCloud.Core.Auth.Authorization;
+using DotNetCloud.Core.Auth.Security;
+using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Capabilities;
+using DotNetCloud.Core.Constants;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Grpc.Lifecycle;
 using HealthStatusGrpc = DotNetCloud.Core.Grpc.Lifecycle.HealthStatus;
@@ -9,6 +13,7 @@ using Grpc.Net.Client;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Hosting;
 using System.Globalization;
 
 namespace DotNetCloud.Core.Server.Controllers;
@@ -27,6 +32,8 @@ public class AdminController : ControllerBase
     private readonly IBackgroundServiceTracker _backgroundServiceTracker;
     private readonly IBackupService _backupService;
     private readonly IProcessSupervisor _supervisor;
+    private readonly IAuditLogger _auditLogger;
+    private readonly IHostApplicationLifetime _hostLifetime;
     private readonly ILogger<AdminController> _logger;
 
     /// <summary>
@@ -39,6 +46,8 @@ public class AdminController : ControllerBase
         IBackgroundServiceTracker backgroundServiceTracker,
         IBackupService backupService,
         IProcessSupervisor supervisor,
+        IAuditLogger auditLogger,
+        IHostApplicationLifetime hostLifetime,
         ILogger<AdminController> logger)
     {
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
@@ -47,6 +56,8 @@ public class AdminController : ControllerBase
         _backgroundServiceTracker = backgroundServiceTracker ?? throw new ArgumentNullException(nameof(backgroundServiceTracker));
         _backupService = backupService ?? throw new ArgumentNullException(nameof(backupService));
         _supervisor = supervisor ?? throw new ArgumentNullException(nameof(supervisor));
+        _auditLogger = auditLogger ?? throw new ArgumentNullException(nameof(auditLogger));
+        _hostLifetime = hostLifetime ?? throw new ArgumentNullException(nameof(hostLifetime));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -96,6 +107,15 @@ public class AdminController : ControllerBase
     {
         var setting = await _settingsService.UpsertSettingAsync(module, key, dto);
 
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = BuildCaller(),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.Update,
+            EntityType = "SystemSetting",
+            EntityId = Guid.CreateVersion7(),
+            Description = $"setting-upsert:{SanitizeForLog(module)}:{SanitizeForLog(key)}",
+        });
         _logger.LogInformation("Setting {Module}:{Key} updated by admin", SanitizeForLog(module), SanitizeForLog(key));
         return Ok(new { success = true, data = setting });
     }
@@ -115,6 +135,15 @@ public class AdminController : ControllerBase
             return NotFound(new { success = false, error = new { code = "SETTING_NOT_FOUND", message = $"Setting '{module}:{key}' not found." } });
         }
 
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = BuildCaller(),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.Delete,
+            EntityType = "SystemSetting",
+            EntityId = Guid.CreateVersion7(),
+            Description = $"setting-deleted:{SanitizeForLog(module)}:{SanitizeForLog(key)}",
+        });
         _logger.LogInformation("Setting {Module}:{Key} deleted by admin", SanitizeForLog(module), SanitizeForLog(key));
         return Ok(new { success = true, message = "Setting deleted successfully." });
     }
@@ -166,6 +195,15 @@ public class AdminController : ControllerBase
             return NotFound(new { success = false, error = new { code = "MODULE_NOT_FOUND", message = $"Module '{moduleId}' not found." } });
         }
 
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = BuildCaller(),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.Update,
+            EntityType = "Module",
+            EntityId = Guid.CreateVersion7(),
+            Description = $"module-started:{SanitizeForLog(moduleId)}",
+        });
         var sanitizedModuleId = SanitizeForLog(moduleId);
         _logger.LogInformation("Module {ModuleId} started by admin", sanitizedModuleId);
         return Ok(new { success = true, message = $"Module '{moduleId}' started successfully." });
@@ -188,6 +226,15 @@ public class AdminController : ControllerBase
                 return NotFound(new { success = false, error = new { code = "MODULE_NOT_FOUND", message = $"Module '{moduleId}' not found." } });
             }
 
+            await _auditLogger.LogAsync(new AuditEntry
+            {
+                Caller = BuildCaller(),
+                ModuleId = "dotnetcloud.core",
+                Action = AuditAction.Update,
+                EntityType = "Module",
+                EntityId = Guid.CreateVersion7(),
+                Description = $"module-stopped:{SanitizeForLog(moduleId)}",
+            });
             var sanitizedModuleId = SanitizeForLog(moduleId);
             _logger.LogInformation("Module {ModuleId} stopped by admin", sanitizedModuleId);
             return Ok(new { success = true, message = $"Module '{moduleId}' stopped successfully." });
@@ -213,6 +260,15 @@ public class AdminController : ControllerBase
             return NotFound(new { success = false, error = new { code = "MODULE_NOT_FOUND", message = $"Module '{moduleId}' not found." } });
         }
 
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = BuildCaller(),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.Update,
+            EntityType = "Module",
+            EntityId = Guid.CreateVersion7(),
+            Description = $"module-restarted:{SanitizeForLog(moduleId)}",
+        });
         var sanitizedModuleId = SanitizeForLog(moduleId);
         _logger.LogInformation("Module {ModuleId} restarted by admin", sanitizedModuleId);
         return Ok(new { success = true, message = $"Module '{moduleId}' restarted successfully." });
@@ -226,6 +282,19 @@ public class AdminController : ControllerBase
         }
 
         return LogSanitizer.Sanitize(value ?? string.Empty);
+    }
+
+    private CallerContext BuildCaller()
+    {
+        if (!TryGetUserId(out var userId) || userId == Guid.Empty)
+            return CallerContext.CreateSystemContext();
+
+        var roles = User.FindAll("role")
+            .Concat(User.FindAll(System.Security.Claims.ClaimTypes.Role))
+            .Select(c => c.Value)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        return new CallerContext(userId, roles, CallerType.User);
     }
 
     /// <summary>
@@ -248,6 +317,15 @@ public class AdminController : ControllerBase
             return NotFound(new { success = false, error = new { code = "MODULE_NOT_FOUND", message = $"Module '{moduleId}' not found." } });
         }
 
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = BuildCaller(),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.Update,
+            EntityType = "ModuleCapability",
+            EntityId = Guid.CreateVersion7(),
+            Description = $"capability-granted:{SanitizeForLog(moduleId)}:{SanitizeForLog(capability)}",
+        });
         _logger.LogInformation("Capability {Capability} granted to module {ModuleId} by admin {AdminUserId}",
             capability, moduleId, adminUserId);
         return Ok(new { success = true, data = grant });
@@ -268,6 +346,15 @@ public class AdminController : ControllerBase
             return NotFound(new { success = false, error = new { code = "CAPABILITY_NOT_FOUND", message = $"Capability '{capability}' not found for module '{moduleId}'." } });
         }
 
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = BuildCaller(),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.Update,
+            EntityType = "ModuleCapability",
+            EntityId = Guid.CreateVersion7(),
+            Description = $"capability-revoked:{SanitizeForLog(moduleId)}:{SanitizeForLog(capability)}",
+        });
         _logger.LogInformation("Capability {Capability} revoked from module {ModuleId} by admin",
             capability, moduleId);
         return Ok(new { success = true, message = $"Capability '{capability}' revoked from module '{moduleId}'." });
@@ -306,6 +393,192 @@ public class AdminController : ControllerBase
         _logger.LogInformation("Backup triggered by admin completed: {Path} ({Count} files, {Size:N0} bytes)",
             result.FilePath, result.FileCount, result.SizeBytes);
         return Ok(new { success = true, data = result });
+    }
+
+    // ---------------------------------------------------------------------------
+    // Security — OpenIddict Key Rotation (SOC 2 CC6 / C1)
+    // ---------------------------------------------------------------------------
+
+    /// <summary>
+    /// Rotates the OpenIddict signing and encryption keys immediately (SOC 2 CC6 / C1).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Backs up the existing <c>oidc-keys/</c> directory to a timestamped sibling,
+    /// generates fresh signing + encryption RSA keys via <see cref="OidcKeyManager"/>
+    /// (date-stamped filenames), and cleans up keys past the retention window. The new
+    /// keys become the active signing keys on the next server restart (keys are loaded
+    /// at startup). The action is written to the audit trail.
+    /// </para>
+    /// <para>
+    /// This is the manual/emergency rotation path; the platform also rotates keys
+    /// automatically every 90 days via <c>OidcKeyRotationService</c>.
+    /// </para>
+    /// </remarks>
+    /// <returns>The new key IDs, backup path, and a note.</returns>
+    [HttpPost("security/rotate-oidc-keys")]
+    public async Task<IActionResult> RotateOidcKeysAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var oidcKeysDir = OidcKeyManager.GetOidcKeysDirectory();
+            Directory.CreateDirectory(oidcKeysDir);
+
+            // 1. Back up the existing keys.
+            var backupPath = string.Empty;
+            var existing = Directory.GetFiles(oidcKeysDir, "*.pem");
+            if (existing.Length > 0)
+            {
+                backupPath = Path.Combine(
+                    Path.GetDirectoryName(oidcKeysDir) ?? oidcKeysDir,
+                    $"oidc-keys-backup-{DateTime.UtcNow:yyyyMMdd-HHmmss}");
+                Directory.CreateDirectory(backupPath);
+                foreach (var f in existing)
+                {
+                    System.IO.File.Copy(f, Path.Combine(backupPath, Path.GetFileName(f)));
+                }
+            }
+
+            // 2. Generate fresh signing + encryption keys.
+            var signingKey = OidcKeyManager.GenerateRotatedKey(oidcKeysDir, OidcKeyManager.SigningKeyPrefix, _logger);
+            var encryptionKey = OidcKeyManager.GenerateRotatedKey(oidcKeysDir, OidcKeyManager.EncryptionKeyPrefix, _logger);
+
+            // 3. Clean up keys past the retention window (keeps at least the newest).
+            OidcKeyManager.CleanupOldKeys(oidcKeysDir, OidcKeyManager.SigningKeyPrefix, TimeSpan.FromDays(120), _logger);
+            OidcKeyManager.CleanupOldKeys(oidcKeysDir, OidcKeyManager.EncryptionKeyPrefix, TimeSpan.FromDays(120), _logger);
+
+            // 4. Audit the rotation.
+            await _auditLogger.LogAsync(new AuditEntry
+            {
+                Caller = BuildCaller(),
+                ModuleId = "dotnetcloud.core",
+                Action = AuditAction.Update,
+                EntityType = "OidcKey",
+                EntityId = Guid.CreateVersion7(),
+                Description = $"oidc-key-rotation:signing={signingKey.KeyId}",
+            }, cancellationToken);
+
+            // 5. Flag that a restart is required to activate the new keys. Cleared
+            //    automatically on the next server start.
+            var rotatedAt = DateTime.UtcNow;
+            await _settingsService.UpsertSettingAsync(
+                SystemSettingKeys.CoreModule,
+                SystemSettingKeys.OidcKeysPendingRestart,
+                new UpsertSystemSettingDto
+                {
+                    Value = rotatedAt.ToString("O", CultureInfo.InvariantCulture),
+                    Description = $"OpenIddict keys rotated; restart required to activate (signing={signingKey.KeyId}).",
+                });
+
+            var result = new OidcKeyRotationResult
+            {
+                SigningKeyId = signingKey.KeyId,
+                EncryptionKeyId = encryptionKey.KeyId,
+                BackupPath = backupPath,
+                RotatedAtUtc = rotatedAt,
+                Note = "New keys take effect on the next server restart.",
+            };
+
+            _logger.LogInformation(
+                "OpenIddict keys rotated by admin: signing={SigningKeyId} backup={BackupPath}",
+                signingKey.KeyId, string.IsNullOrEmpty(backupPath) ? "(none)" : backupPath);
+
+            return Ok(new { success = true, data = result });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Manual OpenIddict key rotation failed.");
+            return StatusCode(500, new { success = false, error = new { code = "KEY_ROTATION_FAILED", message = ex.Message } });
+        }
+    }
+
+    /// <summary>
+    /// Gets the OpenIddict key-rotation status (SOC 2 CC6 / C1).
+    /// </summary>
+    /// <remarks>
+    /// Reports whether a rotation occurred since the last server start, in which case a
+    /// restart is required to activate the newest keys. The admin UI shows a banner when
+    /// <c>restartPending</c> is true.
+    /// </remarks>
+    /// <returns>The rotation status.</returns>
+    [HttpGet("security/oidc-key-rotation-status")]
+    public async Task<IActionResult> GetOidcKeyRotationStatusAsync()
+    {
+        var status = new OidcKeyRotationStatus();
+        var setting = await _settingsService.GetSettingAsync(
+            SystemSettingKeys.CoreModule, SystemSettingKeys.OidcKeysPendingRestart);
+
+        if (setting is not null && !string.IsNullOrWhiteSpace(setting.Value))
+        {
+            status.RestartPending = true;
+            if (DateTime.TryParse(setting.Value, CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.RoundtripKind, out var rotatedAt))
+            {
+                status.RotatedAtUtc = rotatedAt.ToUniversalTime();
+            }
+
+            // The signing key id is embedded in the description, e.g.
+            // "OpenIddict keys rotated; restart required to activate (signing=<kid>)."
+            var desc = setting.Description;
+            if (!string.IsNullOrWhiteSpace(desc) && desc.Contains("signing=", StringComparison.Ordinal))
+            {
+                var start = desc.IndexOf("signing=", StringComparison.Ordinal) + "signing=".Length;
+                var end = desc.IndexOf(')', start);
+                if (end > start)
+                    status.SigningKeyId = desc[start..end];
+            }
+        }
+
+        return Ok(new { success = true, data = status });
+    }
+
+    /// <summary>
+    /// Gracefully restarts the DotNetCloud server (admin).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Returns <c>202 Accepted</c> immediately, then requests a graceful application stop
+    /// after a short delay so the response is flushed. The process supervisor / systemd
+    /// (<c>Restart=always</c>) brings the service back up. Use this after rotating OpenIddict
+    /// keys to activate them, or for other maintenance.
+    /// </para>
+    /// <para>
+    /// The action is audited. Clients connected through this server will drop briefly.
+    /// </para>
+    /// </remarks>
+    /// <returns>202 Accepted with a confirmation message.</returns>
+    [HttpPost("restart")]
+    public async Task<IActionResult> RestartServerAsync(CancellationToken cancellationToken = default)
+    {
+        _logger.LogWarning("Server restart requested by admin.");
+
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = BuildCaller(),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.Update,
+            EntityType = "Server",
+            EntityId = Guid.CreateVersion7(),
+            Description = "server-restart-requested",
+        }, cancellationToken);
+
+        // Fire-and-forget delayed graceful shutdown so the 202 response is flushed first.
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(3), cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+
+            _logger.LogWarning("Restarting DotNetCloud per admin request.");
+            _hostLifetime.StopApplication();
+        }, cancellationToken);
+
+        return Accepted(new { success = true, message = "Restart requested. The server will restart in a few seconds." });
     }
 
     /// <summary>

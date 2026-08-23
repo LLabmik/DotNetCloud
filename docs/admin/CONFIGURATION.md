@@ -193,16 +193,18 @@ The maximum upload file size is configurable via the `FileUpload` section:
 ```json
 {
   "FileUpload": {
-    "MaxFileSizeBytes": 16106127360
+    "MaxFileSizeBytes": 16106127360,
+    "MaxZipSizeBytes": 4294967296
   }
 }
 ```
 
-| Setting            | Default               | Description                                                                                                                                                                                     |
-| ------------------ | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MaxFileSizeBytes` | `16106127360` (15 GB) | Maximum file size allowed for upload. The web UI validates this client-side before uploading, showing a user-friendly error with the formatted size limit. The server also enforces this limit. |
+| Setting            | Default               | Description                                                                                                                                                                                             |
+| ------------------ | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MaxFileSizeBytes` | `16106127360` (15 GB) | Maximum file size allowed for upload. The web UI validates this client-side before uploading, showing a user-friendly error with the formatted size limit. The server also enforces this limit.         |
+| `MaxZipSizeBytes`  | `4294967296` (4 GiB)  | Maximum size of a generated multi-item ZIP download (multiple files/folders downloaded at once). Downloads that would exceed this limit fail with HTTP 413 and the web UI shows an informational modal. |
 
-The client retrieves this limit from `GET /api/v1/files/config` on page load and rejects oversized files immediately with a clear error message.
+The client retrieves these limits from `GET /api/v1/files/config` on page load and rejects oversized files immediately with a clear error message.
 
 You can also configure limits at the reverse proxy level:
 

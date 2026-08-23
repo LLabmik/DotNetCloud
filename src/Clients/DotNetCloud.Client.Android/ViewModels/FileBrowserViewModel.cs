@@ -655,9 +655,13 @@ public sealed partial class FileBrowserViewModel : ObservableObject
             LastUploadTimestampText = string.Empty;
         }
 
-        var status = _autoUploadService.IsRunning ? "Watching for new photos..." : "Auto-upload idle";
+        // Don't announce idle monitoring — only surface meaningful states (pending uploads,
+        // active uploads, or when auto-upload is disabled).
+        var status = string.Empty;
         if (pendingCount > 0)
             status = $"📤 {pendingCount} pending upload(s)";
+        else if (_autoUploadService.IsRunning && pendingCount == 0)
+            status = "Auto-upload on";
         AutoUploadStatusText = status;
     }
 

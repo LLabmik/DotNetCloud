@@ -29,7 +29,7 @@ public class PhotosControllerSaveEditsTests
         _userId = Guid.CreateVersion7();
         var eventBus = Mock.Of<IEventBus>();
 
-        var photoService = new PhotoService(_db, eventBus, NullLogger<PhotoService>.Instance);
+        var photoService = new PhotoService(_db, eventBus, Mock.Of<DotNetCloud.Core.Capabilities.IAuditLogger>(), NullLogger<PhotoService>.Instance);
         var albumService = new AlbumService(_db, eventBus, NullLogger<AlbumService>.Instance);
         var metadataService = new PhotoMetadataService(_db, NullLogger<PhotoMetadataService>.Instance);
         var geoService = new PhotoGeoService(_db, NullLogger<PhotoGeoService>.Instance);

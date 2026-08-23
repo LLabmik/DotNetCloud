@@ -657,6 +657,9 @@
                     <CheckBox Content="Check for updates automatically"
                               ToolTip.Tip="Periodically check for new versions in the background"
                               IsChecked="{Binding AutoCheckForUpdates}" />
+                    <CheckBox Content="Download updates automatically"
+                              ToolTip.Tip="Download the update in the background when one is found (restart is still manual)"
+                              IsChecked="{Binding AutoDownloadUpdates}" />
 
                 </StackPanel>
             </TabItem>

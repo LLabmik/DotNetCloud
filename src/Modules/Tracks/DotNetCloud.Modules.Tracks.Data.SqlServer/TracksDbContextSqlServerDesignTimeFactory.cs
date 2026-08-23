@@ -3,7 +3,7 @@ using DotNetCloud.Modules.Tracks.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
-namespace DotNetCloud.Modules.Tracks.Data.SqlServer;
+namespace DotNetCloud.Modules.Tracks.Data;
 
 public class TracksDbContextSqlServerDesignTimeFactory : IDesignTimeDbContextFactory<TracksDbContext>
 {

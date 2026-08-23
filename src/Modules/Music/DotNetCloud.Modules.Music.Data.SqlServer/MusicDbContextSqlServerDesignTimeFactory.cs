@@ -3,7 +3,7 @@ using DotNetCloud.Modules.Music.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
-namespace DotNetCloud.Modules.Music.Data.SqlServer;
+namespace DotNetCloud.Modules.Music.Data;
 
 public class MusicDbContextSqlServerDesignTimeFactory : IDesignTimeDbContextFactory<MusicDbContext>
 {

@@ -6,18 +6,20 @@
 
 ## Overview
 
-
 ## Key Features
 
 ✅ **Multi-Database Provider Support**
+
 - PostgreSQL (Npgsql) - Primary target
 - SQL Server - Enterprise support
 
 ✅ **Flexible Table Naming Strategies**
+
 - PostgreSQL: Schema-based (`core.users`, `files.documents`)
 - SQL Server: Schema-based
 
 ✅ **Comprehensive Entity Models**
+
 - ASP.NET Core Identity integration with custom user/role models
 - Organization hierarchy (Organizations, Teams, Groups)
 - Permission system (Roles, Permissions)
@@ -26,6 +28,7 @@
 - Device tracking
 
 ✅ **Automated Database Management**
+
 - Database migrations for PostgreSQL and SQL Server
 - Automatic timestamp management via interceptors
 - Soft-delete query filters
@@ -79,10 +82,12 @@ DotNetCloud.Core.Data/
 │   └── DbInitializer.cs
 ├── Interceptors/                         # EF Core interceptors
 │   └── TimestampInterceptor.cs
-└── Migrations/                           # Database migrations
-    ├── 20260302195528_InitialCreate.cs   # PostgreSQL initial migration
-    └── SqlServer/                        # SQL Server migrations
-        └── 20260302203100_InitialCreate_SqlServer.cs
+└── Migrations/                           # Database migrations (PostgreSQL)
+    └── 20260302195528_InitialCreate.cs
+
+SQL Server migrations live in the separate **`DotNetCloud.Core.Data.SqlServer`** project
+(see `src/Core/DotNetCloud.Core.Data.SqlServer/Migrations/`). Each provider's migrations
+reside in its own assembly — no runtime provider filtering is required.
 ```
 
 ## Entity Models
@@ -90,7 +95,9 @@ DotNetCloud.Core.Data/
 ### Identity Entities
 
 #### ApplicationUser
+
 Extends `IdentityUser<Guid>` with additional properties:
+
 - `DisplayName` - User's display name
 - `AvatarUrl` - Profile picture URL
 - `Locale` - User's preferred language (default: "en-US")
@@ -100,31 +107,40 @@ Extends `IdentityUser<Guid>` with additional properties:
 - `IsActive` - Account active status
 
 #### ApplicationRole
+
 Extends `IdentityRole<Guid>` with:
+
 - `Description` - Role description
 - `IsSystemRole` - Indicates system-managed role
 
 ### Organization Hierarchy
 
 #### Organization
+
 Top-level organizational unit:
+
 - `Name` - Organization name
 - `Description` - Optional description
 - `CreatedAt` - Creation timestamp
 - `IsDeleted`, `DeletedAt` - Soft-delete support
 
 #### Team
+
 Organization sub-units:
+
 - `OrganizationId` - Parent organization
 - `Name` - Team name
 - Soft-delete support
 
 #### Group
+
 Cross-team permission groups:
+
 - `OrganizationId` - Parent organization
 - `Name` - Group name
 
 #### Membership Entities
+
 - `TeamMember` - User membership in teams
 - `GroupMember` - User membership in groups
 - `OrganizationMember` - User membership in organizations with role assignments
@@ -132,38 +148,49 @@ Cross-team permission groups:
 ### Permission System
 
 #### Permission
+
 Defines individual permissions:
+
 - `Code` - Unique permission code (e.g., "files.upload")
 - `DisplayName` - Human-readable name
 - `Description` - Optional description
 
 #### Role
+
 Groups permissions together:
+
 - `Name` - Role name
 - `Description` - Optional description
 - `IsSystemRole` - System-managed flag
 - `Permissions` - Navigation to assigned permissions
 
 #### RolePermission
+
 Many-to-many junction table between roles and permissions.
 
 ### Settings (Three Scopes)
 
 #### SystemSetting
+
 System-wide configuration:
+
 - Composite key: (`Module`, `Key`)
 - `Value` - JSON-serializable value
 - `Description` - Optional description
 - `UpdatedAt` - Last modification timestamp
 
 #### OrganizationSetting
+
 Organization-scoped settings:
+
 - `OrganizationId` - FK to organization
 - `Module`, `Key`, `Value` - Setting triple
 - Unique constraint: (OrganizationId, Module, Key)
 
 #### UserSetting
+
 User-scoped preferences:
+
 - `UserId` - FK to user
 - `Module`, `Key`, `Value` - Setting triple
 - `IsEncrypted` - Encryption flag for sensitive data
@@ -172,21 +199,27 @@ User-scoped preferences:
 ### Module Registry
 
 #### InstalledModule
+
 Tracks installed modules:
+
 - `ModuleId` - Primary key (e.g., "dotnetcloud.files")
 - `Version` - Module version
 - `Status` - Module status (Enabled, Disabled, UpdateAvailable)
 - `InstalledAt`, `UpdatedAt` - Timestamps
 
 #### ModuleCapabilityGrant
+
 Tracks granted capabilities per module:
+
 - `ModuleId` - FK to module
 - `CapabilityName` - Granted capability
 - `GrantedAt` - Grant timestamp
 - `GrantedByUserId` - Admin who granted (nullable)
 
 #### UserDevice
+
 Tracks user devices for push notifications:
+
 - `UserId` - FK to user
 - `Name` - Device name
 - `DeviceType` - Device type enum
@@ -196,16 +229,22 @@ Tracks user devices for push notifications:
 ## Database Provider Support
 
 ### PostgreSQL (Primary)
+
 - **Provider:** Npgsql.EntityFrameworkCore.PostgreSQL
 - **Version:** 10.0.0
 - **Naming:** Schema-based (e.g., `core.users`, `core.organizations`)
 - **Migration Folder:** `Migrations/`
 
 ### SQL Server
+
 - **Provider:** Microsoft.EntityFrameworkCore.SqlServer
 - **Version:** 10.0.0
 - **Naming:** Schema-based (e.g., `core.users`)
-- **Migration Folder:** `Migrations/SqlServer/`
+- **Project:** `DotNetCloud.Core.Data.SqlServer` (SQL Server migrations)
+- **Migration Folder:** `Migrations/` (inside the `.SqlServer` project)
+
+> **Note:** Core tables use the provider's default schema at runtime (`dbo` on SQL Server,
+> `public` on PostgreSQL). Only OpenIddict tables use an explicit `core` schema.
 
 - **Version:** Awaiting .NET 10 support
 - **Naming:** Prefix-based (e.g., `core_users`, `core_organizations`)
@@ -224,20 +263,25 @@ public interface ITableNamingStrategy
 ```
 
 ### PostgreSQL Strategy
+
 Uses native schemas:
+
 ```sql
 CREATE TABLE core.users (...);
 CREATE TABLE files.documents (...);
 ```
 
 ### SQL Server Strategy
+
 Uses native schemas (same as PostgreSQL):
+
 ```sql
 CREATE TABLE core.users (...);
 CREATE TABLE files.documents (...);
 ```
 
 Uses table prefixes (schemas not fully supported):
+
 ```sql
 CREATE TABLE core_users (...);
 CREATE TABLE files_documents (...);
@@ -275,14 +319,20 @@ await initializer.InitializeAsync(cancellationToken);
 
 ### Creating Migrations
 
+PostgreSQL and SQL Server migrations live in **separate projects**: the PostgreSQL set in
+`DotNetCloud.Core.Data` and the SQL Server set in `DotNetCloud.Core.Data.SqlServer`. Each
+project has its own design-time factory, so the EF CLI needs no extra disambiguation.
+
 #### PostgreSQL (Default)
+
 ```powershell
-dotnet ef migrations add <MigrationName> --project src\Core\DotNetCloud.Core.Data --startup-project src\Core\DotNetCloud.Core.Data --context CoreDbContext
+dotnet ef migrations add <MigrationName> --project src\Core\DotNetCloud.Core.Data --context CoreDbContext
 ```
 
 #### SQL Server
+
 ```powershell
-dotnet ef migrations add <MigrationName>_SqlServer --project src\Core\DotNetCloud.Core.Data --startup-project src\Core\DotNetCloud.Core.Data --context CoreDbContext --output-dir Migrations\SqlServer
+dotnet ef migrations add <MigrationName>_SqlServer --project src\Core\DotNetCloud.Core.Data.SqlServer --context CoreDbContext
 ```
 
 ### Applying Migrations
@@ -290,8 +340,13 @@ dotnet ef migrations add <MigrationName>_SqlServer --project src\Core\DotNetClou
 Migrations are automatically applied by `DbInitializer` during application startup.
 
 Manual application:
+
 ```powershell
+# PostgreSQL
 dotnet ef database update --project src\Core\DotNetCloud.Core.Data --context CoreDbContext
+
+# SQL Server (DOTNETCLOUD_DB_CONNECTION points at the SQL Server)
+dotnet ef database update --project src\Core\DotNetCloud.Core.Data.SqlServer --context CoreDbContext
 ```
 
 ## Configuration
@@ -299,6 +354,7 @@ dotnet ef database update --project src\Core\DotNetCloud.Core.Data --context Cor
 ### Connection String Examples
 
 #### PostgreSQL
+
 ```json
 {
   "ConnectionStrings": {
@@ -308,6 +364,7 @@ dotnet ef database update --project src\Core\DotNetCloud.Core.Data --context Cor
 ```
 
 #### SQL Server
+
 ```json
 {
   "ConnectionStrings": {
@@ -343,7 +400,7 @@ services.AddSingleton<ITableNamingStrategy>(provider switch
 services.AddDbContext<CoreDbContext>((serviceProvider, options) =>
 {
     var namingStrategy = serviceProvider.GetRequiredService<ITableNamingStrategy>();
-    
+
     switch (provider)
     {
         case DatabaseProvider.PostgreSql:
@@ -351,8 +408,6 @@ services.AddDbContext<CoreDbContext>((serviceProvider, options) =>
             break;
         case DatabaseProvider.SqlServer:
             options.UseSqlServer(connectionString);
-            break;
-            options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
             break;
     }
 });
@@ -364,23 +419,29 @@ services.AddScoped<DbInitializer>();
 ## Automatic Features
 
 ### Timestamp Management
+
 The `TimestampInterceptor` automatically sets:
+
 - `CreatedAt` on entity creation
 - `UpdatedAt` on entity modification
 
 ### Soft Delete Query Filters
+
 Entities with `IsDeleted` property are automatically filtered from queries unless explicitly included.
 
 ## Testing
 
 ### Unit Tests
+
 Located in `tests/DotNetCloud.Core.Data.Tests/`:
+
 - Entity validation tests
 - Configuration tests
 - Naming strategy tests
 - DbInitializer tests
 
 ### Running Tests
+
 ```powershell
 dotnet test tests\DotNetCloud.Core.Data.Tests\DotNetCloud.Core.Data.Tests.csproj
 ```

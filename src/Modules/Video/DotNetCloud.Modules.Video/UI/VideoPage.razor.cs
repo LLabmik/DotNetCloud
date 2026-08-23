@@ -157,6 +157,9 @@ public partial class VideoPage : IAsyncDisposable
     private bool _autoFetchPosters = true;
     private bool _settingsEnriching;
 
+    // Manual metadata edit state
+    private bool _showMetadataEditDialog;
+
     // Post-scan enrichment status
     private LibraryScanProgress? _lastEnrichmentResult;
 
@@ -997,6 +1000,8 @@ public partial class VideoPage : IAsyncDisposable
         _selectedSeason = season;
         _seasonEpisodes.Clear();
 
+        // Breadcrumb trail: Series › {SeriesName} — the current season is shown as
+        // the section title (h3), so the full trail reads Series › American Gods › Season 1.
         _breadcrumb =
         [
             new BreadcrumbItem("Series", async () => { await SwitchSection(Section.Series); }),
@@ -1184,6 +1189,44 @@ public partial class VideoPage : IAsyncDisposable
     }
 
     // ────────────────────────────────────────────────────────
+    //  Manual Metadata Edit
+    // ────────────────────────────────────────────────────────
+
+    private void OpenMetadataEditDialog()
+    {
+        if (_playerVideo is null)
+            return;
+        _showMetadataEditDialog = true;
+    }
+
+    private void CloseMetadataEditDialog()
+    {
+        _showMetadataEditDialog = false;
+    }
+
+    private async Task OnMetadataSavedAsync(VideoDto? updated)
+    {
+        _showMetadataEditDialog = false;
+
+        if (updated is null)
+            return;
+
+        // Refresh the player's displayed video and any lists that show it.
+        if (_playerVideo?.Id == updated.Id)
+        {
+            _playerVideo = updated;
+        }
+
+        ReplaceInLibraryContent(_libraryContent, updated);
+        ReplaceInList(_recentVideos, updated);
+        ReplaceInList(_favoriteVideos, updated);
+        ReplaceInCollectionContent(_collectionContent, updated);
+        _enrichmentToast = "Metadata saved.";
+
+        StateHasChanged();
+    }
+
+    // ────────────────────────────────────────────────────────
     //  Search
     // ────────────────────────────────────────────────────────
 
@@ -1216,6 +1259,7 @@ public partial class VideoPage : IAsyncDisposable
     {
         Section.Home => "Home",
         Section.Library => "Library",
+        Section.Series when _selectedSeason is not null => _selectedSeason.Name ?? $"Season {_selectedSeason.SeasonNumber}",
         Section.Series when _selectedSeries is not null => _selectedSeries.Name,
         Section.Series => "Series",
         Section.Collections when _selectedCollection is not null => _selectedCollection.Name,

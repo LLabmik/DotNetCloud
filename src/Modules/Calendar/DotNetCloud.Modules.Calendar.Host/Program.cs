@@ -2,6 +2,7 @@ using DotNetCloud.Core.Auth.Authorization;
 using DotNetCloud.Core.Auth.Introspection;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Core.Grpc.Capabilities;
 using DotNetCloud.Modules.Calendar;
 using DotNetCloud.Modules.Calendar.Data;
@@ -14,6 +15,7 @@ using DotNetCloud.Core.Auth.Capabilities;
 using DotNetCloud.Core.Data.Context;
 using Grpc.Net.Client;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
@@ -60,6 +62,9 @@ builder.Services.AddDataProtection()
 // Register token introspection client (replaces local JWT key validation).
 // Bearer tokens are validated by calling Core.Server's TokenIntrospection gRPC service.
 builder.Services.AddTokenIntrospection();
+
+// Register the gRPC-backed audit logger (SOC 2 CC4) — routes to Core.Server.
+builder.Services.AddAuditLogger();
 
 // Authentication: supports both cookie (browser/Blazor) and introspection (desktop/mobile).
 // A policy scheme automatically routes to the correct handler based on the request.
@@ -125,34 +130,34 @@ builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHand
 // Register the Calendar module as a singleton for lifecycle management
 builder.Services.AddSingleton<CalendarModule>();
 
-// Use shared database from core server config, fall back to in-memory
+// Use shared database from core server config (fail fast if missing)
 var connStr = builder.Configuration["connectionString"]
     ?? builder.Configuration.GetConnectionString("DefaultConnection");
 var dbProvider = builder.Configuration["databaseProvider"]
     ?? builder.Configuration["database:provider"];
 
-if (!string.IsNullOrEmpty(connStr) && !string.IsNullOrEmpty(dbProvider))
+if (string.IsNullOrEmpty(connStr) || string.IsNullOrEmpty(dbProvider))
 {
-    // Register the naming strategy so CalendarDbContext uses the correct
-    // table/column naming for the active provider (snake_case for PostgreSQL,
-    // PascalCase for SQL Server).
-    if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
-        builder.Services.AddSingleton<ITableNamingStrategy, PostgreSqlNamingStrategy>();
-    else
-        builder.Services.AddSingleton<ITableNamingStrategy, SqlServerNamingStrategy>();
+    throw new InvalidOperationException(
+        "The Calendar module requires a database connection string and provider. " +
+        "These are provided via config.json (DOTNETCLOUD_CONFIG_DIR) when launched by the core server.");
+}
 
-    builder.Services.AddDbContext<CalendarDbContext>(o =>
-    {
-        if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
-            o.UseNpgsql(connStr);
-        else
-            o.UseSqlServer(connStr);
-    });
-}
+// Register the naming strategy so CalendarDbContext uses the correct
+// table/column naming for the active provider (snake_case for PostgreSQL,
+// PascalCase for SQL Server).
+if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
+    builder.Services.AddSingleton<ITableNamingStrategy, PostgreSqlNamingStrategy>();
 else
+    builder.Services.AddSingleton<ITableNamingStrategy, SqlServerNamingStrategy>();
+
+builder.Services.AddDbContext<CalendarDbContext>(o =>
 {
-    builder.Services.AddDbContext<CalendarDbContext>(o => o.UseInMemoryDatabase("CalendarModule"));
-}
+    if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
+        o.UseNpgsql(connStr);
+    else
+        o.UseSqlServer(connStr, sql => sql.MigrationsAssembly("DotNetCloud.Modules.Calendar.Data.SqlServer"));
+});
 
 // In-process event bus for standalone operation
 builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
@@ -163,7 +168,7 @@ builder.Services.AddDbContext<ContactsDbContext>(o =>
     if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
         o.UseNpgsql(connStr);
     else
-        o.UseSqlServer(connStr);
+        o.UseSqlServer(connStr, sql => sql.MigrationsAssembly("DotNetCloud.Modules.Contacts.Data.SqlServer"));
 }, ServiceLifetime.Transient);
 builder.Services.AddScoped<IContactDirectory, ContactDirectoryService>();
 
@@ -174,7 +179,7 @@ builder.Services.AddDbContext<CoreDbContext>(o =>
     if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
         o.UseNpgsql(connStr);
     else
-        o.UseSqlServer(connStr);
+        o.UseSqlServer(connStr, sql => sql.MigrationsAssembly("DotNetCloud.Core.Data.SqlServer"));
 }, ServiceLifetime.Transient);
 builder.Services.AddScoped<IOrganizationDirectory, OrganizationDirectoryService>();
 

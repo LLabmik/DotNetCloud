@@ -96,7 +96,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.ListProductsAsync failed");
-            return [];
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -112,7 +112,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.GetProductAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -136,7 +136,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.CreateProductAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -161,7 +161,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.UpdateProductAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -176,6 +176,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.DeleteProductAsync failed");
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -191,7 +192,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.ListDeletedProductsAsync failed");
-            return [];
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -207,7 +208,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.RestoreProductAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -222,6 +223,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.PermanentDeleteProductAsync failed");
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -239,7 +241,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.ListProductMembersAsync failed");
-            return [];
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -260,6 +262,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.AddProductMemberAsync failed");
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -279,6 +282,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.RemoveProductMemberAsync failed");
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -299,6 +303,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.UpdateProductMemberRoleAsync failed");
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -316,7 +321,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.ListLabelsAsync failed");
-            return [];
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -338,7 +343,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.CreateLabelAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -361,7 +366,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.UpdateLabelAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -381,6 +386,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.DeleteLabelAsync failed");
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -398,7 +404,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.ListProductSwimlanesAsync failed");
-            return [];
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -422,7 +428,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.CreateProductSwimlaneAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -438,7 +444,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.ListWorkItemSwimlanesAsync failed");
-            return [];
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -462,7 +468,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.CreateWorkItemSwimlaneAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -486,7 +492,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.UpdateSwimlaneAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -501,6 +507,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.DeleteSwimlaneAsync failed");
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -519,6 +526,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.ReorderSwimlanesAsync failed");
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -536,7 +544,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.GetSwimlaneTransitionMatrixAsync failed");
-            return [];
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -562,7 +570,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.SetSwimlaneTransitionMatrixAsync failed");
-            return [];
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -580,7 +588,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.ListWorkItemsAsync failed");
-            return [];
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -596,7 +604,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.GetWorkItemAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -617,7 +625,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.GetWorkItemByNumberAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -698,7 +706,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.UpdateWorkItemAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -713,6 +721,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.DeleteWorkItemAsync failed");
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -735,7 +744,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.MoveWorkItemAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -751,7 +760,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.GetChildWorkItemsAsync failed");
-            return [];
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -767,7 +776,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.ListDeletedWorkItemsAsync failed");
-            return [];
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -783,7 +792,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.RestoreWorkItemAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -798,6 +807,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.PermanentDeleteWorkItemAsync failed");
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -813,7 +823,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.EmptyWorkItemTrashAsync failed");
-            return 0;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -838,7 +848,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.ExportWorkItemsCsvAsync failed");
-            return [];
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -856,7 +866,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.GetWatchersAsync failed");
-            return [];
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -872,7 +882,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.WatchWorkItemAsync failed");
-            return 0;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -888,7 +898,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.UnwatchWorkItemAsync failed");
-            return 0;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -910,6 +920,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.AssignUserAsync failed");
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -929,6 +940,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.UnassignUserAsync failed");
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -950,6 +962,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.AddLabelToWorkItemAsync failed");
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -969,6 +982,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.RemoveLabelFromWorkItemAsync failed");
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -992,7 +1006,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.ListCommentsAsync failed");
-            return [];
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1013,7 +1027,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.CreateCommentAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1035,7 +1049,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.UpdateCommentAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1055,6 +1069,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.DeleteCommentAsync failed");
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1070,7 +1085,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.ListDeletedCommentsAsync failed");
-            return [];
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1090,6 +1105,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.RestoreCommentAsync failed");
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1109,6 +1125,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.PermanentDeleteCommentAsync failed");
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1126,7 +1143,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.ListChecklistsAsync failed");
-            return [];
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1147,7 +1164,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.CreateChecklistAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1167,6 +1184,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.DeleteChecklistAsync failed");
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1188,7 +1206,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.AddChecklistItemAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1210,7 +1228,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.ToggleChecklistItemAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1231,6 +1249,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.DeleteChecklistItemAsync failed");
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1248,7 +1267,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.ListAttachmentsAsync failed");
-            return [];
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1271,7 +1290,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.AddAttachmentAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1291,6 +1310,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.RemoveAttachmentAsync failed");
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1308,7 +1328,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.ListDependenciesAsync failed");
-            return [];
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1330,7 +1350,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.AddDependencyAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1350,6 +1370,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.RemoveDependencyAsync failed");
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1367,7 +1388,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.ListSprintsAsync failed");
-            return [];
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1383,7 +1404,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.GetSprintAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1409,7 +1430,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.CreateSprintAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1434,7 +1455,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.UpdateSprintAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1449,6 +1470,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.DeleteSprintAsync failed");
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1464,7 +1486,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.StartSprintAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1480,7 +1502,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.CompleteSprintAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1500,6 +1522,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.AddItemToSprintAsync failed");
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1519,6 +1542,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.RemoveItemFromSprintAsync failed");
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1534,7 +1558,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.GetBacklogItemsAsync failed");
-            return [];
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1559,7 +1583,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.CreateSprintPlanAsync failed");
-            return [];
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1575,7 +1599,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.GetSprintPlanAsync failed");
-            return [];
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1598,7 +1622,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.AdjustSprintDatesAsync failed");
-            return [];
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1616,7 +1640,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.ListTimeEntriesAsync failed");
-            return [];
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1639,7 +1663,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.CreateTimeEntryAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1659,6 +1683,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.DeleteTimeEntryAsync failed");
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1674,7 +1699,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.StartTimerAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1690,7 +1715,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.StopTimerAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1714,7 +1739,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.GetProductActivityAsync failed");
-            return [];
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1736,7 +1761,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.GetWorkItemActivityAsync failed");
-            return [];
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1754,7 +1779,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.GetProductAnalyticsAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1770,7 +1795,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.GetVelocityDataAsync failed");
-            return [];
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1786,7 +1811,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.GetSprintReportAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1802,7 +1827,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.GetBurndownDataAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1818,7 +1843,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.GetProductDashboardAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1847,7 +1872,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.BulkWorkItemActionAsync failed");
-            return 0;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1870,7 +1895,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.ListProductWorkItemsAsync failed");
-            return [];
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1888,7 +1913,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.ListTeamsAsync failed");
-            return [];
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1904,7 +1929,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.GetTeamAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1925,7 +1950,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.CreateTeamAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1947,7 +1972,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.UpdateTeamAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1962,6 +1987,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.DeleteTeamAsync failed");
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1977,7 +2003,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.ListTeamMembersAsync failed");
-            return [];
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -1998,6 +2024,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.AddTeamMemberAsync failed");
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -2017,6 +2044,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.RemoveTeamMemberAsync failed");
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -2037,6 +2065,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.UpdateTeamMemberRoleAsync failed");
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -2054,7 +2083,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.StartReviewSessionAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -2070,7 +2099,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.GetReviewSessionAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -2086,7 +2115,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.JoinReviewSessionAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -2101,6 +2130,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.LeaveReviewSessionAsync failed");
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -2121,7 +2151,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.SetReviewCurrentItemAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -2136,6 +2166,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.EndReviewSessionAsync failed");
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -2160,7 +2191,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.StartPokerSessionAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -2176,7 +2207,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.GetPokerSessionAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -2196,7 +2227,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.GetActivePokerSessionByReviewSessionAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -2217,7 +2248,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.SubmitPokerVoteAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -2233,7 +2264,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.RevealPokerSessionAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -2254,7 +2285,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.AcceptPokerEstimateAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -2274,7 +2305,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.GetPokerVoteStatusAsync failed");
-            return [];
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -2301,7 +2332,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.SearchUsersAsync failed");
-            return [];
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -2319,7 +2350,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.ListCustomViewsAsync failed");
-            return [];
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -2345,7 +2376,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.CreateCustomViewAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -2372,7 +2403,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.UpdateCustomViewAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -2392,6 +2423,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.DeleteCustomViewAsync failed");
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -2409,7 +2441,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.ListProductWebhooksAsync failed");
-            return [];
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -2431,7 +2463,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.CreateProductWebhookAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -2455,7 +2487,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.UpdateProductWebhookAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -2475,6 +2507,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.DeleteProductWebhookAsync failed");
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -2500,7 +2533,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.TestProductWebhookAsync failed");
-            return new WebhookTestResult(false, null, 0, ex.Message);
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -2518,7 +2551,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.GetRoadmapDataAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -2536,7 +2569,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.ListAutomationRulesAsync failed");
-            return [];
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -2561,7 +2594,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.CreateAutomationRuleAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -2586,7 +2619,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.UpdateAutomationRuleAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -2601,6 +2634,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.DeleteAutomationRuleAsync failed");
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -2618,7 +2652,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.ListGoalsAsync failed");
-            return [];
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -2634,7 +2668,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.GetGoalAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -2661,7 +2695,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.CreateGoalAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -2688,7 +2722,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.UpdateGoalAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -2703,6 +2737,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.DeleteGoalAsync failed");
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -2722,6 +2757,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.LinkGoalWorkItemAsync failed");
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -2741,6 +2777,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.UnlinkGoalWorkItemAsync failed");
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -2758,7 +2795,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.GetProductCapacityAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -2774,7 +2811,73 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.GetSprintCapacityAsync failed");
-            return null;
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
+        }
+    }
+
+    // ─── Sprint & Review Discussions ───────────────────────────────────────
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<SprintDiscussionDto>> ListSprintDiscussionsAsync(Guid sprintId, int skip = 0, int take = 50, CancellationToken ct = default)
+    {
+        var request = new ListSprintDiscussionsRequest { SprintId = sprintId.ToString(), Skip = skip, Take = take };
+        try
+        {
+            var response = await _client.Value.ListSprintDiscussionsAsync(request, DeadlineHeaders(ct)).ResponseAsync;
+            return !response.Success ? [] : response.Messages.Select(ToSprintDiscussionDto).Where(d => d is not null).Select(d => d!).ToList();
+        }
+        catch (RpcException ex)
+        {
+            _logger.LogError(ex, "TracksGrpcApiClient.ListSprintDiscussionsAsync failed");
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<SprintDiscussionDto?> SendSprintDiscussionAsync(Guid sprintId, string content, CancellationToken ct = default)
+    {
+        var request = new SendSprintDiscussionRequest { SprintId = sprintId.ToString(), UserId = GetUserId(), Content = content };
+        try
+        {
+            var response = await _client.Value.SendSprintDiscussionAsync(request, DeadlineHeaders(ct)).ResponseAsync;
+            return ToSprintDiscussionDto(response);
+        }
+        catch (RpcException ex)
+        {
+            _logger.LogError(ex, "TracksGrpcApiClient.SendSprintDiscussionAsync failed");
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<SprintDiscussionDto>> ListReviewDiscussionsAsync(Guid reviewSessionId, int skip = 0, int take = 50, CancellationToken ct = default)
+    {
+        var request = new ListReviewDiscussionsRequest { ReviewSessionId = reviewSessionId.ToString(), Skip = skip, Take = take };
+        try
+        {
+            var response = await _client.Value.ListReviewDiscussionsAsync(request, DeadlineHeaders(ct)).ResponseAsync;
+            return !response.Success ? [] : response.Messages.Select(ToSprintDiscussionDto).Where(d => d is not null).Select(d => d!).ToList();
+        }
+        catch (RpcException ex)
+        {
+            _logger.LogError(ex, "TracksGrpcApiClient.ListReviewDiscussionsAsync failed");
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<SprintDiscussionDto?> SendReviewDiscussionAsync(Guid reviewSessionId, string content, CancellationToken ct = default)
+    {
+        var request = new SendReviewDiscussionRequest { ReviewSessionId = reviewSessionId.ToString(), UserId = GetUserId(), Content = content };
+        try
+        {
+            var response = await _client.Value.SendReviewDiscussionAsync(request, DeadlineHeaders(ct)).ResponseAsync;
+            return ToSprintDiscussionDto(response);
+        }
+        catch (RpcException ex)
+        {
+            _logger.LogError(ex, "TracksGrpcApiClient.SendReviewDiscussionAsync failed");
+            throw new InvalidOperationException("Tracks module operation failed: " + ex.Status.Detail, ex);
         }
     }
 
@@ -3246,10 +3349,14 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
     {
         if (m is null || string.IsNullOrEmpty(m.Id))
             return null;
+
+        var id = Guid.Parse(m.Id);
+        var teamId = !string.IsNullOrEmpty(m.TeamId) ? Guid.Parse(m.TeamId) : (Guid?)null;
+        // Only set TeamId if it differs from Id (avoids redundant data)
         return new TracksTeamDto
         {
-            Id = Guid.Parse(m.Id),
-            TeamId = Guid.Parse(m.TeamId),
+            Id = id,
+            TeamId = teamId != id ? teamId : null,
             Name = m.Name,
             Description = string.IsNullOrEmpty(m.Description) ? null : m.Description,
             MemberCount = m.MemberCount,
@@ -3301,11 +3408,27 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
             Url = m.Url,
             IsActive = m.IsActive,
             CreatedByUserId = Guid.Parse(m.CreatedByUserId),
+            EventsJson = m.EventsJson,
             LastDeliveryAt = string.IsNullOrEmpty(m.LastDeliveryAt) ? null : ParseDateTime(m.LastDeliveryAt),
             FailedDeliveryCount = m.FailedDeliveryCount,
             CreatedAt = ParseDateTime(m.CreatedAt),
             UpdatedAt = ParseDateTime(m.UpdatedAt)
         };
+    }
+
+    private static SprintDiscussionDto? ToSprintDiscussionDto(SprintDiscussionMessage? m)
+    {
+        if (m is null || string.IsNullOrEmpty(m.Id))
+            return null;
+        return new SprintDiscussionDto(
+            Id: Guid.Parse(m.Id),
+            SprintId: string.IsNullOrEmpty(m.SprintId) ? null : Guid.Parse(m.SprintId),
+            ReviewSessionId: string.IsNullOrEmpty(m.ReviewSessionId) ? null : Guid.Parse(m.ReviewSessionId),
+            UserId: Guid.Parse(m.UserId),
+            UserDisplayName: m.UserDisplayName,
+            Content: m.Content,
+            CreatedAt: ParseDateTime(m.CreatedAt)
+        );
     }
 
     private static RoadmapDataDto? ToRoadmapDataDto(RoadmapDataMessage? m)
@@ -3495,7 +3618,7 @@ public sealed class TracksGrpcApiClient : ITracksApiClient, IDisposable
         catch (RpcException ex)
         {
             _logger.LogError(ex, "TracksGrpcApiClient.{MethodName} failed", methodName);
-            return null;
+            throw new InvalidOperationException($"Tracks module operation ({methodName}) failed: " + ex.Status.Detail, ex);
         }
     }
 

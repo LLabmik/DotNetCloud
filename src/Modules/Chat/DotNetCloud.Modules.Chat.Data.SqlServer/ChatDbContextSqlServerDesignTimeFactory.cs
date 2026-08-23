@@ -3,7 +3,7 @@ using DotNetCloud.Modules.Chat.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
-namespace DotNetCloud.Modules.Chat.Data.SqlServer;
+namespace DotNetCloud.Modules.Chat.Data;
 
 public class ChatDbContextSqlServerDesignTimeFactory : IDesignTimeDbContextFactory<ChatDbContext>
 {

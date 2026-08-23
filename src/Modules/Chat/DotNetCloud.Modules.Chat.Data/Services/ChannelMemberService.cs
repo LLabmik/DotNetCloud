@@ -353,6 +353,21 @@ internal sealed class ChannelMemberService : IChannelMemberService
             .AnyAsync(m => m.ChannelId == channelId && m.UserId == caller.UserId, cancellationToken);
     }
 
+    /// <inheritdoc />
+    public async Task SetDmAcceptedAsync(Guid channelId, bool accepted, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        var membership = await _db.ChannelMembers
+            .FirstOrDefaultAsync(m => m.ChannelId == channelId && m.UserId == caller.UserId, cancellationToken)
+            ?? throw new InvalidOperationException($"User {caller.UserId} is not a member of channel {channelId}.");
+
+        membership.IsDmAccepted = accepted;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "DM acceptance set to {Accepted} for user {UserId} in channel {ChannelId}",
+            accepted, caller.UserId, channelId);
+    }
+
     private async Task EnsureCallerCanAccessChannelAsync(Guid channelId, CallerContext caller, CancellationToken cancellationToken)
     {
         if (IsSystemCaller(caller))

@@ -18,7 +18,7 @@ namespace DotNetCloud.Modules.Chat.Data.SqlServer.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasDefaultSchema("core")
-                .HasAnnotation("ProductVersion", "10.0.3")
+                .HasAnnotation("ProductVersion", "10.0.10")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -320,6 +320,9 @@ namespace DotNetCloud.Modules.Chat.Data.SqlServer.Migrations
                     b.Property<Guid>("ChannelId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<bool>("IsDmAccepted")
+                        .HasColumnType("bit");
+
                     b.Property<bool>("IsMuted")
                         .HasColumnType("bit");
 
@@ -560,6 +563,29 @@ namespace DotNetCloud.Modules.Chat.Data.SqlServer.Migrations
                         .HasDatabaseName("ix_chat_pinned_messages_channel_message");
 
                     b.ToTable("PinnedMessages", "core");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Chat.Models.UserNotificationPreference", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<bool>("DoNotDisturb")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("MutedChannelIdsJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("MutedChannelIds");
+
+                    b.Property<bool>("PushEnabled")
+                        .HasColumnType("bit");
+
+                    b.HasKey("UserId");
+
+                    b.ToTable("UserNotificationPreferences", "core");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Chat.Models.VideoCall", b =>

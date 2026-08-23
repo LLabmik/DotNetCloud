@@ -15,6 +15,7 @@ public partial class ChannelListPage : ContentPage
         InitializeComponent();
         BindingContext = _vm = vm;
         vm.ChannelSelected += OnChannelSelected;
+        vm.DmCreated += OnDmCreated;
 
         // Show the connected server URL on the landing overlay
         var connection = serverStore.GetActive();
@@ -59,5 +60,21 @@ public partial class ChannelListPage : ContentPage
     {
         await MainThread.InvokeOnMainThreadAsync(() =>
             Shell.Current.GoToAsync($"MessageList?channelId={e.ChannelId}&channelName={Uri.EscapeDataString(e.Name)}", animate: true));
+    }
+
+    private async void OnDmCreated(object? sender, (Guid ChannelId, string Name) e)
+    {
+        await MainThread.InvokeOnMainThreadAsync(async () =>
+        {
+            await Shell.Current.Navigation.PopModalAsync(animated: true);
+            await Shell.Current.GoToAsync($"MessageList?channelId={e.ChannelId}&channelName={Uri.EscapeDataString(e.Name)}", animate: true);
+        });
+    }
+
+    private async void OnNewDmClicked(object? sender, EventArgs e)
+    {
+        _vm.OpenDmPickerCommand.Execute(null);
+        var pickerPage = new DmUserPickerPage(_vm);
+        await Navigation.PushModalAsync(pickerPage, animated: true);
     }
 }

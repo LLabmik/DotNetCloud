@@ -282,6 +282,111 @@ internal sealed class HttpChatRestClient : IChatRestClient
     }
 
     /// <inheritdoc />
+    public async Task AcceptDmAsync(
+        string serverBaseUrl, string accessToken,
+        Guid channelId, string? message,
+        CancellationToken ct = default)
+    {
+        SetAuth(accessToken);
+        var url = $"{serverBaseUrl.TrimEnd('/')}/api/v1/chat/channels/dm/{channelId}/accept";
+        var body = message is not null ? JsonContent.Create(new { message }) : null;
+        using var response = await _http.PostAsync(url, body, ct).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+            Log.Info("DotNetCloud", $"AcceptDm returned {(int)response.StatusCode} for channel {channelId}");
+    }
+
+    /// <inheritdoc />
+    public async Task<ChatMessage> ReplyToDmAsync(
+        string serverBaseUrl, string accessToken,
+        Guid channelId, string message,
+        CancellationToken ct = default)
+    {
+        SetAuth(accessToken);
+        var url = $"{serverBaseUrl.TrimEnd('/')}/api/v1/chat/channels/dm/{channelId}/reply";
+        using var response = await _http.PostAsJsonAsync(url, new { message }, ct).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        var envelope = await response.Content.ReadFromJsonAsync<Envelope<ReplyToDmResult>>(JsonOpts, ct).ConfigureAwait(false)
+                       ?? throw new InvalidOperationException("Empty response from reply to DM.");
+        return envelope.Data?.Message is null
+            ? throw new InvalidOperationException("Reply to DM response did not include message data.")
+            : ToChatMessage(envelope.Data.Message);
+    }
+
+    /// <inheritdoc />
+    public async Task IgnoreDmAsync(
+        string serverBaseUrl, string accessToken,
+        Guid channelId,
+        CancellationToken ct = default)
+    {
+        SetAuth(accessToken);
+        var url = $"{serverBaseUrl.TrimEnd('/')}/api/v1/chat/channels/dm/{channelId}/ignore";
+        using var response = await _http.PostAsync(url, null, ct).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+            Log.Info("DotNetCloud", $"IgnoreDm returned {(int)response.StatusCode} for channel {channelId}");
+    }
+
+    /// <inheritdoc />
+    public async Task SetDoNotDisturbAsync(
+        string serverBaseUrl, string accessToken,
+        bool enabled,
+        CancellationToken ct = default)
+    {
+        SetAuth(accessToken);
+        var url = $"{serverBaseUrl.TrimEnd('/')}/api/v1/notifications/preferences";
+        var body = JsonContent.Create(new
+        {
+            pushEnabled = true,
+            doNotDisturb = enabled,
+            mutedChannelIds = Array.Empty<Guid>()
+        });
+        using var response = await _http.PutAsync(url, body, ct).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+            Log.Info("DotNetCloud", $"SetDoNotDisturb returned {(int)response.StatusCode}");
+    }
+
+    /// <inheritdoc />
+    public async Task<NotificationPreferences> GetNotificationPreferencesAsync(
+        string serverBaseUrl, string accessToken,
+        CancellationToken ct = default)
+    {
+        SetAuth(accessToken);
+        var url = $"{serverBaseUrl.TrimEnd('/')}/api/v1/notifications/preferences";
+        using var response = await _http.GetAsync(url, ct).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        var envelope = await response.Content.ReadFromJsonAsync<Envelope<NotificationPreferencesDto>>(JsonOpts, ct).ConfigureAwait(false)
+                       ?? throw new InvalidOperationException("Empty response from get notification preferences.");
+        return envelope.Data is null
+            ? new NotificationPreferences(true, false, [])
+            : new NotificationPreferences(envelope.Data.PushEnabled, envelope.Data.DoNotDisturb, envelope.Data.MutedChannelIds);
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyDictionary<Guid, string>> ResolveDisplayNamesAsync(
+        string serverBaseUrl, string accessToken,
+        IReadOnlyList<Guid> userIds,
+        CancellationToken ct = default)
+    {
+        if (userIds.Count == 0)
+            return new Dictionary<Guid, string>();
+
+        SetAuth(accessToken);
+        var url = $"{serverBaseUrl.TrimEnd('/')}/api/v1/chat/users/resolve-names";
+        using var response = await _http.PostAsJsonAsync(url, new { userIds }, ct).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        var envelope = await response.Content.ReadFromJsonAsync<Envelope<Dictionary<string, string>>>(JsonOpts, ct).ConfigureAwait(false);
+        if (envelope?.Data is null)
+            return new Dictionary<Guid, string>();
+
+        var result = new Dictionary<Guid, string>();
+        foreach (var kvp in envelope.Data)
+        {
+            if (Guid.TryParse(kvp.Key, out var id))
+                result[id] = kvp.Value;
+        }
+        return result;
+    }
+
+    /// <inheritdoc />
     public async Task<ChatMessage> SendFileMessageAsync(
         string serverBaseUrl, string accessToken,
         Guid channelId, Guid fileId, string fileName,
@@ -299,6 +404,55 @@ internal sealed class HttpChatRestClient : IChatRestClient
             : ToChatMessage(envelope.Data);
     }
 
+    /// <inheritdoc />
+    public async Task<ChannelSummary> GetOrCreateDmAsync(
+        string serverBaseUrl, string accessToken,
+        Guid otherUserId, CancellationToken ct = default)
+    {
+        SetAuth(accessToken);
+        var url = $"{serverBaseUrl.TrimEnd('/')}/api/v1/chat/channels/dm/{otherUserId}";
+        Log.Info("DotNetCloud", $"GetOrCreateDmAsync CALLING {url}");
+        try
+        {
+            using var response = await _http.PostAsync(url, null, ct).ConfigureAwait(false);
+            response.EnsureSuccessStatusCode();
+            var envelope = await response.Content.ReadFromJsonAsync<Envelope<ChannelSummaryDto>>(JsonOpts, ct).ConfigureAwait(false)
+                           ?? throw new InvalidOperationException("Empty response from get-or-create DM.");
+            if (envelope.Data is null)
+                throw new InvalidOperationException("Get-or-create DM response did not include data.");
+            Log.Info("DotNetCloud", $"GetOrCreateDmAsync SUCCEEDED channelId={envelope.Data.Id}");
+            return ToChannelSummary(envelope.Data);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("DotNetCloud", $"GetOrCreateDmAsync FAILED: {ex.GetType().Name}: {ex.Message}");
+            throw;
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<UserSearchResult>> SearchUsersAsync(
+        string serverBaseUrl, string accessToken,
+        string query, int maxResults = 20, CancellationToken ct = default)
+    {
+        SetAuth(accessToken);
+        var encodedQuery = Uri.EscapeDataString(query);
+        var url = $"{serverBaseUrl.TrimEnd('/')}/api/v1/chat/users/search?q={encodedQuery}&maxResults={maxResults}";
+        Log.Info("DotNetCloud", $"SearchUsersAsync CALLING {url}");
+        try
+        {
+            var envelope = await _http.GetFromJsonAsync<Envelope<List<UserSearchResultDto>>>(url, JsonOpts, ct).ConfigureAwait(false);
+            var results = (envelope?.Data ?? []).Select(ToUserSearchResult).ToList();
+            Log.Info("DotNetCloud", $"SearchUsersAsync SUCCEEDED ({results.Count} results)");
+            return results;
+        }
+        catch (Exception ex)
+        {
+            Log.Error("DotNetCloud", $"SearchUsersAsync FAILED: {ex.GetType().Name}: {ex.Message}");
+            throw;
+        }
+    }
+
     private void SetAuth(string accessToken) =>
         _http.DefaultRequestHeaders.Authorization =
             new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
@@ -306,7 +460,7 @@ internal sealed class HttpChatRestClient : IChatRestClient
     // ── DTO mappings ────────────────────────────────────────────────
 
     private static ChannelSummary ToChannelSummary(ChannelSummaryDto d) =>
-        new(d.Id, d.Name, d.UnreadCount, d.HasMention, d.IsMuted, d.LastMessagePreview,
+        new(d.Id, d.Name, d.Type, d.UnreadCount, d.HasMention, d.IsMuted, d.LastMessagePreview,
             d.LastMessageAt ?? (d.LastActivityAt.HasValue ? new DateTimeOffset(d.LastActivityAt.Value, TimeSpan.Zero) : null));
 
     private static ChatMessage ToChatMessage(ChatMessageDto d) =>
@@ -318,10 +472,19 @@ internal sealed class HttpChatRestClient : IChatRestClient
     private static ChannelMemberSummary ToMemberSummary(ChannelMemberDto d) =>
         new(d.UserId, d.DisplayName, d.Role, d.IsOnline);
 
+    private static UserSearchResult ToUserSearchResult(UserSearchResultDto d) =>
+        new(d.UserId, d.DisplayName, d.Email, d.AvatarUrl);
+
     private sealed class Envelope<T>
     {
         public bool Success { get; init; }
         public T? Data { get; init; }
+    }
+
+    private sealed class ReplyToDmResult
+    {
+        public bool Replied { get; init; }
+        public ChatMessageDto? Message { get; init; }
     }
 
     /// <summary>
@@ -394,5 +557,20 @@ internal sealed class HttpChatRestClient : IChatRestClient
         public string DisplayName { get; init; } = string.Empty;
         public string Role { get; init; } = "Member";
         public bool IsOnline { get; init; }
+    }
+
+    private sealed class UserSearchResultDto
+    {
+        public Guid UserId { get; init; }
+        public string DisplayName { get; init; } = string.Empty;
+        public string Email { get; init; } = string.Empty;
+        public string? AvatarUrl { get; init; }
+    }
+
+    private sealed class NotificationPreferencesDto
+    {
+        public bool PushEnabled { get; init; } = true;
+        public bool DoNotDisturb { get; init; }
+        public List<Guid> MutedChannelIds { get; init; } = [];
     }
 }

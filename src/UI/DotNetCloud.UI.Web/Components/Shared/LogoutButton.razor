@@ -1,0 +1,26 @@
+@inject IJSRuntime Js
+
+@* Logout button with a confirmation dialog.
+   The logout must remain a real HTTP POST (not Blazor SignalR) so the auth
+   cookie can be cleared on the response — see AuthSessionController.LogoutAsync.
+   The form is submitted via JS only after the user confirms. *@
+<form id="logout-form" method="post" action="/auth/session/logout" class="inline" data-enhance-nav="false">
+    <button type="button" class="btn btn-sm btn-outline" @onclick="PromptLogoutAsync">Logout</button>
+</form>
+
+<DncConfirmDialog @ref="_confirmDialog" />
+
+@code {
+    private DncConfirmDialog? _confirmDialog;
+
+    private async Task PromptLogoutAsync()
+    {
+        var confirmed = await _confirmDialog!.ShowAsync(
+            "Are you sure you want to sign out? Any unsaved changes will be lost.",
+            "Sign Out");
+        if (confirmed)
+        {
+            await Js.InvokeVoidAsync("DotNetCloudLogout.submitLogoutForm");
+        }
+    }
+}

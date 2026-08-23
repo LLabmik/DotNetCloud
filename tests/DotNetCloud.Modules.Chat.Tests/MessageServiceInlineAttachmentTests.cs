@@ -29,7 +29,7 @@ public class MessageServiceInlineAttachmentTests
             .Options;
         _db = new ChatDbContext(options);
         var eventBus = new Mock<IEventBus>();
-        _service = new MessageService(_db, eventBus.Object, NullLogger<MessageService>.Instance);
+        _service = new MessageService(_db, eventBus.Object, Mock.Of<DotNetCloud.Core.Capabilities.IAuditLogger>(), NullLogger<MessageService>.Instance);
         _caller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
 
         var channel = new Channel { Name = "test", CreatedByUserId = _caller.UserId };

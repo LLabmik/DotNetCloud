@@ -1,3 +1,5 @@
+using DotNetCloud.Core.Services.ModuleApis;
+
 namespace DotNetCloud.Modules.Tracks.Services;
 
 /// <summary>
@@ -5,7 +7,7 @@ namespace DotNetCloud.Modules.Tracks.Services;
 /// <see cref="TracksRealtimeService"/> fires events directly on this singleton after broadcasting via SignalR,
 /// so Blazor Server components receive the signals in-process without needing a <c>HubConnection</c>.
 /// </summary>
-internal sealed class TracksInProcessSignalRService : ITracksSignalRService
+public sealed class TracksInProcessSignalRService : ITracksSignalRService
 {
     /// <inheritdoc />
     public bool IsActive => true;
@@ -46,6 +48,12 @@ internal sealed class TracksInProcessSignalRService : ITracksSignalRService
     /// <inheritdoc />
     public event Action<Guid, Guid, string>? ReviewParticipantChanged;
 
+    /// <inheritdoc />
+    public event Action<Guid, SprintDiscussionDto>? SprintDiscussionMessageReceived;
+
+    /// <inheritdoc />
+    public event Action<Guid, SprintDiscussionDto>? ReviewDiscussionMessageReceived;
+
     // ── Raise methods (called by TracksRealtimeService) ─────
 
     internal void OnWorkItemAction(Guid productId, Guid workItemId, string action)
@@ -83,4 +91,10 @@ internal sealed class TracksInProcessSignalRService : ITracksSignalRService
 
     internal void OnReviewParticipantChanged(Guid sessionId, Guid userId, string action)
         => ReviewParticipantChanged?.Invoke(sessionId, userId, action);
+
+    internal void OnSprintDiscussionMessageReceived(Guid sprintId, SprintDiscussionDto message)
+        => SprintDiscussionMessageReceived?.Invoke(sprintId, message);
+
+    internal void OnReviewDiscussionMessageReceived(Guid reviewSessionId, SprintDiscussionDto message)
+        => ReviewDiscussionMessageReceived?.Invoke(reviewSessionId, message);
 }

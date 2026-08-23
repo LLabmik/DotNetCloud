@@ -29,7 +29,7 @@ public class WorkItemServiceTests
             .Setup(x => x.GetDisplayNamesAsync(It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Dictionary<Guid, string>());
         _activityService = new ActivityService(_db, userDirMock.Object);
-        _service = new WorkItemService(_db, _transitionService, _eventBusMock.Object, _activityService);
+        _service = new WorkItemService(_db, _transitionService, _eventBusMock.Object, _activityService, Mock.Of<IAuditLogger>());
     }
 
     [TestCleanup]

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
@@ -15,6 +16,8 @@ namespace DotNetCloud.Client.Android.ViewModels;
 public sealed partial class NoteEditViewModel : ObservableObject
 {
     private readonly INotesRestClient _notesApi;
+    private readonly IOfflineOperationQueue _offlineQueue;
+    private readonly IConnectivityMonitor _connectivity;
     private readonly IServerConnectionStore _serverStore;
     private readonly ISecureTokenStore _tokenStore;
     private readonly ILogger<NoteEditViewModel> _logger;
@@ -25,11 +28,15 @@ public sealed partial class NoteEditViewModel : ObservableObject
     /// <summary>Initializes a new <see cref="NoteEditViewModel"/>.</summary>
     public NoteEditViewModel(
         INotesRestClient notesApi,
+        IOfflineOperationQueue offlineQueue,
+        IConnectivityMonitor connectivity,
         IServerConnectionStore serverStore,
         ISecureTokenStore tokenStore,
         ILogger<NoteEditViewModel> logger)
     {
         _notesApi = notesApi;
+        _offlineQueue = offlineQueue;
+        _connectivity = connectivity;
         _serverStore = serverStore;
         _tokenStore = tokenStore;
         _logger = logger;
@@ -140,6 +147,39 @@ public sealed partial class NoteEditViewModel : ObservableObject
 
         try
         {
+            // If the device has no signal, persist the note to the offline queue so it is
+            // delivered once connectivity returns. The UI navigates away optimistically.
+            if (!_connectivity.IsOnline)
+            {
+                if (IsEditing && Guid.TryParse(NoteId, out var offlineNoteId))
+                {
+                    await _offlineQueue.EnqueueAsync(OfflineOperationType.NoteUpdate,
+                        JsonSerializer.Serialize(new OfflineNoteUpdatePayload(offlineNoteId, new UpdateNoteDto
+                        {
+                            Title = Title,
+                            Content = Content,
+                            FolderId = SelectedFolderId,
+                            ExpectedVersion = _currentVersion
+                        })), ct).ConfigureAwait(false);
+                }
+                else
+                {
+                    await _offlineQueue.EnqueueAsync(OfflineOperationType.NoteCreate,
+                        JsonSerializer.Serialize(new OfflineNoteCreatePayload(new CreateNoteDto
+                        {
+                            Title = Title,
+                            Content = Content,
+                            FolderId = SelectedFolderId,
+                            Format = NoteContentFormat.Markdown
+                        })), ct).ConfigureAwait(false);
+                }
+
+                var isNewOffline = !IsEditing;
+                await Shell.Current.GoToAsync("..");
+                WeakReferenceMessenger.Default.Send(new NoteSavedMessage(isNewOffline));
+                return;
+            }
+
             var (serverUrl, token) = await GetCredentialsAsync(ct);
 
             if (IsEditing && Guid.TryParse(NoteId, out var noteId))

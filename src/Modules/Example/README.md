@@ -78,6 +78,7 @@ Implements `IModuleLifecycle` for full lifecycle control:
 ### 3. Domain Events (`Events/`)
 
 Events follow these conventions:
+
 - Implement `IEvent` with `EventId` and `CreatedAt`
 - Use `sealed record` for immutability
 - Past-tense naming (e.g., `NoteCreatedEvent`)
@@ -129,26 +130,28 @@ protected override void OnModelCreating(ModelBuilder modelBuilder)
 
 `GetSchemaForModule("example")` returns `"example"` — the Example module is not architecturally required, so it gets its own dedicated schema. This keeps the module's tables isolated from the core and other modules.
 
-### Connection String
+### Connection String & Database Provider
 
-The `DOTNETCLOUD_CONNECTION_STRING` environment variable is set by the core server's `ProcessSupervisor` when launching module processes. Modules read this at startup. For local development, the connection string can also be provided via `appsettings.json`:
+The host loads the shared `config.json` from the `DOTNETCLOUD_CONFIG_DIR` environment variable (set by the core server's `ProcessSupervisor` when launching module processes). The database settings are read from the `connectionString` and `databaseProvider` keys (with `database:provider` as a fallback). A connection string and provider are **required** — the host throws `InvalidOperationException` at startup if either is missing. There is no in-memory fallback.
+
+For local development, the connection string can also be provided via `appsettings.json`:
 
 ```json
 {
   "ConnectionStrings": {
     "DefaultConnection": "Host=localhost;Database=dotnetcloud;Username=dotnetcloud;Password=..."
-  }
+  },
+  "databaseProvider": "PostgreSql"
 }
 ```
 
 ### Self-Migration on Startup
 
-When a real database connection string is available, the module calls `MigrateAsync()` at startup to ensure its schema is created and up-to-date:
+Because a connection string is now mandatory, the module calls `MigrateAsync()` unconditionally at startup to ensure its schema is created and up-to-date:
 
 ```csharp
-if (!string.IsNullOrEmpty(connectionString))
+using (var scope = app.Services.CreateScope())
 {
-    using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<ExampleDbContext>();
     await db.Database.MigrateAsync();
 }
@@ -156,13 +159,20 @@ if (!string.IsNullOrEmpty(connectionString))
 
 The migration history table is scoped to the `example` schema (`__EFMigrationsHistory` in the `example` schema) to avoid collisions with the core or other modules.
 
-### In-Memory Fallback for Development
+### Dual-Provider Migrations
 
-When no connection string is provided, the module falls back to an in-memory database. This makes local development frictionless — no database setup required:
+The module follows the canonical dual-provider pattern (PostgreSQL + SQL Server), mirroring the real modules:
 
-```bash
-dotnet run --project src/Modules/Example/DotNetCloud.Modules.Example.Host
-```
+- `DotNetCloud.Modules.Example.Data` — PostgreSQL migrations (`Migrations/`, namespace `DotNetCloud.Modules.Example.Data.Migrations`)
+- `DotNetCloud.Modules.Example.Data.SqlServer` — SQL Server migrations (separate project, `Migrations/`)
+
+Each provider's migrations live in their own assembly, so the runtime applies only the active
+provider's migration set — no provider filtering is required.
+
+Two design-time factories exist for the EF CLI (one per project):
+
+- `ExampleDbContextFactory` — PostgreSQL (Npgsql)
+- `ExampleDbContextSqlServerDesignTimeFactory` — SQL Server
 
 ## How to Create Your Own Module
 
@@ -178,24 +188,28 @@ dotnet run --project src/Modules/Example/DotNetCloud.Modules.Example.Host
 
 ## Capabilities Used
 
-| Capability | Tier | Purpose |
-|---|---|---|
-| `INotificationService` | Public | Send user notifications when notes are created |
-| `IStorageProvider` | Restricted | Store note attachments (future) |
+| Capability             | Tier       | Purpose                                        |
+| ---------------------- | ---------- | ---------------------------------------------- |
+| `INotificationService` | Public     | Send user notifications when notes are created |
+| `IStorageProvider`     | Restricted | Store note attachments (future)                |
 
 ## Events Published
 
-| Event | Description |
-|---|---|
+| Event              | Description                      |
+| ------------------ | -------------------------------- |
 | `NoteCreatedEvent` | Fired when a new note is created |
-| `NoteDeletedEvent` | Fired when a note is deleted |
+| `NoteDeletedEvent` | Fired when a note is deleted     |
 
 ## Running Locally
 
-The host project can be run standalone for development:
+The host project can be run standalone for development, but now requires database configuration (a connection string + provider). Provide it either via a `config.json` in `DOTNETCLOUD_CONFIG_DIR` or via `appsettings.json`:
 
 ```bash
+# With a config.json available at DOTNETCLOUD_CONFIG_DIR/config.json:
+DOTNETCLOUD_CONFIG_DIR=/path/to/config dotnet run --project src/Modules/Example/DotNetCloud.Modules.Example.Host
+
+# Or via appsettings.json ConnectionStrings:DefaultConnection + databaseProvider:
 dotnet run --project src/Modules/Example/DotNetCloud.Modules.Example.Host
 ```
 
-The module uses an in-memory database by default. To use a real PostgreSQL database, set the `DOTNETCLOUD_CONNECTION_STRING` environment variable or add a `ConnectionStrings:DefaultConnection` entry to `appsettings.json`. When a connection string is provided, the module will self-migrate its schema on startup.
+If the database configuration is missing, the host throws `InvalidOperationException` at startup instead of booting with an empty in-memory database. The module self-migrates its schema on startup.

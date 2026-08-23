@@ -34,6 +34,7 @@ public class ChatController : ChatControllerBase
     private readonly IVideoCallService _videoCallService;
     private readonly IUserBlockService _userBlockService;
     private readonly IChatImageStore _chatImageStore;
+    private readonly IUserDirectory _userDirectory;
     private readonly ILogger<ChatController> _logger;
 
     /// <summary>
@@ -57,6 +58,7 @@ public class ChatController : ChatControllerBase
         IVideoCallService videoCallService,
         IUserBlockService userBlockService,
         IChatImageStore chatImageStore,
+        IUserDirectory userDirectory,
         ILogger<ChatController> logger)
     {
         _channelService = channelService;
@@ -76,6 +78,7 @@ public class ChatController : ChatControllerBase
         _videoCallService = videoCallService;
         _userBlockService = userBlockService;
         _chatImageStore = chatImageStore;
+        _userDirectory = userDirectory;
         _logger = logger;
     }
 
@@ -194,6 +197,101 @@ public class ChatController : ChatControllerBase
         {
             var channel = await _channelService.GetOrCreateDirectMessageAsync(otherUserId, GetAuthenticatedCaller());
             return Ok(Envelope(channel));
+        });
+    }
+
+    /// <summary>Resolves display names for a batch of user IDs.</summary>
+    [HttpPost("users/resolve-names")]
+    public async Task<IActionResult> ResolveDisplayNamesAsync([FromBody] ResolveNamesRequestDto dto)
+    {
+        if (dto.UserIds is null || dto.UserIds.Count == 0)
+            return BadRequest(ErrorEnvelope("VALIDATION_ERROR", "At least one user ID is required."));
+
+        try
+        {
+            var names = await _userDirectory.GetDisplayNamesAsync(dto.UserIds);
+            var result = dto.UserIds.ToDictionary(id => id.ToString(), id => names.GetValueOrDefault(id, id.ToString()[..8]));
+            return Ok(Envelope(result));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error resolving display names for {Count} users", dto.UserIds.Count);
+            return StatusCode(500, ErrorEnvelope("INTERNAL_ERROR", "Failed to resolve display names."));
+        }
+    }
+
+    /// <summary>Accepts a DM channel invitation: sends an optional first message and marks the membership as accepted.</summary>
+    [HttpPost("channels/dm/{channelId:guid}/accept")]
+    public async Task<IActionResult> AcceptDmAsync(Guid channelId, [FromBody] AcceptDmDto? dto)
+    {
+        try
+        {
+            var caller = GetAuthenticatedCaller();
+
+            // Set IsDmAccepted = true on the caller's membership
+            await _memberService.SetDmAcceptedAsync(channelId, accepted: true, caller);
+
+            // Send optional first message
+            if (dto is not null && !string.IsNullOrWhiteSpace(dto.Message))
+            {
+                var sendDto = new SendMessageDto { Content = dto.Message };
+                var message = await _messageService.SendMessageAsync(channelId, sendDto, caller);
+
+                return Ok(Envelope(new
+                {
+                    accepted = true,
+                    message
+                }));
+            }
+
+            return Ok(Envelope(new { accepted = true }));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(ErrorEnvelope("CHAT_CHANNEL_NOT_FOUND", ex.Message));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+    }
+
+    /// <summary>Replies to a DM without joining: sends a message but does not mark the membership as accepted.</summary>
+    [HttpPost("channels/dm/{channelId:guid}/reply")]
+    public async Task<IActionResult> ReplyToDmAsync(Guid channelId, [FromBody] ReplyToDmDto dto)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(dto.Message))
+                return BadRequest(ErrorEnvelope("VALIDATION_ERROR", "Message is required."));
+
+            var caller = GetAuthenticatedCaller();
+            var sendDto = new SendMessageDto { Content = dto.Message };
+            var message = await _messageService.SendMessageAsync(channelId, sendDto, caller);
+
+            return Ok(Envelope(new { replied = true, message }));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(ErrorEnvelope("CHAT_CHANNEL_NOT_FOUND", ex.Message));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+    }
+
+    /// <summary>Ignores a DM channel notification. The channel remains but no action is taken. Acknowledges receipt.</summary>
+    [HttpPost("channels/dm/{channelId:guid}/ignore")]
+    public async Task<IActionResult> IgnoreDmAsync(Guid channelId)
+    {
+        return await ExecuteAsync(async () =>
+        {
+            // No-op on server — channel already exists, membership already created.
+            // This endpoint exists so the client can record that the notification was seen.
+            // Future: track dismissal timestamp on ChannelMember for analytics.
+            await Task.CompletedTask;
+            return Ok(Envelope(new { acknowledged = true }));
         });
     }
 
@@ -1422,6 +1520,35 @@ public class ChatController : ChatControllerBase
             _logger.LogError(ex, "Error getting ICE server configuration");
             return StatusCode(500, ErrorEnvelope("INTERNAL_ERROR", "An unexpected error occurred."));
         }
+    }
+
+    /// <summary>Searches active users by display name or email for starting a direct message.</summary>
+    [HttpGet("users/search")]
+    public async Task<IActionResult> SearchUsersAsync(
+        [FromQuery] string q,
+        [FromQuery] int maxResults = 20)
+    {
+        return await ExecuteAsync(async () =>
+        {
+            if (string.IsNullOrWhiteSpace(q))
+                return BadRequest(ErrorEnvelope("VALIDATION_ERROR", "Search query is required."));
+
+            var results = await _userDirectory.SearchUsersAsync(q, maxResults);
+            var userIds = results.Select(r => r.Id).ToList();
+            var avatarUrls = userIds.Count > 0
+                ? await _userDirectory.GetAvatarUrlsAsync(userIds)
+                : new Dictionary<Guid, string>();
+
+            var data = results.Select(r => new
+            {
+                userId = r.Id,
+                displayName = r.DisplayName,
+                email = r.Email,
+                avatarUrl = avatarUrls.GetValueOrDefault(r.Id)
+            }).ToList();
+
+            return Ok(Envelope(data));
+        });
     }
 
     private static string BuildMessagePreview(string? content)

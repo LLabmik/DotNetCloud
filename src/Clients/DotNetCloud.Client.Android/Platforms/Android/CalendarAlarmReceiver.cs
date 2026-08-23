@@ -168,8 +168,10 @@ public sealed class CalendarAlarmReceiver : BroadcastReceiver
 
         try
         {
+#pragma warning disable CA1416 // guarded by the Tiramisu (API 33) SDK check above
             var permissionResult = context.CheckCallingOrSelfPermission(
                 global::Android.Manifest.Permission.PostNotifications);
+#pragma warning restore CA1416
             var granted = permissionResult == global::Android.Content.PM.Permission.Granted;
             Log.Info("DotNetCloud", $"  POST_NOTIFICATIONS: {(granted ? "GRANTED" : "DENIED")}");
             return granted;

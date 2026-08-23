@@ -220,6 +220,21 @@ public class VideoController : VideoControllerBase
         }
     }
 
+    /// <summary>
+    /// Manually corrects a video's displayed metadata (title, overview, genres,
+    /// release date, tagline). Used when automatic TMDB enrichment matched the
+    /// wrong metadata. Only the provided fields are updated.
+    /// </summary>
+    [HttpPut("{videoId:guid}/details")]
+    public async Task<IActionResult> UpdateVideoDetails(Guid videoId, [FromBody] UpdateVideoDetailsDto dto)
+    {
+        var caller = GetAuthenticatedCaller();
+        var video = await _videoService.UpdateVideoDetailsAsync(videoId, dto, caller);
+        return video is null
+            ? NotFound(ErrorEnvelope(ErrorCodes.VideoNotFound, "Video not found."))
+            : Ok(Envelope(video));
+    }
+
     // ─── Collections ──────────────────────────────────────────────────
 
     /// <summary>Lists video collections for the current user.</summary>

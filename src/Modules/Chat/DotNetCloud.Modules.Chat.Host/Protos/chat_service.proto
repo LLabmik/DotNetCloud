@@ -90,6 +90,9 @@ service ChatService {
 
   // Transfers the host role of an active call.
   rpc TransferCallHost (TransferCallHostRequest) returns (VideoCallOperationResponse);
+
+  // Sends a push notification to a user's registered devices (FCM/UnifiedPush).
+  rpc SendPushNotification (SendPushNotificationRequest) returns (SendPushNotificationResponse);
 }
 
 // --- CreateChannel ---
@@ -470,4 +473,19 @@ message TransferCallHostRequest {
   string call_id = 1;
   string user_id = 2;
   string new_host_user_id = 3;
+}
+
+// --- SendPushNotification ---
+
+message SendPushNotificationRequest {
+  string user_id = 1;
+  string title = 2;
+  string body = 3;
+  string category = 4;  // one of NotificationCategory enum names (e.g. "FileShared")
+  map<string, string> data = 5;
+}
+
+message SendPushNotificationResponse {
+  bool success = 1;
+  string error_message = 2;
 }

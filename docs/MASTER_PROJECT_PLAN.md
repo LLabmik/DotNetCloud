@@ -14,138 +14,141 @@
 
 ## Quick Status Summary
 
-| Phase                            | Steps   | Completed | In Progress | Pending |
-| -------------------------------- | ------- | --------- | ----------- | ------- |
-| Pre-Implementation               | 4       | 4         | 0           | 0       |
-| Phase 0.1                        | 11      | 11        | 0           | 0       |
-| Phase 0.2                        | 12      | 12        | 0           | 0       |
-| Phase 0.3                        | 8       | 8         | 0           | 0       |
-| Phase 0.4                        | 20      | 20        | 0           | 0       |
-| Phase 0.5                        | 9       | 9         | 0           | 0       |
-| Phase 0.6                        | 14      | 14        | 0           | 0       |
-| Phase 0.7                        | 16      | 16        | 0           | 0       |
-| Phase 0.8                        | 11      | 11        | 0           | 0       |
-| Phase 0.9                        | 13      | 13        | 0           | 0       |
-| Phase 0.10                       | 11      | 11        | 0           | 0       |
-| Phase 0.11                       | 18      | 18        | 0           | 0       |
-| Phase 0.12                       | 25      | 25        | 0           | 0       |
-| Phase 0.13                       | 20      | 20        | 0           | 0       |
-| Phase 0.14                       | 18      | 18        | 0           | 0       |
-| Phase 0.15                       | 12      | 12        | 0           | 0       |
-| Phase 0.16                       | 12      | 12        | 0           | 0       |
-| Phase 0.17                       | 10      | 10        | 0           | 0       |
-| Phase 0.18                       | 8       | 8         | 0           | 0       |
-| Phase 0.19                       | 11      | 11        | 0           | 0       |
-| Phase 0.20 (About)               | 3       | 3         | 0           | 0       |
-| Phase 1.1                        | 6       | 6         | 0           | 0       |
-| Phase 1.2                        | 5       | 5         | 0           | 0       |
-| Phase 1.3                        | 15      | 15        | 0           | 0       |
-| Phase 1.4                        | 15      | 15        | 0           | 0       |
-| Phase 1.5                        | 10      | 10        | 0           | 0       |
-| Phase 1.6                        | 9       | 9         | 0           | 0       |
-| Phase 1.7                        | 11      | 11        | 0           | 0       |
-| Phase 1.8                        | 8       | 8         | 0           | 0       |
-| Phase 1.9                        | 14      | 14        | 0           | 0       |
-| Phase 1.10                       | 24      | 24        | 0           | 0       |
-| Phase 1.11                       | 8       | 8         | 0           | 0       |
-| Phase 1.12                       | 17      | 17        | 0           | 0       |
-| Phase 1.13                       | 4       | 4         | 0           | 0       |
-| Phase 1.14                       | 32      | 32        | 0           | 0       |
-| Phase 1.15                       | 25      | 25        | 0           | 0       |
-| Phase 1.16                       | 20      | 20        | 0           | 0       |
-| Phase 1.17                       | 25      | 25        | 0           | 0       |
-| Phase 1.18                       | 6       | 6         | 0           | 0       |
-| Phase 1.19                       | 20      | 20        | 0           | 0       |
-| Phase 1.20                       | 20      | 20        | 0           | 0       |
-| Phase 2.1                        | 6       | 6         | 0           | 0       |
-| Phase 2.2                        | 4       | 4         | 0           | 0       |
-| Phase 2.3                        | 7       | 7         | 0           | 0       |
-| Phase 2.4                        | 5       | 5         | 0           | 0       |
-| Phase 2.5                        | 4       | 4         | 0           | 0       |
-| Phase 2.6                        | 4       | 4         | 0           | 0       |
-| Phase 2.7                        | 4       | 4         | 0           | 0       |
-| Phase 2.8                        | 11      | 11        | 0           | 0       |
-| Phase 2.9                        | 3       | 3         | 0           | 0       |
-| Phase 2.10                       | 10      | 10        | 0           | 0       |
-| Phase 2.10.1                     | 1       | 1         | 0           | 0       |
-| Phase 2.11                       | 3       | 3         | 0           | 0       |
-| Phase 2.12                       | 2       | 2         | 0           | 0       |
-| Phase 2.13                       | 3       | 3         | 0           | 0       |
-| Integration Testing Sprint       | 3       | 3         | 0           | 0       |
-| Sync Batch 1                     | 10      | 10        | 0           | 0       |
-| Sync Batch 2                     | 6       | 6         | 0           | 0       |
-| Sync Batch 3                     | 6       | 6         | 0           | 0       |
-| Sync Batch 4                     | 5       | 5         | 0           | 0       |
-| Sync Batch 5                     | 2       | 2         | 0           | 0       |
-| Sync Verification                | 1       | 1         | 0           | 0       |
-| Sync Hardening P0                | 3       | 3         | 0           | 0       |
-| Calendar Recurrence+Org          | 6       | 6         | 0           | 0       |
-| Calendar Attendee Contact Search | 14      | 14        | 0           | 0       |
-| Module Help Sidebar              | 1       | 1         | 0           | 0       |
-| Client Security Remediation      | 1       | 1         | 0           | 0       |
-| Phase 3.1                        | 4       | 4         | 0           | 0       |
-| Phase 3.2                        | 6       | 6         | 0           | 0       |
-| Phase 3.3                        | 6       | 6         | 0           | 0       |
-| Phase 3.4                        | 6       | 6         | 0           | 0       |
-| Phase 3.5                        | 4       | 4         | 0           | 0       |
-| Phase 3.6                        | 4       | 4         | 0           | 0       |
-| Phase 3.7                        | 5       | 5         | 0           | 0       |
-| Phase 3.8                        | 4       | 4         | 0           | 0       |
-| Phase 4.1                        | 11      | 11        | 0           | 0       |
-| Phase 4.2                        | 7       | 7         | 0           | 0       |
-| Phase 4.3                        | 21      | 21        | 0           | 0       |
-| Phase 4.4                        | 17      | 17        | 0           | 0       |
-| Phase 4.5                        | 9       | 9         | 0           | 0       |
-| Phase 4.6                        | 4       | 4         | 0           | 0       |
-| Phase 4.7                        | 6       | 6         | 0           | 0       |
-| Phase 4.8                        | 8       | 8         | 0           | 0       |
-| Required Modules Schema 1        | 5       | 5         | 0           | 0       |
-| Required Modules Schema 2        | 17      | 17        | 0           | 0       |
-| Required Modules Schema 3        | 12      | 12        | 0           | 0       |
-| Required Modules Schema 4        | 1       | 1         | 0           | 0       |
-| Required Modules Schema 5        | 3       | 3         | 0           | 0       |
-| Required Modules Schema 6        | 8       | 8         | 0           | 0       |
-| Required Modules Schema 7        | 7       | 7         | 0           | 0       |
-| Phase 4.9                        | 42      | 42        | 0           | 0       |
-| Phase 4.10 — Hierarchy           | 17      | 14        | 0           | 3       |
-| Phase 5-8                        | Summary | 10        | 0           | 0       |
-| Media Content Dedup — Music      | 4       | 4         | 0           | 0       |
-| Media Content Dedup — Video      | 4       | 4         | 0           | 0       |
-| Media Content Dedup — Cache      | 1       | 1         | 0           | 0       |
-| Media Content Dedup — TMDB       | 2       | 2         | 0           | 0       |
-| Media Content Dedup — gRPC       | 1       | 1         | 0           | 0       |
-| Phase 6 (Email & Bookmarks)      | 9       | 9         | 0           | 0       |
-| Phase 8 (Full-Text Search)       | 18      | 18        | 0           | 0       |
-| Phase 7 (Video Calling)          | 11      | 11        | 0           | 0       |
-| Phase 9                          | 7       | 4         | 1           | 2       |
-| Phase 11 (Auto-Updates)          | 16      | 7         | 0           | 9       |
-| DM & Host Calls — Phase A        | 3       | 3         | 0           | 0       |
-| DM & Host Calls — Phase B        | 2       | 0         | 0           | 2       |
-| DM & Host Calls — Phase C–G      | 10      | 1         | 1           | 8       |
-| Shared File Folders              | 6       | 6         | 0           | 0       |
-| Tracks Prof. — Phase B           | 4       | 4         | 0           | 0       |
-| Tracks Prof. — Phase C           | 2       | 2         | 0           | 0       |
-| Tracks Prof. — Phase D           | 3       | 3         | 0           | 0       |
-| Tracks Prof. — Phase E           | 3       | 3         | 0           | 0       |
-| Tracks Prof. — Phase F           | 3       | 3         | 0           | 0       |
-| Tracks Prof. — Phase G           | 4       | 4         | 0           | 0       |
-| Tracks Prof. — Phase H           | 3       | 3         | 0           | 0       |
-| Infrastructure                   | Summary | 0         | 0           | 1       |
-| Documentation                    | Summary | 0         | 0           | 1       |
-| Browser Ext — Phase 1            | 4       | 4         | 0           | 0       |
-| Browser Ext — Phase 2            | 8       | 8         | 0           | 0       |
-| Browser Ext — Phase 3            | 3       | 3         | 0           | 0       |
-| Browser Ext — Phase 4            | 4       | 4         | 0           | 0       |
-| Browser Ext — Phase 5            | 6       | 6         | 0           | 0       |
-| Browser Ext — Phase 6            | 3       | 0         | 0           | 3       |
-| Closed System Mode               | 7       | 1         | 0           | 6       |
-| Demo Mode                        | 6       | 6         | 0           | 0       |
-| VFS Phase 1 (Server)             | 2       | 2         | 0           | 0       |
-| VFS Phase 2 (Core)               | 5       | 5         | 0           | 0       |
-| VFS Phase 3 (Windows)            | 3       | 3         | 0           | 0       |
-| VFS Phase 4 (Linux)              | 4       | 4         | 0           | 0       |
-| VFS Phase 5 (UI)                 | 3       | 3         | 0           | 0       |
-| VFS Phase 6 (Testing)            | 3       | 3         | 0           | 0       |
+| Phase                                | Steps   | Completed | In Progress | Pending |
+| ------------------------------------ | ------- | --------- | ----------- | ------- |
+| Pre-Implementation                   | 4       | 4         | 0           | 0       |
+| Phase 0.1                            | 11      | 11        | 0           | 0       |
+| Phase 0.2                            | 12      | 12        | 0           | 0       |
+| Phase 0.3                            | 8       | 8         | 0           | 0       |
+| Phase 0.4                            | 20      | 20        | 0           | 0       |
+| Phase 0.5                            | 9       | 9         | 0           | 0       |
+| Phase 0.6                            | 14      | 14        | 0           | 0       |
+| Phase 0.7                            | 16      | 16        | 0           | 0       |
+| Phase 0.8                            | 11      | 11        | 0           | 0       |
+| Phase 0.9                            | 13      | 13        | 0           | 0       |
+| Phase 0.10                           | 11      | 11        | 0           | 0       |
+| Phase 0.11                           | 18      | 18        | 0           | 0       |
+| Phase 0.12                           | 25      | 25        | 0           | 0       |
+| Phase 0.13                           | 20      | 20        | 0           | 0       |
+| Phase 0.14                           | 18      | 18        | 0           | 0       |
+| Phase 0.15                           | 12      | 12        | 0           | 0       |
+| Phase 0.16                           | 12      | 12        | 0           | 0       |
+| Phase 0.17                           | 10      | 10        | 0           | 0       |
+| Phase 0.18                           | 8       | 8         | 0           | 0       |
+| Phase 0.19                           | 11      | 11        | 0           | 0       |
+| Phase 0.20 (About)                   | 3       | 3         | 0           | 0       |
+| Phase 1.1                            | 6       | 6         | 0           | 0       |
+| Phase 1.2                            | 5       | 5         | 0           | 0       |
+| Phase 1.3                            | 15      | 15        | 0           | 0       |
+| Phase 1.4                            | 15      | 15        | 0           | 0       |
+| Phase 1.5                            | 10      | 10        | 0           | 0       |
+| Phase 1.6                            | 9       | 9         | 0           | 0       |
+| Phase 1.7                            | 11      | 11        | 0           | 0       |
+| Phase 1.8                            | 8       | 8         | 0           | 0       |
+| Phase 1.9                            | 14      | 14        | 0           | 0       |
+| Phase 1.10                           | 24      | 24        | 0           | 0       |
+| Phase 1.11                           | 8       | 8         | 0           | 0       |
+| Phase 1.12                           | 17      | 17        | 0           | 0       |
+| Phase 1.13                           | 4       | 4         | 0           | 0       |
+| Phase 1.14                           | 32      | 32        | 0           | 0       |
+| Phase 1.15                           | 25      | 25        | 0           | 0       |
+| Phase 1.16                           | 20      | 20        | 0           | 0       |
+| Phase 1.17                           | 25      | 25        | 0           | 0       |
+| Phase 1.18                           | 6       | 6         | 0           | 0       |
+| Phase 1.19                           | 20      | 20        | 0           | 0       |
+| Phase 1.20                           | 20      | 20        | 0           | 0       |
+| Phase 2.1                            | 6       | 6         | 0           | 0       |
+| Phase 2.2                            | 4       | 4         | 0           | 0       |
+| Phase 2.3                            | 7       | 7         | 0           | 0       |
+| Phase 2.4                            | 5       | 5         | 0           | 0       |
+| Phase 2.5                            | 4       | 4         | 0           | 0       |
+| Phase 2.6                            | 4       | 4         | 0           | 0       |
+| Phase 2.7                            | 4       | 4         | 0           | 0       |
+| Phase 2.8                            | 11      | 11        | 0           | 0       |
+| Phase 2.9                            | 3       | 3         | 0           | 0       |
+| Phase 2.10                           | 10      | 10        | 0           | 0       |
+| Phase 2.10.1                         | 1       | 1         | 0           | 0       |
+| Phase 2.11                           | 3       | 3         | 0           | 0       |
+| Phase 2.12                           | 2       | 2         | 0           | 0       |
+| Phase 2.13                           | 3       | 3         | 0           | 0       |
+| Integration Testing Sprint           | 3       | 3         | 0           | 0       |
+| Sync Batch 1                         | 10      | 10        | 0           | 0       |
+| Sync Batch 2                         | 6       | 6         | 0           | 0       |
+| Sync Batch 3                         | 6       | 6         | 0           | 0       |
+| Sync Batch 4                         | 5       | 5         | 0           | 0       |
+| Sync Batch 5                         | 2       | 2         | 0           | 0       |
+| Sync Verification                    | 1       | 1         | 0           | 0       |
+| Sync Hardening P0                    | 3       | 3         | 0           | 0       |
+| Calendar Recurrence+Org              | 6       | 6         | 0           | 0       |
+| Calendar Attendee Contact Search     | 14      | 14        | 0           | 0       |
+| Module Help Sidebar                  | 1       | 1         | 0           | 0       |
+| Client Security Remediation          | 1       | 1         | 0           | 0       |
+| Phase 3.1                            | 4       | 4         | 0           | 0       |
+| Phase 3.2                            | 6       | 6         | 0           | 0       |
+| Phase 3.3                            | 6       | 6         | 0           | 0       |
+| Phase 3.4                            | 6       | 6         | 0           | 0       |
+| Phase 3.5                            | 4       | 4         | 0           | 0       |
+| Phase 3.6                            | 4       | 4         | 0           | 0       |
+| Phase 3.7                            | 5       | 5         | 0           | 0       |
+| Phase 3.8                            | 4       | 4         | 0           | 0       |
+| Phase 4.1                            | 11      | 11        | 0           | 0       |
+| Phase 4.2                            | 7       | 7         | 0           | 0       |
+| Phase 4.3                            | 21      | 21        | 0           | 0       |
+| Phase 4.4                            | 17      | 17        | 0           | 0       |
+| Phase 4.5                            | 9       | 9         | 0           | 0       |
+| Phase 4.6                            | 4       | 4         | 0           | 0       |
+| Phase 4.7                            | 6       | 6         | 0           | 0       |
+| Phase 4.8                            | 8       | 8         | 0           | 0       |
+| Required Modules Schema 1            | 5       | 5         | 0           | 0       |
+| Required Modules Schema 2            | 17      | 17        | 0           | 0       |
+| Required Modules Schema 3            | 12      | 12        | 0           | 0       |
+| Required Modules Schema 4            | 1       | 1         | 0           | 0       |
+| Required Modules Schema 5            | 3       | 3         | 0           | 0       |
+| Required Modules Schema 6            | 8       | 8         | 0           | 0       |
+| Required Modules Schema 7            | 7       | 7         | 0           | 0       |
+| Phase 4.9                            | 42      | 42        | 0           | 0       |
+| Phase 4.10 — Hierarchy               | 17      | 14        | 0           | 3       |
+| Phase 5-8                            | Summary | 10        | 0           | 0       |
+| Media Content Dedup — Music          | 4       | 4         | 0           | 0       |
+| Media Content Dedup — Video          | 4       | 4         | 0           | 0       |
+| Media Content Dedup — Cache          | 1       | 1         | 0           | 0       |
+| Media Content Dedup — TMDB           | 2       | 2         | 0           | 0       |
+| Media Content Dedup — gRPC           | 1       | 1         | 0           | 0       |
+| Phase 6 (Email & Bookmarks)          | 9       | 9         | 0           | 0       |
+| Phase 8 (Full-Text Search)           | 18      | 18        | 0           | 0       |
+| Phase 7 (Video Calling)              | 11      | 11        | 0           | 0       |
+| Phase 9                              | 7       | 4         | 1           | 2       |
+| Phase 11 (Auto-Updates)              | 16      | 7         | 0           | 9       |
+| DM & Host Calls — Phase A            | 3       | 3         | 0           | 0       |
+| DM & Host Calls — Phase B            | 2       | 0         | 0           | 2       |
+| DM & Host Calls — Phase C–G          | 10      | 1         | 1           | 8       |
+| Shared File Folders                  | 6       | 6         | 0           | 0       |
+| Tracks Prof. — Phase B               | 4       | 4         | 0           | 0       |
+| Tracks Prof. — Phase C               | 2       | 2         | 0           | 0       |
+| Tracks Prof. — Phase D               | 3       | 3         | 0           | 0       |
+| Tracks Prof. — Phase E               | 3       | 3         | 0           | 0       |
+| Tracks Prof. — Phase F               | 3       | 3         | 0           | 0       |
+| Tracks — gRPC Isolation & Discussion | 40      | 40        | 0           | 0       |
+| Tracks Prof. — Phase G               | 4       | 4         | 0           | 0       |
+| Tracks Prof. — Phase H               | 3       | 3         | 0           | 0       |
+| Infrastructure                       | Summary | 0         | 0           | 1       |
+| Documentation                        | Summary | 0         | 0           | 1       |
+| Browser Ext — Phase 1                | 4       | 4         | 0           | 0       |
+| Browser Ext — Phase 2                | 8       | 8         | 0           | 0       |
+| Browser Ext — Phase 3                | 3       | 3         | 0           | 0       |
+| Browser Ext — Phase 4                | 4       | 4         | 0           | 0       |
+| Browser Ext — Phase 5                | 6       | 6         | 0           | 0       |
+| Browser Ext — Phase 6                | 3       | 0         | 0           | 3       |
+| Closed System Mode                   | 7       | 1         | 0           | 6       |
+| Demo Mode                            | 6       | 6         | 0           | 0       |
+| VFS Phase 1 (Server)                 | 2       | 2         | 0           | 0       |
+| VFS Phase 2 (Core)                   | 5       | 5         | 0           | 0       |
+| VFS Phase 3 (Windows)                | 3       | 3         | 0           | 0       |
+| VFS Phase 4 (Linux)                  | 4       | 4         | 0           | 0       |
+| VFS Phase 5 (UI)                     | 3       | 3         | 0           | 0       |
+| VFS Phase 6 (Testing)                | 3       | 3         | 0           | 0       |
+| Files Multi-Select Context Menu      | 1       | 1         | 0           | 0       |
+| SOC 2 Type II Compliance             | 13      | 13        | 0           | 0       |
 
 Maintenance note: local install/setup health verification now follows configured Kestrel ports and accepts self-signed local HTTPS during startup checks. Fresh Linux installs now invoke `dotnetcloud setup --beginner` by default, which auto-selects the recommended local PostgreSQL path and then branches cleanly between the three real deployment shapes: private/local test, public behind a reverse proxy, and public served directly by DotNetCloud itself. The local branch uses self-signed HTTPS on DotNetCloud directly. The reverse-proxy public branch keeps DotNetCloud on local HTTP and ends with explicit reverse-proxy/TLS guidance instead of pretending automatic public-certificate setup exists; it now also points beginners to a dedicated Apache-first reverse-proxy guide with a Caddy alternative. The public-direct branch lets the user point DotNetCloud at an existing public certificate file and explains the extra tradeoffs, while still explicitly recommending a reverse proxy for most public installs because it simplifies ports 80/443, TLS renewal, and future services on the same machine. All branches print explicit direct local access URLs and health probe URLs and end with a plain-language summary of the selected defaults plus the beginner user's next steps. Upgrade runs now also end with a plain-language summary that confirms existing data/configuration were preserved, states clearly whether a one-time setup review is still required, and re-shows the access URLs plus the user's next step. This also clarifies the internal app defaults HTTP `5080` / HTTPS `5443` versus reverse-proxy/public HTTPS ports such as `15443`. Windows now has a separate IIS-first installation path via `tools/install-windows.ps1`, with IIS reverse proxying to `http://localhost:5080`, a beginner-focused IIS guide, a dedicated architecture rationale note, native Windows Service hosting support in the core server, and machine-level config/data environment propagation during setup and service runtime so Windows self-hosters do not need to follow the Linux installer path. The bare-metal redeploy helper now also repairs build-output ownership and purges stale normal and malformed Debug output trees before Release build/publish runs so local Linux redeploys do not inherit broken artifacts from prior attempts.
 
@@ -1504,6 +1507,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ Android local HTTPS hardening: allow self-signed certificates for private LAN FQDNs such as `mint22.kimball.home` across OAuth token exchange, REST API clients, photo upload, and SignalR
 - ✓ Android login-shell stabilization: route successful login to `//Main/ChannelList` and keep Shell navigation plus first-screen collection updates on the UI thread to prevent post-connect white screens
 - ✓ Chat UI: ChannelListPage, MessageListPage (pull-to-refresh), ChannelDetailsPage (members + leave), enhanced composer (emoji picker, file attach, @mention autocomplete), dark/light theme
+- ✓ Message list auto-scroll-to-bottom on real-time arrival (only when the user is already near the bottom; scrolling up to read history is never interrupted)
 - ✓ Real-time: SignalRChatClient with exponential backoff reconnect [0s, 2s, 5s, 15s], ChatConnectionService foreground service + WakeLock
 - ✓ Push: FcmMessagingService (googleplay flavor), UnifiedPushReceiver (fdroid flavor), 5 notification channels (connection, messages, mentions, announcements, photo_upload), AndroidManifest declarations
 - ✓ Offline: SqliteMessageCache (read), IPendingMessageQueue + SqlitePendingMessageQueue (write), flush queue on SignalR reconnect
@@ -1516,7 +1520,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 **Dependencies:** phase-2.7, phase-2.8
 **Blocking Issues:** None
-**Notes:** Phase 2.10 fully complete. All deliverables shipped: auth (PKCE+Keystore), real-time chat (SignalR + FCM/UP push), offline queue (SQLite), photo upload (MediaStore → chunked API), file browser (IFileRestClient with chunked upload/download, FileBrowserViewModel with folder navigation and camera capture, Files tab in Shell), media auto-upload (photos + videos into InstantUpload/YYYY/MM folders via IFileRestClient), distribution signing, notification badges (AppBadgeManager → SetNumber on notification builders), direct APK download docs, and app store listing. Android callback handling was hardened by de-duplicating the `oauth2redirect` intent registration and applying explicit `DotNetCloud` labels so browser return prompts no longer present duplicate generic `.NET` targets. The local HTTPS path was also hardened so private LAN FQDNs that resolve inside the home network, including `mint22.kimball.home`, are treated like other local/self-hosted targets for self-signed certificate acceptance during OAuth token exchange and subsequent app traffic. Post-login navigation was further stabilized by aligning the authenticated Shell route with `//Main/ChannelList` and keeping Shell transitions plus bound collection updates on the UI thread across login, channel list, message list, channel details, and settings flows. All services registered in MauiProgram.cs via `AddSingleton`/`AddTransient`/`AddHttpClient`.
+**Notes:** Phase 2.10 fully complete. All deliverables shipped: auth (PKCE+Keystore), real-time chat (SignalR + FCM/UP push), offline queue (SQLite), photo upload (MediaStore → chunked API), file browser (IFileRestClient with chunked upload/download, FileBrowserViewModel with folder navigation and camera capture, Files tab in Shell), media auto-upload (photos + videos into InstantUpload/YYYY/MM folders via IFileRestClient), distribution signing, notification badges (AppBadgeManager → SetNumber on notification builders), direct APK download docs, and app store listing. Android callback handling was hardened by de-duplicating the `oauth2redirect` intent registration and applying explicit `DotNetCloud` labels so browser return prompts no longer present duplicate generic `.NET` targets. The local HTTPS path was also hardened so private LAN FQDNs that resolve inside the home network, including `mint22.kimball.home`, are treated like other local/self-hosted targets for self-signed certificate acceptance during OAuth token exchange and subsequent app traffic. Post-login navigation was further stabilized by aligning the authenticated Shell route with `//Main/ChannelList` and keeping Shell transitions plus bound collection updates on the UI thread across login, channel list, message list, channel details, and settings flows. All services registered in MauiProgram.cs via `AddSingleton`/`AddTransient`/`AddHttpClient`. MessageListPage now auto-scrolls to the newest message when a real-time SignalR message arrives and the user is already pinned to the bottom (near-bottom detection in the `Scrolled` handler plus a deferred `ScrollTo(End)`); users who scrolled up to read history are never yanked to the bottom.
 
 ---
 
@@ -1974,6 +1978,29 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 **Notes:** Addresses user confusion about hierarchy levels. All kanban boards looked identical across Product/Epic/Feature/Item levels — now visually distinct with level indicators, type badges, and depth styling. Guided wizard creation replaces simple modal/inline forms. Builds with 0 errors, 435 core tests pass. **Bug fix:** Swimlane drag-and-drop reordering was missing from Step 2 (Color & Settings) of ProductCreationWizard — drag handle had `cursor: grab` but no event handlers. Added HTML5 native drag-and-drop with `draggable`, `@ondragstart`, `@ondragover`, `@ondrop`, `@ondragend`. Same fix applied to ProductSettingsPage swimlane list.
 
+### Section: Phase 4.11 — gRPC Isolation & Sprint Planning Chat
+
+**Status:** completed ✅
+**Duration:** ~10 hours
+**Description:** Full gRPC UI migration for Tracks module + real-time discussion chat for Sprint Planning and Review Sessions.
+
+**Deliverables:**
+
+- ✓ Migrated all ~35 Tracks UI files from HTTP ITracksApiClient to Core gRPC interface
+- ✓ Removed HTTP ITracksApiClient registration from Core.Server Program.cs
+- ✓ Replaced AddTracksUiServices with individual in-process registrations
+- ✓ SprintDiscussion entity, EF configuration, dual-provider migrations
+- ✓ SprintDiscussionService with CRUD, validation, real-time SignalR broadcast
+- ✓ SprintDiscussionsController with 4 REST endpoints
+- ✓ 4 gRPC RPCs in tracks_service.proto + 6 message types
+- ✓ Core ITracksApiClient + TracksGrpcApiClient discussion methods
+- ✓ ITracksRealtimeService/ITracksSignalRService discussion events + implementations
+- ✓ Discussion panels in SprintPlanningView, ReviewSessionHost, ReviewSessionParticipant
+- ✓ 12 new unit tests (SprintDiscussionService + GrpcApiClient)
+- ✓ All 145 Tracks tests passing (0 failures)
+
+**Notes:** Sprint planning and review sessions now have real-time chat. Tracks module is fully process-isolated with gRPC-only communication from the UI layer. Builds with 0 errors, 0 warnings.
+
 ---
 
 ## Tracks Professionalization — Phase B
@@ -2347,6 +2374,31 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ Transition matrix CSS styles in `ProductSettingsPage.razor.css`
 
 **Notes:** Soft enforcement by default (backward compatible). Strict mode must be explicitly enabled. KanbanBoard provides client-side preview before server call to avoid unnecessary network round-trips. Server-side enforcement is the authoritative check.
+
+#### Step: tracks-prof-h4 - Epic/Feature Swimlane Auto-Creation Fix
+
+**Status:** completed ✅
+**Duration:** ~1 hour
+**Deliverables:**
+
+- ✓ `SwimlaneService.EnsureWorkItemSwimlanesExistAsync()` — private method, idempotent, fast-path AnyAsync check
+- ✓ Lazy creation on fetch: replicates product swimlanes (or 3 defaults) when fetching WorkItem swimlanes and none exist
+- ✓ `GetSwimlanesAsync` calls `EnsureWorkItemSwimlanesExistAsync` for WorkItem containers before querying
+- ✓ Retroactively fixes all existing epics/features created before the replication feature was added
+- ✓ Only acts on Epic/Feature work items (Items/SubItems don't get their own swimlane boards)
+
+**Notes:** Bug fix — epic swimlanes were not always created. The creation-time replication in `WorkItemService.CreateWorkItemAsync` works correctly (both REST and gRPC paths), but there was no safety net for epics created before the feature existed, or if replication silently failed. Now, the first time anyone fetches an epic's swimlanes, they're auto-created. The gRPC handlers (`CreateEpic`/`CreateFeature`/`CreateItem`/`CreateSubItem`) already correctly resolve `productId` from the swimlane — no gRPC changes were needed.
+
+#### Step: tracks-prof-h5 - Side-Panel Kanban Spinner Fix
+
+**Status:** completed ✅
+**Duration:** ~30 min
+**Deliverables:**
+
+- ✓ `OpenEpicKanban` and `OpenFeatureKanban` now call `StateHasChanged()` after setting `_isLoading = true`
+- ✓ `TracksPage.razor` OnOpenKanban handler changed to `async epicOrFeatureId => await OpenEpicKanban(epicOrFeatureId)`
+
+**Notes:** UI bug — clicking "Open Kanban" from the side-view `WorkItemDetailPanel` showed a spinner forever. Root cause: `InvokeAsync` was not awaited, so `EventCallback` called `StateHasChanged()` before `_isLoading` was set. The async work ran but no render was triggered, making the UI appear stuck. Fix: (1) properly await the async handler, (2) call `StateHasChanged()` after `_isLoading = true` so the spinner renders before async work begins.
 
 ---
 
@@ -3830,6 +3882,30 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 
 **Notes:** The admin share deletion now performs search document cleanup in the Files module directly (gRPC calls to Search module's `RemoveDocument` RPC). An `AdminSharedFolderCleanupStatus` record tracks progress through cleanup phases, and a status endpoint allows the admin UI to poll for updates. Core.Server's `AdminSharedFolderCleanupService` handles media source and entity cleanup when the event bus is wired across process boundaries. The delete API now returns a `DeleteAdminSharedFolderResult` with the `CleanupJobId` for progress tracking. A pre-existing Video module migration corruption prevents full solution build verification — modified projects build individually.
 
+#### Step: files-multiselect-1 — Multi-Select Context Menu Actions
+
+**Status:** completed ✅
+**Duration:** ~1 day
+**Description:** Make the Files browser context menu actions operate on the full current multi-select selection: Move/Copy (folder picker on all selected), Share (new bulk-share dialog), Download (single ZIP with size limit), Tag, and Delete (with confirmation).
+
+**Deliverables:**
+
+- ✓ Add `MaxZipSizeBytes` option (4 GiB default) to `FileUploadOptions` and configure it in `appsettings.json`
+- ✓ Add `ZipSizeLimitExceededException` + `FILE_ZIP_SIZE_LIMIT_EXCEEDED` error code; map to HTTP 413 in `FilesControllerBase.ExecuteAsync`
+- ✓ Enforce ZIP size limit in `DownloadService` (checks after each entry and top-level node)
+- ✓ Expose `maxZipSizeBytes` in `GET /api/v1/files/config`
+- ✓ `files-bulk.js` `downloadZip` returns structured `{ ok, code, message }` result
+- ✓ Context-menu selection normalization in `OnContextMenu` + `GetContextMenuTargetIds` helper
+- ✓ Rewritten context-menu handlers (Move, Copy, Share, Download, Delete, Tag) target the full selection
+- ✓ ZIP download error modal on 413 (select fewer/smaller items)
+- ✓ Delete confirmation dialog for context-menu Delete and bulk toolbar Trash
+- ✓ New `BulkShareDialog` component (one recipient + permission applied to all selected nodes)
+- ✓ Download context-menu item available for folders (single file → direct download; folder/multi → single ZIP)
+- ✓ Tests: `DownloadService` ZIP size-limit tests + 413 mapping test
+- ✓ Docs: `docs/admin/CONFIGURATION.md`, `docs/IMPLEMENTATION_CHECKLIST.md`, and this plan updated
+
+**Notes:** Single-item behavior preserved when only one card is selected or when right-clicking a card outside the current selection. Implementation follows `docs/FILES_MULTISELECT_CONTEXT_MENU_PLAN.md`. Full build (`dotnet build DotNetCloud.CI.slnf`) passes with 0 errors; all 25 targeted Files tests pass.
+
 ---
 
 ## Required Modules & Schema Separation
@@ -3923,14 +3999,16 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 
 - ✓ `manifest.json` — `"schemaProvider": "self"` already present
 - ✓ `ExampleDbContext` — inject `ITableNamingStrategy`, call `HasDefaultSchema` for self-managed schema
-- ✓ `Program.cs` — `async Task Main`, register naming strategy, read `DOTNETCLOUD_CONNECTION_STRING`, in-memory fallback, `MigrateAsync()` on startup
-- ✓ `DotNetCloud.Modules.Example.Host.csproj` — add `Npgsql.EntityFrameworkCore.PostgreSQL` package reference
-- ✓ `DotNetCloud.Modules.Example.Data.csproj` — add `Microsoft.EntityFrameworkCore.Design` package reference
-- ✓ `ExampleDbContextFactory` — design-time factory for EF Core CLI tools
+- ✓ `Program.cs` — `async Task Main`, load `config.json` via `DOTNETCLOUD_CONFIG_DIR`, canonical dual-provider (PostgreSQL/SQL Server) registration with provider-aware migrations, fail-fast when DB config missing, unconditional `MigrateAsync()` on startup
+- ✓ `DotNetCloud.Modules.Example.Host.csproj` — add `Npgsql.EntityFrameworkCore.PostgreSQL` + `Microsoft.EntityFrameworkCore.SqlServer` package references
+- ✓ `DotNetCloud.Modules.Example.Data.csproj` — add `Microsoft.EntityFrameworkCore.Design` + `Microsoft.EntityFrameworkCore.SqlServer` package references
+- ✓ `ExampleDbContextFactory` — PostgreSQL design-time factory for EF Core CLI tools
+- ✓ `ExampleDbContextSqlServerDesignTimeFactory` + SQL Server migration set (`Migrations/SqlServer/`, namespace `...Data.SqlServer.Migrations`) — canonical dual-provider pattern
 - ✓ EF `InitialCreate` migration — creates `example` schema with `Notes` table
-- ✓ `README.md` — document schema management: `schemaProvider`, `ITableNamingStrategy`, connection string, self-migrate pattern, in-memory fallback
+- ✓ Removed `UseInMemoryDatabase` fallback + `Microsoft.EntityFrameworkCore.InMemory` package refs from all 13 production module Hosts and 14 Host csproj files (fail-fast `InvalidOperationException`)
+- ✓ `README.md` — document schema management: `schemaProvider`, `ITableNamingStrategy`, connection string, dual-provider migrations layout
 
-**Notes:** Phase 7 complete. The Example module is now the reference implementation for third-party module developers demonstrating the self-managed schema pattern. Key patterns: `"schemaProvider": "self"` in manifest prevents core from trying to migrate the module; `ITableNamingStrategy.GetSchemaForModule("example")` returns `"example"` schema; `DOTNETCLOUD_CONNECTION_STRING` env var is set by core server's `ProcessSupervisor`; module self-migrates on startup via `MigrateAsync()`; migration history table is scoped to `example` schema to avoid collisions; in-memory fallback for local development. Build passes with 0 errors; all 51 Example module tests pass.
+**Notes:** Phase 7 complete. The Example module is now the reference implementation for third-party module developers demonstrating the self-managed schema pattern. Key patterns: `"schemaProvider": "self"` in manifest prevents core from trying to migrate the module; `ITableNamingStrategy.GetSchemaForModule("example")` returns `"example"` schema; host loads `config.json` via `DOTNETCLOUD_CONFIG_DIR` (set by `ProcessSupervisor`) and requires `connectionString` + `databaseProvider` (fail-fast — no in-memory fallback); module self-migrates unconditionally on startup via `MigrateAsync()`; migration history table is scoped to `example` schema. Dual-provider migrations: `Migrations/` = PostgreSQL, `Migrations/SqlServer/` = SQL Server, filtered at runtime by `ProviderAwareMigrationsAssembly`. Build passes with 0 errors; all 51 Example module tests pass.
 
 ---
 
@@ -6066,91 +6144,91 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 
 - ✓ `manifest.json` — `"schemaProvider": "self"` already present
 - ✓ `ExampleDbContext` — inject `ITableNamingStrategy`, call `HasDefaultSchema` for self-managed schema
-- ✓ `Program.cs` — `async Task Main`, register naming strategy, read `DOTNETCLOUD_CONNECTION_STRING`, in-memory fallback, `MigrateAsync()` on startup
-- ✓ `DotNetCloud.Modules.Example.Host.csproj` — add `Npgsql.EntityFrameworkCore.PostgreSQL` package reference
-- ✓ `DotNetCloud.Modules.Example.Data.csproj` — add `Microsoft.EntityFrameworkCore.Design` package reference
-- ✓ `ExampleDbContextFactory` — design-time factory for EF Core CLI tools
+- ✓ `Program.cs` — `async Task Main`, load `config.json` via `DOTNETCLOUD_CONFIG_DIR`, canonical dual-provider (PostgreSQL/SQL Server) registration with provider-aware migrations, fail-fast when DB config missing, unconditional `MigrateAsync()` on startup
+- ✓ `DotNetCloud.Modules.Example.Host.csproj` — add `Npgsql.EntityFrameworkCore.PostgreSQL` + `Microsoft.EntityFrameworkCore.SqlServer` package references
+- ✓ `DotNetCloud.Modules.Example.Data.csproj` — add `Microsoft.EntityFrameworkCore.Design` + `Microsoft.EntityFrameworkCore.SqlServer` package references
+- ✓ `ExampleDbContextFactory` — PostgreSQL design-time factory for EF Core CLI tools
+- ✓ `ExampleDbContextSqlServerDesignTimeFactory` + SQL Server migration set (`Migrations/SqlServer/`, namespace `...Data.SqlServer.Migrations`) — canonical dual-provider pattern
 - ✓ EF `InitialCreate` migration — creates `example` schema with `Notes` table
-- ✓ `README.md` — document schema management: `schemaProvider`, `ITableNamingStrategy`, connection string, self-migrate pattern, in-memory fallback
+- ✓ Removed `UseInMemoryDatabase` fallback + `Microsoft.EntityFrameworkCore.InMemory` package refs from all 13 production module Hosts and 14 Host csproj files (fail-fast `InvalidOperationException`)
+- ✓ `README.md` — document schema management: `schemaProvider`, `ITableNamingStrategy`, connection string, dual-provider migrations layout
 
-**Notes:** Phase 7 complete. The Example module is now the reference implementation for third-party module developers demonstrating the self-managed schema pattern. Key patterns: `"schemaProvider": "self"` in manifest prevents core from trying to migrate the module; `ITableNamingStrategy.GetSchemaForModule("example")` returns `"example"` schema; `DOTNETCLOUD_CONNECTION_STRING` env var is set by core server's `ProcessSupervisor`; module self-migrates on startup via `MigrateAsync()`; migration history table is scoped to `example` schema to avoid collisions; in-memory fallback for local development. Build passes with 0 errors; all 51 Example module tests pass.
+**Notes:** Phase 7 complete. The Example module is now the reference implementation for third-party module developers demonstrating the self-managed schema pattern. Key patterns: `"schemaProvider": "self"` in manifest prevents core from trying to migrate the module; `ITableNamingStrategy.GetSchemaForModule("example")` returns `"example"` schema; host loads `config.json` via `DOTNETCLOUD_CONFIG_DIR` (set by `ProcessSupervisor`) and requires `connectionString` + `databaseProvider` (fail-fast — no in-memory fallback); module self-migrates unconditionally on startup via `MigrateAsync()`; migration history table is scoped to `example` schema. Dual-provider migrations: `Migrations/` = PostgreSQL, `Migrations/SqlServer/` = SQL Server, filtered at runtime by `ProviderAwareMigrationsAssembly`. Build passes with 0 errors; all 51 Example module tests pass.
 
 ---
 
-## Browser Extension
+---
 
-### Phase 1: Server-Side Extension Support ✅
-
-**Deliverables:**
-
-- ✓ Device Authorization Grant enabled (`AllowDeviceCodeFlow()` in `AuthServiceExtensions.cs`)
-- ✓ `bookmarks:read` and `bookmarks:write` scopes registered
-- ✓ Browser extension OIDC client registered (`dotnetcloud-browser-extension` in `OidcClientSeeder.cs`)
-- ✓ Delta sync endpoint: `GET /api/v1/bookmarks/sync/changes?since=...` with `BookmarkSyncChangesResult`
-- ✓ Batch operations endpoint: `POST /api/v1/bookmarks/batch` with `BatchRequest`/`BatchResponse`
-- ✓ `IBookmarkService.GetSyncChangesAsync()` and `IBookmarkService.BatchAsync()` implemented
-
-### Phase 2: Extension Project Scaffold ✅
-
-**Deliverables:**
-
-- ✓ Project structure: `package.json`, `tsconfig.json`, `jest.config.js`, `.gitignore`, `vite.config.ts`
-- ✓ Dual manifests: `manifest.chrome.json` (MV3), `manifest.firefox.json` (MV3, FF ≥ 109)
-- ✓ Build scripts: `build-extension.ps1` (PowerShell), `build-extension.sh` (Bash)
-- ✓ API types (full DTOs in `src/api/types.ts`)
-- ✓ API client (typed fetch wrapper in `src/api/client.ts`)
-- ✓ Auth attachment (`src/api/auth.ts`)
-- ✓ Device flow initiator (`src/auth/device-flow.ts`) — full RFC 8628
-- ✓ Token manager (`src/auth/token-manager.ts`) — storage, refresh, alarm scheduling
-- ✓ Background service worker (`src/background/service-worker.ts`) — alarm handler, install hooks
-- ✓ Popup scaffold (`popup.html`, `popup.ts`, `styles/popup.css`)
-- ✓ Placeholder icons: 16×16, 48×48, 128×128 PNG
-
-### Phase 3: Authentication ✅
-
-**Deliverables:**
-
-- ✓ `src/auth/device-flow.ts` — `initiateDeviceFlow()` + `pollForToken()` with RFC 8628 compliance
-- ✓ `src/auth/token-manager.ts` — full token lifecycle (store, get, refresh, clear, scheduleRefresh, handleAlarm)
-- ✓ Background service worker alarm routing for `token-refresh`
-- ✓ Auth popup screen with device flow UI (server URL input, user code display, verification tab launch)
-
-**Notes:** Phase 3 complete. OAuth2 Device Authorization Grant flow implemented end-to-end. Device flow initiator posts to `/connect/device`, opens the verification URI in a new tab, and polls `/connect/token` with proper error handling (`authorization_pending`, `slow_down`, `access_denied`, `expired_token`). Token manager persists tokens to `chrome.storage.local`, auto-refreshes within 60s of expiry via `chrome.alarms`, and handles `invalid_grant`/`revoked` by clearing tokens. All error cases covered. Test coverage: 37 unit tests across 3 test suites, all passing. Build and typecheck clean.
-
-### Phase 4: Sync Engine ✅
+## Final Release: Blazor-Side Fixes (2026-08-02)
 
 **Status:** completed
-**Steps:**
+**Branch:** `fix/blazor-cleanup`
 
-- ✓ Step 4.1 — ID Mapping Store (`mapping-store.ts` scaffold was complete; no code changes needed)
-- ✓ Step 4.2 — Initial Sync (`initial-sync.ts` — server-first full sync with topological folder sort, browser-only bookmark batch upload, `isInitialSyncInProgress` guard flag)
-- ✓ Step 4.3 — Incremental Push (`push-sync.ts` — all 4 chrome.bookmarks event handlers with 500ms debounce, root node guards, offline pending queue)
-- ✓ Step 4.4 — Incremental Pull (`pull-sync.ts` — 5-min chrome.alarms poll, server-wins conflict resolution, pagination, cursor tracking)
+**Objective:** Pre-release polish batch covering media scan efficiency, SyncTray sleep resilience, and UI/UX cleanup.
+
+### Item 1 — Daily Scan Skips Already-Enriched Media
+
+**Status:** completed
 
 **Deliverables:**
 
-- ✓ `src/sync/initial-sync.ts` — `runInitialSync()` with full algorithm (fetch server tree → build browser tree → top-sort folders → create/map folders → create/map bookmarks → batch-upload browser-only items → set cursor)
-- ✓ `src/sync/push-sync.ts` — `startPushSync()` / `stopPushSync()` with handlers for onCreated (create bookmark/folder + store mapping), onRemoved (delete + remove mapping), onChanged (update title/url), onMoved (update folderId). Debounced 500ms per node ID. Skips `"0"/"1"/"2"/"3"` root nodes and events during initial sync. Pending operations queued in `chrome.storage.local` when offline.
-- ✓ `src/sync/pull-sync.ts` — `startPullSync()` / `stopPullSync()` + `runPullCycle()`. Applies server folder changes (create/update title), bookmark changes (create/update title/url/move), and deletions (removeTree for folders, remove for bookmarks). Multi-page support via immediate follow-up cycles when `hasMore` is true.
-- ✓ Integration: `src/background/service-worker.ts` updated to start push/pull sync on auth, listen to `chrome.storage.onChanged` for auth state transitions, run initial sync when no cursor exists, and route `bookmark-pull` alarms to `runPullCycle()`.
+- ✓ `DailyVideoEnrichmentService` — daily enqueue query now excludes videos that already have TMDB enrichment data (`CanonicalTmdbData` present). Previously every video with `HasExternalPoster == false` was re-enriched daily, re-fetching metadata for content that already had good metadata.
+- ✓ `VideoEnrichmentBackgroundQueue` — worker no longer re-fetches metadata for videos that already have a TMDB ID (posters/thumbnails still fetched if missing).
+- ✓ Music enrichment — verified the 30-day `LastEnrichedAt` cooldown is honored across all enrichment paths; no daily re-fetch of enriched albums/artists/tracks.
 
-**Tests:** 37 existing unit tests all pass (no regressions). Full sync engine test coverage completed in Phase 6 (42 new tests across mapping-store, initial-sync, push-sync, and conflict-resolution suites).
+**Notes:** The file _indexing_ phase already skipped indexed files (`GetAlreadyIndexedIdsAsync`); the issue was the _enrichment_ phase re-fetching metadata daily. Now both phases are efficient.
 
-**Build verification:**
-
-- `npx tsc --noEmit` — zero TypeScript errors
-- `npm run build:chrome` — 14 modules, clean build
-- `npm run build:firefox` — 14 modules, clean build
-- `npm test` — 3 suites, 37 tests, all passing
-
-### Phase 5: Popup UI ✅
+### Item 2 — SyncTray Wake-From-Sleep Handling
 
 **Status:** completed
-**Steps:**
 
-- ✓ Step 5.1 — Auth Screen (complete as scaffold)
-- ✓ Step 5.2 — Main Popup Structure (complete
+**Deliverables:**
 
+- ✓ New `SyncResumeService` background service — detects OS resume and restarts sync engines with fresh connections after a short network-settle delay.
+  - Windows: `Microsoft.Win32.SystemEvents.PowerModeChanged` (`Resume` event)
+  - Linux: `PosixSignalRegistration` on `SIGCONT`
+- ✓ Registered as singleton `IHostedService` in SyncTray DI (`App.axaml.cs`); stopped/disposed cleanly on shutdown.
+- ✓ Also fixed a pre-existing SyncTray XAML bug (`AddAccountDialog.axaml` referenced `vm:AddAccountDialogViewModel` but the class lives in the `Views` namespace) that broke the build after the Avalonia NuGet upgrade.
+
+**Notes:** Prevents stale/errored sync state after the machine wakes from sleep. Tray icon and status refresh on resume.
+
+### Item 3 — Remove Sign Out Button from Home Page
+
+**Status:** completed
+
+**Deliverables:**
+
+- ✓ Removed the redundant "Sign out" link from `Home.razor` header actions. The topbar "Logout" button (`MainLayout`) is now the single logout path.
+
+### Item 4 — Logout Confirmation Modal
+
+**Status:** completed
+
+**Deliverables:**
+
+- ✓ New `LogoutButton` component in `DotNetCloud.UI.Web/Components/Shared/` — shows a `ConfirmDialog` ("Are you sure you want to sign out?") before submitting the logout form.
+- ✓ New `logout-confirm.js` helper performs the POST to `/auth/session/logout` after confirmation.
+- ✓ Reuses the existing `ConfirmDialog` component (confirm = `btn-danger`).
+- ✓ Replaces the raw inline `<form method="post">` Logout button in `MainLayout.razor`.
+
+### Item 5 — Video Metadata Manual Edit (Parity with Music)
+
+**Status:** completed
+
+**Deliverables:**
+
+- ✓ Backend: `VideoDto` extended with editable metadata fields (`Overview`, `Year`, `Genres`, `TmdbRating`).
+- ✓ `IVideoService.UpdateMetadataAsync` + `VideoService` implementation (writes to canonical tables, shared across users).
+- ✓ `VideoController` — new `PUT /api/v1/videos/{videoId}/metadata` endpoint.
+- ✓ New `VideoMetadataEditDialog` component — edit Title / Overview / Year / Genres, plus a "Re-fetch from TMDB" action (`POST .../enrich?force=true`).
+- ✓ Wired into `VideoPage` video-detail view with an "Edit Metadata" action button.
+
+**Verification:**
+
+- ✓ `dotnet build DotNetCloud.CI.slnf` — zero compilation errors
+- ✓ Tests: Video 154, Music 382, SyncTray 123, UI.Shared 62 (all passing)
+
+**Next steps:** Deploy to server for user testing (`sudo ./scripts/deploy.sh`), then commit on `fix/blazor-cleanup` after user sign-off.
 
 
 ---
@@ -6172,3 +6250,84 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - ✓ Unit tests added for rebased-timestamp seek behavior and non-seek source-timestamp preservation.
 
 **Notes:** Manual ffmpeg benchmarks on the failing MPEG-PS source showed the old `-copyts` seek strategy took ~22s to produce two segments; the rebased strategy produces them in ~7-8s. Client timeout is a safety net so the overlay can never stick indefinitely. Deployed to production and health checks pass.
+
+
+---
+
+## Notification Fan-Out Unification (2026-08-16)
+
+> **Reference:** `docs/NOTIFICATION_FANOUT_UNIFICATION_PLAN.md` — branch `fix/notification-flow`
+
+**Status:** completed ✅
+**Duration:** one implementation session
+**Deliverables:**
+
+- ✓ Single notification pipeline — every cross-module event produces **one** persisted `NotificationDto` via `NotificationProducer` (8 events → 1 bell pipeline; closes the 5-event gap: file-shared, quota warning/critical, public-link-accessed, share-expiring now reach the bell)
+- ✓ `NotificationCreatedEvent` published by `NotificationService` (after `SaveChangesAsync`) in both `SendAsync` and `SendToManyAsync`
+- ✓ `INotificationChannel` + `NotificationFanOutDispatcher` — per-channel failure isolation (one broken channel never blocks the others)
+- ✓ `RealtimeNotificationChannel` — SignalR `notification.created` to recipient for live bell badge refresh
+- ✓ `PushNotificationChannel` — delivers push via new `SendPushNotification` gRPC RPC to the Chat module's `NotificationRouter` (FCM/UnifiedPush); preference/presence/DND gating stays inside Chat, not duplicated
+- ✓ `NullEmailChannel` stub (real email deferred to follow-up)
+- ✓ New gRPC RPC `SendPushNotification` in `chat_service.proto` + `ChatGrpcService.SendPushNotification` + `IChatApiClient.SendPushNotificationAsync` + `ChatGrpcApiClient`
+- ✓ `GrpcHealthServiceImpl` calendar-event push fallback rewired from Core's (now removed) `IPushNotificationService` to `IChatApiClient.SendPushNotificationAsync`
+- ✓ Removed dead code: `NoOpPushNotificationService`, Core.Server `PushNotifications` namespace, 8 push handlers, `InAppNotificationEventHandler`
+- ✓ Chat message/DM delivery untouched — out of scope, no regression
+- ✓ 23 new tests (11 `NotificationProducerTests`, 2 `NotificationFanOutDispatcherTests`, 7 `PushNotificationChannelTests`, 3 `ChatGrpcServicePushTests`); obsolete `NotificationHandlerTests.cs` removed
+
+**Notes:** All in-scope cross-module notification events now flow through one persisted bell notification and fan out to real-time (SignalR) and push (via Chat gRPC). The `NotificationsController` ↔ Chat `INotificationPreferenceStore` cross-module reference remains as a documented pre-existing follow-up. Verification: `dotnet build DotNetCloud.CI.slnf -c Release` (0 errors); Core.Server 590 passed, Chat 1311 passed, Core 489 passed.
+
+---
+
+## Notification Bell — Read-State Fix + Real-Time Auto-Check (2026-08-18)
+
+> **Reference:** `docs/NOTIFICATION_BELL_READSTATE_AND_REALTIME_PLAN.md` — branch `fix/bell-notifications`
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ Root cause: global `QueryTrackingBehavior.NoTracking` in `CoreDbContext` — entity-modify + `SaveChangesAsync()` paths silently wrote nothing
+- ✓ Fixed 9 sites with `.AsTracking()`:
+  - ✓ `NotificationService.MarkReadAsync` + `MarkAllReadAsync` (the reported "mark all read doesn't stick" bug)
+  - ✓ `AdminModuleService.StartModuleAsync` + `StopModuleAsync` (module status persistence)
+  - ✓ `MfaService.UseBackupCodeAsync` (backup code single-use enforcement — security)
+  - ✓ `GroupManagerService.UpdateGroupAsync` + `DeleteGroupAsync`
+  - ✓ `TeamManagerService.UpdateTeamAsync` + `DeleteTeamAsync`
+- ✓ Real-time SignalR client: `IRealtimeNotificationClient` (in `DotNetCloud.UI.Web.Client`) + `RealtimeNotificationClient` (server-circuit, auth cookie forwarding over SSE/LongPolling) listening on `/hubs/core` for `notification.created`
+- ✓ `LoopbackCertificateValidator` shared TLS callback; `Microsoft.AspNetCore.SignalR.Client` package added
+- ✓ Bell auto-check: SignalR subscription + 5-minute polling fallback + badge refresh on open (`NotificationBell.razor`)
+
+**Verification:**
+
+- ✓ `dotnet build DotNetCloud.CI.slnf -c Release` — 0 errors
+- ✓ Core.Server 597 passed, Core.Auth 156 passed, Integration (Notifications filter) 7 passed
+- ✓ Negative verification confirmed regression tests fail without the fix
+
+**Next steps:** Deploy to server for user testing (`sudo ./scripts/deploy.sh`), then commit on `fix/bell-notifications` after user sign-off.
+
+---
+
+## SOC 2 Type II Compliance (2026-08-18)
+
+> **Reference:** `docs/SOC2_TYPE_II_COMPLIANCE_PLAN.md` — branch `feature/soc2-level-ii-compliance`
+
+**Status:** completed ✅ (code + evidence; CPA attestation out of scope)
+
+**Deliverables:**
+
+- ✓ **A — Scanner:** `scripts/soc2-compliance-scan.sh` rewritten with 13 criteria-tagged checks, module/project coverage (15/15 + clients/UI/CLI, 0 missing), `--markdown`/`--txt`/`--ci` modes; **Windows-native `.ps1` scanner (no ripgrep)**; **offline-only execution** (2026-08-19 — online admin page/coordinator reverted; run with source available, see admin guide §3)
+- ✓ **B — Audit trail:** `AuditLog` entity + config + dual-provider migrations; `AuditLogService`; gRPC `LogAudit` rpc + `AuditLoggerGrpcClient` + `AddAuditLogger` in all 15 hosts; instrumentation in Core.Server auth/admin controllers + all 15 modules; **dual-provider migration split** (separate `*.Data.SqlServer` projects for Core + 14 modules, `ProviderAwareMigrationsAssembly` removed); applied `AddAuditLog_SqlServer` to production SQL Server
+- ✓ **C — Retention:** `AuditLogPurgeHostedService` + `core.AuditLogRetentionDays` (365) / `core.TrashRetentionDays` (30)
+- ✓ **D — Upload validation:** all upload endpoints verified using `IFileValidationService` + size limits
+- ✓ **E — Dependencies:** vulnerable-scan clean; dated compensating controls added to both `NuGetAuditSuppress` entries
+- ✓ **F — Key rotation:** automatic 90-day `OidcKeyRotationService` (explicit `Auth:KeyRotation` config); `scripts/rotate-oidc-keys.sh`; admin **Rotate OIDC Keys** button + audited rotation endpoint; **restart-to-activate banner + Activate now button** (graceful restart, `Restart=always` systemd)
+- ✓ **G–K — Availability/Confidentiality/Integrity/Privacy/Client:** verified + documented (PII inventory, control matrix, auditor guide, admin guide)
+- ✓ **L — Evidence docs:** `docs/security/SOC2_CONTROL_MATRIX.md`, `docs/security/SOC2_TYPE_II_AUDITOR_REPORT.md`, `docs/security/PII_INVENTORY.md`
+- ✓ **M — Tracking:** this plan + `IMPLEMENTATION_CHECKLIST.md` updated
+
+**Notes:** All workstreams A–M complete. Build verified on Core.Server, Core.Data, Core.Grpc and all 15 module hosts (0 errors). Scanner report generated with full module coverage. Two pre-existing items documented as accepted risks: (1) Blazor CSP `unsafe-*` and video `nosniff` removal; (2) PostgreSQL migration generation blocked by a pre-existing EF/OpenIddict model-differ NRE — the `AddAuditLog` PostgreSQL migration was authored by hand to match provider conventions, and the repo's PostgreSQL migration pipeline has been paused since May (production is SQL Server).
+
+**2026-08-19 update:** Completed the repo-wide dual-provider migration split — separate `*.Data.SqlServer` projects for Core + all 14 modules (SQL Server migrations + design-time factories moved into their own assemblies), removed the `ProviderAwareMigrationsAssembly` runtime filter, wired host/CLI/Core.Server references + solution/CI filter. Verified: `dotnet build DotNetCloud.CI.slnf -c Release` = 0 warnings/errors; all unit test projects pass (Core.Data 175, Core.Server 601, CLI 120, all modules). Applied `AddAuditLog_SqlServer` (plus 2 pre-existing pending Core migrations: `AddMfaSetupRequiredColumn_SqlServer`, `AddSequentialGuidDefaults`) to production SQL Server; verified `dbo.AuditLogs` table (10 columns, 0 rows) + model snapshot synced (no pending-model-changes).
+
+**2026-08-19 (offline scan):** the SOC 2 scanner is now an **offline audit tool** (source available; SAST-style). Reverted the server-side coordinator/admin page so production has no source access; `deploy.sh` no longer ships the scanner or grants a traverse ACL; the `/home/benk` ACL was revoked. Walkthrough in `docs/admin/SOC2_COMPLIANCE_ADMIN_GUIDE.md` §3.
+
+**Next:** deploy the split to production (`sudo ./scripts/deploy.sh`), user testing (audit rows on login, key rotation, offline SOC 2 scan per admin guide §3), then commit on `feature/soc2-level-ii-compliance`.

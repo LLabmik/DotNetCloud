@@ -32,7 +32,7 @@ public class ContactPerformanceTests
             .Options;
         _db = new ContactsDbContext(options);
         _eventBusMock = new Mock<IEventBus>();
-        _contactService = new ContactService(_db, _eventBusMock.Object, NullLogger<ContactService>.Instance);
+        _contactService = new ContactService(_db, _eventBusMock.Object, Mock.Of<DotNetCloud.Core.Capabilities.IAuditLogger>(), NullLogger<ContactService>.Instance);
         _vcardService = new VCardService(_db, _contactService, new Mock<IContactAvatarService>().Object, NullLogger<VCardService>.Instance);
         _caller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
     }

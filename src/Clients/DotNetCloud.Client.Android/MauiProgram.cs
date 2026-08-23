@@ -38,8 +38,12 @@ public static class MauiProgram
         builder.Services.AddSingleton<ISecureTokenStore, AndroidKeyStoreTokenStore>();
         builder.Services.AddSingleton<IServerConnectionStore, PreferenceServerConnectionStore>();
         builder.Services.AddSingleton<ILocalMessageCache, SqliteMessageCache>();
-        builder.Services.AddSingleton<IPendingMessageQueue, SqlitePendingMessageQueue>();
         builder.Services.AddSingleton<IAppPreferences, MauiAppPreferences>();
+
+        // ── Offline queue / sync ──────────────────────────────────────
+        builder.Services.AddSingleton<IOfflineOperationQueue, SqliteOfflineOperationQueue>();
+        builder.Services.AddSingleton<IConnectivityMonitor, ConnectivityMonitorService>();
+        builder.Services.AddSingleton<IOfflineSyncService, OfflineSyncService>();
 
         // ── Auth ──────────────────────────────────────────────────────
         builder.Services.AddSingleton<IOAuth2Service, MauiOAuth2Service>();
@@ -138,6 +142,7 @@ public static class MauiProgram
         builder.Services.AddTransient<ImageViewerPage>();
         builder.Services.AddTransient<NotesPage>();
         builder.Services.AddTransient<NoteEditPage>();
+        builder.Services.AddTransient<DmUserPickerPage>();
 
 #if DEBUG
         builder.Logging.AddDebug();

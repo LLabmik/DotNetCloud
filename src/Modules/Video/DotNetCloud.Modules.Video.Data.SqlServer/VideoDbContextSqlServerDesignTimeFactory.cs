@@ -3,7 +3,7 @@ using DotNetCloud.Modules.Video.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
-namespace DotNetCloud.Modules.Video.Data.SqlServer;
+namespace DotNetCloud.Modules.Video.Data;
 
 public class VideoDbContextSqlServerDesignTimeFactory : IDesignTimeDbContextFactory<VideoDbContext>
 {

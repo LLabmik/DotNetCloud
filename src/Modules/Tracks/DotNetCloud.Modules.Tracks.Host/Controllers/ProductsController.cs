@@ -254,11 +254,16 @@ public class ProductsController : TracksControllerBase
         }
     }
 
-    /// <summary>Adds a member to a product.</summary>
+    /// <summary>Adds a member to a product. Requires Admin or Owner role.</summary>
     [HttpPost("products/{productId:guid}/members")]
     public async Task<IActionResult> AddMemberAsync(Guid productId, [FromBody] AddProductMemberDto dto, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
+
+        var callerRole = await _productService.GetUserProductRoleAsync(productId, caller.UserId, ct);
+        if (callerRole is not (ProductMemberRole.Admin or ProductMemberRole.Owner))
+            return Unauthorized(ErrorEnvelope(ErrorCodes.Forbidden, "Only admins and owners can manage product members."));
+
         try
         {
             var member = await _productService.AddMemberAsync(productId, dto, ct);
@@ -279,11 +284,16 @@ public class ProductsController : TracksControllerBase
         }
     }
 
-    /// <summary>Removes a member from a product.</summary>
+    /// <summary>Removes a member from a product. Requires Admin or Owner role.</summary>
     [HttpDelete("products/{productId:guid}/members/{userId:guid}")]
     public async Task<IActionResult> RemoveMemberAsync(Guid productId, Guid userId, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
+
+        var callerRole = await _productService.GetUserProductRoleAsync(productId, caller.UserId, ct);
+        if (callerRole is not (ProductMemberRole.Admin or ProductMemberRole.Owner))
+            return Unauthorized(ErrorEnvelope(ErrorCodes.Forbidden, "Only admins and owners can manage product members."));
+
         try
         {
             await _productService.RemoveMemberAsync(productId, userId, ct);
@@ -304,12 +314,17 @@ public class ProductsController : TracksControllerBase
         }
     }
 
-    /// <summary>Updates a member's role on a product.</summary>
+    /// <summary>Updates a member's role on a product. Requires Admin or Owner role.</summary>
     [HttpPut("products/{productId:guid}/members/{userId:guid}/role")]
     public async Task<IActionResult> UpdateMemberRoleAsync(
         Guid productId, Guid userId, [FromBody] UpdateProductMemberRoleRequest request, CancellationToken ct)
     {
         var caller = GetAuthenticatedCaller();
+
+        var callerRole = await _productService.GetUserProductRoleAsync(productId, caller.UserId, ct);
+        if (callerRole is not (ProductMemberRole.Admin or ProductMemberRole.Owner))
+            return Unauthorized(ErrorEnvelope(ErrorCodes.Forbidden, "Only admins and owners can manage product members."));
+
         try
         {
             var member = await _productService.UpdateMemberRoleAsync(productId, userId, request.Role, ct);

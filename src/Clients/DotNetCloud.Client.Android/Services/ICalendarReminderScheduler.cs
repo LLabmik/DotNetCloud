@@ -3,14 +3,14 @@ using DotNetCloud.Core.DTOs;
 namespace DotNetCloud.Client.Android.Services;
 
 /// <summary>
-/// Schedules and manages Android <see cref="Android.App.AlarmManager"/> alarms for
+/// Schedules and manages Android <see cref="global::Android.App.AlarmManager"/> alarms for
 /// calendar event reminders. Supports both one-time and recurring events,
 /// boot-time rescheduling, and cancellation.
 /// </summary>
 public interface ICalendarReminderScheduler
 {
     /// <summary>
-    /// Schedules <see cref="AlarmManager"/> alarms for all future reminders on the
+    /// Schedules <see cref="global::Android.App.AlarmManager"/> alarms for all future reminders on the
     /// given events. Existing alarms for the same event IDs are replaced.
     /// </summary>
     /// <param name="events">The events whose reminders should be scheduled.</param>

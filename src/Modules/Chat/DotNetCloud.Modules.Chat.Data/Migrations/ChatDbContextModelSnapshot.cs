@@ -18,7 +18,7 @@ namespace DotNetCloud.Modules.Chat.Data.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasDefaultSchema("core")
-                .HasAnnotation("ProductVersion", "10.0.3")
+                .HasAnnotation("ProductVersion", "10.0.10")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -313,6 +313,9 @@ namespace DotNetCloud.Modules.Chat.Data.Migrations
                     b.Property<Guid>("ChannelId")
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("IsDmAccepted")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("IsMuted")
                         .HasColumnType("boolean");
 
@@ -548,6 +551,28 @@ namespace DotNetCloud.Modules.Chat.Data.Migrations
                         .HasDatabaseName("ix_chat_pinned_messages_channel_message");
 
                     b.ToTable("PinnedMessages", "core");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Chat.Models.UserNotificationPreference", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("DoNotDisturb")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("MutedChannelIdsJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("MutedChannelIds");
+
+                    b.Property<bool>("PushEnabled")
+                        .HasColumnType("boolean");
+
+                    b.HasKey("UserId");
+
+                    b.ToTable("UserNotificationPreferences", "core");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Chat.Models.VideoCall", b =>

@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
@@ -15,6 +16,8 @@ namespace DotNetCloud.Client.Android.ViewModels;
 public sealed partial class NotesViewModel : ObservableObject
 {
     private readonly INotesRestClient _notesApi;
+    private readonly IOfflineOperationQueue _offlineQueue;
+    private readonly IConnectivityMonitor _connectivity;
     private readonly IServerConnectionStore _serverStore;
     private readonly ISecureTokenStore _tokenStore;
     private readonly ILogger<NotesViewModel> _logger;
@@ -22,11 +25,15 @@ public sealed partial class NotesViewModel : ObservableObject
     /// <summary>Initializes a new <see cref="NotesViewModel"/>.</summary>
     public NotesViewModel(
         INotesRestClient notesApi,
+        IOfflineOperationQueue offlineQueue,
+        IConnectivityMonitor connectivity,
         IServerConnectionStore serverStore,
         ISecureTokenStore tokenStore,
         ILogger<NotesViewModel> logger)
     {
         _notesApi = notesApi;
+        _offlineQueue = offlineQueue;
+        _connectivity = connectivity;
         _serverStore = serverStore;
         _tokenStore = tokenStore;
         _logger = logger;
@@ -189,6 +196,19 @@ public sealed partial class NotesViewModel : ObservableObject
 
         try
         {
+            // Queue the delete for later delivery when offline, then reflect it locally.
+            if (!_connectivity.IsOnline)
+            {
+                await _offlineQueue.EnqueueAsync(OfflineOperationType.NoteDelete,
+                    JsonSerializer.Serialize(new OfflineNoteDeletePayload(note.Id)),
+                    CancellationToken.None).ConfigureAwait(false);
+                Notes.Remove(note);
+                if (SelectedNote?.Id == note.Id)
+                    ClosePreview();
+                OnPropertyChanged(nameof(IsEmpty));
+                return;
+            }
+
             var (serverUrl, token) = await GetCredentialsAsync(CancellationToken.None);
             await _notesApi.DeleteNoteAsync(serverUrl, token, note.Id);
             Notes.Remove(note);
@@ -216,6 +236,22 @@ public sealed partial class NotesViewModel : ObservableObject
 
         try
         {
+            // Queue the pin change when offline and update locally (optimistic).
+            if (!_connectivity.IsOnline)
+            {
+                await _offlineQueue.EnqueueAsync(OfflineOperationType.NoteUpdate,
+                    JsonSerializer.Serialize(new OfflineNoteUpdatePayload(note.Id, new UpdateNoteDto
+                    {
+                        IsPinned = !note.IsPinned,
+                        ExpectedVersion = note.Version
+                    })), CancellationToken.None).ConfigureAwait(false);
+
+                var offlineIndex = Notes.IndexOf(note);
+                if (offlineIndex >= 0)
+                    Notes[offlineIndex] = note with { IsPinned = !note.IsPinned };
+                return;
+            }
+
             var (serverUrl, token) = await GetCredentialsAsync(CancellationToken.None);
             var updated = await _notesApi.UpdateNoteAsync(serverUrl, token, note.Id,
                 new UpdateNoteDto { IsPinned = !note.IsPinned, ExpectedVersion = note.Version },

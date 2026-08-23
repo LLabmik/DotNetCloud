@@ -8,7 +8,6 @@ using DotNetCloud.Core.Localization;
 using DotNetCloud.Core.Modules;
 using DotNetCloud.Core.Modules.Supervisor;
 using DotNetCloud.Core.Security;
-using DotNetCloud.Core.Schema.Services;
 using DotNetCloud.Core.Server.Configuration;
 using DotNetCloud.Core.Server.Extensions;
 using DotNetCloud.Core.Server.Grpc.Services;
@@ -24,6 +23,8 @@ using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.Modules.Notes.Data;
 using DotNetCloud.Modules.Tracks.Data;
+using DotNetCloud.Modules.Tracks.Data.Services;
+using DotNetCloud.Modules.Tracks.Services;
 using DotNetCloud.Modules.Music.Data;
 using DotNetCloud.Modules.Photos.Data;
 using DotNetCloud.Modules.Video.Data;
@@ -292,10 +293,19 @@ public class Program
         builder.Services.AddSingleton<IFileValidationService, FileValidationService>();
         builder.Services.AddSingleton<IModuleSchemaProvider, DbContextSchemaProvider>();
 
+        // Register the persisted audit trail service (SOC 2 CC4). Scoped because it
+        // depends on the scoped CoreDbContext. Used directly by Core.Server controllers
+        // and by the CoreCapabilities LogAudit gRPC handler for module-originated events.
+        builder.Services.AddScoped<DotNetCloud.Core.Capabilities.IAuditLogger, AuditLogService>();
+
         // Register in-process module data services for interactive Blazor UI components.
         // Each module's .Data project owns its Add*UiServices registration, including
         // the DbContext configuration.
         builder.Services.AddNotesUiServices(builder.Configuration!, provider, connectionString);
+        // Tracks module in-process UI services (SignalR real-time, command palette, CSV import).
+        // All other Tracks API calls go through the gRPC ITracksApiClient (registered below).
+        // Uses the module's dedicated UI registration so the full dependency graph
+        // (e.g. CsvImportService behind ICsvImportUiService) is present.
         builder.Services.AddTracksUiServices(builder.Configuration!, provider, connectionString);
         builder.Services.AddMusicUiServices(builder.Configuration!, provider, connectionString);
         builder.Services.AddPhotosUiServices(builder.Configuration!, provider, connectionString);
@@ -305,14 +315,19 @@ public class Program
         // Files module UI services (FileBrowser and related Blazor components).
         // Registers FilesDbContext and the scoped services needed for in-process rendering.
         builder.Services.AddDbContext<FilesDbContext>(options =>
-            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Files.Data.SqlServer"),
+            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Files.Data"),
             ServiceLifetime.Transient);
         builder.Services.AddFilesUiServices(builder.Configuration!);
 
         // Chat module UI services (ChatPageLayout and related Blazor components).
         builder.Services.AddDbContext<ChatDbContext>(options =>
-            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Chat.Data.SqlServer"),
+            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Chat.Data"),
             ServiceLifetime.Transient);
+        // Custom factory for the DB-backed notification preference store — persists DND/mute
+        // state in the chat schema so it's consistent across processes and machines.
+        // (ChatDbContext's two constructors break the built-in AddDbContextFactory activator
+        // when ITableNamingStrategy is registered in DI, so we use ChatDbContextFactory.)
+        builder.Services.AddSingleton<IDbContextFactory<ChatDbContext>, ChatDbContextFactory>();
         builder.Services.AddChatServices(builder.Configuration!);
 
         // Calendar DbContext for schema creation by DbContextSchemaProvider.
@@ -361,6 +376,11 @@ public class Program
         });
         builder.Services.AddSingleton<DotNetCloud.Core.Services.IUpdateService, DotNetCloud.Core.Server.Services.GitHubUpdateService>();
         builder.Services.AddScoped<DotNetCloud.Core.Capabilities.INotificationService, NotificationService>();
+
+        // Notification fan-out channels
+        builder.Services.AddScoped<INotificationChannel, RealtimeNotificationChannel>();
+        builder.Services.AddScoped<INotificationChannel, PushNotificationChannel>();
+        builder.Services.AddScoped<INotificationChannel, NullEmailChannel>();
         builder.Services.AddScoped<DotNetCloud.Modules.Files.Services.IUserOrganizationResolver, UserOrganizationResolver>();
         builder.Services.AddScoped<DotNetCloud.Core.Import.IImportPipeline, ImportPipelineService>();
         builder.Services.AddScoped<DotNetCloud.Core.Server.Services.MediaFolderImportService>();
@@ -553,6 +573,10 @@ public class Program
             })
             .AddHttpMessageHandler<DotNetCloud.Core.Server.Middleware.CookieForwardingHandler>();
 
+        // Server-circuit SignalR listener for notification.created events. Scoped so it
+        // shares the circuit's CookieCaptureStore and forwards the correct user's cookie.
+        builder.Services.AddScoped<DotNetCloud.UI.Web.Client.Services.IRealtimeNotificationClient, DotNetCloud.Core.Server.RealTime.RealtimeNotificationClient>();
+
         // Contacts module HTTP client for the Blazor ContactsPage component.
         // The Contacts module is process-isolated, but the UI page renders in-process
         // and needs an HTTP client to call the module's REST API (proxied by Core.Server).
@@ -575,15 +599,6 @@ public class Program
 
         // Bookmarks API client for the Blazor BookmarksPage component.
         builder.Services.AddHttpClient<DotNetCloud.Modules.Bookmarks.Services.IBookmarksApiClient, DotNetCloud.Modules.Bookmarks.Services.BookmarksApiClient>(client =>
-            client.BaseAddress = new Uri($"https://localhost:{httpsPort}"))
-            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
-            {
-                ServerCertificateCustomValidationCallback = AcceptLoopbackCertificate
-            })
-            .AddHttpMessageHandler<DotNetCloud.Core.Server.Middleware.CookieForwardingHandler>();
-
-        // Tracks API client for the Blazor TracksPage component.
-        builder.Services.AddHttpClient<DotNetCloud.Modules.Tracks.Services.ITracksApiClient, DotNetCloud.Modules.Tracks.Services.TracksApiClient>(client =>
             client.BaseAddress = new Uri($"https://localhost:{httpsPort}"))
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
             {
@@ -676,13 +691,12 @@ public class Program
         builder.Services.AddScoped<AdminSeeder>();
         builder.Services.AddScoped<OidcClientSeeder>();
 
-        // Push notification service (no-op in Core.Server — handled by Chat module gRPC)
-        builder.Services.AddSingleton<DotNetCloud.Core.Server.PushNotifications.IPushNotificationService,
-            DotNetCloud.Core.Server.Services.NoOpPushNotificationService>();
-
         builder.Services.AddHostedService<ModuleUiRegistrationHostedService>();
         builder.Services.AddHostedService<NotificationEventSubscriber>();
         builder.Services.AddHostedService<SearchEventSubscriber>();
+
+        // Enforce audit-log retention (SOC 2 C2/P6): daily purge of expired rows.
+        builder.Services.AddHostedService<AuditLogPurgeHostedService>();
 
         // Register admin shared folder cleanup handler
         builder.Services.AddSingleton<AdminSharedFolderCleanupService>();
@@ -712,9 +726,13 @@ public class Program
         });
     }
 
-    private static DatabaseProvider ResolveConfiguredDatabaseProvider(IConfiguration configuration)
+    internal static DatabaseProvider ResolveConfiguredDatabaseProvider(IConfiguration configuration)
     {
-        var configuredProvider = configuration["Database:Provider"] ?? configuration["databaseProvider"];
+        // Prefer the CLI's flat config.json key (the user's explicit choice, written
+        // by `dotnetcloud setup`) over the appsettings.json "Database:Provider" default.
+        // Legacy configs only have the flat key; appsettings.json defaults to SqlServer
+        // for development and must not silently override a configured PostgreSQL install.
+        var configuredProvider = configuration["databaseProvider"] ?? configuration["Database:Provider"];
 
         if (string.IsNullOrWhiteSpace(configuredProvider))
         {
@@ -796,6 +814,9 @@ public class Program
         // Map health checks
         app.MapDotNetCloudHealthChecks();
 
+        // Serve the self-signed root CA for one-click download (private/test installs only).
+        MapRootCaDownload(app);
+
         // Map Prometheus metrics scraping endpoint (/metrics) when enabled
         app.MapDotNetCloudPrometheus();
 
@@ -848,9 +869,12 @@ public class Program
             });
 
         // Redirect HTTP→HTTPS for browser traffic, but NOT for internal gRPC
-        // calls (modules use cleartext HTTP/2 on the gRPC port).
+        // calls (modules use cleartext HTTP/2 on the gRPC port) and NOT for the
+        // root-CA download (must stay reachable over plain HTTP so untrusted
+        // browsers can fetch it).
         app.UseWhen(
-            ctx => !ctx.Request.ContentType?.StartsWith("application/grpc", StringComparison.OrdinalIgnoreCase) is true,
+            ctx => ctx.Request.ContentType?.StartsWith("application/grpc", StringComparison.OrdinalIgnoreCase) is not true
+                && !ctx.Request.Path.StartsWithSegments("/root-ca.crt"),
             then => then.UseHttpsRedirection());
 
         // Capture the auth cookie from the initial HTTP request into a scoped store
@@ -917,6 +941,47 @@ public class Program
                 typeof(DotNetCloud.Modules.Bookmarks.UI.BookmarksPage).Assembly,
                 typeof(DotNetCloud.Modules.Email.UI.EmailPage).Assembly,
                 typeof(DotNetCloud.Modules.About.UI.AboutPage).Assembly);
+    }
+
+    private static void MapRootCaDownload(WebApplication app)
+    {
+        // Self-signed ("private/test") installs generate a root CA next to the TLS
+        // certificate. Serve it over HTTP so clients can download and trust it with
+        // a single click. Let's Encrypt and existing-certificate installs do not
+        // generate this file, so the endpoint simply returns 404 for them.
+        var rootCaPath = GetRootCaPath(app.Configuration["Kestrel:CertificatePath"]);
+
+        app.MapGet("/root-ca.crt", () =>
+        {
+            if (rootCaPath is null || !File.Exists(rootCaPath))
+            {
+                return Results.NotFound();
+            }
+
+            return Results.File(rootCaPath, "application/x-x509-ca-cert", "dotnetcloud-root-ca.crt");
+        });
+    }
+
+    /// <summary>
+    /// Derives the root-CA certificate path from the configured TLS certificate
+    /// path. The CLI writes the root CA as <c>dotnetcloud-root-ca.crt</c> next to
+    /// the PFX for self-signed installs. Returns <c>null</c> when no certificate
+    /// path is configured.
+    /// </summary>
+    internal static string? GetRootCaPath(string? certificatePath)
+    {
+        if (string.IsNullOrWhiteSpace(certificatePath))
+        {
+            return null;
+        }
+
+        var directory = Path.GetDirectoryName(certificatePath);
+        if (string.IsNullOrEmpty(directory))
+        {
+            directory = ".";
+        }
+
+        return Path.Combine(directory, "dotnetcloud-root-ca.crt");
     }
 
     private static void MapCollaboraReverseProxy(WebApplication app)

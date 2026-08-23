@@ -31,6 +31,7 @@ REQUIRED_CONFIG_SCHEMA_VERSION=2
 
 # --- State (set during execution) ---
 IS_UPGRADE=false
+HAS_PARTIAL_INSTALL=false
 INSTALLED_VERSION=""
 LATEST_VERSION=""
 SETUP_MODE=""     # "beginner" or "normal"; set by ask_setup_mode
@@ -325,10 +326,11 @@ check_prerequisites() {
         $SUDO apt-get update -qq && $SUDO apt-get install -y -qq fuse3
     fi
 
-    if ! groups "$USER" | grep -q '\bfuse\b' 2>/dev/null; then
-        warn "Your user is not in the 'fuse' group. Virtual file system (Files On-Demand)"
-        warn "will not work until you add yourself to the fuse group:"
-        warn "  sudo usermod -a -G fuse $USER"
+    local fuse_check_user="${SUDO_USER:-$USER}"
+    if ! groups "$fuse_check_user" | grep -q '\bfuse\b' 2>/dev/null; then
+        warn "The desktop user '$fuse_check_user' is not in the 'fuse' group."
+        warn "Virtual file system (Files On-Demand) will not work until that user is added:"
+        warn "  sudo usermod -a -G fuse $fuse_check_user"
         warn "  (log out and back in for this to take effect)"
     fi
 
@@ -337,13 +339,22 @@ check_prerequisites() {
 
 # --- Semantic version comparison ---
 # Returns: 0 if equal, 1 if $1 > $2, 2 if $1 < $2
+# Handles pre-release suffixes: 1.0.0 > 1.0.0-alpha; 1.0.0-alpha < 1.0.0-beta.
 version_compare() {
     if [[ "$1" == "$2" ]]; then
         return 0
     fi
 
+    # Split each version into a numeric core and an optional pre-release suffix.
+    local a_core="${1%%[-+]*}"
+    local b_core="${2%%[-+]*}"
+    local a_pre="${1#"$a_core"}"
+    local b_pre="${2#"$b_core"}"
+    a_pre="${a_pre#[+-]}"
+    b_pre="${b_pre#[+-]}"
+
     local IFS=.
-    local i ver1=($1) ver2=($2)
+    local i ver1=($a_core) ver2=($b_core)
 
     # Pad shorter version with zeros
     for ((i=${#ver1[@]}; i<${#ver2[@]}; i++)); do
@@ -354,30 +365,65 @@ version_compare() {
     done
 
     for ((i=0; i<${#ver1[@]}; i++)); do
-        # Strip any pre-release suffix for numeric comparison
-        local v1="${ver1[i]%%[-+]*}"
-        local v2="${ver2[i]%%[-+]*}"
-        if ((v1 > v2)); then
+        # Base-10 arithmetic guards against empty components and leading zeros.
+        local v1="${ver1[i]:-0}"
+        local v2="${ver2[i]:-0}"
+        if ((10#$v1 > 10#$v2)); then
             return 1
         fi
-        if ((v1 < v2)); then
+        if ((10#$v1 < 10#$v2)); then
             return 2
         fi
     done
-    return 0
+
+    # Core versions are equal — compare pre-release suffixes.
+    if [[ -z "$a_pre" && -n "$b_pre" ]]; then
+        return 1   # 1.0.0 > 1.0.0-alpha
+    fi
+    if [[ -n "$a_pre" && -z "$b_pre" ]]; then
+        return 2   # 1.0.0-alpha < 1.0.0
+    fi
+    if [[ "$a_pre" == "$b_pre" ]]; then
+        return 0
+    fi
+    if [[ "$a_pre" > "$b_pre" ]]; then
+        return 1
+    fi
+    return 2
 }
 
 # --- Detect existing installation ---
 detect_existing_install() {
+    # A completed setup writes config.json. Binaries alone (the VERSION file or
+    # the CLI DLL) remain behind when the setup wizard is cancelled mid-way —
+    # that is an INCOMPLETE install, not an upgrade, so we re-run setup instead
+    # of claiming "already installed".
+    local has_config=false
+    if get_runtime_config_file >/dev/null 2>&1; then
+        has_config=true
+    fi
+
     if [[ -f "${INSTALL_DIR}/VERSION" ]]; then
         INSTALLED_VERSION=$(cat "${INSTALL_DIR}/VERSION" | tr -d '[:space:]')
-        IS_UPGRADE=true
-        info "Existing installation detected: v${INSTALLED_VERSION}"
-    elif [[ -f "${INSTALL_DIR}/server/dotnetcloud.dll" ]]; then
+        if [[ "$has_config" == true ]]; then
+            IS_UPGRADE=true
+            info "Existing installation detected: v${INSTALLED_VERSION}"
+        else
+            HAS_PARTIAL_INSTALL=true
+            warn "DotNetCloud binaries found but setup was never completed (no config.json)."
+            warn "Re-running setup as a fresh install."
+        fi
+    elif [[ -f "${INSTALL_DIR}/dotnetcloud.dll" ]]; then
         # Binary exists but no VERSION file (pre-VERSION-file install)
-        INSTALLED_VERSION="unknown"
-        IS_UPGRADE=true
-        warn "Existing installation detected (version unknown — no VERSION file)."
+        if [[ "$has_config" == true ]]; then
+            INSTALLED_VERSION="unknown"
+            IS_UPGRADE=true
+            warn "Existing installation detected (version unknown — no VERSION file)."
+        else
+            HAS_PARTIAL_INSTALL=true
+            warn "DotNetCloud binaries found but setup was never completed (no config.json)."
+            warn "Re-running setup as a fresh install."
+        fi
     fi
 }
 
@@ -500,9 +546,14 @@ install_dotnetcloud() {
     $SUDO mkdir -p "${DATA_DIR}/files"
     $SUDO mkdir -p "${DATA_DIR}/storage/chat-uploads" "${DATA_DIR}/storage/.video-posters" "${DATA_DIR}/storage/.video-screenshots" "${DATA_DIR}/storage/.media-cache/images"
 
-    # On upgrade: remove old binaries to prevent stale files
-    if [[ "$IS_UPGRADE" == true ]]; then
-        info "Removing old binaries (config and data are preserved)..."
+    # On upgrade (or after an interrupted first install): remove old binaries to
+    # prevent stale files.
+    if [[ "$IS_UPGRADE" == true || "$HAS_PARTIAL_INSTALL" == true ]]; then
+        if [[ "$IS_UPGRADE" == true ]]; then
+            info "Removing old binaries (config and data are preserved)..."
+        else
+            info "Removing incomplete-install binaries (setup never completed)..."
+        fi
         # Remove old binary directories but preserve VERSION for rollback reference
         $SUDO rm -rf "${INSTALL_DIR}/server" "${INSTALL_DIR}/modules"
         # Remove old top-level binaries (CLI, DLLs, etc.) but not directories we just cleaned
@@ -524,6 +575,11 @@ install_dotnetcloud() {
             "${INSTALL_DIR}/server/certs/dotnetcloud-localhost.pfx"
     fi
 
+    # Pre-create the server log directory. Serilog writes logs/ relative to the
+    # server working directory, and the hardened unit mounts /opt read-only
+    # except the paths listed in ReadWritePaths.
+    $SUDO mkdir -p "${INSTALL_DIR}/server/logs"
+
     # Ensure module discovery path matches runtime expectations.
     # Core server discovers modules from ${INSTALL_DIR}/server/modules, while
     # release archives place module payloads under ${INSTALL_DIR}/modules.
@@ -539,13 +595,19 @@ install_dotnetcloud() {
     fi
 
     # Verify critical files were extracted
-    if [[ ! -f "${INSTALL_DIR}/server/dotnetcloud.dll" ]]; then
-        fatal "Extraction succeeded but CLI DLL (${INSTALL_DIR}/server/dotnetcloud.dll) is missing. The release archive may be corrupted or have an unexpected layout."
+    if [[ ! -f "${INSTALL_DIR}/dotnetcloud.dll" ]]; then
+        fatal "Extraction succeeded but CLI DLL (${INSTALL_DIR}/dotnetcloud.dll) is missing. The release archive may be corrupted or have an unexpected layout."
     fi
 
-    if [[ ! -f "${INSTALL_DIR}/server/DotNetCloud.Core.Server" ]] && [[ ! -f "${INSTALL_DIR}/DotNetCloud.Core.Server" ]]; then
+    if [[ ! -f "${INSTALL_DIR}/server/DotNetCloud.Core.Server" ]]; then
         fatal "Extraction succeeded but server binary is missing (${INSTALL_DIR}/server/DotNetCloud.Core.Server). The release archive may be corrupted or have an unexpected layout."
     fi
+
+    # The CLI publish output includes a dependency copy of the server apphost
+    # at the install root. Remove it so `dotnetcloud start` resolves the real
+    # server under server/ — not this stray copy, whose content root is
+    # read-only under systemd and crashes on startup.
+    $SUDO rm -f "${INSTALL_DIR}/DotNetCloud.Core.Server" "${INSTALL_DIR}/DotNetCloud.Core.Server.exe"
 
     info "Setting permissions..."
     # Only chown RUN_DIR if it already exists (it's a tmpfs created at runtime)
@@ -554,15 +616,11 @@ install_dotnetcloud() {
         chown_targets="$chown_targets $RUN_DIR"
     fi
     $SUDO chown -R "${SERVICE_USER}:${SERVICE_GROUP}" $chown_targets
-    $SUDO chown -R root:root "$INSTALL_DIR"
+    $SUDO chown -R "${SERVICE_USER}:${SERVICE_GROUP}" "$INSTALL_DIR"
     $SUDO chmod 755 "$INSTALL_DIR"
 
     # Ensure server binary is executable (permissions may be lost if archive
     # was built on Windows or transferred through a non-Unix-aware tool)
-    if [[ -f "${INSTALL_DIR}/DotNetCloud.Core.Server" ]]; then
-        $SUDO chmod 755 "${INSTALL_DIR}/DotNetCloud.Core.Server"
-    fi
-    # Also check the server/ subdirectory layout
     if [[ -f "${INSTALL_DIR}/server/DotNetCloud.Core.Server" ]]; then
         $SUDO chmod 755 "${INSTALL_DIR}/server/DotNetCloud.Core.Server"
     fi
@@ -579,7 +637,7 @@ install_dotnetcloud() {
     # using the system .NET runtime (framework-dependent deployment).
     $SUDO tee /usr/local/bin/dotnetcloud > /dev/null <<'DCNWRAPPER'
 #!/usr/bin/env bash
-exec /usr/bin/dotnet /opt/dotnetcloud/server/dotnetcloud.dll "$@"
+exec /usr/bin/dotnet /opt/dotnetcloud/dotnetcloud.dll "$@"
 DCNWRAPPER
     $SUDO chmod 755 /usr/local/bin/dotnetcloud
 
@@ -599,17 +657,20 @@ install_service() {
 [Unit]
 Description=DotNetCloud Core Server
 Documentation=https://github.com/LLabmik/DotNetCloud
-After=network.target postgresql.service
+After=network.target postgresql.service mssql-server.service
 Requires=network.target
 
 [Service]
-Type=simple
+Type=forking
+PIDFile=${RUN_DIR}/dotnetcloud.pid
+GuessMainPID=no
 User=${SERVICE_USER}
 Group=${SERVICE_GROUP}
 RuntimeDirectory=dotnetcloud
+Delegate=yes
 WorkingDirectory=${INSTALL_DIR}/server
-ExecStart=/usr/bin/dotnet ${INSTALL_DIR}/server/DotNetCloud.Core.Server.dll
-Restart=on-failure
+ExecStart=${INSTALL_DIR}/dotnetcloud start
+Restart=always
 RestartSec=10
 TimeoutStartSec=60
 TimeoutStopSec=30
@@ -618,7 +679,7 @@ TimeoutStopSec=30
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=${DATA_DIR} ${LOG_DIR} ${RUN_DIR} ${CONFIG_DIR} ${INSTALL_DIR}/server
+ReadWritePaths=${DATA_DIR} ${LOG_DIR} ${RUN_DIR} ${CONFIG_DIR} ${INSTALL_DIR}/server/logs
 PrivateTmp=true
 
 # Environment
@@ -628,7 +689,7 @@ Environment=DOTNETCLOUD_CONFIG_DIR=${CONFIG_DIR}
 Environment=DOTNETCLOUD_DATA_DIR=${DATA_DIR}
 Environment=DOTNETCLOUD_LOG_DIR=${LOG_DIR}
 Environment=Video__Enrichment__TmdbApiKey=a15fa8fabf06e1d13623369b28bba1c5
-EnvironmentFile=${CONFIG_DIR}/env
+EnvironmentFile=-${CONFIG_DIR}/env
 
 [Install]
 WantedBy=multi-user.target
@@ -645,6 +706,47 @@ EOF
     ok "Systemd service installed."
 }
 
+# --- Plain-language failure block when migrations fail during upgrade ---
+print_upgrade_migration_failure() {
+    local MIGRATE_LOG="$1"
+
+    echo ""
+    echo "════════════════════════════════════════════════════════════════"
+    echo "  DotNetCloud was updated, but the database upgrade did not finish."
+    echo "════════════════════════════════════════════════════════════════"
+    echo ""
+    echo "What happened:"
+    echo "  • The new DotNetCloud program files were copied onto this machine."
+    echo "  • The step that updates the database to match them did not complete."
+    echo "  • DotNetCloud was left STOPPED so it won't start with a half-updated database."
+    echo ""
+    echo "Good news:"
+    echo "  • No data was lost or deleted. Your existing data is exactly as it was before."
+    echo ""
+    echo "The database error was (last lines from ${MIGRATE_LOG}):"
+    $SUDO tail -n 15 "$MIGRATE_LOG" 2>/dev/null | sed 's/^/    /' || true
+    echo ""
+    echo "Common causes and fixes:"
+    echo "  • The database is not running"
+    echo "      Start it:  sudo systemctl start postgresql   (or mssql-server for SQL Server)"
+    echo "  • The database connection details are wrong"
+    echo "      Fix them:  sudo dotnetcloud setup"
+    echo "  • The database user does not have permission"
+    echo "      See the 'Database Permissions Notice' shown during setup"
+    echo "  • The disk is full"
+    echo "      Check:     df -h"
+    echo ""
+    echo "To try again:"
+    echo "  1. Fix the cause above."
+    echo "  2. Run:  sudo dotnetcloud migrate"
+    echo "     (repeat until it finishes without errors)"
+    echo "  3. Then: sudo systemctl start dotnetcloud"
+    echo ""
+    echo "  If you're stuck, open an issue:"
+    echo "      https://github.com/${REPO}/issues"
+    echo "════════════════════════════════════════════════════════════════"
+}
+
 # --- Post-upgrade: migrate database and restart ---
 post_upgrade() {
     if [[ "$IS_UPGRADE" != true ]]; then
@@ -652,14 +754,18 @@ post_upgrade() {
     fi
 
     info "Running database migrations..."
-    # Run as root (this script already has root). The CLI's SudoHelper detects
-    # root via geteuid() and skips sudo re-exec. Migrations only need database
-    # access (from config), not service-user filesystem ownership.
-    if /usr/bin/dotnet "${INSTALL_DIR}/server/dotnetcloud.dll" migrate 2>/dev/null; then
+    local MIGRATE_LOG="${LOG_DIR}/install-migrate.log"
+    $SUDO mkdir -p "${LOG_DIR}" 2>/dev/null || true
+
+    # Run as root (via sudo when this script is not already root). Capture the
+    # full output to a log and echo it to the terminal — never suppress stderr,
+    # so a failed migration is visible instead of surfacing later as a startup
+    # crash-loop.
+    if $SUDO /usr/bin/dotnet "${INSTALL_DIR}/dotnetcloud.dll" migrate 2>&1 | $SUDO tee "$MIGRATE_LOG"; then
         ok "Database migrations complete."
     else
-        warn "Database migration skipped (migrations will run automatically on next startup)."
-        warn "Migrations will run automatically on next startup."
+        print_upgrade_migration_failure "$MIGRATE_LOG"
+        exit 1
     fi
 
     info "Starting DotNetCloud service..."
@@ -762,7 +868,7 @@ maybe_run_setup_on_schema_upgrade() {
         read -r -p "Run setup wizard now to review the new settings? [Y/n]: " response
         if [[ -z "$response" || "$response" =~ ^[Yy]$ ]]; then
             info "Running setup wizard..."
-            if $SUDO /usr/bin/dotnet "${INSTALL_DIR}/server/dotnetcloud.dll" setup; then
+            if $SUDO /usr/bin/dotnet "${INSTALL_DIR}/dotnetcloud.dll" setup; then
                 rm -f "$setup_required_marker" 2>/dev/null || true
             else
                 warn "Setup wizard did not complete successfully."
@@ -844,8 +950,14 @@ resolve_public_origin_from_config() {
     # Prefer authoritative runtime env override when available.
     # This captures single-origin deployments where public HTTPS differs from
     # internal setup-wizard HTTP/HTTPS port defaults.
-    local env_file="${CONFIG_DIR}/dotnetcloud.env"
-    if [[ -f "$env_file" ]]; then
+    local env_file=""
+    if [[ -f "${CONFIG_DIR}/env" ]]; then
+        env_file="${CONFIG_DIR}/env"
+    elif [[ -f "${CONFIG_DIR}/dotnetcloud.env" ]]; then
+        env_file="${CONFIG_DIR}/dotnetcloud.env"
+    fi
+
+    if [[ -n "$env_file" ]]; then
         local collabora_server_url
         collabora_server_url=$(grep -oP '^Files__Collabora__ServerUrl=\K.*' "$env_file" 2>/dev/null | head -n1 || true)
         if [[ -n "$collabora_server_url" ]] && [[ "$collabora_server_url" =~ ^https?:// ]]; then
@@ -1119,7 +1231,17 @@ write_collabora_env_file() {
     local admin_email
     admin_email=$(grep -oP '"(?:adminEmail|AdminEmail)"\s*:\s*"\K[^"]+' "$config_file" 2>/dev/null | head -n1 || true)
 
-    $SUDO tee "${CONFIG_DIR}/env" > /dev/null <<EOF
+    # Preserve keys the installer does not manage (e.g. AdminMfaEnabled,
+    # EnableProofKeyValidation, TmdbApiKey) so upgrades don't silently drop them.
+    local preserved=""
+    if [[ -f "${CONFIG_DIR}/env" ]]; then
+        preserved=$(grep -E '^[A-Za-z][A-Za-z0-9_]*=' "${CONFIG_DIR}/env" 2>/dev/null \
+            | grep -vE '^DotNetCloud__AdminEmail=|^Files__Collabora__(Enabled|UseBuiltInCollabora|ServerUrl|DiscoveryUrl|ProxyUpstreamUrl|AllowInsecureTls|TokenSigningKey|WopiBaseUrl)=' \
+            || true)
+    fi
+
+    {
+        cat <<EOF
 # DotNetCloud runtime environment (generated by installer)
 
 # Admin credentials (used by AdminSeeder)
@@ -1135,6 +1257,12 @@ Files__Collabora__AllowInsecureTls=true
 Files__Collabora__TokenSigningKey=${wopi_key}
 Files__Collabora__WopiBaseUrl=${public_origin}
 EOF
+        if [[ -n "$preserved" ]]; then
+            echo ""
+            echo "# Preserved custom settings"
+            echo "$preserved"
+        fi
+    } | $SUDO tee "${CONFIG_DIR}/env" > /dev/null
 
     $SUDO chown root:${SERVICE_GROUP} "${CONFIG_DIR}/env" 2>/dev/null || true
     $SUDO chmod 640 "${CONFIG_DIR}/env" 2>/dev/null || true
@@ -1353,17 +1481,17 @@ main() {
         if [[ -t 0 ]]; then
             # stdin is already a terminal (script was downloaded then run)
             if [[ "$SETUP_MODE" == "normal" ]]; then
-                $SUDO /usr/bin/dotnet "${INSTALL_DIR}/server/dotnetcloud.dll" setup || SETUP_EXIT=$?
+                $SUDO /usr/bin/dotnet "${INSTALL_DIR}/dotnetcloud.dll" setup || SETUP_EXIT=$?
             else
-                $SUDO /usr/bin/dotnet "${INSTALL_DIR}/server/dotnetcloud.dll" setup --beginner || SETUP_EXIT=$?
+                $SUDO /usr/bin/dotnet "${INSTALL_DIR}/dotnetcloud.dll" setup --beginner || SETUP_EXIT=$?
             fi
         else
             # stdin is a pipe (curl | bash) — try redirecting from the controlling terminal
             if { exec 3</dev/tty; } 2>/dev/null; then
                 if [[ "$SETUP_MODE" == "normal" ]]; then
-                    $SUDO /usr/bin/dotnet "${INSTALL_DIR}/server/dotnetcloud.dll" setup <&3 || SETUP_EXIT=$?
+                    $SUDO /usr/bin/dotnet "${INSTALL_DIR}/dotnetcloud.dll" setup <&3 || SETUP_EXIT=$?
                 else
-                    $SUDO /usr/bin/dotnet "${INSTALL_DIR}/server/dotnetcloud.dll" setup --beginner <&3 || SETUP_EXIT=$?
+                    $SUDO /usr/bin/dotnet "${INSTALL_DIR}/dotnetcloud.dll" setup --beginner <&3 || SETUP_EXIT=$?
                 fi
                 exec 3<&-
             else

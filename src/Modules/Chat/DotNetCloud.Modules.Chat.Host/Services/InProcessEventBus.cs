@@ -50,7 +50,14 @@ internal sealed class InProcessEventBus : IEventBus
 
         lock (_handlers)
         {
-            _handlers.Add(handler);
+            // Dedupe by reference: the same handler instance may be subscribed to
+            // multiple event types (e.g., one handler implementing several
+            // IEventHandler<T> interfaces). Without this, publishing a single event
+            // invokes it once per stored reference (N duplicates for N event types).
+            if (!_handlers.Contains(handler))
+            {
+                _handlers.Add(handler);
+            }
         }
 
         return Task.CompletedTask;

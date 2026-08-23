@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Core.Security;
 using DotNetCloud.Modules.Contacts;
 using DotNetCloud.Modules.Contacts.Data;
@@ -87,6 +88,9 @@ builder.Services.AddAuthentication("Identity.Application")
 
 builder.Services.AddAuthorization();
 
+// Register the gRPC-backed audit logger (SOC 2 CC4) — routes to Core.Server.
+builder.Services.AddAuditLogger();
+
 // --- Services ---
 
 // Register the Contacts module as a singleton for lifecycle management
@@ -95,31 +99,29 @@ builder.Services.AddSingleton<ContactsModule>();
 // File validation service for upload security
 builder.Services.AddSingleton<IFileValidationService, FileValidationService>();
 
-// Use shared database from core server config, fall back to in-memory
+// Use shared database from core server config (fail fast if missing)
 var connStr = builder.Configuration["connectionString"]
     ?? builder.Configuration.GetConnectionString("DefaultConnection");
 var dbProvider = builder.Configuration["databaseProvider"]
     ?? builder.Configuration["database:provider"];
 
-if (!string.IsNullOrEmpty(connStr) && !string.IsNullOrEmpty(dbProvider))
+if (string.IsNullOrEmpty(connStr) || string.IsNullOrEmpty(dbProvider))
 {
-    void ConfigureDb(DbContextOptionsBuilder o)
-    {
-        if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
-            o.UseNpgsql(connStr);
-        else
-            o.UseSqlServer(connStr);
-    }
-    builder.Services.AddDbContext<ContactsDbContext>(ConfigureDb);
-    builder.Services.AddDbContext<CalendarDbContext>(ConfigureDb);
-    builder.Services.AddDbContext<NotesDbContext>(ConfigureDb);
+    throw new InvalidOperationException(
+        "The Contacts module requires a database connection string and provider. " +
+        "These are provided via config.json (DOTNETCLOUD_CONFIG_DIR) when launched by the core server.");
 }
-else
+
+void ConfigureDb(DbContextOptionsBuilder o)
 {
-    builder.Services.AddDbContext<ContactsDbContext>(o => o.UseInMemoryDatabase("ContactsModule"));
-    builder.Services.AddDbContext<CalendarDbContext>(o => o.UseInMemoryDatabase("CalendarModule"));
-    builder.Services.AddDbContext<NotesDbContext>(o => o.UseInMemoryDatabase("NotesModule"));
+    if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
+        o.UseNpgsql(connStr);
+    else
+        o.UseSqlServer(connStr);
 }
+builder.Services.AddDbContext<ContactsDbContext>(ConfigureDb);
+builder.Services.AddDbContext<CalendarDbContext>(ConfigureDb);
+builder.Services.AddDbContext<NotesDbContext>(ConfigureDb);
 
 // In-process event bus for standalone operation
 builder.Services.AddSingleton<IEventBus, InProcessEventBus>();

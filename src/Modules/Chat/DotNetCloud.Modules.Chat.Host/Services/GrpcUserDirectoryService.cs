@@ -82,7 +82,7 @@ internal sealed class GrpcUserDirectoryService : IUserDirectory, IDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "FindUserIdByUsernameAsync failed for username '{Username}'", username);
+            _logger.LogError(ex, "FindUserIdByUsernameAsync failed");
             return null;
         }
     }
@@ -177,7 +177,7 @@ internal sealed class GrpcUserDirectoryService : IUserDirectory, IDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "SearchUsersAsync failed for query '{Query}'", searchTerm);
+            _logger.LogError(ex, "SearchUsersAsync failed");
             return [];
         }
     }

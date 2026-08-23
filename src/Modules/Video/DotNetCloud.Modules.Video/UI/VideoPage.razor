@@ -1431,6 +1431,7 @@
                                         }
                                     </button>
                                 }
+                                <button type="button" class="btn-icon-action" @onclick="OpenMetadataEditDialog" title="Edit metadata"><span class="material-icons">edit</span></button>
                                 <button type="button" class="btn-icon-action" @onclick="DownloadVideoAsync" title="Download video"><span class="material-icons">download</span></button>
                                 <button type="button" class="btn-icon-action" @onclick="ToggleFullscreenAsync" title="Full screen"><span class="material-icons">fullscreen</span></button>
                                 <button type="button" class="btn-close-player" @onclick="ClosePlayer"><span class="material-icons">close</span> Close</button>
@@ -1588,5 +1589,13 @@
                 </div>
             </div>
         </div>
+    }
+
+    @* ─── Manual Metadata Edit Dialog ─── *@
+    @if (_showMetadataEditDialog && _playerVideo is not null)
+    {
+        <VideoMetadataEditDialog Video="_playerVideo"
+                                 OnSaved="OnMetadataSavedAsync"
+                                 OnClose="CloseMetadataEditDialog" />
     }
 </div>

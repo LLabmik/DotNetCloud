@@ -281,6 +281,38 @@ public class InvalidOperationException : DotNetCloudException
 }
 
 /// <summary>
+/// Exception thrown when a generated multi-item ZIP download would exceed the
+/// configured maximum archive size.
+/// </summary>
+public sealed class ZipSizeLimitExceededException : DotNetCloudException
+{
+    /// <summary>Gets the configured maximum ZIP size, in bytes.</summary>
+    public long MaxZipSizeBytes { get; }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ZipSizeLimitExceededException"/> class.
+    /// </summary>
+    /// <param name="maxZipSizeBytes">The configured maximum ZIP size, in bytes.</param>
+    public ZipSizeLimitExceededException(long maxZipSizeBytes)
+        : base(
+            ErrorCodes.ZipSizeLimitExceeded,
+            BuildMessage(maxZipSizeBytes))
+    {
+        MaxZipSizeBytes = maxZipSizeBytes;
+    }
+
+    private static string BuildMessage(long maxZipSizeBytes)
+    {
+        var limitText = maxZipSizeBytes >= (1L << 30)
+            ? $"{maxZipSizeBytes / (1L << 30)} GB"
+            : $"{maxZipSizeBytes:N0} bytes";
+
+        return $"The selected items exceed the maximum ZIP download size of {limitText}. "
+            + "Select fewer or smaller files and folders, then try again.";
+    }
+}
+
+/// <summary>
 /// Exception thrown when a filename conflicts case-insensitively with an existing node,
 /// which would cause data loss on case-insensitive file systems (Windows, macOS).
 /// </summary>

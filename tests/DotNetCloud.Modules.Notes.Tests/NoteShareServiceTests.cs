@@ -28,7 +28,7 @@ public class NoteShareServiceTests
             .Options;
         _db = new NotesDbContext(options);
         var eventBusMock = new Mock<IEventBus>();
-        _noteService = new NoteService(_db, eventBusMock.Object, NullLogger<NoteService>.Instance);
+        _noteService = new NoteService(_db, eventBusMock.Object, Mock.Of<DotNetCloud.Core.Capabilities.IAuditLogger>(), NullLogger<NoteService>.Instance);
         _shareService = new NoteShareService(_db, eventBusMock.Object, NullLogger<NoteShareService>.Instance);
         _owner = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
         _recipient = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);

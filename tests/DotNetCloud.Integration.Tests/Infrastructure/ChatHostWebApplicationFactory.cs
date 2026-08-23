@@ -25,6 +25,18 @@ internal sealed class ChatHostWebApplicationFactory : WebApplicationFactory<Chat
 {
     private readonly string _databaseName = $"ChatHostInt_{Guid.CreateVersion7():N}";
 
+    public ChatHostWebApplicationFactory()
+    {
+        // The Chat host reads connectionString/databaseProvider from builder.Configuration
+        // at the very top of Program.Main (top-level statements). WebApplicationFactory's
+        // ConfigureAppConfiguration is applied after top-level statements run, so it can't
+        // satisfy the host's fail-fast DB guard. Provide the values via environment variables
+        // instead (WebApplicationBuilder loads env vars into configuration automatically).
+        // The ChatDbContext is replaced with InMemory below, so this is never used.
+        Environment.SetEnvironmentVariable("connectionString", "Host=localhost;Database=integration_test;Username=test;Password=test");
+        Environment.SetEnvironmentVariable("databaseProvider", "PostgreSql");
+    }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Development");
@@ -61,6 +73,7 @@ internal sealed class ChatHostWebApplicationFactory : WebApplicationFactory<Chat
             services.PostConfigure<AuthenticationSchemeOptions>(
                 "OpenIddict.Validation.AspNetCore", opts =>
                 {
+                    // Forward validation to our test handler
                     opts.ForwardDefault = TestAuthHandler.SchemeName;
                 });
 
@@ -102,11 +115,12 @@ internal sealed class ChatHostWebApplicationFactory : WebApplicationFactory<Chat
                         Guid.TryParse(userHeader.ToString(), out var userId))
                     {
                         var identity = new ClaimsIdentity(
-                        [
-                            new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
-                            new Claim("sub", userId.ToString())
-                        ],
-                        authenticationType: "IntegrationTest");
+                            new[]
+                            {
+                                new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+                                new Claim("sub", userId.ToString())
+                            },
+                            authenticationType: "IntegrationTest");
 
                         context.User = new ClaimsPrincipal(identity);
                     }
@@ -140,11 +154,12 @@ internal sealed class ChatHostWebApplicationFactory : WebApplicationFactory<Chat
                 Guid.TryParse(userHeader.ToString(), out var userId))
             {
                 var identity = new ClaimsIdentity(
-                [
-                    new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
-                    new Claim("sub", userId.ToString())
-                ],
-                authenticationType: SchemeName);
+                    new[]
+                    {
+                        new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+                        new Claim("sub", userId.ToString())
+                    },
+                    authenticationType: SchemeName);
 
                 var principal = new ClaimsPrincipal(identity);
                 var ticket = new AuthenticationTicket(principal, SchemeName);

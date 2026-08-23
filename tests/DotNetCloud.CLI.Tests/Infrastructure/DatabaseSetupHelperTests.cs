@@ -88,4 +88,35 @@ public class DatabaseSetupHelperTests
         Assert.IsTrue(result.Contains("Password=mypass", StringComparison.Ordinal));
     }
 
+    [TestMethod]
+    public void IsValidPostgreSqlIdentifier_SimpleName_ReturnsTrue()
+    {
+        Assert.IsTrue(DatabaseSetupHelper.IsValidPostgreSqlIdentifier("dotnetcloud"));
+    }
+
+    [TestMethod]
+    public void IsValidPostgreSqlIdentifier_UnderscoreAndDigits_ReturnsTrue()
+    {
+        Assert.IsTrue(DatabaseSetupHelper.IsValidPostgreSqlIdentifier("my_db_123"));
+    }
+
+    [TestMethod]
+    public void IsValidPostgreSqlIdentifier_Hyphen_ReturnsFalse()
+    {
+        Assert.IsFalse(DatabaseSetupHelper.IsValidPostgreSqlIdentifier("dotnet-cloud"));
+    }
+
+    [TestMethod]
+    public void IsValidPostgreSqlIdentifier_SqlInjection_ReturnsFalse()
+    {
+        Assert.IsFalse(DatabaseSetupHelper.IsValidPostgreSqlIdentifier("x; DROP TABLE users; --"));
+    }
+
+    [TestMethod]
+    public void IsValidPostgreSqlIdentifier_EmptyOrWhitespace_ReturnsFalse()
+    {
+        Assert.IsFalse(DatabaseSetupHelper.IsValidPostgreSqlIdentifier(""));
+        Assert.IsFalse(DatabaseSetupHelper.IsValidPostgreSqlIdentifier("   "));
+    }
+
 }

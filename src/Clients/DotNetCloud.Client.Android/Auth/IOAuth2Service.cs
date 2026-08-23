@@ -23,7 +23,8 @@ public interface IOAuth2Service
 }
 
 /// <summary>Result from a completed OAuth2 authentication or token refresh.</summary>
-/// <param name="AccessToken">The new access token.</param>
+/// <param name="AccessToken">The new access token (JWE-encrypted).</param>
 /// <param name="RefreshToken">The new refresh token.</param>
 /// <param name="ExpiresAt">UTC time when the access token expires.</param>
-public sealed record OAuth2Result(string AccessToken, string RefreshToken, DateTimeOffset ExpiresAt);
+/// <param name="IdToken">The OIDC id_token (signed JWT, decodable client-side).</param>
+public sealed record OAuth2Result(string AccessToken, string RefreshToken, DateTimeOffset ExpiresAt, string? IdToken = null);

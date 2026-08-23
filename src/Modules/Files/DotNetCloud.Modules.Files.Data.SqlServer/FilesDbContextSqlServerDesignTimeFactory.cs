@@ -3,7 +3,7 @@ using DotNetCloud.Modules.Files.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
-namespace DotNetCloud.Modules.Files.Data.SqlServer;
+namespace DotNetCloud.Modules.Files.Data;
 
 public class FilesDbContextSqlServerDesignTimeFactory : IDesignTimeDbContextFactory<FilesDbContext>
 {

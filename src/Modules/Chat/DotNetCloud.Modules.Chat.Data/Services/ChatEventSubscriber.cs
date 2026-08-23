@@ -1,6 +1,8 @@
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Chat.Events;
 using DotNetCloud.Modules.Chat.Services;
+using DotNetCloud.Modules.Chat.Data.Services;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -15,9 +17,12 @@ internal sealed class ChatEventSubscriber : IHostedService
 {
     private readonly IEventBus _eventBus;
     private readonly IChatMessageNotifier _notifier;
+    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IPushNotificationService _pushService;
     private readonly ILoggerFactory _loggerFactory;
     private ChannelCreatedEventHandler? _channelCreatedHandler;
     private ChannelDeletedEventHandler? _channelDeletedHandler;
+    private DmChannelCreatedEventHandler? _dmChannelCreatedHandler;
 
     /// <summary>
     /// Initializes a new instance of <see cref="ChatEventSubscriber"/>.
@@ -25,10 +30,14 @@ internal sealed class ChatEventSubscriber : IHostedService
     public ChatEventSubscriber(
         IEventBus eventBus,
         IChatMessageNotifier notifier,
+        IServiceScopeFactory scopeFactory,
+        IPushNotificationService pushService,
         ILoggerFactory loggerFactory)
     {
         _eventBus = eventBus;
         _notifier = notifier;
+        _scopeFactory = scopeFactory;
+        _pushService = pushService;
         _loggerFactory = loggerFactory;
     }
 
@@ -43,11 +52,18 @@ internal sealed class ChatEventSubscriber : IHostedService
             _notifier,
             _loggerFactory.CreateLogger<ChannelDeletedEventHandler>());
 
+        _dmChannelCreatedHandler = new DmChannelCreatedEventHandler(
+            _scopeFactory,
+            _pushService,
+            _notifier,
+            _loggerFactory.CreateLogger<DmChannelCreatedEventHandler>());
+
         await _eventBus.SubscribeAsync(_channelCreatedHandler, cancellationToken);
         await _eventBus.SubscribeAsync(_channelDeletedHandler, cancellationToken);
+        await _eventBus.SubscribeAsync(_dmChannelCreatedHandler, cancellationToken);
 
         _loggerFactory.CreateLogger<ChatEventSubscriber>()
-            .LogInformation("Chat event handlers subscribed (ChannelCreated, ChannelDeleted)");
+            .LogInformation("Chat event handlers subscribed (ChannelCreated, ChannelDeleted, DmChannelCreated)");
     }
 
     /// <inheritdoc />
@@ -58,5 +74,8 @@ internal sealed class ChatEventSubscriber : IHostedService
 
         if (_channelDeletedHandler is not null)
             await _eventBus.UnsubscribeAsync(_channelDeletedHandler, cancellationToken);
+
+        if (_dmChannelCreatedHandler is not null)
+            await _eventBus.UnsubscribeAsync(_dmChannelCreatedHandler, cancellationToken);
     }
 }

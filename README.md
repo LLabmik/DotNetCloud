@@ -18,7 +18,7 @@ DotNetCloud is a modern alternative to NextCloud and OwnCloud, designed to lever
 
 DotNetCloud gives you full control of your data by running your own cloud server. Install it on your own hardware, your own domain, and never depend on a third-party cloud provider again.
 
-### Features (Planned)
+### Features
 
 | Feature                 | Description                                                                                                                            | Status     |
 | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
@@ -38,6 +38,7 @@ DotNetCloud gives you full control of your data by running your own cloud server
 | 📹 **Video Calls**      | WebRTC video calling and screen sharing                                                                                                | ✅ Phase 7 |
 | 🔍 **Search**           | Full-text search across all modules                                                                                                    | ✅ Phase 8 |
 | 🤖 **AI Assistant**     | LLM-powered assistant via Ollama (local) or Claude/OpenAI (cloud)                                                                      | ✅ Phase 9 |
+| ℹ️ **About**            | Server info, licenses, credits, module manifest viewer                                                                                 | ✅ Phase 9 |
 | 🔒 **E2EE**             | Optional zero-knowledge encryption                                                                                                     | Phase 10   |
 
 ### Roadmap
@@ -134,6 +135,7 @@ graph TB
         BlazorUI["🌐 Blazor Web UI<br/><small>Interactive Server + WASM</small>"]
         Desktop["🖥️ Desktop Sync Client<br/><small>Avalonia · Windows &amp; Linux</small>"]
         Android["📱 Android App<br/><small>.NET MAUI</small>"]
+        BrowserExt["🧩 Browser Extension<br/><small>Bookmark Sync</small>"]
         CLI["⌨️ CLI<br/><small>dotnetcloud setup / serve / …</small>"]
     end
 
@@ -147,6 +149,7 @@ graph TB
             AuthServer["OpenIddict<br/>OAuth2 / OIDC"]
             Identity["ASP.NET Core<br/>Identity + MFA"]
             SignalR["SignalR Hub<br/><small>Real-time · Presence</small>"]
+            PushNotif["Push<br/>Notifications<br/><small>FCM · APNs</small>"]
             CapSystem["Capability<br/>System"]
             EventBus["Event Bus<br/><small>Pub / Sub</small>"]
         end
@@ -229,6 +232,39 @@ graph TB
             VideoDB[("Video DB<br/><small>video.*</small>")]
             VideoLogic --- VideoDB
         end
+
+        subgraph EmailM["📧 Email Module"]
+            direction TB
+            EmailLogic["SMTP · IMAP<br/>Gmail · Folders"]
+            EmailDB[("Email DB<br/><small>email.*</small>")]
+            EmailLogic --- EmailDB
+        end
+
+        subgraph BookmarksM["🔖 Bookmarks Module"]
+            direction TB
+            BookmarksLogic["Sync · Tags<br/>Collections"]
+            BookmarksDB[("Bookmarks DB<br/><small>bookmarks.*</small>")]
+            BookmarksLogic --- BookmarksDB
+        end
+
+        subgraph SearchM["🔍 Search Module"]
+            direction TB
+            SearchLogic["Full-Text Search<br/>Cross-Module Index"]
+            SearchDB[("Search DB<br/><small>search.*</small>")]
+            SearchLogic --- SearchDB
+        end
+
+        subgraph AIM["🤖 AI Module"]
+            direction TB
+            AILogic["LLM Assistant<br/>Ollama · Claude · OpenAI"]
+            AIDB[("AI DB<br/><small>ai.*</small>")]
+            AILogic --- AIDB
+        end
+
+        subgraph AboutM["ℹ️ About Module"]
+            direction TB
+            AboutLogic["Server Info<br/>Licenses · Credits"]
+        end
     end
 
     %% ── External / Managed Components ────────────────────────
@@ -245,6 +281,7 @@ graph TB
     BlazorUI -- "HTTP · SignalR<br/>WebSocket" --> RESTAPI
     Desktop -- "REST API<br/>OAuth2 PKCE" --> RESTAPI
     Android -- "REST API · SignalR<br/>OAuth2 PKCE" --> RESTAPI
+    BrowserExt -- "REST API<br/>OAuth2 PKCE" --> RESTAPI
     CLI -- "HTTP" --> RESTAPI
 
     %% ── Connections: Core ↔ Modules (gRPC) ───────────────────
@@ -257,6 +294,11 @@ graph TB
     RESTAPI -- "gRPC<br/><small>Unix Socket / Named Pipe</small>" --> PhotosLogic
     RESTAPI -- "gRPC<br/><small>Unix Socket / Named Pipe</small>" --> MusicLogic
     RESTAPI -- "gRPC<br/><small>Unix Socket / Named Pipe</small>" --> VideoLogic
+    RESTAPI -- "gRPC<br/><small>Unix Socket / Named Pipe</small>" --> EmailLogic
+    RESTAPI -- "gRPC<br/><small>Unix Socket / Named Pipe</small>" --> BookmarksLogic
+    RESTAPI -- "gRPC<br/><small>Unix Socket / Named Pipe</small>" --> SearchLogic
+    RESTAPI -- "gRPC<br/><small>Unix Socket / Named Pipe</small>" --> AILogic
+    RESTAPI -- "gRPC<br/><small>Unix Socket / Named Pipe</small>" --> AboutLogic
 
     %% ── Connections: Core → Database ─────────────────────────
     CoreServices --> CoreDB
@@ -277,11 +319,11 @@ graph TB
     classDef managedNode fill:#95a5a6,stroke:#7f8c8d,color:#fff
     classDef infraNode fill:#1abc9c,stroke:#148f77,color:#fff
 
-    class BlazorUI,Desktop,Android,CLI,SyncService clientNode
-    class Supervisor,AuthServer,Identity,SignalR,CapSystem,EventBus,RESTAPI coreNode
+    class BlazorUI,Desktop,Android,BrowserExt,CLI,SyncService clientNode
+    class Supervisor,AuthServer,Identity,SignalR,PushNotif,CapSystem,EventBus,RESTAPI coreNode
     class Serilog,OTel,HealthChecks,SecurityMW infraNode
-    class FilesLogic,FilesWOPI,ChatLogic,CalLogic,ConLogic,NotesLogic,TracksLogic,PhotosLogic,MusicLogic,VideoLogic moduleNode
-    class CoreDB,FilesDB,ChatDB,CalDB,ConDB,NotesDB,TracksDB,PhotosDB,MusicDB,VideoDB dbNode
+    class FilesLogic,FilesWOPI,ChatLogic,CalLogic,ConLogic,NotesLogic,TracksLogic,PhotosLogic,MusicLogic,VideoLogic,EmailLogic,BookmarksLogic,SearchLogic,AILogic,AboutLogic moduleNode
+    class CoreDB,FilesDB,ChatDB,CalDB,ConDB,NotesDB,TracksDB,PhotosDB,MusicDB,VideoDB,EmailDB,BookmarksDB,SearchDB,AIDB dbNode
     class Collabora,LiveKit managedNode
 ```
 
@@ -313,8 +355,6 @@ For full details, see the [Architecture Document](docs/architecture/ARCHITECTURE
 | ---------- | ------------ |
 | PostgreSQL | ✅ Supported |
 | SQL Server | ✅ Supported |
-
-| Oracle | 🔜 Future |
 
 ---
 
@@ -348,7 +388,7 @@ See the [Module Development Guide](docs/modules/README.md) for the full walkthro
 
 ## Migrating from NextCloud
 
-Planning to migrate? DotNetCloud will include a migration tool:
+DotNetCloud includes a migration tool to import your data from an existing NextCloud instance:
 
 ```sh
 dotnetcloud migrate --from nextcloud --data-dir /var/www/nextcloud
@@ -370,21 +410,29 @@ Imports users, files, calendars, contacts, and bookmarks.
 - [Upgrading](docs/admin/server/UPGRADING.md) — update, rollback, version compatibility
 - [Backup & Restore](docs/admin/BACKUP.md)
 - [Collabora Administration](docs/admin/COLLABORA.md) — browser-based document editing setup
+- [Gmail OAuth Setup](docs/admin/GMAIL_OAUTH_SETUP.md) — Gmail integration configuration
 - [Files Module Configuration](docs/admin/CONFIGURATION.md) — storage, quotas, trash retention
 - [PIM Module Administration](docs/admin/PIM_MODULES.md) — Contacts, Calendar, Notes configuration and operations
+- [Video Calling Administration](docs/admin/VIDEO_CALLING.md) — LiveKit setup and configuration
+- [AI Assistant Administration](docs/admin/AI_ASSISTANT.md) — LLM provider setup (Ollama, Claude, OpenAI)
 - [Phase 3 Release Notes](docs/admin/PHASE_3_RELEASE_NOTES.md) — PIM suite release notes and upgrade instructions
 
 ### User Guides
 
 - [Getting Started with Files](docs/user/GETTING_STARTED.md)
+- [Document Editing](docs/user/DOCUMENT_EDITING.md) — Collabora Online browser-based document editing
 - [Contacts](docs/user/CONTACTS.md) — manage contacts, groups, CardDAV sync, vCard import/export
 - [Calendar](docs/user/CALENDAR.md) — calendars, events, reminders, CalDAV sync, iCalendar import/export
 - [Notes](docs/user/NOTES.md) — Markdown notes, folders, tags, version history, sharing
+- [Video Calls](docs/user/VIDEO_CALLS.md) — WebRTC video calling and screen sharing
+- [AI Assistant](docs/user/AI_ASSISTANT.md) — using the LLM-powered assistant
+- [Auto Updates](docs/user/AUTO_UPDATES.md) — automatic update configuration
 
 ### Clients
 
 - [Desktop Sync Client Setup](docs/clients/desktop/SETUP.md) · [User Guide](docs/user/SYNC_CLIENT.md) · [Troubleshooting](docs/clients/desktop/TROUBLESHOOTING.md)
-- [Android Client](docs/clients/android/README.md)
+- [Android Client](docs/clients/android/README.md) · [Setup](docs/clients/android/SETUP.md)
+- [Browser Extension](docs/clients/BROWSER_EXTENSION_INSTALLATION.md) — bookmark sync extension setup
 
 ### Developer
 
@@ -392,6 +440,10 @@ Imports users, files, calendars, contacts, and bookmarks.
 - [API Reference](docs/api/README.md) — REST API, authentication, response format
 - [Module Development](docs/modules/README.md) — build your own modules
 - [Development Workflow](docs/development/DEVELOPMENT_WORKFLOW.md)
+- [Database Setup](docs/development/DATABASE_SETUP.md)
+- [IDE Setup](docs/development/IDE_SETUP.md)
+- [Docker Setup](docs/development/DOCKER_SETUP.md)
+- [Running Tests](docs/development/RUNNING_TESTS.md)
 
 ---
 

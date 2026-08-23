@@ -3,7 +3,7 @@
 > **Document Version:** 1.0  
 > **Purpose:** Comprehensive task breakdown for implementing the DotNetCloud architecture  
 > **Scope:** All phases from Foundation (Phase 0) through Auto-Updates (Phase 11)  
-> **Last Updated:** 2026-07-26
+> **Last Updated:** 2026-08-18
 > **Audience:** Development team, project managers, technical leads
 
 ---
@@ -721,6 +721,18 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Set up WebSocket keep-alive
 - ✓ Configure connection limits
 
+#### Notification Bell (Read-State Fix + Real-Time Auto-Check)
+
+- ✓ Fix global `NoTracking` persistence bug (9 sites) — add `.AsTracking()` to entity-modifying queries:
+  - ✓ `NotificationService.MarkReadAsync` / `MarkAllReadAsync` (reported "mark all read doesn't stick")
+  - ✓ `AdminModuleService.StartModuleAsync` / `StopModuleAsync` (module status persistence)
+  - ✓ `MfaService.UseBackupCodeAsync` (backup codes single-use enforcement)
+  - ✓ `GroupManagerService.UpdateGroupAsync` / `DeleteGroupAsync`
+  - ✓ `TeamManagerService.UpdateTeamAsync` / `DeleteTeamAsync`
+- ✓ Regression tests (NoTracking contexts + verify contexts): `NotificationServiceTests`, `AdminModuleServiceTests`, `TeamManagerServiceTests`, extended `MfaServiceTests` + `GroupManagerServiceTests`
+- ✓ Real-time SignalR client — `IRealtimeNotificationClient` + `RealtimeNotificationClient` (server-circuit, cookie-forwarded, SSE/LongPolling) listening for `notification.created` on `/hubs/core`
+- ✓ Bell auto-check: SignalR push + 5-minute polling fallback (`NotificationBell.razor`)
+
 ---
 
 ## Phase 0.9: Authentication API Endpoints
@@ -1010,7 +1022,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 
 - ✓ `dotnetcloud backup` - Create backup
 - ✓ `dotnetcloud backup --output {path}` - Backup to specific location
-- ✓ `dotnetcloud backup --db-dump` - Include database dump (pg_dump/mysqldump/sqlcmd)
+- ✓ `dotnetcloud backup --db-dump` - Include database dump (pg_dump/sqlcmd)
 - ✓ `dotnetcloud backup --server {url}` - Trigger backup via server API
 - ✓ `dotnetcloud restore {file}` - Restore from backup (with optional DB restore)
 - ✓ `dotnetcloud restore {file}` with `database.sql` - Restore includes DB dump
@@ -1260,7 +1272,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Remove all `.Host` ProjectReferences from csproj
 - ✓ Add gRPC client proto references for all 12 modules
 - ✓ Remove all `AddXxxServices()` calls from Program.cs
-- ✓ Remove all `.Data.SqlServer` migration assembly ProjectReferences from Core.Server.csproj (handled by DbContextSchemaProvider in Core.Schema)
+- ✓ Re-established separate `.Data.SqlServer` migration projects (2026-08-19) — Core + all 14 modules now ship SQL Server migrations in their own assemblies; `ProviderAwareMigrationsAssembly` runtime filter removed; each provider applies only its own migration set
 - ✓ Remove `ModuleServiceRegistrationExtensions.cs` — module DbContext registrations moved into each module's own Add\*UiServices method via `ModuleDbContextConfiguration` helper in Core.Data
 - ✓ Replace in-process API clients with gRPC clients (Notes, Bookmarks, Email, Tracks done; remaining modules already gRPC)
 - ✓ Add options bindings for all gRPC clients
@@ -2308,6 +2320,11 @@ This phase implements the core Files module, which is the primary public-facing 
   - ✓ Empty state placeholder ("No files yet — upload or create a folder")
   - ✓ Loading skeleton while fetching data
   - ✓ Root and folder listings deduplicate tagged nodes from data-service queries
+  - ✓ Context menu actions operate on the full current selection — right-clicking inside a multi-selection keeps it; right-clicking outside selects just that card
+  - ✓ Bulk share dialog (`BulkShareDialog`) — apply one recipient + permission to all selected nodes
+  - ✓ Multi-item ZIP download (files + folders) with configurable `MaxZipSizeBytes` limit (4 GiB default) and informational modal on HTTP 413
+  - ✓ Delete confirmation dialog for both context-menu Delete and bulk toolbar Trash
+  - ✓ Download context-menu item available for folders (single file → direct download; folder/multi → single ZIP)
 
 #### File Upload Component
 
@@ -3481,6 +3498,7 @@ This phase implements real-time chat, announcements, push notifications, and the
   - ✓ `@mention` autocomplete
 - ✓ Create channel details view (members, settings)
 - ✓ Implement pull-to-refresh for message history
+- ✓ Auto-scroll to newest message on real-time arrival when the user is pinned to the bottom (reading history is never interrupted)
 - ✓ Support dark/light theme
 
 #### Real-Time Connection
@@ -4150,6 +4168,40 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ☐ Tracks.Tests excluded from CI build — 248 errors, needs full rewrite for new service/controller layer
 - ✓ All source and retained test projects build with 0 errors (DotNetCloud.CI.slnf)
 
+### Phase 4.10a: Tracks gRPC Process Isolation & Sprint Planning Chat
+
+#### gRPC UI Migration
+
+- ✓ Migrate ~35 Tracks UI files from HTTP ITracksApiClient to Core gRPC interface
+- ✓ Remove HTTP ITracksApiClient registration from Core.Server Program.cs
+- ✓ Replace AddTracksUiServices with individual in-process registrations
+- ✓ Add EventsJson to Core WebhookSubscriptionDto
+- ✓ Fix dual-definition DTO conflicts (SetTransitionRuleDto, WebhookSubscription, SprintDiscussionDto)
+
+#### Sprint Planning Discussion Chat
+
+- ✓ SprintDiscussion entity with dual-scoped FKs (SprintId OR ReviewSessionId)
+- ✓ SprintDiscussionConfiguration (EF config with indexes + cascade deletes)
+- ✓ PostgreSQL + SQL Server migrations (AddSprintDiscussion)
+- ✓ SprintDiscussionDto + SendSprintDiscussionDto (Core + Models)
+- ✓ SprintDiscussionService (CRUD, validation, real-time broadcast)
+- ✓ SprintDiscussionsController (4 REST endpoints)
+- ✓ 4 discussion RPCs in tracks_service.proto + 6 message types
+- ✓ Core ITracksApiClient discussion methods
+- ✓ TracksGrpcApiClient discussion methods + proto-to-DTO mapper
+- ✓ ITracksRealtimeService broadcast methods + TracksRealtimeService impl
+- ✓ ITracksSignalRService discussion events + TracksInProcessSignalRService impl
+- ✓ SprintPlanningView discussion panel (UI + code-behind)
+- ✓ ReviewSessionHost discussion panel (UI + code-behind)
+- ✓ ReviewSessionParticipant discussion panel (UI + code-behind)
+- ✓ Discussion CSS in TracksPage.razor.css
+
+#### Tests
+
+- ✓ SprintDiscussionServiceTests (8 tests: CRUD, validation, pagination, broadcast)
+- ✓ TracksGrpcApiClientTests (4 tests: method existence, proto mapping)
+- ✓ All 145 Tracks tests passing (0 failures)
+
 ---
 
 ## Phase 5: Media (Photos, Music, Video)
@@ -4430,6 +4482,39 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 
 - ✓ `dotnet build DotNetCloud.CI.slnf` — zero compilation errors
 - ✓ All existing tests pass with updated constructor parameters
+
+---
+
+## Final Release: Blazor-Side Fixes (2026-08-02)
+
+**Objective:** Pre-release polish batch — media scan efficiency, SyncTray sleep resilience, and UI/UX cleanup.
+
+### Media Scan — Skip Already-Enriched Content
+
+- ✓ `DailyVideoEnrichmentService` — skips videos that already have a TMDB ID (`CanonicalTmdbData` present), preventing daily re-enrichment of videos with good metadata
+- ✓ `VideoEnrichmentBackgroundQueue` — enrichment worker no longer re-fetches metadata for videos that already have TMDB enrichment data
+- ✓ Music enrichment — verified 30-day `LastEnrichedAt` cooldown is respected across all enrichment paths (no daily re-fetch of enriched albums/artists/tracks)
+
+### SyncTray — Wake-From-Sleep Handling
+
+- ✓ New `SyncResumeService` background service — detects OS resume (Windows `SystemEvents.PowerModeChanged` + Linux `SIGCONT`) and restarts sync engines with fresh connections
+- ✓ Registered in SyncTray DI (`App.axaml.cs`); disposed cleanly on shutdown
+- ✓ SyncTray tests pass (123)
+
+### UI Cleanup — Sign Out / Logout
+
+- ✓ Removed redundant "Sign out" link from home page (`Home.razor`) — topbar "Logout" is the single logout path
+- ✓ Topbar Logout now opens a confirmation modal (`ConfirmDialog`) before signing out — new `LogoutButton` component + `logout-confirm.js` helper
+
+### Video Metadata — Manual Edit (parity with Music)
+
+- ✓ Backend: `VideoDto` extended with editable metadata fields (Title, Overview, Year, Genres, TmdbRating)
+- ✓ `IVideoService.UpdateMetadataAsync` + `VideoService` implementation (canonical tables, dual-write)
+- ✓ `VideoController` — `PUT /api/v1/videos/{videoId}/metadata` endpoint
+- ✓ New `VideoMetadataEditDialog` component — edit title/overview/year/genres, re-fetch from TMDB (`force`)
+- ✓ Wired into `VideoPage` detail view with "Edit Metadata" action
+
+**Verification:** Full solution build `DotNetCloud.CI.slnf` ✅ (0 errors). Tests: Video 154 ✅, Music 382 ✅, SyncTray 123 ✅, UI.Shared 62 ✅.
 
 ---
 
@@ -5132,6 +5217,9 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Download with `IProgress<double>` reporting
 - ✓ Version comparison logic (semver + pre-release)
 - ✓ DI registration via `ClientCoreServiceExtensions`
+- ✓ Download to user's `~/Downloads/DotNetCloud/updates/` with byte-level `DownloadProgress` (bytes + speed) and `DownloadedUpdate` result
+- ✓ SHA256 checksum verification when a release digest is published (mismatch aborts and removes the file)
+- ✓ Windows zip apply — extract via `System.IO.Compression`, locate `payload/SyncTray`, launch updater helper
 
 #### Step 11.9 — Background Update Checker (SyncTray)
 
@@ -5144,12 +5232,24 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `UpdateDialog.axaml` — dark themed Avalonia window (version cards, status badges, release notes, progress bar)
 - ✓ `UpdateViewModel` — check/download/apply commands, platform asset matching
 - ✓ Settings "Updates" tab — current version display, auto-check toggle
+- ✓ Two-step flow: Download → separate "Restart to apply" action (apply is no longer automatic)
+- ✓ Download destination path + file size surfaced; byte-level progress + speed shown; cancel button during download
+- ✓ Close guarded while a download/apply is in flight (button disabled + window `OnClosing` cancel)
+- ✓ Background auto-download (opt-in `AutoDownloadUpdates` setting) with "Update Downloaded" notification and tray "Restart to apply update…" item
+
+#### Step 11.10.1 — Windows Updater Helper
+
+- ✓ `DotNetCloud.Client.Updater` console project — self-contained single-file, `requireAdministrator` manifest
+- ✓ Helper contract `--pid --source --target --exe`: waits for exit → copies files → relaunches
+- ✓ `build-desktop-client-bundles.ps1` publishes and embeds `dotnetcloud-updater.exe` in the win-x64 payload
 
 #### Step 11.11 — Desktop Client Update Tests
 
 - ✓ `ClientUpdateServiceTests` — 10 tests (server check, fallback, download, events, error handling)
 - ✓ `UpdateCheckBackgroundServiceTests` — 8 tests (event firing, error resilience, lifecycle, defaults)
 - ✓ All 18 Phase B tests passing
+- ✓ `ClientUpdateServiceTests` — destination + detailed-progress, read-failure cleanup, checksum verify/mismatch tests
+- ✓ `UpdateViewModelTests` — background check pre-population and downloaded-state surfacing
 
 ### Phase C: Android Client Update Notification
 
@@ -5572,6 +5672,19 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `ProductSettingsPage.razor.cs` — `SettingsSwimlane.CardLimit`, `_enforceWipStrictly` state
 - ✓ WIP toast CSS + transition matrix CSS styles
 
+### H-4: Epic/Feature Swimlane Auto-Creation Fix
+
+- ✓ `SwimlaneService.EnsureWorkItemSwimlanesExistAsync()` — lazy creation on first fetch
+- ✓ `GetSwimlanesAsync` calls `EnsureWorkItemSwimlanesExistAsync` for WorkItem containers
+- ✓ Replicates product-level swimlanes to epic/feature on first fetch (idempotent, fast-path skip)
+- ✓ Falls back to 3 defaults (To Do, In Progress, Done) if product has no swimlanes
+- ✓ Retroactively fixes all existing epics/features created before replication was added
+
+### H-5: Side-Panel Kanban Spinner Fix
+
+- ✓ `OpenEpicKanban` / `OpenFeatureKanban` call `StateHasChanged()` after setting `_isLoading = true`
+- ✓ `OnOpenKanban` razor handler changed from `InvokeAsync(() => ...)` to `await OpenEpicKanban(...)`
+
 ## Required Modules & Schema Separation
 
 > **Reference:** `docs/REQUIRED_MODULES_AND_SCHEMA_SEPARATION_PLAN.md`
@@ -5632,21 +5745,31 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 
 ### Phase 6 — install.sh ✓
 
-- ✓ Create `DotNetCloud.Core.Schema` project to host `DbContextSchemaProvider`
+- ✓ Create `DotNetCloud.Core.Schema` project to host `DbContextSchemaProvider` (later consolidated into Core.Server — see projects-maintenance)
+- ✓ `DbContextSchemaProvider` moved to `Core.Server/Services/`; `Core.Schema` project eliminated
 - ✓ Move `ModuleSchemaService` to `Core.Data` with `IEnumerable<IModuleSchemaProvider>` dispatch
 - ✓ Add `--migrate-only` flag to `SetupCommand` (mutually exclusive with `--beginner`)
 - ✓ `RunMigrateOnlyAsync` applies core migrations, syncs module registry, and initializes module schemas
 - ✓ Register `DbContextSchemaProvider` via `IModuleSchemaProvider` in both CLI `ServiceProviderFactory` and server `Program.cs`
 - ✓ Update `install.sh` fallback warning
+- ✓ `SetupCommand` — persist a stable WOPI token signing key during setup and set `config.json` to `root:dotnetcloud 640` so the service can read it
+- ✓ `DatabaseSetupHelper` — validate/quote PostgreSQL identifiers (SQL injection + broken-statement hardening)
+- ✓ `install.sh` — gate the upgrade path on a successful `dotnetcloud migrate`; pre-release-aware `version_compare`
+- ✓ `SystemdServiceHelper` — add `DOTNET_ROOT`, `EnvironmentFile=-/etc/dotnetcloud/env`, and default TMDB key to the unit template
+- ✓ `uninstall.sh` — remove the DotNetCloud root CA from the trust store on uninstall
+- ✓ `deploy.sh` — write `/opt/dotnetcloud/VERSION` (latest release tag) for correct later install detection
+- ✓ SQL Server install support — setup wizard defaults to SQL authentication (password) for SQL Server, provider-neutral migration-failure hints, systemd unit orders after `mssql-server`
 
 ### Phase 7 — Update Example module ✓
 
 - ✓ Add `"schemaProvider": "self"` to Example module `manifest.json` (already present)
 - ✓ Update `ExampleDbContext` to inject `ITableNamingStrategy` and call `HasDefaultSchema`
-- ✓ Update `Program.cs` for self-managed migration pattern (`async Task Main`, env var, in-memory fallback)
+- ✓ Update `Program.cs` for self-managed migration pattern (`async Task Main`, config-driven dual-provider DB via `DOTNETCLOUD_CONFIG_DIR`, fail-fast when DB config missing)
 - ✓ Add `Npgsql.EntityFrameworkCore.PostgreSQL` and `Microsoft.EntityFrameworkCore.Design` package references
 - ✓ Create `ExampleDbContextFactory` for design-time EF tooling
 - ✓ Add EF `InitialCreate` migration for the `example` schema
+- ✓ Add `ExampleDbContextSqlServerDesignTimeFactory` + SQL Server migration set (`Migrations/SqlServer/`) — canonical dual-provider pattern
+- ✓ Remove `UseInMemoryDatabase` fallback + `Microsoft.EntityFrameworkCore.InMemory` package refs from all production module Hosts (fail-fast `InvalidOperationException`)
 - ✓ Update `README.md` with schema management documentation
 
 ---
@@ -6081,3 +6204,147 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 
 - ✓ Fix `AutoDetectSeriesAsync` loop index bug: loop started at `i=1`, skipping the first path segment. When library source points directly at the show folder (e.g., `_dotnetcloud/TV/Star Trek/Discovery`), the relative scan path is `Season 1/Episode 1.mkv` and the `"Season 1"` folder at index 0 was never checked.
 - ✓ Pass `sourceName` to `AutoDetectSeriesAsync` so it can use the library source name as the series name fallback when the season folder is the first path segment (no parent folder to extract series name from)
+
+---
+
+## Notification Fan-Out Unification (2026-08-16)
+
+> **Reference:** `docs/NOTIFICATION_FANOUT_UNIFICATION_PLAN.md` (branch `fix/notification-flow`)
+
+### Phase 1 — Consolidate Producers (close the 5-event gap)
+
+- ✓ `NotificationProducer` — single bell producer for all 8 cross-module events
+- ✓ File shared (user-targeted) → bell "File shared with you" (the fix)
+- ✓ Quota warning / quota critical → bell system alerts
+- ✓ Public link accessed / share expiring → bell to share creator
+- ✓ Resource shared / user mentioned / reminder triggered → bell (unchanged titles/types)
+
+### Phase 2 — `NotificationCreatedEvent` + Dispatcher
+
+- ✓ `NotificationCreatedEvent` published by `NotificationService` after `SaveChangesAsync`
+- ✓ `INotificationChannel` abstraction + `NotificationFanOutDispatcher` (per-channel failure isolation)
+- ✓ `SendToManyAsync` publishes one `NotificationCreatedEvent` per persisted row
+
+### Phase 3 — Channel Implementations
+
+- ✓ `RealtimeNotificationChannel` — SignalR `notification.created` to recipient (bell live refresh)
+- ✓ `PushNotificationChannel` — gRPC to Chat module `NotificationRouter` (FCM/UnifiedPush)
+- ✓ `NullEmailChannel` — stub (real email deferred)
+
+### Phase 4 — gRPC Push RPC (Core.Server → Chat)
+
+- ✓ `SendPushNotification` RPC in `chat_service.proto` + `ChatGrpcService`
+- ✓ `IChatApiClient.SendPushNotificationAsync` + `ChatGrpcApiClient` implementation
+- ✓ Chat `NotificationRouter` owns preference/presence/DND gating — not duplicated in Core
+
+### Phase 5 — Rewire `NotificationEventSubscriber`
+
+- ✓ Subscribes `NotificationProducer` to all 8 events + `NotificationFanOutDispatcher` to `NotificationCreatedEvent`
+- ✓ Unsubscribes all 9 subscriptions on shutdown
+
+### Phase 6 — DI Registration + Cleanup
+
+- ✓ Removed `NoOpPushNotificationService` + Core.Server `PushNotifications` namespace (dead code)
+- ✓ Deleted 9 obsolete push/in-app handler files
+- ✓ Registered 3 fan-out channels (scoped)
+- ✓ `GrpcHealthServiceImpl` calendar push fallback now uses `IChatApiClient` (no Core push service)
+
+### Phase 7 — Tests
+
+- ✓ `NotificationProducerTests` — 11 tests (null recipient, quota, public link, share expiry, PIM events)
+- ✓ `NotificationFanOutDispatcherTests` — 2 tests (all channels called, throwing channel isolation)
+- ✓ `PushNotificationChannelTests` — 7 tests (category mapping per `NotificationType`)
+- ✓ `ChatGrpcServicePushTests` — 3 tests (invalid user id, forward to push service, unknown category)
+- ✓ Removed obsolete `NotificationHandlerTests.cs` (tested deleted push handlers)
+
+### Phase 8 — Documentation
+
+- ✓ `IMPLEMENTATION_CHECKLIST.md` updated (this section)
+- ✓ `MASTER_PROJECT_PLAN.md` updated
+
+### Verification
+
+- ✓ `dotnet build DotNetCloud.CI.slnf -c Release` — 0 errors
+- ✓ Core.Server tests: 590 passed
+- ✓ Chat tests: 1311 passed
+- ✓ Core tests: 489 passed
+
+---
+
+## SOC 2 Type II Compliance (2026-08-18)
+
+> **Reference:** `docs/SOC2_TYPE_II_COMPLIANCE_PLAN.md` — branch `feature/soc2-level-ii-compliance`
+
+### Workstream A — Compliance scanner (offline audit tool)
+
+- ✓ Rewrote `scripts/soc2-compliance-scan.sh` in place with 13 criteria-tagged checks (CC6/CC7, C1, PI1, CC7, C2/P6, P6) + IPv4/.deps/minified-JS false-positive fixes
+- ✓ Added `--markdown` (default), `--txt`, and `--ci` (JSON + exit 1 on untriaged findings) output modes
+- ✓ Added module & project coverage section (all 15 modules + clients/UI/CLI, 0 missing)
+- ✓ Exclusion globs per plan §3.3 (tests, bin, obj, root `modules/`, `wwwroot`, minified, `.deps.json`, Designer.cs); scanner scripts self-excluded; excludes applied **after** include globs (ripgrep last-match-wins — verified: no self-matches, no `wwwroot`/`*.min.js`/`blazor.web.js` blobs); `SOC2_REPORT_DIR` honored to redirect the report
+- ✓ Added **Windows-native PowerShell scanner** `scripts/soc2-compliance-scan.ps1` (Select-String, no ripgrep)
+- ✓ **Offline-only execution** (2026-08-19): scan runs as an **offline, administrator-run audit** with source available — no server-side execution. Reverted the online implementation (`Soc2ScanCoordinator`, `POST/GET /api/v1/core/admin/soc2/scan`, `/admin/soc2` page + nav item, `Soc2` config, `deploy.sh` shipping step + marker + traverse-ACL grant) so the production service has **no access** to the source repo. Walkthrough: `docs/admin/SOC2_COMPLIANCE_ADMIN_GUIDE.md` §3
+
+### Workstream B — Persisted audit trail (CC4/P7)
+
+- ✓ `AuditLog` entity + `AuditLogConfiguration` (indexes: timestamp, module+timestamp, entity, caller-user)
+- ✓ `CoreDbContext` `AuditLogs` DbSet + model configuration
+- ✓ Migrations for both providers: `AddAuditLog` (PostgreSQL) + `AddAuditLog_SqlServer` (SQL Server)
+- ✓ **Dual-provider migration split** (2026-08-19) — created separate `*.Data.SqlServer` projects for Core + all 14 modules; moved SQL Server migrations + design-time factories into them; removed `ProviderAwareMigrationsAssembly`; wired host/CLI/Core.Server project references + solution/CI filter; full CI build 0 errors, unit tests green
+- ✓ Applied `AddAuditLog_SqlServer` (+ 2 pre-existing pending Core migrations) to production SQL Server; verified `dbo.AuditLogs` table + all 10 columns + 0 rows; model snapshot synced (no pending-model-changes)
+- ✓ `AuditLogService` (write-through, scoped, mirrors Serilog audit sink)
+- ✓ gRPC `CoreCapabilities.LogAudit` rpc + messages + handler in `GrpcHealthServiceImpl`
+- ✓ `AuditLoggerGrpcClient` + `AddAuditLogger()` registered in all 15 module hosts
+- ✓ Instrumentation: Core.Server auth controllers (Auth, AuthSession, Mfa, UserManagement, Admin) + all 15 modules (`rg "LogAsync" src/Modules` hits in 15/15)
+
+### Workstream C — Retention & disposal (C2/P6)
+
+- ✓ `core.AuditLogRetentionDays` (365) + `core.TrashRetentionDays` (30) system-setting keys
+- ✓ `AuditLogPurgeHostedService` — daily batched purge, logs purged count, registered in `Program.cs`
+
+### Workstream D — Upload validation (PI1/CC6)
+
+- ✓ Verified all upload endpoints use `IFileValidationService` (avatar, contacts avatar/attachment, bookmarks import, email attachment, tracks CSV) + `RequestSizeLimit`
+- ✓ `IFileValidationService` registered in Core.Server + Bookmarks/Email/Tracks/Contacts hosts
+
+### Workstream E — Dependency remediations (CC7)
+
+- ✓ `dotnet list package --vulnerable --include-transitive` clean (no new advisories)
+- ✓ Added dated compensating controls + review date (2026-11-18) to both `NuGetAuditSuppress` entries
+
+### Workstream F — OpenIddict key rotation (CC6/C1)
+
+- ✓ Confirmed automatic `OidcKeyRotationService` (90-day rotation, 120-day retention) registered; explicit `Auth:KeyRotation` defaults in appsettings.json
+- ✓ Added `scripts/rotate-oidc-keys.sh` (backup + new signing key + verification)
+- ✓ Added admin **Rotate OIDC Keys** button (`/admin/settings`) → `POST /api/v1/core/admin/security/rotate-oidc-keys` (backs up keys, generates signing + encryption keys, sets `core.OidcKeysPendingRestart` flag, cleans old keys, audited)
+- ✓ Added **restart-to-activate banner** + **Activate now** button → `POST /api/v1/core/admin/restart` (graceful restart; flag cleared on startup by `OidcKeyRotationService`)
+- ✓ systemd units set to `Restart=always` (install.sh + `SystemdServiceHelper`) so graceful restarts recover
+- ✓ Documented manual + emergency rotation in `DEPLOYMENT_HARDENING.md` §11 and admin guide §5
+
+### Workstreams G–I — Availability, confidentiality, processing integrity
+
+- ✓ Verified `BackupHostedService` + health endpoints; restore-test runbook in admin guide §6
+- ✓ TLS bypass hits verified env-gated; raw SQL verified parameterized (constant SQL, parameterized inputs)
+- ✓ PII inventory + data-subject procedure documented
+
+### Workstream J — Privacy (P1–P8)
+
+- ✓ `docs/security/PII_INVENTORY.md` — PII categories, field-level table, retention/disposal, DSAR procedure
+
+### Workstream K — Client hardening (CC6/C1)
+
+- ✓ Verified `EncryptedFileTokenStore`, `AndroidKeyStoreTokenStore`, TLS validation, updater signature checks (static audit)
+
+### Workstream L — Control matrix, evidence + auditor report
+
+- ✓ `docs/security/SOC2_CONTROL_MATRIX.md`
+- ✓ `docs/security/SOC2_TYPE_II_AUDITOR_REPORT.md` (draft template)
+- ✓ `docs/security/SOC2_AUDITOR_GUIDE.md`, `docs/admin/SOC2_COMPLIANCE_ADMIN_GUIDE.md` (already present, referenced)
+
+### Verification
+
+- ✓ `dotnet build` — Core.Server, Core.Data, Core.Grpc, all 15 module hosts (0 errors)
+- ✓ Scanner `--markdown` report generated; module coverage 15/15 + clients/UI/CLI, 0 missing
+- ✓ `dotnet list package --vulnerable` clean
+- ✓ Core.Server tests pass (597; the 4 online-scan coordinator tests were removed with the revert)
+- ✓ Deployed to production (2026-08-19) — online scan removed; scanner is offline-only (admin guide §3)
+- ☐ Commit on `feature/soc2-level-ii-compliance` (awaiting user sign-off)

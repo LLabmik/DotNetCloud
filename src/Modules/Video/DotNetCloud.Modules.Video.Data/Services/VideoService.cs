@@ -9,6 +9,9 @@ using DotNetCloud.Modules.Video.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using static DotNetCloud.Modules.Video.Data.Services.WatchProgressService;
+using IAuditLogger = DotNetCloud.Core.Capabilities.IAuditLogger;
+using AuditEntry = DotNetCloud.Core.Capabilities.AuditEntry;
+using AuditAction = DotNetCloud.Core.Capabilities.AuditAction;
 
 namespace DotNetCloud.Modules.Video.Data.Services;
 
@@ -22,6 +25,7 @@ public sealed class VideoService : IVideoService
     private readonly IEventBus _eventBus;
     private readonly IVideoSeriesService _seriesService;
     private readonly ITableNamingStrategy _namingStrategy;
+    private readonly IAuditLogger _auditLogger;
     private readonly ILogger<VideoService> _logger;
 
     // Per-circuit cache: series content hashes rarely change (only on library scan).
@@ -31,12 +35,13 @@ public sealed class VideoService : IVideoService
     /// <summary>
     /// Initializes a new instance of the <see cref="VideoService"/> class.
     /// </summary>
-    public VideoService(VideoDbContext db, IEventBus eventBus, IVideoSeriesService seriesService, ITableNamingStrategy namingStrategy, ILogger<VideoService> logger)
+    public VideoService(VideoDbContext db, IEventBus eventBus, IVideoSeriesService seriesService, ITableNamingStrategy namingStrategy, IAuditLogger auditLogger, ILogger<VideoService> logger)
     {
         _db = db;
         _eventBus = eventBus;
         _seriesService = seriesService;
         _namingStrategy = namingStrategy;
+        _auditLogger = auditLogger;
         _logger = logger;
     }
 
@@ -116,6 +121,16 @@ public sealed class VideoService : IVideoService
 
         await _db.SaveChangesAsync(cancellationToken);
 
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = caller,
+            ModuleId = "dotnetcloud.video",
+            Action = AuditAction.Create,
+            EntityType = "Video",
+            EntityId = userVideo.Id,
+            Description = "create-video",
+        }, cancellationToken);
+
         _logger.LogInformation("Video {VideoId} created for file {FileNodeId} by user {UserId} (canonical={ContentHash})",
             userVideo.Id, fileNodeId, ownerId, contentHash);
 
@@ -162,7 +177,8 @@ public sealed class VideoService : IVideoService
     /// </summary>
     public async Task UpdateDurationAsync(Guid videoId, TimeSpan duration, CancellationToken cancellationToken = default)
     {
-        if (duration <= TimeSpan.Zero) return;
+        if (duration <= TimeSpan.Zero)
+            return;
 
         var userVideo = await _db.UserVideos
             .Include(uv => uv.CanonicalVideo)
@@ -406,6 +422,55 @@ public sealed class VideoService : IVideoService
             EntityId = videoId.ToString(),
             Action = SearchIndexAction.Remove
         }, caller, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<VideoDto?> UpdateVideoDetailsAsync(
+        Guid videoId, UpdateVideoDetailsDto dto, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        var userVideo = await _db.UserVideos
+            .Include(uv => uv.CanonicalVideo)
+            .FirstOrDefaultAsync(uv => uv.Id == videoId && uv.OwnerId == caller.UserId && !uv.IsDeleted, cancellationToken);
+
+        if (userVideo?.CanonicalVideo is null)
+            return null;
+
+        var canonical = userVideo.CanonicalVideo;
+
+        // Title — the most common correction (wrong movie matched).
+        if (!string.IsNullOrWhiteSpace(dto.Title))
+        {
+            canonical.Title = dto.Title.Trim();
+        }
+
+        // Persist manual corrections to the canonical TMDB data (if any) so the
+        // corrected overview/genres/date/tagline are reflected everywhere the
+        // video is displayed. Only fields explicitly provided are updated.
+        var tmdbId = canonical.TmdbId ?? canonical.EmbeddedTmdbId;
+        if (tmdbId is not null)
+        {
+            var tmdbData = await _db.CanonicalTmdbData
+                .FirstOrDefaultAsync(ct => ct.TmdbId == tmdbId.Value, cancellationToken);
+
+            if (tmdbData is not null)
+            {
+                if (dto.Overview is not null)
+                    tmdbData.Overview = dto.Overview;
+                if (dto.Genres is not null)
+                    tmdbData.Genres = dto.Genres;
+                if (dto.ReleaseDate.HasValue)
+                    tmdbData.ReleaseDate = dto.ReleaseDate;
+                if (dto.Tagline is not null)
+                    tmdbData.Tagline = dto.Tagline;
+                tmdbData.UpdatedAt = DateTime.UtcNow;
+            }
+        }
+
+        canonical.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Video {VideoId} display metadata updated by user {UserId}", videoId, caller.UserId);
+        return MapFromCanonical(userVideo, canonical);
     }
 
     /// <inheritdoc />

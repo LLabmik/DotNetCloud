@@ -4,7 +4,7 @@ using DotNetCloud.Core.Data.Naming;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
-namespace DotNetCloud.Core.Data.SqlServer;
+namespace DotNetCloud.Core.Data;
 
 /// <summary>
 /// Design-time factory for generating SQL Server migrations for CoreDbContext.

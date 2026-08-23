@@ -1,5 +1,6 @@
 using DotNetCloud.Core.AI;
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Modules.AI.Data;
 using DotNetCloud.Modules.AI.Data.Services;
 using DotNetCloud.Modules.AI.Services;
@@ -28,7 +29,7 @@ public class AiChatServiceTests
             .Options;
         _db = new AiDbContext(options);
         _ollamaMock = new Mock<IOllamaClient>();
-        _service = new AiChatService(_db, _ollamaMock.Object, NullLogger<AiChatService>.Instance);
+        _service = new AiChatService(_db, _ollamaMock.Object, Mock.Of<IAuditLogger>(), NullLogger<AiChatService>.Instance);
         _caller = new CallerContext(Guid.CreateVersion7(), new[] { "user" }, CallerType.User);
     }
 

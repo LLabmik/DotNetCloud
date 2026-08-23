@@ -146,6 +146,13 @@ public sealed class UnifiedPushReceiver : UnifiedPush.MessagingReceiver
             return;
         }
 
+        // DM channel created — high-priority notification with action buttons
+        if (string.Equals(payload.Type, "dm_channel_created", StringComparison.OrdinalIgnoreCase))
+        {
+            ShowDmChannelNotification(context, payload);
+            return;
+        }
+
         // ── Foreground check: suppress if app is visible ──
         try
         {
@@ -269,6 +276,74 @@ public sealed class UnifiedPushReceiver : UnifiedPush.MessagingReceiver
             }
         }
         catch { /* Best effort */ }
+    }
+
+    private static void ShowDmChannelNotification(Context context, PushPayload payload)
+    {
+        var channelId = payload.ChannelId ?? string.Empty;
+        var channelGuid = Guid.TryParse(channelId, out var g) ? g : Guid.Empty;
+        var title = payload.Title ?? "DotNetCloud";
+        var body = payload.Body ?? string.Empty;
+
+        // Deep-link intent: open MainActivity and route to the DM channel.
+        var openIntent = new Intent(context, typeof(MainActivity));
+        openIntent.SetAction(Intent.ActionMain);
+        openIntent.AddCategory(Intent.CategoryLauncher);
+        if (channelGuid != Guid.Empty)
+            openIntent.PutExtra("channelId", channelGuid.ToString());
+
+        var pendingIntent = PendingIntent.GetActivity(
+            context,
+            channelGuid.GetHashCode(),
+            openIntent,
+            PendingIntentFlags.Immutable | PendingIntentFlags.UpdateCurrent);
+
+        // Accept action
+        var acceptIntent = new Intent(context, typeof(DmNotificationActionReceiver));
+        acceptIntent.SetAction("DOTNETCLOUD_DM_ACCEPT");
+        acceptIntent.PutExtra("channelId", channelId);
+        var acceptPending = PendingIntent.GetBroadcast(
+            context, channelGuid.GetHashCode() ^ 1, acceptIntent,
+            PendingIntentFlags.Immutable | PendingIntentFlags.UpdateCurrent);
+
+        // Ignore action
+        var ignoreIntent = new Intent(context, typeof(DmNotificationActionReceiver));
+        ignoreIntent.SetAction("DOTNETCLOUD_DM_IGNORE");
+        ignoreIntent.PutExtra("channelId", channelId);
+        var ignorePending = PendingIntent.GetBroadcast(
+            context, channelGuid.GetHashCode() ^ 2, ignoreIntent,
+            PendingIntentFlags.Immutable | PendingIntentFlags.UpdateCurrent);
+
+        // DND action
+        var dndIntent = new Intent(context, typeof(DmNotificationActionReceiver));
+        dndIntent.SetAction("DOTNETCLOUD_DM_DND");
+        dndIntent.PutExtra("channelId", channelId);
+        var dndPending = PendingIntent.GetBroadcast(
+            context, channelGuid.GetHashCode() ^ 3, dndIntent,
+            PendingIntentFlags.Immutable | PendingIntentFlags.UpdateCurrent);
+
+        var iconRes = context.Resources!
+            .GetIdentifier("ic_notification", "drawable", context.PackageName);
+        if (iconRes == 0)
+            iconRes = global::Android.Resource.Drawable.IcDialogInfo;
+
+        var notification = new Notification.Builder(context, MainApplication.ChannelIdDmNotifications)
+            .SetContentTitle(title)
+            .SetContentText(body)
+            .SetSmallIcon(iconRes)
+            .SetContentIntent(pendingIntent)
+            .SetAutoCancel(true)
+            .AddAction(new Notification.Action.Builder(
+                null, "Reply & Join", acceptPending).Build())
+            .AddAction(new Notification.Action.Builder(
+                null, "Ignore", ignorePending).Build())
+            .AddAction(new Notification.Action.Builder(
+                null, "DND", dndPending).Build())
+            .Build();
+
+        var nm = (NotificationManager?)context.GetSystemService(Context.NotificationService);
+        var notificationId = 6000 + (channelGuid.GetHashCode() & 0x0FFF);
+        nm?.Notify(notificationId, notification);
     }
 }
 #endif

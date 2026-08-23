@@ -1,0 +1,78 @@
+@namespace DotNetCloud.Modules.Files.UI
+
+@*
+    Bulk share dialog — shares multiple files/folders with a single recipient.
+    The parent is responsible for creating the share on every target node.
+*@
+
+<div class="share-dialog-overlay" @onmousedown="HandleOverlayMouseDown" @onclick="HandleOverlayClick">
+    <div class="share-dialog" @onclick:stopPropagation>
+        <div class="share-header">
+            <h3>Share @(Nodes.Count) items</h3>
+            <button class="btn-icon" @onclick="Close" aria-label="Close" title="Close">✕</button>
+        </div>
+
+        <div class="share-body">
+            <section class="share-new-section">
+                <h4>Add people or teams</h4>
+
+                <div class="share-search-row">
+                    <div class="share-search-wrapper">
+                        <input type="text"
+                               class="form-control share-search-input"
+                               placeholder="Search users, teams, or groups…"
+                               @bind="SearchQuery"
+                               @bind:event="oninput"
+                               @bind:after="OnSearchInputAsync"
+                               aria-label="Search for share recipients" />
+
+                        @if (IsSearching)
+                        {
+                            <span class="share-search-spinner" aria-hidden="true">…</span>
+                        }
+
+                        @if (SearchResults.Count > 0)
+                        {
+                            <ul class="share-search-results" role="listbox">
+                                @foreach (var result in SearchResults)
+                                {
+                                    <li class="share-search-result-item @(result.Id == SelectedSearchResult?.Id ? "selected" : "")"
+                                        role="option"
+                                        @onclick="() => SelectSearchResult(result)">
+                                        <span class="result-type-badge badge-@result.ResultType.ToLowerInvariant()">
+                                            @result.ResultType
+                                        </span>
+                                        <span class="result-name">@result.DisplayName</span>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </div>
+
+                    <select class="form-control share-permission-select" @bind="NewSharePermission">
+                        <option value="Read">Read</option>
+                        <option value="ReadWrite">Read/Write</option>
+                        <option value="Full">Full</option>
+                    </select>
+                </div>
+
+                <div class="share-note-row">
+                    <input type="text" class="form-control" placeholder="Note (optional)" @bind="Note" />
+                </div>
+
+                <div class="share-actions">
+                    <button class="btn btn-primary btn-sm"
+                            @onclick="CreateShareAsync"
+                            disabled="@(SelectedSearchResult is null || IsCreatingShare)">
+                        Share with @Nodes.Count items
+                    </button>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(ShareErrorMessage))
+                {
+                    <p class="text-danger">@ShareErrorMessage</p>
+                }
+            </section>
+        </div>
+    </div>
+</div>

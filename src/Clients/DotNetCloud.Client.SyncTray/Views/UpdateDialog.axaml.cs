@@ -32,4 +32,18 @@ public partial class UpdateDialog : Window
             Close();
         }
     }
+
+    /// <inheritdoc/>
+    protected override void OnClosing(WindowClosingEventArgs e)
+    {
+        base.OnClosing(e);
+
+        // Prevent the window (title-bar X) from closing while a download or
+        // apply is in flight — those operations must be cancelled or completed
+        // through the view-model's buttons.
+        if (_vm is { IsBusy: true })
+        {
+            e.Cancel = true;
+        }
+    }
 }

@@ -1,0 +1,69 @@
+@namespace DotNetCloud.Modules.Chat.UI
+
+@*
+    DM Channel Created notification — Toast overlay when another user starts a DM.
+    Shows initiator info with four action buttons: Accept, Reply, Ignore, DND.
+    Code-behind: DmNotification.razor.cs
+*@
+
+@if (IsVisible)
+{
+    <div class="dm-notification-overlay">
+        <div class="dm-notification-card">
+            <div class="dm-notification-header">
+                <span class="dm-notification-type">New Message</span>
+                @if (RemainingSeconds > 0)
+                {
+                    <span class="dm-timer">@RemainingSeconds s</span>
+                }
+                <button class="dm-dismiss-btn" @onclick="HandleDismiss" title="Dismiss" aria-label="Dismiss notification">
+                    <MaterialIcon Icon="close" Size="MaterialIconSize.Sm" />
+                </button>
+            </div>
+
+            <div class="dm-notification-body">
+                <div class="initiator-avatar">
+                    @if (!string.IsNullOrEmpty(InitiatorAvatarUrl))
+                    {
+                        <img class="avatar-circle-img" src="@InitiatorAvatarUrl" alt="@InitiatorName" />
+                    }
+                    else
+                    {
+                        <div class="avatar-circle">@GetInitials(InitiatorName)</div>
+                    }
+                </div>
+                <div class="initiator-info">
+                    <span class="initiator-name">@InitiatorName</span>
+                    <span class="initiator-action">started a chat with you</span>
+                </div>
+            </div>
+
+            <div class="dm-notification-actions">
+                <button class="dm-action-btn accept"
+                        @onclick="HandleAccept"
+                        title="Reply &amp; join the conversation">
+                    <MaterialIcon Icon="chat" Size="MaterialIconSize.Sm" />
+                    <span class="action-label">Reply &amp; Join</span>
+                </button>
+                <button class="dm-action-btn reply"
+                        @onclick="HandleReply"
+                        title="Send a reply without joining">
+                    <MaterialIcon Icon="reply" Size="MaterialIconSize.Sm" />
+                    <span class="action-label">Reply</span>
+                </button>
+                <button class="dm-action-btn ignore"
+                        @onclick="HandleIgnore"
+                        title="Ignore this request">
+                    <MaterialIcon Icon="notifications_off" Size="MaterialIconSize.Sm" />
+                    <span class="action-label">Ignore</span>
+                </button>
+                <button class="dm-action-btn dnd"
+                        @onclick="HandleEnableDnd"
+                        title="Enable Do Not Disturb — block all DM notifications">
+                    <MaterialIcon Icon="do_not_disturb" Size="MaterialIconSize.Sm" />
+                    <span class="action-label">DND</span>
+                </button>
+            </div>
+        </div>
+    </div>
+}

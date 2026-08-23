@@ -14,13 +14,15 @@ public partial class App : Application
 {
     private readonly IServerConnectionStore _serverStore;
     private readonly ISecureTokenStore _tokenStore;
+    private readonly IOfflineSyncService _offlineSync;
 
     /// <summary>Initializes a new <see cref="App"/>.</summary>
-    public App(IServerConnectionStore serverStore, ISecureTokenStore tokenStore)
+    public App(IServerConnectionStore serverStore, ISecureTokenStore tokenStore, IOfflineSyncService offlineSync)
     {
         InitializeComponent();
         _serverStore = serverStore;
         _tokenStore = tokenStore;
+        _offlineSync = offlineSync;
 
         // Force dark mode across the entire app
         UserAppTheme = AppTheme.Dark;
@@ -56,6 +58,17 @@ public partial class App : Application
         // Request POST_NOTIFICATIONS permission on Android 13+ so that
         // calendar reminders, chat messages, etc. are displayed.
         await RequestNotificationPermissionAsync();
+
+        // Start connectivity monitoring and flush any operations queued from a previous
+        // offline session as soon as the device is online.
+        try
+        {
+            await _offlineSync.StartAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("DotNetCloud", $"OfflineSync start failed: {ex.Message}");
+        }
 
         await CheckAvailableModulesAsync();
         await NavigateToStartPageAsync();

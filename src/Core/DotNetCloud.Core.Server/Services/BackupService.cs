@@ -479,7 +479,7 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
 
         if (useStdinRedirect)
         {
-            // Pipe the dump file into mysql's stdin instead of using shell redirect (<)
+            // Pipe the dump file into the database's stdin instead of using shell redirect (<)
             await using var fileStream = File.OpenRead(dumpFile);
             await fileStream.CopyToAsync(process.StandardInput.BaseStream, cancellationToken);
             process.StandardInput.Close();
