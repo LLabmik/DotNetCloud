@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-08-24 (SyncTray DB Outage simulation §11.4 archived ✅ PASS; new Active Handoff → Android §11.5 on monolith)
+Last updated: 2026-08-24 (Android DB Outage simulation §11.5 archived ✅ PASS — all §11 outage simulations complete)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -43,30 +43,38 @@ Archived context:
 
 **Result: PASS** — no client regressions observed. Evidence in `%LOCALAPPDATA%\DotNetCloud\logs\sync-tray20260824.log`.
 
-## Active Handoff — Android: DB Outage Android Simulation (plan §11.5)
+## Archived Handoff — Android test machine: DB Outage Android Simulation (plan §11.5) ✅ PASS
 
-**Target:** `monolith` (Android MAUI app dev + emulator testing, Windows 11)
+**Status:** completed ✅ (2026-08-24, client agent — `monolith`)
 **Branch:** `fix/database-offline-recovery`
 **Canonical plan:** `docs/DB_OUTAGE_RESILIENCE_PLAN.md` §11.5 (Android simulation)
 **Prerequisite (DONE — server agent):** Server deploy verified on `cloud.kimball.home` (`https://cloud.dotnetcloud.net/`): resilience code live, `/health/ready` Healthy, `database` Healthy, 14/14 modules. §11.2/§11.3 + integration tests passed. SyncTray client simulation §11.4 → PASS (archived above).
 
-**Task:** Run the Android outage simulation (§11.5) against the live production server:
+### Client pre-requisite (done)
+- Android **0.4.07** rebuilt from HEAD (`8bdc1f57`) arm64-debug and installed to physical phone (Samsung S24 Ultra, `R5CWC356B2K`). Logged in to `https://cloud.dotnetcloud.net/`, SignalR connected, channels loaded.
+- Server verified Healthy before outage: `/health/ready` Healthy, `database` Healthy, 14/14 modules.
 
-1. Deploy a debug arm64 build (see repo memory for exact adb/build commands).
-2. Server outage — ask the moderator to **stop the DotNetCloud service** on `cloud` (`sudo systemctl stop dotnetcloud`; keep device internet on). The Android agent cannot stop production itself; the moderator executes it on request.
-3. Assert:
-   - The global red banner appears.
-   - Opening chat shows cached messages.
-   - Sending a message queues it (existing "queued" banner).
-4. Server recovery — ask the moderator to **start the service** (`sudo systemctl start dotnetcloud`; wait until `/health/ready` is Healthy again — 14/14 modules, `database` Healthy).
-5. Assert: the banner clears automatically (≤ ~20 s) and queued messages flush.
+### Outage phase (moderator: `sudo systemctl stop dotnetcloud`)
+- ✅ Server confirmed down: `cloud.dotnetcloud.net:443` connection refused.
+- ✅ **Global red banner appeared** ("Can't reach server — showing cached data. Changes will be queued.") over the channel list.
+- ✅ **Chat showed cached messages** (Test 6/7/8, Aug 5 "Posting remotely" msg, etc.) with the banner still visible.
+- ✅ **Sending a message queued it**: `OFFLINE_QUEUE_TEST_1301` appeared in the list with "just now" + the "Message queued — will send when you're back online." banner.
 
-**Report back:** pass/fail + evidence (banner screenshots with timestamps, queue flush timings) here.
+### Recovery phase (moderator: `sudo systemctl start dotnetcloud`)
+- ✅ Server recovered: `/health/ready` Healthy, `database` Healthy, 14/14 modules.
+- ✅ **Banner cleared automatically** (≤ ~20 s probe interval; confirmed via UI dump — banner gone).
+- ✅ **Queued message flushed**: `GetMessagesAsync` fetched `OFFLINE_QUEUE_TEST_1301` from the server; message shows as sent ("1m ago", no queued indicator).
+- ✅ SignalR reconnected automatically (`JoinChannelGroupAsync` joined `chat-channel-…`).
 
-**Notes for the Android agent:**
-- Production server is `https://cloud.dotnetcloud.net/`. App must be logged in to an active account before starting the sim.
-- During the outage the app's `ServerReachabilityService` + `ConnectivityViewModel` should show the global red banner and the offline queue should hold messages. Do NOT close the handoff until the recovery assertion (step 5) passes.
-- If the banner does NOT appear, chat does NOT show cached messages, or queued messages do NOT flush after recovery, report it as a client regression with logs.
+### Client bugs found & fixed during the sim (committed on this branch)
+1. **Android receiver/service `Name` bug → cold-start crash.** `CalendarBootReceiver`, `CalendarAlarmReceiver`, `FcmMessagingService`, `UnifiedPushReceiver` were declared both manually in `AndroidManifest.xml` (`.X` → `net.dotnetcloud.client.X`) and via `[BroadcastReceiver]`/`[Service]` attributes without explicit `Name`, so the generated Java class landed in a `crc…` package → `ClassNotFoundException` when Android instantiated it (the sticky `BOOT_COMPLETED` broadcast crashed every cold start). Fixed by adding `Name = "net.dotnetcloud.client.X"` to the attributes (mirrors the working `[Service(Name=…)]` pattern).
+2. **Phase E banner overlay crashed launch.** Wrapping the `Shell` in a `Grid` violates MAUI's "Parent of a Page must also be a Page". Replaced with a native Android platform overlay on `Android.Resource.Id.Content` driven by `ConnectivityViewModel`, offset below the status bar (`ResolveStatusBarHeight`). Old `ConnectivityBannerView.xaml` deleted.
+
+**Result: PASS** — no client regressions. Evidence: `dnc-banner-visible.png`, `dnc-message-queued.png`, `dnc-recovered.png` (on monolith), UI-dump text nodes, and logcat (`adb logcat`).
+
+## Active Handoff
+
+*(none — all DB Outage Resilience §11 outage simulations are now archived as PASS: §11.2 server, §11.3 module degraded, §11.4 SyncTray, §11.5 Android.)*
 
 ## Moderator Communication (Minimal)
 

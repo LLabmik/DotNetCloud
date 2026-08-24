@@ -14,7 +14,7 @@ namespace DotNetCloud.Client.Android;
 /// Declared in AndroidManifest.xml with <c>android.permission.RECEIVE_BOOT_COMPLETED</c>
 /// and an intent-filter for <c>android.intent.action.BOOT_COMPLETED</c>.
 /// </remarks>
-[BroadcastReceiver(Exported = true)]
+[BroadcastReceiver(Name = "net.dotnetcloud.client.CalendarBootReceiver", Exported = true)]
 [IntentFilter(["android.intent.action.BOOT_COMPLETED"])]
 public sealed class CalendarBootReceiver : BroadcastReceiver
 {

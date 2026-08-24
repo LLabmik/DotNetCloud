@@ -27,7 +27,7 @@ namespace DotNetCloud.Client.Android;
 /// The service also updates the FCM registration token with the server whenever
 /// Firebase rotates it.
 /// </remarks>
-[Service(Exported = false)]
+[Service(Name = "net.dotnetcloud.client.FcmMessagingService", Exported = false)]
 [IntentFilter(["com.google.firebase.MESSAGING_EVENT"])]
 public sealed class FcmMessagingService : FirebaseMessagingService
 {

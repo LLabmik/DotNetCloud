@@ -7,6 +7,7 @@ using DotNetCloud.Client.Android.Calendar;
 using DotNetCloud.Client.Android.Services;
 using DotNetCloud.Client.Android.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Maui.ApplicationModel;
 
 namespace DotNetCloud.Client.Android;
 
@@ -32,26 +33,12 @@ public partial class App : Application
     /// <inheritdoc />
     protected override Window CreateWindow(IActivationState? activationState)
     {
-        var shell = new AppShell();
-
-        // Overlay the global "server offline" banner on top of the shell.
-        // It is only visible while the server is unreachable.
-        var connectivity = Ioc.Default.GetService<ConnectivityViewModel>();
-        var banner = new Views.ConnectivityBannerView
-        {
-            BindingContext = connectivity,
-            VerticalOptions = LayoutOptions.Start,
-            HorizontalOptions = LayoutOptions.Fill,
-        };
-
-        var root = new Grid
-        {
-            Children = { shell, banner }
-        };
-
-        // MAUI's Window requires a Page root; wrap the Grid (shell + banner) so the
-        // banner can overlay the Shell globally.
-        var window = new Window(new ContentPage { Content = root });
+        // The Shell MUST be the window's page. MAUI forbids nesting a Page (and Shell
+        // derives from Page) inside a Layout — "Parent of a Page must also be a Page" —
+        // so the global offline banner cannot wrap the Shell in a Grid. Instead it is
+        // attached as a native Android overlay above the activity content root
+        // (see <see cref="SetupOfflineBannerOverlay"/>), which floats above every page.
+        var window = new Window(new AppShell());
 
         window.Destroying += (s, e) =>
         {
@@ -67,7 +54,124 @@ public partial class App : Application
             }
         };
 
+        window.Created += (_, _) => SetupOfflineBannerOverlay();
+
         return window;
+    }
+
+    /// <summary>
+    /// Tag used to locate the offline banner view on the activity content root.
+    /// </summary>
+    private const string OfflineBannerTag = "dotnetcloud-offline-banner";
+
+    /// <summary>
+    /// Attaches the global "server offline" banner as a native Android overlay pinned to
+    /// the top of the activity content. Driven by <see cref="ConnectivityViewModel"/> so
+    /// it appears whenever the reachability service reports the server as unreachable and
+    /// clears automatically on recovery. Best-effort: a failure here must never crash the app.
+    /// </summary>
+    private void SetupOfflineBannerOverlay()
+    {
+        Dispatcher.Dispatch(() =>
+        {
+            try
+            {
+                var connectivity = Ioc.Default.GetService<ConnectivityViewModel>();
+                var activity = Platform.CurrentActivity;
+                if (connectivity is null || activity is null)
+                    return;
+
+                var content = activity.FindViewById<global::Android.Views.ViewGroup>(global::Android.Resource.Id.Content);
+                if (content is null || content.FindViewWithTag(OfflineBannerTag) is not null)
+                    return;
+
+                var density = activity.Resources?.DisplayMetrics?.Density ?? 1f;
+                var banner = new global::Android.Widget.TextView(activity)
+                {
+                    Tag = OfflineBannerTag,
+                    Text = "Can't reach server — showing cached data. Changes will be queued.",
+                    Gravity = global::Android.Views.GravityFlags.Center,
+                    Visibility = connectivity.IsServerOffline
+                        ? global::Android.Views.ViewStates.Visible
+                        : global::Android.Views.ViewStates.Gone,
+                };
+                banner.SetBackgroundColor(global::Android.Graphics.Color.ParseColor("#B91C1C"));
+                banner.SetTextColor(global::Android.Graphics.Color.White);
+                banner.SetTextSize(global::Android.Util.ComplexUnitType.Sp, 12f);
+                banner.SetPadding(
+                    (int)(12 * density), (int)(6 * density),
+                    (int)(12 * density), (int)(6 * density));
+
+                var bannerLayout = new global::Android.Widget.FrameLayout.LayoutParams(
+                    global::Android.Widget.FrameLayout.LayoutParams.MatchParent,
+                    global::Android.Widget.FrameLayout.LayoutParams.WrapContent,
+                    global::Android.Views.GravityFlags.Top);
+                content.AddView(banner, bannerLayout);
+
+                // With edge-to-edge MAUI layouts the content view spans behind the status
+                // bar, so offset the banner below it or the text overlaps the clock,
+                // battery and notification icons.
+                banner.Post(() =>
+                {
+                    try
+                    {
+                        var statusBarHeight = ResolveStatusBarHeight(activity, banner);
+                        if (statusBarHeight > 0)
+                        {
+                            bannerLayout.TopMargin = statusBarHeight;
+                            banner.LayoutParameters = bannerLayout;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warn("DotNetCloud", $"Offline banner status-bar offset failed: {ex.Message}");
+                    }
+                });
+
+                connectivity.PropertyChanged += (_, e) =>
+                {
+                    if (e.PropertyName != nameof(ConnectivityViewModel.IsServerOffline))
+                        return;
+
+                    activity.RunOnUiThread(() =>
+                        banner.Visibility = connectivity.IsServerOffline
+                            ? global::Android.Views.ViewStates.Visible
+                            : global::Android.Views.ViewStates.Gone);
+                };
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("DotNetCloud", $"Offline banner overlay setup failed: {ex.Message}");
+            }
+        });
+    }
+
+    /// <summary>
+    /// Resolves the current status bar height in pixels so the global offline banner sits
+    /// below the system status bar instead of overlapping the clock/battery icons.
+    /// Prefers the runtime window insets (handles display cutouts); falls back to the
+    /// platform <c>status_bar_height</c> dimension.
+    /// </summary>
+    private static int ResolveStatusBarHeight(
+        global::Android.App.Activity activity,
+        global::Android.Views.View view)
+    {
+        if (OperatingSystem.IsAndroidVersionAtLeast(30))
+        {
+            var insets = view.RootWindowInsets;
+            if (insets is not null)
+            {
+                var top = insets.GetInsets(global::Android.Views.WindowInsets.Type.StatusBars()).Top;
+                if (top > 0)
+                    return top;
+            }
+        }
+
+        var resourceId = activity.Resources?.GetIdentifier(
+            "status_bar_height", "dimen", "android") ?? 0;
+        return resourceId > 0
+            ? activity.Resources!.GetDimensionPixelSize(resourceId)
+            : 0;
     }
 
     /// <inheritdoc />

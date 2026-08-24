@@ -1,3 +1,35 @@
+## Archived: Android DB Outage Simulation §11.5 — PASS (2026-08-24)
+
+**Target:** `monolith` (Android MAUI app dev + emulator testing, Windows 11; physical phone Samsung S24 Ultra `R5CWC356B2K`)
+**Branch:** `fix/database-offline-recovery`
+**Canonical plan:** `docs/DB_OUTAGE_RESILIENCE_PLAN.md` §11.5 (Android simulation)
+
+**Result:** ✅ PASS — Android 0.4.07 handled a production server outage (global banner + cached reads + queued writes) and recovered automatically (banner cleared, queue flushed). No client regressions.
+
+**Client install:** Android 0.4.07 rebuilt from HEAD (`8bdc1f57`) arm64-debug → physical phone; logged in to `https://cloud.dotnetcloud.net/`, SignalR connected, channels loaded. Server `/health/ready` Healthy, `database` Healthy, 14/14 modules before outage.
+
+**Outage phase (moderator: `sudo systemctl stop dotnetcloud`):**
+- Server confirmed down: `cloud.dotnetcloud.net:443` connection refused.
+- Global red banner appeared ("Can't reach server — showing cached data. Changes will be queued.") over the channel list.
+- Chat showed cached messages (Test 6/7/8, Aug 5 "Posting remotely" msg, etc.).
+- Sending a message queued it: `OFFLINE_QUEUE_TEST_1301` shown with "just now" + "Message queued — will send when you're back online." banner.
+
+**Recovery phase (moderator: `sudo systemctl start dotnetcloud`):**
+- Server recovered: `/health/ready` Healthy, `database` Healthy, 14/14 modules.
+- Banner cleared automatically (≤ ~20 s probe interval; UI dump confirmed).
+- Queued message flushed: `GetMessagesAsync` fetched `OFFLINE_QUEUE_TEST_1301` from the server; shown as sent ("1m ago", no queued indicator).
+- SignalR reconnected automatically (`JoinChannelGroupAsync` joined `chat-channel-…`).
+
+**Client fixes shipped (committed with this handoff):**
+1. Android receiver/service `Name` registration bug → cold-start `ClassNotFoundException`. `CalendarBootReceiver`, `CalendarAlarmReceiver`, `FcmMessagingService`, `UnifiedPushReceiver` were declared both manually in `AndroidManifest.xml` (`.X` → `net.dotnetcloud.client.X`) and via `[BroadcastReceiver]`/`[Service]` attributes without explicit `Name` (JCW landed in a `crc…` package). Fixed by adding `Name = "net.dotnetcloud.client.X"` to the attributes (mirrors `[Service(Name=…)]` pattern).
+2. Phase E banner overlay crashed launch. Wrapping the Shell in a Grid violates MAUI's "Parent of a Page must also be a Page". Replaced with a native Android platform overlay on `Android.Resource.Id.Content` driven by `ConnectivityViewModel`, offset below the status bar (`ResolveStatusBarHeight`). `ConnectivityBannerView.xaml` deleted.
+
+**Evidence:** `dnc-banner-visible.png`, `dnc-message-queued.png`, `dnc-recovered.png` (monolith), UI-dump text nodes, and logcat.
+
+**Next:** none — all DB Outage Resilience §11 outage simulations now PASSED (server §11.2, module degraded §11.3, SyncTray §11.4, Android §11.5).
+
+---
+
 ## Archived: SyncTray DB Outage Simulation §11.4 — PASS (2026-08-24)
 
 **Target:** `Windows11-DNC` (client test machine; sync dir `C:\Users\benk\synctray`)

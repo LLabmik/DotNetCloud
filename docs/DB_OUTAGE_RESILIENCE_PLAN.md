@@ -1340,4 +1340,4 @@ With the DB down, `dotnetcloud-module files` must keep running (process stays up
 - ✓ Phase F — SyncEngine offline classification + backoff; TrayViewModel offline mapping/tooltip.
 - ✓ Phase G — Update `IMPLEMENTATION_CHECKLIST.md` and `MASTER_PROJECT_PLAN.md`.
 - ✓ `dotnet build` passes for Core.Data, Core.Server, CLI, Client.Core, SyncTray, all module hosts, and Android (arm64); targeted tests pass (Files 760, Chat 1311, SyncTray 130, Client.Core 293/296 pass — 3 pre-existing environmental failures).
-- ☐ Manual outage simulations (server 503/recover, module host degraded, SyncTray gray icon, Android banner/queue flush) — pending live-environment verification.
+- ✓ Manual outage simulations (server 503/recover §11.2, module host degraded §11.3, SyncTray gray icon §11.4, Android banner/queue flush §11.5) — ALL PASSED on 2026-08-24. Android §11.5 required two client fixes (committed): receiver/service `Name` registration (cold-start `ClassNotFoundException`) and a platform-level banner overlay (the MAUI Shell-in-Grid wrap crashes launch). See `CLIENT_SERVER_MEDIATION_HANDOFF.md` archived Android handoff for evidence.

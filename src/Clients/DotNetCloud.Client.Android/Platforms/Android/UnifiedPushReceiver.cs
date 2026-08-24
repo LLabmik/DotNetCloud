@@ -21,7 +21,7 @@ namespace DotNetCloud.Client.Android;
 ///   <item><c>UP_MESSAGE</c> — an incoming push notification payload.</item>
 /// </list>
 /// </remarks>
-[BroadcastReceiver(Exported = true)]
+[BroadcastReceiver(Name = "net.dotnetcloud.client.UnifiedPushReceiver", Exported = true)]
 [IntentFilter(["org.unifiedpush.android.connector.MESSAGE",
                "org.unifiedpush.android.connector.NEW_ENDPOINT",
                "org.unifiedpush.android.connector.UNREGISTERED"])]
