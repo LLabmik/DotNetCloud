@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using DotNetCloud.Client.Android.Auth;
 using DotNetCloud.Client.Android.Chat;
 using DotNetCloud.Client.Android.Services;
@@ -50,6 +50,8 @@ public sealed class MessageListViewModelTests
     private Mock<IChatRestClient> _chatApi = null!;
     private Mock<IChatSignalRClient> _signalR = null!;
     private Mock<ILocalMessageCache> _cache = null!;
+    private Mock<IOfflineOperationQueue> _offlineQueue = null!;
+    private Mock<IConnectivityMonitor> _connectivity = null!;
     private Mock<IServerConnectionStore> _serverStore = null!;
     private Mock<ISecureTokenStore> _tokenStore = null!;
     private Mock<ILogger<MessageListViewModel>> _logger = null!;
@@ -62,6 +64,8 @@ public sealed class MessageListViewModelTests
         _chatApi = new Mock<IChatRestClient>(MockBehavior.Strict);
         _signalR = new Mock<IChatSignalRClient>(MockBehavior.Loose);
         _cache = new Mock<ILocalMessageCache>(MockBehavior.Loose);
+        _offlineQueue = new Mock<IOfflineOperationQueue>(MockBehavior.Loose);
+        _connectivity = new Mock<IConnectivityMonitor>(MockBehavior.Loose);
         _serverStore = new Mock<IServerConnectionStore>(MockBehavior.Strict);
         _tokenStore = new Mock<ISecureTokenStore>(MockBehavior.Strict);
         _logger = new Mock<ILogger<MessageListViewModel>>(MockBehavior.Loose);
@@ -74,6 +78,7 @@ public sealed class MessageListViewModelTests
 
         _vm = new MessageListViewModel(
             _chatApi.Object, _signalR.Object, _cache.Object,
+            _offlineQueue.Object, _connectivity.Object,
             _serverStore.Object, _tokenStore.Object, _logger.Object);
     }
 

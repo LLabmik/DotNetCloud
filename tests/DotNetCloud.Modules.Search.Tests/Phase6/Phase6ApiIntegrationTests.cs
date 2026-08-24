@@ -1,4 +1,4 @@
-extern alias SearchClient;
+﻿extern alias SearchClient;
 
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs.Search;
@@ -135,6 +135,7 @@ public class Phase6ApiIntegrationTests
         var grpcService = new SearchGrpcService(
             sp.GetRequiredService<IServiceScopeFactory>(),
             _queryService,
+            new Mock<DotNetCloud.Core.Capabilities.IAuditLogger>().Object,
             NullLogger<SearchGrpcService>.Instance);
 
         var request = new SearchRequest
@@ -178,6 +179,7 @@ public class Phase6ApiIntegrationTests
         var grpcService = new SearchGrpcService(
             sp2.GetRequiredService<IServiceScopeFactory>(),
             _queryService,
+            new Mock<DotNetCloud.Core.Capabilities.IAuditLogger>().Object,
             NullLogger<SearchGrpcService>.Instance);
 
         // Index a document
