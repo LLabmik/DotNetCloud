@@ -1003,7 +1003,9 @@ public sealed class MusicViewModelTests
 
         await Task.Delay(500);
 
-        StringAssert.Contains(_vm.ErrorMessage, "Search failed");
+        // HttpRequestException maps to the shared user-friendly connectivity message
+        // (ApiExceptionHelper), not a search-specific one.
+        StringAssert.Contains(_vm.ErrorMessage, "A connection error occurred");
     }
 
     [TestMethod]

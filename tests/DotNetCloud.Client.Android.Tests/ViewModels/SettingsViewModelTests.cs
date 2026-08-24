@@ -105,7 +105,7 @@ public sealed class SettingsViewModelTests
         Assert.IsFalse(vm.AutoUploadEnabled);
         Assert.IsTrue(vm.WifiOnlyEnabled);
         Assert.IsTrue(vm.OrganizeByDate);
-        Assert.AreEqual("InstantUpload", vm.UploadFolderName);
+        Assert.AreEqual(SettingsViewModel.DefaultUploadFolderName, vm.UploadFolderName);
     }
 
     [TestMethod]

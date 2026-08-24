@@ -271,8 +271,10 @@ public sealed class MessageListViewModelTests
         await InitializeHappyPathAsync();
 
         _vm.ComposerText = "Will fail";
+        // A non-connectivity failure (e.g. server rejection) restores the composer.
+        // Connectivity failures are now queued offline instead of surfacing an error.
         _chatApi.Setup(x => x.SendMessageAsync(ServerUrl, It.IsAny<string>(), ChannelId, "Will fail", It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new HttpRequestException("Network error"));
+            .ThrowsAsync(new InvalidOperationException("Server rejected the message"));
 
         await _vm.SendCommand.ExecuteAsync(null);
 
@@ -287,8 +289,10 @@ public sealed class MessageListViewModelTests
         await InitializeHappyPathAsync();
 
         _vm.ComposerText = "Will fail";
+        // A non-connectivity failure (e.g. server rejection) does not add a message.
+        // Connectivity failures are queued offline (see SendAsync_Offline_QueuesMessage...).
         _chatApi.Setup(x => x.SendMessageAsync(ServerUrl, It.IsAny<string>(), ChannelId, "Will fail", It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new HttpRequestException("Network error"));
+            .ThrowsAsync(new InvalidOperationException("Server rejected the message"));
 
         await _vm.SendCommand.ExecuteAsync(null);
 
@@ -302,6 +306,28 @@ public sealed class MessageListViewModelTests
 
         _vm.ComposerText = "   ";
         Assert.IsFalse(_vm.SendCommand.CanExecute(null));
+    }
+
+    [TestMethod]
+    public async Task SendAsync_Offline_QueuesMessageAndShowsStatus()
+    {
+        await InitializeHappyPathAsync();
+
+        _connectivity.Setup(x => x.IsOnline).Returns(false);
+        _vm.ComposerText = "Queued when offline";
+
+        await _vm.SendCommand.ExecuteAsync(null);
+
+        _offlineQueue.Verify(x => x.EnqueueAsync(
+            OfflineOperationType.ChatMessage,
+            It.IsAny<string>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+
+        // The message appears locally with a client-generated ID, marked as own.
+        Assert.AreEqual(1, _vm.Messages.Count);
+        Assert.AreEqual("Queued when offline", _vm.Messages[0].Content);
+        Assert.IsTrue(_vm.Messages[0].IsOwnMessage);
+        Assert.AreEqual("Message queued — will send when you're back online.", _vm.QueuedStatusText);
     }
 
     // ══════════════════════════════════════════════════════════════════
@@ -848,6 +874,9 @@ public sealed class MessageListViewModelTests
     {
         SetupDefaultChannelMembers();
         SetupDefaultMessages([]);
+        // Default to "online" so send tests exercise the live send path rather than the
+        // offline queue (the loose IConnectivityMonitor mock would otherwise report offline).
+        _connectivity.Setup(x => x.IsOnline).Returns(true);
         _signalR.Setup(x => x.ConnectAsync(ServerUrl, It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         _signalR.Setup(x => x.JoinChannelGroupAsync(ChannelId, It.IsAny<CancellationToken>()))
