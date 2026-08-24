@@ -288,6 +288,18 @@ public class Program
         }
         builder.Services.AddDotNetCloudDbContext(connectionString, provider);
 
+        // DB outage resilience: a transient database failure in a background service must
+        // NOT stop the entire host. The default BackgroundServiceExceptionBehavior is
+        // StopHost, which would crash the server when e.g. ModuleUiRegistrationHostedService,
+        // AuditLogPurgeHostedService, or DemoAccountCleanupService hits the unreachable DB
+        // during an outage. Those services run periodically and retry on their next cycle,
+        // so Ignore keeps the process alive while DatabaseUnavailableMiddleware returns 503
+        // for user-facing requests until the DB recovers.
+        builder.Services.Configure<HostOptions>(options =>
+        {
+            options.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.Ignore;
+        });
+
         // Database availability tracking (health check + 503 gate + auto-reconnect).
         builder.Services.AddSingleton<IDbConnectionFactory>(
             new DbConnectionFactory(connectionString, provider));
@@ -688,6 +700,7 @@ public class Program
                 sp => new ModulesAggregateHealthCheck(
                     sp.GetRequiredService<IProcessSupervisor>(),
                     sp.GetRequiredService<Supervisor.GrpcChannelManager>(),
+                    sp.GetRequiredService<DatabaseConnectivityState>(),
                     sp.GetRequiredService<ILogger<ModulesAggregateHealthCheck>>()),
                 failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy,
                 tags: ["module"]));

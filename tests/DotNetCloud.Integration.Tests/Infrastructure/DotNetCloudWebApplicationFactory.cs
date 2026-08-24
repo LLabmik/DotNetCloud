@@ -6,6 +6,7 @@ using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.DTOs.Chat;
 using DotNetCloud.Core.Modules.Supervisor;
 using DotNetCloud.Core.Server;
+using DotNetCloud.Core.Server.Services;
 using DotNetCloud.Core.Services.ModuleApis;
 using DotNetCloud.Modules.Chat.Data;
 using DotNetCloud.Modules.Files.Data;
@@ -138,6 +139,23 @@ internal sealed class DotNetCloudWebApplicationFactory : WebApplicationFactory<D
                     && d.ImplementationFactory is not null)
                 .ToList();
             foreach (var descriptor in supervisorDescriptors)
+            {
+                services.Remove(descriptor);
+            }
+
+            // Remove the DatabaseReconnectMonitor hosted service as well. It is
+            // registered via AddHostedService<T>() as an IHostedService with an
+            // ImplementationType (not a factory), so the factory-based removal above
+            // would miss it. Without this, the monitor probes the dummy connection
+            // string in tests, fails, and flips DatabaseConnectivityState to
+            // unavailable — making DatabaseUnavailableMiddleware return 503
+            // (DATABASE_UNAVAILABLE) for every non-allowlisted request.
+            var monitorDescriptors = services
+                .Where(d => d.ServiceType == typeof(IHostedService)
+                    && d.ImplementationType is not null
+                    && typeof(DatabaseReconnectMonitor).IsAssignableFrom(d.ImplementationType))
+                .ToList();
+            foreach (var descriptor in monitorDescriptors)
             {
                 services.Remove(descriptor);
             }

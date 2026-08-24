@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-08-24 (DB Outage Resilience — deploy + verification handoff → `cloud.kimball.home`; SyncTray multi-folder client testing archived ✅)
+Last updated: 2026-08-24 (DB Outage Resilience server verification archived ✅; new Active Handoff → SyncTray test machine §11.4)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -18,65 +18,29 @@ Archived context:
 - All actionable items, blockers, and technical details go directly in this document.
 - **Current active branch:** `fix/database-offline-recovery`
 
-## Active Handoff — cloud.kimball.home: DB Outage Resilience — Deploy + Verification
+## Active Handoff — SyncTray test machine: DB Outage SyncTray Simulation (plan §11.4)
 
-**Target:** `cloud.kimball.home` (server; production `https://cloud.dotnetcloud.net/`; SQL Server DB on `hyperdrive`)
+**Target:** `Windows11-TestDNC` (client; sync dir `C:\Users\benk\synctray`) — alt: `mint-OptiPlex-7010` (production client → `https://cloud.dotnetcloud.net/`)
 **Branch:** `fix/database-offline-recovery`
-**Commit:** `e2eea604` — `feat(resilience): implement database/server outage recovery (DB_OUTAGE_RESILIENCE_PLAN)`
-**Canonical plan:** `docs/DB_OUTAGE_RESILIENCE_PLAN.md` (implementation complete; **§11 Verification is the open work**)
+**Canonical plan:** `docs/DB_OUTAGE_RESILIENCE_PLAN.md` §11.4 (SyncTray simulation)
+**Prerequisite (DONE — server agent):** Server deploy verified on `cloud.kimball.home` (`https://cloud.dotnetcloud.net/`): resilience code live, `/health/ready` Healthy, `database` entry Healthy, 14/14 modules. §11.2/§11.3 + integration tests passed (see `CLIENT_SERVER_MEDIATION_ARCHIVE.md`). The client tests the **already-deployed** server — no client code changes expected for this simulation.
 
-**Task:** Pull `fix/database-offline-recovery`, deploy the latest code, then run the outage verifications + integration tests and report results back here. **Do NOT treat the handoff as closed until §11.2, §11.3, and the integration tests pass.**
+**Task:** Run the SyncTray outage simulation (§11.4) against the live production server:
 
-### 1. Deploy (all targets)
-
-```bash
-git fetch origin && git checkout fix/database-offline-recovery && git pull
-scripts/deploy.sh --force --verify   # all 15 targets + assembly hash verify, as usual
-```
-
-Confirm after deploy:
-- `/health` + `/health/ready` → Healthy.
-- `/health` now includes a `database` entry (tagged) reporting Healthy when the DB is reachable.
-- All modules report running (14/14) — module hosts now register DB-aware health checks.
-
-### 2. Server outage simulation (plan §11.2) — use a NON-production instance
-
-⚠️ The production SQL Server on `hyperdrive` backs `cloud.dotnetcloud.net` — do NOT stop it. Run this against the **mint22 dev instance** (or a dedicated test DB). Steps:
-
-1. With the dev DB running, start the server.
-2. Stop the dev database.
+1. Run SyncTray with an active account and the server up → tray is **green/idle**.
+2. Server outage — ask the moderator to **stop the DotNetCloud service** on `cloud` (`sudo systemctl stop dotnetcloud`). The client agent cannot stop production itself; the moderator executes it on request.
 3. Assert:
-   - `GET /health/live` → `Healthy` (process stays alive).
-   - `GET /health/ready` → `Unhealthy` with `entries.database.status == Unhealthy`.
-   - An authenticated API call that hits the DB (e.g. `GET /api/v1/files/quota`) returns **HTTP 503** with body `{"success":false,"code":"DATABASE_UNAVAILABLE",...}` in **under ~2 s** (no hang).
-4. Restart the dev DB.
-5. Within ~10 s (one reconnect poll): `/health/ready` → `Healthy` again; the same API call → `200` — **without restarting the service**.
+   - Within one backoff interval (≤ ~30 s) the tray turns **gray** with tooltip "server unreachable, retrying automatically".
+   - "Sync now" returns quickly with a toast (no multi-minute hang).
+4. Server recovery — ask the moderator to **start the service** (`sudo systemctl start dotnetcloud`; wait until `/health/ready` is Healthy again — 14/14 modules, `database` Healthy).
+5. Assert: the tray returns to **idle/syncing automatically** within the backoff interval (no manual restart).
 
-### 3. Module host simulation (plan §11.3)
+**Report back:** pass/fail + evidence (tray screenshots with timestamps, backoff timings) here.
 
-With the DB down, module hosts (e.g. `dotnetcloud-module files`) must **keep running** (process stays up — no crash-loop) and report `Degraded`/`Unhealthy` via the supervisor aggregate; after DB recovery they return to healthy with no manual restart. If any host exits on DB-down, that's a regression in this branch — report it.
-
-### 4. Integration tests (both providers — DB on hyperdrive)
-
-```bash
-# SQL Server (hyperdrive test DB, same pattern as WS4):
-export DOTNETCLOUD_TEST_SQLSERVER_CONNECTION_STRING="Server=<hyperdrive-sql>;Database=DotNetCloud-Test;User Id=<user>;Password=<pass>;TrustServerCertificate=true"
-dotnet test tests/DotNetCloud.Integration.Tests/ -p:DatabaseProvider=SqlServer
-
-# PostgreSQL (hyperdrive or configured PG host):
-dotnet test tests/DotNetCloud.Integration.Tests/ -p:DatabaseProvider=PostgreSql
-```
-
-Report pass/fail + evidence. This branch rewired **every** DbContext registration to the shared `DbResiliencePolicy` — integration tests confirm no provider regression.
-
-### 5. Client-side verifications (separate handoffs — NOT this one)
-
-- §11.4 SyncTray simulation → a client machine (`Windows11-TestDNC` / `mint-OptiPlex-7010`) once the server deploy above is verified.
-- §11.5 Android simulation → `monolith` (Android MAUI).
-
-### Report back
-
-After deploy + server verifications, report results (pass/fail + evidence) here and either hand back for fixes or flag ready for the client-side verifications. **Do not close the branch out until §11.2 + §11.3 + integration tests pass.**
+**Notes for the client agent:**
+- Production server is `https://cloud.dotnetcloud.net/`. SyncTray must be connected to an active account before starting the sim.
+- During the outage the server returns HTTP 503 `DATABASE_UNAVAILABLE` and `/health/ready` → Unhealthy; SyncTray's offline classification should trigger the gray state. Do NOT close the handoff until the recovery assertion (step 5) passes.
+- If the tray does NOT go gray or "Sync now" hangs, report it as a client regression with logs.
 
 ## Moderator Communication (Minimal)
 

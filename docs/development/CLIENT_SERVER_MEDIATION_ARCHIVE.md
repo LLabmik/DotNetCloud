@@ -1,3 +1,29 @@
+## Archived: DB Outage Resilience — Server Deploy + Verification COMPLETE (2026-08-24)
+
+**Target:** `cloud.kimball.home` (server; production `https://cloud.dotnetcloud.net/`; SQL Server DB on `hyperdrive`)
+**Branch:** `fix/database-offline-recovery`
+**Canonical plan:** `docs/DB_OUTAGE_RESILIENCE_PLAN.md` (§11 Verification)
+
+**Result:** ✅ Server-side verification PASSED; resilience code + two follow-up fixes deployed & verified on production.
+
+**Verified (cloud, dedicated `DotNetCloud-Test` DB on hyperdrive — production untouched during sims):**
+- §11.2 server outage sim → PASS (DB offline → `/health/live` Healthy, `/health/ready` Unhealthy with `database` entry Unhealthy, API 503 `DATABASE_UNAVAILABLE` in ~0.05 s; DB online → recovery within ~10 s, no service restart).
+- §11.3 module host sim → PASS (files + 13 others stay up through DB-down/up, same PIDs; aggregate now reports modules Degraded during DB-down and recovers without restart — follow-up fix).
+- Integration tests (SQL Server) → PASS 138/138, 0 failed, 7 skipped (PG — no Docker on cloud), incl. fresh-DB `EnsureCreated` (follow-up fix for the `IsDemoUser` filtered index).
+
+**Fixes shipped (committed with this handoff):**
+- Created missing `SearchHealthCheck` (build fix CS0246).
+- Test-factory `DatabaseReconnectMonitor` removal (503 regression fix).
+- `BackgroundServiceExceptionBehavior.Ignore` + `ModuleUiRegistrationHostedService` exception-safety (StopHost crash on DB-down — real bug found by the sim).
+- `ModulesAggregateHealthCheck` DB-aware (modules report Degraded during DB outage).
+- `IsDemoUser` filtered index provider-correct (PG/SQL Server) + SQL Server migration `20260824081610_FixIsDemoUserFilteredIndex`.
+
+**Deploys:** `scripts/deploy.sh --force --verify` ×2 (initial resilience deploy 02:36; follow-up fixes ~11:31). Both: 15/15 targets, assembly hashes verified, `/health` + `/health/ready` Healthy, `database` entry Healthy, 14/14 modules. Migration applied on hyperdrive; prod index filter `([IsDemoUser]=(1))`.
+
+**Next:** Client-side verifications — §11.4 SyncTray → SyncTray test machine; §11.5 Android → `monolith`.
+
+---
+
 ## Archived: SyncTray Multi-Folder Sync — Client Testing COMPLETE (2026-08-23)
 
 **Target:** `mint-OptiPlex-7010` (production client → `https://cloud.dotnetcloud.net/`)
