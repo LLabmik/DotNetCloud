@@ -23,32 +23,7 @@ public static class ModuleDbContextConfiguration
         string connectionString,
         string? migrationsAssembly = null)
     {
-        switch (provider)
-        {
-            case DatabaseProvider.PostgreSQL:
-                options.UseNpgsql(connectionString, npgsqlOptions =>
-                {
-                    npgsqlOptions.EnableRetryOnFailure(maxRetryCount: 3);
-                    npgsqlOptions.CommandTimeout(30);
-                });
-                break;
-
-            case DatabaseProvider.SqlServer:
-                options.UseSqlServer(connectionString, sqlServerOptions =>
-                {
-                    sqlServerOptions.EnableRetryOnFailure(maxRetryCount: 3);
-                    sqlServerOptions.CommandTimeout(30);
-
-                    if (!string.IsNullOrEmpty(migrationsAssembly))
-                    {
-                        sqlServerOptions.MigrationsAssembly(migrationsAssembly);
-                    }
-                });
-                break;
-
-            default:
-                throw new ArgumentException($"Unsupported database provider: {provider}", nameof(provider));
-        }
+        DbResiliencePolicy.Configure(options, provider, connectionString, migrationsAssembly);
 
         // Suppress pending model changes warning for modules that don't have
         // a dedicated SQL Server migrations assembly. Their migrations were

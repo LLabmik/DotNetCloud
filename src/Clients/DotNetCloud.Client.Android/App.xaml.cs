@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.DependencyInjection;
 using DotNetCloud.Client.Android.Auth;
 using DotNetCloud.Client.Android.Calendar;
 using DotNetCloud.Client.Android.Services;
+using DotNetCloud.Client.Android.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DotNetCloud.Client.Android;
@@ -31,7 +32,26 @@ public partial class App : Application
     /// <inheritdoc />
     protected override Window CreateWindow(IActivationState? activationState)
     {
-        var window = new Window(new AppShell());
+        var shell = new AppShell();
+
+        // Overlay the global "server offline" banner on top of the shell.
+        // It is only visible while the server is unreachable.
+        var connectivity = Ioc.Default.GetService<ConnectivityViewModel>();
+        var banner = new Views.ConnectivityBannerView
+        {
+            BindingContext = connectivity,
+            VerticalOptions = LayoutOptions.Start,
+            HorizontalOptions = LayoutOptions.Fill,
+        };
+
+        var root = new Grid
+        {
+            Children = { shell, banner }
+        };
+
+        // MAUI's Window requires a Page root; wrap the Grid (shell + banner) so the
+        // banner can overlay the Shell globally.
+        var window = new Window(new ContentPage { Content = root });
 
         window.Destroying += (s, e) =>
         {
@@ -68,6 +88,18 @@ public partial class App : Application
         catch (Exception ex)
         {
             Log.Warn("DotNetCloud", $"OfflineSync start failed: {ex.Message}");
+        }
+
+        // Start server reachability monitoring so the global offline banner reflects
+        // "server unreachable" (distinct from device-internet) and the offline queue
+        // flushes automatically when the server returns.
+        try
+        {
+            Ioc.Default.GetService<IServerReachabilityService>()?.Start();
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("DotNetCloud", $"Reachability start failed: {ex.Message}");
         }
 
         await CheckAvailableModulesAsync();

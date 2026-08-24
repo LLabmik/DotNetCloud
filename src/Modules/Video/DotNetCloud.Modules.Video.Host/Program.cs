@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Data.Extensions;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Grpc;
@@ -111,30 +112,11 @@ builder.Services.AddSingleton<ITableNamingStrategy>(provider == DatabaseProvider
 // Register EF Core with the configured database provider
 builder.Services.AddDbContext<VideoDbContext>(options =>
 {
-    const string migrationsAssembly = "DotNetCloud.Modules.Video.Data.SqlServer";
-
-    switch (provider)
-    {
-        case DatabaseProvider.PostgreSQL:
-            options.UseNpgsql(connectionString, npgsqlOptions =>
-            {
-                npgsqlOptions.EnableRetryOnFailure(maxRetryCount: 3);
-                npgsqlOptions.CommandTimeout(30);
-            });
-            break;
-
-        case DatabaseProvider.SqlServer:
-            options.UseSqlServer(connectionString, sqlServerOptions =>
-            {
-                sqlServerOptions.EnableRetryOnFailure(maxRetryCount: 3);
-                sqlServerOptions.CommandTimeout(30);
-                sqlServerOptions.MigrationsAssembly(migrationsAssembly);
-            });
-            break;
-
-        default:
-            throw new InvalidOperationException($"Unsupported database provider: {provider}");
-    }
+    DbResiliencePolicy.Configure(
+        options,
+        provider,
+        connectionString,
+        provider == DatabaseProvider.SqlServer ? "DotNetCloud.Modules.Video.Data.SqlServer" : null);
 
     // Suppress pending model changes warning for PostgreSQL provider
     options.ConfigureWarnings(warnings =>
@@ -146,20 +128,11 @@ builder.Services.AddDbContext<VideoDbContext>(options =>
 // Register Files DbContext and storage engine so IDownloadService can be resolved.
 builder.Services.AddDbContext<FilesDbContext>(options =>
 {
-    const string filesMigrationsAssembly = "DotNetCloud.Modules.Files.Data.SqlServer";
-
-    switch (provider)
-    {
-        case DatabaseProvider.PostgreSQL:
-            options.UseNpgsql(connectionString);
-            break;
-        case DatabaseProvider.SqlServer:
-            options.UseSqlServer(connectionString, sqlServerOptions =>
-            {
-                sqlServerOptions.MigrationsAssembly(filesMigrationsAssembly);
-            });
-            break;
-    }
+    DbResiliencePolicy.Configure(
+        options,
+        provider,
+        connectionString,
+        provider == DatabaseProvider.SqlServer ? "DotNetCloud.Modules.Files.Data.SqlServer" : null);
 
     options.ConfigureWarnings(warnings =>
     {

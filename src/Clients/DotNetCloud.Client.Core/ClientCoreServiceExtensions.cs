@@ -32,14 +32,17 @@ public static class ClientCoreServiceExtensions
         this IServiceCollection services,
         string tokenStoreDirectory)
     {
+        services.AddTransient<TimeoutHandler>();
         services.AddTransient<CorrelationIdHandler>();
         services.AddHttpClient<DotNetCloudApiClient>()
+            .AddHttpMessageHandler<TimeoutHandler>()
             .ConfigurePrimaryHttpMessageHandler(
                 OAuthHttpClientHandlerFactory.CreatePooledHandler)
             .AddHttpMessageHandler<CorrelationIdHandler>();
         services.AddTransient<IDotNetCloudApiClient, DotNetCloudApiClient>();
 
         services.AddHttpClient<IOAuth2Service, OAuth2Service>()
+            .AddHttpMessageHandler<TimeoutHandler>()
             .ConfigurePrimaryHttpMessageHandler(OAuthHttpClientHandlerFactory.CreateHandler);
 
         services.AddSingleton<ITokenStore>(sp =>

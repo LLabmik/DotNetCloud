@@ -929,11 +929,13 @@ public sealed class TrayViewModel : ViewModelBase
         }
 
         bool hasError = _accountList.Any(a => a.State == "Error");
+        bool hasOffline = _accountList.Any(a => a.State == "Offline");
         bool isSyncing = _accountList.Any(a => a.State == "Syncing");
         bool allPaused = _accountList.All(a => a.State == "Paused");
         bool hasConflicts = _conflictCount > 0;
 
         OverallState = hasError ? TrayState.Error
+            : hasOffline ? TrayState.Offline
             : hasConflicts ? TrayState.Conflict
             : isSyncing ? TrayState.Syncing
             : allPaused ? TrayState.Paused
@@ -948,6 +950,7 @@ public sealed class TrayViewModel : ViewModelBase
         var baseTooltip = OverallState switch
         {
             TrayState.Error => "DotNetCloud Sync \u2014 sync error (click for details)",
+            TrayState.Offline => "DotNetCloud Sync \u2014 server unreachable, retrying automatically",
             TrayState.Conflict => $"DotNetCloud Sync \u2014 {_conflictCount} conflict(s) need attention",
             TrayState.Syncing => $"DotNetCloud Sync \u2014 syncing ({totalUp} \u2191  {totalDown} \u2193)",
             TrayState.Paused => "DotNetCloud Sync \u2014 paused",

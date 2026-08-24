@@ -1,4 +1,6 @@
 using DotNetCloud.Core.Auth.Introspection;
+using DotNetCloud.Core.Data.Extensions;
+using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Grpc;
 using DotNetCloud.Modules.Notes;
@@ -124,13 +126,10 @@ if (string.IsNullOrEmpty(connectionString) || string.IsNullOrEmpty(dbProvider))
         "These are provided via config.json (DOTNETCLOUD_CONFIG_DIR) when launched by the core server.");
 }
 
+var provider = ResolveDatabaseProvider(dbProvider);
+
 builder.Services.AddDbContext<NotesDbContext>(options =>
-{
-    if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
-        options.UseNpgsql(connectionString);
-    else
-        options.UseSqlServer(connectionString);
-});
+    DbResiliencePolicy.Configure(options, provider, connectionString));
 
 // In-process event bus for standalone operation
 builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
@@ -189,6 +188,12 @@ app.MapGet("/", () => Results.Ok(new
 }));
 
 app.Run();
+
+// Resolves the configured database provider string into the canonical enum.
+static DatabaseProvider ResolveDatabaseProvider(string? configured) =>
+    DatabaseProviderConfiguration.TryParseConfiguredProvider(configured ?? string.Empty, out var provider)
+        ? provider
+        : throw new InvalidOperationException($"Unsupported database provider '{configured}'.");
 
 /// <summary>Marker class for integration test host reference.</summary>
 public partial class Program;

@@ -23,6 +23,7 @@ public static class SyncContextManagerExtensions
         // Named HttpClient used by per-context API clients.
         // Uses the same TLS bypass as OAuth2Service so self-signed certs
         // on local/private hosts (e.g. mint22) are accepted.
+        services.AddTransient<TimeoutHandler>();
         services.AddTransient<CorrelationIdHandler>();
         services.AddTransient(sp =>
         {
@@ -32,6 +33,7 @@ public static class SyncContextManagerExtensions
             return new DeviceIdentityHandler(deviceId, sp.GetRequiredService<ILogger<DeviceIdentityHandler>>());
         });
         services.AddHttpClient("DotNetCloudSync")
+            .AddHttpMessageHandler(sp => new TimeoutHandler(TimeSpan.FromSeconds(60)))
             .ConfigurePrimaryHttpMessageHandler(OAuthHttpClientHandlerFactory.CreateHandler)
             .AddHttpMessageHandler<CorrelationIdHandler>()
             .AddHttpMessageHandler<DeviceIdentityHandler>();

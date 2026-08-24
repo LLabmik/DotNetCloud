@@ -24,6 +24,7 @@ internal sealed class OfflineSyncService : IOfflineSyncService, IDisposable
 
     private readonly IOfflineOperationQueue _queue;
     private readonly IConnectivityMonitor _connectivity;
+    private readonly IServerReachabilityService _reachability;
     private readonly IServerConnectionStore _serverStore;
     private readonly ISecureTokenStore _tokenStore;
     private readonly IChatRestClient _chatApi;
@@ -31,12 +32,14 @@ internal sealed class OfflineSyncService : IOfflineSyncService, IDisposable
     private readonly ICalendarRestClient _calendarApi;
     private readonly ILogger<OfflineSyncService> _logger;
     private readonly SemaphoreSlim _flushLock = new(1, 1);
+    private System.Threading.Timer? _periodicFlushTimer;
     private bool _started;
 
     /// <summary>Initializes a new <see cref="OfflineSyncService"/>.</summary>
     public OfflineSyncService(
         IOfflineOperationQueue queue,
         IConnectivityMonitor connectivity,
+        IServerReachabilityService reachability,
         IServerConnectionStore serverStore,
         ISecureTokenStore tokenStore,
         IChatRestClient chatApi,
@@ -46,6 +49,7 @@ internal sealed class OfflineSyncService : IOfflineSyncService, IDisposable
     {
         _queue = queue;
         _connectivity = connectivity;
+        _reachability = reachability;
         _serverStore = serverStore;
         _tokenStore = tokenStore;
         _chatApi = chatApi;
@@ -63,6 +67,20 @@ internal sealed class OfflineSyncService : IOfflineSyncService, IDisposable
 
         _connectivity.ConnectivityRestored += OnConnectivityRestored;
         _connectivity.Start();
+
+        // Flush queued operations when the server becomes reachable again
+        // (distinct from device connectivity — the phone can have internet
+        // while the server is down).
+        _reachability.AvailabilityChanged += OnServerAvailabilityChanged;
+        _reachability.Start();
+
+        // Periodic retry so queued operations flush even without a connectivity
+        // change or SignalR reconnect.
+        _periodicFlushTimer = new System.Threading.Timer(
+            _ => _ = PeriodicFlushAsync(),
+            null,
+            TimeSpan.FromSeconds(30),
+            TimeSpan.FromSeconds(30));
 
         // If we're already online (e.g. app launched with a queue from a prior session),
         // flush right away.
@@ -136,6 +154,32 @@ internal sealed class OfflineSyncService : IOfflineSyncService, IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "OfflineSync: flush after connectivity restore failed.");
+        }
+    }
+
+    private void OnServerAvailabilityChanged()
+    {
+        if (!_reachability.IsServerOnline)
+            return;
+
+        _logger.LogInformation("OfflineSync: server reachable again; flushing queued operations.");
+        _ = FlushAllAsync();
+    }
+
+    private async Task PeriodicFlushAsync()
+    {
+        try
+        {
+            if (_reachability.IsServerOnline && await _queue.CountAsync().ConfigureAwait(false) > 0)
+            {
+                _logger.LogDebug("OfflineSync: periodic flush triggered for {Count} queued operation(s).",
+                    await _queue.CountAsync().ConfigureAwait(false));
+                await FlushAllAsync().ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "OfflineSync: periodic flush failed (will retry).");
         }
     }
 
@@ -213,7 +257,9 @@ internal sealed class OfflineSyncService : IOfflineSyncService, IDisposable
     /// <inheritdoc />
     public void Dispose()
     {
+        _periodicFlushTimer?.Dispose();
         _connectivity.ConnectivityRestored -= OnConnectivityRestored;
+        _reachability.AvailabilityChanged -= OnServerAvailabilityChanged;
         _flushLock.Dispose();
     }
 }

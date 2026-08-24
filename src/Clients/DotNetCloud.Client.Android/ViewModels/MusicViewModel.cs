@@ -512,7 +512,7 @@ public sealed partial class MusicViewModel : ObservableObject
         catch (Exception ex)
         {
             if (!ct.IsCancellationRequested)
-                Dispatch(() => ErrorMessage = $"Search failed: {ex.Message}");
+                Dispatch(() => ErrorMessage = ApiExceptionHelper.GetUserFriendlyMessage(ex));
         }
         finally
         {
@@ -574,7 +574,7 @@ public sealed partial class MusicViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            Dispatch(() => ErrorMessage = $"Failed to load artists: {ex.Message}");
+            Dispatch(() => ErrorMessage = ApiExceptionHelper.GetUserFriendlyMessage(ex));
         }
         finally
         {

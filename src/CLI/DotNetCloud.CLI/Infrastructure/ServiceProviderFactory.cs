@@ -90,26 +90,7 @@ internal static class ServiceProviderFactory
     private static void ConfigureModuleDbContext(DbContextOptionsBuilder options, DatabaseProvider provider,
         string connectionString, string? migrationsAssembly = null)
     {
-        switch (provider)
-        {
-            case DatabaseProvider.PostgreSQL:
-                options.UseNpgsql(connectionString, npgsqlOptions =>
-                {
-                    npgsqlOptions.EnableRetryOnFailure(maxRetryCount: 3);
-                    npgsqlOptions.CommandTimeout(30);
-                });
-                break;
-            case DatabaseProvider.SqlServer:
-                options.UseSqlServer(connectionString, sqlServerOptions =>
-                {
-                    sqlServerOptions.EnableRetryOnFailure(maxRetryCount: 3);
-                    sqlServerOptions.CommandTimeout(30);
-                    if (!string.IsNullOrEmpty(migrationsAssembly))
-                        sqlServerOptions.MigrationsAssembly(migrationsAssembly);
-                });
-                break;
-        }
-
+        DbResiliencePolicy.Configure(options, provider, connectionString, migrationsAssembly);
     }
 
     private static IServiceCollection AddModuleDbContexts(
