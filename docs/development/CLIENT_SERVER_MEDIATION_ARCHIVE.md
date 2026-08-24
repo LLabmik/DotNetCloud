@@ -1,3 +1,22 @@
+## Archived: SyncTray Multi-Folder Sync — Client Testing COMPLETE (2026-08-23)
+
+**Target:** `mint-OptiPlex-7010` (production client → `https://cloud.dotnetcloud.net/`)
+**Branch:** `fix/synctray-issues`
+**Server deploy:** ✅ on `cloud.kimball.home` (v0.4.07, HEAD `ffe882d5`; feature `a470c992`)
+**Client deploy:** ✅ rebuilt v0.4.07 → `/opt/dotnetcloud-desktop-client/SyncTray/` on mint-OptiPlex-7010, restarted, healthy.
+
+**Result:** ✅ All client testing PASSED. One real client bug found + fixed during testing.
+
+**Tested & passed:** multi-folder add flow (`SyncContextManager.AddFolderAsync`, idempotent registration, scoped sync); folder size limit (`SizeLimitDecisionRequested`, once-per-folder, over-limit content NOT downloaded); per-root tray "Open Folder" entries; remote-overlap validation (HTTP 409 on ancestor/descendant, idempotent on equal, disjoint OK); existing single-folder regression (legacy `.selective-sync.json` imported once, removed).
+
+**Client fix shipped:** `SyncContextManager.StartContextInternalAsync` now calls `stateDb.InitializeAsync` **before** `SelectiveSyncConfig.LoadAsync` — on a pre-existing `state.db` the `SyncFolderRules` table didn't exist yet and the engine failed to start.
+
+**Server status:** `scripts/deploy.sh --force --verify` — all 15 targets succeeded; `/health` + `/health/ready` Healthy, 14/14 modules; `[core].[SyncFolderRegistrations]` table created on hyperdrive SQL Server.
+
+**Next:** Hand back to server agent for review. Next handoff = DB outage resilience deploy + verification.
+
+---
+
 ## Archived: SyncTray Multi-Folder Sync — Server Deploy Complete (2026-08-23)
 
 **Target:** `cloud.kimball.home`

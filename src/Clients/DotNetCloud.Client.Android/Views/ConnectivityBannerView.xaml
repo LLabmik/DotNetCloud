@@ -12,7 +12,7 @@
         <Label Text="Can't reach server — showing cached data. Changes will be queued."
                TextColor="#FFFFFF"
                FontSize="12"
-               HorizontalOptions="Center" />
+               HorizontalOptions="Center"/>
     </Border>
 
 </ContentView>

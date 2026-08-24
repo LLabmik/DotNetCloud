@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-08-23 (SyncTray multi-folder sync — client testing COMPLETE ✅ on mint-OptiPlex-7010; all flows PASS, one client fix shipped; hand back to server agent for review)
+Last updated: 2026-08-24 (DB Outage Resilience — deploy + verification handoff → `cloud.kimball.home`; SyncTray multi-folder client testing archived ✅)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -16,56 +16,67 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
-- **Current active branch:** `fix/synctray-issues`
+- **Current active branch:** `fix/database-offline-recovery`
 
-## Active Handoff — mint-OptiPlex-7010: SyncTray Multi-Folder Sync — Client Testing COMPLETE ✅
+## Active Handoff — cloud.kimball.home: DB Outage Resilience — Deploy + Verification
 
-**Target:** `mint-OptiPlex-7010` (production client → `https://cloud.dotnetcloud.net/`)
-**Branch:** `fix/synctray-issues`
-**Server deploy:** ✅ COMPLETE — deployed & verified on `cloud.kimball.home` (v0.4.07, HEAD `ffe882d5`; feature commit `a470c992`)
-**Client deploy:** ✅ COMPLETE — client rebuilt (v0.4.07) + deployed to `/opt/dotnetcloud-desktop-client/SyncTray/` on mint-OptiPlex-7010, restarted, healthy.
+**Target:** `cloud.kimball.home` (server; production `https://cloud.dotnetcloud.net/`; SQL Server DB on `hyperdrive`)
+**Branch:** `fix/database-offline-recovery`
+**Commit:** `e2eea604` — `feat(resilience): implement database/server outage recovery (DB_OUTAGE_RESILIENCE_PLAN)`
+**Canonical plan:** `docs/DB_OUTAGE_RESILIENCE_PLAN.md` (implementation complete; **§11 Verification is the open work**)
 
-**Summary:** All client testing completed and PASSED against `cloud.dotnetcloud.net`. One real client bug was found and fixed during testing (state DB schema init before selective-sync load on pre-existing DBs). Production client restored to original single-folder state after testing.
+**Task:** Pull `fix/database-offline-recovery`, deploy the latest code, then run the outage verifications + integration tests and report results back here. **Do NOT treat the handoff as closed until §11.2, §11.3, and the integration tests pass.**
 
-### Client testing report (2026-08-23) — ALL PASS ✅
+### 1. Deploy (all targets)
 
-1. **Build & deploy** ✅ — Client rebuilt with feature (`a470c992`) at v0.4.07, deployed to `/opt/dotnetcloud-desktop-client/SyncTray/`, launched clean (1 context, engine started, SSE connected, sync pass OK). Version bump applied (`Directory.Build.props` 0.4.06→0.4.07; Android csproj display 0.4.07 / versionCode 4).
-2. **Multi-folder add flow** ✅ — Used the real client `SyncContextManager.AddFolderAsync` to add 2 folders (`/home/benk/synctray-test-a` → `ClientTest-A`, `-b` → `ClientTest-B`). Each registered via `POST /api/v1/files/sync/folders`, appeared in the tray (RefreshAccounts: 3 contexts), and synced correctly (marker files appeared in the scoped server trees). Re-registration is idempotent (same registration id, 1 occurrence). Cleaned up after test.
-3. **Folder size limit** ✅ — Enabled limit (32 KB), created a 64 KB folder+file on the server. `SizeLimitDecisionRequested` fired; decision (skip) persisted as a `SizeLimit` rule; **no re-prompt** on subsequent passes (once-per-folder). `SyncFolderSizePlanner` verified: deepest over-limit folders excluded, parents + root kept. **Over-limit file content was NOT downloaded.** Minor cosmetic note: an empty parent folder directory may be created during the prompt pass (file content still skipped) — non-blocking.
-4. **Per-root tray "Open Folder" entries** ✅ — Code-verified `RefreshOpenFolderMenu()` creates one "Open Folder" entry per synced root using each account's `LocalFolderPath`; runtime-verified with 3 contexts loaded (`RefreshAccounts: received 3 context(s)`).
-5. **Remote-overlap validation** ✅ — Server rejects descendant (folder inside a registered folder) and ancestor (folder containing a registered folder) with **HTTP 409 Conflict**; equal = idempotent return (by design); disjoint registrations succeed. Verified against production API.
-6. **Regression — existing single-folder sync** ✅ — Original `/home/benk/synctray` whole-account context continues to sync cleanly (tree/changes/ack OK, no errors) after upgrade; legacy `.selective-sync.json` imported once into `state.db` and removed.
+```bash
+git fetch origin && git checkout fix/database-offline-recovery && git pull
+scripts/deploy.sh --force --verify   # all 15 targets + assembly hash verify, as usual
+```
 
-### Client fix shipped during testing (IMPORTANT — review)
+Confirm after deploy:
+- `/health` + `/health/ready` → Healthy.
+- `/health` now includes a `database` entry (tagged) reporting Healthy when the DB is reachable.
+- All modules report running (14/14) — module hosts now register DB-aware health checks.
 
-- **Bug:** On an existing (pre-feature) `state.db`, `StartContextInternalAsync` called `SelectiveSyncConfig.LoadAsync` (which queries `SyncFolderRules`) BEFORE the state DB schema evolution ran — engine failed to start with `SQLite Error 1: no such table: SyncFolderRules`.
-- **Fix:** `src/Clients/DotNetCloud.Client.Core/Sync/SyncContextManager.cs` — `StartContextInternalAsync` now calls `stateDb.InitializeAsync(stateDatabasePath, …)` before `SelectiveSyncConfig.LoadAsync`. Idempotent (engine also initializes later).
-- **Verification:** After fix, engine starts, `SyncFolderRules` created, legacy import runs, sync passes complete.
+### 2. Server outage simulation (plan §11.2) — use a NON-production instance
 
-### Server status (completed — verified 2026-08-23)
+⚠️ The production SQL Server on `hyperdrive` backs `cloud.dotnetcloud.net` — do NOT stop it. Run this against the **mint22 dev instance** (or a dedicated test DB). Steps:
 
-- ✅ Deployed via `scripts/deploy.sh --force --verify` on `cloud.kimball.home` — all 15 targets succeeded, assembly hashes verified.
-- ✅ `/health` + `/health/ready` → Healthy, 14/14 modules (Files Running).
-- ✅ New table `[core].[SyncFolderRegistrations]` created on SQL Server (hyperdrive).
-- ✅ Authenticated 200 checks now confirmed during client testing: `GET /api/v1/files/sync/folders` returns `{ success = true, data: [] }` (empty list), POST/DELETE work.
+1. With the dev DB running, start the server.
+2. Stop the dev database.
+3. Assert:
+   - `GET /health/live` → `Healthy` (process stays alive).
+   - `GET /health/ready` → `Unhealthy` with `entries.database.status == Unhealthy`.
+   - An authenticated API call that hits the DB (e.g. `GET /api/v1/files/quota`) returns **HTTP 503** with body `{"success":false,"code":"DATABASE_UNAVAILABLE",...}` in **under ~2 s** (no hang).
+4. Restart the dev DB.
+5. Within ~10 s (one reconnect poll): `/health/ready` → `Healthy` again; the same API call → `200` — **without restarting the service**.
 
-### Notes / hand back to server agent
+### 3. Module host simulation (plan §11.3)
 
-- Minor observation for the server agent: gRPC streaming upload failed in this environment (`Status(StatusCode="Unknown")` on `UploadFileStreamAsync`) and correctly **fell back to HTTP chunked upload** — file still synced. Pre-existing behavior, not a regression.
-- Empty parent folder directory may be created during the pass in which the size-limit prompt fires (file content still skipped). Optional polish.
-- Test artifacts cleaned up: 2 test contexts removed, local test folders deleted, remote `ClientTest-A/B` scratch folders + registrations deleted. Production client restored to single-folder state and left running.
-- **Hand back:** server agent may review the client fix above; no server-side changes needed. Ready for next handoff item.
+With the DB down, module hosts (e.g. `dotnetcloud-module files`) must **keep running** (process stays up — no crash-loop) and report `Degraded`/`Unhealthy` via the supervisor aggregate; after DB recovery they return to healthy with no manual restart. If any host exits on DB-down, that's a regression in this branch — report it.
 
-### Useful server contract details for testing
+### 4. Integration tests (both providers — DB on hyperdrive)
 
-- Endpoints: `GET/POST/DELETE /api/v1/files/sync/folders`; `GET /api/v1/files/sync/changes`.
-- Responses are wrapped in the API envelope — unwrap via envelope helpers.
-- Desktop OAuth client id: `OAuthConstants.ClientId = "dotnetcloud-desktop"`.
-- Server version: 0.4.07.
+```bash
+# SQL Server (hyperdrive test DB, same pattern as WS4):
+export DOTNETCLOUD_TEST_SQLSERVER_CONNECTION_STRING="Server=<hyperdrive-sql>;Database=DotNetCloud-Test;User Id=<user>;Password=<pass>;TrustServerCertificate=true"
+dotnet test tests/DotNetCloud.Integration.Tests/ -p:DatabaseProvider=SqlServer
 
-### Follow-up
+# PostgreSQL (hyperdrive or configured PG host):
+dotnet test tests/DotNetCloud.Integration.Tests/ -p:DatabaseProvider=PostgreSql
+```
 
-After client testing, report results (pass/fail + any blockers) here and hand back to the server agent for fixes if needed.
+Report pass/fail + evidence. This branch rewired **every** DbContext registration to the shared `DbResiliencePolicy` — integration tests confirm no provider regression.
+
+### 5. Client-side verifications (separate handoffs — NOT this one)
+
+- §11.4 SyncTray simulation → a client machine (`Windows11-TestDNC` / `mint-OptiPlex-7010`) once the server deploy above is verified.
+- §11.5 Android simulation → `monolith` (Android MAUI).
+
+### Report back
+
+After deploy + server verifications, report results (pass/fail + evidence) here and either hand back for fixes or flag ready for the client-side verifications. **Do not close the branch out until §11.2 + §11.3 + integration tests pass.**
 
 ## Moderator Communication (Minimal)
 
