@@ -3568,6 +3568,10 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Create `IEqualizerService` / `AndroidEqualizerService` (native `AudioEffect.Equalizer`)
 - ✓ Implement EQ preset save/load/apply (server presets + virtual band mapping)
 - ✓ Implement repeat modes (Off / One / All) with visual indicator
+- ✓ Fix music auto-advance: playing a track from the list queues the full displayed list so `RepeatMode.Off` advances through the queue instead of stopping after one song
+- ✓ Fix `MEDIA_ERROR_SERVER_DIED (-38)` feedback loop that froze the app at track transitions (break error→Stop→error recursion)
+- ✓ Use a fresh `MediaPlayer` per track (release+recreate) and retry the same track on -38 so the *very next* song plays
+- ✓ Highlight the currently playing song in the track list (`TrackIsCurrentConverter` + row background)
 - ✓ Implement now-playing bar with album art, seek slider, play/pause/next/prev controls
 - ✓ Implement album art loading via `IAlbumArtCache` with fallback placeholder
 - ✓ Implement search: toggle search icon in title bar, debounced server-side search by current tab (artists/albums/tracks), results replace collection, restore on close

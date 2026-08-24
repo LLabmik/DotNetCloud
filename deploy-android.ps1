@@ -124,13 +124,16 @@ if ($LASTEXITCODE -ne 0) {
 # --- Step 4: Locate the APK ---
 Write-Output "=== Step 4: Locate APK ==="
 $apkDir = Join-Path $repoRoot "src\Clients\DotNetCloud.Client.Android\bin\$Configuration\net10.0-android"
-if ($rid -ne "android-arm64") {
-    # Non-default RIDs go into a subfolder (android-arm, android-x64, etc.)
-    $apkDir = Join-Path $apkDir $rid
+# Publishing with a specific RuntimeIdentifier always emits into a RID
+# subfolder (e.g. android-arm64). Prefer that — the parent folder can hold a
+# stale, incomplete multi-ABI Signed APK from an interrupted build.
+$ridApkDir = Join-Path $apkDir $rid
+if (Test-Path $ridApkDir) {
+    $apkDir = $ridApkDir
 }
-$apk = Get-ChildItem -Path $apkDir -Filter "*-Signed.apk" -Recurse -Depth 2 | Select-Object -First 1
+$apk = Get-ChildItem -Path $apkDir -Filter "*-Signed.apk" -Recurse -Depth 2 | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 if (-not $apk) {
-    $apk = Get-ChildItem -Path $apkDir -Filter "*.apk" -Recurse -Depth 2 | Where-Object { $_.Name -notmatch "-Signed" } | Select-Object -First 1
+    $apk = Get-ChildItem -Path $apkDir -Filter "*.apk" -Recurse -Depth 2 | Where-Object { $_.Name -notmatch "-Signed" } | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 }
 
 if (-not $apk) {

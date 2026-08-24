@@ -1045,6 +1045,25 @@ public sealed partial class MusicViewModel : ObservableObject
 
         try
         {
+            // Queue up the currently displayed track list so playback
+            // auto-advances to the next track when one finishes. Without this,
+            // playing a track from the list treats it as a standalone single
+            // track, so RepeatMode.Off stops after one song instead of playing
+            // through the rest of the list.
+            if (Tracks.Count > 0 && Tracks.Contains(track))
+            {
+                // Search results aren't a scoped album/playlist context, so
+                // don't carry stale filter context while a search is active.
+                var albumId = IsSearchOpen ? null : _tracksFilteredByAlbumId;
+                var playlistId = IsSearchOpen ? null : _tracksFilteredByPlaylistId;
+                _player.ReplaceQueue(Tracks.ToList(), albumId, playlistId);
+                System.Diagnostics.Debug.WriteLine($"[Music] PlayTrackAsync: queued {Tracks.Count} tracks from list, albumId={albumId}, playlistId={playlistId}");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"[Music] PlayTrackAsync: track NOT in Tracks list (count={Tracks.Count}) — standalone play");
+            }
+
             await _player.PlayAsync(track, serverUrl, token);
         }
         catch (Exception ex)

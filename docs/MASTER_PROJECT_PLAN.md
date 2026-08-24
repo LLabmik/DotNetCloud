@@ -1630,6 +1630,8 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Blocking Issues:** None
 **Notes:** The search replaces collections entirely (server-side results). The original collections are saved as references when the panel opens. Infinite scroll is disabled during search to prevent appending unrelated items. Tab-switch commands and back navigation all properly close search first. Tested on physical device (Samsung, Android 14) — search works across Artists, Albums, and Tracks tabs with correct results and no extraneous entries.
 
+Also fixed Android music player auto-advance & stability (2026-08-24): playing from a list now queues the full displayed list so `RepeatMode.Off` advances through the queue; broke the `MEDIA_ERROR_SERVER_DIED (-38)` error→Stop→error feedback loop that froze the app at track transitions; uses a fresh `MediaPlayer` per track (release+recreate) with a same-track retry on -38 so the *very next* song plays instead of skipping; highlights the now-playing row in the track list (`TrackIsCurrentConverter`). Verified end-to-end on device (Samsung Galaxy S24 Ultra).
+
 ---
 
 ## Phase 3: Contacts, Calendar & Notes
