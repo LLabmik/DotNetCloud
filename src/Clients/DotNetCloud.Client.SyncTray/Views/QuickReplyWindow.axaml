@@ -61,7 +61,7 @@
         <!-- Message input -->
         <TextBox Text="{Binding MessageText}"
                  AcceptsReturn="False"
-                 Watermark="Type a message…"
+                 PlaceholderText="Type a message…"
                  VerticalAlignment="Stretch"
                  IsEnabled="{Binding !IsSending}" />
 

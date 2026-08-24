@@ -13,7 +13,7 @@
         Background="#0D1118"
         Foreground="#E6ECF5"
         CanResize="True"
-        SystemDecorations="Full"
+        WindowDecorations="Full"
         ShowInTaskbar="True">
 
     <Window.Styles>

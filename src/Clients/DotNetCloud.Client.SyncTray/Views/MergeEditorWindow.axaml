@@ -229,7 +229,7 @@
                          TextWrapping="NoWrap"
                          FontFamily="Cascadia Mono, Consolas, monospace"
                          FontSize="12"
-                         Watermark="Merged content will appear here..."
+                         PlaceholderText="Merged content will appear here..."
                          VerticalContentAlignment="Top" />
             </DockPanel>
         </Grid>

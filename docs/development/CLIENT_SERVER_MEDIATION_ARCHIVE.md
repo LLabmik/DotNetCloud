@@ -1,3 +1,28 @@
+## Archived: SyncTray DB Outage Simulation §11.4 — PASS (2026-08-24)
+
+**Target:** `Windows11-DNC` (client test machine; sync dir `C:\Users\benk\synctray`)
+**Branch:** `fix/database-offline-recovery`
+**Canonical plan:** `docs/DB_OUTAGE_RESILIENCE_PLAN.md` §11.4 (SyncTray simulation)
+
+**Result:** ✅ PASS — SyncTray 0.4.07 handled a production server outage and recovered automatically. No client regressions.
+
+**Client install:** SyncTray 0.4.07 rebuilt from HEAD `cbddab37` (self-contained win-x64 + updater 0.4.07) → `C:\Program Files\DotNetCloud\DesktopClient\SyncTray`; old 0.4.02 backed up to `SyncTray.bak-0.4.02`.
+
+**Outage phase (moderator: `sudo systemctl stop dotnetcloud`):**
+- Server confirmed down: `cloud.dotnetcloud.net:443` connection refused.
+- Tray → gray within one backoff interval: `Server unreachable while syncing context` → `SyncEngine` sets `SyncState.Offline` → tray `TrayState.Offline` (gray), tooltip "server unreachable, retrying automatically".
+- Automatic retry/backoff: SSE reconnects 2s → 4s → 8s → 16s → 32s → 60s (attempts 1–8), then holds at 60s.
+- "Sync now" fast-fail: connection-refused fails fast; `TimeoutHandler` caps requests at 30s; sync pass observed failing in ~12s. No hang.
+
+**Recovery phase (moderator: `sudo systemctl start dotnetcloud`):**
+- Server recovered: `/health/ready` Healthy, `database` Healthy, 14/14 modules.
+- Automatic recovery, no manual restart: failing sync passes 10:07:25/10:07:45 (server still down) → successful pass 10:08:04 (RemoteChanges=0, LocalQueued=0, LocalApplied=0) → `SyncState.Idle`.
+- SSE reconnected automatically 10:08:52 (within the 60s backoff cap). Tray returned to green/idle (moderator-confirmed).
+
+**Next:** §11.5 Android → `monolith`.
+
+---
+
 ## Archived: DB Outage Resilience — Server Deploy + Verification COMPLETE (2026-08-24)
 
 **Target:** `cloud.kimball.home` (server; production `https://cloud.dotnetcloud.net/`; SQL Server DB on `hyperdrive`)
