@@ -288,6 +288,31 @@ public class Program
         }
         builder.Services.AddDotNetCloudDbContext(connectionString, provider);
 
+        // DB outage resilience: a transient database failure in a background service must
+        // NOT stop the entire host. The default BackgroundServiceExceptionBehavior is
+        // StopHost, which would crash the server when e.g. ModuleUiRegistrationHostedService,
+        // AuditLogPurgeHostedService, or DemoAccountCleanupService hits the unreachable DB
+        // during an outage. Those services run periodically and retry on their next cycle,
+        // so Ignore keeps the process alive while DatabaseUnavailableMiddleware returns 503
+        // for user-facing requests until the DB recovers.
+        builder.Services.Configure<HostOptions>(options =>
+        {
+            options.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.Ignore;
+        });
+
+        // Database availability tracking (health check + 503 gate + auto-reconnect).
+        builder.Services.AddSingleton<IDbConnectionFactory>(
+            new DbConnectionFactory(connectionString, provider));
+        builder.Services.AddSingleton<DatabaseConnectivityState>();
+        builder.Services.AddHostedService<DatabaseReconnectMonitor>();
+        builder.Services.AddHealthChecks()
+            .Add(new Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckRegistration(
+                "database",
+                sp => new DatabaseAvailabilityHealthCheck(
+                    sp.GetRequiredService<DatabaseConnectivityState>()),
+                failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy,
+                tags: ["database"]));
+
         // Register schema services for lazy module schema creation.
         // SelfManagedSchemaProvider and ModuleSchemaService are registered by AddDotNetCloudDbContext.
         builder.Services.AddSingleton<IFileValidationService, FileValidationService>();
@@ -675,6 +700,7 @@ public class Program
                 sp => new ModulesAggregateHealthCheck(
                     sp.GetRequiredService<IProcessSupervisor>(),
                     sp.GetRequiredService<Supervisor.GrpcChannelManager>(),
+                    sp.GetRequiredService<DatabaseConnectivityState>(),
                     sp.GetRequiredService<ILogger<ModulesAggregateHealthCheck>>()),
                 failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy,
                 tags: ["module"]));
@@ -755,27 +781,7 @@ public class Program
         DatabaseProvider provider,
         string connectionString)
     {
-        switch (provider)
-        {
-            case DatabaseProvider.PostgreSQL:
-                options.UseNpgsql(connectionString, npgsqlOptions =>
-                {
-                    npgsqlOptions.EnableRetryOnFailure(maxRetryCount: 3);
-                    npgsqlOptions.CommandTimeout(30);
-                });
-                break;
-
-            case DatabaseProvider.SqlServer:
-                options.UseSqlServer(connectionString, sqlServerOptions =>
-                {
-                    sqlServerOptions.EnableRetryOnFailure(maxRetryCount: 3);
-                    sqlServerOptions.CommandTimeout(30);
-                });
-                break;
-
-            default:
-                throw new InvalidOperationException($"Unsupported database provider: {provider}");
-        }
+        DbResiliencePolicy.Configure(options, provider, connectionString);
     }
 
     /// <summary>
@@ -897,6 +903,10 @@ public class Program
         // Serve static files (Blazor wwwroot, CSS, JS, _framework/blazor.web.js)
         app.MapStaticAssets();
         app.UseAntiforgery();
+
+        // Fail fast (503) when the database is unavailable instead of hanging
+        // requests. Health/metrics/static assets were mapped earlier and stay reachable.
+        app.UseMiddleware<DatabaseUnavailableMiddleware>();
 
         // Map OpenIddict endpoints
         app.MapOpenIddictEndpoints();

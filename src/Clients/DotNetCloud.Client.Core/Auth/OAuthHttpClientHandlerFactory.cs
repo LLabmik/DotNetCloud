@@ -21,6 +21,7 @@ public static class OAuthHttpClientHandlerFactory
         return new SocketsHttpHandler
         {
             AutomaticDecompression = System.Net.DecompressionMethods.All,
+            ConnectTimeout = TimeSpan.FromSeconds(10),
             MaxConnectionsPerServer = 16,
             PooledConnectionLifetime = TimeSpan.FromMinutes(10),
             EnableMultipleHttp2Connections = true,

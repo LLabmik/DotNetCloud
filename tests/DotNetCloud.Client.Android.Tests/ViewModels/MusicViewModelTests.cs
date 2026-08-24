@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using DotNetCloud.Client.Android.Auth;
 using DotNetCloud.Client.Core;
 using DotNetCloud.Client.Android.Music;
@@ -344,6 +345,81 @@ public sealed class MusicViewModelTests
         await _vm.PlayTrackCommand.ExecuteAsync(track);
 
         _player.Verify(x => x.PlayAsync(It.IsAny<TrackDto>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [TestMethod]
+    public async Task PlayTrackCommand_WhenTrackInTracksList_ReplacesQueueWithTrackList()
+    {
+        // Arrange: Tracks view is showing a list containing the tapped track.
+        var first = new TrackDto { Id = Guid.NewGuid(), Title = "Track 1", OwnerId = Guid.NewGuid(), FileNodeId = Guid.NewGuid(), MimeType = "audio/mpeg", ArtistId = Guid.NewGuid(), ArtistName = "Artist", CreatedAt = DateTime.UtcNow };
+        var track = new TrackDto { Id = Guid.NewGuid(), Title = "Track 2", OwnerId = Guid.NewGuid(), FileNodeId = Guid.NewGuid(), MimeType = "audio/mpeg", ArtistId = Guid.NewGuid(), ArtistName = "Artist", CreatedAt = DateTime.UtcNow };
+        _vm.Tracks = new ObservableCollection<TrackDto>([first, track]);
+        _player.Setup(x => x.PlayAsync(track, ServerUrl, "test-access-token"))
+            .Returns(Task.CompletedTask);
+
+        // Act
+        await _vm.PlayTrackCommand.ExecuteAsync(track);
+
+        // Assert: the queue is replaced with the full displayed list (so
+        // RepeatMode.Off advances to the next track instead of stopping after one).
+        _player.Verify(x => x.ReplaceQueue(
+            It.Is<IEnumerable<TrackDto>>(q => q.SequenceEqual(new[] { first, track })),
+            It.Is<Guid?>(g => g == null),
+            It.Is<Guid?>(g => g == null)), Times.Once);
+        _player.Verify(x => x.PlayAsync(track, ServerUrl, "test-access-token"), Times.Once);
+    }
+
+    [TestMethod]
+    public async Task PlayTrackCommand_WhenTrackNotInTracksList_DoesNotReplaceQueue()
+    {
+        // Arrange: Tracks list is populated but does not contain the tapped track
+        // (e.g. standalone/other source) — fall back to single-track playback.
+        var listed = new TrackDto { Id = Guid.NewGuid(), Title = "Listed", OwnerId = Guid.NewGuid(), FileNodeId = Guid.NewGuid(), MimeType = "audio/mpeg", ArtistId = Guid.NewGuid(), ArtistName = "Artist", CreatedAt = DateTime.UtcNow };
+        var track = new TrackDto { Id = Guid.NewGuid(), Title = "Other", OwnerId = Guid.NewGuid(), FileNodeId = Guid.NewGuid(), MimeType = "audio/mpeg", ArtistId = Guid.NewGuid(), ArtistName = "Artist", CreatedAt = DateTime.UtcNow };
+        _vm.Tracks = new ObservableCollection<TrackDto>([listed]);
+        _player.Setup(x => x.PlayAsync(track, ServerUrl, "test-access-token"))
+            .Returns(Task.CompletedTask);
+
+        // Act
+        await _vm.PlayTrackCommand.ExecuteAsync(track);
+
+        // Assert: no queue replacement — PlayAsync handles standalone playback.
+        _player.Verify(x => x.ReplaceQueue(It.IsAny<IEnumerable<TrackDto>>(), It.IsAny<Guid?>(), It.IsAny<Guid?>()), Times.Never);
+        _player.Verify(x => x.PlayAsync(track, ServerUrl, "test-access-token"), Times.Once);
+    }
+
+    [TestMethod]
+    public async Task PlayTrackCommand_WhenInAlbumTracksView_PassesAlbumContext()
+    {
+        // Arrange: load an album so the Tracks view is album-scoped.
+        var albumId = Guid.NewGuid();
+        _music.Setup(x => x.ListAlbumsAsync(ServerUrl, "test-access-token", 0, 50, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new MusicAlbumDto { Id = albumId, Title = "Album", ArtistId = Guid.NewGuid(), ArtistName = "Artist", CreatedAt = DateTime.UtcNow }]);
+        await _vm.LoadAlbumsCommand.ExecuteAsync(null);
+
+        var album = _vm.Albums[0];
+        var tracks = new List<TrackDto>
+        {
+            new() { Id = Guid.NewGuid(), Title = "Track 1", OwnerId = Guid.NewGuid(), FileNodeId = Guid.NewGuid(), MimeType = "audio/mpeg", ArtistId = Guid.NewGuid(), ArtistName = "Artist", AlbumId = albumId, CreatedAt = DateTime.UtcNow },
+            new() { Id = Guid.NewGuid(), Title = "Track 2", OwnerId = Guid.NewGuid(), FileNodeId = Guid.NewGuid(), MimeType = "audio/mpeg", ArtistId = Guid.NewGuid(), ArtistName = "Artist", AlbumId = albumId, CreatedAt = DateTime.UtcNow }
+        };
+        _music.Setup(x => x.ListTracksByAlbumAsync(ServerUrl, "test-access-token", albumId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(tracks);
+        await _vm.SelectAlbumCommand.ExecuteAsync(album);
+
+        var tapped = tracks[1];
+        _player.Setup(x => x.PlayAsync(tapped, ServerUrl, "test-access-token"))
+            .Returns(Task.CompletedTask);
+
+        // Act: tap the second track in the album's track list.
+        await _vm.PlayTrackCommand.ExecuteAsync(tapped);
+
+        // Assert: queue replaced with album tracks, keeping album navigation context.
+        _player.Verify(x => x.ReplaceQueue(
+            It.Is<IEnumerable<TrackDto>>(q => q.SequenceEqual(tracks)),
+            It.Is<Guid?>(g => g == albumId),
+            It.Is<Guid?>(g => g == null)), Times.AtLeastOnce);
+        _player.Verify(x => x.PlayAsync(tapped, ServerUrl, "test-access-token"), Times.Once);
     }
 
     // ── Playback controls ──────────────────────────────────────────────
@@ -1003,7 +1079,9 @@ public sealed class MusicViewModelTests
 
         await Task.Delay(500);
 
-        StringAssert.Contains(_vm.ErrorMessage, "Search failed");
+        // HttpRequestException maps to the shared user-friendly connectivity message
+        // (ApiExceptionHelper), not a search-specific one.
+        StringAssert.Contains(_vm.ErrorMessage, "A connection error occurred");
     }
 
     [TestMethod]

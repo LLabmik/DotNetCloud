@@ -33,6 +33,18 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
     /// <summary>Current repeat mode — controls end-of-queue / track-end behavior.</summary>
     private RepeatMode _repeatMode;
 
+    /// <summary>Re-entrancy guard for <see cref="Stop"/> to break error->Stop->error loops.</summary>
+    private bool _isStopping;
+
+    /// <summary>Consecutive <c>MEDIA_ERROR_SERVER_DIED</c> retries for the current track.</summary>
+    private int _serverDiedRetries;
+
+    /// <summary>Maximum consecutive -38 retries for the same track before skipping it.</summary>
+    private const int MaxServerDiedRetries = 2;
+
+    /// <summary>Some Samsung builds report <c>MEDIA_ERROR_SERVER_DIED</c> as -38 rather than 100.</summary>
+    private const int MediaErrorServerDiedSamsung = -38;
+
     public MusicPlayerService(ILogger<MusicPlayerService> logger)
     {
         _logger = logger;
@@ -81,11 +93,15 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
         CurrentTrack = track;
 
         // If the track is already in the queue (pre-populated by ViewModel),
-        // just reposition to it without clearing the queue.
-        var idx = _queue.IndexOf(track);
+        // just reposition to it without clearing the queue. Match by Id so a
+        // logically-identical track instance (e.g. re-fetched metadata) still
+        // repositions instead of collapsing the queue to a single standalone
+        // track (which would stop playback after one song).
+        var idx = _queue.FindIndex(t => t.Id == track.Id);
         if (idx >= 0)
         {
             _queueIndex = idx;
+            System.Diagnostics.Debug.WriteLine($"[Music] PlayAsync: track {track.Id} found in queue at index {idx} (queue={_queue.Count})");
         }
         else
         {
@@ -95,6 +111,7 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
             _queueIndex = 0;
             _playingAlbumId = null;
             _playingPlaylistId = null;
+            System.Diagnostics.Debug.WriteLine($"[Music] PlayAsync: standalone play — queue reset to 1 item (queue={_queue.Count})");
         }
 
         await PrepareAndStartAsync().ConfigureAwait(false);
@@ -103,11 +120,17 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
     private async Task PrepareAndStartAsync()
     {
         if (CurrentTrack is null || _serverBaseUrl is null || _accessToken is null)
+        {
+            _logger.LogWarning("PrepareAndStartAsync: no current track/server/token — skipping");
             return;
+        }
+
+        System.Diagnostics.Debug.WriteLine($"[Music] PrepareAndStartAsync: BEGIN track={CurrentTrack.Id} index={_queueIndex} queue={_queue.Count} thread={Environment.CurrentManagedThreadId}");
 
         // Serialize MediaPlayer setup to prevent MEDIA_ERROR_SERVER_DIED (-38)
         // from rapid create/release cycles on Samsung/Android mediaserver.
         await _prepareLock.WaitAsync().ConfigureAwait(false);
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         try
         {
             // Start foreground service IMMEDIATELY, before any async preparation
@@ -122,37 +145,41 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
                 ["Authorization"] = $"Bearer {_accessToken}"
             };
 
-            if (_mediaPlayer is null)
-            {
-                // First-time creation
-                var player = new MediaPlayer();
-                player.Completion += OnTrackCompleted;
-                player.Prepared += OnTrackPrepared;
-                player.Error += OnPlayerError;
-                _mediaPlayer = player;
-            }
-            else
-            {
-                // Reuse existing player via Reset() instead of release+create,
-                // which avoids mediaserver crashes on some Samsung devices.
-                _mediaPlayer.Reset();
-            }
+            // Always use a fresh MediaPlayer per track. Reusing the same player via
+            // Reset() between tracks fires MEDIA_ERROR_SERVER_DIED (-38) on some
+            // Samsung devices — the mediaserver loses the player during the
+            // transition and the next track never prepares. Android's documented
+            // remedy for -38 is to release the player and instantiate a new one.
+            _mediaPlayer?.Release();
+            _mediaPlayer = null;
+            var player = new MediaPlayer();
+            player.Completion += OnTrackCompleted;
+            player.Prepared += OnTrackPrepared;
+            player.Error += OnPlayerError;
+            _mediaPlayer = player;
+            System.Diagnostics.Debug.WriteLine($"[Music] PrepareAndStartAsync: created fresh MediaPlayer t={sw.ElapsedMilliseconds}ms");
 
             var uri = global::Android.Net.Uri.Parse(audioUrl);
             if (uri is null)
             {
                 _logger.LogError("Failed to parse audio URL for track {TrackId}", CurrentTrack.Id);
+                System.Diagnostics.Debug.WriteLine($"[Music] PrepareAndStartAsync: FAILED to parse URL t={sw.ElapsedMilliseconds}ms");
                 return;
             }
+
             _mediaPlayer.SetDataSource(
                 global::Android.App.Application.Context,
                 uri,
                 headers);
+            System.Diagnostics.Debug.WriteLine($"[Music] PrepareAndStartAsync: SetDataSource done t={sw.ElapsedMilliseconds}ms");
+
             _mediaPlayer.PrepareAsync();
+            System.Diagnostics.Debug.WriteLine($"[Music] PrepareAndStartAsync: PrepareAsync sent t={sw.ElapsedMilliseconds}ms");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to prepare audio for track {TrackId}", CurrentTrack.Id);
+            System.Diagnostics.Debug.WriteLine($"[Music] PrepareAndStartAsync: EXCEPTION t={sw.ElapsedMilliseconds}ms {ex}");
         }
         finally
         {
@@ -166,6 +193,9 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
         if (sender is not MediaPlayer player || player != _mediaPlayer)
             return;
 
+        // A successful prepare resets the server-died retry counter.
+        _serverDiedRetries = 0;
+        System.Diagnostics.Debug.WriteLine($"[Music] OnTrackPrepared: track {CurrentTrack?.Id} ready t={Environment.TickCount64} — starting playback");
         player.Start();
         IsPlaying = true;
         StartPositionTimer();
@@ -175,6 +205,7 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
 
     private void OnTrackCompleted(object? sender, EventArgs e)
     {
+        System.Diagnostics.Debug.WriteLine($"[Music] OnTrackCompleted: track {CurrentTrack?.Id} finished t={Environment.TickCount64} (index={_queueIndex}, queue={_queue.Count}, repeat={_repeatMode})");
         IsPlaying = false;
         StopPositionTimer();
         TrackEnded?.Invoke(this, EventArgs.Empty);
@@ -187,7 +218,60 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
     private void OnPlayerError(object? sender, MediaPlayer.ErrorEventArgs e)
     {
         _logger.LogError("MediaPlayer error: {What} (extra: {Extra})", e.What, e.Extra);
-        Stop();
+        System.Diagnostics.Debug.WriteLine($"[Music] OnPlayerError: what={e.What} extra={e.Extra}");
+
+        // Do NOT call Stop() here: on some devices (Samsung) calling Stop() on a
+        // player in the error state re-triggers the Error callback, producing an
+        // infinite error→Stop→error loop that freezes the UI thread.
+        var isServerDied = (int)e.What == MediaErrorServerDiedSamsung || e.What == MediaError.ServerDied;
+        var failedTrack = CurrentTrack;
+        var failedIndex = _queueIndex;
+
+        IsPlaying = false;
+        StopPositionTimer();
+
+        // MEDIA_ERROR_SERVER_DIED (-38) means the mediaserver lost the player;
+        // Android requires releasing and instantiating a new one. Release and null
+        // it so the next prepare creates a fresh player.
+        try { _mediaPlayer?.Release(); } catch { /* ignore */ }
+        _mediaPlayer = null;
+
+        if (isServerDied && failedTrack is not null && _serverDiedRetries < MaxServerDiedRetries)
+        {
+            // The mediaserver needs a fresh player + a brief moment to recover after
+            // a release. Retry the SAME track instead of skipping it — otherwise
+            // playback always jumps past the very next song.
+            _serverDiedRetries++;
+            System.Diagnostics.Debug.WriteLine($"[Music] OnPlayerError: SERVER_DIED — retry {_serverDiedRetries}/{MaxServerDiedRetries} for same track");
+            _ = RetryPrepareAsync();
+            return;
+        }
+
+        _serverDiedRetries = 0;
+        CurrentTrack = null;
+        _playingAlbumId = null;
+        _playingPlaylistId = null;
+        PlaybackStateChanged?.Invoke(this, EventArgs.Empty);
+        UpdateNotification();
+
+        if (isServerDied)
+        {
+            // Retries exhausted — skip past the broken track so the queue continues.
+            System.Diagnostics.Debug.WriteLine("[Music] OnPlayerError: SERVER_DIED — retries exhausted, skipping track");
+            PlayNext();
+        }
+    }
+
+    /// <summary>
+    /// Retries preparing the current track with a fresh MediaPlayer after a
+    /// <c>MEDIA_ERROR_SERVER_DIED</c>. Gives the mediaserver a brief moment to
+    /// settle before the retry.
+    /// </summary>
+    private async Task RetryPrepareAsync()
+    {
+        await Task.Delay(250).ConfigureAwait(false);
+        if (CurrentTrack is not null && _mediaPlayer is null)
+            await PrepareAndStartAsync().ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -213,16 +297,31 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
     /// <inheritdoc />
     public void Stop()
     {
-        _mediaPlayer?.Stop();
-        // Keep the player alive for reuse via Reset()
-        // Keep the foreground service alive — don't stop/restart it between tracks,
-        // as rapid stop/start cycles can trigger ForegroundServiceDidNotStartInTimeException.
-        IsPlaying = false;
-        CurrentTrack = null;
-        _playingAlbumId = null;
-        _playingPlaylistId = null;
-        StopPositionTimer();
-        PlaybackStateChanged?.Invoke(this, EventArgs.Empty);
+        // Re-entrancy guard: on some devices (Samsung) calling Stop() on a player
+        // in an error/completed state fires the Error callback synchronously, which
+        // calls Stop() again → an infinite error→Stop→error loop that freezes the
+        // UI thread. Ignore re-entrant calls to break the loop.
+        if (_isStopping)
+            return;
+        _isStopping = true;
+        try
+        {
+            System.Diagnostics.Debug.WriteLine($"[Music] Stop: called t={Environment.TickCount64} (queue={_queue.Count})");
+            _mediaPlayer?.Stop();
+            // Keep the player alive for reuse via Reset()
+            // Keep the foreground service alive — don't stop/restart it between tracks,
+            // as rapid stop/start cycles can trigger ForegroundServiceDidNotStartInTimeException.
+            IsPlaying = false;
+            CurrentTrack = null;
+            _playingAlbumId = null;
+            _playingPlaylistId = null;
+            StopPositionTimer();
+            PlaybackStateChanged?.Invoke(this, EventArgs.Empty);
+        }
+        finally
+        {
+            _isStopping = false;
+        }
     }
 
     /// <inheritdoc />
@@ -240,12 +339,17 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
     /// <inheritdoc />
     public void PlayNext()
     {
+        System.Diagnostics.Debug.WriteLine($"[Music] PlayNext: called t={Environment.TickCount64} (index={_queueIndex}, queue={_queue.Count}, repeat={_repeatMode})");
         if (_queue.Count == 0)
+        {
+            System.Diagnostics.Debug.WriteLine("[Music] PlayNext: queue is EMPTY — nothing to advance to");
             return;
+        }
 
         // Repeat One: replay the current track without advancing the queue
         if (_repeatMode == RepeatMode.One && CurrentTrack is not null)
         {
+            System.Diagnostics.Debug.WriteLine("[Music] PlayNext: Repeat.One — replaying current track");
             _ = PrepareAndStartAsync();
             return;
         }
@@ -257,17 +361,20 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
             if (_repeatMode == RepeatMode.All)
             {
                 _queueIndex = 0;
+                System.Diagnostics.Debug.WriteLine("[Music] PlayNext: Repeat.All — wrapped to index 0");
             }
             else
             {
                 // RepeatMode.Off — stop at end of queue
                 _queueIndex = _queue.Count - 1;
+                System.Diagnostics.Debug.WriteLine("[Music] PlayNext: Repeat.Off at end of queue — STOPPING");
                 Stop();
                 return;
             }
         }
 
         CurrentTrack = _queue[_queueIndex];
+        System.Diagnostics.Debug.WriteLine($"[Music] PlayNext: advancing to index={_queueIndex} track={CurrentTrack.Id}");
         _ = PrepareAndStartAsync();
     }
 

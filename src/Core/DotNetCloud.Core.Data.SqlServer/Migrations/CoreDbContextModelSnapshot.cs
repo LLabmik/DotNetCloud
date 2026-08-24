@@ -18,7 +18,7 @@ namespace DotNetCloud.Core.Data.SqlServer.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.3")
+                .HasAnnotation("ProductVersion", "10.0.10")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -547,7 +547,7 @@ namespace DotNetCloud.Core.Data.SqlServer.Migrations
 
                     b.HasIndex("IsDemoUser")
                         .HasDatabaseName("IX_ApplicationUsers_IsDemoUser")
-                        .HasFilter("\"IsDemoUser\" = true");
+                        .HasFilter("[IsDemoUser] = 1");
 
                     b.HasIndex("LastLoginAt")
                         .HasDatabaseName("IX_ApplicationUsers_LastLoginAt");

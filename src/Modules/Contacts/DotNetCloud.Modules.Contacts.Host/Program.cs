@@ -1,3 +1,5 @@
+using DotNetCloud.Core.Data.Extensions;
+using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Grpc;
 using DotNetCloud.Core.Security;
@@ -112,13 +114,10 @@ if (string.IsNullOrEmpty(connStr) || string.IsNullOrEmpty(dbProvider))
         "These are provided via config.json (DOTNETCLOUD_CONFIG_DIR) when launched by the core server.");
 }
 
-void ConfigureDb(DbContextOptionsBuilder o)
-{
-    if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
-        o.UseNpgsql(connStr);
-    else
-        o.UseSqlServer(connStr);
-}
+var provider = ResolveDatabaseProvider(dbProvider);
+
+void ConfigureDb(DbContextOptionsBuilder o) =>
+    DbResiliencePolicy.Configure(o, provider, connStr);
 builder.Services.AddDbContext<ContactsDbContext>(ConfigureDb);
 builder.Services.AddDbContext<CalendarDbContext>(ConfigureDb);
 builder.Services.AddDbContext<NotesDbContext>(ConfigureDb);
@@ -172,6 +171,12 @@ app.MapGet("/", () => Results.Ok(new
 }));
 
 app.Run();
+
+// Resolves the configured database provider string into the canonical enum.
+static DatabaseProvider ResolveDatabaseProvider(string? configured) =>
+    DatabaseProviderConfiguration.TryParseConfiguredProvider(configured ?? string.Empty, out var provider)
+        ? provider
+        : throw new InvalidOperationException($"Unsupported database provider '{configured}'.");
 
 /// <summary>Entry point marker for WebApplicationFactory in integration tests.</summary>
 public partial class Program;

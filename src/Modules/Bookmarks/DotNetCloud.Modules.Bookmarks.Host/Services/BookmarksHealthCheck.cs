@@ -1,3 +1,6 @@
+using DotNetCloud.Core.Data.Extensions;
+using DotNetCloud.Modules.Bookmarks.Data;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace DotNetCloud.Modules.Bookmarks.Host.Services;
@@ -8,14 +11,19 @@ namespace DotNetCloud.Modules.Bookmarks.Host.Services;
 public sealed class BookmarksHealthCheck : IHealthCheck
 {
     private readonly BookmarksModule _module;
+    private readonly BookmarksDbContext _db;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="BookmarksHealthCheck"/> class.
     /// </summary>
-    public BookmarksHealthCheck(BookmarksModule module) => _module = module;
+    public BookmarksHealthCheck(BookmarksModule module, BookmarksDbContext db)
+    {
+        _module = module;
+        _db = db;
+    }
 
     /// <inheritdoc />
-    public Task<HealthCheckResult> CheckHealthAsync(
+    public async Task<HealthCheckResult> CheckHealthAsync(
         HealthCheckContext context, CancellationToken cancellationToken = default)
     {
         var data = new Dictionary<string, object>
@@ -27,10 +35,14 @@ public sealed class BookmarksHealthCheck : IHealthCheck
         };
 
         if (!_module.IsInitialized)
-            return Task.FromResult(HealthCheckResult.Degraded("Bookmarks module is not initialized", data: data));
+            return HealthCheckResult.Degraded("Bookmarks module is not initialized", data: data);
         if (!_module.IsRunning)
-            return Task.FromResult(HealthCheckResult.Degraded("Bookmarks module is initialized but not running", data: data));
+            return HealthCheckResult.Degraded("Bookmarks module is initialized but not running", data: data);
 
-        return Task.FromResult(HealthCheckResult.Healthy("Bookmarks module is running", data));
+        // Database reachability probe — a dead DB degrades the module without crashing it.
+        if (!await DbHealthProbe.CanConnectAsync(_db, cancellationToken).ConfigureAwait(false))
+            return HealthCheckResult.Unhealthy("Bookmarks module database is unreachable.", data: data);
+
+        return HealthCheckResult.Healthy("Bookmarks module is running", data);
     }
 }

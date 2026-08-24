@@ -1,5 +1,6 @@
 using DotNetCloud.Core.Auth.Authorization;
-using DotNetCloud.Core.Data.Infrastructure;
+using DotNetCloud.Core.Data.Extensions;
+using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Grpc;
 using DotNetCloud.Modules.Search;
@@ -106,13 +107,14 @@ if (string.IsNullOrEmpty(connectionString) || string.IsNullOrEmpty(dbProviderFro
         "These are provided via config.json (DOTNETCLOUD_CONFIG_DIR) when launched by the core server.");
 }
 
+var provider = ResolveDatabaseProvider(builder.Configuration);
+
 builder.Services.AddDbContext<SearchDbContext>(options =>
-{
-    if (string.Equals(dbProviderFromConfig, "PostgreSql", StringComparison.OrdinalIgnoreCase))
-        options.UseNpgsql(connectionString);
-    else
-        options.UseSqlServer(connectionString, sql => sql.MigrationsAssembly("DotNetCloud.Modules.Search.Data.SqlServer"));
-});
+    DbResiliencePolicy.Configure(
+        options,
+        provider,
+        connectionString,
+        provider == DatabaseProvider.SqlServer ? "DotNetCloud.Modules.Search.Data.SqlServer" : null));
 
 // In-process event bus for standalone operation
 builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
@@ -140,7 +142,8 @@ builder.Services.AddGrpc();
 builder.Services.AddControllers();
 
 // Health checks
-builder.Services.AddHealthChecks();
+builder.Services.AddHealthChecks()
+    .AddCheck<SearchHealthCheck>("search_module");
 
 var app = builder.Build();
 

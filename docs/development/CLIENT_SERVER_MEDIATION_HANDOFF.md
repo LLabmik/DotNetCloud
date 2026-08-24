@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-08-23 (SyncTray multi-folder sync — client testing COMPLETE ✅ on mint-OptiPlex-7010; all flows PASS, one client fix shipped; hand back to server agent for review)
+Last updated: 2026-08-24 (Android DB Outage simulation §11.5 archived ✅ PASS — all §11 outage simulations complete)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -16,56 +16,65 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
-- **Current active branch:** `fix/synctray-issues`
+- **Current active branch:** `fix/database-offline-recovery`
 
-## Active Handoff — mint-OptiPlex-7010: SyncTray Multi-Folder Sync — Client Testing COMPLETE ✅
+## Archived Handoff — SyncTray test machine: DB Outage SyncTray Simulation (plan §11.4) ✅ PASS
 
-**Target:** `mint-OptiPlex-7010` (production client → `https://cloud.dotnetcloud.net/`)
-**Branch:** `fix/synctray-issues`
-**Server deploy:** ✅ COMPLETE — deployed & verified on `cloud.kimball.home` (v0.4.07, HEAD `ffe882d5`; feature commit `a470c992`)
-**Client deploy:** ✅ COMPLETE — client rebuilt (v0.4.07) + deployed to `/opt/dotnetcloud-desktop-client/SyncTray/` on mint-OptiPlex-7010, restarted, healthy.
+**Status:** completed ✅ (2026-08-24, client agent — `Windows11-DNC`)
+**Branch:** `fix/database-offline-recovery`
+**Canonical plan:** `docs/DB_OUTAGE_RESILIENCE_PLAN.md` §11.4 (SyncTray simulation)
 
-**Summary:** All client testing completed and PASSED against `cloud.dotnetcloud.net`. One real client bug was found and fixed during testing (state DB schema init before selective-sync load on pre-existing DBs). Production client restored to original single-folder state after testing.
+### Client pre-requisite (done)
+- SyncTray **0.4.07** rebuilt from HEAD (`cbddab37`) and installed to `C:\Program Files\DotNetCloud\DesktopClient\SyncTray` (updater 0.4.07 too; old 0.4.02 backed up to `SyncTray.bak-0.4.02`).
+- Server verified Healthy before outage: `/health/ready` Healthy, `database` Healthy, 14/14 modules.
+- SyncTray running, 1 account, token valid, sync idle (0 changes) → tray green.
 
-### Client testing report (2026-08-23) — ALL PASS ✅
+### Outage phase (moderator: `sudo systemctl stop dotnetcloud`)
+- ✅ Server confirmed down: `cloud.dotnetcloud.net:443` connection refused.
+- ✅ **Tray → gray** within one backoff interval: `10:04:40 WRN Server unreachable while syncing context` → `SyncEngine` sets `SyncState.Offline` → tray `TrayState.Offline` (gray); tooltip "DotNetCloud Sync — server unreachable, retrying automatically".
+- ✅ **Automatic retry/backoff**: SSE reconnects 2s → 4s → 8s → 16s → 32s → 60s (attempts 1–8), then holds at 60s.
+- ✅ **"Sync now" fast-fail**: connection-refused fails fast; `TimeoutHandler` caps requests at 30s; sync pass observed failing in ~12s. No hang.
 
-1. **Build & deploy** ✅ — Client rebuilt with feature (`a470c992`) at v0.4.07, deployed to `/opt/dotnetcloud-desktop-client/SyncTray/`, launched clean (1 context, engine started, SSE connected, sync pass OK). Version bump applied (`Directory.Build.props` 0.4.06→0.4.07; Android csproj display 0.4.07 / versionCode 4).
-2. **Multi-folder add flow** ✅ — Used the real client `SyncContextManager.AddFolderAsync` to add 2 folders (`/home/benk/synctray-test-a` → `ClientTest-A`, `-b` → `ClientTest-B`). Each registered via `POST /api/v1/files/sync/folders`, appeared in the tray (RefreshAccounts: 3 contexts), and synced correctly (marker files appeared in the scoped server trees). Re-registration is idempotent (same registration id, 1 occurrence). Cleaned up after test.
-3. **Folder size limit** ✅ — Enabled limit (32 KB), created a 64 KB folder+file on the server. `SizeLimitDecisionRequested` fired; decision (skip) persisted as a `SizeLimit` rule; **no re-prompt** on subsequent passes (once-per-folder). `SyncFolderSizePlanner` verified: deepest over-limit folders excluded, parents + root kept. **Over-limit file content was NOT downloaded.** Minor cosmetic note: an empty parent folder directory may be created during the prompt pass (file content still skipped) — non-blocking.
-4. **Per-root tray "Open Folder" entries** ✅ — Code-verified `RefreshOpenFolderMenu()` creates one "Open Folder" entry per synced root using each account's `LocalFolderPath`; runtime-verified with 3 contexts loaded (`RefreshAccounts: received 3 context(s)`).
-5. **Remote-overlap validation** ✅ — Server rejects descendant (folder inside a registered folder) and ancestor (folder containing a registered folder) with **HTTP 409 Conflict**; equal = idempotent return (by design); disjoint registrations succeed. Verified against production API.
-6. **Regression — existing single-folder sync** ✅ — Original `/home/benk/synctray` whole-account context continues to sync cleanly (tree/changes/ack OK, no errors) after upgrade; legacy `.selective-sync.json` imported once into `state.db` and removed.
+### Recovery phase (moderator: `sudo systemctl start dotnetcloud`)
+- ✅ Server recovered: `/health/ready` Healthy, `database` Healthy, 14/14 modules.
+- ✅ **Automatic recovery, no manual restart**: failing sync passes at 10:07:25/10:07:45 (server still down) → successful pass at 10:08:04 (`Sync pass complete, RemoteChanges=0, LocalQueued=0, LocalApplied=0`) → `SyncState.Idle`.
+- ✅ SSE reconnected automatically at **10:08:52** (within the 60s backoff cap).
+- ✅ Tray returned to **green/idle** (visually confirmed by moderator).
 
-### Client fix shipped during testing (IMPORTANT — review)
+**Result: PASS** — no client regressions observed. Evidence in `%LOCALAPPDATA%\DotNetCloud\logs\sync-tray20260824.log`.
 
-- **Bug:** On an existing (pre-feature) `state.db`, `StartContextInternalAsync` called `SelectiveSyncConfig.LoadAsync` (which queries `SyncFolderRules`) BEFORE the state DB schema evolution ran — engine failed to start with `SQLite Error 1: no such table: SyncFolderRules`.
-- **Fix:** `src/Clients/DotNetCloud.Client.Core/Sync/SyncContextManager.cs` — `StartContextInternalAsync` now calls `stateDb.InitializeAsync(stateDatabasePath, …)` before `SelectiveSyncConfig.LoadAsync`. Idempotent (engine also initializes later).
-- **Verification:** After fix, engine starts, `SyncFolderRules` created, legacy import runs, sync passes complete.
+## Archived Handoff — Android test machine: DB Outage Android Simulation (plan §11.5) ✅ PASS
 
-### Server status (completed — verified 2026-08-23)
+**Status:** completed ✅ (2026-08-24, client agent — `monolith`)
+**Branch:** `fix/database-offline-recovery`
+**Canonical plan:** `docs/DB_OUTAGE_RESILIENCE_PLAN.md` §11.5 (Android simulation)
+**Prerequisite (DONE — server agent):** Server deploy verified on `cloud.kimball.home` (`https://cloud.dotnetcloud.net/`): resilience code live, `/health/ready` Healthy, `database` Healthy, 14/14 modules. §11.2/§11.3 + integration tests passed. SyncTray client simulation §11.4 → PASS (archived above).
 
-- ✅ Deployed via `scripts/deploy.sh --force --verify` on `cloud.kimball.home` — all 15 targets succeeded, assembly hashes verified.
-- ✅ `/health` + `/health/ready` → Healthy, 14/14 modules (Files Running).
-- ✅ New table `[core].[SyncFolderRegistrations]` created on SQL Server (hyperdrive).
-- ✅ Authenticated 200 checks now confirmed during client testing: `GET /api/v1/files/sync/folders` returns `{ success = true, data: [] }` (empty list), POST/DELETE work.
+### Client pre-requisite (done)
+- Android **0.4.07** rebuilt from HEAD (`8bdc1f57`) arm64-debug and installed to physical phone (Samsung S24 Ultra, `R5CWC356B2K`). Logged in to `https://cloud.dotnetcloud.net/`, SignalR connected, channels loaded.
+- Server verified Healthy before outage: `/health/ready` Healthy, `database` Healthy, 14/14 modules.
 
-### Notes / hand back to server agent
+### Outage phase (moderator: `sudo systemctl stop dotnetcloud`)
+- ✅ Server confirmed down: `cloud.dotnetcloud.net:443` connection refused.
+- ✅ **Global red banner appeared** ("Can't reach server — showing cached data. Changes will be queued.") over the channel list.
+- ✅ **Chat showed cached messages** (Test 6/7/8, Aug 5 "Posting remotely" msg, etc.) with the banner still visible.
+- ✅ **Sending a message queued it**: `OFFLINE_QUEUE_TEST_1301` appeared in the list with "just now" + the "Message queued — will send when you're back online." banner.
 
-- Minor observation for the server agent: gRPC streaming upload failed in this environment (`Status(StatusCode="Unknown")` on `UploadFileStreamAsync`) and correctly **fell back to HTTP chunked upload** — file still synced. Pre-existing behavior, not a regression.
-- Empty parent folder directory may be created during the pass in which the size-limit prompt fires (file content still skipped). Optional polish.
-- Test artifacts cleaned up: 2 test contexts removed, local test folders deleted, remote `ClientTest-A/B` scratch folders + registrations deleted. Production client restored to single-folder state and left running.
-- **Hand back:** server agent may review the client fix above; no server-side changes needed. Ready for next handoff item.
+### Recovery phase (moderator: `sudo systemctl start dotnetcloud`)
+- ✅ Server recovered: `/health/ready` Healthy, `database` Healthy, 14/14 modules.
+- ✅ **Banner cleared automatically** (≤ ~20 s probe interval; confirmed via UI dump — banner gone).
+- ✅ **Queued message flushed**: `GetMessagesAsync` fetched `OFFLINE_QUEUE_TEST_1301` from the server; message shows as sent ("1m ago", no queued indicator).
+- ✅ SignalR reconnected automatically (`JoinChannelGroupAsync` joined `chat-channel-…`).
 
-### Useful server contract details for testing
+### Client bugs found & fixed during the sim (committed on this branch)
+1. **Android receiver/service `Name` bug → cold-start crash.** `CalendarBootReceiver`, `CalendarAlarmReceiver`, `FcmMessagingService`, `UnifiedPushReceiver` were declared both manually in `AndroidManifest.xml` (`.X` → `net.dotnetcloud.client.X`) and via `[BroadcastReceiver]`/`[Service]` attributes without explicit `Name`, so the generated Java class landed in a `crc…` package → `ClassNotFoundException` when Android instantiated it (the sticky `BOOT_COMPLETED` broadcast crashed every cold start). Fixed by adding `Name = "net.dotnetcloud.client.X"` to the attributes (mirrors the working `[Service(Name=…)]` pattern).
+2. **Phase E banner overlay crashed launch.** Wrapping the `Shell` in a `Grid` violates MAUI's "Parent of a Page must also be a Page". Replaced with a native Android platform overlay on `Android.Resource.Id.Content` driven by `ConnectivityViewModel`, offset below the status bar (`ResolveStatusBarHeight`). Old `ConnectivityBannerView.xaml` deleted.
 
-- Endpoints: `GET/POST/DELETE /api/v1/files/sync/folders`; `GET /api/v1/files/sync/changes`.
-- Responses are wrapped in the API envelope — unwrap via envelope helpers.
-- Desktop OAuth client id: `OAuthConstants.ClientId = "dotnetcloud-desktop"`.
-- Server version: 0.4.07.
+**Result: PASS** — no client regressions. Evidence: `dnc-banner-visible.png`, `dnc-message-queued.png`, `dnc-recovered.png` (on monolith), UI-dump text nodes, and logcat (`adb logcat`).
 
-### Follow-up
+## Active Handoff
 
-After client testing, report results (pass/fail + any blockers) here and hand back to the server agent for fixes if needed.
+*(none — all DB Outage Resilience §11 outage simulations are now archived as PASS: §11.2 server, §11.3 module degraded, §11.4 SyncTray, §11.5 Android.)*
 
 ## Moderator Communication (Minimal)
 

@@ -23,7 +23,7 @@ namespace DotNetCloud.Client.Android;
 ///   <item><c>reminderMinutesBefore</c> (int) — How many minutes before the event this reminder fires.</item>
 /// </list>
 /// </remarks>
-[BroadcastReceiver(Exported = false)]
+[BroadcastReceiver(Name = "net.dotnetcloud.client.CalendarAlarmReceiver", Exported = false)]
 public sealed class CalendarAlarmReceiver : BroadcastReceiver
 {
     internal const string ActionCalendarReminder = "net.dotnetcloud.client.action.CALENDAR_REMINDER";

@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Extensions;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Grpc;
@@ -107,13 +108,10 @@ builder.Services.AddSingleton<ITableNamingStrategy>(
         ? new PostgreSqlNamingStrategy()
         : new SqlServerNamingStrategy());
 
-void ConfigureDb(DbContextOptionsBuilder o)
-{
-    if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
-        o.UseNpgsql(connectionString);
-    else
-        o.UseSqlServer(connectionString);
-}
+var provider = ResolveDatabaseProvider(dbProvider);
+
+void ConfigureDb(DbContextOptionsBuilder o) =>
+    DbResiliencePolicy.Configure(o, provider, connectionString);
 
 builder.Services.AddDbContext<PhotosDbContext>(ConfigureDb);
 
@@ -169,6 +167,12 @@ app.MapGet("/", () => Results.Ok(new
 }));
 
 app.Run();
+
+// Resolves the configured database provider string into the canonical enum.
+static DatabaseProvider ResolveDatabaseProvider(string? configured) =>
+    DatabaseProviderConfiguration.TryParseConfiguredProvider(configured ?? string.Empty, out var provider)
+        ? provider
+        : throw new InvalidOperationException($"Unsupported database provider '{configured}'.");
 
 /// <summary>Marker class for integration test host reference.</summary>
 public partial class Program;

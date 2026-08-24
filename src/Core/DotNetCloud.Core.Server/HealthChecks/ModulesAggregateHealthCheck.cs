@@ -1,5 +1,6 @@
 using DotNetCloud.Core.Grpc.Lifecycle;
 using DotNetCloud.Core.Modules.Supervisor;
+using DotNetCloud.Core.Server.Services;
 using DotNetCloud.Core.Server.Supervisor;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
@@ -25,6 +26,7 @@ internal sealed class ModulesAggregateHealthCheck : IHealthCheck
 {
     private readonly IProcessSupervisor _supervisor;
     private readonly GrpcChannelManager _channelManager;
+    private readonly DatabaseConnectivityState _dbState;
     private readonly ILogger<ModulesAggregateHealthCheck> _logger;
 
     /// <summary>
@@ -32,14 +34,17 @@ internal sealed class ModulesAggregateHealthCheck : IHealthCheck
     /// </summary>
     /// <param name="supervisor">The process supervisor providing module process information.</param>
     /// <param name="channelManager">The gRPC channel manager for module communication.</param>
+    /// <param name="dbState">Cached database availability (drives the 503 gate and database health entry).</param>
     /// <param name="logger">Logger instance.</param>
     internal ModulesAggregateHealthCheck(
         IProcessSupervisor supervisor,
         GrpcChannelManager channelManager,
+        DatabaseConnectivityState dbState,
         ILogger<ModulesAggregateHealthCheck> logger)
     {
         _supervisor = supervisor ?? throw new ArgumentNullException(nameof(supervisor));
         _channelManager = channelManager ?? throw new ArgumentNullException(nameof(channelManager));
+        _dbState = dbState ?? throw new ArgumentNullException(nameof(dbState));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -150,15 +155,27 @@ internal sealed class ModulesAggregateHealthCheck : IHealthCheck
                 _ => HealthStatusCore.Unhealthy
             };
 
+            // Module hosts share the single platform database. During a database outage the
+            // module's process-level gRPC health would otherwise keep reporting Healthy, so
+            // reflect the outage here — the supervisor aggregate then reports modules as
+            // Degraded/Unhealthy until the DB recovers (matching plan §11.3).
+            var databaseUnavailable = !_dbState.IsAvailable;
+            if (databaseUnavailable && mappedStatus != HealthStatusCore.Unhealthy)
+            {
+                mappedStatus = HealthStatusCore.Degraded;
+            }
+
             return new ModuleHealthEntry
             {
                 ModuleId = moduleId,
                 ModuleName = moduleName,
                 Version = moduleInfo.Version,
                 Status = mappedStatus,
-                Description = string.IsNullOrEmpty(response.Description)
-                    ? $"gRPC health check returned {response.Status}"
-                    : response.Description,
+                Description = databaseUnavailable
+                    ? "Database unavailable — module is degraded."
+                    : (string.IsNullOrEmpty(response.Description)
+                        ? $"gRPC health check returned {response.Status}"
+                        : response.Description),
                 ProcessStatus = moduleInfo.Status
             };
         }

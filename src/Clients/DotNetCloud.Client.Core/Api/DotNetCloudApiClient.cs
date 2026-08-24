@@ -672,7 +672,9 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
             {
                 response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
             }
-            catch (HttpRequestException ex) when (attempt < MaxRetries)
+            catch (Exception ex) when (attempt < MaxRetries
+                && !cancellationToken.IsCancellationRequested
+                && (ex is HttpRequestException or TaskCanceledException))
             {
                 _logger.LogWarning(ex, "HTTP request failed (attempt {Attempt}/{Max}), retrying.", attempt + 1, MaxRetries);
                 await DelayAsync(attempt, null, cancellationToken);

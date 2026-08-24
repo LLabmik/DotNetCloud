@@ -53,28 +53,11 @@ public static class DataServiceExtensions
 
     private static void ConfigureDbContext(DbContextOptionsBuilder options, DatabaseProvider provider, string connectionString)
     {
-        switch (provider)
-        {
-            case DatabaseProvider.PostgreSQL:
-                options.UseNpgsql(connectionString, npgsqlOptions =>
-                {
-                    npgsqlOptions.EnableRetryOnFailure(maxRetryCount: 3);
-                    npgsqlOptions.CommandTimeout(30);
-                });
-                break;
-
-            case DatabaseProvider.SqlServer:
-                options.UseSqlServer(connectionString, sqlServerOptions =>
-                {
-                    sqlServerOptions.EnableRetryOnFailure(maxRetryCount: 3);
-                    sqlServerOptions.CommandTimeout(30);
-                    sqlServerOptions.MigrationsAssembly("DotNetCloud.Core.Data.SqlServer");
-                });
-                break;
-
-            default:
-                throw new InvalidOperationException($"Unsupported database provider: {provider}");
-        }
+        DbResiliencePolicy.Configure(
+            options,
+            provider,
+            connectionString,
+            provider == DatabaseProvider.SqlServer ? "DotNetCloud.Core.Data.SqlServer" : null);
 
         // Common options
         options.UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking);

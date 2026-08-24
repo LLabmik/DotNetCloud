@@ -1,5 +1,6 @@
 using System.Globalization;
 using DotNetCloud.Client.Android.ViewModels;
+using DotNetCloud.Core.DTOs;
 
 namespace DotNetCloud.Client.Android.Converters;
 
@@ -358,5 +359,24 @@ public sealed class ChannelTypeToIconConverter : IValueConverter
 
     /// <inheritdoc />
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>
+/// Returns a highlight background color when the bound track is the currently
+/// playing track, otherwise transparent. Expects values = [item, currentTrack].
+/// </summary>
+public sealed class TrackIsCurrentConverter : IMultiValueConverter
+{
+    /// <inheritdoc />
+    public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (values is [TrackDto item, TrackDto current] && current is not null && item.Id == current.Id)
+            return Color.FromArgb("#1E293B");
+        return Colors.Transparent;
+    }
+
+    /// <inheritdoc />
+    public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture) =>
         throw new NotSupportedException();
 }

@@ -1,3 +1,5 @@
+using DotNetCloud.Core.Data.Extensions;
+using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Grpc;
 using DotNetCloud.Core.Security;
@@ -103,13 +105,14 @@ if (string.IsNullOrEmpty(connectionString) || string.IsNullOrEmpty(dbProvider))
         "These are provided via config.json (DOTNETCLOUD_CONFIG_DIR) when launched by the core server.");
 }
 
+var provider = ResolveDatabaseProvider(dbProvider);
+
 builder.Services.AddDbContext<BookmarksDbContext>(options =>
-{
-    if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
-        options.UseNpgsql(connectionString);
-    else
-        options.UseSqlServer(connectionString, sql => sql.MigrationsAssembly("DotNetCloud.Modules.Bookmarks.Data.SqlServer"));
-});
+    DbResiliencePolicy.Configure(
+        options,
+        provider,
+        connectionString,
+        provider == DatabaseProvider.SqlServer ? "DotNetCloud.Modules.Bookmarks.Data.SqlServer" : null));
 
 // In-process event bus for standalone operation
 builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
@@ -138,12 +141,41 @@ builder.Services.AddHealthChecks()
 
 var app = builder.Build();
 
-// Initialize the database schema (creates tables if they don't exist)
+// Initialize the database schema (creates tables if they don't exist).
+// Retries with exponential backoff so a database that is briefly unavailable at
+// startup does not crash the module — it continues running in degraded mode and
+// resumes schema creation once the database recovers.
 if (!string.IsNullOrEmpty(connectionString) && !string.IsNullOrEmpty(dbProvider))
 {
-    using var scope = app.Services.CreateScope();
-    var db = scope.ServiceProvider.GetRequiredService<BookmarksDbContext>();
-    await BookmarksDbInitializer.InitializeAsync(db, app.Logger, CancellationToken.None);
+    const int maxAttempts = 5;
+    var delay = TimeSpan.FromSeconds(2);
+    var initLogger = app.Services.GetRequiredService<ILogger<Program>>();
+
+    for (var attempt = 1; attempt <= maxAttempts; attempt++)
+    {
+        try
+        {
+            using var scope = app.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<BookmarksDbContext>();
+            await BookmarksDbInitializer.InitializeAsync(db, initLogger, CancellationToken.None);
+            break;
+        }
+        catch (Exception ex) when (attempt < maxAttempts)
+        {
+            initLogger.LogWarning(ex,
+                "Bookmarks database initialization attempt {Attempt}/{MaxAttempts} failed. Retrying in {Delay}s...",
+                attempt, maxAttempts, delay.TotalSeconds);
+            await Task.Delay(delay);
+            delay *= 2;
+        }
+        catch (Exception ex)
+        {
+            initLogger.LogError(ex,
+                "Bookmarks database initialization failed after {MaxAttempts} attempts. " +
+                "Continuing in degraded mode; retries will resume when the database recovers.",
+                maxAttempts);
+        }
+    }
 }
 
 // Show full exception details for debugging; remove in production.
@@ -176,6 +208,12 @@ app.MapGet("/", () => Results.Ok(new
 }));
 
 app.Run();
+
+// Resolves the configured database provider string into the canonical enum.
+static DatabaseProvider ResolveDatabaseProvider(string? configured) =>
+    DatabaseProviderConfiguration.TryParseConfiguredProvider(configured ?? string.Empty, out var provider)
+        ? provider
+        : throw new InvalidOperationException($"Unsupported database provider '{configured}'.");
 
 /// <summary>Marker class for integration test host reference.</summary>
 public partial class Program;

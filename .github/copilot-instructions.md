@@ -1,5 +1,27 @@
 # Copilot Instructions
 
+## 🚨 CRITICAL: Read First — Non-Negotiable Rules (MANDATORY)
+
+**1. NEVER commit or push until testing is COMPLETE.**
+
+- A change may only be committed after it **builds cleanly**, **tests pass**, and (where applicable) is **installed and verified end-to-end**.
+- ⚠️ **"Unit tests pass" ≠ "testing complete."** If the task/plan requires live verification (outage simulations, integration tests against a real DB, manual end-to-end checks), those must be DONE before committing — not deferred.
+- ⚠️ **If required verification cannot run in the current environment, STOP and tell the user before committing. Do not commit anyway.**
+- ⚠️ **Determine the live environment from RUNTIME config, not this repo.** Committed configs use generic `localhost` defaults by design (this is open-source; never document personal deployment topology such as private DB/server hosts here).
+
+**2. Session start ritual:** Before acting, read this file, `CLAUDE.md`, and repo memory (`/memories/repo/DotNetCloud.md`). Treat rule #1 as a hard gate.
+
+**3. Pre-commit checklist (before EVERY commit):**
+
+1. Run `git status --short`.
+2. Delete ALL unexpected untracked files/directories (including gitignored runtime data like `storage/`, `bin/`, temp files) — only intentional tracked changes remain.
+3. ⚠️ **NEVER delete untracked `.cs` files** — they are work-in-progress code, not junk.
+4. Verify clean state, THEN commit.
+
+**4. When the user says "remember"** → add the item to this file (show the diff first, get explicit approval before keeping).
+
+---
+
 ## � CRITICAL: gRPC-Only Inter-Module Communication (MANDATORY)
 
 ALL modules **MUST** communicate exclusively via gRPC. No exceptions.

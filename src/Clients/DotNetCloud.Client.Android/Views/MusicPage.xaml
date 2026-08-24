@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage
     x:Class="DotNetCloud.Client.Android.Views.MusicPage"
+    x:Name="MusicPageRoot"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:vm="clr-namespace:DotNetCloud.Client.Android.ViewModels"
@@ -161,6 +162,7 @@
             <conv:BoolToPlayPauseIconConverter x:Key="PlayPauseIcon"/>
             <conv:IsViewSelectedConverter x:Key="IsViewSelectedConverter"/>
             <conv:TabSelectedConverter x:Key="TabSelectedConverter"/>
+            <conv:TrackIsCurrentConverter x:Key="TrackIsCurrentConverter"/>
         </ResourceDictionary>
     </ContentPage.Resources>
 
@@ -604,6 +606,12 @@
                             <Grid Padding="12,8"
                                   ColumnDefinitions="Auto,*,Auto"
                                   ColumnSpacing="12">
+                                <Grid.BackgroundColor>
+                                    <MultiBinding Converter="{StaticResource TrackIsCurrentConverter}">
+                                        <Binding Path="."/>
+                                        <Binding Path="BindingContext.CurrentTrack" Source="{x:Reference MusicPageRoot}"/>
+                                    </MultiBinding>
+                                </Grid.BackgroundColor>
                                 <Label
                                     Grid.Column="0"
                                     Text="{Binding TrackNumber, StringFormat='{0}'}"

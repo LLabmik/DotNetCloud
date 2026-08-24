@@ -6,6 +6,7 @@ using DotNetCloud.Modules.Example.Host.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.Extensions.Logging;
 
 public static partial class Program
 {
@@ -74,10 +75,38 @@ public static partial class Program
 
         // Self-migrate on startup (schemaProvider: "self").
         // A connection string is now mandatory, so this is unconditional.
-        using (var scope = app.Services.CreateScope())
+        // Retries with exponential backoff so a database that is briefly unavailable
+        // at startup does not crash the module — it continues running in degraded mode.
         {
-            var db = scope.ServiceProvider.GetRequiredService<ExampleDbContext>();
-            await db.Database.MigrateAsync();
+            const int maxAttempts = 5;
+            var delay = TimeSpan.FromSeconds(2);
+            var initLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("ExampleDbInit");
+
+            for (var attempt = 1; attempt <= maxAttempts; attempt++)
+            {
+                try
+                {
+                    using var scope = app.Services.CreateScope();
+                    var db = scope.ServiceProvider.GetRequiredService<ExampleDbContext>();
+                    await db.Database.MigrateAsync();
+                    break;
+                }
+                catch (Exception ex) when (attempt < maxAttempts)
+                {
+                    initLogger.LogWarning(ex,
+                        "Example database migration attempt {Attempt}/{MaxAttempts} failed. Retrying in {Delay}s...",
+                        attempt, maxAttempts, delay.TotalSeconds);
+                    await Task.Delay(delay);
+                    delay *= 2;
+                }
+                catch (Exception ex)
+                {
+                    initLogger.LogError(ex,
+                        "Example database migration failed after {MaxAttempts} attempts. " +
+                        "Continuing in degraded mode; retries will resume when the database recovers.",
+                        maxAttempts);
+                }
+            }
         }
 
         app.MapGrpcService<ExampleGrpcService>();

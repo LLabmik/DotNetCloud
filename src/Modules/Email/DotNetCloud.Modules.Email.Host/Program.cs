@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Extensions;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Grpc;
@@ -104,6 +105,8 @@ if (string.IsNullOrEmpty(connectionString) || string.IsNullOrEmpty(dbProvider))
         "These are provided via config.json (DOTNETCLOUD_CONFIG_DIR) when launched by the core server.");
 }
 
+var provider = ResolveDatabaseProvider(dbProvider);
+
 // Register naming strategy so EmailDbContext uses correct table/column names
 // (snake_case for PostgreSQL, PascalCase for SQL Server).
 if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
@@ -112,12 +115,11 @@ else
     builder.Services.AddSingleton<ITableNamingStrategy, SqlServerNamingStrategy>();
 
 builder.Services.AddDbContext<EmailDbContext>(options =>
-{
-    if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
-        options.UseNpgsql(connectionString);
-    else
-        options.UseSqlServer(connectionString, sql => sql.MigrationsAssembly("DotNetCloud.Modules.Email.Data.SqlServer"));
-});
+    DbResiliencePolicy.Configure(
+        options,
+        provider,
+        connectionString,
+        provider == DatabaseProvider.SqlServer ? "DotNetCloud.Modules.Email.Data.SqlServer" : null));
 
 // In-process event bus for standalone operation
 builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
@@ -176,6 +178,12 @@ app.MapGet("/", () => Results.Ok(new
 }));
 
 app.Run();
+
+// Resolves the configured database provider string into the canonical enum.
+static DatabaseProvider ResolveDatabaseProvider(string? configured) =>
+    DatabaseProviderConfiguration.TryParseConfiguredProvider(configured ?? string.Empty, out var provider)
+        ? provider
+        : throw new InvalidOperationException($"Unsupported database provider '{configured}'.");
 
 /// <summary>Marker class for integration test host reference.</summary>
 public partial class Program;

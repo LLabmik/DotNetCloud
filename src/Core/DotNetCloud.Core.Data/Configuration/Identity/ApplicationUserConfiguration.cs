@@ -57,10 +57,9 @@ public class ApplicationUserConfiguration : IEntityTypeConfiguration<Application
             .IsRequired()
             .HasDefaultValue(false);
 
-        // Index for demo user cleanup queries
-        builder.HasIndex(u => u.IsDemoUser)
-            .HasDatabaseName("IX_ApplicationUsers_IsDemoUser")
-            .HasFilter("\"IsDemoUser\" = true");
+        // Index for demo user cleanup queries is configured in CoreDbContext.OnModelCreating
+        // with a provider-correct filter (SQL Server forbids CAST() in filtered-index
+        // predicates, so the bool literal differs per provider).
 
         // Indexes for common queries
         builder.HasIndex(u => u.DisplayName)

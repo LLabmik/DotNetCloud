@@ -1,5 +1,6 @@
 using DotNetCloud.Core.Auth.Authorization;
 using DotNetCloud.Core.Auth.Introspection;
+using DotNetCloud.Core.Data.Extensions;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Grpc;
@@ -143,6 +144,8 @@ if (string.IsNullOrEmpty(connStr) || string.IsNullOrEmpty(dbProvider))
         "These are provided via config.json (DOTNETCLOUD_CONFIG_DIR) when launched by the core server.");
 }
 
+var provider = ResolveDatabaseProvider(dbProvider);
+
 // Register the naming strategy so CalendarDbContext uses the correct
 // table/column naming for the active provider (snake_case for PostgreSQL,
 // PascalCase for SQL Server).
@@ -152,35 +155,25 @@ else
     builder.Services.AddSingleton<ITableNamingStrategy, SqlServerNamingStrategy>();
 
 builder.Services.AddDbContext<CalendarDbContext>(o =>
-{
-    if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
-        o.UseNpgsql(connStr);
-    else
-        o.UseSqlServer(connStr, sql => sql.MigrationsAssembly("DotNetCloud.Modules.Calendar.Data.SqlServer"));
-});
+    DbResiliencePolicy.Configure(o, provider, connStr,
+        provider == DatabaseProvider.SqlServer ? "DotNetCloud.Modules.Calendar.Data.SqlServer" : null));
 
 // In-process event bus for standalone operation
 builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
 
 // Contact directory — real implementation from Contacts module for attendee search.
 builder.Services.AddDbContext<ContactsDbContext>(o =>
-{
-    if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
-        o.UseNpgsql(connStr);
-    else
-        o.UseSqlServer(connStr, sql => sql.MigrationsAssembly("DotNetCloud.Modules.Contacts.Data.SqlServer"));
-}, ServiceLifetime.Transient);
+    DbResiliencePolicy.Configure(o, provider, connStr,
+        provider == DatabaseProvider.SqlServer ? "DotNetCloud.Modules.Contacts.Data.SqlServer" : null),
+    ServiceLifetime.Transient);
 builder.Services.AddScoped<IContactDirectory, ContactDirectoryService>();
 
 // Organization directory — real implementation from Core.Auth for calendar sharing checks.
 // CoreDbContext must be registered for OrganizationDirectoryService.
 builder.Services.AddDbContext<CoreDbContext>(o =>
-{
-    if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
-        o.UseNpgsql(connStr);
-    else
-        o.UseSqlServer(connStr, sql => sql.MigrationsAssembly("DotNetCloud.Core.Data.SqlServer"));
-}, ServiceLifetime.Transient);
+    DbResiliencePolicy.Configure(o, provider, connStr,
+        provider == DatabaseProvider.SqlServer ? "DotNetCloud.Core.Data.SqlServer" : null),
+    ServiceLifetime.Transient);
 builder.Services.AddScoped<IOrganizationDirectory, OrganizationDirectoryService>();
 
 // Register all calendar business-logic services (Calendar, Event, Share, ICal)
@@ -273,6 +266,12 @@ app.MapGet("/", () => Results.Ok(new
 }));
 
 app.Run();
+
+// Resolves the configured database provider string into the canonical enum.
+static DatabaseProvider ResolveDatabaseProvider(string? configured) =>
+    DatabaseProviderConfiguration.TryParseConfiguredProvider(configured ?? string.Empty, out var provider)
+        ? provider
+        : throw new InvalidOperationException($"Unsupported database provider '{configured}'.");
 
 /// <summary>Entry point marker for WebApplicationFactory in integration tests.</summary>
 public partial class Program;

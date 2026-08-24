@@ -10,6 +10,7 @@ using DotNetCloud.Client.Android.Services;
 using DotNetCloud.Client.Android.ViewModels;
 using DotNetCloud.Client.Android.Views;
 using DotNetCloud.Client.Core;
+using DotNetCloud.Client.Core.Api;
 using DotNetCloud.Client.Core.Services;
 using Microsoft.Extensions.Logging;
 
@@ -44,6 +45,9 @@ public static class MauiProgram
         builder.Services.AddSingleton<IOfflineOperationQueue, SqliteOfflineOperationQueue>();
         builder.Services.AddSingleton<IConnectivityMonitor, ConnectivityMonitorService>();
         builder.Services.AddSingleton<IOfflineSyncService, OfflineSyncService>();
+        builder.Services.AddSingleton<IServerReachabilityService, ServerReachabilityService>();
+        builder.Services.AddSingleton<ConnectivityViewModel>();
+        builder.Services.AddTransient<TimeoutHandler>();
 
         // ── Auth ──────────────────────────────────────────────────────
         builder.Services.AddSingleton<IOAuth2Service, MauiOAuth2Service>();
@@ -54,6 +58,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<IChatSignalRClient>(sp => sp.GetRequiredService<ICoreHubClient>());
         builder.Services.AddSingleton<ICalendarSignalRClient, CalendarSignalRClient>();
         builder.Services.AddHttpClient<IChatRestClient, HttpChatRestClient>()
+            .AddHttpMessageHandler<TimeoutHandler>()
             .AddHttpMessageHandler<AuthenticatedHttpClientHandler>()
             .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
 
@@ -66,6 +71,7 @@ public static class MauiProgram
 
         // ── Files / media upload ────────────────────────────────────
         builder.Services.AddHttpClient<IFileRestClient, HttpFileRestClient>()
+            .AddHttpMessageHandler<TimeoutHandler>()
             .AddHttpMessageHandler<AuthenticatedHttpClientHandler>()
             .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
         builder.Services.AddSingleton<IMediaAutoUploadService, MediaAutoUploadService>();
@@ -79,20 +85,24 @@ public static class MauiProgram
 
         // ── Update services ───────────────────────────────────────────
         builder.Services.AddHttpClient<IClientUpdateService, ClientUpdateService>()
+            .AddHttpMessageHandler<TimeoutHandler>()
             .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
         builder.Services.AddSingleton<IAndroidUpdateService, AndroidUpdateService>();
 
         // ── Music ─────────────────────────────────────────────────────────
         builder.Services.AddHttpClient<IMusicRestClient, HttpMusicRestClient>()
+            .AddHttpMessageHandler<TimeoutHandler>()
             .AddHttpMessageHandler<AuthenticatedHttpClientHandler>()
             .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
 
         builder.Services.AddHttpClient<IAlbumArtCache, AlbumArtCache>()
+            .AddHttpMessageHandler<TimeoutHandler>()
             .AddHttpMessageHandler<AuthenticatedHttpClientHandler>()
             .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
 
         // Thumbnail cache
         builder.Services.AddHttpClient<IThumbnailCache, ThumbnailCache>()
+            .AddHttpMessageHandler<TimeoutHandler>()
             .AddHttpMessageHandler<AuthenticatedHttpClientHandler>()
             .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
 
@@ -101,6 +111,7 @@ public static class MauiProgram
 
         // ── Calendar ────────────────────────────────────────────────────
         builder.Services.AddHttpClient<ICalendarRestClient, HttpCalendarRestClient>()
+            .AddHttpMessageHandler<TimeoutHandler>()
             .AddHttpMessageHandler<AuthenticatedHttpClientHandler>()
             .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
         builder.Services.AddSingleton<ICalendarReminderScheduler, CalendarReminderScheduler>();
@@ -109,6 +120,7 @@ public static class MauiProgram
 
         // ── Notes ───────────────────────────────────────────────────────
         builder.Services.AddHttpClient<INotesRestClient, HttpNotesRestClient>()
+            .AddHttpMessageHandler<TimeoutHandler>()
             .AddHttpMessageHandler<AuthenticatedHttpClientHandler>()
             .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
 

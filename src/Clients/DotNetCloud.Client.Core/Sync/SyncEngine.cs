@@ -370,7 +370,7 @@ public sealed class SyncEngine : ISyncEngine
                 localFilesQueued,
                 localOperationsApplied);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             syncTimer.Stop();
             _logger.LogInformation("Sync cancelled for context {ContextId}.", context.Id);
@@ -391,14 +391,20 @@ public sealed class SyncEngine : ISyncEngine
                     _watcher.EnableRaisingEvents = false;
 
                 _lastError = "Disk full: local storage is out of space. Free disk space, then resume sync.";
+                SetState(SyncState.Error, context);
+            }
+            else if (IsConnectivityException(ex))
+            {
+                _logger.LogWarning(ex, "Server unreachable while syncing context {ContextId}.", context.Id);
+                _lastError = "Server unreachable. Retrying automatically.";
+                SetState(SyncState.Offline, context);
             }
             else
             {
                 _logger.LogError(ex, "Sync error for context {ContextId}.", context.Id);
                 _lastError = ex.Message;
+                SetState(SyncState.Error, context);
             }
-
-            SetState(SyncState.Error, context);
         }
         finally
         {
@@ -430,6 +436,16 @@ public sealed class SyncEngine : ISyncEngine
         }
 
         return ex.InnerException is not null && IsDiskFullException(ex.InnerException);
+    }
+
+    private static bool IsConnectivityException(Exception ex)
+    {
+        // OperationCanceledException here is a timeout (user cancellation is
+        // filtered in the catch above), so treat it as a connectivity failure.
+        return ex is HttpRequestException
+            or TaskCanceledException
+            or System.Net.Sockets.SocketException
+            or IOException { InnerException: System.Net.Sockets.SocketException };
     }
 
     private static bool IsFileLockedIOException(IOException ex)
@@ -2981,6 +2997,8 @@ public sealed class SyncEngine : ISyncEngine
         // When inotify is unavailable, fall back to a 30-second polling interval.
         // When SSE is connected, extend poll interval to 5 minutes (safety net only).
         var interval = _pollingFallback ? TimeSpan.FromSeconds(30) : context.FullScanInterval;
+        var offlineBackoff = TimeSpan.FromSeconds(15);
+        var maxOfflineBackoff = TimeSpan.FromMinutes(5);
 
         while (!cancellationToken.IsCancellationRequested)
         {
@@ -2994,6 +3012,18 @@ public sealed class SyncEngine : ISyncEngine
                     interval = _pollingFallback ? TimeSpan.FromSeconds(30) : context.FullScanInterval;
                 _logger.LogDebug("Periodic full scan triggered for context {ContextId}.", context.Id);
                 await SyncAsync(context, cancellationToken);
+
+                // On success, reset the offline backoff window.
+                offlineBackoff = TimeSpan.FromSeconds(15);
+
+                // If the pass ended offline, retry sooner, doubling the delay up to a cap.
+                // This backs off exponentially instead of hammering a dead server.
+                if (_state == SyncState.Offline)
+                {
+                    interval = offlineBackoff;
+                    offlineBackoff = TimeSpan.FromTicks(
+                        Math.Min(offlineBackoff.Ticks * 2, maxOfflineBackoff.Ticks));
+                }
             }
             catch (OperationCanceledException)
             {

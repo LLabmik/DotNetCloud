@@ -3568,6 +3568,10 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Create `IEqualizerService` / `AndroidEqualizerService` (native `AudioEffect.Equalizer`)
 - ✓ Implement EQ preset save/load/apply (server presets + virtual band mapping)
 - ✓ Implement repeat modes (Off / One / All) with visual indicator
+- ✓ Fix music auto-advance: playing a track from the list queues the full displayed list so `RepeatMode.Off` advances through the queue instead of stopping after one song
+- ✓ Fix `MEDIA_ERROR_SERVER_DIED (-38)` feedback loop that froze the app at track transitions (break error→Stop→error recursion)
+- ✓ Use a fresh `MediaPlayer` per track (release+recreate) and retry the same track on -38 so the *very next* song plays
+- ✓ Highlight the currently playing song in the track list (`TrackIsCurrentConverter` + row background)
 - ✓ Implement now-playing bar with album art, seek slider, play/pause/next/prev controls
 - ✓ Implement album art loading via `IAlbumArtCache` with fallback placeholder
 - ✓ Implement search: toggle search icon in title bar, debounced server-side search by current tab (artists/albums/tracks), results replace collection, restore on close
@@ -4839,6 +4843,60 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `ChatGrpcService` — Maps Message entities to SearchableDocument
 - ✓ `NotesGrpcService` — Maps Note entities to SearchableDocument
 - ✓ `ContactsGrpcService` — Maps Contact entities to SearchableDocument
+
+---
+
+## Database / Server Outage Resilience ✅
+
+> **Canonical plan:** `docs/DB_OUTAGE_RESILIENCE_PLAN.md` — branch `fix/database-offline-recovery`. Implemented 2026-08-23. When the database server or DotNetCloud service goes offline: Core.Server keeps the process alive, fails fast (HTTP 503) and auto-reconnects; module hosts stay running and report degraded via health checks; Android shows a global offline banner, serves cached reads, queues writes and auto-flushes on recovery; SyncTray classifies failures as `Offline` (gray tray icon), backs off exponentially and auto-recovers.
+
+### Phase A — Centralized DB Resilience Policy
+
+- ✓ `DbResiliencePolicy` helper (`src\Core\DotNetCloud.Core.Data\Extensions\DbResiliencePolicy.cs`) — unified retry (5×, 2s cap), 15s command timeout, provider-specific wiring
+- ✓ Rewired `DataServiceExtensions.ConfigureDbContext`, `ModuleDbContextConfiguration.Configure`, `DefaultDbContextFactory`, Core.Server `ConfigureModuleDbContext`, CLI `ServiceProviderFactory.ConfigureModuleDbContext`
+
+### Phase B — Server Availability State + 503 Gate + Reconnect
+
+- ✓ `DatabaseConnectivityState` (volatile cached availability + change event)
+- ✓ `DbConnectionFactory` (`IDbConnectionFactory` implementation)
+- ✓ `DatabaseReconnectMonitor` (background probe, 5s down / 15s up polling, auto-reconnect)
+- ✓ `DatabaseAvailabilityHealthCheck` (registered with `database` tag → `/health/ready`)
+- ✓ `DatabaseUnavailableMiddleware` (HTTP 503 `DATABASE_UNAVAILABLE` with `Retry-After`, allowlist for `/health`, `/metrics`, `/root-ca.crt`, `/_framework`, `/favicon.ico`)
+- ✓ `Program.cs` wiring: singleton state/factory + hosted monitor + health check registration; middleware gate after `UseAntiforgery()`
+
+### Phase C — Module Hosts
+
+- ✓ All DB-backed module hosts use `DbResiliencePolicy` (Files, Chat, Calendar, Notes, Music, Photos, Video, AI, Bookmarks, Email, Tracks, Contacts, Search); About has no DB
+- ✓ Module health checks DB-aware + exception-safe (`DbHealthProbe` — `SELECT 1` via `CanConnectAsync`, 5s cap, never throws → `Unhealthy` on DB down): Files, Chat, Calendar, Notes, Music, Photos, Video, AI, Bookmarks, Email, Tracks, Contacts, Search (new `SearchHealthCheck`), Example
+- ✓ Bookmarks + Example eager DB init wrapped in retry/backoff; module continues running (degraded) if DB is down at startup instead of crashing
+
+### Phase D — Client HTTP Hardening (Fail Fast)
+
+- ✓ `SocketsHttpHandler.ConnectTimeout` = 10s in `OAuthHttpClientHandlerFactory.CreatePooledHandler`
+- ✓ New `TimeoutHandler` (time-to-first-byte; 30s default / 60s for sync clients) — does NOT abort streaming bodies
+- ✓ Wired into `DotNetCloudApiClient`, `IOAuth2Service`, `DotNetCloudSync` named client, and `SyncContextManager` throttled pipeline
+- ✓ `SendWithRetryAsync` treats timeouts as transient (`TaskCanceledException`/`HttpRequestException`) and respects caller cancellation
+
+### Phase E — Android
+
+- ✓ `IServerReachabilityService` / `ServerReachabilityService` (probes `/health/live`, distinct from device internet; 60s online / 20s offline polling)
+- ✓ `ConnectivityViewModel` + `ConnectivityBannerView` (global red banner over the Shell via ContentPage-wrapped Grid)
+- ✓ `MauiProgram` registrations + `TimeoutHandler` on all typed HTTP clients (chat, files, music, album art, thumbnails, calendar, notes, update)
+- ✓ `App.OnStart` starts reachability monitoring; `OfflineSyncService` flushes on server-recovery event + 30s periodic retry (gated by reachability + queue count)
+- ✓ `SignalRChatClient` manual reconnect with backoff after automatic retries exhausted, gated by reachability
+- ✓ View-model error handling hardened (Music VM now uses `ApiExceptionHelper.GetUserFriendlyMessage`); existing VMs already try/catch/finally + no auto-login navigation
+
+### Phase F — SyncTray
+
+- ✓ `SyncEngine.SyncAsync` classifies connectivity failures (`HttpRequestException`/timeout/socket) as `SyncState.Offline`; disk-full still `Error` + paused; genuine cancellation → `Idle`
+- ✓ `RunPeriodicScanAsync` exponential offline backoff (15s → 5min cap), reset on success
+- ✓ `TrayViewModel.UpdateAggregateState` maps `Offline` → gray `TrayState.Offline` + tooltip "server unreachable, retrying automatically"
+
+### Verification
+
+- ✓ `dotnet build` passes: Core.Data, Core.Server, CLI, Client.Core, SyncTray, all 15 module hosts, Android (arm64)
+- ✓ Targeted tests pass: Files 760, Chat 1311, SyncTray 130, Client.Core 293 (3 pre-existing environmental failures), Core.Server 605 (1 pre-existing)
+- ☐ Manual live-outage simulations (server 503/recover, module degraded, SyncTray gray icon, Android banner + queue flush) — see §11 of the plan
 - ✓ `CalendarGrpcService` — Maps CalendarEvent entities to SearchableDocument
 - ✓ `PhotosGrpcServiceImpl` — Maps Photo entities to SearchableDocument
 - ✓ `MusicGrpcServiceImpl` — Maps Track/Artist/Album to MusicSearchableDocument

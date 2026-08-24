@@ -731,7 +731,10 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
                     }
                 }
             };
-            httpClient = new HttpClient(throttledHandler)
+            httpClient = new HttpClient(new TimeoutHandler(TimeSpan.FromSeconds(60))
+            {
+                InnerHandler = throttledHandler
+            })
             {
                 BaseAddress = new Uri(registration.ServerBaseUrl.TrimEnd('/') + '/')
             };

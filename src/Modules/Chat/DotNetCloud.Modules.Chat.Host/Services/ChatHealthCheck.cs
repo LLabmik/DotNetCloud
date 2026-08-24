@@ -1,3 +1,6 @@
+using DotNetCloud.Core.Data.Extensions;
+using DotNetCloud.Modules.Chat.Data;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace DotNetCloud.Modules.Chat.Host.Services;
@@ -9,17 +12,19 @@ namespace DotNetCloud.Modules.Chat.Host.Services;
 public sealed class ChatHealthCheck : IHealthCheck
 {
     private readonly ChatModule _module;
+    private readonly ChatDbContext _db;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ChatHealthCheck"/> class.
     /// </summary>
-    public ChatHealthCheck(ChatModule module)
+    public ChatHealthCheck(ChatModule module, ChatDbContext db)
     {
         _module = module;
+        _db = db;
     }
 
     /// <inheritdoc />
-    public Task<HealthCheckResult> CheckHealthAsync(
+    public async Task<HealthCheckResult> CheckHealthAsync(
         HealthCheckContext context, CancellationToken cancellationToken = default)
     {
         var data = new Dictionary<string, object>
@@ -32,20 +37,26 @@ public sealed class ChatHealthCheck : IHealthCheck
 
         if (!_module.IsInitialized)
         {
-            return Task.FromResult(HealthCheckResult.Degraded(
+            return HealthCheckResult.Degraded(
                 description: "Chat module is not initialized",
-                data: data));
+                data: data);
         }
 
         if (!_module.IsRunning)
         {
-            return Task.FromResult(HealthCheckResult.Degraded(
+            return HealthCheckResult.Degraded(
                 description: "Chat module is initialized but not running",
-                data: data));
+                data: data);
         }
 
-        return Task.FromResult(HealthCheckResult.Healthy(
+        // Database reachability probe — a dead DB degrades the module without crashing it.
+        if (!await DbHealthProbe.CanConnectAsync(_db, cancellationToken).ConfigureAwait(false))
+        {
+            return HealthCheckResult.Unhealthy("Chat module database is unreachable.", data: data);
+        }
+
+        return HealthCheckResult.Healthy(
             description: "Chat module is running",
-            data: data));
+            data: data);
     }
 }

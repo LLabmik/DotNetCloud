@@ -156,6 +156,26 @@ internal sealed class ModuleUiRegistrationHostedService : BackgroundService
 
     private async Task RefreshModuleUiRegistrationAsync(CancellationToken cancellationToken)
     {
+        try
+        {
+            await RefreshModuleUiRegistrationCoreAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Shutting down — propagate so the loop exits cleanly.
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // DB outage or transient error — log and retry on the next tick. Never let a
+            // background-service exception take down the host during a database outage
+            // (see the BackgroundServiceExceptionBehavior configuration in Program.cs).
+            _logger.LogError(ex, "Module UI registration refresh failed; will retry on the next cycle.");
+        }
+    }
+
+    private async Task RefreshModuleUiRegistrationCoreAsync(CancellationToken cancellationToken)
+    {
         using var scope = _scopeFactory.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
 

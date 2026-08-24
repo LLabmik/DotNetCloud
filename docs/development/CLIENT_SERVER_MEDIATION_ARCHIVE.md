@@ -1,3 +1,105 @@
+## Archived: Android DB Outage Simulation §11.5 — PASS (2026-08-24)
+
+**Target:** `monolith` (Android MAUI app dev + emulator testing, Windows 11; physical phone Samsung S24 Ultra `R5CWC356B2K`)
+**Branch:** `fix/database-offline-recovery`
+**Canonical plan:** `docs/DB_OUTAGE_RESILIENCE_PLAN.md` §11.5 (Android simulation)
+
+**Result:** ✅ PASS — Android 0.4.07 handled a production server outage (global banner + cached reads + queued writes) and recovered automatically (banner cleared, queue flushed). No client regressions.
+
+**Client install:** Android 0.4.07 rebuilt from HEAD (`8bdc1f57`) arm64-debug → physical phone; logged in to `https://cloud.dotnetcloud.net/`, SignalR connected, channels loaded. Server `/health/ready` Healthy, `database` Healthy, 14/14 modules before outage.
+
+**Outage phase (moderator: `sudo systemctl stop dotnetcloud`):**
+- Server confirmed down: `cloud.dotnetcloud.net:443` connection refused.
+- Global red banner appeared ("Can't reach server — showing cached data. Changes will be queued.") over the channel list.
+- Chat showed cached messages (Test 6/7/8, Aug 5 "Posting remotely" msg, etc.).
+- Sending a message queued it: `OFFLINE_QUEUE_TEST_1301` shown with "just now" + "Message queued — will send when you're back online." banner.
+
+**Recovery phase (moderator: `sudo systemctl start dotnetcloud`):**
+- Server recovered: `/health/ready` Healthy, `database` Healthy, 14/14 modules.
+- Banner cleared automatically (≤ ~20 s probe interval; UI dump confirmed).
+- Queued message flushed: `GetMessagesAsync` fetched `OFFLINE_QUEUE_TEST_1301` from the server; shown as sent ("1m ago", no queued indicator).
+- SignalR reconnected automatically (`JoinChannelGroupAsync` joined `chat-channel-…`).
+
+**Client fixes shipped (committed with this handoff):**
+1. Android receiver/service `Name` registration bug → cold-start `ClassNotFoundException`. `CalendarBootReceiver`, `CalendarAlarmReceiver`, `FcmMessagingService`, `UnifiedPushReceiver` were declared both manually in `AndroidManifest.xml` (`.X` → `net.dotnetcloud.client.X`) and via `[BroadcastReceiver]`/`[Service]` attributes without explicit `Name` (JCW landed in a `crc…` package). Fixed by adding `Name = "net.dotnetcloud.client.X"` to the attributes (mirrors `[Service(Name=…)]` pattern).
+2. Phase E banner overlay crashed launch. Wrapping the Shell in a Grid violates MAUI's "Parent of a Page must also be a Page". Replaced with a native Android platform overlay on `Android.Resource.Id.Content` driven by `ConnectivityViewModel`, offset below the status bar (`ResolveStatusBarHeight`). `ConnectivityBannerView.xaml` deleted.
+
+**Evidence:** `dnc-banner-visible.png`, `dnc-message-queued.png`, `dnc-recovered.png` (monolith), UI-dump text nodes, and logcat.
+
+**Next:** none — all DB Outage Resilience §11 outage simulations now PASSED (server §11.2, module degraded §11.3, SyncTray §11.4, Android §11.5).
+
+---
+
+## Archived: SyncTray DB Outage Simulation §11.4 — PASS (2026-08-24)
+
+**Target:** `Windows11-DNC` (client test machine; sync dir `C:\Users\benk\synctray`)
+**Branch:** `fix/database-offline-recovery`
+**Canonical plan:** `docs/DB_OUTAGE_RESILIENCE_PLAN.md` §11.4 (SyncTray simulation)
+
+**Result:** ✅ PASS — SyncTray 0.4.07 handled a production server outage and recovered automatically. No client regressions.
+
+**Client install:** SyncTray 0.4.07 rebuilt from HEAD `cbddab37` (self-contained win-x64 + updater 0.4.07) → `C:\Program Files\DotNetCloud\DesktopClient\SyncTray`; old 0.4.02 backed up to `SyncTray.bak-0.4.02`.
+
+**Outage phase (moderator: `sudo systemctl stop dotnetcloud`):**
+- Server confirmed down: `cloud.dotnetcloud.net:443` connection refused.
+- Tray → gray within one backoff interval: `Server unreachable while syncing context` → `SyncEngine` sets `SyncState.Offline` → tray `TrayState.Offline` (gray), tooltip "server unreachable, retrying automatically".
+- Automatic retry/backoff: SSE reconnects 2s → 4s → 8s → 16s → 32s → 60s (attempts 1–8), then holds at 60s.
+- "Sync now" fast-fail: connection-refused fails fast; `TimeoutHandler` caps requests at 30s; sync pass observed failing in ~12s. No hang.
+
+**Recovery phase (moderator: `sudo systemctl start dotnetcloud`):**
+- Server recovered: `/health/ready` Healthy, `database` Healthy, 14/14 modules.
+- Automatic recovery, no manual restart: failing sync passes 10:07:25/10:07:45 (server still down) → successful pass 10:08:04 (RemoteChanges=0, LocalQueued=0, LocalApplied=0) → `SyncState.Idle`.
+- SSE reconnected automatically 10:08:52 (within the 60s backoff cap). Tray returned to green/idle (moderator-confirmed).
+
+**Next:** §11.5 Android → `monolith`.
+
+---
+
+## Archived: DB Outage Resilience — Server Deploy + Verification COMPLETE (2026-08-24)
+
+**Target:** `cloud.kimball.home` (server; production `https://cloud.dotnetcloud.net/`; SQL Server DB on `hyperdrive`)
+**Branch:** `fix/database-offline-recovery`
+**Canonical plan:** `docs/DB_OUTAGE_RESILIENCE_PLAN.md` (§11 Verification)
+
+**Result:** ✅ Server-side verification PASSED; resilience code + two follow-up fixes deployed & verified on production.
+
+**Verified (cloud, dedicated `DotNetCloud-Test` DB on hyperdrive — production untouched during sims):**
+- §11.2 server outage sim → PASS (DB offline → `/health/live` Healthy, `/health/ready` Unhealthy with `database` entry Unhealthy, API 503 `DATABASE_UNAVAILABLE` in ~0.05 s; DB online → recovery within ~10 s, no service restart).
+- §11.3 module host sim → PASS (files + 13 others stay up through DB-down/up, same PIDs; aggregate now reports modules Degraded during DB-down and recovers without restart — follow-up fix).
+- Integration tests (SQL Server) → PASS 138/138, 0 failed, 7 skipped (PG — no Docker on cloud), incl. fresh-DB `EnsureCreated` (follow-up fix for the `IsDemoUser` filtered index).
+
+**Fixes shipped (committed with this handoff):**
+- Created missing `SearchHealthCheck` (build fix CS0246).
+- Test-factory `DatabaseReconnectMonitor` removal (503 regression fix).
+- `BackgroundServiceExceptionBehavior.Ignore` + `ModuleUiRegistrationHostedService` exception-safety (StopHost crash on DB-down — real bug found by the sim).
+- `ModulesAggregateHealthCheck` DB-aware (modules report Degraded during DB outage).
+- `IsDemoUser` filtered index provider-correct (PG/SQL Server) + SQL Server migration `20260824081610_FixIsDemoUserFilteredIndex`.
+
+**Deploys:** `scripts/deploy.sh --force --verify` ×2 (initial resilience deploy 02:36; follow-up fixes ~11:31). Both: 15/15 targets, assembly hashes verified, `/health` + `/health/ready` Healthy, `database` entry Healthy, 14/14 modules. Migration applied on hyperdrive; prod index filter `([IsDemoUser]=(1))`.
+
+**Next:** Client-side verifications — §11.4 SyncTray → SyncTray test machine; §11.5 Android → `monolith`.
+
+---
+
+## Archived: SyncTray Multi-Folder Sync — Client Testing COMPLETE (2026-08-23)
+
+**Target:** `mint-OptiPlex-7010` (production client → `https://cloud.dotnetcloud.net/`)
+**Branch:** `fix/synctray-issues`
+**Server deploy:** ✅ on `cloud.kimball.home` (v0.4.07, HEAD `ffe882d5`; feature `a470c992`)
+**Client deploy:** ✅ rebuilt v0.4.07 → `/opt/dotnetcloud-desktop-client/SyncTray/` on mint-OptiPlex-7010, restarted, healthy.
+
+**Result:** ✅ All client testing PASSED. One real client bug found + fixed during testing.
+
+**Tested & passed:** multi-folder add flow (`SyncContextManager.AddFolderAsync`, idempotent registration, scoped sync); folder size limit (`SizeLimitDecisionRequested`, once-per-folder, over-limit content NOT downloaded); per-root tray "Open Folder" entries; remote-overlap validation (HTTP 409 on ancestor/descendant, idempotent on equal, disjoint OK); existing single-folder regression (legacy `.selective-sync.json` imported once, removed).
+
+**Client fix shipped:** `SyncContextManager.StartContextInternalAsync` now calls `stateDb.InitializeAsync` **before** `SelectiveSyncConfig.LoadAsync` — on a pre-existing `state.db` the `SyncFolderRules` table didn't exist yet and the engine failed to start.
+
+**Server status:** `scripts/deploy.sh --force --verify` — all 15 targets succeeded; `/health` + `/health/ready` Healthy, 14/14 modules; `[core].[SyncFolderRegistrations]` table created on hyperdrive SQL Server.
+
+**Next:** Hand back to server agent for review. Next handoff = DB outage resilience deploy + verification.
+
+---
+
 ## Archived: SyncTray Multi-Folder Sync — Server Deploy Complete (2026-08-23)
 
 **Target:** `cloud.kimball.home`

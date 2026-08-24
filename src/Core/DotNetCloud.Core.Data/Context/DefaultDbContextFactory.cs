@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using DotNetCloud.Core.Data.Extensions;
 using DotNetCloud.Core.Data.Naming;
 
 namespace DotNetCloud.Core.Data.Context;
@@ -66,27 +67,10 @@ public class DefaultDbContextFactory : IDbContextFactory
 
     private void ConfigureDbContextOptions(DbContextOptionsBuilder<CoreDbContext> options)
     {
-        switch (_provider)
-        {
-            case DatabaseProvider.PostgreSQL:
-                options.UseNpgsql(_connectionString, npgsqlOptions =>
-                {
-                    npgsqlOptions.EnableRetryOnFailure(maxRetryCount: 3);
-                    npgsqlOptions.CommandTimeout(30);
-                });
-                break;
-
-            case DatabaseProvider.SqlServer:
-                options.UseSqlServer(_connectionString, sqlServerOptions =>
-                {
-                    sqlServerOptions.EnableRetryOnFailure(maxRetryCount: 3);
-                    sqlServerOptions.CommandTimeout(30);
-                    sqlServerOptions.MigrationsAssembly("DotNetCloud.Core.Data.SqlServer");
-                });
-                break;
-
-            default:
-                throw new InvalidOperationException($"Unsupported database provider: {_provider}");
-        }
+        DbResiliencePolicy.Configure(
+            options,
+            _provider,
+            _connectionString,
+            _provider == DatabaseProvider.SqlServer ? "DotNetCloud.Core.Data.SqlServer" : null);
     }
 }

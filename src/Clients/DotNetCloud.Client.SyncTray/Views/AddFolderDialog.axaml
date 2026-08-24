@@ -24,7 +24,7 @@
                        VerticalAlignment="Center" Margin="0,0,12,0" />
             <Grid Grid.Row="0" Grid.Column="1" ColumnDefinitions="*,Auto">
                 <TextBox Grid.Column="0"
-                         Watermark="Choose a local folder…"
+                         PlaceholderText="Choose a local folder…"
                          Text="{Binding LocalFolderPath}"
                          IsReadOnly="True" />
                 <Button Grid.Column="1" Content="…" Margin="6,0,0,0"
@@ -36,7 +36,7 @@
             <Grid Grid.Row="1" Grid.Column="1" ColumnDefinitions="*,Auto">
                 <TextBox Grid.Column="0"
                          Text="{Binding RemoteFolderPath}"
-                         Watermark="Whole account (or choose a folder)…"
+                         PlaceholderText="Whole account (or choose a folder)…"
                          IsReadOnly="True" />
                 <Button Grid.Column="1" Content="Choose…" Margin="6,0,0,0"
                         Command="{Binding ChooseRemoteFolderCommand}" />

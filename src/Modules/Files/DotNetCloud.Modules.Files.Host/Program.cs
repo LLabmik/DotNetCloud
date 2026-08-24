@@ -1,6 +1,7 @@
 using DotNetCloud.Core.Auth.Authorization;
 using DotNetCloud.Core.Auth.Introspection;
 using DotNetCloud.Core.Data.Context;
+using DotNetCloud.Core.Data.Extensions;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Grpc;
@@ -138,22 +139,20 @@ if (string.IsNullOrEmpty(connectionString) || string.IsNullOrEmpty(dbProvider))
         "These are provided via config.json (DOTNETCLOUD_CONFIG_DIR) when launched by the core server.");
 }
 
+var provider = ResolveDatabaseProvider(dbProvider);
+
 builder.Services.AddDbContext<FilesDbContext>(options =>
-{
-    if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
-        options.UseNpgsql(connectionString);
-    else
-        options.UseSqlServer(connectionString, sql => sql.MigrationsAssembly("DotNetCloud.Modules.Files.Data.SqlServer"));
-});
+    DbResiliencePolicy.Configure(
+        options,
+        provider,
+        connectionString,
+        provider == DatabaseProvider.SqlServer ? "DotNetCloud.Modules.Files.Data.SqlServer" : null));
 
 // Register a read-only CoreDbContext for querying identity tables (dbo.Groups)
 // directly from the Files module, avoiding gRPC round-trips for group validation.
 builder.Services.AddDbContext<CoreDbContext>(options =>
 {
-    if (string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase))
-        options.UseNpgsql(connectionString);
-    else
-        options.UseSqlServer(connectionString);
+    DbResiliencePolicy.Configure(options, provider, connectionString);
 }, ServiceLifetime.Transient);
 
 builder.Services.AddSingleton<ITableNamingStrategy>(string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase)
@@ -321,6 +320,12 @@ app.MapGet("/", () => Results.Ok(new
 }));
 
 app.Run();
+
+// Resolves the configured database provider string into the canonical enum.
+static DatabaseProvider ResolveDatabaseProvider(string? configured) =>
+    DatabaseProviderConfiguration.TryParseConfiguredProvider(configured ?? string.Empty, out var provider)
+        ? provider
+        : throw new InvalidOperationException($"Unsupported database provider '{configured}'.");
 
 /// <summary>
 /// Public Program type for integration testing via <c>WebApplicationFactory&lt;Program&gt;</c>.

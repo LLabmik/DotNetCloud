@@ -57,9 +57,15 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
     private readonly IAppForegroundService _foregroundService;
     private readonly IChannelMuteStateService _muteState;
     private readonly ICalendarReminderScheduler _reminderScheduler;
+    private readonly IServerReachabilityService _reachability;
 
     // Tracks channel groups joined so they can be re-joined after reconnection.
     private readonly ConcurrentDictionary<Guid, byte> _joinedChannels = new();
+
+    // Last-used server URL so a manual reconnect can reuse it after automatic
+    // reconnect attempts are exhausted.
+    private string? _serverBaseUrl;
+    private bool _reconnecting;
 
     /// <inheritdoc />
     public event EventHandler<ChatUnreadCountUpdatedEventArgs>? OnUnreadCountUpdated;
@@ -77,7 +83,8 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
         ISecureTokenStore tokenStore,
         IAppForegroundService foregroundService,
         IChannelMuteStateService muteState,
-        ICalendarReminderScheduler reminderScheduler)
+        ICalendarReminderScheduler reminderScheduler,
+        IServerReachabilityService reachability)
     {
         _logger = logger;
         _offlineSync = offlineSync;
@@ -85,6 +92,7 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
         _foregroundService = foregroundService;
         _muteState = muteState;
         _reminderScheduler = reminderScheduler;
+        _reachability = reachability;
     }
 
     /// <summary>
@@ -96,6 +104,8 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
     /// <param name="cancellationToken">Cancellation token.</param>
     public async Task ConnectAsync(string serverBaseUrl, string? accessToken = null, CancellationToken cancellationToken = default)
     {
+        _serverBaseUrl = serverBaseUrl;
+
         if (_hub is not null)
             await _hub.DisposeAsync().ConfigureAwait(false);
 
@@ -245,10 +255,13 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
                 _logger.LogWarning(ex, "Failed to resync calendar alarms after reconnect.");
             }
         };
-        _hub.Closed += error =>
+        _hub.Closed += async error =>
         {
-            _logger.LogWarning(error, "SignalR connection closed.");
-            return Task.CompletedTask;
+            // Automatic reconnect attempts have been exhausted. Schedule a manual
+            // reconnect with backoff, gated by server reachability so we don't
+            // hammer a dead server.
+            _logger.LogWarning(error, "SignalR connection closed. Scheduling reconnect.");
+            await ScheduleReconnectAsync();
         };
 
         try
@@ -280,6 +293,44 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
     Task IChatSignalRClient.ConnectAsync(CancellationToken cancellationToken) =>
         Task.FromException(new InvalidOperationException(
             "Use the overload that accepts serverBaseUrl and accessToken."));
+
+    /// <summary>
+    /// Retries the SignalR connection with exponential backoff after automatic
+    /// reconnect attempts are exhausted. Gated by server reachability so a dead
+    /// server is not hammered; the connection resumes automatically on recovery.
+    /// </summary>
+    private async Task ScheduleReconnectAsync()
+    {
+        if (_reconnecting)
+            return;
+        _reconnecting = true;
+        try
+        {
+            var delay = TimeSpan.FromSeconds(5);
+            while (_serverBaseUrl is not null && !string.IsNullOrEmpty(_serverBaseUrl))
+            {
+                try
+                {
+                    await Task.Delay(delay).ConfigureAwait(false);
+                    if (_reachability is null || _reachability.IsServerOnline)
+                    {
+                        await ConnectAsync(_serverBaseUrl, cancellationToken: default).ConfigureAwait(false);
+                        _logger.LogInformation("SignalR reconnected after retry.");
+                        break;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "SignalR reconnect attempt failed; retrying.");
+                }
+                delay = TimeSpan.FromTicks(Math.Min(delay.Ticks * 2, TimeSpan.FromMinutes(2).Ticks));
+            }
+        }
+        finally
+        {
+            _reconnecting = false;
+        }
+    }
 
     /// <inheritdoc />
     public async Task JoinChannelGroupAsync(Guid channelId, CancellationToken cancellationToken = default)

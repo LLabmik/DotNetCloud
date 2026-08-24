@@ -303,6 +303,21 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
         // Apply UUIDv7 value generation to all Guid primary key properties,
         // and add NEWSEQUENTIALID() defaults for SQL Server.
         SequentialGuidConfigurationExtensions.ApplySequentialGuidDefaults(modelBuilder, _namingStrategy.Provider);
+
+        // Filtered index for demo-user cleanup queries. SQL Server forbids CAST() in
+        // filtered-index WHERE clauses, so the bool literal differs by provider:
+        //   PostgreSQL: "IsDemoUser" = true
+        //   SQL Server: [IsDemoUser] = 1
+        // A single raw HasFilter string cannot be valid for both, so it is set here where
+        // the provider (naming strategy) is known. This keeps SQL Server EnsureCreated
+        // and fresh SQL Server schema creation working.
+        var isDemoUserFilter = _namingStrategy.Provider == DatabaseProvider.PostgreSQL
+            ? "\"IsDemoUser\" = true"
+            : "[IsDemoUser] = 1";
+        modelBuilder.Entity<ApplicationUser>()
+            .HasIndex(u => u.IsDemoUser)
+            .HasDatabaseName("IX_ApplicationUsers_IsDemoUser")
+            .HasFilter(isDemoUserFilter);
     }
 
     /// <summary>

@@ -1,4 +1,4 @@
-using DotNetCloud.Core.Capabilities;
+﻿using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs.Search;
 using DotNetCloud.Modules.Search.Host.Protos;
 using DotNetCloud.Modules.Search.Host.Services;
@@ -39,6 +39,7 @@ public class SearchGrpcServiceTests
         _grpcService = new SearchGrpcService(
             serviceProvider.GetRequiredService<IServiceScopeFactory>(),
             _queryService,
+            new Mock<DotNetCloud.Core.Capabilities.IAuditLogger>().Object,
             NullLogger<SearchGrpcService>.Instance);
 
         _callContext = new TestServerCallContext();
