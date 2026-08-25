@@ -74,7 +74,7 @@ public sealed class SettingsViewModel : ViewModelBase
     private bool _autoDownloadUpdates;
 
     // Sync folder size limit settings
-    private bool _limitFolderSizeEnabled;
+    private bool _limitFolderSizeEnabled = true;
     private int _maxFolderSizeMb = 250;
 
     // VFS (virtual file system / files on-demand) settings
@@ -1335,8 +1335,8 @@ internal sealed class SyncTrayLocalSettings
 
     public long MaxCacheSizeBytes { get; init; }
 
-    /// <summary>Whether the folder size limit is enabled.</summary>
-    public bool LimitFolderSizeEnabled { get; init; }
+    /// <summary>Whether the folder size limit is enabled. Defaults to true.</summary>
+    public bool LimitFolderSizeEnabled { get; init; } = true;
 
     /// <summary>Folder size limit in bytes (default 250 MiB when enabled).</summary>
     public long MaxFolderSizeBytes { get; init; } = 250L * 1024 * 1024;
