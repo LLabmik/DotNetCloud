@@ -80,6 +80,13 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
         var registrations = await LoadRegistrationsAsync(cancellationToken);
         _logger.LogInformation("Loading {Count} persisted sync context(s).", registrations.Count);
 
+        // Pre-register every context (offline) so each engine can compute its sibling
+        // scoped-folder exclusions while the contexts are still starting up.
+        foreach (var reg in registrations)
+        {
+            RegisterOfflineContext(reg);
+        }
+
         foreach (var reg in registrations)
         {
             try
@@ -102,6 +109,8 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
                 RegisterOfflineContext(reg);
             }
         }
+
+        ApplyScopedFolderExclusions();
     }
 
     /// <inheritdoc/>
@@ -203,6 +212,7 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
                 RegisterOfflineContext(registration);
             }
 
+            ApplyScopedFolderExclusions();
             await SaveRegistrationsAsync(cancellationToken);
         }
         finally
@@ -278,6 +288,8 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
                 RegisterOfflineContext(newRegistration);
             }
 
+            // Make sibling engines (e.g. the whole-account context) exclude the new scoped folder.
+            ApplyScopedFolderExclusions();
             await SaveRegistrationsAsync(cancellationToken);
         }
         finally
@@ -300,6 +312,7 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
     {
         IDotNetCloudApiClient? removedApiClient = null;
         Guid? removedServerFolderId = null;
+        string? removedDataDirectory = null;
 
         await _lock.WaitAsync(cancellationToken);
         try
@@ -316,14 +329,18 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
                 await running.Engine.DisposeAsync();
             }
 
-            // Capture before removal so the best-effort server unregister (outside the lock) can use it.
+            // Capture before removal so the best-effort cleanup (outside the lock) can use it.
             removedApiClient = running.ApiClient;
             removedServerFolderId = running.Registration.ServerFolderId;
+            removedDataDirectory = running.Registration.DataDirectory;
 
             var tokenStore = CreateTokenStore(running.Registration.DataDirectory);
             await tokenStore.DeleteAsync(running.Registration.AccountKey, cancellationToken);
 
             _contexts.Remove(contextId);
+
+            // Drop the removed context's scoped folder from sibling engines' exclusions.
+            ApplyScopedFolderExclusions();
             await SaveRegistrationsAsync(cancellationToken);
         }
         finally
@@ -334,7 +351,98 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
         // Best-effort server-side unregistration of the sync folder.
         await TryUnregisterSyncFolderOnServerAsync(removedApiClient, removedServerFolderId, cancellationToken);
 
+        // Best-effort cleanup of the removed context's data directory (state DB, tokens, …)
+        // so it doesn't linger as an orphan after the context is removed.
+        if (removedDataDirectory is not null)
+        {
+            try
+            {
+                if (Directory.Exists(removedDataDirectory))
+                    Directory.Delete(removedDataDirectory, recursive: true);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex,
+                    "Could not remove data directory for removed context {ContextId}.", contextId);
+            }
+        }
+
         _logger.LogInformation("Removed sync context {ContextId}.", contextId);
+    }
+
+    /// <inheritdoc/>
+    public async Task<int> ReauthenticateAccountAsync(
+        Guid contextId,
+        string accessToken,
+        string refreshToken,
+        DateTimeOffset expiresAt,
+        CancellationToken cancellationToken = default)
+    {
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            if (!_contexts.TryGetValue(contextId, out var primary))
+                throw new InvalidOperationException("Account context not found for re-authentication.");
+
+            var accountKey = primary.Registration.AccountKey;
+
+            // Snapshot BEFORE restarting: StartContextInternalAsync replaces entries in
+            // _contexts while iterating, which would otherwise throw on enumeration.
+            var targets = _contexts.Values
+                .Where(c => string.Equals(c.Registration.AccountKey, accountKey, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            var updated = 0;
+            foreach (var running in targets)
+            {
+                var registration = running.Registration;
+
+                // Persist the fresh tokens so engines (re)started later find them.
+                var tokenStore = CreateTokenStore(registration.DataDirectory);
+                await tokenStore.SaveAsync(accountKey, new TokenInfo
+                {
+                    AccessToken = accessToken,
+                    RefreshToken = refreshToken,
+                    ExpiresAt = expiresAt,
+                }, cancellationToken);
+
+                // Refresh the in-memory access token for running API clients.
+                if (running.ApiClient is not null)
+                    running.ApiClient.AccessToken = accessToken;
+
+                // Restart engines that failed to start (offline) so the account comes back online.
+                if (running.Engine is null)
+                {
+                    _logger.LogInformation(
+                        "Restarting offline sync engine for context {ContextId} after re-authentication.",
+                        registration.Id);
+                    try
+                    {
+                        await StartContextInternalAsync(registration, cancellationToken);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex,
+                            "Failed to restart sync engine for context {ContextId} after re-authentication.",
+                            registration.Id);
+                        RegisterOfflineContext(registration);
+                    }
+                }
+
+                updated++;
+            }
+
+            ApplyScopedFolderExclusions();
+
+            _logger.LogInformation(
+                "Re-authenticated account (key {AccountKey}): updated {Count} context(s).",
+                accountKey, updated);
+            return updated;
+        }
+        finally
+        {
+            _lock.Release();
+        }
     }
 
     // ── Per-context operations ─────────────────────────────────────────────
@@ -536,6 +644,21 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
     }
 
     /// <inheritdoc/>
+    public async Task<FileNodeResponse> CreateRemoteFolderAsync(
+        Guid contextId, string name, Guid? parentId,
+        CancellationToken cancellationToken = default)
+    {
+        var running = await GetRunningContextAsync(contextId);
+        if (running?.ApiClient is null)
+            throw new InvalidOperationException("Sync context not found or not running.");
+
+        // The access token may not be set yet if this is called outside the sync loop.
+        await EnsureAccessTokenAsync(running, cancellationToken);
+
+        return await running.ApiClient.CreateFolderAsync(name, parentId, cancellationToken);
+    }
+
+    /// <inheritdoc/>
     public async ValueTask DisposeAsync()
     {
         await StopAllAsync(CancellationToken.None);
@@ -571,6 +694,9 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
 
         var stateDatabasePath = Path.Combine(registration.DataDirectory, "state.db");
         var (engine, conflictResolver, stateDb, apiClient, selectiveSync) = CreateEngine(registration);
+
+        // Keep this context from syncing remote subtrees owned by sibling scoped contexts.
+        engine.ExcludedServerFolderIds = ComputeExcludedFolderIds(registration);
 
         // Ensure the per-context state DB schema is current BEFORE loading selective-sync
         // rules. On a brand-new DB, EnsureCreatedAsync creates every table; on an existing
@@ -699,6 +825,36 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
 
         _logger.LogWarning("Registered context {ContextId} ({DisplayName}) as offline.",
             registration.Id, registration.DisplayName);
+    }
+
+    /// <summary>
+    /// Computes the server folder NodeIds this context must NOT sync — the remote subtrees
+    /// owned by sibling scoped contexts of the same account. Prevents a whole-account context
+    /// from syncing folders that a dedicated scoped context manages (e.g. an added Pictures
+    /// folder), which would otherwise cause the two contexts to fight over the same remote folder.
+    /// </summary>
+    private IReadOnlyList<Guid> ComputeExcludedFolderIds(SyncContextRegistration registration)
+    {
+        return _contexts.Values
+            .Where(c => c.Registration.Id != registration.Id
+                && c.Registration.ServerFolderId.HasValue
+                && string.Equals(c.Registration.AccountKey, registration.AccountKey, StringComparison.OrdinalIgnoreCase))
+            .Select(c => c.Registration.ServerFolderId!.Value)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Pushes the current scoped-folder exclusions onto every running engine. Call while holding
+    /// <see cref="_lock"/> (or during single-threaded startup) so sibling engines pick up (or drop)
+    /// exclusions after contexts are added, removed, or re-authenticated.
+    /// </summary>
+    private void ApplyScopedFolderExclusions()
+    {
+        foreach (var running in _contexts.Values)
+        {
+            if (running.Engine is not null)
+                running.Engine.ExcludedServerFolderIds = ComputeExcludedFolderIds(running.Registration);
+        }
     }
 
     private (ISyncEngine engine, ConflictResolver conflictResolver, LocalStateDb stateDb, IDotNetCloudApiClient apiClient, SelectiveSyncConfig selectiveSync) CreateEngine(

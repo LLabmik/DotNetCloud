@@ -1630,7 +1630,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Blocking Issues:** None
 **Notes:** The search replaces collections entirely (server-side results). The original collections are saved as references when the panel opens. Infinite scroll is disabled during search to prevent appending unrelated items. Tab-switch commands and back navigation all properly close search first. Tested on physical device (Samsung, Android 14) — search works across Artists, Albums, and Tracks tabs with correct results and no extraneous entries.
 
-Also fixed Android music player auto-advance & stability (2026-08-24): playing from a list now queues the full displayed list so `RepeatMode.Off` advances through the queue; broke the `MEDIA_ERROR_SERVER_DIED (-38)` error→Stop→error feedback loop that froze the app at track transitions; uses a fresh `MediaPlayer` per track (release+recreate) with a same-track retry on -38 so the *very next* song plays instead of skipping; highlights the now-playing row in the track list (`TrackIsCurrentConverter`). Verified end-to-end on device (Samsung Galaxy S24 Ultra).
+Also fixed Android music player auto-advance & stability (2026-08-24): playing from a list now queues the full displayed list so `RepeatMode.Off` advances through the queue; broke the `MEDIA_ERROR_SERVER_DIED (-38)` error→Stop→error feedback loop that froze the app at track transitions; uses a fresh `MediaPlayer` per track (release+recreate) with a same-track retry on -38 so the _very next_ song plays instead of skipping; highlights the now-playing row in the track list (`TrackIsCurrentConverter`). Verified end-to-end on device (Samsung Galaxy S24 Ultra).
 
 ---
 
@@ -3094,6 +3094,10 @@ Also fixed Android music player auto-advance & stability (2026-08-24): playing f
 
 > **Status:** ✅ Implemented (formerly "Future: Multi-Root Sync"). See `docs/SYNCTRAY_MULTI_FOLDER_SYNC_PLAN.md`.
 > **Remaining polish:** per-root SSE scoping (tray per-root "Open Folder" entries verified on mint-OptiPlex-7010, 2026-08-23).
+> **2026-08-24:** Add-Folder now creates a same-named remote directory by default — see `docs/SYNCTRAY_ADD_FOLDER_CREATE_REMOTE_PLAN.md` (shipped 0.4.09).
+> **2026-08-24:** SyncTray gained a **Reconnect** button — re-runs the OAuth2 flow against the existing account's server URL and swaps in fresh tokens without remove/re-add (preserves folders + selective-sync rules); recovers from an invalid/revoked refresh token (`invalid_grant`). Shipped 0.4.10.
+> **2026-08-24:** Whole-account context now **excludes remote subtrees owned by added scoped folders** (`ExcludedServerFolderIds`) — fixes the destructive feedback loop where adding `/home/benk/Pictures` → `/Pictures` caused the whole-account sync to mirror/duplicate/delete that server folder. Only the added local folder's content syncs to its server folder. `RemoveContextAsync` also cleans up the removed context's data directory (no more orphaned dirs). Shipped 0.4.11.
+> **2026-08-24:** gRPC streaming uploads that wedge now **time out and fall back to HTTP** (size-scaled timeout in `ChunkedTransferClient`) — fixes files stuck forever "in sync" (e.g. `Ben2024.gpx`). Root cause of the gRPC flakiness is server-side: the Files module's gRPC server uses the 4 MB default `MaxReceiveMessageSize` while CDC chunks go up to 16 MB — **handed off to mint22** to raise it (see CLIENT_SERVER_MEDIATION_HANDOFF.md).
 
 ### Overview
 
@@ -3119,7 +3123,7 @@ Allow users to sync multiple local folders (e.g. Documents, Pictures, Desktop) t
 
 - ✓ `SyncContextRegistration` gains `ServerFolderId` (nullable `Guid?`) — engine passes it to `sync/changes` and `sync/tree`
 - ✓ `SyncEngine` folder-scoped: scoped tree/changes calls, path-map re-rooting, scoped upload parent
-- ✓ Settings UI: "Add Folder" button under the account — opens local chooser + optional remote folder picker (`AddFolderDialog`)
+- ✓ Settings UI: "Add Folder" button under the account — opens local chooser; default = **create a same-named remote folder** (name editable, optional parent picker), alternative = pick an existing remote folder (`AddFolderDialog`). Whole-account root mapping removed (0.4.09)
 - ✓ Each sync root gets its own entry in the Accounts tab (Synced Folders list: local path, remote path, open)
 - ✓ Each root has independent selective sync (SQLite-backed `SyncFolderRules`), state DB, and chunk cache
 - ✓ Overlap guard prevents nested/duplicate local folders; server rejects nested remote folders

@@ -74,7 +74,33 @@ Archived context:
 
 ## Active Handoff
 
-*(none — all DB Outage Resilience §11 outage simulations are now archived as PASS: §11.2 server, §11.3 module degraded, §11.4 SyncTray, §11.5 Android.)*
+### Server fix: raise Files-module gRPC `MaxReceiveMessageSize` (client sync uploads fail/hang)
+
+**Status:** pending (server agent)
+**Branch:** current shared branch
+**From:** client agent (mint-OptiPlex-7010), 2026-08-24
+**Priority:** medium — client already has a timeout fallback to HTTP, but gRPC streaming uploads of
+large files are broken on the server and fall back to HTTP on every upload (slow + redundant).
+
+**Problem / root cause:** The desktop/mobile clients upload files via gRPC client-streaming
+(`FilesService.UploadFileStream`, proxied by `Core.Server` → `FilesUploadStreamService` → Files
+module). CDC chunks on the client can be up to **16 MB** (`CdcMaxSize` in `ChunkedTransferClient`),
+but the Files module's gRPC server uses the ASP.NET Core **default `MaxReceiveMessageSize` (~4 MB)**
+because `builder.Services.AddGrpc();` is called with no options. Chunks > ~4 MB get rejected with
+`ResourceExhausted — Received message exceeds the maximum configured message size`, and in at least
+one case the stream **wedged and hung forever** (file stuck "in sync"; no error, no completion).
+
+**Required changes (server):**
+1. `src/Modules/Files/DotNetCloud.Modules.Files.Host/Program.cs` (~line 246):
+   `builder.Services.AddGrpc();` → `builder.Services.AddGrpc(options => options.MaxReceiveMessageSize = 32 * 1024 * 1024);`
+   (32 MB leaves headroom for a 16 MB chunk + protobuf framing.)
+2. For belt-and-braces, raise the other 16 MB limits to 32 MB so a full-size chunk fits every hop:
+   - `src/Core/DotNetCloud.Core.Server/Extensions/SupervisorServiceExtensions.cs` (~line 72)
+   - `src/Core/DotNetCloud.Core.Server/Supervisor/GrpcChannelManager.cs` (~line 75)
+   - `src/Core/DotNetCloud.Core.Server/Controllers/AdminController.cs` (~line 829)
+
+**Verify:** upload a file whose CDC chunk is ≥ 16 MB (e.g. a 40 MB+ file) from SyncTray and confirm
+`File upload complete (gRPC)` (no `ResourceExhausted`, no HTTP fallback) in `sync-trayYYYYMMDD.log`.
 
 ## Moderator Communication (Minimal)
 

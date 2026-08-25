@@ -36,6 +36,8 @@ public sealed class SettingsViewModel : ViewModelBase
     private string _addAccountError = string.Empty;
     private bool _isAddingAccount;
     private bool _isAddingFolder;
+    private bool _isReconnectingAccount;
+    private string _reconnectError = string.Empty;
     private bool _startOnLogin;
     private bool _isMuteChatNotifications;
     private decimal _uploadLimitKbps;
@@ -179,6 +181,27 @@ public sealed class SettingsViewModel : ViewModelBase
     {
         get => _isAddingFolder;
         private set => SetProperty(ref _isAddingFolder, value);
+    }
+
+    /// <summary>Whether the OAuth2 reconnect (re-authentication) flow is in progress.</summary>
+    public bool IsReconnectingAccount
+    {
+        get => _isReconnectingAccount;
+        private set
+        {
+            if (SetProperty(ref _isReconnectingAccount, value))
+                OnPropertyChanged(nameof(CanReconnectAccount));
+        }
+    }
+
+    /// <summary>Whether the existing account can be re-authenticated (an account exists, no flow running).</summary>
+    public bool CanReconnectAccount => HasAccount && !IsReconnectingAccount && !IsAddingAccount;
+
+    /// <summary>Error message displayed when re-authenticating an account fails.</summary>
+    public string ReconnectError
+    {
+        get => _reconnectError;
+        set => SetProperty(ref _reconnectError, value);
     }
 
     /// <summary>Exposes the tray view-model for bindings that need it (e.g. conflict badge).</summary>
@@ -461,6 +484,9 @@ public sealed class SettingsViewModel : ViewModelBase
     /// <summary>Removes the subscribed folder whose context ID is passed as the command parameter.</summary>
     public ICommand RemoveFolderCommand { get; }
 
+    /// <summary>Re-runs the OAuth2 flow for the existing account to obtain fresh tokens without removing it.</summary>
+    public ICommand ReconnectAccountCommand { get; }
+
     /// <summary>Closes the Settings window.</summary>
     public ICommand CloseCommand { get; }
 
@@ -516,6 +542,7 @@ public sealed class SettingsViewModel : ViewModelBase
         AddFolderCommand = new AsyncRelayCommand(BeginAddFolderFlowAsync);
         RemoveAccountCommand = new AsyncRelayCommand(() => _trayVm.RemoveAccountAsync());
         RemoveFolderCommand = new AsyncRelayCommand<Guid>(_trayVm.RemoveFolderAsync);
+        ReconnectAccountCommand = new AsyncRelayCommand(BeginReconnectAccountFlowAsync);
         CloseCommand = new RelayCommand(static () => { /* handled by the view via CloseCommand binding */ });
         AddIgnorePatternCommand = new AsyncRelayCommand(AddIgnorePatternAsync);
         RemoveIgnorePatternCommand = new AsyncRelayCommand<string>(RemoveIgnorePatternAsync);
@@ -535,6 +562,7 @@ public sealed class SettingsViewModel : ViewModelBase
                 OnPropertyChanged(nameof(PrimaryAccount));
                 OnPropertyChanged(nameof(CanAddAccount));
                 OnPropertyChanged(nameof(CanAddFolder));
+                OnPropertyChanged(nameof(CanReconnectAccount));
             }
         };
 
@@ -577,8 +605,8 @@ public sealed class SettingsViewModel : ViewModelBase
             await _syncManager.AddFolderAsync(
                 account.ContextId,
                 result.LocalFolderPath,
-                result.RemoteFolderNodeId == Guid.Empty ? null : result.RemoteFolderNodeId,
-                result.RemoteFolderNodeId == Guid.Empty ? null : result.RemoteFolderPath);
+                result.RemoteFolderNodeId,
+                result.RemoteFolderPath);
 
             await _trayVm.RefreshAccountsAsync();
         }
@@ -739,6 +767,59 @@ public sealed class SettingsViewModel : ViewModelBase
 
     /// <summary>Removes the account (all of its folders).</summary>
     public Task RemoveAccountAsync() => _trayVm.RemoveAccountAsync();
+
+    // ── Reconnect account flow ────────────────────────────────────────────
+
+    /// <summary>
+    /// Re-runs the OAuth2 PKCE browser flow against the existing account's server URL and
+    /// swaps in the fresh tokens without removing/re-adding the account, so all of the
+    /// account's sync folders (and their selective-sync / size-limit rules) are kept.
+    /// </summary>
+    public async Task BeginReconnectAccountFlowAsync()
+    {
+        var account = _trayVm.Accounts.FirstOrDefault(a => a.ContextId != Guid.Empty);
+        if (account is null)
+        {
+            ReconnectError = "No account is configured yet.";
+            return;
+        }
+
+        ReconnectError = string.Empty;
+        IsReconnectingAccount = true;
+        try
+        {
+            _logger.LogInformation("Starting OAuth2 re-authentication flow for server {Url}.",
+                account.ServerBaseUrl);
+
+            var tokens = await _oauth2.AuthorizeAsync(
+                account.ServerBaseUrl, AddAccountClientId,
+                scopes: ["openid", "profile", "offline_access", "files:read", "files:write"],
+                CancellationToken.None);
+
+            var updated = await _syncManager.ReauthenticateAccountAsync(
+                account.ContextId,
+                tokens.AccessToken,
+                tokens.RefreshToken ?? string.Empty,
+                tokens.ExpiresAt);
+
+            _logger.LogInformation("Re-authentication succeeded. Updated {Count} context(s).", updated);
+
+            await _trayVm.RefreshAccountsAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            ReconnectError = "Authentication cancelled.";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to reconnect account.");
+            ReconnectError = $"Failed to reconnect: {ex.Message}";
+        }
+        finally
+        {
+            IsReconnectingAccount = false;
+        }
+    }
 
     // ── Ignored Files tab ─────────────────────────────────────────────────
 

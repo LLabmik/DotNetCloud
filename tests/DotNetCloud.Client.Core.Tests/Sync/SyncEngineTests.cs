@@ -1583,6 +1583,133 @@ public class SyncEngineTests
         Assert.AreEqual("bigfiles", promptedPath, "A prompt should be raised for the undecided over-limit folder.");
     }
 
+    // ── Scoped-folder exclusion (whole-account vs added scoped folders) ────
+
+    [TestMethod]
+    public async Task SyncAsync_ExcludedScopedFolder_SkipsDownloadsForExcludedSubtree()
+    {
+        var picturesId = Guid.CreateVersion7();
+        var docsId = Guid.CreateVersion7();
+
+        // Whole-account tree containing a folder owned by a sibling scoped context
+        // (Pictures) and a normal folder (Docs).
+        var tree = new SyncTreeNodeResponse
+        {
+            NodeId = Guid.Empty,
+            Name = "/",
+            NodeType = "Folder",
+            Children =
+            [
+                new SyncTreeNodeResponse
+                {
+                    NodeId = picturesId,
+                    Name = "Pictures",
+                    NodeType = "Folder",
+                    Children =
+                    [
+                        new SyncTreeNodeResponse { NodeId = Guid.CreateVersion7(), Name = "photo.jpg", NodeType = "File", Size = 123 },
+                    ],
+                },
+                new SyncTreeNodeResponse
+                {
+                    NodeId = docsId,
+                    Name = "Docs",
+                    NodeType = "Folder",
+                    Children =
+                    [
+                        new SyncTreeNodeResponse { NodeId = Guid.CreateVersion7(), Name = "notes.txt", NodeType = "File", Size = 456 },
+                    ],
+                },
+            ],
+        };
+
+        _apiMock.Setup(a => a.GetFolderTreeAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(tree);
+
+        var queuedDownloads = new List<string>();
+        _stateDbMock
+            .Setup(db => db.QueueOperationAsync(It.IsAny<string>(), It.IsAny<PendingOperationRecord>(), It.IsAny<CancellationToken>()))
+            .Callback<string, PendingOperationRecord, CancellationToken>((_, op, _) =>
+            {
+                if (op is PendingDownload d)
+                    queuedDownloads.Add(d.LocalPath);
+            })
+            .Returns(Task.CompletedTask);
+
+        var engine = BuildEngine();
+        engine.ExcludedServerFolderIds = [picturesId];
+
+        await using var _ = engine;
+        await engine.StartAsync(_context);
+        await engine.SyncAsync(_context);
+        await engine.StopAsync();
+
+        Assert.IsFalse(
+            queuedDownloads.Any(p => p.Contains(Path.Combine("Pictures", "photo.jpg"), StringComparison.OrdinalIgnoreCase)),
+            "Files inside an excluded scoped folder must not be downloaded into the whole-account mirror.");
+        Assert.IsTrue(
+            queuedDownloads.Any(p => p.Contains(Path.Combine("Docs", "notes.txt"), StringComparison.OrdinalIgnoreCase)),
+            "Files outside the excluded folder must still sync.");
+    }
+
+    [TestMethod]
+    public async Task SyncAsync_ExcludedScopedFolder_SkipsUploadsForLocalMirror()
+    {
+        var picturesId = Guid.CreateVersion7();
+
+        var tree = new SyncTreeNodeResponse
+        {
+            NodeId = Guid.Empty,
+            Name = "/",
+            NodeType = "Folder",
+            Children =
+            [
+                new SyncTreeNodeResponse
+                {
+                    NodeId = picturesId,
+                    Name = "Pictures",
+                    NodeType = "Folder",
+                },
+            ],
+        };
+
+        _apiMock.Setup(a => a.GetFolderTreeAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(tree);
+        _apiMock.Setup(a => a.ListChildrenAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        // A leftover local mirror of the scoped folder (like /home/benk/synctray/Pictures).
+        var mirrorDir = Path.Combine(_tempDir, "Pictures");
+        Directory.CreateDirectory(mirrorDir);
+        var mirrorFile = Path.Combine(mirrorDir, "local.jpg");
+        File.WriteAllText(mirrorFile, "data");
+
+        var queuedUploads = new List<string>();
+        _stateDbMock
+            .Setup(db => db.QueueOperationsBatchAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<PendingOperationRecord>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, IReadOnlyList<PendingOperationRecord>, CancellationToken>((_, ops, _) =>
+            {
+                foreach (var op in ops)
+                {
+                    if (op is PendingUpload u)
+                        queuedUploads.Add(u.LocalPath);
+                }
+            })
+            .Returns(Task.CompletedTask);
+
+        var engine = BuildEngine();
+        engine.ExcludedServerFolderIds = [picturesId];
+
+        await using var _ = engine;
+        await engine.StartAsync(_context);
+        await engine.SyncAsync(_context);
+        await engine.StopAsync();
+
+        Assert.IsFalse(
+            queuedUploads.Any(p => string.Equals(p, mirrorFile, StringComparison.OrdinalIgnoreCase)),
+            "Local files under an excluded scoped folder must not be uploaded back into the excluded server folder.");
+    }
+
     // ── Issue #51: Case-conflict detection ──────────────────────────────────
 
     [TestMethod]

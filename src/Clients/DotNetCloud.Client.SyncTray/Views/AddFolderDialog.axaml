@@ -4,8 +4,8 @@
         x:Class="DotNetCloud.Client.SyncTray.Views.AddFolderDialog"
         x:DataType="vm:AddFolderDialogViewModel"
         Title="Add Sync Folder"
-        Width="440"
-        Height="260"
+        Width="480"
+        Height="380"
         WindowStartupLocation="CenterOwner"
         CanResize="False"
         SizeToContent="Height">
@@ -15,14 +15,15 @@
         <TextBlock Text="Add a local folder to sync"
                    FontSize="16" FontWeight="SemiBold" />
 
-        <TextBlock Text="Choose a local folder and (optionally) the remote folder it maps to. Each folder syncs independently."
+        <TextBlock Text="Choose a local folder. SyncTray will create a matching folder on the server (or you can pick an existing one)."
                    TextWrapping="Wrap"
                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
 
-        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" RowSpacing="6">
-            <TextBlock Grid.Row="0" Grid.Column="0" Text="Local folder"
+        <!-- Local folder -->
+        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto" RowSpacing="6">
+            <TextBlock Grid.Column="0" Text="Local folder"
                        VerticalAlignment="Center" Margin="0,0,12,0" />
-            <Grid Grid.Row="0" Grid.Column="1" ColumnDefinitions="*,Auto">
+            <Grid Grid.Column="1" ColumnDefinitions="*,Auto">
                 <TextBox Grid.Column="0"
                          PlaceholderText="Choose a local folder…"
                          Text="{Binding LocalFolderPath}"
@@ -30,14 +31,51 @@
                 <Button Grid.Column="1" Content="…" Margin="6,0,0,0"
                         Command="{Binding BrowseFolderCommand}" />
             </Grid>
+        </Grid>
 
-            <TextBlock Grid.Row="1" Grid.Column="0" Text="Remote folder (optional)"
+        <!-- Remote mapping mode -->
+        <StackPanel Orientation="Horizontal" Spacing="16">
+            <RadioButton Content="Create a new remote folder"
+                         GroupName="RemoteMode"
+                         IsChecked="{Binding UseExistingRemoteFolder, Converter={x:Static BoolConverters.Not}}" />
+            <RadioButton Content="Use an existing remote folder"
+                         GroupName="RemoteMode"
+                         IsChecked="{Binding UseExistingRemoteFolder}" />
+        </StackPanel>
+
+        <!-- Create-new fields -->
+        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" RowSpacing="6"
+              IsVisible="{Binding !UseExistingRemoteFolder}">
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="Remote folder name"
+                       VerticalAlignment="Center" Margin="0,0,12,0" />
+            <Grid Grid.Row="0" Grid.Column="1" ColumnDefinitions="*,Auto">
+                <TextBox Grid.Column="0"
+                         Text="{Binding RemoteFolderName}"
+                         PlaceholderText="Folder name on the server" />
+            </Grid>
+
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="Parent folder"
                        VerticalAlignment="Center" Margin="0,0,12,0" />
             <Grid Grid.Row="1" Grid.Column="1" ColumnDefinitions="*,Auto">
                 <TextBox Grid.Column="0"
-                         Text="{Binding RemoteFolderPath}"
-                         PlaceholderText="Whole account (or choose a folder)…"
-                         IsReadOnly="True" />
+                         Text="{Binding RemoteParentPath}"
+                         IsReadOnly="True"
+                         PlaceholderText="(top level)" />
+                <Button Grid.Column="1" Content="Choose…" Margin="6,0,0,0"
+                        Command="{Binding ChooseParentFolderCommand}" />
+            </Grid>
+        </Grid>
+
+        <!-- Use-existing field -->
+        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto" RowSpacing="6"
+              IsVisible="{Binding UseExistingRemoteFolder}">
+            <TextBlock Grid.Column="0" Text="Remote folder"
+                       VerticalAlignment="Center" Margin="0,0,12,0" />
+            <Grid Grid.Column="1" ColumnDefinitions="*,Auto">
+                <TextBox Grid.Column="0"
+                         Text="{Binding ExistingRemoteFolderPath}"
+                         IsReadOnly="True"
+                         PlaceholderText="Choose a folder…" />
                 <Button Grid.Column="1" Content="Choose…" Margin="6,0,0,0"
                         Command="{Binding ChooseRemoteFolderCommand}" />
             </Grid>
@@ -50,9 +88,11 @@
 
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
             <Button Content="Cancel"
+                    IsEnabled="{Binding !IsBusy}"
                     Command="{Binding CancelCommand}" />
             <Button Content="Add Folder"
                     Classes="accent"
+                    IsEnabled="{Binding !IsBusy}"
                     Command="{Binding ConfirmCommand}" />
         </StackPanel>
 

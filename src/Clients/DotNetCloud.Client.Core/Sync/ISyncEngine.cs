@@ -26,6 +26,12 @@ public interface ISyncEngine : IAsyncDisposable
     /// <summary>Maximum recursive folder size (bytes) before a folder is considered over-limit. Default 250 MiB.</summary>
     long MaxFolderSizeBytes { get; set; }
 
+    /// <summary>
+    /// Server folder NodeIds whose subtrees this engine must NOT sync. Keeps a whole-account
+    /// context from syncing remote subtrees that are owned by dedicated scoped contexts.
+    /// </summary>
+    IReadOnlyList<Guid> ExcludedServerFolderIds { get; set; }
+
     /// <summary>Raised when a folder exceeds the size limit and no decision has been recorded yet.</summary>
     event EventHandler<SizeLimitDecisionRequestedEventArgs>? SizeLimitDecisionRequested;
 

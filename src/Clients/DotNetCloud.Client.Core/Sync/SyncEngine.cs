@@ -63,6 +63,14 @@ public sealed class SyncEngine : ISyncEngine
     private HashSet<string> _sizeLimitExcludedPaths = new(
         OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
 
+    /// <summary>
+    /// Relative paths (forward slashes) of remote subtrees excluded for the current sync pass
+    /// because they are owned by sibling scoped contexts. Cleared and rebuilt at the start of
+    /// each pass; used to skip matching local paths in the local scan and deletion detection.
+    /// </summary>
+    private HashSet<string> _scopedFolderExcludedPaths = new(
+        OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+
     private SyncState _state = SyncState.Idle;
     private string? _lastError;
     private bool _paused;
@@ -108,6 +116,14 @@ public sealed class SyncEngine : ISyncEngine
 
     /// <inheritdoc/>
     public long MaxFolderSizeBytes { get; set; } = 250L * 1024 * 1024;
+
+    /// <summary>
+    /// Server folder NodeIds whose subtrees this engine must NOT sync. Used to keep a
+    /// whole-account (root) context from syncing remote subtrees that are owned by dedicated
+    /// scoped contexts (e.g. an added "Pictures" folder), which would otherwise cause two
+    /// contexts to fight over the same remote folder.
+    /// </summary>
+    public IReadOnlyList<Guid> ExcludedServerFolderIds { get; set; } = [];
 
     /// <inheritdoc/>
     public event EventHandler<SizeLimitDecisionRequestedEventArgs>? SizeLimitDecisionRequested;
@@ -617,6 +633,9 @@ public sealed class SyncEngine : ISyncEngine
             if (_syncIgnore.IsIgnored(relativePath))
                 continue;
 
+            if (IsUnderExcludedScopedFolder(relativePath))
+                continue;
+
             if (!_selectiveSync.IsIncluded(context.Id, relativePath))
                 continue;
 
@@ -921,6 +940,8 @@ public sealed class SyncEngine : ISyncEngine
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var relDir = Path.GetRelativePath(context.LocalFolderPath, dirPath);
+                if (IsUnderExcludedScopedFolder(relDir))
+                    continue;
                 if (serverFolderPaths.ContainsKey(relDir))
                     continue; // Folder exists on server — keep
 
@@ -964,6 +985,9 @@ public sealed class SyncEngine : ISyncEngine
 
             var relPath = Path.GetRelativePath(context.LocalFolderPath, record.LocalPath);
             if (_syncIgnore.IsIgnored(relPath))
+                continue;
+
+            if (IsUnderExcludedScopedFolder(relPath))
                 continue;
 
             missingFiles.Add(record);
@@ -1179,6 +1203,7 @@ public sealed class SyncEngine : ISyncEngine
         // Build nodeId → relative-path map once (shared across all pages).
         // When scoped to a remote folder, the tree root is that folder (a path-less anchor).
         var tree = await _api.GetFolderTreeAsync(_serverFolderId, cancellationToken);
+        tree = PruneScopedFolderExclusions(tree);
         var pathMap = new Dictionary<Guid, string>();
         BuildPathMap(tree, "", pathMap, isRoot: true);
 
@@ -1219,6 +1244,13 @@ public sealed class SyncEngine : ISyncEngine
                 var relativePathForIgnore = Path.GetRelativePath(context.LocalFolderPath, localPath);
                 if (!_selectiveSync.IsIncluded(context.Id, relativePathForIgnore))
                     continue;
+
+                if (IsUnderExcludedScopedFolder(relativePathForIgnore))
+                {
+                    _logger.LogDebug("Skipping remote change {RelPath} for context {ContextId} (owned by a scoped folder).",
+                        relativePathForIgnore, context.Id);
+                    continue;
+                }
 
                 if (IsUnderSizeLimitExclusion(relativePathForIgnore))
                 {
@@ -2550,6 +2582,81 @@ public sealed class SyncEngine : ISyncEngine
 
         foreach (var child in node.Children)
             BuildFolderPathMap(child, currentPath, map);
+    }
+
+    /// <summary>
+    /// Removes remote subtrees owned by sibling scoped contexts from the server tree and
+    /// records their relative paths so the local scan can skip the matching local folders.
+    /// </summary>
+    private SyncTreeNodeResponse PruneScopedFolderExclusions(SyncTreeNodeResponse tree)
+    {
+        _scopedFolderExcludedPaths.Clear();
+        if (ExcludedServerFolderIds.Count == 0)
+            return tree;
+
+        var excluded = new HashSet<Guid>(ExcludedServerFolderIds);
+        var pruned = PruneNode(tree, "", excluded, isRoot: true);
+        return pruned ?? tree;
+    }
+
+    /// <summary>
+    /// Recursively walks the server tree, removing any node whose NodeId is in
+    /// <paramref name="excluded"/> (and its entire subtree). Returns <see langword="null"/>
+    /// for a pruned node, otherwise the (possibly rebuilt) node.
+    /// </summary>
+    private SyncTreeNodeResponse? PruneNode(
+        SyncTreeNodeResponse node, string parentPath, HashSet<Guid> excluded, bool isRoot)
+    {
+        var nodePath = isRoot || node.NodeId == Guid.Empty
+            ? parentPath
+            : string.IsNullOrEmpty(parentPath) ? node.Name : Path.Combine(parentPath, node.Name);
+
+        if (node.NodeId != Guid.Empty && excluded.Contains(node.NodeId))
+        {
+            _scopedFolderExcludedPaths.Add(nodePath.Replace('\\', '/'));
+            return null; // prune this node and its entire subtree
+        }
+
+        if (node.Children.Count == 0)
+            return node;
+
+        var keptChildren = new List<SyncTreeNodeResponse>(node.Children.Count);
+        foreach (var child in node.Children)
+        {
+            var kept = PruneNode(child, nodePath, excluded, isRoot: false);
+            if (kept is not null)
+                keptChildren.Add(kept);
+        }
+
+        return keptChildren.Count == node.Children.Count
+            ? node
+            : node with { Children = keptChildren };
+    }
+
+    /// <summary>
+    /// Returns <see langword="true"/> when <paramref name="relativePath"/> (relative to the
+    /// context's local sync root) lies inside a remote subtree owned by a sibling scoped
+    /// context, and therefore must not be synced by this engine.
+    /// </summary>
+    private bool IsUnderExcludedScopedFolder(string relativePath)
+    {
+        if (_scopedFolderExcludedPaths.Count == 0)
+            return false;
+
+        var comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+        var normalized = relativePath.Replace('\\', '/').TrimStart('/');
+
+        foreach (var excluded in _scopedFolderExcludedPaths)
+        {
+            if (string.Equals(normalized, excluded, comparison)
+                || normalized.StartsWith(excluded + "/", comparison))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     /// <summary>

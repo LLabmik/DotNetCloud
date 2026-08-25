@@ -3570,7 +3570,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Implement repeat modes (Off / One / All) with visual indicator
 - ✓ Fix music auto-advance: playing a track from the list queues the full displayed list so `RepeatMode.Off` advances through the queue instead of stopping after one song
 - ✓ Fix `MEDIA_ERROR_SERVER_DIED (-38)` feedback loop that froze the app at track transitions (break error→Stop→error recursion)
-- ✓ Use a fresh `MediaPlayer` per track (release+recreate) and retry the same track on -38 so the *very next* song plays
+- ✓ Use a fresh `MediaPlayer` per track (release+recreate) and retry the same track on -38 so the _very next_ song plays
 - ✓ Highlight the currently playing song in the track list (`TrackIsCurrentConverter` + row background)
 - ✓ Implement now-playing bar with album art, seek slider, play/pause/next/prev controls
 - ✓ Implement album art loading via `IAlbumArtCache` with fallback placeholder
@@ -6454,3 +6454,90 @@ mapped 1:1 to a chosen remote folder), track registrations server-side, replace 
 - ✓ Server: `SyncFolderRegistrationServiceTests`, `SyncServiceTests` (recursive scope), `EntityConfigurationTests`
 - ✓ Client: `DotNetCloudApiClientTests`, `SyncEngineTests` (scoped), `SyncFolderOverlapGuardTests`, `SyncFolderSizePlannerTests`, `LocalStateDbTests`, `SelectiveSyncConfigTests`, `FolderBrowserViewModelTests` (ctor)
 - ✓ Full suites pass: Files 760, Client.Core 296, SyncTray 130
+
+## SyncTray: Add-Folder Creates Remote Directory (2026-08-24)
+
+**Objective:** When the user adds a local folder in SyncTray, create a matching (same-named,
+editable) remote directory on the server by default instead of allowing a whole-account root
+mapping. Keeps a "Use an existing remote folder" alternative and shows server-side name-collision
+errors inline. Client-only — no server or gRPC changes. Version 0.4.09.
+
+### Client — API surface
+
+- ✓ `ISyncContextManager.CreateRemoteFolderAsync(contextId, name, parentId, ct)` — interface + impl (`SyncContextManager`)
+- ✓ Reuses the existing REST `POST api/v1/files/folders` via `DotNetCloudApiClient.CreateFolderAsync`; ensures the access token is loaded before the call
+
+### Client — Add Folder dialog UX
+
+- ✓ Default mode = **create a new remote folder**; "Use an existing remote folder" alternative via radio group
+- ✓ Remote folder name pre-populated from the local folder's **leaf name** (editable)
+- ✓ Optional parent-folder picker (folder browser, single-select); default = account root ("(top level)")
+- ✓ Root (whole-account) mapping removed — `AddFolderResult.RemoteFolderNodeId` is always a real folder ID; `SettingsViewModel.BeginAddFolderFlowAsync` no longer maps `Guid.Empty` → `null`
+- ✓ Duplicate-name / server validation errors shown **inline**; dialog stays open (user renames) — no silent reuse
+- ✓ Settings Accounts tab wrapped in a `ScrollViewer`; window default height enlarged (480 → 560, min 340 → 420)
+
+### Tests
+
+- ✓ New `AddFolderDialogViewModelTests` (8 tests): leaf-name derivation, missing local folder, existing-mode no-selection, create-mode empty name, create-at-root result, parent + nested path, duplicate-name inline error keeps dialog open, existing-mode uses selected node
+- ✓ SyncTray suite passes (145), Client.Core suite passes (297); `dotnet build` clean (0 warnings/errors)
+
+## SyncTray: Reconnect Account (Re-Authentication) (2026-08-24)
+
+**Objective:** When a stored refresh token becomes invalid (`invalid_grant` — e.g. revoked/expired),
+let the user obtain fresh tokens **without** removing and re-adding the account, so all sync
+folders, selective-sync rules, and size-limit decisions are preserved. Version 0.4.10.
+
+### Client — Core
+
+- ✓ `ISyncContextManager.ReauthenticateAccountAsync(contextId, accessToken, refreshToken, expiresAt, ct)` → `int` (contexts updated)
+- ✓ `SyncContextManager` impl: updates every context sharing the account key — saves fresh `TokenInfo` to each context's encrypted token store, refreshes the in-memory `ApiClient.AccessToken` for online contexts, and restarts offline engines via `StartContextInternalAsync` (offline → online) without removing anything
+- ✓ Snapshot-before-restart to avoid dictionary-modified-during-enumeration (restart replaces the `_contexts` entry)
+
+### Client — Settings UI
+
+- ✓ "Reconnect" button in the Accounts tab (account card, Actions row) — re-runs the OAuth2 PKCE browser flow against the existing account's server URL and swaps in the fresh tokens
+- ✓ `ReconnectError` shown inline in the account card (separate from `AddAccountError`, which only renders in the no-account card)
+- ✓ `IsReconnectingAccount` / `CanReconnectAccount` guard the button during the flow
+
+### Tests
+
+- ✓ New `SettingsViewModelTests` reconnect tests (4): no-account error, successful re-auth + refresh, OAuth2 throw → inline error, OAuth2 cancel → inline error
+- ✓ SyncTray suite passes (149); `dotnet build` clean (0 warnings/errors)
+
+## SyncTray: Scoped-Folder Exclusion (whole-account vs added folder) (2026-08-24)
+
+**Objective:** When a user adds a local folder that maps to a remote folder INSIDE the whole-account
+sync scope (e.g. `/home/benk/Pictures` → server `/Pictures`), only that local folder's content may
+sync to that server folder. Previously the whole-account context also synced the same remote subtree
+(downloading it into its local mirror, re-uploading it, and reverse-reconciling it) — causing a
+destructive feedback loop that deleted the server folder. Version 0.4.11.
+
+### Client — Core
+
+- ✓ `ISyncEngine.ExcludedServerFolderIds` — server folder NodeIds whose subtrees an engine must NOT sync
+- ✓ `SyncEngine` prunes excluded subtrees from the fetched server tree each pass (`PruneScopedFolderExclusions`/`PruneNode`), so downloads, remote changes, and reverse reconciliation skip them
+- ✓ `SyncEngine` skips matching local paths in the local scan, stale-dir cleanup, and deletion detection (`IsUnderExcludedScopedFolder`) — so a leftover local mirror can't be uploaded back into the excluded server folder
+- ✓ `SyncContextManager.ComputeExcludedFolderIds` — a context excludes the `ServerFolderId` of every sibling context of the same account
+- ✓ `SyncContextManager` sets exclusions at engine start and refreshes sibling engines (`ApplyScopedFolderExclusions`) after contexts are added/removed/re-authenticated
+- ✓ `LoadContextsAsync` pre-registers all contexts (offline) before starting so exclusions are correct at startup
+- ✓ `RemoveContextAsync` now deletes the removed context's data directory (state DB, tokens, …) so removed folders/accounts don't leave orphaned directories behind
+
+### Tests
+
+- ✓ New `SyncEngineTests` (2): excluded subtree is not downloaded while siblings still sync; leftover local mirror under an excluded folder is not uploaded
+- ✓ Client.Core suite passes (299), SyncTray suite passes (149); `dotnet build` clean (0 warnings/errors)
+
+## SyncTray: gRPC Upload Hang → HTTP Fallback Timeout (2026-08-24)
+
+**Objective:** A gRPC streaming upload that wedges (server stops consuming the stream) previously hung
+forever — the file stayed "in sync" with no error and no completion (seen with `Ben2024.gpx`). The
+gRPC call now has a size-scaled timeout so it cancels and falls back to the reliable HTTP chunked upload.
+
+### Client — Core
+
+- ✓ `ChunkedTransferClient` wraps the gRPC streaming attempt in a `CancellationTokenSource.CancelAfter` (30s floor + fileSize/3MB/s, 5-minute cap) — a wedged stream cancels and falls through to HTTP, which is proven reliable for all files
+- ✓ Verified end-to-end (mint-OptiPlex-7010, 2026-08-24): `Ben2024.gpx` (44 MB, previously stuck with 0 chunks uploaded) synced to `/Pictures/PhoneTrack/` after the fix; `bb-...pdf` (1.17 GB) confirmed present on server
+
+### Tests
+
+- ✓ Client.Core suite passes (299), SyncTray suite passes (149); `dotnet build` clean (0 warnings/errors)

@@ -7,9 +7,9 @@
         x:CompileBindings="False"
         Title="{Binding CurrentClientVersion, StringFormat='DotNetCloud Sync — Settings (v{0})'}"
         Width="520"
-        Height="480"
+        Height="560"
         MinWidth="400"
-        MinHeight="340"
+        MinHeight="420"
         WindowStartupLocation="CenterScreen"
         RequestedThemeVariant="Dark"
         Background="#0D1118"
@@ -95,7 +95,8 @@
 
             <!-- ── Accounts ── -->
             <TabItem Header="Accounts">
-                <DockPanel Margin="8">
+                <ScrollViewer>
+                    <DockPanel Margin="8">
 
                     <Border Classes="card" IsVisible="{Binding !HasAccount}">
                         <StackPanel Spacing="8">
@@ -222,11 +223,21 @@
 
                                         <Separator Background="#263247" Margin="0,2" />
 
+                                        <!-- Reconnect error (only shown in the account card) -->
+                                        <TextBlock Text="{Binding $parent[Window].DataContext.ReconnectError}"
+                                                   Foreground="#FF7B88"
+                                                   FontSize="12"
+                                                   TextWrapping="Wrap"
+                                                   IsVisible="{Binding $parent[Window].DataContext.ReconnectError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
                                         <!-- Actions -->
                                         <StackPanel Orientation="Horizontal" Spacing="8"
                                                     HorizontalAlignment="Right">
                                             <Button Content="Add Folder"
                                                     Command="{Binding $parent[Window].DataContext.AddFolderCommand}" />
+                                            <Button Content="Reconnect"
+                                                    IsEnabled="{Binding $parent[Window].DataContext.CanReconnectAccount}"
+                                                    Command="{Binding $parent[Window].DataContext.ReconnectAccountCommand}" />
                                             <Button Content="Remove Account"
                                                     Classes="danger"
                                                     Command="{Binding $parent[Window].DataContext.RemoveAccountCommand}" />
@@ -238,7 +249,8 @@
                         </ContentControl>
                     </Border>
 
-                </DockPanel>
+                    </DockPanel>
+                </ScrollViewer>
             </TabItem>
 
             <!-- ── General ── -->

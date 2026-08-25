@@ -220,11 +220,23 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
                         PosixOwnerHint = posixOwnerHint,
                     };
 
+                    // Bound the gRPC streaming attempt. If the server stops consuming the
+                    // stream (e.g. a chunk exceeds its MaxReceiveMessageSize and the
+                    // connection wedges) the call can hang forever, leaving the file stuck
+                    // "in sync" with no fallback. Time out and use the reliable HTTP
+                    // chunked upload instead. Scaled by file size (3 MB/s floor), 30s
+                    // minimum, 5-minute cap.
+                    using var grpcCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                    var grpcTimeout = TimeSpan.FromSeconds(30) + TimeSpan.FromMilliseconds(fileSize / 3000.0);
+                    if (grpcTimeout > TimeSpan.FromMinutes(5))
+                        grpcTimeout = TimeSpan.FromMinutes(5);
+                    grpcCts.CancelAfter(grpcTimeout);
+
                     fileStream.Seek(0, SeekOrigin.Begin);
                     var grpcResult = await _api.UploadFileStreamAsync(
                         streamMetadata,
-                        StreamChunksAsync(fileStream, cancellationToken),
-                        cancellationToken);
+                        StreamChunksAsync(fileStream, grpcCts.Token),
+                        grpcCts.Token);
 
                     uploadTimer.Stop();
                     _logger.LogInformation(
