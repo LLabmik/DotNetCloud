@@ -53,7 +53,7 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
     private HubConnection? _hub;
     private readonly ILogger<SignalRChatClient> _logger;
     private readonly IOfflineSyncService _offlineSync;
-    private readonly ISecureTokenStore _tokenStore;
+    private readonly ITokenRefreshService _tokenRefresh;
     private readonly IAppForegroundService _foregroundService;
     private readonly IChannelMuteStateService _muteState;
     private readonly ICalendarReminderScheduler _reminderScheduler;
@@ -80,7 +80,7 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
     public SignalRChatClient(
         ILogger<SignalRChatClient> logger,
         IOfflineSyncService offlineSync,
-        ISecureTokenStore tokenStore,
+        ITokenRefreshService tokenRefresh,
         IAppForegroundService foregroundService,
         IChannelMuteStateService muteState,
         ICalendarReminderScheduler reminderScheduler,
@@ -88,7 +88,7 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
     {
         _logger = logger;
         _offlineSync = offlineSync;
-        _tokenStore = tokenStore;
+        _tokenRefresh = tokenRefresh;
         _foregroundService = foregroundService;
         _muteState = muteState;
         _reminderScheduler = reminderScheduler;
@@ -114,10 +114,11 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
         _hub = new HubConnectionBuilder()
             .WithUrl(hubUrl, options =>
             {
-                // Fetch a fresh token on every connect/reconnect to handle expiry.
-                // Falls back to the injected ISecureTokenStore which handles refresh flows.
+                // Fetch a FRESH token on every connect/reconnect so reconnects never use
+                // a stale (expired) token. The refresh service proactively rotates the
+                // access token before it expires.
                 options.AccessTokenProvider = async () =>
-                    await _tokenStore.GetAccessTokenAsync(serverBaseUrl).ConfigureAwait(false);
+                    await _tokenRefresh.EnsureFreshAccessTokenAsync(serverBaseUrl).ConfigureAwait(false);
                 options.HttpMessageHandlerFactory = static _ => OAuthHttpClientHandlerFactory.CreateHandler();
             })
             .WithAutomaticReconnect([TimeSpan.Zero, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(15)])

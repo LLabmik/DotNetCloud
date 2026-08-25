@@ -1,30 +1,35 @@
 using System.Net;
 using System.Net.Http.Headers;
+using DotNetCloud.Client.Android.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Maui.ApplicationModel;
 
 namespace DotNetCloud.Client.Android.Auth;
 
 /// <summary>
-/// Intercepts HTTP 401 responses, attempts to refresh the access token using
-/// the stored refresh token, and retries the original request transparently.
-/// If the refresh fails, clears stored tokens and navigates to the login page.
+/// Attaches a fresh Bearer token to every request, proactively refreshing the access
+/// token before it expires via <see cref="ITokenRefreshService"/>. As a fallback it
+/// also intercepts HTTP 401 responses, refreshes, and retries transparently. If the
+/// refresh genuinely fails, clears tokens and the active connection, then navigates
+/// to the login page exactly once (no bounce, because the connection is removed).
 /// </summary>
 internal sealed class AuthenticatedHttpClientHandler : DelegatingHandler
 {
     private readonly ISecureTokenStore _tokenStore;
-    private readonly IOAuth2Service _oauth;
+    private readonly ITokenRefreshService _tokenRefresh;
+    private readonly IServerConnectionStore _serverStore;
     private readonly ILogger<AuthenticatedHttpClientHandler> _logger;
-    private static readonly SemaphoreSlim s_refreshLock = new(1, 1);
 
     /// <summary>Initializes a new <see cref="AuthenticatedHttpClientHandler"/>.</summary>
     public AuthenticatedHttpClientHandler(
         ISecureTokenStore tokenStore,
-        IOAuth2Service oauth,
+        ITokenRefreshService tokenRefresh,
+        IServerConnectionStore serverStore,
         ILogger<AuthenticatedHttpClientHandler> logger)
     {
         _tokenStore = tokenStore;
-        _oauth = oauth;
+        _tokenRefresh = tokenRefresh;
+        _serverStore = serverStore;
         _logger = logger;
     }
 
@@ -32,60 +37,39 @@ internal sealed class AuthenticatedHttpClientHandler : DelegatingHandler
     protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request, CancellationToken ct)
     {
+        // Proactively attach a fresh token so we never send an expired one. The refresh
+        // service returns the current token unchanged when it still has > 5 minutes left.
+        var serverUrl = ExtractServerBaseUrl(request.RequestUri);
+        if (serverUrl is not null)
+        {
+            var freshToken = await _tokenRefresh.EnsureFreshAccessTokenAsync(serverUrl, ct);
+            if (!string.IsNullOrWhiteSpace(freshToken))
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", freshToken);
+        }
+
         var response = await base.SendAsync(request, ct);
 
-        if (response.StatusCode != HttpStatusCode.Unauthorized)
-            return response;
-
-        var serverUrl = ExtractServerBaseUrl(request.RequestUri);
-        if (serverUrl is null)
+        if (response.StatusCode != HttpStatusCode.Unauthorized || serverUrl is null)
             return response;
 
         var failedToken = request.Headers.Authorization?.Parameter;
 
-        await s_refreshLock.WaitAsync(ct);
-        try
+        // The token was rejected — force a refresh and retry once. Concurrent calls are
+        // serialized inside the shared refresh service.
+        var newToken = await _tokenRefresh.EnsureFreshAccessTokenAsync(serverUrl, ct, forceRefresh: true);
+        if (!string.IsNullOrWhiteSpace(newToken) && newToken != failedToken)
         {
-            // Another concurrent call may have already refreshed the token.
-            var currentToken = await _tokenStore.GetAccessTokenAsync(serverUrl, ct);
-            if (!string.IsNullOrEmpty(currentToken) && currentToken != failedToken)
-            {
-                _logger.LogDebug("Token already refreshed by another request; retrying.");
-                response.Dispose();
-                var retry = CreateRetryRequest(request, currentToken);
-                return await base.SendAsync(retry, ct);
-            }
-
-            var refreshToken = await _tokenStore.GetRefreshTokenAsync(serverUrl, ct);
-            if (string.IsNullOrWhiteSpace(refreshToken))
-            {
-                _logger.LogWarning("No refresh token available for {ServerUrl}; clearing session.", serverUrl);
-                await _tokenStore.DeleteTokensAsync(serverUrl, ct);
-                await NavigateToLoginAsync();
-                return response;
-            }
-
-            var result = await _oauth.RefreshAsync(serverUrl, refreshToken, ct);
-            await _tokenStore.SaveTokensAsync(serverUrl, result.AccessToken, result.RefreshToken, ct);
-            _logger.LogInformation("Access token refreshed for {ServerUrl}.", serverUrl);
-
             response.Dispose();
-            var retryRequest = CreateRetryRequest(request, result.AccessToken);
-            return await base.SendAsync(retryRequest, ct);
+            var retry = CreateRetryRequest(request, newToken);
+            return await base.SendAsync(retry, ct);
         }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Token refresh failed for {ServerUrl}; clearing session.", serverUrl);
-            try
-            { await _tokenStore.DeleteTokensAsync(serverUrl, ct); }
-            catch { /* best-effort cleanup */ }
-            await NavigateToLoginAsync();
-            return response;
-        }
-        finally
-        {
-            s_refreshLock.Release();
-        }
+
+        // Refresh genuinely failed (refresh token expired/revoked) — end the session
+        // cleanly. We also remove the active connection so the login page doesn't bounce
+        // us straight back (which caused repeated "session lost" loops).
+        _logger.LogWarning("Token refresh failed for {ServerUrl}; clearing session.", serverUrl);
+        await EndSessionAsync(serverUrl, ct);
+        return response;
     }
 
     private static HttpRequestMessage CreateRetryRequest(HttpRequestMessage original, string accessToken)
@@ -99,6 +83,10 @@ internal sealed class AuthenticatedHttpClientHandler : DelegatingHandler
                 retry.Headers.TryAddWithoutValidation(header.Key, header.Value);
         }
 
+        // Preserve the request body (POST/PUT/PATCH) so the retried request is complete.
+        if (original.Content is not null)
+            retry.Content = original.Content;
+
         return retry;
     }
 
@@ -107,6 +95,17 @@ internal sealed class AuthenticatedHttpClientHandler : DelegatingHandler
         if (uri is null)
             return null;
         return $"{uri.Scheme}://{uri.Authority}";
+    }
+
+    private async Task EndSessionAsync(string serverUrl, CancellationToken ct)
+    {
+        try { await _tokenStore.DeleteTokensAsync(serverUrl, ct); }
+        catch { /* best-effort cleanup */ }
+
+        try { _serverStore.Remove(serverUrl); }
+        catch { /* best-effort cleanup */ }
+
+        await NavigateToLoginAsync();
     }
 
     private static Task NavigateToLoginAsync()

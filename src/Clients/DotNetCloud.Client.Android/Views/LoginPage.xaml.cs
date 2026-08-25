@@ -21,19 +21,22 @@ public partial class LoginPage : ContentPage
     }
 
     /// <inheritdoc />
-    protected override void OnAppearing()
+    protected override async void OnAppearing()
     {
         base.OnAppearing();
 
-        // If a saved server connection exists, skip the login page and go straight
-        // to the main page. This handles the case where Shell resets to the default
-        // route (//Login) on Activity recreation after the app is backgrounded.
+        // If a saved server connection exists with a usable session, skip the login
+        // page and go straight to the main page. This handles the case where Shell
+        // resets to the default route (//Login) on Activity recreation after the app
+        // is backgrounded. Crucially, we only redirect when the session can actually
+        // be used — otherwise the first request 401s and the auth handler bounces us
+        // right back here.
         try
         {
             var active = _vm.TryGetActiveConnection();
-            if (active is not null)
+            if (active is not null && await App.HasUsableSessionAsync(active))
             {
-                Log.Info("DotNetCloud", $"LoginPage.OnAppearing: saved connection found ({active}), redirecting");
+                Log.Info("DotNetCloud", $"LoginPage.OnAppearing: saved connection found ({active}) with usable session, redirecting");
                 _ = Shell.Current.GoToAsync("//Main/ChannelList");
                 return;
             }

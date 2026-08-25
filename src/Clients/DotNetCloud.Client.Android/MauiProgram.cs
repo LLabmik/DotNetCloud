@@ -51,6 +51,7 @@ public static class MauiProgram
 
         // ── Auth ──────────────────────────────────────────────────────
         builder.Services.AddSingleton<IOAuth2Service, MauiOAuth2Service>();
+        builder.Services.AddSingleton<ITokenRefreshService, TokenRefreshService>();
         builder.Services.AddTransient<AuthenticatedHttpClientHandler>();
 
         // ── Chat / real-time (single shared CoreHub connection) ─────

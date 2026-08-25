@@ -94,10 +94,12 @@ internal sealed class MauiOAuth2Service : IOAuth2Service
         var json = await response.Content.ReadFromJsonAsync<TokenResponse>(ct).ConfigureAwait(false)
                    ?? throw new InvalidOperationException("Empty token response.");
 
+        // Store the TRUE expiry; the proactive refresh service applies its own safety
+        // window before the token actually expires.
         return new OAuth2Result(
             json.AccessToken,
             json.RefreshToken,
-            DateTimeOffset.UtcNow.AddSeconds(json.ExpiresIn - 30),
+            DateTimeOffset.UtcNow.AddSeconds(json.ExpiresIn),
             json.IdToken);
     }
 
