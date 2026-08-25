@@ -445,6 +445,50 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
         }
     }
 
+    /// <inheritdoc/>
+    public async Task<int> UpdateAccountDisplayNameAsync(
+        Guid contextId,
+        string displayName,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(displayName))
+            throw new ArgumentException("A display name is required.", nameof(displayName));
+
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            if (!_contexts.TryGetValue(contextId, out var primary))
+                return 0;
+
+            var accountKey = primary.Registration.AccountKey;
+            var updated = 0;
+
+            // Every folder context of the account mirrors the same account display name.
+            foreach (var kvp in _contexts.ToList())
+            {
+                var running = kvp.Value;
+                if (!string.Equals(running.Registration.AccountKey, accountKey, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                running.Registration.DisplayName = displayName;
+                running.SyncContext.DisplayName = displayName;
+                updated++;
+            }
+
+            if (updated > 0)
+                await SaveRegistrationsAsync(cancellationToken);
+
+            _logger.LogInformation(
+                "Updated display name for account (key {AccountKey}) to '{DisplayName}' ({Count} context(s)).",
+                accountKey, displayName, updated);
+            return updated;
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
     // ── Per-context operations ─────────────────────────────────────────────
 
     /// <inheritdoc/>

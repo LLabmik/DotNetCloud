@@ -9,6 +9,7 @@ namespace DotNetCloud.Client.SyncTray.ViewModels;
 public sealed class AccountViewModel : ViewModelBase
 {
     private string _state;
+    private string _displayName = string.Empty;
     private int _pendingUploads;
     private int _pendingDownloads;
     private DateTime? _lastSyncedAt;
@@ -19,7 +20,11 @@ public sealed class AccountViewModel : ViewModelBase
     public Guid ContextId { get; }
 
     /// <summary>Human-readable display name (e.g. <c>Ben @ cloud.example.com</c>).</summary>
-    public string DisplayName { get; }
+    public string DisplayName
+    {
+        get => _displayName;
+        set => SetProperty(ref _displayName, value);
+    }
 
     /// <summary>Server base URL.</summary>
     public string ServerBaseUrl { get; }

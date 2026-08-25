@@ -697,12 +697,21 @@ public sealed class SettingsViewModel : ViewModelBase
 
             _logger.LogInformation("OAuth2 tokens received. Building account data.");
 
+            // Resolve the real user name from the server's OIDC userinfo endpoint.
+            // The access token is an encrypted JWE, so its claims cannot be read locally —
+            // the userinfo endpoint is the authoritative source for the display name.
+            var profile = await _oauth2.GetUserProfileAsync(serverUrl, tokens.AccessToken, cancellationToken);
+
             var data = new AddAccountRequest
             {
                 ServerBaseUrl = serverUrl,
-                UserId = ExtractUserId(tokens.AccessToken),
+                // The access token is an encrypted JWE, so its `sub` claim can't be read
+                // locally — use the authoritative `sub` from userinfo when available.
+                UserId = Guid.TryParse(profile?.Subject, out var subId)
+                    ? subId
+                    : ExtractUserId(tokens.AccessToken),
                 LocalFolderPath = localFolderPath,
-                DisplayName = BuildDisplayName(tokens.AccessToken, serverUrl),
+                DisplayName = BuildDisplayName(profile, tokens.AccessToken, serverUrl),
                 AccessToken = tokens.AccessToken,
                 RefreshToken = tokens.RefreshToken,
                 ExpiresAt = tokens.ExpiresAt,
@@ -795,6 +804,17 @@ public sealed class SettingsViewModel : ViewModelBase
                 account.ServerBaseUrl, AddAccountClientId,
                 scopes: ["openid", "profile", "offline_access", "files:read", "files:write"],
                 CancellationToken.None);
+
+            // Refresh the account label from the server's userinfo endpoint so a previously
+            // generic name (e.g. "user @ host") is replaced with the real user name.
+            var profile = await _oauth2.GetUserProfileAsync(
+                account.ServerBaseUrl, tokens.AccessToken, CancellationToken.None);
+            if (profile is not null)
+            {
+                var newDisplayName = BuildDisplayName(profile, tokens.AccessToken, account.ServerBaseUrl);
+                await _syncManager.UpdateAccountDisplayNameAsync(
+                    account.ContextId, newDisplayName, CancellationToken.None);
+            }
 
             var updated = await _syncManager.ReauthenticateAccountAsync(
                 account.ContextId,
@@ -1166,37 +1186,52 @@ public sealed class SettingsViewModel : ViewModelBase
         return Guid.Empty;
     }
 
-    private static string BuildDisplayName(string? accessToken, string serverUrl)
+    private static string BuildDisplayName(UserProfileInfo? profile, string? accessToken, string serverUrl)
     {
-        string username = "user";
-
-        if (!string.IsNullOrEmpty(accessToken))
-        {
-            try
-            {
-                var parts = accessToken.Split('.');
-                if (parts.Length >= 2)
-                {
-                    var padded = parts[1].PadRight(parts[1].Length + (4 - parts[1].Length % 4) % 4, '=');
-                    var json = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(padded));
-                    using var doc = System.Text.Json.JsonDocument.Parse(json);
-
-                    if (doc.RootElement.TryGetProperty("preferred_username", out var u))
-                        username = u.GetString() ?? username;
-                    else if (doc.RootElement.TryGetProperty("email", out var e))
-                        username = e.GetString() ?? username;
-                }
-            }
-            catch
-            {
-                // Ignore
-            }
-        }
+        // Prefer the authoritative userinfo claims; fall back to whatever is readable
+        // from the token (usually nothing, since the access token is an encrypted JWE).
+        string username =
+            profile?.Name is { Length: > 0 } name ? name :
+            profile?.PreferredUsername is { Length: > 0 } preferred ? preferred :
+            profile?.Email is { Length: > 0 } email ? email :
+            ExtractUsernameFromToken(accessToken) ?? "user";
 
         if (Uri.TryCreate(serverUrl, UriKind.Absolute, out var uri))
             return $"{username} @ {uri.Host}";
 
         return $"{username} @ {serverUrl}";
+    }
+
+    /// <summary>
+    /// Best-effort username extraction from JWT claims (<c>preferred_username</c> or <c>email</c>).
+    /// Returns <see langword="null"/> when the token is unreadable (e.g. an encrypted JWE).
+    /// </summary>
+    private static string? ExtractUsernameFromToken(string? accessToken)
+    {
+        if (string.IsNullOrEmpty(accessToken))
+            return null;
+
+        try
+        {
+            var parts = accessToken.Split('.');
+            if (parts.Length >= 2)
+            {
+                var padded = parts[1].PadRight(parts[1].Length + (4 - parts[1].Length % 4) % 4, '=');
+                var json = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(padded));
+                using var doc = System.Text.Json.JsonDocument.Parse(json);
+
+                if (doc.RootElement.TryGetProperty("preferred_username", out var u))
+                    return u.GetString();
+                if (doc.RootElement.TryGetProperty("email", out var e))
+                    return e.GetString();
+            }
+        }
+        catch
+        {
+            // Ignore
+        }
+
+        return null;
     }
 
     private static string GetClientVersion()

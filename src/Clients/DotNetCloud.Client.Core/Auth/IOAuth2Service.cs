@@ -25,4 +25,15 @@ public interface IOAuth2Service
     /// Revokes all tokens for an account.
     /// </summary>
     Task RevokeAsync(string serverBaseUrl, string clientId, TokenInfo tokens, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Fetches the authenticated user's profile from the OIDC <c>/connect/userinfo</c> endpoint
+    /// using the given access token. Returns <see langword="null"/> if the request fails or the
+    /// token is rejected.
+    /// </summary>
+    /// <param name="serverBaseUrl">Base URL of the DotNetCloud server.</param>
+    /// <param name="accessToken">Valid bearer access token.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>User profile claims, or <see langword="null"/> on failure.</returns>
+    Task<UserProfileInfo?> GetUserProfileAsync(string serverBaseUrl, string accessToken, CancellationToken cancellationToken = default);
 }

@@ -27,7 +27,7 @@ public sealed class SyncContext
     public string? ServerFolderDisplayPath { get; init; }
 
     /// <summary>Friendly display name (e.g. "Ben @ cloud.example.com").</summary>
-    public string DisplayName { get; init; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
 
     /// <summary>Path to the SQLite state database for this context.</summary>
     public required string StateDatabasePath { get; init; }

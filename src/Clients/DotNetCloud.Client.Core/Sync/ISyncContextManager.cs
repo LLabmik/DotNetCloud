@@ -71,6 +71,20 @@ public interface ISyncContextManager
         DateTimeOffset expiresAt,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Updates the human-readable display name for an account (every sync context sharing the
+    /// account's key) and persists the change. Used after re-authentication to refresh the
+    /// account label shown in the tray UI when the server's user profile changes.
+    /// </summary>
+    /// <param name="contextId">Any context ID belonging to the account to rename.</param>
+    /// <param name="displayName">New display name.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The number of sync contexts whose display name was updated.</returns>
+    Task<int> UpdateAccountDisplayNameAsync(
+        Guid contextId,
+        string displayName,
+        CancellationToken cancellationToken = default);
+
     // ── Per-context operations ─────────────────────────────────────────────
 
     /// <summary>Returns the current sync status for the given context, or <c>null</c> if not found.</summary>

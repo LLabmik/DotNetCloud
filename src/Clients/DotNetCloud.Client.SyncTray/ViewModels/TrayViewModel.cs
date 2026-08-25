@@ -969,6 +969,10 @@ public sealed class TrayViewModel : ViewModelBase
                     _accountList.Add(accountVm);
                 }
 
+                // Propagate a refreshed display name (e.g. after re-authentication resolves the real user name).
+                if (!string.Equals(accountVm.DisplayName, ctx.DisplayName, StringComparison.Ordinal))
+                    accountVm.DisplayName = ctx.DisplayName;
+
                 accountVm.Folders = folderVms;
                 _folderVmByContext[ctx.Id] = folderVms.First(f => f.ContextId == ctx.Id);
             }

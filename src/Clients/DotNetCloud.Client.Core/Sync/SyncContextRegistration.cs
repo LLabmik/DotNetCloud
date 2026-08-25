@@ -29,8 +29,9 @@ public sealed class SyncContextRegistration
 
     /// <summary>
     /// Human-readable name shown in the tray UI (e.g. <c>Ben @ cloud.example.com</c>).
+    /// Settable so re-authentication can refresh the user's display name.
     /// </summary>
-    public required string DisplayName { get; init; }
+    public required string DisplayName { get; set; }
 
     /// <summary>Key used by <c>ITokenStore</c> to look up OAuth2 tokens for this context.</summary>
     public required string AccountKey { get; init; }
