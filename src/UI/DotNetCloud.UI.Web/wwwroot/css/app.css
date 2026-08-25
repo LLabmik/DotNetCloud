@@ -1545,6 +1545,30 @@ textarea.input {
   margin-top: 12px;
 }
 
+/* --- Trash: Emptying (Delete All Permanently) --- */
+.trash-emptying {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px 0;
+}
+
+.trash-emptying .spinner {
+  width: 32px;
+  height: 32px;
+}
+
+.trash-emptying p {
+  margin: 0;
+}
+
+.trash-bin-page--busy {
+  pointer-events: none;
+  opacity: 0.8;
+}
+
 .trash-toolbar {
   display: flex;
   align-items: center;

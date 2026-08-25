@@ -6,7 +6,7 @@
     Code-behind: TrashBin.razor.cs
 *@
 
-<div class="trash-bin-page">
+<div class="trash-bin-page @(IsEmptying ? "trash-bin-page--busy" : null)">
     <div class="page-header">
         <h1>🗑️ Trash</h1>
         <div class="page-header-meta">
@@ -17,7 +17,7 @@
         </div>
         @if (TrashedItems.Count > 0)
         {
-            <button class="btn btn-danger btn-sm" @onclick="ShowEmptyConfirm">
+            <button class="btn btn-danger btn-sm" @onclick="ShowEmptyConfirm" disabled="@IsEmptying">
                 Empty Trash
             </button>
         }
@@ -27,14 +27,24 @@
     {
         <div class="trash-confirm-dialog">
             <div class="trash-confirm-content">
-                <p><strong>Permanently delete all @TrashedItems.Count items?</strong></p>
-                <p class="text-muted">This action cannot be undone. All files and folders in the trash will be permanently deleted.</p>
-                <div class="trash-confirm-actions">
-                    <button class="btn btn-danger btn-sm" @onclick="EmptyTrash">
-                        Delete All Permanently
-                    </button>
-                    <button class="btn btn-sm" @onclick="HideEmptyConfirm">Cancel</button>
-                </div>
+                @if (IsEmptying)
+                {
+                    <div class="trash-emptying" role="status" aria-live="polite">
+                        <div class="spinner"></div>
+                        <p><strong>Emptying trash…</strong></p>
+                    </div>
+                }
+                else
+                {
+                    <p><strong>Permanently delete all @TrashedItems.Count items?</strong></p>
+                    <p class="text-muted">This action cannot be undone. All files and folders in the trash will be permanently deleted.</p>
+                    <div class="trash-confirm-actions">
+                        <button class="btn btn-danger btn-sm" @onclick="EmptyTrash">
+                            Delete All Permanently
+                        </button>
+                        <button class="btn btn-sm" @onclick="HideEmptyConfirm">Cancel</button>
+                    </div>
+                }
             </div>
         </div>
     }
