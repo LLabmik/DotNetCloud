@@ -106,7 +106,7 @@
         </StackPanel>
 
         <!-- Main content -->
-        <ScrollViewer>
+        <ScrollViewer x:Name="ContentScroll">
             <StackPanel Spacing="12">
 
                 <!-- Version info card -->

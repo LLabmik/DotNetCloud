@@ -31,6 +31,17 @@ public partial class UpdateDialog : Window
         {
             Close();
         }
+        else if (e.PropertyName == nameof(UpdateViewModel.IsDownloading) && _vm.IsDownloading)
+        {
+            // Scroll the download-progress card into view so the user can see
+            // the download happening even when the release notes are long.
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => ContentScroll.ScrollToEnd());
+        }
+        else if (e.PropertyName == nameof(UpdateViewModel.IsDownloadComplete))
+        {
+            // Keep the completion state visible once the download finishes.
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => ContentScroll.ScrollToEnd());
+        }
     }
 
     /// <inheritdoc/>
