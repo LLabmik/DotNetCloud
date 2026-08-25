@@ -206,6 +206,23 @@ public partial class App : Application
             Log.Warn("DotNetCloud", $"Reachability start failed: {ex.Message}");
         }
 
+        // Warm up the access token before the first authenticated request so the session
+        // never starts with an expired token (prevents 401 → re-login loops).
+        try
+        {
+            var active = _serverStore.GetActive();
+            if (active is not null)
+            {
+                var tokenRefresh = Ioc.Default.GetService<ITokenRefreshService>();
+                if (tokenRefresh is not null)
+                    await tokenRefresh.EnsureFreshAccessTokenAsync(active.ServerBaseUrl);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("DotNetCloud", $"Token warm-up failed: {ex.Message}");
+        }
+
         await CheckAvailableModulesAsync();
         await NavigateToStartPageAsync();
     }
@@ -246,7 +263,12 @@ public partial class App : Application
             var location = Shell.Current?.CurrentState?.Location?.ToString();
             if (active is not null && location is not null && location.Contains("Login") && Shell.Current is not null)
             {
-                await Shell.Current.GoToAsync("//Main/ChannelList");
+                // Only skip login if we actually hold a usable (or refreshable) session.
+                // Otherwise the user would be bounced straight back here on the first 401.
+                if (await HasUsableSessionAsync(active.ServerBaseUrl))
+                {
+                    await Shell.Current.GoToAsync("//Main/ChannelList");
+                }
             }
         }
         catch (Exception ex)
@@ -290,6 +312,48 @@ public partial class App : Application
         Log.Info("DotNetCloud", "TriggerModuleRescanAsync completed");
     }
 
+    /// <summary>
+    /// Returns whether the app holds a usable session for the given server: a stored
+    /// access token that is not expired, or (if expired) one that can be refreshed right
+    /// now. When the server is unreachable, a stored token is treated as usable so the
+    /// app can keep working offline from cached data instead of stranding the user on
+    /// the login screen.
+    /// </summary>
+    public static async Task<bool> HasUsableSessionAsync(string serverUrl)
+    {
+        try
+        {
+            var tokenStore = Ioc.Default.GetService<ISecureTokenStore>();
+            if (tokenStore is null)
+                return false;
+
+            var accessToken = await tokenStore.GetAccessTokenAsync(serverUrl);
+            if (string.IsNullOrWhiteSpace(accessToken))
+                return false;
+
+            var expiry = await tokenStore.GetAccessTokenExpiryAsync(serverUrl);
+            if (expiry is null || DateTimeOffset.UtcNow < expiry.Value)
+                return true;
+
+            // Token is expired. If the server is currently unreachable, enter the app
+            // anyway (offline/cached mode) rather than blocking on a login that can't
+            // complete without network.
+            var reachability = Ioc.Default.GetService<IServerReachabilityService>();
+            if (reachability is not null && !reachability.IsServerOnline)
+                return true;
+
+            var tokenRefresh = Ioc.Default.GetService<ITokenRefreshService>();
+            var fresh = tokenRefresh is not null
+                ? await tokenRefresh.EnsureFreshAccessTokenAsync(serverUrl)
+                : null;
+            return !string.IsNullOrWhiteSpace(fresh);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     private async Task CheckAvailableModulesAsync()
     {
         Log.Info("DotNetCloud", "CheckAvailableModulesAsync started");
@@ -302,7 +366,10 @@ public partial class App : Application
                 return;
             }
 
-            var token = await _tokenStore.GetAccessTokenAsync(connection.ServerBaseUrl);
+            var tokenRefresh = Ioc.Default.GetService<ITokenRefreshService>();
+            var token = tokenRefresh is not null
+                ? await tokenRefresh.EnsureFreshAccessTokenAsync(connection.ServerBaseUrl)
+                : await _tokenStore.GetAccessTokenAsync(connection.ServerBaseUrl);
             if (token is null)
             {
                 Log.Warn("DotNetCloud", "CheckAvailableModulesAsync: no token");
