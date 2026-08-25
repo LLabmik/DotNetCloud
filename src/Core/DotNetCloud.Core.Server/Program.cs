@@ -347,11 +347,14 @@ public class Program
         // Chat module UI services (ChatPageLayout and related Blazor components).
         builder.Services.AddDbContext<ChatDbContext>(options =>
             ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Chat.Data"),
-            ServiceLifetime.Transient);
+            ServiceLifetime.Transient,
+            ServiceLifetime.Singleton);
         // Custom factory for the DB-backed notification preference store — persists DND/mute
         // state in the chat schema so it's consistent across processes and machines.
         // (ChatDbContext's two constructors break the built-in AddDbContextFactory activator
         // when ITableNamingStrategy is registered in DI, so we use ChatDbContextFactory.)
+        // The factory is a singleton, so the DbContextOptions MUST also be singleton (the
+        // AddDbContext optionsLifetime defaults to scoped, which would fail DI validation).
         builder.Services.AddSingleton<IDbContextFactory<ChatDbContext>, ChatDbContextFactory>();
         builder.Services.AddChatServices(builder.Configuration!);
 
@@ -573,7 +576,10 @@ public class Program
         builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.IMusicApiClient, DotNetCloud.Core.Server.Grpc.Clients.MusicGrpcApiClient>();
         builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.IPhotosApiClient, DotNetCloud.Core.Server.Grpc.Clients.PhotosGrpcApiClient>();
         builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.IVideoApiClient, DotNetCloud.Core.Server.Grpc.Clients.VideoGrpcApiClient>();
-        builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.ISearchApiClient, DotNetCloud.Core.Server.Grpc.Clients.SearchGrpcApiClient>();
+        // SearchApiClient is a singleton: it is consumed by the SearchEventSubscriber hosted
+        // service (a singleton) and only depends on singletons itself (options, endpoint
+        // provider, logger), so it is safe to share for the app lifetime.
+        builder.Services.AddSingleton<DotNetCloud.Core.Services.ModuleApis.ISearchApiClient, DotNetCloud.Core.Server.Grpc.Clients.SearchGrpcApiClient>();
         builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.IAboutApiClient, DotNetCloud.Core.Server.Grpc.Clients.AboutGrpcApiClient>();
         builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.IAiApiClient, DotNetCloud.Core.Server.Grpc.Clients.AiGrpcApiClient>();
         // ✅ gRPC clients (newly implemented)
