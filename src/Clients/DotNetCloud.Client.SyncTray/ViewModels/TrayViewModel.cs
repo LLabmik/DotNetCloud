@@ -60,9 +60,8 @@ public sealed class TrayViewModel : ViewModelBase
     private DateTime _lastConflictNotificationUtc = DateTime.MinValue;
     private Timer? _conflictReminderTimer;
 
-    // Per-sync-cycle notification aggregation keyed by context ID.
+    // Per-sync-cycle error aggregation keyed by context ID.
     private readonly Dictionary<Guid, List<string>> _cycleErrors = [];
-    private readonly Dictionary<Guid, (int Uploads, int Downloads)> _cycleTransfers = [];
 
     // VFS (files on-demand) status
     private readonly VirtualFileSettings _vfsSettings;
@@ -563,11 +562,10 @@ public sealed class TrayViewModel : ViewModelBase
             var stateStr = e.Status.State.ToString();
             if (stateStr == "Syncing" && vm.State != "Syncing")
             {
-                // New sync cycle starting — reset per-cycle aggregation.
+                // New sync cycle starting — reset per-cycle error aggregation.
                 lock (_transferLock)
                 {
                     _cycleErrors.Remove(e.ContextId);
-                    _cycleTransfers.Remove(e.ContextId);
                 }
             }
 
@@ -612,13 +610,12 @@ public sealed class TrayViewModel : ViewModelBase
             }
         }
 
-        // Emit one aggregated end-of-cycle toast.
+        // Emit one aggregated end-of-cycle toast for failures only — a successful
+        // sync cycle does not pop a completion notification.
         List<string>? cycleErrors;
-        (int Uploads, int Downloads) cycleTransfers;
         lock (_transferLock)
         {
             _cycleErrors.Remove(e.ContextId, out cycleErrors);
-            _cycleTransfers.Remove(e.ContextId, out cycleTransfers);
         }
         displayName ??= e.ContextId.ToString();
 
@@ -631,19 +628,6 @@ public sealed class TrayViewModel : ViewModelBase
                 "Sync failed",
                 $"{displayName}: {summary}",
                 NotificationType.Error,
-                replaceKey: $"sync-cycle-{e.ContextId}");
-        }
-        else if (cycleTransfers.Uploads > 0 || cycleTransfers.Downloads > 0)
-        {
-            var parts = new List<string>(2);
-            if (cycleTransfers.Uploads > 0)
-                parts.Add($"{cycleTransfers.Uploads} uploaded");
-            if (cycleTransfers.Downloads > 0)
-                parts.Add($"{cycleTransfers.Downloads} downloaded");
-            _notifications.ShowNotification(
-                "Sync complete",
-                string.Join(", ", parts),
-                NotificationType.Info,
                 replaceKey: $"sync-cycle-{e.ContextId}");
         }
 
@@ -891,13 +875,6 @@ public sealed class TrayViewModel : ViewModelBase
             }
 
             vm.MarkComplete(e.TotalBytes);
-
-            // Count towards the current cycle aggregation.
-            _cycleTransfers.TryGetValue(e.ContextId, out var counts);
-            if (e.Direction == "upload")
-                _cycleTransfers[e.ContextId] = (counts.Uploads + 1, counts.Downloads);
-            else
-                _cycleTransfers[e.ContextId] = (counts.Uploads, counts.Downloads + 1);
         }
 
         // Decrement the remaining pending count as each file finishes transferring.

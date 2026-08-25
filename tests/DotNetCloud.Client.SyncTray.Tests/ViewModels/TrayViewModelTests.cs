@@ -199,7 +199,7 @@ public sealed class TrayViewModelTests
     }
 
     [TestMethod]
-    public async Task OnSyncComplete_WithTransfersNoErrors_ShowsSuccessToast()
+    public async Task OnSyncComplete_WithTransfersNoErrors_ShowsNoCompletionToast()
     {
         var (vm, syncMock, _, notifMock) = BuildVm();
         var contextId = Guid.CreateVersion7();
@@ -219,15 +219,16 @@ public sealed class TrayViewModelTests
             syncMock.Object,
             new SyncCompleteEventArgs { ContextId = contextId, Status = new SyncStatus { Conflicts = 0, LastSyncedAt = DateTime.UtcNow } });
 
+        // A clean cycle with transfers must NOT pop a completion toast.
         notifMock.Verify(
             n => n.ShowNotification(
                 "Sync complete",
-                It.Is<string>(b => b.Contains("2 uploaded") && b.Contains("1 downloaded")),
+                It.IsAny<string>(),
                 NotificationType.Info,
                 It.IsAny<string?>(),
                 It.IsAny<string?>(),
-                It.Is<string?>(r => r != null && r.StartsWith("sync-cycle-"))),
-            Times.Once);
+                It.IsAny<string?>()),
+            Times.Never);
     }
 
     [TestMethod]
@@ -246,7 +247,7 @@ public sealed class TrayViewModelTests
         // Nothing synced, nothing failed — no toast.
         notifMock.Verify(
             n => n.ShowNotification(
-                It.Is<string>(t => t == "Sync complete" || t == "Sync failed"),
+                It.Is<string>(t => t == "Sync failed"),
                 It.IsAny<string>(),
                 It.IsAny<NotificationType>(),
                 It.IsAny<string?>(),
