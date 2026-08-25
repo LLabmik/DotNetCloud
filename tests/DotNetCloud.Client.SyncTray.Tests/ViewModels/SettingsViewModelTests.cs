@@ -186,12 +186,195 @@ public sealed class SettingsViewModelTests
         var contextId = Guid.CreateVersion7();
 
         syncMock
+            .Setup(i => i.GetContextsAsync())
+            .ReturnsAsync([
+                new SyncContextRegistration
+                {
+                    Id = contextId,
+                    DisplayName = "test@example.com @ cloud.example.com",
+                    ServerBaseUrl = "https://cloud.example.com",
+                    LocalFolderPath = "/tmp/sync",
+                    UserId = Guid.CreateVersion7(),
+                    AccountKey = "acct",
+                    OsUserName = "testuser",
+                    DataDirectory = "/tmp/data",
+                }
+            ]);
+        syncMock
+            .Setup(i => i.GetStatusAsync(contextId))
+            .ReturnsAsync(new SyncStatus { State = SyncState.Idle });
+        syncMock
             .Setup(i => i.RemoveContextAsync(contextId, It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        await vm.RemoveAccountAsync(contextId);
+        await vm.TrayVm.RefreshAccountsAsync();
+        await vm.RemoveAccountAsync();
 
         syncMock.Verify(i => i.RemoveContextAsync(contextId, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [TestMethod]
+    public void RemoveFolderCommand_IsWired()
+    {
+        var (vm, _, _, _) = BuildVm();
+        Assert.IsNotNull(vm.RemoveFolderCommand);
+    }
+
+    // ── Reconnect ─────────────────────────────────────────────────────────
+
+    [TestMethod]
+    public async Task BeginReconnectAccountFlowAsync_NoAccount_SetsError()
+    {
+        var (vm, syncMock, oauth2Mock, _) = BuildVm();
+
+        await vm.BeginReconnectAccountFlowAsync();
+
+        Assert.IsFalse(string.IsNullOrEmpty(vm.ReconnectError));
+        oauth2Mock.Verify(
+            o => o.AuthorizeAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        syncMock.Verify(
+            i => i.ReauthenticateAccountAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [TestMethod]
+    public async Task BeginReconnectAccountFlowAsync_WithAccount_ReauthsAndRefreshes()
+    {
+        var (vm, syncMock, oauth2Mock, _) = BuildVm();
+
+        var contextId = Guid.CreateVersion7();
+        syncMock
+            .Setup(i => i.GetContextsAsync())
+            .ReturnsAsync([
+                new SyncContextRegistration
+                {
+                    Id = contextId,
+                    DisplayName = "test@example.com @ cloud.example.com",
+                    ServerBaseUrl = "https://cloud.example.com",
+                    LocalFolderPath = "/tmp/sync",
+                    UserId = Guid.CreateVersion7(),
+                    AccountKey = "acct",
+                    OsUserName = "testuser",
+                    DataDirectory = "/tmp/data",
+                }
+            ]);
+        syncMock
+            .Setup(i => i.GetStatusAsync(contextId))
+            .ReturnsAsync(new SyncStatus { State = SyncState.Idle });
+
+        var tokenInfo = new TokenInfo
+        {
+            AccessToken = BuildFakeJwt(Guid.CreateVersion7()),
+            RefreshToken = "fresh-refresh",
+            ExpiresAt = DateTimeOffset.UtcNow.AddHours(2),
+        };
+        oauth2Mock
+            .Setup(o => o.AuthorizeAsync(
+                It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(tokenInfo);
+
+        syncMock
+            .Setup(i => i.ReauthenticateAccountAsync(
+                contextId, tokenInfo.AccessToken, tokenInfo.RefreshToken!, tokenInfo.ExpiresAt, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+
+        await vm.TrayVm.RefreshAccountsAsync();
+        Assert.IsTrue(vm.HasAccount);
+
+        await vm.BeginReconnectAccountFlowAsync();
+
+        Assert.AreEqual(string.Empty, vm.ReconnectError);
+        oauth2Mock.Verify(
+            o => o.AuthorizeAsync("https://cloud.example.com", It.IsAny<string>(), It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+        syncMock.Verify(
+            i => i.ReauthenticateAccountAsync(
+                contextId, tokenInfo.AccessToken, tokenInfo.RefreshToken!, tokenInfo.ExpiresAt, It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [TestMethod]
+    public async Task BeginReconnectAccountFlowAsync_OAuth2Throws_SetsError()
+    {
+        var (vm, syncMock, oauth2Mock, _) = BuildVm();
+
+        var contextId = Guid.CreateVersion7();
+        syncMock
+            .Setup(i => i.GetContextsAsync())
+            .ReturnsAsync([
+                new SyncContextRegistration
+                {
+                    Id = contextId,
+                    DisplayName = "test@example.com @ cloud.example.com",
+                    ServerBaseUrl = "https://cloud.example.com",
+                    LocalFolderPath = "/tmp/sync",
+                    UserId = Guid.CreateVersion7(),
+                    AccountKey = "acct",
+                    OsUserName = "testuser",
+                    DataDirectory = "/tmp/data",
+                }
+            ]);
+        syncMock
+            .Setup(i => i.GetStatusAsync(contextId))
+            .ReturnsAsync(new SyncStatus { State = SyncState.Idle });
+
+        oauth2Mock
+            .Setup(o => o.AuthorizeAsync(
+                It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("Auth failed"));
+
+        await vm.TrayVm.RefreshAccountsAsync();
+        await vm.BeginReconnectAccountFlowAsync();
+
+        Assert.IsFalse(string.IsNullOrEmpty(vm.ReconnectError));
+        StringAssert.Contains(vm.ReconnectError, "Auth failed");
+        syncMock.Verify(
+            i => i.ReauthenticateAccountAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [TestMethod]
+    public async Task BeginReconnectAccountFlowAsync_OAuth2Cancelled_SetsError()
+    {
+        var (vm, syncMock, oauth2Mock, _) = BuildVm();
+
+        var contextId = Guid.CreateVersion7();
+        syncMock
+            .Setup(i => i.GetContextsAsync())
+            .ReturnsAsync([
+                new SyncContextRegistration
+                {
+                    Id = contextId,
+                    DisplayName = "test@example.com @ cloud.example.com",
+                    ServerBaseUrl = "https://cloud.example.com",
+                    LocalFolderPath = "/tmp/sync",
+                    UserId = Guid.CreateVersion7(),
+                    AccountKey = "acct",
+                    OsUserName = "testuser",
+                    DataDirectory = "/tmp/data",
+                }
+            ]);
+        syncMock
+            .Setup(i => i.GetStatusAsync(contextId))
+            .ReturnsAsync(new SyncStatus { State = SyncState.Idle });
+
+        oauth2Mock
+            .Setup(o => o.AuthorizeAsync(
+                It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new OperationCanceledException());
+
+        await vm.TrayVm.RefreshAccountsAsync();
+        await vm.BeginReconnectAccountFlowAsync();
+
+        Assert.IsFalse(string.IsNullOrEmpty(vm.ReconnectError));
+        StringAssert.Contains(vm.ReconnectError, "cancelled");
+        syncMock.Verify(
+            i => i.ReauthenticateAccountAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DateTimeOffset>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [TestMethod]

@@ -38,6 +38,8 @@ public sealed class TrayViewModel : ViewModelBase
     // Keyed by context ID for O(1) lookup on push events.
     private readonly Dictionary<Guid, AccountViewModel> _accounts = [];
     private readonly List<AccountViewModel> _accountList = [];
+    // Folder row view-models keyed by context ID (mirrors _accounts for the Settings folder list).
+    private readonly Dictionary<Guid, SyncFolderViewModel> _folderVmByContext = [];
 
     // Active transfers: keyed by TransferKey (contextId:fileName:direction) for O(1) update.
     private readonly Dictionary<string, ActiveTransferViewModel> _transfersById = [];
@@ -58,9 +60,8 @@ public sealed class TrayViewModel : ViewModelBase
     private DateTime _lastConflictNotificationUtc = DateTime.MinValue;
     private Timer? _conflictReminderTimer;
 
-    // Per-sync-cycle notification aggregation keyed by context ID.
+    // Per-sync-cycle error aggregation keyed by context ID.
     private readonly Dictionary<Guid, List<string>> _cycleErrors = [];
-    private readonly Dictionary<Guid, (int Uploads, int Downloads)> _cycleTransfers = [];
 
     // VFS (files on-demand) status
     private readonly VirtualFileSettings _vfsSettings;
@@ -311,6 +312,9 @@ public sealed class TrayViewModel : ViewModelBase
                     vm.PendingDownloads = status.PendingDownloads;
                     vm.LastSyncedAt = status.LastSyncedAt;
                     vm.LastError = status.LastError;
+
+                    if (_folderVmByContext.TryGetValue(ctx.Id, out var folderVm))
+                        folderVm.State = status.State.ToString();
                 }
             }
 
@@ -379,23 +383,51 @@ public sealed class TrayViewModel : ViewModelBase
         UpdateAggregateState();
     }
 
-    /// <summary>Removes an account and its sync context.</summary>
-    public async Task RemoveAccountAsync(Guid contextId)
+    /// <summary>
+    /// Removes a single (non-default) folder and its sync context. The default
+    /// whole-account folder is never removable and this method refuses it.
+    /// </summary>
+    public async Task RemoveFolderAsync(Guid contextId)
     {
+        if (_folderVmByContext.TryGetValue(contextId, out var folderVm) && folderVm.IsDefault)
+        {
+            _logger.LogWarning("Refusing to remove the default (whole-account) folder {ContextId}.", contextId);
+            return;
+        }
+
         try
         {
             await _syncManager.RemoveContextAsync(contextId);
-            if (_accounts.Remove(contextId, out var vm))
-            {
-                _accountList.Remove(vm);
-                UpdateAggregateState();
-                OnPropertyChanged(nameof(Accounts));
-            }
+            // Rebuild account/folder lists from the remaining contexts (also refreshes state).
+            await RefreshAccountsAsync();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to remove account {Id}.", contextId);
+            _logger.LogError(ex, "Failed to remove folder {Id}.", contextId);
         }
+    }
+
+    /// <summary>Removes the entire account (all folder contexts).</summary>
+    public async Task RemoveAccountAsync()
+    {
+        var ids = _accountList.Select(a => a.ContextId).ToList();
+        foreach (var contextId in ids)
+        {
+            try
+            {
+                await _syncManager.RemoveContextAsync(contextId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to remove context {Id} while removing account.", contextId);
+            }
+        }
+
+        _accounts.Clear();
+        _accountList.Clear();
+        _folderVmByContext.Clear();
+        UpdateAggregateState();
+        OnPropertyChanged(nameof(Accounts));
     }
 
     /// <summary>Opens the Conflicts panel in the Settings window.</summary>
@@ -530,15 +562,15 @@ public sealed class TrayViewModel : ViewModelBase
             var stateStr = e.Status.State.ToString();
             if (stateStr == "Syncing" && vm.State != "Syncing")
             {
-                // New sync cycle starting — reset per-cycle aggregation.
+                // New sync cycle starting — reset per-cycle error aggregation.
                 lock (_transferLock)
                 {
                     _cycleErrors.Remove(e.ContextId);
-                    _cycleTransfers.Remove(e.ContextId);
                 }
             }
 
             vm.State = stateStr;
+            SetFolderState(e.ContextId, stateStr);
 
             // Only apply pending counts when the engine reports a non-zero value.
             // State/phase-transition events (e.g. the initial "Syncing" state) carry
@@ -564,6 +596,7 @@ public sealed class TrayViewModel : ViewModelBase
         {
             displayName = vm.DisplayName;
             vm.State = "Idle";
+            SetFolderState(e.ContextId, "Idle");
             vm.LastSyncedAt = e.Status.LastSyncedAt;
             vm.PendingUploads = 0;
             vm.PendingDownloads = 0;
@@ -577,13 +610,12 @@ public sealed class TrayViewModel : ViewModelBase
             }
         }
 
-        // Emit one aggregated end-of-cycle toast.
+        // Emit one aggregated end-of-cycle toast for failures only — a successful
+        // sync cycle does not pop a completion notification.
         List<string>? cycleErrors;
-        (int Uploads, int Downloads) cycleTransfers;
         lock (_transferLock)
         {
             _cycleErrors.Remove(e.ContextId, out cycleErrors);
-            _cycleTransfers.Remove(e.ContextId, out cycleTransfers);
         }
         displayName ??= e.ContextId.ToString();
 
@@ -596,19 +628,6 @@ public sealed class TrayViewModel : ViewModelBase
                 "Sync failed",
                 $"{displayName}: {summary}",
                 NotificationType.Error,
-                replaceKey: $"sync-cycle-{e.ContextId}");
-        }
-        else if (cycleTransfers.Uploads > 0 || cycleTransfers.Downloads > 0)
-        {
-            var parts = new List<string>(2);
-            if (cycleTransfers.Uploads > 0)
-                parts.Add($"{cycleTransfers.Uploads} uploaded");
-            if (cycleTransfers.Downloads > 0)
-                parts.Add($"{cycleTransfers.Downloads} downloaded");
-            _notifications.ShowNotification(
-                "Sync complete",
-                string.Join(", ", parts),
-                NotificationType.Info,
                 replaceKey: $"sync-cycle-{e.ContextId}");
         }
 
@@ -625,6 +644,7 @@ public sealed class TrayViewModel : ViewModelBase
         if (_accounts.TryGetValue(e.ContextId, out var vm))
         {
             vm.State = "Error";
+            SetFolderState(e.ContextId, "Error");
             vm.LastError = e.ErrorMessage;
 
             // Accumulate errors — the consolidated toast is emitted at cycle completion.
@@ -855,13 +875,6 @@ public sealed class TrayViewModel : ViewModelBase
             }
 
             vm.MarkComplete(e.TotalBytes);
-
-            // Count towards the current cycle aggregation.
-            _cycleTransfers.TryGetValue(e.ContextId, out var counts);
-            if (e.Direction == "upload")
-                _cycleTransfers[e.ContextId] = (counts.Uploads + 1, counts.Downloads);
-            else
-                _cycleTransfers[e.ContextId] = (counts.Uploads, counts.Downloads + 1);
         }
 
         // Decrement the remaining pending count as each file finishes transferring.
@@ -890,18 +903,55 @@ public sealed class TrayViewModel : ViewModelBase
 
     // ── Aggregate state computation ───────────────────────────────────────
 
+    private void SetFolderState(Guid contextId, string state)
+    {
+        if (_folderVmByContext.TryGetValue(contextId, out var folderVm))
+            folderVm.State = state;
+    }
+
     private void UpdateAccounts(IReadOnlyList<SyncContextRegistration> contexts)
     {
         var seen = new HashSet<Guid>();
 
-        foreach (var ctx in contexts)
+        // One account may own several folder contexts; expose the full folder list on each.
+        _folderVmByContext.Clear();
+
+        var groups = contexts
+            .GroupBy(c => c.AccountKey, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var group in groups)
         {
-            seen.Add(ctx.Id);
-            if (!_accounts.ContainsKey(ctx.Id))
+            var ordered = group
+                .OrderBy(c => c.RegisteredAt)
+                .ThenBy(c => c.Id)
+                .ToList();
+
+            // Default folder = the whole-account folder (ServerFolderId == null).
+            // Tie-break (defensive): earliest RegisteredAt if multiple null contexts exist.
+            var defaultRegistration = ordered.FirstOrDefault(c => c.ServerFolderId is null)
+                ?? ordered.FirstOrDefault();
+            var defaultId = defaultRegistration?.Id;
+
+            var folderVms = ordered
+                .Select(c => new SyncFolderViewModel(c, c.Id == defaultId))
+                .ToList();
+
+            foreach (var ctx in ordered)
             {
-                var newVm = new AccountViewModel(ctx);
-                _accounts[ctx.Id] = newVm;
-                _accountList.Add(newVm);
+                seen.Add(ctx.Id);
+                if (!_accounts.TryGetValue(ctx.Id, out var accountVm))
+                {
+                    accountVm = new AccountViewModel(ctx);
+                    _accounts[ctx.Id] = accountVm;
+                    _accountList.Add(accountVm);
+                }
+
+                // Propagate a refreshed display name (e.g. after re-authentication resolves the real user name).
+                if (!string.Equals(accountVm.DisplayName, ctx.DisplayName, StringComparison.Ordinal))
+                    accountVm.DisplayName = ctx.DisplayName;
+
+                accountVm.Folders = folderVms;
+                _folderVmByContext[ctx.Id] = folderVms.First(f => f.ContextId == ctx.Id);
             }
         }
 

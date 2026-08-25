@@ -36,6 +36,8 @@ public sealed class SettingsViewModel : ViewModelBase
     private string _addAccountError = string.Empty;
     private bool _isAddingAccount;
     private bool _isAddingFolder;
+    private bool _isReconnectingAccount;
+    private string _reconnectError = string.Empty;
     private bool _startOnLogin;
     private bool _isMuteChatNotifications;
     private decimal _uploadLimitKbps;
@@ -72,7 +74,7 @@ public sealed class SettingsViewModel : ViewModelBase
     private bool _autoDownloadUpdates;
 
     // Sync folder size limit settings
-    private bool _limitFolderSizeEnabled;
+    private bool _limitFolderSizeEnabled = true;
     private int _maxFolderSizeMb = 250;
 
     // VFS (virtual file system / files on-demand) settings
@@ -179,6 +181,27 @@ public sealed class SettingsViewModel : ViewModelBase
     {
         get => _isAddingFolder;
         private set => SetProperty(ref _isAddingFolder, value);
+    }
+
+    /// <summary>Whether the OAuth2 reconnect (re-authentication) flow is in progress.</summary>
+    public bool IsReconnectingAccount
+    {
+        get => _isReconnectingAccount;
+        private set
+        {
+            if (SetProperty(ref _isReconnectingAccount, value))
+                OnPropertyChanged(nameof(CanReconnectAccount));
+        }
+    }
+
+    /// <summary>Whether the existing account can be re-authenticated (an account exists, no flow running).</summary>
+    public bool CanReconnectAccount => HasAccount && !IsReconnectingAccount && !IsAddingAccount;
+
+    /// <summary>Error message displayed when re-authenticating an account fails.</summary>
+    public string ReconnectError
+    {
+        get => _reconnectError;
+        set => SetProperty(ref _reconnectError, value);
     }
 
     /// <summary>Exposes the tray view-model for bindings that need it (e.g. conflict badge).</summary>
@@ -455,8 +478,14 @@ public sealed class SettingsViewModel : ViewModelBase
     /// <summary>Opens the Add Folder dialog to add another local sync folder to the account.</summary>
     public ICommand AddFolderCommand { get; }
 
-    /// <summary>Removes the account whose context ID is passed as the command parameter.</summary>
+    /// <summary>Removes the account (all of its folders).</summary>
     public ICommand RemoveAccountCommand { get; }
+
+    /// <summary>Removes the subscribed folder whose context ID is passed as the command parameter.</summary>
+    public ICommand RemoveFolderCommand { get; }
+
+    /// <summary>Re-runs the OAuth2 flow for the existing account to obtain fresh tokens without removing it.</summary>
+    public ICommand ReconnectAccountCommand { get; }
 
     /// <summary>Closes the Settings window.</summary>
     public ICommand CloseCommand { get; }
@@ -511,7 +540,9 @@ public sealed class SettingsViewModel : ViewModelBase
 
         ConnectCommand = new AsyncRelayCommand(BeginAddAccountFlowAsync);
         AddFolderCommand = new AsyncRelayCommand(BeginAddFolderFlowAsync);
-        RemoveAccountCommand = new AsyncRelayCommand<Guid>(id => _trayVm.RemoveAccountAsync(id));
+        RemoveAccountCommand = new AsyncRelayCommand(() => _trayVm.RemoveAccountAsync());
+        RemoveFolderCommand = new AsyncRelayCommand<Guid>(_trayVm.RemoveFolderAsync);
+        ReconnectAccountCommand = new AsyncRelayCommand(BeginReconnectAccountFlowAsync);
         CloseCommand = new RelayCommand(static () => { /* handled by the view via CloseCommand binding */ });
         AddIgnorePatternCommand = new AsyncRelayCommand(AddIgnorePatternAsync);
         RemoveIgnorePatternCommand = new AsyncRelayCommand<string>(RemoveIgnorePatternAsync);
@@ -531,6 +562,7 @@ public sealed class SettingsViewModel : ViewModelBase
                 OnPropertyChanged(nameof(PrimaryAccount));
                 OnPropertyChanged(nameof(CanAddAccount));
                 OnPropertyChanged(nameof(CanAddFolder));
+                OnPropertyChanged(nameof(CanReconnectAccount));
             }
         };
 
@@ -573,8 +605,8 @@ public sealed class SettingsViewModel : ViewModelBase
             await _syncManager.AddFolderAsync(
                 account.ContextId,
                 result.LocalFolderPath,
-                result.RemoteFolderNodeId == Guid.Empty ? null : result.RemoteFolderNodeId,
-                result.RemoteFolderNodeId == Guid.Empty ? null : result.RemoteFolderPath);
+                result.RemoteFolderNodeId,
+                result.RemoteFolderPath);
 
             await _trayVm.RefreshAccountsAsync();
         }
@@ -665,12 +697,21 @@ public sealed class SettingsViewModel : ViewModelBase
 
             _logger.LogInformation("OAuth2 tokens received. Building account data.");
 
+            // Resolve the real user name from the server's OIDC userinfo endpoint.
+            // The access token is an encrypted JWE, so its claims cannot be read locally —
+            // the userinfo endpoint is the authoritative source for the display name.
+            var profile = await _oauth2.GetUserProfileAsync(serverUrl, tokens.AccessToken, cancellationToken);
+
             var data = new AddAccountRequest
             {
                 ServerBaseUrl = serverUrl,
-                UserId = ExtractUserId(tokens.AccessToken),
+                // The access token is an encrypted JWE, so its `sub` claim can't be read
+                // locally — use the authoritative `sub` from userinfo when available.
+                UserId = Guid.TryParse(profile?.Subject, out var subId)
+                    ? subId
+                    : ExtractUserId(tokens.AccessToken),
                 LocalFolderPath = localFolderPath,
-                DisplayName = BuildDisplayName(tokens.AccessToken, serverUrl),
+                DisplayName = BuildDisplayName(profile, tokens.AccessToken, serverUrl),
                 AccessToken = tokens.AccessToken,
                 RefreshToken = tokens.RefreshToken,
                 ExpiresAt = tokens.ExpiresAt,
@@ -733,8 +774,72 @@ public sealed class SettingsViewModel : ViewModelBase
         }
     }
 
-    /// <summary>Removes the account with the specified context ID.</summary>
-    public Task RemoveAccountAsync(Guid contextId) => _trayVm.RemoveAccountAsync(contextId);
+    /// <summary>Removes the account (all of its folders).</summary>
+    public Task RemoveAccountAsync() => _trayVm.RemoveAccountAsync();
+
+    // ── Reconnect account flow ────────────────────────────────────────────
+
+    /// <summary>
+    /// Re-runs the OAuth2 PKCE browser flow against the existing account's server URL and
+    /// swaps in the fresh tokens without removing/re-adding the account, so all of the
+    /// account's sync folders (and their selective-sync / size-limit rules) are kept.
+    /// </summary>
+    public async Task BeginReconnectAccountFlowAsync()
+    {
+        var account = _trayVm.Accounts.FirstOrDefault(a => a.ContextId != Guid.Empty);
+        if (account is null)
+        {
+            ReconnectError = "No account is configured yet.";
+            return;
+        }
+
+        ReconnectError = string.Empty;
+        IsReconnectingAccount = true;
+        try
+        {
+            _logger.LogInformation("Starting OAuth2 re-authentication flow for server {Url}.",
+                account.ServerBaseUrl);
+
+            var tokens = await _oauth2.AuthorizeAsync(
+                account.ServerBaseUrl, AddAccountClientId,
+                scopes: ["openid", "profile", "offline_access", "files:read", "files:write"],
+                CancellationToken.None);
+
+            // Refresh the account label from the server's userinfo endpoint so a previously
+            // generic name (e.g. "user @ host") is replaced with the real user name.
+            var profile = await _oauth2.GetUserProfileAsync(
+                account.ServerBaseUrl, tokens.AccessToken, CancellationToken.None);
+            if (profile is not null)
+            {
+                var newDisplayName = BuildDisplayName(profile, tokens.AccessToken, account.ServerBaseUrl);
+                await _syncManager.UpdateAccountDisplayNameAsync(
+                    account.ContextId, newDisplayName, CancellationToken.None);
+            }
+
+            var updated = await _syncManager.ReauthenticateAccountAsync(
+                account.ContextId,
+                tokens.AccessToken,
+                tokens.RefreshToken ?? string.Empty,
+                tokens.ExpiresAt);
+
+            _logger.LogInformation("Re-authentication succeeded. Updated {Count} context(s).", updated);
+
+            await _trayVm.RefreshAccountsAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            ReconnectError = "Authentication cancelled.";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to reconnect account.");
+            ReconnectError = $"Failed to reconnect: {ex.Message}";
+        }
+        finally
+        {
+            IsReconnectingAccount = false;
+        }
+    }
 
     // ── Ignored Files tab ─────────────────────────────────────────────────
 
@@ -1081,37 +1186,52 @@ public sealed class SettingsViewModel : ViewModelBase
         return Guid.Empty;
     }
 
-    private static string BuildDisplayName(string? accessToken, string serverUrl)
+    private static string BuildDisplayName(UserProfileInfo? profile, string? accessToken, string serverUrl)
     {
-        string username = "user";
-
-        if (!string.IsNullOrEmpty(accessToken))
-        {
-            try
-            {
-                var parts = accessToken.Split('.');
-                if (parts.Length >= 2)
-                {
-                    var padded = parts[1].PadRight(parts[1].Length + (4 - parts[1].Length % 4) % 4, '=');
-                    var json = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(padded));
-                    using var doc = System.Text.Json.JsonDocument.Parse(json);
-
-                    if (doc.RootElement.TryGetProperty("preferred_username", out var u))
-                        username = u.GetString() ?? username;
-                    else if (doc.RootElement.TryGetProperty("email", out var e))
-                        username = e.GetString() ?? username;
-                }
-            }
-            catch
-            {
-                // Ignore
-            }
-        }
+        // Prefer the authoritative userinfo claims; fall back to whatever is readable
+        // from the token (usually nothing, since the access token is an encrypted JWE).
+        string username =
+            profile?.Name is { Length: > 0 } name ? name :
+            profile?.PreferredUsername is { Length: > 0 } preferred ? preferred :
+            profile?.Email is { Length: > 0 } email ? email :
+            ExtractUsernameFromToken(accessToken) ?? "user";
 
         if (Uri.TryCreate(serverUrl, UriKind.Absolute, out var uri))
             return $"{username} @ {uri.Host}";
 
         return $"{username} @ {serverUrl}";
+    }
+
+    /// <summary>
+    /// Best-effort username extraction from JWT claims (<c>preferred_username</c> or <c>email</c>).
+    /// Returns <see langword="null"/> when the token is unreadable (e.g. an encrypted JWE).
+    /// </summary>
+    private static string? ExtractUsernameFromToken(string? accessToken)
+    {
+        if (string.IsNullOrEmpty(accessToken))
+            return null;
+
+        try
+        {
+            var parts = accessToken.Split('.');
+            if (parts.Length >= 2)
+            {
+                var padded = parts[1].PadRight(parts[1].Length + (4 - parts[1].Length % 4) % 4, '=');
+                var json = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(padded));
+                using var doc = System.Text.Json.JsonDocument.Parse(json);
+
+                if (doc.RootElement.TryGetProperty("preferred_username", out var u))
+                    return u.GetString();
+                if (doc.RootElement.TryGetProperty("email", out var e))
+                    return e.GetString();
+            }
+        }
+        catch
+        {
+            // Ignore
+        }
+
+        return null;
     }
 
     private static string GetClientVersion()
@@ -1250,8 +1370,8 @@ internal sealed class SyncTrayLocalSettings
 
     public long MaxCacheSizeBytes { get; init; }
 
-    /// <summary>Whether the folder size limit is enabled.</summary>
-    public bool LimitFolderSizeEnabled { get; init; }
+    /// <summary>Whether the folder size limit is enabled. Defaults to true.</summary>
+    public bool LimitFolderSizeEnabled { get; init; } = true;
 
     /// <summary>Folder size limit in bytes (default 250 MiB when enabled).</summary>
     public long MaxFolderSizeBytes { get; init; } = 250L * 1024 * 1024;

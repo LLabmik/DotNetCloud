@@ -52,6 +52,39 @@ public interface ISyncContextManager
     /// </summary>
     Task RemoveContextAsync(Guid contextId, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Re-authenticates an existing account without removing it: replaces the stored OAuth2
+    /// tokens for every sync context of the account (they share the same account key) and
+    /// restarts any offline sync engines so the account comes back online. No contexts,
+    /// folder mappings, or selective-sync rules are lost.
+    /// </summary>
+    /// <param name="contextId">Any context ID belonging to the account to reconnect.</param>
+    /// <param name="accessToken">New access token.</param>
+    /// <param name="refreshToken">New refresh token.</param>
+    /// <param name="expiresAt">UTC expiry time of the new access token.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The number of sync contexts that were updated.</returns>
+    Task<int> ReauthenticateAccountAsync(
+        Guid contextId,
+        string accessToken,
+        string refreshToken,
+        DateTimeOffset expiresAt,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates the human-readable display name for an account (every sync context sharing the
+    /// account's key) and persists the change. Used after re-authentication to refresh the
+    /// account label shown in the tray UI when the server's user profile changes.
+    /// </summary>
+    /// <param name="contextId">Any context ID belonging to the account to rename.</param>
+    /// <param name="displayName">New display name.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The number of sync contexts whose display name was updated.</returns>
+    Task<int> UpdateAccountDisplayNameAsync(
+        Guid contextId,
+        string displayName,
+        CancellationToken cancellationToken = default);
+
     // ── Per-context operations ─────────────────────────────────────────────
 
     /// <summary>Returns the current sync status for the given context, or <c>null</c> if not found.</summary>
@@ -132,6 +165,19 @@ public interface ISyncContextManager
     /// </summary>
     Task<SyncTreeNodeResponse?> GetFolderTreeAsync(
         Guid contextId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Creates a new remote folder on the server for the given context and returns the created node.
+    /// </summary>
+    /// <param name="contextId">Sync context ID whose credentials to use.</param>
+    /// <param name="name">New folder name (must not contain path separators).</param>
+    /// <param name="parentId">Parent folder node ID, or <c>null</c> to create at the account root.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task<FileNodeResponse> CreateRemoteFolderAsync(
+        Guid contextId,
+        string name,
+        Guid? parentId,
+        CancellationToken cancellationToken = default);
 
     // ── Events ─────────────────────────────────────────────────────────────
 

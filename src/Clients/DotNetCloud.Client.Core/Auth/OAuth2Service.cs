@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
@@ -345,6 +346,35 @@ public sealed class OAuth2Service : IOAuth2Service
             RefreshToken = r.RefreshToken,
             ExpiresAt = DateTimeOffset.UtcNow.AddSeconds(r.ExpiresIn > 0 ? r.ExpiresIn - 30 : 3570),
         };
+
+    /// <inheritdoc/>
+    public async Task<UserProfileInfo?> GetUserProfileAsync(
+        string serverBaseUrl,
+        string accessToken,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"{serverBaseUrl.TrimEnd('/')}/connect/userinfo");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+            using var response = await _http.SendAsync(request, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("OIDC userinfo returned {Status}.", response.StatusCode);
+                return null;
+            }
+
+            return await response.Content.ReadFromJsonAsync<UserProfileInfo>(JsonOptions, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to fetch user profile from {Server}.", serverBaseUrl);
+            return null;
+        }
+    }
 
     // ── Browser launch ──────────────────────────────────────────────────────
 
