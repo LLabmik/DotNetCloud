@@ -26,6 +26,7 @@ public partial class TrashBin : ComponentBase
     private bool _sortAscending;
     private bool _isLoading;
     private bool _showEmptyConfirm;
+    private bool _isEmptying;
 
     protected override async Task OnInitializedAsync()
     {
@@ -61,6 +62,9 @@ public partial class TrashBin : ComponentBase
 
     /// <summary>Whether the empty-trash confirmation dialog is shown.</summary>
     protected bool IsShowEmptyConfirm => _showEmptyConfirm;
+
+    /// <summary>Whether the empty-trash operation is currently in progress.</summary>
+    protected bool IsEmptying => _isEmptying;
 
     /// <summary>Returns whether the given item is currently selected.</summary>
     protected bool IsSelected(Guid id) => _selectedItems.Contains(id);
@@ -136,15 +140,28 @@ public partial class TrashBin : ComponentBase
     /// <summary>Hides the empty-trash confirmation dialog.</summary>
     protected void HideEmptyConfirm() => _showEmptyConfirm = false;
 
-    /// <summary>Permanently deletes all items in the trash.</summary>
+    /// <summary>Permanently deletes all items in the trash, showing a spinner while in progress.</summary>
     protected async Task EmptyTrash()
     {
-        _showEmptyConfirm = false;
-        var caller = await GetCallerContextAsync();
-        await TrashService.EmptyTrashAsync(caller);
-        _selectedItems.Clear();
-        await LoadTrashAsync();
-        await OnTrashChanged.InvokeAsync();
+        if (_isEmptying)
+            return;
+
+        _isEmptying = true;
+        StateHasChanged();
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            await TrashService.EmptyTrashAsync(caller);
+            _selectedItems.Clear();
+            _showEmptyConfirm = false;
+            await LoadTrashAsync();
+            await OnTrashChanged.InvokeAsync();
+        }
+        finally
+        {
+            _isEmptying = false;
+            StateHasChanged();
+        }
     }
 
     /// <summary>Sets the active sort column; toggles direction if already active.</summary>
