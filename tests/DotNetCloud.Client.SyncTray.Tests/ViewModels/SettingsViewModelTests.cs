@@ -186,12 +186,38 @@ public sealed class SettingsViewModelTests
         var contextId = Guid.CreateVersion7();
 
         syncMock
+            .Setup(i => i.GetContextsAsync())
+            .ReturnsAsync([
+                new SyncContextRegistration
+                {
+                    Id = contextId,
+                    DisplayName = "test@example.com @ cloud.example.com",
+                    ServerBaseUrl = "https://cloud.example.com",
+                    LocalFolderPath = "/tmp/sync",
+                    UserId = Guid.CreateVersion7(),
+                    AccountKey = "acct",
+                    OsUserName = "testuser",
+                    DataDirectory = "/tmp/data",
+                }
+            ]);
+        syncMock
+            .Setup(i => i.GetStatusAsync(contextId))
+            .ReturnsAsync(new SyncStatus { State = SyncState.Idle });
+        syncMock
             .Setup(i => i.RemoveContextAsync(contextId, It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        await vm.RemoveAccountAsync(contextId);
+        await vm.TrayVm.RefreshAccountsAsync();
+        await vm.RemoveAccountAsync();
 
         syncMock.Verify(i => i.RemoveContextAsync(contextId, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [TestMethod]
+    public void RemoveFolderCommand_IsWired()
+    {
+        var (vm, _, _, _) = BuildVm();
+        Assert.IsNotNull(vm.RemoveFolderCommand);
     }
 
     [TestMethod]

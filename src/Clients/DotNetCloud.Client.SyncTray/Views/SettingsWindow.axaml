@@ -148,34 +148,6 @@
 
                                         <Separator Background="#263247" Margin="0,2" />
 
-                                        <!-- Sync folder -->
-                                        <StackPanel Spacing="4">
-                                            <TextBlock Text="Sync Folder"
-                                                       FontSize="12"
-                                                       FontWeight="SemiBold"
-                                                       Foreground="#9AACCA" />
-                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                                <Border Grid.Column="0"
-                                                        Background="#0E1520"
-                                                        BorderBrush="#263247"
-                                                        BorderThickness="1"
-                                                        CornerRadius="4"
-                                                        Padding="8,6"
-                                                        VerticalAlignment="Center">
-                                                    <TextBlock Text="{Binding LocalFolderPath}"
-                                                               FontSize="12"
-                                                               FontFamily="Consolas, Courier New, monospace"
-                                                               Foreground="#C8D4E8"
-                                                               TextTrimming="CharacterEllipsis"
-                                                               ToolTip.Tip="{Binding LocalFolderPath}" />
-                                                </Border>
-                                                <Button Grid.Column="1"
-                                                        Content="Open Folder"
-                                                        Command="{Binding $parent[Window].DataContext.OpenSyncFolderCommand}"
-                                                        CommandParameter="{Binding LocalFolderPath}" />
-                                            </Grid>
-                                        </StackPanel>
-
                                         <!-- Synced folders -->
                                         <StackPanel Spacing="4">
                                             <TextBlock Text="Synced Folders"
@@ -185,21 +157,47 @@
                                             <ItemsControl ItemsSource="{Binding Folders}">
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate DataType="vm:SyncFolderViewModel">
-                                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0,2">
-                                                            <StackPanel Grid.Column="0" Spacing="1">
-                                                                <TextBlock Text="{Binding LocalFolderPath}"
-                                                                           FontSize="12"
-                                                                           FontFamily="Consolas, Courier New, monospace"
-                                                                           Foreground="#C8D4E8"
-                                                                           TextTrimming="CharacterEllipsis" />
+                                                        <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="6" Margin="0,3">
+                                                            <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center">
+                                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                                    <TextBlock Text="{Binding LocalFolderPath}"
+                                                                               FontSize="12"
+                                                                               FontFamily="Consolas, Courier New, monospace"
+                                                                               Foreground="#C8D4E8"
+                                                                               TextTrimming="CharacterEllipsis"
+                                                                               ToolTip.Tip="{Binding LocalFolderPath}" />
+                                                                    <Border IsVisible="{Binding IsDefault}"
+                                                                            Background="#0E6CB8"
+                                                                            CornerRadius="3"
+                                                                            Padding="5,1"
+                                                                            VerticalAlignment="Center">
+                                                                        <TextBlock Text="default" FontSize="10" Foreground="#FFFFFF" />
+                                                                    </Border>
+                                                                </StackPanel>
                                                                 <TextBlock Text="{Binding RemoteFolderPath}"
                                                                            FontSize="11"
                                                                            Foreground="#7A8BA4" />
+                                                                <TextBlock Text="{Binding State, StringFormat='State: {0}'}"
+                                                                           FontSize="11"
+                                                                           Foreground="#6B8AAB" />
                                                             </StackPanel>
                                                             <Button Grid.Column="1"
                                                                     Content="Open"
+                                                                    VerticalAlignment="Center"
                                                                     Command="{Binding $parent[Window].DataContext.OpenSyncFolderCommand}"
                                                                     CommandParameter="{Binding LocalFolderPath}" />
+                                                            <Button Grid.Column="2"
+                                                                    Content="Choose Folders"
+                                                                    VerticalAlignment="Center"
+                                                                    Command="{Binding $parent[Window].DataContext.ChooseFoldersCommand}"
+                                                                    CommandParameter="{Binding ContextId}" />
+                                                            <Button Grid.Column="3"
+                                                                    Content="Remove"
+                                                                    Classes="danger"
+                                                                    VerticalAlignment="Center"
+                                                                    IsEnabled="{Binding !IsDefault}"
+                                                                    Command="{Binding $parent[Window].DataContext.RemoveFolderCommand}"
+                                                                    CommandParameter="{Binding ContextId}" />
                                                         </Grid>
                                                     </DataTemplate>
                                                 </ItemsControl.ItemTemplate>
@@ -229,13 +227,9 @@
                                                     HorizontalAlignment="Right">
                                             <Button Content="Add Folder"
                                                     Command="{Binding $parent[Window].DataContext.AddFolderCommand}" />
-                                            <Button Content="Choose Folders"
-                                                    Command="{Binding $parent[Window].DataContext.ChooseFoldersCommand}"
-                                                    CommandParameter="{Binding ContextId}" />
                                             <Button Content="Remove Account"
                                                     Classes="danger"
-                                                    Command="{Binding $parent[Window].DataContext.RemoveAccountCommand}"
-                                                    CommandParameter="{Binding ContextId}" />
+                                                    Command="{Binding $parent[Window].DataContext.RemoveAccountCommand}" />
                                         </StackPanel>
 
                                     </StackPanel>

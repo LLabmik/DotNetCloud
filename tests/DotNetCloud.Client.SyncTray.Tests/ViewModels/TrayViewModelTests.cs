@@ -616,6 +616,150 @@ public sealed class TrayViewModelTests
         Assert.AreEqual(2, account.PendingDownloads);
     }
 
+    // ── Folder list & removal ─────────────────────────────────────────────
+
+    [TestMethod]
+    public async Task UpdateAccounts_MultipleFoldersSameAccount_GroupsFolders()
+    {
+        var (vm, syncMock, _, _) = BuildVm();
+        var id1 = Guid.CreateVersion7();
+        var id2 = Guid.CreateVersion7();
+
+        syncMock.Setup(s => s.GetContextsAsync()).ReturnsAsync([
+            new SyncContextRegistration { Id = id1, DisplayName = "A", ServerBaseUrl = "https://cloud.example.com", LocalFolderPath = "/sync/default", UserId = Guid.CreateVersion7(), AccountKey = "acct", OsUserName = "u", DataDirectory = "/tmp/d1", RegisteredAt = DateTime.UtcNow.AddMinutes(-5) },
+            new SyncContextRegistration { Id = id2, DisplayName = "A", ServerBaseUrl = "https://cloud.example.com", LocalFolderPath = "/sync/extra", UserId = Guid.CreateVersion7(), AccountKey = "acct", OsUserName = "u", DataDirectory = "/tmp/d2", ServerFolderId = Guid.CreateVersion7(), ServerFolderDisplayPath = "/Documents", RegisteredAt = DateTime.UtcNow },
+        ]);
+        syncMock.Setup(s => s.GetStatusAsync(It.IsAny<Guid>())).ReturnsAsync(new SyncStatus { State = SyncState.Idle });
+
+        await vm.RefreshAccountsAsync();
+
+        var account = vm.Accounts.FirstOrDefault(a => a.ContextId == id1);
+        Assert.IsNotNull(account);
+        Assert.AreEqual(2, account!.Folders.Count);
+        Assert.IsTrue(account.Folders.First(f => f.ContextId == id1).IsDefault);
+        Assert.IsFalse(account.Folders.First(f => f.ContextId == id2).IsDefault);
+        // Both sibling AccountViewModels share the same folder list.
+        var sibling = vm.Accounts.First(a => a.ContextId == id2);
+        Assert.AreEqual(2, sibling.Folders.Count);
+    }
+
+    [TestMethod]
+    public async Task RemoveFolder_DefaultFolder_Refused()
+    {
+        var (vm, syncMock, _, _) = BuildVm();
+        var defaultId = Guid.CreateVersion7();
+
+        // Whole-account folder: ServerFolderId == null.
+        syncMock.Setup(s => s.GetContextsAsync()).ReturnsAsync([
+            new SyncContextRegistration { Id = defaultId, DisplayName = "A", ServerBaseUrl = "https://cloud.example.com", LocalFolderPath = "/sync", UserId = Guid.CreateVersion7(), AccountKey = "acct", OsUserName = "u", DataDirectory = "/tmp/d1" },
+        ]);
+        syncMock.Setup(s => s.GetStatusAsync(defaultId)).ReturnsAsync(new SyncStatus { State = SyncState.Idle });
+
+        await vm.RefreshAccountsAsync();
+        await vm.RemoveFolderAsync(defaultId);
+
+        syncMock.Verify(s => s.RemoveContextAsync(defaultId, It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [TestMethod]
+    public async Task RemoveFolder_NonDefault_RemovesContext()
+    {
+        var (vm, syncMock, _, _) = BuildVm();
+        var defaultId = Guid.CreateVersion7();
+        var extraId = Guid.CreateVersion7();
+
+        var twoFolders = new List<SyncContextRegistration>
+        {
+            new() { Id = defaultId, DisplayName = "A", ServerBaseUrl = "https://cloud.example.com", LocalFolderPath = "/sync/default", UserId = Guid.CreateVersion7(), AccountKey = "acct", OsUserName = "u", DataDirectory = "/tmp/d1" },
+            new() { Id = extraId, DisplayName = "A", ServerBaseUrl = "https://cloud.example.com", LocalFolderPath = "/sync/extra", UserId = Guid.CreateVersion7(), AccountKey = "acct", OsUserName = "u", DataDirectory = "/tmp/d2", ServerFolderId = Guid.CreateVersion7(), ServerFolderDisplayPath = "/Documents" },
+        };
+        var oneFolder = new List<SyncContextRegistration> { twoFolders[0] };
+
+        // First call (RefreshAccounts) returns both; second call (post-removal refresh) returns one.
+        syncMock.SetupSequence(s => s.GetContextsAsync())
+            .ReturnsAsync(twoFolders)
+            .ReturnsAsync(oneFolder);
+        syncMock.Setup(s => s.GetStatusAsync(It.IsAny<Guid>())).ReturnsAsync(new SyncStatus { State = SyncState.Idle });
+        syncMock.Setup(s => s.RemoveContextAsync(extraId, It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+
+        await vm.RefreshAccountsAsync();
+        await vm.RemoveFolderAsync(extraId);
+
+        syncMock.Verify(s => s.RemoveContextAsync(extraId, It.IsAny<CancellationToken>()), Times.Once);
+        Assert.IsFalse(vm.Accounts.Any(a => a.ContextId == extraId));
+        // The remaining (default) account's folder list is refreshed — no longer contains the removed folder.
+        var remaining = vm.Accounts.First(a => a.ContextId == defaultId);
+        Assert.AreEqual(1, remaining.Folders.Count);
+        Assert.AreEqual(defaultId, remaining.Folders[0].ContextId);
+    }
+
+    [TestMethod]
+    public async Task RemoveAccount_MultipleFolders_RemovesAllContexts()
+    {
+        var (vm, syncMock, _, _) = BuildVm();
+        var id1 = Guid.CreateVersion7();
+        var id2 = Guid.CreateVersion7();
+
+        syncMock.Setup(s => s.GetContextsAsync()).ReturnsAsync([
+            new SyncContextRegistration { Id = id1, DisplayName = "A", ServerBaseUrl = "https://cloud.example.com", LocalFolderPath = "/sync/1", UserId = Guid.CreateVersion7(), AccountKey = "acct", OsUserName = "u", DataDirectory = "/tmp/d1" },
+            new SyncContextRegistration { Id = id2, DisplayName = "A", ServerBaseUrl = "https://cloud.example.com", LocalFolderPath = "/sync/2", UserId = Guid.CreateVersion7(), AccountKey = "acct", OsUserName = "u", DataDirectory = "/tmp/d2", ServerFolderId = Guid.CreateVersion7(), ServerFolderDisplayPath = "/Docs" },
+        ]);
+        syncMock.Setup(s => s.GetStatusAsync(It.IsAny<Guid>())).ReturnsAsync(new SyncStatus { State = SyncState.Idle });
+        syncMock.Setup(s => s.RemoveContextAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+
+        await vm.RefreshAccountsAsync();
+        await vm.RemoveAccountAsync();
+
+        syncMock.Verify(s => s.RemoveContextAsync(id1, It.IsAny<CancellationToken>()), Times.Once);
+        syncMock.Verify(s => s.RemoveContextAsync(id2, It.IsAny<CancellationToken>()), Times.Once);
+        Assert.AreEqual(0, vm.Accounts.Count);
+    }
+
+    [TestMethod]
+    public async Task RefreshAccounts_UpdatesFolderState()
+    {
+        var (vm, syncMock, _, _) = BuildVm();
+        var id = Guid.CreateVersion7();
+
+        syncMock.Setup(s => s.GetContextsAsync()).ReturnsAsync([
+            new SyncContextRegistration { Id = id, DisplayName = "A", ServerBaseUrl = "https://cloud.example.com", LocalFolderPath = "/sync", UserId = Guid.CreateVersion7(), AccountKey = "acct", OsUserName = "u", DataDirectory = "/tmp/d1" },
+        ]);
+        syncMock.Setup(s => s.GetStatusAsync(id)).ReturnsAsync(new SyncStatus { State = SyncState.Syncing });
+
+        await vm.RefreshAccountsAsync();
+
+        var folder = vm.Accounts.First(a => a.ContextId == id).Folders.First();
+        Assert.AreEqual("Syncing", folder.State);
+    }
+
+    [TestMethod]
+    public void AccountViewModel_FoldersSet_RaisesPropertyChanged()
+    {
+        // Reassigning Folders must notify so the Settings ItemsControl re-binds (UI refresh after folder removal).
+        var reg = new SyncContextRegistration
+        {
+            Id = Guid.CreateVersion7(),
+            DisplayName = "A",
+            ServerBaseUrl = "https://cloud.example.com",
+            LocalFolderPath = "/sync",
+            UserId = Guid.CreateVersion7(),
+            AccountKey = "acct",
+            OsUserName = "u",
+            DataDirectory = "/tmp/d1",
+        };
+        var accountVm = new AccountViewModel(reg);
+        var fired = false;
+        accountVm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(AccountViewModel.Folders))
+                fired = true;
+        };
+
+        accountVm.Folders = [new SyncFolderViewModel(reg, isDefault: true)];
+
+        Assert.IsTrue(fired);
+    }
+
     private static (TrayViewModel vm, Mock<ISyncContextManager> syncMock, Mock<IChatSignalRClient> chatMock, Mock<INotificationService> notifMock) BuildVm()
     {
         var syncMock = new Mock<ISyncContextManager>();

@@ -13,6 +13,7 @@ public sealed class AccountViewModel : ViewModelBase
     private int _pendingDownloads;
     private DateTime? _lastSyncedAt;
     private string? _lastError;
+    private IReadOnlyList<SyncFolderViewModel> _folders = [];
 
     /// <summary>Unique context identifier (matches the SyncService context ID).</summary>
     public Guid ContextId { get; }
@@ -62,7 +63,11 @@ public sealed class AccountViewModel : ViewModelBase
     }
 
     /// <summary>The local sync folders under this account (one per sync context).</summary>
-    public IReadOnlyList<SyncFolderViewModel> Folders { get; }
+    public IReadOnlyList<SyncFolderViewModel> Folders
+    {
+        get => _folders;
+        set => SetProperty(ref _folders, value);
+    }
 
     /// <summary>Initializes a new <see cref="AccountViewModel"/> from a <see cref="SyncContextRegistration"/>.</summary>
     public AccountViewModel(SyncContextRegistration registration)
@@ -72,7 +77,6 @@ public sealed class AccountViewModel : ViewModelBase
         ServerBaseUrl = registration.ServerBaseUrl;
         LocalFolderPath = registration.LocalFolderPath;
         _state = "Idle";
-        Folders = [new SyncFolderViewModel(registration)];
     }
 }
 
@@ -81,6 +85,8 @@ public sealed class AccountViewModel : ViewModelBase
 /// </summary>
 public sealed class SyncFolderViewModel : ViewModelBase
 {
+    private string _state = "Idle";
+
     /// <summary>Unique context identifier (matches the sync context ID).</summary>
     public Guid ContextId { get; }
 
@@ -90,13 +96,26 @@ public sealed class SyncFolderViewModel : ViewModelBase
     /// <summary>Remote folder display path, or <c>"Whole account"</c> when not scoped.</summary>
     public string RemoteFolderPath { get; }
 
-    /// <summary>Initializes a new <see cref="SyncFolderViewModel"/> from a <see cref="SyncContextRegistration"/>.</summary>
-    public SyncFolderViewModel(SyncContextRegistration registration)
+    /// <summary>Whether this is the account's default (whole-account) folder. Default folders cannot be removed.</summary>
+    public bool IsDefault { get; }
+
+    /// <summary>Current sync state string (e.g. <c>Idle</c>, <c>Syncing</c>, <c>Error</c>).</summary>
+    public string State
+    {
+        get => _state;
+        set => SetProperty(ref _state, value);
+    }
+
+    /// <summary>Initializes a new <see cref="SyncFolderViewModel"/> from a registration.</summary>
+    /// <param name="registration">The persisted sync context registration.</param>
+    /// <param name="isDefault">Whether this folder is the account's default (whole-account) folder.</param>
+    public SyncFolderViewModel(SyncContextRegistration registration, bool isDefault)
     {
         ContextId = registration.Id;
         LocalFolderPath = registration.LocalFolderPath;
         RemoteFolderPath = string.IsNullOrWhiteSpace(registration.ServerFolderDisplayPath)
             ? "Whole account"
             : registration.ServerFolderDisplayPath;
+        IsDefault = isDefault;
     }
 }

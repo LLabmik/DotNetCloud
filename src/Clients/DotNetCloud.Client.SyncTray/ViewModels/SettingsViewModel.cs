@@ -455,8 +455,11 @@ public sealed class SettingsViewModel : ViewModelBase
     /// <summary>Opens the Add Folder dialog to add another local sync folder to the account.</summary>
     public ICommand AddFolderCommand { get; }
 
-    /// <summary>Removes the account whose context ID is passed as the command parameter.</summary>
+    /// <summary>Removes the account (all of its folders).</summary>
     public ICommand RemoveAccountCommand { get; }
+
+    /// <summary>Removes the subscribed folder whose context ID is passed as the command parameter.</summary>
+    public ICommand RemoveFolderCommand { get; }
 
     /// <summary>Closes the Settings window.</summary>
     public ICommand CloseCommand { get; }
@@ -511,7 +514,8 @@ public sealed class SettingsViewModel : ViewModelBase
 
         ConnectCommand = new AsyncRelayCommand(BeginAddAccountFlowAsync);
         AddFolderCommand = new AsyncRelayCommand(BeginAddFolderFlowAsync);
-        RemoveAccountCommand = new AsyncRelayCommand<Guid>(id => _trayVm.RemoveAccountAsync(id));
+        RemoveAccountCommand = new AsyncRelayCommand(() => _trayVm.RemoveAccountAsync());
+        RemoveFolderCommand = new AsyncRelayCommand<Guid>(_trayVm.RemoveFolderAsync);
         CloseCommand = new RelayCommand(static () => { /* handled by the view via CloseCommand binding */ });
         AddIgnorePatternCommand = new AsyncRelayCommand(AddIgnorePatternAsync);
         RemoveIgnorePatternCommand = new AsyncRelayCommand<string>(RemoveIgnorePatternAsync);
@@ -733,8 +737,8 @@ public sealed class SettingsViewModel : ViewModelBase
         }
     }
 
-    /// <summary>Removes the account with the specified context ID.</summary>
-    public Task RemoveAccountAsync(Guid contextId) => _trayVm.RemoveAccountAsync(contextId);
+    /// <summary>Removes the account (all of its folders).</summary>
+    public Task RemoveAccountAsync() => _trayVm.RemoveAccountAsync();
 
     // ── Ignored Files tab ─────────────────────────────────────────────────
 
