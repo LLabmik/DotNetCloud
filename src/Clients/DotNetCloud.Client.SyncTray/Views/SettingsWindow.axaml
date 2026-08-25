@@ -85,6 +85,11 @@
             <Setter Property="Background" Value="#5D2530" />
             <Setter Property="BorderBrush" Value="#8B3446" />
         </Style>
+
+        <Style Selector="Button.small">
+            <Setter Property="Padding" Value="8,3" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
     </Window.Styles>
 
     <DockPanel>
@@ -184,17 +189,20 @@
                                                             </StackPanel>
                                                             <Button Grid.Column="1"
                                                                     Content="Open"
+                                                                    Classes="small"
                                                                     VerticalAlignment="Center"
                                                                     Command="{Binding $parent[Window].DataContext.OpenSyncFolderCommand}"
                                                                     CommandParameter="{Binding LocalFolderPath}" />
                                                             <Button Grid.Column="2"
                                                                     Content="Choose Folders"
+                                                                    Classes="small"
                                                                     VerticalAlignment="Center"
+                                                                    IsVisible="{Binding IsDefault}"
                                                                     Command="{Binding $parent[Window].DataContext.ChooseFoldersCommand}"
                                                                     CommandParameter="{Binding ContextId}" />
                                                             <Button Grid.Column="3"
                                                                     Content="Remove"
-                                                                    Classes="danger"
+                                                                    Classes="small danger"
                                                                     VerticalAlignment="Center"
                                                                     IsEnabled="{Binding !IsDefault}"
                                                                     Command="{Binding $parent[Window].DataContext.RemoveFolderCommand}"
