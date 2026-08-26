@@ -458,4 +458,90 @@ public sealed class FfmpegArgumentBuilderTests
         Assert.IsTrue(args.Contains("-map 0:a:2?"));
         Assert.IsFalse(args.Contains("-map 0:a:0?"));
     }
+
+    // ─── Stream-copy HLS (remux) tests ────────────────────────────
+
+    [TestMethod]
+    public void BuildStreamCopyHlsArgs_CopiesVideo_NoEncoderOptions()
+    {
+        var args = _builder.BuildStreamCopyHlsArgs("/i.mkv", "/out", "aac");
+
+        Assert.IsTrue(args.Contains("-c:v copy"));
+        // Encoder-only flags must never appear for a stream copy.
+        Assert.IsFalse(args.Contains("-c:v libx264"));
+        Assert.IsFalse(args.Contains("-crf"));
+        Assert.IsFalse(args.Contains("-preset"));
+        Assert.IsFalse(args.Contains("-fps_mode"));
+    }
+
+    [TestMethod]
+    public void BuildStreamCopyHlsArgs_UniversalAudio_CopiesAudio()
+    {
+        var args = _builder.BuildStreamCopyHlsArgs("/i.mkv", "/out", "aac");
+
+        Assert.IsTrue(args.Contains("-c:a copy"));
+        Assert.IsFalse(args.Contains("-c:a aac"));
+    }
+
+    [TestMethod]
+    public void BuildStreamCopyHlsArgs_NonUniversalAudio_TranscodesToAac()
+    {
+        var args = _builder.BuildStreamCopyHlsArgs("/i.mkv", "/out", "ac3");
+
+        Assert.IsTrue(args.Contains("-c:a aac"));
+        Assert.IsTrue(args.Contains("-b:a 192k"));
+        Assert.IsTrue(args.Contains("-profile:a aac_low"));
+        Assert.IsTrue(args.Contains("aresample=async=1"));
+        Assert.IsFalse(args.Contains("-c:a copy"));
+    }
+
+    [TestMethod]
+    public void BuildStreamCopyHlsArgs_UsesHlsMuxerWithJellyfinTimestamps()
+    {
+        var args = _builder.BuildStreamCopyHlsArgs("/i.mkv", "/out", "aac");
+
+        Assert.IsTrue(args.Contains("-f hls"));
+        Assert.IsTrue(args.Contains("-hls_playlist_type event"));
+        Assert.IsTrue(args.Contains("-hls_segment_type fmp4"));
+        Assert.IsTrue(args.Contains("-hls_fmp4_init_filename"));
+        Assert.IsTrue(args.Contains("segment_%05d.m4s"));
+        Assert.IsTrue(args.Contains("-copyts -avoid_negative_ts disabled"));
+        Assert.IsTrue(args.Contains("-max_delay 5000000"));
+        Assert.IsTrue(args.Contains("-max_muxing_queue_size 128"));
+    }
+
+    [TestMethod]
+    public void BuildStreamCopyHlsArgs_DefaultAudioStream_MapsFirstAudio()
+    {
+        var args = _builder.BuildStreamCopyHlsArgs("/i.mkv", "/out", "aac");
+
+        Assert.IsTrue(args.Contains("-map 0:a:0?"));
+        Assert.IsFalse(args.Contains("-map 0:a:1?"));
+    }
+
+    [TestMethod]
+    public void BuildStreamCopyHlsArgs_AudioStreamIndex_MapsSelectedAudio()
+    {
+        var args = _builder.BuildStreamCopyHlsArgs("/i.mkv", "/out", "aac", audioStreamIndex: 1);
+
+        Assert.IsTrue(args.Contains("-map 0:a:1?"));
+        Assert.IsFalse(args.Contains("-map 0:a:0?"));
+    }
+
+    [TestMethod]
+    public void BuildStreamCopyHlsArgs_Seek_SeeksToExactKeyframe()
+    {
+        var args = _builder.BuildStreamCopyHlsArgs(
+            "/i.mkv", "/out", "aac", seekStart: TimeSpan.FromSeconds(100));
+
+        Assert.IsTrue(args.Contains("-ss 100.000"));
+    }
+
+    [TestMethod]
+    public void BuildStreamCopyHlsArgs_NoSeek_OmitsSeekFlag()
+    {
+        var args = _builder.BuildStreamCopyHlsArgs("/i.mkv", "/out", "aac");
+
+        Assert.IsFalse(args.Contains("-ss"));
+    }
 }

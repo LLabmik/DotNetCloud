@@ -77,6 +77,15 @@
     return s; // "transcode", or unknown (left as-is)
   }
 
+  /**
+   * Returns true when the strategy is played through hls.js (both full
+   * transcodes and stream-copy remuxes are served as HLS after the remux
+   * pipeline was converted from a progressive pipe to HLS segments).
+   */
+  function isHlsStrategy(s) {
+    return s === "transcode" || s === "remux";
+  }
+
   /** @type {Object|null} The single active player instance. */
   var instance = null;
 
@@ -217,7 +226,7 @@
         "Try refreshing the page, or use Chrome or Firefox for the widest format compatibility.</p>" +
         '<button type="button" class="dnc-error-close">Dismiss</button>';
       var msgEl = card.querySelector(".dnc-error-msg");
-      msgEl.textContent = message || "Unknown playback error";
+      msgEl.textContent = stringifyError(message) || "Unknown playback error";
       card
         .querySelector(".dnc-error-close")
         .addEventListener("click", function () {
@@ -227,7 +236,7 @@
 
       if (p._dotNetRef) {
         p._dotNetRef
-          .invokeMethodAsync("OnError", code, message || "")
+          .invokeMethodAsync("OnError", code, stringifyError(message) || "")
           .catch(function () {});
       }
     };
@@ -727,12 +736,12 @@
     p._video.load();
     pollProgressThen(p, function (strategy) {
       if (p._disposed) return;
-      if (strategy === "transcode") {
-        p._strategy = "transcode";
+      if (isHlsStrategy(strategy)) {
+        p._strategy = strategy;
         replaceVideoElement(p);
         startHls(p, p._streamBaseUrl);
         p._expectingHls = false;
-        reportStrategy(p, "transcode");
+        reportStrategy(p, strategy);
       } else {
         p._strategy = strategy || "direct";
         p._expectingHls = false;
@@ -906,7 +915,11 @@
       } else {
         p._hls = null;
         hls.destroy();
-        p._showFatalError(2, data.details || "HLS playback error");
+        var hlsMsg = data.details || "HLS playback error";
+        if (data.reason) hlsMsg += ": " + data.reason;
+        else if (data.error && data.error.message)
+          hlsMsg += ": " + data.error.message;
+        p._showFatalError(2, hlsMsg);
       }
     });
     p._hls = hls;
@@ -1061,30 +1074,7 @@
     var dur = p._duration();
     if (seconds > dur) seconds = dur;
 
-    if (p._strategy === "remux") {
-      // Non-seekable ffmpeg pipe — reload from the server at the target.
-      var url = buildStreamUrl(p, { startSeconds: seconds });
-      p._seekStartOffset = seconds;
-      teardownEngine(p);
-      p._expectingHls = false;
-      p._video.src = url;
-      p._video.load();
-      playWithPromise(p);
-      renderSeek(p, seconds);
-      // The server rounds stream-copy seeks down to the nearest video keyframe to
-      // keep A/V in sync — adopt the actual start once it's reported so the time,
-      // slider, and subtitles match the content that's really playing.
-      pollActualStart(p, function (actualStart) {
-        if (p._disposed) return;
-        if (typeof actualStart === "number" && actualStart >= 0) {
-          p._seekStartOffset = actualStart;
-        }
-        renderSeek(p, p._absoluteTime());
-      });
-      return;
-    }
-
-    if (p._strategy === "transcode") {
+    if (isHlsStrategy(p._strategy)) {
       var bufferedEnd = bufferedEndOf(v);
       if (seconds <= bufferedEnd + 1) {
         v.currentTime = seconds;
@@ -1092,7 +1082,7 @@
         renderSeek(p, seconds);
         return;
       }
-      // Beyond buffer — ask the server to restart the HLS transcode.
+      // Beyond buffer — ask the server to restart the HLS stream (remux or transcode).
       showSeekOverlay(p, seconds);
       p._expectingHls = true;
       fetch("/api/v1/videos/" + p._videoId + "/stream/seek", {
@@ -1115,8 +1105,18 @@
           }
           return r.json();
         })
-        .then(function () {
+        .then(function (data) {
           hideSeekOverlay(p);
+          var d = data && data.data ? data.data : data;
+          var actualStart =
+            d && typeof d.actualStartSeconds === "number"
+              ? d.actualStartSeconds
+              : seconds;
+          // The reloaded HLS stream starts at the server-chosen position (keyframe
+          // for remux, exact for transcode); hls.js restarts its own timeline at 0.
+          // Adopt the server's start as the absolute offset so the slider/elapsed
+          // time keep their correct position instead of resetting to the beginning.
+          p._seekStartOffset = actualStart;
           teardownEngine(p);
           startHls(p, p._streamBaseUrl);
           p._expectingHls = false;
@@ -1155,8 +1155,8 @@
     if (index === p._currentAudioIndex) return;
     var position = p._absoluteTime();
 
-    if (p._strategy === "transcode") {
-      // Position the new HLS transcode for the selected audio, then reload.
+    if (isHlsStrategy(p._strategy)) {
+      // Position the new HLS stream for the selected audio, then reload.
       showSeekOverlay(p, position);
       p._expectingHls = true;
       fetch("/api/v1/videos/" + p._videoId + "/stream/seek", {
@@ -1179,18 +1179,23 @@
           }
           return r.json();
         })
-        .then(function () {
+        .then(function (data) {
+          var d = data.data || data;
           hideSeekOverlay(p);
           p._currentAudioIndex = index;
-          p._seekStartOffset = 0;
+          // The reloaded HLS stream starts at the server-chosen keyframe position;
+          // adopt it as the absolute offset so the slider/elapsed time stay correct.
+          p._seekStartOffset =
+            typeof d.actualStartSeconds === "number"
+              ? d.actualStartSeconds
+              : position;
           teardownEngine(p);
-          var url = buildStreamUrl(p, {
-            forceTranscode: true,
-            audioStreamIndex: index,
-          });
+          var url = buildStreamUrl(p, { audioStreamIndex: index });
           startHls(p, url);
           p._expectingHls = false;
-          reportStrategy(p, "transcode");
+          var s = normalizeStrategy(d.strategy) || "transcode";
+          p._strategy = s;
+          reportStrategy(p, s);
         })
         .catch(function (err) {
           hideSeekOverlay(p);
@@ -1202,7 +1207,7 @@
       return;
     }
 
-    // direct/remux — reload with the selected audio + position.
+    // Direct play — reload with the selected audio + position.
     p._currentAudioIndex = index;
     p._seekStartOffset = 0;
     teardownEngine(p);
@@ -1217,12 +1222,12 @@
     p._expectingHls = true;
     pollProgressThen(p, function (strategy) {
       if (p._disposed) return;
-      if (strategy === "transcode") {
-        p._strategy = "transcode";
+      if (isHlsStrategy(strategy)) {
+        p._strategy = strategy;
         replaceVideoElement(p);
         startHls(p, url);
         p._expectingHls = false;
-        reportStrategy(p, "transcode");
+        reportStrategy(p, strategy);
       } else {
         p._strategy = strategy || "direct";
         p._expectingHls = false;
@@ -1514,6 +1519,24 @@
 
   function pad2(n) {
     return n < 10 ? "0" + n : String(n);
+  }
+
+  /**
+   * Coerces any error value to a displayable string. Prevents "[object Object]"
+   * when an error object (rather than a string) is passed to the error card.
+   */
+  function stringifyError(m) {
+    if (m == null) return "";
+    if (typeof m === "string") return m;
+    if (m instanceof Error) return m.message || m.name || "Error";
+    if (typeof m === "object") {
+      try {
+        return JSON.stringify(m);
+      } catch (e) {
+        return String(m);
+      }
+    }
+    return String(m);
   }
 
   function escapeHtml(s) {

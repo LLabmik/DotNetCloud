@@ -157,6 +157,33 @@ public interface IVideoTranscodingService
         int? audioStreamIndex = null);
 
     /// <summary>
+    /// Starts an HLS (HTTP Live Streaming) stream-copy (remux) for a video file.
+    /// Video is copied bit-for-bit and only non-browser-compatible audio is re-encoded
+    /// to AAC. Output is segmented into .ts files with an .m3u8 playlist so the player
+    /// can seek at keyframe-aligned boundaries instead of reloading a progressive pipe.
+    /// </summary>
+    /// <param name="videoId">The Video entity ID.</param>
+    /// <param name="userId">The requesting user ID.</param>
+    /// <param name="sourceFilePath">Absolute path to the source video file.</param>
+    /// <param name="mimeType">MIME type of the source video.</param>
+    /// <param name="sourceVideoCodec">Source video codec from ffprobe (currently informational; video is always copied).</param>
+    /// <param name="sourceAudioCodec">Source audio codec from ffprobe (copied when browser-compatible, re-encoded otherwise).</param>
+    /// <param name="seekStart">Optional seek position to start the remux from.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <param name="audioStreamIndex">Optional 0-based positional audio stream index to select. Defaults to the first audio stream.</param>
+    /// <returns>A tuple of (jobId, outputDirectory, playlistPath).</returns>
+    Task<(string JobId, string OutputDir, string PlaylistPath)> StreamCopyHlsAsync(
+        Guid videoId,
+        Guid userId,
+        string sourceFilePath,
+        string mimeType,
+        string? sourceVideoCodec = null,
+        string? sourceAudioCodec = null,
+        TimeSpan? seekStart = null,
+        CancellationToken ct = default,
+        int? audioStreamIndex = null);
+
+    /// <summary>
     /// Gets the active HLS transcode job for a given video ID, if any.
     /// </summary>
     TranscodingJob? GetActiveHlsJob(Guid videoId);

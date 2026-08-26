@@ -351,7 +351,7 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
     }
 
     /// <inheritdoc />
-    public async Task<(string JobId, string OutputDir, string PlaylistPath)> TranscodeHlsAsync(
+    public Task<(string JobId, string OutputDir, string PlaylistPath)> TranscodeHlsAsync(
         Guid videoId,
         Guid userId,
         string sourceFilePath,
@@ -361,6 +361,36 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
         TimeSpan? seekStart = null,
         CancellationToken ct = default,
         int? audioStreamIndex = null)
+    {
+        return StartHlsJobAsync(videoId, userId, sourceFilePath, mimeType, streamCopy: false, sourceVideoCodec, sourceAudioCodec, seekStart, ct, audioStreamIndex);
+    }
+
+    /// <inheritdoc />
+    public Task<(string JobId, string OutputDir, string PlaylistPath)> StreamCopyHlsAsync(
+        Guid videoId,
+        Guid userId,
+        string sourceFilePath,
+        string mimeType,
+        string? sourceVideoCodec = null,
+        string? sourceAudioCodec = null,
+        TimeSpan? seekStart = null,
+        CancellationToken ct = default,
+        int? audioStreamIndex = null)
+    {
+        return StartHlsJobAsync(videoId, userId, sourceFilePath, mimeType, streamCopy: true, sourceVideoCodec, sourceAudioCodec, seekStart, ct, audioStreamIndex);
+    }
+
+    private async Task<(string JobId, string OutputDir, string PlaylistPath)> StartHlsJobAsync(
+        Guid videoId,
+        Guid userId,
+        string sourceFilePath,
+        string mimeType,
+        bool streamCopy,
+        string? sourceVideoCodec,
+        string? sourceAudioCodec,
+        TimeSpan? seekStart,
+        CancellationToken ct,
+        int? audioStreamIndex)
     {
         // Audio-specific HLS output directory so switching audio tracks never
         // reuses a transcode produced for a different audio stream. The default
@@ -410,7 +440,7 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
 
             // Lock timed out (30s) — extremely rare, fall back to lock-free creation
             _logger.LogWarning("HLS lock acquire timed out for video {VideoId}; proceeding without lock", videoId);
-            return await CreateHlsJobUnlocked(videoId, userId, sourceFilePath, mimeType, sourceVideoCodec, sourceAudioCodec, seekStart, ct, audioStreamIndex);
+            return await CreateHlsJobUnlocked(videoId, userId, sourceFilePath, mimeType, streamCopy, sourceVideoCodec, sourceAudioCodec, seekStart, ct, audioStreamIndex);
         }
 
         // Variables captured outside the lock for return
@@ -467,7 +497,7 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
         }
 
         // Launch ffmpeg (outside lock, fire-and-forget)
-        await LaunchFfmpegAsync(activeJob, sourceFilePath, actualOutputDir, actualPlaylistPath, sourceVideoCodec, sourceAudioCodec, seekStart, ct, audioStreamIndex);
+        await LaunchFfmpegAsync(activeJob, sourceFilePath, actualOutputDir, actualPlaylistPath, streamCopy, sourceVideoCodec, sourceAudioCodec, seekStart, ct, audioStreamIndex);
 
         return (activeJob.Id, actualOutputDir, actualPlaylistPath);
     }
@@ -479,7 +509,7 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
     }
 
     /// <summary>
-    /// Creates an HLS transcode job WITHOUT acquiring the per-video lock.
+    /// Creates an HLS stream job WITHOUT acquiring the per-video lock.
     /// Only used as a fallback when lock acquisition times out (extremely rare).
     /// </summary>
     private async Task<(string JobId, string OutputDir, string PlaylistPath)> CreateHlsJobUnlocked(
@@ -487,6 +517,7 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
         Guid userId,
         string sourceFilePath,
         string mimeType,
+        bool streamCopy,
         string? sourceVideoCodec,
         string? sourceAudioCodec,
         TimeSpan? seekStart,
@@ -511,7 +542,7 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
         job.IsHls = true;
 
         // Launch ffmpeg
-        await LaunchFfmpegAsync(job, sourceFilePath, actualOutputDir, actualPlaylistPath, sourceVideoCodec, sourceAudioCodec, seekStart, ct, audioStreamIndex);
+        await LaunchFfmpegAsync(job, sourceFilePath, actualOutputDir, actualPlaylistPath, streamCopy, sourceVideoCodec, sourceAudioCodec, seekStart, ct, audioStreamIndex);
 
         return (job.Id, actualOutputDir, actualPlaylistPath);
     }
@@ -545,11 +576,13 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
             return false;
         }
 
-        // At least one .ts segment must exist — an empty dir means ffmpeg never produced output
-        var hasSegments = Directory.EnumerateFiles(outputDir, "*.ts").Any();
+        // At least one media segment must exist — an empty dir means ffmpeg never produced output.
+        var hasSegments = Directory.EnumerateFiles(outputDir)
+            .Any(f => f.EndsWith(".ts", StringComparison.OrdinalIgnoreCase) ||
+                      f.EndsWith(".m4s", StringComparison.OrdinalIgnoreCase));
         if (!hasSegments)
         {
-            _logger.LogDebug("HLS job {JobId} for video {VideoId} not reusable: no .ts segments in output dir",
+            _logger.LogDebug("HLS job {JobId} for video {VideoId} not reusable: no media segments in output dir",
                 job.Id, videoId);
             return false;
         }
@@ -593,13 +626,14 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
     }
 
     /// <summary>
-    /// Launches ffmpeg as a background task for HLS transcoding.
+    /// Launches ffmpeg as a background task for an HLS stream (transcode or stream-copy remux).
     /// </summary>
     private async Task LaunchFfmpegAsync(
         TranscodingJob job,
         string sourceFilePath,
         string outputDir,
         string playlistPath,
+        bool streamCopy,
         string? sourceVideoCodec,
         string? sourceAudioCodec,
         TimeSpan? seekStart = null,
@@ -607,12 +641,15 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
         int? audioStreamIndex = null)
     {
         var duration = await GetVideoDurationAsync(sourceFilePath, ct);
-        _logger.LogInformation("HLS transcode starting: job={JobId}, source={Source}, outputDir={OutputDir}, duration={Duration}" +
+        var mode = streamCopy ? "remux" : "transcode";
+        _logger.LogInformation("HLS {Mode} starting: job={JobId}, source={Source}, outputDir={OutputDir}, duration={Duration}" +
             (seekStart.HasValue ? ", seekStart={SeekStart}" : ""),
-            job.Id, sourceFilePath, outputDir, duration,
+            mode, job.Id, sourceFilePath, outputDir, duration,
             seekStart);
 
-        var args = _argBuilder.BuildHlsArgs(sourceFilePath, outputDir, _options, sourceVideoCodec, sourceAudioCodec, seekStart, audioStreamIndex: audioStreamIndex);
+        var args = streamCopy
+            ? _argBuilder.BuildStreamCopyHlsArgs(sourceFilePath, outputDir, sourceAudioCodec, seekStart, audioStreamIndex)
+            : _argBuilder.BuildHlsArgs(sourceFilePath, outputDir, _options, sourceVideoCodec, sourceAudioCodec, seekStart, audioStreamIndex: audioStreamIndex);
 
         _ = Task.Run(async () =>
         {
@@ -977,12 +1014,14 @@ public sealed class VideoTranscodingService : IVideoTranscodingService
             if (!File.Exists(playlistPath))
                 continue;
 
-            // Check for at least one .ts segment and #EXT-X-ENDLIST marker
+            // Check for at least one media segment and #EXT-X-ENDLIST marker
             var content = File.ReadAllText(playlistPath);
             if (!content.Contains("#EXT-X-ENDLIST"))
                 continue;
 
-            var segmentCount = Directory.EnumerateFiles(dir, "*.ts").Count();
+            var segmentCount = Directory.EnumerateFiles(dir)
+                .Count(f => f.EndsWith(".ts", StringComparison.OrdinalIgnoreCase) ||
+                            f.EndsWith(".m4s", StringComparison.OrdinalIgnoreCase));
             if (segmentCount == 0)
                 continue;
 

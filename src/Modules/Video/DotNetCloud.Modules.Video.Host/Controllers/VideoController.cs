@@ -478,10 +478,10 @@ public class VideoController : VideoControllerBase
     }
 
     /// <summary>
-    /// Seeks an active HLS transcode to a new position.
-    /// Cancels the current transcode, cleans up old segments, and starts
-    /// a new transcode from the requested position. The client should
-    /// reload the HLS stream after this returns successfully.
+    /// Seeks an active HLS stream to a new position.
+    /// Cancels the current stream, cleans up old segments, and starts a new stream
+    /// (transcode or stream-copy remux, matching the original strategy) from the
+    /// requested position. The client should reload the HLS stream after this returns.
     /// </summary>
     [HttpPost("{videoId:guid}/stream/seek")]
     public async Task<IActionResult> SeekTranscode(
@@ -501,7 +501,7 @@ public class VideoController : VideoControllerBase
         if (video is null)
             return NotFound(ErrorEnvelope(ErrorCodes.VideoNotFound, "Video not found."));
 
-        // Cancel any existing transcode for this video+user
+        // Cancel any existing stream for this video+user
         _transcodingService.CancelTranscode(videoId, caller.UserId);
 
         // Clean up old HLS output directory if it exists
@@ -527,18 +527,59 @@ public class VideoController : VideoControllerBase
 
         try
         {
-            // Start new HLS transcode from the seek position
-            var (jobId, outputDir, playlistPath) = await _transcodingService.TranscodeHlsAsync(
-                videoId,
-                caller.UserId,
-                filePath,
-                video.MimeType,
-                seekStart: seekStart,
-                ct: HttpContext.RequestAborted,
-                audioStreamIndex: dto.AudioStreamIndex);
+            // Re-decide the strategy so a seek preserves the original playback mode
+            // (stream-copy remux vs full transcode) instead of always transcoding.
+            StreamingStrategy strategy;
+            string? videoCodec, audioCodec;
+
+            if (dto.AudioStreamIndex is >= 0)
+            {
+                // Explicit audio track selected. The selected track always requires a
+                // remux; decide based on whether the VIDEO can be stream-copied (the
+                // remux path re-encodes non-browser audio to AAC). Only fall back to a
+                // full transcode when the video codec itself isn't copyable.
+                var (pv, pa, _, audioStreams) = await _transcodingService.ProbeStreamsAsync(filePath, HttpContext.RequestAborted);
+                videoCodec = pv;
+                var selected = audioStreams.ElementAtOrDefault(dto.AudioStreamIndex.Value);
+                audioCodec = selected?.Codec ?? pa;
+                strategy = StreamCompatibilityMatrix.IsCopyableVideoCodec(videoCodec)
+                    ? StreamingStrategy.StreamCopy
+                    : StreamingStrategy.Transcode;
+            }
+            else
+            {
+                (strategy, videoCodec, audioCodec, _, _) = await _transcodingService.DecideStreamingStrategyAsync(
+                    filePath, video.MimeType, HttpContext.RequestAborted);
+            }
+
+            // Stream-copy seeks must land on a keyframe boundary.
+            TimeSpan? actualSeekStart = seekStart;
+            if (strategy == StreamingStrategy.StreamCopy && seekStart > TimeSpan.Zero)
+            {
+                var keyframe = await _transcodingService.FindSeekKeyframeAsync(filePath, dto.PositionSeconds, HttpContext.RequestAborted);
+                if (keyframe.HasValue)
+                    actualSeekStart = TimeSpan.FromSeconds(keyframe.Value);
+            }
+
+            var (jobId, outputDir, playlistPath) = strategy == StreamingStrategy.StreamCopy
+                ? await _transcodingService.StreamCopyHlsAsync(
+                    videoId, caller.UserId, filePath, video.MimeType,
+                    sourceVideoCodec: videoCodec,
+                    sourceAudioCodec: audioCodec,
+                    seekStart: actualSeekStart,
+                    ct: HttpContext.RequestAborted,
+                    audioStreamIndex: dto.AudioStreamIndex)
+                : await _transcodingService.TranscodeHlsAsync(
+                    videoId, caller.UserId, filePath, video.MimeType,
+                    sourceVideoCodec: videoCodec,
+                    sourceAudioCodec: audioCodec,
+                    seekStart: actualSeekStart,
+                    ct: HttpContext.RequestAborted,
+                    audioStreamIndex: dto.AudioStreamIndex);
 
             _logger.LogInformation(
-                "SeekTranscode: Started new transcode job {JobId} for video {VideoId} at position {Position}s",
+                "SeekTranscode: Started new {Mode} job {JobId} for video {VideoId} at position {Position}s",
+                strategy == StreamingStrategy.StreamCopy ? "remux" : "transcode",
                 jobId, videoId, dto.PositionSeconds);
 
             // Wait for the playlist + at least 2 segments to be ready
@@ -547,11 +588,21 @@ public class VideoController : VideoControllerBase
 
             if (waitResult == HlsWaitResult.Ready)
             {
-                return Ok(Envelope(new { ready = true, jobId }));
+                return Ok(Envelope(new
+                {
+                    ready = true,
+                    jobId,
+                    strategy = strategy.ToString(),
+                    // The exact position the new stream starts at (stream-copy seeks are
+                    // rounded down to a keyframe). The player adopts this as its absolute
+                    // time offset so the slider/elapsed time match the content actually
+                    // being played, instead of resetting to 0.
+                    actualStartSeconds = actualSeekStart?.TotalSeconds ?? dto.PositionSeconds
+                }));
             }
 
             return StatusCode(504, ErrorEnvelope("TRANSCODE_TIMEOUT",
-                "HLS transcode did not produce segments within 30 seconds."));
+                "HLS stream did not produce segments within 90 seconds."));
         }
         finally
         {
@@ -899,15 +950,17 @@ public class VideoController : VideoControllerBase
             }
             else if (audioStreamIndex is >= 0)
             {
-                // Explicit audio track selected. Never direct-play; choose StreamCopy
-                // (remux) when the selected audio is browser-compatible, otherwise
-                // Transcode (HLS) which safely re-encodes the selected audio to AAC.
+                // Explicit audio track selected. Never direct-play; the selected track
+                // always requires a remux. Decide based on whether the VIDEO stream can
+                // be stream-copied: the remux path copies video and either copies or
+                // re-encodes the selected audio to AAC. Only fall back to a full
+                // transcode when the video codec itself isn't copyable (MPEG-2, VC-1…).
                 var (pv, pa, pc, audioStreams) = await _transcodingService.ProbeStreamsAsync(sourcePath, HttpContext.RequestAborted);
                 videoCodec = pv;
                 container = pc;
                 var selected = audioStreams.ElementAtOrDefault(audioStreamIndex.Value);
                 audioCodec = selected?.Codec ?? pa;
-                strategy = StreamCompatibilityMatrix.IsUniversalAudioCodec(audioCodec)
+                strategy = StreamCompatibilityMatrix.IsCopyableVideoCodec(videoCodec)
                     ? StreamingStrategy.StreamCopy
                     : StreamingStrategy.Transcode;
             }
@@ -1094,13 +1147,9 @@ public class VideoController : VideoControllerBase
                 progress.Message = "Starting stream…";
                 progress.Percent = 50;
 
-                // Start ffmpeg remux with stdout piped for progressive streaming.
-                // Round stream-copy seeks down to the nearest video keyframe: a fast
-                // -ss input seek otherwise starts video at the keyframe but audio at the
-                // exact target, and re-encoded audio (non-universal codecs) then begins at
-                // the target while video begins at the keyframe — an A/V content offset.
-                // Seeking both to the keyframe keeps them in sync; the actual start is
-                // reported via /stream-progress so the player can display the right time.
+                // Round stream-copy seeks down to the nearest video keyframe so HLS
+                // segment 0 starts on a clean boundary. The actual start is reported
+                // via /stream-progress for any client that needs it.
                 TimeSpan? startTime = null;
                 if (startSeconds.HasValue && startSeconds.Value > 0)
                 {
@@ -1108,46 +1157,20 @@ public class VideoController : VideoControllerBase
                     var actualStart = keyframe ?? startSeconds.Value;
                     startTime = TimeSpan.FromSeconds(actualStart);
                     progress.ActualStartSeconds = actualStart;
-                    if (keyframe.HasValue && Math.Abs(keyframe.Value - startSeconds.Value) > 0.05)
-                    {
-                        _logger.LogInformation(
-                            "StreamVideo: remux seek {Requested}s rounded down to keyframe {Actual}s for A/V sync",
-                            startSeconds.Value, actualStart);
-                    }
-                }
-                var (ffmpegProcess, _) = await _transcodingService.StreamCopyAsync(
-                    sourcePath, videoCodec, audioCodec, HttpContext.RequestAborted, startTime, audioStreamIndex);
-
-                progress.Stage = StreamProgressStage.Streaming;
-                progress.Message = "Streaming…";
-                progress.Percent = 100;
-
-                var response = HttpContext.Response;
-                response.ContentType = "video/mp4";
-                response.Headers.Remove("X-Content-Type-Options");
-                response.Headers["X-Stream-Strategy"] = "remux";
-                response.Headers["X-Stream-Diagnostics"] =
-                    $"strategy=remux;total={totalElapsed.TotalMilliseconds:F0}ms;codec={videoCodec};container={container}";
-
-                // Stream ffmpeg stdout directly to the HTTP response
-                try
-                {
-                    await ffmpegProcess.StandardOutput.BaseStream.CopyToAsync(
-                        response.Body, HttpContext.RequestAborted);
-                }
-                finally
-                {
-                    _streamProgress.Remove(videoId);
-                    if (!ffmpegProcess.HasExited)
-                    {
-                        try
-                        { ffmpegProcess.Kill(entireProcessTree: true); }
-                        catch { /* best effort */ }
-                    }
-                    ffmpegProcess.Dispose();
                 }
 
-                return new EmptyResult();
+                HttpContext.Response.Headers["X-Stream-Strategy"] = "remux";
+                return await ServeHlsPlaylistAsync(
+                    videoId: videoId,
+                    userId: userId,
+                    sourcePath: sourcePath,
+                    mimeType: mimeType,
+                    streamCopy: true,
+                    videoCodec: videoCodec,
+                    audioCodec: audioCodec,
+                    seekStart: startTime,
+                    audioStreamIndex: audioStreamIndex,
+                    progress: progress);
             }
 
             // ── Strategy: Transcode (HLS) ──────────────────────────
@@ -1161,107 +1184,18 @@ public class VideoController : VideoControllerBase
             progress.Message = "Preparing stream (transcoding)…";
             progress.Percent = 90;
 
-            // Use CancellationToken.None for the ffmpeg transcode so it survives
-            // past the HTTP response. Do NOT create a CTS here — C# 'using' disposes
-            // the CTS when StreamVideo returns (after sending the playlist), which
-            // calls Cancel() on the token. That sends 'q' to ffmpeg's stdin via the
-            // registered callback in FfmpegProcessManager.RunAsync, causing ffmpeg
-            // to gracefully stop after only a few segments. ffmpeg must run to
-            // completion independently of the HTTP request lifetime.
-            // We still use a CTS for error-path cancellation (client disconnect
-            // before playlist is ready), but it's NOT disposed here — it's captured
-            // by the error handlers and allowed to be GC'd naturally.
-            var transcodeCts = new CancellationTokenSource();
-            var transcodeCt = transcodeCts.Token;
-
-            var (jobId, outputDir, playlistPath) = await _transcodingService.TranscodeHlsAsync(
-                videoId, userId, sourcePath, mimeType,
-                sourceVideoCodec: videoCodec,
-                sourceAudioCodec: audioCodec,
-                ct: transcodeCt,
-                audioStreamIndex: audioStreamIndex);
-
-            _logger.LogInformation("StreamVideo: HLS transcode job {JobId} started, playlist={PlaylistPath}",
-                jobId, playlistPath);
-
             HttpContext.Response.Headers["X-Stream-Strategy"] = "transcode";
-
-            // Wait for the playlist file + at least 2 segments using FileSystemWatcher.
-            // This is event-driven — no polling loop. ffmpeg writes the playlist after
-            // the first segment is complete (~6 seconds).
-            var waitResult = await WaitForHlsReadyAsync(playlistPath, outputDir, jobId,
-                HttpContext.RequestAborted);
-
-            if (waitResult == HlsWaitResult.Cancelled)
-            {
-                // Do NOT cancel the transcode — the background ffmpeg job keeps running.
-                // The browser often disconnects immediately after receiving the response
-                // headers (or during navigation), which fires RequestAborted. If we killed
-                // ffmpeg here, every retry would restart from scratch. Instead, keep the
-                // job running so the next request reuses it via IsJobReusable.
-                _streamProgress.Remove(videoId);
-                return StatusCode(499, ErrorEnvelope("cancelled", "Client disconnected."));
-            }
-
-            if (waitResult == HlsWaitResult.Failed)
-            {
-                transcodeCts.Cancel();
-                _streamProgress.Remove(videoId);
-                var checkJob = _transcodingService.GetProgress(jobId);
-                _logger.LogError("HLS transcode job {JobId} failed: {Error}", jobId, checkJob?.ErrorMessage);
-                return StatusCode(500, ErrorEnvelope("TRANSCODE_FAILED",
-                    checkJob?.ErrorMessage ?? "HLS transcoding failed."));
-            }
-
-            if (waitResult == HlsWaitResult.Timeout)
-            {
-                // Do NOT cancel the transcode — ffmpeg is still producing segments.
-                // On retry, the existing job is reused and segments are ready.
-                _streamProgress.Remove(videoId);
-                _logger.LogError("HLS transcode job {JobId} timed out waiting for segments", jobId);
-                return StatusCode(504, ErrorEnvelope("TRANSCODE_TIMEOUT",
-                    "HLS transcode did not produce segments within 30 seconds."));
-            }
-
-            // ffmpeg is now running and producing segments — do NOT cancel it.
-            // The transcodeCts is intentionally not disposed here (no 'using') so
-            // the token stays uncancelled. C# disposing a CancellationTokenSource
-            // calls Cancel(), which sends 'q' to ffmpeg's stdin via the registered
-            // callback in FfmpegProcessManager — causing ffmpeg to write ENDLIST
-            // and exit after only a few segments. The transcodeCts will be GC'd
-            // naturally when no longer referenced. ffmpeg's background task in
-            // LaunchFfmpegAsync handles cleanup after completion.
-
-            progress.Stage = StreamProgressStage.Streaming;
-            progress.Message = "Starting playback…";
-            progress.Percent = 100;
-
-            // IMPORTANT: Do NOT remove the progress entry on Response.OnCompleted.
-            // The JS showStreamProgress() polls this endpoint, and when the pipeline
-            // completes instantly (e.g. FindExistingHlsOutput finds pre-completed HLS),
-            // OnCompleted fires BEFORE the JS polling even begins. Removing the entry
-            // causes the poll to always return {stage:"unknown"} — the promise never
-            // resolves, playStream() is never called, and hls.js is never initialized.
-            // The entry will be cleaned up when a new stream request overwrites it.
-            // A background cleanup runs periodically to remove stale entries.
-
-            _logger.LogInformation("StreamVideo: HLS playlist ready for {VideoId}, serving {PlaylistPath}",
-                videoId, playlistPath);
-
-            // Read the playlist and rewrite segment paths to use the /stream/ prefix
-            // so hls.js resolves segments to the primary route:
-            //   /api/v1/videos/{id}/stream/segment_00000.ts
-            // instead of the fallback:
-            //   /api/v1/videos/{id}/segment_00000.ts
-            var playlistContent = await System.IO.File.ReadAllTextAsync(playlistPath, HttpContext.RequestAborted);
-            var rewrittenPlaylist = playlistContent.Replace(
-                "segment_",
-                "stream/segment_");
-
-            // Serve the .m3u8 playlist — browser/HLS player will request segments.
-            // no-cache is critical: hls.js must re-fetch the playlist as new segments appear.
-            HttpContext.Response.Headers["Cache-Control"] = "no-cache";
-            return Content(rewrittenPlaylist, "application/vnd.apple.mpegurl");
+            return await ServeHlsPlaylistAsync(
+                videoId: videoId,
+                userId: userId,
+                sourcePath: sourcePath,
+                mimeType: mimeType,
+                streamCopy: false,
+                videoCodec: videoCodec,
+                audioCodec: audioCodec,
+                seekStart: null,
+                audioStreamIndex: audioStreamIndex,
+                progress: progress);
         }
         catch (Exception ex)
         {
@@ -1695,18 +1629,140 @@ public class VideoController : VideoControllerBase
     }
 
     /// <summary>
-    /// Returns true if the output directory contains at least 2 .ts segment files.
+    /// Returns true if the output directory contains at least 2 media segment files
+    /// (MPEG-TS .ts for transcodes, or fMP4 .m4s for stream-copy remuxes).
     /// </summary>
     private static bool HasMinSegments(string outputDir)
     {
         try
         {
-            return Directory.EnumerateFiles(outputDir, "segment_*.ts").Take(2).Count() >= 2;
+            return Directory.EnumerateFiles(outputDir, "segment_*")
+                .Where(f => f.EndsWith(".ts", StringComparison.OrdinalIgnoreCase) ||
+                            f.EndsWith(".m4s", StringComparison.OrdinalIgnoreCase))
+                .Take(2).Count() >= 2;
         }
         catch
         {
             return false;
         }
+    }
+
+    /// <summary>
+    /// Launches an HLS stream job (full transcode or stream-copy remux), waits for the
+    /// playlist plus at least two segments, and serves the .m3u8 playlist with segment
+    /// paths rewritten to the /stream/ prefix so hls.js resolves them to the primary route.
+    /// </summary>
+    /// <param name="videoId">The Video entity ID.</param>
+    /// <param name="userId">The requesting user ID.</param>
+    /// <param name="sourcePath">Absolute path to the source video file.</param>
+    /// <param name="mimeType">MIME type of the source video.</param>
+    /// <param name="streamCopy">True for a stream-copy remux; false for a full transcode.</param>
+    /// <param name="videoCodec">Source video codec from ffprobe.</param>
+    /// <param name="audioCodec">Source audio codec from ffprobe.</param>
+    /// <param name="seekStart">Optional seek position to start the stream from.</param>
+    /// <param name="audioStreamIndex">Optional 0-based positional audio stream index.</param>
+    /// <param name="progress">The progress entry for the active stream request.</param>
+    private async Task<IActionResult> ServeHlsPlaylistAsync(
+        Guid videoId,
+        Guid userId,
+        string sourcePath,
+        string mimeType,
+        bool streamCopy,
+        string? videoCodec,
+        string? audioCodec,
+        TimeSpan? seekStart,
+        int? audioStreamIndex,
+        StreamProgressEntry progress)
+    {
+        var mode = streamCopy ? "remux" : "transcode";
+
+        // Use a CTS for error-path cancellation only. Do NOT dispose it here —
+        // disposing calls Cancel(), which sends 'q' to ffmpeg's stdin via the
+        // registered callback in FfmpegProcessManager and stops it after a few
+        // segments. ffmpeg must run to completion independently of this request,
+        // so the CTS is intentionally left undisposed and GC'd naturally.
+        var cts = new CancellationTokenSource();
+        var ct = cts.Token;
+
+        var (jobId, outputDir, playlistPath) = streamCopy
+            ? await _transcodingService.StreamCopyHlsAsync(
+                videoId, userId, sourcePath, mimeType,
+                sourceVideoCodec: videoCodec,
+                sourceAudioCodec: audioCodec,
+                seekStart: seekStart,
+                ct: ct,
+                audioStreamIndex: audioStreamIndex)
+            : await _transcodingService.TranscodeHlsAsync(
+                videoId, userId, sourcePath, mimeType,
+                sourceVideoCodec: videoCodec,
+                sourceAudioCodec: audioCodec,
+                seekStart: seekStart,
+                ct: ct,
+                audioStreamIndex: audioStreamIndex);
+
+        _logger.LogInformation("StreamVideo: HLS {Mode} job {JobId} started, playlist={PlaylistPath}",
+            mode, jobId, playlistPath);
+
+        // Wait for the playlist file + at least 2 segments using FileSystemWatcher.
+        // This is event-driven — no polling loop.
+        var waitResult = await WaitForHlsReadyAsync(playlistPath, outputDir, jobId,
+            HttpContext.RequestAborted);
+
+        if (waitResult == HlsWaitResult.Cancelled)
+        {
+            // Do NOT cancel the ffmpeg job — it keeps running so the next request
+            // can reuse it via IsJobReusable.
+            _streamProgress.Remove(videoId);
+            return StatusCode(499, ErrorEnvelope("cancelled", "Client disconnected."));
+        }
+
+        if (waitResult == HlsWaitResult.Failed)
+        {
+            cts.Cancel();
+            _streamProgress.Remove(videoId);
+            var checkJob = _transcodingService.GetProgress(jobId);
+            _logger.LogError("HLS {Mode} job {JobId} failed: {Error}", mode, jobId, checkJob?.ErrorMessage);
+            return StatusCode(500, ErrorEnvelope("TRANSCODE_FAILED",
+                checkJob?.ErrorMessage ?? "HLS streaming failed."));
+        }
+
+        if (waitResult == HlsWaitResult.Timeout)
+        {
+            // Do NOT cancel — ffmpeg is still producing segments. On retry, the
+            // existing job is reused and segments are ready.
+            _streamProgress.Remove(videoId);
+            _logger.LogError("HLS {Mode} job {JobId} timed out waiting for segments", mode, jobId);
+            return StatusCode(504, ErrorEnvelope("TRANSCODE_TIMEOUT",
+                "HLS stream did not produce segments within 90 seconds."));
+        }
+
+        progress.Stage = StreamProgressStage.Streaming;
+        progress.Message = "Starting playback…";
+        progress.Percent = 100;
+
+        // IMPORTANT: Do NOT remove the progress entry on Response.OnCompleted.
+        // The JS showStreamProgress() polls this endpoint, and when the pipeline
+        // completes instantly (e.g. FindExistingHlsOutput finds pre-completed HLS),
+        // OnCompleted fires BEFORE the JS polling even begins. Removing the entry
+        // causes the poll to always return {stage:"unknown"} — the promise never
+        // resolves, playStream() is never called, and hls.js is never initialized.
+        // A background cleanup removes stale entries periodically.
+
+        _logger.LogInformation("StreamVideo: HLS playlist ready for {VideoId}, serving {PlaylistPath}",
+            videoId, playlistPath);
+
+        // Rewrite segment paths so hls.js resolves them to the primary route
+        // /api/v1/videos/{id}/stream/... instead of the fallback. fMP4 playlists
+        // also carry the init segment via #EXT-X-MAP:URI="init.mp4".
+        var playlistContent = await System.IO.File.ReadAllTextAsync(playlistPath, HttpContext.RequestAborted);
+        var rewrittenPlaylist = playlistContent
+            .Replace("URI=\"init.mp4\"", "URI=\"stream/init.mp4\"")
+            .Replace("segment_", "stream/segment_");
+
+        // Serve the .m3u8 playlist. no-cache is critical: hls.js must re-fetch the
+        // playlist as new segments appear.
+        HttpContext.Response.Headers["Cache-Control"] = "no-cache";
+        return Content(rewrittenPlaylist, "application/vnd.apple.mpegurl");
     }
 }
 
