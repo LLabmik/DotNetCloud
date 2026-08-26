@@ -82,6 +82,13 @@ public sealed class StreamProgressEntry
     /// The streaming strategy that will be used (set after probing).
     /// </summary>
     public string? Strategy { get; set; }
+
+    /// <summary>
+    /// The actual start position (seconds) used when a stream-copy (remux) seek was
+    /// rounded down to a video keyframe for A/V sync. Null when no seek occurred or
+    /// no rounding was needed. The player reads this to display the correct time.
+    /// </summary>
+    public double? ActualStartSeconds { get; set; }
 }
 
 /// <summary>

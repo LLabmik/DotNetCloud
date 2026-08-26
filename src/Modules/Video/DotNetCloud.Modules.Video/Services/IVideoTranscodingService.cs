@@ -30,6 +30,31 @@ public interface IVideoTranscodingService
     Task<bool> CanDirectPlayAsync(string videoFilePath, string mimeType, CancellationToken ct = default);
 
     /// <summary>
+    /// Runs ffprobe once and returns the parsed video/audio codec info, container,
+    /// and the full list of audio streams. Used to enumerate audio streams for the
+    /// audio-track selector and to decide the streaming strategy.
+    /// </summary>
+    /// <param name="videoFilePath">Absolute path to the source video file on disk.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The parsed codec info plus an ordered list of audio streams.</returns>
+    Task<(string? VideoCodec, string? AudioCodec, string? Container, IReadOnlyList<AudioStreamInfo> AudioStreams)> ProbeStreamsAsync(
+        string videoFilePath,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Finds the video keyframe time at or before <paramref name="seekSeconds"/> —
+    /// i.e. the position a fast <c>-ss</c> input seek will actually land on. Used to
+    /// round stream-copy (remux) seeks down to a keyframe so audio and video start
+    /// together (a fast seek otherwise starts video at the keyframe but audio at the
+    /// exact target, and re-encoded audio then drifts out of sync).
+    /// </summary>
+    /// <param name="videoFilePath">Absolute path to the source video file on disk.</param>
+    /// <param name="seekSeconds">The requested seek position in seconds.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The keyframe time in seconds, or null if it could not be determined.</returns>
+    Task<double?> FindSeekKeyframeAsync(string videoFilePath, double seekSeconds, CancellationToken ct = default);
+
+    /// <summary>
     /// Runs ffmpeg stream copy (remux) to change the container without re-encoding.
     /// Output goes to stdout via Process.StandardOutput.BaseStream for direct HTTP response streaming.
     /// Returns the ffmpeg process so the caller can pipe stdout to the HTTP response.
@@ -39,13 +64,15 @@ public interface IVideoTranscodingService
     /// <param name="audioCodec">Source audio codec name (for audio copy decision).</param>
     /// <param name="ct">Cancellation token.</param>
     /// <param name="startTime">Optional seek position in the source file (applied via -ss before -i).</param>
+    /// <param name="audioStreamIndex">Optional 0-based positional audio stream index to select. Defaults to the first audio stream.</param>
     /// <returns>A tuple of (ffmpeg Process, arguments string used). Caller owns the Process lifetime.</returns>
     Task<(System.Diagnostics.Process Process, string Args)> StreamCopyAsync(
         string sourceFilePath,
         string? videoCodec,
         string? audioCodec,
         CancellationToken ct = default,
-        TimeSpan? startTime = null);
+        TimeSpan? startTime = null,
+        int? audioStreamIndex = null);
 
     /// <summary>
     /// Runs ffmpeg stream copy writing to a temp file (for subsequent PhysicalFile serving).
@@ -55,12 +82,14 @@ public interface IVideoTranscodingService
     /// <param name="videoCodec">Source video codec name.</param>
     /// <param name="audioCodec">Source audio codec name.</param>
     /// <param name="ct">Cancellation token.</param>
+    /// <param name="audioStreamIndex">Optional 0-based positional audio stream index to select. Defaults to the first audio stream.</param>
     /// <returns>Path to the remuxed output file.</returns>
     Task<string> StreamCopyToFileAsync(
         string sourceFilePath,
         string? videoCodec,
         string? audioCodec,
-        CancellationToken ct = default);
+        CancellationToken ct = default,
+        int? audioStreamIndex = null);
 
     /// <summary>
     /// Transcodes a video file and returns the job ID and output path.
@@ -114,6 +143,7 @@ public interface IVideoTranscodingService
     /// <param name="sourceAudioCodec">Source audio codec from ffprobe (for audio copy optimization).</param>
     /// <param name="seekStart">Optional seek position to start transcoding from (e.g., when user seeks beyond available HLS segments).</param>
     /// <param name="ct">Cancellation token.</param>
+    /// <param name="audioStreamIndex">Optional 0-based positional audio stream index to select. Defaults to the first audio stream.</param>
     /// <returns>A tuple of (jobId, outputDirectory, playlistPath).</returns>
     Task<(string JobId, string OutputDir, string PlaylistPath)> TranscodeHlsAsync(
         Guid videoId,
@@ -123,7 +153,35 @@ public interface IVideoTranscodingService
         string? sourceVideoCodec = null,
         string? sourceAudioCodec = null,
         TimeSpan? seekStart = null,
-        CancellationToken ct = default);
+        CancellationToken ct = default,
+        int? audioStreamIndex = null);
+
+    /// <summary>
+    /// Starts an HLS (HTTP Live Streaming) stream-copy (remux) for a video file.
+    /// Video is copied bit-for-bit and only non-browser-compatible audio is re-encoded
+    /// to AAC. Output is segmented into .ts files with an .m3u8 playlist so the player
+    /// can seek at keyframe-aligned boundaries instead of reloading a progressive pipe.
+    /// </summary>
+    /// <param name="videoId">The Video entity ID.</param>
+    /// <param name="userId">The requesting user ID.</param>
+    /// <param name="sourceFilePath">Absolute path to the source video file.</param>
+    /// <param name="mimeType">MIME type of the source video.</param>
+    /// <param name="sourceVideoCodec">Source video codec from ffprobe (currently informational; video is always copied).</param>
+    /// <param name="sourceAudioCodec">Source audio codec from ffprobe (copied when browser-compatible, re-encoded otherwise).</param>
+    /// <param name="seekStart">Optional seek position to start the remux from.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <param name="audioStreamIndex">Optional 0-based positional audio stream index to select. Defaults to the first audio stream.</param>
+    /// <returns>A tuple of (jobId, outputDirectory, playlistPath).</returns>
+    Task<(string JobId, string OutputDir, string PlaylistPath)> StreamCopyHlsAsync(
+        Guid videoId,
+        Guid userId,
+        string sourceFilePath,
+        string mimeType,
+        string? sourceVideoCodec = null,
+        string? sourceAudioCodec = null,
+        TimeSpan? seekStart = null,
+        CancellationToken ct = default,
+        int? audioStreamIndex = null);
 
     /// <summary>
     /// Gets the active HLS transcode job for a given video ID, if any.

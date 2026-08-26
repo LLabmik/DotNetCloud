@@ -109,6 +109,7 @@
 | Phase 4.9                            | 42      | 42        | 0           | 0       |
 | Phase 4.10 — Hierarchy               | 17      | 14        | 0           | 3       |
 | Phase 5-8                            | Summary | 10        | 0           | 0       |
+| Video Player Rebuild (5.18.1)        | 1       | 1         | 0           | 0       |
 | Media Content Dedup — Music          | 4       | 4         | 0           | 0       |
 | Media Content Dedup — Video          | 4       | 4         | 0           | 0       |
 | Media Content Dedup — Cache          | 1       | 1         | 0           | 0       |
@@ -2883,6 +2884,25 @@ Also fixed Android music player auto-advance & stability (2026-08-24): playing f
 
 **Status:** completed ✅
 **Notes:** Sub-Phase D (Video Module) fully complete. All projects compile, 105 tests passing. Video is a separate process-isolated module.
+
+---
+
+### Section: Phase 5.18.1 - Video Player Rebuild
+
+#### Step: phase-5.18.1 - Video Player Rebuild (self-contained HTML5 player)
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ Replace Blazor+JS hybrid player with a single JS-owned HTML5 player (`video-player.js` → `window.DotNetCloudVideoPlayer`); Blazor renders only `#video-player-root`, fixing the `video.src` re-apply re-render bug class
+- ✓ Playback-rate control (0.5x–2x) via OSD speed menu
+- ✓ Next/previous episode navigation (OSD buttons, N/P keys, auto-advance on ended) within TV seasons and movie franchises
+- ✓ Alternate audio stream selection — new `GET /api/v1/videos/{id}/streams`, `audioStreamIndex` query param on `/stream`, threading through `/stream/seek`
+- ✓ Backend: `AudioStreamInfo`, `VideoAudioStreamDto`, `ProbeStreamsAsync`, audio-index threading through `FfmpegArgumentBuilder`, `IVideoTranscodingService`, `VideoTranscodingService`, `VideoController`
+- ✓ Blazor: `VideoPage` hosts only the player container; new `OnError`/`OnStrategy`/`OnEnded`/`OnNavigateEpisode` JSInvokables; `NavigateEpisodeAsync` + testable `ComputeNextEpisodeIndex` helper
+- ✓ Tests: `ParseCodecInfo` audio-stream parsing, `FfmpegArgumentBuilder` audio-map, `ComputeNextEpisodeIndex` (video test suite 169 passing)
+
+**Notes:** Self-contained OSD (seek, ±10s, CC, audio, rate, volume, PiP, fullscreen) built in raw JS using Material ligature text (documented exception to the `MaterialIcon` rule). Full solution builds clean with `TreatWarningsAsErrors`; `DotNetCloud.Modules.Video.Tests` all green. Manual browser verification (Chromium + Firefox) is tracked in §11 of `docs/VIDEO_PLAYER_REBUILD_PLAN.md`.
 
 ---
 

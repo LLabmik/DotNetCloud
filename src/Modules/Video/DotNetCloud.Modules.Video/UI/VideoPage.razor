@@ -16,6 +16,7 @@
 @inject Microsoft.AspNetCore.Components.NavigationManager Navigation
 @inject DotNetCloud.Modules.Video.Events.IVideoIndexingCallback VideoIndexingCallback
 @inject IJSRuntime Js
+@inject HttpClient Http
 @inject Microsoft.Extensions.Logging.ILogger<VideoPage> Logger
 @inject IVideoEnrichmentService EnrichmentService
 @inject IVideoEnrichmentBackgroundQueue EnrichmentBackgroundQueue
@@ -1271,74 +1272,7 @@
             @if (_playerOpen && _playerVideo is not null)
             {
                 <div class="player-view">
-                    <div id="player-container" class="player-container">
-                        <video id="video-player"
-                               class="video-player"
-                               poster="@(_playerVideo!.HasExternalPoster ? GetThumbnailUrl(_playerVideo.Id) : null)"
-                               controls
-                               autoplay
-                               preload="auto"
-                               src="@GetStreamUrl(_playerVideo!.Id)">
-                            @if (_playerSubtitles.Count > 0)
-                            {
-                                @foreach (var sub in _playerSubtitles)
-                                {
-                                    <track kind="subtitles" label="@(sub.Label ?? sub.Language)"
-                                           srclang="@sub.Language"
-                                           src="@GetSubtitleUrl(sub.Id)"
-                                           default="@sub.IsDefault" />
-                                }
-                            }
-                        </video>
-
-                        @if (_codecErrorMessage is not null)
-                        {
-                            <div class="codec-error-overlay">
-                                <div class="codec-error-card">
-                                    <button type="button" class="codec-error-close" @onclick="DismissCodecError" title="Dismiss" aria-label="Close error">&times;</button>
-                                    <div class="codec-error-icon">⚠️</div>
-                                    <h4>Video Cannot Be Played</h4>
-                                    <p>@(_codecErrorGuidance ?? "Your browser was unable to play this video. This can happen if the video uses an unsupported codec or if the file failed to load.")</p>
-                                    <p class="codec-error-diagnostic">@_codecErrorMessage</p>
-                                    <div class="codec-error-instructions">
-                                        <strong>Suggestions:</strong>
-                                        <ul>
-                                            <li>Try refreshing the page</li>
-                                            <li>Try <strong>Google Chrome</strong> or <strong>Mozilla Firefox</strong>, which support more video formats than Edge</li>
-                                            <li>On Edge, install the free
-                                                <a href="ms-windows-store://pdp/?productid=9n4wgh0z6vhq" target="_blank" rel="noopener">HEVC Video Extensions</a>
-                                                from the Microsoft Store for H.265 video support</li>
-                                        </ul>
-                                    </div>
-                                    <p class="codec-error-alt">Server-side transcoding is in progress — if this message persists, try refreshing the page.</p>
-                                </div>
-                            </div>
-                        }
-
-                        @if (_noAudioDetected)
-                        {
-                            <div class="no-audio-banner">
-                                <span class="no-audio-icon">🔇</span>
-                                <span>
-                                    <strong>No audio:</strong> This video may have an audio codec your browser cannot decode.
-                                    Server-side transcoding should handle this — try refreshing if audio doesn't start within a few seconds.
-                                </span>
-                            </div>
-                        }
-
-                        @if (_streamStrategy is not null && _streamStrategy != "direct" && _playerVideo is not null)
-                        {
-                            <div class="transcode-seek-bar" id="transcode-seek-bar" data-max-duration="@_playerVideo!.Duration.TotalSeconds">
-                                <button class="seek-play-pause" id="seek-play-pause-btn" title="Play / Pause" aria-label="Toggle playback">▶</button>
-                                <div class="transcode-seek-time transcode-seek-time-start" id="transcode-seek-time-start">0:00</div>
-                                <div class="transcode-seek-track" id="transcode-seek-track">
-                                    <div class="transcode-seek-fill" id="transcode-seek-fill"></div>
-                                    <div class="transcode-seek-thumb" id="transcode-seek-thumb"></div>
-                                </div>
-                                <div class="transcode-seek-time transcode-seek-time-end" id="transcode-seek-time-end">0:00</div>
-                            </div>
-                        }
-                    </div>
+                    <div id="video-player-root" class="video-player-root"></div>
 
                     <div class="player-info-panel">
                         <div class="player-info-header">
@@ -1422,7 +1356,6 @@
                                 }
                                 <button type="button" class="btn-icon-action" @onclick="OpenMetadataEditDialog" title="Edit metadata"><span class="material-icons">edit</span></button>
                                 <button type="button" class="btn-icon-action" @onclick="DownloadVideoAsync" title="Download video"><span class="material-icons">download</span></button>
-                                <button type="button" class="btn-icon-action" @onclick="ToggleFullscreenAsync" title="Full screen"><span class="material-icons">fullscreen</span></button>
                                 <button type="button" class="btn-close-player" @onclick="ClosePlayer"><span class="material-icons">close</span> Close</button>
                             </div>
                         </div>

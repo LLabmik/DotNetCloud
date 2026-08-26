@@ -162,6 +162,14 @@ public sealed class StreamCompatibilityMatrix
     }
 
     /// <summary>
+    /// Returns true if the video codec can be stream-copied (H.264/AVC, HEVC, VP8, VP9, AV1).
+    /// </summary>
+    public static bool IsCopyableVideoCodec(string? codec)
+    {
+        return IsUniversalVideoCodec(codec) || IsBroadVideoCodec(codec);
+    }
+
+    /// <summary>
     /// Returns true if the audio codec is universally browser-compatible (AAC, MP3).
     /// </summary>
     public static bool IsUniversalAudioCodec(string? codec)
