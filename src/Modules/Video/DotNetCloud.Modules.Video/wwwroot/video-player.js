@@ -1,123 +1,1361 @@
 /**
- * DotNetCloud Video Player — plain script (not ES module).
- * All functions are attached to window.DotNetCloudVideo.
+ * DotNetCloud Video Player — self-contained HTML5 player.
  *
- * Load order: 1) hls.min.js  2) video-player.js
+ * Plain ES5 script (no modules, no build step), wrapped in an IIFE.
+ * Exposes `window.DotNetCloudVideoPlayer`. Depends on `window.Hls`
+ * (hls.min.js must be loaded first — see VideoPage.razor.cs).
+ *
+ * Blazor renders only a host container (`#video-player-root`); this script
+ * owns ALL player DOM (video element, OSD, menus, overlays) so Blazor
+ * re-renders can never re-apply `video.src` and restart playback.
+ *
+ * ⚠️ ICON EXCEPTION (documented): The OSD renders inline Material SVG paths
+ * (see the ICONS map below) because the DOM is built in raw JS and cannot use
+ * the Razor `MaterialIcon` component, and the app does not load the Material
+ * Icons font (so ligature text would display literally as characters). Inline
+ * SVG matches the app's no-font-dependency pattern. This is a deliberate,
+ * documented exception to the "all icons via MaterialIcon component" rule.
+ *
+ * Public API:
+ *   DotNetCloudVideoPlayer.init(config)   — build DOM + start playback
+ *   DotNetCloudVideoPlayer.destroy()      — full teardown
+ *   DotNetCloudVideoPlayer.setAudioStream(index) — switch audio track
  */
 (function () {
   "use strict";
 
-  var videoPlayer = window.DotNetCloudVideo || {};
-  window.DotNetCloudVideo = videoPlayer;
+  var player = window.DotNetCloudVideoPlayer || {};
+  window.DotNetCloudVideoPlayer = player;
 
-  /** @type {Object} Stored idle auto-hide handles keyed by containerId. */
-  var idleHandles = {};
+  // ── Inline SVG icon paths (Material Design, 24x24 viewBox, fill=currentColor) ──
+  // The app does NOT load the Material Icons font, so ligature text would render
+  // as literal characters — inline SVG paths match the no-font-dependency pattern
+  // used by the rest of the UI (the Razor MaterialIcon component).
+  var ICONS = {
+    play: "M8 5v14l11-7z",
+    pause: "M6 19h4V5H6v14zm8-14v14h4V5h-4z",
+    cc: "M19 4H5c-1.11 0-2 .9-2 2v12c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-8 7H9.5v-.5h-2v3h2V13H11v1c0 .55-.45 1-1 1H7c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1v1zm7 0h-1.5v-.5h-2v3h2V13H18v1c0 .55-.45 1-1 1h-3c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1v1z",
+    audio:
+      "M12 3v9.28c-.47-.17-.97-.28-1.5-.28C8.01 12 6 14.01 6 16.5S8.01 21 10.5 21c2.31 0 4.2-1.75 4.45-4H15V6h4V3h-7z",
+    rate: "M20.38 8.57l-1.23 1.85a8 8 0 0 1-.22 7.58H5.07A8 8 0 0 1 15.58 6.85l1.85-1.23A10 10 0 0 0 3.35 19a2 2 0 0 0 1.72 1h13.85a2 2 0 0 0 1.74-1 10 10 0 0 0-.27-10.44zm-9.79 6.84a2 2 0 0 0 2.83 0l5.66-8.49-8.49 5.66a2 2 0 0 0 0 2.83z",
+    volumeUp:
+      "M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z",
+    volumeOff:
+      "M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z",
+    fullscreen:
+      "M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z",
+    fullscreenExit:
+      "M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z",
+    replay10:
+      "M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8zm-1.1 11h-.85v-3.26l-1.01.31v-.69l1.77-.63h.09V16zm4.28-1.76c0 .32-.03.6-.1.82s-.17.42-.29.57-.28.26-.45.33-.37.1-.59.1-.41-.03-.59-.1-.33-.18-.46-.33-.23-.34-.3-.57-.11-.5-.11-.82v-.74c0-.32.03-.6.1-.82s.17-.42.29-.57.28-.26.45-.33.37-.1.59-.1.41.03.59.1.33.18.46.33.23.34.3.57.11.5.11.82v.74zm-.85-.86c0-.19-.01-.35-.04-.48s-.07-.23-.12-.31-.11-.14-.19-.17-.16-.05-.25-.05-.18.02-.25.05-.14.09-.19.17-.09.18-.12.31-.04.29-.04.48v.97c0 .19.01.35.04.48s.07.24.12.32.11.14.19.17.16.05.25.05.18-.02.25-.05.14-.09.19-.17.09-.19.12-.32.04-.48.04-.48v-.97z",
+    forward10:
+      "M18 13c0 3.31-2.69 6-6 6s-6-2.69-6-6 2.69-6 6-6v4l5-5-5-5v4c-4.42 0-8 3.58-8 8s3.58 8 8 8 8-3.58 8-8h-2zM10.9 16v-4.27c-.1.07-.22.13-.35.2-.13.07-.25.14-.36.2l-.02-.66 1.76-.63h.09V16h-.12zm4.28 0c-.32 0-.58-.03-.78-.1s-.38-.17-.51-.32-.23-.34-.3-.57-.1-.5-.1-.82v-.74c0-.32.03-.6.1-.82s.17-.42.29-.57.28-.26.45-.33.37-.1.59-.1.41.03.59.1.33.18.46.33.23.34.3.57.11.5.11.82v.74c0 .32-.03.6-.1.82s-.17.42-.29.57-.28.26-.45.33-.37.1-.59.1-.41-.03-.59-.1-.33-.18-.46-.33-.23-.34-.3-.57-.11-.5-.11-.82v-.74zm-.85.86c0 .19.01.35.04.48s.07.23.12.31.11.14.19.17.16.05.25.05.18-.02.25-.05.14-.09.19-.17.09-.18.12-.31.04-.29.04-.48v-.97c0-.19-.01-.35-.04-.48s-.07-.23-.12-.31-.11-.14-.19-.17-.16-.05-.25-.05-.18.02-.25.05-.14.09-.19.17-.09.19-.12.32-.04.48-.04.48v.97z",
+    skipPrevious: "M6 6h2v12H6zm3.5 6l8.5 6V6z",
+    skipNext: "M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z",
+    pip: "M19 11h-8v6h8v-6zm4 8V4.98C23 3.88 22.1 3 21 3H3c-1.1 0-2 .88-2 1.98V19c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2zm-2 .02H3V4.97h18v14.05z",
+  };
 
-  /** @type {Object} Stored keyboard shortcut handles keyed by elementId. */
-  var kbHandles = {};
+  /** Returns inline SVG markup for a Material icon path. */
+  function iconSvg(name) {
+    var d = ICONS[name] || "";
+    return (
+      '<svg class="dnc-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="' +
+      d +
+      '"/></svg>'
+    );
+  }
 
   /**
-   * Attaches an error listener to the <video> element and calls back to .NET
-   * when the browser cannot play the media.
+   * Normalizes the server-reported strategy to the player's canonical names.
+   * GET /stream-progress returns the StreamingStrategy enum name ("DirectPlay",
+   * "StreamCopy", "Transcode"), while the player branches on "direct"/"remux"/"transcode".
    */
-  videoPlayer.attachVideoErrorListener = function (elementId, dotNetRef) {
-    var video = document.getElementById(elementId);
-    if (!video) return;
+  function normalizeStrategy(s) {
+    s = String(s || "").toLowerCase();
+    if (s === "streamcopy") return "remux";
+    if (s === "directplay") return "direct";
+    return s; // "transcode", or unknown (left as-is)
+  }
 
-    video.addEventListener(
-      "error",
-      function () {
-        var err = video.error;
-        if (!err) return;
+  /** @type {Object|null} The single active player instance. */
+  var instance = null;
 
-        // MEDIA_ERR_SRC_NOT_SUPPORTED is expected when the stream URL returns
-        // an .m3u8 playlist (HLS strategy). The browser can't play it natively,
-        // but hls.js will handle it as soon as the stream is ready. Don't
-        // report this error — it's not a real failure.
-        if (videoPlayer._expectingHlsResponse) return;
-        if (video._hls) return;
+  /**
+   * Initializes the player inside `config.containerId`.
+   * Any existing player is torn down first.
+   */
+  player.init = function (config) {
+    player.destroy();
+    instance = createPlayer(config);
+    return !!instance;
+  };
 
-        // Report the error directly without fetching the stream URL.
-        // The fetch would start an unnecessary duplicate server pipeline.
-        dotNetRef.invokeMethodAsync(
-          "OnVideoError",
-          err.code,
-          err.message || "",
-          null,
-          null,
-        );
-      },
-      { once: true },
-    );
+  /** Tears down the active player completely. */
+  player.destroy = function () {
+    if (instance) {
+      instance.dispose();
+      instance = null;
+    }
+  };
 
-    // Detect missing audio after playback starts
-    video.addEventListener(
-      "playing",
-      function () {
-        var hasAudio = true;
-        if (typeof video.mozHasAudio === "boolean") {
-          hasAudio = video.mozHasAudio;
-        } else if (video.audioTracks && video.audioTracks.length === 0) {
-          hasAudio = false;
-        }
-        if (!hasAudio) {
-          dotNetRef.invokeMethodAsync("OnNoAudio");
-        }
-      },
-      { once: true },
-    );
+  /** Convenience: switch the audio track on the active player. */
+  player.setAudioStream = function (index) {
+    if (instance) instance.selectAudioStream(index);
+  };
+
+  /** Pauses the active player (used by the download button to free bandwidth). */
+  player.pauseIfPlaying = function () {
+    if (instance && instance._video && !instance._video.paused) {
+      instance._video.pause();
+    }
+  };
+
+  /** Triggers a file download via a temporary anchor element. */
+  player.triggerDownload = function (url, filename) {
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   };
 
   /**
-   * Auto-hides cursor after mouse inactivity.
+   * Creates a new player instance and starts playback.
    */
-  videoPlayer.attachIdleAutoHide = function (containerId, idleMs) {
-    var container = document.getElementById(containerId);
-    if (!container) return;
-
-    idleMs = idleMs || 3000;
-    var timer = null;
-
-    function showCursor() {
-      container.classList.remove("idle-hide");
-      clearTimeout(timer);
-      timer = setTimeout(hideCursor, idleMs);
+  function createPlayer(config) {
+    var container = document.getElementById(config.containerId);
+    if (!container) {
+      // Blazor may not have rendered the host yet — retry briefly.
+      var attempts = 0;
+      var timer = setInterval(function () {
+        container = document.getElementById(config.containerId);
+        if (container || ++attempts > 50) {
+          clearInterval(timer);
+          if (container) instance = buildPlayer(container, config);
+        }
+      }, 100);
+      return {
+        _deferred: true,
+        dispose: function () {
+          clearInterval(timer);
+        },
+      };
     }
-    function hideCursor() {
-      container.classList.add("idle-hide");
-    }
+    return buildPlayer(container, config);
+  }
 
-    container.addEventListener("mousemove", showCursor);
-    container.addEventListener("mousedown", showCursor);
-    timer = setTimeout(hideCursor, idleMs);
-
-    idleHandles[containerId] = {
-      dispose: function () {
-        clearTimeout(timer);
-        container.removeEventListener("mousemove", showCursor);
-        container.removeEventListener("mousedown", showCursor);
-        container.classList.remove("idle-hide");
-      },
+  /**
+   * Builds the player DOM inside `container`, wires events, and starts
+   * the stream pipeline.
+   */
+  function buildPlayer(container, config) {
+    var p = {
+      _container: container,
+      _config: config,
+      _dotNetRef: config.dotNetRef || null,
+      _videoId: config.videoId,
+      _title: config.title || "",
+      _posterUrl: config.posterUrl || null,
+      _streamBaseUrl: config.streamUrl,
+      _durationSeconds: config.durationSeconds || 0,
+      _resumeSeconds: config.resumeSeconds || 0,
+      _subtitles: config.subtitles || [],
+      _audioStreams: config.audioStreams || [],
+      _defaultAudioIndex: config.defaultAudioIndex,
+      _currentAudioIndex: config.defaultAudioIndex,
+      _strategy: null, // "direct" | "remux" | "transcode"
+      _seekStartOffset: 0, // absolute-time offset for remux reloads
+      _hls: null, // active hls.js instance
+      _video: null, // the <video> element
+      _tracks: [], // { sub, track, url, textTrack } subtitle list
+      _blobUrls: [], // subtitle blob URLs to revoke on destroy
+      _osdTimer: null,
+      _pollTimer: null,
+      _disposed: false,
+      _progressReportedAt: 0,
+      _openMenu: null,
+      _menu: null, // currently open popover menu
+      _seeking: false,
+      _scrubValue: null,
+      _activeSubtitle: null,
+      _seekOverlay: null,
+      _durationFetching: false, // guards the one-time /stream-probe duration fetch
+      _expectingHls: true, // suppress native m3u8 error until strategy is finalized
     };
-  };
 
-  videoPlayer.disposeIdleAutoHide = function (containerId) {
-    var h = idleHandles[containerId];
-    if (h) {
-      h.dispose();
-      delete idleHandles[containerId];
+    // ── Instance methods (assigned here so they close over `p`) ──
+    p._duration = function () {
+      if (p._durationSeconds > 0) return p._durationSeconds;
+      if (p._video && isFinite(p._video.duration) && p._video.duration > 0)
+        return p._video.duration;
+      return 0;
+    };
+
+    p._absoluteTime = function () {
+      return (p._video ? p._video.currentTime : 0) + p._seekStartOffset;
+    };
+
+    p.selectAudioStream = function (index) {
+      selectAudioStream(p, index);
+    };
+
+    p._showFatalError = function (code, message) {
+      hidePreparing(p);
+      p._error.innerHTML = "";
+      p._error.style.display = "flex";
+
+      var card = document.createElement("div");
+      card.className = "dnc-error-card";
+      card.innerHTML =
+        '<div class="dnc-error-icon">' +
+        iconSvg("cc") +
+        "</div>" +
+        '<h4 class="dnc-error-title">Video Cannot Be Played</h4>' +
+        '<p class="dnc-error-msg"></p>' +
+        '<p class="dnc-error-hint">This can happen if the video uses an unsupported codec or the stream failed to load. ' +
+        "Try refreshing the page, or use Chrome or Firefox for the widest format compatibility.</p>" +
+        '<button type="button" class="dnc-error-close">Dismiss</button>';
+      var msgEl = card.querySelector(".dnc-error-msg");
+      msgEl.textContent = message || "Unknown playback error";
+      card
+        .querySelector(".dnc-error-close")
+        .addEventListener("click", function () {
+          p._error.style.display = "none";
+        });
+      p._error.appendChild(card);
+
+      if (p._dotNetRef) {
+        p._dotNetRef
+          .invokeMethodAsync("OnError", code, message || "")
+          .catch(function () {});
+      }
+    };
+
+    p.dispose = function () {
+      if (p._disposed) return;
+      p._disposed = true;
+
+      clearTimeout(p._osdTimer);
+      clearInterval(p._pollTimer);
+      if (p._keyHandler) document.removeEventListener("keydown", p._keyHandler);
+
+      // Remove seek document listeners
+      if (p._seekHandlers) {
+        document.removeEventListener("mousemove", p._seekHandlers.onMove);
+        document.removeEventListener("mouseup", p._seekHandlers.onUp);
+        document.removeEventListener("touchmove", p._seekHandlers.onMove);
+        document.removeEventListener("touchend", p._seekHandlers.onUp);
+      }
+
+      // Revoke subtitle blob URLs
+      for (var i = 0; i < p._blobUrls.length; i++) {
+        try {
+          URL.revokeObjectURL(p._blobUrls[i]);
+        } catch (e) {
+          /* ignore */
+        }
+      }
+      p._blobUrls = [];
+
+      teardownEngine(p);
+      if (p._root && p._root.parentNode) {
+        p._root.parentNode.removeChild(p._root);
+      }
+      p._container = null;
+    };
+
+    // ── DOM ──
+    p._root = document.createElement("div");
+    p._root.className = "dnc-player";
+
+    p._video = document.createElement("video");
+    p._video.id = "dnc-video";
+    p._video.className = "dnc-video";
+    p._video.setAttribute("playsinline", "");
+    p._video.preload = "auto";
+    if (p._posterUrl) p._video.poster = p._posterUrl;
+
+    p._spinner = document.createElement("div");
+    p._spinner.className = "dnc-spinner";
+    p._spinner.style.display = "none";
+
+    p._bigPlay = document.createElement("button");
+    p._bigPlay.className = "dnc-big-play";
+    p._bigPlay.type = "button";
+    p._bigPlay.innerHTML = iconSvg("play");
+    p._bigPlay.title = "Play";
+
+    p._error = document.createElement("div");
+    p._error.className = "dnc-error";
+    p._error.style.display = "none";
+
+    p._osd = document.createElement("div");
+    p._osd.className = "dnc-osd";
+    p._osd.innerHTML =
+      '<div class="dnc-osd-title">' +
+      escapeHtml(p._title) +
+      "</div>" +
+      buildSeekMarkup() +
+      buildControlsMarkup(p);
+
+    p._root.appendChild(p._video);
+    p._root.appendChild(p._spinner);
+    p._root.appendChild(p._bigPlay);
+    p._root.appendChild(p._error);
+    p._root.appendChild(p._osd);
+    container.appendChild(p._root);
+
+    // Wire controls
+    wireControls(p);
+    wireVideoEvents(p);
+    wireOsdAutoHide(p);
+    wireKeyboard(p);
+
+    // Load subtitles (async, client-side SRT→VTT)
+    loadSubtitles(p);
+
+    // Start playback
+    startPlayback(p);
+
+    return p;
+  }
+
+  // ── Markup builders ─────────────────────────────────────────────
+
+  function buildSeekMarkup() {
+    return (
+      '<div class="dnc-seek" id="dnc-seek">' +
+      '<div class="dnc-seek-buffered" id="dnc-seek-buffered"></div>' +
+      '<div class="dnc-seek-played" id="dnc-seek-played"></div>' +
+      '<div class="dnc-seek-thumb" id="dnc-seek-thumb"></div>' +
+      "</div>" +
+      '<div class="dnc-time"><span id="dnc-time-start">0:00</span>' +
+      '<span class="dnc-time-sep">/</span>' +
+      '<span id="dnc-time-end">' +
+      formatTime(0) +
+      "</span></div>"
+    );
+  }
+
+  function buildControlsMarkup(p) {
+    var hasPrev = !!p._config.hasPrevious;
+    var hasNext = !!p._config.hasNext;
+    var hasCc = (p._subtitles || []).length > 0;
+    var hasAudio = (p._audioStreams || []).length > 1;
+    var html =
+      '<div class="dnc-controls">' +
+      '<button type="button" class="dnc-btn dnc-btn-play" data-action="playpause" title="Play / Pause (Space)">' +
+      iconSvg("play") +
+      "</button>" +
+      '<button type="button" class="dnc-btn" data-action="back10" title="Back 10 seconds (J)">' +
+      iconSvg("replay10") +
+      "</button>" +
+      '<button type="button" class="dnc-btn" data-action="fwd10" title="Forward 10 seconds (L)">' +
+      iconSvg("forward10") +
+      "</button>";
+    if (hasPrev) {
+      html +=
+        '<button type="button" class="dnc-btn dnc-btn-nav" data-action="prev" title="Previous episode">' +
+        iconSvg("skipPrevious") +
+        "</button>";
     }
-  };
+    if (hasNext) {
+      html +=
+        '<button type="button" class="dnc-btn dnc-btn-nav" data-action="next" title="Next episode">' +
+        iconSvg("skipNext") +
+        "</button>";
+    }
+    html +=
+      '<span class="dnc-controls-spacer"></span>' +
+      '<div class="dnc-volume">' +
+      '<button type="button" class="dnc-btn" data-action="mute" title="Mute (M)">' +
+      iconSvg("volumeUp") +
+      "</button>" +
+      '<input type="range" class="dnc-volume-slider" min="0" max="100" step="1" value="100" title="Volume" />' +
+      "</div>";
+    if (hasCc) {
+      html +=
+        '<div class="dnc-menu-wrap"><button type="button" class="dnc-btn dnc-btn-cc" data-menu="cc" title="Subtitles">' +
+        iconSvg("cc") +
+        "</button></div>";
+    }
+    if (hasAudio) {
+      html +=
+        '<div class="dnc-menu-wrap"><button type="button" class="dnc-btn dnc-btn-audio" data-menu="audio" title="Audio">' +
+        iconSvg("audio") +
+        "</button></div>";
+    }
+    html +=
+      '<div class="dnc-menu-wrap"><button type="button" class="dnc-btn dnc-btn-rate" data-menu="rate" title="Playback speed">' +
+      iconSvg("rate") +
+      "</button></div>" +
+      '<button type="button" class="dnc-btn" data-action="pip" title="Picture-in-picture">' +
+      iconSvg("pip") +
+      "</button>" +
+      '<button type="button" class="dnc-btn" data-action="fullscreen" title="Fullscreen (F)">' +
+      iconSvg("fullscreen") +
+      "</button>" +
+      "</div>";
+    return html;
+  }
+
+  // ── Controls wiring ──────────────────────────────────────────────
+
+  function wireControls(p) {
+    var controls = p._osd.querySelector(".dnc-controls");
+    controls.addEventListener("click", function (e) {
+      var btn = closest(e.target, "button[data-action]");
+      var menuBtn = closest(e.target, "button[data-menu]");
+      if (menuBtn) {
+        e.stopPropagation();
+        toggleMenu(p, menuBtn);
+        return;
+      }
+      if (!btn) return;
+      e.stopPropagation();
+      handleAction(p, btn.getAttribute("data-action"));
+    });
+
+    // Volume slider
+    var vol = controls.querySelector(".dnc-volume-slider");
+    vol.addEventListener("input", function () {
+      var v = parseInt(vol.value, 10) / 100;
+      p._video.volume = v;
+      p._video.muted = v === 0;
+      updateVolumeIcon(p, v);
+    });
+    vol.addEventListener("click", function (e) {
+      e.stopPropagation();
+    });
+
+    // Seek bar (mousedown/move/up + touch)
+    var seek = p._osd.querySelector("#dnc-seek");
+    var dragging = false;
+    function clientX(e) {
+      return e.touches && e.touches[0] ? e.touches[0].clientX : e.clientX;
+    }
+    function updateScrub(x) {
+      var rect = seek.getBoundingClientRect();
+      var ratio = rect.width > 0 ? (x - rect.left) / rect.width : 0;
+      ratio = Math.max(0, Math.min(1, ratio));
+      p._scrubValue = ratio;
+      var dur = p._duration();
+      renderSeek(p, dur > 0 ? ratio * dur : 0);
+    }
+    function onDown(e) {
+      e.preventDefault();
+      dragging = true;
+      p._seeking = true;
+      updateScrub(clientX(e));
+      showOsd(p);
+    }
+    function onMove(e) {
+      if (!dragging) return;
+      updateScrub(clientX(e));
+    }
+    function onUp(e) {
+      if (!dragging) return;
+      dragging = false;
+      var dur = p._duration();
+      var target = p._scrubValue !== null ? p._scrubValue * dur : 0;
+      p._scrubValue = null;
+      if (target > dur) target = dur;
+      if (target < 0) target = 0;
+      seekTo(p, target);
+      p._seeking = false;
+      showOsd(p);
+    }
+    seek.addEventListener("mousedown", onDown);
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    seek.addEventListener("touchstart", onDown, { passive: false });
+    document.addEventListener("touchmove", onMove, { passive: false });
+    document.addEventListener("touchend", onUp);
+    p._seekHandlers = { onMove: onMove, onUp: onUp };
+  }
+
+  function handleAction(p, action) {
+    switch (action) {
+      case "playpause":
+        togglePlayPause(p);
+        break;
+      case "back10":
+        seekBy(p, -10);
+        break;
+      case "fwd10":
+        seekBy(p, 10);
+        break;
+      case "prev":
+        if (p._dotNetRef)
+          p._dotNetRef
+            .invokeMethodAsync("OnNavigateEpisode", -1)
+            .catch(function () {});
+        break;
+      case "next":
+        if (p._dotNetRef)
+          p._dotNetRef
+            .invokeMethodAsync("OnNavigateEpisode", 1)
+            .catch(function () {});
+        break;
+      case "mute":
+        toggleMute(p);
+        break;
+      case "pip":
+        togglePip(p);
+        break;
+      case "fullscreen":
+        toggleFullscreen(p);
+        break;
+      default:
+        break;
+    }
+  }
+
+  // ── Menu (popover) handling ──────────────────────────────────────
+
+  function toggleMenu(p, menuBtn) {
+    var key = menuBtn.getAttribute("data-menu");
+    closeMenu(p);
+    if (p._openMenu === key) {
+      p._openMenu = null;
+      return;
+    }
+    p._openMenu = key;
+
+    var wrap = menuBtn.parentNode;
+    var menu = document.createElement("div");
+    menu.className = "dnc-menu";
+
+    if (key === "cc") buildCcMenu(p, menu);
+    else if (key === "audio") buildAudioMenu(p, menu);
+    else if (key === "rate") buildRateMenu(p, menu);
+
+    wrap.appendChild(menu);
+    p._menu = menu;
+    // Click-away closes the menu
+    setTimeout(function () {
+      document.addEventListener("mousedown", closeMenuClick, true);
+    }, 0);
+    function closeMenuClick(ev) {
+      if (!menu.contains(ev.target)) {
+        closeMenu(p);
+        document.removeEventListener("mousedown", closeMenuClick, true);
+      }
+    }
+  }
+
+  function closeMenu(p) {
+    if (p._menu && p._menu.parentNode) {
+      p._menu.parentNode.removeChild(p._menu);
+    }
+    p._menu = null;
+    p._openMenu = null;
+  }
+
+  function buildCcMenu(p, menu) {
+    menu.appendChild(
+      menuItem(null, "Off", p._activeSubtitle == null, function () {
+        setSubtitle(p, null);
+        closeMenu(p);
+      }),
+    );
+    for (var i = 0; i < p._tracks.length; i++) {
+      (function (t) {
+        menu.appendChild(
+          menuItem(
+            t.sub.id,
+            t.sub.label || t.sub.language,
+            p._activeSubtitle === t.sub.id,
+            function () {
+              setSubtitle(p, t.sub.id);
+              closeMenu(p);
+            },
+          ),
+        );
+      })(p._tracks[i]);
+    }
+  }
+
+  function buildAudioMenu(p, menu) {
+    for (var i = 0; i < p._audioStreams.length; i++) {
+      (function (s) {
+        var label = s.title || s.language || "Track " + (s.index + 1);
+        menu.appendChild(
+          menuItem(
+            s.index,
+            label,
+            p._currentAudioIndex === s.index,
+            function () {
+              selectAudioStream(p, s.index);
+              closeMenu(p);
+            },
+          ),
+        );
+      })(p._audioStreams[i]);
+    }
+  }
+
+  function buildRateMenu(p, menu) {
+    var rates = [0.5, 0.75, 1, 1.25, 1.5, 2];
+    for (var i = 0; i < rates.length; i++) {
+      (function (r) {
+        menu.appendChild(
+          menuItem(
+            r,
+            r + "x",
+            Math.abs(p._video.playbackRate - r) < 0.01,
+            function () {
+              p._video.playbackRate = r;
+              closeMenu(p);
+            },
+          ),
+        );
+      })(rates[i]);
+    }
+  }
+
+  function menuItem(value, label, isActive, onClick) {
+    var item = document.createElement("button");
+    item.type = "button";
+    item.className = "dnc-menu-item" + (isActive ? " active" : "");
+    item.textContent = label;
+    item.addEventListener("click", function (e) {
+      e.stopPropagation();
+      onClick();
+    });
+    return item;
+  }
+
+  // ── Subtitles ────────────────────────────────────────────────────
+
+  function loadSubtitles(p) {
+    if (!p._subtitles || p._subtitles.length === 0) return;
+    var loaded = 0;
+    for (var i = 0; i < p._subtitles.length; i++) {
+      (function (sub) {
+        var url =
+          "/api/v1/videos/" + p._videoId + "/subtitles/" + sub.id + "/content";
+        fetch(url, { credentials: "same-origin" })
+          .then(function (r) {
+            if (!r.ok) throw new Error("HTTP " + r.status);
+            return r.text();
+          })
+          .then(function (text) {
+            var vtt = text;
+            if (vtt.indexOf("WEBVTT") !== 0) {
+              vtt = srtToVtt(vtt);
+            }
+            var blob = new Blob([vtt], { type: "text/vtt" });
+            var blobUrl = URL.createObjectURL(blob);
+            p._blobUrls.push(blobUrl);
+
+            var track = document.createElement("track");
+            track.kind = "subtitles";
+            track.src = blobUrl;
+            track.srclang = sub.language || "und";
+            track.label = sub.label || sub.language || "Subtitles";
+            track.default = !!sub.isDefault;
+            p._video.appendChild(track);
+
+            p._tracks.push({ sub: sub, track: track, url: blobUrl });
+
+            loaded++;
+            if (loaded === p._subtitles.length) {
+              mapTextTracks(p);
+              // Apply initial default (prefer config default subtitle)
+              var def = null;
+              for (var j = 0; j < p._subtitles.length; j++) {
+                if (p._subtitles[j].isDefault) {
+                  def = p._subtitles[j];
+                  break;
+                }
+              }
+              setSubtitle(p, def ? def.id : null, true);
+            }
+          })
+          .catch(function () {
+            /* subtitle load failure is non-fatal */
+          });
+      })(p._subtitles[i]);
+    }
+  }
+
+  /** Maps each appended <track> to its textTracks index. */
+  function mapTextTracks(p) {
+    var tt = p._video.textTracks;
+    for (var i = 0; i < p._tracks.length; i++) {
+      var t = p._tracks[i];
+      for (var j = 0; j < tt.length; j++) {
+        if (tt[j].label === t.track.label) {
+          t.textTrack = tt[j];
+          break;
+        }
+      }
+    }
+  }
+
+  function setSubtitle(p, subId, initial) {
+    p._activeSubtitle = subId;
+    var modes = p._video.textTracks;
+    for (var i = 0; i < modes.length; i++) {
+      var tt = modes[i];
+      var isActive = false;
+      for (var j = 0; j < p._tracks.length; j++) {
+        if (p._tracks[j].textTrack === tt && p._tracks[j].sub.id === subId) {
+          isActive = true;
+          break;
+        }
+      }
+      tt.mode = isActive ? "showing" : "disabled";
+    }
+    if (!initial) renderMenus(p);
+  }
+
+  function srtToVtt(srt) {
+    var body = srt.replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, "$1.$2");
+    return "WEBVTT\n\n" + body;
+  }
+
+  // ── Playback / engine ────────────────────────────────────────────
+
+  function startPlayback(p) {
+    // Kick off the stream pipeline by loading the source, then poll the
+    // progress endpoint to learn the strategy and finalize the engine.
+    showPreparing(p);
+    p._video.src = p._streamBaseUrl;
+    p._video.load();
+    pollProgressThen(p, function (strategy) {
+      if (p._disposed) return;
+      if (strategy === "transcode") {
+        p._strategy = "transcode";
+        replaceVideoElement(p);
+        startHls(p, p._streamBaseUrl);
+        p._expectingHls = false;
+        reportStrategy(p, "transcode");
+      } else {
+        p._strategy = strategy || "direct";
+        p._expectingHls = false;
+        reportStrategy(p, p._strategy);
+        hidePreparing(p);
+        playWithPromise(p);
+      }
+    });
+  }
 
   /**
-   * Global keydown: Space = play/pause toggle with A/V sync on resume.
+   * Polls GET /stream-progress until stage=streaming (resolves with strategy),
+   * stage=failed (shows error), or a 60s safety timeout (resolves "transcode").
    */
-  videoPlayer.attachKeyboardShortcuts = function (elementId) {
-    var video = document.getElementById(elementId);
-    if (!video) return;
+  function pollProgressThen(p, done) {
+    var timeoutId = setTimeout(function () {
+      clearInterval(p._pollTimer);
+      p._pollTimer = null;
+      hidePreparing(p);
+      done("transcode");
+    }, 60000);
 
-    function onKeyDown(e) {
-      if (e.code !== "Space") return;
+    p._pollTimer = setInterval(function () {
+      fetch("/api/v1/videos/" + p._videoId + "/stream-progress", {
+        credentials: "same-origin",
+      })
+        .then(function (r) {
+          if (!r.ok) throw new Error("HTTP " + r.status);
+          return r.json();
+        })
+        .then(function (data) {
+          var d = data.data || data;
+          var stage = d.stage || "unknown";
+          var message = d.message || "";
+          var percent = d.percent || 0;
+          updatePreparing(p, message, percent);
+
+          if (stage === "streaming") {
+            clearTimeout(timeoutId);
+            clearInterval(p._pollTimer);
+            p._pollTimer = null;
+            hidePreparing(p);
+            done(normalizeStrategy(d.strategy) || "direct");
+          } else if (stage === "failed") {
+            clearTimeout(timeoutId);
+            clearInterval(p._pollTimer);
+            p._pollTimer = null;
+            p._showFatalError(2, message || "Stream preparation failed");
+            done(null);
+          }
+        })
+        .catch(function () {
+          updatePreparing(p, "Connecting to server…", 0);
+        });
+    }, 500);
+  }
+
+  /**
+   * Ensures we know the full, authoritative video length. For stream-copy (remux)
+   * playback the <video> duration only reflects what has been remuxed so far, and
+   * some videos have no stored duration — so we ask /stream-probe (ffprobe) once.
+   * Guarded by _durationFetching so it never fires more than once while unknown.
+   */
+  function ensureDuration(p) {
+    if (p._duration() > 0 || p._durationFetching) return;
+    p._durationFetching = true;
+    fetch("/api/v1/videos/" + p._videoId + "/stream-probe", {
+      credentials: "same-origin",
+    })
+      .then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        p._durationFetching = false;
+        if (p._disposed) return;
+        var d = data.data || data;
+        var dur = typeof d.durationSeconds === "number" ? d.durationSeconds : 0;
+        if (dur > 0 && dur > p._durationSeconds) {
+          p._durationSeconds = dur;
+          renderSeek(p, p._absoluteTime());
+          renderBuffered(p);
+        }
+      })
+      .catch(function () {
+        p._durationFetching = false;
+      });
+  }
+
+  /**
+   * After a stream-copy (remux) seek reload, polls /stream-progress until the server
+   * reports the actualStartSeconds it used (the position rounded down to a video
+   * keyframe for A/V sync). The player then adopts that offset so the displayed time,
+   * the slider, and subtitles all match the content actually being played.
+   */
+  function pollActualStart(p, done) {
+    var tries = 0;
+    var timer = setInterval(function () {
+      tries++;
+      fetch("/api/v1/videos/" + p._videoId + "/stream-progress", {
+        credentials: "same-origin",
+      })
+        .then(function (r) {
+          if (!r.ok) throw new Error("HTTP " + r.status);
+          return r.json();
+        })
+        .then(function (data) {
+          if (p._disposed) {
+            clearInterval(timer);
+            return;
+          }
+          var d = data.data || data;
+          var stage = d.stage || "unknown";
+          if (
+            stage === "streaming" &&
+            typeof d.actualStartSeconds === "number"
+          ) {
+            clearInterval(timer);
+            done(d.actualStartSeconds);
+          } else if (stage === "failed" || tries > 120) {
+            clearInterval(timer);
+            done(null);
+          }
+        })
+        .catch(function () {
+          if (tries > 120) {
+            clearInterval(timer);
+            done(null);
+          }
+        });
+    }, 500);
+  }
+
+  function startHls(p, url) {
+    if (typeof Hls === "undefined" || !Hls.isSupported()) {
+      // Native HLS fallback (Safari)
+      p._video.src = url;
+      p._video.load();
+      playWithPromise(p);
+      return;
+    }
+    if (!Hls.DefaultConfig._dncConfigured) {
+      Hls.DefaultConfig.lowLatencyMode = false;
+      Hls.DefaultConfig.backBufferLength = Infinity;
+      Hls.DefaultConfig._dncConfigured = true;
+    }
+    var hls = new Hls({
+      manifestLoadingTimeOut: 20000,
+      xhrSetup: function (xhr) {
+        xhr.withCredentials = true;
+      },
+    });
+    hls.loadSource(url);
+    hls.attachMedia(p._video);
+    hls.on(Hls.Events.MANIFEST_PARSED, function () {
+      hidePreparing(p);
+      playWithPromise(p);
+    });
+    hls.on(Hls.Events.ERROR, function (event, data) {
+      if (!data.fatal) return;
+      if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+        hls.startLoad();
+      } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+        hls.recoverMediaError();
+        if (
+          data.details === "bufferStalledError" ||
+          data.details === "bufferAppendError"
+        ) {
+          hls.swapAudioCodec();
+        }
+      } else {
+        p._hls = null;
+        hls.destroy();
+        p._showFatalError(2, data.details || "HLS playback error");
+      }
+    });
+    p._hls = hls;
+  }
+
+  function teardownEngine(p) {
+    if (p._hls) {
+      p._hls.destroy();
+      p._hls = null;
+    }
+    p._video.pause();
+    p._video.removeAttribute("src");
+    p._video.load();
+  }
+
+  /** Replaces the <video> element (clears native-error state from m3u8). */
+  function replaceVideoElement(p) {
+    var old = p._video;
+    var parent = old.parentNode;
+    if (!parent) return;
+    var fresh = document.createElement("video");
+    fresh.id = "dnc-video";
+    fresh.className = "dnc-video";
+    fresh.setAttribute("playsinline", "");
+    fresh.preload = "auto";
+    if (p._posterUrl) fresh.poster = p._posterUrl;
+    // Move subtitle <track> elements over
+    var tracks = old.querySelectorAll("track");
+    for (var i = 0; i < tracks.length; i++) {
+      fresh.appendChild(tracks[i].cloneNode());
+    }
+    parent.replaceChild(fresh, old);
+    p._video = fresh;
+    wireVideoEvents(p);
+    // Rebuild the subtitle track mapping from the cloned <track> elements.
+    // The cloned tracks preserve order and labels, so map them back to the
+    // original subtitle entries 1:1 (only when counts match).
+    var freshTracks = fresh.querySelectorAll("track");
+    if (freshTracks.length === p._tracks.length) {
+      for (var j = 0; j < p._tracks.length; j++) {
+        p._tracks[j].track = freshTracks[j];
+      }
+    } else {
+      p._tracks = [];
+    }
+    mapTextTracks(p);
+  }
+
+  function playWithPromise(p) {
+    var pr = p._video.play();
+    if (pr && typeof pr.catch === "function") {
+      pr.catch(function (err) {
+        // NotAllowedError (autoplay blocked) / AbortError — ignore like Jellyfin
+        if (
+          err &&
+          (err.name === "NotAllowedError" || err.name === "AbortError")
+        )
+          return;
+        p._showFatalError(
+          2,
+          err && err.message ? err.message : "Playback failed to start",
+        );
+      });
+    }
+  }
+
+  // ── Video events ─────────────────────────────────────────────────
+
+  function wireVideoEvents(p) {
+    var v = p._video;
+
+    v.addEventListener("play", function () {
+      updatePlayIcon(p, true);
+    });
+    v.addEventListener("pause", function () {
+      updatePlayIcon(p, false);
+      reportProgress(p, true);
+    });
+    v.addEventListener("timeupdate", function () {
+      if (!p._seeking) {
+        renderSeek(p, p._absoluteTime());
+        ensureDuration(p);
+      }
+      reportProgress(p, false);
+    });
+    v.addEventListener("progress", function () {
+      renderBuffered(p);
+    });
+    v.addEventListener("durationchange", function () {
+      // For stream-copy (remux) playback the element duration only grows as content
+      // is remuxed — never treat it as authoritative. Ask /stream-probe (ffprobe)
+      // once so the time/slider reflect the whole video, not just what's remuxed.
+      ensureDuration(p);
+      renderSeek(p, p._absoluteTime());
+    });
+    v.addEventListener("loadedmetadata", onLoaded(p, v));
+    v.addEventListener("loadeddata", onLoaded(p, v));
+    v.addEventListener("volumechange", function () {
+      updateVolumeIcon(p, p._video.muted ? 0 : p._video.volume);
+    });
+    v.addEventListener("ended", onEnded);
+    v.addEventListener("error", onVideoError);
+    v.addEventListener("click", function (e) {
+      if (e.target === v) togglePlayPause(p);
+    });
+    v.addEventListener("dblclick", function (e) {
+      if (e.target === v) toggleFullscreen(p);
+    });
+
+    function onEnded() {
+      updatePlayIcon(p, false);
+      reportProgress(p, true);
+      if (p._dotNetRef)
+        p._dotNetRef.invokeMethodAsync("OnEnded").catch(function () {});
+    }
+
+    function onVideoError() {
+      var err = v.error;
+      if (!err) return;
+      // Suppress the native error that fires when the browser tries to play an
+      // .m3u8 directly (expected HLS) or while hls.js is managing MSE errors.
+      if (p._expectingHls || p._hls) return;
+      p._showFatalError(err.code || 2, err.message || "");
+    }
+  }
+
+  /** Resume-position handling once the video is loadable (port of seekOnPlaybackStart). */
+  function onLoaded(p, v) {
+    var applied = false;
+    return function () {
+      if (applied) return;
+      var resume = p._resumeSeconds;
+      // After a remux seek reload (_seekStartOffset set) the server stream already
+      // starts at the target position — don't override it with the original resume point.
+      if (
+        resume > 0 &&
+        isFinite(v.duration) &&
+        v.duration >= resume &&
+        p._seekStartOffset <= 0
+      ) {
+        applied = true;
+        v.currentTime = resume;
+      }
+    };
+  }
+
+  // ── Seek ─────────────────────────────────────────────────────────
+
+  function seekTo(p, seconds) {
+    var v = p._video;
+    if (!isFinite(seconds) || seconds < 0) return;
+    var dur = p._duration();
+    if (seconds > dur) seconds = dur;
+
+    if (p._strategy === "remux") {
+      // Non-seekable ffmpeg pipe — reload from the server at the target.
+      var url = buildStreamUrl(p, { startSeconds: seconds });
+      p._seekStartOffset = seconds;
+      teardownEngine(p);
+      p._expectingHls = false;
+      p._video.src = url;
+      p._video.load();
+      playWithPromise(p);
+      renderSeek(p, seconds);
+      // The server rounds stream-copy seeks down to the nearest video keyframe to
+      // keep A/V in sync — adopt the actual start once it's reported so the time,
+      // slider, and subtitles match the content that's really playing.
+      pollActualStart(p, function (actualStart) {
+        if (p._disposed) return;
+        if (typeof actualStart === "number" && actualStart >= 0) {
+          p._seekStartOffset = actualStart;
+        }
+        renderSeek(p, p._absoluteTime());
+      });
+      return;
+    }
+
+    if (p._strategy === "transcode") {
+      var bufferedEnd = bufferedEndOf(v);
+      if (seconds <= bufferedEnd + 1) {
+        v.currentTime = seconds;
+        if (v.paused) playWithPromise(p);
+        renderSeek(p, seconds);
+        return;
+      }
+      // Beyond buffer — ask the server to restart the HLS transcode.
+      showSeekOverlay(p, seconds);
+      p._expectingHls = true;
+      fetch("/api/v1/videos/" + p._videoId + "/stream/seek", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          positionSeconds: seconds,
+          audioStreamIndex: p._currentAudioIndex,
+        }),
+      })
+        .then(function (r) {
+          if (!r.ok) {
+            return r.json().then(function (err) {
+              throw new Error(
+                (err && (err.message || err.error)) ||
+                  "Seek failed (HTTP " + r.status + ")",
+              );
+            });
+          }
+          return r.json();
+        })
+        .then(function () {
+          hideSeekOverlay(p);
+          teardownEngine(p);
+          startHls(p, p._streamBaseUrl);
+          p._expectingHls = false;
+          renderSeek(p, seconds);
+        })
+        .catch(function (err) {
+          hideSeekOverlay(p);
+          p._showFatalError(
+            2,
+            err && err.message ? err.message : "Seek failed",
+          );
+        });
+      return;
+    }
+
+    // Direct play — browser handles random access.
+    v.currentTime = seconds;
+    if (v.paused) playWithPromise(p);
+    renderSeek(p, seconds);
+  }
+
+  function seekBy(p, delta) {
+    seekTo(p, p._absoluteTime() + delta);
+  }
+
+  function bufferedEndOf(v) {
+    if (v.buffered && v.buffered.length > 0) {
+      return v.buffered.end(v.buffered.length - 1);
+    }
+    return 0;
+  }
+
+  // ── Audio stream selection ───────────────────────────────────────
+
+  function selectAudioStream(p, index) {
+    if (index === p._currentAudioIndex) return;
+    var position = p._absoluteTime();
+
+    if (p._strategy === "transcode") {
+      // Position the new HLS transcode for the selected audio, then reload.
+      showSeekOverlay(p, position);
+      p._expectingHls = true;
+      fetch("/api/v1/videos/" + p._videoId + "/stream/seek", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          positionSeconds: position,
+          audioStreamIndex: index,
+        }),
+      })
+        .then(function (r) {
+          if (!r.ok) {
+            return r.json().then(function (err) {
+              throw new Error(
+                (err && (err.message || err.error)) ||
+                  "Audio switch failed (HTTP " + r.status + ")",
+              );
+            });
+          }
+          return r.json();
+        })
+        .then(function () {
+          hideSeekOverlay(p);
+          p._currentAudioIndex = index;
+          p._seekStartOffset = 0;
+          teardownEngine(p);
+          var url = buildStreamUrl(p, {
+            forceTranscode: true,
+            audioStreamIndex: index,
+          });
+          startHls(p, url);
+          p._expectingHls = false;
+          reportStrategy(p, "transcode");
+        })
+        .catch(function (err) {
+          hideSeekOverlay(p);
+          p._showFatalError(
+            2,
+            err && err.message ? err.message : "Failed to switch audio track",
+          );
+        });
+      return;
+    }
+
+    // direct/remux — reload with the selected audio + position.
+    p._currentAudioIndex = index;
+    p._seekStartOffset = 0;
+    teardownEngine(p);
+    var url = buildStreamUrl(p, {
+      audioStreamIndex: index,
+      startSeconds: position,
+    });
+    p._video.src = url;
+    p._video.load();
+    // Server may decide remux or transcode; re-learn via progress poll.
+    showPreparing(p);
+    p._expectingHls = true;
+    pollProgressThen(p, function (strategy) {
+      if (p._disposed) return;
+      if (strategy === "transcode") {
+        p._strategy = "transcode";
+        replaceVideoElement(p);
+        startHls(p, url);
+        p._expectingHls = false;
+        reportStrategy(p, "transcode");
+      } else {
+        p._strategy = strategy || "direct";
+        p._expectingHls = false;
+        reportStrategy(p, p._strategy);
+        playWithPromise(p);
+      }
+    });
+  }
+
+  function buildStreamUrl(p, options) {
+    options = options || {};
+    var url = p._streamBaseUrl;
+    var sep = url.indexOf("?") === -1 ? "?" : "&";
+    var parts = [];
+    if (
+      options.audioStreamIndex !== undefined &&
+      options.audioStreamIndex !== null
+    ) {
+      parts.push("audioStreamIndex=" + options.audioStreamIndex);
+    }
+    if (options.startSeconds !== undefined && options.startSeconds !== null) {
+      parts.push("startSeconds=" + options.startSeconds);
+    }
+    if (options.forceTranscode) {
+      parts.push("forceTranscode=true");
+    }
+    parts.push("_=" + Date.now());
+    return url + sep + parts.join("&");
+  }
+
+  // ── Transport controls ───────────────────────────────────────────
+
+  function togglePlayPause(p) {
+    if (p._video.paused) {
+      playWithPromise(p);
+    } else {
+      p._video.pause();
+      reportProgress(p, true);
+    }
+  }
+
+  function toggleMute(p) {
+    p._video.muted = !p._video.muted;
+    updateVolumeIcon(p, p._video.muted ? 0 : p._video.volume);
+  }
+
+  function togglePip(p) {
+    if (document.pictureInPictureElement) {
+      document.exitPictureInPicture().catch(function () {});
+    } else if (p._video.requestPictureInPicture) {
+      p._video.requestPictureInPicture().catch(function () {});
+    }
+  }
+
+  function toggleFullscreen(p) {
+    var el = p._root;
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(function () {});
+    } else if (el.requestFullscreen) {
+      el.requestFullscreen().catch(function () {});
+    }
+  }
+
+  function updatePlayIcon(p, playing) {
+    var btn = p._osd.querySelector(".dnc-btn-play");
+    if (btn) btn.innerHTML = iconSvg(playing ? "pause" : "play");
+    if (p._bigPlay) {
+      if (playing) p._bigPlay.classList.add("hidden");
+      else if (!p._video.ended) p._bigPlay.classList.remove("hidden");
+    }
+  }
+
+  function updateVolumeIcon(p, level) {
+    var btn = p._osd.querySelector('.dnc-btn[data-action="mute"]');
+    if (btn) btn.innerHTML = iconSvg(level > 0 ? "volumeUp" : "volumeOff");
+  }
+
+  // ── OSD rendering / auto-hide ────────────────────────────────────
+
+  function renderSeek(p, seconds) {
+    var dur = p._duration();
+    if (dur <= 0) return;
+    var ratio = Math.max(0, Math.min(1, seconds / dur)) * 100;
+    var played = p._osd.querySelector("#dnc-seek-played");
+    var thumb = p._osd.querySelector("#dnc-seek-thumb");
+    if (played) played.style.width = ratio + "%";
+    if (thumb) thumb.style.left = ratio + "%";
+    var start = p._osd.querySelector("#dnc-time-start");
+    if (start) start.textContent = formatTime(seconds);
+    var end = p._osd.querySelector("#dnc-time-end");
+    if (end) end.textContent = formatTime(dur);
+  }
+
+  function renderBuffered(p) {
+    var v = p._video;
+    if (!v.buffered || v.buffered.length === 0) return;
+    var dur = p._duration();
+    if (dur <= 0) return;
+    var end = v.buffered.end(v.buffered.length - 1);
+    var pct = Math.max(0, Math.min(100, (end / dur) * 100));
+    var buffered = p._osd.querySelector("#dnc-seek-buffered");
+    if (buffered) buffered.style.width = pct + "%";
+  }
+
+  function showOsd(p) {
+    p._osd.classList.remove("hidden");
+    clearTimeout(p._osdTimer);
+    p._osdTimer = setTimeout(function () {
+      if (!p._seeking && !p._video.paused) {
+        p._osd.classList.add("hidden");
+      }
+    }, 3000);
+  }
+
+  function wireOsdAutoHide(p) {
+    p._root.addEventListener("mousemove", function () {
+      showOsd(p);
+    });
+    p._root.addEventListener("mousedown", function () {
+      showOsd(p);
+    });
+    p._root.addEventListener("touchstart", function () {
+      showOsd(p);
+    });
+    p._osd.addEventListener("mousemove", function (e) {
+      e.stopPropagation();
+    });
+  }
+
+  // ── Keyboard shortcuts ───────────────────────────────────────────
+
+  function wireKeyboard(p) {
+    function onKey(e) {
       var tag = (e.target.tagName || "").toLowerCase();
       if (
         tag === "input" ||
@@ -126,1071 +1364,171 @@
         e.target.isContentEditable
       )
         return;
-      e.preventDefault();
-      videoPlayer.togglePlayPause(elementId);
-    }
+      if (!document.body.contains(p._root)) return;
 
-    document.addEventListener("keydown", onKeyDown);
-    kbHandles[elementId] = {
-      dispose: function () {
-        document.removeEventListener("keydown", onKeyDown);
-      },
-    };
-  };
-
-  videoPlayer.disposeKeyboardShortcuts = function (elementId) {
-    var h = kbHandles[elementId];
-    if (h) {
-      h.dispose();
-      delete kbHandles[elementId];
-    }
-  };
-
-  /**
-   * Toggles fullscreen on a container element using the Fullscreen API.
-   * If already fullscreen, exits; otherwise enters fullscreen.
-   * @param {string} elementId - The container element ID (e.g., "player-container").
-   */
-  videoPlayer.toggleFullscreen = function (elementId) {
-    var el = document.getElementById(elementId);
-    if (!el) return;
-
-    if (document.fullscreenElement) {
-      document.exitFullscreen().catch(function () {});
-    } else {
-      el.requestFullscreen().catch(function () {});
-    }
-  };
-
-  /**
-   * Attaches video playback with progress overlay support.
-   *
-   * When called with 2 args (elementId, streamUrl): legacy mode, plays immediately.
-   * When called with 4 args (elementId, streamUrl, videoId, dotNetRef):
-   *   shows progress overlay, triggers server-side stream preparation,
-   *   polls for readiness, then plays when ready.
-   *
-   * @param {string} elementId - The video element ID.
-   * @param {string} streamUrl - The stream endpoint URL.
-   * @param {string=} videoId - Optional video GUID for progress polling.
-   * @param {object=} dotNetRef - Optional .NET reference for callbacks.
-   */
-  videoPlayer.attachHlsPlayer = function (
-    elementId,
-    streamUrl,
-    videoId,
-    dotNetRef,
-  ) {
-    var video = document.getElementById(elementId);
-    if (!video) {
-      // DOM may not have rendered yet (race with Blazor render) — retry once
-      if (videoPlayer._attachRetry) return; // already retrying
-      videoPlayer._attachRetry = true;
-      setTimeout(function () {
-        videoPlayer._attachRetry = false;
-        videoPlayer.attachHlsPlayer(elementId, streamUrl, videoId, dotNetRef);
-      }, 200);
-      return;
-    }
-
-    // If videoId is provided, show progress overlay and poll for readiness
-    if (videoId) {
-      video.preload = "auto";
-
-      // Show progress overlay (starts polling immediately).
-      // The progress JSON includes the "strategy" field, so when the stream
-      // is ready we already know whether to use native <video> or hls.js.
-      // This eliminates the wasteful HEAD request that used to start a
-      // second server-side pipeline.
-      videoPlayer
-        .showStreamProgress("player-stream-progress-area", videoId)
-        .then(function (strategy) {
-          console.log(
-            "DNC: stream ready, strategy=" +
-              strategy +
-              ", video=" +
-              (video ? "found" : "null"),
-          );
-          try {
-            playStream(video, streamUrl, dotNetRef, strategy);
-          } catch (e) {
-            console.error("DNC: playStream threw", e);
-          }
-        })
-        .catch(function (err) {
-          console.error("DotNetCloud Video: Stream preparation failed", err);
-        });
-
-      // The Razor markup already sets video.src on the <video> element
-      // via the src attribute, so the pipeline is already started.
-      // Just set the guard flag for expected HLS errors.
-      videoPlayer._expectingHlsResponse = true;
-      return;
-    }
-
-    // Legacy mode: no progress polling, play immediately
-    playStream(video, streamUrl, dotNetRef);
-
-    /**
-     * Sets up playback once the stream strategy is known.
-     * @param {HTMLElement} video - The <video> element.
-     * @param {string} streamUrl - The stream endpoint URL.
-     * @param {object=} dotNetRef - Optional .NET reference for callbacks.
-     * @param {string=} strategy - "direct", "remux", or "transcode". When
-     *   provided (4-arg mode), skips the wasteful HEAD request. In legacy
-     *   2-arg mode, strategy is undefined and we fall back to a HEAD fetch.
-     */
-    function playStream(video, streamUrl, dotNetRef, strategy) {
-      // Store stream URL for seek-transcode re-init
-      video.setAttribute("data-stream-url", streamUrl);
-      // Reset seek offset — new stream starts from the beginning
-      video._seekStartOffset = 0;
-
-      // If strategy is known (4-arg mode from progress polling), handle it
-      // directly. MUST clear the HLS guard flag BEFORE any early return.
-      if (strategy) {
-        // We now know the actual strategy — clear the HLS guard flag
-        videoPlayer._expectingHlsResponse = false;
-
-        if (dotNetRef) {
-          dotNetRef
-            .invokeMethodAsync("OnStreamStrategy", strategy)
-            .catch(function () {});
-        }
-
-        var stratLower = strategy.toLowerCase();
-        if (stratLower === "direct" || stratLower === "remux") {
-          // The Razor markup already set video.src, so the browser has been
-          // loading the stream since the <video> element was rendered. By now
-          // the server pipeline is complete and data is flowing.
-          //
-          // If the browser failed to load (server wasn't ready yet), re-set
-          // src to trigger a fresh request. Otherwise just start playback.
-          if (video.networkState === video.NETWORK_NO_SOURCE) {
-            video.src = streamUrl;
-            video.load();
-          }
-          video.play().catch(function () {});
-          return;
-        }
-
-        if (stratLower === "transcode") {
-          // The existing <video> element is in error state from trying to
-          // play the .m3u8 natively. Create a fresh <video> element to
-          // replace it, avoiding the persistent MSE/blob error state.
-          var oldVideo = video;
-          var parent = oldVideo.parentNode;
-          if (parent) {
-            var newVideo = document.createElement("video");
-            newVideo.id = oldVideo.id;
-            newVideo.className = oldVideo.className;
-            newVideo.controls = oldVideo.controls;
-            newVideo.autoplay = oldVideo.autoplay;
-            newVideo.preload = oldVideo.preload;
-            newVideo.poster = oldVideo.poster;
-            // Copy any track elements
-            var tracks = oldVideo.querySelectorAll("track");
-            for (var t = 0; t < tracks.length; t++) {
-              newVideo.appendChild(tracks[t].cloneNode());
-            }
-            parent.replaceChild(newVideo, oldVideo);
-            video = newVideo;
-          }
-          useHls(video, streamUrl);
-          return;
-        }
-
-        // Unknown strategy — fall through to fallback path
-      }
-
-      // Legacy / fallback: HEAD fetch to detect strategy.
-      // Only reaches here in 2-arg (legacy) mode or if strategy is unknown.
-      videoPlayer._expectingHlsResponse = false;
-
-      // Native HLS (Safari) — only reachable in legacy/fallback mode since
-      // the 4-arg mode with a known strategy is handled above.
-      if (
-        video.canPlayType &&
-        video.canPlayType("application/vnd.apple.mpegurl")
-      ) {
-        video.src = streamUrl;
-        video.play().catch(function () {});
-        return;
-      }
-
-      fetch(streamUrl, { method: "HEAD" })
-        .then(function (resp) {
-          var contentType = resp.headers.get("Content-Type") || "";
-          var detected = resp.headers.get("X-Stream-Strategy") || "";
-
-          if (dotNetRef && detected) {
-            dotNetRef
-              .invokeMethodAsync("OnStreamStrategy", detected)
+      switch (e.key) {
+        case " ":
+          e.preventDefault();
+          togglePlayPause(p);
+          break;
+        case "ArrowLeft":
+          e.preventDefault();
+          seekBy(p, -10);
+          break;
+        case "ArrowRight":
+          e.preventDefault();
+          seekBy(p, 10);
+          break;
+        case "j":
+        case "J":
+          seekBy(p, -10);
+          break;
+        case "l":
+        case "L":
+          seekBy(p, 10);
+          break;
+        case "f":
+        case "F":
+          toggleFullscreen(p);
+          break;
+        case "m":
+        case "M":
+          toggleMute(p);
+          break;
+        case "n":
+        case "N":
+          if (p._dotNetRef)
+            p._dotNetRef
+              .invokeMethodAsync("OnNavigateEpisode", 1)
               .catch(function () {});
-          }
-
-          if (
-            contentType.indexOf("video/mp4") !== -1 ||
-            detected === "direct" ||
-            detected === "remux"
-          ) {
-            video.src = streamUrl;
-            video.play().catch(function () {});
-            return;
-          }
-
-          // HLS
-          useHls(video, streamUrl);
-        })
-        .catch(function () {
-          if (typeof Hls !== "undefined" && Hls.isSupported()) {
-            useHls(video, streamUrl);
-          } else {
-            video.play().catch(function () {});
-          }
-        });
-    }
-
-    function useHls(video, streamUrl) {
-      if (typeof Hls === "undefined" || !Hls.isSupported()) {
-        video.play().catch(function () {});
-        return;
+          break;
+        case "p":
+        case "P":
+          if (p._dotNetRef)
+            p._dotNetRef
+              .invokeMethodAsync("OnNavigateEpisode", -1)
+              .catch(function () {});
+          break;
+        case "Escape":
+          if (document.fullscreenElement)
+            document.exitFullscreen().catch(function () {});
+          break;
+        default:
+          break;
       }
-      if (!Hls.DefaultConfig._dncConfigured) {
-        Hls.DefaultConfig.lowLatencyMode = false;
-        Hls.DefaultConfig.backBufferLength = Infinity;
-        Hls.DefaultConfig._dncConfigured = true;
-      }
-      var hls = new Hls({ manifestLoadingTimeOut: 20000 });
-      hls.loadSource(streamUrl);
-      hls.attachMedia(video);
-      hls.on(Hls.Events.MANIFEST_PARSED, function () {
-        video.play().catch(function () {});
-      });
-      hls.on(Hls.Events.ERROR, function (event, data) {
-        if (data.fatal) {
-          switch (data.type) {
-            case Hls.ErrorTypes.NETWORK_ERROR:
-              hls.startLoad();
-              break;
-            case Hls.ErrorTypes.MEDIA_ERROR:
-              hls.recoverMediaError();
-              break;
-            default:
-              hls.destroy();
-              break;
-          }
-        }
-      });
-      video._hls = hls;
-      videoPlayer._hls = hls;
     }
-  };
+    document.addEventListener("keydown", onKey);
+    p._keyHandler = onKey;
+  }
 
-  /**
-   * Destroys the HLS instance on a video element.
-   */
-  videoPlayer.destroyHlsPlayer = function (elementId) {
-    var video = document.getElementById(elementId);
-    if (!video) return;
-    if (video._hls) {
-      video._hls.destroy();
-      delete video._hls;
+  // ── Overlays ─────────────────────────────────────────────────────
+
+  function showPreparing(p) {
+    p._spinner.style.display = "block";
+    ensurePreparingMsg(p);
+  }
+
+  function ensurePreparingMsg(p) {
+    var msg = p._root.querySelector(".dnc-preparing");
+    if (!msg) {
+      msg = document.createElement("div");
+      msg.className = "dnc-preparing";
+      msg.innerHTML =
+        '<span class="dnc-preparing-text">Preparing stream…</span>' +
+        '<div class="dnc-preparing-bar"><div class="dnc-preparing-fill"></div></div>';
+      p._root.appendChild(msg);
     }
-    if (videoPlayer._hls) {
-      delete videoPlayer._hls;
+    return msg;
+  }
+
+  function updatePreparing(p, message, percent) {
+    var msg = ensurePreparingMsg(p);
+    var text = msg.querySelector(".dnc-preparing-text");
+    if (text && message) text.textContent = message;
+    var fill = msg.querySelector(".dnc-preparing-fill");
+    if (fill) fill.style.width = Math.min(100, percent) + "%";
+  }
+
+  function hidePreparing(p) {
+    p._spinner.style.display = "none";
+    var msg = p._root.querySelector(".dnc-preparing");
+    if (msg && msg.parentNode) msg.parentNode.removeChild(msg);
+  }
+
+  function showSeekOverlay(p, seconds) {
+    hideSeekOverlay(p);
+    var overlay = document.createElement("div");
+    overlay.className = "dnc-seek-overlay";
+    overlay.innerHTML =
+      '<div class="dnc-seek-spinner"></div>' +
+      '<div class="dnc-seek-label">Jumping to ' +
+      formatTime(seconds) +
+      "…</div>";
+    p._root.appendChild(overlay);
+    p._seekOverlay = overlay;
+  }
+
+  function hideSeekOverlay(p) {
+    if (p._seekOverlay && p._seekOverlay.parentNode) {
+      p._seekOverlay.parentNode.removeChild(p._seekOverlay);
     }
-  };
+    p._seekOverlay = null;
+  }
 
-  /**
-   * Shows a loading overlay with a progress bar, polling the server for stream
-   * preparation progress. Resolves when the stream is ready (stage=streaming).
-   *
-   * @param {string} containerId - The player container element ID.
-   * @param {string} videoId - The video GUID (e.g. "a1b2c3d4-...").
-   * @returns {Promise} Resolves when ready, rejects on failure.
-   */
-  /**
-   * Uses Blazor-rendered inline elements in #player-stream-progress-area.
-   * Polls /api/v1/videos/{videoId}/stream-progress.
-   * Resolves when stage=streaming, rejects on stage=failed.
-   */
-  videoPlayer.showStreamProgress = function (ignored, videoId) {
-    // Find the player container and insert progress bar directly after it
-    var playerContainer = document.getElementById("player-container");
-    if (!playerContainer)
-      return Promise.reject(new Error("Player container not found"));
+  // ── Watch progress ───────────────────────────────────────────────
 
-    // Remove any existing progress bar
-    var existing = document.getElementById("dnc-progress-bar");
-    if (existing) existing.remove();
+  function reportProgress(p, force) {
+    if (!p._videoId) return;
+    var now = Date.now();
+    if (!force && now - p._progressReportedAt < 60000) return;
+    p._progressReportedAt = now;
+    var positionTicks = Math.round(p._absoluteTime() * 10000000);
+    fetch("/api/v1/videos/" + p._videoId + "/progress", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ positionTicks: positionTicks }),
+    }).catch(function () {});
+  }
 
-    // Create progress bar after the player container
-    var bar = document.createElement("div");
-    bar.id = "dnc-progress-bar";
-    bar.innerHTML =
-      '<div style="background:#0f172a;border-top:1px solid rgba(255,255,255,0.08);min-height:44px;display:flex;align-items:center;padding:6px 24px;font-size:13px;color:rgba(255,255,255,0.7);gap:10px;">' +
-      '<div class="dnc-spinner" style="width:16px;height:16px;border:2px solid rgba(255,255,255,0.2);border-top-color:#3b82f6;border-radius:50%;flex-shrink:0;animation:dncSpin 0.8s linear infinite;"></div>' +
-      '<span class="dnc-msg" style="white-space:nowrap;">Assembling video file\u2026</span>' +
-      '<div style="flex:0 1 140px;height:4px;min-width:60px;background:rgba(255,255,255,0.12);border-radius:2px;overflow:hidden;">' +
-      '<div class="dnc-fill" style="height:100%;background:#3b82f6;border-radius:2px;width:0%;transition:width .3s ease;"></div>' +
-      "</div></div>";
-    playerContainer.insertAdjacentElement("afterend", bar);
-    bar._videoId = videoId;
-    playerContainer._videoId = videoId;
-
-    // Add keyframes for spinner if not already present
-    if (!document.getElementById("dnc-spin-keyframes")) {
-      var style = document.createElement("style");
-      style.id = "dnc-spin-keyframes";
-      style.textContent = "@keyframes dncSpin{to{transform:rotate(360deg)}}";
-      document.head.appendChild(style);
+  function reportStrategy(p, strategy) {
+    if (p._dotNetRef) {
+      p._dotNetRef
+        .invokeMethodAsync("OnStrategy", strategy)
+        .catch(function () {});
     }
+  }
 
-    var messageEl = bar.querySelector(".dnc-msg");
-    var barFill = bar.querySelector(".dnc-fill");
-    var cancelled = false;
+  // ── Utility functions ────────────────────────────────────────────
 
-    bar._cancel = function () {
-      cancelled = true;
-    };
-
-    return new Promise(function (resolve, reject) {
-      // Safety timeout: if stream preparation doesn't complete within 60 seconds,
-      // try playing anyway. The stream may have completed and the progress entry
-      // was already cleaned up (e.g. pre-existing HLS found by FindExistingHlsOutput).
-      var timeoutId = setTimeout(function () {
-        cancelled = true;
-        bar.remove();
-        // Try resolving with "transcode" as a guess — if it's wrong, the
-        // playStream fallback will handle it.
-        resolve("transcode");
-      }, 60000);
-
-      var poll = function () {
-        if (cancelled) {
-          clearTimeout(timeoutId);
-          bar.remove();
-          reject(new Error("Cancelled"));
-          return;
-        }
-
-        fetch("/api/v1/videos/" + videoId + "/stream-progress")
-          .then(function (resp) {
-            if (!resp.ok) throw new Error("HTTP " + resp.status);
-            return resp.json();
-          })
-          .then(function (data) {
-            var d = data.data || data;
-            var stage = d.stage || "unknown";
-            var message = d.message || "";
-            var percent = d.percent || 0;
-
-            if (messageEl) messageEl.textContent = message;
-            if (barFill) barFill.style.width = Math.min(100, percent) + "%";
-
-            if (stage === "streaming") {
-              clearTimeout(timeoutId);
-              setTimeout(function () {
-                bar.remove();
-              }, 300);
-              resolve(d.strategy || "direct");
-            } else if (stage === "failed") {
-              clearTimeout(timeoutId);
-              if (messageEl)
-                messageEl.textContent =
-                  "Failed: " + (message || "Unknown error");
-              if (barFill) {
-                barFill.style.background = "#e74c3c";
-                barFill.style.width = "100%";
-              }
-              reject(new Error(message || "Stream preparation failed"));
-            } else {
-              setTimeout(poll, 500);
-            }
-          })
-          .catch(function (err) {
-            // Don't clear timeout here — the safety timeout is our only
-            // fallback if the progress endpoint returns "unknown" forever
-            // (e.g. the pipeline completed before the first poll and the
-            // progress entry was cleaned up). Just retry.
-            if (cancelled) return;
-            if (messageEl) messageEl.textContent = "Connecting to server\u2026";
-            setTimeout(poll, 1000);
-          });
-      };
-
-      poll();
-    });
-  };
-
-  /**
-   * Cancels the stream progress overlay for a container.
-   */
-  videoPlayer.cancelStreamProgress = function (videoId) {
-    var bar = document.getElementById("dnc-progress-bar");
-    var playerContainer = document.getElementById("player-container");
-    var vid =
-      videoId ||
-      (bar && bar._videoId) ||
-      (playerContainer && playerContainer._videoId);
-    console.log(
-      "DNC CANCEL: videoId=",
-      videoId,
-      "barVid=",
-      bar && bar._videoId,
-      "pcVid=",
-      playerContainer && playerContainer._videoId,
-      "final=",
-      vid,
-    );
-    if (bar && bar._cancel) bar._cancel();
-    if (bar) bar.remove();
-    if (vid) {
-      var url = "/api/v1/videos/cancel-stream/" + vid;
-      console.log("DNC CANCEL: fetching", url);
-      fetch(url, { method: "POST", credentials: "include" })
-        .then(function (r) {
-          console.log("DNC CANCEL: response", r.status);
-        })
-        .catch(function (e) {
-          console.error("DNC CANCEL: fetch error", e);
-        });
-    } else {
-      console.log("DNC CANCEL: no videoId, skipping DELETE");
-    }
-  };
-
-  /**
-   * Watch progress tracking state, keyed by elementId.
-   * @type {Object<string, {lastReportedAt: number, intervalId: number|null}>}
-   */
-  var progressTracking = {};
-
-  /**
-   * Attaches progress tracking to a <video> element.
-   * Reports the current playback position every ~60 seconds while playing,
-   * plus a final report on pause.
-   *
-   * @param {string} elementId - The video element ID.
-   * @param {string} videoId - The video GUID.
-   */
-  videoPlayer.attachProgressTracking = function (elementId, videoId) {
-    var video = document.getElementById(elementId);
-    if (!video) return;
-
-    // Clean up any existing tracking for this element
-    videoPlayer.disposeProgressTracking(elementId);
-
-    var state = {
-      lastReportedAt: 0,
-      lastPositionTicks: 0,
-      intervalId: null,
-    };
-    progressTracking[elementId] = state;
-
-    // Constants (in seconds): 60s between reports
-    var REPORT_INTERVAL_MS = 60 * 1000;
-
-    function reportProgress() {
-      if (!video || video.paused || !videoId) return;
-
-      var currentTime = video.currentTime || 0;
-      var now = Date.now();
-
-      // Throttle: only report if >= 60s since last report
-      if (now - state.lastReportedAt < REPORT_INTERVAL_MS) return;
-
-      var positionTicks = Math.round(currentTime * 10000); // 1 tick = 100ns, TimeSpan.TicksPerSecond = 10,000,000
-
-      state.lastReportedAt = now;
-      state.lastPositionTicks = positionTicks;
-
-      fetch("/api/v1/videos/" + videoId + "/progress", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ positionTicks: positionTicks }),
-      }).catch(function (err) {
-        console.error("DNC: failed to report watch progress", err);
-      });
-    }
-
-    // Report on 'timeupdate' (fires frequently — throttled by reportProgress)
-    video.addEventListener("timeupdate", reportProgress);
-
-    // Final report on pause (saves the last known position)
-    function onPause() {
-      if (!video || !videoId) return;
-      var currentTime = video.currentTime || 0;
-      var positionTicks = Math.round(currentTime * 10000);
-      state.lastPositionTicks = positionTicks;
-
-      fetch("/api/v1/videos/" + videoId + "/progress", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ positionTicks: positionTicks }),
-      }).catch(function (err) {
-        console.error("DNC: failed to report watch progress on pause", err);
-      });
-    }
-    video.addEventListener("pause", onPause);
-
-    // Cleanup function stored on state
-    state.dispose = function () {
-      video.removeEventListener("timeupdate", reportProgress);
-      video.removeEventListener("pause", onPause);
-    };
-  };
-
-  /**
-   * Sets the initial playback position for resume playback.
-   * Called when opening a video that has watch progress.
-   *
-   * @param {string} elementId - The video element ID.
-   * @param {number} positionSeconds - The position in seconds to seek to.
-   */
-  videoPlayer.setInitialPosition = function (elementId, positionSeconds) {
-    var video = document.getElementById(elementId);
-    if (!video) return;
-
-    if (positionSeconds > 0 && video.readyState >= 1) {
-      video.currentTime = positionSeconds;
-    } else if (positionSeconds > 0) {
-      // Not loaded yet — wait for loadedmetadata
-      var onLoaded = function () {
-        video.currentTime = positionSeconds;
-        video.removeEventListener("loadedmetadata", onLoaded);
-      };
-      video.addEventListener("loadedmetadata", onLoaded);
-    }
-  };
-
-  /**
-   * Disposes progress tracking for a video element.
-   */
-  videoPlayer.disposeProgressTracking = function (elementId) {
-    var state = progressTracking[elementId];
-    if (state) {
-      if (state.dispose) state.dispose();
-      delete progressTracking[elementId];
-    }
-  };
-
-  // ────────────────────────────────────────────────────────
-  //  Transcode Seek Bar
-  // ────────────────────────────────────────────────────────
-
-  /**
-   * Formats seconds as H:MM:SS or M:SS.
-   * @param {number} seconds
-   * @returns {string}
-   */
   function formatTime(seconds) {
     if (!isFinite(seconds) || seconds < 0) return "0:00";
     var h = Math.floor(seconds / 3600);
     var m = Math.floor((seconds % 3600) / 60);
     var s = Math.floor(seconds % 60);
     if (h > 0) {
-      return (
-        h + ":" + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0")
-      );
+      return h + ":" + pad2(m) + ":" + pad2(s);
     }
-    return m + ":" + String(s).padStart(2, "0");
+    return m + ":" + pad2(s);
   }
 
-  /**
-   * Seeks the transcode to a new position. If the target is within the
-   * already-transcoded (buffered) range, performs a normal seek. If the
-   * target is beyond buffered range, calls the server to restart the
-   * transcode from that position, then reloads the HLS stream.
-   *
-   * @param {string} elementId - The video element ID.
-   * @param {number} targetSeconds - The target position in seconds.
-   * @param {string} videoId - The video GUID.
-   * @param {object} dotNetRef - .NET reference for callbacks.
-   */
-  videoPlayer.seekTranscode = function (
-    elementId,
-    targetSeconds,
-    videoId,
-    dotNetRef,
-  ) {
-    var video = document.getElementById(elementId);
-    if (!video) return;
-
-    // If video is NOT using HLS (direct play, stream copy, remux),
-    // we can't just set video.currentTime because the stream copy (remux)
-    // is a non-seekable ffmpeg pipe. The browser will reload from byte 0.
-    // Instead, reload the stream URL with a startSeconds parameter so the
-    // server restarts ffmpeg from the seeked position.
-    if (!video._hls) {
-      var fallbackPath = "/api/v1/videos/" + videoId + "/stream";
-      var streamUrlCandidate =
-        video.getAttribute("data-stream-url") || video.src || fallbackPath;
-
-      // Parse and validate URL from DOM text before assigning to video.src.
-      // Allow only same-origin http(s) URLs with absolute-path names.
-      var safeUrl;
-      try {
-        safeUrl = new URL(streamUrlCandidate, window.location.origin);
-        var isHttp = safeUrl.protocol === "http:" || safeUrl.protocol === "https:";
-        var isSameOrigin = safeUrl.origin === window.location.origin;
-        var hasAbsolutePath = safeUrl.pathname && safeUrl.pathname.charAt(0) === "/";
-        if (!isHttp || !isSameOrigin || !hasAbsolutePath) {
-          safeUrl = new URL(fallbackPath, window.location.origin);
-        }
-      } catch (e) {
-        safeUrl = new URL(fallbackPath, window.location.origin);
-      }
-
-      safeUrl.searchParams.set("startSeconds", String(targetSeconds));
-      safeUrl.searchParams.set("_", String(Date.now()));
-
-      // Store the absolute offset so the slider position reflects the full
-      // video timeline, not the (restarted) stream's local time.
-      video._seekStartOffset = targetSeconds;
-
-      video.src = safeUrl.toString();
-      video.play().catch(function () {});
-
-      if (dotNetRef) {
-        dotNetRef
-          .invokeMethodAsync("OnTranscodeSeekComplete", targetSeconds)
-          .catch(function () {});
-      }
-      return;
-    }
-
-    // Check if target is within already-buffered range
-    var bufferedEnd = 0;
-    if (video.buffered && video.buffered.length > 0) {
-      bufferedEnd = video.buffered.end(video.buffered.length - 1);
-    }
-
-    if (targetSeconds <= bufferedEnd + 1) {
-      // Within (or very near) buffered range — normal seek.
-      // Setting currentTime triggers a browser seek which flushes both audio
-      // and video decoder pipelines automatically.  Just ensure playback
-      // resumes after the seek completes.
-      video.currentTime = targetSeconds;
-      var onSeeked2 = function () {
-        video.removeEventListener("seeked", onSeeked2);
-        if (video.paused) {
-          video.play().catch(function () {});
-        }
-      };
-      video.addEventListener("seeked", onSeeked2);
-      if (dotNetRef) {
-        dotNetRef
-          .invokeMethodAsync("OnTranscodeSeekComplete", targetSeconds)
-          .catch(function () {});
-      }
-      return;
-    }
-
-    // Beyond buffered range — restart transcode from target position
-    var container = document.getElementById("player-container");
-    var overlay = document.createElement("div");
-    overlay.id = "dnc-seek-overlay";
-    overlay.innerHTML =
-      '<div style="position:absolute;top:0;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.7);z-index:20;">' +
-      '<div style="text-align:center;color:#fff;">' +
-      '<div style="width:24px;height:24px;border:3px solid rgba(255,255,255,0.2);border-top-color:#3b82f6;border-radius:50%;margin:0 auto 12px;animation:dnc-spin 0.8s linear infinite;"></div>' +
-      '<p style="margin:0;font-size:14px;">Jumping to ' +
-      formatTime(targetSeconds) +
-      "&hellip;</p>" +
-      "</div></div>";
-    if (container) container.appendChild(overlay);
-
-    // Call the seek-transcode API
-    fetch("/api/v1/videos/" + videoId + "/stream/seek", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ positionSeconds: targetSeconds }),
-    })
-      .then(function (resp) {
-        if (!resp.ok) {
-          return resp.json().then(function (err) {
-            throw new Error(
-              err.message || "Seek failed (HTTP " + resp.status + ")",
-            );
-          });
-        }
-        return resp.json();
-      })
-      .then(function () {
-        // Destroy old HLS instance
-        if (video._hls) {
-          video._hls.destroy();
-          delete video._hls;
-        }
-        if (videoPlayer._hls) {
-          delete videoPlayer._hls;
-        }
-
-        // Remove overlay
-        if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
-
-        // Re-initialize HLS with the same stream URL.
-        var streamUrl = video.getAttribute("data-stream-url") || video.src;
-        if (!streamUrl) {
-          streamUrl =
-            "/api/v1/videos/" + videoId + "/stream?forceTranscode=true";
-        }
-
-        // Clear existing src to force a fresh load
-        video.removeAttribute("src");
-        video.load();
-
-        // Set flag to prevent error listener from firing during HLS re-init
-        videoPlayer._expectingHlsResponse = true;
-
-        // Re-initialize HLS
-        if (typeof Hls !== "undefined" && Hls.isSupported()) {
-          if (!Hls.DefaultConfig._dncConfigured) {
-            Hls.DefaultConfig.lowLatencyMode = false;
-            Hls.DefaultConfig.backBufferLength = Infinity;
-            Hls.DefaultConfig._dncConfigured = true;
-          }
-          var hls = new Hls({ manifestLoadingTimeOut: 20000 });
-          hls.loadSource(streamUrl);
-          hls.attachMedia(video);
-          hls.on(Hls.Events.MANIFEST_PARSED, function () {
-            video.play().catch(function () {});
-          });
-          hls.on(Hls.Events.ERROR, function (event, data) {
-            if (data.fatal) {
-              switch (data.type) {
-                case Hls.ErrorTypes.NETWORK_ERROR:
-                  hls.startLoad();
-                  break;
-                case Hls.ErrorTypes.MEDIA_ERROR:
-                  hls.recoverMediaError();
-                  break;
-                default:
-                  hls.destroy();
-                  break;
-              }
-            }
-          });
-          video._hls = hls;
-          videoPlayer._hls = hls;
-        }
-
-        if (dotNetRef) {
-          dotNetRef
-            .invokeMethodAsync("OnTranscodeSeekComplete", targetSeconds)
-            .catch(function () {});
-        }
-      })
-      .catch(function (err) {
-        console.error("DNC: seek-transcode failed", err);
-        if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
-
-        // Show error overlay
-        var errOverlay = document.createElement("div");
-        errOverlay.id = "dnc-seek-error";
-        errOverlay.innerHTML =
-          '<div style="position:absolute;top:0;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.8);z-index:20;">' +
-          '<div style="text-align:center;color:#fff;max-width:400px;padding:24px;">' +
-          '<p style="font-size:18px;margin:0 0 8px;">&#9888; Seek Failed</p>' +
-          '<p id="dnc-seek-error-message" style="font-size:13px;color:rgba(255,255,255,0.7);margin:0 0 16px;"></p>' +
-          '<button onclick="document.getElementById(\'dnc-seek-error\').remove()" style="background:#3b82f6;color:#fff;border:none;padding:8px 20px;border-radius:6px;cursor:pointer;font-size:13px;">Dismiss</button>' +
-          "</div></div>";
-
-        // Set the dynamic error message via textContent (never innerHTML) so
-        // exception text cannot be reinterpreted as HTML.
-        var errMsg = errOverlay.querySelector("#dnc-seek-error-message");
-        if (errMsg) {
-          errMsg.textContent =
-            err && err.message
-              ? err.message
-              : "Could not jump to the selected position.";
-        }
-
-        if (container) container.appendChild(errOverlay);
-      });
-  };
-
-  /**
-   * Resume playback with forced A/V synchronization.
-   *
-   * Instead of calling play() directly (which can let audio and video decoder
-   * buffers drift during the pause), we force a seek and only start playback
-   * after the 'seeked' event fires.  The seek flushes both audio and video
-   * decoder pipelines so they restart from the same timestamp.
-   *
-   * NOTE: Seeking to the *exact* currentTime the element is already at is
-   * unreliable — several browsers (notably Chromium via MSE) treat a same-value
-   * assignment as a no-op and never fire 'seeked', silently skipping the
-   * resync (previously this fell back to a plain play() after a timeout,
-   * which is exactly the unsynced behavior we're trying to avoid). To
-   * guarantee a *real* seek happens, we first nudge slightly backward to a
-   * different timestamp, then seek back to the original position once that
-   * nudge seek completes — two genuine seeks that reliably flush and
-   * re-align the decoder pipelines.
-   *
-   * @param {HTMLVideoElement} video - The video element.
-   */
-  function resumeWithSync(video) {
-    if (!video) return;
-    var target = video.currentTime;
-    if (target <= 0.1) {
-      // At the very start — just play, no sync needed.
-      video.play().catch(function () {});
-      return;
-    }
-
-    var nudged = Math.max(0, target - 0.25);
-    var stage = nudged === target ? 1 : 0; // skip nudge stage if no room to nudge
-    var settled = false;
-
-    function finish() {
-      if (settled) return;
-      settled = true;
-      video.removeEventListener("seeked", onSeeked);
-      video.play().catch(function () {});
-    }
-
-    function onSeeked() {
-      if (stage === 0) {
-        stage = 1;
-        video.currentTime = target;
-        return;
-      }
-      finish();
-    }
-
-    video.addEventListener("seeked", onSeeked);
-    // Safety timeout: if 'seeked' never fires (unexpected), still resume.
-    setTimeout(finish, 800);
-
-    if (stage === 0) {
-      video.currentTime = nudged;
-    } else {
-      video.currentTime = target;
-    }
+  function pad2(n) {
+    return n < 10 ? "0" + n : String(n);
   }
 
-  /**
-   * Toggles play/pause on the video element. On resume, applies A/V sync.
-   * Also updates the seek bar play/pause button icon.
-   *
-   * @param {string} elementId - The video element ID.
-   */
-  videoPlayer.togglePlayPause = function (elementId) {
-    var video = document.getElementById(elementId);
-    if (!video) return;
-    var btn = document.getElementById("seek-play-pause-btn");
-    if (video.paused) {
-      resumeWithSync(video);
-      if (btn) btn.textContent = "\u23F8"; // ⏸
-    } else {
-      video.pause();
-      if (btn) btn.textContent = "\u25B6"; // ▶
+  function escapeHtml(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function closest(el, selector) {
+    while (el && el.nodeType === 1) {
+      if (el.matches && el.matches(selector)) return el;
+      el = el.parentNode;
     }
-  };
-
-  /**
-   * Initializes the custom seek slider for transcode/progressive streams.
-   * Attaches drag events to the Blazor-rendered div-based slider elements.
-   *
-   * Must be called AFTER the Blazor-rendered DOM is in place (i.e., after
-   * the stream strategy is known and the seek bar is rendered).
-   *
-   * @param {object} dotNetRef - .NET reference for callbacks.
-   * @param {string} videoId - The video GUID.
-   * @param {number} fullDuration - Total video duration in seconds.
-   */
-  videoPlayer.initSeekSlider = function (dotNetRef, videoId, fullDuration) {
-    // Guard: retry up to 30 times (3s) for Blazor to render the seek bar DOM
-    var attempts = 0;
-    var maxAttempts = 30;
-
-    function tryInit() {
-      var track = document.getElementById("transcode-seek-track");
-      if (!track) {
-        if (++attempts < maxAttempts) {
-          setTimeout(tryInit, 100);
-        }
-        return;
-      }
-
-      // Prevent double-initialization
-      if (track._seekInit) return;
-      track._seekInit = true;
-
-      var fill = document.getElementById("transcode-seek-fill");
-      var thumb = document.getElementById("transcode-seek-thumb");
-      var bar = document.getElementById("transcode-seek-bar");
-      var timeStart = document.getElementById("transcode-seek-time-start");
-      var timeEnd = document.getElementById("transcode-seek-time-end");
-      var video = document.getElementById("video-player");
-
-      if (!fill || !thumb || !bar) return;
-
-      // Resolve max duration: prefer data-max-duration, fall back to fullDuration arg
-      var maxDuration =
-        parseFloat(bar.getAttribute("data-max-duration")) || fullDuration || 0;
-
-      // Set end time label
-      if (timeEnd && maxDuration > 0) {
-        timeEnd.textContent = formatTime(maxDuration);
-      }
-
-      // If still 0, try to get from video element (may update via durationchange)
-      if (
-        maxDuration <= 0 &&
-        video &&
-        isFinite(video.duration) &&
-        video.duration > 0
-      ) {
-        maxDuration = video.duration;
-      }
-
-      // If duration is unknown, hide the seek bar and show a message
-      if (maxDuration <= 0) {
-        if (bar) bar.style.display = "none";
-        return;
-      }
-
-      // Hide native browser controls — the custom slider replaces them.
-      // Click on the video toggles play/pause instead.
-      if (video && video.hasAttribute("controls")) {
-        video.removeAttribute("controls");
-        video._customControlsActive = true;
-        // Click-to-toggle-playback on the video itself
-        video.addEventListener("click", function (e) {
-          videoPlayer.togglePlayPause("video-player");
-        });
-      }
-
-      var dragging = false;
-
-      function updateFill(percent) {
-        percent = Math.max(0, Math.min(100, percent));
-        if (fill) fill.style.width = percent + "%";
-        if (thumb) thumb.style.left = percent + "%";
-      }
-
-      function getPercentFromClientX(clientX) {
-        var rect = track.getBoundingClientRect();
-        var x = clientX - rect.left;
-        return (x / rect.width) * 100;
-      }
-
-      function onStart(e) {
-        if (maxDuration <= 0) return;
-        dragging = true;
-        var clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        updateFill(getPercentFromClientX(clientX));
-        e.preventDefault();
-      }
-
-      function onMove(e) {
-        if (!dragging) return;
-        var clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        updateFill(getPercentFromClientX(clientX));
-      }
-
-      function onEnd(e) {
-        if (!dragging) return;
-        dragging = false;
-        var clientX =
-          e.changedTouches && e.changedTouches[0]
-            ? e.changedTouches[0].clientX
-            : e.clientX;
-        var pct = getPercentFromClientX(clientX);
-        var targetSeconds = (pct / 100) * maxDuration;
-        if (targetSeconds < 0) targetSeconds = 0;
-        if (targetSeconds > maxDuration) targetSeconds = maxDuration;
-        updateFill(pct);
-        videoPlayer.seekTranscode(
-          "video-player",
-          targetSeconds,
-          videoId,
-          dotNetRef,
-        );
-      }
-
-      // Mouse events
-      track.addEventListener("mousedown", onStart);
-      document.addEventListener("mousemove", onMove);
-      document.addEventListener("mouseup", onEnd);
-
-      // Touch events
-      track.addEventListener("touchstart", onStart, { passive: false });
-      document.addEventListener("touchmove", onMove, { passive: false });
-      document.addEventListener("touchend", onEnd);
-
-      // Play/pause button
-      var playBtn = document.getElementById("seek-play-pause-btn");
-      if (playBtn) {
-        playBtn.addEventListener("click", function (e) {
-          e.stopPropagation();
-          videoPlayer.togglePlayPause("video-player");
-        });
-      }
-
-      // Update play/pause button icon on video state changes
-      if (video) {
-        video.addEventListener("play", function () {
-          var b = document.getElementById("seek-play-pause-btn");
-          if (b) b.textContent = "\u23F8"; // ⏸
-        });
-        video.addEventListener("pause", function () {
-          var b = document.getElementById("seek-play-pause-btn");
-          if (b) b.textContent = "\u25B6"; // ▶
-        });
-      }
-
-      // Update fill position on timeupdate (if not dragging)
-      if (video) {
-        video.addEventListener("timeupdate", function () {
-          if (dragging) return;
-          if (maxDuration <= 0) return;
-          // Add any seek offset (for non-HLS stream reloads) so the slider
-          // reflects the absolute position in the full video timeline.
-          var effectiveTime = video.currentTime + (video._seekStartOffset || 0);
-          var pct = (effectiveTime / maxDuration) * 100;
-          updateFill(pct);
-          // Update start time label
-          if (timeStart) {
-            timeStart.textContent = formatTime(effectiveTime);
-          }
-        });
-      }
-    }
-
-    tryInit();
-  };
-
-  /**
-   * Pauses the <video> element only if it is currently playing.
-   * No-op if already paused or if the element doesn't exist.
-   * Used by the download button to pause playback before starting a download.
-   */
-  videoPlayer.pauseIfPlaying = function (elementId) {
-    var video = document.getElementById(elementId);
-    if (video && !video.paused) {
-      video.pause();
-    }
-  };
-
-  /**
-   * Triggers a file download by creating a temporary <a> element,
-   * clicking it programmatically, then removing it.
-   * The explicit filename is set via the download attribute.
-   */
-  videoPlayer.triggerDownload = function (url, filename) {
-    var a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  };
+    return null;
+  }
 })();

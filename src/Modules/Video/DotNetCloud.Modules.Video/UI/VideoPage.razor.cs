@@ -1,3 +1,4 @@
+using System.Net.Http.Json;
 using System.Security.Claims;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
@@ -81,20 +82,14 @@ public partial class VideoPage : IAsyncDisposable
 
     // ── Player state ──
     private bool _playerOpen;
+    private bool _videoPlayerInitialized;
     private VideoDto? _playerVideo;
     private VideoMetadataDto? _playerMetadata;
     private List<SubtitleDto> _playerSubtitles = [];
-    private string? _codecErrorMessage;
-    private string? _codecErrorGuidance;
-    private bool _noAudioDetected;
+    private IReadOnlyList<VideoAudioStreamDto> _playerAudioStreams = [];
+    private int _playerDefaultAudioIndex;
     private DotNetObjectReference<VideoPage>? _dotNetRef;
-    private bool _videoErrorListenerAttached;
-    private bool _scriptsLoaded;
-    private string? _streamStrategy; // "direct", "remux", or "transcode"
-
-    // ── Transcode seek bar ──
-    private double _seekBarPosition;
-    private bool _seekInProgress;
+    private string? _streamStrategy; // "direct", "remux", or "transcode" (badge display only)
 
     private readonly SemaphoreSlim _pageLoadSemaphore = new(1, 1);
 
@@ -164,16 +159,6 @@ public partial class VideoPage : IAsyncDisposable
     private List<(Guid Id, string Name)> _dirBrowserBreadcrumbs = [];
     private string? _dirBrowserError;
 
-    /// <summary>
-    /// Toggles fullscreen mode for the video player container via JS Fullscreen API.
-    /// </summary>
-    private async Task ToggleFullscreenAsync()
-    {
-        if (_playerVideo is null)
-            return;
-        await Js.InvokeVoidAsync("DotNetCloudVideo.toggleFullscreen", "player-container");
-    }
-
     // Deep-link from Files module
     private string? _lastHandledNav;
 
@@ -189,85 +174,53 @@ public partial class VideoPage : IAsyncDisposable
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (_playerOpen && !_videoErrorListenerAttached)
+        if (_playerOpen && !_videoPlayerInitialized)
         {
-            _videoErrorListenerAttached = true;
+            _videoPlayerInitialized = true;
             try
             {
                 _dotNetRef ??= DotNetObjectReference.Create(this);
 
-                // Load scripts via JS interop (script tags in Blazor components don't execute).
-                // Dynamic script tags load in parallel, so chain hls.js → video-player.js via onload.
-                if (!_scriptsLoaded)
-                {
-                    // Load hls.js normally (not affected by the static assets bug)
-                    await Js.InvokeVoidAsync("eval",
-                        "(function(){var e=document.getElementById('dnc-hls');if(e)e.remove();e=document.getElementById('dnc-vp');if(e)e.remove();var s=document.createElement('script');s.src='/_content/DotNetCloud.Modules.Video/hls.min.js';s.id='dnc-hls';s.onload=function(){var s2=document.createElement('script');s2.src='/api/v1/videos/video-player-js?_='+Date.now();s2.id='dnc-vp';document.head.appendChild(s2);};document.head.appendChild(s);})();");
-                    await Task.Delay(500);
-                    _scriptsLoaded = true;
-                }
+                // Load hls.js → video-player.js (promise-chained onload), then init the player.
+                await LoadPlayerScriptsAsync();
 
-                // Start the stream pipeline first (triggers chunk reconstruction on server),
-                // then show progress overlay and attach the player once ready.
-                var streamUrl = GetStreamUrl(_playerVideo!.Id);
-
-                // attachHlsPlayer with 5 args: elementId, streamUrl, videoId, dotNetRef, fullDuration
-                await Js.InvokeVoidAsync("DotNetCloudVideo.attachHlsPlayer",
-                    "video-player", streamUrl, _playerVideo!.Id.ToString(), _dotNetRef,
-                    _playerVideo.Duration.TotalSeconds);
-
-                await Js.InvokeVoidAsync("DotNetCloudVideo.attachVideoErrorListener", "video-player", _dotNetRef);
-                await Js.InvokeVoidAsync("DotNetCloudVideo.attachIdleAutoHide", "player-container", 3000);
-                await Js.InvokeVoidAsync("DotNetCloudVideo.attachKeyboardShortcuts", "video-player");
-
-                // Attach watch progress tracking (reports position every ~60s while playing)
-                await Js.InvokeVoidAsync("DotNetCloudVideo.attachProgressTracking",
-                    "video-player", _playerVideo!.Id.ToString());
-
-                // Resume playback at previous position if available
-                if (_playerVideo!.WatchPositionTicks.HasValue && _playerVideo.WatchPositionTicks.Value > 0)
-                {
-                    var resumeSeconds = TimeSpan.FromTicks(_playerVideo.WatchPositionTicks.Value).TotalSeconds;
-                    await Js.InvokeVoidAsync("DotNetCloudVideo.setInitialPosition",
-                        "video-player", resumeSeconds);
-                }
+                await Js.InvokeVoidAsync("DotNetCloudVideoPlayer.init", BuildPlayerConfig());
             }
             catch (Exception ex)
             {
                 Logger.LogWarning(ex, "Failed to initialize video player");
+                _videoPlayerInitialized = false;
             }
         }
     }
 
-    /// <summary>Called from JS when the stream strategy is determined (via X-Stream-Strategy header).</summary>
-    [JSInvokable]
-    public void OnStreamStrategy(string strategy)
+    /// <summary>
+    /// Loads hls.min.js then video-player.js via promise-chained onload handlers.
+    /// Script tags inside Blazor components don't execute; hls.js is loaded from the
+    /// module static asset path, and video-player.js is served via the
+    /// /api/v1/videos/video-player-js endpoint to work around the .NET 10
+    /// static-web-assets bug. The eval returns a Promise that Blazor awaits.
+    /// </summary>
+    private async Task LoadPlayerScriptsAsync()
     {
-        _streamStrategy = strategy;
-        _seekBarPosition = 0;
-        // StateHasChanged needed here so the seek bar DOM renders (gated on _streamStrategy).
-        // The video element src is unchanged, so Blazor's diff should leave it alone.
-        InvokeAsync(StateHasChanged);
-
-        // Initialize the custom seek slider for non-direct strategies.
-        // Fire-and-forget: initSeekSlider retries for up to 3s waiting for
-        // the Blazor-rendered DOM elements to appear.
-        if (!string.Equals(strategy, "direct", StringComparison.OrdinalIgnoreCase)
-            && _playerVideo is not null)
-        {
-            _ = InvokeAsync(async () =>
-            {
-                await Js.InvokeVoidAsync("DotNetCloudVideo.initSeekSlider",
-                    _dotNetRef,
-                    _playerVideo.Id.ToString(),
-                    _playerVideo.Duration.TotalSeconds);
-            });
-        }
+        // Timestamp cache-buster (Date.now) so a freshly deployed video-player.js is
+        // never served stale from the browser cache.
+        await Js.InvokeVoidAsync("eval",
+            "(function(){return new Promise(function(res){var h=document.createElement('script');h.src='/_content/DotNetCloud.Modules.Video/hls.min.js?v=1';h.onload=function(){var p=document.createElement('script');p.src='/api/v1/videos/video-player-js?_='+Date.now();p.onload=res;p.onerror=res;document.head.appendChild(p);};h.onerror=res;document.head.appendChild(h);});})()");
     }
 
-    /// <summary>Called from JS when the video element fires an error event.</summary>
+    /// <summary>Called from JS when the stream strategy is determined. Drives the badge display only.</summary>
     [JSInvokable]
-    public void OnVideoError(int code, string message, int? httpStatus, string? httpStatusText)
+    public void OnStrategy(string strategy)
+    {
+        _streamStrategy = strategy;
+        InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>Called from JS when playback fails fatally. The JS player shows its own error overlay;
+    /// this logs the diagnostic (with ffprobe metadata when available) server-side.</summary>
+    [JSInvokable]
+    public void OnError(int code, string message)
     {
         var codeLabel = code switch
         {
@@ -281,10 +234,6 @@ public partial class VideoPage : IAsyncDisposable
         var diagnostic = $"Code: {codeLabel}";
         if (!string.IsNullOrWhiteSpace(message))
             diagnostic += $" — {message}";
-        if (httpStatus.HasValue)
-            diagnostic += $" | HTTP {httpStatus}";
-        if (!string.IsNullOrWhiteSpace(httpStatusText))
-            diagnostic += $" ({httpStatusText})";
 
         // Append codec/container info from ffprobe metadata if available
         if (_playerMetadata is not null)
@@ -298,152 +247,183 @@ public partial class VideoPage : IAsyncDisposable
         }
 
         Logger.LogWarning("Video playback error: {Diagnostic}", diagnostic);
-        _codecErrorMessage = diagnostic;
-        _codecErrorGuidance = BuildCodecGuidance();
-        InvokeAsync(StateHasChanged);
     }
 
-    private string BuildCodecGuidance()
-    {
-        var container = _playerMetadata?.ContainerFormat?.ToLowerInvariant();
-        var videoCodec = _playerMetadata?.VideoCodec?.ToLowerInvariant();
-        var audioCodec = _playerMetadata?.AudioCodec?.ToLowerInvariant();
-
-        // MKV container — Edge doesn't support it at all
-        if (container == "mkv" || container == "matroska" || container == "webm")
-        {
-            if (container == "webm" && videoCodec is "vp8" or "vp9" or "av1")
-                return "This video uses a WebM container with a supported codec. This format should play in most modern browsers, including Edge.";
-
-            if (container == "mkv" || container == "matroska")
-            {
-                return "This video uses an <strong>MKV (Matroska)</strong> container, which Microsoft Edge does not support natively — even with HEVC extensions installed. " +
-                       "To play this video, use <strong>Google Chrome</strong> or <strong>Mozilla Firefox</strong>, both of which support MKV playback. " +
-                       "Alternatively, you can remux the file to MP4 using ffmpeg: <code>ffmpeg -i input.mkv -c copy output.mp4</code>.";
-            }
-        }
-
-        // Known problematic codecs in MP4 — HEVC needs Microsoft's extension
-        if (videoCodec is "hevc" or "h265" && (container == "mp4" || container is null))
-        {
-            return "This video uses <strong>H.265 / HEVC</strong> video. Install the free " +
-                   "<a href=\"ms-windows-store://pdp/?productid=9n4wgh0z6vhq\" target=\"_blank\" rel=\"noopener\">HEVC Video Extensions</a> " +
-                   "from the Microsoft Store, then refresh the page.";
-        }
-
-        if (videoCodec is "av1" && (container == "mp4" || container is null))
-        {
-            return "This video uses the <strong>AV1</strong> video codec. Install the " +
-                   "<a href=\"ms-windows-store://pdp/?productid=9mvzqvxjbq9v\" target=\"_blank\" rel=\"noopener\">AV1 Video Extension</a> " +
-                   "from the Microsoft Store, then refresh the page.";
-        }
-
-        if (videoCodec is "mpeg2video" or "mpeg1video")
-        {
-            return "This video uses <strong>MPEG-2</strong> video, which is not supported for playback in any modern browser. " +
-                   "Re-encode the file to H.264 using ffmpeg: <code>ffmpeg -i input -c:v libx264 -c:a aac output.mp4</code>.";
-        }
-
-        if (container == "avi" || videoCodec is "msmpeg4v3" or "wmv3" or "wmv2" or "wmv1")
-        {
-            return "This video uses a legacy Windows Media or AVI format. These formats have limited browser support. " +
-                   "Try a different browser, or re-encode to H.264 MP4.";
-        }
-
-        // Audio-only issues
-        if (audioCodec is "ac3" or "eac3" or "dts" or "truehd")
-        {
-            return "This video has a <strong>" + (audioCodec ?? "surround") + "</strong> audio track that most browsers cannot decode. " +
-                   "For full audio support, use <strong>Microsoft Edge</strong> or re-encode the audio to AAC.";
-        }
-
-        // Generic guidance when we have metadata but no known bad combo
-        if (_playerMetadata is not null)
-        {
-            return "The file uses a <strong>" + (container ?? "unknown") + "</strong> container with <strong>" +
-                   (videoCodec ?? "unknown") + "</strong> video. This combination may not be supported by your browser. " +
-                   "Try <strong>Google Chrome</strong> or <strong>Mozilla Firefox</strong> for the widest format compatibility.";
-        }
-
-        // No metadata — generic guidance
-        return "Your browser was unable to play this video. This can happen if the video uses an unsupported codec or if the file failed to load.";
-    }
-
-    private void DismissCodecError()
-    {
-        _codecErrorMessage = null;
-        _codecErrorGuidance = null;
-    }
-
-    /// <summary>Called from JS when the video plays but no audio track is decoded (e.g. Firefox + Dolby Digital).</summary>
+    /// <summary>Called from JS when playback ends naturally (for auto-advance to the next episode).</summary>
     [JSInvokable]
-    public void OnNoAudio()
+    public void OnEnded()
     {
-        _noAudioDetected = true;
-        InvokeAsync(StateHasChanged);
+        _ = AutoAdvanceEpisodeAsync();
     }
 
-    // ────────────────────────────────────────────────────────
-    //  Transcode Seek Bar
-    // ────────────────────────────────────────────────────────
+    /// <summary>Called from JS when the user clicks the prev (-1) / next (+1) episode button.</summary>
+    [JSInvokable]
+    public async Task OnNavigateEpisode(int delta)
+    {
+        await NavigateEpisodeAsync(delta);
+    }
 
     /// <summary>
-    /// Called on every input event while the user drags the transcode seek slider.
-    /// Updates the displayed position without triggering a seek-transcode.
+    /// Navigates to the next/previous episode in the current TV season or movie franchise.
+    /// Stops at the boundaries of the season/franchise (returns without action).
     /// </summary>
-    private void OnSeekBarInput(ChangeEventArgs e)
+    private async Task NavigateEpisodeAsync(int delta)
     {
-        if (e.Value is string s && double.TryParse(s, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var pos))
+        if (_playerSeriesContext is null || _playerVideo is null)
+            return;
+
+        // TV series with seasons
+        if (_playerSeriesContext.Season is not null)
         {
-            _seekBarPosition = pos;
+            var episodes = _seasonEpisodes; // in order
+            var idx = episodes.FindIndex(e => e.EpisodeNumber == _playerSeriesContext.EpisodeNumber);
+            var next = ComputeNextEpisodeIndex(episodes.Count, idx, delta);
+            if (next is not null)
+            {
+                _playerSeriesContext = new PlayerSeriesContext(
+                    _playerSeriesContext.Series,
+                    _playerSeriesContext.Season,
+                    episodes[next.Value].EpisodeNumber,
+                    null);
+                await OpenEpisodeVideoAsync(episodes[next.Value]);
+            }
+            return;
+        }
+
+        // Movie franchise (no seasons)
+        var items = _seriesVideos; // in order
+        var i = items.FindIndex(x => x.SortOrder == _playerSeriesContext.SortOrder);
+        var n = ComputeNextEpisodeIndex(items.Count, i, delta);
+        if (n is not null)
+        {
+            _playerSeriesContext = new PlayerSeriesContext(
+                _playerSeriesContext.Series,
+                null,
+                null,
+                items[n.Value].SortOrder);
+            await OpenSeriesVideoAsync(items[n.Value]);
         }
     }
 
+    private async Task AutoAdvanceEpisodeAsync() => await NavigateEpisodeAsync(1);
+
     /// <summary>
-    /// Called when the user releases the transcode seek slider (onchange).
-    /// Triggers the seek-transcode flow if the target is beyond buffered range.
+    /// Pure helper computing the index reached by stepping <paramref name="delta"/> from
+    /// <paramref name="currentIndex"/> within a list of <paramref name="count"/> items.
+    /// Returns null when stepping past either bound. Extracted so it can be unit-tested.
     /// </summary>
-    private async Task OnSeekBarChanged(ChangeEventArgs e)
+    internal static int? ComputeNextEpisodeIndex(int count, int currentIndex, int delta)
     {
-        if (_seekInProgress)
-            return;
-        if (e.Value is not string s || !double.TryParse(s, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var targetSeconds))
-            return;
+        if (count <= 0 || currentIndex < 0 || currentIndex >= count)
+            return null;
+        var next = currentIndex + delta;
+        if (next < 0 || next >= count)
+            return null;
+        return next;
+    }
 
-        _seekBarPosition = targetSeconds;
-        _seekInProgress = true;
-        StateHasChanged();
+    /// <summary>
+    /// Builds the config object passed to the JS player's <c>init</c>. The JS player
+    /// owns all player DOM; Blazor only supplies the metadata it needs.
+    /// </summary>
+    private object BuildPlayerConfig()
+    {
+        var video = _playerVideo!;
+        var nav = GetPlayerNavigationState();
+        return new
+        {
+            containerId = "video-player-root",
+            videoId = video.Id,
+            title = video.Title,
+            posterUrl = video.HasExternalPoster ? GetThumbnailUrl(video.Id) : null,
+            streamUrl = GetStreamUrl(video.Id),
+            durationSeconds = video.Duration.TotalSeconds,
+            resumeSeconds = video.WatchPositionTicks.HasValue && video.WatchPositionTicks.Value > 0
+                ? TimeSpan.FromTicks(video.WatchPositionTicks.Value).TotalSeconds
+                : 0,
+            subtitles = _playerSubtitles.Select(s => new
+            {
+                id = s.Id,
+                language = s.Language,
+                label = s.Label ?? s.Language,
+                isDefault = s.IsDefault
+            }),
+            audioStreams = _playerAudioStreams.Select(a => new
+            {
+                a.Index,
+                a.Codec,
+                a.Language,
+                a.Title,
+                a.Channels,
+                a.IsDefault
+            }),
+            defaultAudioIndex = _playerDefaultAudioIndex,
+            hasPrevious = nav.HasPrevious,
+            hasNext = nav.HasNext,
+            dotNetRef = _dotNetRef
+        };
+    }
 
+    /// <summary>
+    /// Determines whether prev/next episode navigation is available for the current
+    /// player context (within the season or franchise bounds).
+    /// </summary>
+    private (bool HasPrevious, bool HasNext) GetPlayerNavigationState()
+    {
+        if (_playerSeriesContext is null || _playerVideo is null)
+            return (false, false);
+
+        if (_playerSeriesContext.Season is not null)
+        {
+            var idx = _seasonEpisodes.FindIndex(e => e.EpisodeNumber == _playerSeriesContext.EpisodeNumber);
+            return (
+                ComputeNextEpisodeIndex(_seasonEpisodes.Count, idx, -1) is not null,
+                ComputeNextEpisodeIndex(_seasonEpisodes.Count, idx, 1) is not null);
+        }
+
+        if (_playerSeriesContext.SortOrder.HasValue)
+        {
+            var i = _seriesVideos.FindIndex(x => x.SortOrder == _playerSeriesContext.SortOrder);
+            return (
+                ComputeNextEpisodeIndex(_seriesVideos.Count, i, -1) is not null,
+                ComputeNextEpisodeIndex(_seriesVideos.Count, i, 1) is not null);
+        }
+
+        return (false, false);
+    }
+
+    /// <summary>
+    /// Fetches the audio streams for a video via GET /api/v1/videos/{id}/streams.
+    /// Returns an empty list when the call fails (the player then has no audio menu).
+    /// </summary>
+    private async Task<IReadOnlyList<VideoAudioStreamDto>> GetAudioStreamsAsync(Guid videoId, CallerContext caller)
+    {
         try
         {
-            await Js.InvokeVoidAsync("DotNetCloudVideo.seekTranscode",
-                "video-player",
-                targetSeconds,
-                _playerVideo!.Id.ToString(),
-                _dotNetRef);
+            using var response = await Http.GetAsync($"/api/v1/videos/{videoId}/streams");
+            if (!response.IsSuccessStatusCode)
+                return [];
+
+            var envelope = await response.Content.ReadFromJsonAsync<StreamsEnvelope>();
+            return envelope?.Data?.AudioStreams ?? [];
         }
         catch (Exception ex)
         {
-            Logger.LogWarning(ex, "Seek-transcode failed for video {VideoId}", _playerVideo?.Id);
-        }
-        finally
-        {
-            _seekInProgress = false;
+            Logger.LogWarning(ex, "Failed to load audio streams for video {VideoId}", videoId);
+            return [];
         }
     }
 
-    /// <summary>
-    /// Called from JS when the transcode seek completes and the stream is ready.
-    /// Updates the seek bar position to match the new playback position.
-    /// </summary>
-    [JSInvokable]
-    public void OnTranscodeSeekComplete(double positionSeconds)
+    private sealed record StreamsEnvelope
     {
-        _seekBarPosition = positionSeconds;
-        // NOTE: Do NOT call StateHasChanged() here.
-        // _seekBarPosition is not rendered in Razor — the JS manages the
-        // slider fill/thumb position directly. A Blazor re-render would
-        // re-apply the <video> src attribute and restart playback from 0.
+        public StreamsData? Data { get; init; }
+    }
+
+    private sealed record StreamsData
+    {
+        public Guid VideoId { get; init; }
+
+        public IReadOnlyList<VideoAudioStreamDto>? AudioStreams { get; init; }
     }
 
     protected override async Task OnInitializedAsync()
@@ -813,15 +793,12 @@ public partial class VideoPage : IAsyncDisposable
         _searchResults = null;
         try
         {
-            // Tear down previous player state (without JS interop — old <video>
-            // element is removed from DOM by Blazor re-render, JS GC handles the rest)
-            _codecErrorMessage = null;
-            _codecErrorGuidance = null;
-            _noAudioDetected = false;
-            _videoErrorListenerAttached = false;
-            _scriptsLoaded = false; // force fresh script load with DOM-settle delay
+            // Tear down previous player state (the JS player is destroyed/re-initialized
+            // for the new video via _videoPlayerInitialized).
+            _videoPlayerInitialized = false;
             _streamStrategy = null;
-            _seekBarPosition = 0;
+            _playerAudioStreams = [];
+            _playerDefaultAudioIndex = 0;
             _playerOpen = true;
 
             var caller = await GetCallerAsync();
@@ -838,6 +815,10 @@ public partial class VideoPage : IAsyncDisposable
             _playerSubtitles = (await SubtitleService.GetSubtitlesAsync(video.Id, caller)).ToList();
             _playerMetadata = await MetadataService.GetMetadataAsync(video.Id);
 
+            // Load the audio streams for the audio-track selector (best-effort).
+            _playerAudioStreams = await GetAudioStreamsAsync(video.Id, caller);
+            _playerDefaultAudioIndex = _playerAudioStreams.FirstOrDefault(s => s.IsDefault)?.Index ?? 0;
+
             _breadcrumb =
             [
                 new BreadcrumbItem(GetSectionLabel(), async () => { await ClosePlayer(); StateHasChanged(); })
@@ -851,37 +832,24 @@ public partial class VideoPage : IAsyncDisposable
 
     private async Task ClosePlayer()
     {
-        var closingVideoId = _playerVideo?.Id;
         _playerOpen = false;
         _playerVideo = null;
         _playerMetadata = null;
         _playerSubtitles.Clear();
-        _codecErrorMessage = null;
-        _codecErrorGuidance = null;
-        _noAudioDetected = false;
-        _videoErrorListenerAttached = false;
+        _playerAudioStreams = [];
+        _playerDefaultAudioIndex = 0;
         _playerSeriesContext = null;
         _streamStrategy = null;
-        _seekBarPosition = 0;
-        _seekInProgress = false;
+        _videoPlayerInitialized = false;
         try
         {
-            await Js.InvokeVoidAsync("DotNetCloudVideo.disposeProgressTracking", "video-player");
-            await Js.InvokeVoidAsync("DotNetCloudVideo.cancelStreamProgress", closingVideoId?.ToString());
-            await Js.InvokeVoidAsync("DotNetCloudVideo.destroyHlsPlayer", "video-player");
-            await Js.InvokeVoidAsync("DotNetCloudVideo.disposeIdleAutoHide", "player-container");
-            await Js.InvokeVoidAsync("DotNetCloudVideo.disposeKeyboardShortcuts", "video-player");
-
-            // Remove cached script tags so next open loads fresh versions
-            await Js.InvokeVoidAsync("eval",
-                "(function(){var e=document.getElementById('dnc-hls');if(e)e.remove();e=document.getElementById('dnc-vp');if(e)e.remove();})();");
+            // The JS player tears down hls.js, subtitle blobs, DOM, and listeners.
+            await Js.InvokeVoidAsync("DotNetCloudVideoPlayer.destroy");
         }
         catch (Exception ex)
         {
             Logger.LogDebug(ex, "Error tearing down video player JS");
         }
-
-        _scriptsLoaded = false;
 
         _breadcrumb.Clear();
     }
@@ -1344,8 +1312,6 @@ public partial class VideoPage : IAsyncDisposable
     private static string GetDownloadUrl(Guid videoId) =>
         $"/api/v1/videos/{videoId}/download";
 
-    private static string GetSubtitleUrl(Guid subtitleId) => $"/api/v1/videos/subtitles/{subtitleId}";
-
     private static double GetWatchPercent(VideoDto video)
     {
         if (video.WatchPositionTicks is null || video.Duration.Ticks < 1)
@@ -1428,12 +1394,12 @@ public partial class VideoPage : IAsyncDisposable
         // (no-op if already paused). This avoids competing bandwidth usage
         // between the stream and the download, while preserving the
         // playback position so the user can resume after download completes.
-        await Js.InvokeVoidAsync("DotNetCloudVideo.pauseIfPlaying", "video-player");
+        await Js.InvokeVoidAsync("DotNetCloudVideoPlayer.pauseIfPlaying");
 
         // Trigger the download with the original filename so the saved file
         // has a meaningful name, not just the video ID.
         await Js.InvokeVoidAsync(
-            "DotNetCloudVideo.triggerDownload",
+            "DotNetCloudVideoPlayer.triggerDownload",
             GetDownloadUrl(_playerVideo!.Id),
             _playerVideo!.FileName);
     }
@@ -1987,14 +1953,11 @@ public partial class VideoPage : IAsyncDisposable
     {
         ScanProgress.OnProgressChanged -= OnScanProgressChanged;
         _dotNetRef?.Dispose();
+        _dotNetRef = null;
 
         try
         {
-            await Js.InvokeVoidAsync("DotNetCloudVideo.disposeProgressTracking", "video-player");
-            await Js.InvokeVoidAsync("DotNetCloudVideo.cancelStreamProgress", _playerVideo?.Id.ToString());
-            await Js.InvokeVoidAsync("DotNetCloudVideo.destroyHlsPlayer", "video-player");
-            await Js.InvokeVoidAsync("DotNetCloudVideo.disposeIdleAutoHide", "player-container");
-            await Js.InvokeVoidAsync("DotNetCloudVideo.disposeKeyboardShortcuts", "video-player");
+            await Js.InvokeVoidAsync("DotNetCloudVideoPlayer.destroy");
         }
         catch { /* circuit may be gone */ }
 

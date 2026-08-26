@@ -67,13 +67,16 @@ public sealed class FfmpegArgumentBuilder
     /// <param name="audioCodec">Source audio codec (e.g. "aac"). If not browser-compatible, audio is re-encoded.</param>
     /// <param name="outputContainer">Target container: "mp4" or "webm". MP4 is the default.</param>
     /// <param name="startTime">Optional seek position in the source file (applied via -ss before -i).</param>
+    /// <param name="audioStreamIndex">Optional 0-based positional audio stream index to map.
+    /// Defaults to the first audio stream (0).</param>
     /// <returns>Full ffmpeg argument string (does NOT include the "ffmpeg" binary name).</returns>
     public string GetStreamCopyArgs(
         string inputPath,
         string? videoCodec,
         string? audioCodec,
         string outputContainer = "mp4",
-        TimeSpan? startTime = null)
+        TimeSpan? startTime = null,
+        int? audioStreamIndex = null)
     {
         var sb = new StringBuilder();
         sb.Append("-nostdin -hide_banner -loglevel warning ");
@@ -98,8 +101,12 @@ public sealed class FfmpegArgumentBuilder
         // make_zero ensures no negative timestamps in the output.
         sb.Append("-copyts -start_at_zero -avoid_negative_ts make_zero -max_interleave_delta 0 ");
 
-        // Map streams
-        sb.Append("-map 0:v:0? -map 0:a:0? ");
+        // Map streams (map the selected audio stream, defaulting to the first)
+        var audioMap = audioStreamIndex is >= 0
+            ? $"-map 0:a:{audioStreamIndex}? "
+            : "-map 0:a:0? ";
+        sb.Append("-map 0:v:0? ");
+        sb.Append(audioMap);
 
         // Video: stream copy
         sb.Append("-c:v copy ");
@@ -156,18 +163,31 @@ public sealed class FfmpegArgumentBuilder
     /// Builds ffmpeg arguments for stream copy that writes to a file (not stdout).
     /// Used when the output file is needed for subsequent serving (e.g., direct play from remuxed file).
     /// </summary>
+    /// <param name="inputPath">Absolute path to the source video file.</param>
+    /// <param name="outputPath">Absolute path where the remuxed file is written.</param>
+    /// <param name="videoCodec">Source video codec name.</param>
+    /// <param name="audioCodec">Source audio codec name.</param>
+    /// <param name="outputContainer">Target container: "mp4" or "webm". MP4 is the default.</param>
+    /// <param name="audioStreamIndex">Optional 0-based positional audio stream index to map.
+    /// Defaults to the first audio stream (0).</param>
+    /// <returns>Path to the remuxed output file.</returns>
     public string GetStreamCopyToFileArgs(
         string inputPath,
         string outputPath,
         string? videoCodec,
         string? audioCodec,
-        string outputContainer = "mp4")
+        string outputContainer = "mp4",
+        int? audioStreamIndex = null)
     {
         var sb = new StringBuilder();
         sb.Append("-nostdin -hide_banner -loglevel warning ");
         sb.Append("-fflags +genpts ");
         sb.AppendFormat(CultureInfo.InvariantCulture, "-i \"{0}\" ", EscapePath(inputPath));
-        sb.Append("-map 0:v:0? -map 0:a:0? ");
+        var audioMap = audioStreamIndex is >= 0
+            ? $"-map 0:a:{audioStreamIndex}? "
+            : "-map 0:a:0? ";
+        sb.Append("-map 0:v:0? ");
+        sb.Append(audioMap);
         sb.Append("-c:v copy ");
 
         if (videoCodec is not null
@@ -211,13 +231,16 @@ public sealed class FfmpegArgumentBuilder
     /// <param name="options">Transcoding options (codec, CRF, preset, bitrate, etc.).</param>
     /// <param name="seekStart">Optional start time for seeking.</param>
     /// <param name="seekDuration">Optional duration to transcode (TimeSpan or null = full file).</param>
+    /// <param name="audioStreamIndex">Optional 0-based positional audio stream index to map.
+    /// Defaults to the first audio stream (0).</param>
     /// <returns>Full ffmpeg argument string (does NOT include the "ffmpeg" binary name).</returns>
     public string BuildProgressiveMp4Args(
         string inputPath,
         string outputPath,
         VideoTranscodingOptions options,
         TimeSpan? seekStart = null,
-        TimeSpan? seekDuration = null)
+        TimeSpan? seekDuration = null,
+        int? audioStreamIndex = null)
     {
         var sb = new StringBuilder();
 
@@ -248,8 +271,12 @@ public sealed class FfmpegArgumentBuilder
             sb.AppendFormat(CultureInfo.InvariantCulture, "-t {0} ", seekDuration.Value.TotalSeconds.ToString("F3", CultureInfo.InvariantCulture));
         }
 
-        // --- Map all streams we want ---
-        sb.Append("-map 0:v:0? -map 0:a:0? ");
+        // --- Map all streams we want (map the selected audio stream) ---
+        var audioMap = audioStreamIndex is >= 0
+            ? $"-map 0:a:{audioStreamIndex}? "
+            : "-map 0:a:0? ";
+        sb.Append("-map 0:v:0? ");
+        sb.Append(audioMap);
 
         // --- Video codec ---
         sb.AppendFormat(CultureInfo.InvariantCulture, "-c:v {0} ", options.VideoCodec);
@@ -321,15 +348,18 @@ public sealed class FfmpegArgumentBuilder
     /// <param name="options">Transcoding options (codec, CRF, preset, bitrate, etc.).</param>
     /// <param name="seekStart">Optional start time for seeking.</param>
     /// <param name="seekDuration">Optional duration to transcode (TimeSpan or null = full file).</param>
+    /// <param name="audioStreamIndex">Optional 0-based positional audio stream index to map.
+    /// Defaults to the first audio stream (0).</param>
     /// <returns>Full ffmpeg argument string (does NOT include the "ffmpeg" binary name).</returns>
     public string BuildHlsArgs(
         string inputPath,
         string outputDir,
         VideoTranscodingOptions options,
         TimeSpan? seekStart = null,
-        TimeSpan? seekDuration = null)
+        TimeSpan? seekDuration = null,
+        int? audioStreamIndex = null)
     {
-        return BuildHlsArgs(inputPath, outputDir, options, sourceVideoCodec: null, sourceAudioCodec: null, seekStart, seekDuration);
+        return BuildHlsArgs(inputPath, outputDir, options, sourceVideoCodec: null, sourceAudioCodec: null, seekStart, seekDuration, audioStreamIndex);
     }
 
     /// <summary>
@@ -344,6 +374,8 @@ public sealed class FfmpegArgumentBuilder
     /// <param name="sourceAudioCodec">Source audio codec from ffprobe (e.g. "aac", "ac3"). If browser-compatible, audio is stream-copied instead of re-encoded.</param>
     /// <param name="seekStart">Optional start time for seeking.</param>
     /// <param name="seekDuration">Optional duration to transcode (TimeSpan or null = full file).</param>
+    /// <param name="audioStreamIndex">Optional 0-based positional audio stream index to map.
+    /// Defaults to the first audio stream (0).</param>
     /// <returns>Full ffmpeg argument string (does NOT include the "ffmpeg" binary name).</returns>
     public string BuildHlsArgs(
         string inputPath,
@@ -352,7 +384,8 @@ public sealed class FfmpegArgumentBuilder
         string? sourceVideoCodec,
         string? sourceAudioCodec,
         TimeSpan? seekStart = null,
-        TimeSpan? seekDuration = null)
+        TimeSpan? seekDuration = null,
+        int? audioStreamIndex = null)
     {
         var sb = new StringBuilder();
 
@@ -413,8 +446,12 @@ public sealed class FfmpegArgumentBuilder
             sb.AppendFormat(CultureInfo.InvariantCulture, "-t {0} ", seekDuration.Value.TotalSeconds.ToString("F3", CultureInfo.InvariantCulture));
         }
 
-        // --- Map streams ---
-        sb.Append("-map 0:v:0? -map 0:a:0? ");
+        // --- Map streams (map the selected audio stream, defaulting to the first) ---
+        var audioMap = audioStreamIndex is >= 0
+            ? $"-map 0:a:{audioStreamIndex}? "
+            : "-map 0:a:0? ";
+        sb.Append("-map 0:v:0? ");
+        sb.Append(audioMap);
 
         // --- Jellyfin-style timestamp handling: preserve source timestamps ---
         sb.Append("-copyts -avoid_negative_ts disabled ");

@@ -676,188 +676,41 @@
   padding: 0;
 }
 
-.player-container {
+/* ── Video Player (JS-owned DOM — see video-player.js) ──
+   Blazor CSS isolation adds an attribute to the Razor-rendered host container
+   (.video-player-root), so descendant selectors still match JS-created children. */
+.video-player-root {
   position: relative;
   width: 100%;
   background: #000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
-.video-player {
+.video-player-root ::deep .dnc-player {
+  position: relative;
+  width: 100%;
+  background: #000;
+  overflow: hidden;
+}
+
+.video-player-root ::deep .dnc-video {
   width: 100%;
   max-height: 65vh;
   display: block;
   outline: none;
+  background: #000;
 }
 
-/* ── Idle auto-hide: cursor disappears after inactivity ── */
-
-::deep .player-container.idle-hide {
-  cursor: none;
-}
-
-::deep .player-container.idle-hide .video-player {
-  cursor: none;
-}
-
-/* ── Fullscreen mode: video stretches to fill entire screen ── */
-
-.player-container:fullscreen {
+/* ── Fullscreen mode: video stretches to fill the entire screen ── */
+.video-player-root ::deep .dnc-player:fullscreen {
   width: 100vw;
   height: 100vh;
 }
 
-.player-container:fullscreen .video-player {
+.video-player-root ::deep .dnc-player:fullscreen .dnc-video {
   width: 100%;
   height: 100%;
   max-height: none;
   object-fit: contain;
-}
-
-/* ── Codec Error Overlay ── */
-
-.codec-error-overlay {
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.85);
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  z-index: 10;
-  overflow-y: auto;
-  padding: 48px 16px 32px;
-}
-
-.codec-error-card {
-  background: var(--color-surface, #1e293b);
-  border: 1px solid var(--color-border, #334155);
-  border-radius: 12px;
-  padding: 32px 40px;
-  max-width: 540px;
-  text-align: center;
-  color: #e2e8f0;
-  position: relative;
-}
-
-.codec-error-close {
-  position: absolute;
-  top: 10px;
-  right: 14px;
-  background: none;
-  border: none;
-  color: #94a3b8;
-  font-size: 1.5rem;
-  line-height: 1;
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 4px;
-  transition:
-    color 0.15s,
-    background 0.15s;
-}
-
-.codec-error-close:hover {
-  color: #f8fafc;
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.codec-error-icon {
-  font-size: 2.5rem;
-  margin-bottom: 12px;
-}
-
-.codec-error-card h4 {
-  font-size: 1.25rem;
-  font-weight: 600;
-  margin: 0 0 12px;
-  color: #f8fafc;
-}
-
-.codec-error-card p {
-  font-size: 0.9rem;
-  line-height: 1.6;
-  margin: 0 0 16px;
-  color: #94a3b8;
-}
-
-.codec-error-diagnostic {
-  font-family: "Cascadia Code", "Fira Code", "JetBrains Mono", monospace;
-  font-size: 0.8rem;
-  padding: 10px 14px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  word-break: break-all;
-  color: #94a3b8;
-  margin: 0 0 16px;
-  line-height: 1.5;
-}
-
-.codec-error-instructions {
-  background: #0f172a;
-  border: 1px solid #334155;
-  border-radius: 8px;
-  padding: 14px 18px;
-  margin-bottom: 16px;
-  font-size: 0.9rem;
-  line-height: 1.6;
-  color: #cbd5e1;
-}
-
-.codec-error-instructions ul {
-  margin: 8px 0 0 0;
-  padding-left: 20px;
-  text-align: left;
-}
-
-.codec-error-instructions code {
-  background: rgba(255, 255, 255, 0.1);
-  padding: 1px 5px;
-  border-radius: 3px;
-  font-size: 0.85em;
-}
-
-.codec-error-instructions a {
-  color: #60a5fa;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-.codec-error-instructions a:hover {
-  color: #93bbfd;
-}
-
-.codec-error-alt {
-  font-size: 0.82rem !important;
-  color: #94a3b8 !important;
-  margin-bottom: 0 !important;
-  font-style: italic;
-}
-
-/* ── No Audio Banner ── */
-.no-audio-banner {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 16px;
-  background: #1e293b;
-  border: 1px solid #f59e0b;
-  border-radius: 6px;
-  color: #fef3c7;
-  font-size: 0.85rem;
-  line-height: 1.5;
-  margin-top: 8px;
-}
-
-.no-audio-banner strong {
-  color: #fbbf24;
-}
-
-.no-audio-icon {
-  font-size: 1.2rem;
-  flex-shrink: 0;
 }
 
 .player-info-panel {
@@ -2085,101 +1938,376 @@
   border: 1px solid rgba(234, 179, 8, 0.3);
 }
 
-/* ── Transcode Seek Bar (inside player-container, visible in fullscreen) ── */
-.transcode-seek-bar {
+/* ── Player OSD (JS-owned — see video-player.js) ── */
+
+.video-player-root ::deep .dnc-osd {
   position: absolute;
-  bottom: 0;
   left: 0;
   right: 0;
+  bottom: 0;
   z-index: 10;
   display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-  pointer-events: auto;
-  background: rgba(0, 0, 0, 0.55);
-  padding: 8px 14px 6px;
-  margin: 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 14px 8px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0));
+  color: #fff;
+  transition: opacity 0.25s ease;
 }
 
-/* Add bottom padding to player-container so the video doesn't go under the seek bar */
-.player-container {
-  padding-bottom: 36px;
+.video-player-root ::deep .dnc-osd.hidden {
+  opacity: 0;
+  pointer-events: none;
 }
 
-.transcode-seek-time {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.6);
-  font-variant-numeric: tabular-nums;
+.video-player-root ::deep .dnc-osd-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
   white-space: nowrap;
-  min-width: 36px;
-  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.transcode-seek-time-start {
-  text-align: right;
-}
-
-.transcode-seek-time-end {
-  text-align: left;
-}
-
-.transcode-seek-track {
+/* ── Seek bar ── */
+.video-player-root ::deep .dnc-seek {
   position: relative;
   width: 100%;
-  height: 8px;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 4px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 3px;
   cursor: pointer;
 }
 
-.transcode-seek-fill {
+.video-player-root ::deep .dnc-seek-buffered {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.35);
+  border-radius: 3px;
+  width: 0%;
+}
+
+.video-player-root ::deep .dnc-seek-played {
   position: absolute;
   top: 0;
   left: 0;
   height: 100%;
   background: #3b82f6;
-  border-radius: 4px;
+  border-radius: 3px;
   width: 0%;
 }
 
-.transcode-seek-thumb {
+.video-player-root ::deep .dnc-seek-thumb {
   position: absolute;
   top: 50%;
   left: 0%;
-  width: 16px;
-  height: 16px;
-  margin-top: -8px;
-  margin-left: -8px;
+  width: 14px;
+  height: 14px;
+  margin-top: -7px;
+  margin-left: -7px;
   border-radius: 50%;
   background: #3b82f6;
   border: 2px solid #fff;
   box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
-  cursor: pointer;
-  pointer-events: none; /* parent track handles events */
+  pointer-events: none;
 }
 
-/* ── Seek Bar Play/Pause Button ── */
-.seek-play-pause {
-  width: 32px;
-  height: 32px;
-  min-width: 32px;
-  border-radius: 50%;
-  background: #3b82f6;
-  color: #fff;
-  border: none;
-  font-size: 14px;
+.video-player-root ::deep .dnc-time {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.8);
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  gap: 6px;
+}
+
+.video-player-root ::deep .dnc-time-sep {
+  opacity: 0.6;
+}
+
+/* ── Controls row ── */
+.video-player-root ::deep .dnc-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.video-player-root ::deep .dnc-controls-spacer {
+  flex: 1;
+}
+
+.video-player-root ::deep .dnc-btn {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
   display: flex;
   align-items: center;
   justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: #fff;
   cursor: pointer;
-  flex-shrink: 0;
-  padding: 0;
-  line-height: 1;
-  transition: background 0.2s ease;
+  transition: background 0.15s ease;
 }
 
-.seek-play-pause:hover {
+.video-player-root ::deep .dnc-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.video-player-root ::deep .dnc-icon {
+  width: 22px;
+  height: 22px;
+  display: block;
+  fill: currentColor;
+  flex-shrink: 0;
+}
+
+/* ── Volume ── */
+.video-player-root ::deep .dnc-volume {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.video-player-root ::deep .dnc-volume-slider {
+  width: 80px;
+  height: 4px;
+  accent-color: #3b82f6;
+  cursor: pointer;
+}
+
+/* ── Popover menus ── */
+.video-player-root ::deep .dnc-menu-wrap {
+  position: relative;
+}
+
+.video-player-root ::deep .dnc-menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  min-width: 160px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  padding: 4px;
+  z-index: 30;
+}
+
+.video-player-root ::deep .dnc-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: #e2e8f0;
+  font-size: 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.video-player-root ::deep .dnc-menu-item:hover {
+  background: rgba(59, 130, 246, 0.2);
+}
+
+.video-player-root ::deep .dnc-menu-item.active {
+  color: #60a5fa;
+  font-weight: 600;
+}
+
+.video-player-root ::deep .dnc-menu-item.active::before {
+  content: "✓ ";
+}
+
+/* ── Spinner / big play / preparing / seek overlay ── */
+.video-player-root ::deep .dnc-spinner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 40px;
+  height: 40px;
+  margin: -20px 0 0 -20px;
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: dnc-spin 0.8s linear infinite;
+  z-index: 15;
+}
+
+@keyframes dnc-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.video-player-root ::deep .dnc-big-play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 14;
+  transition:
+    background 0.15s ease,
+    transform 0.15s ease;
+}
+
+.video-player-root ::deep .dnc-big-play:hover {
+  background: rgba(59, 130, 246, 0.7);
+}
+
+.video-player-root ::deep .dnc-big-play.hidden {
+  display: none;
+}
+
+.video-player-root ::deep .dnc-big-play .dnc-icon {
+  width: 40px;
+  height: 40px;
+  margin-left: 4px;
+}
+
+/* ── Preparing overlay ── */
+.video-player-root ::deep .dnc-preparing {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  color: rgba(255, 255, 255, 0.9);
+  z-index: 15;
+  min-width: 220px;
+}
+
+.video-player-root ::deep .dnc-preparing-text {
+  display: block;
+  font-size: 0.9rem;
+  margin-bottom: 10px;
+}
+
+.video-player-root ::deep .dnc-preparing-bar {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.video-player-root ::deep .dnc-preparing-fill {
+  height: 100%;
+  background: #3b82f6;
+  width: 0%;
+  transition: width 0.3s ease;
+}
+
+/* ── Seek overlay (jumping message) ── */
+.video-player-root ::deep .dnc-seek-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 20;
+  color: #fff;
+}
+
+.video-player-root ::deep .dnc-seek-spinner {
+  width: 26px;
+  height: 26px;
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: dnc-spin 0.8s linear infinite;
+}
+
+.video-player-root ::deep .dnc-seek-label {
+  font-size: 0.9rem;
+}
+
+/* ── Error overlay ── */
+.video-player-root ::deep .dnc-error {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  align-items: center;
+  justify-content: center;
+  z-index: 25;
+  padding: 24px;
+}
+
+.video-player-root ::deep .dnc-error-card {
+  background: var(--color-surface, #1e293b);
+  border: 1px solid var(--color-border, #334155);
+  border-radius: 12px;
+  padding: 28px 32px;
+  max-width: 480px;
+  text-align: center;
+  color: #e2e8f0;
+}
+
+.video-player-root ::deep .dnc-error-title {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin: 0 0 10px;
+  color: #f8fafc;
+}
+
+.video-player-root ::deep .dnc-error-icon {
+  margin-bottom: 12px;
+}
+
+.video-player-root ::deep .dnc-error-icon .dnc-icon {
+  width: 40px;
+  height: 40px;
+  margin: 0 auto;
+}
+
+.video-player-root ::deep .dnc-error-msg {
+  font-size: 0.85rem;
+  color: #94a3b8;
+  word-break: break-all;
+  margin: 0 0 12px;
+}
+
+.video-player-root ::deep .dnc-error-hint {
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: #64748b;
+  margin: 0 0 16px;
+}
+
+.video-player-root ::deep .dnc-error-close {
+  padding: 8px 20px;
+  background: #3b82f6;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.video-player-root ::deep .dnc-error-close:hover {
   background: #2563eb;
 }

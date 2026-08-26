@@ -560,6 +560,33 @@ public sealed record VideoMetadataDto
 }
 
 /// <summary>
+/// An audio stream available for a video (for the audio-track selector).
+/// <see cref="Index"/> is the 0-based positional index within the audio streams,
+/// matching ffmpeg's <c>-map 0:a:N</c> selector and the <c>audioStreamIndex</c>
+/// query parameter used by the stream endpoint.
+/// </summary>
+public sealed record VideoAudioStreamDto
+{
+    /// <summary>0-based positional index of this audio stream (within audio streams).</summary>
+    public required int Index { get; init; }
+
+    /// <summary>Audio codec name (e.g. "aac", "ac3", "dts").</summary>
+    public string? Codec { get; init; }
+
+    /// <summary>ISO 639 language code (e.g. "eng", "jpn"), may be absent.</summary>
+    public string? Language { get; init; }
+
+    /// <summary>Optional human-readable track title (e.g. "Stereo", "Commentary").</summary>
+    public string? Title { get; init; }
+
+    /// <summary>Number of audio channels (e.g. 2 for stereo, 6 for 5.1).</summary>
+    public int? Channels { get; init; }
+
+    /// <summary>Whether this is the default audio stream.</summary>
+    public bool IsDefault { get; init; }
+}
+
+/// <summary>
 /// Request to manually correct a video's displayed metadata. Used when automatic
 /// TMDB enrichment matched the wrong title/overview/etc., so the user can fix it.
 /// Only the properties that are provided (non-null) are updated — partial edits

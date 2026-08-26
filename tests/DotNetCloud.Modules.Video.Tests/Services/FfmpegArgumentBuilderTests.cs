@@ -407,4 +407,55 @@ public sealed class FfmpegArgumentBuilderTests
 
         Assert.IsTrue(args.Contains("-map_metadata -1"));
     }
+
+    // ─── Audio stream selection tests ──────────────────────────────
+
+    [TestMethod]
+    public void GetStreamCopyArgs_DefaultAudioStream_MapsFirstAudio()
+    {
+        var args = _builder.GetStreamCopyArgs("/i.mkv", "h264", "aac");
+
+        Assert.IsTrue(args.Contains("-map 0:a:0?"));
+        Assert.IsFalse(args.Contains("-map 0:a:1?"));
+    }
+
+    [TestMethod]
+    public void GetStreamCopyArgs_AudioStreamIndex_MapsSelectedAudio()
+    {
+        var args = _builder.GetStreamCopyArgs("/i.mkv", "h264", "aac", audioStreamIndex: 1);
+
+        Assert.IsTrue(args.Contains("-map 0:a:1?"));
+        Assert.IsFalse(args.Contains("-map 0:a:0?"));
+    }
+
+    [TestMethod]
+    public void BuildHlsArgs_AudioStreamIndex_MapsSelectedAudio()
+    {
+        var args = _builder.BuildHlsArgs(
+            "/i.mkv", "/out", _defaultOptions,
+            sourceVideoCodec: "hevc", sourceAudioCodec: "aac",
+            audioStreamIndex: 1);
+
+        Assert.IsTrue(args.Contains("-map 0:a:1?"));
+        Assert.IsFalse(args.Contains("-map 0:a:0?"));
+    }
+
+    [TestMethod]
+    public void BuildHlsArgs_DefaultAudioStream_MapsFirstAudio()
+    {
+        var args = _builder.BuildHlsArgs("/i.mkv", "/out", _defaultOptions);
+
+        Assert.IsTrue(args.Contains("-map 0:a:0?"));
+        Assert.IsFalse(args.Contains("-map 0:a:1?"));
+    }
+
+    [TestMethod]
+    public void BuildProgressiveMp4Args_AudioStreamIndex_MapsSelectedAudio()
+    {
+        var args = _builder.BuildProgressiveMp4Args(
+            "/i.mkv", "/o.mp4", _defaultOptions, audioStreamIndex: 2);
+
+        Assert.IsTrue(args.Contains("-map 0:a:2?"));
+        Assert.IsFalse(args.Contains("-map 0:a:0?"));
+    }
 }

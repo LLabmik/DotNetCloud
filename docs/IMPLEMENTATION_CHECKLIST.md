@@ -4316,6 +4316,16 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Step 5.17 — Video Streaming & API
 - ✓ Step 5.18 — Video Web UI
 
+#### Video Player Rebuild (self-contained HTML5 player)
+
+- ✓ Replace Blazor+JS hybrid player with single JS-owned HTML5 player (`video-player.js` → `window.DotNetCloudVideoPlayer`); Blazor renders only `#video-player-root`
+- ✓ Add playback-rate control (0.5x–2x) via OSD speed menu
+- ✓ Add next/previous episode navigation (OSD buttons + N/P keys + auto-advance on ended) in TV seasons and movie franchises
+- ✓ Add alternate audio stream selection — `GET /api/v1/videos/{id}/streams`, `audioStreamIndex` on `/stream` + `/stream/seek`
+- ✓ Backend: `AudioStreamInfo`, `VideoAudioStreamDto`, `ProbeStreamsAsync`, audio-index threading through `FfmpegArgumentBuilder`/`IVideoTranscodingService`/`VideoTranscodingService`/`VideoController`
+- ✓ Blazor: `VideoPage` hosts only the player container; new `OnError`/`OnStrategy`/`OnEnded`/`OnNavigateEpisode` JSInvokables; `NavigateEpisodeAsync` + testable `ComputeNextEpisodeIndex` helper
+- ✓ Tests: `ParseCodecInfo` audio-stream parsing, `FfmpegArgumentBuilder` audio-map, `ComputeNextEpisodeIndex` (video suite 169 passing)
+
 ### Sub-Phase E: Integration & Quality (Steps 5.19–5.20)
 
 - ✓ Step 5.19 — Cross-Module Integration

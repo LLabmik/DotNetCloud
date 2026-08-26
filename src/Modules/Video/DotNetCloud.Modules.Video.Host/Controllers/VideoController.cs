@@ -472,7 +472,8 @@ public class VideoController : VideoControllerBase
             stage = entry.Stage.ToString().ToLowerInvariant(),
             percent = entry.Percent,
             message = entry.Message,
-            strategy = entry.Strategy
+            strategy = entry.Strategy,
+            actualStartSeconds = entry.ActualStartSeconds
         }));
     }
 
@@ -533,7 +534,8 @@ public class VideoController : VideoControllerBase
                 filePath,
                 video.MimeType,
                 seekStart: seekStart,
-                ct: HttpContext.RequestAborted);
+                ct: HttpContext.RequestAborted,
+                audioStreamIndex: dto.AudioStreamIndex);
 
             _logger.LogInformation(
                 "SeekTranscode: Started new transcode job {JobId} for video {VideoId} at position {Position}s",
@@ -557,7 +559,9 @@ public class VideoController : VideoControllerBase
         }
     }
 
-    /// <summary>Probes a video to determine if it can be direct-played or needs transcoding.</summary>
+    /// <summary>Probes a video to determine if it can be direct-played or needs transcoding.
+    /// Also returns the enumerated audio streams so the client can populate the audio-track
+    /// selector without starting a stream pipeline.</summary>
     [HttpGet("{videoId:guid}/stream-probe")]
     public async Task<IActionResult> ProbeStream(Guid videoId)
     {
@@ -573,7 +577,9 @@ public class VideoController : VideoControllerBase
 
         try
         {
-            var (strategy, videoCodec, audioCodec, container, _) = await _transcodingService.DecideStreamingStrategyAsync(filePath, video.MimeType);
+            var (strategy, videoCodec, audioCodec, container, duration) = await _transcodingService.DecideStreamingStrategyAsync(filePath, video.MimeType, HttpContext.RequestAborted);
+            var (_, _, _, audioStreams) = await _transcodingService.ProbeStreamsAsync(filePath, HttpContext.RequestAborted);
+
             var token = _streamingService.GenerateStreamToken(videoId, caller.UserId);
 
             return Ok(Envelope(new
@@ -584,10 +590,58 @@ public class VideoController : VideoControllerBase
                 videoCodec,
                 audioCodec,
                 container,
+                durationSeconds = duration.TotalSeconds,
                 mimeType = video.MimeType,
                 streamUrl = $"/api/v1/videos/{videoId}/stream?token={Uri.EscapeDataString(token)}" +
-                            (strategy == StreamingStrategy.DirectPlay ? "" : "&forceTranscode=true")
+                            (strategy == StreamingStrategy.DirectPlay ? "" : "&forceTranscode=true"),
+                audioStreams = audioStreams.Select(a => new VideoAudioStreamDto
+                {
+                    Index = a.Index,
+                    Codec = a.Codec,
+                    Language = a.Language,
+                    Title = a.Title,
+                    Channels = a.Channels,
+                    IsDefault = a.IsDefault
+                }).ToArray()
             }));
+        }
+        finally
+        {
+            TryDeleteTempFile(filePath);
+        }
+    }
+
+    /// <summary>Enumerates the audio streams available for a video (for the audio-track selector).
+    /// Does not start any stream pipeline — just runs ffprobe on the reconstructed file.
+    /// Returns an ordered list keyed by the same 0-based positional audio index the
+    /// <c>audioStreamIndex</c> query parameter expects.</summary>
+    [HttpGet("{videoId:guid}/streams")]
+    public async Task<IActionResult> GetAudioStreams(Guid videoId)
+    {
+        var caller = GetAuthenticatedCaller();
+        var video = await _videoService.GetVideoAsync(videoId, caller);
+        if (video is null)
+            return NotFound(ErrorEnvelope(ErrorCodes.VideoNotFound, "Video not found."));
+
+        var (filePath, _) = await SaveVideoToTempFile(video, caller);
+        if (filePath is null)
+            return NotFound(ErrorEnvelope("file_not_found", "Video file not found in storage."));
+
+        try
+        {
+            var (_, _, _, audioStreams) = await _transcodingService.ProbeStreamsAsync(filePath, HttpContext.RequestAborted);
+
+            var dtos = audioStreams.Select(a => new VideoAudioStreamDto
+            {
+                Index = a.Index,
+                Codec = a.Codec,
+                Language = a.Language,
+                Title = a.Title,
+                Channels = a.Channels,
+                IsDefault = a.IsDefault
+            }).ToArray();
+
+            return Ok(Envelope(new { videoId = video.Id, audioStreams = dtos }));
         }
         finally
         {
@@ -608,7 +662,8 @@ public class VideoController : VideoControllerBase
         Guid videoId,
         [FromQuery] string? token,
         [FromQuery] bool forceTranscode = false,
-        [FromQuery] double? startSeconds = null)
+        [FromQuery] double? startSeconds = null,
+        [FromQuery] int? audioStreamIndex = null)
     {
         // ── Log request headers for range request diagnostics ────────
         var rangeHeader = HttpContext.Request.Headers.Range.FirstOrDefault() ?? "(none)";
@@ -842,6 +897,20 @@ public class VideoController : VideoControllerBase
             {
                 (strategy, videoCodec, audioCodec, container) = (StreamingStrategy.Transcode, null, null, null);
             }
+            else if (audioStreamIndex is >= 0)
+            {
+                // Explicit audio track selected. Never direct-play; choose StreamCopy
+                // (remux) when the selected audio is browser-compatible, otherwise
+                // Transcode (HLS) which safely re-encodes the selected audio to AAC.
+                var (pv, pa, pc, audioStreams) = await _transcodingService.ProbeStreamsAsync(sourcePath, HttpContext.RequestAborted);
+                videoCodec = pv;
+                container = pc;
+                var selected = audioStreams.ElementAtOrDefault(audioStreamIndex.Value);
+                audioCodec = selected?.Codec ?? pa;
+                strategy = StreamCompatibilityMatrix.IsUniversalAudioCodec(audioCodec)
+                    ? StreamingStrategy.StreamCopy
+                    : StreamingStrategy.Transcode;
+            }
             else
             {
                 (strategy, videoCodec, audioCodec, container, probeDuration) =
@@ -1025,11 +1094,29 @@ public class VideoController : VideoControllerBase
                 progress.Message = "Starting stream…";
                 progress.Percent = 50;
 
-                // Start ffmpeg remux with stdout piped for progressive streaming
-                var startTime = startSeconds.HasValue && startSeconds.Value > 0
-                    ? TimeSpan.FromSeconds(startSeconds.Value) : (TimeSpan?)null;
+                // Start ffmpeg remux with stdout piped for progressive streaming.
+                // Round stream-copy seeks down to the nearest video keyframe: a fast
+                // -ss input seek otherwise starts video at the keyframe but audio at the
+                // exact target, and re-encoded audio (non-universal codecs) then begins at
+                // the target while video begins at the keyframe — an A/V content offset.
+                // Seeking both to the keyframe keeps them in sync; the actual start is
+                // reported via /stream-progress so the player can display the right time.
+                TimeSpan? startTime = null;
+                if (startSeconds.HasValue && startSeconds.Value > 0)
+                {
+                    var keyframe = await _transcodingService.FindSeekKeyframeAsync(sourcePath, startSeconds.Value, HttpContext.RequestAborted);
+                    var actualStart = keyframe ?? startSeconds.Value;
+                    startTime = TimeSpan.FromSeconds(actualStart);
+                    progress.ActualStartSeconds = actualStart;
+                    if (keyframe.HasValue && Math.Abs(keyframe.Value - startSeconds.Value) > 0.05)
+                    {
+                        _logger.LogInformation(
+                            "StreamVideo: remux seek {Requested}s rounded down to keyframe {Actual}s for A/V sync",
+                            startSeconds.Value, actualStart);
+                    }
+                }
                 var (ffmpegProcess, _) = await _transcodingService.StreamCopyAsync(
-                    sourcePath, videoCodec, audioCodec, HttpContext.RequestAborted, startTime);
+                    sourcePath, videoCodec, audioCodec, HttpContext.RequestAborted, startTime, audioStreamIndex);
 
                 progress.Stage = StreamProgressStage.Streaming;
                 progress.Message = "Streaming…";
@@ -1091,7 +1178,8 @@ public class VideoController : VideoControllerBase
                 videoId, userId, sourcePath, mimeType,
                 sourceVideoCodec: videoCodec,
                 sourceAudioCodec: audioCodec,
-                ct: transcodeCt);
+                ct: transcodeCt,
+                audioStreamIndex: audioStreamIndex);
 
             _logger.LogInformation("StreamVideo: HLS transcode job {JobId} started, playlist={PlaylistPath}",
                 jobId, playlistPath);
@@ -1629,4 +1717,8 @@ public sealed class SeekTranscodeDto
 {
     /// <summary>The target position in seconds (may have decimal precision).</summary>
     public double PositionSeconds { get; set; }
+
+    /// <summary>Optional 0-based positional audio stream index to preserve across the seek.
+    /// When null, the first audio stream is used.</summary>
+    public int? AudioStreamIndex { get; set; }
 }
