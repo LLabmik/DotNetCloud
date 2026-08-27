@@ -1,6 +1,6 @@
 # DotNetCloud Files — Online Document Editing
 
-> **Last Updated:** 2026-03-03
+> **Last Updated:** 2026-08-27
 
 ---
 
@@ -12,12 +12,12 @@ DotNetCloud integrates with **Collabora Online** (based on LibreOffice) to let y
 
 ## Supported File Types
 
-| Type | Extensions |
-|---|---|
+| Type               | Extensions                      |
+| ------------------ | ------------------------------- |
 | **Word documents** | `.docx`, `.doc`, `.odt`, `.rtf` |
-| **Spreadsheets** | `.xlsx`, `.xls`, `.ods`, `.csv` |
-| **Presentations** | `.pptx`, `.ppt`, `.odp` |
-| **Text files** | `.txt` |
+| **Spreadsheets**   | `.xlsx`, `.xls`, `.ods`, `.csv` |
+| **Presentations**  | `.pptx`, `.ppt`, `.odp`         |
+| **Text files**     | `.txt`                          |
 
 Your administrator may configure additional or fewer supported types.
 
@@ -160,3 +160,4 @@ The sync client can automate this — any file you save in your sync folder is u
 
 - [Getting Started with Files](GETTING_STARTED.md) — file management basics
 - [Desktop Sync Client](SYNC_CLIENT.md) — automatic file synchronization
+- [User Documentation](README.md) — all user guides

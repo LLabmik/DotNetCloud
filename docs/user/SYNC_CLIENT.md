@@ -1,6 +1,6 @@
 # DotNetCloud Files — Desktop Sync Client
 
-> **Last Updated:** 2026-03-22
+> **Last Updated:** 2026-08-27
 
 ---
 
@@ -9,6 +9,7 @@
 The DotNetCloud sync client keeps a folder on your computer automatically synchronized with your DotNetCloud server. Any changes you make locally appear on the server (and vice versa) within seconds.
 
 **Key features:**
+
 - Automatic bidirectional sync
 - Works in the background — no manual action needed
 - Tray icon shows sync status at a glance
@@ -68,10 +69,10 @@ The DotNetCloud sync client keeps a folder on your computer automatically synchr
 
 ### Default Sync Folder Locations
 
-| Platform | Default Path | Example |
-|---|---|---|
-| Windows | `%USERPROFILE%\DotNetCloud\{server}` | `C:\Users\Ben\DotNetCloud\cloud.example.com` |
-| Linux | `~/DotNetCloud/{server}` | `/home/ben/DotNetCloud/cloud.example.com` |
+| Platform | Default Path                         | Example                                      |
+| -------- | ------------------------------------ | -------------------------------------------- |
+| Windows  | `%USERPROFILE%\DotNetCloud\{server}` | `C:\Users\Ben\DotNetCloud\cloud.example.com` |
+| Linux    | `~/DotNetCloud/{server}`             | `/home/ben/DotNetCloud/cloud.example.com`    |
 
 ---
 
@@ -79,13 +80,13 @@ The DotNetCloud sync client keeps a folder on your computer automatically synchr
 
 The tray icon shows the current sync status:
 
-| Icon | Meaning |
-|---|---|
-| ✓ Green check | All files are synced |
-| ↻ Spinning arrows | Sync in progress |
-| ⏸ Yellow pause | Sync is paused |
-| ⚠ Red exclamation | An error occurred |
-| ○ Gray circle | Server unreachable (offline) |
+| Icon              | Meaning                      |
+| ----------------- | ---------------------------- |
+| ✓ Green check     | All files are synced         |
+| ↻ Spinning arrows | Sync in progress             |
+| ⏸ Yellow pause    | Sync is paused               |
+| ⚠ Red exclamation | An error occurred            |
+| ○ Gray circle     | Server unreachable (offline) |
 
 Hover over the icon to see a summary (e.g., "3 files syncing, 8.2 GB used").
 
@@ -265,12 +266,12 @@ sudo ./uninstall.sh
 
 ## Data & Log Locations
 
-| Item | Windows | Linux |
-|---|---|---|
-| Sync folder | `%USERPROFILE%\DotNetCloud\{server}` | `~/DotNetCloud/{server}` |
+| Item                | Windows                                               | Linux                                            |
+| ------------------- | ----------------------------------------------------- | ------------------------------------------------ |
+| Sync folder         | `%USERPROFILE%\DotNetCloud\{server}`                  | `~/DotNetCloud/{server}`                         |
 | Sync state database | `%ProgramData%\DotNetCloud\Sync\{contextId}\state.db` | `/var/lib/dotnetcloud/sync/{contextId}/state.db` |
-| Sync engine logs | `%ProgramData%\DotNetCloud\Sync\logs\` | `/var/log/dotnetcloud/` |
-| Tray app logs | `%LOCALAPPDATA%\DotNetCloud\logs\` | `~/.local/share/dotnetcloud/logs/` |
+| Sync engine logs    | `%ProgramData%\DotNetCloud\Sync\logs\`                | `/var/log/dotnetcloud/`                          |
+| Tray app logs       | `%LOCALAPPDATA%\DotNetCloud\logs\`                    | `~/.local/share/dotnetcloud/logs/`               |
 
 ---
 
@@ -278,3 +279,5 @@ sudo ./uninstall.sh
 
 - [Getting Started with Files](GETTING_STARTED.md) — web UI basics
 - [Online Document Editing](DOCUMENT_EDITING.md) — edit documents in the browser
+- [Auto-Updates](AUTO_UPDATES.md) — how the desktop client updates
+- [User Documentation](README.md) — all user guides

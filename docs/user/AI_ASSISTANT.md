@@ -1,6 +1,6 @@
 # AI Assistant — User Guide
 
-> **Last Updated:** 2026-04-09
+> **Last Updated:** 2026-08-27
 
 ---
 
@@ -73,6 +73,7 @@ Conversations are sorted with the most recently updated at the top. Each entry s
 3. The assistant's response streams in token by token
 
 While the assistant is responding:
+
 - A blinking cursor **▍** shows the response is being generated
 - The send button shows a spinner
 - You cannot send another message until the response completes
@@ -89,7 +90,7 @@ This is normal. Subsequent messages in the same session will be much faster.
 
 The AI assistant renders its responses with full **Markdown** formatting:
 
-- **Bold**, *italic*, ~~strikethrough~~
+- **Bold**, _italic_, ~~strikethrough~~
 - Headings, lists, task lists
 - Code blocks with syntax highlighting
 - Tables, blockquotes, links
@@ -103,9 +104,9 @@ Your messages are displayed as plain text.
 
 Each assistant response includes two copy buttons:
 
-| Button | What It Copies |
-|---|---|
-| **📋 Copy as Markdown** | Raw Markdown source — paste into any Markdown editor |
+| Button                   | What It Copies                                           |
+| ------------------------ | -------------------------------------------------------- |
+| **📋 Copy as Markdown**  | Raw Markdown source — paste into any Markdown editor     |
 | **📄 Copy as Formatted** | Rich formatted text — paste into documents, emails, etc. |
 
 After copying, the button briefly shows **✓ Copied!** to confirm.
@@ -153,11 +154,19 @@ If a conversation goes off track, start a new one with the **+** button. Each co
 
 ## Troubleshooting
 
-| Issue | What to Do |
-|---|---|
-| "Ollama is not reachable" warning | The AI backend is down or misconfigured. Contact your administrator. |
-| No models in the dropdown | No AI models are installed. Contact your administrator. |
-| Slow responses | Large models take longer. Try asking your administrator to switch to a smaller model. |
-| Response cuts off mid-sentence | The response may have hit the token limit. Start a follow-up message like "Please continue." |
-| "Failed to create conversation" | There may be a temporary server issue. Refresh the page and try again. |
-| "Failed to load AI assistant" | The AI module may not be running. Contact your administrator. |
+| Issue                             | What to Do                                                                                   |
+| --------------------------------- | -------------------------------------------------------------------------------------------- |
+| "Ollama is not reachable" warning | The AI backend is down or misconfigured. Contact your administrator.                         |
+| No models in the dropdown         | No AI models are installed. Contact your administrator.                                      |
+| Slow responses                    | Large models take longer. Try asking your administrator to switch to a smaller model.        |
+| Response cuts off mid-sentence    | The response may have hit the token limit. Start a follow-up message like "Please continue." |
+| "Failed to create conversation"   | There may be a temporary server issue. Refresh the page and try again.                       |
+| "Failed to load AI assistant"     | The AI module may not be running. Contact your administrator.                                |
+
+---
+
+## Related Guides
+
+- [User Documentation](README.md) — all user guides
+- [Search](SEARCH.md) — find content across modules
+- [Auto-Updates](AUTO_UPDATES.md) — how updates work

@@ -7,38 +7,43 @@
 <div class="help-content">
     <section class="help-section">
         <h2 class="help-section-title">Overview</h2>
-        <p>DotNetCloud Email provides a web-based email client with folder management, search, attachments, and signature settings. Compose, read, and organize your messages.</p>
+        <p>DotNetCloud Email is a web-based email client. Add one or more email accounts (IMAP/SMTP or Gmail via OAuth), read and organize your messages, and compose and send email from your browser.</p>
+    </section>
+
+    <section class="help-section">
+        <h2 class="help-section-title">Accounts</h2>
+        <p><strong>Adding an account:</strong> Click <strong>+ Account</strong> and choose <strong>IMAP / SMTP</strong> (enter your server, port, username, and password) or <strong>Gmail (OAuth)</strong> (if configured by your administrator).</p>
+        <p><strong>Switching accounts:</strong> Use the account selector in the sidebar. Use <strong>Sync Now</strong> to fetch new messages, or <strong>Delete Account</strong> to remove an account and its synced messages.</p>
     </section>
 
     <section class="help-section">
         <h2 class="help-section-title">Composing Messages</h2>
-        <p>Click <strong>Compose</strong> to open the message editor. Fill in the recipient(s), subject, and message body. The editor supports rich text formatting.</p>
-        <p><strong>Attachments:</strong> Click the attachment icon or drag files onto the compose area to attach them.</p>
-        <p><strong>Saving drafts:</strong> Unsent messages are automatically saved as drafts.</p>
+        <p>Click <strong>+ Compose</strong> to open the message editor. Pick the account to send from, enter the recipient(s) with optional <strong>Cc</strong> and <strong>Bcc</strong>, a subject, and the message body. Recipient suggestions appear as you type.</p>
+        <p><strong>Attachments:</strong> Use <strong>Attach from computer</strong> to upload files, or <strong>Browse Files</strong> to attach files from your DotNetCloud Files library.</p>
+        <p>Use <strong>Reply</strong> and <strong>Forward</strong> from an open message. Closing the compose window discards the draft.</p>
     </section>
 
     <section class="help-section">
         <h2 class="help-section-title">Folders</h2>
-        <p>Standard folders include <strong>Inbox</strong>, <strong>Sent</strong>, <strong>Drafts</strong>, <strong>Spam</strong>, and <strong>Trash</strong>. Create custom folders for additional organization.</p>
-        <p>Messages can be moved between folders by dragging or using the folder menu.</p>
+        <p>The sidebar lists the mailboxes synced from your account (for example <strong>Inbox</strong>, <strong>Sent</strong>, <strong>Drafts</strong>, <strong>Spam</strong>, and <strong>Trash</strong>, depending on your server). Click a folder to view its message threads.</p>
     </section>
 
     <section class="help-section">
-        <h2 class="help-section-title">Search</h2>
-        <p>Use the search bar to find messages by sender, subject, or content. Search across all folders including trash.</p>
+        <h2 class="help-section-title">Reading Messages</h2>
+        <p>Click a thread to open it. Attachments can be downloaded, and messages with stored attachments can be saved to your Files library with the folder button.</p>
     </section>
 
     <section class="help-section">
-        <h2 class="help-section-title">Signature Settings</h2>
-        <p>Configure one or more email signatures in settings. Signatures can include rich text, images, and your contact information. Choose a default signature for new messages.</p>
+        <h2 class="help-section-title">Rules</h2>
+        <p>Automate how incoming messages are handled. Open <strong>Rules</strong> in the sidebar and create a rule with conditions (subject, from, to, body, cc, or has attachment) and actions (mark read or unread, star or unstar, apply a label, move to a folder, or archive). Rules run in priority order and can be enabled or disabled individually. Use <strong>Run Rules Now</strong> to apply rules to existing messages.</p>
     </section>
 
     <section class="help-section">
         <h2 class="help-section-title">Tips &amp; Tricks</h2>
         <ul class="help-tips">
-            <li>Create filters to automatically sort incoming messages into folders.</li>
-            <li>Use multiple signatures for different contexts (work, personal).</li>
-            <li>Search operators can help narrow results: <code>from:</code>, <code>subject:</code>, <code>has:attachment</code>.</li>
+            <li>Add multiple email accounts and switch between them with the account selector.</li>
+            <li>Create rules to automatically organize incoming email into folders or labels.</li>
+            <li>Attach files directly from your Files library with <strong>Browse Files</strong>.</li>
         </ul>
     </section>
 </div>

@@ -1,6 +1,6 @@
 # Notes — User Guide
 
-> **Last Updated:** 2026-03-23
+> **Last Updated:** 2026-08-27
 
 ---
 
@@ -37,7 +37,7 @@ Each save creates a new version in the note's history (see Version History below
 Notes support Markdown formatting:
 
 - **Bold**: `**text**`
-- *Italic*: `*text*`
+- _Italic_: `*text*`
 - ~~Strikethrough~~: `~~text~~`
 - Headings: `# H1`, `## H2`, `### H3`
 - Lists: `- item` or `1. item`
@@ -126,6 +126,7 @@ Use the search bar with tag names to find all notes with specific tags.
 3. Results are ranked by relevance and paginated
 
 Search covers:
+
 - Note titles
 - Note content (full-text)
 - Tag names
@@ -165,12 +166,12 @@ This prevents accidental overwrites.
 
 Notes can link to entities in other DotNetCloud modules:
 
-| Link Type | Links To |
-|---|---|
-| `File` | A file in the Files module |
-| `CalendarEvent` | An event in the Calendar module |
-| `Contact` | A contact in the Contacts module |
-| `Note` | Another note |
+| Link Type       | Links To                         |
+| --------------- | -------------------------------- |
+| `File`          | A file in the Files module       |
+| `CalendarEvent` | An event in the Calendar module  |
+| `Contact`       | A contact in the Contacts module |
+| `Note`          | Another note                     |
 
 ### Adding Links
 
@@ -307,3 +308,12 @@ Notes are detected as duplicates when the title and owner match. Choose a confli
 
 - This is expected — deleting a folder orphans its notes (moves them to "unfiled")
 - Notes are never deleted when their folder is deleted
+
+---
+
+## Related Guides
+
+- [User Documentation](README.md) — all user guides
+- [Search](SEARCH.md) — find notes across modules
+- [Calendar](CALENDAR.md) — link notes to events
+- [Contacts](CONTACTS.md) — link notes to contacts

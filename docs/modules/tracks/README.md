@@ -187,7 +187,8 @@ The Tracks module exposes 11 gRPC RPCs for inter-module communication:
 ## Related Documentation
 
 - [REST API Reference](API.md)
-- [User Guide](USER_GUIDE.md)
+- [User Guide](../../user/TRACKS.md)
+- [User Guide (legacy, in this directory)](USER_GUIDE.md)
 - [Chat ↔ Tracks Integration](../CHAT_TRACKS_INTEGRATION.md)
 
 ## Test Coverage

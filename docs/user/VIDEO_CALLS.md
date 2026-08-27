@@ -1,6 +1,6 @@
 # Video & Audio Calls
 
-> **Last Updated:** 2026-04-15
+> **Last Updated:** 2026-08-27
 
 ---
 
@@ -21,10 +21,10 @@ DotNetCloud lets you make video and audio calls directly from any Chat channel �
 
 ### Call Types
 
-| Type | Description |
-|---|---|
+| Type           | Description                                                 |
+| -------------- | ----------------------------------------------------------- |
 | **Audio call** | Voice only — lower bandwidth, ideal for quick conversations |
-| **Video call** | Camera and microphone — full face-to-face experience |
+| **Video call** | Camera and microphone — full face-to-face experience        |
 
 ---
 
@@ -46,13 +46,13 @@ If you don't answer within 30 seconds, the call is marked as **Missed**.
 
 The call dialog provides these controls:
 
-| Button | Action |
-|---|---|
-| **Mute / Unmute** | Toggle your microphone on or off |
-| **Camera On / Off** | Toggle your camera on or off |
-| **Share Screen** | Start or stop sharing your screen |
-| **Minimize** | Shrink the call to a small picture-in-picture window |
-| **Hang Up** | Leave the call |
+| Button              | Action                                               |
+| ------------------- | ---------------------------------------------------- |
+| **Mute / Unmute**   | Toggle your microphone on or off                     |
+| **Camera On / Off** | Toggle your camera on or off                         |
+| **Share Screen**    | Start or stop sharing your screen                    |
+| **Minimize**        | Shrink the call to a small picture-in-picture window |
+| **Hang Up**         | Leave the call                                       |
 
 ### Screen Sharing
 
@@ -99,6 +99,7 @@ To view past calls in a channel:
 ### Incoming Calls
 
 When someone calls you:
+
 - An in-app notification appears immediately
 - If you have push notifications enabled, your mobile device receives a push notification
 - Calls ring for 30 seconds before being marked as missed
@@ -106,6 +107,7 @@ When someone calls you:
 ### Missed Calls
 
 If you miss a call:
+
 - A push notification is sent to your registered devices
 - The call appears in the channel's call history as **Missed**
 
@@ -147,4 +149,5 @@ If your presence status is set to **Do Not Disturb**, call notifications are sti
 ## Related
 
 - [Getting Started](GETTING_STARTED.md)
-- [Chat Module Overview](../modules/chat/README.md)
+- [Chat](CHAT.md) — channels, direct messages, and starting calls
+- [User Documentation](README.md) — all user guides

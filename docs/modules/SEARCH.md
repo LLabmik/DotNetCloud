@@ -422,6 +422,7 @@ Returns:
 | Document             | Audience   | Path                                                                                       |
 | -------------------- | ---------- | ------------------------------------------------------------------------------------------ |
 | Module Documentation | Developers | [docs/modules/SEARCH.md](SEARCH.md) (this file)                                            |
+| User Guide           | End users  | [docs/user/SEARCH.md](../user/SEARCH.md)                                                   |
 | API Reference        | Developers | [docs/api/search.md](../api/search.md)                                                     |
 | Architecture         | Developers | [docs/architecture/ARCHITECTURE.md](../architecture/ARCHITECTURE.md) (Section 25)          |
 | Implementation Plan  | Developers | [docs/FULL_TEXT_SEARCH_IMPLEMENTATION_PLAN.md](../FULL_TEXT_SEARCH_IMPLEMENTATION_PLAN.md) |
