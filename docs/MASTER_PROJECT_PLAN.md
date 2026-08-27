@@ -4260,6 +4260,8 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 
 **Notes:** All modules now have in-app help accessible from their sidebar. The Example module serves as a reference pattern for new modules. Help content for Files, Notes, AI, Calendar, and Contacts was informed by existing `docs/user/*.md` files; original content was written for Chat, Bookmarks, Email, Music, Photos, Tracks, and Video.
 
+**Content audit & refresh (2026-08-27):** All 14 `{Module}HelpContent.razor` files audited against current module UI code. Removed stale claims, corrected inaccurate details, and added missing current features (see `docs/IMPLEMENTATION_CHECKLIST.md` → Module Help Sidebar → Content Audit & Refresh). Verified with `dotnet build DotNetCloud.CI.slnf -c Release` — 0 warnings, 0 errors.
+
 ---
 
 ## Closed System Mode

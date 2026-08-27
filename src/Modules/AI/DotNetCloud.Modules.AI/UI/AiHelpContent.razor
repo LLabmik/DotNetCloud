@@ -24,10 +24,11 @@
 
     <section class="help-section">
         <h2 class="help-section-title">Conversations</h2>
-        <p><strong>Starting a conversation:</strong> Click <strong>+</strong> to create a new chat. Type your message and press <strong>Enter</strong> to send. The assistant responds in real time with streaming output.</p>
-        <p><strong>Selecting a model:</strong> Use the model dropdown in the sidebar to choose which AI model to use. Smaller models respond faster; larger models produce higher-quality responses.</p>
+        <p><strong>Starting a conversation:</strong> Click <strong>+</strong> to create a new chat. Type your message and press <strong>Enter</strong> to send (use <kbd>Shift</kbd>+<kbd>Enter</kbd> to insert a new line). The assistant responds in real time with streaming output.</p>
+        <p><strong>Selecting a model:</strong> Use the model dropdown in the sidebar to choose which model new chats use. Smaller models respond faster; larger models produce higher-quality responses. A conversation keeps the model it was created with.</p>
+        <p><strong>Copying responses:</strong> Each assistant message has <strong>Copy as Markdown</strong> and <strong>Copy as Formatted</strong> buttons, so you can copy a response in either plain Markdown or formatted text.</p>
         <p><strong>Switching conversations:</strong> Click any conversation in the sidebar to load it. Conversations are sorted with the most recently updated at the top.</p>
-        <p><strong>Renaming:</strong> Double-click the conversation title to edit it.</p>
+        <p><strong>Renaming:</strong> Double-click the conversation title to edit it. Until you rename it, the title is set automatically from your first message.</p>
         <p><strong>Deleting:</strong> Hover over a conversation and click the <strong>✕</strong> button.</p>
     </section>
 
@@ -47,7 +48,9 @@
             <dt>Why is the AI assistant not responding?</dt>
             <dd>The AI backend may be down. Check with your administrator that Ollama or your configured provider is running.</dd>
             <dt>Can I use multiple models in one conversation?</dt>
-            <dd>No. Each conversation remembers the model it was created with. Start a new conversation to switch models.</dd>
+            <dd>No. A conversation keeps the model it was created with. Choose the model in the sidebar dropdown, then start a new chat to use it.</dd>
+            <dt>Why does it say "Loading model into memory"?</dt>
+            <dd>The first request to a model can take a moment to load it into memory. Subsequent messages respond faster.</dd>
         </dl>
     </section>
 </div>

@@ -6110,6 +6110,14 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Unknown module route shows "Module not found" gracefully
 - ✓ Project references added for modules that needed `UI.Shared`
 
+#### Content Audit &amp; Refresh ✅ (2026-08-27)
+
+- ✓ Audited every module's `{Module}HelpContent.razor` against the module's current UI code, services, and `docs/user/*.md`
+- ✓ Removed stale claims (Chat message pinning & cross-channel search, Video playlists, Notes pin/drag, Bookmarks auto-metadata, Calendar event search/timezone/visibility, Email rich text/drafts/signatures, Contacts group management, Photos upload button)
+- ✓ Added missing current features (Email rules & accounts, Calendar recurrence & iCal export/import, Files document editor/comments/version history/multi-select, Music visualizer/enrichment/recommendations, Photos editing & library settings, Tracks views & keyboard shortcuts, Video series/subtitles/transcoding/metadata editing)
+- ✓ Corrected terminology (Tracks Products→Epics→Features→Items, Favorites star vs heart)
+- ✓ Build verified: `dotnet build DotNetCloud.CI.slnf -c Release` — 0 warnings, 0 errors
+
 ---
 
 ## Closed System Mode
