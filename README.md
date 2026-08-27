@@ -20,26 +20,26 @@ DotNetCloud gives you full control of your data by running your own cloud server
 
 ### Features
 
-| Feature                 | Description                                                                                                                            | Status     |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| 📁 **Files**            | File sync and sharing with desktop client, browser UI with context menus, drag-drop move, upload queue management, and paste-to-upload | ✅ Phase 1 |
-| 📝 **Document Editing** | Browser-based editing via Collabora Online (LibreOffice-based)                                                                         | ✅ Phase 1 |
-| 💬 **Chat**             | Real-time messaging, channels, direct messages                                                                                         | ✅ Phase 2 |
-| 📱 **Android App**      | Mobile client with photo auto-upload                                                                                                   | ✅ Phase 2 |
-| 👤 **Contacts**         | Contact management with CardDAV support                                                                                                | ✅ Phase 3 |
-| 📅 **Calendar**         | Events, scheduling, CalDAV support                                                                                                     | ✅ Phase 3 |
-| 📝 **Notes**            | Markdown-based note taking                                                                                                             | ✅ Phase 3 |
-| 📋 **Tracks**           | Kanban boards and project management                                                                                                   | ✅ Phase 4 |
-| 🖼️ **Photos**           | Photo library, albums, geo-clustering, slideshow, editing                                                                              | ✅ Phase 5 |
-| 🎵 **Music**            | Music player with equalizer, playlists, favorites, Subsonic API                                                                        | ✅ Phase 5 |
-| 🎬 **Video**            | Video library, collections, subtitles, watch progress, streaming                                                                       | ✅ Phase 5 |
-| 📧 **Email**            | Integrated email client (SMTP/IMAP/Gmail)                                                                                              | ✅ Phase 6 |
-| 🔖 **Bookmarks**        | Browser bookmark sync via extension                                                                                                    | ✅ Phase 6 |
-| 📹 **Video Calls**      | WebRTC video calling and screen sharing                                                                                                | ✅ Phase 7 |
-| 🔍 **Search**           | Full-text search across all modules                                                                                                    | ✅ Phase 8 |
-| 🤖 **AI Assistant**     | LLM-powered assistant via Ollama (local) or Claude/OpenAI (cloud)                                                                      | ✅ Phase 9 |
-| ℹ️ **About**            | Server info, licenses, credits, module manifest viewer                                                                                 | ✅ Phase 9 |
-| 🔒 **E2EE**             | Optional zero-knowledge encryption                                                                                                     | Phase 10   |
+| Feature                 | Description                                                                                                                            | Status     | Docs                                              |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ------------------------------------------------- |
+| 📁 **Files**            | File sync and sharing with desktop client, browser UI with context menus, drag-drop move, upload queue management, and paste-to-upload | ✅ Phase 1 | [Getting Started](docs/user/GETTING_STARTED.md)   |
+| 📝 **Document Editing** | Browser-based editing via Collabora Online (LibreOffice-based)                                                                         | ✅ Phase 1 | [Document Editing](docs/user/DOCUMENT_EDITING.md) |
+| 💬 **Chat**             | Real-time messaging, channels, direct messages                                                                                         | ✅ Phase 2 | [Chat](docs/user/CHAT.md)                         |
+| 📱 **Android App**      | Mobile client with photo auto-upload                                                                                                   | ✅ Phase 2 | [Android App](docs/user/ANDROID.md)               |
+| 👤 **Contacts**         | Contact management with CardDAV support                                                                                                | ✅ Phase 3 | [Contacts](docs/user/CONTACTS.md)                 |
+| 📅 **Calendar**         | Events, scheduling, CalDAV support                                                                                                     | ✅ Phase 3 | [Calendar](docs/user/CALENDAR.md)                 |
+| 📝 **Notes**            | Markdown-based note taking                                                                                                             | ✅ Phase 3 | [Notes](docs/user/NOTES.md)                       |
+| 📋 **Tracks**           | Kanban boards and project management                                                                                                   | ✅ Phase 4 | [Tracks](docs/user/TRACKS.md)                     |
+| 🖼️ **Photos**           | Photo library, albums, geo-clustering, slideshow, editing                                                                              | ✅ Phase 5 | [Photos](docs/user/PHOTOS.md)                     |
+| 🎵 **Music**            | Music player with equalizer, playlists, favorites, Subsonic API                                                                        | ✅ Phase 5 | [Music](docs/user/MUSIC.md)                       |
+| 🎬 **Video**            | Video library, collections, subtitles, watch progress, streaming                                                                       | ✅ Phase 5 | [Video](docs/user/VIDEO.md)                       |
+| 📧 **Email**            | Integrated email client (SMTP/IMAP/Gmail)                                                                                              | ✅ Phase 6 | [Email](docs/user/EMAIL.md)                       |
+| 🔖 **Bookmarks**        | Browser bookmark sync via extension                                                                                                    | ✅ Phase 6 | [Bookmarks](docs/user/BOOKMARKS.md)               |
+| 📹 **Video Calls**      | WebRTC video calling and screen sharing                                                                                                | ✅ Phase 7 | [Video Calls](docs/user/VIDEO_CALLS.md)           |
+| 🔍 **Search**           | Full-text search across all modules                                                                                                    | ✅ Phase 8 | [Search](docs/user/SEARCH.md)                     |
+| 🤖 **AI Assistant**     | LLM-powered assistant via Ollama (local) or Claude/OpenAI (cloud)                                                                      | ✅ Phase 9 | [AI Assistant](docs/user/AI_ASSISTANT.md)         |
+| ℹ️ **About**            | Server info, licenses, credits, module manifest viewer                                                                                 | ✅ Phase 9 | —                                                 |
+| 🔒 **E2EE**             | Optional zero-knowledge encryption                                                                                                     | Phase 10   | —                                                 |
 
 ### Roadmap
 
@@ -77,6 +77,8 @@ See [MASTER_PROJECT_PLAN.md](docs/MASTER_PROJECT_PLAN.md) for the full phased im
 ## Quick Start
 
 > **Full installation guide:** [docs/admin/server/INSTALLATION.md](docs/admin/server/INSTALLATION.md) — covers Linux, Windows, and Docker with manual and automated install paths, reverse proxy setup, TLS, and troubleshooting.
+
+> **User documentation:** [docs/user/README.md](docs/user/README.md) — guides for every feature, written for end users.
 
 ### Linux (Debian/Ubuntu/Mint)
 

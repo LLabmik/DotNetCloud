@@ -1,6 +1,6 @@
 # DotNetCloud Files — Getting Started
 
-> **Last Updated:** 2026-03-03
+> **Last Updated:** 2026-08-27
 
 ---
 
@@ -139,15 +139,15 @@ Copied files share the same storage as the original (deduplication), so copies d
 
 Click a file to open the preview panel:
 
-| File Type | Preview |
-|---|---|
-| **Images** (JPEG, PNG, GIF, WebP, SVG) | Inline image viewer |
-| **Videos** (MP4, WebM) | HTML5 video player |
-| **Audio** (MP3, WAV, OGG) | HTML5 audio player |
-| **PDFs** | Embedded PDF viewer |
-| **Text/Code** | Syntax-highlighted text viewer |
-| **Markdown** | Rendered Markdown |
-| **Other** | Download button |
+| File Type                              | Preview                        |
+| -------------------------------------- | ------------------------------ |
+| **Images** (JPEG, PNG, GIF, WebP, SVG) | Inline image viewer            |
+| **Videos** (MP4, WebM)                 | HTML5 video player             |
+| **Audio** (MP3, WAV, OGG)              | HTML5 audio player             |
+| **PDFs**                               | Embedded PDF viewer            |
+| **Text/Code**                          | Syntax-highlighted text viewer |
+| **Markdown**                           | Rendered Markdown              |
+| **Other**                              | Download button                |
 
 Use **← →** arrow keys to navigate between files in the same folder. Press **Escape** to close the preview.
 
@@ -294,11 +294,12 @@ Your admin may set a storage limit for your account. Check your usage:
 
 ## Keyboard Shortcuts
 
-| Shortcut | Action |
-|---|---|
+| Shortcut  | Action                            |
+| --------- | --------------------------------- |
 | `←` / `→` | Navigate between files in preview |
-| `Escape` | Close preview |
-| `Delete` | Move selected items to trash |
+| `Escape`  | Close preview                     |
+| `Delete`  | Move selected items to trash      |
+| `Ctrl+K`  | Open global search                |
 
 ---
 
@@ -306,3 +307,5 @@ Your admin may set a storage limit for your account. Check your usage:
 
 - [Install the Sync Client](SYNC_CLIENT.md) to keep files synced to your desktop
 - [Edit Documents Online](DOCUMENT_EDITING.md) with Collabora
+- [Search Everything](SEARCH.md) across all your modules
+- [User Documentation](README.md) — all user guides

@@ -1,6 +1,6 @@
 # Calendar — User Guide
 
-> **Last Updated:** 2026-07-16
+> **Last Updated:** 2026-08-27
 
 ---
 
@@ -111,12 +111,12 @@ When you're invited to an event:
 
 ### Attendee Statuses
 
-| Status | Meaning |
-|---|---|
+| Status       | Meaning                   |
+| ------------ | ------------------------- |
 | Needs Action | No response yet (default) |
-| Accepted | Attendee confirmed |
-| Declined | Attendee won't attend |
-| Tentative | Attendee may attend |
+| Accepted     | Attendee confirmed        |
+| Declined     | Attendee won't attend     |
+| Tentative    | Attendee may attend       |
 
 ---
 
@@ -135,11 +135,11 @@ When creating or editing an event:
 
 ### Reminder Examples
 
-| Setting | When It Fires |
-|---|---|
-| 15 minutes before | 15 min before start |
-| 60 minutes before | 1 hour before start |
-| 1440 minutes before | 1 day before start |
+| Setting             | When It Fires       |
+| ------------------- | ------------------- |
+| 15 minutes before   | 15 min before start |
+| 60 minutes before   | 1 hour before start |
+| 1440 minutes before | 1 day before start  |
 
 ### Reminders on Recurring Events
 
@@ -230,16 +230,16 @@ DotNetCloud accepts iCalendar (RFC 5545) format files. Most calendar application
 
 ### Supported iCalendar Fields
 
-| iCalendar Field | Mapped To |
-|---|---|
-| `SUMMARY` | Event Title |
+| iCalendar Field     | Mapped To        |
+| ------------------- | ---------------- |
+| `SUMMARY`           | Event Title      |
 | `DTSTART` / `DTEND` | Start / End Time |
-| `DESCRIPTION` | Description |
-| `LOCATION` | Location |
-| `URL` | URL |
-| `RRULE` | Recurrence Rule |
-| `VALARM` | Reminders |
-| `ATTENDEE` | Attendees |
+| `DESCRIPTION`       | Description      |
+| `LOCATION`          | Location         |
+| `URL`               | URL              |
+| `RRULE`             | Recurrence Rule  |
+| `VALARM`            | Reminders        |
+| `ATTENDEE`          | Attendees        |
 
 ### Import Tips
 
@@ -344,3 +344,12 @@ CalDAV lets you sync your DotNetCloud calendars with external applications in re
 
 - Another user modified the event while you were editing
 - Reload the event to get the latest version and retry your changes
+
+---
+
+## Related Guides
+
+- [User Documentation](README.md) — all user guides
+- [Contacts](CONTACTS.md) — sync contacts via CardDAV
+- [Notes](NOTES.md) — link notes to events
+- [Search](SEARCH.md) — find events across modules

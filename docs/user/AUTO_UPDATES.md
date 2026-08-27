@@ -1,6 +1,6 @@
 # Auto-Updates
 
-> **Last Updated:** 2026-04-15
+> **Last Updated:** 2026-08-27
 
 ---
 
@@ -23,6 +23,7 @@ dotnetcloud update
 ```
 
 The CLI displays:
+
 - Current server version
 - Latest available version
 - Release notes summary
@@ -41,9 +42,9 @@ Navigate to **Admin → Updates** (`/admin/updates`) to see:
 
 ### Server-Side Settings
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| Cache duration | 1 hour | How long GitHub release data is cached before re-fetching |
+| Setting        | Default | Description                                               |
+| -------------- | ------- | --------------------------------------------------------- |
+| Cache duration | 1 hour  | How long GitHub release data is cached before re-fetching |
 
 The server caches GitHub API responses to stay within the public API rate limit (60 requests/hour). Under normal operation, the cache is more than sufficient.
 
@@ -74,10 +75,10 @@ After downloading, select **Restart to Apply** to complete the update.
 
 In **SyncTray Settings → Updates**:
 
-| Setting | Default | Description |
-|---------|---------|-------------|
+| Setting                | Default | Description                               |
+| ---------------------- | ------- | ----------------------------------------- |
 | Auto-check for updates | Enabled | Toggle automatic background update checks |
-| Current version | — | Displays the running client version |
+| Current version        | —       | Displays the running client version       |
 
 ---
 
@@ -86,6 +87,7 @@ In **SyncTray Settings → Updates**:
 On launch, the Android app checks the server for available updates (once per day maximum).
 
 If an update is available:
+
 - A dismissable banner appears at the top of the app: _"Version X.Y.Z is available"_
 - Tap **Update** to open the appropriate store listing (Google Play or F-Droid)
 - Tap **Dismiss** to hide the banner for this session
@@ -119,12 +121,12 @@ GitHub Releases API (source of truth)
 
 All update endpoints are **public** (no authentication required) so clients can check before logging in.
 
-| Endpoint | Description |
-|----------|-------------|
-| `GET /api/v1/core/updates/check` | Check if a newer version is available |
-| `GET /api/v1/core/updates/check?currentVersion=0.1.5` | Check against a specific version |
-| `GET /api/v1/core/updates/releases` | List recent releases (default: 5, max: 20) |
-| `GET /api/v1/core/updates/releases/latest` | Get the latest release details |
+| Endpoint                                              | Description                                |
+| ----------------------------------------------------- | ------------------------------------------ |
+| `GET /api/v1/core/updates/check`                      | Check if a newer version is available      |
+| `GET /api/v1/core/updates/check?currentVersion=0.1.5` | Check against a specific version           |
+| `GET /api/v1/core/updates/releases`                   | List recent releases (default: 5, max: 20) |
+| `GET /api/v1/core/updates/releases/latest`            | Get the latest release details             |
 
 ### Response Format
 
@@ -155,9 +157,17 @@ All update endpoints are **public** (no authentication required) so clients can 
 
 ## Troubleshooting
 
-| Symptom | Cause | Fix |
-|---------|-------|-----|
-| "Check failed" in CLI or Admin UI | Server can't reach GitHub API | Check network/firewall; cached data is used as fallback |
-| SyncTray never shows update notification | Auto-check disabled or server unreachable | Check Settings → Updates; verify server URL is correct |
-| Android banner not appearing | Already dismissed for this version, or < 24h since last check | Restart the app or wait for the next daily check |
-| Version shows "0.0.0" | Assembly version metadata missing | Ensure you're running an official release build |
+| Symptom                                  | Cause                                                         | Fix                                                     |
+| ---------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------- |
+| "Check failed" in CLI or Admin UI        | Server can't reach GitHub API                                 | Check network/firewall; cached data is used as fallback |
+| SyncTray never shows update notification | Auto-check disabled or server unreachable                     | Check Settings → Updates; verify server URL is correct  |
+| Android banner not appearing             | Already dismissed for this version, or < 24h since last check | Restart the app or wait for the next daily check        |
+| Version shows "0.0.0"                    | Assembly version metadata missing                             | Ensure you're running an official release build         |
+
+---
+
+## Related Guides
+
+- [User Documentation](README.md) — all user guides
+- [Desktop Sync Client](SYNC_CLIENT.md) — desktop update settings
+- [Android App](ANDROID.md) — mobile update behavior

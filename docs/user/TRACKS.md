@@ -1,8 +1,12 @@
-# Tracks Module — User Guide
+# Tracks — User Guide
 
-> **Note:** The canonical user guide now lives at [docs/user/TRACKS.md](../../user/TRACKS.md). This file is retained for reference.
->
-> DotNetCloud Tracks: Kanban boards, sprint planning, and project management
+> **Last Updated:** 2026-08-27
+
+---
+
+## Welcome
+
+DotNetCloud Tracks is a project management tool with Kanban boards, sprints, and team collaboration. Use it to organize work visually, track progress, and plan iterations.
 
 ---
 
@@ -10,28 +14,13 @@
 
 ### Creating Your First Board
 
-1. Navigate to **Tracks** from the DotNetCloud sidebar
+1. Open **Tracks** from the sidebar
 2. Click **New Board**
 3. Enter a board name and optional description
-4. Choose visibility: **Public** (all org members can see) or **Private** (invite only)
+4. Choose visibility: **Public** (all organization members can see) or **Private** (invite only)
 5. Click **Create**
 
-Your board starts with no swimlanes. Add columns like "To Do", "In Progress", and "Done" to define your workflow.
-
-### Board Layout
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  Board Name                              [Members] [Settings]   │
-├──────────────┬──────────────┬──────────────┬───────────────────-─┤
-│  To Do       │  In Progress │  Review      │  Done              │
-│  ──────────  │  ──────────  │  ──────────  │  ──────────        │
-│  Card 1      │  Card 3      │  Card 5      │  Card 7            │
-│  Card 2      │  Card 4      │              │  Card 8            │
-│              │              │              │                    │
-│  + Add card  │  + Add card  │  + Add card  │  + Add card        │
-└──────────────┴──────────────┴──────────────┴────────────────────┘
-```
+Your board starts with no columns. Add columns like "To Do", "In Progress", and "Done" to define your workflow.
 
 ---
 
@@ -39,10 +28,10 @@ Your board starts with no swimlanes. Add columns like "To Do", "In Progress", an
 
 ### Managing Swimlanes (Columns)
 
-- **Add a swimlane:** Click **+ Add Swimlane** at the right edge of the board
-- **Rename a swimlane:** Click on the swimlane title and edit inline
-- **Reorder swimlanes:** Drag a swimlane header to a new position, or use the API `PUT /api/v1/boards/{boardId}/swimlanes/reorder`
-- **Delete a swimlane:** Open the swimlane menu → Delete (cards are not deleted, they become unassigned)
+- **Add a swimlane:** click **+ Add Swimlane** at the right edge of the board
+- **Rename a swimlane:** click the swimlane title and edit inline
+- **Reorder swimlanes:** drag a swimlane header to a new position
+- **Delete a swimlane:** open the swimlane menu → Delete (cards are not deleted, they become unassigned)
 
 ### Board Members
 
@@ -70,8 +59,8 @@ Board owners can transfer ownership to another member via **Board Settings → T
 
 ### Import / Export
 
-- **Export:** Download a board as JSON including all swimlanes, cards, labels, and members
-- **Import:** Upload a JSON file to create a new board from exported data
+- **Export:** download a board as JSON, including all swimlanes, cards, labels, and members
+- **Import:** upload a JSON file to create a new board from exported data
 
 ---
 
@@ -80,8 +69,8 @@ Board owners can transfer ownership to another member via **Board Settings → T
 ### Creating Cards
 
 1. Click **+ Add card** at the bottom of any swimlane
-2. Enter a title and press Enter
-3. Click the card to open the detail view for adding description, assignees, labels, due date, etc.
+2. Enter a title and press **Enter**
+3. Click the card to open the detail view for adding description, assignees, labels, due date, and more
 
 ### Card Detail View
 
@@ -102,9 +91,8 @@ Board owners can transfer ownership to another member via **Board Settings → T
 
 ### Moving Cards
 
-- **Drag and drop** a card between swimlanes on the board
+- **Drag and drop** a card between swimlanes
 - **Card menu → Move** to select a target swimlane and position
-- Cards can be moved between swimlanes within the same board
 
 ### Archiving Cards
 
@@ -133,7 +121,7 @@ Discuss cards with your team:
 - Comments support **Markdown** formatting
 - Edit your own comments after posting
 - Delete comments you own (admins can delete any comment)
-- Activity feed records when comments are added
+- The activity feed records when comments are added
 
 ---
 
@@ -144,7 +132,7 @@ Labels help categorize and filter cards across the board:
 - Each board has its own label set
 - Labels have a **color** and optional **name**
 - A card can have multiple labels
-- Use labels to visually highlight priority, type, category, or team
+- Use labels to highlight priority, type, category, or team
 
 ---
 
@@ -158,25 +146,21 @@ Link cards to show relationships:
 | **Blocks**     | This card must be completed before the dependent card can start |
 | **Related To** | Informational link between related cards                        |
 
-Tracks automatically detects circular dependencies (A blocks B blocks C blocks A) and prevents them.
+Tracks automatically detects and prevents circular dependencies (A blocks B blocks C blocks A).
 
 ---
 
 ## Sprints
 
+Sprints are time-boxed iterations for boards using agile methodology.
+
 ### Sprint Lifecycle
 
-Sprints are time-boxed iterations for boards using agile methodology:
-
-```
-Planning → Active → Completed
-```
-
-1. **Create Sprint:** Set a name, start date, and end date
-2. **Add Cards:** Assign cards from the backlog to the sprint
-3. **Start Sprint:** Activates the sprint (only one sprint can be active per board)
-4. **Work:** Move cards through swimlanes as work progresses
-5. **Complete Sprint:** Ends the sprint; unfinished cards can be moved to the next sprint
+1. **Create Sprint:** set a name, start date, and end date
+2. **Add Cards:** assign cards from the backlog to the sprint
+3. **Start Sprint:** activates the sprint (only one sprint can be active per board)
+4. **Work:** move cards through swimlanes as work progresses
+5. **Complete Sprint:** ends the sprint; unfinished cards can be moved to the next sprint
 
 ### Sprint Reports
 
@@ -184,7 +168,7 @@ After completing a sprint, view the sprint report:
 
 - **Completed cards** — cards that reached the "Done" state
 - **Incomplete cards** — cards that were not finished
-- **Velocity** — story points completed per sprint (via planning poker estimates)
+- **Velocity** — story points completed per sprint
 - **Burndown** — remaining work over time
 
 ---
@@ -193,20 +177,15 @@ After completing a sprint, view the sprint report:
 
 ### Manual Entries
 
-Log time spent on a card:
-
 1. Open a card → **Time Tracking** section
 2. Click **Add Entry**
 3. Enter hours/minutes and an optional description
-4. The entry is recorded with your user and timestamp
 
 ### Timer
 
-For real-time tracking:
-
 1. Click **Start Timer** on a card
 2. Work on the task
-3. Click **Stop Timer** — the elapsed time is automatically logged as an entry
+3. Click **Stop Timer** — the elapsed time is automatically logged
 
 Only one timer can be active per user at a time.
 
@@ -229,13 +208,11 @@ The accepted estimate is stored on the card and used in sprint velocity calculat
 
 ## Teams
 
-### Team-Based Board Management
-
 Teams group users for shared board access:
 
 1. **Create a Team** from the Teams page
 2. **Add Members** with roles: Owner, Manager, Member, or Guest
-3. **Assign Boards** to the team — all team members get access based on their team role
+3. **Assign Boards** to the team — members get access based on their team role
 
 ### Team Roles
 
@@ -246,13 +223,13 @@ Teams group users for shared board access:
 | **Member**  | ✗                       | ✗             | ✓          | ✓         |
 | **Guest**   | ✗                       | ✗             | ✗          | ✓         |
 
-Team roles map to board roles automatically. A user's direct board role (if any) takes precedence over their team role.
+A user's direct board role (if any) takes precedence over their team role.
 
 ---
 
 ## Bulk Operations
 
-Perform batch actions on multiple cards:
+Perform batch actions on multiple cards after selecting them:
 
 | Operation        | Description                              |
 | ---------------- | ---------------------------------------- |
@@ -261,23 +238,17 @@ Perform batch actions on multiple cards:
 | **Bulk Label**   | Apply a label to multiple cards          |
 | **Bulk Archive** | Archive multiple cards at once           |
 
-Access bulk operations from the board toolbar after selecting cards.
-
 ---
 
 ## Templates
 
 ### Board Templates
 
-Save a board structure as a reusable template:
-
-1. Open board menu → **Save as Template**
+1. Open the board menu → **Save as Template**
 2. The template captures swimlanes, labels, and board settings (not cards)
 3. Create new boards from the template via **New Board → From Template**
 
 ### Card Templates
-
-Save frequently-used card structures:
 
 1. Open a card menu → **Save as Template**
 2. The template captures title, description, checklists, and labels
@@ -337,7 +308,7 @@ Tracks sends notifications for key events:
 | Sprint started/completed | All board members           |
 | Added to board/team      | The added user              |
 
-Notifications appear in the DotNetCloud notification panel and can be configured per-user.
+Notifications appear in the DotNetCloud notification panel.
 
 ---
 
@@ -351,3 +322,10 @@ Notifications appear in the DotNetCloud notification panel and can be configured
 | `L`      | Add label to focused card    |
 | `D`      | Set due date on focused card |
 | `Esc`    | Close card detail view       |
+
+---
+
+## Related Guides
+
+- [Search](SEARCH.md) — find cards and content across modules
+- [Getting Started](GETTING_STARTED.md) — general platform basics

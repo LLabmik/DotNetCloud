@@ -1,6 +1,6 @@
 # Contacts — User Guide
 
-> **Last Updated:** 2026-03-23
+> **Last Updated:** 2026-08-27
 
 ---
 
@@ -122,18 +122,18 @@ DotNetCloud accepts vCard 3.0 format files. Most contact applications (Google Co
 
 ### Supported vCard Fields
 
-| vCard Field | Mapped To |
-|---|---|
-| `FN` | Display Name |
-| `N` | First Name, Last Name, Middle Name, Prefix, Suffix |
-| `ORG` | Organization |
-| `TITLE` | Job Title |
-| `EMAIL` | Email Address |
-| `TEL` | Phone Number |
-| `ADR` | Address |
-| `BDAY` | Birthday |
-| `URL` | Website |
-| `NOTE` | Notes |
+| vCard Field | Mapped To                                          |
+| ----------- | -------------------------------------------------- |
+| `FN`        | Display Name                                       |
+| `N`         | First Name, Last Name, Middle Name, Prefix, Suffix |
+| `ORG`       | Organization                                       |
+| `TITLE`     | Job Title                                          |
+| `EMAIL`     | Email Address                                      |
+| `TEL`       | Phone Number                                       |
+| `ADR`       | Address                                            |
+| `BDAY`      | Birthday                                           |
+| `URL`       | Website                                            |
+| `NOTE`      | Notes                                              |
 
 ### Import Tips
 
@@ -271,3 +271,12 @@ CardDAV lets you sync your DotNetCloud contacts with external applications in re
 - Ask the owner to verify the share is active
 - Check that you're logged in as the correct user
 - Shares appear in your contact list alongside owned contacts
+
+---
+
+## Related Guides
+
+- [User Documentation](README.md) — all user guides
+- [Calendar](CALENDAR.md) — sync calendars via CalDAV
+- [Notes](NOTES.md) — link notes to contacts
+- [Search](SEARCH.md) — find contacts across modules
