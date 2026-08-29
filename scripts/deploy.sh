@@ -736,6 +736,18 @@ if $CORE_NEEDS_PUBLISH || [ ! -f "$DEPLOY_DIR/DotNetCloud.Core.Server.dll" ]; th
     rm -rf "$DEPLOY_DIR/wwwroot/_framework" 2>/dev/null || true
     rm -f "$DEPLOY_DIR/DotNetCloud.Core.Server.staticwebassets.endpoints.json" 2>/dev/null || true
 
+    # Also clean the .NET 10 JS-module-initializers manifest and the Debug-only
+    # hot-reload module. A Debug build emits {Assembly}.modules.json listing
+    # Microsoft.DotNet.HotReload.WebAssembly.Browser and drops its .lib.module.js
+    # under wwwroot/_content/. Release builds generate neither, so a stale copy
+    # makes the server's /_blazor/initializers endpoint keep returning that URL —
+    # and since MapStaticAssets() only serves what's in the Release endpoints
+    # manifest, the file 404s and blazor.web.js fails to boot the WASM app.
+    rm -f "$DEPLOY_DIR/wwwroot/DotNetCloud.Core.Server.modules.json" \
+          "$DEPLOY_DIR/wwwroot/DotNetCloud.Core.Server.modules.json.br" \
+          "$DEPLOY_DIR/wwwroot/DotNetCloud.Core.Server.modules.json.gz" 2>/dev/null || true
+    rm -rf "$DEPLOY_DIR/wwwroot/_content/Microsoft.DotNet.HotReload.WebAssembly.Browser" 2>/dev/null || true
+
     # Full publish (NO --no-build) so the Blazor/WASM static assets are regenerated
     # consistently with the manifest. The build step above already compiled
     # everything, so this is mostly up-to-date plus publish-time asset generation.
