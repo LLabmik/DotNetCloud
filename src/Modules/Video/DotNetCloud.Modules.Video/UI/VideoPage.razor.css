@@ -442,7 +442,7 @@
 
 .video-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fill, 240px);
   gap: 20px;
 }
 
@@ -1118,7 +1118,7 @@
   }
 
   .video-grid {
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    grid-template-columns: repeat(auto-fill, 200px);
   }
 }
 
@@ -1132,7 +1132,7 @@
   }
 
   .video-grid {
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    grid-template-columns: repeat(auto-fill, 160px);
   }
 
   .search-box input {

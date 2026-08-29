@@ -46,12 +46,12 @@ public partial class VideoPage : IAsyncDisposable
 
     // ── Paging ──
     private int _videoPage;
-    private const int VideoPageSize = 50;
+    private int _videoPageSize = 50;   // Library page size — adjusted by the layout observer to fill the screen
     private int _totalVideos;
     private bool _hasMoreVideos;
 
     private int _recentPage;
-    private const int RecentPageSize = 12;
+    private int _recentPageSize = 12;  // Recently-added page size — adjusted by the layout observer to fill the screen
     private int _totalRecentVideos;
     private bool _hasMoreRecent;
 
@@ -90,6 +90,10 @@ public partial class VideoPage : IAsyncDisposable
     private int _playerDefaultAudioIndex;
     private DotNetObjectReference<VideoPage>? _dotNetRef;
     private string? _streamStrategy; // "direct", "remux", or "transcode" (badge display only)
+
+    // ── Layout observer (fills the screen with as many fixed-size cards as fit) ──
+    private bool _layoutObserverAttached;
+    private string? _activeLayoutGridId;
 
     private readonly SemaphoreSlim _pageLoadSemaphore = new(1, 1);
 
@@ -192,6 +196,8 @@ public partial class VideoPage : IAsyncDisposable
                 _videoPlayerInitialized = false;
             }
         }
+
+        await EnsureLayoutObserverAsync();
     }
 
     /// <summary>
@@ -207,6 +213,177 @@ public partial class VideoPage : IAsyncDisposable
         // never served stale from the browser cache.
         await Js.InvokeVoidAsync("eval",
             "(function(){return new Promise(function(res){var h=document.createElement('script');h.src='/_content/DotNetCloud.Modules.Video/hls.min.js?v=1';h.onload=function(){var p=document.createElement('script');p.src='/api/v1/videos/video-player-js?_='+Date.now();p.onload=res;p.onerror=res;document.head.appendChild(p);};h.onerror=res;document.head.appendChild(h);});})()");
+    }
+
+    /// <summary>
+    /// Loads video-layout.js from the module static asset path (mirrors how hls.min.js
+    /// is loaded). The layout observer is a no-op (paging falls back to the default
+    /// page sizes) if the script cannot be loaded.
+    /// </summary>
+    private async Task LoadLayoutScriptAsync()
+    {
+        try
+        {
+            await Js.InvokeVoidAsync("eval",
+                "(function(){return new Promise(function(res){if(window.DotNetCloudVideoLayout){res();return;}var s=document.createElement('script');s.src='/_content/DotNetCloud.Modules.Video/video-layout.js?v=2';s.onload=res;s.onerror=res;document.head.appendChild(s);});})()");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogDebug(ex, "Failed to load video-layout.js");
+        }
+    }
+
+    /// <summary>
+    /// Attaches (or detaches/re-attaches) the JS layout observer so the currently
+    /// visible paginated video grid (Home "Recently Added" or Library standalone
+    /// videos) reports how many fixed-size cards fit the viewport. Also re-measures
+    /// after every render so newly loaded data is accounted for.
+    /// </summary>
+    private async Task EnsureLayoutObserverAsync()
+    {
+        var gridId = GetActiveLayoutGridId();
+        if (gridId is null)
+        {
+            await RemoveLayoutObserverAsync();
+            return;
+        }
+
+        if (!_layoutObserverAttached)
+        {
+            await AttachLayoutObserverAsync(gridId);
+        }
+        else if (_activeLayoutGridId != gridId)
+        {
+            await RemoveLayoutObserverAsync();
+            await AttachLayoutObserverAsync(gridId);
+        }
+
+        if (_layoutObserverAttached)
+        {
+            try
+            {
+                await Js.InvokeVoidAsync("DotNetCloudVideoLayout.refresh");
+            }
+            catch { /* circuit may be gone */ }
+        }
+    }
+
+    /// <summary>The id of the currently visible paginated video grid, or null.</summary>
+    private string? GetActiveLayoutGridId() => _section switch
+    {
+        Section.Home when !_playerOpen && _searchResults is null && _recentVideos.Count > 0 => "recent-video-grid",
+        Section.Library when !_playerOpen && _searchResults is null && _libraryContent is not null
+            && (_libraryContent.Series.Count > 0 || _libraryContent.StandaloneVideos.Count > 0) => "library-video-grid",
+        _ => null
+    };
+
+    private async Task AttachLayoutObserverAsync(string gridId)
+    {
+        try
+        {
+            _dotNetRef ??= DotNetObjectReference.Create(this);
+            // attach returns false when the grid element isn't mounted yet (e.g. the
+            // loading spinner is showing during a section switch). Keep the flag
+            // false so the next render retries instead of silently no-oping.
+            var attached = await Js.InvokeAsync<bool>("DotNetCloudVideoLayout.attach", _dotNetRef, gridId);
+            _layoutObserverAttached = attached;
+            _activeLayoutGridId = attached ? gridId : null;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to attach video layout observer");
+            _layoutObserverAttached = false;
+            _activeLayoutGridId = null;
+        }
+    }
+
+    private async Task RemoveLayoutObserverAsync()
+    {
+        if (!_layoutObserverAttached)
+            return;
+
+        try
+        {
+            await Js.InvokeVoidAsync("DotNetCloudVideoLayout.detach");
+        }
+        catch { /* circuit may be gone */ }
+
+        _layoutObserverAttached = false;
+        _activeLayoutGridId = null;
+    }
+
+    /// <summary>
+    /// Called from JS when the available grid size changes (window resize / sidebar
+    /// collapse). Updates the active section's page size and reloads while keeping
+    /// the current first-visible item roughly on screen rather than jumping to page 0.
+    /// </summary>
+    [JSInvokable]
+    public async Task OnVideoLayoutChanged(int pageSize)
+    {
+        if (pageSize < 1)
+            return;
+
+        var reloaded = false;
+        try
+        {
+            if (_section == Section.Home && _recentVideos.Count > 0)
+            {
+                var firstOffset = _recentPage * _recentPageSize;
+                var newPage = ComputePageForResize(firstOffset, pageSize, _totalRecentVideos);
+                if (pageSize != _recentPageSize || newPage != _recentPage)
+                {
+                    _recentPageSize = pageSize;
+                    _recentPage = newPage;
+                    await LoadRecentPageAsync();
+                    reloaded = true;
+                }
+            }
+            else if (_section == Section.Library && _libraryContent is not null)
+            {
+                // Library keeps a floor of 50 combined slots (series + videos).
+                var newSize = Math.Max(50, pageSize);
+                var firstOffset = _videoPage * _videoPageSize;
+                var newPage = ComputePageForResize(firstOffset, newSize, _totalVideos);
+                if (newSize != _videoPageSize || newPage != _videoPage)
+                {
+                    _videoPageSize = newSize;
+                    _videoPage = newPage;
+                    await LoadVideosPageAsync();
+                    reloaded = true;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error applying video layout page-size change");
+        }
+
+        // [JSInvokable] methods don't get the automatic re-render that @onclick
+        // event handlers do — the page data changed above, so re-render explicitly
+        // (this is what makes the initial page-size change visible without a click).
+        if (reloaded)
+        {
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>
+    /// Computes the page index to use after a page-size change so the item at
+    /// <paramref name="firstOffset"/> (the current first-visible item) stays on
+    /// screen. Clamped to a valid page index given <paramref name="totalCount"/>.
+    /// Extracted as a pure helper so it can be unit-tested.
+    /// </summary>
+    internal static int ComputePageForResize(int firstOffset, int newSize, int totalCount)
+    {
+        if (newSize <= 0)
+            return 0;
+
+        var page = firstOffset / newSize;
+        if (totalCount <= 0)
+            return Math.Max(0, page);
+
+        var lastPage = Math.Max(0, (totalCount + newSize - 1) / newSize - 1);
+        return Math.Clamp(page, 0, lastPage);
     }
 
     /// <summary>Called from JS when the stream strategy is determined. Drives the badge display only.</summary>
@@ -446,6 +623,8 @@ public partial class VideoPage : IAsyncDisposable
             _loading = true;
             _caller = await GetCallerAsync();
 
+            await LoadLayoutScriptAsync();
+
             ScanProgress.OnProgressChanged += OnScanProgressChanged;
 
             // Initialize TMDB availability from database settings (set via admin pages)
@@ -548,6 +727,8 @@ public partial class VideoPage : IAsyncDisposable
         if (_playerOpen)
             await ClosePlayer();
 
+        await RemoveLayoutObserverAsync();
+
         _section = section;
         _selectedCollection = null;
         _selectedCollectionId = null;
@@ -563,7 +744,9 @@ public partial class VideoPage : IAsyncDisposable
         _playerOpen = false;
         _playerSeriesContext = null;
         _videoPage = 0;
+        _videoPageSize = 50;   // reset — re-measured on the next render
         _recentPage = 0;
+        _recentPageSize = 12;  // reset — re-measured on the next render
         _seriesPage = 0;
         _collectionVideoPage = 0;
         _librarySeriesCache = null; // series may have changed after a scan
@@ -645,9 +828,9 @@ public partial class VideoPage : IAsyncDisposable
             // Cache series between page loads — ListSeriesAsync is expensive (4-5 queries).
             _librarySeriesCache ??= (await SeriesService.ListSeriesAsync(_caller)).ToList();
 
-            _libraryContent = await VideoService.ListLibraryContentAsync(_caller, _videoPage * VideoPageSize, VideoPageSize, _librarySeriesCache);
+            _libraryContent = await VideoService.ListLibraryContentAsync(_caller, _videoPage * _videoPageSize, _videoPageSize, _librarySeriesCache);
             _totalVideos = _libraryContent.TotalSeries + _libraryContent.TotalStandaloneVideos;
-            _hasMoreVideos = (_videoPage + 1) * VideoPageSize < _totalVideos;
+            _hasMoreVideos = (_videoPage + 1) * _videoPageSize < _totalVideos;
         }
         finally
         {
@@ -684,8 +867,8 @@ public partial class VideoPage : IAsyncDisposable
         try
         {
             _totalRecentVideos = await VideoService.GetVideoCountAsync(_caller.UserId);
-            var videos = (await VideoService.GetRecentVideosAsync(_caller, _recentPage * RecentPageSize, RecentPageSize)).ToList();
-            _hasMoreRecent = (_recentPage + 1) * RecentPageSize < _totalRecentVideos;
+            var videos = (await VideoService.GetRecentVideosAsync(_caller, _recentPage * _recentPageSize, _recentPageSize)).ToList();
+            _hasMoreRecent = (_recentPage + 1) * _recentPageSize < _totalRecentVideos;
             _recentVideos = videos;
         }
         finally
@@ -1952,6 +2135,7 @@ public partial class VideoPage : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         ScanProgress.OnProgressChanged -= OnScanProgressChanged;
+        await RemoveLayoutObserverAsync();
         _dotNetRef?.Dispose();
         _dotNetRef = null;
 
