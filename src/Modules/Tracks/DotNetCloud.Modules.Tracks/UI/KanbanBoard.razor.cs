@@ -1,5 +1,6 @@
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Services.ModuleApis;
+using DotNetCloud.UI.Shared.Components.Dialogs;
 using DotNetCloud.UI.Shared.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
@@ -53,6 +54,9 @@ public partial class KanbanBoard : ComponentBase
     // Swimlane add
     private bool _showAddSwimlane;
     private string _newSwimlaneTitle = "";
+
+    // Swimlane delete confirmation
+    private DncConfirmDialog? _deleteConfirmDialog;
 
     // Wizard
     private bool _showCreateWizard;
@@ -276,16 +280,23 @@ public partial class KanbanBoard : ComponentBase
                 _ => null
             };
 
-            if (item is not null)
+            if (item is null)
             {
-                await OnWorkItemCreated.InvokeAsync(item);
+                // Keep the typed title so the user can retry.
+                _wipWarningMessage = "Could not create the item. Please try again.";
+                _showWipWarning = true;
+                return;
             }
 
+            await OnWorkItemCreated.InvokeAsync(item);
+
+            _addingItemToSwimlane = null;
             _newItemTitle = "";
         }
-        catch
+        catch (Exception ex)
         {
-            // Work item creation failed
+            _wipWarningMessage = $"Could not create the item: {ex.Message}";
+            _showWipWarning = true;
         }
     }
 
@@ -328,7 +339,26 @@ public partial class KanbanBoard : ComponentBase
         }
     }
 
-    private async Task DeleteSwimlaneAsync(Guid swimlaneId)
+    private async Task RequestDeleteSwimlaneAsync(SwimlaneDto swimlane)
+    {
+        if (_deleteConfirmDialog is null)
+            return;
+
+        var itemCount = WorkItemsBySwimlane.TryGetValue(swimlane.Id, out var items)
+            ? items.Count(wi => !wi.IsArchived)
+            : 0;
+
+        var message = itemCount > 0
+            ? $"Delete list \"{swimlane.Title}\"? {itemCount} item(s) will be removed from this list — they will not be deleted."
+            : $"Delete list \"{swimlane.Title}\"?";
+
+        if (await _deleteConfirmDialog.ShowAsync(message, "Delete List"))
+        {
+            await ConfirmDeleteSwimlaneAsync(swimlane.Id);
+        }
+    }
+
+    private async Task ConfirmDeleteSwimlaneAsync(Guid swimlaneId)
     {
         try
         {

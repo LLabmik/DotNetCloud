@@ -192,6 +192,60 @@ public class TracksGrpcServiceTests
     }
 
     [TestMethod]
+    public async Task CreateFeature_InEpicSwimlane_Succeeds()
+    {
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), _userId, "Feature Product");
+        var epic = await TestHelpers.SeedEpicAsync(_db, product.Id, _userId, "Epic");
+        var epicSwimlane = await TestHelpers.SeedSwimlaneAsync(_db, epic.Id, SwimlaneContainerType.WorkItem, "To Do");
+
+        var request = new CreateFeatureRequest
+        {
+            SwimlaneId = epicSwimlane.Id.ToString(),
+            UserId = _userId.ToString(),
+            Title = "Feature in Epic",
+            Priority = "Medium",
+            LabelIds = { }
+        };
+
+        var response = await _service.CreateFeature(request, CreateContext());
+
+        Assert.IsTrue(response.Success, response.ErrorMessage);
+        Assert.IsNotNull(response.WorkItem);
+        Assert.AreEqual("Feature in Epic", response.WorkItem.Title);
+        Assert.AreEqual("Feature", response.WorkItem.Type);
+        Assert.AreEqual(product.Id.ToString(), response.WorkItem.ProductId);
+        Assert.AreEqual(epic.Id.ToString(), response.WorkItem.ParentWorkItemId);
+    }
+
+    [TestMethod]
+    public async Task CreateItem_InFeatureSwimlane_Succeeds()
+    {
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), _userId, "Item Product");
+        var epic = await TestHelpers.SeedEpicAsync(_db, product.Id, _userId, "Epic");
+        var feature = await TestHelpers.SeedWorkItemAsync(_db, product.Id, null, _userId, "Feature", WorkItemType.Feature);
+        feature.ParentWorkItemId = epic.Id;
+        await _db.SaveChangesAsync();
+        var featureSwimlane = await TestHelpers.SeedSwimlaneAsync(_db, feature.Id, SwimlaneContainerType.WorkItem, "To Do");
+
+        var request = new CreateItemRequest
+        {
+            SwimlaneId = featureSwimlane.Id.ToString(),
+            UserId = _userId.ToString(),
+            Title = "Item in Feature",
+            LabelIds = { }
+        };
+
+        var response = await _service.CreateItem(request, CreateContext());
+
+        Assert.IsTrue(response.Success, response.ErrorMessage);
+        Assert.IsNotNull(response.WorkItem);
+        Assert.AreEqual("Item in Feature", response.WorkItem.Title);
+        Assert.AreEqual("Item", response.WorkItem.Type);
+        Assert.AreEqual(product.Id.ToString(), response.WorkItem.ProductId);
+        Assert.AreEqual(feature.Id.ToString(), response.WorkItem.ParentWorkItemId);
+    }
+
+    [TestMethod]
     public async Task CreateSubItem_UsesChildSwimlane_NotParentSwimlane()
     {
         var product = await TestHelpers.SeedProductAsync(_db, Guid.NewGuid(), _userId, "SubItem Product");

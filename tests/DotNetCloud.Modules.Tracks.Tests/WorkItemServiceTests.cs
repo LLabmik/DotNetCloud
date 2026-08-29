@@ -66,6 +66,39 @@ public class WorkItemServiceTests
     }
 
     [TestMethod]
+    public async Task CreateWorkItemAsync_FeatureInEpicSwimlane_Succeeds()
+    {
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
+        var epic = await TestHelpers.SeedEpicAsync(_db, product.Id, Guid.CreateVersion7());
+        var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, epic.Id, SwimlaneContainerType.WorkItem);
+        var dto = new CreateWorkItemDto { Title = "Feature A" };
+
+        var result = await _service.CreateWorkItemAsync(product.Id, swimlane.Id, WorkItemType.Feature, Guid.CreateVersion7(), dto, CancellationToken.None);
+
+        Assert.AreEqual(WorkItemType.Feature, result.Type);
+        Assert.AreEqual(epic.Id, result.ParentWorkItemId);
+        Assert.AreEqual(product.Id, result.ProductId);
+    }
+
+    [TestMethod]
+    public async Task CreateWorkItemAsync_ItemInFeatureSwimlane_Succeeds()
+    {
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
+        var epic = await TestHelpers.SeedEpicAsync(_db, product.Id, Guid.CreateVersion7());
+        var feature = await TestHelpers.SeedWorkItemAsync(_db, product.Id, null, Guid.CreateVersion7(), "Feature", WorkItemType.Feature);
+        feature.ParentWorkItemId = epic.Id;
+        await _db.SaveChangesAsync();
+        var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, feature.Id, SwimlaneContainerType.WorkItem);
+        var dto = new CreateWorkItemDto { Title = "Task A" };
+
+        var result = await _service.CreateWorkItemAsync(product.Id, swimlane.Id, WorkItemType.Item, Guid.CreateVersion7(), dto, CancellationToken.None);
+
+        Assert.AreEqual(WorkItemType.Item, result.Type);
+        Assert.AreEqual(feature.Id, result.ParentWorkItemId);
+        Assert.AreEqual(product.Id, result.ProductId);
+    }
+
+    [TestMethod]
     public async Task GetWorkItemAsync_ReturnsItem()
     {
         var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());

@@ -960,11 +960,25 @@ public class WorkItemsController : TracksControllerBase
             if (swimlane is null)
                 return NotFound(ErrorEnvelope(ErrorCodes.BoardSwimlaneNotFound, "Swimlane not found."));
 
-            if (swimlane.ContainerType != SwimlaneContainerType.Product)
-                return BadRequest(ErrorEnvelope(ErrorCodes.BadRequest, "Work items can only be created in product-level swimlanes."));
+            // Resolve the owning product: product-level swimlanes own the product directly;
+            // work-item swimlanes (epic/feature boards) belong to the parent work item.
+            Guid productId;
+            if (swimlane.ContainerType == SwimlaneContainerType.Product)
+            {
+                productId = swimlane.ContainerId;
+            }
+            else
+            {
+                var parent = await _db.WorkItems
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(wi => wi.Id == swimlane.ContainerId && !wi.IsDeleted, ct);
+                if (parent is null)
+                    return NotFound(ErrorEnvelope(ErrorCodes.CardNotFound, "Parent work item not found."));
+                productId = parent.ProductId;
+            }
 
             var item = await _workItemService.CreateWorkItemAsync(
-                swimlane.ContainerId, swimlaneId, type, caller.UserId, dto, ct);
+                productId, swimlaneId, type, caller.UserId, dto, ct);
 
             return Created($"/api/v1/workitems/{item.Id}", Envelope(item));
         }
