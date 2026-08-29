@@ -4324,6 +4324,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Add alternate audio stream selection — `GET /api/v1/videos/{id}/streams`, `audioStreamIndex` on `/stream` + `/stream/seek`
 - ✓ Backend: `AudioStreamInfo`, `VideoAudioStreamDto`, `ProbeStreamsAsync`, audio-index threading through `FfmpegArgumentBuilder`/`IVideoTranscodingService`/`VideoTranscodingService`/`VideoController`
 - ✓ Blazor: `VideoPage` hosts only the player container; new `OnError`/`OnStrategy`/`OnEnded`/`OnNavigateEpisode` JSInvokables; `NavigateEpisodeAsync` + testable `ComputeNextEpisodeIndex` helper
+- ✓ Cancel background ffmpeg when leaving the video player — `video-player.js` `cancelServerStream` (fired from `destroy()` + `pagehide`) posts to `POST /api/v1/videos/cancel-stream/{videoId}`; all Blazor teardown paths (Close, section switch, navigate away, series/season nav) route through JS destroy; `HlsStreamWatchdog` cancels abandoned HLS streams after `HlsIdleTimeoutSeconds` (default 300) with no segment requests
 - ✓ Tests: `ParseCodecInfo` audio-stream parsing, `FfmpegArgumentBuilder` audio-map, `ComputeNextEpisodeIndex` (video suite 169 passing)
 
 ### Sub-Phase E: Integration & Quality (Steps 5.19–5.20)

@@ -83,6 +83,18 @@ public sealed class TranscodingJobTracker
     }
 
     /// <summary>
+    /// Gets all active (queued or running) HLS transcode jobs regardless of video.
+    /// Used by the idle watchdog to find abandoned streams.
+    /// </summary>
+    public IReadOnlyList<TranscodingJob> GetActiveHlsJobs()
+    {
+        return _jobs.Values
+            .Where(j => j.IsHls &&
+                (j.Status == TranscodingJobStatus.Queued || j.Status == TranscodingJobStatus.Running))
+            .ToList();
+    }
+
+    /// <summary>
     /// Acquires an exclusive per-video lock for HLS transcode creation.
     /// This prevents concurrent HTTP requests from spawning duplicate ffmpeg processes.
     /// Caller MUST release the lock via <see cref="ReleaseHlsLock"/> when done with

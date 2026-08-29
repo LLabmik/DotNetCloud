@@ -157,6 +157,10 @@ builder.Services.AddSingleton<TranscodeCacheService>();
 builder.Services.AddSingleton<TranscodingJobTracker>();
 builder.Services.AddScoped<IVideoTranscodingService, VideoTranscodingService>();
 
+// HLS idle watchdog — cancels abandoned transcode streams (safety net for
+// crashes/network drops where no client cancel signal arrives).
+builder.Services.AddHostedService<HlsStreamWatchdog>();
+
 // gRPC
 builder.Services.AddGrpc();
 builder.Services.AddControllers();

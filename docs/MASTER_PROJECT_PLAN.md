@@ -2900,9 +2900,10 @@ Also fixed Android music player auto-advance & stability (2026-08-24): playing f
 - ✓ Alternate audio stream selection — new `GET /api/v1/videos/{id}/streams`, `audioStreamIndex` query param on `/stream`, threading through `/stream/seek`
 - ✓ Backend: `AudioStreamInfo`, `VideoAudioStreamDto`, `ProbeStreamsAsync`, audio-index threading through `FfmpegArgumentBuilder`, `IVideoTranscodingService`, `VideoTranscodingService`, `VideoController`
 - ✓ Blazor: `VideoPage` hosts only the player container; new `OnError`/`OnStrategy`/`OnEnded`/`OnNavigateEpisode` JSInvokables; `NavigateEpisodeAsync` + testable `ComputeNextEpisodeIndex` helper
+- ✓ Cancel background ffmpeg when leaving the player — `cancelServerStream` (JS `destroy()` + `pagehide` beacon) posts to `POST /api/v1/videos/cancel-stream/{videoId}`; all Blazor teardown paths (Close, switch section, navigate away, series/season nav) route through JS destroy; server-side `HlsStreamWatchdog` cancels abandoned HLS streams after `HlsIdleTimeoutSeconds` (default 300) with no segment requests
 - ✓ Tests: `ParseCodecInfo` audio-stream parsing, `FfmpegArgumentBuilder` audio-map, `ComputeNextEpisodeIndex` (video test suite 169 passing)
 
-**Notes:** Self-contained OSD (seek, ±10s, CC, audio, rate, volume, PiP, fullscreen) built in raw JS using Material ligature text (documented exception to the `MaterialIcon` rule). Full solution builds clean with `TreatWarningsAsErrors`; `DotNetCloud.Modules.Video.Tests` all green. Manual browser verification (Chromium + Firefox) is tracked in §11 of `docs/VIDEO_PLAYER_REBUILD_PLAN.md`.
+**Notes:** Self-contained OSD (seek, ±10s, CC, audio, rate, volume, PiP, fullscreen) built in raw JS using Material ligature text (documented exception to the `MaterialIcon` rule). Full solution builds clean with `TreatWarningsAsErrors`; `DotNetCloud.Modules.Video.Tests` all green. Manual browser verification (Chromium + Firefox) is tracked in §11 of `docs/VIDEO_PLAYER_REBUILD_PLAN.md`. Added background-ffmpeg cancellation on player leave: client cancel wired into every teardown path plus the `HlsStreamWatchdog` idle backstop (configurable via `Video:Transcoding:HlsIdleTimeoutSeconds` / `HlsWatchdogIntervalSeconds`).
 
 ---
 

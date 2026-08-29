@@ -64,6 +64,11 @@ public sealed class TranscodingJob
     /// <summary>When the job finished (completed, failed, or cancelled). Null if still running.</summary>
     public DateTime? CompletedAt { get; set; }
 
+    /// <summary>When the last HLS segment or playlist was served to a client (UTC).
+    /// Used by the idle watchdog to detect abandoned streams. Null if no segment
+    /// has been requested yet.</summary>
+    public DateTime? LastSegmentRequestedAt { get; set; }
+
     /// <summary>Error message if status is Failed.</summary>
     public string? ErrorMessage { get; set; }
 

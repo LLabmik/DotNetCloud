@@ -1197,8 +1197,11 @@ public partial class VideoPage : IAsyncDisposable
         if (_playerSeriesContext?.Series is null)
             return;
 
-        _playerOpen = false;
-        _playerVideo = null;
+        var seriesId = _playerSeriesContext.Series.Id;
+
+        // Tear down the player (JS destroy + server-side transcode cancel).
+        await ClosePlayer();
+
         _section = Section.Series;
         _selectedSeason = null;
         _seasonEpisodes.Clear();
@@ -1207,7 +1210,7 @@ public partial class VideoPage : IAsyncDisposable
 
         // Re-fetch series data
         var caller = await GetCallerAsync();
-        _selectedSeries = await SeriesService.GetSeriesAsync(_playerSeriesContext.Series.Id, caller);
+        _selectedSeries = await SeriesService.GetSeriesAsync(seriesId, caller);
         if (_selectedSeries is not null)
         {
             if (_selectedSeries.Type == "TvSeries")
@@ -1219,7 +1222,6 @@ public partial class VideoPage : IAsyncDisposable
                 _seriesVideos = (await SeriesService.GetSeriesVideosAsync(_selectedSeries.Id, caller)).ToList();
             }
         }
-        _playerSeriesContext = null;
         StateHasChanged();
     }
 
@@ -1228,23 +1230,26 @@ public partial class VideoPage : IAsyncDisposable
         if (_playerSeriesContext?.Season is null || _playerSeriesContext?.Series is null)
             return;
 
-        _playerOpen = false;
-        _playerVideo = null;
+        var seriesId = _playerSeriesContext.Series.Id;
+        var seasonId = _playerSeriesContext.Season.Id;
+
+        // Tear down the player (JS destroy + server-side transcode cancel).
+        await ClosePlayer();
+
         _section = Section.Series;
         _breadcrumb.Clear();
 
         var caller = await GetCallerAsync();
-        _selectedSeries = await SeriesService.GetSeriesAsync(_playerSeriesContext.Series.Id, caller);
+        _selectedSeries = await SeriesService.GetSeriesAsync(seriesId, caller);
         if (_selectedSeries is not null)
         {
             _seriesSeasons = (await SeriesService.GetSeriesSeasonsAsync(_selectedSeries.Id, caller)).ToList();
-            var season = _seriesSeasons.FirstOrDefault(s => s.Id == _playerSeriesContext.Season.Id);
+            var season = _seriesSeasons.FirstOrDefault(s => s.Id == seasonId);
             if (season is not null)
             {
                 await OpenSeasonDetailAsync(season);
             }
         }
-        _playerSeriesContext = null;
         StateHasChanged();
     }
 
