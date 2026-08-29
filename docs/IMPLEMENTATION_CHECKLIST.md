@@ -4530,6 +4530,21 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 
 **Verification:** Full solution build `DotNetCloud.CI.slnf` ✅ (0 errors). Tests: Video 154 ✅, Music 382 ✅, SyncTray 123 ✅, UI.Shared 62 ✅.
 
+## Video — Fast-Track Enrichment for Small Uploads (2026-08-28)
+
+**Objective:** When a user adds ≤5 videos in quick succession, TMDB metadata/posters are fetched in minutes instead of waiting for the daily enrichment job. Larger batches (>5) keep the existing daily-job behavior.
+
+### Fast-Track Enrichment
+
+- ✓ `VideoEnrichmentJob` — extended with optional `VideoIds` (scoped job) and `IsFastTrack` flag
+- ✓ `VideoEnrichmentBackgroundService` — `RunFastTrackAsync` enriches only the specified video IDs; fast-track jobs skip scan-progress reporting, never touch the user's scan cancellation token, and skip the series-enrichment pass
+- ✓ `QuickVideoEnrichmentService` — module-host background service that polls for recently added unenriched videos and enqueues a scoped fast-track job for quiet bursts of 1–5 videos
+- ✓ `QuickVideoEnrichmentPolicy` — pure decision logic (threshold 5, 60s quiet period, 10min lookback, 30s poll interval)
+- ✓ Registered in `AddVideoServices` only (module host), NOT in `AddVideoUiServices`
+- ✓ Tests: `QuickVideoEnrichmentPolicyTests`, `QuickVideoEnrichmentServiceTests`, `VideoEnrichmentBackgroundServiceTests` (18 new tests)
+
+**Verification:** Full solution build `DotNetCloud.CI.slnf` ✅ (0 errors). Video tests 209 ✅.
+
 ---
 
 ## Phase 9: AI Assistant

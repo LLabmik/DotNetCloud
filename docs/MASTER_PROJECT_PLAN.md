@@ -154,6 +154,22 @@
 
 Maintenance note: local install/setup health verification now follows configured Kestrel ports and accepts self-signed local HTTPS during startup checks. Fresh Linux installs now invoke `dotnetcloud setup --beginner` by default, which auto-selects the recommended local PostgreSQL path and then branches cleanly between the three real deployment shapes: private/local test, public behind a reverse proxy, and public served directly by DotNetCloud itself. The local branch uses self-signed HTTPS on DotNetCloud directly. The reverse-proxy public branch keeps DotNetCloud on local HTTP and ends with explicit reverse-proxy/TLS guidance instead of pretending automatic public-certificate setup exists; it now also points beginners to a dedicated Apache-first reverse-proxy guide with a Caddy alternative. The public-direct branch lets the user point DotNetCloud at an existing public certificate file and explains the extra tradeoffs, while still explicitly recommending a reverse proxy for most public installs because it simplifies ports 80/443, TLS renewal, and future services on the same machine. All branches print explicit direct local access URLs and health probe URLs and end with a plain-language summary of the selected defaults plus the beginner user's next steps. Upgrade runs now also end with a plain-language summary that confirms existing data/configuration were preserved, states clearly whether a one-time setup review is still required, and re-shows the access URLs plus the user's next step. This also clarifies the internal app defaults HTTP `5080` / HTTPS `5443` versus reverse-proxy/public HTTPS ports such as `15443`. Windows now has a separate IIS-first installation path via `tools/install-windows.ps1`, with IIS reverse proxying to `http://localhost:5080`, a beginner-focused IIS guide, a dedicated architecture rationale note, native Windows Service hosting support in the core server, and machine-level config/data environment propagation during setup and service runtime so Windows self-hosters do not need to follow the Linux installer path. The bare-metal redeploy helper now also repairs build-output ownership and purges stale normal and malformed Debug output trees before Release build/publish runs so local Linux redeploys do not inherit broken artifacts from prior attempts.
 
+## Video — Fast-Track Enrichment for Small Uploads (2026-08-28)
+
+**Status:** completed ✅
+**Goal:** When a user adds ≤5 videos in quick succession, TMDB metadata/posters are fetched in minutes instead of waiting for the daily enrichment job. Larger batches (>5) keep the existing daily-job behavior.
+
+**Deliverables:**
+
+- ✓ `VideoEnrichmentJob` — added optional `VideoIds` (scoped job) and `IsFastTrack` flag
+- ✓ `VideoEnrichmentBackgroundService` — `RunFastTrackAsync` enriches only the specified video IDs; fast-track jobs skip scan-progress reporting, never touch the user's scan cancellation token, and skip the series-enrichment pass
+- ✓ `QuickVideoEnrichmentService` — module-host background service polling for recently added unenriched videos; enqueues a scoped fast-track job for quiet bursts of 1–5 videos
+- ✓ `QuickVideoEnrichmentPolicy` — pure decision logic (threshold 5, 60s quiet period, 10min lookback, 30s poll interval)
+- ✓ Registered in `AddVideoServices` only (module host), NOT in `AddVideoUiServices`
+- ✓ Tests: `QuickVideoEnrichmentPolicyTests`, `QuickVideoEnrichmentServiceTests`, `VideoEnrichmentBackgroundServiceTests` (Video suite 209 ✅)
+
+**Notes:** Fast-track jobs are scoped to the specific newly added videos so small uploads are not delayed by a large pre-existing backlog. Runs in the Video module host process (shares the enrichment queue/worker). Deployment requires a Video host restart.
+
 ---
 
 ## Database / Server Outage Resilience

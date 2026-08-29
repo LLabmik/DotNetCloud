@@ -67,6 +67,11 @@ public static class VideoServiceRegistration
         services.AddHostedService<VideoEnrichmentBackgroundService>();
         services.AddHostedService<DailyVideoEnrichmentService>();
 
+        // Fast-tracks enrichment for small batches (≤5) of newly added videos instead
+        // of waiting for the daily job. Module host only — never registered in the UI
+        // services (AddVideoUiServices), mirroring the other video hosted services.
+        services.AddHostedService<QuickVideoEnrichmentService>();
+
         // Scan progress state (singleton — shared across all video page sessions)
         services.AddSingleton<VideoScanProgressState>();
 

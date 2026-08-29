@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Modules.Video.Models;
 using DotNetCloud.Modules.Video.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -100,13 +101,17 @@ internal sealed class VideoEnrichmentBackgroundService : BackgroundService
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
-                _scanProgress.CompleteScan(job.OwnerId);
+                // Fast-track jobs never start a scan session, so never complete one —
+                // doing so could prematurely end a real scan the user has running.
+                if (!job.IsFastTrack)
+                    _scanProgress.CompleteScan(job.OwnerId);
                 break;
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Background video enrichment failed for user {UserId}", job.OwnerId);
-                _scanProgress.CompleteScan(job.OwnerId);
+                if (!job.IsFastTrack)
+                    _scanProgress.CompleteScan(job.OwnerId);
             }
             finally
             {
@@ -125,6 +130,16 @@ internal sealed class VideoEnrichmentBackgroundService : BackgroundService
         var scanProgress = scope.ServiceProvider.GetRequiredService<VideoScanProgressState>();
 
         var caller = new CallerContext(job.OwnerId, ["user"], CallerType.System);
+
+        // Fast-track jobs (small batches of newly added videos) enrich only the
+        // specified videos as quickly as possible — no scan-progress reporting,
+        // no interaction with the user's scan cancellation token, no series pass.
+        if (job.IsFastTrack)
+        {
+            await RunFastTrackAsync(job, db, enrichmentService, thumbnailService, caller, stoppingToken);
+            return;
+        }
+
         var elapsedStopwatch = Stopwatch.StartNew();
 
         // Start a scan session so VideoScanProgressState tracks IsScanning = true
@@ -197,53 +212,11 @@ internal sealed class VideoEnrichmentBackgroundService : BackgroundService
             var userVideo = pendingVideos[i];
             var displayName = userVideo.CanonicalVideo?.Title ?? userVideo.CanonicalVideo?.FileName ?? "Unknown";
 
+            EnrichmentOutcome outcome;
             try
             {
-                // Step 0: Extract embedded metadata via ffprobe (populates EmbeddedTitle,
-                // EmbeddedTmdbId, EmbeddedImdbId, DurationTicks, etc.)
-                await thumbnailService.ExtractMetadataAsync(userVideo.Id, userVideo.FileNodeId, stoppingToken);
-
-                // If this video already has a TMDB poster, skip TMDB re-enrichment.
-                // It was only included in this batch because DurationTicks was 0,
-                // which ExtractMetadataAsync just fixed.
-                if (userVideo.CanonicalVideo?.HasExternalPoster == true)
-                {
-                    _logger.LogDebug("Duration-only backfill for video {VideoId}: '{Title}'",
-                        userVideo.Id, displayName);
-                    continue;
-                }
-
-                // Step 1: Try TMDB enrichment
-                await enrichmentService.EnrichVideoAsync(userVideo.Id, caller, cancellationToken: stoppingToken);
-
-                // Re-fetch to check if TMDB provided a poster
-                var updated = await db.UserVideos
-                    .Include(uv => uv.CanonicalVideo)
-                    .FirstAsync(uv => uv.Id == userVideo.Id, stoppingToken);
-
-                if (updated.CanonicalVideo?.HasExternalPoster == true)
-                {
-                    tmdbEnriched++;
-                    _logger.LogDebug("TMDB enrichment succeeded for video {VideoId}: '{Title}'",
-                        userVideo.Id, displayName);
-                }
-                else if (updated.CanonicalVideo?.ThumbnailPosterHash is null)
-                {
-                    // Step 2: TMDB had no match and no screenshot exists yet —
-                    // generate local thumbnail + screenshots as fallback
-                    await thumbnailService.GenerateThumbnailAsync(userVideo.Id, userVideo.FileNodeId, stoppingToken);
-                    await thumbnailService.GenerateScreenshotsAsync(userVideo.Id, userVideo.FileNodeId, stoppingToken);
-                    screenshotFallback++;
-                    _logger.LogDebug("Screenshot fallback for video {VideoId}: '{Title}'",
-                        userVideo.Id, displayName);
-                }
-                else
-                {
-                    // Video already has a screenshot thumbnail but no TMDB match.
-                    // Keep existing screenshots — no need to regenerate.
-                    _logger.LogDebug("TMDB still no match for video {VideoId}: '{Title}' — keeping existing screenshot",
-                        userVideo.Id, displayName);
-                }
+                outcome = await EnrichSingleVideoAsync(
+                    db, userVideo, caller, enrichmentService, thumbnailService, stoppingToken);
             }
             catch (OperationCanceledException)
             {
@@ -251,9 +224,35 @@ internal sealed class VideoEnrichmentBackgroundService : BackgroundService
             }
             catch (Exception ex)
             {
+                outcome = EnrichmentOutcome.Failed;
                 failed++;
                 _logger.LogWarning(ex, "Enrichment failed for video {VideoId}: '{Title}'",
                     userVideo.Id, displayName);
+            }
+
+            switch (outcome)
+            {
+                case EnrichmentOutcome.Tmdb:
+                    tmdbEnriched++;
+                    _logger.LogDebug("TMDB enrichment succeeded for video {VideoId}: '{Title}'",
+                        userVideo.Id, displayName);
+                    break;
+                case EnrichmentOutcome.ScreenshotFallback:
+                    screenshotFallback++;
+                    _logger.LogDebug("Screenshot fallback for video {VideoId}: '{Title}'",
+                        userVideo.Id, displayName);
+                    break;
+                case EnrichmentOutcome.Skipped:
+                    _logger.LogDebug("Duration-only backfill for video {VideoId}: '{Title}'",
+                        userVideo.Id, displayName);
+                    break;
+                case EnrichmentOutcome.KeptExistingScreenshot:
+                    _logger.LogDebug("TMDB still no match for video {VideoId}: '{Title}' — keeping existing screenshot",
+                        userVideo.Id, displayName);
+                    break;
+                case EnrichmentOutcome.Failed:
+                    // Already counted above.
+                    break;
             }
 
             // Report progress
@@ -312,5 +311,162 @@ internal sealed class VideoEnrichmentBackgroundService : BackgroundService
         }
 
         scanProgress.CompleteScan(job.OwnerId);
+    }
+
+    // ── Fast-track (small batch) enrichment ──────────────────────────────
+
+    /// <summary>
+    /// Enriches only the videos specified on a fast-track job. Runs without scan
+    /// progress reporting so a background fast-track does not flash "scanning" in
+    /// the UI or interfere with a real scan's cancellation token.
+    /// </summary>
+    internal async Task RunFastTrackAsync(
+        VideoEnrichmentJob job,
+        VideoDbContext db,
+        IVideoEnrichmentService enrichmentService,
+        IVideoThumbnailService thumbnailService,
+        CallerContext caller,
+        CancellationToken stoppingToken)
+    {
+        if (job.VideoIds is not { Count: > 0 })
+            return;
+
+        var pendingVideos = await db.UserVideos
+            .Include(uv => uv.CanonicalVideo)
+            .Where(uv => uv.OwnerId == job.OwnerId && !uv.IsDeleted
+                && uv.CanonicalVideo != null
+                && job.VideoIds.Contains(uv.Id)
+                && (uv.CanonicalVideo.TmdbId == null || uv.CanonicalVideo.DurationTicks == 0))
+            .ToListAsync(stoppingToken);
+
+        int tmdbEnriched = 0, screenshotFallback = 0, failed = 0;
+
+        _logger.LogInformation(
+            "Fast-track enrichment starting for user {UserId}: {Count} videos",
+            job.OwnerId, pendingVideos.Count);
+
+        foreach (var userVideo in pendingVideos)
+        {
+            if (stoppingToken.IsCancellationRequested)
+                break;
+
+            var displayName = userVideo.CanonicalVideo?.Title ?? userVideo.CanonicalVideo?.FileName ?? "Unknown";
+
+            EnrichmentOutcome outcome;
+            try
+            {
+                outcome = await EnrichSingleVideoAsync(
+                    db, userVideo, caller, enrichmentService, thumbnailService, stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                outcome = EnrichmentOutcome.Failed;
+                failed++;
+                _logger.LogWarning(ex, "Fast-track enrichment failed for video {VideoId}: '{Title}'",
+                    userVideo.Id, displayName);
+            }
+
+            switch (outcome)
+            {
+                case EnrichmentOutcome.Tmdb:
+                    tmdbEnriched++;
+                    _logger.LogDebug("Fast-track TMDB enrichment succeeded for video {VideoId}: '{Title}'",
+                        userVideo.Id, displayName);
+                    break;
+                case EnrichmentOutcome.ScreenshotFallback:
+                    screenshotFallback++;
+                    _logger.LogDebug("Fast-track screenshot fallback for video {VideoId}: '{Title}'",
+                        userVideo.Id, displayName);
+                    break;
+                case EnrichmentOutcome.Skipped:
+                    _logger.LogDebug("Fast-track duration-only backfill for video {VideoId}: '{Title}'",
+                        userVideo.Id, displayName);
+                    break;
+                case EnrichmentOutcome.KeptExistingScreenshot:
+                    _logger.LogDebug("Fast-track TMDB still no match for video {VideoId}: '{Title}' — keeping existing screenshot",
+                        userVideo.Id, displayName);
+                    break;
+                case EnrichmentOutcome.Failed:
+                    // Already counted above.
+                    break;
+            }
+        }
+
+        _logger.LogInformation(
+            "Fast-track enrichment complete for user {UserId}: {Tmdb} TMDB, {Screenshot} screenshot fallback, {Failed} failed out of {Total}",
+            job.OwnerId, tmdbEnriched, screenshotFallback, failed, pendingVideos.Count);
+    }
+
+    /// <summary>
+    /// Enriches a single video: extracts embedded metadata via ffprobe, attempts a
+    /// TMDB match, and falls back to local thumbnail/screenshot generation when TMDB
+    /// has no match. Returns the outcome.
+    /// </summary>
+    private static async Task<EnrichmentOutcome> EnrichSingleVideoAsync(
+        VideoDbContext db,
+        UserVideo userVideo,
+        CallerContext caller,
+        IVideoEnrichmentService enrichmentService,
+        IVideoThumbnailService thumbnailService,
+        CancellationToken cancellationToken)
+    {
+        // Step 0: Extract embedded metadata via ffprobe (populates EmbeddedTitle,
+        // EmbeddedTmdbId, EmbeddedImdbId, DurationTicks, etc.)
+        await thumbnailService.ExtractMetadataAsync(userVideo.Id, userVideo.FileNodeId, cancellationToken);
+
+        // If this video already has a TMDB poster, skip TMDB re-enrichment.
+        // It was only included in this batch because DurationTicks was 0,
+        // which ExtractMetadataAsync just fixed.
+        if (userVideo.CanonicalVideo?.HasExternalPoster == true)
+            return EnrichmentOutcome.Skipped;
+
+        // Step 1: Try TMDB enrichment
+        await enrichmentService.EnrichVideoAsync(userVideo.Id, caller, cancellationToken: cancellationToken);
+
+        // Re-fetch to check if TMDB provided a poster
+        var updated = await db.UserVideos
+            .Include(uv => uv.CanonicalVideo)
+            .FirstAsync(uv => uv.Id == userVideo.Id, cancellationToken);
+
+        if (updated.CanonicalVideo?.HasExternalPoster == true)
+            return EnrichmentOutcome.Tmdb;
+
+        if (updated.CanonicalVideo?.ThumbnailPosterHash is null)
+        {
+            // Step 2: TMDB had no match and no screenshot exists yet —
+            // generate local thumbnail + screenshots as fallback
+            await thumbnailService.GenerateThumbnailAsync(userVideo.Id, userVideo.FileNodeId, cancellationToken);
+            await thumbnailService.GenerateScreenshotsAsync(userVideo.Id, userVideo.FileNodeId, cancellationToken);
+            return EnrichmentOutcome.ScreenshotFallback;
+        }
+
+        // Video already has a screenshot thumbnail but no TMDB match.
+        // Keep existing screenshots — no need to regenerate.
+        return EnrichmentOutcome.KeptExistingScreenshot;
+    }
+
+    /// <summary>
+    /// Result of enriching a single video.
+    /// </summary>
+    private enum EnrichmentOutcome
+    {
+        /// <summary>TMDB provided metadata/poster.</summary>
+        Tmdb,
+
+        /// <summary>TMDB had no match; local thumbnail + screenshots were generated.</summary>
+        ScreenshotFallback,
+
+        /// <summary>Video already had a poster; only duration/metadata was backfilled.</summary>
+        Skipped,
+
+        /// <summary>TMDB had no match but existing screenshots were kept.</summary>
+        KeptExistingScreenshot,
+
+        /// <summary>Enrichment threw and was caught by the caller.</summary>
+        Failed
     }
 }
