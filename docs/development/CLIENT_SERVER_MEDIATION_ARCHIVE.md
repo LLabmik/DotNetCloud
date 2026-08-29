@@ -1,3 +1,29 @@
+## Archived: Server — AI module REST API for the Android AI tab (Phase A) — implemented + deployed (2026-08-29)
+
+**Status:** archived — server implementation complete (was `pending (server agent — cloud.kimball.home)`). Implemented, deployed, and partially verified on 2026-08-29. Authenticated end-to-end verification deferred to the client agent (see the new Active Handoff in `CLIENT_SERVER_MEDIATION_HANDOFF.md`).
+**Branch:** `feature/android-ai-tab`
+**From:** client agent (`monolith`), 2026-08-29
+**Priority:** required — the Android AI tab (client work, Phases B–F) depends on this to work end-to-end.
+**Canonical plan:** `docs/ANDROID_AI_TAB_PLAN.md` (Phase A).
+**Target:** `cloud.kimball.home` (`https://cloud.dotnetcloud.net/`).
+
+**Task:** expose the AI module REST API for the Android AI tab (proxy + host auth + rename).
+
+**Required changes (server), all four landed together:**
+1. `src/Core/DotNetCloud.Core.Server/Program.cs` — added `["api/v1/ai"] = "dotnetcloud.ai"` to `MapModuleApiProxies.moduleMappings`; added `"/api/v1/ai/"` to `UseResponseEnvelope` `ExcludePaths`.
+2. `src/Modules/AI/DotNetCloud.Modules.AI.Host/Controllers/AiChatController.cs` — route `api/ai` → `api/v1/ai`; `[Authorize]` on the class; `GetCallerContext()` throws on unauthenticated (mirrors `MusicControllerBase.GetAuthenticatedCaller`); added `PATCH conversations/{conversationId:guid}/title` rename endpoint + `RenameConversationRequest` DTO (uses existing `IAiChatService.RenameConversationAsync`).
+3. `src/Modules/AI/DotNetCloud.Modules.AI.Host/Program.cs` — ported Chat host auth: `AddTokenIntrospection()`; `DotNetCloud.Module` policy scheme (cookie `Identity.Application` ↔ `Introspection`, auto-select via Bearer `Authorization` header); `AddAuthorization(AuthorizationPolicies.Configure)` + `PermissionAuthorizationHandler`.
+4. `src/Modules/AI/DotNetCloud.Modules.AI.Host/DotNetCloud.Modules.AI.Host.csproj` — added `DotNetCloud.Core.Auth` project reference (new dependency for token introspection + auth policies).
+
+**Server status (2026-08-29, server agent — cloud.kimball.home) ✅ implemented + deployed:**
+- ✓ Build clean (Release full build via `deploy.sh`); AI tests 28/28; Core.Server tests 604/604.
+- ✓ Deployed to cloud.kimball.home; all 15 assemblies hash-verified; service Healthy; AI module Running + Healthy (14/14 modules).
+- ✓ **401 verified live:** `GET /api/v1/ai/models`, `/api/v1/ai/conversations`, `/api/v1/ai/health/ollama` all return **401 without a token** (proxy route + `[Authorize]` work end-to-end).
+
+**Pending (deferred to client agent):** authenticated checks could not be completed here — the server is in closed-system mode (self-registration blocked), no test-account credentials were available, and `sqlcmd` to the SQL Server timed out from this shell. Remaining to verify (when the client agent / monolith with Ollama is online): `GET /api/v1/ai/models` → 200 with a valid Bearer token; per-user create → send (stream) → list → rename → delete round-trip; `GET /api/v1/ai/health/ollama` → 200 healthy / 503 unhealthy (Ollama currently unreachable from cloud.kimball.home — configured BaseUrl is `http://monolith.kimball.home:11434`).
+
+---
+
 ## Archived: Server fix — Files-module gRPC `MaxReceiveMessageSize` (superseded 2026-08-29)
 
 **Status:** archived — superseded by the Android AI tab server handoff. Was `pending (server agent)`; not yet completed on the server when archived.

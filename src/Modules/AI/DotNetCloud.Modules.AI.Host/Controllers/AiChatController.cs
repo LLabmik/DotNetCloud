@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using DotNetCloud.Core.AI;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Modules.AI.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DotNetCloud.Modules.AI.Host.Controllers;
@@ -10,7 +11,8 @@ namespace DotNetCloud.Modules.AI.Host.Controllers;
 /// REST API controller for AI chat operations.
 /// </summary>
 [ApiController]
-[Route("api/ai")]
+[Authorize]
+[Route("api/v1/ai")]
 public sealed class AiChatController : ControllerBase
 {
     private readonly IAiChatService _chatService;
@@ -193,22 +195,36 @@ public sealed class AiChatController : ControllerBase
             : StatusCode(503, new { status = "unhealthy" });
     }
 
+    /// <summary>Renames a conversation.</summary>
+    [HttpPatch("conversations/{conversationId:guid}/title")]
+    public async Task<IActionResult> RenameConversation(
+        Guid conversationId,
+        [FromBody] RenameConversationRequest request,
+        CancellationToken cancellationToken)
+    {
+        var caller = GetCallerContext();
+        var renamed = await _chatService.RenameConversationAsync(
+            caller, conversationId, request.Title, cancellationToken);
+        return renamed ? Ok(new { success = true }) : NotFound();
+    }
+
     private CallerContext GetCallerContext()
     {
-        // Extract from authenticated user claims if available; fallback to dev context
+        if (User?.Identity?.IsAuthenticated != true)
+            throw new UnauthorizedAccessException("Authentication is required.");
+
         var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
             ?? User.FindFirst("sub")?.Value;
 
-        if (Guid.TryParse(userIdClaim, out var userId))
-        {
-            var roles = User.FindAll(System.Security.Claims.ClaimTypes.Role)
-                .Select(c => c.Value)
-                .ToList();
-            return new CallerContext(userId, roles, CallerType.User);
-        }
+        if (!Guid.TryParse(userIdClaim, out var userId))
+            throw new UnauthorizedAccessException("Authenticated user identifier is invalid.");
 
-        // Development fallback — creates a system context
-        return CallerContext.CreateSystemContext();
+        var roles = User.FindAll(System.Security.Claims.ClaimTypes.Role)
+            .Select(c => c.Value)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return new CallerContext(userId, roles, CallerType.User);
     }
 }
 
@@ -230,6 +246,13 @@ public sealed class SendMessageRequest
 {
     /// <summary>The user message text.</summary>
     public required string Message { get; set; }
+}
+
+/// <summary>Request to rename a conversation.</summary>
+public sealed class RenameConversationRequest
+{
+    /// <summary>The new title.</summary>
+    public required string Title { get; set; }
 }
 
 /// <summary>DTO for conversation data.</summary>

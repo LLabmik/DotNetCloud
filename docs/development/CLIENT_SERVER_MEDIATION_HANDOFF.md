@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-08-29 (new Active Handoff: AI module REST API for the Android AI tab; previous Files gRPC handoff archived)
+Last updated: 2026-08-29 (Server Phase A handoff completed + archived; new Active Handoff: client verify AI REST API end-to-end + Android AI tab Phases B–F)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -74,103 +74,23 @@ Archived context:
 
 ## Active Handoff
 
-### Server: expose the AI module REST API for the Android AI tab (proxy + host auth + rename)
+### Client: verify the AI REST API end-to-end + proceed with the Android AI tab (Phases B–F)
 
-**Status:** pending (server agent — `cloud.kimball.home`)
+**Status:** pending (client agent — `monolith`)
 **Branch:** `feature/android-ai-tab`
-**From:** client agent (`monolith`), 2026-08-29
-**Priority:** required — the Android AI tab (client work, Phases B–F) depends on this to work end-to-end.
-**Canonical plan:** `docs/ANDROID_AI_TAB_PLAN.md` (Phase A).
-**Target:** `cloud.kimball.home` (`https://cloud.dotnetcloud.net/`). **Do not target `mint22` — it is currently offline.**
+**From:** server agent (`cloud.kimball.home`), 2026-08-29
+**Priority:** required — the Phase A server work (AI REST API for the Android AI tab) is implemented + deployed; Phases B–F depend on the authenticated verification below.
+**Canonical plan:** `docs/ANDROID_AI_TAB_PLAN.md` (Phase A server work DONE; proceed with Phases B–F).
+**Target:** Android client dev on `monolith`, server `cloud.kimball.home` (`https://cloud.dotnetcloud.net/`).
 
-**Context:** The Android client is getting an optional **AI Assistant** tab (mirrors the Blazor AI chat
-page). It talks to the AI module over REST through Core.Server's module proxy, using the same pattern as
-the Music tab. Three gaps block this today:
+**Phase A server work — DONE (archived):** the AI REST proxy route, AI host auth (Bearer introspection + cookie policy scheme), and rename endpoint are implemented and deployed to cloud.kimball.home. Full detail archived to `CLIENT_SERVER_MEDIATION_ARCHIVE.md` ("Server — AI module REST API for the Android AI tab"). Server-verified: `/api/v1/ai/*` is proxied and returns **401 without a token**; AI module Running + Healthy (14/14).
 
-1. Core.Server's `MapModuleApiProxies` has no `api/v1/ai` route — the AI REST API is unreachable from clients.
-2. The AI module host only configures cookie auth (no token introspection), so Bearer-token requests from
-   mobile cannot be authenticated, and `AiChatController` has no `[Authorize]` (it falls back to a system
-   caller context, so conversations would be shared across users).
-3. The AI REST controller has no rename endpoint (rename only exists on gRPC).
+**Remaining verification (could not be done on the server — closed-system mode, no test-account credentials, Ollama on `monolith` unreachable from cloud):** with the AI module installed and Ollama reachable, confirm against `https://cloud.dotnetcloud.net/`:
+- `GET /api/v1/ai/models` → **200** with a valid Bearer token, **401** without.
+- Per-user round-trip: create → send (stream) → list → rename → delete is isolated per user.
+- `GET /api/v1/ai/health/ollama` → **200** when healthy / **503** when not (Ollama configured at `http://monolith.kimball.home:11434`).
 
-**Required changes (server):**
-
-1. `src/Core/DotNetCloud.Core.Server/Program.cs` — in `MapModuleApiProxies`, add to the `moduleMappings`
-   dictionary:
-   ```csharp
-   ["api/v1/ai"] = "dotnetcloud.ai",
-   ```
-2. `src/Core/DotNetCloud.Core.Server/Program.cs` — in `app.UseResponseEnvelope(...)`, add `"/api/v1/ai/"` to
-   `options.ExcludePaths` (the AI SSE stream must NOT be buffered/wrapped; same reason `/api/v1/music/` is
-   already excluded).
-3. `src/Modules/AI/DotNetCloud.Modules.AI.Host/Controllers/AiChatController.cs`:
-   - Change `[Route("api/ai")]` → `[Route("api/v1/ai")]`.
-   - Add `using Microsoft.AspNetCore.Authorization;` and `[Authorize]` on the class.
-   - Replace `GetCallerContext()` so it throws on unauthenticated instead of falling back to a system
-     context (mirror `MusicControllerBase.GetAuthenticatedCaller()` in
-     `src/Modules/Music/DotNetCloud.Modules.Music.Host/Controllers/MusicControllerBase.cs`):
-     ```csharp
-     private CallerContext GetCallerContext()
-     {
-         if (User?.Identity?.IsAuthenticated != true)
-             throw new UnauthorizedAccessException("Authentication is required.");
-
-         var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
-             ?? User.FindFirst("sub")?.Value;
-
-         if (!Guid.TryParse(userIdClaim, out var userId))
-             throw new UnauthorizedAccessException("Authenticated user identifier is invalid.");
-
-         var roles = User.FindAll(System.Security.Claims.ClaimTypes.Role)
-             .Select(c => c.Value)
-             .Distinct(StringComparer.OrdinalIgnoreCase)
-             .ToArray();
-
-         return new CallerContext(userId, roles, CallerType.User);
-     }
-     ```
-   - Add a rename endpoint (uses the existing `IAiChatService.RenameConversationAsync`):
-     ```csharp
-     /// <summary>Renames a conversation.</summary>
-     [HttpPatch("conversations/{conversationId:guid}/title")]
-     public async Task<IActionResult> RenameConversation(
-         Guid conversationId,
-         [FromBody] RenameConversationRequest request,
-         CancellationToken cancellationToken)
-     {
-         var caller = GetCallerContext();
-         var renamed = await _chatService.RenameConversationAsync(
-             caller, conversationId, request.Title, cancellationToken);
-         return renamed ? Ok(new { success = true }) : NotFound();
-     }
-     ```
-     Plus a request DTO next to the other request types in the same file:
-     ```csharp
-     /// <summary>Request to rename a conversation.</summary>
-     public sealed class RenameConversationRequest
-     {
-         /// <summary>The new title.</summary>
-         public required string Title { get; set; }
-     }
-     ```
-4. `src/Modules/AI/DotNetCloud.Modules.AI.Host/Program.cs` — port the Chat host auth (reference:
-   `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Program.cs`):
-   - Add `using DotNetCloud.Core.Auth.Authorization;` and `using DotNetCloud.Core.Auth.Introspection;`.
-   - Call `builder.Services.AddTokenIntrospection();`.
-   - Replace the cookie-only `builder.Services.AddAuthentication("Identity.Application").AddCookie(...)` block
-     with the `DotNetCloud.Module` policy scheme: keep the existing `.AddCookie("Identity.Application", …)`
-     options as-is, then chain `.AddIntrospection(IntrospectionAuthenticationExtensions.SchemeName)` and
-     `.AddPolicyScheme("DotNetCloud.Module", "DotNetCloud.Module", …)` whose `ForwardDefaultSelector` returns the
-     introspection scheme when the request has a `Bearer ` Authorization header, else `Identity.Application`.
-   - Replace `builder.Services.AddAuthorization();` with
-     `builder.Services.AddAuthorization(options => AuthorizationPolicies.Configure(options));` plus
-     `builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();`.
-   - Keep `app.UseAuthentication(); app.UseAuthorization();` in the pipeline (already present).
-
-**Verify (on cloud.kimball.home):** with the AI module installed and Ollama reachable, confirm
-`GET /api/v1/ai/models` returns 200 with a valid Bearer token and 401 without; a
-create → send (stream) → list → rename → delete round-trip is per-user; and
-`GET /api/v1/ai/health/ollama` returns 200 when healthy / 503 when not.
+**Then proceed with Phases B–F** of `docs/ANDROID_AI_TAB_PLAN.md`. API base: `/api/v1/ai/` (proxied by Core.Server, excluded from the response envelope; auth = Bearer introspection or cookie).
 
 ## Moderator Communication (Minimal)
 
