@@ -1302,6 +1302,9 @@ public class VideoController : VideoControllerBase
             : isTs ? "video/mp2t"
             : "video/mp4";
 
+        // Mark the stream as live so the idle watchdog knows the client is still active.
+        job.LastSegmentRequestedAt = DateTime.UtcNow;
+
         return PhysicalFile(fullSegmentPath, contentType);
     }
 

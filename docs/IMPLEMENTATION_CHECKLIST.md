@@ -4324,6 +4324,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Add alternate audio stream selection — `GET /api/v1/videos/{id}/streams`, `audioStreamIndex` on `/stream` + `/stream/seek`
 - ✓ Backend: `AudioStreamInfo`, `VideoAudioStreamDto`, `ProbeStreamsAsync`, audio-index threading through `FfmpegArgumentBuilder`/`IVideoTranscodingService`/`VideoTranscodingService`/`VideoController`
 - ✓ Blazor: `VideoPage` hosts only the player container; new `OnError`/`OnStrategy`/`OnEnded`/`OnNavigateEpisode` JSInvokables; `NavigateEpisodeAsync` + testable `ComputeNextEpisodeIndex` helper
+- ✓ Cancel background ffmpeg when leaving the video player — `video-player.js` `cancelServerStream` (fired from `destroy()` + `pagehide`) posts to `POST /api/v1/videos/cancel-stream/{videoId}`; all Blazor teardown paths (Close, section switch, navigate away, series/season nav) route through JS destroy; `HlsStreamWatchdog` cancels abandoned HLS streams after `HlsIdleTimeoutSeconds` (default 300) with no segment requests
 - ✓ Tests: `ParseCodecInfo` audio-stream parsing, `FfmpegArgumentBuilder` audio-map, `ComputeNextEpisodeIndex` (video suite 169 passing)
 
 ### Sub-Phase E: Integration & Quality (Steps 5.19–5.20)
@@ -4528,6 +4529,21 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Wired into `VideoPage` detail view with "Edit Metadata" action
 
 **Verification:** Full solution build `DotNetCloud.CI.slnf` ✅ (0 errors). Tests: Video 154 ✅, Music 382 ✅, SyncTray 123 ✅, UI.Shared 62 ✅.
+
+## Video — Fast-Track Enrichment for Small Uploads (2026-08-28)
+
+**Objective:** When a user adds ≤5 videos in quick succession, TMDB metadata/posters are fetched in minutes instead of waiting for the daily enrichment job. Larger batches (>5) keep the existing daily-job behavior.
+
+### Fast-Track Enrichment
+
+- ✓ `VideoEnrichmentJob` — extended with optional `VideoIds` (scoped job) and `IsFastTrack` flag
+- ✓ `VideoEnrichmentBackgroundService` — `RunFastTrackAsync` enriches only the specified video IDs; fast-track jobs skip scan-progress reporting, never touch the user's scan cancellation token, and skip the series-enrichment pass
+- ✓ `QuickVideoEnrichmentService` — module-host background service that polls for recently added unenriched videos and enqueues a scoped fast-track job for quiet bursts of 1–5 videos
+- ✓ `QuickVideoEnrichmentPolicy` — pure decision logic (threshold 5, 60s quiet period, 10min lookback, 30s poll interval)
+- ✓ Registered in `AddVideoServices` only (module host), NOT in `AddVideoUiServices`
+- ✓ Tests: `QuickVideoEnrichmentPolicyTests`, `QuickVideoEnrichmentServiceTests`, `VideoEnrichmentBackgroundServiceTests` (18 new tests)
+
+**Verification:** Full solution build `DotNetCloud.CI.slnf` ✅ (0 errors). Video tests 209 ✅.
 
 ---
 

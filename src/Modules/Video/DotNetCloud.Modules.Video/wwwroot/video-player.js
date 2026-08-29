@@ -130,6 +130,32 @@
   };
 
   /**
+   * Best-effort server-side cancel of the active HLS transcode for a video.
+   * Called when the player is destroyed or the page is being unloaded so a
+   * background ffmpeg process isn't left running for a stream nobody is
+   * watching anymore. Uses sendBeacon (which keeps the request alive during
+   * unload) with a fetch keepalive fallback. Errors are swallowed — this is
+   * best-effort; the server-side idle watchdog is the backstop.
+   */
+  function cancelServerStream(videoId) {
+    if (!videoId) return;
+    var url = "/api/v1/videos/cancel-stream/" + videoId;
+    try {
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon(url);
+        return;
+      }
+      fetch(url, {
+        method: "POST",
+        credentials: "same-origin",
+        keepalive: true,
+      }).catch(function () {});
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  /**
    * Creates a new player instance and starts playback.
    */
   function createPlayer(config) {
@@ -245,6 +271,13 @@
       if (p._disposed) return;
       p._disposed = true;
 
+      // Remove the page-unload handler first — it must not fire after the DOM
+      // teardown below triggers a redundant cancel.
+      if (p._pageHideHandler) {
+        window.removeEventListener("pagehide", p._pageHideHandler);
+        p._pageHideHandler = null;
+      }
+
       clearTimeout(p._osdTimer);
       clearInterval(p._pollTimer);
       if (p._keyHandler) document.removeEventListener("keydown", p._keyHandler);
@@ -272,6 +305,10 @@
         p._root.parentNode.removeChild(p._root);
       }
       p._container = null;
+
+      // Stop the server-side transcode for this video (best effort) so a
+      // background ffmpeg process isn't left running for an unwatched stream.
+      cancelServerStream(p._videoId);
     };
 
     // ── DOM ──
@@ -320,6 +357,14 @@
     wireVideoEvents(p);
     wireOsdAutoHide(p);
     wireKeyboard(p);
+
+    // If the page is unloaded (tab close / refresh) while this player is still
+    // alive, cancel the server-side transcode — Blazor may not get a chance to
+    // run DisposeAsync in that case. Removed again in p.dispose().
+    p._pageHideHandler = function () {
+      cancelServerStream(p._videoId);
+    };
+    window.addEventListener("pagehide", p._pageHideHandler);
 
     // Load subtitles (async, client-side SRT→VTT)
     loadSubtitles(p);

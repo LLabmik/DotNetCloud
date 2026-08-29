@@ -25,4 +25,18 @@ public sealed record VideoEnrichmentJob
     public int VideosSkipped { get; init; }
     public int VideosFailed { get; init; }
     public int VideosRemoved { get; init; }
+
+    /// <summary>
+    /// When set, only these user-video IDs are enriched (a scoped fast-track job).
+    /// When null or empty, all pending videos for the owner are enriched.
+    /// </summary>
+    public IReadOnlyList<Guid>? VideoIds { get; init; }
+
+    /// <summary>
+    /// Marks a fast-track job (small batch of newly added videos). Fast-track jobs
+    /// run without scan-progress reporting, never touch the user's scan cancellation
+    /// token, and skip the final series-enrichment pass — they are quick background
+    /// enrichment only.
+    /// </summary>
+    public bool IsFastTrack { get; init; }
 }

@@ -177,7 +177,7 @@
                                     <span class="page-edge-name page-edge-name-start" title="@FirstRecentVideoTitle">@FirstRecentVideoTitle</span>
                                 }
                                 <div class="videos-page-info">
-                                    <span>Showing @(_recentVideos.Count == 0 ? 0 : _recentPage * RecentPageSize + 1)-@(_recentPage * RecentPageSize + _recentVideos.Count) of @_totalRecentVideos videos</span>
+                                    <span>Showing @(_recentVideos.Count == 0 ? 0 : _recentPage * _recentPageSize + 1)-@(_recentPage * _recentPageSize + _recentVideos.Count) of @_totalRecentVideos videos</span>
                                 </div>
                                 @if (!string.IsNullOrWhiteSpace(LastRecentVideoTitle))
                                 {
@@ -187,7 +187,7 @@
                                     <span>▶</span>
                                 </button>
                             </div>
-                            <div class="video-grid">
+                            <div class="video-grid" id="recent-video-grid">
                                 @foreach (var video in _recentVideos)
                                 {
                                     var capturedVideo = video;
@@ -241,8 +241,8 @@
                 }
                 else
                 {
-                    var pageStart = _videoPage * VideoPageSize + 1;
-                    var pageEnd = _videoPage * VideoPageSize + _libraryContent.Series.Count + _libraryContent.StandaloneVideos.Count;
+                    var pageStart = _videoPage * _videoPageSize + 1;
+                    var pageEnd = _videoPage * _videoPageSize + _libraryContent.Series.Count + _libraryContent.StandaloneVideos.Count;
 
                     @* ── Unified toolbar (single paging for the combined view) ── *@
                     <div class="videos-toolbar">
@@ -324,7 +324,7 @@
                         @* ── Standalone video cards (shown after series) ── *@
                         @if (_libraryContent.StandaloneVideos.Count > 0)
                         {
-                            <div class="video-grid padded">
+                            <div class="video-grid padded" id="library-video-grid">
                                 @foreach (var video in _libraryContent.StandaloneVideos)
                                 {
                                     var capturedVideo = video;

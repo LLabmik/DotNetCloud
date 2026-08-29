@@ -21,6 +21,14 @@ public sealed class VideoTranscodingOptions
     /// <summary>Maximum total size of the transcode cache in bytes. 0 = unlimited.</summary>
     public long MaxCacheSizeBytes { get; set; } = 25L * 1024 * 1024 * 1024; // 25 GB
 
+    /// <summary>How long (seconds) a running HLS stream may go without any segment or playlist
+    /// request before the idle watchdog cancels its ffmpeg process. 0 disables the watchdog.
+    /// Default 300 (5 minutes).</summary>
+    public int HlsIdleTimeoutSeconds { get; set; } = 300;
+
+    /// <summary>How often (seconds) the HLS idle watchdog scans running streams. Default 20.</summary>
+    public int HlsWatchdogIntervalSeconds { get; set; } = 20;
+
     /// <summary>Video codec: "libx264" (default), "libx265", "libvpx-vp9".</summary>
     public string VideoCodec { get; set; } = "libx264";
 

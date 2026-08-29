@@ -43,7 +43,6 @@ public partial class MusicPage : IAsyncDisposable
     private string FirstAlbumOnPageName => _albums.Count > 0 ? _albums[0].Title ?? string.Empty : string.Empty;
     private string LastAlbumOnPageName => _albums.Count > 0 ? _albums[^1].Title ?? string.Empty : string.Empty;
     private List<MusicAlbumDto> _recentAlbums = [];
-    private List<TrackDto> _newTracks = [];
     private List<TrackDto> _recommendations = [];
     private List<TrackDto> _tracks = [];
     private List<TrackDto> _albumTracks = [];
@@ -440,8 +439,7 @@ public partial class MusicPage : IAsyncDisposable
             switch (_section)
             {
                 case Section.Library:
-                    _recentAlbums = (await AlbumService.ListAlbumsAsync(caller, 0, 8)).ToList();
-                    _newTracks = (await TrackService.ListTracksAsync(caller, 0, 10)).ToList();
+                    _recentAlbums = (await AlbumService.GetRecentAlbumsAsync(caller, 8)).ToList();
                     _recommendations = (await RecommendationService.GetRecentlyPlayedAsync(caller, 10)).ToList();
                     break;
 
@@ -1193,8 +1191,7 @@ public partial class MusicPage : IAsyncDisposable
 
             // Reload library data so navigating to Library shows freshly imported tracks
             var caller = await GetCallerAsync();
-            _recentAlbums = (await AlbumService.ListAlbumsAsync(caller, 0, 8)).ToList();
-            _newTracks = (await TrackService.ListTracksAsync(caller, 0, 10)).ToList();
+            _recentAlbums = (await AlbumService.GetRecentAlbumsAsync(caller, 8)).ToList();
             _playlists = (await PlaylistService.ListPlaylistsAsync(caller)).ToList();
         }
         catch (OperationCanceledException)
@@ -1292,7 +1289,6 @@ public partial class MusicPage : IAsyncDisposable
 
             // Clear displayed data
             _recentAlbums.Clear();
-            _newTracks.Clear();
             _tracks.Clear();
             _albums.Clear();
             _artists.Clear();
