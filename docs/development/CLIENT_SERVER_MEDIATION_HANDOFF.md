@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-08-24 (Android DB Outage simulation §11.5 archived ✅ PASS — all §11 outage simulations complete)
+Last updated: 2026-08-29 (new Active Handoff: AI module REST API for the Android AI tab; previous Files gRPC handoff archived)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -16,7 +16,7 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
-- **Current active branch:** `fix/database-offline-recovery`
+- **Current active branch:** `feature/android-ai-tab`
 
 ## Archived Handoff — SyncTray test machine: DB Outage SyncTray Simulation (plan §11.4) ✅ PASS
 
@@ -74,33 +74,103 @@ Archived context:
 
 ## Active Handoff
 
-### Server fix: raise Files-module gRPC `MaxReceiveMessageSize` (client sync uploads fail/hang)
+### Server: expose the AI module REST API for the Android AI tab (proxy + host auth + rename)
 
-**Status:** pending (server agent)
-**Branch:** current shared branch
-**From:** client agent (mint-OptiPlex-7010), 2026-08-24
-**Priority:** medium — client already has a timeout fallback to HTTP, but gRPC streaming uploads of
-large files are broken on the server and fall back to HTTP on every upload (slow + redundant).
+**Status:** pending (server agent — `cloud.kimball.home`)
+**Branch:** `feature/android-ai-tab`
+**From:** client agent (`monolith`), 2026-08-29
+**Priority:** required — the Android AI tab (client work, Phases B–F) depends on this to work end-to-end.
+**Canonical plan:** `docs/ANDROID_AI_TAB_PLAN.md` (Phase A).
+**Target:** `cloud.kimball.home` (`https://cloud.dotnetcloud.net/`). **Do not target `mint22` — it is currently offline.**
 
-**Problem / root cause:** The desktop/mobile clients upload files via gRPC client-streaming
-(`FilesService.UploadFileStream`, proxied by `Core.Server` → `FilesUploadStreamService` → Files
-module). CDC chunks on the client can be up to **16 MB** (`CdcMaxSize` in `ChunkedTransferClient`),
-but the Files module's gRPC server uses the ASP.NET Core **default `MaxReceiveMessageSize` (~4 MB)**
-because `builder.Services.AddGrpc();` is called with no options. Chunks > ~4 MB get rejected with
-`ResourceExhausted — Received message exceeds the maximum configured message size`, and in at least
-one case the stream **wedged and hung forever** (file stuck "in sync"; no error, no completion).
+**Context:** The Android client is getting an optional **AI Assistant** tab (mirrors the Blazor AI chat
+page). It talks to the AI module over REST through Core.Server's module proxy, using the same pattern as
+the Music tab. Three gaps block this today:
+
+1. Core.Server's `MapModuleApiProxies` has no `api/v1/ai` route — the AI REST API is unreachable from clients.
+2. The AI module host only configures cookie auth (no token introspection), so Bearer-token requests from
+   mobile cannot be authenticated, and `AiChatController` has no `[Authorize]` (it falls back to a system
+   caller context, so conversations would be shared across users).
+3. The AI REST controller has no rename endpoint (rename only exists on gRPC).
 
 **Required changes (server):**
-1. `src/Modules/Files/DotNetCloud.Modules.Files.Host/Program.cs` (~line 246):
-   `builder.Services.AddGrpc();` → `builder.Services.AddGrpc(options => options.MaxReceiveMessageSize = 32 * 1024 * 1024);`
-   (32 MB leaves headroom for a 16 MB chunk + protobuf framing.)
-2. For belt-and-braces, raise the other 16 MB limits to 32 MB so a full-size chunk fits every hop:
-   - `src/Core/DotNetCloud.Core.Server/Extensions/SupervisorServiceExtensions.cs` (~line 72)
-   - `src/Core/DotNetCloud.Core.Server/Supervisor/GrpcChannelManager.cs` (~line 75)
-   - `src/Core/DotNetCloud.Core.Server/Controllers/AdminController.cs` (~line 829)
 
-**Verify:** upload a file whose CDC chunk is ≥ 16 MB (e.g. a 40 MB+ file) from SyncTray and confirm
-`File upload complete (gRPC)` (no `ResourceExhausted`, no HTTP fallback) in `sync-trayYYYYMMDD.log`.
+1. `src/Core/DotNetCloud.Core.Server/Program.cs` — in `MapModuleApiProxies`, add to the `moduleMappings`
+   dictionary:
+   ```csharp
+   ["api/v1/ai"] = "dotnetcloud.ai",
+   ```
+2. `src/Core/DotNetCloud.Core.Server/Program.cs` — in `app.UseResponseEnvelope(...)`, add `"/api/v1/ai/"` to
+   `options.ExcludePaths` (the AI SSE stream must NOT be buffered/wrapped; same reason `/api/v1/music/` is
+   already excluded).
+3. `src/Modules/AI/DotNetCloud.Modules.AI.Host/Controllers/AiChatController.cs`:
+   - Change `[Route("api/ai")]` → `[Route("api/v1/ai")]`.
+   - Add `using Microsoft.AspNetCore.Authorization;` and `[Authorize]` on the class.
+   - Replace `GetCallerContext()` so it throws on unauthenticated instead of falling back to a system
+     context (mirror `MusicControllerBase.GetAuthenticatedCaller()` in
+     `src/Modules/Music/DotNetCloud.Modules.Music.Host/Controllers/MusicControllerBase.cs`):
+     ```csharp
+     private CallerContext GetCallerContext()
+     {
+         if (User?.Identity?.IsAuthenticated != true)
+             throw new UnauthorizedAccessException("Authentication is required.");
+
+         var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+             ?? User.FindFirst("sub")?.Value;
+
+         if (!Guid.TryParse(userIdClaim, out var userId))
+             throw new UnauthorizedAccessException("Authenticated user identifier is invalid.");
+
+         var roles = User.FindAll(System.Security.Claims.ClaimTypes.Role)
+             .Select(c => c.Value)
+             .Distinct(StringComparer.OrdinalIgnoreCase)
+             .ToArray();
+
+         return new CallerContext(userId, roles, CallerType.User);
+     }
+     ```
+   - Add a rename endpoint (uses the existing `IAiChatService.RenameConversationAsync`):
+     ```csharp
+     /// <summary>Renames a conversation.</summary>
+     [HttpPatch("conversations/{conversationId:guid}/title")]
+     public async Task<IActionResult> RenameConversation(
+         Guid conversationId,
+         [FromBody] RenameConversationRequest request,
+         CancellationToken cancellationToken)
+     {
+         var caller = GetCallerContext();
+         var renamed = await _chatService.RenameConversationAsync(
+             caller, conversationId, request.Title, cancellationToken);
+         return renamed ? Ok(new { success = true }) : NotFound();
+     }
+     ```
+     Plus a request DTO next to the other request types in the same file:
+     ```csharp
+     /// <summary>Request to rename a conversation.</summary>
+     public sealed class RenameConversationRequest
+     {
+         /// <summary>The new title.</summary>
+         public required string Title { get; set; }
+     }
+     ```
+4. `src/Modules/AI/DotNetCloud.Modules.AI.Host/Program.cs` — port the Chat host auth (reference:
+   `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Program.cs`):
+   - Add `using DotNetCloud.Core.Auth.Authorization;` and `using DotNetCloud.Core.Auth.Introspection;`.
+   - Call `builder.Services.AddTokenIntrospection();`.
+   - Replace the cookie-only `builder.Services.AddAuthentication("Identity.Application").AddCookie(...)` block
+     with the `DotNetCloud.Module` policy scheme: keep the existing `.AddCookie("Identity.Application", …)`
+     options as-is, then chain `.AddIntrospection(IntrospectionAuthenticationExtensions.SchemeName)` and
+     `.AddPolicyScheme("DotNetCloud.Module", "DotNetCloud.Module", …)` whose `ForwardDefaultSelector` returns the
+     introspection scheme when the request has a `Bearer ` Authorization header, else `Identity.Application`.
+   - Replace `builder.Services.AddAuthorization();` with
+     `builder.Services.AddAuthorization(options => AuthorizationPolicies.Configure(options));` plus
+     `builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();`.
+   - Keep `app.UseAuthentication(); app.UseAuthorization();` in the pipeline (already present).
+
+**Verify (on cloud.kimball.home):** with the AI module installed and Ollama reachable, confirm
+`GET /api/v1/ai/models` returns 200 with a valid Bearer token and 401 without; a
+create → send (stream) → list → rename → delete round-trip is per-user; and
+`GET /api/v1/ai/health/ollama` returns 200 when healthy / 503 when not.
 
 ## Moderator Communication (Minimal)
 
