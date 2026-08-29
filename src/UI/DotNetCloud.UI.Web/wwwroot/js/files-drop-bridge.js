@@ -8,16 +8,6 @@ window.dotnetcloudFilesDrop = window.dotnetcloudFilesDrop || {
         return normalized.length > 0 ? normalized : null;
     },
 
-    _extractFromFileList: function(files) {
-        const entries = [];
-        for (const file of files || []) {
-            const relativePath = this._normalizePath(file.webkitRelativePath || file.name || null);
-            entries.push({ file: file, relativePath: relativePath });
-        }
-
-        return entries;
-    },
-
     _readEntriesAsync: function(directoryReader) {
         return new Promise(function(resolve, reject) {
             directoryReader.readEntries(resolve, reject);
@@ -62,29 +52,87 @@ window.dotnetcloudFilesDrop = window.dotnetcloudFilesDrop || {
         }
     },
 
-    _extractFromDataTransferItemsAsync: async function(items) {
-        const output = [];
+    /**
+     * Synchronously snapshot the drop payload.
+     *
+     * IMPORTANT: DataTransfer items/files are only valid during the synchronous
+     * execution of the drop event. Reading them after an `await` loses all but
+     * the first file in Chrome and can drop items in Firefox. Every browser call
+     * (webkitGetAsEntry / getAsFile) must happen here, before any async work.
+     * @param {DataTransfer} dt
+     * @returns {{ entry?: any, file?: File, relativePath?: string|null }[]}
+     */
+    _snapshotDropSync: function(dt) {
+        const snapshot = [];
+        const items = dt.items;
 
-        for (const item of items || []) {
-            if (!item) {
-                continue;
-            }
+        if (items && items.length > 0) {
+            for (const item of items) {
+                if (!item) {
+                    continue;
+                }
 
-            const asEntry = typeof item.webkitGetAsEntry === "function" ? item.webkitGetAsEntry() : null;
-            if (asEntry) {
-                await this._walkEntryAsync(asEntry, "", output);
-                continue;
-            }
+                const asEntry = typeof item.webkitGetAsEntry === "function" ? item.webkitGetAsEntry() : null;
+                if (asEntry) {
+                    snapshot.push({ entry: asEntry });
+                    continue;
+                }
 
-            if (item.kind === "file") {
-                const file = item.getAsFile();
-                if (file) {
-                    output.push({ file: file, relativePath: this._normalizePath(file.name) });
+                if (item.kind === "file") {
+                    const file = item.getAsFile();
+                    if (file) {
+                        snapshot.push({ file: file, relativePath: this._normalizePath(file.name) });
+                    }
                 }
             }
         }
 
-        return output;
+        // Fallback: some browsers expose files only through dt.files (or
+        // expose an empty items list). Snapshot them synchronously too.
+        if (snapshot.length === 0) {
+            const files = dt.files;
+            for (const file of files || []) {
+                snapshot.push({
+                    file: file,
+                    relativePath: this._normalizePath(file.webkitRelativePath || file.name || null)
+                });
+            }
+        }
+
+        return snapshot;
+    },
+
+    /**
+     * Asynchronously materialise a synchronous drop snapshot into upload
+     * entries (traversing dropped directories) and hand them to the upload
+     * module. Safe to run after the drop event because all DataTransfer
+     * references were already captured synchronously.
+     * @param {{ entry?: any, file?: File, relativePath?: string|null }[]} snapshot
+     * @param {any} dotNetRef
+     */
+    _processSnapshotAsync: async function(snapshot, dotNetRef) {
+        const output = [];
+
+        for (const item of snapshot) {
+            if (item.entry) {
+                await this._walkEntryAsync(item.entry, "", output);
+            } else if (item.file) {
+                output.push({ file: item.file, relativePath: item.relativePath });
+            }
+        }
+
+        if (!output || output.length === 0) {
+            return;
+        }
+
+        // Store files in the upload module's pending list
+        if (window.dotnetcloudUpload && window.dotnetcloudUpload.addExternalFiles) {
+            const fileInfos = window.dotnetcloudUpload.addExternalFiles(output);
+            // Notify Blazor so it can open the upload dialog with pre-populated files
+            if (dotNetRef) {
+                dotNetRef.invokeMethodAsync("OnFilesDropped", fileInfos);
+            }
+        }
     },
 
     /**
@@ -106,7 +154,7 @@ window.dotnetcloudFilesDrop = window.dotnetcloudFilesDrop || {
 
         dropZone.dataset.dncDropBridgeInit = "1";
 
-        dropZone.addEventListener("drop", async (event) => {
+        dropZone.addEventListener("drop", (event) => {
             event.preventDefault();
             event.stopPropagation();
 
@@ -115,26 +163,16 @@ window.dotnetcloudFilesDrop = window.dotnetcloudFilesDrop || {
                 return;
             }
 
-            try {
-                const droppedEntries = (dt.items && dt.items.length > 0)
-                    ? await this._extractFromDataTransferItemsAsync(dt.items)
-                    : this._extractFromFileList(dt.files);
-
-                if (!droppedEntries || droppedEntries.length === 0) {
-                    return;
-                }
-
-                // Store files in the upload module's pending list
-                if (window.dotnetcloudUpload && window.dotnetcloudUpload.addExternalFiles) {
-                    const fileInfos = window.dotnetcloudUpload.addExternalFiles(droppedEntries);
-                    // Notify Blazor so it can open the upload dialog with pre-populated files
-                    if (dotNetRef) {
-                        dotNetRef.invokeMethodAsync("OnFilesDropped", fileInfos);
-                    }
-                }
-            } catch (err) {
-                console.error("DotNetCloud drop bridge failed:", err);
+            // Snapshot synchronously while the DataTransfer is still valid.
+            // Async processing (directory walking, file reads) happens after.
+            const snapshot = this._snapshotDropSync(dt);
+            if (!snapshot || snapshot.length === 0) {
+                return;
             }
+
+            this._processSnapshotAsync(snapshot, dotNetRef).catch((err) => {
+                console.error("DotNetCloud drop bridge failed:", err);
+            });
         }, true);
 
         return true;

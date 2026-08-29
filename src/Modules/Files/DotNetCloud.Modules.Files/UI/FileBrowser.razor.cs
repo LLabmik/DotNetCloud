@@ -786,10 +786,33 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     }
 
     protected void ShowUploadDialog() => _showUploadDialog = true;
-    protected void HideUploadDialog()
+
+    /// <summary>Closes the upload dialog and clears any pending (not-yet-uploaded) files.</summary>
+    protected async Task HideUploadDialog()
     {
         _showUploadDialog = false;
         _hasDroppedFiles = false;
+        await ClearPendingUploadsAsync();
+    }
+
+    /// <summary>
+    /// Clears the JS-side pending upload queue so the next batch starts fresh
+    /// (previously-uploaded files would otherwise be re-uploaded on the next drop).
+    /// </summary>
+    private async Task ClearPendingUploadsAsync()
+    {
+        try
+        {
+            await Js.InvokeVoidAsync("dotnetcloudUpload.clearFiles");
+        }
+        catch (JSDisconnectedException)
+        {
+            // Circuit may be disconnected while the dialog is closing
+        }
+        catch (InvalidOperationException)
+        {
+            // JSInterop not available during prerender
+        }
     }
 
     protected void ShowCreateDocumentDialog()
@@ -893,6 +916,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     {
         _showUploadDialog = false;
         _hasDroppedFiles = false;
+        await ClearPendingUploadsAsync();
         await LoadCurrentFolderAsync();
     }
 
