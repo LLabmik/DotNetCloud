@@ -186,11 +186,9 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
             var priority = Enum.TryParse<Priority>(request.Priority, true, out var p) ? p : Priority.None;
             DateTime? dueDate = DateTime.TryParse(request.DueDate, out var dd) ? dd : null;
 
-            // Resolve product from the swimlane
+            // Resolve the owning product from the swimlane (product-level or work-item level)
             var swimlane = await _db.Swimlanes.FirstOrDefaultAsync(s => s.Id == swimlaneId, context.CancellationToken);
-            var productId = swimlane is not null && swimlane.ContainerType == SwimlaneContainerType.Product
-                ? swimlane.ContainerId
-                : Guid.Empty;
+            var productId = await ResolveProductIdAsync(swimlane, context.CancellationToken);
 
             var dto = new CreateWorkItemDto
             {
@@ -548,11 +546,14 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
         return new SwimlaneMessage
         {
             Id = dto.Id.ToString(),
+            ContainerType = dto.ContainerType.ToString(),
             ContainerId = dto.ContainerId.ToString(),
             Title = dto.Title,
             Position = dto.Position,
             Color = dto.Color ?? "",
             CardLimit = dto.CardLimit ?? 0,
+            IsDone = dto.IsDone,
+            IsArchived = dto.IsArchived,
             CreatedAt = dto.CreatedAt.ToString("O"),
             UpdatedAt = dto.UpdatedAt.ToString("O"),
             CardCount = dto.CardCount
@@ -1260,7 +1261,7 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
         {
             var swimlaneId = Guid.Parse(request.SwimlaneId);
             var swimlane = await _db.Swimlanes.FirstOrDefaultAsync(s => s.Id == swimlaneId, context.CancellationToken);
-            var productId = swimlane is not null && swimlane.ContainerType == SwimlaneContainerType.Product ? swimlane.ContainerId : Guid.Empty;
+            var productId = await ResolveProductIdAsync(swimlane, context.CancellationToken);
             var dto = new CreateWorkItemDto
             {
                 Title = request.Title,
@@ -1287,7 +1288,7 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
         {
             var swimlaneId = Guid.Parse(request.SwimlaneId);
             var swimlane = await _db.Swimlanes.FirstOrDefaultAsync(s => s.Id == swimlaneId, context.CancellationToken);
-            var productId = swimlane is not null && swimlane.ContainerType == SwimlaneContainerType.Product ? swimlane.ContainerId : Guid.Empty;
+            var productId = await ResolveProductIdAsync(swimlane, context.CancellationToken);
             var dto = new CreateWorkItemDto
             {
                 Title = request.Title,
@@ -1314,7 +1315,7 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
         {
             var swimlaneId = Guid.Parse(request.SwimlaneId);
             var swimlane = await _db.Swimlanes.FirstOrDefaultAsync(s => s.Id == swimlaneId, context.CancellationToken);
-            var productId = swimlane is not null && swimlane.ContainerType == SwimlaneContainerType.Product ? swimlane.ContainerId : Guid.Empty;
+            var productId = await ResolveProductIdAsync(swimlane, context.CancellationToken);
             var dto = new CreateWorkItemDto
             {
                 Title = request.Title,
@@ -1373,6 +1374,28 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
             return new WorkItemResponse() { Success = false, ErrorMessage = ex.Message };
         }
     }
+
+    /// <summary>
+    /// Resolves the owning product ID for a swimlane. Product-level swimlanes own the product
+    /// directly; work-item swimlanes (epic/feature boards) belong to the parent work item, so the
+    /// parent's product ID is returned.
+    /// </summary>
+    private async Task<Guid> ResolveProductIdAsync(Swimlane? swimlane, CancellationToken ct)
+    {
+        if (swimlane is null)
+            throw new InvalidOperationException("Swimlane not found.");
+
+        if (swimlane.ContainerType == SwimlaneContainerType.Product)
+            return swimlane.ContainerId;
+
+        var parent = await _db.WorkItems
+            .AsNoTracking()
+            .FirstOrDefaultAsync(wi => wi.Id == swimlane.ContainerId && !wi.IsDeleted, ct)
+            ?? throw new InvalidOperationException($"Parent work item {swimlane.ContainerId} not found.");
+
+        return parent.ProductId;
+    }
+
     /// <inheritdoc />
     public override async Task<WorkItemResponse> UpdateWorkItem(UpdateWorkItemRequest request, ServerCallContext context)
     {

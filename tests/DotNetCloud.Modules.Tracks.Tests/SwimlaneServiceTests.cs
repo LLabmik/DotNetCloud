@@ -47,6 +47,23 @@ public class SwimlaneServiceTests
     }
 
     [TestMethod]
+    public async Task GetSwimlanesAsync_ReturnsCorrectContainerType()
+    {
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
+        var epic = await TestHelpers.SeedEpicAsync(_db, product.Id, Guid.CreateVersion7());
+        await _service.CreateSwimlaneAsync(SwimlaneContainerType.Product, product.Id, new CreateSwimlaneDto { Title = "Product List" }, CancellationToken.None);
+        await _service.CreateSwimlaneAsync(SwimlaneContainerType.WorkItem, epic.Id, new CreateSwimlaneDto { Title = "Epic List" }, CancellationToken.None);
+
+        var productSwimlanes = await _service.GetSwimlanesAsync(SwimlaneContainerType.Product, product.Id, CancellationToken.None);
+        var epicSwimlanes = await _service.GetSwimlanesAsync(SwimlaneContainerType.WorkItem, epic.Id, CancellationToken.None);
+
+        Assert.AreEqual(1, productSwimlanes.Count);
+        Assert.AreEqual(SwimlaneContainerType.Product, productSwimlanes[0].ContainerType);
+        Assert.AreEqual(1, epicSwimlanes.Count);
+        Assert.AreEqual(SwimlaneContainerType.WorkItem, epicSwimlanes[0].ContainerType);
+    }
+
+    [TestMethod]
     public async Task UpdateSwimlaneAsync_UpdatesTitle()
     {
         var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
