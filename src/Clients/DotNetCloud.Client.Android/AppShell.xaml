@@ -158,14 +158,8 @@
         x:Name="AiTab"
         Route="Ai"
         Title="AI"
+        Icon="ai_icon_slate.png"
         Shell.FlyoutItemIsVisible="False">
-        <FlyoutItem.Icon>
-            <FontImageSource
-                FontFamily="MaterialIcons"
-                Glyph="&#xE859;"
-                Size="20"
-                Color="#CBD5E1"/>
-        </FlyoutItem.Icon>
         <ShellContent
             Route="Ai"
             ContentTemplate="{DataTemplate views:AiPage}"/>
