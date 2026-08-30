@@ -21,7 +21,14 @@ public sealed partial class AiViewModel : ObservableObject
     private readonly IClipboard _clipboard;
 
     private CancellationTokenSource? _streamCts;
+    private CancellationTokenSource? _modelLoadCts;
     private AiConversationDto? _renameTarget;
+
+    /// <summary>
+    /// Window before "Loading model into memory…" is shown while waiting for the first
+    /// stream chunk. Internal + settable so tests can shorten it.
+    /// </summary>
+    internal static TimeSpan ModelLoadDelay { get; set; } = TimeSpan.FromSeconds(3);
 
     /// <summary>Fired when the user requests a rename; the page shows a prompt and calls <see cref="CommitRenameAsync"/>.</summary>
     public event Action<AiConversationDto>? RenameRequested;
@@ -109,6 +116,13 @@ public sealed partial class AiViewModel : ObservableObject
 
     [ObservableProperty]
     private bool _isStreaming;
+
+    /// <summary>
+    /// True while streaming when no reply content has arrived yet and the 3-second
+    /// model-load window has elapsed — shows "Loading model into memory…" (mirrors Blazor).
+    /// </summary>
+    [ObservableProperty]
+    private bool _isModelLoading;
 
     [ObservableProperty]
     private bool _isLoading;
@@ -344,13 +358,20 @@ public sealed partial class AiViewModel : ObservableObject
             ScrollRequested?.Invoke();
         });
 
+        StartModelLoadTimer();
+
         var accumulated = new System.Text.StringBuilder();
         try
         {
             await foreach (var chunk in _ai.SendMessageStreamingAsync(serverUrl, token, conversationId, message, ct))
             {
                 if (!string.IsNullOrEmpty(chunk.Content))
+                {
                     accumulated.Append(chunk.Content);
+                    // First real content means the model is loaded — hide the loading message.
+                    if (IsModelLoading)
+                        Dispatch(() => IsModelLoading = false);
+                }
 
                 Dispatch(() =>
                 {
@@ -402,9 +423,45 @@ public sealed partial class AiViewModel : ObservableObject
         }
         finally
         {
+            StopModelLoadTimer();
             _streamCts?.Dispose();
             _streamCts = null;
         }
+    }
+
+    /// <summary>
+    /// Starts the 3-second window after which "Loading model into memory…" is shown if no
+    /// reply content has arrived yet (mirrors the Blazor module's model-loading indicator).
+    /// </summary>
+    private void StartModelLoadTimer()
+    {
+        _modelLoadCts?.Cancel();
+        _modelLoadCts?.Dispose();
+        _modelLoadCts = new CancellationTokenSource();
+        var ct = _modelLoadCts.Token;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(ModelLoadDelay, ct);
+                if (!ct.IsCancellationRequested && IsStreaming && string.IsNullOrEmpty(StreamingContent))
+                    Dispatch(() => IsModelLoading = true);
+            }
+            catch (OperationCanceledException)
+            {
+                // Stream produced content (or was cancelled) — nothing to do.
+            }
+        }, ct);
+    }
+
+    /// <summary>Cancels the model-load timer and clears the loading state.</summary>
+    private void StopModelLoadTimer()
+    {
+        _modelLoadCts?.Cancel();
+        _modelLoadCts?.Dispose();
+        _modelLoadCts = null;
+        IsModelLoading = false;
     }
 
     /// <summary>Deletes a conversation (from the swipe action).</summary>

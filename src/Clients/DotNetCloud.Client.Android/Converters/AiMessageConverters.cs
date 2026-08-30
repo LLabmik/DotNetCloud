@@ -11,7 +11,7 @@ public sealed class RoleNameConverter : IValueConverter
 {
     /// <inheritdoc />
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
-        value as string switch
+        (value as string) switch
         {
             "assistant" => "Assistant",
             "user" => "You",

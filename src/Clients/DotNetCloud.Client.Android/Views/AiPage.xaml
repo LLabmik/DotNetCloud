@@ -317,11 +317,32 @@
                            TextColor="#94A3B8"
                            VerticalOptions="Center"/>
                 </Grid>
+
+                <!-- Loading model into memory (mirrors the Blazor module) -->
+                <Grid IsVisible="{Binding IsModelLoading}"
+                      ColumnDefinitions="Auto,*"
+                      ColumnSpacing="8"
+                      BackgroundColor="#1E293B"
+                      Padding="12,8"
+                      HorizontalOptions="Start">
+                    <ActivityIndicator Grid.Column="0"
+                                       IsRunning="{Binding IsModelLoading}"
+                                       Color="#0EA5E9"
+                                       HeightRequest="16"
+                                       WidthRequest="16"/>
+                    <Label Grid.Column="1"
+                           Text="Loading model into memory — this may take a moment…"
+                           TextColor="#94A3B8"
+                           FontSize="12"
+                           VerticalOptions="Center"/>
+                </Grid>
+
                 <Border BackgroundColor="#1E293B"
                         StrokeThickness="0"
                         StrokeShape="RoundRectangle 14"
                         Padding="12,8"
-                        HorizontalOptions="Start">
+                        HorizontalOptions="Start"
+                        IsVisible="{Binding IsModelLoading, Converter={StaticResource InvertBool}}">
                     <Label FormattedText="{Binding StreamingDisplay, Converter={StaticResource Markdown}}"
                            TextColor="#F1F5F9"
                            FontSize="14"
@@ -334,7 +355,8 @@
                   ColumnDefinitions="*,Auto"
                   ColumnSpacing="8"
                   Padding="12,6">
-                <Editor Text="{Binding ComposerText}"
+                <Editor x:Name="ComposerEditor"
+                        Text="{Binding ComposerText}"
                         Placeholder="Message the AI…"
                         PlaceholderColor="#64748B"
                         BackgroundColor="#1E293B"
@@ -345,6 +367,7 @@
                 <Button Grid.Column="1"
                         Text="Send"
                         Command="{Binding SendMessageCommand}"
+                        Clicked="OnSendClicked"
                         IsEnabled="{Binding IsStreaming, Converter={StaticResource InvertBool}}"
                         BackgroundColor="#0EA5E9"
                         TextColor="White"

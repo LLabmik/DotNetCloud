@@ -28,22 +28,26 @@ public partial class AiPage : ContentPage
             await _vm.LoadAsync();
     }
 
-    /// <inheritdoc />
-    protected override void OnSizeAllocated(double width, double height)
+    /// <summary>
+    /// Collapses the soft keyboard when Send is tapped. While the keyboard is open, the
+    /// Shell/MAUI edge-to-edge layout renders the message list behind the status bar
+    /// (WindowSoftInputMode=AdjustResize); dismissing the keyboard on send immediately
+    /// restores the normal layout.
+    /// </summary>
+    private void OnSendClicked(object? sender, EventArgs e)
     {
-        base.OnSizeAllocated(width, height);
+        ComposerEditor?.Unfocus();
 
-        // Android soft-keyboard workaround (WindowSoftInputMode=AdjustResize): when the
-        // keyboard shows, the window resizes and MAUI/Shell can drop the top chrome
-        // (navbar + in-page header) during the re-measure, leaving the message list
-        // rendered up under the status bar. Once the resize settles, force a layout
-        // pass so the header and scroll area restore their correct positions.
-        Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(120), () =>
-        {
-            (Content as IView)?.InvalidateMeasure();
-            if (Shell.Current is IView shellView)
-                shellView.InvalidateMeasure();
-        });
+        var activity = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity;
+        var inputMethodManager = activity?.GetSystemService(global::Android.Content.Context.InputMethodService)
+            as global::Android.Views.InputMethods.InputMethodManager;
+        if (inputMethodManager is null)
+            return;
+
+        var token = (ComposerEditor?.Handler?.PlatformView as global::Android.Views.View)?.WindowToken
+            ?? activity?.Window?.DecorView?.WindowToken;
+        if (token is not null)
+            inputMethodManager.HideSoftInputFromWindow(token, global::Android.Views.InputMethods.HideSoftInputFlags.None);
     }
 
     /// <summary>Scrolls the message list to the bottom (new message or stream chunk).</summary>

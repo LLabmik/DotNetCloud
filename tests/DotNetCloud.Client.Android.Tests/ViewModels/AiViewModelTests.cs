@@ -274,6 +274,38 @@ public sealed class AiViewModelTests
         Assert.IsNull(_vm.CopiedMessageId);
     }
 
+    // ── Model-loading indicator ───────────────────────────────────────
+
+    [TestMethod]
+    public async Task SendMessageAsync_ShowsModelLoading_WhileWaitingForFirstChunk()
+    {
+        AiViewModel.ModelLoadDelay = TimeSpan.FromMilliseconds(100);
+        try
+        {
+            _vm.Conversations.Add(new AiConversationDto { Id = ConversationId, Title = "Test", Model = "gpt-oss:20b" });
+            _vm.ActiveConversationId = ConversationId;
+            _vm.ComposerText = "hello";
+
+            // First chunk arrives after the (shortened) model-load window.
+            _ai.Setup(x => x.SendMessageStreamingAsync(ServerUrl, Token, ConversationId, "hello", It.IsAny<CancellationToken>()))
+                .Returns(DelayedFirstChunkStream());
+
+            var sendTask = _vm.SendMessageCommand.ExecuteAsync(null);
+
+            // After the window elapses, the loading indicator shows while content is pending.
+            await Task.Delay(TimeSpan.FromMilliseconds(300));
+            Assert.IsTrue(_vm.IsModelLoading, "Loading indicator should show while waiting for the first chunk.");
+
+            await sendTask;
+            Assert.IsFalse(_vm.IsModelLoading, "Loading indicator should clear once streaming completes.");
+            Assert.AreEqual(2, _vm.ActiveMessages.Count); // user + assistant
+        }
+        finally
+        {
+            AiViewModel.ModelLoadDelay = TimeSpan.FromSeconds(3);
+        }
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────
 
     private static async IAsyncEnumerable<AiStreamChunk> StreamChunks(params (string Content, bool Done)[] chunks)
@@ -283,5 +315,13 @@ public sealed class AiViewModelTests
             yield return new AiStreamChunk { Content = content, Done = done };
             await Task.Yield();
         }
+    }
+
+    private static async IAsyncEnumerable<AiStreamChunk> DelayedFirstChunkStream()
+    {
+        await Task.Delay(TimeSpan.FromMilliseconds(500));
+        yield return new AiStreamChunk { Content = "Hello there!", Done = false };
+        await Task.Yield();
+        yield return new AiStreamChunk { Content = "", Done = true };
     }
 }
