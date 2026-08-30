@@ -5,7 +5,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:vm="clr-namespace:DotNetCloud.Client.Android.ViewModels"
     Shell.NavBarIsVisible="False"
-    Shell.TabBarIsVisible="False"
+    Shell.FlyoutBehavior="Disabled"
     BackgroundColor="#0F172A">
 
     <Grid RowDefinitions="Auto,*,Auto">

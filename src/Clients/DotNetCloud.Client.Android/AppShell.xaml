@@ -5,72 +5,180 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:views="clr-namespace:DotNetCloud.Client.Android.Views"
     Shell.NavBarIsVisible="true"
+    Shell.FlyoutBehavior="Flyout"
     Shell.BackgroundColor="#1E293B"
     Shell.ForegroundColor="#F1F5F9"
     Shell.TitleColor="#F1F5F9"
-    Shell.TabBarBackgroundColor="#1E293B"
-    Shell.TabBarForegroundColor="#0EA5E9"
-    Shell.TabBarTitleColor="#0EA5E9"
-    Shell.TabBarUnselectedColor="#64748B">
+    Shell.FlyoutBackgroundColor="#1E293B">
 
-    <!-- Unauthenticated route — shown before login -->
+    <!-- Branded header at the top of the drawer -->
+    <Shell.FlyoutHeader>
+        <Grid
+            BackgroundColor="#0F172A"
+            Padding="20,16">
+            <HorizontalStackLayout
+                Spacing="12"
+                VerticalOptions="Center">
+                <Image
+                    Source="logo.png"
+                    HeightRequest="36"
+                    WidthRequest="36"
+                    VerticalOptions="Center"/>
+                <Label
+                    Text="DotNetCloud"
+                    FontSize="20"
+                    FontAttributes="Bold"
+                    TextColor="#F1F5F9"
+                    VerticalOptions="Center"/>
+            </HorizontalStackLayout>
+        </Grid>
+    </Shell.FlyoutHeader>
+
+    <!-- Rescan Modules pinned to the bottom of the drawer, above a separator line -->
+    <Shell.FlyoutFooter>
+        <Grid
+            BackgroundColor="#1E293B"
+            RowDefinitions="Auto,Auto">
+            <BoxView
+                HeightRequest="1"
+                Color="#334155"/>
+            <Grid
+                Grid.Row="1"
+                Padding="20,14,20,16"
+                ColumnDefinitions="Auto,*">
+                <Grid.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnRescanModulesClicked"/>
+                </Grid.GestureRecognizers>
+                <Label
+                    Grid.Column="0"
+                    Text="&#xE627;"
+                    FontFamily="MaterialIcons"
+                    FontSize="20"
+                    TextColor="#CBD5E1"
+                    VerticalOptions="Center"/>
+                <Label
+                    Grid.Column="1"
+                    Text="Rescan Modules"
+                    FontSize="15"
+                    TextColor="#F1F5F9"
+                    VerticalOptions="Center"
+                    Margin="14,0,0,0"/>
+            </Grid>
+        </Grid>
+    </Shell.FlyoutFooter>
+
+    <!-- Unauthenticated route — shown before login (hidden from the drawer) -->
     <ShellContent
         Route="Login"
         ContentTemplate="{DataTemplate views:LoginPage}"
         Shell.NavBarIsVisible="false"
-        Shell.TabBarIsVisible="false"/>
+        Shell.FlyoutItemIsVisible="False"/>
 
-    <!-- Authenticated tab bar -->
-    <TabBar Route="Main">
-
+    <!-- Authenticated flyout menu — one FlyoutItem per screen so no bottom tab bar is rendered.
+         Icons match the Blazor sidebar: Material glyphs in the sidebar text color (#CBD5E1). -->
+    <FlyoutItem
+        x:Name="ChatTab"
+        Route="ChannelList"
+        Title="Chat">
+        <FlyoutItem.Icon>
+            <FontImageSource
+                FontFamily="MaterialIcons"
+                Glyph="&#xE0B7;"
+                Size="20"
+                Color="#CBD5E1"/>
+        </FlyoutItem.Icon>
         <ShellContent
-            x:Name="ChatTab"
             Route="ChannelList"
-            Title="Chat"
-            Icon="chat_icon.png"
             ContentTemplate="{DataTemplate views:ChannelListPage}"/>
+    </FlyoutItem>
 
+    <FlyoutItem
+        Route="Files"
+        Title="Files">
+        <FlyoutItem.Icon>
+            <FontImageSource
+                FontFamily="MaterialIcons"
+                Glyph="&#xE2C7;"
+                Size="20"
+                Color="#CBD5E1"/>
+        </FlyoutItem.Icon>
         <ShellContent
             Route="Files"
-            Title="Files"
-            Icon="files_icon.png"
             ContentTemplate="{DataTemplate views:FileBrowserPage}"/>
+    </FlyoutItem>
 
+    <FlyoutItem
+        x:Name="MusicTab"
+        Route="Music"
+        Title="Music"
+        Shell.FlyoutItemIsVisible="False">
+        <FlyoutItem.Icon>
+            <FontImageSource
+                FontFamily="MaterialIcons"
+                Glyph="&#xE405;"
+                Size="20"
+                Color="#CBD5E1"/>
+        </FlyoutItem.Icon>
         <ShellContent
-            x:Name="MusicTab"
             Route="Music"
-            Title="Music"
-            Icon="music_icon.png"
-            IsVisible="False"
             ContentTemplate="{DataTemplate views:MusicPage}"/>
+    </FlyoutItem>
 
+    <FlyoutItem
+        Route="Calendar"
+        Title="Calendar">
+        <FlyoutItem.Icon>
+            <FontImageSource
+                FontFamily="MaterialIcons"
+                Glyph="&#xE935;"
+                Size="20"
+                Color="#CBD5E1"/>
+        </FlyoutItem.Icon>
         <ShellContent
             Route="Calendar"
-            Title="Calendar"
-            Icon="calendar_icon.png"
             ContentTemplate="{DataTemplate views:CalendarPage}"/>
+    </FlyoutItem>
 
+    <FlyoutItem
+        Route="Notes"
+        Title="Notes">
+        <FlyoutItem.Icon>
+            <FontImageSource
+                FontFamily="MaterialIcons"
+                Glyph="&#xE745;"
+                Size="20"
+                Color="#CBD5E1"/>
+        </FlyoutItem.Icon>
         <ShellContent
             Route="Notes"
-            Title="Notes"
-            Icon="notes_icon.png"
             ContentTemplate="{DataTemplate views:NotesPage}"/>
+    </FlyoutItem>
 
+    <FlyoutItem
+        x:Name="AiTab"
+        Route="Ai"
+        Title="AI"
+        Icon="ai_icon_slate.png"
+        Shell.FlyoutItemIsVisible="False">
         <ShellContent
-            x:Name="AiTab"
             Route="Ai"
-            Title="AI"
-            Icon="ai_icon.png"
-            IsVisible="False"
             ContentTemplate="{DataTemplate views:AiPage}"/>
+    </FlyoutItem>
 
+    <FlyoutItem
+        Route="Settings"
+        Title="Settings">
+        <FlyoutItem.Icon>
+            <FontImageSource
+                FontFamily="MaterialIcons"
+                Glyph="&#xE8B8;"
+                Size="20"
+                Color="#CBD5E1"/>
+        </FlyoutItem.Icon>
         <ShellContent
             Route="Settings"
-            Title="Settings"
-            Icon="settings_icon.png"
             ContentTemplate="{DataTemplate views:SettingsPage}"/>
-
-    </TabBar>
+    </FlyoutItem>
 
 </Shell>
 
