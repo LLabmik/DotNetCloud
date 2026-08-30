@@ -16,6 +16,7 @@
     <PackageReference Include="MSTest.TestFramework" />
     <PackageReference Include="Moq" />
     <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="Markdig" />
     <PackageReference Include="Microsoft.Maui.Controls" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" />
@@ -60,6 +61,8 @@
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Ai\IAiRestClient.cs" Link="AndroidApp\Ai\IAiRestClient.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Ai\AiDtos.cs" Link="AndroidApp\Ai\AiDtos.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Ai\HttpAiRestClient.cs" Link="AndroidApp\Ai\HttpAiRestClient.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Ai\MarkdownHtmlFormatter.cs" Link="AndroidApp\Ai\MarkdownHtmlFormatter.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Converters\MarkdownHtmlConverters.cs" Link="AndroidApp\Converters\MarkdownHtmlConverters.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Auth\ITokenRefreshService.cs" Link="AndroidApp\Auth\ITokenRefreshService.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\ViewModels\AiViewModel.cs" Link="AndroidApp\ViewModels\AiViewModel.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Converters\MarkdownConverter.cs" Link="AndroidApp\Converters\MarkdownConverter.cs" />

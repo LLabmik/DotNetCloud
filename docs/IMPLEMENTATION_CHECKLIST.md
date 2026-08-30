@@ -4613,6 +4613,15 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ☐ Chat module: message summarization, smart replies
 - ☐ Files module: content summarization, document Q&A
 
+### Step 9.8 — Android AI Tab: Rich Markdown Rendering
+
+- ✓ Markdig pinned as a direct dependency in `DotNetCloud.Client.Android.csproj` (CPM 1.3.2)
+- ✓ `Ai/MarkdownHtmlFormatter.cs` — pure Markdig → themed HTML document renderer (CommonMark + tables + lists; raw HTML escaped; CSP `default-src 'none'`)
+- ✓ `Converters/MarkdownHtmlConverters.cs` — `MarkdownHtmlConverter` + `IsRichMarkdownConverter`
+- ✓ `Controls/MarkdownWebView.cs` — auto-height WebView; http/https links open in the system browser; all other navigation blocked
+- ✓ `AiPage.xaml` — completed assistant messages render as HTML (WebView) when they contain block Markdown; inline-only messages stay on the lightweight `Label`/`FormattedString` path; streaming bubble unchanged
+- ✓ `MarkdownHtmlFormatterTests` — headings, lists, tables, fenced code, raw-HTML escaping, `NeedsHtmlRendering`
+
 ---
 
 ## Phase 6: Email & Bookmarks

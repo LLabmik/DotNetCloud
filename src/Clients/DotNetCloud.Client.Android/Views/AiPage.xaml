@@ -6,6 +6,7 @@
     xmlns:vm="clr-namespace:DotNetCloud.Client.Android.ViewModels"
     xmlns:ai="clr-namespace:DotNetCloud.Client.Android.Ai"
     xmlns:conv="clr-namespace:DotNetCloud.Client.Android.Converters"
+    xmlns:controls="clr-namespace:DotNetCloud.Client.Android.Controls"
     x:DataType="vm:AiViewModel"
     Shell.NavBarIsVisible="true"
     Shell.BackgroundColor="#1E293B"
@@ -15,6 +16,7 @@
     <ContentPage.Resources>
         <ResourceDictionary>
             <conv:MarkdownConverter x:Key="Markdown"/>
+            <conv:IsRichMarkdownConverter x:Key="IsRichMarkdown"/>
             <conv:InvertBoolConverter x:Key="InvertBool"/>
             <conv:RoleNameConverter x:Key="RoleName"/>
             <conv:IsAssistantConverter x:Key="IsAssistant"/>
@@ -266,10 +268,16 @@
                                                 Value="#0EA5E9"/>
                                     </DataTrigger>
                                 </Border.Triggers>
-                                <Label FormattedText="{Binding Content, Converter={StaticResource Markdown}}"
-                                       TextColor="#F1F5F9"
-                                       FontSize="14"
-                                       LineBreakMode="WordWrap"/>
+                                <Grid>
+                                    <Label FormattedText="{Binding Content, Converter={StaticResource Markdown}}"
+                                           TextColor="#F1F5F9"
+                                           FontSize="14"
+                                           LineBreakMode="WordWrap"
+                                           IsVisible="{Binding Content, Converter={StaticResource IsRichMarkdown}, ConverterParameter=Invert}"/>
+                                    <controls:MarkdownWebView Markdown="{Binding Content}"
+                                                              BackgroundColor="#1E293B"
+                                                              IsVisible="{Binding Content, Converter={StaticResource IsRichMarkdown}}"/>
+                                </Grid>
                             </Border>
 
                             <!-- Copy action (assistant only, mirrors the Blazor module) -->
