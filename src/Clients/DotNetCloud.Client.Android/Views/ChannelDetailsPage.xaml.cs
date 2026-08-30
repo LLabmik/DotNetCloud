@@ -73,6 +73,6 @@ public partial class ChannelDetailsPage : ContentPage
 
     private async void OnChannelLeft(object? sender, EventArgs e)
     {
-        await MainThread.InvokeOnMainThreadAsync(() => Shell.Current.GoToAsync("//Main/ChannelList", animate: true));
+        await MainThread.InvokeOnMainThreadAsync(() => Shell.Current.GoToAsync("//ChannelList", animate: true));
     }
 }

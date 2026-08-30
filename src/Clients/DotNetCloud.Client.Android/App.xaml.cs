@@ -267,7 +267,7 @@ public partial class App : Application
                 // Otherwise the user would be bounced straight back here on the first 401.
                 if (await HasUsableSessionAsync(active.ServerBaseUrl))
                 {
-                    await Shell.Current.GoToAsync("//Main/ChannelList");
+                    await Shell.Current.GoToAsync("//ChannelList");
                 }
             }
         }
@@ -538,7 +538,7 @@ public partial class App : Application
     {
         if (_serverStore.GetActive() is not null)
         {
-            await Shell.Current.GoToAsync("//Main/ChannelList");
+            await Shell.Current.GoToAsync("//ChannelList");
 
             var chatIntent = new Intent(global::Android.App.Application.Context, typeof(ChatConnectionService));
             chatIntent.SetAction(ChatConnectionService.ActionStart);

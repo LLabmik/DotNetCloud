@@ -37,7 +37,7 @@ public partial class LoginPage : ContentPage
             if (active is not null && await App.HasUsableSessionAsync(active))
             {
                 Log.Info("DotNetCloud", $"LoginPage.OnAppearing: saved connection found ({active}) with usable session, redirecting");
-                _ = Shell.Current.GoToAsync("//Main/ChannelList");
+                _ = Shell.Current.GoToAsync("//ChannelList");
                 return;
             }
         }
@@ -54,7 +54,7 @@ public partial class LoginPage : ContentPage
     private async void OnLoginSucceeded(object? sender, EventArgs e)
     {
         Log.Info("DotNetCloud", "LoginPage.OnLoginSucceeded: navigating to landing page");
-        await MainThread.InvokeOnMainThreadAsync(() => Shell.Current.GoToAsync("//Main/ChannelList", animate: true));
+        await MainThread.InvokeOnMainThreadAsync(() => Shell.Current.GoToAsync("//ChannelList", animate: true));
         Log.Info("DotNetCloud", "LoginPage.OnLoginSucceeded: navigation done, checking modules");
 
         // Check which optional server modules are available (Music, etc.)

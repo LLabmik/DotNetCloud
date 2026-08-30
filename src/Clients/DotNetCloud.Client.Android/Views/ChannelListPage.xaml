@@ -86,7 +86,7 @@
 
             <!-- Hint text -->
             <Label Grid.Row="5"
-                   Text="or select another tab below"
+                   Text="or open the menu to switch screens"
                    FontSize="13"
                    TextColor="#64748B"
                    HorizontalOptions="Center"

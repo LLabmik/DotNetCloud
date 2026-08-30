@@ -6,6 +6,7 @@
     xmlns:vm="clr-namespace:DotNetCloud.Client.Android.ViewModels"
     Title="Add Server"
     Shell.NavBarIsVisible="false"
+    Shell.FlyoutBehavior="Disabled"
     BackgroundColor="#0F172A">
 
     <Grid>
@@ -16,13 +17,13 @@
             BackgroundColor="#0F172A">
             <BoxView.Background>
                 <LinearGradientBrush StartPoint="0,0"
-                        EndPoint="1,1">
+                                     EndPoint="1,1">
                     <GradientStop Color="#0F172A"
-                            Offset="0.0"/>
+                                  Offset="0.0"/>
                     <GradientStop Color="#0C4A6E"
-                            Offset="0.5"/>
+                                  Offset="0.5"/>
                     <GradientStop Color="#0F172A"
-                            Offset="1.0"/>
+                                  Offset="1.0"/>
                 </LinearGradientBrush>
             </BoxView.Background>
         </BoxView>
