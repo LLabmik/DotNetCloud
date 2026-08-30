@@ -146,8 +146,13 @@ builder.Services.AddHealthChecks()
 
 var app = builder.Build();
 
-// Show full exception details for debugging; remove in production.
-app.UseDeveloperExceptionPage();
+// Show full exception details for debugging in Development only.
+// In production, never leak exception details to clients (module hosts surface
+// unhandled exceptions as 500 via the YARP proxy, without the exception body).
+if (app.Environment.IsDevelopment())
+{
+    app.UseDeveloperExceptionPage();
+}
 
 // Map gRPC services
 app.MapGrpcService<AiGrpcService>();

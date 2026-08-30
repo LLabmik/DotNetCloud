@@ -12,20 +12,34 @@ public sealed class AiSettingsProvider : IAiSettingsProvider
 {
     private const string Module = "dotnetcloud.ai";
 
-    private readonly IAdminSettingsService _settingsService;
+    private IAdminSettingsService? SettingsService
+    {
+        get
+        {
+            if (_lazySettingsService is null && _serviceProvider.GetService(typeof(IAdminSettingsService)) is IAdminSettingsService svc)
+                _lazySettingsService = svc;
+            return _lazySettingsService;
+        }
+    }
+
     private readonly IConfiguration _configuration;
     private readonly ILogger<AiSettingsProvider> _logger;
+    private IAdminSettingsService? _lazySettingsService;
+    private readonly IServiceProvider _serviceProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AiSettingsProvider"/> class.
     /// </summary>
+    /// <param name="configuration">Configuration source for fallback.</param>
+    /// <param name="serviceProvider">Service provider for optionally resolving <see cref="IAdminSettingsService"/>.</param>
+    /// <param name="logger">Logger instance.</param>
     public AiSettingsProvider(
-        IAdminSettingsService settingsService,
         IConfiguration configuration,
+        IServiceProvider serviceProvider,
         ILogger<AiSettingsProvider> logger)
     {
-        _settingsService = settingsService;
         _configuration = configuration;
+        _serviceProvider = serviceProvider;
         _logger = logger;
     }
 
@@ -75,17 +89,23 @@ public sealed class AiSettingsProvider : IAiSettingsProvider
 
     private async Task<string> GetStringSettingAsync(string key, string configKey, string defaultValue)
     {
-        try
+        // Try the admin settings service first (may be null in module host standalone mode,
+        // where IAdminSettingsService is not registered — mirroring VideoSettingsProvider).
+        var svc = SettingsService;
+        if (svc is not null)
         {
-            var setting = await _settingsService.GetSettingAsync(Module, key);
-            if (setting is not null && !string.IsNullOrWhiteSpace(setting.Value))
+            try
             {
-                return setting.Value;
+                var setting = await svc.GetSettingAsync(Module, key);
+                if (setting is not null && !string.IsNullOrWhiteSpace(setting.Value))
+                {
+                    return setting.Value;
+                }
             }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to read AI setting {Key} from database, falling back to configuration", key);
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to read AI setting {Key} from database, falling back to configuration", key);
+            }
         }
 
         // Fall back to IConfiguration (appsettings.json)

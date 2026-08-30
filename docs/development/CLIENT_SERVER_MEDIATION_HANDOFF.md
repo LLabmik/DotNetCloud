@@ -76,7 +76,7 @@ Archived context:
 
 ### Client: verify the AI REST API end-to-end + proceed with the Android AI tab (Phases B–F)
 
-**Status:** client Phases B–F **DONE** (built + unit-tested + on-device verified); **BLOCKED on server-side REST/Bearer 500** — see "Server agent action required" below
+**Status:** client Phases B–F **DONE**; server-side REST/Bearer 500 **FIXED + DEPLOYED** (cloud.kimball.home, 2026-08-29) — **awaiting client re-verification** of the AI tab E2E round-trip with a valid token (see "Remaining" below)
 **Branch:** `feature/android-ai-tab`
 **From:** server agent (`cloud.kimball.home`), 2026-08-29
 **Canonical plan:** `docs/ANDROID_AI_TAB_PLAN.md`
@@ -95,31 +95,24 @@ Phases B–F of `docs/ANDROID_AI_TAB_PLAN.md` are implemented on `feature/androi
 - **Blazor AI chat works** (moderator-confirmed) — so the AI module, its DB, and Ollama are functional and the module host is up. Blazor uses the module's **gRPC/in-process** path (`IAiApiClient`), **not** the REST proxy — so the **REST + Bearer path is specifically broken**.
 - **Client-side mitigation already applied:** `AiViewModel.LoadAsync` no longer hard-fails when the provider 500s — it still loads the DB-backed conversation list and shows the Ollama banner instead of a hard error (unit-tested).
 
-### 🔴 Server agent action required (cloud.kimball.home): AI REST Bearer path returns 500
+### ✅ Server fix applied (cloud.kimball.home, 2026-08-29): AI REST Bearer 500 resolved
 
-**Symptom (verified live from the Android client, valid Bearer token, 2026-08-29):**
-- `GET /api/v1/ai/models` → **500**
-- `GET /api/v1/ai/conversations` → **500**
-- (no token → **401**; so the proxy route + `[Authorize]` + controller route are all present → the deployed AI host IS running the Phase A code)
+**Root cause:** `AiSettingsProvider` (`src/Modules/AI/DotNetCloud.Modules.AI.Data/Services/AiSettingsProvider.cs`) **hard-required** `IAdminSettingsService` in its constructor, but that service is **not registered in the process-isolated AI module host** (only Core.Server's `AddDotNetCloudAuth()` registers it). Every REST request that activates `AiChatController` (which injects `IAiSettingsProvider`) therefore threw `System.InvalidOperationException: Unable to resolve service ... IAdminSettingsService ... AiSettingsProvider` → **500**. Blazor AI chat worked because Core.Server (in-process) has `IAdminSettingsService` registered. The Music host was unaffected because its REST controllers don't inject a settings provider.
 
-**What this rules out / narrows to:**
-- The AI module itself is fine: **Blazor AI chat works** (moderator-confirmed). Blazor uses the module's **gRPC/in-process** path (`IAiApiClient`), **not** the REST proxy — so only the REST + Bearer path is broken.
-- A **500 (not 404)** on both endpoints means the request reaches the controller and the action throws before/at `GetCallerContext()`.
-- `AiChatController.GetCallerContext()` throws `UnauthorizedAccessException` when `User.Identity.IsAuthenticated != true`, and the host has **no exception handler**, so an unauthenticated/invalid identity surfaces as **500** (not 401). `src/Modules/AI/DotNetCloud.Modules.AI.Host/Program.cs` also still has `app.UseDeveloperExceptionPage();` — the real exception is printed in the AI module host logs.
+**Fix (matches the proven `VideoSettingsProvider` pattern):**
+- `AiSettingsProvider` now injects `IConfiguration` + `IServiceProvider` + `ILogger`, and **lazily** resolves `IAdminSettingsService` via `IServiceProvider.GetService(...)` (nullable). In the module host (service not registered) it gracefully falls back to `IConfiguration`; in Core.Server/Blazor it still reads DB-backed admin settings. DI registration (`AddAiServices`/`AddAiUiServices`) unchanged.
+- `src/Modules/AI/DotNetCloud.Modules.AI.Host/Program.cs`: `app.UseDeveloperExceptionPage()` is now **guarded to Development only** — no exception details leaked in production.
 
-**Diagnose (in order):**
-1. **Read the AI module host logs** on cloud.kimball.home for the stack trace behind the 500 (DeveloperExceptionPage prints it). Fastest path to root cause.
-2. Confirm the AI module host process was restarted with the Phase A binaries (route `api/v1/ai`, `AddTokenIntrospection()`, `DotNetCloud.Module` policy scheme). (Stale code would give 404, not 500 — so it is likely running the new code.)
-3. **Probe auth:** `GET /api/v1/ai/models` with a deliberately **invalid** Bearer token:
-   - invalid → **401**: auth is enforced; the 500 is a valid-token-specific failure (e.g., `GetCallerContext()` claim extraction, or a downstream service call).
-   - invalid → **500**: the authentication handler itself is throwing (e.g., introspection gRPC call to Core.Server failing, or `DotNetCloud.Module` policy scheme / `PermissionAuthorizationHandler` throwing).
-4. Compare with the **Music module host**, which uses the identical auth pattern (`AddTokenIntrospection()` + `DotNetCloud.Module` policy scheme + `AuthorizationPolicies.Configure` + `PermissionAuthorizationHandler`) and **works via Bearer** from the same Android client — the auth pattern is proven; any difference is AI-host-specific.
+**Verification (server, cloud.kimball.home, 2026-08-29):**
+- ✅ Deployed via `scripts/deploy.sh` (incremental); `/health/ready` **Healthy**; AI module host restarted with fixed binaries (md5-verified `DotNetCloud.Modules.AI.Data.dll` + `dotnetcloud.ai.dll` match build output).
+- ✅ Auth probe: no token → **401**; invalid Bearer token → **401** (authentication handler does not throw; route + `[Authorize]` present).
+- ✅ `dotnet build` clean; `DotNetCloud.Modules.AI.Tests` **28/28 pass**.
 
-**Fix expectations (once resolved):**
-- `GET /api/v1/ai/models` → **200** with a valid Bearer token.
-- `GET /api/v1/ai/health/ollama` → **200**, or **503** while Ollama isn't reachable from cloud (expected).
-- Remove/guard `app.UseDeveloperExceptionPage()` for production (currently leaks exception details).
-- After the fix, update the Active Handoff; the Android on-device round-trip (create → stream → list → rename → delete) is then re-run to complete the AI tab E2E.
+**Remaining — client to re-run on-device round-trip (monolith):** with the Android client's valid Bearer token on `https://cloud.dotnetcloud.net/`:
+- `GET /api/v1/ai/models` → expect **200**
+- `GET /api/v1/ai/conversations` → expect **200**
+- `GET /api/v1/ai/health/ollama` → expect **200** (or **503** if Ollama unreachable from cloud)
+- Re-run the AI tab E2E: create → stream → list → rename → delete.
 
 ### API contract (unchanged)
 
