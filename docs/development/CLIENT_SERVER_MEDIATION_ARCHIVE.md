@@ -11,7 +11,7 @@
 **Deliverables (client, all landed on `feature/android-ai-tab`):**
 - ✓ `Ai/IAiRestClient.cs`, `Ai/AiDtos.cs`, `Ai/HttpAiRestClient.cs` — envelope-aware REST client + SSE streaming parser.
 - ✓ `ViewModels/AiViewModel.cs` — conversation list, model picker, new chat, streaming, rename, delete, copy, resilient `LoadAsync`.
-- ✓ `Views/AiPage.xaml` + code-behind — conversation list + streaming chat view, Markdown rendering, role labels, avatars, "Copy as Markdown" button, keyboard-open re-layout fix (`OnSizeAllocated`).
+- ✓ `Views/AiPage.xaml` + code-behind — conversation list + streaming chat view, Markdown rendering, role labels, avatars, "Copy as Markdown" button, "Loading model into memory…" indicator, keyboard-collapse-on-send.
 - ✓ `Converters/MarkdownConverter.cs`, `Converters/AiMessageConverters.cs` (RoleName / IsAssistant / IsUser / CopiedState).
 - ✓ Module availability: `ModuleAvailabilityState` AI accessors, `AppShell.AiTab`, `App.xaml.cs` full-id module probes.
 - ✓ DI in `MauiProgram.cs` (+ `IClipboard` registration); icons `ai_icon.svg`, `person_icon.svg`.
@@ -23,7 +23,7 @@
 - ✓ `GET /api/v1/ai/models` → **200** (`gemma4:12b`); `GET /api/v1/ai/conversations` → **200**; `GET /api/v1/ai/health/ollama` → **200**.
 - ✓ E2E round-trip **PASS**: create → send/stream → reopen (persisted) → rename → delete.
 - ✓ Chat UI mirrors Blazor: role labels, avatars, "Copy as Markdown" (copy verified — "Copied!" feedback).
-- ✓ Fixed keyboard-open layout bug (message list overlapping the top status bar).
+- ✓ Soft-keyboard status-bar overlap handled: the keyboard collapses on Send (AI + Chat) because the Shell/MAUI edge-to-edge layout renders the list behind the status bar while the keyboard is open (app-wide — confirmed on both tabs).
 - ✓ Music tab unaffected.
 
 ---

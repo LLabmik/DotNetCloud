@@ -1,7 +1,7 @@
 # Android AI Tab — Implementation Plan
 
 > Branch: `feature/android-ai-tab`
-> Status: **COMPLETE** — Phases B–F implemented + unit-tested (Android tests **241 pass / 0 fail**) + full on-device E2E verified (monolith, 2026-08-29). Server-side REST/Bearer 500 **FIXED + deployed** by the server agent; E2E round-trip verified with a valid Bearer token on `https://cloud.dotnetcloud.net/`: models (200) → conversations (200) → create → stream → reopen → rename → delete. Chat UI mirrors the Blazor module (role labels, avatars, "Copy as Markdown" button + clipboard). Fixed a keyboard-open layout bug where the message list overlapped the top status bar. Phase A server work: DONE (deployed to cloud.kimball.home).
+> Status: **COMPLETE** — Phases B–F implemented + unit-tested (Android tests **242 pass / 0 fail**) + full on-device E2E verified (monolith, 2026-08-29/30). Server-side REST/Bearer 500 **FIXED + deployed** by the server agent; E2E round-trip verified with a valid Bearer token on `https://cloud.dotnetcloud.net/`: models (200) → conversations (200) → create → stream → reopen → rename → delete. Chat UI mirrors the Blazor module (role labels, avatars, "Copy as Markdown" button + clipboard, "Loading model into memory…" indicator). When the soft keyboard is open, the Shell/MAUI edge-to-edge layout renders the message list behind the status bar (app-wide — also affects the Chat tab); handled by **collapsing the keyboard on Send** (AI + Chat). Phase A server work: DONE (deployed to cloud.kimball.home).
 > Audience: implementation agent (lesser LLM). This document is self-contained — follow it literally.
 
 ## 0. Goal
