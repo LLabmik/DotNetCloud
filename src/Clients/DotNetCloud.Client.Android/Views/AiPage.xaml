@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="DotNetCloud.Client.Android.Views.AiPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:vm="clr-namespace:DotNetCloud.Client.Android.ViewModels"
+    xmlns:ai="clr-namespace:DotNetCloud.Client.Android.Ai"
+    xmlns:conv="clr-namespace:DotNetCloud.Client.Android.Converters"
+    x:DataType="vm:AiViewModel"
+    Shell.NavBarIsVisible="true"
+    Shell.BackgroundColor="#1E293B"
+    Shell.ForegroundColor="#F1F5F9"
+    BackgroundColor="#0F172A">
+
+    <ContentPage.Resources>
+        <ResourceDictionary>
+            <conv:MarkdownConverter x:Key="Markdown"/>
+            <conv:InvertBoolConverter x:Key="InvertBool"/>
+        </ResourceDictionary>
+    </ContentPage.Resources>
+
+    <Grid RowDefinitions="Auto,*">
+
+        <!-- Error banner -->
+        <Border Grid.Row="0"
+                IsVisible="{Binding ErrorMessage, Converter={StaticResource IsNotNull}}"
+                BackgroundColor="#7F1D1D"
+                StrokeThickness="0"
+                StrokeShape="RoundRectangle 8"
+                Margin="12,6"
+                Padding="10,8">
+            <Label Text="{Binding ErrorMessage}"
+                   TextColor="#FECACA"
+                   FontSize="13"
+                   LineBreakMode="WordWrap"/>
+        </Border>
+
+        <!-- ═══ Conversation list ═══ -->
+        <Grid Grid.Row="1"
+              IsVisible="{Binding ShowConversationList}"
+              RowDefinitions="Auto,Auto,Auto,*"
+              BackgroundColor="#0F172A">
+
+            <!-- Header -->
+            <Grid Grid.Row="0"
+                  ColumnDefinitions="*,Auto"
+                  Padding="16,12,16,4">
+                <Label Text="AI Assistant"
+                       FontSize="20"
+                       FontAttributes="Bold"
+                       TextColor="#F1F5F9"
+                       VerticalOptions="Center"/>
+                <Button Grid.Column="1"
+                        Text="New chat"
+                        Command="{Binding NewConversationCommand}"
+                        BackgroundColor="#0EA5E9"
+                        TextColor="White"
+                        CornerRadius="8"
+                        Padding="14,6"/>
+            </Grid>
+
+            <!-- Model picker -->
+            <Grid Grid.Row="1"
+                  ColumnDefinitions="Auto,*"
+                  Padding="16,4">
+                <Label Text="Model:"
+                       TextColor="#94A3B8"
+                       VerticalOptions="Center"/>
+                <Picker Grid.Column="1"
+                        ItemsSource="{Binding Models}"
+                        ItemDisplayBinding="{Binding Name}"
+                        SelectedItem="{Binding SelectedModelDto}"
+                        Title="Select model"
+                        TextColor="#F1F5F9"/>
+            </Grid>
+
+            <!-- Loading indicator -->
+            <ActivityIndicator Grid.Row="2"
+                               IsRunning="{Binding IsLoading}"
+                               IsVisible="{Binding IsLoading}"
+                               Color="#0EA5E9"
+                               HeightRequest="36"
+                               Margin="0,8"/>
+
+            <!-- Conversation list -->
+            <CollectionView Grid.Row="3"
+                            ItemsSource="{Binding Conversations}"
+                            SelectionMode="None">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="ai:AiConversationDto">
+                        <SwipeView>
+                            <SwipeView.RightItems>
+                                <SwipeItems Mode="Reveal">
+                                    <SwipeItem Text="Rename"
+                                               BackgroundColor="#0EA5E9"
+                                               Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.BeginRenameCommand}"
+                                               CommandParameter="{Binding .}"/>
+                                    <SwipeItem Text="Delete"
+                                               BackgroundColor="#DC2626"
+                                               Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.DeleteConversationCommand}"
+                                               CommandParameter="{Binding .}"/>
+                                </SwipeItems>
+                            </SwipeView.RightItems>
+
+                            <Border BackgroundColor="#1E293B"
+                                    StrokeThickness="0"
+                                    StrokeShape="RoundRectangle 12"
+                                    Margin="16,3"
+                                    Padding="14,12">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.SelectConversationCommand}"
+                                                          CommandParameter="{Binding .}"/>
+                                </Border.GestureRecognizers>
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <VerticalStackLayout Grid.Column="0"
+                                                         Spacing="2">
+                                        <Label Text="{Binding Title}"
+                                               TextColor="#F1F5F9"
+                                               FontSize="15"
+                                               FontAttributes="Bold"
+                                               LineBreakMode="TailTruncation"/>
+                                        <Label Text="{Binding UpdatedAt, StringFormat='{0:MMM d, yyyy}'}"
+                                               TextColor="#64748B"
+                                               FontSize="12"/>
+                                    </VerticalStackLayout>
+                                    <Label Grid.Column="1"
+                                           Text="&#x203A;"
+                                           TextColor="#64748B"
+                                           FontSize="20"
+                                           VerticalOptions="Center"/>
+                                </Grid>
+                            </Border>
+                        </SwipeView>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </Grid>
+
+        <!-- ═══ Chat view ═══ -->
+        <Grid Grid.Row="1"
+              IsVisible="{Binding ShowConversationList, Converter={StaticResource InvertBool}}"
+              RowDefinitions="Auto,Auto,*,Auto,Auto"
+              BackgroundColor="#0F172A">
+
+            <!-- Header: back + title + model -->
+            <Grid Grid.Row="0"
+                  ColumnDefinitions="Auto,*,Auto"
+                  Padding="8,6">
+                <Button Grid.Column="0"
+                        Text="&#x2039;"
+                        Command="{Binding BackToListCommand}"
+                        BackgroundColor="Transparent"
+                        TextColor="#0EA5E9"
+                        FontSize="26"
+                        Padding="10,0"
+                        WidthRequest="48"/>
+                <VerticalStackLayout Grid.Column="1"
+                                     Spacing="1"
+                                     VerticalOptions="Center">
+                    <Label Text="{Binding ActiveConversationTitle}"
+                           TextColor="#F1F5F9"
+                           FontSize="16"
+                           FontAttributes="Bold"
+                           LineBreakMode="TailTruncation"/>
+                    <Label Text="{Binding SelectedModel}"
+                           TextColor="#64748B"
+                           FontSize="12"/>
+                </VerticalStackLayout>
+                <Label Grid.Column="2"
+                       Text="AI"
+                       TextColor="#0EA5E9"
+                       FontAttributes="Bold"
+                       VerticalOptions="Center"
+                       Margin="0,0,12,0"/>
+            </Grid>
+
+            <!-- Ollama health warning -->
+            <Border Grid.Row="1"
+                    IsVisible="{Binding OllamaHealthy, Converter={StaticResource InvertBool}}"
+                    BackgroundColor="#7C2D12"
+                    StrokeThickness="0"
+                    StrokeShape="RoundRectangle 8"
+                    Margin="12,2"
+                    Padding="10,6">
+                <Label Text="AI may be unavailable — Ollama is not reachable."
+                       TextColor="#FDBA74"
+                       FontSize="12"/>
+            </Border>
+
+            <!-- Messages -->
+            <CollectionView x:Name="MessagesList"
+                            Grid.Row="2"
+                            ItemsSource="{Binding ActiveMessages}"
+                            SelectionMode="None"
+                            ItemsUpdatingScrollMode="KeepLastItemInView">
+                <CollectionView.EmptyView>
+                    <Label Text="Send a message to start the conversation."
+                           TextColor="#64748B"
+                           HorizontalOptions="Center"
+                           VerticalOptions="Center"
+                           Margin="24"/>
+                </CollectionView.EmptyView>
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="ai:AiMessageDto">
+                        <Grid Padding="12,4">
+                            <Border x:Name="MsgBubble"
+                                    Padding="12,8"
+                                    StrokeThickness="0"
+                                    StrokeShape="RoundRectangle 14"
+                                    BackgroundColor="#1E293B"
+                                    MaximumWidthRequest="320"
+                                    HorizontalOptions="Start">
+                                <Border.Triggers>
+                                    <DataTrigger TargetType="Border"
+                                                 Binding="{Binding Role}"
+                                                 Value="user">
+                                        <Setter Property="HorizontalOptions"
+                                                Value="End"/>
+                                        <Setter Property="BackgroundColor"
+                                                Value="#0EA5E9"/>
+                                    </DataTrigger>
+                                </Border.Triggers>
+                                <Label FormattedText="{Binding Content, Converter={StaticResource Markdown}}"
+                                       TextColor="#F1F5F9"
+                                       FontSize="14"
+                                       LineBreakMode="WordWrap"/>
+                            </Border>
+                        </Grid>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+
+            <!-- Streaming bubble -->
+            <Border Grid.Row="3"
+                    IsVisible="{Binding IsStreaming}"
+                    BackgroundColor="#1E293B"
+                    StrokeThickness="0"
+                    StrokeShape="RoundRectangle 14"
+                    Margin="12,4"
+                    Padding="12,8"
+                    HorizontalOptions="Start">
+                <Label FormattedText="{Binding StreamingDisplay, Converter={StaticResource Markdown}}"
+                       TextColor="#F1F5F9"
+                       FontSize="14"
+                       LineBreakMode="WordWrap"/>
+            </Border>
+
+            <!-- Composer -->
+            <Grid Grid.Row="4"
+                  ColumnDefinitions="*,Auto"
+                  ColumnSpacing="8"
+                  Padding="12,6">
+                <Editor Text="{Binding ComposerText}"
+                        Placeholder="Message the AI…"
+                        PlaceholderColor="#64748B"
+                        BackgroundColor="#1E293B"
+                        TextColor="#F1F5F9"
+                        AutoSize="TextChanges"
+                        HeightRequest="44"
+                        VerticalOptions="End"/>
+                <Button Grid.Column="1"
+                        Text="Send"
+                        Command="{Binding SendMessageCommand}"
+                        IsEnabled="{Binding IsStreaming, Converter={StaticResource InvertBool}}"
+                        BackgroundColor="#0EA5E9"
+                        TextColor="White"
+                        CornerRadius="10"
+                        Padding="14,10"
+                        VerticalOptions="End"/>
+            </Grid>
+        </Grid>
+    </Grid>
+
+</ContentPage>

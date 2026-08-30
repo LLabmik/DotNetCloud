@@ -10,6 +10,7 @@ public partial class AppShell : Shell
 {
     private static ShellContent? _musicTab;
     private static ShellContent? _chatTab;
+    private static ShellContent? _aiTab;
 
     /// <summary>Initializes a new <see cref="AppShell"/> and registers detail routes.</summary>
     public AppShell()
@@ -17,6 +18,7 @@ public partial class AppShell : Shell
         InitializeComponent();
         _musicTab = MusicTab;
         _chatTab = ChatTab;
+        _aiTab = AiTab;
 
         // Register routes for detail pages not expressed in the ShellContent hierarchy
         Routing.RegisterRoute("MessageList", typeof(MessageListPage));
@@ -46,6 +48,13 @@ public partial class AppShell : Shell
             _musicTab.IsVisible = visible;
     }
 
+    /// <summary>Shows/hides the AI tab.</summary>
+    public static void SetAiTabVisible(bool visible)
+    {
+        if (_aiTab is not null)
+            _aiTab.IsVisible = visible;
+    }
+
     /// <summary>
     /// Re-reads <see cref="ModuleAvailabilityState"/> and updates all tab visibilities
     /// accordingly. Called after a full module rescan.
@@ -53,6 +62,7 @@ public partial class AppShell : Shell
     public static void RefreshAllTabs()
     {
         SetMusicTabVisible(ModuleAvailabilityState.IsMusicModuleAvailable);
+        SetAiTabVisible(ModuleAvailabilityState.IsAiModuleAvailable);
     }
 }
 

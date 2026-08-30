@@ -56,6 +56,14 @@
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\ViewModels\MusicViewModel.cs" Link="AndroidApp\ViewModels\MusicViewModel.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\ViewModels\EqBandModel.cs" Link="AndroidApp\ViewModels\EqBandModel.cs" />
 
+    <!-- AI -->
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Ai\IAiRestClient.cs" Link="AndroidApp\Ai\IAiRestClient.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Ai\AiDtos.cs" Link="AndroidApp\Ai\AiDtos.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Ai\HttpAiRestClient.cs" Link="AndroidApp\Ai\HttpAiRestClient.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Auth\ITokenRefreshService.cs" Link="AndroidApp\Auth\ITokenRefreshService.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\ViewModels\AiViewModel.cs" Link="AndroidApp\ViewModels\AiViewModel.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Converters\MarkdownConverter.cs" Link="AndroidApp\Converters\MarkdownConverter.cs" />
+
     <!-- Chat -->
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\ViewModels\MessageListViewModel.cs" Link="AndroidApp\ViewModels\MessageListViewModel.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Chat\IChatRestClient.cs" Link="AndroidApp\Chat\IChatRestClient.cs" />

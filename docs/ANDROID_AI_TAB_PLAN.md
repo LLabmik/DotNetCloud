@@ -1,7 +1,7 @@
 # Android AI Tab — Implementation Plan
 
 > Branch: `feature/android-ai-tab`
-> Status: Ready for implementation
+> Status: Phases B–F implemented + unit-tested + on-device verified (monolith, 2026-08-29). ⚠️ E2E streaming gated on server-side REST/Bearer 500 fix (see `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md` Active Handoff). Phase A server work: DONE (deployed to cloud.kimball.home).
 > Audience: implementation agent (lesser LLM). This document is self-contained — follow it literally.
 
 ## 0. Goal

@@ -10,6 +10,7 @@ public sealed class ModuleAvailabilityStateTests
     {
         // Reset state before each test
         ModuleAvailabilityState.SetMusicAvailable(false);
+        ModuleAvailabilityState.SetAiAvailable(false);
     }
 
     [TestMethod]
@@ -49,5 +50,53 @@ public sealed class ModuleAvailabilityStateTests
     {
         // Should not throw
         ModuleAvailabilityState.SetMusicAvailable(true);
+    }
+
+    // ── AI module ───────────────────────────────────────────────────
+
+    [TestMethod]
+    public void IsAiModuleAvailable_DefaultsToFalse()
+    {
+        Assert.IsFalse(ModuleAvailabilityState.IsAiModuleAvailable);
+    }
+
+    [TestMethod]
+    public void IsAiModuleAvailable_CanBeSetToTrue()
+    {
+        ModuleAvailabilityState.SetAiAvailable(true);
+        Assert.IsTrue(ModuleAvailabilityState.IsAiModuleAvailable);
+    }
+
+    [TestMethod]
+    public void IsAiModuleAvailable_CanBeToggledBackToFalse()
+    {
+        ModuleAvailabilityState.SetAiAvailable(true);
+        ModuleAvailabilityState.SetAiAvailable(false);
+        Assert.IsFalse(ModuleAvailabilityState.IsAiModuleAvailable);
+    }
+
+    [TestMethod]
+    public void SetAiAvailable_FiresEvent_WhenChanged()
+    {
+        var fired = false;
+        ModuleAvailabilityState.AiAvailabilityChanged += () => fired = true;
+
+        ModuleAvailabilityState.SetAiAvailable(true);
+
+        Assert.IsTrue(fired);
+    }
+
+    [TestMethod]
+    public void SetAiAvailable_UsesAiModuleKey()
+    {
+        ModuleAvailabilityState.SetAiAvailable(true);
+        Assert.IsTrue(ModuleAvailabilityState.IsModuleAvailable("AI"));
+    }
+
+    [TestMethod]
+    public void SetAiAvailable_DoesNotAffectMusic()
+    {
+        ModuleAvailabilityState.SetAiAvailable(true);
+        Assert.IsFalse(ModuleAvailabilityState.IsMusicModuleAvailable);
     }
 }
