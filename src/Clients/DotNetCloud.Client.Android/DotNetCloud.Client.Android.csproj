@@ -83,6 +83,7 @@
 		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client" />
 		<PackageReference Include="Microsoft.Extensions.Http" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" />
+		<PackageReference Include="Markdig" />
 		<PackageReference Include="sqlite-net-pcl" />
 		<!-- Security: override vulnerable transitive deps (CVE-2025-6965, SQLite < 3.50.2).
 		     SQLitePCLRaw.lib.e_sqlite3.android only goes up to 2.1.11 (vulnerable, no fix);

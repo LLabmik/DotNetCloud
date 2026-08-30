@@ -852,6 +852,7 @@ public class Program
                 "/api/v1/wopi/files/",
                 "/api/v1/videos/",
                 "/api/v1/music/",
+                "/api/v1/ai/",
                 "/api/v1/files/",
             ];
         });
@@ -1129,6 +1130,7 @@ public class Program
         var moduleMappings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["api/v1/files"] = "dotnetcloud.files",
+            ["api/v1/ai"] = "dotnetcloud.ai",
             ["api/v1/music"] = "dotnetcloud.music",
             ["api/v1/videos"] = "dotnetcloud.video",
             ["api/v1/series"] = "dotnetcloud.video",

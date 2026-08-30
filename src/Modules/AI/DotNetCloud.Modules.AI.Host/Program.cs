@@ -1,3 +1,5 @@
+using DotNetCloud.Core.Auth.Authorization;
+using DotNetCloud.Core.Auth.Introspection;
 using DotNetCloud.Core.Data.Extensions;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Events;
@@ -43,9 +45,18 @@ builder.Services.AddDataProtection()
     .SetApplicationName("DotNetCloud")
     .PersistKeysToFileSystem(new DirectoryInfo(dpKeysPath));
 
-// Cookie auth — same cookie name as Core.Server. SecurePolicy=None because
-// the YARP proxy forwards over HTTP (localhost) with X-Forwarded-Proto set by proxy.
-builder.Services.AddAuthentication("Identity.Application")
+// Register token introspection client (replaces local JWT key validation).
+// Bearer tokens are validated by calling Core.Server's TokenIntrospection gRPC service.
+builder.Services.AddTokenIntrospection();
+
+// Authentication: supports both cookie (browser/Blazor) and introspection (desktop/mobile).
+// A policy scheme automatically routes to the correct handler based on the request.
+builder.Services.AddAuthentication(options =>
+    {
+        options.DefaultScheme = "DotNetCloud.Module";
+        options.DefaultAuthenticateScheme = "DotNetCloud.Module";
+        options.DefaultChallengeScheme = "DotNetCloud.Module";
+    })
     .AddCookie("Identity.Application", options =>
     {
         options.Cookie.Name = ".AspNetCore.Identity.Application";
@@ -77,9 +88,25 @@ builder.Services.AddAuthentication("Identity.Application")
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
             return Task.CompletedTask;
         };
+    })
+    .AddIntrospection(IntrospectionAuthenticationExtensions.SchemeName)
+    .AddPolicyScheme("DotNetCloud.Module", "DotNetCloud.Module", options =>
+    {
+        // Route to introspection handler for Bearer tokens, Cookie handler for browser requests
+        options.ForwardDefaultSelector = context =>
+        {
+            if (context.Request.Headers.TryGetValue("Authorization", out var auth)
+                && auth.Count > 0
+                && auth[0]?.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                return IntrospectionAuthenticationExtensions.SchemeName;
+            }
+            return "Identity.Application";
+        };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options => AuthorizationPolicies.Configure(options));
+builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
 
 // Register the gRPC-backed audit logger (SOC 2 CC4) — routes to Core.Server.
 builder.Services.AddAuditLogger();
@@ -119,8 +146,13 @@ builder.Services.AddHealthChecks()
 
 var app = builder.Build();
 
-// Show full exception details for debugging; remove in production.
-app.UseDeveloperExceptionPage();
+// Show full exception details for debugging in Development only.
+// In production, never leak exception details to clients (module hosts surface
+// unhandled exceptions as 500 via the YARP proxy, without the exception body).
+if (app.Environment.IsDevelopment())
+{
+    app.UseDeveloperExceptionPage();
+}
 
 // Map gRPC services
 app.MapGrpcService<AiGrpcService>();

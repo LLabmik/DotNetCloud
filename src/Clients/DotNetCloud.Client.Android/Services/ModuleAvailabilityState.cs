@@ -45,6 +45,19 @@ public static class ModuleAvailabilityState
         MusicAvailabilityChanged?.Invoke();
     }
 
+    /// <summary>Whether the AI module is installed and available on the connected server.</summary>
+    public static bool IsAiModuleAvailable => _availableModules.Contains("AI");
+
+    /// <summary>Fired when <see cref="IsAiModuleAvailable"/> changes.</summary>
+    public static event Action? AiAvailabilityChanged;
+
+    /// <summary>Sets <see cref="IsAiModuleAvailable"/> and fires <see cref="AiAvailabilityChanged"/>.</summary>
+    public static void SetAiAvailable(bool available)
+    {
+        SetModuleAvailable("AI", available);
+        AiAvailabilityChanged?.Invoke();
+    }
+
     /// <summary>Returns true if the named module is currently available.</summary>
     public static bool IsModuleAvailable(string moduleName) => _availableModules.Contains(moduleName);
 

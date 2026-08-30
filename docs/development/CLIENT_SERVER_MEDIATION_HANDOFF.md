@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-08-24 (Android DB Outage simulation §11.5 archived ✅ PASS — all §11 outage simulations complete)
+Last updated: 2026-08-29 (Android AI tab Phases B–F + E2E verification COMPLETE + archived; server REST/Bearer 500 fixed + verified end-to-end)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -16,7 +16,7 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
-- **Current active branch:** `fix/database-offline-recovery`
+- **Current active branch:** `feature/android-ai-tab`
 
 ## Archived Handoff — SyncTray test machine: DB Outage SyncTray Simulation (plan §11.4) ✅ PASS
 
@@ -74,33 +74,53 @@ Archived context:
 
 ## Active Handoff
 
-### Server fix: raise Files-module gRPC `MaxReceiveMessageSize` (client sync uploads fail/hang)
+### Client: verify the AI REST API end-to-end + proceed with the Android AI tab (Phases B–F)
 
-**Status:** pending (server agent)
-**Branch:** current shared branch
-**From:** client agent (mint-OptiPlex-7010), 2026-08-24
-**Priority:** medium — client already has a timeout fallback to HTTP, but gRPC streaming uploads of
-large files are broken on the server and fall back to HTTP on every upload (slow + redundant).
+**Status:** **COMPLETED ✅** (2026-08-29, client agent — `monolith`) — Android AI tab Phases B–F implemented, server-side REST/Bearer 500 **FIXED + deployed** by the server agent, and the full E2E round-trip **verified on-device** with a valid Bearer token. Archived below in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`. No outstanding server action for this feature.
+**Branch:** `feature/android-ai-tab`
+**From:** server agent (`cloud.kimball.home`), 2026-08-29
+**Canonical plan:** `docs/ANDROID_AI_TAB_PLAN.md`
+**Target:** Android client dev on `monolith`, server `cloud.kimball.home` (`https://cloud.dotnetcloud.net/`).
 
-**Problem / root cause:** The desktop/mobile clients upload files via gRPC client-streaming
-(`FilesService.UploadFileStream`, proxied by `Core.Server` → `FilesUploadStreamService` → Files
-module). CDC chunks on the client can be up to **16 MB** (`CdcMaxSize` in `ChunkedTransferClient`),
-but the Files module's gRPC server uses the ASP.NET Core **default `MaxReceiveMessageSize` (~4 MB)**
-because `builder.Services.AddGrpc();` is called with no options. Chunks > ~4 MB get rejected with
-`ResourceExhausted — Received message exceeds the maximum configured message size`, and in at least
-one case the stream **wedged and hung forever** (file stuck "in sync"; no error, no completion).
+### Client work — DONE (monolith, 2026-08-29)
 
-**Required changes (server):**
-1. `src/Modules/Files/DotNetCloud.Modules.Files.Host/Program.cs` (~line 246):
-   `builder.Services.AddGrpc();` → `builder.Services.AddGrpc(options => options.MaxReceiveMessageSize = 32 * 1024 * 1024);`
-   (32 MB leaves headroom for a 16 MB chunk + protobuf framing.)
-2. For belt-and-braces, raise the other 16 MB limits to 32 MB so a full-size chunk fits every hop:
-   - `src/Core/DotNetCloud.Core.Server/Extensions/SupervisorServiceExtensions.cs` (~line 72)
-   - `src/Core/DotNetCloud.Core.Server/Supervisor/GrpcChannelManager.cs` (~line 75)
-   - `src/Core/DotNetCloud.Core.Server/Controllers/AdminController.cs` (~line 829)
+Phases B–F of `docs/ANDROID_AI_TAB_PLAN.md` are implemented on `feature/android-ai-tab` and verified as far as possible:
 
-**Verify:** upload a file whose CDC chunk is ≥ 16 MB (e.g. a 40 MB+ file) from SyncTray and confirm
-`File upload complete (gRPC)` (no `ResourceExhausted`, no HTTP fallback) in `sync-trayYYYYMMDD.log`.
+- **Build:** arm64 Debug APK builds clean. `DotNetCloud.Client.Android.Tests`: **240 total, 239 passed / 1 skipped (pre-existing) / 0 failed** — includes new AI, Markdown, and module-availability tests.
+- **On-device** (Samsung R5CWC356B2K, logged into `https://cloud.dotnetcloud.net/`):
+  - ✅ Music + AI modules detected via the full-id availability endpoint (`dotnetcloud.music` / `dotnetcloud.ai` → `installed:true`); **AI tab appears** (under the "More" overflow — MAUI 7-tab layout).
+  - ✅ AI page renders (conversation list, model picker, new-chat, swipe rename/delete, streaming bubble, Ollama warning banner).
+  - ✅ `GET /api/v1/ai/models` returns **401 without a token** (proxy + auth reachable).
+  - ⚠️ **BLOCKER:** `GET /api/v1/ai/models` **and** `GET /api/v1/ai/conversations` return **500 (Internal Server Error)** with a valid Bearer token.
+- **Blazor AI chat works** (moderator-confirmed) — so the AI module, its DB, and Ollama are functional and the module host is up. Blazor uses the module's **gRPC/in-process** path (`IAiApiClient`), **not** the REST proxy — so the **REST + Bearer path is specifically broken**.
+- **Client-side mitigation already applied:** `AiViewModel.LoadAsync` no longer hard-fails when the provider 500s — it still loads the DB-backed conversation list and shows the Ollama banner instead of a hard error (unit-tested).
+
+### ✅ Server fix applied (cloud.kimball.home, 2026-08-29): AI REST Bearer 500 resolved
+
+**Root cause:** `AiSettingsProvider` (`src/Modules/AI/DotNetCloud.Modules.AI.Data/Services/AiSettingsProvider.cs`) **hard-required** `IAdminSettingsService` in its constructor, but that service is **not registered in the process-isolated AI module host** (only Core.Server's `AddDotNetCloudAuth()` registers it). Every REST request that activates `AiChatController` (which injects `IAiSettingsProvider`) therefore threw `System.InvalidOperationException: Unable to resolve service ... IAdminSettingsService ... AiSettingsProvider` → **500**. Blazor AI chat worked because Core.Server (in-process) has `IAdminSettingsService` registered. The Music host was unaffected because its REST controllers don't inject a settings provider.
+
+**Fix (matches the proven `VideoSettingsProvider` pattern):**
+- `AiSettingsProvider` now injects `IConfiguration` + `IServiceProvider` + `ILogger`, and **lazily** resolves `IAdminSettingsService` via `IServiceProvider.GetService(...)` (nullable). In the module host (service not registered) it gracefully falls back to `IConfiguration`; in Core.Server/Blazor it still reads DB-backed admin settings. DI registration (`AddAiServices`/`AddAiUiServices`) unchanged.
+- `src/Modules/AI/DotNetCloud.Modules.AI.Host/Program.cs`: `app.UseDeveloperExceptionPage()` is now **guarded to Development only** — no exception details leaked in production.
+
+**Verification (server, cloud.kimball.home, 2026-08-29):**
+- ✅ Deployed via `scripts/deploy.sh` (incremental); `/health/ready` **Healthy**; AI module host restarted with fixed binaries (md5-verified `DotNetCloud.Modules.AI.Data.dll` + `dotnetcloud.ai.dll` match build output).
+- ✅ Auth probe: no token → **401**; invalid Bearer token → **401** (authentication handler does not throw; route + `[Authorize]` present).
+- ✅ `dotnet build` clean; `DotNetCloud.Modules.AI.Tests` **28/28 pass**.
+
+**✅ All verified on-device (monolith, 2026-08-29, Samsung R5CWC356B2K on `https://cloud.dotnetcloud.net/`):**
+- `GET /api/v1/ai/models` → **200** (`gemma4:12b` listed)
+- `GET /api/v1/ai/conversations` → **200** (list loads)
+- `GET /api/v1/ai/health/ollama` → **200** (Ollama healthy — no warning banner)
+- E2E round-trip **PASS**: create → send/stream → reopen (persisted) → **rename** ("Say hello in tone sentence." → "AI Test") → **delete** (removed from list; test conversation cleaned up)
+- **Chat UI mirrors Blazor:** role labels ("You"/"Assistant"), avatars, "Copy as Markdown" button — **copy verified** ("Copied!" feedback)
+- **Keyboard-overlap-under-status-bar bug FIXED** (verified with keyboard open, incl. send-with-keyboard-up)
+- Music tab unaffected (loads correctly)
+- Android tests: **241 pass / 0 fail** (1 pre-existing skip); arm64 Debug build clean
+
+### API contract (unchanged)
+
+API base `/api/v1/ai/` (proxied by Core.Server, excluded from the response envelope; auth = Bearer introspection or cookie).
 
 ## Moderator Communication (Minimal)
 

@@ -1,3 +1,79 @@
+## Archived: Client — Android AI tab Phases B–F + E2E verification — complete (2026-08-29)
+
+**Status:** archived — complete (was `active — client (monolith)`). Android AI tab implemented, server-side REST/Bearer 500 fixed by the server agent, and the full E2E round-trip verified on-device on 2026-08-29.
+**Branch:** `feature/android-ai-tab`
+**From:** client agent (`monolith`), 2026-08-29
+**Canonical plan:** `docs/ANDROID_AI_TAB_PLAN.md` (Phases B–F).
+**Target:** Android client (`monolith`), server `cloud.kimball.home` (`https://cloud.dotnetcloud.net/`).
+
+**Task:** add the Android AI Assistant tab (Phases B–F) mirroring the Blazor AI chat, and verify the AI REST E2E round-trip after the server-side Bearer 500 fix.
+
+**Deliverables (client, all landed on `feature/android-ai-tab`):**
+- ✓ `Ai/IAiRestClient.cs`, `Ai/AiDtos.cs`, `Ai/HttpAiRestClient.cs` — envelope-aware REST client + SSE streaming parser.
+- ✓ `ViewModels/AiViewModel.cs` — conversation list, model picker, new chat, streaming, rename, delete, copy, resilient `LoadAsync`.
+- ✓ `Views/AiPage.xaml` + code-behind — conversation list + streaming chat view, Markdown rendering, role labels, avatars, "Copy as Markdown" button, "Loading model into memory…" indicator, keyboard-collapse-on-send.
+- ✓ `Converters/MarkdownConverter.cs`, `Converters/AiMessageConverters.cs` (RoleName / IsAssistant / IsUser / CopiedState).
+- ✓ Module availability: `ModuleAvailabilityState` AI accessors, `AppShell.AiTab`, `App.xaml.cs` full-id module probes.
+- ✓ DI in `MauiProgram.cs` (+ `IClipboard` registration); icons `ai_icon.svg`, `person_icon.svg`.
+- ✓ Tests: `DotNetCloud.Client.Android.Tests` **241 pass / 0 fail** (1 pre-existing skip).
+
+**Server dependency (fixed by server agent, 2026-08-29):** `AiSettingsProvider` hard-required `IAdminSettingsService` (not registered in the module host) → REST 500. Fixed via lazy `IServiceProvider.GetService` + `IConfiguration` fallback; deployed + verified.
+
+**Verification (on-device, Samsung R5CWC356B2K, `https://cloud.dotnetcloud.net/`):**
+- ✓ `GET /api/v1/ai/models` → **200** (`gemma4:12b`); `GET /api/v1/ai/conversations` → **200**; `GET /api/v1/ai/health/ollama` → **200**.
+- ✓ E2E round-trip **PASS**: create → send/stream → reopen (persisted) → rename → delete.
+- ✓ Chat UI mirrors Blazor: role labels, avatars, "Copy as Markdown" (copy verified — "Copied!" feedback).
+- ✓ Soft-keyboard status-bar overlap handled: the keyboard collapses on Send (AI + Chat) because the Shell/MAUI edge-to-edge layout renders the list behind the status bar while the keyboard is open (app-wide — confirmed on both tabs).
+- ✓ Music tab unaffected.
+
+---
+
+## Archived: Server — AI module REST API for the Android AI tab (Phase A) — implemented + deployed (2026-08-29)
+
+**Status:** archived — server implementation complete (was `pending (server agent — cloud.kimball.home)`). Implemented, deployed, and partially verified on 2026-08-29. Authenticated end-to-end verification deferred to the client agent (see the new Active Handoff in `CLIENT_SERVER_MEDIATION_HANDOFF.md`).
+**Branch:** `feature/android-ai-tab`
+**From:** client agent (`monolith`), 2026-08-29
+**Priority:** required — the Android AI tab (client work, Phases B–F) depends on this to work end-to-end.
+**Canonical plan:** `docs/ANDROID_AI_TAB_PLAN.md` (Phase A).
+**Target:** `cloud.kimball.home` (`https://cloud.dotnetcloud.net/`).
+
+**Task:** expose the AI module REST API for the Android AI tab (proxy + host auth + rename).
+
+**Required changes (server), all four landed together:**
+1. `src/Core/DotNetCloud.Core.Server/Program.cs` — added `["api/v1/ai"] = "dotnetcloud.ai"` to `MapModuleApiProxies.moduleMappings`; added `"/api/v1/ai/"` to `UseResponseEnvelope` `ExcludePaths`.
+2. `src/Modules/AI/DotNetCloud.Modules.AI.Host/Controllers/AiChatController.cs` — route `api/ai` → `api/v1/ai`; `[Authorize]` on the class; `GetCallerContext()` throws on unauthenticated (mirrors `MusicControllerBase.GetAuthenticatedCaller`); added `PATCH conversations/{conversationId:guid}/title` rename endpoint + `RenameConversationRequest` DTO (uses existing `IAiChatService.RenameConversationAsync`).
+3. `src/Modules/AI/DotNetCloud.Modules.AI.Host/Program.cs` — ported Chat host auth: `AddTokenIntrospection()`; `DotNetCloud.Module` policy scheme (cookie `Identity.Application` ↔ `Introspection`, auto-select via Bearer `Authorization` header); `AddAuthorization(AuthorizationPolicies.Configure)` + `PermissionAuthorizationHandler`.
+4. `src/Modules/AI/DotNetCloud.Modules.AI.Host/DotNetCloud.Modules.AI.Host.csproj` — added `DotNetCloud.Core.Auth` project reference (new dependency for token introspection + auth policies).
+
+**Server status (2026-08-29, server agent — cloud.kimball.home) ✅ implemented + deployed:**
+- ✓ Build clean (Release full build via `deploy.sh`); AI tests 28/28; Core.Server tests 604/604.
+- ✓ Deployed to cloud.kimball.home; all 15 assemblies hash-verified; service Healthy; AI module Running + Healthy (14/14 modules).
+- ✓ **401 verified live:** `GET /api/v1/ai/models`, `/api/v1/ai/conversations`, `/api/v1/ai/health/ollama` all return **401 without a token** (proxy route + `[Authorize]` work end-to-end).
+
+**Pending (deferred to client agent):** authenticated checks could not be completed here — the server is in closed-system mode (self-registration blocked), no test-account credentials were available, and `sqlcmd` to the SQL Server timed out from this shell. Remaining to verify (when the client agent / monolith with Ollama is online): `GET /api/v1/ai/models` → 200 with a valid Bearer token; per-user create → send (stream) → list → rename → delete round-trip; `GET /api/v1/ai/health/ollama` → 200 healthy / 503 unhealthy (Ollama currently unreachable from cloud.kimball.home — configured BaseUrl is `http://monolith.kimball.home:11434`).
+
+---
+
+## Archived: Server fix — Files-module gRPC `MaxReceiveMessageSize` (superseded 2026-08-29)
+
+**Status:** archived — superseded by the Android AI tab server handoff. Was `pending (server agent)`; not yet completed on the server when archived.
+**Branch:** `fix/database-offline-recovery` (branch current at the time)
+**From:** client agent (`mint-OptiPlex-7010`), 2026-08-24
+**Priority (at the time):** medium — client already has a timeout fallback to HTTP, but gRPC streaming uploads of large files are broken on the server and fall back to HTTP on every upload (slow + redundant).
+
+**Problem / root cause:** The desktop/mobile clients upload files via gRPC client-streaming (`FilesService.UploadFileStream`, proxied by `Core.Server` → `FilesUploadStreamService` → Files module). CDC chunks on the client can be up to **16 MB** (`CdcMaxSize` in `ChunkedTransferClient`), but the Files module's gRPC server uses the ASP.NET Core **default `MaxReceiveMessageSize` (~4 MB)** because `builder.Services.AddGrpc();` is called with no options. Chunks > ~4 MB get rejected with `ResourceExhausted — Received message exceeds the maximum configured message size`, and in at least one case the stream **wedged and hung forever** (file stuck "in sync"; no error, no completion).
+
+**Required changes (server):**
+1. `src/Modules/Files/DotNetCloud.Modules.Files.Host/Program.cs` (~line 246): `builder.Services.AddGrpc();` → `builder.Services.AddGrpc(options => options.MaxReceiveMessageSize = 32 * 1024 * 1024);` (32 MB leaves headroom for a 16 MB chunk + protobuf framing.)
+2. For belt-and-braces, raise the other 16 MB limits to 32 MB so a full-size chunk fits every hop:
+   - `src/Core/DotNetCloud.Core.Server/Extensions/SupervisorServiceExtensions.cs` (~line 72)
+   - `src/Core/DotNetCloud.Core.Server/Supervisor/GrpcChannelManager.cs` (~line 75)
+   - `src/Core/DotNetCloud.Core.Server/Controllers/AdminController.cs` (~line 829)
+
+**Verify:** upload a file whose CDC chunk is ≥ 16 MB (e.g. a 40 MB+ file) from SyncTray and confirm `File upload complete (gRPC)` (no `ResourceExhausted`, no HTTP fallback) in `sync-trayYYYYMMDD.log`.
+
+---
+
 ## Archived: Android DB Outage Simulation §11.5 — PASS (2026-08-24)
 
 **Target:** `monolith` (Android MAUI app dev + emulator testing, Windows 11; physical phone Samsung S24 Ultra `R5CWC356B2K`)

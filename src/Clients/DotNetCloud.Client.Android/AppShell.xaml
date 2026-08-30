@@ -57,6 +57,14 @@
             ContentTemplate="{DataTemplate views:NotesPage}"/>
 
         <ShellContent
+            x:Name="AiTab"
+            Route="Ai"
+            Title="AI"
+            Icon="ai_icon.png"
+            IsVisible="False"
+            ContentTemplate="{DataTemplate views:AiPage}"/>
+
+        <ShellContent
             Route="Settings"
             Title="Settings"
             Icon="settings_icon.png"

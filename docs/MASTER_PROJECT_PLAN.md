@@ -118,7 +118,7 @@
 | Phase 6 (Email & Bookmarks)          | 9       | 9         | 0           | 0       |
 | Phase 8 (Full-Text Search)           | 18      | 18        | 0           | 0       |
 | Phase 7 (Video Calling)              | 11      | 11        | 0           | 0       |
-| Phase 9                              | 7       | 4         | 1           | 2       |
+| Phase 9                              | 8       | 5         | 1           | 2       |
 | Phase 11 (Auto-Updates)              | 16      | 7         | 0           | 9       |
 | DM & Host Calls — Phase A            | 3       | 3         | 0           | 0       |
 | DM & Host Calls — Phase B            | 2       | 0         | 0           | 2       |
@@ -3188,6 +3188,20 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 ---
 
 ## Phase 9: AI Assistant
+
+### Section: Phase 9.8 — Android AI Tab: Rich Markdown Rendering
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ Markdig pinned as a direct dependency in `DotNetCloud.Client.Android.csproj` (CPM 1.3.2)
+- ✓ `Ai/MarkdownHtmlFormatter.cs` — pure Markdig → themed HTML renderer (headings, lists, tables, blockquotes, fenced code; raw HTML escaped; CSP `default-src 'none'`)
+- ✓ `Converters/MarkdownHtmlConverters.cs` — `MarkdownHtmlConverter` + `IsRichMarkdownConverter`
+- ✓ `Controls/MarkdownWebView.cs` — auto-height WebView; http/https links open in the system browser; all other navigation blocked
+- ✓ `AiPage.xaml` — completed assistant messages render as HTML (WebView) when block Markdown is present; inline-only messages stay on the lightweight `Label` path; streaming bubble unchanged
+- ✓ `MarkdownHtmlFormatterTests` — headings, lists, tables, fenced code, raw-HTML escaping, `NeedsHtmlRendering`
+
+**Notes:** Android AI tab now renders full Markdown via client-side Markdig → themed HTML → auto-height WebView, reusing the Notes WebView pattern. Streaming remains on the lightweight `FormattedString` renderer for performance. Verification (build + unit tests, on-device E2E) is the remaining gate before commit.
 
 ### Section: Phase 9.1 — Core AI Interfaces & Module Scaffold
 

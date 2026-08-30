@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.DependencyInjection;
+using DotNetCloud.Client.Android.Ai;
 using DotNetCloud.Client.Android.Auth;
 using DotNetCloud.Client.Android.Calendar;
 using DotNetCloud.Client.Android.Chat;
@@ -13,6 +14,7 @@ using DotNetCloud.Client.Core;
 using DotNetCloud.Client.Core.Api;
 using DotNetCloud.Client.Core.Services;
 using Microsoft.Extensions.Logging;
+using Microsoft.Maui.ApplicationModel;
 
 namespace DotNetCloud.Client.Android;
 
@@ -110,6 +112,15 @@ public static class MauiProgram
         builder.Services.AddSingleton<IMusicPlayerService, MusicPlayerService>();
         builder.Services.AddSingleton<IEqualizerService, AndroidEqualizerService>();
 
+        // ── AI ───────────────────────────────────────────────────────────
+        builder.Services.AddHttpClient<IAiRestClient, HttpAiRestClient>()
+            .AddHttpMessageHandler<TimeoutHandler>()
+            .AddHttpMessageHandler<AuthenticatedHttpClientHandler>()
+            .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
+        // Clipboard for the AI message copy action (registered explicitly so the
+        // ViewModel stays resolvable regardless of MAUI Essentials defaults).
+        builder.Services.AddSingleton<IClipboard>(Clipboard.Default);
+
         // ── Calendar ────────────────────────────────────────────────────
         builder.Services.AddHttpClient<ICalendarRestClient, HttpCalendarRestClient>()
             .AddHttpMessageHandler<TimeoutHandler>()
@@ -133,6 +144,7 @@ public static class MauiProgram
         builder.Services.AddTransient<SettingsViewModel>();
         builder.Services.AddTransient<FileBrowserViewModel>();
         builder.Services.AddTransient<MusicViewModel>();
+        builder.Services.AddTransient<AiViewModel>();
         builder.Services.AddTransient<CalendarViewModel>();
         builder.Services.AddTransient<EventDetailViewModel>();
         builder.Services.AddTransient<EventEditViewModel>();
@@ -149,6 +161,7 @@ public static class MauiProgram
         builder.Services.AddTransient<SettingsPage>();
         builder.Services.AddTransient<FileBrowserPage>();
         builder.Services.AddTransient<MusicPage>();
+        builder.Services.AddTransient<AiPage>();
         builder.Services.AddTransient<CalendarPage>();
         builder.Services.AddTransient<EventDetailPage>();
         builder.Services.AddTransient<EventEditPage>();

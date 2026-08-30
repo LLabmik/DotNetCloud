@@ -189,6 +189,28 @@ public partial class MessageListPage : ContentPage
             $"[MessageListPage] NewMessageAdded (isNearBottom={_isNearBottom}, count={_vm.Messages.Count}, mode={MessageList.ItemsUpdatingScrollMode})");
     }
 
+    /// <summary>
+    /// Collapses the soft keyboard when a chat message is sent. While the keyboard is open,
+    /// the Shell/MAUI edge-to-edge layout can render the message list behind the status bar
+    /// (WindowSoftInputMode=AdjustResize); dismissing the keyboard on send restores the normal
+    /// layout.
+    /// </summary>
+    private void OnSendTapped(object? sender, EventArgs e)
+    {
+        ComposerEditor?.Unfocus();
+
+        var activity = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity;
+        var inputMethodManager = activity?.GetSystemService(global::Android.Content.Context.InputMethodService)
+            as global::Android.Views.InputMethods.InputMethodManager;
+        if (inputMethodManager is null)
+            return;
+
+        var token = (ComposerEditor?.Handler?.PlatformView as global::Android.Views.View)?.WindowToken
+            ?? activity?.Window?.DecorView?.WindowToken;
+        if (token is not null)
+            inputMethodManager.HideSoftInputFromWindow(token, global::Android.Views.InputMethods.HideSoftInputFlags.None);
+    }
+
     private async void OnViewDetailsRequested(object? sender, EventArgs e)
     {
         await MainThread.InvokeOnMainThreadAsync(() =>

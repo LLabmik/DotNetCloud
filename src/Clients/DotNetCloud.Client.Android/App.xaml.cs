@@ -395,8 +395,8 @@ public partial class App : Application
             }
 
             // ── Check Music module ──────────────────────────────────
-            // Try the official module availability endpoint first.
-            var musicAvailable = await CheckMusicModuleEndpointAsync(baseUrl, token);
+            // Try the official module availability endpoint first (full module id).
+            var musicAvailable = await CheckModuleEndpointAsync(baseUrl, token, "dotnetcloud.music");
 
             // Fallback: probe an actual music API endpoint to double-check
             // (the module may be running but not registered in the core module registry).
@@ -413,6 +413,21 @@ public partial class App : Application
                 Log.Info("DotNetCloud", "CheckAvailableModulesAsync: Music tab set visible");
             }
 
+            // ── Check AI module ─────────────────────────────────────
+            var aiAvailable = await CheckModuleEndpointAsync(baseUrl, token, "dotnetcloud.ai");
+            if (!aiAvailable)
+            {
+                aiAvailable = await ProbeAiApiAsync(baseUrl, token);
+            }
+
+            Log.Info("DotNetCloud", $"CheckAvailableModulesAsync: aiAvailable={aiAvailable}");
+            ModuleAvailabilityState.SetAiAvailable(aiAvailable);
+            if (aiAvailable)
+            {
+                AppShell.SetAiTabVisible(true);
+                Log.Info("DotNetCloud", "CheckAvailableModulesAsync: AI tab set visible");
+            }
+
             // ── Future modules: add additional checks here ──────────
             // Each new module follows the same pattern:
             //   1. Check the module availability endpoint
@@ -425,22 +440,24 @@ public partial class App : Application
             Log.Error("DotNetCloud", $"CheckAvailableModulesAsync: exception: {ex.Message}");
             ModuleAvailabilityState.SetMusicAvailable(false);
             AppShell.SetMusicTabVisible(false);
+            ModuleAvailabilityState.SetAiAvailable(false);
+            AppShell.SetAiTabVisible(false);
         }
     }
 
-    private static async Task<bool> CheckMusicModuleEndpointAsync(string baseUrl, string token)
+    private static async Task<bool> CheckModuleEndpointAsync(string baseUrl, string token, string moduleId)
     {
         try
         {
-            var url = $"{baseUrl}/api/v1/core/modules/music/available";
-            Log.Info("DotNetCloud", $"CheckMusicModuleEndpoint: GET {url}");
+            var url = $"{baseUrl}/api/v1/core/modules/{moduleId}/available";
+            Log.Info("DotNetCloud", $"CheckModuleEndpoint: GET {url}");
             using var http = new HttpClient();
             http.DefaultRequestHeaders.Authorization =
                 new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 
             var response = await http.GetAsync(url);
             var body = await response.Content.ReadAsStringAsync();
-            Log.Info("DotNetCloud", $"CheckMusicModuleEndpoint: status={(int)response.StatusCode} body={body}");
+            Log.Info("DotNetCloud", $"CheckModuleEndpoint: status={(int)response.StatusCode} body={body}");
 
             if (!response.IsSuccessStatusCode)
                 return false;
@@ -455,7 +472,7 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
-            Log.Warn("DotNetCloud", $"CheckMusicModuleEndpoint: exception {ex.Message}");
+            Log.Warn("DotNetCloud", $"CheckModuleEndpoint: exception {ex.Message}");
             return false;
         }
     }
@@ -485,6 +502,34 @@ public partial class App : Application
         catch (Exception ex)
         {
             Log.Warn("DotNetCloud", $"ProbeMusicApi: exception {ex.Message}");
+            return false;
+        }
+    }
+
+    private static async Task<bool> ProbeAiApiAsync(string baseUrl, string token)
+    {
+        try
+        {
+            // The /models endpoint exists (and requires auth) only when the AI
+            // module is installed and the proxy route is deployed.
+            var url = $"{baseUrl}/api/v1/ai/models";
+            Log.Info("DotNetCloud", $"ProbeAiApi: GET {url}");
+            using var http = new HttpClient();
+            http.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+            var response = await http.GetAsync(url);
+            var status = (int)response.StatusCode;
+            var body = await response.Content.ReadAsStringAsync();
+            Log.Info("DotNetCloud", $"ProbeAiApi: status={status} body={body}");
+
+            // 200 or 401 means the endpoint exists (module reachable through the proxy).
+            // 404 means not proxied / not installed.
+            return status == 200 || status == 401;
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("DotNetCloud", $"ProbeAiApi: exception {ex.Message}");
             return false;
         }
     }
