@@ -28,6 +28,24 @@ public partial class AiPage : ContentPage
             await _vm.LoadAsync();
     }
 
+    /// <inheritdoc />
+    protected override void OnSizeAllocated(double width, double height)
+    {
+        base.OnSizeAllocated(width, height);
+
+        // Android soft-keyboard workaround (WindowSoftInputMode=AdjustResize): when the
+        // keyboard shows, the window resizes and MAUI/Shell can drop the top chrome
+        // (navbar + in-page header) during the re-measure, leaving the message list
+        // rendered up under the status bar. Once the resize settles, force a layout
+        // pass so the header and scroll area restore their correct positions.
+        Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(120), () =>
+        {
+            (Content as IView)?.InvalidateMeasure();
+            if (Shell.Current is IView shellView)
+                shellView.InvalidateMeasure();
+        });
+    }
+
     /// <summary>Scrolls the message list to the bottom (new message or stream chunk).</summary>
     private void OnScrollRequested()
     {

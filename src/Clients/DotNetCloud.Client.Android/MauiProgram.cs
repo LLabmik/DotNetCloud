@@ -14,6 +14,7 @@ using DotNetCloud.Client.Core;
 using DotNetCloud.Client.Core.Api;
 using DotNetCloud.Client.Core.Services;
 using Microsoft.Extensions.Logging;
+using Microsoft.Maui.ApplicationModel;
 
 namespace DotNetCloud.Client.Android;
 
@@ -116,6 +117,9 @@ public static class MauiProgram
             .AddHttpMessageHandler<TimeoutHandler>()
             .AddHttpMessageHandler<AuthenticatedHttpClientHandler>()
             .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
+        // Clipboard for the AI message copy action (registered explicitly so the
+        // ViewModel stays resolvable regardless of MAUI Essentials defaults).
+        builder.Services.AddSingleton<IClipboard>(Clipboard.Default);
 
         // ── Calendar ────────────────────────────────────────────────────
         builder.Services.AddHttpClient<ICalendarRestClient, HttpCalendarRestClient>()

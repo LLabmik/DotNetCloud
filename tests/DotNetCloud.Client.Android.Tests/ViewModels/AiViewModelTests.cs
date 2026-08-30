@@ -3,6 +3,7 @@ using DotNetCloud.Client.Android.Auth;
 using DotNetCloud.Client.Android.Services;
 using DotNetCloud.Client.Android.ViewModels;
 using DotNetCloud.Client.Core;
+using Microsoft.Maui.ApplicationModel;
 using Moq;
 
 namespace DotNetCloud.Client.Android.Tests.ViewModels;
@@ -19,6 +20,7 @@ public sealed class AiViewModelTests
     private Mock<IServerConnectionStore> _serverStore = null!;
     private Mock<ISecureTokenStore> _tokenStore = null!;
     private Mock<ITokenRefreshService> _tokenRefresh = null!;
+    private Mock<IClipboard> _clipboard = null!;
 
     private AiViewModel _vm = null!;
 
@@ -29,6 +31,8 @@ public sealed class AiViewModelTests
         _serverStore = new Mock<IServerConnectionStore>(MockBehavior.Strict);
         _tokenStore = new Mock<ISecureTokenStore>(MockBehavior.Strict);
         _tokenRefresh = new Mock<ITokenRefreshService>(MockBehavior.Strict);
+        _clipboard = new Mock<IClipboard>(MockBehavior.Loose);
+        _clipboard.Setup(x => x.SetTextAsync(It.IsAny<string?>())).Returns(Task.CompletedTask);
 
         var connection = new ServerConnection(ServerUrl, "Test Server", "test@test.com");
         _serverStore.Setup(x => x.GetActive()).Returns(connection);
@@ -37,7 +41,7 @@ public sealed class AiViewModelTests
         _tokenStore.Setup(x => x.GetAccessTokenAsync(ServerUrl, It.IsAny<CancellationToken>()))
             .ReturnsAsync(Token);
 
-        _vm = new AiViewModel(_ai.Object, _serverStore.Object, _tokenStore.Object, _tokenRefresh.Object);
+        _vm = new AiViewModel(_ai.Object, _serverStore.Object, _tokenStore.Object, _tokenRefresh.Object, _clipboard.Object);
     }
 
     // ── Initial state ──────────────────────────────────────────────────
@@ -245,6 +249,29 @@ public sealed class AiViewModelTests
         await _vm.CommitRenameAsync("New title");
 
         Assert.AreEqual("New title", _vm.Conversations[0].Title);
+    }
+
+    // ── Copy message ──────────────────────────────────────────────────
+
+    [TestMethod]
+    public async Task CopyMessageAsync_CopiesContentToClipboard_AndSetsCopiedState()
+    {
+        var message = new AiMessageDto { Id = Guid.NewGuid(), Role = "assistant", Content = "Hello **world**" };
+
+        await _vm.CopyMessageCommand.ExecuteAsync(message);
+
+        _clipboard.Verify(x => x.SetTextAsync("Hello **world**"), Times.Once);
+        Assert.AreEqual(message.Id, _vm.CopiedMessageId);
+    }
+
+    [TestMethod]
+    public async Task CopyMessageAsync_NullOrEmptyContent_DoesNothing()
+    {
+        await _vm.CopyMessageCommand.ExecuteAsync(null);
+        await _vm.CopyMessageCommand.ExecuteAsync(new AiMessageDto { Id = Guid.NewGuid(), Role = "assistant", Content = "" });
+
+        _clipboard.Verify(x => x.SetTextAsync(It.IsAny<string?>()), Times.Never);
+        Assert.IsNull(_vm.CopiedMessageId);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────

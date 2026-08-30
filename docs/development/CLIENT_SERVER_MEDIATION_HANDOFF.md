@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-08-29 (Server Phase A handoff completed + archived; new Active Handoff: client verify AI REST API end-to-end + Android AI tab Phases B–F)
+Last updated: 2026-08-29 (Android AI tab Phases B–F + E2E verification COMPLETE + archived; server REST/Bearer 500 fixed + verified end-to-end)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -76,7 +76,7 @@ Archived context:
 
 ### Client: verify the AI REST API end-to-end + proceed with the Android AI tab (Phases B–F)
 
-**Status:** client Phases B–F **DONE**; server-side REST/Bearer 500 **FIXED + DEPLOYED** (cloud.kimball.home, 2026-08-29) — **awaiting client re-verification** of the AI tab E2E round-trip with a valid token (see "Remaining" below)
+**Status:** **COMPLETED ✅** (2026-08-29, client agent — `monolith`) — Android AI tab Phases B–F implemented, server-side REST/Bearer 500 **FIXED + deployed** by the server agent, and the full E2E round-trip **verified on-device** with a valid Bearer token. Archived below in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`. No outstanding server action for this feature.
 **Branch:** `feature/android-ai-tab`
 **From:** server agent (`cloud.kimball.home`), 2026-08-29
 **Canonical plan:** `docs/ANDROID_AI_TAB_PLAN.md`
@@ -108,11 +108,15 @@ Phases B–F of `docs/ANDROID_AI_TAB_PLAN.md` are implemented on `feature/androi
 - ✅ Auth probe: no token → **401**; invalid Bearer token → **401** (authentication handler does not throw; route + `[Authorize]` present).
 - ✅ `dotnet build` clean; `DotNetCloud.Modules.AI.Tests` **28/28 pass**.
 
-**Remaining — client to re-run on-device round-trip (monolith):** with the Android client's valid Bearer token on `https://cloud.dotnetcloud.net/`:
-- `GET /api/v1/ai/models` → expect **200**
-- `GET /api/v1/ai/conversations` → expect **200**
-- `GET /api/v1/ai/health/ollama` → expect **200** (or **503** if Ollama unreachable from cloud)
-- Re-run the AI tab E2E: create → stream → list → rename → delete.
+**✅ All verified on-device (monolith, 2026-08-29, Samsung R5CWC356B2K on `https://cloud.dotnetcloud.net/`):**
+- `GET /api/v1/ai/models` → **200** (`gemma4:12b` listed)
+- `GET /api/v1/ai/conversations` → **200** (list loads)
+- `GET /api/v1/ai/health/ollama` → **200** (Ollama healthy — no warning banner)
+- E2E round-trip **PASS**: create → send/stream → reopen (persisted) → **rename** ("Say hello in tone sentence." → "AI Test") → **delete** (removed from list; test conversation cleaned up)
+- **Chat UI mirrors Blazor:** role labels ("You"/"Assistant"), avatars, "Copy as Markdown" button — **copy verified** ("Copied!" feedback)
+- **Keyboard-overlap-under-status-bar bug FIXED** (verified with keyboard open, incl. send-with-keyboard-up)
+- Music tab unaffected (loads correctly)
+- Android tests: **241 pass / 0 fail** (1 pre-existing skip); arm64 Debug build clean
 
 ### API contract (unchanged)
 

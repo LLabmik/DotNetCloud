@@ -1,3 +1,33 @@
+## Archived: Client — Android AI tab Phases B–F + E2E verification — complete (2026-08-29)
+
+**Status:** archived — complete (was `active — client (monolith)`). Android AI tab implemented, server-side REST/Bearer 500 fixed by the server agent, and the full E2E round-trip verified on-device on 2026-08-29.
+**Branch:** `feature/android-ai-tab`
+**From:** client agent (`monolith`), 2026-08-29
+**Canonical plan:** `docs/ANDROID_AI_TAB_PLAN.md` (Phases B–F).
+**Target:** Android client (`monolith`), server `cloud.kimball.home` (`https://cloud.dotnetcloud.net/`).
+
+**Task:** add the Android AI Assistant tab (Phases B–F) mirroring the Blazor AI chat, and verify the AI REST E2E round-trip after the server-side Bearer 500 fix.
+
+**Deliverables (client, all landed on `feature/android-ai-tab`):**
+- ✓ `Ai/IAiRestClient.cs`, `Ai/AiDtos.cs`, `Ai/HttpAiRestClient.cs` — envelope-aware REST client + SSE streaming parser.
+- ✓ `ViewModels/AiViewModel.cs` — conversation list, model picker, new chat, streaming, rename, delete, copy, resilient `LoadAsync`.
+- ✓ `Views/AiPage.xaml` + code-behind — conversation list + streaming chat view, Markdown rendering, role labels, avatars, "Copy as Markdown" button, keyboard-open re-layout fix (`OnSizeAllocated`).
+- ✓ `Converters/MarkdownConverter.cs`, `Converters/AiMessageConverters.cs` (RoleName / IsAssistant / IsUser / CopiedState).
+- ✓ Module availability: `ModuleAvailabilityState` AI accessors, `AppShell.AiTab`, `App.xaml.cs` full-id module probes.
+- ✓ DI in `MauiProgram.cs` (+ `IClipboard` registration); icons `ai_icon.svg`, `person_icon.svg`.
+- ✓ Tests: `DotNetCloud.Client.Android.Tests` **241 pass / 0 fail** (1 pre-existing skip).
+
+**Server dependency (fixed by server agent, 2026-08-29):** `AiSettingsProvider` hard-required `IAdminSettingsService` (not registered in the module host) → REST 500. Fixed via lazy `IServiceProvider.GetService` + `IConfiguration` fallback; deployed + verified.
+
+**Verification (on-device, Samsung R5CWC356B2K, `https://cloud.dotnetcloud.net/`):**
+- ✓ `GET /api/v1/ai/models` → **200** (`gemma4:12b`); `GET /api/v1/ai/conversations` → **200**; `GET /api/v1/ai/health/ollama` → **200**.
+- ✓ E2E round-trip **PASS**: create → send/stream → reopen (persisted) → rename → delete.
+- ✓ Chat UI mirrors Blazor: role labels, avatars, "Copy as Markdown" (copy verified — "Copied!" feedback).
+- ✓ Fixed keyboard-open layout bug (message list overlapping the top status bar).
+- ✓ Music tab unaffected.
+
+---
+
 ## Archived: Server — AI module REST API for the Android AI tab (Phase A) — implemented + deployed (2026-08-29)
 
 **Status:** archived — server implementation complete (was `pending (server agent — cloud.kimball.home)`). Implemented, deployed, and partially verified on 2026-08-29. Authenticated end-to-end verification deferred to the client agent (see the new Active Handoff in `CLIENT_SERVER_MEDIATION_HANDOFF.md`).

@@ -4,12 +4,13 @@ using CommunityToolkit.Mvvm.Input;
 using DotNetCloud.Client.Android.Ai;
 using DotNetCloud.Client.Android.Auth;
 using DotNetCloud.Client.Android.Services;
+using Microsoft.Maui.ApplicationModel;
 
 namespace DotNetCloud.Client.Android.ViewModels;
 
 /// <summary>
 /// ViewModel for the AI Assistant tab. Handles the conversation list, model selection,
-/// streaming chat, delete, and rename.
+/// streaming chat, delete, rename, and copying messages.
 /// </summary>
 public sealed partial class AiViewModel : ObservableObject
 {
@@ -17,6 +18,7 @@ public sealed partial class AiViewModel : ObservableObject
     private readonly IServerConnectionStore _serverStore;
     private readonly ISecureTokenStore _tokenStore;
     private readonly ITokenRefreshService _tokenRefresh;
+    private readonly IClipboard _clipboard;
 
     private CancellationTokenSource? _streamCts;
     private AiConversationDto? _renameTarget;
@@ -34,12 +36,14 @@ public sealed partial class AiViewModel : ObservableObject
         IAiRestClient ai,
         IServerConnectionStore serverStore,
         ISecureTokenStore tokenStore,
-        ITokenRefreshService tokenRefresh)
+        ITokenRefreshService tokenRefresh,
+        IClipboard clipboard)
     {
         _ai = ai;
         _serverStore = serverStore;
         _tokenStore = tokenStore;
         _tokenRefresh = tokenRefresh;
+        _clipboard = clipboard;
     }
 
     /// <summary>
@@ -117,6 +121,10 @@ public sealed partial class AiViewModel : ObservableObject
 
     [ObservableProperty]
     private string? _errorMessage;
+
+    /// <summary>Id of the message most recently copied, for transient "Copied!" feedback.</summary>
+    [ObservableProperty]
+    private Guid? _copiedMessageId;
 
     partial void OnSelectedModelDtoChanged(AiModelDto? value) =>
         SelectedModel = value?.Id ?? "";
@@ -492,6 +500,32 @@ public sealed partial class AiViewModel : ObservableObject
     private void BackToList()
     {
         ShowConversationList = true;
+    }
+
+    /// <summary>Copies a message's content to the clipboard and shows brief "Copied!" feedback.</summary>
+    [RelayCommand]
+    private async Task CopyMessageAsync(AiMessageDto? message)
+    {
+        if (message is null || string.IsNullOrEmpty(message.Content))
+            return;
+
+        await _clipboard.SetTextAsync(message.Content);
+        CopiedMessageId = message.Id;
+        _ = ResetCopiedStateAsync(message.Id);
+    }
+
+    /// <summary>Clears the "Copied!" feedback after a short delay.</summary>
+    private async Task ResetCopiedStateAsync(Guid id)
+    {
+        try
+        {
+            await Task.Delay(1500);
+        }
+        finally
+        {
+            if (CopiedMessageId == id)
+                CopiedMessageId = null;
+        }
     }
 
     private async Task RefreshConversationsAsync(string serverUrl, string token)
