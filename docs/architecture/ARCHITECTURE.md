@@ -1246,23 +1246,29 @@ This section summarizes the March 2026 hardening pass focused on Files module te
 
 ## 25. Full-Text Search Architecture
 
-The Search module provides cross-module full-text search with a three-layer architecture: **indexing pipeline**, **query engine**, and **API surface**.
+Search is a **core capability** (it has no user-owned domain of its own — it reads and aggregates other modules' data, like auth, audit, and notifications). The search **index, query engine, and REST API** live in core-owned code (`DotNetCloud.Core.Search` + `Core.Server`), while **content extraction** (PDF/DOCX/XLSX parsing) runs in an **out-of-process gRPC worker** (`dotnetcloud.extraction`) so third-party parser libraries never load into the core process.
 
 ### Design Goals
 
-1. **Multi-database** — PostgreSQL (`tsvector`/`tsquery`), SQL Server (`FREETEXT`), MariaDB (`MATCH AGAINST`) with a single `ISearchProvider` interface.
-2. **Event-driven indexing** — Modules publish `SearchIndexRequestEvent` on CRUD; search indexes incrementally via a bounded `Channel<T>` queue.
+1. **Multi-database** — PostgreSQL (`tsvector`/`tsquery`), SQL Server (`FREETEXT`) with a single `ISearchProvider` interface.
+2. **Event-driven indexing** — Modules publish `SearchIndexRequestEvent` on CRUD; search indexes incrementally via a bounded `Channel<T>` queue (`SearchIndexingService`).
 3. **Permission-scoped** — Every query is filtered by `OwnerId`. Users only see their own content.
-4. **Module-agnostic** — Any module implementing `ISearchableModule` is automatically searchable. No compile-time dependency between modules.
+4. **Process-isolated document pull** — Core pulls searchable documents from each module over gRPC via `IModuleSearchDocumentClient` (no in-process `ISearchableModule`).
+5. **Out-of-process extraction** — Parser libraries (PdfPig, NPOI, DocumentFormat.OpenXml) live only in the `dotnetcloud.extraction` worker process.
 
 ### Module Structure
 
 ```
-src/Modules/Search/
-├── DotNetCloud.Modules.Search/           # Services, extractors, query parser, events
-├── DotNetCloud.Modules.Search.Data/      # SearchDbContext, SearchIndexEntry, IndexingJob
-├── DotNetCloud.Modules.Search.Host/      # REST + gRPC host (SearchController, SearchGrpcService)
-└── DotNetCloud.Modules.Search.Client/    # gRPC client library (ISearchFtsClient)
+src/Core/
+├── DotNetCloud.Core/                    # SDK: SearchDocument, SearchQuery, ISearchProvider, events
+├── DotNetCloud.Core.Data/               # SearchIndexEntry + IndexingJob entities on CoreDbContext
+├── DotNetCloud.Core.Search/             # Query service, parser, snippet generator, providers (CoreDbContext)
+├── DotNetCloud.Core.Search.Extraction/  # ContentExtractionService + 10 extractors (parser NuGets ONLY here)
+├── DotNetCloud.Core.Search.Extraction.Contracts/   # extraction_service.proto (client types)
+├── DotNetCloud.Core.Search.Extraction.Host/        # dotnetcloud.extraction worker (gRPC exe)
+└── DotNetCloud.Core.Server/             # SearchController (api/v1/search), SearchEventSubscriber,
+                                         #   SearchReindexHostedService, SearchIndexingService,
+                                         #   ExtractionGrpcClient (worker client)
 ```
 
 ### Indexing Pipeline
@@ -1270,15 +1276,15 @@ src/Modules/Search/
 ```
 Module CRUD operation
   → Publishes SearchIndexRequestEvent (ModuleId, EntityId, Action)
-  → SearchIndexRequestEventHandler routes to:
+  → SearchEventSubscriber / SearchIndexEventHandler routes to:
       Remove → ISearchProvider.RemoveDocumentAsync() (immediate)
       Index  → SearchIndexingService channel queue (bounded, 1000 capacity)
-                → Fetches SearchDocument from ISearchableModule
-                → ContentExtractionService extracts text (PDF, DOCX, XLSX, MD, plain text)
+                → Fetches SearchDocument via IModuleSearchDocumentClient (gRPC)
                 → ISearchProvider.IndexDocumentAsync() (upsert by ModuleId + EntityId)
+                → (content extraction deferred — modules provide Content directly today)
 ```
 
-A `SearchReindexBackgroundService` runs scheduled full reindexes (default: 24 hours) and supports on-demand triggers via admin API. Batch size: 200 documents. Orphaned entries for unregistered modules are cleaned up automatically.
+A `SearchReindexHostedService` runs a startup full reindex (after a 1-minute delay) and then scheduled full reindexes (default: 24 hours), with on-demand triggers via the admin API (`TriggerFullReindex()` / `TriggerModuleReindex(moduleId)`). It pulls documents over gRPC via `IModuleSearchDocumentClient` and indexes via `ISearchProvider` (both backed by `CoreDbContext`). Batch size: 200 documents. Progress is tracked in `IndexingJob` rows and surfaced by the admin status endpoint.
 
 ### Query Engine
 
@@ -1294,27 +1300,26 @@ A `SearchReindexBackgroundService` runs scheduled full reindexes (default: 24 ho
 
 `ParsedSearchQuery` generates provider-specific query strings:
 
-| Provider   | Format                                                         |
-| ---------- | -------------------------------------------------------------- |
-| PostgreSQL | `to_tsquery('quarterly & report & !draft')`                    |
-| SQL Server | `CONTAINS(*, '"quarterly" AND "report" AND NOT "draft"')`      |
-| MariaDB    | `MATCH() AGAINST('+quarterly +report -draft' IN BOOLEAN MODE)` |
+| Provider   | Format                                                    |
+| ---------- | --------------------------------------------------------- |
+| PostgreSQL | `to_tsquery('quarterly & report & !draft')`               |
+| SQL Server | `CONTAINS(*, '"quarterly" AND "report" AND NOT "draft"')` |
 
 `SnippetGenerator` produces XSS-safe highlighted snippets using `<mark>` tags with ~60 characters of context around matches.
 
 ### API Surface
 
-**REST** (`/api/v1/search`): GET `/search`, GET `/suggest`, GET `/stats`, POST `/admin/reindex`, POST `/admin/reindex/{moduleId}`.
+**REST** (in `Core.Server`, `/api/v1/search`): GET `/search`, GET `/suggest`, GET `/stats`, POST `/admin/reindex`, POST `/admin/reindex/{moduleId}`, GET `/admin/status`.
 
-**gRPC** (`SearchService`): `Search`, `IndexDocument`, `RemoveDocument`, `ReindexModule`, `GetIndexStats`.
-
-**Client library** (`ISearchFtsClient`): Lazy gRPC channel with graceful degradation. When unavailable, module controllers fall back to LIKE-based queries.
+**Extraction gRPC** (`dotnetcloud.extraction`): `Extract(content, mime_type) → { success, text, metadata }`.
 
 ### Searchable Modules
 
-Files, Notes, Chat, Contacts, Calendar, Photos, Music, Video, and Tracks all implement `ISearchableModule` and publish search index events on CRUD operations.
+Core pulls searchable documents from the process-isolated module hosts over gRPC via `IModuleSearchDocumentClient`. Registered document clients: **Files, Notes, Calendar, Bookmarks, Email, Music, Video**.
 
 ### Content Extraction
+
+Extraction runs in the out-of-process `dotnetcloud.extraction` worker so parser libraries never load into the core process:
 
 | Extractor | MIME Types                                                                | Library                |
 | --------- | ------------------------------------------------------------------------- | ---------------------- |
@@ -1328,9 +1333,9 @@ Max extracted content: 100KB per document.
 
 ### Test Coverage
 
-631 tests across 8 implementation phases covering providers, services, extractors, query parsing, snippet generation, API endpoints, UI logic, permission scoping, multi-database consistency, and performance benchmarks.
+`DotNetCloud.Core.Search.Tests` covers the query parser, snippet generator, query service, SQL Server provider (via CoreDbContext/InMemory), the search entities on `CoreDbContext`, content extraction, and all extractors.
 
-**Reference:** [docs/modules/SEARCH.md](../modules/SEARCH.md) | [docs/api/search.md](../api/search.md)
+**Reference:** [docs/api/search.md](../api/search.md)
 
 ---
 

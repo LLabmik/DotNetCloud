@@ -1,29 +1,28 @@
 using DotNetCloud.Core.Services;
-using DotNetCloud.Core.Services.ModuleApis;
 
 namespace DotNetCloud.Core.Server.Services;
 
 /// <summary>
-/// Reindex dispatcher that triggers the Search module's reindex endpoint via gRPC.
-/// The Search module is process-isolated, so reindex requests are sent over gRPC
-/// using <see cref="ISearchApiClient"/>.
+/// Reindex dispatcher that triggers the core-owned search reindex service for the files module.
+/// Replaces the old gRPC call to the Search module's reindex endpoint.
 /// </summary>
 internal sealed class InProcessAdminSharedFolderReindexDispatcher : IAdminSharedFolderReindexDispatcher
 {
     private const string FilesModuleId = "files";
-    private readonly ISearchApiClient _searchApiClient;
+    private readonly SearchReindexHostedService _reindexService;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="InProcessAdminSharedFolderReindexDispatcher"/> class.
     /// </summary>
-    public InProcessAdminSharedFolderReindexDispatcher(ISearchApiClient searchApiClient)
+    public InProcessAdminSharedFolderReindexDispatcher(SearchReindexHostedService reindexService)
     {
-        _searchApiClient = searchApiClient;
+        _reindexService = reindexService;
     }
 
     /// <inheritdoc />
-    public async Task<bool> RequestFilesReindexAsync(CancellationToken cancellationToken = default)
+    public Task<bool> RequestFilesReindexAsync(CancellationToken cancellationToken = default)
     {
-        return await _searchApiClient.ReindexModuleAsync(FilesModuleId, cancellationToken);
+        _reindexService.TriggerModuleReindex(FilesModuleId);
+        return Task.FromResult(true);
     }
 }

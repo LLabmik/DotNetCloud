@@ -33,7 +33,6 @@
     <ProjectReference Include="..\DotNetCloud.Modules.Notes.Data.SqlServer\DotNetCloud.Modules.Notes.Data.SqlServer.csproj" />
     <ProjectReference Include="..\..\..\Core\DotNetCloud.Core.Auth\DotNetCloud.Core.Auth.csproj" />
     <ProjectReference Include="..\..\..\Core\DotNetCloud.Core.Grpc\DotNetCloud.Core.Grpc.csproj" />
-    <ProjectReference Include="..\..\Search\DotNetCloud.Modules.Search.Client\DotNetCloud.Modules.Search.Client.csproj" />
   </ItemGroup>
 
 </Project>

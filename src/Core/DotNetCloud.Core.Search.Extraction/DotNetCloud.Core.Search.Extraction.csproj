@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>DotNetCloud.Core.Search.Extraction</RootNamespace>
+    <AssemblyName>DotNetCloud.Core.Search.Extraction</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <AcceptNPOIOSMFLicense>true</AcceptNPOIOSMFLicense>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="DotNetCloud.Core.Search.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NPOI" />
+    <PackageReference Include="PdfPig" />
+    <PackageReference Include="DocumentFormat.OpenXml" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <!-- Security: bump vulnerable transitive dependency (DocumentFormat.OpenXml chain)
+         to the patched central version (see Directory.Packages.props). -->
+    <PackageReference Include="System.Security.Cryptography.Xml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../DotNetCloud.Core/DotNetCloud.Core.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -40,6 +40,10 @@ ALL modules **MUST** communicate exclusively via gRPC. No exceptions.
 - ✅ Process-isolated module host launched by `ProcessSupervisor`
 - ✅ All inter-module calls go through gRPC over Unix sockets/Named Pipes
 
+## 🎯 Core Capability Boundary (MANDATORY)
+
+A concern is a **core capability**, not a module, when it has no user-owned domain of its own and exists only to read/aggregate other modules' data (search, notifications, audit, auth). Core capabilities live in `DotNetCloud.Core.*` libraries and are owned by the core process.
+
 ## �📋 Documentation Format Standards
 
 ### Visual Checkbox Format (MANDATORY)

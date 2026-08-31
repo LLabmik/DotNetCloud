@@ -14,15 +14,81 @@ namespace DotNetCloud.Core.Data.Migrations
     [DbContext(typeof(CoreDbContext))]
     partial class CoreDbContextModelSnapshot : ModelSnapshot
     {
-        /// <inheritdoc />
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.3")
+                .HasAnnotation("ProductVersion", "10.0.10")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+
+            modelBuilder.Entity("DotNetCloud.Core.Data.Entities.Audit.AuditLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Action")
+                        .HasColumnType("integer")
+                        .HasColumnName("action");
+
+                    b.Property<string>("CallerRoles")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("caller_roles");
+
+                    b.Property<string>("CallerType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("caller_type");
+
+                    b.Property<Guid?>("CallerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("caller_user_id");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("description");
+
+                    b.Property<Guid>("EntityId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("entity_id");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("entity_type");
+
+                    b.Property<string>("ModuleId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("module_id");
+
+                    b.Property<DateTime>("TimestampUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("timestamp_utc");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CallerUserId")
+                        .HasDatabaseName("IX_audit_logs_caller_user");
+
+                    b.HasIndex("TimestampUtc")
+                        .HasDatabaseName("IX_audit_logs_timestamp_utc");
+
+                    b.HasIndex("EntityType", "EntityId")
+                        .HasDatabaseName("IX_audit_logs_entity");
+
+                    b.HasIndex("ModuleId", "TimestampUtc")
+                        .HasDatabaseName("IX_audit_logs_module_timestamp");
+
+                    b.ToTable("AuditLogs", (string)null);
+                });
 
             modelBuilder.Entity("DotNetCloud.Core.Data.Entities.Auth.FidoCredential", b =>
                 {
@@ -994,6 +1060,133 @@ namespace DotNetCloud.Core.Data.Migrations
                     b.ToTable("RolePermissions");
                 });
 
+            modelBuilder.Entity("DotNetCloud.Core.Data.Entities.Search.IndexingJob", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("DocumentsProcessed")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("DocumentsTotal")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("ModuleId")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTimeOffset?>("StartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ModuleId")
+                        .HasDatabaseName("ix_indexing_jobs_module_id");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("ix_indexing_jobs_status");
+
+                    b.ToTable("IndexingJobs", "core");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Core.Data.Entities.Search.SearchIndexEntry", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasMaxLength(102400)
+                        .HasColumnType("character varying(102400)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("EntityId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset>("IndexedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("MetadataJson")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("ModuleId")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<Guid?>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Summary")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EntityType")
+                        .HasDatabaseName("ix_search_index_entity_type");
+
+                    b.HasIndex("ModuleId")
+                        .HasDatabaseName("ix_search_index_module_id");
+
+                    b.HasIndex("OrganizationId")
+                        .HasDatabaseName("ix_search_index_organization_id");
+
+                    b.HasIndex("OwnerId")
+                        .HasDatabaseName("ix_search_index_owner_id");
+
+                    b.HasIndex("UpdatedAt")
+                        .HasDatabaseName("ix_search_index_updated_at");
+
+                    b.HasIndex("ModuleId", "EntityId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_search_index_module_entity");
+
+                    b.ToTable("SearchIndexEntries", "core");
+                });
+
             modelBuilder.Entity("DotNetCloud.Core.Data.Entities.Settings.OrganizationSetting", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1572,73 +1765,6 @@ namespace DotNetCloud.Core.Data.Migrations
                 {
                     b.Navigation("RolePermissions");
                 });
-            modelBuilder.Entity("DotNetCloud.Core.Data.Entities.Audit.AuditLog", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("Action")
-                        .HasColumnType("integer")
-                        .HasColumnName("action");
-
-                    b.Property<string>("CallerRoles")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
-                        .HasColumnName("caller_roles");
-
-                    b.Property<string>("CallerType")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("caller_type");
-
-                    b.Property<Guid?>("CallerUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("caller_user_id");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
-                        .HasColumnName("description");
-
-                    b.Property<Guid>("EntityId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("entity_id");
-
-                    b.Property<string>("EntityType")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("entity_type");
-
-                    b.Property<string>("ModuleId")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("module_id");
-
-                    b.Property<DateTime>("TimestampUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("timestamp_utc");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CallerUserId")
-                        .HasDatabaseName("IX_audit_logs_caller_user");
-
-                    b.HasIndex("TimestampUtc")
-                        .HasDatabaseName("IX_audit_logs_timestamp_utc");
-
-                    b.HasIndex("EntityType", "EntityId")
-                        .HasDatabaseName("IX_audit_logs_entity");
-
-                    b.HasIndex("ModuleId", "TimestampUtc")
-                        .HasDatabaseName("IX_audit_logs_module_timestamp");
-
-                    b.ToTable("AuditLogs");
-                });
-
 #pragma warning restore 612, 618
         }
     }

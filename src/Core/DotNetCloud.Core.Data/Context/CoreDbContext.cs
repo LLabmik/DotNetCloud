@@ -6,6 +6,8 @@ using DotNetCloud.Core.Data.Entities.Permissions;
 using DotNetCloud.Core.Data.Entities.Settings;
 using DotNetCloud.Core.Data.Entities.Notifications;
 using DotNetCloud.Core.Data.Entities.Audit;
+using DotNetCloud.Core.Data.Entities.Search;
+using DotNetCloud.Core.Data.Configuration.Search;
 using DotNetCloud.Core.Data.Configuration.Identity;
 using DotNetCloud.Core.Data.Configuration.Modules;
 using DotNetCloud.Core.Data.Configuration.Organizations;
@@ -279,6 +281,13 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
     /// </remarks>
     public DbSet<FidoCredential> FidoCredentials => Set<FidoCredential>();
 
+    // Search DbSets
+    /// <summary>The centralized full-text search index entries.</summary>
+    public DbSet<SearchIndexEntry> SearchIndexEntries => Set<SearchIndexEntry>();
+
+    /// <summary>Search reindex job tracking records.</summary>
+    public DbSet<IndexingJob> IndexingJobs => Set<IndexingJob>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -292,6 +301,7 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
         ConfigureDeviceModels(modelBuilder);
         ConfigureNotificationModels(modelBuilder);
         ConfigureAuditModels(modelBuilder);
+        ConfigureSearchModels(modelBuilder);
         ConfigureModuleModels(modelBuilder);
         ConfigureAuthenticationModels(modelBuilder);
 
@@ -377,6 +387,15 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
     private void ConfigureAuditModels(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfiguration(new AuditLogConfiguration());
+    }
+
+    /// <summary>
+    /// Configures the full-text search index entities.
+    /// </summary>
+    private void ConfigureSearchModels(ModelBuilder modelBuilder)
+    {
+        modelBuilder.ApplyConfiguration(new SearchIndexEntryConfiguration());
+        modelBuilder.ApplyConfiguration(new IndexingJobConfiguration());
     }
 
     /// <summary>

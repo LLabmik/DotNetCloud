@@ -49,6 +49,8 @@
     <ProjectReference Include="..\DotNetCloud.Core.Data\DotNetCloud.Core.Data.csproj" />
     <ProjectReference Include="..\DotNetCloud.Core.Data.SqlServer\DotNetCloud.Core.Data.SqlServer.csproj" />
     <ProjectReference Include="..\DotNetCloud.Core.Grpc\DotNetCloud.Core.Grpc.csproj" />
+    <ProjectReference Include="..\DotNetCloud.Core.Search\DotNetCloud.Core.Search.csproj" />
+    <ProjectReference Include="..\DotNetCloud.Core.Search.Extraction.Contracts\DotNetCloud.Core.Search.Extraction.Contracts.csproj" />
     <ProjectReference Include="..\DotNetCloud.Core.ServiceDefaults\DotNetCloud.Core.ServiceDefaults.csproj" />
     <!-- Module main (RCL) projects retained for Blazor UI component registration. -->
     <ProjectReference Include="..\..\Modules\Calendar\DotNetCloud.Modules.Calendar\DotNetCloud.Modules.Calendar.csproj" />
@@ -87,8 +89,6 @@
     <ProjectReference Include="..\..\Modules\Email\DotNetCloud.Modules.Email.Data.SqlServer\DotNetCloud.Modules.Email.Data.SqlServer.csproj" />
     <ProjectReference Include="..\..\Modules\Files\DotNetCloud.Modules.Files.Data\DotNetCloud.Modules.Files.Data.csproj" />
     <ProjectReference Include="..\..\Modules\Files\DotNetCloud.Modules.Files.Data.SqlServer\DotNetCloud.Modules.Files.Data.SqlServer.csproj" />
-    <ProjectReference Include="..\..\Modules\Search\DotNetCloud.Modules.Search.Data\DotNetCloud.Modules.Search.Data.csproj" />
-    <ProjectReference Include="..\..\Modules\Search\DotNetCloud.Modules.Search.Data.SqlServer\DotNetCloud.Modules.Search.Data.SqlServer.csproj" />
     <ProjectReference Include="..\..\Modules\About\DotNetCloud.Modules.About\DotNetCloud.Modules.About.csproj" />
     <ProjectReference Include="..\..\UI\DotNetCloud.UI.Web\DotNetCloud.UI.Web.csproj" />
     <ProjectReference Include="..\..\UI\DotNetCloud.UI.Web.Client\DotNetCloud.UI.Web.Client.csproj" />

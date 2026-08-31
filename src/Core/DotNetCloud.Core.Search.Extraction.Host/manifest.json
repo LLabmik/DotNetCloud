@@ -1,0 +1,11 @@
+{
+    "id": "dotnetcloud.extraction",
+    "name": "Extraction",
+    "version": "1.0.0",
+    "description": "Out-of-process document content extraction worker for full-text search indexing.",
+    "author": "DotNetCloud",
+    "requiredCapabilities": [],
+    "publishedEvents": [],
+    "subscribedEvents": [],
+    "minCoreVersion": "1.0.0"
+}

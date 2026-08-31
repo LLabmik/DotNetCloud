@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Reflection;
+using DotNetCloud.Core.Data.Entities.Search;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -61,6 +62,13 @@ public class TimestampInterceptor : SaveChangesInterceptor
 
         foreach (var entry in context.ChangeTracker.Entries())
         {
+            // SearchIndexEntry.CreatedAt/UpdatedAt hold source-entity timestamps set
+            // explicitly by the search providers (and they are DateTimeOffset, which
+            // the DateTime-based setters below cannot handle). The interceptor must
+            // not manage these row timestamps, so skip the search index entity.
+            if (entry.Entity is SearchIndexEntry)
+                continue;
+
             if (entry.State == EntityState.Added)
             {
                 SetCreatedAtTimestamp(entry, now);

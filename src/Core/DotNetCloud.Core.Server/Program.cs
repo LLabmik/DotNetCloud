@@ -7,6 +7,7 @@ using DotNetCloud.Core.Data.Initialization;
 using DotNetCloud.Core.Localization;
 using DotNetCloud.Core.Modules;
 using DotNetCloud.Core.Modules.Supervisor;
+using DotNetCloud.Core.Search;
 using DotNetCloud.Core.Security;
 using DotNetCloud.Core.Server.Configuration;
 using DotNetCloud.Core.Server.Extensions;
@@ -379,11 +380,14 @@ public class Program
         // NOTE: Module business services (AddXxxServices) are NO LONGER registered here.
         // Modules now run as process-isolated gRPC services. The Core.Server communicates
         // with them exclusively via gRPC clients defined in Grpc/Clients/.
-        // SearchFtsClient is also handled by the Search module host.
-        // builder.Services.AddSearchFtsClient(builder.Configuration); // removed — handled by Search module host
-        // ✅ Phase 6: gRPC-based reindex dispatcher — calls Search module's ReindexModule RPC
+        // Search is a core capability (index + query + REST API) — registered via AddCoreSearchServices.
+        builder.Services.AddCoreSearchServices(builder.Configuration);
+        // Out-of-process content extraction worker (parser libs never load in this process).
+        builder.Services.AddSingleton<DotNetCloud.Core.Search.IExtractionService, DotNetCloud.Core.Server.Grpc.Clients.ExtractionGrpcClient>();
+        // Channel-backed real-time indexing queue (started by SearchReindexHostedService).
+        builder.Services.AddSingleton<SearchIndexingService>();
         builder.Services.AddScoped<IAdminSharedFolderReindexDispatcher, InProcessAdminSharedFolderReindexDispatcher>();
-        // Register gRPC-based module search document clients (replaces old ISearchableModule registrations)
+        // Register gRPC-based module search document clients (document pull for indexing)
         builder.Services.AddSingleton<IModuleSearchDocumentClient, FilesModuleSearchClient>();
         builder.Services.AddSingleton<IModuleSearchDocumentClient, NotesModuleSearchClient>();
         builder.Services.AddSingleton<IModuleSearchDocumentClient, CalendarModuleSearchClient>();
@@ -533,8 +537,6 @@ public class Program
             builder.Configuration.GetSection(DotNetCloud.Core.Server.Grpc.Clients.PhotosGrpcClientOptions.SectionName));
         builder.Services.Configure<DotNetCloud.Core.Server.Grpc.Clients.VideoGrpcClientOptions>(
             builder.Configuration.GetSection(DotNetCloud.Core.Server.Grpc.Clients.VideoGrpcClientOptions.SectionName));
-        builder.Services.Configure<DotNetCloud.Core.Server.Grpc.Clients.SearchGrpcClientOptions>(
-            builder.Configuration.GetSection(DotNetCloud.Core.Server.Grpc.Clients.SearchGrpcClientOptions.SectionName));
         builder.Services.Configure<DotNetCloud.Core.Server.Grpc.Clients.BookmarksGrpcClientOptions>(
             builder.Configuration.GetSection(DotNetCloud.Core.Server.Grpc.Clients.BookmarksGrpcClientOptions.SectionName));
         builder.Services.Configure<DotNetCloud.Core.Server.Grpc.Clients.EmailGrpcClientOptions>(
@@ -576,10 +578,6 @@ public class Program
         builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.IMusicApiClient, DotNetCloud.Core.Server.Grpc.Clients.MusicGrpcApiClient>();
         builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.IPhotosApiClient, DotNetCloud.Core.Server.Grpc.Clients.PhotosGrpcApiClient>();
         builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.IVideoApiClient, DotNetCloud.Core.Server.Grpc.Clients.VideoGrpcApiClient>();
-        // SearchApiClient is a singleton: it is consumed by the SearchEventSubscriber hosted
-        // service (a singleton) and only depends on singletons itself (options, endpoint
-        // provider, logger), so it is safe to share for the app lifetime.
-        builder.Services.AddSingleton<DotNetCloud.Core.Services.ModuleApis.ISearchApiClient, DotNetCloud.Core.Server.Grpc.Clients.SearchGrpcApiClient>();
         builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.IAboutApiClient, DotNetCloud.Core.Server.Grpc.Clients.AboutGrpcApiClient>();
         builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.IAiApiClient, DotNetCloud.Core.Server.Grpc.Clients.AiGrpcApiClient>();
         // ✅ gRPC clients (newly implemented)
@@ -726,6 +724,7 @@ public class Program
         builder.Services.AddHostedService<ModuleUiRegistrationHostedService>();
         builder.Services.AddHostedService<NotificationEventSubscriber>();
         builder.Services.AddHostedService<SearchEventSubscriber>();
+        builder.Services.AddHostedService<SearchReindexHostedService>();
 
         // Enforce audit-log retention (SOC 2 C2/P6): daily purge of expired rows.
         builder.Services.AddHostedService<AuditLogPurgeHostedService>();
@@ -1141,7 +1140,6 @@ public class Program
             ["api/v1/notes"] = "dotnetcloud.notes",
             ["api/v1/photos"] = "dotnetcloud.photos",
             ["api/v1/wopi"] = "dotnetcloud.files",
-            ["api/v1/search"] = "dotnetcloud.search",
             ["api/v1/contacts"] = "dotnetcloud.contacts",
             ["api/v1/calendars"] = "dotnetcloud.calendar",
             ["api/v1/bookmarks"] = "dotnetcloud.bookmarks",

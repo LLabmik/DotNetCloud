@@ -38,7 +38,6 @@
     <ProjectReference Include="..\..\Modules\Music\DotNetCloud.Modules.Music.Data.SqlServer\DotNetCloud.Modules.Music.Data.SqlServer.csproj" />
     <ProjectReference Include="..\..\Modules\Notes\DotNetCloud.Modules.Notes.Data.SqlServer\DotNetCloud.Modules.Notes.Data.SqlServer.csproj" />
     <ProjectReference Include="..\..\Modules\Photos\DotNetCloud.Modules.Photos.Data.SqlServer\DotNetCloud.Modules.Photos.Data.SqlServer.csproj" />
-    <ProjectReference Include="..\..\Modules\Search\DotNetCloud.Modules.Search.Data.SqlServer\DotNetCloud.Modules.Search.Data.SqlServer.csproj" />
     <ProjectReference Include="..\..\Modules\Tracks\DotNetCloud.Modules.Tracks.Data.SqlServer\DotNetCloud.Modules.Tracks.Data.SqlServer.csproj" />
     <ProjectReference Include="..\..\Modules\Video\DotNetCloud.Modules.Video.Data.SqlServer\DotNetCloud.Modules.Video.Data.SqlServer.csproj" />
 

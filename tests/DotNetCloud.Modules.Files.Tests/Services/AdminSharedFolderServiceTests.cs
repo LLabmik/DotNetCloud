@@ -11,7 +11,6 @@ using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Models;
 using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.Modules.Files.Options;
-using DotNetCloud.Modules.Search.Client;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -39,7 +38,6 @@ public class AdminSharedFolderServiceTests
         Mock<IUserOrganizationResolver>? userOrganizationResolver = null,
         Mock<IGroupDirectory>? groupDirectory = null,
         IAdminSharedFolderMaintenanceScheduler? maintenanceScheduler = null,
-        Mock<ISearchFtsClient>? searchClient = null,
         Mock<IEventBus>? eventBus = null,
         Mock<ICoreCapabilitiesClient>? coreClient = null)
     {
@@ -57,7 +55,6 @@ public class AdminSharedFolderServiceTests
             userOrganizationResolver?.Object,
             groupDirectory?.Object,
             maintenanceScheduler,
-            searchClient?.Object,
             eventBus?.Object,
             coreClient?.Object,
             NullLogger<AdminSharedFolderService>.Instance);
@@ -429,23 +426,12 @@ public class AdminSharedFolderServiceTests
 
         try
         {
-            var searchClientMock = new Mock<ISearchFtsClient>();
-            searchClientMock.Setup(client => client.IsAvailable).Returns(true);
-            searchClientMock
-                .Setup(client => client.RemoveDocumentAsync("files", It.IsAny<string>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(true);
-
-            var service = CreateService(db, rootPath, searchClient: searchClientMock);
+            var service = CreateService(db, rootPath);
 
             var result = await service.DeleteSharedFolderAsync(sharedFolderId, AdminCaller(callerId));
 
             Assert.IsTrue(result.Deleted);
             Assert.AreEqual(4, result.PendingSearchRemovals); // Root + 3 mounted entries
-
-            // Verify search client was called for each entity ID
-            searchClientMock.Verify(
-                client => client.RemoveDocumentAsync("files", It.IsAny<string>(), It.IsAny<CancellationToken>()),
-                Times.Exactly(4));
 
             // Verify cleanup status record reflects search removals
             var status = await db.AdminSharedFolderCleanupStatuses
@@ -453,7 +439,7 @@ public class AdminSharedFolderServiceTests
             Assert.IsNotNull(status);
             Assert.AreEqual(sharedFolderId, status.SharedFolderId);
             Assert.AreEqual("Media", status.DisplayName);
-            Assert.AreEqual(4, status.SearchDocsRemoved); // All 4 removals succeeded
+            Assert.AreEqual(0, status.SearchDocsRemoved); // Search cleanup is core-owned
             Assert.AreEqual(4, status.SearchDocsTotal);
             Assert.IsTrue(status.Phase == CleanupPhase.CleaningMediaSources
                        || status.Phase == CleanupPhase.RemovingSearchDocs); // Depending on timing

@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>DotNetCloud.Core.Search.Extraction.Contracts</RootNamespace>
+    <AssemblyName>DotNetCloud.Core.Search.Extraction.Contracts</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Google.Protobuf" />
+    <PackageReference Include="Grpc.Net.Client" />
+    <PackageReference Include="Grpc.Tools">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Protobuf Include="..\DotNetCloud.Core.Search.Extraction.Host\Protos\extraction_service.proto"
+              GrpcServices="Client"
+              Link="Protos\extraction_service.proto" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../DotNetCloud.Core/DotNetCloud.Core.csproj" />
+  </ItemGroup>
+
+</Project>

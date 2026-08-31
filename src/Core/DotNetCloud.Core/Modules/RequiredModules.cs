@@ -14,7 +14,6 @@ public static class RequiredModules
     {
         "dotnetcloud.files",
         "dotnetcloud.chat",
-        "dotnetcloud.search",
         "dotnetcloud.contacts",
         "dotnetcloud.calendar",
         "dotnetcloud.notes",
