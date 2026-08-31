@@ -100,7 +100,7 @@ jobs:
             src/Modules/Music/DotNetCloud.Modules.Music.Host/DotNetCloud.Modules.Music.Host.csproj \
             src/Modules/Photos/DotNetCloud.Modules.Photos.Host/DotNetCloud.Modules.Photos.Host.csproj \
             src/Modules/Video/DotNetCloud.Modules.Video.Host/DotNetCloud.Modules.Video.Host.csproj \
-            src/Modules/Search/DotNetCloud.Modules.Search.Host/DotNetCloud.Modules.Search.Host.csproj \
+            src/Core/DotNetCloud.Core.Search.Extraction.Host/DotNetCloud.Core.Search.Extraction.Host.csproj \
             src/Modules/Bookmarks/DotNetCloud.Modules.Bookmarks.Host/DotNetCloud.Modules.Bookmarks.Host.csproj \
             src/Modules/Email/DotNetCloud.Modules.Email.Host/DotNetCloud.Modules.Email.Host.csproj \
             src/Modules/About/DotNetCloud.Modules.About.Host/DotNetCloud.Modules.About.Host.csproj \

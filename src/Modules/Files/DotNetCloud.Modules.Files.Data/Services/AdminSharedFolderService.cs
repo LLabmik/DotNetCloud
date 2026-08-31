@@ -11,7 +11,6 @@ using DotNetCloud.Modules.Files.Data.Services.Background;
 using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Models;
 using DotNetCloud.Modules.Files.Services;
-using DotNetCloud.Modules.Search.Client;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -30,7 +29,6 @@ internal sealed class AdminSharedFolderService : IAdminSharedFolderService
     private readonly IUserOrganizationResolver? _userOrganizationResolver;
     private readonly IGroupDirectory? _groupDirectory;
     private readonly IAdminSharedFolderMaintenanceScheduler? _maintenanceScheduler;
-    private readonly ISearchFtsClient? _searchClient;
     private readonly IEventBus? _eventBus;
     private readonly ICoreCapabilitiesClient? _coreClient;
     private readonly ILogger<AdminSharedFolderService> _logger;
@@ -45,7 +43,6 @@ internal sealed class AdminSharedFolderService : IAdminSharedFolderService
         IUserOrganizationResolver? userOrganizationResolver = null,
         IGroupDirectory? groupDirectory = null,
         IAdminSharedFolderMaintenanceScheduler? maintenanceScheduler = null,
-        ISearchFtsClient? searchClient = null,
         IEventBus? eventBus = null,
         ICoreCapabilitiesClient? coreClient = null,
         ILogger<AdminSharedFolderService>? logger = null)
@@ -56,7 +53,6 @@ internal sealed class AdminSharedFolderService : IAdminSharedFolderService
         _userOrganizationResolver = userOrganizationResolver;
         _groupDirectory = groupDirectory;
         _maintenanceScheduler = maintenanceScheduler;
-        _searchClient = searchClient;
         _eventBus = eventBus;
         _coreClient = coreClient;
         _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<AdminSharedFolderService>.Instance;
@@ -268,18 +264,9 @@ internal sealed class AdminSharedFolderService : IAdminSharedFolderService
         await _db.SaveChangesAsync(cancellationToken);
 
         // ── Remove search documents ──
+        // Search is a core-owned capability; search-doc cleanup for deleted shared
+        // folders is handled by Core.Server's reindex flow, so nothing to do here.
         var searchRemoved = 0;
-        if (_searchClient is { IsAvailable: true })
-        {
-            foreach (var entityId in searchEntityIds)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (await _searchClient.RemoveDocumentAsync(FilesModuleId, entityId, cancellationToken))
-                {
-                    searchRemoved++;
-                }
-            }
-        }
 
         _logger.LogInformation(
             "Admin shared folder {SharedFolderId} ('{DisplayName}') deleted. " +

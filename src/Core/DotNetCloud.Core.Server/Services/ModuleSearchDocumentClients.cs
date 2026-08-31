@@ -17,7 +17,7 @@ namespace DotNetCloud.Core.Server.Services;
 
 /// <summary>
 /// Provides searchable documents from a process-isolated module via gRPC.
-/// Replaces the old ISearchableModule DI pattern with gRPC-based document retrieval.
+/// These clients pull documents into the core-owned search index.
 /// </summary>
 internal interface IModuleSearchDocumentClient
 {

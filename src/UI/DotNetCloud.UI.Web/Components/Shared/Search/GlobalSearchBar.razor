@@ -269,8 +269,9 @@
     {
         if (string.IsNullOrWhiteSpace(_query)) return;
         SaveRecentSearch(_query);
+        var url = $"/search?q={Uri.EscapeDataString(_query)}";
         CloseSearch();
-        Navigation.NavigateTo($"/search?q={Uri.EscapeDataString(_query)}");
+        Navigation.NavigateTo(url);
     }
 
     private async Task UseRecentSearch(string query)

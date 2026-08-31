@@ -5,7 +5,6 @@ using DotNetCloud.Modules.Email.Data;
 using DotNetCloud.Modules.Email.Data.Services;
 using DotNetCloud.Modules.Email.Models;
 using DotNetCloud.Modules.Email.Services;
-using DotNetCloud.Modules.Search.Client;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -21,7 +20,6 @@ public class EmailController : EmailControllerBase
     private readonly IEmailRuleService _ruleService;
     private readonly IEmailSendService _sendService;
     private readonly IEmailSyncService _syncService;
-    private readonly ISearchFtsClient? _searchFtsClient;
     private readonly IAttachmentStorage _attachmentStorage;
     private readonly IFileValidationService _fileValidation;
     private readonly IEventBus _eventBus;
@@ -37,7 +35,6 @@ public class EmailController : EmailControllerBase
         IEmailRuleService ruleService,
         IEmailSendService sendService,
         IEmailSyncService syncService,
-        ISearchFtsClient? searchFtsClient,
         IAttachmentStorage attachmentStorage,
         IFileValidationService fileValidation,
         IEventBus eventBus,
@@ -49,7 +46,6 @@ public class EmailController : EmailControllerBase
         _ruleService = ruleService;
         _sendService = sendService;
         _syncService = syncService;
-        _searchFtsClient = searchFtsClient;
         _attachmentStorage = attachmentStorage;
         _fileValidation = fileValidation;
         _eventBus = eventBus;

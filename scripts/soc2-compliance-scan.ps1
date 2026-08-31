@@ -207,7 +207,7 @@ Add-Check 'CC7' '13. Hardcoded IPv4 addresses' $ipLines
 # ---------------------------------------------------------------------------
 # Module & project coverage
 # ---------------------------------------------------------------------------
-$ModuleIds = @('files', 'chat', 'search', 'contacts', 'calendar', 'notes', 'about',
+$ModuleIds = @('files', 'chat', 'contacts', 'calendar', 'notes', 'about',
     'ai', 'bookmarks', 'email', 'example', 'music', 'photos', 'tracks', 'video')
 $ClientDirs = @(
     'src\Clients\DotNetCloud.Client.Core',

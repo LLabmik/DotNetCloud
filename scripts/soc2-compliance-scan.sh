@@ -302,7 +302,7 @@ RETENTION_PATTERN='RetentionDays|Purge|RetainedFileCountLimit|AuditFilePath'
 # Module & project coverage
 # ----------------------------------------------------------------------------
 MODULE_IDS=(
-  files chat search contacts calendar notes about
+  files chat contacts calendar notes about
   ai bookmarks email example music photos tracks video
 )
 

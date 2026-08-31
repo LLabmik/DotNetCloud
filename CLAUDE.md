@@ -83,6 +83,10 @@ docs/
 
 All current and future modules **MUST** run as process-isolated processes communicating exclusively via gRPC. Direct in-process calls between modules, shared DI container references, and direct cross-module database access are **FORBIDDEN**. This is enforced in code review.
 
+### Core Capability Boundary (MANDATORY)
+
+A concern is a **core capability**, not a module, when it has no user-owned domain of its own and exists only to read/aggregate other modules' data (search, notifications, audit, auth). Core capabilities live in `DotNetCloud.Core.*` libraries and are owned by the core process.
+
 ### Core Abstractions (`DotNetCloud.Core`)
 
 - **Capability system** — Hierarchical tier model: Public → Restricted → Privileged → Forbidden. All module access is mediated through typed capability interfaces (`ICapabilityInterface`).

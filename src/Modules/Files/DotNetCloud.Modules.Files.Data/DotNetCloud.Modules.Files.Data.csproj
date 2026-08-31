@@ -29,7 +29,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DotNetCloud.Modules.Files\DotNetCloud.Modules.Files.csproj" />
-    <ProjectReference Include="..\..\Search\DotNetCloud.Modules.Search.Client\DotNetCloud.Modules.Search.Client.csproj" />
     <ProjectReference Include="..\..\..\Core\DotNetCloud.Core.Data\DotNetCloud.Core.Data.csproj" />
     <ProjectReference Include="..\..\..\Core\DotNetCloud.Core.Grpc\DotNetCloud.Core.Grpc.csproj" />
   </ItemGroup>

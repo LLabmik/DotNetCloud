@@ -116,7 +116,7 @@
 | Media Content Dedup — TMDB           | 2       | 2         | 0           | 0       |
 | Media Content Dedup — gRPC           | 1       | 1         | 0           | 0       |
 | Phase 6 (Email & Bookmarks)          | 9       | 9         | 0           | 0       |
-| Phase 8 (Full-Text Search)           | 18      | 18        | 0           | 0       |
+| Phase 8 (Full-Text Search)           | 19      | 19        | 0           | 0       |
 | Phase 7 (Video Calling)              | 11      | 11        | 0           | 0       |
 | Phase 9                              | 8       | 5         | 1           | 2       |
 | Phase 11 (Auto-Updates)              | 16      | 7         | 0           | 9       |
@@ -3416,6 +3416,22 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 
 **Notes:** Phase 8 complete. Testing & documentation finalize the full-text search module. All 8 implementation phases delivered: module scaffold, module API integration, indexing engine, query engine, REST/gRPC API, Blazor UI, testing & documentation. 631 tests across all phases.
 
+### Section: Phase 8.9 — Move Search into Core
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ Search data folded into `CoreDbContext` — `SearchIndexEntry` + `IndexingJob` entities/configs (hardcoded `core` schema, PascalCase on both providers), idempotent `AddSearchIndex` migrations (SQL Server + PostgreSQL)
+- ✓ New `DotNetCloud.Core.Search` library — query service, parser, snippet generator, visibility filter builder, SQL Server/PostgreSQL providers (retargeted to `CoreDbContext`), `IExtractionService`, `AddCoreSearchServices`
+- ✓ Out-of-process extraction worker — `DotNetCloud.Core.Search.Extraction` (ContentExtractionService + 10 extractors), `.Extraction.Contracts` (proto), `dotnetcloud.extraction` host (gRPC + lifecycle + health + manifest), `ExtractionGrpcClient` in Core.Server
+- ✓ `SearchController` + base moved to Core.Server (`api/v1/search*` routes unchanged)
+- ✓ `SearchEventSubscriber` rewritten to use `ISearchProvider`; startup full-index moved to new `SearchReindexHostedService`; new channel-backed `SearchIndexingService` (admin-status parity)
+- ✓ Old Search module projects deleted (`DotNetCloud.Modules.Search`, `.Search.Client`, `.Search.Host`, `.Search.Data`, `.Search.Data.SqlServer`, `.Search.Tests`); removed `ISearchableModule` / `ISearchApiClient` / `SearchGrpcApiClient` and module-host `ISearchFtsClient` usage
+- ✓ Solution/slnf/deploy/release/scan scripts updated; `dotnetcloud.extraction` published to `modules/`; legacy `dotnetcloud.search` dir removed at deploy
+- ✓ New `DotNetCloud.Core.Search.Tests` — 179 tests; `dotnet build DotNetCloud.CI.slnf -c Release` succeeds; affected test projects all pass
+
+**Notes:** Search is now a core capability (index + query engine + REST API owned by the core process), while content extraction runs in the out-of-process `dotnetcloud.extraction` worker so parser libraries never load into core. Per-module document pull over gRPC (`IModuleSearchDocumentClient`) is retained. Real-time incremental-index publishers remain unwired (out of scope). Live-verified: extraction worker healthy (text extraction + corrupt-file absorption), reindex completes 76,204/76,204 in ~4 min, `api/v1/search*` served by Core.Server (401 unauth), parser libs only in the extraction worker. Post-deploy fixes: (1) wrapped SQL Server transactional ops in `CreateExecutionStrategy` (retry-strategy incompatibility); (2) added batched `BatchIndexAsync` for reindex throughput; (3) added Info-level search-query/suggest logging to `SearchController` (was Debug-only, invisible in prod); (4) fixed `GlobalSearchBar.ViewAllResults()` producing `/search?q=` with empty query (URL was built after `CloseSearch()` cleared `_query`).
+
 ---
 
 ## Phase 7: Video Calling & Screen Sharing
@@ -5608,6 +5624,22 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - ✓ 631 total search tests passing (40 Phase 8 + 591 previous)
 
 **Notes:** Phase 8 complete. Testing & documentation finalize the full-text search module. All 8 implementation phases delivered: module scaffold, module API integration, indexing engine, query engine, REST/gRPC API, Blazor UI, testing & documentation. 631 tests across all phases.
+
+### Section: Phase 8.9 — Move Search into Core
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ Search data folded into `CoreDbContext` — `SearchIndexEntry` + `IndexingJob` entities/configs (hardcoded `core` schema, PascalCase on both providers), idempotent `AddSearchIndex` migrations (SQL Server + PostgreSQL)
+- ✓ New `DotNetCloud.Core.Search` library — query service, parser, snippet generator, visibility filter builder, SQL Server/PostgreSQL providers (retargeted to `CoreDbContext`), `IExtractionService`, `AddCoreSearchServices`
+- ✓ Out-of-process extraction worker — `DotNetCloud.Core.Search.Extraction` (ContentExtractionService + 10 extractors), `.Extraction.Contracts` (proto), `dotnetcloud.extraction` host (gRPC + lifecycle + health + manifest), `ExtractionGrpcClient` in Core.Server
+- ✓ `SearchController` + base moved to Core.Server (`api/v1/search*` routes unchanged)
+- ✓ `SearchEventSubscriber` rewritten to use `ISearchProvider`; startup full-index moved to new `SearchReindexHostedService`; new channel-backed `SearchIndexingService` (admin-status parity)
+- ✓ Old Search module projects deleted (`DotNetCloud.Modules.Search`, `.Search.Client`, `.Search.Host`, `.Search.Data`, `.Search.Data.SqlServer`, `.Search.Tests`); removed `ISearchableModule` / `ISearchApiClient` / `SearchGrpcApiClient` and module-host `ISearchFtsClient` usage
+- ✓ Solution/slnf/deploy/release/scan scripts updated; `dotnetcloud.extraction` published to `modules/`; legacy `dotnetcloud.search` dir removed at deploy
+- ✓ New `DotNetCloud.Core.Search.Tests` — 179 tests; `dotnet build DotNetCloud.CI.slnf -c Release` succeeds; affected test projects all pass
+
+**Notes:** Search is now a core capability (index + query engine + REST API owned by the core process), while content extraction runs in the out-of-process `dotnetcloud.extraction` worker so parser libraries never load into core. Per-module document pull over gRPC (`IModuleSearchDocumentClient`) is retained. Real-time incremental-index publishers remain unwired (out of scope). Live-verified: extraction worker healthy (text extraction + corrupt-file absorption), reindex completes 76,204/76,204 in ~4 min, `api/v1/search*` served by Core.Server (401 unauth), parser libs only in the extraction worker. Post-deploy fixes: (1) wrapped SQL Server transactional ops in `CreateExecutionStrategy` (retry-strategy incompatibility); (2) added batched `BatchIndexAsync` for reindex throughput; (3) added Info-level search-query/suggest logging to `SearchController` (was Debug-only, invisible in prod); (4) fixed `GlobalSearchBar.ViewAllResults()` producing `/search?q=` with empty query (URL was built after `CloseSearch()` cleared `_query`).
 
 ---
 

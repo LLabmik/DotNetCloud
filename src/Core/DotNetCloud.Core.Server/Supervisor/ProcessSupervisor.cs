@@ -388,10 +388,6 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             startInfo.Environment["DOTNETCLOUD_GRPC_ENDPOINT"] = ForceHttpForInternalGrpc(grpcEndpoint);
             startInfo.Environment["DOTNETCLOUD_CORE_ENDPOINT"] = ForceHttpForInternalGrpc(BuildCoreEndpoint());
 
-            // Pass the Search module's gRPC endpoint so module hosts (e.g., Files)
-            // can call SearchService RPCs (RemoveDocument, Search, etc.).
-            startInfo.Environment["DOTNETCLOUD_SEARCH_MODULE_ENDPOINT"] = ForceHttpForInternalGrpc(ResolveSearchModuleEndpoint());
-
             // Forward shared config and data directory env vars so modules can
             // load config.json and find DataProtection keys / file storage.
             ForwardEnvVar(startInfo, "DOTNETCLOUD_CONFIG_DIR");
@@ -740,29 +736,6 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
     private string BuildCoreEndpoint()
     {
         return $"http://localhost:{_options.TcpPortRangeStart}";
-    }
-
-    /// <summary>
-    /// Resolves the gRPC endpoint for the Search module.
-    /// First checks if the Search module is already known (running), then falls back
-    /// to the deterministic TCP port computed from its module ID hash.
-    /// </summary>
-    private string ResolveSearchModuleEndpoint()
-    {
-        const string searchModuleId = "dotnetcloud.search";
-
-        // If Search is already registered, use its actual endpoint
-        if (_modules.TryGetValue(searchModuleId, out var handle)
-            && handle.GrpcEndpoint is not null)
-        {
-            return handle.GrpcEndpoint;
-        }
-
-        // Fallback: compute deterministic port (same algorithm as AllocateTcpPort but
-        // without collision avoidance since Search is always the first module allocated).
-        var range = Math.Max(1, _options.TcpPortRangeEnd - _options.TcpPortRangeStart - 1);
-        var port = _options.TcpPortRangeStart + 1 + (Math.Abs(searchModuleId.GetHashCode()) % range);
-        return $"http://localhost:{port}";
     }
 
     private int AllocateTcpPort(string moduleId)

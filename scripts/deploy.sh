@@ -42,7 +42,7 @@ fi
 # ============================================================================
 # Module registry — all known modules with publishable hosts
 # ============================================================================
-MODULES=(Contacts Calendar Chat Files Notes Tracks Music Photos Video Search Bookmarks Email About AI)
+MODULES=(Contacts Calendar Chat Files Notes Tracks Music Photos Video Extraction Bookmarks Email About AI)
 
 # Core project paths (relative to REPO_ROOT)
 CORE_PROJECTS=(
@@ -52,6 +52,9 @@ CORE_PROJECTS=(
     "src/Core/DotNetCloud.Core.Grpc"
     "src/Core/DotNetCloud.Core.Server"
     "src/Core/DotNetCloud.Core.ServiceDefaults"
+    "src/Core/DotNetCloud.Core.Search"
+    "src/Core/DotNetCloud.Core.Search.Extraction"
+    "src/Core/DotNetCloud.Core.Search.Extraction.Contracts"
 )
 
 # UI project paths
@@ -172,25 +175,58 @@ dir_has_changes() {
 # Check whether a module (any of its sub-projects) has changed files
 module_has_changes() {
     local module="$1"
+    if [ "$module" = "Extraction" ]; then
+        echo "$CHANGED_FILES" | grep -q "^src/Core/DotNetCloud.Core.Search.Extraction/" && return 0 || return 1
+    fi
     echo "$CHANGED_FILES" | grep -q "^src/Modules/${module}/" && return 0 || return 1
 }
 
 # Check whether a module's Data or Data.SqlServer project has changed
 module_data_changed() {
     local module="$1"
+    # The extraction worker has no Data project.
+    [ "$module" = "Extraction" ] && return 1
     echo "$CHANGED_FILES" | grep -qE "^src/Modules/${module}/DotNetCloud.Modules.${module}\.Data" && return 0 || return 1
 }
 
 # Check whether a module's Host project has changed
 module_host_changed() {
     local module="$1"
+    if [ "$module" = "Extraction" ]; then
+        echo "$CHANGED_FILES" | grep -q "^src/Core/DotNetCloud.Core.Search.Extraction.Host/" && return 0 || return 1
+    fi
     echo "$CHANGED_FILES" | grep -q "^src/Modules/${module}/DotNetCloud.Modules.${module}.Host/" && return 0 || return 1
 }
 
 # Check whether a module's Client project has changed
 module_client_changed() {
     local module="$1"
+    # The extraction worker has no Client project.
+    [ "$module" = "Extraction" ] && return 1
     echo "$CHANGED_FILES" | grep -q "^src/Modules/${module}/DotNetCloud.Modules.${module}.Client/" && return 0 || return 1
+}
+
+# Resolve a module host's .csproj path. The extraction worker is not a user-facing
+# module — it lives under src/Core — so it gets a special case.
+module_host_csproj() {
+    local module="$1"
+    if [ "$module" = "Extraction" ]; then
+        echo "$REPO_ROOT/src/Core/DotNetCloud.Core.Search.Extraction.Host/DotNetCloud.Core.Search.Extraction.Host.csproj"
+    else
+        echo "$REPO_ROOT/src/Modules/$module/DotNetCloud.Modules.$module.Host/DotNetCloud.Modules.$module.Host.csproj"
+    fi
+}
+
+# Resolve a module host's build output directory (bin/$CONFIG/net10.0).
+module_host_build_dir() {
+    local module="$1"
+    local host_dir
+    if [ "$module" = "Extraction" ]; then
+        host_dir="$REPO_ROOT/src/Core/DotNetCloud.Core.Search.Extraction.Host"
+    else
+        host_dir="$REPO_ROOT/src/Modules/$module/DotNetCloud.Modules.$module.Host"
+    fi
+    echo "$host_dir/bin/$CONFIG/net10.0"
 }
 
 # Build a single project (or solution filter) with shared flags
@@ -283,6 +319,13 @@ print_summary() {
 # legacy real-directory layout on first run.
 ensure_module_layout() {
     mkdir -p "$MODULES_DIR"
+
+    # Search is now a core capability; the old process-isolated Search module host
+    # directory is removed if it lingers from a previous deploy.
+    if [ -d "$MODULES_DIR/dotnetcloud.search" ]; then
+        log "  Removing legacy dotnetcloud.search module directory (search moved into core)..."
+        rm -rf "$MODULES_DIR/dotnetcloud.search"
+    fi
 
     if [ -L "$MODULES_LINK" ]; then
         local target
@@ -429,7 +472,7 @@ verify_assemblies() {
         local module_lower
         module_lower=$(echo "$module" | tr '[:upper:]' '[:lower:]')
         # Read the AssemblyName from the .csproj (defaults to project filename if not set)
-        local csproj="$REPO_ROOT/src/Modules/$module/DotNetCloud.Modules.$module.Host/DotNetCloud.Modules.$module.Host.csproj"
+        local csproj="$(module_host_csproj "$module")"
         local assembly_name
         if [ -f "$csproj" ]; then
             assembly_name=$(grep -oP '<AssemblyName>\K[^<]+' "$csproj" || echo "DotNetCloud.Modules.$module.Host")
@@ -437,7 +480,7 @@ verify_assemblies() {
             assembly_name="DotNetCloud.Modules.$module.Host"
         fi
         verify_file "$MODULES_DIR/dotnetcloud.$module_lower/$assembly_name.dll" \
-            "$REPO_ROOT/src/Modules/$module/DotNetCloud.Modules.$module.Host/bin/$CONFIG/net10.0/$assembly_name.dll"
+            "$(module_host_build_dir "$module")/$assembly_name.dll"
     done
 
     if [ "$verify_failures" -gt 0 ]; then
@@ -650,7 +693,7 @@ else
         if module_data_changed "$module"; then
             HAS_DATA_CHANGES=true
         fi
-        _host_csproj="$REPO_ROOT/src/Modules/$module/DotNetCloud.Modules.$module.Host/DotNetCloud.Modules.$module.Host.csproj"
+        _host_csproj="$(module_host_csproj "$module")"
         if [ -f "$_host_csproj" ]; then
             BUILD_TARGETS+=("$_host_csproj")
         fi
@@ -826,7 +869,7 @@ else
 
     for module in "${PUBLISH_MODULES[@]}"; do
         module_lower=$(echo "$module" | tr '[:upper:]' '[:lower:]')
-        host_csproj="$REPO_ROOT/src/Modules/$module/DotNetCloud.Modules.$module.Host/DotNetCloud.Modules.$module.Host.csproj"
+        host_csproj="$(module_host_csproj "$module")"
         out_dir="$MODULES_DIR/dotnetcloud.$module_lower"
 
         if [ ! -f "$host_csproj" ]; then
@@ -877,7 +920,7 @@ else
     log "Syncing dependency assemblies..."
     for module in "${PUBLISHED_MODULES[@]}"; do
         module_lower=$(echo "$module" | tr '[:upper:]' '[:lower:]')
-        build_dir="$REPO_ROOT/src/Modules/$module/DotNetCloud.Modules.$module.Host/bin/$CONFIG/net10.0"
+        build_dir="$(module_host_build_dir "$module")"
         out_dir="$MODULES_DIR/dotnetcloud.$module_lower"
 
         if [ ! -d "$build_dir" ]; then

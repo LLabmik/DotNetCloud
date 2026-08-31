@@ -177,11 +177,6 @@ internal sealed class DotNetCloudWebApplicationFactory : WebApplicationFactory<D
             services.AddSingleton<DotNetCloud.Modules.Notes.Services.INotesApiClient>(
                 _ => Mock.Of<DotNetCloud.Modules.Notes.Services.INotesApiClient>());
 
-            // ISearchApiClient is consumed by singleton SearchEventSubscriber, so must be singleton.
-            services.RemoveAll<DotNetCloud.Core.Services.ModuleApis.ISearchApiClient>();
-            services.AddSingleton<DotNetCloud.Core.Services.ModuleApis.ISearchApiClient>(
-                _ => Mock.Of<DotNetCloud.Core.Services.ModuleApis.ISearchApiClient>());
-
             // Stub IChatApiClient so SignalR hub operations don't try gRPC to non-existent Chat host.
             services.RemoveAll<DotNetCloud.Core.Services.ModuleApis.IChatApiClient>();
             var chatApiMock = new Mock<DotNetCloud.Core.Services.ModuleApis.IChatApiClient>();

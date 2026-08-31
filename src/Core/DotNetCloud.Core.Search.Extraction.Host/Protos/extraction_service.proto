@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+option csharp_namespace = "DotNetCloud.Core.Search.Extraction.Host.Protos";
+
+package dotnetcloud.extraction;
+
+service ExtractionService {
+  rpc Extract (ExtractRequest) returns (ExtractResponse);
+}
+
+message ExtractRequest {
+  bytes content = 1;
+  string mime_type = 2;
+}
+
+message ExtractResponse {
+  bool success = 1;
+  string text = 2;
+  string error_message = 3;
+  map<string, string> metadata = 4;
+}

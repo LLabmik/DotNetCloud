@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.RateLimiting;
 using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Options;
 using DotNetCloud.Modules.Files.Services;
-using DotNetCloud.Modules.Search.Client;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -31,7 +30,6 @@ public class FilesController : FilesControllerBase
     private readonly ILogger<FilesController> _logger;
     private readonly FileSystemOptions _fileSystemOptions;
     private readonly FileUploadOptions _uploadOptions;
-    private readonly ISearchFtsClient? _searchFtsClient;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FilesController"/> class.
@@ -46,8 +44,7 @@ public class FilesController : FilesControllerBase
         IEnumerable<IMediaMetadataExtractor> metadataExtractors,
         ILogger<FilesController> logger,
         IOptions<FileSystemOptions> fileSystemOptions,
-        IOptions<FileUploadOptions> uploadOptions,
-        ISearchFtsClient? searchFtsClient = null)
+        IOptions<FileUploadOptions> uploadOptions)
     {
         _fileService = fileService;
         _uploadService = uploadService;
@@ -59,7 +56,6 @@ public class FilesController : FilesControllerBase
         _logger = logger;
         _fileSystemOptions = fileSystemOptions.Value;
         _uploadOptions = uploadOptions.Value;
-        _searchFtsClient = searchFtsClient;
     }
 
     /// <summary>
@@ -306,29 +302,7 @@ public class FilesController : FilesControllerBase
     {
         var caller = GetAuthenticatedCaller();
 
-        // Try FTS via Search module gRPC when available
-        if (_searchFtsClient is { IsAvailable: true })
-        {
-            var ftsResult = await _searchFtsClient.SearchAsync(
-                query, moduleFilter: "files", userId: caller.UserId,
-                page: page, pageSize: pageSize);
-
-            if (ftsResult is not null)
-            {
-                return Ok(new
-                {
-                    items = ftsResult.Items,
-                    page = ftsResult.Page,
-                    pageSize = ftsResult.PageSize,
-                    totalCount = ftsResult.TotalCount,
-                    totalPages = ftsResult.TotalCount > 0
-                        ? (int)Math.Ceiling((double)ftsResult.TotalCount / ftsResult.PageSize)
-                        : 0
-                });
-            }
-        }
-
-        // Fallback to LIKE-based search
+        // Search is a core capability. Files falls back to LIKE-based search.
         var result = await _fileService.SearchAsync(query, page, pageSize, caller);
         return Ok(new { items = result.Items, page = result.Page, pageSize = result.PageSize, totalCount = result.TotalCount, totalPages = result.TotalPages });
     });

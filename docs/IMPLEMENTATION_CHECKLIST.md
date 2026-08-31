@@ -3,7 +3,7 @@
 > **Document Version:** 1.0  
 > **Purpose:** Comprehensive task breakdown for implementing the DotNetCloud architecture  
 > **Scope:** All phases from Foundation (Phase 0) through Auto-Updates (Phase 11)  
-> **Last Updated:** 2026-08-23
+> **Last Updated:** 2026-08-31
 > **Audience:** Development team, project managers, technical leads
 
 ---
@@ -5136,6 +5136,65 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `docs/architecture/ARCHITECTURE.md` — Section 25: Full-Text Search Architecture
 - ✓ Updated `MASTER_PROJECT_PLAN.md` and `IMPLEMENTATION_CHECKLIST.md`
 - ✓ All 631 search tests passing (40 Phase 8 + 591 previous)
+
+### Phase 8.5 — Move Search into Core (from MOVE_SEARCH_INTO_CORE_PLAN.md) ✅
+
+Search is a **core capability** (no user-owned domain — it reads/aggregates other modules' data). The index, query engine, and REST API moved into core-owned code; content extraction runs out-of-process so parser libraries never load into the core process.
+
+#### Data Layer
+
+- ✓ `SearchIndexEntry` + `IndexingJob` (+ enums) moved to `DotNetCloud.Core.Data.Entities.Search`, configured via `Configuration/Search/*` with hardcoded `ToTable("...", "core")` (PascalCase on both providers)
+- ✓ Wired into `CoreDbContext` (`SearchIndexEntries`, `IndexingJobs` DbSets + `ConfigureSearchModels`)
+- ✓ `TimestampInterceptor` excludes `SearchIndexEntry` (source-entity timestamps, DateTimeOffset)
+- ✓ Idempotent `AddSearchIndex` migrations generated for both SQL Server and PostgreSQL (guarded `CreateTable`/`CreateIndex`, no-op on existing tables)
+- ✓ Old `DotNetCloud.Modules.Search.Data` / `.Data.SqlServer` projects deleted
+
+#### `DotNetCloud.Core.Search` library
+
+- ✓ New class library (mirrors `DotNetCloud.Core.Auth`) with `SearchQueryService`, `SearchQueryParser`, `ParsedSearchQuery`, `SnippetGenerator`, `SearchVisibilityFilterBuilder`, `SqlServerSearchProvider`, `PostgreSqlSearchProvider` (retargeted to `CoreDbContext`)
+- ✓ `IExtractionService` abstraction + `AddCoreSearchServices` DI registration (provider auto-selected by `Database:Provider`)
+
+#### Out-of-process extraction worker
+
+- ✓ `DotNetCloud.Core.Search.Extraction` library — `ContentExtractionService` + 10 extractors (PdfPig/NPOI/DocumentFormat.OpenXml live only here)
+- ✓ `DotNetCloud.Core.Search.Extraction.Contracts` — `extraction_service.proto` client types
+- ✓ `dotnetcloud.extraction` worker host (`Program.cs`, `ExtractionGrpcService`, `ExtractionLifecycleService`, `ExtractionHealthCheck`, `manifest.json`) — discovered/launched by `ProcessSupervisor`
+- ✓ `ExtractionGrpcClient` in Core.Server (implements `IExtractionService`, resolves `dotnetcloud.extraction` endpoint)
+
+#### Core.Server integration
+
+- ✓ `SearchController` + `SearchControllerBase` moved to Core.Server (routes unchanged: `api/v1/search*`)
+- ✓ `SearchEventSubscriber` rewritten (injects `ISearchProvider`, keeps `IModuleSearchDocumentClient`); initial-index moved to hosted service
+- ✓ New `SearchReindexHostedService` (startup + 24h full reindex, module/full triggers, `IndexingJob` tracking, admin progress surface)
+- ✓ New channel-backed `SearchIndexingService` (admin-status parity: `pendingQueueCount`, `realtimeProcessed`, `realtimeFailed`)
+- ✓ `InProcessAdminSharedFolderReindexDispatcher` → `SearchReindexHostedService.TriggerModuleReindex("files")`
+- ✓ `Program.cs`: `AddCoreSearchServices`, `IExtractionService → ExtractionGrpcClient`, `SearchIndexingService`, `SearchReindexHostedService`; removed `ISearchApiClient`/`SearchGrpcApiClient`/search YARP mapping
+- ✓ `DbContextSchemaProvider` no longer manages `dotnetcloud.search`
+
+#### Cleanup
+
+- ✓ Deleted `DotNetCloud.Modules.Search`, `.Search.Client`, `.Search.Host`, `.Search.Data`, `.Search.Data.SqlServer`, `tests/DotNetCloud.Modules.Search.Tests`
+- ✓ Removed `ISearchableModule`, `ISearchApiClient`, `SearchGrpcApiClient` and all dead `*SearchableModule` implementations (Files/Notes/Email/Bookmarks/Calendar)
+- ✓ Module hosts (Files/Notes/Bookmarks/Email/Chat) no longer use `ISearchFtsClient`/`AddSearchFtsClient` — they fall back to LIKE-based search
+- ✓ `RequiredModules`/`ProcessSupervisor` no longer special-case `dotnetcloud.search`
+- ✓ Solution/slnf/deploy/scan/release scripts updated; legacy `modules/dotnetcloud.search` removed at deploy
+- ✓ Boundary rule added to `CLAUDE.md` + `.github/copilot-instructions.md`
+
+#### Tests & Verification
+
+- ✓ New `DotNetCloud.Core.Search.Tests` — 179 tests (parser, snippet, query service, SQL Server provider via CoreDbContext, search entities on CoreDbContext, content extraction + extractors)
+- ✓ `dotnet build DotNetCloud.CI.slnf -c Release` succeeds (0 warnings/errors)
+- ✓ `DotNetCloud.Core.Data.Tests` (175), `DotNetCloud.Modules.Files.Tests` (757), `DotNetCloud.Core.Tests` (489), `DotNetCloud.Core.Server.Tests` (615) all pass
+- ✓ Zero remaining references to `DotNetCloud.Modules.Search`, `ISearchApiClient`, `ISearchableModule`, `SearchGrpcApiClient`, `dotnetcloud.search` (except intentional deploy cleanup)
+- ✓ Deployed + live-verified: idempotent `AddSearchIndex` migration recorded; full reindex completes 76,204/76,204 in ~4 min; index queryable; extraction worker healthy (text extraction + corrupt-file absorption); `api/v1/search*` served by Core.Server (401 when unauthenticated); parser libs only in the extraction worker
+
+#### Live-verification fixes (found during deploy test)
+
+- ✓ `SqlServerSearchProvider` — `BeginTransactionAsync` is incompatible with the `SqlServerRetryingExecutionStrategy` used by `CoreDbContext` (throws `InvalidOperationException` on the first query in the transaction). Wrapped transactional operations (`IndexDocumentAsync`, `RemoveDocumentAsync`, `ReindexModuleAsync`) in `CreateExecutionStrategy().ExecuteAsync(...)`.
+- ✓ Reindex throughput — per-document `SaveChanges` + transaction (~8 docs/sec) hit the 1-hour reindex timeout and cancelled partway, leaving a partial index. Added batched `BatchIndexAsync` (upsert, 200 docs per `SaveChanges`) to both providers and used it from `SearchReindexHostedService`; full reindex now completes in ~4 minutes. Also added `CleanupOrphanedEntriesAsync` to drop stale entries for modules no longer pulled (chat/contacts/photos/tracks).
+- ✓ Removed stale `dotnetcloud.search` row from `[dbo].[InstalledModules]` on the production DB.
+- ✓ Search queries were not observable in production — `SearchQueryService` logged only at `LogDebug` (filtered out at Info+). Added Information-level structured logs to `SearchController.SearchAsync` and `SuggestAsync` (`Search query "..." by user ... returned N results` / `Search suggest "..." ... returned N suggestions`); verified a live UI search ("turtle") is captured.
+- ✓ UI full search navigated to `/search?q=` (empty query) — `GlobalSearchBar.ViewAllResults()` built the URL **after** `CloseSearch()` cleared `_query`. Fixed by capturing the URL before closing; the full search now fires and is logged.
 
 ---
 

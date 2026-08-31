@@ -1,7 +1,6 @@
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Core.Security;
 using DotNetCloud.Modules.Bookmarks.Services;
-using DotNetCloud.Modules.Search.Client;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DotNetCloud.Modules.Bookmarks.Host.Controllers;
@@ -17,7 +16,6 @@ public class BookmarksController : BookmarksControllerBase
     private readonly IBookmarkImportExportService _importExportService;
     private readonly IBookmarkPreviewService _previewService;
     private readonly IFileValidationService _fileValidation;
-    private readonly ISearchFtsClient? _searchFtsClient;
     private readonly ILogger<BookmarksController> _logger;
 
     /// <summary>
@@ -29,7 +27,6 @@ public class BookmarksController : BookmarksControllerBase
         IBookmarkImportExportService importExportService,
         IBookmarkPreviewService previewService,
         IFileValidationService fileValidation,
-        ISearchFtsClient? searchFtsClient,
         ILogger<BookmarksController> logger)
     {
         _bookmarkService = bookmarkService;
@@ -37,7 +34,6 @@ public class BookmarksController : BookmarksControllerBase
         _importExportService = importExportService;
         _previewService = previewService;
         _fileValidation = fileValidation;
-        _searchFtsClient = searchFtsClient;
         _logger = logger;
     }
 

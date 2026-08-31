@@ -13,7 +13,6 @@ using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Music.Data;
 using DotNetCloud.Modules.Notes.Data;
 using DotNetCloud.Modules.Photos.Data;
-using DotNetCloud.Modules.Search.Data;
 using DotNetCloud.Modules.Tracks.Data;
 using DotNetCloud.Modules.Video.Data;
 using Microsoft.EntityFrameworkCore;
@@ -111,7 +110,6 @@ internal static class ServiceProviderFactory
         const string MusicMigrationsAssembly = "DotNetCloud.Modules.Music.Data.SqlServer";
         const string NotesMigrationsAssembly = "DotNetCloud.Modules.Notes.Data.SqlServer";
         const string PhotosMigrationsAssembly = "DotNetCloud.Modules.Photos.Data.SqlServer";
-        const string SearchMigrationsAssembly = "DotNetCloud.Modules.Search.Data.SqlServer";
         const string TracksMigrationsAssembly = "DotNetCloud.Modules.Tracks.Data.SqlServer";
         const string VideoMigrationsAssembly = "DotNetCloud.Modules.Video.Data.SqlServer";
 
@@ -137,8 +135,6 @@ internal static class ServiceProviderFactory
             ConfigureModuleDbContext(options, provider, connectionString, NotesMigrationsAssembly));
         services.AddDbContext<PhotosDbContext>(options =>
             ConfigureModuleDbContext(options, provider, connectionString, PhotosMigrationsAssembly));
-        services.AddDbContext<SearchDbContext>(options =>
-            ConfigureModuleDbContext(options, provider, connectionString, SearchMigrationsAssembly));
         services.AddDbContext<TracksDbContext>(options =>
             ConfigureModuleDbContext(options, provider, connectionString, TracksMigrationsAssembly));
         services.AddDbContext<VideoDbContext>(options =>
