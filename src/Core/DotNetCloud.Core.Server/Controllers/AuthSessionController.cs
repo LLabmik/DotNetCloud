@@ -53,7 +53,10 @@ public sealed class AuthSessionController : ControllerBase
         [FromForm] string? returnUrl = null)
     {
         if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+        {
+            _logger.LogWarning("Form login rejected: missing email or password");
             return RedirectToLogin("Email and password are required.", returnUrl, email);
+        }
 
         try
         {
@@ -122,16 +125,24 @@ public sealed class AuthSessionController : ControllerBase
             }
 
             if (result.IsLockedOut)
+            {
+                await LogLoginFailureAsync(email, "locked-out");
                 return RedirectToLogin("Account locked. Please try again later.", returnUrl, email);
+            }
 
             if (result.IsNotAllowed)
+            {
+                await LogLoginFailureAsync(email, "not-allowed");
                 return RedirectToLogin("Login not allowed. Please confirm your email.", returnUrl, email);
+            }
 
+            await LogLoginFailureAsync(email, "invalid-credentials");
             return RedirectToLogin("Invalid email or password.", returnUrl, email);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Form login failed");
+            _logger.LogError(ex, "Form login failed for {Email}", LogSanitizer.Sanitize(email));
+            await LogLoginFailureAsync(email, "exception");
             return RedirectToLogin($"Login error: {ex.GetType().Name}", returnUrl, email);
         }
     }
@@ -221,13 +232,18 @@ public sealed class AuthSessionController : ControllerBase
             }
 
             if (result.IsLockedOut)
+            {
+                await LogMfaFailureAsync("locked-out");
                 return RedirectToMfaVerify("Account locked. Please try again later.", safeReturn);
+            }
 
+            await LogMfaFailureAsync("invalid-code");
             return RedirectToMfaVerify("Invalid verification code.", safeReturn);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "MFA form verification failed");
+            await LogMfaFailureAsync("exception");
             return RedirectToMfaVerify($"Verification error: {ex.GetType().Name}", safeReturn);
         }
     }
@@ -262,6 +278,14 @@ public sealed class AuthSessionController : ControllerBase
         }
 
         _logger.LogInformation("User logged out via form POST");
+
+        // Actively clear the browser's cookies, HTTP cache, and storage for this origin so no
+        // user-specific data (or stale authenticated responses/preferences) survive the logout
+        // or leak to a different user who signs in next. Clear-Site-Data is the standard header
+        // browsers use to purge this data; Cache-Control/Pragma keep the response uncached.
+        Response.Headers["Clear-Site-Data"] = "\"cache\", \"cookies\", \"storage\"";
+        Response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate";
+        Response.Headers["Pragma"] = "no-cache";
 
         var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         if (Guid.TryParse(userIdClaim, out var loggedOutUserId))
@@ -340,6 +364,41 @@ public sealed class AuthSessionController : ControllerBase
         var isAdmin = await _userManager.IsInRoleAsync(user, SystemRoleNames.Administrator);
 
         return isAdmin ? returnUrl : "/";
+    }
+
+    private async Task LogLoginFailureAsync(string email, string reason)
+    {
+        var sanitizedEmail = LogSanitizer.Sanitize(email);
+        _logger.LogWarning("Form login failed for {Email}: {Reason}", sanitizedEmail, reason);
+
+        // Resolve the user so the audit entry can carry their ID when the account exists.
+        var user = await _userManager.FindByEmailAsync(email);
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = CallerContext.CreateSystemContext(),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.Read,
+            EntityType = "User",
+            EntityId = user?.Id ?? Guid.Empty,
+            Description = $"form-login-failed:{reason}:{sanitizedEmail}",
+        });
+    }
+
+    private async Task LogMfaFailureAsync(string reason)
+    {
+        var user = await _signInManager.GetTwoFactorAuthenticationUserAsync();
+        var userId = user?.Id ?? Guid.Empty;
+        _logger.LogWarning("MFA login failed for {UserId}: {Reason}", userId, reason);
+
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = CallerContext.CreateSystemContext(),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.Read,
+            EntityType = "User",
+            EntityId = userId,
+            Description = $"mfa-login-failed:{reason}:{LogSanitizer.Sanitize(user?.Email)}",
+        });
     }
 
     private async Task UpdateLastLoginAsync(string email)

@@ -897,6 +897,10 @@ public class Program
         app.UseAuthentication();
         app.UseAuthorization();
 
+        // Prevent browsers from caching user-specific API responses (stale cross-user data).
+        // Media/stream endpoints are excluded by the middleware itself.
+        app.UseMiddleware<DotNetCloud.Core.Server.Middleware.ApiNoCacheMiddleware>();
+
         // Password change enforcement — redirects authenticated users with PasswordChangeRequired=true
         // to the change-password page. Must run after authentication/authorization so the user
         // identity is available, but before endpoint routing so the redirect happens early.

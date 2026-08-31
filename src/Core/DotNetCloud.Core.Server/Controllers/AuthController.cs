@@ -187,6 +187,7 @@ public class AuthController : ControllerBase
     /// <returns>User profile information.</returns>
     [HttpGet("user")]
     [Authorize]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<IActionResult> GetCurrentUserAsync()
     {
         if (!TryGetUserId(out var userId))
