@@ -74,4 +74,23 @@ public sealed record AiStreamChunk
 
     /// <summary>Response tokens generated so far (present on the final chunk).</summary>
     public int? EvalCount { get; init; }
+
+    /// <summary>"queued", "generating", or "done".</summary>
+    public string? Status { get; init; }
+
+    /// <summary>1-based queue position (present when Status == "queued").</summary>
+    public int? Position { get; init; }
+
+    /// <summary>Total queue length (present when Status == "queued").</summary>
+    public int? Total { get; init; }
+}
+
+/// <summary>Resolved AI settings (default model, provider) shown as static text.</summary>
+public sealed record AiSettingsDto
+{
+    /// <summary>The admin-configured default model.</summary>
+    public string DefaultModel { get; init; } = "";
+
+    /// <summary>The LLM provider type (ollama, openai, anthropic).</summary>
+    public string Provider { get; init; } = "";
 }

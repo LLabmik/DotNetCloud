@@ -92,18 +92,32 @@ public sealed partial class AiViewModel : ObservableObject
     /// <summary>Messages of the currently active conversation.</summary>
     public ObservableCollection<AiMessageDto> ActiveMessages { get; } = [];
 
-    /// <summary>The models available on the server.</summary>
-    public ObservableCollection<AiModelDto> Models { get; } = [];
-
-    [ObservableProperty]
-    private AiModelDto? _selectedModelDto;
-
-    /// <summary>The model id (AiModelDto.Id) in use.</summary>
-    [ObservableProperty]
-    private string _selectedModel = "";
-
     [ObservableProperty]
     private Guid? _activeConversationId;
+
+    /// <summary>The admin-configured default model, shown as static text.</summary>
+    [ObservableProperty]
+    private string _defaultModel = "";
+
+    /// <summary>The model of the active conversation, shown in the chat header.</summary>
+    [ObservableProperty]
+    private string _activeConversationModel = "";
+
+    /// <summary>True while the request is waiting in the inference queue.</summary>
+    [ObservableProperty]
+    private bool _isQueued;
+
+    /// <summary>Current 1-based queue position while queued.</summary>
+    [ObservableProperty]
+    private int _queuePosition;
+
+    /// <summary>Total queue length while queued.</summary>
+    [ObservableProperty]
+    private int _queueTotal;
+
+    /// <summary>"In queue: position 3 of 8" when queued, else empty.</summary>
+    public string QueueStatusText =>
+        IsQueued ? $"In queue: position {QueuePosition} of {QueueTotal}" : "";
 
     [ObservableProperty]
     private string _activeConversationTitle = "";
@@ -140,8 +154,11 @@ public sealed partial class AiViewModel : ObservableObject
     [ObservableProperty]
     private Guid? _copiedMessageId;
 
-    partial void OnSelectedModelDtoChanged(AiModelDto? value) =>
-        SelectedModel = value?.Id ?? "";
+    partial void OnIsQueuedChanged(bool value) => OnPropertyChanged(nameof(QueueStatusText));
+
+    partial void OnQueuePositionChanged(int value) => OnPropertyChanged(nameof(QueueStatusText));
+
+    partial void OnQueueTotalChanged(int value) => OnPropertyChanged(nameof(QueueStatusText));
 
     partial void OnStreamingContentChanged(string value) =>
         OnPropertyChanged(nameof(StreamingDisplay));
@@ -187,18 +204,19 @@ public sealed partial class AiViewModel : ObservableObject
                 ErrorMessage = $"Failed to load conversations: {ex.Message}";
             }
 
-            // Models + Ollama health depend on the provider. When it is down the models
+            // Ollama health + settings depend on the provider. When it is down the settings
             // call can throw (HTTP 500); surface the Ollama warning banner instead of a
             // hard failure so existing conversations remain visible.
-            IReadOnlyList<AiModelDto> models = [];
             var healthy = false;
+            var defaultModel = "";
             try
             {
-                var modelsTask = _ai.ListModelsAsync(serverUrl, token);
                 var healthTask = _ai.GetOllamaHealthAsync(serverUrl, token);
-                await Task.WhenAll(modelsTask, healthTask);
-                models = await modelsTask;
+                var settingsTask = _ai.GetSettingsAsync(serverUrl, token);
+                await Task.WhenAll(healthTask, settingsTask);
                 healthy = await healthTask;
+                var settings = await settingsTask;
+                defaultModel = settings?.DefaultModel ?? "";
             }
             catch
             {
@@ -208,22 +226,12 @@ public sealed partial class AiViewModel : ObservableObject
 
             Dispatch(() =>
             {
-                Models.Clear();
-                foreach (var m in models)
-                    Models.Add(m);
-
                 Conversations.Clear();
                 foreach (var c in conversations)
                     Conversations.Add(NormalizeTitle(c));
 
                 OllamaHealthy = healthy;
-
-                // Default to gpt-oss:20b if present, otherwise the first model.
-                var preferred = Models.FirstOrDefault(m =>
-                    string.Equals(m.Id, "gpt-oss:20b", StringComparison.OrdinalIgnoreCase)) ?? Models.FirstOrDefault();
-                SelectedModelDto = preferred;
-                if (preferred is null)
-                    SelectedModel = "";
+                DefaultModel = defaultModel;
 
                 ShowConversationList = true;
                 IsLoading = false;
@@ -252,7 +260,7 @@ public sealed partial class AiViewModel : ObservableObject
 
         try
         {
-            var created = await _ai.CreateConversationAsync(serverUrl, token, null, SelectedModel);
+            var created = await _ai.CreateConversationAsync(serverUrl, token, null);
             if (created is null)
             {
                 ErrorMessage = "Failed to create conversation.";
@@ -264,6 +272,7 @@ public sealed partial class AiViewModel : ObservableObject
                 Conversations.Insert(0, NormalizeTitle(created));
                 ActiveConversationId = created.Id;
                 ActiveConversationTitle = string.IsNullOrWhiteSpace(created.Title) ? "New Chat" : created.Title;
+                ActiveConversationModel = created.Model;
                 ActiveMessages.Clear();
                 ComposerText = "";
                 StreamingContent = "";
@@ -305,7 +314,7 @@ public sealed partial class AiViewModel : ObservableObject
                     foreach (var m in detail.Messages)
                         ActiveMessages.Add(m);
                 }
-                SelectedModel = string.IsNullOrEmpty(detail?.Model) ? SelectedModel : detail.Model;
+                ActiveConversationModel = string.IsNullOrEmpty(detail?.Model) ? DefaultModel : detail.Model;
                 StreamingContent = "";
                 ShowConversationList = false;
                 ScrollRequested?.Invoke();
@@ -355,16 +364,37 @@ public sealed partial class AiViewModel : ObservableObject
             ComposerText = "";
             StreamingContent = "";
             IsStreaming = true;
+            IsQueued = true;
             ScrollRequested?.Invoke();
         });
 
-        StartModelLoadTimer();
-
         var accumulated = new System.Text.StringBuilder();
+        var startedGenerating = false;
         try
         {
             await foreach (var chunk in _ai.SendMessageStreamingAsync(serverUrl, token, conversationId, message, ct))
             {
+                if (string.Equals(chunk.Status, "queued", StringComparison.OrdinalIgnoreCase))
+                {
+                    Dispatch(() =>
+                    {
+                        IsQueued = true;
+                        if (chunk.Position is int p)
+                            QueuePosition = p;
+                        if (chunk.Total is int t)
+                            QueueTotal = t;
+                    });
+                    continue;
+                }
+
+                if (!startedGenerating)
+                {
+                    // Request left the queue and is now generating — start the model-load timer.
+                    startedGenerating = true;
+                    Dispatch(() => IsQueued = false);
+                    StartModelLoadTimer();
+                }
+
                 if (!string.IsNullOrEmpty(chunk.Content))
                 {
                     accumulated.Append(chunk.Content);
@@ -398,6 +428,7 @@ public sealed partial class AiViewModel : ObservableObject
                     ActiveMessages.Add(assistantMessage);
                 StreamingContent = "";
                 IsStreaming = false;
+                IsQueued = false;
                 ScrollRequested?.Invoke();
             });
 
@@ -410,6 +441,7 @@ public sealed partial class AiViewModel : ObservableObject
             {
                 StreamingContent = "";
                 IsStreaming = false;
+                IsQueued = false;
             });
         }
         catch (Exception ex)
@@ -418,11 +450,14 @@ public sealed partial class AiViewModel : ObservableObject
             {
                 StreamingContent = "";
                 IsStreaming = false;
+                IsQueued = false;
                 ErrorMessage = $"Failed to send message: {ex.Message}";
             });
         }
         finally
         {
+            QueuePosition = 0;
+            QueueTotal = 0;
             StopModelLoadTimer();
             _streamCts?.Dispose();
             _streamCts = null;

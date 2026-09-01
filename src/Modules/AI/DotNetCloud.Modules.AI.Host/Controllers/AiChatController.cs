@@ -34,11 +34,9 @@ public sealed class AiChatController : ControllerBase
         CancellationToken cancellationToken)
     {
         var caller = GetCallerContext();
-        var defaultModel = await _settingsProvider.GetDefaultModelAsync(cancellationToken);
-        var model = string.IsNullOrWhiteSpace(request.Model) ? defaultModel : request.Model;
 
         var conversation = await _chatService.CreateConversationAsync(
-            caller, request.Title, model, request.SystemPrompt, cancellationToken);
+            caller, request.Title, request.SystemPrompt, cancellationToken);
 
         return Ok(new ConversationDto
         {
@@ -156,6 +154,14 @@ public sealed class AiChatController : ControllerBase
             {
                 var data = System.Text.Json.JsonSerializer.Serialize(new
                 {
+                    status = chunk.Status switch
+                    {
+                        LlmStreamStatus.Queued => "queued",
+                        LlmStreamStatus.Done => "done",
+                        _ => "generating"
+                    },
+                    position = chunk.QueuedPosition,
+                    total = chunk.QueueTotal,
                     content = chunk.Content,
                     done = chunk.Done,
                     evalCount = chunk.EvalCount
@@ -172,6 +178,17 @@ public sealed class AiChatController : ControllerBase
         {
             Response.StatusCode = 404;
         }
+    }
+
+    /// <summary>Gets the resolved AI settings (default model, provider) for static display.</summary>
+    [HttpGet("settings")]
+    public async Task<IActionResult> GetSettings(CancellationToken cancellationToken)
+    {
+        return Ok(new
+        {
+            defaultModel = await _settingsProvider.GetDefaultModelAsync(cancellationToken),
+            provider = await _settingsProvider.GetProviderAsync(cancellationToken)
+        });
     }
 
     /// <summary>Lists available models.</summary>
@@ -233,9 +250,6 @@ public sealed class CreateConversationRequest
 {
     /// <summary>Optional title for the conversation.</summary>
     public string? Title { get; set; }
-
-    /// <summary>Model to use (defaults to configured default).</summary>
-    public string? Model { get; set; }
 
     /// <summary>Optional system prompt.</summary>
     public string? SystemPrompt { get; set; }

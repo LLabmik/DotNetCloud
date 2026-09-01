@@ -12,8 +12,8 @@ public interface IAiRestClient
     /// <summary>Gets a single conversation including its messages.</summary>
     Task<AiConversationDto?> GetConversationAsync(string serverBaseUrl, string accessToken, Guid conversationId, CancellationToken ct = default);
 
-    /// <summary>Creates a new conversation with the given title and model.</summary>
-    Task<AiConversationDto?> CreateConversationAsync(string serverBaseUrl, string accessToken, string? title, string model, CancellationToken ct = default);
+    /// <summary>Creates a new conversation (uses the admin-configured default model).</summary>
+    Task<AiConversationDto?> CreateConversationAsync(string serverBaseUrl, string accessToken, string? title, CancellationToken ct = default);
 
     /// <summary>Deletes a conversation. Returns <c>false</c> if it does not exist.</summary>
     Task<bool> DeleteConversationAsync(string serverBaseUrl, string accessToken, Guid conversationId, CancellationToken ct = default);
@@ -26,4 +26,7 @@ public interface IAiRestClient
 
     /// <summary>Checks whether the configured Ollama backend is healthy.</summary>
     Task<bool> GetOllamaHealthAsync(string serverBaseUrl, string accessToken, CancellationToken ct = default);
+
+    /// <summary>Gets the resolved AI settings (default model, provider) for static display.</summary>
+    Task<AiSettingsDto?> GetSettingsAsync(string serverBaseUrl, string accessToken, CancellationToken ct = default);
 }

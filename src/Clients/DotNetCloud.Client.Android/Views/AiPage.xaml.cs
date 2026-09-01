@@ -24,7 +24,7 @@ public partial class AiPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
-        if (_vm.Models.Count == 0)
+        if (_vm.Conversations.Count == 0)
             await _vm.LoadAsync();
     }
 

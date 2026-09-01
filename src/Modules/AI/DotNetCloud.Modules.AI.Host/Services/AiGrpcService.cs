@@ -13,6 +13,7 @@ public sealed class AiGrpcService : AiService.AiServiceBase
 {
     private readonly IAiChatService _chatService;
     private readonly IAiSettingsProvider _settingsProvider;
+    private readonly IOllamaClient _ollamaClient;
     private readonly ILogger<AiGrpcService> _logger;
 
     /// <summary>
@@ -21,10 +22,12 @@ public sealed class AiGrpcService : AiService.AiServiceBase
     public AiGrpcService(
         IAiChatService chatService,
         IAiSettingsProvider settingsProvider,
+        IOllamaClient ollamaClient,
         ILogger<AiGrpcService> logger)
     {
         _chatService = chatService;
         _settingsProvider = settingsProvider;
+        _ollamaClient = ollamaClient;
         _logger = logger;
     }
 
@@ -34,13 +37,10 @@ public sealed class AiGrpcService : AiService.AiServiceBase
     {
         try
         {
-            var caller = CallerContext.CreateSystemContext();
-            var defaultModel = await _settingsProvider.GetDefaultModelAsync(context.CancellationToken);
-            var model = string.IsNullOrWhiteSpace(request.Model) ? defaultModel : request.Model;
+            var caller = ToCaller(request.UserId);
             var conversation = await _chatService.CreateConversationAsync(
                 caller,
                 string.IsNullOrWhiteSpace(request.Title) ? null : request.Title,
-                model,
                 string.IsNullOrWhiteSpace(request.SystemPrompt) ? null : request.SystemPrompt,
                 context.CancellationToken);
 
@@ -64,7 +64,7 @@ public sealed class AiGrpcService : AiService.AiServiceBase
         try
         {
             var conversation = await _chatService.GetConversationAsync(
-                CallerContext.CreateSystemContext(),
+                ToCaller(request.UserId),
                 Guid.Parse(request.ConversationId),
                 context.CancellationToken);
 
@@ -91,7 +91,7 @@ public sealed class AiGrpcService : AiService.AiServiceBase
         try
         {
             var list = await _chatService.ListConversationsAsync(
-                CallerContext.CreateSystemContext(),
+                ToCaller(request.UserId),
                 context.CancellationToken);
 
             var response = new ListConversationsResponse { Success = true };
@@ -114,7 +114,7 @@ public sealed class AiGrpcService : AiService.AiServiceBase
         try
         {
             var deleted = await _chatService.DeleteConversationAsync(
-                CallerContext.CreateSystemContext(),
+                ToCaller(request.UserId),
                 Guid.Parse(request.ConversationId),
                 context.CancellationToken);
 
@@ -134,7 +134,7 @@ public sealed class AiGrpcService : AiService.AiServiceBase
         try
         {
             var ok = await _chatService.RenameConversationAsync(
-                CallerContext.CreateSystemContext(),
+                ToCaller(request.UserId),
                 Guid.Parse(request.ConversationId),
                 request.NewTitle,
                 context.CancellationToken);
@@ -155,7 +155,7 @@ public sealed class AiGrpcService : AiService.AiServiceBase
         try
         {
             var response = await _chatService.SendMessageAsync(
-                CallerContext.CreateSystemContext(),
+                ToCaller(request.UserId),
                 Guid.Parse(request.ConversationId),
                 request.Message,
                 context.CancellationToken);
@@ -184,7 +184,7 @@ public sealed class AiGrpcService : AiService.AiServiceBase
         ServerCallContext context)
     {
         await foreach (var chunk in _chatService.SendMessageStreamingAsync(
-            CallerContext.CreateSystemContext(),
+            ToCaller(request.UserId),
             Guid.Parse(request.ConversationId),
             request.Message,
             context.CancellationToken))
@@ -193,7 +193,10 @@ public sealed class AiGrpcService : AiService.AiServiceBase
             {
                 Content = chunk.Content,
                 Done = chunk.Done,
-                EvalCount = chunk.EvalCount ?? 0
+                EvalCount = chunk.EvalCount ?? 0,
+                Status = (AiStreamStatus)(int)chunk.Status,
+                QueuedPosition = chunk.QueuedPosition ?? 0,
+                QueueTotal = chunk.QueueTotal ?? 0
             });
         }
     }
@@ -205,7 +208,7 @@ public sealed class AiGrpcService : AiService.AiServiceBase
         try
         {
             var models = await _chatService.ListModelsAsync(
-                CallerContext.CreateSystemContext(),
+                ToCaller(request.UserId),
                 context.CancellationToken);
 
             var response = new ListModelsResponse { Success = true };
@@ -218,6 +221,22 @@ public sealed class AiGrpcService : AiService.AiServiceBase
         {
             _logger.LogError(ex, "ListModels failed");
             return new ListModelsResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<OllamaHealthResponse> GetOllamaHealth(
+        GetOllamaHealthRequest request, ServerCallContext context)
+    {
+        try
+        {
+            var healthy = await _ollamaClient.IsHealthyAsync(context.CancellationToken);
+            return new OllamaHealthResponse { Healthy = healthy };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "GetOllamaHealth failed");
+            return new OllamaHealthResponse { Healthy = false };
         }
     }
 
@@ -258,6 +277,15 @@ public sealed class AiGrpcService : AiService.AiServiceBase
             RequestTimeoutSeconds = request.RequestTimeoutSeconds
         });
     }
+
+    /// <summary>
+    /// Builds a real user <see cref="CallerContext"/> from the request's <c>user_id</c>.
+    /// Ownership filtering in <see cref="IAiChatService"/> depends on the correct user id.
+    /// </summary>
+    private static CallerContext ToCaller(string? userId)
+        => Guid.TryParse(userId, out var id) && id != Guid.Empty
+            ? new CallerContext(id, Array.Empty<string>(), CallerType.User)
+            : CallerContext.CreateSystemContext();
 
     private static ConversationMessage MapConversation(Models.Conversation c)
         => new()

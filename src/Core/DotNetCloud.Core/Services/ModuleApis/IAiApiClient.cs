@@ -1,3 +1,5 @@
+using DotNetCloud.Core.AI;
+
 namespace DotNetCloud.Core.Services.ModuleApis;
 
 /// <summary>
@@ -6,26 +8,29 @@ namespace DotNetCloud.Core.Services.ModuleApis;
 /// </summary>
 public interface IAiApiClient
 {
-    /// <summary>Creates a new conversation.</summary>
-    Task<ConversationDto?> CreateConversationAsync(string? title, string model, string? systemPrompt, CancellationToken ct = default);
+    /// <summary>Creates a new conversation (uses the admin-configured default model).</summary>
+    Task<ConversationDto?> CreateConversationAsync(Guid userId, string? title, string? systemPrompt, CancellationToken ct = default);
 
     /// <summary>Gets a conversation by ID with all messages.</summary>
-    Task<ConversationDetailDto?> GetConversationAsync(Guid conversationId, CancellationToken ct = default);
+    Task<ConversationDetailDto?> GetConversationAsync(Guid userId, Guid conversationId, CancellationToken ct = default);
 
     /// <summary>Lists all conversations for the current user.</summary>
-    Task<IReadOnlyList<ConversationSummaryDto>> ListConversationsAsync(CancellationToken ct = default);
+    Task<IReadOnlyList<ConversationSummaryDto>> ListConversationsAsync(Guid userId, CancellationToken ct = default);
 
     /// <summary>Deletes a conversation (soft-delete).</summary>
-    Task<bool> DeleteConversationAsync(Guid conversationId, CancellationToken ct = default);
+    Task<bool> DeleteConversationAsync(Guid userId, Guid conversationId, CancellationToken ct = default);
 
     /// <summary>Renames a conversation.</summary>
-    Task<bool> RenameConversationAsync(Guid conversationId, string newTitle, CancellationToken ct = default);
+    Task<bool> RenameConversationAsync(Guid userId, Guid conversationId, string newTitle, CancellationToken ct = default);
 
     /// <summary>Sends a message and gets the full response.</summary>
-    Task<ChatResponseDto?> SendMessageAsync(Guid conversationId, string message, CancellationToken ct = default);
+    Task<ChatResponseDto?> SendMessageAsync(Guid userId, Guid conversationId, string message, CancellationToken ct = default);
 
     /// <summary>Sends a message and streams the response.</summary>
-    IAsyncEnumerable<MessageChunkDto> SendMessageStreamingAsync(Guid conversationId, string message, CancellationToken ct = default);
+    IAsyncEnumerable<MessageChunkDto> SendMessageStreamingAsync(Guid userId, Guid conversationId, string message, CancellationToken ct = default);
+
+    /// <summary>Checks whether the configured Ollama backend is healthy.</summary>
+    Task<bool> IsOllamaHealthyAsync(CancellationToken ct = default);
 
     /// <summary>Lists available models.</summary>
     Task<IReadOnlyList<ModelInfoDto>> ListModelsAsync(CancellationToken ct = default);
@@ -113,6 +118,12 @@ public sealed record MessageChunkDto
     public bool Done { get; init; }
     /// <summary>Evaluation count.</summary>
     public int EvalCount { get; init; }
+    /// <summary>Stream lifecycle status (Queued / Generating / Done).</summary>
+    public LlmStreamStatus Status { get; init; } = LlmStreamStatus.Generating;
+    /// <summary>1-based queue position (only on Queued status chunks).</summary>
+    public int? QueuedPosition { get; init; }
+    /// <summary>Total items in the queue (only on Queued status chunks).</summary>
+    public int? QueueTotal { get; init; }
 }
 
 /// <summary>Model info DTO.</summary>

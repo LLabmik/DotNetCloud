@@ -19,16 +19,26 @@ public sealed class AiChatService : IAiChatService
 {
     private readonly AiDbContext _db;
     private readonly IOllamaClient _ollamaClient;
+    private readonly IAiCompletionQueue _queue;
+    private readonly IAiSettingsProvider _settingsProvider;
     private readonly IAuditLogger _auditLogger;
     private readonly ILogger<AiChatService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AiChatService"/> class.
     /// </summary>
-    public AiChatService(AiDbContext db, IOllamaClient ollamaClient, IAuditLogger auditLogger, ILogger<AiChatService> logger)
+    public AiChatService(
+        AiDbContext db,
+        IOllamaClient ollamaClient,
+        IAiCompletionQueue queue,
+        IAiSettingsProvider settingsProvider,
+        IAuditLogger auditLogger,
+        ILogger<AiChatService> logger)
     {
         _db = db;
         _ollamaClient = ollamaClient;
+        _queue = queue;
+        _settingsProvider = settingsProvider;
         _auditLogger = auditLogger;
         _logger = logger;
     }
@@ -37,10 +47,12 @@ public sealed class AiChatService : IAiChatService
     public async Task<Conversation> CreateConversationAsync(
         CallerContext caller,
         string? title,
-        string model,
         string? systemPrompt,
         CancellationToken cancellationToken = default)
     {
+        // Users cannot choose a model — always use the admin-configured default.
+        var model = await _settingsProvider.GetDefaultModelAsync(cancellationToken);
+
         var conversation = new Conversation
         {
             Id = Guid.CreateVersion7(),
@@ -165,8 +177,10 @@ public sealed class AiChatService : IAiChatService
         // Build LLM request from conversation history
         var llmRequest = BuildLlmRequest(conversation);
 
-        // Call Ollama
-        var response = await _ollamaClient.ChatAsync(llmRequest, cancellationToken);
+        // Call Ollama through the FIFO queue so only one inference runs at a time.
+        var response = await _queue.EnqueueTaskAsync(
+            ct => _ollamaClient.ChatAsync(llmRequest, ct),
+            cancellationToken);
 
         // Persist the assistant response
         var assistantMsg = new ConversationMessage
@@ -220,20 +234,70 @@ public sealed class AiChatService : IAiChatService
         // Build LLM request from conversation history
         var llmRequest = BuildLlmRequest(conversation);
 
-        // Stream from Ollama and accumulate the full response
+        // Enqueue the Ollama streaming call through the FIFO queue. The queue serializes
+        // inference and emits a Generating marker once this request reaches the front.
+        var entry = _queue.EnqueueStreaming(
+            ct => _ollamaClient.ChatStreamingAsync(llmRequest, ct),
+            cancellationToken);
+
+        var reader = entry.Reader;
         var fullContent = new System.Text.StringBuilder();
         int? evalCount = null;
+        var startedGenerating = false;
 
-        await foreach (var chunk in _ollamaClient.ChatStreamingAsync(llmRequest, cancellationToken))
+        // Interleave live queue-position updates while waiting for the turn, then
+        // forward the streamed content once generation begins.
+        while (!cancellationToken.IsCancellationRequested)
         {
-            fullContent.Append(chunk.Content);
+            var readTask = reader.WaitToReadAsync(cancellationToken).AsTask();
+            var delayTask = Task.Delay(500, cancellationToken);
+            var completed = await Task.WhenAny(readTask, delayTask);
 
-            if (chunk.Done)
+            if (completed == readTask)
             {
-                evalCount = chunk.EvalCount;
-            }
+                // Channel completed with no more data — done.
+                if (!await readTask)
+                {
+                    // Surface any error that terminated generation instead of silently
+                    // ending the stream (the queue worker completes the channel with it).
+                    await reader.Completion;
+                    break;
+                }
 
-            yield return chunk;
+                while (reader.TryRead(out var chunk))
+                {
+                    if (chunk.Status == LlmStreamStatus.Queued)
+                    {
+                        yield return chunk;
+                        continue;
+                    }
+
+                    startedGenerating = true;
+
+                    fullContent.Append(chunk.Content);
+                    if (chunk.Done)
+                    {
+                        evalCount = chunk.EvalCount;
+                    }
+
+                    yield return chunk;
+                }
+            }
+            else if (!startedGenerating)
+            {
+                // Still waiting for the queue turn — report the live position.
+                yield return new LlmResponseChunk
+                {
+                    Model = llmRequest.Model,
+                    Content = string.Empty,
+                    Status = LlmStreamStatus.Queued,
+                    Done = false,
+                    QueuedPosition = entry.Position,
+                    QueueTotal = entry.Total
+                };
+            }
+            // else: generating is in flight but the first token hasn't arrived yet —
+            // keep waiting silently so the client stays in its "thinking" state.
         }
 
         // Persist the complete assistant response

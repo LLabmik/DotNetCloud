@@ -55,7 +55,7 @@ public sealed class AiViewModelTests
         Assert.IsTrue(_vm.OllamaHealthy);
         Assert.AreEqual(0, _vm.Conversations.Count);
         Assert.AreEqual(0, _vm.ActiveMessages.Count);
-        Assert.AreEqual(0, _vm.Models.Count);
+        Assert.AreEqual("", _vm.DefaultModel);
         Assert.IsNull(_vm.ActiveConversationId);
         Assert.AreEqual("", _vm.ComposerText);
         Assert.IsNull(_vm.ErrorMessage);
@@ -64,13 +64,8 @@ public sealed class AiViewModelTests
     // ── LoadAsync ─────────────────────────────────────────────────────
 
     [TestMethod]
-    public async Task LoadAsync_PopulatesModelsAndConversations()
+    public async Task LoadAsync_PopulatesConversationsAndDefaultModel()
     {
-        _ai.Setup(x => x.ListModelsAsync(ServerUrl, Token, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<AiModelDto>
-            {
-                new() { Id = "gpt-oss:20b", Name = "gpt-oss:20b", Provider = "ollama" }
-            });
         _ai.Setup(x => x.ListConversationsAsync(ServerUrl, Token, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<AiConversationDto>
             {
@@ -78,14 +73,15 @@ public sealed class AiViewModelTests
             });
         _ai.Setup(x => x.GetOllamaHealthAsync(ServerUrl, Token, It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
+        _ai.Setup(x => x.GetSettingsAsync(ServerUrl, Token, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiSettingsDto { DefaultModel = "gpt-oss:20b", Provider = "ollama" });
 
         await _vm.LoadAsync();
 
-        Assert.AreEqual(1, _vm.Models.Count);
         Assert.AreEqual(1, _vm.Conversations.Count);
+        Assert.AreEqual("gpt-oss:20b", _vm.DefaultModel);
         Assert.IsFalse(_vm.OllamaHealthy);
         Assert.IsFalse(_vm.IsLoading);
-        Assert.AreEqual("gpt-oss:20b", _vm.SelectedModel);
         Assert.IsTrue(_vm.ShowConversationList);
     }
 
@@ -103,9 +99,9 @@ public sealed class AiViewModelTests
     [TestMethod]
     public async Task LoadAsync_ProviderUnreachable_StillLoadsConversations()
     {
-        // Models call fails (server → Ollama unreachable, HTTP 500) but conversations
+        // Settings call fails (server → Ollama unreachable, HTTP 500) but conversations
         // are DB-backed and must still load; the Ollama banner should show instead.
-        _ai.Setup(x => x.ListModelsAsync(ServerUrl, Token, It.IsAny<CancellationToken>()))
+        _ai.Setup(x => x.GetSettingsAsync(ServerUrl, Token, It.IsAny<CancellationToken>()))
             .ThrowsAsync(new HttpRequestException("500 (Internal Server Error)"));
         _ai.Setup(x => x.GetOllamaHealthAsync(ServerUrl, Token, It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
@@ -118,7 +114,7 @@ public sealed class AiViewModelTests
         await _vm.LoadAsync();
 
         Assert.AreEqual(1, _vm.Conversations.Count);
-        Assert.AreEqual(0, _vm.Models.Count);
+        Assert.AreEqual("", _vm.DefaultModel);
         Assert.IsFalse(_vm.OllamaHealthy);
         Assert.IsFalse(_vm.IsLoading);
         Assert.IsNotNull(_vm.ErrorMessage);
@@ -129,7 +125,7 @@ public sealed class AiViewModelTests
     [TestMethod]
     public async Task NewConversationAsync_CreatesAndShowsChat()
     {
-        _ai.Setup(x => x.CreateConversationAsync(ServerUrl, Token, null, It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        _ai.Setup(x => x.CreateConversationAsync(ServerUrl, Token, null, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AiConversationDto { Id = ConversationId, Title = "New Chat", Model = "gpt-oss:20b" });
 
         await _vm.NewConversationCommand.ExecuteAsync(null);
@@ -172,7 +168,7 @@ public sealed class AiViewModelTests
     [TestMethod]
     public async Task SendMessageAsync_AppendsUserMessage_ThenStreamsAssistantReply()
     {
-        _ai.Setup(x => x.CreateConversationAsync(ServerUrl, Token, null, It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        _ai.Setup(x => x.CreateConversationAsync(ServerUrl, Token, null, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AiConversationDto { Id = ConversationId, Title = "New Chat", Model = "gpt-oss:20b" });
         _ai.Setup(x => x.SendMessageStreamingAsync(ServerUrl, Token, ConversationId, "hello", It.IsAny<CancellationToken>()))
             .Returns(StreamChunks(("Hi ", false), ("there", false), ("", true)));
@@ -204,6 +200,40 @@ public sealed class AiViewModelTests
 
         Assert.AreEqual(0, _vm.ActiveMessages.Count);
         _ai.Verify(x => x.SendMessageStreamingAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [TestMethod]
+    public async Task SendMessageAsync_QueuedChunk_SetsQueueStatus()
+    {
+        AiViewModel.ModelLoadDelay = TimeSpan.FromMilliseconds(100);
+        try
+        {
+            _vm.Conversations.Add(new AiConversationDto { Id = ConversationId, Title = "Test", Model = "gpt-oss:20b" });
+            _vm.ActiveConversationId = ConversationId;
+            _vm.ComposerText = "hello";
+
+            _ai.Setup(x => x.SendMessageStreamingAsync(ServerUrl, Token, ConversationId, "hello", It.IsAny<CancellationToken>()))
+                .Returns(QueuedThenGeneratingStream());
+
+            var sendTask = _vm.SendMessageCommand.ExecuteAsync(null);
+
+            // While the request is queued, the live queue status is surfaced.
+            await Task.Delay(TimeSpan.FromMilliseconds(120));
+            Assert.IsTrue(_vm.IsQueued, "Request should show as queued before generation starts.");
+            Assert.AreEqual(3, _vm.QueuePosition);
+            Assert.AreEqual(8, _vm.QueueTotal);
+            Assert.AreEqual("In queue: position 3 of 8", _vm.QueueStatusText);
+
+            await sendTask;
+
+            Assert.IsFalse(_vm.IsQueued, "Queue status should clear once generation completes.");
+            Assert.AreEqual(2, _vm.ActiveMessages.Count); // user + assistant
+            Assert.AreEqual("Hello", _vm.ActiveMessages[1].Content);
+        }
+        finally
+        {
+            AiViewModel.ModelLoadDelay = TimeSpan.FromSeconds(3);
+        }
     }
 
     // ── DeleteConversationAsync ───────────────────────────────────────
@@ -279,22 +309,28 @@ public sealed class AiViewModelTests
     [TestMethod]
     public async Task SendMessageAsync_ShowsModelLoading_WhileWaitingForFirstChunk()
     {
-        AiViewModel.ModelLoadDelay = TimeSpan.FromMilliseconds(100);
+        AiViewModel.ModelLoadDelay = TimeSpan.FromMilliseconds(50);
         try
         {
             _vm.Conversations.Add(new AiConversationDto { Id = ConversationId, Title = "Test", Model = "gpt-oss:20b" });
             _vm.ActiveConversationId = ConversationId;
             _vm.ComposerText = "hello";
 
-            // First chunk arrives after the (shortened) model-load window.
+            // Queued → generating marker (no tokens yet) → content after a long gap.
             _ai.Setup(x => x.SendMessageStreamingAsync(ServerUrl, Token, ConversationId, "hello", It.IsAny<CancellationToken>()))
                 .Returns(DelayedFirstChunkStream());
 
             var sendTask = _vm.SendMessageCommand.ExecuteAsync(null);
 
-            // After the window elapses, the loading indicator shows while content is pending.
+            // While queued, the model-load timer must NOT have started.
+            await Task.Delay(TimeSpan.FromMilliseconds(100));
+            Assert.IsTrue(_vm.IsQueued, "Request should be queued before the generating marker.");
+            Assert.IsFalse(_vm.IsModelLoading, "Model-load indicator must not start while queued.");
+
+            // Once generating and no tokens have arrived, the loading indicator shows.
             await Task.Delay(TimeSpan.FromMilliseconds(300));
-            Assert.IsTrue(_vm.IsModelLoading, "Loading indicator should show while waiting for the first chunk.");
+            Assert.IsTrue(_vm.IsModelLoading, "Loading indicator should show once generating, before tokens arrive.");
+            Assert.IsFalse(_vm.IsQueued, "Queue status should clear once generation starts.");
 
             await sendTask;
             Assert.IsFalse(_vm.IsModelLoading, "Loading indicator should clear once streaming completes.");
@@ -319,9 +355,21 @@ public sealed class AiViewModelTests
 
     private static async IAsyncEnumerable<AiStreamChunk> DelayedFirstChunkStream()
     {
+        yield return new AiStreamChunk { Status = "queued", Position = 1, Total = 1, Content = "", Done = false };
+        await Task.Delay(TimeSpan.FromMilliseconds(300));
+        yield return new AiStreamChunk { Status = "generating", Content = "", Done = false };
         await Task.Delay(TimeSpan.FromMilliseconds(500));
         yield return new AiStreamChunk { Content = "Hello there!", Done = false };
         await Task.Yield();
         yield return new AiStreamChunk { Content = "", Done = true };
+    }
+
+    private static async IAsyncEnumerable<AiStreamChunk> QueuedThenGeneratingStream()
+    {
+        yield return new AiStreamChunk { Status = "queued", Position = 3, Total = 8, Content = "", Done = false };
+        await Task.Delay(TimeSpan.FromMilliseconds(200));
+        yield return new AiStreamChunk { Status = "generating", Content = "Hello", Done = false };
+        await Task.Yield();
+        yield return new AiStreamChunk { Status = "done", Content = "", Done = true };
     }
 }

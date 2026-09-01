@@ -19,4 +19,13 @@ public sealed record LlmResponseChunk
 
     /// <summary>Number of tokens generated (only present on the final chunk).</summary>
     public int? EvalCount { get; init; }
+
+    /// <summary>Stream lifecycle status. Defaults to Generating (existing content chunks).</summary>
+    public LlmStreamStatus Status { get; init; } = LlmStreamStatus.Generating;
+
+    /// <summary>1-based queue position (only on Queued status chunks).</summary>
+    public int? QueuedPosition { get; init; }
+
+    /// <summary>Total items in the queue (only on Queued status chunks).</summary>
+    public int? QueueTotal { get; init; }
 }

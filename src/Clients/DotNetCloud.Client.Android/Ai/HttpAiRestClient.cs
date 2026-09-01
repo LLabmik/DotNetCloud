@@ -98,11 +98,11 @@ internal sealed class HttpAiRestClient : IAiRestClient
 
     /// <inheritdoc />
     public async Task<AiConversationDto?> CreateConversationAsync(
-        string serverBaseUrl, string accessToken, string? title, string model, CancellationToken ct = default)
+        string serverBaseUrl, string accessToken, string? title, CancellationToken ct = default)
     {
         SetAuth(accessToken);
         var url = $"{BaseUrl(serverBaseUrl)}/api/v1/ai/conversations";
-        var json = JsonSerializer.Serialize(new { title, model }, JsonOpts);
+        var json = JsonSerializer.Serialize(new { title }, JsonOpts);
         using var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
         using var response = await _http.PostAsync(url, content, ct).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
@@ -146,6 +146,14 @@ internal sealed class HttpAiRestClient : IAiRestClient
         var url = $"{BaseUrl(serverBaseUrl)}/api/v1/ai/health/ollama";
         using var response = await _http.GetAsync(url, ct).ConfigureAwait(false);
         return response.IsSuccessStatusCode;
+    }
+
+    /// <inheritdoc />
+    public async Task<AiSettingsDto?> GetSettingsAsync(
+        string serverBaseUrl, string accessToken, CancellationToken ct = default)
+    {
+        var url = $"{BaseUrl(serverBaseUrl)}/api/v1/ai/settings";
+        return await GetEnvelopeDataAsync<AiSettingsDto>(url, accessToken, ct).ConfigureAwait(false);
     }
 
     /// <inheritdoc />

@@ -65,19 +65,17 @@
                         Padding="14,6"/>
             </Grid>
 
-            <!-- Model picker -->
+            <!-- Model (static — admin-configured default) -->
             <Grid Grid.Row="1"
                   ColumnDefinitions="Auto,*"
                   Padding="16,4">
                 <Label Text="Model:"
                        TextColor="#94A3B8"
                        VerticalOptions="Center"/>
-                <Picker Grid.Column="1"
-                        ItemsSource="{Binding Models}"
-                        ItemDisplayBinding="{Binding Name}"
-                        SelectedItem="{Binding SelectedModelDto}"
-                        Title="Select model"
-                        TextColor="#F1F5F9"/>
+                <Label Grid.Column="1"
+                       Text="{Binding DefaultModel}"
+                       TextColor="#F1F5F9"
+                       VerticalOptions="Center"/>
             </Grid>
 
             <!-- Loading indicator -->
@@ -168,7 +166,7 @@
                            FontSize="16"
                            FontAttributes="Bold"
                            LineBreakMode="TailTruncation"/>
-                    <Label Text="{Binding SelectedModel}"
+                    <Label Text="{Binding ActiveConversationModel}"
                            TextColor="#64748B"
                            FontSize="12"/>
                 </VerticalStackLayout>
@@ -325,6 +323,19 @@
                            TextColor="#94A3B8"
                            VerticalOptions="Center"/>
                 </Grid>
+
+                <!-- Queue status (waiting for inference turn) -->
+                <Border IsVisible="{Binding IsQueued}"
+                        BackgroundColor="#1E293B"
+                        StrokeThickness="0"
+                        StrokeShape="RoundRectangle 10"
+                        Padding="12,6"
+                        Margin="0,0,0,4"
+                        HorizontalOptions="Start">
+                    <Label Text="{Binding QueueStatusText}"
+                           TextColor="#FDBA74"
+                           FontSize="12"/>
+                </Border>
 
                 <!-- Loading model into memory (mirrors the Blazor module) -->
                 <Grid IsVisible="{Binding IsModelLoading}"

@@ -19,6 +19,8 @@ public class AiChatServiceTests
     private AiDbContext _db;
     private AiChatService _service;
     private Mock<IOllamaClient> _ollamaMock;
+    private Mock<IAiSettingsProvider> _settingsMock;
+    private AiCompletionQueue _queue;
     private CallerContext _caller;
 
     [TestInitialize]
@@ -29,20 +31,25 @@ public class AiChatServiceTests
             .Options;
         _db = new AiDbContext(options);
         _ollamaMock = new Mock<IOllamaClient>();
-        _service = new AiChatService(_db, _ollamaMock.Object, Mock.Of<IAuditLogger>(), NullLogger<AiChatService>.Instance);
+        _settingsMock = new Mock<IAiSettingsProvider>();
+        _settingsMock.Setup(s => s.GetDefaultModelAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync("gpt-oss:20b");
+        _queue = new AiCompletionQueue();
+        _service = new AiChatService(_db, _ollamaMock.Object, _queue, _settingsMock.Object, Mock.Of<IAuditLogger>(), NullLogger<AiChatService>.Instance);
         _caller = new CallerContext(Guid.CreateVersion7(), new[] { "user" }, CallerType.User);
     }
 
     [TestCleanup]
     public void Cleanup()
     {
+        _queue.Dispose();
         _db.Dispose();
     }
 
     [TestMethod]
     public async Task CreateConversation_ValidInput_ReturnsConversation()
     {
-        var conversation = await _service.CreateConversationAsync(_caller, "Test Chat", "gpt-oss:20b", null);
+        var conversation = await _service.CreateConversationAsync(_caller, "Test Chat", null);
 
         Assert.IsNotNull(conversation);
         Assert.AreEqual("Test Chat", conversation.Title);
@@ -53,24 +60,26 @@ public class AiChatServiceTests
     [TestMethod]
     public async Task CreateConversation_NullTitle_DefaultsToNewConversation()
     {
-        var conversation = await _service.CreateConversationAsync(_caller, null, "gpt-oss:20b", null);
+        var conversation = await _service.CreateConversationAsync(_caller, null, null);
 
         Assert.AreEqual("New Conversation", conversation.Title);
+        Assert.AreEqual("gpt-oss:20b", conversation.Model);
     }
 
     [TestMethod]
     public async Task CreateConversation_WithSystemPrompt_StoresPrompt()
     {
         var prompt = "You are a helpful coding assistant.";
-        var conversation = await _service.CreateConversationAsync(_caller, "Code Help", "gpt-oss:20b", prompt);
+        var conversation = await _service.CreateConversationAsync(_caller, "Code Help", prompt);
 
         Assert.AreEqual(prompt, conversation.SystemPrompt);
+        Assert.AreEqual("gpt-oss:20b", conversation.Model);
     }
 
     [TestMethod]
     public async Task GetConversation_OwnedByUser_ReturnsConversation()
     {
-        var created = await _service.CreateConversationAsync(_caller, "Test", "gpt-oss:20b", null);
+        var created = await _service.CreateConversationAsync(_caller, "Test", null);
 
         var result = await _service.GetConversationAsync(_caller, created.Id);
 
@@ -81,7 +90,7 @@ public class AiChatServiceTests
     [TestMethod]
     public async Task GetConversation_OwnedByOtherUser_ReturnsNull()
     {
-        var created = await _service.CreateConversationAsync(_caller, "Test", "gpt-oss:20b", null);
+        var created = await _service.CreateConversationAsync(_caller, "Test", null);
 
         var otherCaller = new CallerContext(Guid.CreateVersion7(), new[] { "user" }, CallerType.User);
         var result = await _service.GetConversationAsync(otherCaller, created.Id);
@@ -92,11 +101,11 @@ public class AiChatServiceTests
     [TestMethod]
     public async Task ListConversations_ReturnsOnlyOwnedConversations()
     {
-        await _service.CreateConversationAsync(_caller, "Chat 1", "gpt-oss:20b", null);
-        await _service.CreateConversationAsync(_caller, "Chat 2", "gpt-oss:20b", null);
+        await _service.CreateConversationAsync(_caller, "Chat 1", null);
+        await _service.CreateConversationAsync(_caller, "Chat 2", null);
 
         var otherCaller = new CallerContext(Guid.CreateVersion7(), new[] { "user" }, CallerType.User);
-        await _service.CreateConversationAsync(otherCaller, "Other Chat", "gpt-oss:20b", null);
+        await _service.CreateConversationAsync(otherCaller, "Other Chat", null);
 
         var conversations = await _service.ListConversationsAsync(_caller);
 
@@ -106,7 +115,7 @@ public class AiChatServiceTests
     [TestMethod]
     public async Task DeleteConversation_OwnedByUser_ReturnsTrue()
     {
-        var created = await _service.CreateConversationAsync(_caller, "To Delete", "gpt-oss:20b", null);
+        var created = await _service.CreateConversationAsync(_caller, "To Delete", null);
 
         var result = await _service.DeleteConversationAsync(_caller, created.Id);
 
@@ -116,7 +125,7 @@ public class AiChatServiceTests
     [TestMethod]
     public async Task DeleteConversation_SoftDeleteHidesFromList()
     {
-        var created = await _service.CreateConversationAsync(_caller, "To Delete", "gpt-oss:20b", null);
+        var created = await _service.CreateConversationAsync(_caller, "To Delete", null);
 
         await _service.DeleteConversationAsync(_caller, created.Id);
 
@@ -134,7 +143,7 @@ public class AiChatServiceTests
     [TestMethod]
     public async Task SendMessage_PersistsUserAndAssistantMessages()
     {
-        var conversation = await _service.CreateConversationAsync(_caller, "Test", "gpt-oss:20b", null);
+        var conversation = await _service.CreateConversationAsync(_caller, "Test", null);
 
         _ollamaMock.Setup(o => o.ChatAsync(It.IsAny<LlmRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new LlmResponse

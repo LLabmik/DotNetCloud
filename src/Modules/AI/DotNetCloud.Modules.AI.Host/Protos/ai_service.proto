@@ -13,9 +13,17 @@ service AiService {
   rpc ListModels (ListModelsRequest) returns (ListModelsResponse);
   rpc GetSettings (GetSettingsRequest) returns (SettingsResponse);
   rpc UpdateSettings (UpdateSettingsRequest) returns (SettingsResponse);
+  rpc GetOllamaHealth (GetOllamaHealthRequest) returns (OllamaHealthResponse);
 }
 
-message CreateConversationRequest { string user_id = 1; string title = 2; string model = 3; string system_prompt = 4; }
+enum AiStreamStatus {
+  AI_STREAM_STATUS_UNKNOWN = 0;
+  AI_STREAM_STATUS_QUEUED = 1;
+  AI_STREAM_STATUS_GENERATING = 2;
+  AI_STREAM_STATUS_DONE = 3;
+}
+
+message CreateConversationRequest { string user_id = 1; string title = 2; string system_prompt = 4; }
 message GetConversationRequest { string conversation_id = 1; string user_id = 2; }
 message ListConversationsRequest { string user_id = 1; }
 message DeleteConversationRequest { string conversation_id = 1; string user_id = 2; }
@@ -24,6 +32,8 @@ message SendMessageRequest { string conversation_id = 1; string user_id = 2; str
 message ListModelsRequest { string user_id = 1; }
 message GetSettingsRequest { string user_id = 1; }
 message UpdateSettingsRequest { string user_id = 1; string provider = 2; string api_base_url = 3; string api_key = 4; string default_model = 5; int32 max_tokens = 6; int32 request_timeout_seconds = 7; }
+message GetOllamaHealthRequest { string user_id = 1; }
+message OllamaHealthResponse { bool healthy = 1; }
 
 message ConversationResponse { bool success = 1; string error_message = 2; ConversationMessage conversation = 3; }
 message ConversationMessage { string id = 1; string title = 2; string model = 3; string system_prompt = 4; string created_at = 5; string updated_at = 6; repeated MessageDtoMessage messages = 7; }
@@ -32,7 +42,7 @@ message ListConversationsResponse { bool success = 1; string error_message = 2; 
 message ConversationSummaryMessage { string id = 1; string title = 2; string model = 3; string created_at = 4; string updated_at = 5; }
 message DeleteConversationResponse { bool success = 1; string error_message = 2; bool deleted = 3; }
 message ChatResponse { bool success = 1; string error_message = 2; string model = 3; string content = 4; bool done = 5; int32 prompt_eval_count = 6; int32 eval_count = 7; }
-message MessageChunk { string content = 1; bool done = 2; int32 eval_count = 3; }
+message MessageChunk { string content = 1; bool done = 2; int32 eval_count = 3; AiStreamStatus status = 4; int32 queued_position = 5; int32 queue_total = 6; }
 message ListModelsResponse { bool success = 1; string error_message = 2; repeated ModelInfoMessage models = 3; }
 message ModelInfoMessage { string name = 1; string provider = 2; }
 message SettingsResponse { bool success = 1; string error_message = 2; string provider = 3; string api_base_url = 4; string default_model = 5; int32 max_tokens = 6; int32 request_timeout_seconds = 7; }

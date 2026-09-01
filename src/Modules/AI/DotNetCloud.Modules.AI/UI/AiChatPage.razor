@@ -3,12 +3,10 @@
 
 @using DotNetCloud.Core.AI
 @using DotNetCloud.Core.Authorization
-@using DotNetCloud.Modules.AI.Models
-@using DotNetCloud.Modules.AI.Services
+@using DotNetCloud.Core.Services.ModuleApis
 @using DotNetCloud.UI.Shared.Services
 @using System.Text
-@inject IAiChatService ChatService
-@inject IOllamaClient OllamaClient
+@inject IAiApiClient AiApi
 @inject IMarkdownRenderer MarkdownRenderer
 @inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthenticationStateProvider
 @inject Microsoft.Extensions.Logging.ILogger<AiChatPage> Logger
@@ -24,18 +22,7 @@
             </button>
         </div>
 
-        <div class="ai-model-select">
-            <select class="form-select form-select-sm" @bind="_selectedModel">
-                @foreach (var model in _models)
-                {
-                    <option value="@model.Id">@model.Name</option>
-                }
-                @if (_models.Count == 0)
-                {
-                    <option value="">Loading models…</option>
-                }
-            </select>
-        </div>
+        <div class="ai-model-label">Model: @_defaultModel</div>
 
         <div class="ai-conversation-list">
             @if (_conversations.Count == 0 && !_isLoading)
@@ -148,12 +135,18 @@
                             <div class="ai-message-content">
                                 <div class="ai-message-role">
                                     Assistant
-                                    @if (_isStreaming && !_isModelLoading && string.IsNullOrEmpty(_streamingContent))
+                                    @if (_isStreaming && !_isModelLoading && !_isQueued && string.IsNullOrEmpty(_streamingContent))
                                     {
                                         <span class="ai-thinking">* Thinking *</span>
                                     }
                                 </div>
-                                @if (_isModelLoading && string.IsNullOrEmpty(_streamingContent))
+                                @if (_isQueued)
+                                {
+                                    <div class="ai-queue-status">
+                                        In queue: position @_queuePosition of @_queueTotal
+                                    </div>
+                                }
+                                @if (_isModelLoading && !_isQueued && string.IsNullOrEmpty(_streamingContent))
                                 {
                                     <div class="ai-model-loading">
                                         <span class="ai-model-loading-spinner"></span>
@@ -197,18 +190,20 @@
 </div>
 
 @code {
-    private List<Conversation> _conversations = [];
-    private List<LlmModelInfo> _models = [];
-    private List<ConversationMessage> _activeMessages = [];
-    private Conversation? _activeConversation;
+    private List<ConversationSummaryDto> _conversations = [];
+    private List<MessageDto> _activeMessages = [];
+    private ConversationDetailDto? _activeConversation;
     private Guid? _activeConversationId;
-    private string _selectedModel = string.Empty;
+    private string _defaultModel = string.Empty;
     private string _userInput = string.Empty;
     private string _streamingContent = string.Empty;
     private string? _errorMessage;
     private bool _isLoading;
     private bool _isStreaming;
     private bool _isModelLoading;
+    private bool _isQueued;
+    private int _queuePosition;
+    private int _queueTotal;
     private bool _ollamaHealthy = true;
     private CallerContext? _caller;
     private ElementReference _messagesContainer;
@@ -227,26 +222,21 @@
         _isLoading = true;
         try
         {
-            var modelsTask = ChatService.ListModelsAsync(_caller, CancellationToken.None);
-            var convsTask = ChatService.ListConversationsAsync(_caller, CancellationToken.None);
-            var healthTask = OllamaClient.IsHealthyAsync(CancellationToken.None);
+            var userId = _caller.UserId;
+            var convsTask = AiApi.ListConversationsAsync(userId, CancellationToken.None);
+            var healthTask = AiApi.IsOllamaHealthyAsync(CancellationToken.None);
+            var settingsTask = AiApi.GetSettingsAsync(CancellationToken.None);
 
-            await Task.WhenAll(modelsTask, convsTask, healthTask);
+            await Task.WhenAll(convsTask, healthTask, settingsTask);
 
-            _models = [.. await modelsTask];
             _conversations = [.. await convsTask];
             _ollamaHealthy = await healthTask;
-
-            if (_models.Count > 0)
-            {
-                _selectedModel = _models.FirstOrDefault(m => m.Id == "gpt-oss:20b")?.Id
-                    ?? _models[0].Id;
-            }
+            _defaultModel = (await settingsTask)?.DefaultModel ?? string.Empty;
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to initialize AI assistant page");
-            _errorMessage = "Failed to load AI assistant. Check Ollama connectivity.";
+            _errorMessage = "Failed to load AI assistant. Check connectivity.";
         }
         finally
         {
@@ -261,15 +251,32 @@
         _errorMessage = null;
         try
         {
-            var model = string.IsNullOrWhiteSpace(_selectedModel) && _models.Count > 0
-                ? _models[0].Id
-                : _selectedModel;
+            var conv = await AiApi.CreateConversationAsync(_caller.UserId, "New Chat", null, CancellationToken.None);
+            if (conv is null)
+            {
+                _errorMessage = "Failed to create conversation.";
+                return;
+            }
 
-            var conv = await ChatService.CreateConversationAsync(
-                _caller, "New Chat", model, null, CancellationToken.None);
-
-            _conversations.Insert(0, conv);
-            _activeConversation = conv;
+            var summary = new ConversationSummaryDto
+            {
+                Id = conv.Id,
+                Title = conv.Title,
+                Model = conv.Model,
+                CreatedAt = conv.CreatedAt,
+                UpdatedAt = conv.UpdatedAt
+            };
+            _conversations.Insert(0, summary);
+            _activeConversation = new ConversationDetailDto
+            {
+                Id = conv.Id,
+                Title = conv.Title,
+                Model = conv.Model,
+                SystemPrompt = conv.SystemPrompt,
+                CreatedAt = conv.CreatedAt,
+                UpdatedAt = conv.UpdatedAt,
+                Messages = []
+            };
             _activeConversationId = conv.Id;
             _activeMessages = [];
             _userInput = string.Empty;
@@ -281,7 +288,7 @@
         }
     }
 
-    private void StartRenaming(Conversation conv)
+    private void StartRenaming(ConversationSummaryDto conv)
     {
         _renamingConversationId = conv.Id;
         _renameTitle = conv.Title ?? string.Empty;
@@ -314,17 +321,17 @@
 
         try
         {
-            var renamed = await ChatService.RenameConversationAsync(_caller, convId, newTitle, CancellationToken.None);
+            var renamed = await AiApi.RenameConversationAsync(_caller.UserId, convId, newTitle, CancellationToken.None);
             if (renamed)
             {
                 var conv = _conversations.FirstOrDefault(c => c.Id == convId);
                 if (conv is not null)
                 {
-                    conv.Title = newTitle;
+                    _conversations[_conversations.IndexOf(conv)] = conv with { Title = newTitle };
                 }
                 if (_activeConversation?.Id == convId)
                 {
-                    _activeConversation.Title = newTitle;
+                    _activeConversation = _activeConversation with { Title = newTitle };
                 }
             }
         }
@@ -353,7 +360,7 @@
 
         try
         {
-            var deleted = await ChatService.DeleteConversationAsync(_caller, conversationId, CancellationToken.None);
+            var deleted = await AiApi.DeleteConversationAsync(_caller.UserId, conversationId, CancellationToken.None);
             if (deleted)
             {
                 _conversations.RemoveAll(c => c.Id == conversationId);
@@ -379,12 +386,12 @@
         _errorMessage = null;
         try
         {
-            var conv = await ChatService.GetConversationAsync(_caller, conversationId, CancellationToken.None);
-            if (conv is null) return;
+            var detail = await AiApi.GetConversationAsync(_caller.UserId, conversationId, CancellationToken.None);
+            if (detail is null) return;
 
-            _activeConversation = conv;
-            _activeConversationId = conv.Id;
-            _activeMessages = [.. conv.Messages.OrderBy(m => m.CreatedAt)];
+            _activeConversation = detail;
+            _activeConversationId = detail.Id;
+            _activeMessages = [.. detail.Messages.OrderBy(m => m.CreatedAt)];
         }
         catch (Exception ex)
         {
@@ -402,39 +409,48 @@
         _errorMessage = null;
 
         // Add user message to display immediately
-        _activeMessages.Add(new ConversationMessage
+        _activeMessages.Add(new MessageDto
         {
             Id = Guid.NewGuid(),
-            ConversationId = _activeConversation.Id,
             Role = "user",
             Content = userMessage,
             CreatedAt = DateTime.UtcNow
         });
 
         _isStreaming = true;
+        _isQueued = true;
         _isModelLoading = false;
         _streamingContent = string.Empty;
         StateHasChanged();
 
-        // Detect model cold-start: if no tokens arrive within 3s, show loading indicator
-        _modelLoadCts?.Cancel();
-        _modelLoadCts = new CancellationTokenSource();
-        var loadToken = _modelLoadCts.Token;
-        _ = DetectModelLoadingAsync(loadToken);
-
         try
         {
             var fullResponse = new StringBuilder();
-            var firstChunk = true;
-            await foreach (var chunk in ChatService.SendMessageStreamingAsync(
-                _caller, _activeConversation.Id, userMessage, CancellationToken.None))
+            var firstGenerating = true;
+
+            await foreach (var chunk in AiApi.SendMessageStreamingAsync(
+                _caller.UserId, _activeConversation.Id, userMessage, CancellationToken.None))
             {
-                if (firstChunk)
+                if (chunk.Status == LlmStreamStatus.Queued)
                 {
-                    firstChunk = false;
-                    _modelLoadCts?.Cancel();
-                    _isModelLoading = false;
+                    _isQueued = true;
+                    _queuePosition = chunk.QueuedPosition ?? _queuePosition;
+                    _queueTotal = chunk.QueueTotal ?? _queueTotal;
+                    StateHasChanged();
+                    continue;
                 }
+
+                if (firstGenerating)
+                {
+                    // Request left the queue and is now generating — start the model-load timer.
+                    firstGenerating = false;
+                    _isQueued = false;
+                    _modelLoadCts?.Cancel();
+                    _modelLoadCts = new CancellationTokenSource();
+                    var loadToken = _modelLoadCts.Token;
+                    _ = DetectModelLoadingAsync(loadToken);
+                }
+
                 fullResponse.Append(chunk.Content);
                 _streamingContent = fullResponse.ToString();
                 StateHasChanged();
@@ -442,10 +458,9 @@
             }
 
             // Replace streaming with final message
-            _activeMessages.Add(new ConversationMessage
+            _activeMessages.Add(new MessageDto
             {
                 Id = Guid.NewGuid(),
-                ConversationId = _activeConversation.Id,
                 Role = "assistant",
                 Content = fullResponse.ToString(),
                 CreatedAt = DateTime.UtcNow
@@ -455,11 +470,14 @@
             if (_activeMessages.Count(m => m.Role == "user") == 1)
             {
                 var titlePreview = userMessage.Length > 60 ? userMessage[..60].TrimEnd() + "…" : userMessage;
-                _activeConversation.Title = titlePreview;
-                var listItem = _conversations.FirstOrDefault(c => c.Id == _activeConversation.Id);
+                if (_activeConversation is not null)
+                {
+                    _activeConversation = _activeConversation with { Title = titlePreview };
+                }
+                var listItem = _conversations.FirstOrDefault(c => c.Id == _activeConversation?.Id);
                 if (listItem is not null)
                 {
-                    listItem.Title = titlePreview;
+                    _conversations[_conversations.IndexOf(listItem)] = listItem with { Title = titlePreview };
                 }
             }
         }
@@ -471,6 +489,7 @@
         finally
         {
             _isStreaming = false;
+            _isQueued = false;
             _isModelLoading = false;
             _streamingContent = string.Empty;
             _modelLoadCts?.Cancel();
