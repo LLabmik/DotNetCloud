@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-09-01 (AI request queueing deployed to cloud + verified in browser + archived; no pending handoff)
+Last updated: 2026-09-01 (Blazor AI chat: Abort button + auto-scroll — handoff pending for server agent / cloud)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -105,7 +105,46 @@ AI request queueing (FIFO `AiCompletionQueue`, live queue-position status, DB-ba
 
 ## Active Handoff
 
-_No pending handoff_ (2026-09-01 — AI request queueing verified + archived above).
+### Server: add Abort button + auto-scroll to the Blazor AI chat (mirror the Android client)
+
+**Status:** pending (server agent — `cloud.kimball.home`, production `https://cloud.dotnetcloud.net/`)
+**Branch:** `feature/ai-queuing` (HEAD `c1b98997`, pushed)
+**From:** client agent (`monolith`), 2026-09-01
+**Canonical plan:** `docs/AI_REQUEST_QUEUEING_PLAN.md`
+**Reference (Android impl):** commits `471e0c3b` (Abort button + stream-silence watchdog) and `c1b98997` (Abort visible during generating + auto-scroll streaming output)
+**Target:** server `cloud.kimball.home` (`https://cloud.dotnetcloud.net/`)
+
+**Task:** add two UX improvements to the Blazor AI chat in `src/Modules/AI/DotNetCloud.Modules.AI/UI/AiChatPage.razor` (+ `.razor.css`), mirroring what shipped on the Android client:
+1. **Abort/Cancel button** next to the "In queue: position X of Y" status — visible while queued AND while generating — that cancels the request. If still queued, the request gives up its place in the queue; if generating, the Ollama call is aborted.
+2. **Auto-scroll** the chat to the bottom as tokens stream, so the latest output is always visible without manual scrolling.
+
+### Current Blazor state (relevant)
+- `AiChatPage.razor` ~line 143-147: queue-status div (`ai-queue-status`, "In queue: position @_queuePosition of @_queueTotal").
+- `SendMessageAsync` ~line 442: `await foreach (var chunk in AiApi.SendMessageStreamingAsync(_caller.UserId, _activeConversation.Id, userMessage, CancellationToken.None))` — uses `CancellationToken.None`, so there is NO way to cancel.
+- No scroll handling / JS interop currently; streaming bubble is inside the message content.
+
+### Required changes (server — Blazor AI module)
+
+**1. Abort button**
+- Add a `CancellationTokenSource _streamCts` field; pass `_streamCts.Token` to `SendMessageStreamingAsync` instead of `CancellationToken.None`.
+- Add a Cancel button in the streaming bubble next to the queue-status div, visible while `_isStreaming` (queued AND generating); keep the queue pill gated on `_isQueued`.
+- On click: `_streamCts.Cancel()` → the gRPC stream is cancelled → the module host's `AiChatService.SendMessageStreamingAsync` sees the cancelled token → the `AiCompletionQueue` linked CTS cancels the item → if queued it is removed (gives up its place), if generating the Ollama call aborts. Clear `_isQueued`/`_isStreaming`/`_isModelLoading` and cancel `_modelLoadCts`.
+- Handle `OperationCanceledException` gracefully — no error surfaced for a user-initiated abort. Optionally mirror the Android stream-silence watchdog (60s no chunk → cancel + error) to prevent a frozen "Generating…".
+
+**2. Auto-scroll**
+- Give the message list a scrollable container (`overflow-y: auto` + fixed/max height) and add a small JS interop helper (e.g., `AiChatPage.razor.js`) that scrolls to `scrollHeight`; invoke it after each streamed chunk via `IJSRuntime.InvokeVoidAsync` so the view stays pinned to the newest tokens.
+
+**3. Tests** — `DotNetCloud.Modules.AI.Tests` must still pass after the change (build + existing suite). Add component tests if the repo has a pattern; otherwise build + manual verify.
+
+### Deploy + verify (cloud.kimball.home)
+1. `git pull` → checkout `feature/ai-queuing` (HEAD `c1b98997`).
+2. Build Release + deploy via `scripts/deploy.sh` (Blazor UI is served by the AI module — rebuild `dotnetcloud.ai`).
+3. `/health/ready` Healthy; AI module running; `DotNetCloud.Modules.AI.Tests` pass.
+4. Manual (browser): send a message → chat auto-scrolls as tokens arrive; send a second message so it queues → **Cancel** button appears → tap Cancel → request leaves the queue and the first keeps generating; Cancel also available during generation.
+
+### Relay message
+
+`c1b98997` — New handoff update for cloud.kimball.home. Pull and check docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md Active Handoff.
 
 ## Moderator Communication (Minimal)
 
