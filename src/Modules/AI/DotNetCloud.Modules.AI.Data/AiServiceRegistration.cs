@@ -22,6 +22,10 @@ public static class AiServiceRegistration
         // Register settings provider (reads from DB with IConfiguration fallback)
         services.AddScoped<IAiSettingsProvider, AiSettingsProvider>();
 
+        // Register the FIFO completion queue so all callers (gRPC + REST) serialize
+        // LLM inference through a single choke point — Ollama handles one request at a time.
+        services.AddSingleton<IAiCompletionQueue, AiCompletionQueue>();
+
         // Register the LLM HTTP client with base address from configuration.
         // The base address set here is the startup default; the OllamaClient
         // uses IAiSettingsProvider at request time for dynamic reconfiguration.

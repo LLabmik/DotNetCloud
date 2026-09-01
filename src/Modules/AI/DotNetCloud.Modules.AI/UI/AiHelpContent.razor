@@ -48,9 +48,9 @@
             <dt>Why is the AI assistant not responding?</dt>
             <dd>The AI backend may be down. Check with your administrator that Ollama or your configured provider is running.</dd>
             <dt>Can I use multiple models in one conversation?</dt>
-            <dd>No. A conversation keeps the model it was created with. Choose the model in the sidebar dropdown, then start a new chat to use it.</dd>
-            <dt>Why does it say "Loading model into memory"?</dt>
-            <dd>The first request to a model can take a moment to load it into memory. Subsequent messages respond faster.</dd>
+            <dd>No. All conversations use the admin-configured default model, shown as static text — there is no model picker.</dd>
+            <dt>Why does it show "Generating…" for a while before responding?</dt>
+            <dd>All AI requests are queued so only one runs at a time, and the model must process your full conversation before producing the first token. A 12B model on a single GPU can take tens of seconds to reply — that is normal generation time, not a hang.</dd>
         </dl>
     </section>
 </div>

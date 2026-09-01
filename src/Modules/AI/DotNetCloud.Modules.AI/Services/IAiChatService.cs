@@ -10,8 +10,8 @@ namespace DotNetCloud.Modules.AI.Services;
 /// </summary>
 public interface IAiChatService
 {
-    /// <summary>Creates a new conversation for the caller.</summary>
-    Task<Conversation> CreateConversationAsync(CallerContext caller, string? title, string model, string? systemPrompt, CancellationToken cancellationToken = default);
+    /// <summary>Creates a new conversation for the caller, using the admin-configured default model.</summary>
+    Task<Conversation> CreateConversationAsync(CallerContext caller, string? title, string? systemPrompt, CancellationToken cancellationToken = default);
 
     /// <summary>Gets a conversation by ID, verifying ownership.</summary>
     Task<Conversation?> GetConversationAsync(CallerContext caller, Guid conversationId, CancellationToken cancellationToken = default);

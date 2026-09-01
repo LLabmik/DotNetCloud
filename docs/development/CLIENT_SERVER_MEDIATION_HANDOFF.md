@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-08-29 (Android AI tab Phases B–F + E2E verification COMPLETE + archived; server REST/Bearer 500 fixed + verified end-to-end)
+Last updated: 2026-09-01 (Blazor AI chat: Abort button + auto-scroll — implemented, deployed to cloud, 14/14 healthy; user browser verification pending)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -16,7 +16,7 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
-- **Current active branch:** `feature/android-ai-tab`
+- **Current active branch:** `feature/ai-queuing`
 
 ## Archived Handoff — SyncTray test machine: DB Outage SyncTray Simulation (plan §11.4) ✅ PASS
 
@@ -72,55 +72,70 @@ Archived context:
 
 **Result: PASS** — no client regressions. Evidence: `dnc-banner-visible.png`, `dnc-message-queued.png`, `dnc-recovered.png` (on monolith), UI-dump text nodes, and logcat (`adb logcat`).
 
+## Archived Handoff — Android AI tab Phases B–F + E2E verification (2026-08-29) ✅ PASS
+
+**Status:** completed ✅ (2026-08-29, client agent — `monolith`; server agent — `cloud.kimball.home`)
+**Branch:** `feature/android-ai-tab`
+**Canonical plan:** `docs/ANDROID_AI_TAB_PLAN.md`
+Android AI tab implemented; server-side REST/Bearer 500 fixed + deployed; full E2E verified on-device (Samsung R5CWC356B2K). Full detail in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
+
+## Archived Handoff — AI request queueing: deploy to cloud.kimball.home ✅
+
+**Status:** completed ✅ (2026-09-01, server agent — `cloud.kimball.home`)
+**Branch:** `feature/ai-queuing` (deployed HEAD `846e3b17`)
+**Canonical plan:** `docs/AI_REQUEST_QUEUEING_PLAN.md`
+**From:** client agent (`monolith`), 2026-09-01
+
+### Result (server-side verified on cloud.kimball.home)
+
+- Deployed via `scripts/deploy.sh` (full build, all 15 targets). `dotnetcloud.ai.dll` + `DotNetCloud.Modules.AI.Data.dll` + AI RCL hash-verified in all 3 deploy locations.
+- `/health/ready` **Healthy**; **14/14 modules** Running (incl. `dotnetcloud.ai`); `blazor.web.js` 200 (no static-asset regression).
+- `dotnet test tests/DotNetCloud.Modules.AI.Tests/` → **35/35 passed** (incl. `AiCompletionQueue`).
+- `GET /api/v1/ai/settings` → **401** without token (route live, `[Authorize]`).
+- DB-backed settings confirmed in `dbo.SystemSettings`: `DefaultModel=gemma4:12b`, `Provider=ollama`, `ApiBaseUrl=http://monolith.kimball.home:11434/`.
+- Ollama on `monolith.kimball.home:11434` reachable and serving `gemma4:12b` (matches DB).
+- ⚠️ Token-authenticated settings response + Blazor "Generating…"/queue-position UI checks require a real user session (server agent cannot obtain a token without a password) — **left for user/browser verification** (see Active Handoff).
+
+## Archived Handoff — AI request queueing: deployed to cloud + user-verified (2026-09-01) ✅ PASS
+
+**Status:** completed ✅ (2026-09-01, server agent — `cloud.kimball.home`; user verification)
+**Branch:** `feature/ai-queuing` (deployed commit `846e3b17`; HEAD `bda72641`)
+**Canonical plan:** `docs/AI_REQUEST_QUEUEING_PLAN.md`
+AI request queueing (FIFO `AiCompletionQueue`, live queue-position status, DB-backed DefaultModel, "Generating…" status fix) deployed to cloud and verified working in the browser. Full detail in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
+
+## Archived Handoff — Server: Blazor AI chat Abort button + auto-scroll (2026-09-01) ✅
+
+**Status:** completed ✅ (2026-09-01, server agent — `cloud.kimball.home`)
+**Branch:** `feature/ai-queuing` (deployed HEAD `76d9f1f4`; + new commit with the implementation)
+**From:** client agent (`monolith`), 2026-09-01
+**Canonical plan:** `docs/AI_REQUEST_QUEUEING_PLAN.md`
+**Reference (Android impl):** commits `471e0c3b` (Abort button + stream-silence watchdog) and `c1b98997` (Abort visible during generating + auto-scroll streaming output)
+**Target:** server `cloud.kimball.home` (`https://cloud.dotnetcloud.net/`)
+
+**Task:** add two UX improvements to the Blazor AI chat in `src/Modules/AI/DotNetCloud.Modules.AI/UI/AiChatPage.razor` (+ `.razor.css` + collocated `AiChatPage.razor.js`), mirroring the Android client:
+1. **Abort/Cancel button** next to the "In queue: position X of Y" status — visible while queued AND while generating — that cancels the request (removes it from the queue if still queued, or aborts the Ollama call if generating).
+2. **Auto-scroll** the chat (and the internally-scrollable streaming region) to the bottom as tokens stream.
+
+### Implemented (server — Blazor AI module)
+- `CancellationTokenSource _streamCts` → token passed to `SendMessageStreamingAsync` (was `CancellationToken.None`).
+- Abort button in `.ai-stream-actions` next to the queue pill, visible while `_isStreaming` (queued AND generating); queue pill gated on `_isQueued`.
+- `AbortStream()` cancels `_streamCts` → gRPC stream cancelled → module host `AiChatService.SendMessageStreamingAsync` sees the cancelled token → `AiCompletionQueue` linked CTS removes the queued item (gives up its place) or aborts the in-flight Ollama call. Clears `_isQueued`/`_isStreaming`/`_isModelLoading`, cancels `_modelLoadCts`.
+- `OperationCanceledException` handled quietly for user-initiated aborts (no error surfaced); partial/final message not persisted on abort.
+- **Stream-silence watchdog** mirrored from Android (`471e0c3b`): 60s with no chunk (queue status or content) cancels the stream and surfaces "AI stream timed out — no response received. Try again." — no frozen "Generating…".
+- Auto-scroll: collocated `UI/AiChatPage.razor.js` (`scrollChatToBottom`) imported via the `import` helper; invoked after each streamed chunk. Streaming output wrapped in a `max-height: 320px` internally-scrollable region (mirrors Android).
+
+### Deploy + verify (cloud.kimball.home)
+- `sudo ./scripts/deploy.sh --force --verify` → **all 15 targets succeeded** (deployed commit `76d9f1f4`).
+- `/health/ready` → **Healthy**; **14/14 modules** Running (incl. `dotnetcloud.ai`); `blazor.web.js` → 200 (no static-asset regression).
+- New static asset `_content/DotNetCloud.Modules.AI/UI/AiChatPage.razor.js` → **200, text/javascript**.
+- `dotnet test tests/DotNetCloud.Modules.AI.Tests/` → **35/35 passed**.
+- Migrations: none pending (no schema change).
+
+**Pending user verification (browser):** send a message → chat auto-scrolls as tokens arrive; send a second message so it queues → **Cancel** button appears → tap Cancel → request leaves the queue and the first keeps generating; Cancel also available during generation. (Server agent cannot obtain a browser session/token without credentials.)
+
 ## Active Handoff
 
-### Client: verify the AI REST API end-to-end + proceed with the Android AI tab (Phases B–F)
-
-**Status:** **COMPLETED ✅** (2026-08-29, client agent — `monolith`) — Android AI tab Phases B–F implemented, server-side REST/Bearer 500 **FIXED + deployed** by the server agent, and the full E2E round-trip **verified on-device** with a valid Bearer token. Archived below in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`. No outstanding server action for this feature.
-**Branch:** `feature/android-ai-tab`
-**From:** server agent (`cloud.kimball.home`), 2026-08-29
-**Canonical plan:** `docs/ANDROID_AI_TAB_PLAN.md`
-**Target:** Android client dev on `monolith`, server `cloud.kimball.home` (`https://cloud.dotnetcloud.net/`).
-
-### Client work — DONE (monolith, 2026-08-29)
-
-Phases B–F of `docs/ANDROID_AI_TAB_PLAN.md` are implemented on `feature/android-ai-tab` and verified as far as possible:
-
-- **Build:** arm64 Debug APK builds clean. `DotNetCloud.Client.Android.Tests`: **240 total, 239 passed / 1 skipped (pre-existing) / 0 failed** — includes new AI, Markdown, and module-availability tests.
-- **On-device** (Samsung R5CWC356B2K, logged into `https://cloud.dotnetcloud.net/`):
-  - ✅ Music + AI modules detected via the full-id availability endpoint (`dotnetcloud.music` / `dotnetcloud.ai` → `installed:true`); **AI tab appears** (under the "More" overflow — MAUI 7-tab layout).
-  - ✅ AI page renders (conversation list, model picker, new-chat, swipe rename/delete, streaming bubble, Ollama warning banner).
-  - ✅ `GET /api/v1/ai/models` returns **401 without a token** (proxy + auth reachable).
-  - ⚠️ **BLOCKER:** `GET /api/v1/ai/models` **and** `GET /api/v1/ai/conversations` return **500 (Internal Server Error)** with a valid Bearer token.
-- **Blazor AI chat works** (moderator-confirmed) — so the AI module, its DB, and Ollama are functional and the module host is up. Blazor uses the module's **gRPC/in-process** path (`IAiApiClient`), **not** the REST proxy — so the **REST + Bearer path is specifically broken**.
-- **Client-side mitigation already applied:** `AiViewModel.LoadAsync` no longer hard-fails when the provider 500s — it still loads the DB-backed conversation list and shows the Ollama banner instead of a hard error (unit-tested).
-
-### ✅ Server fix applied (cloud.kimball.home, 2026-08-29): AI REST Bearer 500 resolved
-
-**Root cause:** `AiSettingsProvider` (`src/Modules/AI/DotNetCloud.Modules.AI.Data/Services/AiSettingsProvider.cs`) **hard-required** `IAdminSettingsService` in its constructor, but that service is **not registered in the process-isolated AI module host** (only Core.Server's `AddDotNetCloudAuth()` registers it). Every REST request that activates `AiChatController` (which injects `IAiSettingsProvider`) therefore threw `System.InvalidOperationException: Unable to resolve service ... IAdminSettingsService ... AiSettingsProvider` → **500**. Blazor AI chat worked because Core.Server (in-process) has `IAdminSettingsService` registered. The Music host was unaffected because its REST controllers don't inject a settings provider.
-
-**Fix (matches the proven `VideoSettingsProvider` pattern):**
-- `AiSettingsProvider` now injects `IConfiguration` + `IServiceProvider` + `ILogger`, and **lazily** resolves `IAdminSettingsService` via `IServiceProvider.GetService(...)` (nullable). In the module host (service not registered) it gracefully falls back to `IConfiguration`; in Core.Server/Blazor it still reads DB-backed admin settings. DI registration (`AddAiServices`/`AddAiUiServices`) unchanged.
-- `src/Modules/AI/DotNetCloud.Modules.AI.Host/Program.cs`: `app.UseDeveloperExceptionPage()` is now **guarded to Development only** — no exception details leaked in production.
-
-**Verification (server, cloud.kimball.home, 2026-08-29):**
-- ✅ Deployed via `scripts/deploy.sh` (incremental); `/health/ready` **Healthy**; AI module host restarted with fixed binaries (md5-verified `DotNetCloud.Modules.AI.Data.dll` + `dotnetcloud.ai.dll` match build output).
-- ✅ Auth probe: no token → **401**; invalid Bearer token → **401** (authentication handler does not throw; route + `[Authorize]` present).
-- ✅ `dotnet build` clean; `DotNetCloud.Modules.AI.Tests` **28/28 pass**.
-
-**✅ All verified on-device (monolith, 2026-08-29, Samsung R5CWC356B2K on `https://cloud.dotnetcloud.net/`):**
-- `GET /api/v1/ai/models` → **200** (`gemma4:12b` listed)
-- `GET /api/v1/ai/conversations` → **200** (list loads)
-- `GET /api/v1/ai/health/ollama` → **200** (Ollama healthy — no warning banner)
-- E2E round-trip **PASS**: create → send/stream → reopen (persisted) → **rename** ("Say hello in tone sentence." → "AI Test") → **delete** (removed from list; test conversation cleaned up)
-- **Chat UI mirrors Blazor:** role labels ("You"/"Assistant"), avatars, "Copy as Markdown" button — **copy verified** ("Copied!" feedback)
-- **Keyboard-overlap-under-status-bar bug FIXED** (verified with keyboard open, incl. send-with-keyboard-up)
-- Music tab unaffected (loads correctly)
-- Android tests: **241 pass / 0 fail** (1 pre-existing skip); arm64 Debug build clean
-
-### API contract (unchanged)
-
-API base `/api/v1/ai/` (proxied by Core.Server, excluded from the response envelope; auth = Bearer introspection or cookie).
+**No active handoff.** Server-side Blazor AI Abort button + auto-scroll complete, deployed, and verified (2026-09-01). Awaiting next relay from client agent (`monolith`).
 
 ## Moderator Communication (Minimal)
 

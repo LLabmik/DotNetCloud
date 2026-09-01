@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using DotNetCloud.Core.AI;
 using DotNetCloud.Modules.AI.Host.Protos;
 using DotNetCloud.Core.Services.ModuleApis;
 using Grpc.Core;
@@ -21,6 +22,9 @@ public sealed class AiGrpcClientOptions
 
     /// <summary>Timeout for gRPC calls. Default: 30 seconds.</summary>
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>Deadline for long-lived streaming calls (queue wait + generation). Default: 30 minutes.</summary>
+    public TimeSpan StreamTimeout { get; set; } = TimeSpan.FromMinutes(30);
 }
 
 /// <summary>
@@ -51,14 +55,13 @@ public sealed class AiGrpcApiClient : IAiApiClient, IDisposable
     }
 
     /// <inheritdoc />
-    public async Task<ConversationDto?> CreateConversationAsync(string? title, string model, string? systemPrompt, CancellationToken ct = default)
+    public async Task<ConversationDto?> CreateConversationAsync(Guid userId, string? title, string? systemPrompt, CancellationToken ct = default)
         => await SafeCall(async () =>
         {
             var request = new CreateConversationRequest
             {
-                UserId = Guid.Empty.ToString(),
+                UserId = userId.ToString(),
                 Title = title ?? "",
-                Model = model,
                 SystemPrompt = systemPrompt ?? ""
             };
             var resp = await _client.Value.CreateConversationAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -66,23 +69,23 @@ public sealed class AiGrpcApiClient : IAiApiClient, IDisposable
         }, "CreateConversation");
 
     /// <inheritdoc />
-    public async Task<ConversationDetailDto?> GetConversationAsync(Guid conversationId, CancellationToken ct = default)
+    public async Task<ConversationDetailDto?> GetConversationAsync(Guid userId, Guid conversationId, CancellationToken ct = default)
         => await SafeCall(async () =>
         {
             var request = new GetConversationRequest
             {
                 ConversationId = conversationId.ToString(),
-                UserId = Guid.Empty.ToString()
+                UserId = userId.ToString()
             };
             var resp = await _client.Value.GetConversationAsync(request, DeadlineHeaders(ct)).ResponseAsync;
             return resp.Success ? ToConversationDetail(resp.Conversation) : null;
         }, "GetConversation");
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<ConversationSummaryDto>> ListConversationsAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<ConversationSummaryDto>> ListConversationsAsync(Guid userId, CancellationToken ct = default)
         => (await SafeCall<IReadOnlyList<ConversationSummaryDto>>(async () =>
         {
-            var request = new ListConversationsRequest { UserId = Guid.Empty.ToString() };
+            var request = new ListConversationsRequest { UserId = userId.ToString() };
             var resp = await _client.Value.ListConversationsAsync(request, DeadlineHeaders(ct)).ResponseAsync;
             if (!resp.Success)
                 return [];
@@ -97,26 +100,26 @@ public sealed class AiGrpcApiClient : IAiApiClient, IDisposable
         }, "ListConversations", []))!;
 
     /// <inheritdoc />
-    public async Task<bool> DeleteConversationAsync(Guid conversationId, CancellationToken ct = default)
+    public async Task<bool> DeleteConversationAsync(Guid userId, Guid conversationId, CancellationToken ct = default)
         => (await SafeCall(async () =>
         {
             var request = new DeleteConversationRequest
             {
                 ConversationId = conversationId.ToString(),
-                UserId = Guid.Empty.ToString()
+                UserId = userId.ToString()
             };
             var resp = await _client.Value.DeleteConversationAsync(request, DeadlineHeaders(ct)).ResponseAsync;
             return resp.Success && resp.Deleted;
         }, "DeleteConversation", false))!;
 
     /// <inheritdoc />
-    public async Task<bool> RenameConversationAsync(Guid conversationId, string newTitle, CancellationToken ct = default)
+    public async Task<bool> RenameConversationAsync(Guid userId, Guid conversationId, string newTitle, CancellationToken ct = default)
         => (await SafeCall(async () =>
         {
             var request = new RenameConversationRequest
             {
                 ConversationId = conversationId.ToString(),
-                UserId = Guid.Empty.ToString(),
+                UserId = userId.ToString(),
                 NewTitle = newTitle
             };
             var resp = await _client.Value.RenameConversationAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -124,13 +127,13 @@ public sealed class AiGrpcApiClient : IAiApiClient, IDisposable
         }, "RenameConversation", false))!;
 
     /// <inheritdoc />
-    public async Task<ChatResponseDto?> SendMessageAsync(Guid conversationId, string message, CancellationToken ct = default)
+    public async Task<ChatResponseDto?> SendMessageAsync(Guid userId, Guid conversationId, string message, CancellationToken ct = default)
         => await SafeCall(async () =>
         {
             var request = new SendMessageRequest
             {
                 ConversationId = conversationId.ToString(),
-                UserId = Guid.Empty.ToString(),
+                UserId = userId.ToString(),
                 Message = message
             };
             var resp = await _client.Value.SendMessageAsync(request, DeadlineHeaders(ct)).ResponseAsync;
@@ -148,26 +151,43 @@ public sealed class AiGrpcApiClient : IAiApiClient, IDisposable
 
     /// <inheritdoc />
     public async IAsyncEnumerable<MessageChunkDto> SendMessageStreamingAsync(
-        Guid conversationId, string message, [EnumeratorCancellation] CancellationToken ct = default)
+        Guid userId, Guid conversationId, string message, [EnumeratorCancellation] CancellationToken ct = default)
     {
         var request = new SendMessageRequest
         {
             ConversationId = conversationId.ToString(),
-            UserId = Guid.Empty.ToString(),
+            UserId = userId.ToString(),
             Message = message
         };
 
-        using var call = _client.Value.SendMessageStream(request, DeadlineHeaders(ct));
+        // Use the long streaming deadline — queue waits + generation can exceed the
+        // normal 30s call timeout.
+        using var call = _client.Value.SendMessageStream(request, new CallOptions(
+            deadline: DateTime.UtcNow.Add(_options.StreamTimeout),
+            cancellationToken: ct));
         await foreach (var chunk in call.ResponseStream.ReadAllAsync(ct))
         {
             yield return new MessageChunkDto
             {
                 Content = chunk.Content,
                 Done = chunk.Done,
-                EvalCount = chunk.EvalCount
+                EvalCount = chunk.EvalCount,
+                Thinking = chunk.Thinking,
+                Status = (LlmStreamStatus)(int)chunk.Status,
+                QueuedPosition = chunk.QueuedPosition > 0 ? chunk.QueuedPosition : null,
+                QueueTotal = chunk.QueueTotal > 0 ? chunk.QueueTotal : null
             };
         }
     }
+
+    /// <inheritdoc />
+    public async Task<bool> IsOllamaHealthyAsync(CancellationToken ct = default)
+        => (await SafeCall(async () =>
+        {
+            var resp = await _client.Value.GetOllamaHealthAsync(
+                new GetOllamaHealthRequest { UserId = Guid.Empty.ToString() }, DeadlineHeaders(ct)).ResponseAsync;
+            return resp.Healthy;
+        }, "GetOllamaHealth", false))!;
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<ModelInfoDto>> ListModelsAsync(CancellationToken ct = default)

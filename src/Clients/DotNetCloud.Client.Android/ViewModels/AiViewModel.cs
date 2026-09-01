@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DotNetCloud.Client.Android.Ai;
@@ -22,13 +23,24 @@ public sealed partial class AiViewModel : ObservableObject
 
     private CancellationTokenSource? _streamCts;
     private CancellationTokenSource? _modelLoadCts;
+    private CancellationTokenSource? _watchdogCts;
+    private long _lastChunkTicks;
     private AiConversationDto? _renameTarget;
 
     /// <summary>
-    /// Window before "Loading model into memory…" is shown while waiting for the first
+    /// Window before "Generating…" is shown while waiting for the first
     /// stream chunk. Internal + settable so tests can shorten it.
     /// </summary>
     internal static TimeSpan ModelLoadDelay { get; set; } = TimeSpan.FromSeconds(3);
+
+    /// <summary>
+    /// Max time the AI stream may go without any chunk (queue status or content) before the
+    /// watchdog cancels it and surfaces an error. Internal + settable so tests can shorten it.
+    /// </summary>
+    internal static TimeSpan StreamSilenceTimeout { get; set; } = TimeSpan.FromSeconds(60);
+
+    /// <summary>How often the stream watchdog re-checks for silence. Internal + settable for tests.</summary>
+    internal static TimeSpan WatchdogPollInterval { get; set; } = TimeSpan.FromSeconds(2);
 
     /// <summary>Fired when the user requests a rename; the page shows a prompt and calls <see cref="CommitRenameAsync"/>.</summary>
     public event Action<AiConversationDto>? RenameRequested;
@@ -92,18 +104,32 @@ public sealed partial class AiViewModel : ObservableObject
     /// <summary>Messages of the currently active conversation.</summary>
     public ObservableCollection<AiMessageDto> ActiveMessages { get; } = [];
 
-    /// <summary>The models available on the server.</summary>
-    public ObservableCollection<AiModelDto> Models { get; } = [];
-
-    [ObservableProperty]
-    private AiModelDto? _selectedModelDto;
-
-    /// <summary>The model id (AiModelDto.Id) in use.</summary>
-    [ObservableProperty]
-    private string _selectedModel = "";
-
     [ObservableProperty]
     private Guid? _activeConversationId;
+
+    /// <summary>The admin-configured default model, shown as static text.</summary>
+    [ObservableProperty]
+    private string _defaultModel = "";
+
+    /// <summary>The model of the active conversation, shown in the chat header.</summary>
+    [ObservableProperty]
+    private string _activeConversationModel = "";
+
+    /// <summary>True while the request is waiting in the inference queue.</summary>
+    [ObservableProperty]
+    private bool _isQueued;
+
+    /// <summary>Current 1-based queue position while queued.</summary>
+    [ObservableProperty]
+    private int _queuePosition;
+
+    /// <summary>Total queue length while queued.</summary>
+    [ObservableProperty]
+    private int _queueTotal;
+
+    /// <summary>"In queue: position 3 of 8" when queued, else empty.</summary>
+    public string QueueStatusText =>
+        IsQueued ? $"In queue: position {QueuePosition} of {QueueTotal}" : "";
 
     [ObservableProperty]
     private string _activeConversationTitle = "";
@@ -119,10 +145,18 @@ public sealed partial class AiViewModel : ObservableObject
 
     /// <summary>
     /// True while streaming when no reply content has arrived yet and the 3-second
-    /// model-load window has elapsed — shows "Loading model into memory…" (mirrors Blazor).
+    /// generation window has elapsed — shows "Generating…" (mirrors Blazor).
     /// </summary>
     [ObservableProperty]
     private bool _isModelLoading;
+
+    /// <summary>The model's live reasoning text while it is thinking (empty when none).</summary>
+    [ObservableProperty]
+    private string _streamingThinking = "";
+
+    /// <summary>True once the model has emitted thinking text (shows the reasoning block).</summary>
+    [ObservableProperty]
+    private bool _hasThinking;
 
     [ObservableProperty]
     private bool _isLoading;
@@ -140,8 +174,11 @@ public sealed partial class AiViewModel : ObservableObject
     [ObservableProperty]
     private Guid? _copiedMessageId;
 
-    partial void OnSelectedModelDtoChanged(AiModelDto? value) =>
-        SelectedModel = value?.Id ?? "";
+    partial void OnIsQueuedChanged(bool value) => OnPropertyChanged(nameof(QueueStatusText));
+
+    partial void OnQueuePositionChanged(int value) => OnPropertyChanged(nameof(QueueStatusText));
+
+    partial void OnQueueTotalChanged(int value) => OnPropertyChanged(nameof(QueueStatusText));
 
     partial void OnStreamingContentChanged(string value) =>
         OnPropertyChanged(nameof(StreamingDisplay));
@@ -187,18 +224,19 @@ public sealed partial class AiViewModel : ObservableObject
                 ErrorMessage = $"Failed to load conversations: {ex.Message}";
             }
 
-            // Models + Ollama health depend on the provider. When it is down the models
+            // Ollama health + settings depend on the provider. When it is down the settings
             // call can throw (HTTP 500); surface the Ollama warning banner instead of a
             // hard failure so existing conversations remain visible.
-            IReadOnlyList<AiModelDto> models = [];
             var healthy = false;
+            var defaultModel = "";
             try
             {
-                var modelsTask = _ai.ListModelsAsync(serverUrl, token);
                 var healthTask = _ai.GetOllamaHealthAsync(serverUrl, token);
-                await Task.WhenAll(modelsTask, healthTask);
-                models = await modelsTask;
+                var settingsTask = _ai.GetSettingsAsync(serverUrl, token);
+                await Task.WhenAll(healthTask, settingsTask);
                 healthy = await healthTask;
+                var settings = await settingsTask;
+                defaultModel = settings?.DefaultModel ?? "";
             }
             catch
             {
@@ -208,22 +246,12 @@ public sealed partial class AiViewModel : ObservableObject
 
             Dispatch(() =>
             {
-                Models.Clear();
-                foreach (var m in models)
-                    Models.Add(m);
-
                 Conversations.Clear();
                 foreach (var c in conversations)
                     Conversations.Add(NormalizeTitle(c));
 
                 OllamaHealthy = healthy;
-
-                // Default to gpt-oss:20b if present, otherwise the first model.
-                var preferred = Models.FirstOrDefault(m =>
-                    string.Equals(m.Id, "gpt-oss:20b", StringComparison.OrdinalIgnoreCase)) ?? Models.FirstOrDefault();
-                SelectedModelDto = preferred;
-                if (preferred is null)
-                    SelectedModel = "";
+                DefaultModel = defaultModel;
 
                 ShowConversationList = true;
                 IsLoading = false;
@@ -252,7 +280,7 @@ public sealed partial class AiViewModel : ObservableObject
 
         try
         {
-            var created = await _ai.CreateConversationAsync(serverUrl, token, null, SelectedModel);
+            var created = await _ai.CreateConversationAsync(serverUrl, token, null);
             if (created is null)
             {
                 ErrorMessage = "Failed to create conversation.";
@@ -264,6 +292,7 @@ public sealed partial class AiViewModel : ObservableObject
                 Conversations.Insert(0, NormalizeTitle(created));
                 ActiveConversationId = created.Id;
                 ActiveConversationTitle = string.IsNullOrWhiteSpace(created.Title) ? "New Chat" : created.Title;
+                ActiveConversationModel = created.Model;
                 ActiveMessages.Clear();
                 ComposerText = "";
                 StreamingContent = "";
@@ -305,7 +334,7 @@ public sealed partial class AiViewModel : ObservableObject
                     foreach (var m in detail.Messages)
                         ActiveMessages.Add(m);
                 }
-                SelectedModel = string.IsNullOrEmpty(detail?.Model) ? SelectedModel : detail.Model;
+                ActiveConversationModel = string.IsNullOrEmpty(detail?.Model) ? DefaultModel : detail.Model;
                 StreamingContent = "";
                 ShowConversationList = false;
                 ScrollRequested?.Invoke();
@@ -354,17 +383,60 @@ public sealed partial class AiViewModel : ObservableObject
             ActiveMessages.Add(userMessage);
             ComposerText = "";
             StreamingContent = "";
+            StreamingThinking = "";
+            HasThinking = false;
             IsStreaming = true;
+            IsQueued = true;
             ScrollRequested?.Invoke();
         });
 
-        StartModelLoadTimer();
-
         var accumulated = new System.Text.StringBuilder();
+        var thinking = new System.Text.StringBuilder();
+        var startedGenerating = false;
+
+        // Watchdog: if the stream goes silent (no queue-status or content chunk) for too
+        // long, cancel it so the UI can't hang in "Generating…" forever.
+        StartStreamWatchdog();
         try
         {
             await foreach (var chunk in _ai.SendMessageStreamingAsync(serverUrl, token, conversationId, message, ct))
             {
+                // Any chunk (queue status or content) proves the stream is alive.
+                _lastChunkTicks = Stopwatch.GetTimestamp();
+
+                if (string.Equals(chunk.Status, "queued", StringComparison.OrdinalIgnoreCase))
+                {
+                    Dispatch(() =>
+                    {
+                        IsQueued = true;
+                        if (chunk.Position is int p)
+                            QueuePosition = p;
+                        if (chunk.Total is int t)
+                            QueueTotal = t;
+                    });
+                    continue;
+                }
+
+                if (!startedGenerating)
+                {
+                    // Request left the queue and is now generating — start the model-load timer.
+                    startedGenerating = true;
+                    Dispatch(() => IsQueued = false);
+                    StartModelLoadTimer();
+                }
+
+                if (!string.IsNullOrEmpty(chunk.Thinking))
+                {
+                    // Surface the model's live reasoning instead of a stuck spinner.
+                    thinking.Append(chunk.Thinking);
+                    Dispatch(() =>
+                    {
+                        StreamingThinking = thinking.ToString();
+                        HasThinking = true;
+                        ScrollRequested?.Invoke();
+                    });
+                }
+
                 if (!string.IsNullOrEmpty(chunk.Content))
                 {
                     accumulated.Append(chunk.Content);
@@ -398,6 +470,7 @@ public sealed partial class AiViewModel : ObservableObject
                     ActiveMessages.Add(assistantMessage);
                 StreamingContent = "";
                 IsStreaming = false;
+                IsQueued = false;
                 ScrollRequested?.Invoke();
             });
 
@@ -410,6 +483,7 @@ public sealed partial class AiViewModel : ObservableObject
             {
                 StreamingContent = "";
                 IsStreaming = false;
+                IsQueued = false;
             });
         }
         catch (Exception ex)
@@ -418,20 +492,52 @@ public sealed partial class AiViewModel : ObservableObject
             {
                 StreamingContent = "";
                 IsStreaming = false;
+                IsQueued = false;
                 ErrorMessage = $"Failed to send message: {ex.Message}";
             });
         }
         finally
         {
+            QueuePosition = 0;
+            QueueTotal = 0;
+            StreamingThinking = "";
+            HasThinking = false;
             StopModelLoadTimer();
+            StopStreamWatchdog();
             _streamCts?.Dispose();
             _streamCts = null;
         }
     }
 
     /// <summary>
-    /// Starts the 3-second window after which "Loading model into memory…" is shown if no
-    /// reply content has arrived yet (mirrors the Blazor module's model-loading indicator).
+    /// Cancels the in-flight AI request. If it's still queued, it gives up its place in the
+    /// queue; if generating, the Ollama call is aborted. The stream loop's cleanup handler
+    /// resets the remaining streaming state.
+    /// </summary>
+    [RelayCommand]
+    private void CancelStream()
+    {
+        StopStreamWatchdog();
+        try
+        {
+            _streamCts?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Stream already finished — nothing to cancel.
+        }
+
+        Dispatch(() =>
+        {
+            IsQueued = false;
+            IsStreaming = false;
+            StreamingContent = "";
+        });
+    }
+
+    /// <summary>
+    /// Starts the 3-second window after which "Generating…" is shown if no
+    /// reply content has arrived yet (mirrors the Blazor module's generating indicator).
     /// </summary>
     private void StartModelLoadTimer()
     {
@@ -445,7 +551,7 @@ public sealed partial class AiViewModel : ObservableObject
             try
             {
                 await Task.Delay(ModelLoadDelay, ct);
-                if (!ct.IsCancellationRequested && IsStreaming && string.IsNullOrEmpty(StreamingContent))
+                if (!ct.IsCancellationRequested && IsStreaming && string.IsNullOrEmpty(StreamingContent) && string.IsNullOrEmpty(StreamingThinking))
                     Dispatch(() => IsModelLoading = true);
             }
             catch (OperationCanceledException)
@@ -462,6 +568,64 @@ public sealed partial class AiViewModel : ObservableObject
         _modelLoadCts?.Dispose();
         _modelLoadCts = null;
         IsModelLoading = false;
+    }
+
+    /// <summary>
+    /// Starts a background watchdog that cancels the stream if no chunk (queue status or
+    /// content) arrives within <see cref="StreamSilenceTimeout"/>. Prevents the UI from
+    /// hanging in "Generating…" forever if the server/proxy stream dies silently.
+    /// </summary>
+    private void StartStreamWatchdog()
+    {
+        _watchdogCts?.Cancel();
+        _watchdogCts?.Dispose();
+        _watchdogCts = new CancellationTokenSource();
+        var ct = _watchdogCts.Token;
+        _lastChunkTicks = Stopwatch.GetTimestamp();
+
+        _ = Task.Run(async () =>
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                try
+                {
+                    await Task.Delay(WatchdogPollInterval, ct);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+
+                if (ct.IsCancellationRequested)
+                {
+                    break;
+                }
+
+                var silentFor = TimeSpan.FromTicks(Stopwatch.GetTimestamp() - _lastChunkTicks);
+                if (IsStreaming && silentFor > StreamSilenceTimeout)
+                {
+                    try
+                    {
+                        _streamCts?.Cancel();
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        // Stream already cleaned up.
+                    }
+
+                    Dispatch(() => ErrorMessage = "AI stream timed out — no response received. Try again.");
+                    break;
+                }
+            }
+        }, ct);
+    }
+
+    /// <summary>Stops the stream watchdog.</summary>
+    private void StopStreamWatchdog()
+    {
+        _watchdogCts?.Cancel();
+        _watchdogCts?.Dispose();
+        _watchdogCts = null;
     }
 
     /// <summary>Deletes a conversation (from the swipe action).</summary>

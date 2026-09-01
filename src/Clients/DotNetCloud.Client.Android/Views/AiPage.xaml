@@ -65,19 +65,17 @@
                         Padding="14,6"/>
             </Grid>
 
-            <!-- Model picker -->
+            <!-- Model (static — admin-configured default) -->
             <Grid Grid.Row="1"
                   ColumnDefinitions="Auto,*"
                   Padding="16,4">
                 <Label Text="Model:"
                        TextColor="#94A3B8"
                        VerticalOptions="Center"/>
-                <Picker Grid.Column="1"
-                        ItemsSource="{Binding Models}"
-                        ItemDisplayBinding="{Binding Name}"
-                        SelectedItem="{Binding SelectedModelDto}"
-                        Title="Select model"
-                        TextColor="#F1F5F9"/>
+                <Label Grid.Column="1"
+                       Text="{Binding DefaultModel}"
+                       TextColor="#F1F5F9"
+                       VerticalOptions="Center"/>
             </Grid>
 
             <!-- Loading indicator -->
@@ -168,7 +166,7 @@
                            FontSize="16"
                            FontAttributes="Bold"
                            LineBreakMode="TailTruncation"/>
-                    <Label Text="{Binding SelectedModel}"
+                    <Label Text="{Binding ActiveConversationModel}"
                            TextColor="#64748B"
                            FontSize="12"/>
                 </VerticalStackLayout>
@@ -326,7 +324,57 @@
                            VerticalOptions="Center"/>
                 </Grid>
 
-                <!-- Loading model into memory (mirrors the Blazor module) -->
+                <!-- Queue status + Abort (visible while queued AND while generating) -->
+                <Grid IsVisible="{Binding IsStreaming}"
+                      ColumnDefinitions="Auto,Auto"
+                      ColumnSpacing="8"
+                      HorizontalOptions="Start"
+                      Margin="0,0,0,4">
+                    <Border Grid.Column="0"
+                            IsVisible="{Binding IsQueued}"
+                            BackgroundColor="#1E293B"
+                            StrokeThickness="0"
+                            StrokeShape="RoundRectangle 10"
+                            Padding="12,6"
+                            VerticalOptions="Center">
+                        <Label Text="{Binding QueueStatusText}"
+                               TextColor="#FDBA74"
+                               FontSize="12"/>
+                    </Border>
+                    <Button Grid.Column="1"
+                            Text="Abort"
+                            Command="{Binding CancelStreamCommand}"
+                            FontSize="12"
+                            TextColor="#F1F5F9"
+                            BackgroundColor="#7F1D1D"
+                            CornerRadius="10"
+                            Padding="12,6"
+                            HeightRequest="32"
+                            VerticalOptions="Center"/>
+                </Grid>
+
+                <!-- Thinking (reasoning) block -->
+                <Border IsVisible="{Binding HasThinking}"
+                        BackgroundColor="#1E293B"
+                        StrokeThickness="0"
+                        StrokeShape="RoundRectangle 10"
+                        Padding="12,8"
+                        Margin="0,0,0,4"
+                        HorizontalOptions="Start">
+                    <VerticalStackLayout Spacing="3">
+                        <Label Text="Thought process"
+                               TextColor="#94A3B8"
+                               FontSize="11"
+                               FontAttributes="Bold"/>
+                        <Label Text="{Binding StreamingThinking}"
+                               TextColor="#64748B"
+                               FontSize="12"
+                               LineBreakMode="WordWrap"/>
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- Generating indicator — the model is always resident (no user model
+                     selection); shown while waiting for the first token (mirrors Blazor) -->
                 <Grid IsVisible="{Binding IsModelLoading}"
                       ColumnDefinitions="Auto,*"
                       ColumnSpacing="8"
@@ -339,22 +387,28 @@
                                        HeightRequest="16"
                                        WidthRequest="16"/>
                     <Label Grid.Column="1"
-                           Text="Loading model into memory — this may take a moment…"
+                           Text="Generating…"
                            TextColor="#94A3B8"
                            FontSize="12"
                            VerticalOptions="Center"/>
                 </Grid>
 
+                <!-- Streaming output — internally scrollable, auto-scrolled to the latest token -->
                 <Border BackgroundColor="#1E293B"
                         StrokeThickness="0"
                         StrokeShape="RoundRectangle 14"
                         Padding="12,8"
                         HorizontalOptions="Start"
                         IsVisible="{Binding IsModelLoading, Converter={StaticResource InvertBool}}">
-                    <Label FormattedText="{Binding StreamingDisplay, Converter={StaticResource Markdown}}"
-                           TextColor="#F1F5F9"
-                           FontSize="14"
-                           LineBreakMode="WordWrap"/>
+                    <ScrollView x:Name="StreamScroll"
+                                MaximumHeightRequest="320"
+                                HorizontalScrollBarVisibility="Never"
+                                VerticalScrollBarVisibility="Never">
+                        <Label FormattedText="{Binding StreamingDisplay, Converter={StaticResource Markdown}}"
+                               TextColor="#F1F5F9"
+                               FontSize="14"
+                               LineBreakMode="WordWrap"/>
+                    </ScrollView>
                 </Border>
             </VerticalStackLayout>
 

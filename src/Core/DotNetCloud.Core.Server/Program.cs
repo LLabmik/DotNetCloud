@@ -336,7 +336,8 @@ public class Program
         builder.Services.AddMusicUiServices(builder.Configuration!, provider, connectionString);
         builder.Services.AddPhotosUiServices(builder.Configuration!, provider, connectionString);
         builder.Services.AddVideoUiServices(builder.Configuration!, provider, connectionString);
-        builder.Services.AddAiUiServices(builder.Configuration!, provider, connectionString);
+        // NOTE: AI chat is process-isolated — it goes through the module host gRPC client
+        // (IAiApiClient) below. No in-process AI UI services are registered here.
 
         // Files module UI services (FileBrowser and related Blazor components).
         // Registers FilesDbContext and the scoped services needed for in-process rendering.
@@ -368,6 +369,12 @@ public class Program
             : new PostgreSqlNamingStrategy());
         builder.Services.AddDbContext<CalendarDbContext>(options =>
             ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Calendar.Data"),
+            ServiceLifetime.Transient);
+
+        // AI DbContext for schema creation by DbContextSchemaProvider only.
+        // AI chat goes through the process-isolated module host via IAiApiClient (gRPC).
+        builder.Services.AddDbContext<AiDbContext>(options =>
+            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.AI.Data.SqlServer"),
             ServiceLifetime.Transient);
 
         // Override Chat services with no-op/stub implementations for the global UI.

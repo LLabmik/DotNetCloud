@@ -3266,13 +3266,17 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 
 ### Section: Phase 9.5 — Blazor UI Chat Panel
 
-**Status:** pending ☐
+**Status:** completed ✅
 **Deliverables:**
 
-- ☐ Chat-style AI assistant panel component
-- ☐ Streaming response rendering via SSE
-- ☐ Model selector dropdown
-- ☐ Conversation history sidebar
+- ✓ Chat-style AI assistant panel component (`AiChatPage.razor`, mounted at `/apps/ai`)
+- ✓ Streaming response rendering via gRPC streaming ("Generating…" indicator, live reasoning block)
+- ✓ Conversation history sidebar (new chat, rename, delete)
+- ✓ Queue-position status ("In queue: position X of Y") + **Abort/Cancel button** while queued/generating (FIFO queue, 2026-09-01)
+- ✓ Auto-scroll to the newest streamed token (collocated `AiChatPage.razor.js`, 2026-09-01)
+- ✓ Model selection moved to admin-configured `DefaultModel` — user-facing model selector intentionally removed (per `docs/AI_REQUEST_QUEUEING_PLAN.md`)
+
+**Notes:** Blazor AI chat panel complete and deployed to cloud.kimball.home (2026-09-01). 14/14 modules healthy; AI tests 35/35. Browser UX verification of Abort/auto-scroll pending user.
 
 ### Section: Phase 9.6 — Admin Settings & Multi-Provider Support
 
@@ -5475,13 +5479,17 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 
 ### Section: Phase 9.5 — Blazor UI Chat Panel
 
-**Status:** pending ☐
+**Status:** completed ✅
 **Deliverables:**
 
-- ☐ Chat-style AI assistant panel component
-- ☐ Streaming response rendering via SSE
-- ☐ Model selector dropdown
-- ☐ Conversation history sidebar
+- ✓ Chat-style AI assistant panel component (`AiChatPage.razor`, mounted at `/apps/ai`)
+- ✓ Streaming response rendering via gRPC streaming ("Generating…" indicator, live reasoning block)
+- ✓ Conversation history sidebar (new chat, rename, delete)
+- ✓ Queue-position status ("In queue: position X of Y") + **Abort/Cancel button** while queued/generating (FIFO queue, 2026-09-01)
+- ✓ Auto-scroll to the newest streamed token (collocated `AiChatPage.razor.js`, 2026-09-01)
+- ✓ Model selection moved to admin-configured `DefaultModel` — user-facing model selector intentionally removed (per `docs/AI_REQUEST_QUEUEING_PLAN.md`)
+
+**Notes:** Blazor AI chat panel complete and deployed to cloud.kimball.home (2026-09-01). 14/14 modules healthy; AI tests 35/35. Browser UX verification of Abort/auto-scroll pending user.
 
 ### Section: Phase 9.6 — Admin Settings & Multi-Provider Support
 

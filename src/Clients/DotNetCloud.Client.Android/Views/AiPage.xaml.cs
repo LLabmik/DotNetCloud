@@ -24,7 +24,7 @@ public partial class AiPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
-        if (_vm.Models.Count == 0)
+        if (_vm.Conversations.Count == 0)
             await _vm.LoadAsync();
     }
 
@@ -50,18 +50,20 @@ public partial class AiPage : ContentPage
             inputMethodManager.HideSoftInputFromWindow(token, global::Android.Views.InputMethods.HideSoftInputFlags.None);
     }
 
-    /// <summary>Scrolls the message list to the bottom (new message or stream chunk).</summary>
+    /// <summary>
+    /// Scrolls the message list and the streaming output to the bottom so the latest
+    /// generated text is always visible without manual scrolling.
+    /// </summary>
     private void OnScrollRequested()
     {
-        if (_vm.ActiveMessages.Count == 0)
-            return;
-
         MainThread.BeginInvokeOnMainThread(async () =>
         {
             // Let the layout settle before scrolling.
             await Task.Delay(30);
-            if (MessagesList is not null)
+            if (_vm.ActiveMessages.Count > 0 && MessagesList is not null)
                 MessagesList.ScrollTo(_vm.ActiveMessages.Count - 1, position: ScrollToPosition.End, animate: false);
+            if (StreamScroll is not null)
+                await StreamScroll.ScrollToAsync(0, double.MaxValue, false);
         });
     }
 

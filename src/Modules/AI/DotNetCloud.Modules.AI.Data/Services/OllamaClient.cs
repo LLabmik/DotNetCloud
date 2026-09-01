@@ -138,6 +138,7 @@ public sealed class OllamaClient : IOllamaClient
             {
                 Model = chunk.Model ?? request.Model,
                 Content = chunk.Message?.Content ?? string.Empty,
+                Thinking = chunk.Message?.Thinking ?? string.Empty,
                 Done = chunk.Done,
                 TotalDurationNs = chunk.Done ? chunk.TotalDuration : null,
                 EvalCount = chunk.Done ? chunk.EvalCount : null
@@ -227,6 +228,7 @@ public sealed class OllamaClient : IOllamaClient
     {
         public string Role { get; set; } = string.Empty;
         public string Content { get; set; } = string.Empty;
+        public string Thinking { get; set; } = string.Empty;
     }
 
     private sealed class OllamaOptions
