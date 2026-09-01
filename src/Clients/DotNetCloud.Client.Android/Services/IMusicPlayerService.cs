@@ -84,6 +84,9 @@ public interface IMusicPlayerService
     /// <summary>Raised when playback state (playing/paused/stopped) changes.</summary>
     event EventHandler? PlaybackStateChanged;
 
+    /// <summary>Raised when a new track actually begins playing (covers user-initiated plays and auto-advance).</summary>
+    event EventHandler? TrackStarted;
+
     /// <summary>Raised when the current track finishes playing.</summary>
     event EventHandler? TrackEnded;
 

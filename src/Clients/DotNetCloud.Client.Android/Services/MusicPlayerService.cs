@@ -80,6 +80,9 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
     public event EventHandler? PlaybackStateChanged;
 
     /// <inheritdoc />
+    public event EventHandler? TrackStarted;
+
+    /// <inheritdoc />
     public event EventHandler? TrackEnded;
 
     /// <inheritdoc />
@@ -200,6 +203,7 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
         IsPlaying = true;
         StartPositionTimer();
         StartForegroundService();
+        TrackStarted?.Invoke(this, EventArgs.Empty);
         PlaybackStateChanged?.Invoke(this, EventArgs.Empty);
     }
 

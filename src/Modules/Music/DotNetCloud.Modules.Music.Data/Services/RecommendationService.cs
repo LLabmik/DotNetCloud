@@ -26,11 +26,15 @@ public sealed class RecommendationService : IRecommendationService
 
     public async Task<IReadOnlyList<TrackDto>> GetRecentlyPlayedAsync(CallerContext caller, int count = 20, CancellationToken cancellationToken = default)
     {
+        // Group by track and order by its most recent play. Using GroupBy/MAX avoids the
+        // EF Core Distinct() translation on SQL Server, which distincts on (UserTrackId, PlayedAt)
+        // pairs and returns duplicate tracks (one row per play), making the list appear unordered.
         var userTrackIds = await _db.PlaybackHistories
             .Where(h => h.UserId == caller.UserId)
-            .OrderByDescending(h => h.PlayedAt)
-            .Select(h => h.UserTrackId)
-            .Distinct()
+            .GroupBy(h => h.UserTrackId)
+            .Select(g => new { UserTrackId = g.Key, LastPlayed = g.Max(h => h.PlayedAt) })
+            .OrderByDescending(x => x.LastPlayed)
+            .Select(x => x.UserTrackId)
             .Take(count)
             .ToListAsync(cancellationToken);
 

@@ -40,6 +40,7 @@ public sealed partial class MusicViewModel : ObservableObject
         _serverStore = serverStore;
         _tokenStore = tokenStore;
         _player.PlaybackStateChanged += (_, _) => UpdatePlaybackState();
+        _player.TrackStarted += (_, _) => RecordPlayFireAndForget();
         _player.TrackEnded += (_, _) => Dispatch(() => PlayNextCommand.Execute(null));
         _player.RepeatModeChanged += (_, _) => Dispatch(UpdateRepeatState);
         _eq.AvailabilityChanged += (_, _) => Dispatch(InitEqFromDevice);
@@ -70,6 +71,28 @@ public sealed partial class MusicViewModel : ObservableObject
             return (null, null);
         var tok = await _tokenStore.GetAccessTokenAsync(conn.ServerBaseUrl);
         return (conn.ServerBaseUrl, tok);
+    }
+
+    /// <summary>
+    /// Fire-and-forget recording of the current track play. Runs off the UI thread so a slow
+    /// network call never blocks playback; failures are logged and ignored.
+    /// </summary>
+    private async void RecordPlayFireAndForget()
+    {
+        try
+        {
+            var track = _player.CurrentTrack;
+            if (track is null)
+                return;
+            var (serverUrl, token) = await GetCredentialsAsync();
+            if (serverUrl is null || token is null)
+                return;
+            await _music.RecordPlayAsync(serverUrl, token, track.Id, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Music] RecordPlay failed: {ex.Message}");
+        }
     }
 
     // ── Pagination state (for infinite scroll) ─────────────────────
