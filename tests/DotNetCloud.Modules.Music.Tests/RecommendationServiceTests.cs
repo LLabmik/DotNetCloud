@@ -75,6 +75,41 @@ public class RecommendationServiceTests
         Assert.AreEqual("Older Track", result[1].Title);
     }
 
+    [TestMethod]
+    public async Task GetRecentlyPlayed_DeduplicatesRepeatedPlays()
+    {
+        var (_, album, trackA) = await TestHelpers.SeedCompleteTrackAsync(_db, trackTitle: "Track A", ownerId: _caller.UserId);
+        var trackB = await TestHelpers.SeedTrackAsync(_db, album.Id, "Track B", ownerId: _caller.UserId);
+
+        // Track A played twice (old + recent), Track B once in between.
+        _db.PlaybackHistories.Add(new PlaybackHistory
+        {
+            UserId = _caller.UserId,
+            UserTrackId = trackA.Id,
+            PlayedAt = DateTime.UtcNow.AddHours(-3)
+        });
+        _db.PlaybackHistories.Add(new PlaybackHistory
+        {
+            UserId = _caller.UserId,
+            UserTrackId = trackB.Id,
+            PlayedAt = DateTime.UtcNow.AddHours(-2)
+        });
+        _db.PlaybackHistories.Add(new PlaybackHistory
+        {
+            UserId = _caller.UserId,
+            UserTrackId = trackA.Id,
+            PlayedAt = DateTime.UtcNow.AddHours(-1)
+        });
+        await _db.SaveChangesAsync();
+
+        var result = await _service.GetRecentlyPlayedAsync(_caller, 10);
+
+        // Track A must appear exactly once, ordered by its most recent play (at top).
+        Assert.AreEqual(2, result.Count);
+        Assert.AreEqual("Track A", result[0].Title);
+        Assert.AreEqual("Track B", result[1].Title);
+    }
+
     // ─── GetMostPlayed ────────────────────────────────────────────────
 
     [TestMethod]
