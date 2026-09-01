@@ -386,6 +386,12 @@ public class Program
         builder.Services.AddSingleton<DotNetCloud.Core.Search.IExtractionService, DotNetCloud.Core.Server.Grpc.Clients.ExtractionGrpcClient>();
         // Channel-backed real-time indexing queue (started by SearchReindexHostedService).
         builder.Services.AddSingleton<SearchIndexingService>();
+        // Register SearchReindexHostedService as a concrete singleton so it can be resolved
+        // directly (InProcessAdminSharedFolderReindexDispatcher, SearchController). Registering
+        // only via AddHostedService<T> registers it solely as IHostedService, which makes the
+        // dispatcher unresolvable and fails DI ValidateOnBuild in Development (integration test
+        // host): "Unable to resolve service for type 'SearchReindexHostedService'".
+        builder.Services.AddSingleton<SearchReindexHostedService>();
         builder.Services.AddScoped<IAdminSharedFolderReindexDispatcher, InProcessAdminSharedFolderReindexDispatcher>();
         // Register gRPC-based module search document clients (document pull for indexing)
         builder.Services.AddSingleton<IModuleSearchDocumentClient, FilesModuleSearchClient>();
@@ -724,7 +730,8 @@ public class Program
         builder.Services.AddHostedService<ModuleUiRegistrationHostedService>();
         builder.Services.AddHostedService<NotificationEventSubscriber>();
         builder.Services.AddHostedService<SearchEventSubscriber>();
-        builder.Services.AddHostedService<SearchReindexHostedService>();
+        // Hosted service backed by the concrete singleton registered above (keeps it resolvable).
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<SearchReindexHostedService>());
 
         // Enforce audit-log retention (SOC 2 C2/P6): daily purge of expired rows.
         builder.Services.AddHostedService<AuditLogPurgeHostedService>();
