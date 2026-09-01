@@ -25,7 +25,7 @@ public sealed partial class AiViewModel : ObservableObject
     private AiConversationDto? _renameTarget;
 
     /// <summary>
-    /// Window before "Loading model into memory…" is shown while waiting for the first
+    /// Window before "Generating…" is shown while waiting for the first
     /// stream chunk. Internal + settable so tests can shorten it.
     /// </summary>
     internal static TimeSpan ModelLoadDelay { get; set; } = TimeSpan.FromSeconds(3);
@@ -133,7 +133,7 @@ public sealed partial class AiViewModel : ObservableObject
 
     /// <summary>
     /// True while streaming when no reply content has arrived yet and the 3-second
-    /// model-load window has elapsed — shows "Loading model into memory…" (mirrors Blazor).
+    /// generation window has elapsed — shows "Generating…" (mirrors Blazor).
     /// </summary>
     [ObservableProperty]
     private bool _isModelLoading;
@@ -490,8 +490,8 @@ public sealed partial class AiViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Starts the 3-second window after which "Loading model into memory…" is shown if no
-    /// reply content has arrived yet (mirrors the Blazor module's model-loading indicator).
+    /// Starts the 3-second window after which "Generating…" is shown if no
+    /// reply content has arrived yet (mirrors the Blazor module's generating indicator).
     /// </summary>
     private void StartModelLoadTimer()
     {

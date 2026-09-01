@@ -150,7 +150,7 @@
                                 {
                                     <div class="ai-model-loading">
                                         <span class="ai-model-loading-spinner"></span>
-                                        <span>Loading model into memory — this may take a moment…</span>
+                                        <span>Generating…</span>
                                     </div>
                                 }
                                 @if (_hasThinking && !_isQueued)
@@ -453,7 +453,7 @@
 
                 if (firstGenerating)
                 {
-                    // Request left the queue and is now generating — start the model-load timer.
+                    // Request left the queue and is now generating — start the generating-indicator timer.
                     firstGenerating = false;
                     _isQueued = false;
                     _modelLoadCts?.Cancel();

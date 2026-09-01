@@ -357,7 +357,8 @@
                     </VerticalStackLayout>
                 </Border>
 
-                <!-- Loading model into memory (mirrors the Blazor module) -->
+                <!-- Generating indicator — the model is always resident (no user model
+                     selection); shown while waiting for the first token (mirrors Blazor) -->
                 <Grid IsVisible="{Binding IsModelLoading}"
                       ColumnDefinitions="Auto,*"
                       ColumnSpacing="8"
@@ -370,7 +371,7 @@
                                        HeightRequest="16"
                                        WidthRequest="16"/>
                     <Label Grid.Column="1"
-                           Text="Loading model into memory — this may take a moment…"
+                           Text="Generating…"
                            TextColor="#94A3B8"
                            FontSize="12"
                            VerticalOptions="Center"/>
