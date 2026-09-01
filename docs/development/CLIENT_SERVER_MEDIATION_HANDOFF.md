@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-08-29 (Android AI tab Phases B–F + E2E verification COMPLETE + archived; server REST/Bearer 500 fixed + verified end-to-end)
+Last updated: 2026-09-01 (AI request queueing on `feature/ai-queuing` implemented; awaiting server deploy to cloud — mint22 offline)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -16,7 +16,7 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
-- **Current active branch:** `feature/android-ai-tab`
+- **Current active branch:** `feature/ai-queuing`
 
 ## Archived Handoff — SyncTray test machine: DB Outage SyncTray Simulation (plan §11.4) ✅ PASS
 
@@ -72,55 +72,63 @@ Archived context:
 
 **Result: PASS** — no client regressions. Evidence: `dnc-banner-visible.png`, `dnc-message-queued.png`, `dnc-recovered.png` (on monolith), UI-dump text nodes, and logcat (`adb logcat`).
 
+## Archived Handoff — Android AI tab Phases B–F + E2E verification (2026-08-29) ✅ PASS
+
+**Status:** completed ✅ (2026-08-29, client agent — `monolith`; server agent — `cloud.kimball.home`)
+**Branch:** `feature/android-ai-tab`
+**Canonical plan:** `docs/ANDROID_AI_TAB_PLAN.md`
+Android AI tab implemented; server-side REST/Bearer 500 fixed + deployed; full E2E verified on-device (Samsung R5CWC356B2K). Full detail in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
+
 ## Active Handoff
 
-### Client: verify the AI REST API end-to-end + proceed with the Android AI tab (Phases B–F)
+### Server: deploy `feature/ai-queuing` (AI request queueing) to cloud.kimball.home — mint22 is OFFLINE
 
-**Status:** **COMPLETED ✅** (2026-08-29, client agent — `monolith`) — Android AI tab Phases B–F implemented, server-side REST/Bearer 500 **FIXED + deployed** by the server agent, and the full E2E round-trip **verified on-device** with a valid Bearer token. Archived below in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`. No outstanding server action for this feature.
-**Branch:** `feature/android-ai-tab`
-**From:** server agent (`cloud.kimball.home`), 2026-08-29
-**Canonical plan:** `docs/ANDROID_AI_TAB_PLAN.md`
-**Target:** Android client dev on `monolith`, server `cloud.kimball.home` (`https://cloud.dotnetcloud.net/`).
+**Status:** pending (server agent — `cloud.kimball.home`, production `https://cloud.dotnetcloud.net/`)
+**Branch:** `feature/ai-queuing` (HEAD `cd7b5966`, pushed)
+**From:** client agent (`monolith`), 2026-09-01
+**Canonical plan:** `docs/AI_REQUEST_QUEUEING_PLAN.md`
+**Target:** server `cloud.kimball.home` (`https://cloud.dotnetcloud.net/`) — **mint22 is offline**, so deploy to production cloud.
 
-### Client work — DONE (monolith, 2026-08-29)
+**Task:** build + deploy the AI request-queueing feature and the "Generating…" status-text fix to `cloud.kimball.home`, then verify.
 
-Phases B–F of `docs/ANDROID_AI_TAB_PLAN.md` are implemented on `feature/android-ai-tab` and verified as far as possible:
+### Context
 
-- **Build:** arm64 Debug APK builds clean. `DotNetCloud.Client.Android.Tests`: **240 total, 239 passed / 1 skipped (pre-existing) / 0 failed** — includes new AI, Markdown, and module-availability tests.
-- **On-device** (Samsung R5CWC356B2K, logged into `https://cloud.dotnetcloud.net/`):
-  - ✅ Music + AI modules detected via the full-id availability endpoint (`dotnetcloud.music` / `dotnetcloud.ai` → `installed:true`); **AI tab appears** (under the "More" overflow — MAUI 7-tab layout).
-  - ✅ AI page renders (conversation list, model picker, new-chat, swipe rename/delete, streaming bubble, Ollama warning banner).
-  - ✅ `GET /api/v1/ai/models` returns **401 without a token** (proxy + auth reachable).
-  - ⚠️ **BLOCKER:** `GET /api/v1/ai/models` **and** `GET /api/v1/ai/conversations` return **500 (Internal Server Error)** with a valid Bearer token.
-- **Blazor AI chat works** (moderator-confirmed) — so the AI module, its DB, and Ollama are functional and the module host is up. Blazor uses the module's **gRPC/in-process** path (`IAiApiClient`), **not** the REST proxy — so the **REST + Bearer path is specifically broken**.
-- **Client-side mitigation already applied:** `AiViewModel.LoadAsync` no longer hard-fails when the provider 500s — it still loads the DB-backed conversation list and shows the Ollama banner instead of a hard error (unit-tested).
+The AI module host now serializes all LLM inference through a single FIFO queue (`AiCompletionQueue`) with live queue-position updates pushed to both clients, and uses a DB-backed admin `DefaultModel` (no user model selection). The code is fully implemented on `feature/ai-queuing` (server + client landed together) but has **not yet been deployed to production cloud**. Deployment is the remaining gate before the feature is live end-to-end.
 
-### ✅ Server fix applied (cloud.kimball.home, 2026-08-29): AI REST Bearer 500 resolved
+### What's on the branch
 
-**Root cause:** `AiSettingsProvider` (`src/Modules/AI/DotNetCloud.Modules.AI.Data/Services/AiSettingsProvider.cs`) **hard-required** `IAdminSettingsService` in its constructor, but that service is **not registered in the process-isolated AI module host** (only Core.Server's `AddDotNetCloudAuth()` registers it). Every REST request that activates `AiChatController` (which injects `IAiSettingsProvider`) therefore threw `System.InvalidOperationException: Unable to resolve service ... IAdminSettingsService ... AiSettingsProvider` → **500**. Blazor AI chat worked because Core.Server (in-process) has `IAdminSettingsService` registered. The Music host was unaffected because its REST controllers don't inject a settings provider.
+- `7e679722` feat(ai): serialize LLM inference through a FIFO queue with live queue-position updates
+  - `AiCompletionQueue` (single-worker FIFO, 500 ms cooldown) registered as singleton in the AI module host (`AddAiServices`)
+  - `AiChatService` enqueues streaming + non-streaming calls; emits `Queued` (position X of Y) → `Generating` marker → content chunks
+  - gRPC `MessageChunk` status fields (`AiStreamStatus`); REST SSE emits `status:queued|generating|done` + `position`/`total`
+  - `GET /api/v1/ai/settings` (defaultModel + provider) for clients
+  - `IAiApiClient`/`AiGrpcApiClient`: per-user `userId`, 30-min stream deadline for `SendMessageStreamingAsync`, `IsOllamaHealthyAsync`
+  - Core.Server: `AddAiUiServices` removed (Blazor routes via gRPC `IAiApiClient`); AI `DbContext` registered for schema creation
+- `542f0ce4` feat(ai): read DB-backed DefaultModel in module host, add queue cooldown, stream thinking
+- `cd7b5966` fix(ai): replace misleading "Loading model into memory" status with "Generating…"
+  - Blazor `AiChatPage.razor` + `AiHelpContent.razor` FAQ; the Android side is already rebuilt + installed on the phone
 
-**Fix (matches the proven `VideoSettingsProvider` pattern):**
-- `AiSettingsProvider` now injects `IConfiguration` + `IServiceProvider` + `ILogger`, and **lazily** resolves `IAdminSettingsService` via `IServiceProvider.GetService(...)` (nullable). In the module host (service not registered) it gracefully falls back to `IConfiguration`; in Core.Server/Blazor it still reads DB-backed admin settings. DI registration (`AddAiServices`/`AddAiUiServices`) unchanged.
-- `src/Modules/AI/DotNetCloud.Modules.AI.Host/Program.cs`: `app.UseDeveloperExceptionPage()` is now **guarded to Development only** — no exception details leaked in production.
+### Server work — deploy to cloud (mint22 offline)
 
-**Verification (server, cloud.kimball.home, 2026-08-29):**
-- ✅ Deployed via `scripts/deploy.sh` (incremental); `/health/ready` **Healthy**; AI module host restarted with fixed binaries (md5-verified `DotNetCloud.Modules.AI.Data.dll` + `dotnetcloud.ai.dll` match build output).
-- ✅ Auth probe: no token → **401**; invalid Bearer token → **401** (authentication handler does not throw; route + `[Authorize]` present).
-- ✅ `dotnet build` clean; `DotNetCloud.Modules.AI.Tests` **28/28 pass**.
+1. `git pull` → checkout `feature/ai-queuing` (HEAD `cd7b5966`).
+2. Build Release and deploy via `scripts/deploy.sh` (incremental is fine — module host + Core.Server assemblies changed; `dotnetcloud.ai.dll` + `DotNetCloud.Modules.AI.Data.dll` must be redeployed).
+3. `/health/ready` Healthy; AI module host Running; 14/14 modules.
+4. `dotnet test tests/DotNetCloud.Modules.AI.Tests/` passes (AiCompletionQueue tests included).
 
-**✅ All verified on-device (monolith, 2026-08-29, Samsung R5CWC356B2K on `https://cloud.dotnetcloud.net/`):**
-- `GET /api/v1/ai/models` → **200** (`gemma4:12b` listed)
-- `GET /api/v1/ai/conversations` → **200** (list loads)
-- `GET /api/v1/ai/health/ollama` → **200** (Ollama healthy — no warning banner)
-- E2E round-trip **PASS**: create → send/stream → reopen (persisted) → **rename** ("Say hello in tone sentence." → "AI Test") → **delete** (removed from list; test conversation cleaned up)
-- **Chat UI mirrors Blazor:** role labels ("You"/"Assistant"), avatars, "Copy as Markdown" button — **copy verified** ("Copied!" feedback)
-- **Keyboard-overlap-under-status-bar bug FIXED** (verified with keyboard open, incl. send-with-keyboard-up)
-- Music tab unaffected (loads correctly)
-- Android tests: **241 pass / 0 fail** (1 pre-existing skip); arm64 Debug build clean
+### Verification (server, cloud.kimball.home)
+
+- `GET /api/v1/ai/settings` → **401** without token (route live); with token → `defaultModel` from `dbo.SystemSettings`.
+- Blazor AI chat: model shown as static text (admin DefaultModel, no picker); send a message → **"Generating…"** (NOT "Loading model into memory") → streamed tokens.
+- Two concurrent requests (Blazor + Android) → second shows **"In queue: position 2 of 2"** then streams; Ollama receives requests strictly one at a time.
+- NOTE: Ollama runs on `monolith.kimball.home:11434` (the client machine). If monolith is offline, AI chat shows the Ollama-unhealthy banner — expected, not a server bug.
 
 ### API contract (unchanged)
 
 API base `/api/v1/ai/` (proxied by Core.Server, excluded from the response envelope; auth = Bearer introspection or cookie).
+
+### Relay message
+
+`cd7b5966` — New handoff update for cloud.kimball.home. Pull and check docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md Active Handoff.
 
 ## Moderator Communication (Minimal)
 
