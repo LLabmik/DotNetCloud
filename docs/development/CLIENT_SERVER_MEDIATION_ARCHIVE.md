@@ -1,3 +1,29 @@
+## Archived: Server — Blazor AI chat Abort button + auto-scroll — implemented + deployed (2026-09-01)
+
+**Status:** archived — server implementation complete + deployed (was `active — server agent (cloud.kimball.home)`). Implemented, deployed, and server-side verified on 2026-09-01. Interactive browser verification of the Abort/auto-scroll UX deferred to the user (see Active Handoff in `CLIENT_SERVER_MEDIATION_HANDOFF.md`).
+**Branch:** `feature/ai-queuing` (deployed HEAD `76d9f1f4`; implementation commit added)
+**From:** client agent (`monolith`) → server agent (`cloud.kimball.home`), 2026-09-01
+**Canonical plan:** `docs/AI_REQUEST_QUEUEING_PLAN.md`
+**Reference (Android impl):** commits `471e0c3b` (Abort button + stream-silence watchdog), `c1b98997` (Abort visible during generation + auto-scroll)
+**Target:** `cloud.kimball.home` (`https://cloud.dotnetcloud.net/`) — production
+
+**What was done (Blazor AI module):**
+- ✓ `AiChatPage.razor` — `_streamCts` passed to `SendMessageStreamingAsync` (was `CancellationToken.None`); **Abort button** next to the queue pill, visible while queued AND generating; `AbortStream()` cancels the gRPC stream → queue item removed if still queued, Ollama call aborted if generating; `OperationCanceledException` handled quietly; partial/final message not persisted on abort.
+- ✓ **Stream-silence watchdog** (mirrors Android `471e0c3b`): 60s with no chunk cancels the stream and surfaces "AI stream timed out — no response received. Try again." — no frozen "Generating…".
+- ✓ **Auto-scroll**: new collocated `UI/AiChatPage.razor.js` (`scrollChatToBottom`) imported via the `import` helper; invoked after every streamed chunk; streaming output wrapped in a `max-height:320px` internally-scrollable region (mirrors Android `c1b98997`).
+- ✓ `AiChatPage.razor.css` — `.ai-stream-actions`, `.ai-abort-btn`, `.ai-stream-scroll` styles.
+
+**Verification (server-side, cloud.kimball.home):**
+- ✓ `sudo ./scripts/deploy.sh --force --verify` → all 15 targets succeeded; all assembly hashes verified.
+- ✓ `/health/ready` **Healthy**; **14/14 modules** Running (incl. `dotnetcloud.ai`); `blazor.web.js` **200** (no static-asset regression).
+- ✓ New static asset `_content/DotNetCloud.Modules.AI/UI/AiChatPage.razor.js` → **200, text/javascript**.
+- ✓ `dotnet test tests/DotNetCloud.Modules.AI.Tests/` → **35/35 passed**.
+- ✓ Migrations: none pending (no schema change).
+
+**Pending:** User browser verification — auto-scroll on stream; Cancel appears while queued/generating; Cancel removes a queued request / aborts generation.
+
+---
+
 ## Archived: AI request queueing — deployed to cloud + verified (2026-09-01)
 
 **Status:** archived — complete (was `active — user verification (browser login)`). Deployed to cloud.kimball.home by the server agent and verified working in the browser by the user on 2026-09-01.

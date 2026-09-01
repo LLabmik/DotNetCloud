@@ -6,6 +6,7 @@
 @using DotNetCloud.Core.Services.ModuleApis
 @using DotNetCloud.UI.Shared.Services
 @using System.Text
+@using System.Diagnostics
 @inject IAiApiClient AiApi
 @inject IMarkdownRenderer MarkdownRenderer
 @inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthenticationStateProvider
@@ -140,12 +141,18 @@
                                         <span class="ai-thinking">* Thinking *</span>
                                     }
                                 </div>
-                                @if (_isQueued)
-                                {
-                                    <div class="ai-queue-status">
-                                        In queue: position @_queuePosition of @_queueTotal
-                                    </div>
-                                }
+                                <div class="ai-stream-actions">
+                                    @if (_isQueued)
+                                    {
+                                        <div class="ai-queue-status">
+                                            In queue: position @_queuePosition of @_queueTotal
+                                        </div>
+                                    }
+                                    <button class="ai-abort-btn" @onclick="AbortStream" title="Cancel this request">
+                                        <span class="ai-abort-icon">✕</span>
+                                        <span>Abort</span>
+                                    </button>
+                                </div>
                                 @if (_isModelLoading && !_isQueued && string.IsNullOrEmpty(_streamingContent) && string.IsNullOrEmpty(_thinkingContent))
                                 {
                                     <div class="ai-model-loading">
@@ -160,7 +167,11 @@
                                         <div class="ai-thinking-text">@_thinkingContent</div>
                                     </div>
                                 }
-                                <div class="ai-message-text ai-streaming">@_streamingContent<span class="ai-cursor">▍</span></div>
+                                <div class="ai-message-text ai-streaming">
+                                    <div class="ai-stream-scroll" @ref="_streamScroll">
+                                        @_streamingContent<span class="ai-cursor">▍</span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     }
@@ -219,9 +230,18 @@
     private Guid? _copiedMessageId;
     private string? _copiedFormat;
     private CancellationTokenSource? _modelLoadCts;
+    private CancellationTokenSource? _streamCts;
+    private CancellationTokenSource? _watchdogCts;
+    private long _lastChunkTicks;
+    private bool _userInitiatedAbort;
+    private IJSObjectReference? _aiModule;
+    private ElementReference _streamScroll;
     private Guid? _renamingConversationId;
     private string _renameTitle = string.Empty;
     private ElementReference _renameTitleInput;
+
+    private static readonly TimeSpan StreamSilenceTimeout = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan WatchdogPollInterval = TimeSpan.FromSeconds(2);
 
     protected override async Task OnInitializedAsync()
     {
@@ -305,6 +325,19 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (firstRender)
+        {
+            try
+            {
+                _aiModule = await JS.InvokeAsync<IJSObjectReference>(
+                    "import", "./AiChatPage.razor.js");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Failed to load AI chat JS module");
+            }
+        }
+
         if (_renamingConversationId is not null)
         {
             try
@@ -426,6 +459,12 @@
             CreatedAt = DateTime.UtcNow
         });
 
+        _streamCts?.Cancel();
+        _streamCts?.Dispose();
+        _streamCts = new CancellationTokenSource();
+        var streamToken = _streamCts.Token;
+        _userInitiatedAbort = false;
+
         _isStreaming = true;
         _isQueued = true;
         _isModelLoading = false;
@@ -433,6 +472,7 @@
         _thinkingContent = string.Empty;
         _hasThinking = false;
         StateHasChanged();
+        StartStreamWatchdog();
 
         try
         {
@@ -440,8 +480,17 @@
             var firstGenerating = true;
 
             await foreach (var chunk in AiApi.SendMessageStreamingAsync(
-                _caller.UserId, _activeConversation.Id, userMessage, CancellationToken.None))
+                _caller.UserId, _activeConversation.Id, userMessage, streamToken))
             {
+                // Any chunk (queue status or content) proves the stream is alive.
+                _lastChunkTicks = Stopwatch.GetTimestamp();
+
+                if (streamToken.IsCancellationRequested)
+                {
+                    // User aborted or watchdog timed out — stop draining the stream.
+                    break;
+                }
+
                 if (chunk.Status == LlmStreamStatus.Queued)
                 {
                     _isQueued = true;
@@ -472,31 +521,43 @@
                 fullResponse.Append(chunk.Content);
                 _streamingContent = fullResponse.ToString();
                 StateHasChanged();
+                await ScrollChatToBottomAsync();
                 await Task.Delay(1); // Yield for UI updates
             }
 
-            // Replace streaming with final message
-            _activeMessages.Add(new MessageDto
+            if (!streamToken.IsCancellationRequested)
             {
-                Id = Guid.NewGuid(),
-                Role = "assistant",
-                Content = fullResponse.ToString(),
-                CreatedAt = DateTime.UtcNow
-            });
+                // Replace streaming with final message
+                _activeMessages.Add(new MessageDto
+                {
+                    Id = Guid.NewGuid(),
+                    Role = "assistant",
+                    Content = fullResponse.ToString(),
+                    CreatedAt = DateTime.UtcNow
+                });
 
-            // Update conversation title if first exchange (matches server-side auto-title)
-            if (_activeMessages.Count(m => m.Role == "user") == 1)
+                // Update conversation title if first exchange (matches server-side auto-title)
+                if (_activeMessages.Count(m => m.Role == "user") == 1)
+                {
+                    var titlePreview = userMessage.Length > 60 ? userMessage[..60].TrimEnd() + "…" : userMessage;
+                    if (_activeConversation is not null)
+                    {
+                        _activeConversation = _activeConversation with { Title = titlePreview };
+                    }
+                    var listItem = _conversations.FirstOrDefault(c => c.Id == _activeConversation?.Id);
+                    if (listItem is not null)
+                    {
+                        _conversations[_conversations.IndexOf(listItem)] = listItem with { Title = titlePreview };
+                    }
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            if (!_userInitiatedAbort)
             {
-                var titlePreview = userMessage.Length > 60 ? userMessage[..60].TrimEnd() + "…" : userMessage;
-                if (_activeConversation is not null)
-                {
-                    _activeConversation = _activeConversation with { Title = titlePreview };
-                }
-                var listItem = _conversations.FirstOrDefault(c => c.Id == _activeConversation?.Id);
-                if (listItem is not null)
-                {
-                    _conversations[_conversations.IndexOf(listItem)] = listItem with { Title = titlePreview };
-                }
+                // Watchdog timed the silent stream out — a friendly message was already set.
+                Logger.LogWarning("AI stream cancelled by watchdog timeout");
             }
         }
         catch (Exception ex)
@@ -506,6 +567,9 @@
         }
         finally
         {
+            StopStreamWatchdog();
+            _streamCts?.Dispose();
+            _streamCts = null;
             _isStreaming = false;
             _isQueued = false;
             _isModelLoading = false;
@@ -561,6 +625,129 @@
         catch (TaskCanceledException)
         {
             // Expected when first chunk arrives before the timeout
+        }
+    }
+
+    /// <summary>
+    /// Cancels the in-flight AI request. If it's still queued, it gives up its place in the
+    /// queue; if generating, the Ollama call is aborted. The stream loop's cleanup handler
+    /// resets the remaining streaming state.
+    /// </summary>
+    private void AbortStream()
+    {
+        _userInitiatedAbort = true;
+        StopStreamWatchdog();
+        try
+        {
+            _streamCts?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Stream already finished — nothing to cancel.
+        }
+
+        _isStreaming = false;
+        _isQueued = false;
+        _isModelLoading = false;
+        _streamingContent = string.Empty;
+        _thinkingContent = string.Empty;
+        _hasThinking = false;
+        _modelLoadCts?.Cancel();
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Starts a background watchdog that cancels the stream if no chunk (queue status or
+    /// content) arrives within <see cref="StreamSilenceTimeout"/>. Prevents the chat from
+    /// hanging in "Generating…" forever if the server/proxy stream dies silently.
+    /// </summary>
+    private void StartStreamWatchdog()
+    {
+        _watchdogCts?.Cancel();
+        _watchdogCts?.Dispose();
+        _watchdogCts = new CancellationTokenSource();
+        var ct = _watchdogCts.Token;
+        _lastChunkTicks = Stopwatch.GetTimestamp();
+
+        _ = Task.Run(async () =>
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                try
+                {
+                    await Task.Delay(WatchdogPollInterval, ct);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+
+                if (ct.IsCancellationRequested)
+                {
+                    break;
+                }
+
+                var silentFor = TimeSpan.FromTicks(Stopwatch.GetTimestamp() - _lastChunkTicks);
+                if (_isStreaming && silentFor > StreamSilenceTimeout)
+                {
+                    try
+                    {
+                        _streamCts?.Cancel();
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        // Stream already cleaned up.
+                    }
+
+                    await InvokeAsync(() =>
+                    {
+                        _errorMessage = "AI stream timed out — no response received. Try again.";
+                        StateHasChanged();
+                    });
+                    break;
+                }
+            }
+        }, ct);
+    }
+
+    /// <summary>Stops the stream watchdog.</summary>
+    private void StopStreamWatchdog()
+    {
+        _watchdogCts?.Cancel();
+        _watchdogCts?.Dispose();
+        _watchdogCts = null;
+    }
+
+    /// <summary>
+    /// Auto-scrolls the message list (and the streaming region) to the bottom so the
+    /// newest generated tokens are always visible.
+    /// </summary>
+    private async Task ScrollChatToBottomAsync()
+    {
+        try
+        {
+            if (_aiModule is not null)
+            {
+                await _aiModule.InvokeVoidAsync("scrollChatToBottom", _messagesContainer, _streamScroll);
+            }
+        }
+        catch
+        {
+            // Scroll is best-effort — ignore interop failures (e.g. circuit teardown).
+        }
+    }
+
+    /// <inheritdoc />
+    public async ValueTask DisposeAsync()
+    {
+        StopStreamWatchdog();
+        _modelLoadCts?.Cancel();
+        _modelLoadCts?.Dispose();
+        _streamCts?.Cancel();
+        _streamCts?.Dispose();
+        if (_aiModule is not null)
+        {
+            await _aiModule.DisposeAsync();
         }
     }
 

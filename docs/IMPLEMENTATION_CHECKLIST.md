@@ -4583,12 +4583,14 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `OllamaClientTests` — HTTP client with mocked handler (7 tests + 3 additional)
 - ✓ All 28 tests passing
 
-### Step 9.5 — Blazor UI Chat Panel (Pending)
+### Step 9.5 — Blazor UI Chat Panel
 
-- ☐ Chat-style AI assistant panel component
-- ☐ Streaming response rendering via SignalR or SSE
-- ☐ Model selector dropdown
-- ☐ Conversation history sidebar
+- ✓ Chat-style AI assistant panel component (`AiChatPage.razor`, mounted at `/apps/ai`)
+- ✓ Streaming response rendering (gRPC streaming via `SendMessageStreamingAsync`, "Generating…" indicator, live reasoning block)
+- ✓ Conversation history sidebar (list, new chat, rename, delete)
+- ✓ Queue-position status ("In queue: position X of Y") + **Abort/Cancel button** while queued/generating (FIFO queue, 2026-09-01)
+- ✓ Auto-scroll to the newest streamed token (collocated `AiChatPage.razor.js`, 2026-09-01)
+- ✓ Model selection moved to admin-configured `DefaultModel` — user-facing model selector intentionally removed (per `docs/AI_REQUEST_QUEUEING_PLAN.md`)
 
 ### Step 9.6 — Admin Settings & Multi-Provider Support
 
