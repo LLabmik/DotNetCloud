@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-09-01 (AI request queueing on `feature/ai-queuing` implemented; awaiting server deploy to cloud — mint22 offline)
+Last updated: 2026-09-01 (AI request queueing on `feature/ai-queuing` deployed + server-side verified on cloud.kimball.home; browser/token UI checks pending for user)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -79,56 +79,34 @@ Archived context:
 **Canonical plan:** `docs/ANDROID_AI_TAB_PLAN.md`
 Android AI tab implemented; server-side REST/Bearer 500 fixed + deployed; full E2E verified on-device (Samsung R5CWC356B2K). Full detail in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
 
+## Archived Handoff — AI request queueing: deploy to cloud.kimball.home ✅
+
+**Status:** completed ✅ (2026-09-01, server agent — `cloud.kimball.home`)
+**Branch:** `feature/ai-queuing` (deployed HEAD `846e3b17`)
+**Canonical plan:** `docs/AI_REQUEST_QUEUEING_PLAN.md`
+**From:** client agent (`monolith`), 2026-09-01
+
+### Result (server-side verified on cloud.kimball.home)
+
+- Deployed via `scripts/deploy.sh` (full build, all 15 targets). `dotnetcloud.ai.dll` + `DotNetCloud.Modules.AI.Data.dll` + AI RCL hash-verified in all 3 deploy locations.
+- `/health/ready` **Healthy**; **14/14 modules** Running (incl. `dotnetcloud.ai`); `blazor.web.js` 200 (no static-asset regression).
+- `dotnet test tests/DotNetCloud.Modules.AI.Tests/` → **35/35 passed** (incl. `AiCompletionQueue`).
+- `GET /api/v1/ai/settings` → **401** without token (route live, `[Authorize]`).
+- DB-backed settings confirmed in `dbo.SystemSettings`: `DefaultModel=gemma4:12b`, `Provider=ollama`, `ApiBaseUrl=http://monolith.kimball.home:11434/`.
+- Ollama on `monolith.kimball.home:11434` reachable and serving `gemma4:12b` (matches DB).
+- ⚠️ Token-authenticated settings response + Blazor "Generating…"/queue-position UI checks require a real user session (server agent cannot obtain a token without a password) — **left for user/browser verification** (see Active Handoff).
+
 ## Active Handoff
 
-### Server: deploy `feature/ai-queuing` (AI request queueing) to cloud.kimball.home — mint22 is OFFLINE
+### User verification: AI request queueing on cloud (browser, `https://cloud.dotnetcloud.net/`)
 
-**Status:** pending (server agent — `cloud.kimball.home`, production `https://cloud.dotnetcloud.net/`)
-**Branch:** `feature/ai-queuing` (HEAD `cd7b5966`, pushed)
-**From:** client agent (`monolith`), 2026-09-01
-**Canonical plan:** `docs/AI_REQUEST_QUEUEING_PLAN.md`
-**Target:** server `cloud.kimball.home` (`https://cloud.dotnetcloud.net/`) — **mint22 is offline**, so deploy to production cloud.
+**Status:** pending (user/moderator login)
+**Branch:** `feature/ai-queuing` (deployed, commit `846e3b17`)
 
-**Task:** build + deploy the AI request-queueing feature and the "Generating…" status-text fix to `cloud.kimball.home`, then verify.
-
-### Context
-
-The AI module host now serializes all LLM inference through a single FIFO queue (`AiCompletionQueue`) with live queue-position updates pushed to both clients, and uses a DB-backed admin `DefaultModel` (no user model selection). The code is fully implemented on `feature/ai-queuing` (server + client landed together) but has **not yet been deployed to production cloud**. Deployment is the remaining gate before the feature is live end-to-end.
-
-### What's on the branch
-
-- `7e679722` feat(ai): serialize LLM inference through a FIFO queue with live queue-position updates
-  - `AiCompletionQueue` (single-worker FIFO, 500 ms cooldown) registered as singleton in the AI module host (`AddAiServices`)
-  - `AiChatService` enqueues streaming + non-streaming calls; emits `Queued` (position X of Y) → `Generating` marker → content chunks
-  - gRPC `MessageChunk` status fields (`AiStreamStatus`); REST SSE emits `status:queued|generating|done` + `position`/`total`
-  - `GET /api/v1/ai/settings` (defaultModel + provider) for clients
-  - `IAiApiClient`/`AiGrpcApiClient`: per-user `userId`, 30-min stream deadline for `SendMessageStreamingAsync`, `IsOllamaHealthyAsync`
-  - Core.Server: `AddAiUiServices` removed (Blazor routes via gRPC `IAiApiClient`); AI `DbContext` registered for schema creation
-- `542f0ce4` feat(ai): read DB-backed DefaultModel in module host, add queue cooldown, stream thinking
-- `cd7b5966` fix(ai): replace misleading "Loading model into memory" status with "Generating…"
-  - Blazor `AiChatPage.razor` + `AiHelpContent.razor` FAQ; the Android side is already rebuilt + installed on the phone
-
-### Server work — deploy to cloud (mint22 offline)
-
-1. `git pull` → checkout `feature/ai-queuing` (HEAD `cd7b5966`).
-2. Build Release and deploy via `scripts/deploy.sh` (incremental is fine — module host + Core.Server assemblies changed; `dotnetcloud.ai.dll` + `DotNetCloud.Modules.AI.Data.dll` must be redeployed).
-3. `/health/ready` Healthy; AI module host Running; 14/14 modules.
-4. `dotnet test tests/DotNetCloud.Modules.AI.Tests/` passes (AiCompletionQueue tests included).
-
-### Verification (server, cloud.kimball.home)
-
-- `GET /api/v1/ai/settings` → **401** without token (route live); with token → `defaultModel` from `dbo.SystemSettings`.
-- Blazor AI chat: model shown as static text (admin DefaultModel, no picker); send a message → **"Generating…"** (NOT "Loading model into memory") → streamed tokens.
-- Two concurrent requests (Blazor + Android) → second shows **"In queue: position 2 of 2"** then streams; Ollama receives requests strictly one at a time.
-- NOTE: Ollama runs on `monolith.kimball.home:11434` (the client machine). If monolith is offline, AI chat shows the Ollama-unhealthy banner — expected, not a server bug.
-
-### API contract (unchanged)
-
-API base `/api/v1/ai/` (proxied by Core.Server, excluded from the response envelope; auth = Bearer introspection or cookie).
-
-### Relay message
-
-`cd7b5966` — New handoff update for cloud.kimball.home. Pull and check docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md Active Handoff.
+- Blazor AI chat: model shown as static text (`gemma4:12b`, no picker); send a message → **"Generating…"** (NOT "Loading model into memory") → streamed tokens.
+- Two concurrent requests (Blazor + Android) → second shows **"In queue: position 2 of 2"** then streams; Ollama receives requests one at a time.
+- `GET /api/v1/ai/settings` with a valid token → `defaultModel` = `gemma4:12b`.
+- Note: Ollama runs on `monolith.kimball.home:11434` (client machine). If monolith is offline, AI chat shows the Ollama-unhealthy banner — expected, not a server bug.
 
 ## Moderator Communication (Minimal)
 
