@@ -20,6 +20,9 @@ public sealed record LlmResponseChunk
     /// <summary>Number of tokens generated (only present on the final chunk).</summary>
     public int? EvalCount { get; init; }
 
+    /// <summary>The model's reasoning text (present on chunks produced during the thinking phase).</summary>
+    public string Thinking { get; init; } = string.Empty;
+
     /// <summary>Stream lifecycle status. Defaults to Generating (existing content chunks).</summary>
     public LlmStreamStatus Status { get; init; } = LlmStreamStatus.Generating;
 

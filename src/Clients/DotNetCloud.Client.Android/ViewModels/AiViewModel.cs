@@ -138,6 +138,14 @@ public sealed partial class AiViewModel : ObservableObject
     [ObservableProperty]
     private bool _isModelLoading;
 
+    /// <summary>The model's live reasoning text while it is thinking (empty when none).</summary>
+    [ObservableProperty]
+    private string _streamingThinking = "";
+
+    /// <summary>True once the model has emitted thinking text (shows the reasoning block).</summary>
+    [ObservableProperty]
+    private bool _hasThinking;
+
     [ObservableProperty]
     private bool _isLoading;
 
@@ -363,12 +371,15 @@ public sealed partial class AiViewModel : ObservableObject
             ActiveMessages.Add(userMessage);
             ComposerText = "";
             StreamingContent = "";
+            StreamingThinking = "";
+            HasThinking = false;
             IsStreaming = true;
             IsQueued = true;
             ScrollRequested?.Invoke();
         });
 
         var accumulated = new System.Text.StringBuilder();
+        var thinking = new System.Text.StringBuilder();
         var startedGenerating = false;
         try
         {
@@ -393,6 +404,18 @@ public sealed partial class AiViewModel : ObservableObject
                     startedGenerating = true;
                     Dispatch(() => IsQueued = false);
                     StartModelLoadTimer();
+                }
+
+                if (!string.IsNullOrEmpty(chunk.Thinking))
+                {
+                    // Surface the model's live reasoning instead of a stuck spinner.
+                    thinking.Append(chunk.Thinking);
+                    Dispatch(() =>
+                    {
+                        StreamingThinking = thinking.ToString();
+                        HasThinking = true;
+                        ScrollRequested?.Invoke();
+                    });
                 }
 
                 if (!string.IsNullOrEmpty(chunk.Content))
@@ -458,6 +481,8 @@ public sealed partial class AiViewModel : ObservableObject
         {
             QueuePosition = 0;
             QueueTotal = 0;
+            StreamingThinking = "";
+            HasThinking = false;
             StopModelLoadTimer();
             _streamCts?.Dispose();
             _streamCts = null;
@@ -480,7 +505,7 @@ public sealed partial class AiViewModel : ObservableObject
             try
             {
                 await Task.Delay(ModelLoadDelay, ct);
-                if (!ct.IsCancellationRequested && IsStreaming && string.IsNullOrEmpty(StreamingContent))
+                if (!ct.IsCancellationRequested && IsStreaming && string.IsNullOrEmpty(StreamingContent) && string.IsNullOrEmpty(StreamingThinking))
                     Dispatch(() => IsModelLoading = true);
             }
             catch (OperationCanceledException)

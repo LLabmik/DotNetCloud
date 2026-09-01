@@ -194,6 +194,7 @@ public sealed class AiGrpcService : AiService.AiServiceBase
                 Content = chunk.Content,
                 Done = chunk.Done,
                 EvalCount = chunk.EvalCount ?? 0,
+                Thinking = chunk.Thinking,
                 Status = (AiStreamStatus)(int)chunk.Status,
                 QueuedPosition = chunk.QueuedPosition ?? 0,
                 QueueTotal = chunk.QueueTotal ?? 0

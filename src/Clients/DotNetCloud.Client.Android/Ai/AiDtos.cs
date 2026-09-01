@@ -83,6 +83,9 @@ public sealed record AiStreamChunk
 
     /// <summary>Total queue length (present when Status == "queued").</summary>
     public int? Total { get; init; }
+
+    /// <summary>The model's reasoning text (present during the thinking phase).</summary>
+    public string Thinking { get; init; } = "";
 }
 
 /// <summary>Resolved AI settings (default model, provider) shown as static text.</summary>

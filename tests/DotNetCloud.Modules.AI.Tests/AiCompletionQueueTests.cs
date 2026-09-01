@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using DotNetCloud.Core.AI;
 using DotNetCloud.Modules.AI.Data.Services;
@@ -162,6 +163,33 @@ public class AiCompletionQueueTests
 
         streamRelease.TrySetResult();
         await DrainAsync(entry);
+    }
+
+    [TestMethod]
+    public async Task EnqueueStreaming_AppliesCooldownBetweenItems()
+    {
+        using var queue = new AiCompletionQueue(TimeSpan.FromMilliseconds(200));
+
+        var firstStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var firstRelease = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var e1 = queue.EnqueueStreaming(ct => GatedChunks(firstStarted, firstRelease, ct), CancellationToken.None);
+        await firstStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var e2 = queue.EnqueueStreaming(ct => TrackingChunks(secondStarted, "two"), CancellationToken.None);
+
+        var sw = Stopwatch.StartNew();
+        firstRelease.TrySetResult();
+        await secondStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        sw.Stop();
+
+        Assert.IsTrue(
+            sw.ElapsedMilliseconds >= 150,
+            $"Second request should start only after the cooldown (elapsed: {sw.ElapsedMilliseconds} ms).");
+
+        await DrainAsync(e1);
+        await DrainAsync(e2);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────

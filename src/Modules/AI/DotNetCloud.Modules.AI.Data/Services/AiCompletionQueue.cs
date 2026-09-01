@@ -16,14 +16,21 @@ public sealed class AiCompletionQueue : IAiCompletionQueue, IDisposable
     private readonly List<QueueItem> _queue = new();
     private readonly SemaphoreSlim _signal = new(0);
     private readonly CancellationTokenSource _shutdown = new();
+    private readonly TimeSpan _cooldown;
     private readonly Task _worker;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AiCompletionQueue"/> class
     /// and starts the background processing loop.
     /// </summary>
-    public AiCompletionQueue()
+    /// <param name="cooldown">
+    /// Optional delay between finishing one item and starting the next, so the LLM
+    /// provider fully releases the previous generation before the next request.
+    /// Defaults to 500 ms.
+    /// </param>
+    public AiCompletionQueue(TimeSpan? cooldown = null)
     {
+        _cooldown = cooldown ?? TimeSpan.FromMilliseconds(500);
         _worker = Task.Run(ProcessLoopAsync);
     }
 
@@ -172,6 +179,18 @@ public sealed class AiCompletionQueue : IAiCompletionQueue, IDisposable
             finally
             {
                 item.Out?.Writer.TryComplete();
+            }
+
+            // Small cooldown between requests so the LLM provider fully releases the
+            // previous generation before the next one starts (avoids back-to-back
+            // teardown races that can leave the provider in a stuck state).
+            try
+            {
+                await Task.Delay(_cooldown, _shutdown.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
             }
         }
     }

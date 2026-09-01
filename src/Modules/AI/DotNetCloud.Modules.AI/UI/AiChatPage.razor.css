@@ -446,6 +446,36 @@
   animation: fadeIn 300ms ease;
 }
 
+/* ─── Thinking (reasoning) Block ─── */
+
+.ai-thinking-block {
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  border-left: 3px solid var(--color-primary, #3b82f6);
+  border-radius: 0 8px 8px 0;
+  background: color-mix(in srgb, var(--color-primary, #3b82f6) 6%, transparent);
+  animation: fadeIn 300ms ease;
+}
+
+.ai-thinking-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--color-text-muted, #94a3b8);
+  margin-bottom: 4px;
+}
+
+.ai-thinking-text {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text-secondary, #64748b);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;

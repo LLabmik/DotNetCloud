@@ -172,6 +172,7 @@ public sealed class AiGrpcApiClient : IAiApiClient, IDisposable
                 Content = chunk.Content,
                 Done = chunk.Done,
                 EvalCount = chunk.EvalCount,
+                Thinking = chunk.Thinking,
                 Status = (LlmStreamStatus)(int)chunk.Status,
                 QueuedPosition = chunk.QueuedPosition > 0 ? chunk.QueuedPosition : null,
                 QueueTotal = chunk.QueueTotal > 0 ? chunk.QueueTotal : null

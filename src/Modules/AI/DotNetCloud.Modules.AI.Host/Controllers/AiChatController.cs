@@ -163,6 +163,7 @@ public sealed class AiChatController : ControllerBase
                     position = chunk.QueuedPosition,
                     total = chunk.QueueTotal,
                     content = chunk.Content,
+                    thinking = chunk.Thinking,
                     done = chunk.Done,
                     evalCount = chunk.EvalCount
                 });

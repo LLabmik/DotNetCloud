@@ -236,6 +236,39 @@ public sealed class AiViewModelTests
         }
     }
 
+    [TestMethod]
+    public async Task SendMessageAsync_ThinkingChunks_SurfaceReasoning()
+    {
+        AiViewModel.ModelLoadDelay = TimeSpan.FromMilliseconds(100);
+        try
+        {
+            _vm.Conversations.Add(new AiConversationDto { Id = ConversationId, Title = "Test", Model = "gemma4:12b" });
+            _vm.ActiveConversationId = ConversationId;
+            _vm.ComposerText = "blue silver";
+
+            _ai.Setup(x => x.SendMessageStreamingAsync(ServerUrl, Token, ConversationId, "blue silver", It.IsAny<CancellationToken>()))
+                .Returns(ThinkingThenContentStream());
+
+            var sendTask = _vm.SendMessageCommand.ExecuteAsync(null);
+
+            // While the model is thinking, the reasoning text is surfaced live.
+            await Task.Delay(TimeSpan.FromMilliseconds(150));
+            Assert.IsTrue(_vm.HasThinking, "Thinking block should be visible while reasoning.");
+            Assert.AreEqual("The user asks about blue silver. I should think about this carefully.", _vm.StreamingThinking);
+            Assert.IsFalse(_vm.IsModelLoading, "Model-load indicator must not show while thinking is visible.");
+
+            await sendTask;
+
+            Assert.IsFalse(_vm.HasThinking, "Thinking state should clear once streaming completes.");
+            Assert.AreEqual(2, _vm.ActiveMessages.Count); // user + assistant
+            Assert.AreEqual("Blue silver is the answer.", _vm.ActiveMessages[1].Content);
+        }
+        finally
+        {
+            AiViewModel.ModelLoadDelay = TimeSpan.FromSeconds(3);
+        }
+    }
+
     // ── DeleteConversationAsync ───────────────────────────────────────
 
     [TestMethod]
@@ -371,5 +404,16 @@ public sealed class AiViewModelTests
         yield return new AiStreamChunk { Status = "generating", Content = "Hello", Done = false };
         await Task.Yield();
         yield return new AiStreamChunk { Status = "done", Content = "", Done = true };
+    }
+
+    private static async IAsyncEnumerable<AiStreamChunk> ThinkingThenContentStream()
+    {
+        yield return new AiStreamChunk { Status = "generating", Content = "", Thinking = "The user asks about blue silver. ", Done = false };
+        await Task.Delay(TimeSpan.FromMilliseconds(100));
+        yield return new AiStreamChunk { Status = "generating", Content = "", Thinking = "I should think about this carefully.", Done = false };
+        await Task.Delay(TimeSpan.FromMilliseconds(100));
+        yield return new AiStreamChunk { Content = "Blue silver is the answer.", Done = false };
+        await Task.Yield();
+        yield return new AiStreamChunk { Content = "", Done = true };
     }
 }

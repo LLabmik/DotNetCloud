@@ -1,9 +1,12 @@
 using DotNetCloud.Core.Auth.Authorization;
 using DotNetCloud.Core.Auth.Introspection;
+using DotNetCloud.Core.Auth.Services;
+using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Extensions;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Grpc;
+using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.AI;
 using DotNetCloud.Modules.AI.Data;
 using DotNetCloud.Modules.AI.Host.Services;
@@ -129,8 +132,22 @@ if (string.IsNullOrEmpty(connectionString) || string.IsNullOrEmpty(dbProvider))
 
 var provider = ResolveDatabaseProvider(dbProvider);
 
+// Naming strategy for the core DbContext (CoreDbContext requires it) and so
+// AiDbContext uses the provider-correct strategy instead of the PostgreSQL default.
+builder.Services.AddSingleton<ITableNamingStrategy>(provider == DatabaseProvider.SqlServer
+    ? new SqlServerNamingStrategy()
+    : new PostgreSqlNamingStrategy());
+
 builder.Services.AddDbContext<AiDbContext>(options =>
     DbResiliencePolicy.Configure(options, provider, connectionString));
+
+// Core DbContext + admin settings service so IAiSettingsProvider can read the
+// DB-backed DefaultModel from dbo.SystemSettings (module dotnetcloud.ai) instead
+// of falling back to the appsettings.json value. The admin setting is the source
+// of truth for which model new conversations use.
+builder.Services.AddDbContext<CoreDbContext>(options =>
+    DbResiliencePolicy.Configure(options, provider, connectionString));
+builder.Services.AddScoped<IAdminSettingsService, AdminSettingsService>();
 
 // In-process event bus for standalone operation
 builder.Services.AddSingleton<IEventBus, InProcessEventBus>();

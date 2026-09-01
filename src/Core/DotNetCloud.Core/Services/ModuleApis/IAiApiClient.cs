@@ -118,6 +118,8 @@ public sealed record MessageChunkDto
     public bool Done { get; init; }
     /// <summary>Evaluation count.</summary>
     public int EvalCount { get; init; }
+    /// <summary>The model's reasoning text (present during the thinking phase).</summary>
+    public string Thinking { get; init; } = "";
     /// <summary>Stream lifecycle status (Queued / Generating / Done).</summary>
     public LlmStreamStatus Status { get; init; } = LlmStreamStatus.Generating;
     /// <summary>1-based queue position (only on Queued status chunks).</summary>

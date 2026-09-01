@@ -135,7 +135,7 @@
                             <div class="ai-message-content">
                                 <div class="ai-message-role">
                                     Assistant
-                                    @if (_isStreaming && !_isModelLoading && !_isQueued && string.IsNullOrEmpty(_streamingContent))
+                                    @if (_isStreaming && !_isModelLoading && !_isQueued && string.IsNullOrEmpty(_streamingContent) && string.IsNullOrEmpty(_thinkingContent))
                                     {
                                         <span class="ai-thinking">* Thinking *</span>
                                     }
@@ -146,11 +146,18 @@
                                         In queue: position @_queuePosition of @_queueTotal
                                     </div>
                                 }
-                                @if (_isModelLoading && !_isQueued && string.IsNullOrEmpty(_streamingContent))
+                                @if (_isModelLoading && !_isQueued && string.IsNullOrEmpty(_streamingContent) && string.IsNullOrEmpty(_thinkingContent))
                                 {
                                     <div class="ai-model-loading">
                                         <span class="ai-model-loading-spinner"></span>
                                         <span>Loading model into memory — this may take a moment…</span>
+                                    </div>
+                                }
+                                @if (_hasThinking && !_isQueued)
+                                {
+                                    <div class="ai-thinking-block">
+                                        <div class="ai-thinking-label">Thought process</div>
+                                        <div class="ai-thinking-text">@_thinkingContent</div>
                                     </div>
                                 }
                                 <div class="ai-message-text ai-streaming">@_streamingContent<span class="ai-cursor">▍</span></div>
@@ -197,6 +204,8 @@
     private string _defaultModel = string.Empty;
     private string _userInput = string.Empty;
     private string _streamingContent = string.Empty;
+    private string _thinkingContent = string.Empty;
+    private bool _hasThinking;
     private string? _errorMessage;
     private bool _isLoading;
     private bool _isStreaming;
@@ -421,6 +430,8 @@
         _isQueued = true;
         _isModelLoading = false;
         _streamingContent = string.Empty;
+        _thinkingContent = string.Empty;
+        _hasThinking = false;
         StateHasChanged();
 
         try
@@ -449,6 +460,13 @@
                     _modelLoadCts = new CancellationTokenSource();
                     var loadToken = _modelLoadCts.Token;
                     _ = DetectModelLoadingAsync(loadToken);
+                }
+
+                if (!string.IsNullOrEmpty(chunk.Thinking))
+                {
+                    // Surface the model's live reasoning instead of a stuck spinner.
+                    _thinkingContent += chunk.Thinking;
+                    _hasThinking = true;
                 }
 
                 fullResponse.Append(chunk.Content);
@@ -492,6 +510,8 @@
             _isQueued = false;
             _isModelLoading = false;
             _streamingContent = string.Empty;
+            _thinkingContent = string.Empty;
+            _hasThinking = false;
             _modelLoadCts?.Cancel();
             StateHasChanged();
         }
@@ -532,7 +552,7 @@
         try
         {
             await Task.Delay(3000, cancellationToken);
-            if (!cancellationToken.IsCancellationRequested && _isStreaming && string.IsNullOrEmpty(_streamingContent))
+            if (!cancellationToken.IsCancellationRequested && _isStreaming && string.IsNullOrEmpty(_streamingContent) && string.IsNullOrEmpty(_thinkingContent))
             {
                 _isModelLoading = true;
                 await InvokeAsync(StateHasChanged);

@@ -337,6 +337,26 @@
                            FontSize="12"/>
                 </Border>
 
+                <!-- Thinking (reasoning) block -->
+                <Border IsVisible="{Binding HasThinking}"
+                        BackgroundColor="#1E293B"
+                        StrokeThickness="0"
+                        StrokeShape="RoundRectangle 10"
+                        Padding="12,8"
+                        Margin="0,0,0,4"
+                        HorizontalOptions="Start">
+                    <VerticalStackLayout Spacing="3">
+                        <Label Text="Thought process"
+                               TextColor="#94A3B8"
+                               FontSize="11"
+                               FontAttributes="Bold"/>
+                        <Label Text="{Binding StreamingThinking}"
+                               TextColor="#64748B"
+                               FontSize="12"
+                               LineBreakMode="WordWrap"/>
+                    </VerticalStackLayout>
+                </Border>
+
                 <!-- Loading model into memory (mirrors the Blazor module) -->
                 <Grid IsVisible="{Binding IsModelLoading}"
                       ColumnDefinitions="Auto,*"
