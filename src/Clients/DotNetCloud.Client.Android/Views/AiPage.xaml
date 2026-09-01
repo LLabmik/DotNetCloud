@@ -324,13 +324,14 @@
                            VerticalOptions="Center"/>
                 </Grid>
 
-                <!-- Queue status + Abort (waiting for inference turn) -->
-                <Grid IsVisible="{Binding IsQueued}"
+                <!-- Queue status + Abort (visible while queued AND while generating) -->
+                <Grid IsVisible="{Binding IsStreaming}"
                       ColumnDefinitions="Auto,Auto"
                       ColumnSpacing="8"
                       HorizontalOptions="Start"
                       Margin="0,0,0,4">
                     <Border Grid.Column="0"
+                            IsVisible="{Binding IsQueued}"
                             BackgroundColor="#1E293B"
                             StrokeThickness="0"
                             StrokeShape="RoundRectangle 10"
@@ -392,16 +393,22 @@
                            VerticalOptions="Center"/>
                 </Grid>
 
+                <!-- Streaming output — internally scrollable, auto-scrolled to the latest token -->
                 <Border BackgroundColor="#1E293B"
                         StrokeThickness="0"
                         StrokeShape="RoundRectangle 14"
                         Padding="12,8"
                         HorizontalOptions="Start"
                         IsVisible="{Binding IsModelLoading, Converter={StaticResource InvertBool}}">
-                    <Label FormattedText="{Binding StreamingDisplay, Converter={StaticResource Markdown}}"
-                           TextColor="#F1F5F9"
-                           FontSize="14"
-                           LineBreakMode="WordWrap"/>
+                    <ScrollView x:Name="StreamScroll"
+                                MaximumHeightRequest="320"
+                                HorizontalScrollBarVisibility="Never"
+                                VerticalScrollBarVisibility="Never">
+                        <Label FormattedText="{Binding StreamingDisplay, Converter={StaticResource Markdown}}"
+                               TextColor="#F1F5F9"
+                               FontSize="14"
+                               LineBreakMode="WordWrap"/>
+                    </ScrollView>
                 </Border>
             </VerticalStackLayout>
 
