@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DotNetCloud.Client.Android.Ai;
@@ -22,6 +23,8 @@ public sealed partial class AiViewModel : ObservableObject
 
     private CancellationTokenSource? _streamCts;
     private CancellationTokenSource? _modelLoadCts;
+    private CancellationTokenSource? _watchdogCts;
+    private long _lastChunkTicks;
     private AiConversationDto? _renameTarget;
 
     /// <summary>
@@ -29,6 +32,15 @@ public sealed partial class AiViewModel : ObservableObject
     /// stream chunk. Internal + settable so tests can shorten it.
     /// </summary>
     internal static TimeSpan ModelLoadDelay { get; set; } = TimeSpan.FromSeconds(3);
+
+    /// <summary>
+    /// Max time the AI stream may go without any chunk (queue status or content) before the
+    /// watchdog cancels it and surfaces an error. Internal + settable so tests can shorten it.
+    /// </summary>
+    internal static TimeSpan StreamSilenceTimeout { get; set; } = TimeSpan.FromSeconds(60);
+
+    /// <summary>How often the stream watchdog re-checks for silence. Internal + settable for tests.</summary>
+    internal static TimeSpan WatchdogPollInterval { get; set; } = TimeSpan.FromSeconds(2);
 
     /// <summary>Fired when the user requests a rename; the page shows a prompt and calls <see cref="CommitRenameAsync"/>.</summary>
     public event Action<AiConversationDto>? RenameRequested;
@@ -381,10 +393,17 @@ public sealed partial class AiViewModel : ObservableObject
         var accumulated = new System.Text.StringBuilder();
         var thinking = new System.Text.StringBuilder();
         var startedGenerating = false;
+
+        // Watchdog: if the stream goes silent (no queue-status or content chunk) for too
+        // long, cancel it so the UI can't hang in "Generating…" forever.
+        StartStreamWatchdog();
         try
         {
             await foreach (var chunk in _ai.SendMessageStreamingAsync(serverUrl, token, conversationId, message, ct))
             {
+                // Any chunk (queue status or content) proves the stream is alive.
+                _lastChunkTicks = Stopwatch.GetTimestamp();
+
                 if (string.Equals(chunk.Status, "queued", StringComparison.OrdinalIgnoreCase))
                 {
                     Dispatch(() =>
@@ -484,9 +503,36 @@ public sealed partial class AiViewModel : ObservableObject
             StreamingThinking = "";
             HasThinking = false;
             StopModelLoadTimer();
+            StopStreamWatchdog();
             _streamCts?.Dispose();
             _streamCts = null;
         }
+    }
+
+    /// <summary>
+    /// Cancels the in-flight AI request. If it's still queued, it gives up its place in the
+    /// queue; if generating, the Ollama call is aborted. The stream loop's cleanup handler
+    /// resets the remaining streaming state.
+    /// </summary>
+    [RelayCommand]
+    private void CancelStream()
+    {
+        StopStreamWatchdog();
+        try
+        {
+            _streamCts?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Stream already finished — nothing to cancel.
+        }
+
+        Dispatch(() =>
+        {
+            IsQueued = false;
+            IsStreaming = false;
+            StreamingContent = "";
+        });
     }
 
     /// <summary>
@@ -522,6 +568,64 @@ public sealed partial class AiViewModel : ObservableObject
         _modelLoadCts?.Dispose();
         _modelLoadCts = null;
         IsModelLoading = false;
+    }
+
+    /// <summary>
+    /// Starts a background watchdog that cancels the stream if no chunk (queue status or
+    /// content) arrives within <see cref="StreamSilenceTimeout"/>. Prevents the UI from
+    /// hanging in "Generating…" forever if the server/proxy stream dies silently.
+    /// </summary>
+    private void StartStreamWatchdog()
+    {
+        _watchdogCts?.Cancel();
+        _watchdogCts?.Dispose();
+        _watchdogCts = new CancellationTokenSource();
+        var ct = _watchdogCts.Token;
+        _lastChunkTicks = Stopwatch.GetTimestamp();
+
+        _ = Task.Run(async () =>
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                try
+                {
+                    await Task.Delay(WatchdogPollInterval, ct);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+
+                if (ct.IsCancellationRequested)
+                {
+                    break;
+                }
+
+                var silentFor = TimeSpan.FromTicks(Stopwatch.GetTimestamp() - _lastChunkTicks);
+                if (IsStreaming && silentFor > StreamSilenceTimeout)
+                {
+                    try
+                    {
+                        _streamCts?.Cancel();
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        // Stream already cleaned up.
+                    }
+
+                    Dispatch(() => ErrorMessage = "AI stream timed out — no response received. Try again.");
+                    break;
+                }
+            }
+        }, ct);
+    }
+
+    /// <summary>Stops the stream watchdog.</summary>
+    private void StopStreamWatchdog()
+    {
+        _watchdogCts?.Cancel();
+        _watchdogCts?.Dispose();
+        _watchdogCts = null;
     }
 
     /// <summary>Deletes a conversation (from the swipe action).</summary>

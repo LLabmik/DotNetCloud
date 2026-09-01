@@ -337,6 +337,82 @@ public sealed class AiViewModelTests
         Assert.IsNull(_vm.CopiedMessageId);
     }
 
+    [TestMethod]
+    public async Task SendMessageAsync_CancelStream_CancelsRequestAndClearsState()
+    {
+        AiViewModel.ModelLoadDelay = TimeSpan.FromMilliseconds(100);
+        AiViewModel.StreamSilenceTimeout = TimeSpan.FromSeconds(30);
+        try
+        {
+            _vm.Conversations.Add(new AiConversationDto { Id = ConversationId, Title = "Test", Model = "gpt-oss:20b" });
+            _vm.ActiveConversationId = ConversationId;
+            _vm.ComposerText = "hello";
+
+            _ai.Setup(x => x.ListConversationsAsync(ServerUrl, Token, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new List<AiConversationDto>());
+            _ai.Setup(x => x.SendMessageStreamingAsync(ServerUrl, Token, ConversationId, "hello", It.IsAny<CancellationToken>()))
+                .Returns((string s, string t, Guid g, string m, CancellationToken ct) => LongQueuedStream(ct));
+
+            var sendTask = _vm.SendMessageCommand.ExecuteAsync(null);
+
+            // Request is queued and waiting.
+            await Task.Delay(TimeSpan.FromMilliseconds(120));
+            Assert.IsTrue(_vm.IsQueued, "Request should be queued before abort.");
+            Assert.IsTrue(_vm.IsStreaming);
+
+            // Abort — should stop the request and clear the queue/streaming state.
+            _vm.CancelStreamCommand.Execute(null);
+
+            await sendTask;
+
+            Assert.IsFalse(_vm.IsStreaming, "Streaming should stop after abort.");
+            Assert.IsFalse(_vm.IsQueued, "Queue status should clear after abort.");
+            Assert.AreEqual(1, _vm.ActiveMessages.Count, "Only the user message should remain (no assistant reply).");
+        }
+        finally
+        {
+            AiViewModel.ModelLoadDelay = TimeSpan.FromSeconds(3);
+            AiViewModel.StreamSilenceTimeout = TimeSpan.FromSeconds(60);
+        }
+    }
+
+    [TestMethod]
+    public async Task SendMessageAsync_SilentStream_WatchdogTimesOutAndShowsError()
+    {
+        AiViewModel.ModelLoadDelay = TimeSpan.FromMilliseconds(100);
+        AiViewModel.StreamSilenceTimeout = TimeSpan.FromMilliseconds(200);
+        AiViewModel.WatchdogPollInterval = TimeSpan.FromMilliseconds(40);
+        try
+        {
+            _vm.Conversations.Add(new AiConversationDto { Id = ConversationId, Title = "Test", Model = "gpt-oss:20b" });
+            _vm.ActiveConversationId = ConversationId;
+            _vm.ComposerText = "hello";
+
+            _ai.Setup(x => x.ListConversationsAsync(ServerUrl, Token, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new List<AiConversationDto>());
+            // Stream sends one queued chunk then goes completely silent (simulated stuck stream).
+            _ai.Setup(x => x.SendMessageStreamingAsync(ServerUrl, Token, ConversationId, "hello", It.IsAny<CancellationToken>()))
+                .Returns((string s, string t, Guid g, string m, CancellationToken ct) => SilentAfterFirstChunkStream(ct));
+
+            var sendTask = _vm.SendMessageCommand.ExecuteAsync(null);
+
+            // Watchdog should fire after the 200ms silence threshold and cancel the stream.
+            await Task.Delay(TimeSpan.FromMilliseconds(600));
+            await sendTask;
+
+            Assert.IsFalse(_vm.IsStreaming, "Streaming should be cleared after the watchdog timeout.");
+            Assert.IsFalse(_vm.IsQueued, "Queue status should clear after the watchdog timeout.");
+            Assert.IsNotNull(_vm.ErrorMessage, "An error should be surfaced when the stream goes silent.");
+            StringAssert.Contains(_vm.ErrorMessage, "timed out");
+        }
+        finally
+        {
+            AiViewModel.ModelLoadDelay = TimeSpan.FromSeconds(3);
+            AiViewModel.StreamSilenceTimeout = TimeSpan.FromSeconds(60);
+            AiViewModel.WatchdogPollInterval = TimeSpan.FromSeconds(2);
+        }
+    }
+
     // ── Model-loading indicator ───────────────────────────────────────
 
     [TestMethod]
@@ -415,5 +491,34 @@ public sealed class AiViewModelTests
         yield return new AiStreamChunk { Content = "Blue silver is the answer.", Done = false };
         await Task.Yield();
         yield return new AiStreamChunk { Content = "", Done = true };
+    }
+
+    private static async IAsyncEnumerable<AiStreamChunk> LongQueuedStream(CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            yield return new AiStreamChunk { Status = "queued", Position = 1, Total = 2, Content = "", Done = false };
+            try
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(40), ct);
+            }
+            catch (OperationCanceledException)
+            {
+                yield break;
+            }
+        }
+    }
+
+    private static async IAsyncEnumerable<AiStreamChunk> SilentAfterFirstChunkStream(CancellationToken ct)
+    {
+        yield return new AiStreamChunk { Status = "queued", Position = 1, Total = 1, Content = "", Done = false };
+        try
+        {
+            await Task.Delay(TimeSpan.FromMinutes(10), ct);
+        }
+        catch (OperationCanceledException)
+        {
+            yield break;
+        }
     }
 }

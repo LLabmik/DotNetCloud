@@ -324,18 +324,33 @@
                            VerticalOptions="Center"/>
                 </Grid>
 
-                <!-- Queue status (waiting for inference turn) -->
-                <Border IsVisible="{Binding IsQueued}"
-                        BackgroundColor="#1E293B"
-                        StrokeThickness="0"
-                        StrokeShape="RoundRectangle 10"
-                        Padding="12,6"
-                        Margin="0,0,0,4"
-                        HorizontalOptions="Start">
-                    <Label Text="{Binding QueueStatusText}"
-                           TextColor="#FDBA74"
-                           FontSize="12"/>
-                </Border>
+                <!-- Queue status + Abort (waiting for inference turn) -->
+                <Grid IsVisible="{Binding IsQueued}"
+                      ColumnDefinitions="Auto,Auto"
+                      ColumnSpacing="8"
+                      HorizontalOptions="Start"
+                      Margin="0,0,0,4">
+                    <Border Grid.Column="0"
+                            BackgroundColor="#1E293B"
+                            StrokeThickness="0"
+                            StrokeShape="RoundRectangle 10"
+                            Padding="12,6"
+                            VerticalOptions="Center">
+                        <Label Text="{Binding QueueStatusText}"
+                               TextColor="#FDBA74"
+                               FontSize="12"/>
+                    </Border>
+                    <Button Grid.Column="1"
+                            Text="Abort"
+                            Command="{Binding CancelStreamCommand}"
+                            FontSize="12"
+                            TextColor="#F1F5F9"
+                            BackgroundColor="#7F1D1D"
+                            CornerRadius="10"
+                            Padding="12,6"
+                            HeightRequest="32"
+                            VerticalOptions="Center"/>
+                </Grid>
 
                 <!-- Thinking (reasoning) block -->
                 <Border IsVisible="{Binding HasThinking}"
