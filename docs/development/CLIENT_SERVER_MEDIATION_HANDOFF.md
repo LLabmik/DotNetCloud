@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-09-01 (AI request queueing on `feature/ai-queuing` deployed + server-side verified on cloud.kimball.home; browser/token UI checks pending for user)
+Last updated: 2026-09-01 (AI request queueing deployed to cloud + verified in browser + archived; no pending handoff)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -96,17 +96,16 @@ Android AI tab implemented; server-side REST/Bearer 500 fixed + deployed; full E
 - Ollama on `monolith.kimball.home:11434` reachable and serving `gemma4:12b` (matches DB).
 - ⚠️ Token-authenticated settings response + Blazor "Generating…"/queue-position UI checks require a real user session (server agent cannot obtain a token without a password) — **left for user/browser verification** (see Active Handoff).
 
+## Archived Handoff — AI request queueing: deployed to cloud + user-verified (2026-09-01) ✅ PASS
+
+**Status:** completed ✅ (2026-09-01, server agent — `cloud.kimball.home`; user verification)
+**Branch:** `feature/ai-queuing` (deployed commit `846e3b17`; HEAD `bda72641`)
+**Canonical plan:** `docs/AI_REQUEST_QUEUEING_PLAN.md`
+AI request queueing (FIFO `AiCompletionQueue`, live queue-position status, DB-backed DefaultModel, "Generating…" status fix) deployed to cloud and verified working in the browser. Full detail in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
+
 ## Active Handoff
 
-### User verification: AI request queueing on cloud (browser, `https://cloud.dotnetcloud.net/`)
-
-**Status:** pending (user/moderator login)
-**Branch:** `feature/ai-queuing` (deployed, commit `846e3b17`)
-
-- Blazor AI chat: model shown as static text (`gemma4:12b`, no picker); send a message → **"Generating…"** (NOT "Loading model into memory") → streamed tokens.
-- Two concurrent requests (Blazor + Android) → second shows **"In queue: position 2 of 2"** then streams; Ollama receives requests one at a time.
-- `GET /api/v1/ai/settings` with a valid token → `defaultModel` = `gemma4:12b`.
-- Note: Ollama runs on `monolith.kimball.home:11434` (client machine). If monolith is offline, AI chat shows the Ollama-unhealthy banner — expected, not a server bug.
+_No pending handoff_ (2026-09-01 — AI request queueing verified + archived above).
 
 ## Moderator Communication (Minimal)
 

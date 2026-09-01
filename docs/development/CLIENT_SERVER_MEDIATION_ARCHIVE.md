@@ -1,3 +1,20 @@
+## Archived: AI request queueing — deployed to cloud + verified (2026-09-01)
+
+**Status:** archived — complete (was `active — user verification (browser login)`). Deployed to cloud.kimball.home by the server agent and verified working in the browser by the user on 2026-09-01.
+**Branch:** `feature/ai-queuing` (deployed commit `846e3b17`; HEAD `bda72641`)
+**From:** server agent (`cloud.kimball.home`) + user verification, 2026-09-01
+**Canonical plan:** `docs/AI_REQUEST_QUEUEING_PLAN.md`
+**Target:** `cloud.kimball.home` (`https://cloud.dotnetcloud.net/`) — production (mint22 offline).
+
+**What was done:**
+- ✓ Server agent deployed `feature/ai-queuing` (FIFO `AiCompletionQueue`, live queue-position status, DB-backed admin DefaultModel, "Generating…" status fix) to cloud; `/health/ready` Healthy; `/api/v1/ai/settings` → 401 (route live).
+- ✓ Client agent (monolith): Android arm64 Debug rebuilt + installed on Samsung R5CWC356B2K; "Generating…" text fix on Android + Blazor + FAQ; Android tests 254 pass / 0 fail.
+- ✓ User browser verification passed (2026-09-01): model shown as static text (`gemma4:12b`, no picker); messages show **"Generating…"** then streamed tokens; concurrent requests show **"In queue: position 2 of 2"**; Ollama receives requests strictly one at a time.
+
+**Notes:** Ollama runs on `monolith.kimball.home:11434` (client machine) — if monolith is offline, AI chat shows the Ollama-unhealthy banner (expected, not a server bug).
+
+---
+
 ## Archived: Client — Android AI tab Phases B–F + E2E verification — complete (2026-08-29)
 
 **Status:** archived — complete (was `active — client (monolith)`). Android AI tab implemented, server-side REST/Bearer 500 fixed by the server agent, and the full E2E round-trip verified on-device on 2026-08-29.
