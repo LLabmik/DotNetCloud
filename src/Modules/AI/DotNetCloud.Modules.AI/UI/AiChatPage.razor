@@ -234,6 +234,7 @@
     private CancellationTokenSource? _watchdogCts;
     private long _lastChunkTicks;
     private bool _userInitiatedAbort;
+    private bool _watchdogArmed;
     private IJSObjectReference? _aiModule;
     private ElementReference _streamScroll;
     private Guid? _renamingConversationId;
@@ -330,7 +331,7 @@
             try
             {
                 _aiModule = await JS.InvokeAsync<IJSObjectReference>(
-                    "import", "./AiChatPage.razor.js");
+                    "import", "./_content/DotNetCloud.Modules.AI/UI/AiChatPage.razor.js");
             }
             catch (Exception ex)
             {
@@ -464,6 +465,7 @@
         _streamCts = new CancellationTokenSource();
         var streamToken = _streamCts.Token;
         _userInitiatedAbort = false;
+        _watchdogArmed = false;
 
         _isStreaming = true;
         _isQueued = true;
@@ -509,6 +511,15 @@
                     _modelLoadCts = new CancellationTokenSource();
                     var loadToken = _modelLoadCts.Token;
                     _ = DetectModelLoadingAsync(loadToken);
+                }
+
+                if (!string.IsNullOrEmpty(chunk.Content) || !string.IsNullOrEmpty(chunk.Thinking))
+                {
+                    // First real model output has arrived — arm the mid-stream watchdog now.
+                    // The server sends a queue "Generating" marker and then goes silent while
+                    // Ollama cold-loads the model (gemma4:12b can take >60s to the first token),
+                    // so the watchdog must NOT cancel before actual content arrives.
+                    _watchdogArmed = true;
                 }
 
                 if (!string.IsNullOrEmpty(chunk.Thinking))
@@ -559,6 +570,16 @@
                 // Watchdog timed the silent stream out — a friendly message was already set.
                 Logger.LogWarning("AI stream cancelled by watchdog timeout");
             }
+        }
+        catch (Exception ex) when (_streamCts?.IsCancellationRequested == true)
+        {
+            // The gRPC client surfaces an abort/watchdog timeout as
+            // RpcException(StatusCode.Cancelled, "Call canceled by the client."),
+            // not OperationCanceledException. When the stream CTS was cancelled,
+            // treat it as a quiet abort (or the watchdog already set its own
+            // timeout message) — never surface the scary "check Ollama" error.
+            Logger.LogInformation("AI stream cancelled ({ExceptionType}): {Message}",
+                ex.GetType().Name, ex.Message);
         }
         catch (Exception ex)
         {
@@ -688,7 +709,7 @@
                 }
 
                 var silentFor = TimeSpan.FromTicks(Stopwatch.GetTimestamp() - _lastChunkTicks);
-                if (_isStreaming && silentFor > StreamSilenceTimeout)
+                if (_watchdogArmed && _isStreaming && silentFor > StreamSilenceTimeout)
                 {
                     try
                     {
