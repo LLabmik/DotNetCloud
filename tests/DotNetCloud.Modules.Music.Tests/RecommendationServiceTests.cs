@@ -2,6 +2,7 @@ using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Music.Data;
 using DotNetCloud.Modules.Music.Data.Services;
+using DotNetCloud.Modules.Music.Models;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
@@ -45,6 +46,33 @@ public class RecommendationServiceTests
     {
         var result = await _service.GetRecentlyPlayedAsync(_caller, 10);
         Assert.AreEqual(0, result.Count);
+    }
+
+    [TestMethod]
+    public async Task GetRecentlyPlayed_OrdersMostRecentFirst()
+    {
+        var (_, album, older) = await TestHelpers.SeedCompleteTrackAsync(_db, trackTitle: "Older Track", ownerId: _caller.UserId);
+        var newer = await TestHelpers.SeedTrackAsync(_db, album.Id, "Newer Track", ownerId: _caller.UserId);
+
+        _db.PlaybackHistories.Add(new PlaybackHistory
+        {
+            UserId = _caller.UserId,
+            UserTrackId = older.Id,
+            PlayedAt = DateTime.UtcNow.AddHours(-2)
+        });
+        _db.PlaybackHistories.Add(new PlaybackHistory
+        {
+            UserId = _caller.UserId,
+            UserTrackId = newer.Id,
+            PlayedAt = DateTime.UtcNow
+        });
+        await _db.SaveChangesAsync();
+
+        var result = await _service.GetRecentlyPlayedAsync(_caller, 10);
+
+        Assert.AreEqual(2, result.Count);
+        Assert.AreEqual("Newer Track", result[0].Title);
+        Assert.AreEqual("Older Track", result[1].Title);
     }
 
     // ─── GetMostPlayed ────────────────────────────────────────────────

@@ -41,7 +41,14 @@ public sealed class RecommendationService : IRecommendationService
             .Where(ut => userTrackIds.Contains(ut.Id))
             .ToListAsync(cancellationToken);
 
-        return userTracks.Select(ut => _trackService.MapToDto(ut, caller.UserId)).ToList();
+        // Preserve chronological order (most recently played first) — the Contains query
+        // does not guarantee ordering, so map back using the ordered id list.
+        var tracksById = userTracks.ToDictionary(ut => ut.Id);
+
+        return userTrackIds
+            .Where(tracksById.ContainsKey)
+            .Select(id => _trackService.MapToDto(tracksById[id], caller.UserId))
+            .ToList();
     }
 
     public async Task<IReadOnlyList<TrackDto>> GetMostPlayedAsync(CallerContext caller, int count = 20, CancellationToken cancellationToken = default)
