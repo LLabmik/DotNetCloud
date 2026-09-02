@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-09-01 (Blazor AI chat: Abort button + auto-scroll — implemented, deployed to cloud, 14/14 healthy; user browser verification pending)
+Last updated: 2026-09-02 (SyncTray Linux auto-update fix — branch `fix/synctray-update-on-linux`, commit `c25924ab`; awaiting live verification on Linux `mint-OptiPlex-7010`)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -16,7 +16,7 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
-- **Current active branch:** `feature/ai-queuing`
+- **Current active branch:** `fix/synctray-update-on-linux`
 
 ## Archived Handoff — SyncTray test machine: DB Outage SyncTray Simulation (plan §11.4) ✅ PASS
 
@@ -135,7 +135,72 @@ AI request queueing (FIFO `AiCompletionQueue`, live queue-position status, DB-ba
 
 ## Active Handoff
 
-**No active handoff.** Server-side Blazor AI Abort button + auto-scroll complete, deployed, and verified (2026-09-01). Awaiting next relay from client agent (`monolith`).
+**Status:** ⏳ Awaiting live verification on Linux (`mint-OptiPlex-7010`)
+**From:** client agent (`monolith`, Windows 11) — 2026-09-02
+**Branch:** `fix/synctray-update-on-linux` (HEAD commit `c25924ab`) — **PULL THIS BRANCH**
+**Topic:** SyncTray Linux auto-update fix — after clicking **"Restart to Update"** the **previous version kept running**.
+
+### Root cause
+
+`ClientUpdateService.ApplyUpdateLinuxAsync` (`src/Clients/DotNetCloud.Client.Core/Services/ClientUpdateService.cs`) generated a bash script that ran as the **unprivileged user** and copied the new payload into the **root-owned** install dir (`/opt/dotnetcloud-desktop-client/SyncTray`). The copy failed silently (script had no `set -e`/error handling), then the script `exec`'d the still-present **OLD binary** → the previous version kept running. (Windows avoids this by running its updater helper elevated via `requireAdministrator`; Linux had no equivalent.) Secondary bug: the script used a fixed `sleep 1` and never waited for the running client to exit, which raced the **single-instance file lock** (`Program.cs`) and made the relaunched instance quit immediately.
+
+### Fix (committed `c25924ab` on `fix/synctray-update-on-linux`)
+
+The rewritten Linux updater script now:
+
+1. **Waits for the running client PID to fully exit** before touching the install dir (polls `kill -0`, 60 s cap) — no more fixed `sleep 1` / single-instance-lock race.
+2. **Copies directly when the install dir is user-writable**; when it is **root-owned (`/opt`) it escalates ONLY the copy** via `pkexec` (PolicyKit auth dialog; `sudo -n` fallback), then relaunches as the **current user** so the desktop session (DISPLAY/Wayland/D-Bus) is preserved.
+3. **On copy/elevation failure:** logs + shows a `notify-send` and **does NOT relaunch** (never silently starts the previous version).
+4. Relaunches the updated client **detached** (`nohup … &`).
+5. Writes an updater log to `/tmp/DotNetCloud/updates/apply-<guid>.log` and normalizes the generated script to **LF** (a CRLF checkout would otherwise break bash).
+
+**Validation done so far (Windows/`monolith`):** `Client.Core` + `SyncTray` build clean (0 warnings); `ClientUpdateServiceTests` 22/22 pass (incl. 8 new `BuildLinuxApplyScript` tests); SyncTray update tests 15/15 pass; rendered script passes `bash -n`. **Not yet live-verified on Linux** — that is this handoff.
+
+### Verification task for `mint-OptiPlex-7010` (Linux)
+
+**0) Get the fixed build:**
+
+```bash
+cd /path/to/DotNetCloud
+ git fetch origin
+ git checkout fix/synctray-update-on-linux
+```
+
+**1) The update check needs a NEWER version than the one installed** (the client compares its assembly `InformationalVersion`; committed HEAD is `0.4.12`). To trigger an update:
+
+- ☐ Bump `PatchVersion` `12 → 13` in `/Directory.Build.props` (and the Android csproj if building Android — not needed here).
+- ☐ Publish + package the **linux-x64 desktop client** from this branch, e.g. on Windows/monolith run:
+
+  ```powershell
+  .\tools\packaging\build-desktop-client-bundles.ps1 -Version 0.4.13
+  ```
+
+  (or on Linux: `dotnet publish src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj -c Release -r linux-x64 --self-contained true -o <dir>` and tar the `linux-x64/payload` tree).
+- ☐ Make the `0.4.13` asset discoverable by the updater: GitHub Release asset named `dotnetcloud-desktop-client-linux-x64-0.4.13.tar.gz` (the client checks the server `/api/v1/core/updates/check`, falling back to GitHub Releases) — or host it wherever the test server's update proxy points.
+
+**2) Scenario A — official `/opt` install (the actual bug):**
+
+- ☐ Install the **old `0.4.12`** release as root: `sudo ./install.sh` (goes to `/opt/dotnetcloud-desktop-client`), then run `dotnetcloud-sync-tray`.
+- ☐ In SyncTray → Updates: **Check for updates** → **download** `0.4.13` → click **"Restart to apply update…"**.
+- ✅ **Expected:** a **pkexec "Authentication Required"** dialog appears (enter the user's password) → the old client **fully exits** → the client **relaunches as `0.4.13`**. Verify: About/version shows `0.4.13`; `pgrep -af dotnetcloud-sync-tray` shows **exactly one** instance; `/opt/dotnetcloud-desktop-client/SyncTray/` payload actually replaced.
+
+**3) Scenario B — per-user/writable install (dev-style):**
+
+- ☐ Extract the bundle to a user-writable dir (e.g. `~/dnc-test/linux-x64`) and run `payload/SyncTray/dotnetcloud-sync-tray` directly; repeat the check/download/restart flow.
+- ✅ **Expected:** no `pkexec` prompt (install dir is writable); old client exits; client relaunches as `0.4.13`; one instance.
+
+**4) Failure-path check:**
+
+- ☐ Repeat Scenario A but **cancel the `pkexec` dialog**.
+- ✅ **Expected:** a **"Update failed"** desktop notification (`notify-send`) and **no** relaunch of the old binary (previous behavior silently restarted the stale old version).
+
+**5) Diagnostics if anything looks wrong:**
+
+- Updater log: `/tmp/DotNetCloud/updates/apply-*.log`
+- Client log: `~/.local/share/DotNetCloud/logs/sync-tray*.log`
+- Report back: PASS/FAIL per scenario + any log excerpts. On PASS, the moderator will merge the branch.
+
+**Post-verification:** mark this handoff **completed ✅** in the doc header/Active section and (per moderator workflow) archive the detail.
 
 ## Moderator Communication (Minimal)
 

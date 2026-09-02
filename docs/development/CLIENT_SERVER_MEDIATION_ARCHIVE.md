@@ -1,3 +1,37 @@
+## Archived: Client — SyncTray Linux auto-update fix — implemented + pushed (2026-09-02)
+
+**Status:** archived — implementation complete + committed + pushed (was `active — client agent (monolith)`). Live Linux verification deferred to the Linux machine `mint-OptiPlex-7010` (see the **Active Handoff** section of `CLIENT_SERVER_MEDIATION_HANDOFF.md`).
+**Branch:** `fix/synctray-update-on-linux` (HEAD commit `c25924ab`)
+**From:** client agent (`monolith`, Windows 11), 2026-09-02
+**Target:** Linux desktop client — official `/opt` install (`mint-OptiPlex-7010`) — verification only
+**Canonical plan / issue:** SyncTray Linux auto-update — after clicking **"Restart to Update"** the **previous version kept running**.
+
+**Root cause:**
+- `ClientUpdateService.ApplyUpdateLinuxAsync` (`src/Clients/DotNetCloud.Client.Core/Services/ClientUpdateService.cs`) wrote a bash script that ran as the **unprivileged user** and copied the new payload into the **root-owned** install dir (`/opt/dotnetcloud-desktop-client/SyncTray`). The copy failed silently (no `set -e`/error handling), then the script `exec`'d the still-present **OLD binary** → the previous version kept running. (Windows avoids this by running its updater helper elevated via `requireAdministrator`.)
+- Secondary bug: the script used a fixed `sleep 1` and never waited for the running client to exit → raced the **single-instance file lock** (`Program.cs`), making the relaunched instance quit immediately.
+
+**What was done (client, landed on `fix/synctray-update-on-linux` `c25924ab`):**
+- ✓ Rewrote the Linux updater generation to a robust script that **waits for the running client PID to fully exit** (polls `kill -0`, 60 s cap) before touching the install dir — no more fixed `sleep 1` / single-instance race.
+- ✓ **Copies directly when the install dir is user-writable**; when it is **root-owned (`/opt`) it escalates ONLY the copy** via `pkexec` (PolicyKit auth dialog; `sudo -n` fallback), then relaunches as the **current user** so the desktop session (DISPLAY/Wayland/D-Bus) is preserved.
+- ✓ **On copy/elevation failure:** logs + `notify-send` and **does not relaunch** (never silently starts the previous version).
+- ✓ Relaunches the updated client **detached** (`nohup … &`).
+- ✓ Writes an updater log to `/tmp/DotNetCloud/updates/apply-<guid>.log`; normalizes the generated script to **LF** (a CRLF checkout would otherwise break bash parsing).
+- ✓ New pure helper `BuildLinuxApplyScript` (+ `ShellQuote`) exposed via `InternalsVisibleTo` for cross-platform unit tests.
+
+**Validation done (monolith / Windows 11):**
+- ✓ Builds clean (0 warnings/errors): `DotNetCloud.Client.Core`, `DotNetCloud.Client.SyncTray`, `DotNetCloud.Client.Core.Tests`.
+- ✓ `ClientUpdateServiceTests` **22/22 pass** (incl. 8 new `BuildLinuxApplyScript` tests); SyncTray update tests **15/15 pass**.
+- ✓ Rendered script passes `bash -n` (syntax-valid).
+
+**Pending (Linux verification — see Active Handoff in `CLIENT_SERVER_MEDIATION_HANDOFF.md`):**
+- ☐ Official `/opt` install: update check → download → **"Restart to apply update…"** → expect `pkexec` auth dialog → old client fully exits → client relaunches as the **new version** (one instance only).
+- ☐ Per-user/writable install: same flow, no `pkexec` prompt expected.
+- ☐ Failure path: cancel the `pkexec` dialog → "Update failed" notification and **no** relaunch of the old binary.
+- ☐ Diagnostics if wrong: `/tmp/DotNetCloud/updates/apply-*.log` and `~/.local/share/DotNetCloud/logs/sync-tray*.log`.
+- Note: the update check only fires for a version **newer** than the installed client (committed HEAD is `0.4.12`) — bump `PatchVersion` and publish a `linux-x64` desktop-client bundle (e.g. `tools/packaging/build-desktop-client-bundles.ps1 -Version 0.4.13`) for a live end-to-end test.
+
+---
+
 ## Archived: Server — Blazor AI chat Abort button + auto-scroll — implemented + deployed (2026-09-01)
 
 **Status:** archived — server implementation complete + deployed (was `active — server agent (cloud.kimball.home)`). Implemented, deployed, and server-side verified on 2026-09-01. Interactive browser verification of the Abort/auto-scroll UX deferred to the user (see Active Handoff in `CLIENT_SERVER_MEDIATION_HANDOFF.md`).
