@@ -270,16 +270,31 @@ public sealed class ClientUpdateService : IClientUpdateService
                 "Could not locate payload directory in the update archive.");
         }
 
-        // Stage 3: create a restart script that replaces the running binary then relaunches.
-        var scriptPath = Path.Combine(Path.GetTempPath(), "DotNetCloud", "updates",
-            "apply-" + Guid.CreateVersion7().ToString("N") + ".sh");
+        // Stage 3: write the updater script.
+        //
+        // The official Linux installer places the client in a root-owned
+        // directory (/opt/dotnetcloud-desktop-client), so the payload copy is
+        // escalated via pkexec/sudo when the install directory is not writable
+        // by the current user. The previous script copied as the unprivileged
+        // user — that copy failed silently and the script then exec'd the
+        // UNCHANGED old binary, which is why the "previous version" kept
+        // running after clicking "Restart to Update".
+        //
+        // The script also waits for this process to fully exit before touching
+        // the install directory. The client holds a single-instance file lock
+        // (see Program.cs), so replacing and relaunching while it is still
+        // alive made the new instance quit immediately ("already running") and
+        // left the old version in control.
+        var updateDir = Path.Combine(Path.GetTempPath(), "DotNetCloud", "updates");
+        Directory.CreateDirectory(updateDir);
+        var scriptPath = Path.Combine(updateDir, "apply-" + Guid.CreateVersion7().ToString("N") + ".sh");
+        var logPath = Path.Combine(updateDir, "apply-" + Guid.CreateVersion7().ToString("N") + ".log");
 
-        var scriptContent = $"#!/usr/bin/env bash\n" +
-                            $"# Auto-generated update script for DotNetCloud SyncTray\n" +
-                            $"sleep 1\n" +
-                            $"cp -rf \"{payloadDir}/\"* \"{installDir}/\"\n" +
-                            $"chmod +x \"{installDir}/dotnetcloud-sync-tray\"\n" +
-                            $"exec \"{installDir}/dotnetcloud-sync-tray\"\n";
+        var scriptContent = BuildLinuxApplyScript(
+            Environment.ProcessId,
+            payloadDir,
+            installDir,
+            logPath);
 
         await File.WriteAllTextAsync(scriptPath, scriptContent, ct);
 
@@ -292,7 +307,8 @@ public sealed class ClientUpdateService : IClientUpdateService
                 UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
         }
 
-        _logger.LogInformation("Restart script created at {ScriptPath}. Launching updater.", scriptPath);
+        _logger.LogInformation("Linux updater script created at {ScriptPath}; updater log at {LogPath}.",
+            scriptPath, logPath);
 
         // Stage 4: launch the updater script and exit the current process.
         System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
@@ -305,6 +321,154 @@ public sealed class ClientUpdateService : IClientUpdateService
         // Signal the UI/ caller to exit gracefully.
         _logger.LogInformation("Updater launched. Requesting application shutdown.");
     }
+
+    /// <summary>
+    /// Builds the self-contained bash updater used to apply a Linux client update.
+    /// </summary>
+    /// <remarks>
+    /// The script runs detached from the client. It waits for the client process
+    /// (identified by <paramref name="appPid"/>) to exit, replaces the payload in
+    /// <paramref name="installDir"/> — escalating the copy via pkexec when that
+    /// directory is root-owned, which is the case for the official
+    /// <c>/opt/dotnetcloud-desktop-client</c> installs — and then relaunches the
+    /// client in the current user's desktop session. Errors are written to
+    /// <paramref name="logPath"/> and surfaced with <c>notify-send</c> instead of
+    /// silently relaunching the previous version.
+    /// </remarks>
+    /// <param name="appPid">PID of the running client that must exit before replacement.</param>
+    /// <param name="payloadDir">Extracted payload directory containing the new binaries.</param>
+    /// <param name="installDir">Install directory that receives the payload.</param>
+    /// <param name="logPath">Path of the updater log file.</param>
+    /// <returns>The updater bash script content.</returns>
+    internal static string BuildLinuxApplyScript(
+        int appPid,
+        string payloadDir,
+        string installDir,
+        string logPath)
+    {
+        const string binName = "dotnetcloud-sync-tray";
+        var appBin = Path.Combine(installDir, binName);
+
+        // Normalize to LF: bash treats a trailing \r as part of the token, so a
+        // script built on a CRLF checkout (raw string literal inherits the
+        // source file's line endings) would fail to parse on Linux.
+        return LinuxApplyScriptTemplate
+            .Replace("@@APP_PID@@", appPid.ToString(System.Globalization.CultureInfo.InvariantCulture))
+            .Replace("@@PAYLOAD@@", ShellQuote(payloadDir))
+            .Replace("@@INSTALL@@", ShellQuote(installDir))
+            .Replace("@@APP_BIN@@", ShellQuote(appBin))
+            .Replace("@@BIN_NAME@@", ShellQuote(binName))
+            .Replace("@@LOG_FILE@@", ShellQuote(logPath))
+            .Replace("\r\n", "\n", StringComparison.Ordinal);
+    }
+
+    /// <summary>Renders <paramref name="value"/> as a single-quoted bash literal.</summary>
+    /// <param name="value">The path/value to quote.</param>
+    /// <returns>A bash-safe single-quoted string literal.</returns>
+    private static string ShellQuote(string value)
+        => "'" + value.Replace("'", "'\\''") + "'";
+
+    private const string LinuxApplyScriptTemplate = """
+        #!/usr/bin/env bash
+        # Auto-generated updater for the DotNetCloud SyncTray (Linux).
+        #
+        # Replaces the running install and relaunches the client. Runs detached
+        # from the client process. Root-owned system installs (e.g. the official
+        # /opt installer) need an elevated copy, requested through pkexec
+        # (PolicyKit) so the desktop session can prompt for the admin password.
+        set -u
+
+        APP_PID=@@APP_PID@@
+        PAYLOAD=@@PAYLOAD@@
+        INSTALL=@@INSTALL@@
+        APP_BIN=@@APP_BIN@@
+        BIN_NAME=@@BIN_NAME@@
+        LOG_FILE=@@LOG_FILE@@
+
+        log() {
+            local line="[$(date '+%Y-%m-%d %H:%M:%S')] $*"
+            echo "$line"
+            if [[ -n "${LOG_FILE:-}" ]]; then
+                echo "$line" >> "$LOG_FILE" 2>/dev/null || true
+            fi
+        }
+
+        notify_failure() {
+            # Best effort: surfaces an error even after the client has exited.
+            if command -v notify-send >/dev/null 2>&1; then
+                notify-send --app-name="DotNetCloud Sync" "Update failed" "$1" 2>/dev/null || true
+            fi
+        }
+
+        log "Linux update apply started (waiting on PID $APP_PID)."
+
+        # 1) Wait for the running client to fully exit. It holds the single-
+        #    instance file lock and may still be flushing sync state; replacing
+        #    files while it is alive made the relaunched instance quit
+        #    ("already running") and left the old version in control. Wait for
+        #    the real exit instead of a fixed sleep so shutdown can finish at
+        #    its own pace.
+        if [[ "$APP_PID" =~ ^[0-9]+$ ]]; then
+            waited=0
+            while kill -0 "$APP_PID" 2>/dev/null; do
+                if (( waited >= 300 )); then
+                    log "ERROR: timed out waiting for PID $APP_PID to exit."
+                    notify_failure "The client did not shut down in time. Quit it and start it again to finish the update."
+                    exit 1
+                fi
+                sleep 0.2
+                waited=$((waited + 1))
+            done
+            log "Previous client instance (PID $APP_PID) exited."
+        fi
+
+        # 2) Copy the new payload over the install directory.
+        copy_payload() {
+            if [[ -w "$INSTALL" ]]; then
+                # Per-user / development install: replace directly.
+                log "Install directory is user-writable; copying payload directly."
+                cp -rf -- "$PAYLOAD/." "$INSTALL/" || return 1
+                chmod 0755 "$APP_BIN" 2>/dev/null || true
+                return 0
+            fi
+
+            # System install (root-owned, e.g. /opt). Escalate ONLY the copy so
+            # the client is relaunched as the current user with its desktop
+            # session. Paths travel through the environment to avoid
+            # shell-quoting issues.
+            if command -v pkexec >/dev/null 2>&1; then
+                log "Install directory is root-owned; requesting elevated copy via pkexec."
+                pkexec env DNC_PAYLOAD="$PAYLOAD" DNC_INSTALL="$INSTALL" DNC_BIN="$BIN_NAME" \
+                    bash -c 'cp -rf -- "$DNC_PAYLOAD/." "$DNC_INSTALL/" && chmod 0755 "$DNC_INSTALL/$DNC_BIN"' \
+                    || return 1
+                return 0
+            fi
+            if command -v sudo >/dev/null 2>&1; then
+                log "Install directory is root-owned; requesting elevated copy via sudo."
+                sudo -n env DNC_PAYLOAD="$PAYLOAD" DNC_INSTALL="$INSTALL" DNC_BIN="$BIN_NAME" \
+                    bash -c 'cp -rf -- "$DNC_PAYLOAD/." "$DNC_INSTALL/" && chmod 0755 "$DNC_INSTALL/$DNC_BIN"' \
+                    || return 1
+                return 0
+            fi
+
+            log "ERROR: install directory is root-owned but neither pkexec nor sudo is available."
+            return 1
+        }
+
+        if ! copy_payload; then
+            log "ERROR: failed to copy updated files into $INSTALL."
+            notify_failure "Could not install the update into $INSTALL. The client was not restarted; start it manually to keep using the previous version."
+            exit 1
+        fi
+        log "Payload copied into $INSTALL."
+
+        # 3) Relaunch the updated client, detached from this helper so it
+        #    survives the script exiting.
+        log "Relaunching $APP_BIN."
+        nohup "$APP_BIN" >/dev/null 2>&1 &
+        log "Relaunch initiated (PID $!)."
+        exit 0
+        """;
 
     private static string? FindPayloadDirectory(string extractDir)
     {

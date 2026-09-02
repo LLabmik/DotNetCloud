@@ -489,6 +489,109 @@ public sealed class ClientUpdateServiceTests
             () => svc.ApplyUpdateAsync(string.Empty));
     }
 
+    // ── BuildLinuxApplyScript (Linux updater script) ──────────────────────
+    //
+    // The Linux apply step cannot run end-to-end on a Windows test host, so the
+    // generated bash updater is built by a pure helper (BuildLinuxApplyScript)
+    // that is asserted here. Regression tests for the Linux auto-update bug where
+    // the "previous version" stayed running: (1) the old script copied files as
+    // the unprivileged user into the root-owned /opt install dir, silently failed,
+    // then exec'd the unchanged old binary; (2) it used a fixed "sleep 1" and did
+    // not wait for the running client to exit before relaunching.
+
+    [TestMethod]
+    public void BuildLinuxApplyScript_StartsWithShebangAtColumnZero()
+    {
+        // The shebang must be the first bytes of the file — leading whitespace
+        // would make the kernel fail to interpret the script when it is
+        // launched directly.
+        var script = ClientUpdateService.BuildLinuxApplyScript(
+            12345, "/tmp/dnc/payload/SyncTray", "/opt/dotnetcloud-desktop-client/SyncTray", "/tmp/dnc/apply.log");
+
+        Assert.IsTrue(script.StartsWith("#!/usr/bin/env bash", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void BuildLinuxApplyScript_ReplacesAllTokens()
+    {
+        var script = ClientUpdateService.BuildLinuxApplyScript(
+            12345, "/tmp/dnc/payload/SyncTray", "/opt/dotnetcloud-desktop-client/SyncTray", "/tmp/dnc/apply.log");
+
+        Assert.IsFalse(script.Contains("@@", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void BuildLinuxApplyScript_WaitsForRunningClientToExit()
+    {
+        var script = ClientUpdateService.BuildLinuxApplyScript(
+            12345, "/p", "/opt/dotnetcloud-desktop-client/SyncTray", "/log");
+
+        StringAssert.Contains(script, "APP_PID=12345");
+        StringAssert.Contains(script, "kill -0 \"$APP_PID\"");
+        // The old implementation slept a fixed 1s then copied regardless.
+        Assert.IsFalse(script.Contains("sleep 1", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void BuildLinuxApplyScript_EscalatesRootOwnedCopyAndRelaunchesAsUser()
+    {
+        var script = ClientUpdateService.BuildLinuxApplyScript(
+            12345, "/p", "/opt/dotnetcloud-desktop-client/SyncTray", "/log");
+
+        // Writable-directory fast path plus pkexec (and sudo) elevation for the
+        // root-owned /opt install directory.
+        StringAssert.Contains(script, "[[ -w \"$INSTALL\" ]]");
+        StringAssert.Contains(script, "pkexec env DNC_PAYLOAD");
+        StringAssert.Contains(script, "sudo -n env DNC_PAYLOAD");
+        StringAssert.Contains(script, "cp -rf -- \"$DNC_PAYLOAD/.\" \"$DNC_INSTALL/\"");
+
+        // The elevated copy must finish before the client is relaunched, and the
+        // relaunch itself must stay outside the pkexec/sudo path (so the client
+        // keeps the current user's desktop-session environment).
+        var relaunchIndex = script.IndexOf("nohup \"$APP_BIN\"", StringComparison.Ordinal);
+        var pkexecIndex = script.IndexOf("pkexec env", StringComparison.Ordinal);
+        Assert.IsTrue(pkexecIndex >= 0, "pkexec elevation should be present.");
+        Assert.IsTrue(relaunchIndex > pkexecIndex, "Relaunch must happen after the elevated copy.");
+    }
+
+    [TestMethod]
+    public void BuildLinuxApplyScript_SingleQuotesPaths_HandlesSpacesAndApostrophes()
+    {
+        var script = ClientUpdateService.BuildLinuxApplyScript(
+            42,
+            "/home/user/My DotNetCloud/payload/SyncTray",
+            "/opt/dotnetcloud-desktop-client/SyncTray",
+            "/tmp/dnc/updates/apply-1.log");
+
+        StringAssert.Contains(script, "PAYLOAD='/home/user/My DotNetCloud/payload/SyncTray'");
+        StringAssert.Contains(script, "INSTALL='/opt/dotnetcloud-desktop-client/SyncTray'");
+    }
+
+    [TestMethod]
+    public void BuildLinuxApplyScript_OnCopyFailure_LogsAndDoesNotRelaunch()
+    {
+        var script = ClientUpdateService.BuildLinuxApplyScript(
+            7, "/p", "/opt/dotnetcloud-desktop-client/SyncTray", "/log");
+
+        // A failed copy must be surfaced (log + notify-send) and must exit
+        // BEFORE any relaunch, so it never silently starts the previous version.
+        var failureExit = script.IndexOf("exit 1", script.IndexOf("if ! copy_payload; then", StringComparison.Ordinal), StringComparison.Ordinal);
+        var relaunchIndex = script.IndexOf("nohup \"$APP_BIN\"", StringComparison.Ordinal);
+        Assert.IsTrue(failureExit >= 0 && failureExit < relaunchIndex,
+            "Copy failure must exit before the relaunch line.");
+        StringAssert.Contains(script, "notify_failure");
+    }
+
+    [TestMethod]
+    public void BuildLinuxApplyScript_RelaunchesDetachedWithNohup()
+    {
+        var script = ClientUpdateService.BuildLinuxApplyScript(
+                    1, "/p", "/opt/dotnetcloud-desktop-client/SyncTray", "/log");
+
+        StringAssert.Contains(script, "nohup \"$APP_BIN\" >/dev/null 2>&1 &");
+        StringAssert.Contains(script, "dotnetcloud-sync-tray");
+    }
+
     // ── Test helpers ──────────────────────────────────────────────────────
 
     private static HttpMessageHandler CreateMockHandler(string responseJson)
