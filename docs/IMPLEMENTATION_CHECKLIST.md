@@ -4623,6 +4623,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `Controls/MarkdownWebView.cs` — auto-height WebView; http/https links open in the system browser; all other navigation blocked
 - ✓ `AiPage.xaml` — completed assistant messages render as HTML (WebView) when they contain block Markdown; inline-only messages stay on the lightweight `Label`/`FormattedString` path; streaming bubble unchanged
 - ✓ `MarkdownHtmlFormatterTests` — headings, lists, tables, fenced code, raw-HTML escaping, `NeedsHtmlRendering`
+- ✓ Stream-silence watchdog only arms after the first content/thinking chunk — a slow cold Ollama model load (gemma4:12b can take >60s to the first token) no longer cancels the request (mirrors Blazor `AiChatPage`; Android `AiViewModel`, 2026-09-01)
 
 ---
 

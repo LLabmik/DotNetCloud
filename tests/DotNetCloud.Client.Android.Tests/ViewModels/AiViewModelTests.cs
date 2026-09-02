@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using DotNetCloud.Client.Android.Ai;
 using DotNetCloud.Client.Android.Auth;
 using DotNetCloud.Client.Android.Services;
@@ -390,9 +391,10 @@ public sealed class AiViewModelTests
 
             _ai.Setup(x => x.ListConversationsAsync(ServerUrl, Token, It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new List<AiConversationDto>());
-            // Stream sends one queued chunk then goes completely silent (simulated stuck stream).
+            // Stream yields a generating chunk (arming the watchdog) then goes completely
+            // silent (simulated mid-generation stuck stream).
             _ai.Setup(x => x.SendMessageStreamingAsync(ServerUrl, Token, ConversationId, "hello", It.IsAny<CancellationToken>()))
-                .Returns((string s, string t, Guid g, string m, CancellationToken ct) => SilentAfterFirstChunkStream(ct));
+                .Returns((string s, string t, Guid g, string m, CancellationToken ct) => SilentAfterContentStream(ct));
 
             var sendTask = _vm.SendMessageCommand.ExecuteAsync(null);
 
@@ -414,6 +416,46 @@ public sealed class AiViewModelTests
     }
 
     // ── Model-loading indicator ───────────────────────────────────────
+
+    [TestMethod]
+    public async Task SendMessageAsync_SlowModelLoad_DoesNotWatchdogCancelBeforeFirstToken()
+    {
+        AiViewModel.ModelLoadDelay = TimeSpan.FromMilliseconds(100);
+        AiViewModel.StreamSilenceTimeout = TimeSpan.FromMilliseconds(150);
+        AiViewModel.WatchdogPollInterval = TimeSpan.FromMilliseconds(40);
+        try
+        {
+            _vm.Conversations.Add(new AiConversationDto { Id = ConversationId, Title = "Test", Model = "gpt-oss:20b" });
+            _vm.ActiveConversationId = ConversationId;
+            _vm.ComposerText = "hello";
+
+            _ai.Setup(x => x.ListConversationsAsync(ServerUrl, Token, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new List<AiConversationDto>());
+            // Queued → generating marker → long silent cold-load gap (> StreamSilenceTimeout)
+            // → first token. The watchdog must NOT cancel during the model-load silence.
+            _ai.Setup(x => x.SendMessageStreamingAsync(ServerUrl, Token, ConversationId, "hello", It.IsAny<CancellationToken>()))
+                .Returns(SlowModelLoadStream());
+
+            var sendTask = _vm.SendMessageCommand.ExecuteAsync(null);
+
+            // Wait past the old watchdog threshold (generating marker + silence > 150ms).
+            await Task.Delay(TimeSpan.FromMilliseconds(300));
+            Assert.IsTrue(_vm.IsStreaming, "Stream should stay active during a slow model load (no watchdog cancel).");
+            Assert.IsNull(_vm.ErrorMessage, "No timeout error should be surfaced while the model loads.");
+
+            await sendTask;
+
+            Assert.IsFalse(_vm.IsStreaming, "Streaming should complete normally once tokens arrive.");
+            Assert.IsNull(_vm.ErrorMessage);
+            Assert.AreEqual(2, _vm.ActiveMessages.Count, "User + assistant message should be persisted.");
+        }
+        finally
+        {
+            AiViewModel.ModelLoadDelay = TimeSpan.FromSeconds(3);
+            AiViewModel.StreamSilenceTimeout = TimeSpan.FromSeconds(60);
+            AiViewModel.WatchdogPollInterval = TimeSpan.FromSeconds(2);
+        }
+    }
 
     [TestMethod]
     public async Task SendMessageAsync_ShowsModelLoading_WhileWaitingForFirstChunk()
@@ -493,7 +535,7 @@ public sealed class AiViewModelTests
         yield return new AiStreamChunk { Content = "", Done = true };
     }
 
-    private static async IAsyncEnumerable<AiStreamChunk> LongQueuedStream(CancellationToken ct)
+    private static async IAsyncEnumerable<AiStreamChunk> LongQueuedStream([EnumeratorCancellation] CancellationToken ct)
     {
         while (!ct.IsCancellationRequested)
         {
@@ -509,9 +551,10 @@ public sealed class AiViewModelTests
         }
     }
 
-    private static async IAsyncEnumerable<AiStreamChunk> SilentAfterFirstChunkStream(CancellationToken ct)
+    private static async IAsyncEnumerable<AiStreamChunk> SilentAfterContentStream([EnumeratorCancellation] CancellationToken ct)
     {
-        yield return new AiStreamChunk { Status = "queued", Position = 1, Total = 1, Content = "", Done = false };
+        // Generating chunk (arms the watchdog) then complete silence — simulated stuck stream.
+        yield return new AiStreamChunk { Status = "generating", Content = "Hello", Done = false };
         try
         {
             await Task.Delay(TimeSpan.FromMinutes(10), ct);
@@ -520,5 +563,18 @@ public sealed class AiViewModelTests
         {
             yield break;
         }
+    }
+
+    private static async IAsyncEnumerable<AiStreamChunk> SlowModelLoadStream()
+    {
+        yield return new AiStreamChunk { Status = "queued", Position = 1, Total = 1, Content = "", Done = false };
+        await Task.Delay(TimeSpan.FromMilliseconds(100));
+        yield return new AiStreamChunk { Status = "generating", Content = "", Done = false };
+        // Long silent cold-load gap — longer than the test's StreamSilenceTimeout. The
+        // watchdog must not cancel here because no content has arrived yet.
+        await Task.Delay(TimeSpan.FromMilliseconds(400));
+        yield return new AiStreamChunk { Content = "Hello there!", Done = false };
+        await Task.Yield();
+        yield return new AiStreamChunk { Content = "", Done = true };
     }
 }

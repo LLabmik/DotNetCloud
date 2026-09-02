@@ -3200,8 +3200,9 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 - ✓ `Controls/MarkdownWebView.cs` — auto-height WebView; http/https links open in the system browser; all other navigation blocked
 - ✓ `AiPage.xaml` — completed assistant messages render as HTML (WebView) when block Markdown is present; inline-only messages stay on the lightweight `Label` path; streaming bubble unchanged
 - ✓ `MarkdownHtmlFormatterTests` — headings, lists, tables, fenced code, raw-HTML escaping, `NeedsHtmlRendering`
+- ✓ Stream-silence watchdog only arms after the first content/thinking chunk — a slow cold Ollama model load (>60s to first token) no longer cancels the request (mirrors Blazor `AiChatPage`; Android `AiViewModel`, 2026-09-01)
 
-**Notes:** Android AI tab now renders full Markdown via client-side Markdig → themed HTML → auto-height WebView, reusing the Notes WebView pattern. Streaming remains on the lightweight `FormattedString` renderer for performance. Verification (build + unit tests, on-device E2E) is the remaining gate before commit.
+**Notes:** Android AI tab now renders full Markdown via client-side Markdig → themed HTML → auto-height WebView, reusing the Notes WebView pattern. Streaming remains on the lightweight `FormattedString` renderer for performance. The AI stream watchdog was fixed so a cold Ollama model load is never cancelled before the first token arrives (only armed after first content/thinking). Verification (build + unit tests) passed; on-device E2E remains the gate before commit.
 
 ### Section: Phase 9.1 — Core AI Interfaces & Module Scaffold
 

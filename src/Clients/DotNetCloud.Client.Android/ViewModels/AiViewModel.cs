@@ -25,6 +25,7 @@ public sealed partial class AiViewModel : ObservableObject
     private CancellationTokenSource? _modelLoadCts;
     private CancellationTokenSource? _watchdogCts;
     private long _lastChunkTicks;
+    private bool _watchdogArmed;
     private AiConversationDto? _renameTarget;
 
     /// <summary>
@@ -35,7 +36,9 @@ public sealed partial class AiViewModel : ObservableObject
 
     /// <summary>
     /// Max time the AI stream may go without any chunk (queue status or content) before the
-    /// watchdog cancels it and surfaces an error. Internal + settable so tests can shorten it.
+    /// watchdog cancels it and surfaces an error. Only applies once generation has begun — the
+    /// watchdog arms itself after the first real content/thinking chunk, so a slow cold Ollama
+    /// model load (no tokens yet) is never cancelled. Internal + settable so tests can shorten it.
     /// </summary>
     internal static TimeSpan StreamSilenceTimeout { get; set; } = TimeSpan.FromSeconds(60);
 
@@ -369,6 +372,7 @@ public sealed partial class AiViewModel : ObservableObject
         _streamCts?.Dispose();
         _streamCts = new CancellationTokenSource();
         var ct = _streamCts.Token;
+        _watchdogArmed = false;
 
         var userMessage = new AiMessageDto
         {
@@ -423,6 +427,15 @@ public sealed partial class AiViewModel : ObservableObject
                     startedGenerating = true;
                     Dispatch(() => IsQueued = false);
                     StartModelLoadTimer();
+                }
+
+                if (!string.IsNullOrEmpty(chunk.Content) || !string.IsNullOrEmpty(chunk.Thinking))
+                {
+                    // First real model output has arrived — arm the mid-stream watchdog now.
+                    // The server sends a queue "Generating" marker and then goes silent while
+                    // Ollama cold-loads the model (gemma4:12b can take >60s to the first token),
+                    // so the watchdog must NOT cancel before actual content arrives.
+                    _watchdogArmed = true;
                 }
 
                 if (!string.IsNullOrEmpty(chunk.Thinking))
@@ -518,6 +531,7 @@ public sealed partial class AiViewModel : ObservableObject
     private void CancelStream()
     {
         StopStreamWatchdog();
+        _watchdogArmed = false;
         try
         {
             _streamCts?.Cancel();
@@ -572,8 +586,12 @@ public sealed partial class AiViewModel : ObservableObject
 
     /// <summary>
     /// Starts a background watchdog that cancels the stream if no chunk (queue status or
-    /// content) arrives within <see cref="StreamSilenceTimeout"/>. Prevents the UI from
-    /// hanging in "Generating…" forever if the server/proxy stream dies silently.
+    /// content) arrives within <see cref="StreamSilenceTimeout"/> — but only once generation
+    /// has actually started (after the first real content/thinking chunk). The server sends a
+    /// queue "Generating" marker and then goes silent while Ollama cold-loads the model
+    /// (gemma4:12b can take >60s to the first token), so the watchdog must NOT cancel before
+    /// actual content arrives. Prevents the UI from hanging in "Generating…" forever if the
+    /// server/proxy stream dies silently mid-generation.
     /// </summary>
     private void StartStreamWatchdog()
     {
@@ -602,7 +620,7 @@ public sealed partial class AiViewModel : ObservableObject
                 }
 
                 var silentFor = TimeSpan.FromTicks(Stopwatch.GetTimestamp() - _lastChunkTicks);
-                if (IsStreaming && silentFor > StreamSilenceTimeout)
+                if (_watchdogArmed && IsStreaming && silentFor > StreamSilenceTimeout)
                 {
                     try
                     {
@@ -613,6 +631,7 @@ public sealed partial class AiViewModel : ObservableObject
                         // Stream already cleaned up.
                     }
 
+                    _watchdogArmed = false;
                     Dispatch(() => ErrorMessage = "AI stream timed out — no response received. Try again.");
                     break;
                 }
