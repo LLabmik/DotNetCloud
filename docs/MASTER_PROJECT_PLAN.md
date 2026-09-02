@@ -3202,7 +3202,7 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 - ✓ `MarkdownHtmlFormatterTests` — headings, lists, tables, fenced code, raw-HTML escaping, `NeedsHtmlRendering`
 - ✓ Stream-silence watchdog only arms after the first content/thinking chunk — a slow cold Ollama model load (>60s to first token) no longer cancels the request (mirrors Blazor `AiChatPage`; Android `AiViewModel`, 2026-09-01)
 
-**Notes:** Android AI tab now renders full Markdown via client-side Markdig → themed HTML → auto-height WebView, reusing the Notes WebView pattern. Streaming remains on the lightweight `FormattedString` renderer for performance. The AI stream watchdog was fixed so a cold Ollama model load is never cancelled before the first token arrives (only armed after first content/thinking). Verification (build + unit tests) passed; on-device E2E remains the gate before commit.
+**Notes:** Android AI tab now renders full Markdown via client-side Markdig → themed HTML → auto-height WebView, reusing the Notes WebView pattern. Streaming remains on the lightweight `FormattedString` renderer for performance. The AI stream watchdog was fixed so a cold Ollama model load is never cancelled before the first token arrives (only armed after first content/thinking). **Verification complete 2026-09-01:** Android arm64 build clean (0 warnings), 257 unit tests pass, and on-device E2E on Samsung R5CWC356B2K confirmed the app waits through the slow first token (cold model load, incl. a ~2-min server-side network stall caused by phone USB-tethering multihoming) with no 60s "AI stream timed out" error, then streams the reply.
 
 ### Section: Phase 9.1 — Core AI Interfaces & Module Scaffold
 
