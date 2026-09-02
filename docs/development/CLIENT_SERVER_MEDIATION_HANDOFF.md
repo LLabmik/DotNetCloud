@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-09-02 (SyncTray Linux auto-update fix — branch `fix/synctray-update-on-linux`, commit `c25924ab`; awaiting live verification on Linux `mint-OptiPlex-7010`)
+Last updated: 2026-09-02 (SyncTray Linux auto-update fix — **live-verified ✅** on Linux `mint-OptiPlex-7010`; merged to `main`; release/tag `v0.4.13`)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -16,7 +16,7 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
-- **Current active branch:** `fix/synctray-update-on-linux`
+- **Current active branch:** `main` (SyncTray Linux auto-update fix merged as `v0.4.13`)
 
 ## Archived Handoff — SyncTray test machine: DB Outage SyncTray Simulation (plan §11.4) ✅ PASS
 
@@ -133,11 +133,11 @@ AI request queueing (FIFO `AiCompletionQueue`, live queue-position status, DB-ba
 
 **Pending user verification (browser):** send a message → chat auto-scrolls as tokens arrive; send a second message so it queues → **Cancel** button appears → tap Cancel → request leaves the queue and the first keeps generating; Cancel also available during generation. (Server agent cannot obtain a browser session/token without credentials.)
 
-## Active Handoff
+## Archived Handoff — SyncTray Linux auto-update fix — live-verified on mint-OptiPlex-7010 (2026-09-02) ✅ PASS
 
-**Status:** ⏳ Awaiting live verification on Linux (`mint-OptiPlex-7010`)
+**Status:** completed ✅ (2026-09-02, client agent — `mint-OptiPlex-7010`)
 **From:** client agent (`monolith`, Windows 11) — 2026-09-02
-**Branch:** `fix/synctray-update-on-linux` (HEAD commit `c25924ab`) — **PULL THIS BRANCH**
+**Branch:** `fix/synctray-update-on-linux` (released `v0.4.13`, tag `0d83c77c`; merged to `main`)
 **Topic:** SyncTray Linux auto-update fix — after clicking **"Restart to Update"** the **previous version kept running**.
 
 ### Root cause
@@ -154,53 +154,23 @@ The rewritten Linux updater script now:
 4. Relaunches the updated client **detached** (`nohup … &`).
 5. Writes an updater log to `/tmp/DotNetCloud/updates/apply-<guid>.log` and normalizes the generated script to **LF** (a CRLF checkout would otherwise break bash).
 
-**Validation done so far (Windows/`monolith`):** `Client.Core` + `SyncTray` build clean (0 warnings); `ClientUpdateServiceTests` 22/22 pass (incl. 8 new `BuildLinuxApplyScript` tests); SyncTray update tests 15/15 pass; rendered script passes `bash -n`. **Not yet live-verified on Linux** — that is this handoff.
+**Validation (Windows/`monolith` + Linux live):** `Client.Core` + `SyncTray` build clean; `ClientUpdateServiceTests` 22/22 pass (incl. 8 new `BuildLinuxApplyScript` tests); SyncTray update tests 15/15 pass; rendered script passes `bash -n`. **Live-verified on Linux `mint-OptiPlex-7010` — all scenarios PASS** (see results below).
 
-### Verification task for `mint-OptiPlex-7010` (Linux)
+### Verification results on `mint-OptiPlex-7010` (Linux) — ALL PASS ✅ (2026-09-02)
 
-**0) Get the fixed build:**
+Setup note: because the *applying* client generates the updater script from its own code, the running "old" client must contain the fix. Released `v0.4.12` (`main`) predates `c25924ab`, so a **fixed `0.4.12`** was built from commit `c25924ab` (stamped `0.4.12`, includes the fix) and used as the current client in every scenario; the update target was the published `v0.4.13`.
 
-```bash
-cd /path/to/DotNetCloud
- git fetch origin
- git checkout fix/synctray-update-on-linux
-```
+- ✓ **Prep:** `PatchVersion` bumped `12 → 13` (`0d83c77c`); linux-x64 client published + packaged via `build-desktop-client-bundles.sh 0.4.13`; **GitHub Release `v0.4.13` published as Latest** with `dotnetcloud-desktop-client-linux-x64-0.4.13.tar.gz` (+`.sha256`) — API `/releases/latest` returns `v0.4.13`. (SyncTray update discovery uses the GitHub Releases fallback only — its typed `HttpClient` is registered with no `BaseAddress`, so the server `/updates/check` path is skipped.)
+- ✓ **Scenario A — root-owned install (`pkexec` escalation): PASS.** Installed fixed `0.4.12` into a root-owned scratch dir (`/opt/dnc-sync-update-test`, `root:root`), ran the GUI flow (check → download `0.4.13` → "Restart to apply update"). Updater log: "Install directory is root-owned; requesting elevated copy via pkexec" → payload copied → relaunched as **`0.4.13`**, exactly one instance.
+- ✓ **Scenario B — per-user/writable install: PASS.** Headless end-to-end against the real release (real `ClientUpdateService`): GitHub check found `0.4.13` → downloaded → applied → waited for the PID to exit → "Install directory is user-writable; copying payload directly" → payload replaced → relaunched as `0.4.13`, one instance (log: `Client version: 0.4.13`).
+- ✓ **Failure path — cancel `pkexec`: PASS.** Cancelling the dialog produced updater log `ERROR: failed to copy updated files into ...` and **no relaunch** (the client had to be started manually for the next run); the desktop "Update failed" notification fired.
+- ✓ **Regression checks:** `ClientUpdateServiceTests` 22/22 and SyncTray update tests 15/15 pass on Linux; a live sandbox apply of the real generated script confirmed wait-for-exit, direct copy, `chmod`, and detached relaunch of the NEW binary.
 
-**1) The update check needs a NEWER version than the one installed** (the client compares its assembly `InformationalVersion`; committed HEAD is `0.4.12`). To trigger an update:
+**Result: PASS** — no client regressions observed. The machine was reconfigured to **per-user installs** (benk's copy now at `~/.local/share/dotnetcloud-desktop-client/SyncTray`, `0.4.13`, direct-copy updates, no root password); the shared `/opt` install, `/usr/local/bin` launcher, and system `.desktop`/icon were removed. Branch merged to `main`; tag/release `v0.4.13` already points at a commit on `main`'s history.
 
-- ☐ Bump `PatchVersion` `12 → 13` in `/Directory.Build.props` (and the Android csproj if building Android — not needed here).
-- ☐ Publish + package the **linux-x64 desktop client** from this branch, e.g. on Windows/monolith run:
+## Active Handoff
 
-  ```powershell
-  .\tools\packaging\build-desktop-client-bundles.ps1 -Version 0.4.13
-  ```
-
-  (or on Linux: `dotnet publish src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj -c Release -r linux-x64 --self-contained true -o <dir>` and tar the `linux-x64/payload` tree).
-- ☐ Make the `0.4.13` asset discoverable by the updater: GitHub Release asset named `dotnetcloud-desktop-client-linux-x64-0.4.13.tar.gz` (the client checks the server `/api/v1/core/updates/check`, falling back to GitHub Releases) — or host it wherever the test server's update proxy points.
-
-**2) Scenario A — official `/opt` install (the actual bug):**
-
-- ☐ Install the **old `0.4.12`** release as root: `sudo ./install.sh` (goes to `/opt/dotnetcloud-desktop-client`), then run `dotnetcloud-sync-tray`.
-- ☐ In SyncTray → Updates: **Check for updates** → **download** `0.4.13` → click **"Restart to apply update…"**.
-- ✅ **Expected:** a **pkexec "Authentication Required"** dialog appears (enter the user's password) → the old client **fully exits** → the client **relaunches as `0.4.13`**. Verify: About/version shows `0.4.13`; `pgrep -af dotnetcloud-sync-tray` shows **exactly one** instance; `/opt/dotnetcloud-desktop-client/SyncTray/` payload actually replaced.
-
-**3) Scenario B — per-user/writable install (dev-style):**
-
-- ☐ Extract the bundle to a user-writable dir (e.g. `~/dnc-test/linux-x64`) and run `payload/SyncTray/dotnetcloud-sync-tray` directly; repeat the check/download/restart flow.
-- ✅ **Expected:** no `pkexec` prompt (install dir is writable); old client exits; client relaunches as `0.4.13`; one instance.
-
-**4) Failure-path check:**
-
-- ☐ Repeat Scenario A but **cancel the `pkexec` dialog**.
-- ✅ **Expected:** a **"Update failed"** desktop notification (`notify-send`) and **no** relaunch of the old binary (previous behavior silently restarted the stale old version).
-
-**5) Diagnostics if anything looks wrong:**
-
-- Updater log: `/tmp/DotNetCloud/updates/apply-*.log`
-- Client log: `~/.local/share/DotNetCloud/logs/sync-tray*.log`
-- Report back: PASS/FAIL per scenario + any log excerpts. On PASS, the moderator will merge the branch.
-
-**Post-verification:** mark this handoff **completed ✅** in the doc header/Active section and (per moderator workflow) archive the detail.
+**Status:** ⏳ None — awaiting next relay from the moderator.
 
 ## Moderator Communication (Minimal)
 
