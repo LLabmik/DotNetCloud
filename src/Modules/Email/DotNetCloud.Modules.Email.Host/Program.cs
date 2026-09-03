@@ -85,6 +85,9 @@ builder.Services.AddAuthorization();
 // Register the gRPC-backed audit logger (SOC 2 CC4) — routes to Core.Server.
 builder.Services.AddAuditLogger();
 
+// Real-time search indexing bridge — forwards SearchIndexRequestEvent to Core.Server.
+builder.Services.AddSearchIndexBridge();
+
 // Register the module as singleton
 builder.Services.AddSingleton<EmailModule>();
 

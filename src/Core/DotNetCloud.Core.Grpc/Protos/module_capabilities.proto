@@ -44,6 +44,9 @@ service CoreCapabilities {
 
   // Records an audit trail entry (IAuditLogger capability, SOC 2 CC4).
   rpc LogAudit (LogAuditRequest) returns (LogAuditResponse);
+
+  // Submits a search-index request from a process-isolated module (real-time indexing).
+  rpc SubmitSearchIndex (SubmitSearchIndexRequest) returns (SubmitSearchIndexResponse);
 }
 
 // Caller context passed with every capability request for authorization.
@@ -221,5 +224,20 @@ message BroadcastRealtimeEventRequest {
 }
 
 message BroadcastRealtimeEventResponse {
+  bool success = 1;
+}
+
+// --- Search Indexing (real-time bridge) ---
+
+message SubmitSearchIndexRequest {
+  // Owning module ID (e.g. "notes", "files").
+  string module_id = 1;
+  // Entity ID that changed (GUID string).
+  string entity_id = 2;
+  // DotNetCloud.Core.Events.Search.SearchIndexAction: 0 = Index, 1 = Remove.
+  int32 action = 3;
+}
+
+message SubmitSearchIndexResponse {
   bool success = 1;
 }
