@@ -75,9 +75,14 @@
    cd linux-x64
    ```
 
-3. **Install SyncTray + launcher:**
+3. **Install SyncTray:**
 
    ```bash
+   # Per-user install (recommended — installs under ~/.local/share, no root required,
+   # and future auto-updates apply in-place without a password prompt)
+   ./install.sh
+
+   # System-wide install for all users (installs under /opt)
    sudo ./install.sh
    ```
 
@@ -89,10 +94,11 @@
 
 5. **Auto-start SyncTray on login:** Open SyncTray, go to `Settings -> General`, and enable `Start DotNetCloud Sync at graphical login`. This writes `~/.config/autostart/dotnetcloud-sync-tray.desktop` (or `$XDG_CONFIG_HOME/autostart/...`).
 
-6. **Know which install model you are using:**
+6. **Install models:**
 
-   - Official Linux release installer: installs SyncTray to `/opt/dotnetcloud-desktop-client/SyncTray/` and creates a launcher symlink.
-   - Local/source or non-root development runs may instead use per-user paths under `~/.local/share/DotNetCloud`.
+   - **Per-user** (`./install.sh`, run as your normal user): installs to `~/.local/share/dotnetcloud-desktop-client/SyncTray/`, with a per-user launcher at `~/.local/bin/dotnetcloud-sync-tray` and per-user `.desktop` entry/icon. No root needed. Auto-updates replace the files in place (no password prompt).
+   - **System-wide** (`sudo ./install.sh`): installs to `/opt/dotnetcloud-desktop-client/SyncTray/` with a `/usr/local/bin` launcher and system `.desktop` entry/icon. Auto-updates escalate the copy via `pkexec` (one password prompt per update).
+   - Both models store app data/logs under `~/.local/share/DotNetCloud` (or `$XDG_DATA_HOME/DotNetCloud`).
 
 > **Note:** There is no separate background service. SyncTray is a single process that owns the full sync lifecycle (sync engine, file watcher, chunked uploads/downloads). Single-instance enforcement is via file lock.
 
@@ -107,8 +113,12 @@
 ### Linux
 
 1. Download the new `dotnetcloud-desktop-client-linux-x64-<version>.tar.gz`.
-2. Extract and run `sudo ./install.sh` again.
+2. Extract and re-run the installer using the same mode as your original install:
+   - Per-user: `./install.sh`
+   - System-wide: `sudo ./install.sh`
 3. The installer replaces binaries in place and preserves sync state/config.
+
+> Normally you don't need to do this by hand: SyncTray's built-in updater (tray → settings → check for updates) downloads and applies new versions automatically.
 
 ## Multi-User Machine Guidance (Current)
 
