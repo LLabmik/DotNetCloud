@@ -1,3 +1,4 @@
+using DotNetCloud.Client.Android.Ai;
 using DotNetCloud.Client.Android.ViewModels;
 
 namespace DotNetCloud.Client.Android.Views;
@@ -30,6 +31,30 @@ public partial class EventEditPage : ContentPage
 
     private void OnDeleteClicked(object? sender, EventArgs e) =>
         _vm.DeleteCommand.Execute(null);
+
+    /// <summary>Toggles the event description between the plain-text editor and a
+    /// rendered Markdown preview.</summary>
+    private bool _showingDescriptionPreview;
+
+    private void OnToggleDescriptionPreviewClicked(object? sender, EventArgs e)
+    {
+        _showingDescriptionPreview = !_showingDescriptionPreview;
+        DescriptionEditor.IsVisible = !_showingDescriptionPreview;
+        DescriptionPreview.IsVisible = _showingDescriptionPreview;
+        if (_showingDescriptionPreview)
+        {
+            // Re-render now that the WebView is visible so it re-measures its
+            // content height (the initial render happened while hidden).
+            DescriptionPreview.Source = new HtmlWebViewSource
+            {
+                Html = MarkdownHtmlFormatter.ToHtmlDocument(_vm.Description)
+            };
+        }
+        if (sender is Button button)
+        {
+            button.Text = _showingDescriptionPreview ? "Edit" : "Preview";
+        }
+    }
 
     /// <summary>Toggles a day-of-week for weekly recurrence via code-behind
     /// since binding to individual bools per button is impractical in XAML.</summary>

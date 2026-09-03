@@ -2,232 +2,247 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:vm="clr-namespace:DotNetCloud.Client.Android.ViewModels"
+             xmlns:conv="clr-namespace:DotNetCloud.Client.Android.Converters"
+             xmlns:controls="clr-namespace:DotNetCloud.Client.Android.Controls"
              x:Class="DotNetCloud.Client.Android.Views.EventDetailPage"
              x:DataType="vm:EventDetailViewModel"
              Title="Event Details"
              BackgroundColor="#0F172A">
 
-    <Shell.TitleView>
-        <Grid ColumnDefinitions="Auto,*"
-                Padding="0,0,8,0">
-            <Button Grid.Column="0"
-                    Text="Back"
-                    BackgroundColor="Transparent"
-                    TextColor="#0EA5E9"
-                    Clicked="OnBackClicked"
-                    FontSize="14"/>
-            <HorizontalStackLayout Grid.Column="1"
-                    Spacing="8"
-                    VerticalOptions="Center">
-                <Image Source="logo.png"
-                        HeightRequest="28"
-                        WidthRequest="28"
-                       VerticalOptions="Center"/>
-                <Label Text="Details"
-                        FontSize="18"
-                        FontAttributes="Bold"
-                       TextColor="#F1F5F9"
-                        VerticalOptions="Center"/>
-            </HorizontalStackLayout>
+        <ContentPage.Resources>
+                <ResourceDictionary>
+                        <conv:MarkdownConverter x:Key="Markdown"/>
+                        <conv:IsRichMarkdownConverter x:Key="IsRichMarkdown"/>
+                </ResourceDictionary>
+        </ContentPage.Resources>
+
+        <Shell.TitleView>
+                <Grid ColumnDefinitions="Auto,*"
+                      Padding="0,0,8,0">
+                        <Button Grid.Column="0"
+                                Text="Back"
+                                BackgroundColor="Transparent"
+                                TextColor="#0EA5E9"
+                                Clicked="OnBackClicked"
+                                FontSize="14"/>
+                        <HorizontalStackLayout Grid.Column="1"
+                                               Spacing="8"
+                                               VerticalOptions="Center">
+                                <Image Source="logo.png"
+                                       HeightRequest="28"
+                                       WidthRequest="28"
+                                       VerticalOptions="Center"/>
+                                <Label Text="Details"
+                                       FontSize="18"
+                                       FontAttributes="Bold"
+                                       TextColor="#F1F5F9"
+                                       VerticalOptions="Center"/>
+                        </HorizontalStackLayout>
+                </Grid>
+        </Shell.TitleView>
+
+        <Grid RowDefinitions="*,Auto"
+              BackgroundColor="#0F172A">
+
+                <!-- Scrollable content -->
+                <ScrollView Grid.Row="0"
+                            Padding="16,8">
+                        <VerticalStackLayout Spacing="12">
+
+                                <!-- Loading -->
+                                <ActivityIndicator IsRunning="{Binding IsLoading}"
+                                                   IsVisible="{Binding IsLoading}"
+                                                   Color="#0EA5E9"
+                                                   HorizontalOptions="Center"/>
+
+                                <!-- Error -->
+                                <Label Text="{Binding ErrorMessage}"
+                                       TextColor="#EF4444"
+                                       IsVisible="{Binding ErrorMessage, Converter={StaticResource IsNotNull}}"
+                                       HorizontalOptions="Center"/>
+
+                                <!-- Event title -->
+                                <Label Text="{Binding Event.Title}"
+                                       FontSize="24"
+                                       FontAttributes="Bold"
+                                       TextColor="#F1F5F9"
+                                       LineBreakMode="WordWrap"/>
+
+                                <!-- Recurrence label -->
+                                <Border StrokeThickness="1"
+                                        Stroke="#334155"
+                                        Padding="8,4"
+                                        BackgroundColor="#1E293B"
+                                        StrokeShape="RoundRectangle 8"
+                                        IsVisible="{Binding IsRecurring}">
+                                        <Label Text="{Binding RecurrenceDescription}"
+                                               FontSize="12"
+                                               TextColor="#0EA5E9"/>
+                                </Border>
+
+                                <!-- Date/time -->
+                                <HorizontalStackLayout Spacing="8">
+                                        <Label Text="📅"
+                                               FontSize="16"
+                                               VerticalOptions="Center"/>
+                                        <Label Text="{Binding DateTimeDisplay}"
+                                               FontSize="14"
+                                               TextColor="#94A3B8"
+                                               LineBreakMode="WordWrap"/>
+                                        <Label Text="{Binding TimeZoneDisplay}"
+                                               FontSize="11"
+                                               TextColor="#64748B"
+                                               VerticalOptions="Center"/>
+                                </HorizontalStackLayout>
+
+                                <!-- Calendar name + color -->
+                                <HorizontalStackLayout Spacing="8"
+                                                       IsVisible="{Binding Calendar, Converter={StaticResource IsNotNull}}">
+                                        <BoxView Color="{Binding Calendar.Color}"
+                                                 WidthRequest="12"
+                                                 HeightRequest="12"
+                                                 CornerRadius="6"
+                                                 VerticalOptions="Center"/>
+                                        <Label Text="{Binding Calendar.Name}"
+                                               FontSize="14"
+                                               TextColor="#94A3B8"
+                                               VerticalOptions="Center"/>
+                                </HorizontalStackLayout>
+
+                                <!-- Location -->
+                                <HorizontalStackLayout Spacing="8"
+                                                       IsVisible="{Binding Event.Location, Converter={StaticResource IsNotNull}}">
+                                        <Label Text="📍"
+                                               FontSize="16"
+                                               VerticalOptions="Start"/>
+                                        <Label Text="{Binding Event.Location}"
+                                               FontSize="14"
+                                               TextColor="#94A3B8"
+                                               LineBreakMode="WordWrap"/>
+                                </HorizontalStackLayout>
+
+                                <!-- Description -->
+                                <VerticalStackLayout Spacing="4"
+                                                     IsVisible="{Binding Event.Description, Converter={StaticResource IsNotNull}}">
+                                        <Label Text="Description"
+                                               FontSize="13"
+                                               TextColor="#64748B"
+                                               FontAttributes="Bold"/>
+                                        <Grid>
+                                                <Label FormattedText="{Binding Event.Description, Converter={StaticResource Markdown}}"
+                                                       FontSize="14"
+                                                       TextColor="#94A3B8"
+                                                       LineBreakMode="WordWrap"
+                                                       IsVisible="{Binding Event.Description, Converter={StaticResource IsRichMarkdown}, ConverterParameter=Invert}"/>
+                                                <controls:MarkdownWebView Markdown="{Binding Event.Description}"
+                                                                          BackgroundColor="#1E293B"
+                                                                          IsVisible="{Binding Event.Description, Converter={StaticResource IsRichMarkdown}}"/>
+                                        </Grid>
+                                </VerticalStackLayout>
+
+                                <!-- URL -->
+                                <HorizontalStackLayout Spacing="8"
+                                                       IsVisible="{Binding Event.Url, Converter={StaticResource IsNotNull}}">
+                                        <Label Text="🔗"
+                                               FontSize="16"
+                                               VerticalOptions="Start"/>
+                                        <Label Text="{Binding Event.Url}"
+                                               FontSize="14"
+                                               TextColor="#0EA5E9"
+                                               LineBreakMode="TailTruncation"/>
+                                </HorizontalStackLayout>
+
+                                <!-- Attendees -->
+                                <VerticalStackLayout Spacing="4"
+                                                     IsVisible="{Binding AttendeeDisplayList.Count, Converter={StaticResource IntToBoolConverter}}">
+                                        <Label Text="Attendees"
+                                               FontSize="13"
+                                               TextColor="#64748B"
+                                               FontAttributes="Bold"/>
+                                        <CollectionView ItemsSource="{Binding AttendeeDisplayList}">
+                                                <CollectionView.ItemTemplate>
+                                                        <DataTemplate x:DataType="x:String">
+                                                                <Label Text="{Binding}"
+                                                                       FontSize="13"
+                                                                       TextColor="#94A3B8"
+                                                                       Padding="0,2"/>
+                                                        </DataTemplate>
+                                                </CollectionView.ItemTemplate>
+                                        </CollectionView>
+                                </VerticalStackLayout>
+
+                                <!-- RSVP buttons -->
+                                <VerticalStackLayout Spacing="8"
+                                                     IsVisible="{Binding AttendeeDisplayList.Count, Converter={StaticResource IntToBoolConverter}}">
+                                        <Label Text="Your Response"
+                                               FontSize="13"
+                                               TextColor="#64748B"
+                                               FontAttributes="Bold"/>
+                                        <HorizontalStackLayout Spacing="8">
+                                                <Button Text="Accept"
+                                                        Clicked="OnRsvpAccepted"
+                                                        BackgroundColor="#166534"
+                                                        TextColor="#F1F5F9"
+                                                        FontSize="13"
+                                                        Padding="16,6"
+                                                        CornerRadius="16"
+                                                        HeightRequest="36"/>
+                                                <Button Text="Tentative"
+                                                        Clicked="OnRsvpTentative"
+                                                        BackgroundColor="#854D0E"
+                                                        TextColor="#F1F5F9"
+                                                        FontSize="13"
+                                                        Padding="16,6"
+                                                        CornerRadius="16"
+                                                        HeightRequest="36"/>
+                                                <Button Text="Decline"
+                                                        Clicked="OnRsvpDeclined"
+                                                        BackgroundColor="#991B1B"
+                                                        TextColor="#F1F5F9"
+                                                        FontSize="13"
+                                                        Padding="16,6"
+                                                        CornerRadius="16"
+                                                        HeightRequest="36"/>
+                                        </HorizontalStackLayout>
+                                </VerticalStackLayout>
+
+                                <!-- Status -->
+                                <HorizontalStackLayout Spacing="8">
+                                        <Label Text="Status:"
+                                               FontSize="13"
+                                               TextColor="#64748B"/>
+                                        <Label Text="{Binding Event.Status}"
+                                               FontSize="13"
+                                               TextColor="#94A3B8"/>
+                                </HorizontalStackLayout>
+
+                        </VerticalStackLayout>
+                </ScrollView>
+
+                <!-- Bottom action bar -->
+                <Grid Grid.Row="1"
+                      ColumnDefinitions="*,*"
+                      Padding="16,8"
+                      BackgroundColor="#1E293B">
+                        <Button Grid.Column="0"
+                                Text="Edit"
+                                Clicked="OnEditClicked"
+                                BackgroundColor="#0EA5E9"
+                                TextColor="#FFFFFF"
+                                FontSize="14"
+                                Padding="8"
+                                CornerRadius="8"
+                                Margin="4"/>
+                        <Button Grid.Column="1"
+                                Text="Delete"
+                                Clicked="OnDeleteClicked"
+                                BackgroundColor="#DC2626"
+                                TextColor="#FFFFFF"
+                                FontSize="14"
+                                Padding="8"
+                                CornerRadius="8"
+                                Margin="4"/>
+                </Grid>
+
         </Grid>
-    </Shell.TitleView>
-
-    <Grid RowDefinitions="*,Auto"
-            BackgroundColor="#0F172A">
-
-        <!-- Scrollable content -->
-        <ScrollView Grid.Row="0"
-                Padding="16,8">
-            <VerticalStackLayout Spacing="12">
-
-                <!-- Loading -->
-                <ActivityIndicator IsRunning="{Binding IsLoading}"
-                                   IsVisible="{Binding IsLoading}"
-                        Color="#0EA5E9"
-                                   HorizontalOptions="Center"/>
-
-                <!-- Error -->
-                <Label Text="{Binding ErrorMessage}"
-                        TextColor="#EF4444"
-                       IsVisible="{Binding ErrorMessage, Converter={StaticResource IsNotNull}}"
-                       HorizontalOptions="Center"/>
-
-                <!-- Event title -->
-                <Label Text="{Binding Event.Title}"
-                        FontSize="24"
-                        FontAttributes="Bold"
-                       TextColor="#F1F5F9"
-                        LineBreakMode="WordWrap"/>
-
-                <!-- Recurrence label -->
-                <Border StrokeThickness="1"
-                        Stroke="#334155"
-                        Padding="8,4"
-                        BackgroundColor="#1E293B"
-                        StrokeShape="RoundRectangle 8"
-                        IsVisible="{Binding IsRecurring}">
-                    <Label Text="{Binding RecurrenceDescription}"
-                            FontSize="12"
-                           TextColor="#0EA5E9"/>
-                </Border>
-
-                <!-- Date/time -->
-                <HorizontalStackLayout Spacing="8">
-                    <Label Text="📅"
-                            FontSize="16"
-                            VerticalOptions="Center"/>
-                    <Label Text="{Binding DateTimeDisplay}"
-                            FontSize="14"
-                           TextColor="#94A3B8"
-                            LineBreakMode="WordWrap"/>
-                    <Label Text="{Binding TimeZoneDisplay}"
-                            FontSize="11"
-                            TextColor="#64748B"
-                            VerticalOptions="Center"/>
-                </HorizontalStackLayout>
-
-                <!-- Calendar name + color -->
-                <HorizontalStackLayout Spacing="8"
-                                       IsVisible="{Binding Calendar, Converter={StaticResource IsNotNull}}">
-                    <BoxView Color="{Binding Calendar.Color}"
-                            WidthRequest="12"
-                             HeightRequest="12"
-                            CornerRadius="6"
-                            VerticalOptions="Center"/>
-                    <Label Text="{Binding Calendar.Name}"
-                            FontSize="14"
-                            TextColor="#94A3B8"
-                           VerticalOptions="Center"/>
-                </HorizontalStackLayout>
-
-                <!-- Location -->
-                <HorizontalStackLayout Spacing="8"
-                                       IsVisible="{Binding Event.Location, Converter={StaticResource IsNotNull}}">
-                    <Label Text="📍"
-                            FontSize="16"
-                            VerticalOptions="Start"/>
-                    <Label Text="{Binding Event.Location}"
-                            FontSize="14"
-                           TextColor="#94A3B8"
-                            LineBreakMode="WordWrap"/>
-                </HorizontalStackLayout>
-
-                <!-- Description -->
-                <VerticalStackLayout Spacing="4"
-                                     IsVisible="{Binding Event.Description, Converter={StaticResource IsNotNull}}">
-                    <Label Text="Description"
-                            FontSize="13"
-                            TextColor="#64748B"
-                           FontAttributes="Bold"/>
-                    <Label Text="{Binding Event.Description}"
-                            FontSize="14"
-                           TextColor="#94A3B8"
-                            LineBreakMode="WordWrap"/>
-                </VerticalStackLayout>
-
-                <!-- URL -->
-                <HorizontalStackLayout Spacing="8"
-                                       IsVisible="{Binding Event.Url, Converter={StaticResource IsNotNull}}">
-                    <Label Text="🔗"
-                            FontSize="16"
-                            VerticalOptions="Start"/>
-                    <Label Text="{Binding Event.Url}"
-                            FontSize="14"
-                            TextColor="#0EA5E9"
-                           LineBreakMode="TailTruncation"/>
-                </HorizontalStackLayout>
-
-                <!-- Attendees -->
-                <VerticalStackLayout Spacing="4"
-                                     IsVisible="{Binding AttendeeDisplayList.Count, Converter={StaticResource IntToBoolConverter}}">
-                    <Label Text="Attendees"
-                            FontSize="13"
-                            TextColor="#64748B"
-                           FontAttributes="Bold"/>
-                    <CollectionView ItemsSource="{Binding AttendeeDisplayList}">
-                        <CollectionView.ItemTemplate>
-                            <DataTemplate x:DataType="x:String">
-                                <Label Text="{Binding}"
-                                        FontSize="13"
-                                        TextColor="#94A3B8"
-                                       Padding="0,2"/>
-                            </DataTemplate>
-                        </CollectionView.ItemTemplate>
-                    </CollectionView>
-                </VerticalStackLayout>
-
-                <!-- RSVP buttons -->
-                <VerticalStackLayout Spacing="8"
-                                     IsVisible="{Binding AttendeeDisplayList.Count, Converter={StaticResource IntToBoolConverter}}">
-                    <Label Text="Your Response"
-                            FontSize="13"
-                            TextColor="#64748B"
-                           FontAttributes="Bold"/>
-                    <HorizontalStackLayout Spacing="8">
-                        <Button Text="Accept"
-                                Clicked="OnRsvpAccepted"
-                                BackgroundColor="#166534"
-                                TextColor="#F1F5F9"
-                                FontSize="13"
-                                Padding="16,6"
-                                CornerRadius="16"
-                                HeightRequest="36"/>
-                        <Button Text="Tentative"
-                                Clicked="OnRsvpTentative"
-                                BackgroundColor="#854D0E"
-                                TextColor="#F1F5F9"
-                                FontSize="13"
-                                Padding="16,6"
-                                CornerRadius="16"
-                                HeightRequest="36"/>
-                        <Button Text="Decline"
-                                Clicked="OnRsvpDeclined"
-                                BackgroundColor="#991B1B"
-                                TextColor="#F1F5F9"
-                                FontSize="13"
-                                Padding="16,6"
-                                CornerRadius="16"
-                                HeightRequest="36"/>
-                    </HorizontalStackLayout>
-                </VerticalStackLayout>
-
-                <!-- Status -->
-                <HorizontalStackLayout Spacing="8">
-                    <Label Text="Status:"
-                            FontSize="13"
-                            TextColor="#64748B"/>
-                    <Label Text="{Binding Event.Status}"
-                            FontSize="13"
-                            TextColor="#94A3B8"/>
-                </HorizontalStackLayout>
-
-            </VerticalStackLayout>
-        </ScrollView>
-
-        <!-- Bottom action bar -->
-        <Grid Grid.Row="1"
-                ColumnDefinitions="*,*"
-              Padding="16,8"
-                BackgroundColor="#1E293B">
-            <Button Grid.Column="0"
-                    Text="Edit"
-                    Clicked="OnEditClicked"
-                    BackgroundColor="#0EA5E9"
-                    TextColor="#FFFFFF"
-                    FontSize="14"
-                    Padding="8"
-                    CornerRadius="8"
-                    Margin="4"/>
-            <Button Grid.Column="1"
-                    Text="Delete"
-                    Clicked="OnDeleteClicked"
-                    BackgroundColor="#DC2626"
-                    TextColor="#FFFFFF"
-                    FontSize="14"
-                    Padding="8"
-                    CornerRadius="8"
-                    Margin="4"/>
-        </Grid>
-
-    </Grid>
 </ContentPage>
