@@ -598,6 +598,9 @@ When the assistant needs the mediator to run a command:
 
 - The assistant is responsible for pushing commits to remote by default.
 - Do not delegate routine push responsibility to the moderator/user unless explicitly requested.
+- **Always push the current working branch** (e.g. `fix/...`) to `origin` — never push `main` directly.
+- Do NOT fast-forward or merge the working branch into local `main`, and do NOT run `git push origin main` on the user's behalf.
+- Merging into `main` happens via a **PR created by the user on GitHub**, not by the assistant.
 
 ### PR Creation Policy (MANDATORY)
 
