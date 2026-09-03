@@ -4,11 +4,14 @@
 @using DotNetCloud.Core.Capabilities
 @using DotNetCloud.Modules.Calendar.Services
 @using Microsoft.AspNetCore.WebUtilities
+@using DotNetCloud.UI.Shared.Components.Editors
+@using DotNetCloud.UI.Shared.Services
 @inject ICalendarApiClient ApiClient
 @inject IOrganizationDirectory OrgDirectory
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager Navigation
 @inject Microsoft.JSInterop.IJSRuntime JSRuntime
+@inject IMarkdownRenderer MarkdownRenderer
 
 <div class="calendar-page-layout">
     <div class="calendar-sidebar @(_sidebarCollapsed ? "collapsed" : "")">
@@ -544,7 +547,15 @@
                             }
                         </div>
 
-                        <InputText class="form-control" @bind-Value="_eventEditor.Description" placeholder="Description" />
+                        <div class="calendar-form-row">
+                            <label class="calendar-form-label">Description</label>
+                            <MarkdownEditor Compact
+                                            Rows="6"
+                                            Placeholder="Description (Markdown supported)"
+                                            Content="@(_eventEditor.Description ?? string.Empty)"
+                                            ContentChanged="@(v => _eventEditor.Description = v)"
+                                            Renderer="MarkdownRenderer" />
+                        </div>
                     </div>
                     <div class="calendar-form-actions">
                         <button type="submit" class="btn btn-primary">Save Event</button>

@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:vm="clr-namespace:DotNetCloud.Client.Android.ViewModels"
              xmlns:core="clr-namespace:DotNetCloud.Core.DTOs;assembly=DotNetCloud.Core"
+             xmlns:controls="clr-namespace:DotNetCloud.Client.Android.Controls"
              x:Class="DotNetCloud.Client.Android.Views.EventEditPage"
              x:DataType="vm:EventEditViewModel"
              Title="{Binding EditTitle}"
@@ -102,15 +103,33 @@
 
                      <!-- Description -->
                      <VerticalStackLayout Spacing="4">
-                            <Label Text="Description"
-                                   FontSize="12"
-                                   TextColor="#64748B"/>
-                            <Editor Text="{Binding Description}"
-                                    Placeholder="Add description..."
+                            <Grid ColumnDefinitions="*,Auto">
+                                   <Label Grid.Column="0"
+                                          Text="Description"
+                                          FontSize="12"
+                                          TextColor="#64748B"
+                                          VerticalOptions="Center"/>
+                                   <Button Grid.Column="1"
+                                           x:Name="DescriptionPreviewToggle"
+                                           Text="Preview"
+                                           Clicked="OnToggleDescriptionPreviewClicked"
+                                           BackgroundColor="Transparent"
+                                           TextColor="#0EA5E9"
+                                           FontSize="12"
+                                           Padding="8,0"
+                                           HeightRequest="28"/>
+                            </Grid>
+                            <Editor x:Name="DescriptionEditor"
+                                    Text="{Binding Description}"
+                                    Placeholder="Add description... (Markdown supported)"
                                     TextColor="#F1F5F9"
                                     PlaceholderColor="#475569"
                                     BackgroundColor="#1E293B"
                                     HeightRequest="80"/>
+                            <controls:MarkdownWebView x:Name="DescriptionPreview"
+                                                      Markdown="{Binding Description}"
+                                                      BackgroundColor="#1E293B"
+                                                      IsVisible="False"/>
                      </VerticalStackLayout>
 
                      <!-- Location -->

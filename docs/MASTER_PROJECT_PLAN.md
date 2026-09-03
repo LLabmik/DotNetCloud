@@ -1725,6 +1725,19 @@ Also fixed Android music player auto-advance & stability (2026-08-24): playing f
 
 **Notes:** Calendar module now has complete Shelter-style UX with all backend recurrence features wired to the UI. Org calendars coexist with user-owned calendars. Monthly recurrence supports "first Monday", "last Friday", etc. Multi-day/all-day events render as spanning bars in the month grid. All changes covered by unit tests.
 
+#### Calendar Event Description Markdown Enhancement (2026-09-03)
+
+**STATUS:** completed ✅
+**DELIVERABLES:**
+
+- ✓ Blazor event editor description upgraded from single-line `InputText` to the shared `MarkdownEditor` (compact toolbar + preview, `Rows=6`)
+- ✓ Android `EventEditPage` description editor keeps multiline input and gains a Markdown preview toggle (`MarkdownWebView` rendered locally via `MarkdownHtmlFormatter`)
+- ✓ Android `EventDetailPage` renders the event description as Markdown (inline `MarkdownConverter` for plain text, `MarkdownWebView` for rich/block content)
+- ✓ Builds clean: Calendar module (0 warnings) and Android client (0 warnings)
+- ✓ Tests pass: 179 calendar tests + 257 Android client tests (0 failures)
+
+**Notes:** Event descriptions now support multiline Markdown across the Blazor and Android clients, consistent with Tracks work items, Chat channel descriptions, and Notes. Rendering reuses the existing Markdig/`MarkdownHtmlFormatter` pipelines already covered by unit tests.
+
 #### Calendar Attendee Contact Search Enhancement (2026-06-02)
 
 **STATUS:** completed ✅

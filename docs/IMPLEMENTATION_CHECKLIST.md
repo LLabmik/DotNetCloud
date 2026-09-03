@@ -3780,6 +3780,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ All-day event toggle with conditional time inputs
 - ✓ Color swatch picker with preset colors + custom hex
 - ✓ URL field in event editor
+- ✓ Event description field — multiline Markdown (Blazor MarkdownEditor with preview; Android editor preview toggle + Markdown rendering in event detail)
 - ✓ Modal-based editing: Event, Calendar, Day Details, Delete Confirmation
 - ✓ Month grid polish: max 3 events per cell, "+X more" link, time badges, all-day styling
 - ✓ Today button in calendar toolbar
