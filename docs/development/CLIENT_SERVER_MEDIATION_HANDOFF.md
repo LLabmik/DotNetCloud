@@ -170,7 +170,25 @@ Setup note: because the *applying* client generates the updater script from its 
 
 ## Active Handoff
 
-**Status:** ⏳ None — awaiting next relay from the moderator.
+**Status:** ⏳ Calendar event description Markdown — server side DONE & deployed to mint22; Android client build/install pending.
+
+**Branch:** `fix/calendar-description-multiline` (commit `a242b3da`)
+
+### Context (2026-09-03)
+The calendar event **Description** field is now multiline and supports Markdown across Blazor and Android:
+
+- **Blazor** `src/Modules/Calendar/DotNetCloud.Modules.Calendar/UI/CalendarPage.razor` — event Description replaced the single-line `InputText` with the shared `MarkdownEditor` (compact toolbar + Edit/Preview, `Rows=6`), injected `IMarkdownRenderer`.
+- **Android** `Views/EventEditPage.xaml` (+`.cs`) — description keeps its multiline `Editor` and gains a **Preview** toggle rendered via `MarkdownWebView`/`MarkdownHtmlFormatter` (local render; re-renders on toggle so the WebView re-measures).
+- **Android** `Views/EventDetailPage.xaml` — description now renders as Markdown: inline `MarkdownConverter` for plain text, `MarkdownWebView` for rich/block content (same pattern as `AiPage`).
+
+### Server deploy (mint22 dev) — DONE ✅
+- Deployed via `sudo ./scripts/deploy.sh`. `/health/ready` Healthy, database reachable, all module hosts running. Deployed `DotNetCloud.Modules.Calendar.dll` confirmed to contain the new markup ("Description (Markdown supported)", `MarkdownEditor`, `IMarkdownRenderer`). No pending migrations.
+
+### Remaining (Android agent — `monolith`)
+- Build `DotNetCloud.Client.Android` from this branch and install on the Android device/emulator, then visually verify:
+  - Event **edit**: multiline Description editor + Preview toggle renders Markdown.
+  - Event **detail**: Description renders Markdown.
+- Note: the Android render path is already covered by 257 passing `DotNetCloud.Client.Android.Tests` (markdown converter/formatter); this is a visual acceptance pass.
 
 ## Moderator Communication (Minimal)
 
