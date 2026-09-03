@@ -1,11 +1,13 @@
 using System.Globalization;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Modules.Notes.Data;
 using DotNetCloud.Modules.Notes.Host.Protos;
 using DotNetCloud.Modules.Notes.Models;
 using DotNetCloud.Modules.Notes.Services;
 using DotNetCloud.UI.Shared.Services;
 using Grpc.Core;
+using Microsoft.EntityFrameworkCore;
 
 namespace DotNetCloud.Modules.Notes.Host.Services;
 
@@ -19,6 +21,7 @@ public sealed class NotesGrpcService : Protos.NotesGrpcService.NotesGrpcServiceB
     private readonly INoteFolderService _folderService;
     private readonly INoteShareService _shareService;
     private readonly IMarkdownRenderer _markdownRenderer;
+    private readonly NotesDbContext _db;
     private readonly ILogger<NotesGrpcService> _logger;
 
     /// <summary>
@@ -29,12 +32,14 @@ public sealed class NotesGrpcService : Protos.NotesGrpcService.NotesGrpcServiceB
         INoteFolderService folderService,
         INoteShareService shareService,
         IMarkdownRenderer markdownRenderer,
+        NotesDbContext db,
         ILogger<NotesGrpcService> logger)
     {
         _noteService = noteService;
         _folderService = folderService;
         _shareService = shareService;
         _markdownRenderer = markdownRenderer;
+        _db = db;
         _logger = logger;
     }
 
@@ -485,20 +490,21 @@ public sealed class NotesGrpcService : Protos.NotesGrpcService.NotesGrpcServiceB
         IServerStreamWriter<SearchableDocument> responseStream,
         ServerCallContext context)
     {
-        // Use system context when no UserId provided (called by search indexer)
-        var caller = Guid.TryParse(request.UserId, out var userId)
-            ? new CallerContext(userId, ["user"], CallerType.User)
-            : CallerContext.CreateSystemContext();
-
-        var notes = await _noteService.ListNotesAsync(
-            caller,
-            folderId: null, skip: 0, take: int.MaxValue,
-            context.CancellationToken);
+        // Query the notes table directly (Chat pattern). The owner-scoped
+        // INoteService methods return nothing for a system caller, which broke
+        // the search indexer's pull path. The global soft-delete query filter
+        // plus the explicit predicate below exclude deleted notes.
+        var notes = await _db.Notes
+            .AsNoTracking()
+            .Include(n => n.Tags)
+            .Where(n => !n.IsDeleted)
+            .OrderBy(n => n.Id)
+            .ToListAsync(context.CancellationToken);
 
         foreach (var note in notes)
         {
-            var doc = MapNoteToSearchableDocument(note);
-            await responseStream.WriteAsync(doc, context.CancellationToken);
+            await responseStream.WriteAsync(
+                MapNoteToSearchableDocument(note), context.CancellationToken);
         }
     }
 
@@ -509,23 +515,22 @@ public sealed class NotesGrpcService : Protos.NotesGrpcService.NotesGrpcServiceB
         if (!Guid.TryParse(request.EntityId, out var entityId))
             return new SearchableDocumentResponse { Found = false };
 
-        // Use a system-level caller to retrieve the note for indexing
-        var note = await _noteService.GetNoteAsync(
-            entityId,
-            new CallerContext(Guid.Empty, ["system"], CallerType.System),
-            context.CancellationToken);
+        var note = await _db.Notes
+            .AsNoTracking()
+            .Include(n => n.Tags)
+            .FirstOrDefaultAsync(n => n.Id == entityId && !n.IsDeleted,
+                context.CancellationToken);
 
-        if (note is null)
-            return new SearchableDocumentResponse { Found = false };
-
-        return new SearchableDocumentResponse
-        {
-            Found = true,
-            Document = MapNoteToSearchableDocument(note)
-        };
+        return note is null
+            ? new SearchableDocumentResponse { Found = false }
+            : new SearchableDocumentResponse
+            {
+                Found = true,
+                Document = MapNoteToSearchableDocument(note)
+            };
     }
 
-    private static SearchableDocument MapNoteToSearchableDocument(NoteDto note)
+    private static SearchableDocument MapNoteToSearchableDocument(Note note)
     {
         var doc = new SearchableDocument
         {
@@ -545,7 +550,7 @@ public sealed class NotesGrpcService : Protos.NotesGrpcService.NotesGrpcServiceB
         doc.Metadata["Format"] = note.Format.ToString();
         doc.Metadata["FolderId"] = note.FolderId?.ToString() ?? string.Empty;
         if (note.Tags.Count > 0)
-            doc.Metadata["Tags"] = string.Join(",", note.Tags);
+            doc.Metadata["Tags"] = string.Join(",", note.Tags.Select(t => t.Tag));
 
         return doc;
     }

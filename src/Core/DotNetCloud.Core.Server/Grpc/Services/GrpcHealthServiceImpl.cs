@@ -3,6 +3,7 @@ using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Events.Search;
 using DotNetCloud.Core.Grpc.Capabilities;
 using DotNetCloud.Core.Modules.Supervisor;
 using DotNetCloud.Core.Server.Services;
@@ -23,13 +24,16 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
 {
     private readonly ILogger<CoreCapabilitiesServiceImpl> _logger;
     private readonly IServiceProvider _serviceProvider;
+    private readonly SearchIndexingService _indexingService;
 
     public CoreCapabilitiesServiceImpl(
         ILogger<CoreCapabilitiesServiceImpl> logger,
-        IServiceProvider serviceProvider)
+        IServiceProvider serviceProvider,
+        SearchIndexingService indexingService)
     {
         _logger = logger;
         _serviceProvider = serviceProvider;
+        _indexingService = indexingService;
     }
 
     /// <summary>
@@ -200,6 +204,32 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
         // Modules should use the BroadcastRealtimeEvent RPC for real-time notifications.
 
         return Task.FromResult(new PublishEventResponse { Success = true });
+    }
+
+    /// <summary>
+    /// Enqueues a real-time search-index request from a process-isolated module.
+    /// </summary>
+    public override async Task<SubmitSearchIndexResponse> SubmitSearchIndex(
+        SubmitSearchIndexRequest request, ServerCallContext context)
+    {
+        if (request.Action is < 0 or > 1)
+        {
+            _logger.LogWarning(
+                "SubmitSearchIndex: invalid action {Action} for {ModuleId}/{EntityId} from module {Caller}",
+                request.Action, request.ModuleId, request.EntityId, GetModuleId(context));
+            return new SubmitSearchIndexResponse { Success = false };
+        }
+
+        await _indexingService.EnqueueAsync(new SearchIndexRequestEvent
+        {
+            EventId = Guid.CreateVersion7(),
+            CreatedAt = DateTime.UtcNow,
+            ModuleId = request.ModuleId,
+            EntityId = request.EntityId,
+            Action = (SearchIndexAction)request.Action
+        });
+
+        return new SubmitSearchIndexResponse { Success = true };
     }
 
     /// <summary>

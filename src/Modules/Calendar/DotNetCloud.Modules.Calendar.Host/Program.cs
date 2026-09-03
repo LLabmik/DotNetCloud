@@ -17,6 +17,7 @@ using DotNetCloud.Core.Data.Context;
 using Grpc.Net.Client;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
@@ -66,6 +67,9 @@ builder.Services.AddTokenIntrospection();
 
 // Register the gRPC-backed audit logger (SOC 2 CC4) — routes to Core.Server.
 builder.Services.AddAuditLogger();
+
+// Real-time search indexing bridge — forwards SearchIndexRequestEvent to Core.Server.
+builder.Services.AddSearchIndexBridge();
 
 // Authentication: supports both cookie (browser/Blazor) and introspection (desktop/mobile).
 // A policy scheme automatically routes to the correct handler based on the request.
@@ -184,7 +188,7 @@ builder.Services.AddCalendarServices(builder.Configuration);
 var coreEndpoint = Environment.GetEnvironmentVariable("DOTNETCLOUD_CORE_ENDPOINT");
 if (!string.IsNullOrEmpty(coreEndpoint))
 {
-    _ = builder.Services.AddSingleton(_ =>
+    builder.Services.TryAddSingleton(_ =>
     {
         var channel = GrpcChannel.ForAddress(coreEndpoint);
         return new CoreCapabilities.CoreCapabilitiesClient(channel);

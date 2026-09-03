@@ -70,6 +70,31 @@ public class SqlServerSearchProviderTests
     }
 
     [TestMethod]
+    public async Task IndexDocumentAsync_NoTrackingContext_ExistingDocument_StillUpdatesEntry()
+    {
+        // Regression: CoreDbContext sets QueryTrackingBehavior.NoTracking globally.
+        // Without AsTracking on the upsert load, updating an existing entry is a
+        // silent no-op on SaveChanges — real-time (incremental) indexing never
+        // persisted updates. Reproduced only with NoTracking configured.
+        var options = new DbContextOptionsBuilder<CoreDbContext>()
+            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
+            .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking)
+            .Options;
+
+        using var db = new CoreDbContext(options, new DotNetCloud.Core.Data.Naming.PostgreSqlNamingStrategy());
+        var provider = new SqlServerSearchProvider(db, NullLogger<SqlServerSearchProvider>.Instance);
+
+        await provider.IndexDocumentAsync(CreateDocument("files", "entity-1", "FileNode", "Original Title"));
+        await provider.IndexDocumentAsync(CreateDocument("files", "entity-1", "FileNode", "Updated Title"));
+
+        var count = await db.SearchIndexEntries.CountAsync();
+        Assert.AreEqual(1, count);
+
+        var entry = await db.SearchIndexEntries.FirstAsync();
+        Assert.AreEqual("Updated Title", entry.Title);
+    }
+
+    [TestMethod]
     public async Task IndexDocumentAsync_WithMetadata_SerializesJson()
     {
         var doc = new SearchDocument

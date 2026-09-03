@@ -5200,6 +5200,23 @@ Search is a **core capability** (no user-owned domain — it reads/aggregates ot
 - ✓ Search queries were not observable in production — `SearchQueryService` logged only at `LogDebug` (filtered out at Info+). Added Information-level structured logs to `SearchController.SearchAsync` and `SuggestAsync` (`Search query "..." by user ... returned N results` / `Search suggest "..." ... returned N suggestions`); verified a live UI search ("turtle") is captured.
 - ✓ UI full search navigated to `/search?q=` (empty query) — `GlobalSearchBar.ViewAllResults()` built the URL **after** `CloseSearch()` cleared `_query`. Fixed by capturing the URL before closing; the full search now fires and is logged.
 
+#### Real-time Search Indexing Bridge (from SEARCH_REALTIME_INDEXING_BRIDGE_PLAN.md)
+
+Global search now updates in near-real-time when searchable content changes (create/update/delete), instead of relying solely on the scheduled full reindex. Module hosts publish `SearchIndexRequestEvent` on their local `IEventBus`; a new hosted-service bridge forwards each event to Core.Server over gRPC, which enqueues it into `SearchIndexingService` for immediate Index/Remove.
+
+- ✓ `SubmitSearchIndex` gRPC RPC added to `module_capabilities.proto` (`SubmitSearchIndexRequest`/`SubmitSearchIndexResponse`) — RPC named `SubmitSearchIndex` to avoid a protoc name collision with the request message type
+- ✓ `CoreCapabilitiesServiceImpl.SubmitSearchIndex` — validates action (0/1), enqueues `SearchIndexRequestEvent` into `SearchIndexingService`; invalid action → `Success=false`
+- ✓ New `SearchIndexEventBridgeHandler` — forwards `SearchIndexRequestEvent` to Core over gRPC; swallows/rejects failures so indexing can never break module CRUD
+- ✓ New `SearchIndexEventBridgeSubscriber` (IHostedService) — subscribes the module host's local `IEventBus` to `SearchIndexRequestEvent` at startup
+- ✓ New `AddSearchIndexBridge()` DI extension in `DotNetCloud.Core.Grpc` (mirrors `AddAuditLogger`; no-op without `DOTNETCLOUD_CORE_ENDPOINT`; `TryAddSingleton` gRPC client)
+- ✓ Bridge registered in 7 module hosts (Files, Notes, Calendar, Bookmarks, Email, Music, Video); Calendar's existing `CoreCapabilitiesClient` registration switched to `TryAddSingleton` for order independence
+- ✓ Notes pull-path fix — `NotesGrpcService.GetSearchableDocuments`/`GetSearchableDocument` query `NotesDbContext` directly (owner-scoped `INoteService` methods returned nothing for a system caller, breaking full reindex + incremental fetch for Notes)
+- ✓ Unit tests: `SearchIndexEventBridgeHandlerTests` (4), `CoreCapabilitiesSubmitSearchIndexTests` (3), `NotesGrpcServiceSearchDocumentTests` (4) — all passing
+- ✓ `dotnet build DotNetCloud.CI.slnf -c Release` succeeds (0 warnings/errors); module tests all pass (Notes 128, Core.Server 622, Files 757, Calendar 179, Music 387, Video 209)
+- ✓ **Live fixes required before real-time writes persisted:** (1) `module-id` gRPC metadata header attached in `SearchIndexEventBridgeHandler` (Core's `AuthenticationInterceptor` rejects calls without it); (2) `.AsTracking()` added to `IndexDocumentAsync` upsert load in both SQL providers (`CoreDbContext` global `NoTracking` made load→mutate→SaveChanges a silent no-op) + regression test
+- ✓ Deploy + live-verify (Notes): editing a note title to a unique word (`giraffe`) is indexed and searchable immediately (verified in `[core].[SearchIndexEntries]` — `IndexedAt` updates on edit)
+- ☐ Real-time E2E for the other 6 modules (files/bookmarks/calendar/music/video) — note: file **body** text isn't searchable (file `Content` is empty; separate content-extraction gap)
+
 ---
 
 ## Phase 7: Video Calling & Screen Sharing

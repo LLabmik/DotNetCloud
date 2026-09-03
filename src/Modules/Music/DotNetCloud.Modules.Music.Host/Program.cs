@@ -59,6 +59,9 @@ builder.Services.AddTokenIntrospection();
 // Register the gRPC-backed audit logger (SOC 2 CC4) — routes to Core.Server.
 builder.Services.AddAuditLogger();
 
+// Real-time search indexing bridge — forwards SearchIndexRequestEvent to Core.Server.
+builder.Services.AddSearchIndexBridge();
+
 // Authentication: supports both cookie (browser/Blazor) and introspection (desktop/mobile).
 // A policy scheme automatically routes to the correct handler based on the request.
 builder.Services.AddAuthentication(options =>

@@ -30,7 +30,11 @@ public sealed class PostgreSqlSearchProvider : ISearchProvider
     {
         ArgumentNullException.ThrowIfNull(document);
 
+        // CoreDbContext sets QueryTrackingBehavior.NoTracking globally — without
+        // AsTracking, loading then mutating the entity is a silent no-op on
+        // SaveChanges (real-time updates never persisted).
         var existing = await _db.SearchIndexEntries
+            .AsTracking()
             .FirstOrDefaultAsync(e => e.ModuleId == document.ModuleId && e.EntityId == document.EntityId, cancellationToken);
 
         if (existing is not null)
