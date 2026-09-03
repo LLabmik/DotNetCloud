@@ -771,6 +771,20 @@ internal static class SetupCommand
             ConsoleOutput.WriteSuccess("Systemd service hardened (NoNewPrivileges, ProtectSystem, ProtectHome).");
         }
 
+        // Apply core migrations, sync the module registry, and create module schemas
+        // BEFORE the service first starts. The server also migrates on startup, but
+        // running it here makes the very first boot deterministic: module hosts never
+        // race a not-yet-created schema (tracks/music crashed with 42P01 on a fresh
+        // database) and the module registry is populated before the service starts.
+        // Non-fatal — if it reports errors the server retries migrations on startup.
+        Console.WriteLine();
+        ConsoleOutput.WriteInfo("Applying database migrations before first start...");
+        var databaseSetupExit = await ApplyDatabaseMigrationsAsync(config);
+        if (databaseSetupExit != 0)
+        {
+            ConsoleOutput.WriteWarning("Database migration step reported errors. The server will retry migrations on startup.");
+        }
+
         // Start the service
         Console.WriteLine();
         var serviceStarted = false;
@@ -808,7 +822,13 @@ internal static class SetupCommand
             ConsoleOutput.WriteInfo("Start the server with: dotnetcloud start");
         }
 
-        await SyncEnabledModulesToDatabaseAsync(config);
+        // The module registry was already synced during the pre-start migration
+        // step above. Only re-sync here as a fallback when that step reported
+        // errors and the server may have completed the sync on its own instead.
+        if (databaseSetupExit != 0)
+        {
+            await SyncEnabledModulesToDatabaseAsync(config);
+        }
 
         // Write runtime environment file with admin credentials and Collabora settings.
         // This is consumed by the systemd unit's EnvironmentFile directive.
@@ -868,6 +888,19 @@ internal static class SetupCommand
 
         var config = CliConfiguration.Load();
 
+        return await ApplyDatabaseMigrationsAsync(config);
+    }
+
+    /// <summary>
+    /// Applies pending core migrations, syncs the enabled-module registry, and
+    /// ensures module schemas are created/migrated for every enabled module.
+    /// Shared by the migrate-only command and by the setup wizard, which runs it
+    /// against the freshly created database BEFORE the service first starts so
+    /// the first boot is deterministic (module hosts never race a schema that the
+    /// server has not created yet).
+    /// </summary>
+    private static async Task<int> ApplyDatabaseMigrationsAsync(CliConfig config)
+    {
         if (string.IsNullOrWhiteSpace(config.ConnectionString))
         {
             ConsoleOutput.WriteError("No database connection string configured.");
@@ -1191,7 +1224,7 @@ internal static class SetupCommand
         return urls;
     }
 
-    private static async Task<bool> VerifyDatabaseConnectionAsync(CliConfig config)
+    internal static async Task<bool> VerifyDatabaseConnectionAsync(CliConfig config)
     {
         try
         {
@@ -1206,7 +1239,14 @@ internal static class SetupCommand
                 return false;
             }
 
-            return true;
+            // The provider factory above only registers DbContexts — it does NOT
+            // open a connection. Probe connectivity for real so a missing role or
+            // database is detected here (letting the auto-create path below run)
+            // instead of reporting a false positive that later crash-loops the
+            // server on first start with 28P01/3D000.
+            using var scope = provider.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<DotNetCloud.Core.Data.Context.CoreDbContext>();
+            return await db.Database.CanConnectAsync();
         }
         catch
         {
