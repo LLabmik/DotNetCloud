@@ -194,4 +194,38 @@ public class SetupCommandTests
 
         Assert.AreNotEqual(first, second);
     }
+
+    [TestMethod]
+    public async Task VerifyDatabaseConnectionAsync_UnreachableDatabase_ReturnsFalse()
+    {
+        // Reserve an ephemeral loopback port then release it so nothing is
+        // listening. A real connection attempt must fail — this guards the
+        // regression where verification returned true without ever opening a
+        // connection, which let the wizard skip database auto-creation and
+        // crash-loop the server on first start (28P01/3D000).
+        var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
+        listener.Stop();
+
+        var config = new CliConfig
+        {
+            DatabaseProvider = "PostgreSQL",
+            ConnectionString = $"Host=127.0.0.1;Port={port};Database=dotnetcloud;Username=dotnetcloud;Password=not-the-password;Timeout=3"
+        };
+
+        var result = await SetupCommand.VerifyDatabaseConnectionAsync(config);
+
+        Assert.IsFalse(result, "Verification must fail when the database cannot be reached.");
+    }
+
+    [TestMethod]
+    public async Task VerifyDatabaseConnectionAsync_EmptyConnectionString_ReturnsFalse()
+    {
+        var config = new CliConfig { DatabaseProvider = "PostgreSQL" };
+
+        var result = await SetupCommand.VerifyDatabaseConnectionAsync(config);
+
+        Assert.IsFalse(result, "Verification must fail when no connection string is configured.");
+    }
 }
