@@ -346,6 +346,24 @@ public sealed class SettingsViewModel : ViewModelBase
         set => SetProperty(ref _currentClientVersion, value);
     }
 
+    /// <summary>
+    /// Re-reads the client version from the executing assembly and refreshes the displayed value.
+    /// </summary>
+    /// <remarks>
+    /// This view-model is a startup singleton, so the version is only captured once at construction.
+    /// After an online update that restarts the app, the loaded binaries may change while this
+    /// instance is reused; calling this when the Settings window opens ensures the window title and
+    /// version labels always reflect the currently running build.
+    /// </remarks>
+    public void RefreshClientVersion()
+    {
+        var version = GetClientVersion();
+        if (SetProperty(ref _currentClientVersion, version))
+        {
+            _logger.LogDebug("Client version refreshed for display: {Version}", version);
+        }
+    }
+
     /// <summary>Whether to automatically check for updates in the background.</summary>
     public bool AutoCheckForUpdates
     {
@@ -535,7 +553,7 @@ public sealed class SettingsViewModel : ViewModelBase
         _logger = logger;
         _localSettingsPath = localSettingsPath ?? GetDefaultLocalSettingsPath();
 
-        _currentClientVersion = GetClientVersion();
+        RefreshClientVersion();
         _logger.LogInformation("SettingsViewModel initialized. Client version: {Version}", _currentClientVersion);
 
         ConnectCommand = new AsyncRelayCommand(BeginAddAccountFlowAsync);

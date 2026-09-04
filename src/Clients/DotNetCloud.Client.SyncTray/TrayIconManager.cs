@@ -356,9 +356,12 @@ public sealed class TrayIconManager : IDisposable
     {
         if (_settingsWindow is not null)
         {
-            if (conflictsTab)
+            if (_settingsWindow.DataContext is SettingsViewModel vm)
             {
-                if (_settingsWindow.DataContext is SettingsViewModel vm)
+                // Re-read the running client version whenever Settings is opened so the title and
+                // version labels are current even if the build changed since the window was first shown.
+                vm.RefreshClientVersion();
+                if (conflictsTab)
                 {
                     vm.SelectedSettingsTab = 4; // Conflicts tab
                     vm.SelectedConflictsTab = 0;
@@ -369,6 +372,9 @@ public sealed class TrayIconManager : IDisposable
         }
 
         var settingsVm = _services.GetRequiredService<SettingsViewModel>();
+        // The view-model is a startup singleton; re-read the version so a freshly opened Settings
+        // window reflects the currently loaded binaries (e.g. after an online update restart).
+        settingsVm.RefreshClientVersion();
         if (conflictsTab)
         {
             settingsVm.SelectedSettingsTab = 4; // Conflicts tab
