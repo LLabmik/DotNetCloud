@@ -39,11 +39,11 @@ public sealed partial class MusicViewModel : ObservableObject
         _artCache = artCache;
         _serverStore = serverStore;
         _tokenStore = tokenStore;
-        _player.PlaybackStateChanged += (_, _) => UpdatePlaybackState();
-        _player.TrackStarted += (_, _) => RecordPlayFireAndForget();
-        _player.TrackEnded += (_, _) => Dispatch(() => PlayNextCommand.Execute(null));
-        _player.RepeatModeChanged += (_, _) => Dispatch(UpdateRepeatState);
-        _eq.AvailabilityChanged += (_, _) => Dispatch(InitEqFromDevice);
+        _player.PlaybackStateChanged += OnPlaybackStateChanged;
+        _player.TrackStarted += OnPlayerTrackStarted;
+        _player.TrackEnded += OnPlayerTrackEnded;
+        _player.RepeatModeChanged += OnRepeatModeChanged;
+        _eq.AvailabilityChanged += OnEqAvailabilityChanged;
     }
 
     /// <summary>
@@ -63,6 +63,23 @@ public sealed partial class MusicViewModel : ObservableObject
             action();
         }
     }
+
+    private void OnPlaybackStateChanged(object? sender, EventArgs e) => UpdatePlaybackState();
+
+    private void OnPlayerTrackStarted(object? sender, EventArgs e)
+    {
+        RecordPlayFireAndForget();
+        // When the whole-library queue is near its loaded end, prefetch the next page
+        // so playback keeps advancing through the rest of the list in display order.
+        Dispatch(MaybePrefetchQueue);
+    }
+
+    private void OnPlayerTrackEnded(object? sender, EventArgs e) =>
+        Dispatch(() => _player.PlayNextAfterEnd());
+
+    private void OnRepeatModeChanged(object? sender, EventArgs e) => Dispatch(UpdateRepeatState);
+
+    private void OnEqAvailabilityChanged(object? sender, EventArgs e) => Dispatch(InitEqFromDevice);
 
     private async Task<(string? serverUrl, string? token)> GetCredentialsAsync()
     {
@@ -110,6 +127,21 @@ public sealed partial class MusicViewModel : ObservableObject
     private int _tracksSkip;
     private bool _hasMoreTracks = true;
     private CancellationTokenSource? _tracksLoadCts;
+
+    // ── Whole-library queue prefetch state ────────────────────────────
+
+    /// <summary>
+    /// True while the current playback queue is backed by the paginated "All Tracks"
+    /// list, so newly fetched pages are appended to the queue to keep playing through
+    /// the whole library in display order.
+    /// </summary>
+    private bool _libraryQueueActive;
+
+    /// <summary>Guards concurrent next-page fetches (user scroll vs playback prefetch).</summary>
+    private bool _tracksPageFetchInProgress;
+
+    /// <summary>Remaining queued tracks that trigger a prefetch of the next page.</summary>
+    private const int QueuePrefetchThreshold = 4;
 
     // ── Filtered-mode state (scoped drill-down) ────────────────────
 
@@ -714,6 +746,8 @@ public sealed partial class MusicViewModel : ObservableObject
             // Replace queue with all album tracks and start playing from the first one
             if (items.Count > 0)
             {
+                // An album is fully queued — never prefetch more whole-library pages.
+                _libraryQueueActive = false;
                 _player.ReplaceQueue(items, albumId: album.Id, playlistId: null);
                 await _player.PlayAsync(items[0], serverUrl, token);
             }
@@ -910,10 +944,24 @@ public sealed partial class MusicViewModel : ObservableObject
     [RelayCommand]
     private async Task LoadMoreTracksAsync()
     {
-        if (IsSearchOpen || !_hasMoreTracks || IsLoading)
+        // Delegates to the shared next-page fetcher so user scrolls and playback
+        // prefetches share one guarded code path (no duplicate page fetches).
+        await FetchNextTracksPageAsync();
+    }
+
+    /// <summary>
+    /// Fetches the next page of the "All Tracks" list and appends it to the displayed
+    /// <see cref="Tracks"/> collection. When the current playback queue is backed by this
+    /// same list (<see cref="_libraryQueueActive"/>), the page is also appended to the
+    /// player queue so playback continues through the whole library in display order.
+    /// </summary>
+    private async Task FetchNextTracksPageAsync()
+    {
+        if (IsSearchOpen || !_hasMoreTracks || IsLoading || _tracksPageFetchInProgress)
             return;
 
-        // When viewing tracks scoped to a specific album or playlist, don't load all tracks
+        // When viewing tracks scoped to a specific album or playlist, there is no
+        // further pagination — the whole scoped list is already loaded.
         if (_tracksFilteredByAlbumId is not null || _tracksFilteredByPlaylistId is not null)
             return;
 
@@ -921,11 +969,15 @@ public sealed partial class MusicViewModel : ObservableObject
         if (serverUrl is null || token is null)
             return;
 
-        IsLoading = true;
+        _tracksPageFetchInProgress = true;
         ErrorMessage = null;
         _tracksLoadCts?.Cancel();
         _tracksLoadCts = new CancellationTokenSource();
         var ct = _tracksLoadCts.Token;
+
+        // Snapshot the queue-extension intent at fetch time so a context change while
+        // the fetch is in flight cannot append library tracks onto a newer queue.
+        var shouldExtendQueue = _libraryQueueActive;
 
         try
         {
@@ -933,6 +985,12 @@ public sealed partial class MusicViewModel : ObservableObject
             var items = await _music.ListTracksAsync(serverUrl, token, skip: nextSkip, take: PageSize, ct: ct);
             if (ct.IsCancellationRequested)
                 return;
+
+            if (items.Count == 0)
+            {
+                _hasMoreTracks = false;
+                return;
+            }
 
             _tracksSkip = nextSkip;
             if (items.Count < PageSize)
@@ -943,16 +1001,43 @@ public sealed partial class MusicViewModel : ObservableObject
                 foreach (var track in items)
                     Tracks.Add(track);
             });
+
+            if (shouldExtendQueue && _libraryQueueActive)
+            {
+                _player.Enqueue(items);
+                System.Diagnostics.Debug.WriteLine($"[Music] FetchNextTracksPageAsync: enqueued {items.Count} more tracks (skip={_tracksSkip}, queue={_player.QueueLength})");
+            }
         }
         catch (OperationCanceledException) { /* cancelled */ }
         catch (Exception ex)
         {
-            Dispatch(() => ErrorMessage = $"Failed to load more tracks: {ex.Message}");
+            if (!ct.IsCancellationRequested)
+                Dispatch(() => ErrorMessage = $"Failed to load more tracks: {ex.Message}");
         }
         finally
         {
             if (!ct.IsCancellationRequested)
                 Dispatch(() => IsLoading = false);
+            _tracksPageFetchInProgress = false;
+        }
+    }
+
+    /// <summary>
+    /// Prefetches the next "All Tracks" page when playback is near the end of the
+    /// currently queued (loaded) tracks, so the whole library keeps playing in the
+    /// order it is displayed.
+    /// </summary>
+    private void MaybePrefetchQueue()
+    {
+        if (!_libraryQueueActive || !_hasMoreTracks || _player.QueueLength == 0)
+            return;
+
+        var remaining = _player.QueueLength - _player.QueuePosition - 1;
+        System.Diagnostics.Debug.WriteLine($"[Music] MaybePrefetchQueue: remaining={remaining} threshold={QueuePrefetchThreshold} hasMore={_hasMoreTracks}");
+        if (remaining <= QueuePrefetchThreshold)
+        {
+            System.Diagnostics.Debug.WriteLine("[Music] MaybePrefetchQueue: fetching next page to keep playing through the list");
+            _ = FetchNextTracksPageAsync();
         }
     }
 
@@ -980,6 +1065,8 @@ public sealed partial class MusicViewModel : ObservableObject
             // Replace queue with all playlist tracks and start playing from the first one
             if (items.Count > 0)
             {
+                // A playlist is fully queued — never prefetch more whole-library pages.
+                _libraryQueueActive = false;
                 _player.ReplaceQueue(items, albumId: null, playlistId: playlist.Id);
                 await _player.PlayAsync(items[0], serverUrl, token);
             }
@@ -1068,26 +1155,42 @@ public sealed partial class MusicViewModel : ObservableObject
 
         try
         {
-            // Queue up the currently displayed track list so playback
-            // auto-advances to the next track when one finishes. Without this,
-            // playing a track from the list treats it as a standalone single
-            // track, so RepeatMode.Off stops after one song instead of playing
-            // through the rest of the list.
-            if (Tracks.Count > 0 && Tracks.Contains(track))
+            // Queue up the currently displayed track list so playback auto-advances
+            // to the next track in display order when one finishes. Membership is
+            // matched by Id (not reference/value equality) so a tapped row always
+            // repositions onto the visible list instead of collapsing to a standalone
+            // single track.
+            var inDisplayedList = Tracks.Count > 0 && Tracks.Any(t => t.Id == track.Id);
+            if (inDisplayedList)
             {
                 // Search results aren't a scoped album/playlist context, so
                 // don't carry stale filter context while a search is active.
                 var albumId = IsSearchOpen ? null : _tracksFilteredByAlbumId;
                 var playlistId = IsSearchOpen ? null : _tracksFilteredByPlaylistId;
+
+                // The queue is only "library-backed" (eligible for whole-list prefetch)
+                // when built from the unbounded All Tracks list — not an album, a
+                // playlist, search results, or a standalone track.
+                _libraryQueueActive = !IsSearchOpen
+                    && CurrentView == MusicView.Tracks
+                    && albumId is null
+                    && playlistId is null;
+
                 _player.ReplaceQueue(Tracks.ToList(), albumId, playlistId);
-                System.Diagnostics.Debug.WriteLine($"[Music] PlayTrackAsync: queued {Tracks.Count} tracks from list, albumId={albumId}, playlistId={playlistId}");
+                System.Diagnostics.Debug.WriteLine($"[Music] PlayTrackAsync: queued {Tracks.Count} tracks from list, albumId={albumId}, playlistId={playlistId}, library={_libraryQueueActive}");
             }
             else
             {
+                _libraryQueueActive = false;
                 System.Diagnostics.Debug.WriteLine($"[Music] PlayTrackAsync: track NOT in Tracks list (count={Tracks.Count}) — standalone play");
             }
 
             await _player.PlayAsync(track, serverUrl, token);
+
+            // If the tapped track sits near the end of the loaded page(s), fetch the
+            // next page right away so playback can continue past the loaded boundary.
+            if (_libraryQueueActive)
+                MaybePrefetchQueue();
         }
         catch (Exception ex)
         {
