@@ -109,6 +109,7 @@ a:hover {
 .brand {
   display: flex;
   align-items: center;
+  gap: 12px;
   flex: 0 0 auto;
   color: #fff;
   font-weight: 700;
@@ -118,6 +119,15 @@ a:hover {
 }
 .brand:hover {
   text-decoration: none;
+}
+
+.brand-text {
+  white-space: nowrap;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .brand-logo {
@@ -130,6 +140,10 @@ a:hover {
 
 .sidebar.collapsed .brand {
   justify-content: center;
+}
+
+.sidebar.collapsed .brand-text {
+  display: none;
 }
 
 .sidebar.collapsed .brand-logo {

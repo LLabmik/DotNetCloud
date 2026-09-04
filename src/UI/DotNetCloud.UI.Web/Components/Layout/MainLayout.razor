@@ -14,6 +14,10 @@
         <div class="sidebar-header">
             <a href="/" class="brand">
                 <img class="brand-logo" src="/_content/DotNetCloud.UI.Web/logo.png" alt="DotNetCloud" />
+                @if (!_collapsed)
+                {
+                    <span class="brand-text">DotNetCloud</span>
+                }
             </a>
             <button class="sidebar-toggle" @onclick="ToggleSidebarAsync" title="Toggle sidebar">
                 <span class="toggle-icon">@(_collapsed ? "▶" : "◀")</span>
@@ -24,9 +28,6 @@
 
     <div class="main-content">
         <header class="topbar">
-            <div class="topbar-left">
-                <h1 class="page-title">@_pageTitle</h1>
-            </div>
             <div class="topbar-center">
                 <AuthorizeView>
                     <Authorized>
@@ -86,7 +87,6 @@
     private const string NavbarCollapsedKey = "navbar.collapsed";
 
     private bool _collapsed;
-    private string _pageTitle = "DotNetCloud";
     private ErrorBoundary? _errorBoundary;
     private PersistingComponentStateSubscription _persistingSubscription;
 
