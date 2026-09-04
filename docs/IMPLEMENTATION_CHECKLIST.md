@@ -3571,6 +3571,8 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Fix music auto-advance: playing a track from the list queues the full displayed list so `RepeatMode.Off` advances through the queue instead of stopping after one song
 - ✓ Fix `MEDIA_ERROR_SERVER_DIED (-38)` feedback loop that froze the app at track transitions (break error→Stop→error recursion)
 - ✓ Use a fresh `MediaPlayer` per track (release+recreate) and retry the same track on -38 so the _very next_ song plays
+- ✓ Make auto-advance run exactly once per song end (once-per-end `PlayNextAfterEnd` + stale-player handler detach/guards) so the next song is always the one below in the list — no random skips
+- ✓ Play through the whole All Tracks list: playback auto-fetches the next page(s) as it nears the loaded end so the queue continues in display order
 - ✓ Highlight the currently playing song in the track list (`TrackIsCurrentConverter` + row background)
 - ✓ Implement now-playing bar with album art, seek slider, play/pause/next/prev controls
 - ✓ Implement album art loading via `IAlbumArtCache` with fallback placeholder

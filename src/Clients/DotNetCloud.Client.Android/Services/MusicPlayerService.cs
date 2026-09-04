@@ -21,6 +21,14 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
     private readonly List<TrackDto> _queue = [];
     private int _queueIndex;
 
+    /// <summary>
+    /// Armed when a track ends naturally and consumed by the single auto-advance
+    /// (<see cref="PlayNextAfterEnd"/>). Guarantees auto-advance runs exactly once per
+    /// logical track end so duplicate <see cref="TrackEnded"/> events or multiple
+    /// subscribers cannot skip songs.
+    /// </summary>
+    private bool _autoAdvancePending;
+
     /// <summary>Serializes access to PrepareAndStartAsync to prevent concurrent MediaPlayer setup.</summary>
     private readonly SemaphoreSlim _prepareLock = new(1, 1);
 
@@ -75,6 +83,12 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
 
     /// <inheritdoc />
     public RepeatMode RepeatMode => _repeatMode;
+
+    /// <inheritdoc />
+    public int QueueLength => _queue.Count;
+
+    /// <inheritdoc />
+    public int QueuePosition => _queueIndex;
 
     /// <inheritdoc />
     public event EventHandler? PlaybackStateChanged;
@@ -153,7 +167,19 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
             // Samsung devices — the mediaserver loses the player during the
             // transition and the next track never prepares. Android's documented
             // remedy for -38 is to release the player and instantiate a new one.
-            _mediaPlayer?.Release();
+            //
+            // Detach the old player's event handlers BEFORE releasing it: releasing a
+            // player that is in the completed state can re-fire Completion/Error on some
+            // devices, which used to raise a duplicate TrackEnded and double-advance
+            // (skip) to the next-next song.
+            var previousPlayer = _mediaPlayer;
+            if (previousPlayer is not null)
+            {
+                previousPlayer.Completion -= OnTrackCompleted;
+                previousPlayer.Prepared -= OnTrackPrepared;
+                previousPlayer.Error -= OnPlayerError;
+                previousPlayer.Release();
+            }
             _mediaPlayer = null;
             var player = new MediaPlayer();
             player.Completion += OnTrackCompleted;
@@ -209,18 +235,36 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
 
     private void OnTrackCompleted(object? sender, EventArgs e)
     {
+        // Ignore completion events from players that have already been released or
+        // replaced — releasing a player that is in the completed state can re-fire
+        // this callback on some devices, which would otherwise double-advance.
+        if (sender is not MediaPlayer player || player != _mediaPlayer)
+            return;
+
         System.Diagnostics.Debug.WriteLine($"[Music] OnTrackCompleted: track {CurrentTrack?.Id} finished t={Environment.TickCount64} (index={_queueIndex}, queue={_queue.Count}, repeat={_repeatMode})");
         IsPlaying = false;
         StopPositionTimer();
-        TrackEnded?.Invoke(this, EventArgs.Empty);
+
+        // Arm the auto-advance token exactly once per logical track end. A duplicate
+        // Completion for the same end is ignored so TrackEnded (and therefore the
+        // ViewModel's auto-advance) fires once.
+        if (!_autoAdvancePending)
+        {
+            _autoAdvancePending = true;
+            TrackEnded?.Invoke(this, EventArgs.Empty);
+        }
         PlaybackStateChanged?.Invoke(this, EventArgs.Empty);
-        // Auto-advance is handled by the ViewModel's TrackEnded handler,
-        // which dispatches PlayNextCommand on the main thread.
-        // Do NOT call PlayNextIfQueued here — it would race with the ViewModel.
+        // Auto-advance is performed by the ViewModel's TrackEnded handler, which calls
+        // PlayNextAfterEnd(); that consumes the pending token so auto-advance runs
+        // exactly once even if several subscribers handle TrackEnded.
     }
 
     private void OnPlayerError(object? sender, MediaPlayer.ErrorEventArgs e)
     {
+        // Ignore errors from players that have already been released/replaced.
+        if (sender is not MediaPlayer player || player != _mediaPlayer)
+            return;
+
         _logger.LogError("MediaPlayer error: {What} (extra: {Extra})", e.What, e.Extra);
         System.Diagnostics.Debug.WriteLine($"[Music] OnPlayerError: what={e.What} extra={e.Extra}");
 
@@ -237,7 +281,9 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
         // MEDIA_ERROR_SERVER_DIED (-38) means the mediaserver lost the player;
         // Android requires releasing and instantiating a new one. Release and null
         // it so the next prepare creates a fresh player.
-        try { _mediaPlayer?.Release(); } catch { /* ignore */ }
+        try
+        { _mediaPlayer?.Release(); }
+        catch { /* ignore */ }
         _mediaPlayer = null;
 
         if (isServerDied && failedTrack is not null && _serverDiedRetries < MaxServerDiedRetries)
@@ -343,17 +389,39 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
     /// <inheritdoc />
     public void PlayNext()
     {
-        System.Diagnostics.Debug.WriteLine($"[Music] PlayNext: called t={Environment.TickCount64} (index={_queueIndex}, queue={_queue.Count}, repeat={_repeatMode})");
+        // An explicit user "next" (in-app button or notification) consumes any pending
+        // auto-advance token so a late TrackEnded dispatch from a stale handler cannot
+        // advance a second time (which would skip a song).
+        _autoAdvancePending = false;
+        AdvanceToNext();
+    }
+
+    /// <inheritdoc />
+    public void PlayNextAfterEnd()
+    {
+        if (!_autoAdvancePending)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Music] PlayNextAfterEnd: no pending end (index={_queueIndex}) — ignoring duplicate/out-of-order auto-advance");
+            return;
+        }
+        _autoAdvancePending = false;
+        System.Diagnostics.Debug.WriteLine($"[Music] PlayNextAfterEnd: natural end confirmed — advancing (index={_queueIndex}, queue={_queue.Count}, repeat={_repeatMode})");
+        AdvanceToNext();
+    }
+
+    private void AdvanceToNext()
+    {
+        System.Diagnostics.Debug.WriteLine($"[Music] AdvanceToNext: called t={Environment.TickCount64} (index={_queueIndex}, queue={_queue.Count}, repeat={_repeatMode})");
         if (_queue.Count == 0)
         {
-            System.Diagnostics.Debug.WriteLine("[Music] PlayNext: queue is EMPTY — nothing to advance to");
+            System.Diagnostics.Debug.WriteLine("[Music] AdvanceToNext: queue is EMPTY — nothing to advance to");
             return;
         }
 
         // Repeat One: replay the current track without advancing the queue
         if (_repeatMode == RepeatMode.One && CurrentTrack is not null)
         {
-            System.Diagnostics.Debug.WriteLine("[Music] PlayNext: Repeat.One — replaying current track");
+            System.Diagnostics.Debug.WriteLine("[Music] AdvanceToNext: Repeat.One — replaying current track");
             _ = PrepareAndStartAsync();
             return;
         }
@@ -365,20 +433,20 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
             if (_repeatMode == RepeatMode.All)
             {
                 _queueIndex = 0;
-                System.Diagnostics.Debug.WriteLine("[Music] PlayNext: Repeat.All — wrapped to index 0");
+                System.Diagnostics.Debug.WriteLine("[Music] AdvanceToNext: Repeat.All — wrapped to index 0");
             }
             else
             {
                 // RepeatMode.Off — stop at end of queue
                 _queueIndex = _queue.Count - 1;
-                System.Diagnostics.Debug.WriteLine("[Music] PlayNext: Repeat.Off at end of queue — STOPPING");
+                System.Diagnostics.Debug.WriteLine("[Music] AdvanceToNext: Repeat.Off at end of queue — STOPPING");
                 Stop();
                 return;
             }
         }
 
         CurrentTrack = _queue[_queueIndex];
-        System.Diagnostics.Debug.WriteLine($"[Music] PlayNext: advancing to index={_queueIndex} track={CurrentTrack.Id}");
+        System.Diagnostics.Debug.WriteLine($"[Music] AdvanceToNext: advancing to index={_queueIndex} track={CurrentTrack.Id}");
         _ = PrepareAndStartAsync();
     }
 
@@ -411,7 +479,18 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
     /// <inheritdoc />
     public void Enqueue(IEnumerable<TrackDto> tracks)
     {
-        _queue.AddRange(tracks);
+        // Skip tracks already in the queue. This is the append path used to keep a
+        // "play through the whole list" queue topped up with newly fetched pages;
+        // deduping by Id prevents a track from being appended twice if two sources
+        // fetch the same page (e.g. a user scroll load racing a playback prefetch).
+        var existing = new HashSet<Guid>();
+        foreach (var t in _queue)
+            existing.Add(t.Id);
+        foreach (var track in tracks)
+        {
+            if (existing.Add(track.Id))
+                _queue.Add(track);
+        }
     }
 
     /// <inheritdoc />

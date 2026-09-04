@@ -30,6 +30,17 @@ public interface IMusicPlayerService
     /// <summary>Advances to the next track in the queue.</summary>
     void PlayNext();
 
+    /// <summary>
+    /// Advances to the next track after a natural track end.
+    /// </summary>
+    /// <remarks>
+    /// Called from the <see cref="TrackEnded"/> handler. Guarantees auto-advance runs
+    /// exactly once per logical track end — duplicate or spurious <see cref="TrackEnded"/>
+    /// events (e.g. multiple subscribers, or a released player re-firing completion) cannot
+    /// skip songs. Use <see cref="PlayNext"/> for explicit user "next" actions.
+    /// </remarks>
+    void PlayNextAfterEnd();
+
     /// <summary>Returns to the previous track in the queue.</summary>
     void PlayPrevious();
 
@@ -77,6 +88,12 @@ public interface IMusicPlayerService
 
     /// <summary>Current repeat mode.</summary>
     RepeatMode RepeatMode { get; }
+
+    /// <summary>Total number of tracks currently in the playback queue.</summary>
+    int QueueLength { get; }
+
+    /// <summary>Zero-based index of the currently playing track within the queue.</summary>
+    int QueuePosition { get; }
 
     /// <summary>Cycles through repeat modes: Off → One → All → Off.</summary>
     void CycleRepeat();

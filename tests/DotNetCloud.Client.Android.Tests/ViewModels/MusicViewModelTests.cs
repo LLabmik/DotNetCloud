@@ -422,6 +422,147 @@ public sealed class MusicViewModelTests
         _player.Verify(x => x.PlayAsync(tapped, ServerUrl, "test-access-token"), Times.Once);
     }
 
+    [TestMethod]
+    public async Task PlayTrackCommand_WhenSameTrackIdDifferentInstance_QueuesDisplayedList()
+    {
+        // Arrange: the tapped row is a DIFFERENT instance than the one stored in the
+        // displayed list but shares the same Id. Queue membership must be Id-based so
+        // playback still repositions onto the visible list instead of standalone play.
+        var listed = new TrackDto
+        {
+            Id = Guid.NewGuid(),
+            Title = "Same Song",
+            OwnerId = Guid.NewGuid(),
+            FileNodeId = Guid.NewGuid(),
+            MimeType = "audio/mpeg",
+            ArtistId = Guid.NewGuid(),
+            ArtistName = "Artist",
+            CreatedAt = DateTime.UtcNow
+        };
+        var tappedCopy = new TrackDto
+        {
+            Id = listed.Id,
+            Title = listed.Title,
+            OwnerId = listed.OwnerId,
+            FileNodeId = listed.FileNodeId,
+            MimeType = listed.MimeType,
+            ArtistId = listed.ArtistId,
+            ArtistName = listed.ArtistName,
+            CreatedAt = listed.CreatedAt
+        };
+        _vm.Tracks = new ObservableCollection<TrackDto>([listed]);
+        _player.Setup(x => x.PlayAsync(tappedCopy, ServerUrl, "test-access-token"))
+            .Returns(Task.CompletedTask);
+
+        // Act
+        await _vm.PlayTrackCommand.ExecuteAsync(tappedCopy);
+
+        // Assert: the displayed list is queued (even though the tapped instance is not
+        // reference-equal to the stored item).
+        _player.Verify(x => x.ReplaceQueue(
+            It.Is<IEnumerable<TrackDto>>(q => q.SequenceEqual(new[] { listed })),
+            It.Is<Guid?>(g => g == null),
+            It.Is<Guid?>(g => g == null)), Times.Once);
+        _player.Verify(x => x.PlayAsync(tappedCopy, ServerUrl, "test-access-token"), Times.Once);
+    }
+
+    [TestMethod]
+    public async Task PlayTrackCommand_AllTracksNearQueueEnd_PrefetchesAndEnqueuesNextPage()
+    {
+        // Arrange: All Tracks view has one full page (50) loaded and the tapped track
+        // sits near its end (index 46 => only 3 tracks queued after it), with more
+        // pages available server-side. QueueLength/QueuePosition mirror the player.
+        var tracks = Enumerable.Range(1, 50)
+            .Select(i => new TrackDto
+            {
+                Id = Guid.NewGuid(),
+                Title = $"Track {i}",
+                OwnerId = Guid.NewGuid(),
+                FileNodeId = Guid.NewGuid(),
+                MimeType = "audio/mpeg",
+                ArtistId = Guid.NewGuid(),
+                ArtistName = "Artist",
+                CreatedAt = DateTime.UtcNow
+            })
+            .ToList();
+        _vm.CurrentView = MusicView.Tracks;
+        _vm.Tracks = new ObservableCollection<TrackDto>(tracks);
+
+        var tapped = tracks[46];
+        var nextPage = Enumerable.Range(1, 3)
+            .Select(i => new TrackDto
+            {
+                Id = Guid.NewGuid(),
+                Title = $"Next {i}",
+                OwnerId = Guid.NewGuid(),
+                FileNodeId = Guid.NewGuid(),
+                MimeType = "audio/mpeg",
+                ArtistId = Guid.NewGuid(),
+                ArtistName = "Artist",
+                CreatedAt = DateTime.UtcNow
+            })
+            .ToList();
+
+        _player.Setup(x => x.PlayAsync(tapped, ServerUrl, "test-access-token"))
+            .Returns(Task.CompletedTask);
+        _player.Setup(x => x.QueueLength).Returns(50);
+        _player.Setup(x => x.QueuePosition).Returns(46);
+        _music.Setup(x => x.ListTracksAsync(ServerUrl, "test-access-token", 50, 50, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(nextPage);
+
+        // Act
+        await _vm.PlayTrackCommand.ExecuteAsync(tapped);
+
+        // Assert: the next page was fetched, appended to the displayed list, and added
+        // to the playback queue so playback continues through the whole list.
+        _player.Verify(x => x.ReplaceQueue(
+            It.Is<IEnumerable<TrackDto>>(q => q.SequenceEqual(tracks)),
+            It.Is<Guid?>(g => g == null),
+            It.Is<Guid?>(g => g == null)), Times.Once);
+        _player.Verify(x => x.PlayAsync(tapped, ServerUrl, "test-access-token"), Times.Once);
+        _player.Verify(x => x.Enqueue(It.Is<IEnumerable<TrackDto>>(q => q.Count() == 3)), Times.Once);
+        Assert.AreEqual(53, _vm.Tracks.Count, "Fetched page should be appended to the displayed list.");
+    }
+
+    [TestMethod]
+    public async Task PlayTrackCommand_AllTracksNotNearQueueEnd_DoesNotPrefetch()
+    {
+        // Arrange: tapped track is well inside the loaded page (index 5 => 44 queued
+        // after it), so no next-page prefetch should occur.
+        var tracks = Enumerable.Range(1, 50)
+            .Select(i => new TrackDto
+            {
+                Id = Guid.NewGuid(),
+                Title = $"Track {i}",
+                OwnerId = Guid.NewGuid(),
+                FileNodeId = Guid.NewGuid(),
+                MimeType = "audio/mpeg",
+                ArtistId = Guid.NewGuid(),
+                ArtistName = "Artist",
+                CreatedAt = DateTime.UtcNow
+            })
+            .ToList();
+        _vm.CurrentView = MusicView.Tracks;
+        _vm.Tracks = new ObservableCollection<TrackDto>(tracks);
+
+        var tapped = tracks[5];
+        _player.Setup(x => x.PlayAsync(tapped, ServerUrl, "test-access-token"))
+            .Returns(Task.CompletedTask);
+        _player.Setup(x => x.QueueLength).Returns(50);
+        _player.Setup(x => x.QueuePosition).Returns(5);
+
+        // Act
+        await _vm.PlayTrackCommand.ExecuteAsync(tapped);
+
+        // Assert: queue is replaced and the track plays, but nothing is prefetched.
+        _player.Verify(x => x.ReplaceQueue(
+            It.Is<IEnumerable<TrackDto>>(q => q.SequenceEqual(tracks)),
+            It.Is<Guid?>(g => g == null),
+            It.Is<Guid?>(g => g == null)), Times.Once);
+        _player.Verify(x => x.Enqueue(It.IsAny<IEnumerable<TrackDto>>()), Times.Never);
+        Assert.AreEqual(50, _vm.Tracks.Count);
+    }
+
     // ── Playback controls ──────────────────────────────────────────────
 
     [TestMethod]
@@ -842,16 +983,17 @@ public sealed class MusicViewModelTests
     }
 
     [TestMethod]
-    public void TrackEndedEvent_TriggersPlayNextCommand()
+    public void TrackEndedEvent_TriggersPlayNextAfterEnd()
     {
-        // The ViewModel subscribes to TrackEnded and dispatches PlayNextCommand.
-        // This verifies the handler is wired up correctly (replaces the old
-        // PlayNextIfQueued call that was removed from MusicPlayerService).
-        _player.Setup(x => x.PlayNext());
+        // The ViewModel subscribes to TrackEnded and dispatches PlayNextAfterEnd() —
+        // the once-per-end auto-advance. Verifies the handler is wired up correctly and
+        // that plain PlayNext() (explicit user "next") is NOT used for auto-advance.
+        _player.Setup(x => x.PlayNextAfterEnd());
 
         _player.Raise(x => x.TrackEnded += null, EventArgs.Empty);
 
-        _player.Verify(x => x.PlayNext(), Times.AtLeastOnce);
+        _player.Verify(x => x.PlayNextAfterEnd(), Times.AtLeastOnce);
+        _player.Verify(x => x.PlayNext(), Times.Never);
     }
 
     // ── Search ─────────────────────────────────────────────────────────

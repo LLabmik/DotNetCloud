@@ -1583,6 +1583,8 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 Also fixed Android music player auto-advance & stability (2026-08-24): playing from a list now queues the full displayed list so `RepeatMode.Off` advances through the queue; broke the `MEDIA_ERROR_SERVER_DIED (-38)` error→Stop→error feedback loop that froze the app at track transitions; uses a fresh `MediaPlayer` per track (release+recreate) with a same-track retry on -38 so the _very next_ song plays instead of skipping; highlights the now-playing row in the track list (`TrackIsCurrentConverter`). Verified end-to-end on device (Samsung Galaxy S24 Ultra).
 
+Also fixed Android music play order (2026-09-04, `fix/android-music-play-order`): auto-advance now runs exactly once per song end (`PlayNextAfterEnd` once-per-end token; stale `MediaPlayer` event handlers detached before release; stale-player sender guards on Completion/Error) so the next song is always the row below — no random skips. Tapping a song queues the currently displayed list (matched by Id). All Tracks now keeps playing through the whole library by auto-fetching the next page(s) when playback nears the loaded end (via `QueueLength`/`QueuePosition` prefetch with a dedupe `Enqueue`). Verified on device (Samsung R5CWC356B2K).
+
 ---
 
 ## Phase 3: Contacts, Calendar & Notes
