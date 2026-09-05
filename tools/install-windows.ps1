@@ -515,13 +515,17 @@ function Read-AdminCredentials {
     Write-Host "You will use these credentials to log in to DotNetCloud." -ForegroundColor Gray
     Write-Host ""
 
-    # Email
+    # Username (used to sign in)
     do {
-        $email = Read-Host "Admin email address"
-        if ($email -notmatch "^[^@]+@[^@]+\.[^@]+$") {
-            Write-Warn "Please enter a valid email address."
+        $username = Read-Host "Admin username"
+        if ($username -notmatch "^[A-Za-z0-9._-]+$") {
+            Write-Warn "Username may only contain letters, digits, '-', '.' and '_' (e.g. Bill.Jones, pat123)."
         }
-    } while ($email -notmatch "^[^@]+@[^@]+\.[^@]+$")
+    } while ($username -notmatch "^[A-Za-z0-9._-]+$")
+
+    # Email (optional)
+    $email = Read-Host "Admin email address (optional, press Enter to skip)"
+    if (-not $email) { $email = $null }
 
     # Password (masked)
     do {
@@ -544,6 +548,7 @@ function Read-AdminCredentials {
     } while ($true)
 
     $Script:AdminEmail = $email
+    $Script:AdminUsername = $username
     $Script:AdminPassword = $pass
 
     Write-Ok "Admin account will be created on first server start."
@@ -572,12 +577,18 @@ function Write-ConfigFile {
         $config["ConnectionStrings"]["DefaultConnection"] = $Script:ConnectionString
     }
 
-    # Set admin email
+    # Set admin email and username
     if ($Script:AdminEmail) {
         if (-not $config.ContainsKey("DotNetCloud")) {
             $config["DotNetCloud"] = @{}
         }
         $config["DotNetCloud"]["AdminEmail"] = $Script:AdminEmail
+    }
+    if ($Script:AdminUsername) {
+        if (-not $config.ContainsKey("DotNetCloud")) {
+            $config["DotNetCloud"] = @{}
+        }
+        $config["DotNetCloud"]["AdminUsername"] = $Script:AdminUsername
     }
 
     $configJson = $config | ConvertTo-Json -Depth 10
@@ -1045,8 +1056,9 @@ function Print-Summary {
     Write-Host "  Health check:      $internalUrl/health/live"
     Write-Host ""
 
-    if ($Script:AdminEmail) {
-        Write-Host "Admin account:       $Script:AdminEmail" -ForegroundColor Cyan
+    if ($Script:AdminEmail -or $Script:AdminUsername) {
+        Write-Host "Admin account:       $Script:AdminUsername" -ForegroundColor Cyan
+        Write-Host "Admin email:         $Script:AdminEmail" -ForegroundColor Cyan
         Write-Host ""
     }
 
@@ -1126,6 +1138,7 @@ if (-not $Beginner.IsPresent -and -not $Advanced.IsPresent) {
 # Script-level variables for data flow between functions
 $Script:ConnectionString = $null
 $Script:AdminEmail = $null
+$Script:AdminUsername = $null
 $Script:AdminPassword = $null
 $Script:DbPassword = $null
 

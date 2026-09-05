@@ -11,9 +11,14 @@ public class UserDto
     public Guid Id { get; set; }
 
     /// <summary>
-    /// Gets or sets the user's email address.
+    /// Gets or sets the user's username.
     /// </summary>
-    public string Email { get; set; } = null!;
+    public string Username { get; set; } = null!;
+
+    /// <summary>
+    /// Gets or sets the user's email address (null when none is set).
+    /// </summary>
+    public string? Email { get; set; }
 
     /// <summary>
     /// Gets or sets the user's display name.
@@ -79,9 +84,14 @@ public class UserDto
 public class CreateUserDto
 {
     /// <summary>
-    /// Gets or sets the user's email address (required).
+    /// Gets or sets the user's username (required).
     /// </summary>
-    public string Email { get; set; } = null!;
+    public string Username { get; set; } = null!;
+
+    /// <summary>
+    /// Gets or sets the user's email address (optional).
+    /// </summary>
+    public string? Email { get; set; }
 
     /// <summary>
     /// Gets or sets the user's password (required).
@@ -114,6 +124,13 @@ public class CreateUserDto
 /// </summary>
 public class UpdateUserDto
 {
+    /// <summary>
+    /// Gets or sets the user's email address.
+    /// <c>null</c> = no change; empty string = clear email; otherwise sets the email
+    /// (must be unique when non-empty).
+    /// </summary>
+    public string? Email { get; set; }
+
     /// <summary>
     /// Gets or sets the user's display name (optional).
     /// </summary>
@@ -151,8 +168,11 @@ public class UserSearchResultDto
     /// <summary>Gets or sets the display name.</summary>
     public string DisplayName { get; set; } = null!;
 
+    /// <summary>Gets or sets the username.</summary>
+    public string Username { get; set; } = null!;
+
     /// <summary>Gets or sets the email address.</summary>
-    public string Email { get; set; } = null!;
+    public string? Email { get; set; }
 }
 
 /// <summary>

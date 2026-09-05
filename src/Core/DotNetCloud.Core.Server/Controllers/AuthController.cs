@@ -36,7 +36,7 @@ public class AuthController : ControllerBase
     /// <summary>
     /// Register a new user account.
     /// </summary>
-    /// <param name="request">Registration request containing email, password, and profile information.</param>
+    /// <param name="request">Registration request containing username, optional email, password, and profile information.</param>
     /// <returns>Registration result with the new user's ID.</returns>
     [HttpPost("register")]
     [AllowAnonymous]
@@ -46,7 +46,7 @@ public class AuthController : ControllerBase
         {
             var caller = BuildCallerContext();
             var response = await _authService.RegisterAsync(request, caller);
-            _logger.LogInformation("User registered: {Email} ({UserId})", LogSanitizer.Sanitize(request.Email), response.UserId);
+            _logger.LogInformation("User registered: {Username} ({UserId})", LogSanitizer.Sanitize(request.Username), response.UserId);
             await _auditLogger.LogAsync(new AuditEntry
             {
                 Caller = caller,
@@ -75,9 +75,9 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
-    /// Log in a user with email and password.
+    /// Log in a user with username and password.
     /// </summary>
-    /// <param name="request">Login request containing email and password.</param>
+    /// <param name="request">Login request containing username and password.</param>
     /// <returns>Login response with user info or MFA requirement.</returns>
     [HttpPost("login")]
     [AllowAnonymous]
@@ -87,7 +87,7 @@ public class AuthController : ControllerBase
         {
             var caller = BuildCallerContext();
             var response = await _authService.LoginAsync(request, caller);
-            _logger.LogInformation("User logged in: {Email}", LogSanitizer.Sanitize(request.Email));
+            _logger.LogInformation("User logged in: {Username}", LogSanitizer.Sanitize(request.Username));
             await _auditLogger.LogAsync(new AuditEntry
             {
                 Caller = caller,
@@ -108,18 +108,18 @@ public class AuthController : ControllerBase
                 Action = AuditAction.Read,
                 EntityType = "User",
                 EntityId = Guid.Empty,
-                Description = $"login-failed:{LogSanitizer.Sanitize(request.Email)}",
+                Description = $"login-failed:{LogSanitizer.Sanitize(request.Username)}",
             });
-            return Unauthorized(new { success = false, error = new { code = "INVALID_CREDENTIALS", message = "Invalid email or password" } });
+            return Unauthorized(new { success = false, error = new { code = "INVALID_CREDENTIALS", message = "Invalid username or password" } });
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("MFA"))
         {
-            _logger.LogInformation("MFA required for {Email}", LogSanitizer.Sanitize(request.Email));
+            _logger.LogInformation("MFA required for {Username}", LogSanitizer.Sanitize(request.Username));
             return Accepted(new { success = false, error = new { code = "MFA_REQUIRED", message = "Multi-factor authentication required" } });
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("PASSWORD_CHANGE_REQUIRED"))
         {
-            _logger.LogWarning("Login blocked for {Email}: password change required (closed system mode)", LogSanitizer.Sanitize(request.Email));
+            _logger.LogWarning("Login blocked for {Username}: password change required (closed system mode)", LogSanitizer.Sanitize(request.Username));
             return StatusCode(403, new { success = false, error = new { code = "PASSWORD_CHANGE_REQUIRED", message = "You must change your password before continuing." } });
         }
     }
@@ -276,21 +276,21 @@ public class AuthController : ControllerBase
     /// <summary>
     /// Request a password reset email.
     /// </summary>
-    /// <param name="request">Request containing the user's email address.</param>
-    /// <returns>Confirmation (always 200 to prevent email enumeration).</returns>
+    /// <param name="request">Request containing the user's username or email address.</param>
+    /// <returns>Confirmation (always 200 to prevent enumeration).</returns>
     [HttpPost("password/forgot")]
     [AllowAnonymous]
     public async Task<IActionResult> ForgotPasswordAsync([FromBody] PasswordResetRequestDto request)
     {
-        // Always return success to prevent email enumeration
+        // Always return success to prevent account enumeration
         try
         {
-            await _authService.InitiatePasswordResetAsync(request.Email);
-            _logger.LogInformation("Password reset requested for {Email}", LogSanitizer.Sanitize(request.Email));
+            await _authService.InitiatePasswordResetAsync(request.Identifier);
+            _logger.LogInformation("Password reset requested for {Identifier}", LogSanitizer.Sanitize(request.Identifier));
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Password reset initiation error for {Email} (suppressed)", LogSanitizer.Sanitize(request.Email));
+            _logger.LogWarning(ex, "Password reset initiation error for {Identifier} (suppressed)", LogSanitizer.Sanitize(request.Identifier));
         }
 
         return Ok(new { success = true, message = "If the account exists, a password reset email has been sent." });
@@ -299,7 +299,7 @@ public class AuthController : ControllerBase
     /// <summary>
     /// Reset a user's password using a reset token.
     /// </summary>
-    /// <param name="request">Reset request with email, token, and new password.</param>
+    /// <param name="request">Reset request with username, token, and new password.</param>
     /// <returns>Whether the password was reset successfully.</returns>
     [HttpPost("password/reset")]
     [AllowAnonymous]
@@ -312,7 +312,7 @@ public class AuthController : ControllerBase
             return BadRequest(new { success = false, error = new { code = "RESET_FAILED", message = "Invalid or expired reset token." } });
         }
 
-        _logger.LogInformation("Password reset for {Email}", LogSanitizer.Sanitize(request.Email));
+        _logger.LogInformation("Password reset for {Username}", LogSanitizer.Sanitize(request.Username));
         return Ok(new { success = true, message = "Password has been reset successfully." });
     }
 
@@ -346,12 +346,12 @@ public class AuthController : ControllerBase
 }
 
 /// <summary>
-/// Request DTO for initiating a password reset (contains only email).
+/// Request DTO for initiating a password reset. Accepts either a username or an email address.
 /// </summary>
 public sealed class PasswordResetRequestDto
 {
     /// <summary>
-    /// Gets or sets the email address to send the reset link to.
+    /// Gets or sets the username or email address of the account requesting a reset.
     /// </summary>
-    public string Email { get; set; } = string.Empty;
+    public string Identifier { get; set; } = string.Empty;
 }

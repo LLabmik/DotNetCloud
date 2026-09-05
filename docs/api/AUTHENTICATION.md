@@ -11,7 +11,7 @@
 1. [Architecture Overview](#architecture-overview)
 2. [Authentication Flows by Client](#authentication-flows-by-client)
 3. [User Registration](#user-registration)
-4. [Email/Password Login](#emailpassword-login)
+4. [Username/Password Login](#usernamepassword-login)
 5. [Multi-Factor Authentication](#multi-factor-authentication)
 6. [Token Lifecycle](#token-lifecycle)
 7. [External Provider Login](#external-provider-login)
@@ -25,12 +25,12 @@
 
 DotNetCloud uses a two-layer authentication stack:
 
-| Layer | Technology | Purpose |
-|---|---|---|
-| **User/role storage** | ASP.NET Core Identity | User management, password hashing, MFA TOTP, lockout, email confirmation |
-| **OAuth2/OIDC server** | OpenIddict (Apache 2.0) | Issues access/refresh/ID tokens; authorization code + PKCE; client credentials |
-| **Federation** | ASP.NET Core External Authentication | Sign in with Google, Microsoft, GitHub; enterprise SAML/OIDC |
-| **MFA** | Identity TOTP + Fido2NetLib | Authenticator apps + hardware keys/passkeys |
+| Layer                  | Technology                           | Purpose                                                                        |
+| ---------------------- | ------------------------------------ | ------------------------------------------------------------------------------ |
+| **User/role storage**  | ASP.NET Core Identity                | User management, password hashing, MFA TOTP, lockout, email confirmation       |
+| **OAuth2/OIDC server** | OpenIddict (Apache 2.0)              | Issues access/refresh/ID tokens; authorization code + PKCE; client credentials |
+| **Federation**         | ASP.NET Core External Authentication | Sign in with Google, Microsoft, GitHub; enterprise SAML/OIDC                   |
+| **MFA**                | Identity TOTP + Fido2NetLib          | Authenticator apps + hardware keys/passkeys                                    |
 
 ### Why OpenIddict
 
@@ -40,13 +40,13 @@ OpenIddict is Apache 2.0 licensed (free for all uses). Duende IdentityServer req
 
 ## Authentication Flows by Client
 
-| Client Type | Flow | Details |
-|---|---|---|
-| **Blazor Web UI** | Cookie-based session via OpenIddict | Server-side session, no client-side token storage |
-| **Avalonia Desktop** | OAuth2 Authorization Code + PKCE | Opens system browser for login |
-| **Android MAUI** | OAuth2 Authorization Code + PKCE | Chrome Custom Tab for login |
-| **Sync Service** | Refresh token (long-lived) | Initial auth via PKCE, then persistent refresh token |
-| **Third-party apps** | OAuth2 Client Credentials or Auth Code | Standard OAuth2 flows |
+| Client Type          | Flow                                   | Details                                              |
+| -------------------- | -------------------------------------- | ---------------------------------------------------- |
+| **Blazor Web UI**    | Cookie-based session via OpenIddict    | Server-side session, no client-side token storage    |
+| **Avalonia Desktop** | OAuth2 Authorization Code + PKCE       | Opens system browser for login                       |
+| **Android MAUI**     | OAuth2 Authorization Code + PKCE       | Chrome Custom Tab for login                          |
+| **Sync Service**     | Refresh token (long-lived)             | Initial auth via PKCE, then persistent refresh token |
+| **Third-party apps** | OAuth2 Client Credentials or Auth Code | Standard OAuth2 flows                                |
 
 ---
 
@@ -58,10 +58,10 @@ OpenIddict is Apache 2.0 licensed (free for all uses). Duende IdentityServer req
 Client                          Server
   │                               │
   │  POST /api/v1/core/auth/register
-  │  { email, password, displayName }
+  │  { username, email?, password, displayName }
   │─────────────────────────────► │
   │                               │── Validate input
-  │                               │── Check email uniqueness
+  │                               │── Check email uniqueness (when email set)
   │                               │── Hash password (ASP.NET Core Identity)
   │                               │── Create ApplicationUser
   │                               │── Assign default roles
@@ -71,20 +71,21 @@ Client                          Server
 
 ### Validation Rules
 
-- **Email:** Must be a valid email format; must be unique in the system
+- **Username:** Required; may contain letters, digits, `-`, `.`, `_` only. `@`/`+` are rejected so a username can never look like an email address. Must be unique.
+- **Email:** Optional; when set it must be a valid, unique email address. Omitted/blank emails are stored as `null`.
 - **Password:** Must meet ASP.NET Core Identity requirements (uppercase, lowercase, digit, special character, minimum length)
 - **Display Name:** Required, non-empty string
 
 ### Error Responses
 
-| Code | HTTP Status | Cause |
-|---|---|---|
-| `VALIDATION_ERROR` | 400 | Input validation failed |
-| `REGISTRATION_FAILED` | 400 | Email already in use or other constraint violation |
+| Code                  | HTTP Status | Cause                                                       |
+| --------------------- | ----------- | ----------------------------------------------------------- |
+| `VALIDATION_ERROR`    | 400         | Input validation failed                                     |
+| `REGISTRATION_FAILED` | 400         | Username/email already in use or other constraint violation |
 
 ---
 
-## Email/Password Login
+## Username/Password Login
 
 ### Flow (Without MFA)
 
@@ -92,7 +93,7 @@ Client                          Server
 Client                          Server
   │                               │
   │  POST /api/v1/core/auth/login
-  │  { email, password }
+  │  { username, password }
   │─────────────────────────────► │
   │                               │── Validate credentials (Identity)
   │                               │── Check account lockout
@@ -110,7 +111,7 @@ Client                          Server
 Client                          Server
   │                               │
   │  POST /api/v1/core/auth/login
-  │  { email, password }
+  │  { username, password }
   │─────────────────────────────► │
   │                               │── Validate credentials ✓
   │                               │── Detect MFA enabled
@@ -127,11 +128,11 @@ Client                          Server
 
 ### Error Responses
 
-| Code | HTTP Status | Cause |
-|---|---|---|
-| `INVALID_CREDENTIALS` | 401 | Wrong email or password |
-| `MFA_REQUIRED` | 202 | Valid credentials but MFA step required |
-| `AUTH_ACCOUNT_LOCKED` | 401 | Too many failed attempts |
+| Code                  | HTTP Status | Cause                                   |
+| --------------------- | ----------- | --------------------------------------- |
+| `INVALID_CREDENTIALS` | 401         | Wrong username or password              |
+| `MFA_REQUIRED`        | 202         | Valid credentials but MFA step required |
+| `AUTH_ACCOUNT_LOCKED` | 401         | Too many failed attempts                |
 
 ---
 
@@ -139,11 +140,11 @@ Client                          Server
 
 ### Supported Methods
 
-| Method | Status | Description |
-|---|---|---|
-| **TOTP** | ✅ Implemented | Time-based one-time password (authenticator apps) |
-| **Passkeys (FIDO2)** | 🔲 Skeleton | WebAuthn/FIDO2 hardware keys (entity ready, integration pending) |
-| **Backup Codes** | ✅ Implemented | One-time recovery codes (stored as SHA-256 hashes) |
+| Method               | Status         | Description                                                      |
+| -------------------- | -------------- | ---------------------------------------------------------------- |
+| **TOTP**             | ✅ Implemented | Time-based one-time password (authenticator apps)                |
+| **Passkeys (FIDO2)** | 🔲 Skeleton    | WebAuthn/FIDO2 hardware keys (entity ready, integration pending) |
+| **Backup Codes**     | ✅ Implemented | One-time recovery codes (stored as SHA-256 hashes)               |
 
 ### TOTP Setup Flow
 
@@ -185,24 +186,24 @@ Codes are shown **once** and stored as SHA-256 hashes in the database.
 
 ### Token Types
 
-| Token | Lifetime | Storage |
-|---|---|---|
-| **Access Token** | Short-lived (default: 1 hour) | Client memory or `Authorization: Bearer` header |
-| **Refresh Token** | Long-lived (default: 14 days) | Client secure storage |
-| **ID Token** | Short-lived | Client (OIDC identity claims) |
+| Token             | Lifetime                      | Storage                                         |
+| ----------------- | ----------------------------- | ----------------------------------------------- |
+| **Access Token**  | Short-lived (default: 1 hour) | Client memory or `Authorization: Bearer` header |
+| **Refresh Token** | Long-lived (default: 14 days) | Client secure storage                           |
+| **ID Token**      | Short-lived                   | Client (OIDC identity claims)                   |
 
 ### First-Party Desktop OAuth Client (Auto-Registered)
 
 The server auto-registers the desktop SyncTray OAuth client during startup if it is missing.
 
-| Field | Value |
-|---|---|
-| `client_id` | `dotnetcloud-desktop` |
-| `redirect_uri` | `http://localhost:52701/oauth/callback` |
-| `client_type` | `public` |
-| Required auth feature | PKCE (`S256`) |
-| Enabled grants | Authorization Code, Refresh Token |
-| Common scopes | `openid`, `offline_access`, `profile`, `files:read`, `files:write` |
+| Field                 | Value                                                              |
+| --------------------- | ------------------------------------------------------------------ |
+| `client_id`           | `dotnetcloud-desktop`                                              |
+| `redirect_uri`        | `http://localhost:52701/oauth/callback`                            |
+| `client_type`         | `public`                                                           |
+| Required auth feature | PKCE (`S256`)                                                      |
+| Enabled grants        | Authorization Code, Refresh Token                                  |
+| Common scopes         | `openid`, `offline_access`, `profile`, `files:read`, `files:write` |
 
 This supports local-loopback browser sign-in for desktop onboarding and ongoing sync authorization.
 
@@ -284,22 +285,23 @@ POST /api/v1/core/auth/password/change
 
 ### Forgot Password
 
-Request a password reset email:
+Request a password reset email using either a username or an email address:
 
 ```
 POST /api/v1/core/auth/password/forgot
-{ "email": "user@example.com" }
+{ "identifier": "Bill.Jones" }
 ```
 
-> **Security:** This endpoint always returns `200 OK` regardless of whether the email exists, to prevent email enumeration.
+> **Security:** This endpoint always returns `200 OK` regardless of whether the account exists, to prevent account enumeration.
+> If the matched account has no email on file, no reset link is sent — the user must contact their administrator.
 
 ### Reset Password
 
-Complete the reset using the token from the email:
+Complete the reset using the token delivered by email:
 
 ```
 POST /api/v1/core/auth/password/reset
-{ "email": "user@example.com", "token": "...", "newPassword": "..." }
+{ "username": "Bill.Jones", "token": "...", "newPassword": "..." }
 ```
 
 ---
@@ -310,17 +312,17 @@ POST /api/v1/core/auth/password/reset
 
 DotNetCloud uses role-based authorization with ASP.NET Core Identity roles.
 
-| Role | Description | Privileges |
-|---|---|---|
-| `admin` | System administrator | Full access to all admin endpoints |
-| `user` | Standard user | Access to own profile and authorized modules |
+| Role    | Description          | Privileges                                   |
+| ------- | -------------------- | -------------------------------------------- |
+| `admin` | System administrator | Full access to all admin endpoints           |
+| `user`  | Standard user        | Access to own profile and authorized modules |
 
 ### Authorization Policies
 
-| Policy | Description | Applied To |
-|---|---|---|
-| `RequireAdmin` | Requires the `admin` role | Admin endpoints (`/api/v1/core/admin/*`) |
-| `RequireAuthenticated` | Requires a valid token | User endpoints, MFA, device management |
+| Policy                 | Description               | Applied To                               |
+| ---------------------- | ------------------------- | ---------------------------------------- |
+| `RequireAdmin`         | Requires the `admin` role | Admin endpoints (`/api/v1/core/admin/*`) |
+| `RequireAuthenticated` | Requires a valid token    | User endpoints, MFA, device management   |
 
 ### CallerContext
 
@@ -335,6 +337,7 @@ public record CallerContext(
 ```
 
 This context is used by:
+
 - Capability tier enforcement (module permissions)
 - Event bus filtering
 - Audit logging

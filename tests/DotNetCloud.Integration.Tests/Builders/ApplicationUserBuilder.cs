@@ -8,6 +8,7 @@ namespace DotNetCloud.Integration.Tests.Builders;
 internal sealed class ApplicationUserBuilder
 {
     private Guid _id = Guid.CreateVersion7();
+    private string _username = $"user-{Guid.CreateVersion7():N}";
     private string _email = $"user-{Guid.CreateVersion7():N}@test.local";
     private string _displayName = "Test User";
     private string _locale = "en-US";
@@ -19,6 +20,7 @@ internal sealed class ApplicationUserBuilder
     private string? _avatarUrl;
 
     public ApplicationUserBuilder WithId(Guid id) { _id = id; return this; }
+    public ApplicationUserBuilder WithUsername(string username) { _username = username; return this; }
     public ApplicationUserBuilder WithEmail(string email) { _email = email; return this; }
     public ApplicationUserBuilder WithDisplayName(string name) { _displayName = name; return this; }
     public ApplicationUserBuilder WithLocale(string locale) { _locale = locale; return this; }
@@ -34,8 +36,8 @@ internal sealed class ApplicationUserBuilder
         return new ApplicationUser
         {
             Id = _id,
-            UserName = _email,
-            NormalizedUserName = _email.ToUpperInvariant(),
+            UserName = _username,
+            NormalizedUserName = _username.ToUpperInvariant(),
             Email = _email,
             NormalizedEmail = _email.ToUpperInvariant(),
             DisplayName = _displayName,
@@ -57,6 +59,7 @@ internal sealed class ApplicationUserBuilder
     public static ApplicationUser CreateAdmin(string email = "admin@test.local")
     {
         return new ApplicationUserBuilder()
+            .WithUsername("admin")
             .WithEmail(email)
             .WithDisplayName("Test Admin")
             .Build();

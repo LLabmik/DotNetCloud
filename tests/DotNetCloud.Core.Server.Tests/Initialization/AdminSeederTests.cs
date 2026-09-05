@@ -46,6 +46,7 @@ public class AdminSeederTests
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
+                ["DotNetCloud:AdminUsername"] = "admin",
                 ["DotNetCloud:AdminEmail"] = "admin@test.com",
                 ["DotNetCloud:AdminPassword"] = "Str0ng!Pass99"
             })
@@ -123,6 +124,7 @@ public class AdminSeederTests
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
+                ["DotNetCloud:AdminUsername"] = "admin",
                 ["DotNetCloud:AdminEmail"] = "admin@test.com",
                 ["DotNetCloud:AdminPassword"] = "Str0ng!Pass99"
             })
@@ -137,8 +139,8 @@ public class AdminSeederTests
         _userManagerMock.Verify(
             m => m.CreateAsync(
                 It.Is<ApplicationUser>(u =>
+                    u.UserName == "admin" &&
                     u.Email == "admin@test.com" &&
-                    u.UserName == "admin@test.com" &&
                     u.DisplayName == "Administrator" &&
                     u.EmailConfirmed &&
                     u.IsActive),
@@ -147,6 +149,74 @@ public class AdminSeederTests
 
         _userManagerMock.Verify(
             m => m.AddToRoleAsync(It.IsAny<ApplicationUser>(), "Administrator"),
+            Times.Once);
+    }
+
+    [TestMethod]
+    public async Task WhenOnlyAdminEmailConfigured_ThenDerivesUsernameFromEmailAsync()
+    {
+        // Arrange — legacy installs only set an email; username should be derived from the local-part
+        _userManagerMock.Setup(m => m.Users)
+            .Returns(Enumerable.Empty<ApplicationUser>().AsQueryable());
+        _userManagerMock.Setup(m => m.CreateAsync(It.IsAny<ApplicationUser>(), It.IsAny<string>()))
+            .ReturnsAsync(IdentityResult.Success);
+        _userManagerMock.Setup(m => m.AddToRoleAsync(It.IsAny<ApplicationUser>(), "Administrator"))
+            .ReturnsAsync(IdentityResult.Success);
+        _roleManagerMock.Setup(m => m.RoleExistsAsync("Administrator"))
+            .ReturnsAsync(true);
+
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["DotNetCloud:AdminEmail"] = "admin@test.com",
+                ["DotNetCloud:AdminPassword"] = "Str0ng!Pass99"
+            })
+            .Build();
+
+        var seeder = new AdminSeeder(_userManagerMock.Object, _roleManagerMock.Object, null!, config, _adminSettingsMock.Object, _logger);
+
+        // Act
+        await seeder.SeedAsync();
+
+        // Assert — username derived from the email local-part
+        _userManagerMock.Verify(
+            m => m.CreateAsync(
+                It.Is<ApplicationUser>(u => u.UserName == "admin" && u.Email == "admin@test.com"),
+                "Str0ng!Pass99"),
+            Times.Once);
+    }
+
+    [TestMethod]
+    public async Task WhenUsernameConfiguredButNoEmail_ThenCreatesAdminWithNullEmailAsync()
+    {
+        // Arrange — AdminUsername set, no AdminEmail
+        _userManagerMock.Setup(m => m.Users)
+            .Returns(Enumerable.Empty<ApplicationUser>().AsQueryable());
+        _userManagerMock.Setup(m => m.CreateAsync(It.IsAny<ApplicationUser>(), It.IsAny<string>()))
+            .ReturnsAsync(IdentityResult.Success);
+        _userManagerMock.Setup(m => m.AddToRoleAsync(It.IsAny<ApplicationUser>(), "Administrator"))
+            .ReturnsAsync(IdentityResult.Success);
+        _roleManagerMock.Setup(m => m.RoleExistsAsync("Administrator"))
+            .ReturnsAsync(true);
+
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["DotNetCloud:AdminUsername"] = "adminonly",
+                ["DotNetCloud:AdminPassword"] = "Str0ng!Pass99"
+            })
+            .Build();
+
+        var seeder = new AdminSeeder(_userManagerMock.Object, _roleManagerMock.Object, null!, config, _adminSettingsMock.Object, _logger);
+
+        // Act
+        await seeder.SeedAsync();
+
+        // Assert — created with username and null email
+        _userManagerMock.Verify(
+            m => m.CreateAsync(
+                It.Is<ApplicationUser>(u => u.UserName == "adminonly" && u.Email == null),
+                "Str0ng!Pass99"),
             Times.Once);
     }
 

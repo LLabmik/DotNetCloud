@@ -1315,16 +1315,18 @@ write_collabora_env_file() {
     local wopi_key
     wopi_key=$(grep -oP '"(?:wopiTokenSigningKey|WopiTokenSigningKey)"\s*:\s*"\K[^"]+' "$config_file" 2>/dev/null | head -n1 || true)
 
-    # Read admin email from config.json
+    # Read admin email and username from config.json
     local admin_email
     admin_email=$(grep -oP '"(?:adminEmail|AdminEmail)"\s*:\s*"\K[^"]+' "$config_file" 2>/dev/null | head -n1 || true)
+    local admin_username
+    admin_username=$(grep -oP '"(?:adminUsername|AdminUsername)"\s*:\s*"\K[^"]+' "$config_file" 2>/dev/null | head -n1 || true)
 
     # Preserve keys the installer does not manage (e.g. AdminMfaEnabled,
     # EnableProofKeyValidation, TmdbApiKey) so upgrades don't silently drop them.
     local preserved=""
     if [[ -f "${CONFIG_DIR}/env" ]]; then
         preserved=$(grep -E '^[A-Za-z][A-Za-z0-9_]*=' "${CONFIG_DIR}/env" 2>/dev/null \
-            | grep -vE '^DotNetCloud__AdminEmail=|^Files__Collabora__(Enabled|UseBuiltInCollabora|ServerUrl|DiscoveryUrl|ProxyUpstreamUrl|AllowInsecureTls|TokenSigningKey|WopiBaseUrl)=' \
+            | grep -vE '^DotNetCloud__AdminEmail=|^DotNetCloud__AdminUsername=|^Files__Collabora__(Enabled|UseBuiltInCollabora|ServerUrl|DiscoveryUrl|ProxyUpstreamUrl|AllowInsecureTls|TokenSigningKey|WopiBaseUrl)=' \
             || true)
     fi
 
@@ -1334,6 +1336,7 @@ write_collabora_env_file() {
 
 # Admin credentials (used by AdminSeeder)
 DotNetCloud__AdminEmail=${admin_email}
+DotNetCloud__AdminUsername=${admin_username}
 
 # Collabora Online
 Files__Collabora__Enabled=true

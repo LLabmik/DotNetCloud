@@ -1,5 +1,6 @@
 @page "/auth/register"
 @using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
 @using DotNetCloud.Core.Constants
 @using DotNetCloud.Core.Data.Entities.Identity
 @using DotNetCloud.Core.Services
@@ -38,109 +39,119 @@
                 </div>
             }
 
-        <EditForm Model="_model" OnValidSubmit="RegisterAsync" FormName="register">
-            <DataAnnotationsValidator />
+            <EditForm Model="_model" OnValidSubmit="RegisterAsync" FormName="register">
+                <DataAnnotationsValidator />
 
-            <div class="form-group">
-                <label for="email">Email</label>
-                <InputText id="email" class="input" @bind-Value="_model!.Email" placeholder="you@example.com" />
-                <ValidationMessage For="() => _model!.Email" />
-            </div>
-
-            <div class="form-group">
-                <label for="displayName">Display Name</label>
-                <InputText id="displayName" class="input" @bind-Value="_model!.DisplayName" placeholder="Your name" />
-                <ValidationMessage For="() => _model!.DisplayName" />
-            </div>
-
-            <div class="form-group">
-                <label for="register-locale">Language / Region</label>
-                <select id="register-locale" name="_model.Locale" class="input">
-                    <option value="en-US">English (United States)</option>
-                    <option value="en-GB">English (United Kingdom)</option>
-                    <option value="en-CA">English (Canada)</option>
-                    <option value="en-AU">English (Australia)</option>
-                    <option value="en-NZ">English (New Zealand)</option>
-                    <option value="de-DE">German (Germany)</option>
-                    <option value="de-AT">German (Austria)</option>
-                    <option value="de-CH">German (Switzerland)</option>
-                    <option value="fr-FR">French (France)</option>
-                    <option value="fr-CA">French (Canada)</option>
-                    <option value="fr-BE">French (Belgium)</option>
-                    <option value="fr-CH">French (Switzerland)</option>
-                    <option value="es-ES">Spanish (Spain)</option>
-                    <option value="es-MX">Spanish (Mexico)</option>
-                    <option value="es-AR">Spanish (Argentina)</option>
-                    <option value="it-IT">Italian (Italy)</option>
-                    <option value="pt-BR">Portuguese (Brazil)</option>
-                    <option value="pt-PT">Portuguese (Portugal)</option>
-                    <option value="nl-NL">Dutch (Netherlands)</option>
-                    <option value="nl-BE">Dutch (Belgium)</option>
-                    <option value="sv-SE">Swedish (Sweden)</option>
-                    <option value="nb-NO">Norwegian (Norway)</option>
-                    <option value="da-DK">Danish (Denmark)</option>
-                    <option value="fi-FI">Finnish (Finland)</option>
-                    <option value="pl-PL">Polish (Poland)</option>
-                    <option value="cs-CZ">Czech (Czech Republic)</option>
-                    <option value="sk-SK">Slovak (Slovakia)</option>
-                    <option value="hu-HU">Hungarian (Hungary)</option>
-                    <option value="ro-RO">Romanian (Romania)</option>
-                    <option value="hr-HR">Croatian (Croatia)</option>
-                    <option value="bg-BG">Bulgarian (Bulgaria)</option>
-                    <option value="ru-RU">Russian (Russia)</option>
-                    <option value="uk-UA">Ukrainian (Ukraine)</option>
-                    <option value="tr-TR">Turkish (Turkey)</option>
-                    <option value="ar-SA">Arabic (Saudi Arabia)</option>
-                    <option value="ar-AE">Arabic (UAE)</option>
-                    <option value="he-IL">Hebrew (Israel)</option>
-                    <option value="ja-JP">Japanese (Japan)</option>
-                    <option value="ko-KR">Korean (South Korea)</option>
-                    <option value="zh-CN">Chinese Simplified (China)</option>
-                    <option value="zh-TW">Chinese Traditional (Taiwan)</option>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label for="register-timezone">Timezone</label>
-                <div style="display: flex; gap: 8px; align-items: center;">
-                    <input type="text" id="register-timezone" name="_model.Timezone" class="input" value="@(_model?.Timezone ?? "UTC")" style="flex: 1;" placeholder="e.g. America/New_York" />
-                    <button type="button" class="btn btn-sm btn-outline" onclick="dotnetcloud.detectAndFillTimezone('register-timezone')">Detect</button>
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <InputText id="username" class="input" @bind-Value="_model!.Username" placeholder="Bill.Jones"
+                               autocomplete="username" />
+                    <span class="hint">Allowed characters: letters, digits, '-', '.', '_'</span>
+                    <ValidationMessage For="() => _model!.Username" />
                 </div>
+
+                <div class="form-group">
+                    <label for="email">Email (optional)</label>
+                    <InputText id="email" class="input" @bind-Value="_model!.Email" placeholder="you@example.com" />
+                    <ValidationMessage For="() => _model!.Email" />
+                </div>
+
+                <div class="form-group">
+                    <label for="displayName">Display Name</label>
+                    <InputText id="displayName" class="input" @bind-Value="_model!.DisplayName" placeholder="Your name" />
+                    <ValidationMessage For="() => _model!.DisplayName" />
+                </div>
+
+                <div class="form-group">
+                    <label for="register-locale">Language / Region</label>
+                    <select id="register-locale" name="_model.Locale" class="input">
+                        <option value="en-US">English (United States)</option>
+                        <option value="en-GB">English (United Kingdom)</option>
+                        <option value="en-CA">English (Canada)</option>
+                        <option value="en-AU">English (Australia)</option>
+                        <option value="en-NZ">English (New Zealand)</option>
+                        <option value="de-DE">German (Germany)</option>
+                        <option value="de-AT">German (Austria)</option>
+                        <option value="de-CH">German (Switzerland)</option>
+                        <option value="fr-FR">French (France)</option>
+                        <option value="fr-CA">French (Canada)</option>
+                        <option value="fr-BE">French (Belgium)</option>
+                        <option value="fr-CH">French (Switzerland)</option>
+                        <option value="es-ES">Spanish (Spain)</option>
+                        <option value="es-MX">Spanish (Mexico)</option>
+                        <option value="es-AR">Spanish (Argentina)</option>
+                        <option value="it-IT">Italian (Italy)</option>
+                        <option value="pt-BR">Portuguese (Brazil)</option>
+                        <option value="pt-PT">Portuguese (Portugal)</option>
+                        <option value="nl-NL">Dutch (Netherlands)</option>
+                        <option value="nl-BE">Dutch (Belgium)</option>
+                        <option value="sv-SE">Swedish (Sweden)</option>
+                        <option value="nb-NO">Norwegian (Norway)</option>
+                        <option value="da-DK">Danish (Denmark)</option>
+                        <option value="fi-FI">Finnish (Finland)</option>
+                        <option value="pl-PL">Polish (Poland)</option>
+                        <option value="cs-CZ">Czech (Czech Republic)</option>
+                        <option value="sk-SK">Slovak (Slovakia)</option>
+                        <option value="hu-HU">Hungarian (Hungary)</option>
+                        <option value="ro-RO">Romanian (Romania)</option>
+                        <option value="hr-HR">Croatian (Croatia)</option>
+                        <option value="bg-BG">Bulgarian (Bulgaria)</option>
+                        <option value="ru-RU">Russian (Russia)</option>
+                        <option value="uk-UA">Ukrainian (Ukraine)</option>
+                        <option value="tr-TR">Turkish (Turkey)</option>
+                        <option value="ar-SA">Arabic (Saudi Arabia)</option>
+                        <option value="ar-AE">Arabic (UAE)</option>
+                        <option value="he-IL">Hebrew (Israel)</option>
+                        <option value="ja-JP">Japanese (Japan)</option>
+                        <option value="ko-KR">Korean (South Korea)</option>
+                        <option value="zh-CN">Chinese Simplified (China)</option>
+                        <option value="zh-TW">Chinese Traditional (Taiwan)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="register-timezone">Timezone</label>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <input type="text" id="register-timezone" name="_model.Timezone" class="input"
+                               value="@(_model?.Timezone ?? "UTC")" style="flex: 1;" placeholder="e.g. America/New_York" />
+                        <button type="button" class="btn btn-sm btn-outline"
+                                onclick="dotnetcloud.detectAndFillTimezone('register-timezone')">Detect</button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <InputText id="password" class="input" type="password" @bind-Value="_model!.Password" />
+                    <ValidationMessage For="() => _model!.Password" />
+                </div>
+
+                <div class="form-group">
+                    <label for="confirmPassword">Confirm Password</label>
+                    <InputText id="confirmPassword" class="input" type="password" @bind-Value="_model!.ConfirmPassword" />
+                    <ValidationMessage For="() => _model!.ConfirmPassword" />
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(_errorMessage))
+                {
+                    <div class="alert alert-danger">@_errorMessage</div>
+                }
+
+                @if (_success)
+                {
+                    <div class="alert alert-success">Account created! <a href="/auth/login">Sign in</a>.</div>
+                }
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary btn-full" disabled="@_submitting">
+                        @(_submitting ? "Creating account..." : "Create Account")
+                    </button>
+                </div>
+            </EditForm>
+
+            <div class="auth-footer">
+                <span>Already have an account?</span>
+                <a href="/auth/login">Sign in</a>
             </div>
-
-            <div class="form-group">
-                <label for="password">Password</label>
-                <InputText id="password" class="input" type="password" @bind-Value="_model!.Password" />
-                <ValidationMessage For="() => _model!.Password" />
-            </div>
-
-            <div class="form-group">
-                <label for="confirmPassword">Confirm Password</label>
-                <InputText id="confirmPassword" class="input" type="password" @bind-Value="_model!.ConfirmPassword" />
-                <ValidationMessage For="() => _model!.ConfirmPassword" />
-            </div>
-
-            @if (!string.IsNullOrWhiteSpace(_errorMessage))
-            {
-                <div class="alert alert-danger">@_errorMessage</div>
-            }
-
-            @if (_success)
-            {
-                <div class="alert alert-success">Account created! <a href="/auth/login">Sign in</a>.</div>
-            }
-
-            <div class="form-actions">
-                <button type="submit" class="btn btn-primary btn-full" disabled="@_submitting">
-                    @(_submitting ? "Creating account..." : "Create Account")
-                </button>
-            </div>
-        </EditForm>
-
-        <div class="auth-footer">
-            <span>Already have an account?</span>
-            <a href="/auth/login">Sign in</a>
-        </div>
         }
     </div>
 </div>
@@ -219,16 +230,34 @@
             return;
         }
 
+        if (string.IsNullOrWhiteSpace(_model.Username))
+        {
+            _errorMessage = "Username is required.";
+            return;
+        }
+
         _submitting = true;
         try
         {
             var isDemoUser = _demoModeEnabled;
+            var displayName = string.IsNullOrWhiteSpace(_model.DisplayName)
+                ? _model.Username
+                : _model.DisplayName.Trim();
+
+            // Display names are what other users see — they must be unique (case-insensitive).
+            var displayNameTaken = await UserManager.Users.AnyAsync(u =>
+                u.DisplayName.ToLower() == displayName.ToLower());
+            if (displayNameTaken)
+            {
+                _errorMessage = $"Display name '{displayName}' is already in use. Please choose a different display name.";
+                return;
+            }
 
             var user = new ApplicationUser
             {
-                UserName = _model.Email,
-                Email = _model.Email,
-                DisplayName = _model.DisplayName,
+                UserName = _model.Username,
+                Email = string.IsNullOrWhiteSpace(_model.Email) ? null : _model.Email,
+                DisplayName = displayName,
                 Locale = !string.IsNullOrWhiteSpace(_model.Locale) ? _model.Locale : "en-US",
                 Timezone = !string.IsNullOrWhiteSpace(_model.Timezone) ? _model.Timezone : "UTC",
                 CreatedAt = DateTime.UtcNow,
@@ -259,7 +288,8 @@
 
     private sealed class RegisterFormModel
     {
-        public string Email { get; set; } = string.Empty;
+        public string Username { get; set; } = string.Empty;
+        public string? Email { get; set; }
         public string DisplayName { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
         public string ConfirmPassword { get; set; } = string.Empty;

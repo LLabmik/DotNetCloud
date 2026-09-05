@@ -189,7 +189,8 @@ public class OrganizationsController : ControllerBase
             .Join(_userManager.Users, om => om.UserId, u => u.Id, (om, u) => new
             {
                 u.Id,
-                Email = u.Email!,
+                Username = u.UserName!,
+                Email = u.Email,
                 DisplayName = u.DisplayName,
                 JoinedAt = om.JoinedAt,
                 IsActive = om.IsActive,
@@ -201,6 +202,7 @@ public class OrganizationsController : ControllerBase
         var result = members.Select(m => new OrganizationMemberDto
         {
             UserId = m.Id,
+            Username = m.Username,
             Email = m.Email,
             DisplayName = m.DisplayName,
             JoinedAt = m.JoinedAt,
@@ -253,7 +255,8 @@ public class OrganizationsController : ControllerBase
             data = new OrganizationMemberDto
             {
                 UserId = user.Id,
-                Email = user.Email!,
+                Username = user.UserName!,
+                Email = user.Email,
                 DisplayName = user.DisplayName,
                 JoinedAt = member.JoinedAt,
                 IsActive = member.IsActive,
@@ -280,14 +283,17 @@ public class OrganizationsController : ControllerBase
 
         _logger.LogInformation("Roles updated for user {UserId} in org {OrgId}: {Roles}", userId, id, string.Join(", ", member.RoleIds.Select(OrgRoleIds.GetName)));
 
+        var targetUser = await _userManager.FindByIdAsync(userId.ToString());
+
         return Ok(new
         {
             success = true,
             data = new OrganizationMemberDto
             {
                 UserId = userId,
-                Email = (await _userManager.FindByIdAsync(userId.ToString()))?.Email ?? "",
-                DisplayName = (await _userManager.FindByIdAsync(userId.ToString()))?.DisplayName ?? "",
+                Username = targetUser?.UserName ?? string.Empty,
+                Email = targetUser?.Email,
+                DisplayName = targetUser?.DisplayName ?? string.Empty,
                 JoinedAt = member.JoinedAt,
                 IsActive = member.IsActive,
                 RoleIds = member.RoleIds.ToList(),
@@ -368,7 +374,7 @@ public class OrganizationsController : ControllerBase
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim().ToLower();
-            query = query.Where(u => u.DisplayName.ToLower().Contains(term) || u.Email!.ToLower().Contains(term));
+            query = query.Where(u => u.DisplayName.ToLower().Contains(term) || u.UserName!.ToLower().Contains(term) || u.Email!.ToLower().Contains(term));
         }
 
         var rawUsers = await query
@@ -376,6 +382,7 @@ public class OrganizationsController : ControllerBase
             {
                 u.Id,
                 u.DisplayName,
+                Username = u.UserName!,
                 u.Email
             })
             .OrderBy(u => u.DisplayName)
@@ -385,7 +392,8 @@ public class OrganizationsController : ControllerBase
         var users = rawUsers.Select(u => new OrganizationMemberDto
         {
             UserId = u.Id,
-            Email = u.Email!,
+            Username = u.Username,
+            Email = u.Email,
             DisplayName = u.DisplayName,
             JoinedAt = DateTime.UnixEpoch,
             IsActive = true

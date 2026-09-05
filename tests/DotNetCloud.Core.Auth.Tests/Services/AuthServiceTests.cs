@@ -38,6 +38,11 @@ public class AuthServiceTests
         _userManagerMock = new Mock<UserManager<ApplicationUser>>(
             storeMock.Object, null, null, null, null, null, null, null, null);
 
+        // Default: no existing users. Individual tests override this to simulate
+        // duplicate usernames/display names.
+        _userManagerMock.Setup(m => m.Users)
+            .Returns(Enumerable.Empty<ApplicationUser>().AsQueryable());
+
         var httpContextAccessor = new Mock<Microsoft.AspNetCore.Http.IHttpContextAccessor>();
         var claimsFactory = new Mock<IUserClaimsPrincipalFactory<ApplicationUser>>();
         _signInManagerMock = new Mock<SignInManager<ApplicationUser>>(
@@ -79,14 +84,20 @@ public class AuthServiceTests
         // Arrange
         var request = new RegisterRequest
         {
+            Username = "testuser",
             Email = "test@example.com",
             Password = "P@ssw0rd!",
             DisplayName = "Test User",
         };
+        ApplicationUser? createdUser = null;
         _userManagerMock
             .Setup(m => m.CreateAsync(It.IsAny<ApplicationUser>(), request.Password))
             .ReturnsAsync(IdentityResult.Success)
-            .Callback<ApplicationUser, string>((u, _) => { u.Id = Guid.CreateVersion7(); });
+            .Callback<ApplicationUser, string>((u, _) =>
+            {
+                u.Id = Guid.CreateVersion7();
+                createdUser = u;
+            });
         // Options.SignIn.RequireConfirmedEmail defaults to false in IdentityOptions, so no mock needed
 
         // Act
@@ -94,6 +105,7 @@ public class AuthServiceTests
 
         // Assert
         Assert.AreEqual(request.Email, response.Email);
+        Assert.AreEqual("testuser", createdUser?.UserName, "Created user should use the requested username");
         Assert.IsFalse(response.RequiresEmailConfirmation);
     }
 
@@ -185,6 +197,7 @@ public class AuthServiceTests
         // Arrange
         var request = new RegisterRequest
         {
+            Username = "admincreated",
             Email = "admincreated@example.com",
             Password = "P@ssw0rd!",
             DisplayName = "Admin Created User",
@@ -273,13 +286,13 @@ public class AuthServiceTests
         {
             Id = userId,
             Email = "user@example.com",
-            UserName = "user@example.com",
+            UserName = "testuser",
             DisplayName = "Test User",
             IsActive = true,
         };
-        var request = new LoginRequest { Email = "user@example.com", Password = "P@ssw0rd!" };
+        var request = new LoginRequest { Username = "testuser", Password = "P@ssw0rd!" };
 
-        _userManagerMock.Setup(m => m.FindByEmailAsync(request.Email)).ReturnsAsync(user);
+        _userManagerMock.Setup(m => m.FindByNameAsync(request.Username)).ReturnsAsync(user);
         _userManagerMock.Setup(m => m.IsLockedOutAsync(user)).ReturnsAsync(false);
         _userManagerMock.Setup(m => m.CheckPasswordAsync(user, request.Password)).ReturnsAsync(true);
         _userManagerMock.Setup(m => m.ResetAccessFailedCountAsync(user)).ReturnsAsync(IdentityResult.Success);
@@ -299,8 +312,8 @@ public class AuthServiceTests
     public async Task LoginAsync_UserNotFound_ThrowsUnauthorizedAccessException()
     {
         // Arrange
-        var request = new LoginRequest { Email = "noone@example.com", Password = "P@ssw0rd!" };
-        _userManagerMock.Setup(m => m.FindByEmailAsync(request.Email)).ReturnsAsync((ApplicationUser?)null);
+        var request = new LoginRequest { Username = "noone", Password = "P@ssw0rd!" };
+        _userManagerMock.Setup(m => m.FindByNameAsync(request.Username)).ReturnsAsync((ApplicationUser?)null);
 
         // Act & Assert
         try
@@ -323,11 +336,12 @@ public class AuthServiceTests
             Id = Guid.CreateVersion7(),
             DisplayName = "Test User",
             Email = "user@example.com",
+            UserName = "testuser",
             IsActive = true,
         };
-        var request = new LoginRequest { Email = "user@example.com", Password = "WrongPass" };
+        var request = new LoginRequest { Username = "testuser", Password = "WrongPass" };
 
-        _userManagerMock.Setup(m => m.FindByEmailAsync(request.Email)).ReturnsAsync(user);
+        _userManagerMock.Setup(m => m.FindByNameAsync(request.Username)).ReturnsAsync(user);
         _userManagerMock.Setup(m => m.IsLockedOutAsync(user)).ReturnsAsync(false);
         _userManagerMock.Setup(m => m.CheckPasswordAsync(user, request.Password)).ReturnsAsync(false);
         _userManagerMock.Setup(m => m.AccessFailedAsync(user)).ReturnsAsync(IdentityResult.Success);
@@ -353,11 +367,12 @@ public class AuthServiceTests
             Id = Guid.CreateVersion7(),
             DisplayName = "Locked User",
             Email = "locked@example.com",
+            UserName = "lockeduser",
             IsActive = true,
         };
-        var request = new LoginRequest { Email = "locked@example.com", Password = "P@ssw0rd!" };
+        var request = new LoginRequest { Username = "lockeduser", Password = "P@ssw0rd!" };
 
-        _userManagerMock.Setup(m => m.FindByEmailAsync(request.Email)).ReturnsAsync(user);
+        _userManagerMock.Setup(m => m.FindByNameAsync(request.Username)).ReturnsAsync(user);
         _userManagerMock.Setup(m => m.IsLockedOutAsync(user)).ReturnsAsync(true);
 
         // Act & Assert
@@ -381,11 +396,12 @@ public class AuthServiceTests
             Id = Guid.CreateVersion7(),
             DisplayName = "Inactive User",
             Email = "inactive@example.com",
+            UserName = "inactiveuser",
             IsActive = false,
         };
-        var request = new LoginRequest { Email = "inactive@example.com", Password = "P@ssw0rd!" };
+        var request = new LoginRequest { Username = "inactiveuser", Password = "P@ssw0rd!" };
 
-        _userManagerMock.Setup(m => m.FindByEmailAsync(request.Email)).ReturnsAsync(user);
+        _userManagerMock.Setup(m => m.FindByNameAsync(request.Username)).ReturnsAsync(user);
 
         // Act & Assert
         try
@@ -403,10 +419,10 @@ public class AuthServiceTests
     public async Task LoginAsync_MfaEnabledNoTotpCode_ThrowsMfaRequired()
     {
         // Arrange
-        var user = new ApplicationUser { Id = Guid.CreateVersion7(), DisplayName = "MFA User", Email = "mfa@example.com", IsActive = true };
-        var request = new LoginRequest { Email = "mfa@example.com", Password = "P@ssw0rd!" };
+        var user = new ApplicationUser { Id = Guid.CreateVersion7(), DisplayName = "MFA User", Email = "mfa@example.com", UserName = "mfauser", IsActive = true };
+        var request = new LoginRequest { Username = "mfauser", Password = "P@ssw0rd!" };
 
-        _userManagerMock.Setup(m => m.FindByEmailAsync(request.Email)).ReturnsAsync(user);
+        _userManagerMock.Setup(m => m.FindByNameAsync(request.Username)).ReturnsAsync(user);
         _userManagerMock.Setup(m => m.IsLockedOutAsync(user)).ReturnsAsync(false);
         _userManagerMock.Setup(m => m.CheckPasswordAsync(user, request.Password)).ReturnsAsync(true);
         _userManagerMock.Setup(m => m.ResetAccessFailedCountAsync(user)).ReturnsAsync(IdentityResult.Success);
@@ -423,10 +439,10 @@ public class AuthServiceTests
     {
         try
         {
-            var user = new ApplicationUser { Id = Guid.CreateVersion7(), DisplayName = "MFA User", Email = "mfa@example.com", IsActive = true };
-            var request = new LoginRequest { Email = "mfa@example.com", Password = "P@ssw0rd!" };
+            var user = new ApplicationUser { Id = Guid.CreateVersion7(), DisplayName = "MFA User", Email = "mfa@example.com", UserName = "mfauser", IsActive = true };
+            var request = new LoginRequest { Username = "mfauser", Password = "P@ssw0rd!" };
 
-            _userManagerMock.Setup(m => m.FindByEmailAsync(request.Email)).ReturnsAsync(user);
+            _userManagerMock.Setup(m => m.FindByNameAsync(request.Username)).ReturnsAsync(user);
             _userManagerMock.Setup(m => m.IsLockedOutAsync(user)).ReturnsAsync(false);
             _userManagerMock.Setup(m => m.CheckPasswordAsync(user, request.Password)).ReturnsAsync(true);
             _userManagerMock.Setup(m => m.ResetAccessFailedCountAsync(user)).ReturnsAsync(IdentityResult.Success);
@@ -455,14 +471,14 @@ public class AuthServiceTests
         {
             Id = userId,
             Email = "user@example.com",
-            UserName = "user@example.com",
+            UserName = "testuser",
             DisplayName = "Test User",
             IsActive = true,
             PasswordChangeRequired = true,
         };
-        var request = new LoginRequest { Email = "user@example.com", Password = "P@ssw0rd!" };
+        var request = new LoginRequest { Username = "testuser", Password = "P@ssw0rd!" };
 
-        _userManagerMock.Setup(m => m.FindByEmailAsync(request.Email)).ReturnsAsync(user);
+        _userManagerMock.Setup(m => m.FindByNameAsync(request.Username)).ReturnsAsync(user);
         _userManagerMock.Setup(m => m.IsLockedOutAsync(user)).ReturnsAsync(false);
         _userManagerMock.Setup(m => m.CheckPasswordAsync(user, request.Password)).ReturnsAsync(true);
         _userManagerMock.Setup(m => m.ResetAccessFailedCountAsync(user)).ReturnsAsync(IdentityResult.Success);
@@ -490,14 +506,14 @@ public class AuthServiceTests
         {
             Id = userId,
             Email = "user@example.com",
-            UserName = "user@example.com",
+            UserName = "testuser",
             DisplayName = "Test User",
             IsActive = true,
             PasswordChangeRequired = false,
         };
-        var request = new LoginRequest { Email = "user@example.com", Password = "P@ssw0rd!" };
+        var request = new LoginRequest { Username = "testuser", Password = "P@ssw0rd!" };
 
-        _userManagerMock.Setup(m => m.FindByEmailAsync(request.Email)).ReturnsAsync(user);
+        _userManagerMock.Setup(m => m.FindByNameAsync(request.Username)).ReturnsAsync(user);
         _userManagerMock.Setup(m => m.IsLockedOutAsync(user)).ReturnsAsync(false);
         _userManagerMock.Setup(m => m.CheckPasswordAsync(user, request.Password)).ReturnsAsync(true);
         _userManagerMock.Setup(m => m.ResetAccessFailedCountAsync(user)).ReturnsAsync(IdentityResult.Success);
@@ -667,6 +683,7 @@ public class AuthServiceTests
         {
             Id = userId,
             Email = "user@example.com",
+            UserName = "jdoe",
             DisplayName = "Jane Doe",
             AvatarUrl = "https://example.com/avatar.png",
             Locale = "de-DE",
@@ -685,6 +702,7 @@ public class AuthServiceTests
         // Assert
         Assert.IsNotNull(profile);
         Assert.AreEqual(userId, profile.UserId);
+        Assert.AreEqual("jdoe", profile.Username);
         Assert.AreEqual("user@example.com", profile.Email);
         Assert.AreEqual("Jane Doe", profile.DisplayName);
         Assert.AreEqual("https://example.com/avatar.png", profile.AvatarUrl);
@@ -708,5 +726,279 @@ public class AuthServiceTests
 
         // Assert
         Assert.IsNull(profile);
+    }
+
+    // ---------------------------------------------------------------------------
+    // RegisterAsync — email optional
+    // ---------------------------------------------------------------------------
+
+    [TestMethod]
+    public async Task RegisterAsync_EmailOmitted_StoresNullEmail()
+    {
+        // Arrange
+        var request = new RegisterRequest
+        {
+            Username = "noemailuser",
+            Email = null,
+            Password = "P@ssw0rd!",
+            DisplayName = "No Email User",
+        };
+
+        ApplicationUser? createdUser = null;
+        _userManagerMock
+            .Setup(m => m.CreateAsync(It.IsAny<ApplicationUser>(), request.Password))
+            .ReturnsAsync(IdentityResult.Success)
+            .Callback<ApplicationUser, string>((u, _) =>
+            {
+                u.Id = Guid.CreateVersion7();
+                createdUser = u;
+            });
+
+        // Act
+        var response = await _service.RegisterAsync(request, SystemCaller);
+
+        // Assert
+        Assert.IsNotNull(createdUser);
+        Assert.IsNull(createdUser!.Email, "An omitted email must be stored as null, not empty string");
+        Assert.IsNull(response.Email);
+        Assert.IsFalse(response.RequiresEmailConfirmation);
+    }
+
+    [TestMethod]
+    public async Task RegisterAsync_BlankEmail_StoresNullEmail()
+    {
+        // Arrange
+        var request = new RegisterRequest
+        {
+            Username = "blankemailuser",
+            Email = "   ",
+            Password = "P@ssw0rd!",
+            DisplayName = "Blank Email User",
+        };
+
+        ApplicationUser? createdUser = null;
+        _userManagerMock
+            .Setup(m => m.CreateAsync(It.IsAny<ApplicationUser>(), request.Password))
+            .ReturnsAsync(IdentityResult.Success)
+            .Callback<ApplicationUser, string>((u, _) =>
+            {
+                u.Id = Guid.CreateVersion7();
+                createdUser = u;
+            });
+
+        // Act
+        var response = await _service.RegisterAsync(request, SystemCaller);
+
+        // Assert
+        Assert.IsNotNull(createdUser);
+        Assert.IsNull(createdUser!.Email, "A whitespace email must be stored as null, not empty string");
+        Assert.IsNull(response.Email);
+    }
+
+    [TestMethod]
+    public async Task RegisterAsync_EmailProvided_StoresTrimmedEmail()
+    {
+        // Arrange
+        var request = new RegisterRequest
+        {
+            Username = "withemail",
+            Email = "  with.email@example.com  ",
+            Password = "P@ssw0rd!",
+            DisplayName = "With Email",
+        };
+
+        ApplicationUser? createdUser = null;
+        _userManagerMock
+            .Setup(m => m.CreateAsync(It.IsAny<ApplicationUser>(), request.Password))
+            .ReturnsAsync(IdentityResult.Success)
+            .Callback<ApplicationUser, string>((u, _) =>
+            {
+                u.Id = Guid.CreateVersion7();
+                createdUser = u;
+            });
+
+        // Act
+        var response = await _service.RegisterAsync(request, SystemCaller);
+
+        // Assert
+        Assert.IsNotNull(createdUser);
+        Assert.AreEqual("with.email@example.com", createdUser!.Email);
+        Assert.AreEqual("with.email@example.com", response.Email);
+    }
+
+    [TestMethod]
+    public async Task RegisterAsync_BlankDisplayName_FallsBackToUsername()
+    {
+        // Arrange
+        var request = new RegisterRequest
+        {
+            Username = "benkimball",
+            Email = "bpkimball@gmail.com",
+            Password = "P@ssw0rd!",
+            DisplayName = "   ",
+        };
+
+        ApplicationUser? createdUser = null;
+        _userManagerMock
+            .Setup(m => m.CreateAsync(It.IsAny<ApplicationUser>(), request.Password))
+            .ReturnsAsync(IdentityResult.Success)
+            .Callback<ApplicationUser, string>((u, _) =>
+            {
+                u.Id = Guid.CreateVersion7();
+                createdUser = u;
+            });
+
+        // Act
+        await _service.RegisterAsync(request, SystemCaller);
+
+        // Assert — display name is the name others see, so it must never be blank
+        Assert.IsNotNull(createdUser);
+        Assert.AreEqual("benkimball", createdUser!.DisplayName,
+            "A blank display name should fall back to the username");
+    }
+
+    [TestMethod]
+    public async Task RegisterAsync_DisplayNameProvided_IsTrimmed()
+    {
+        // Arrange
+        var request = new RegisterRequest
+        {
+            Username = "benkimball",
+            Email = "bpkimball@gmail.com",
+            Password = "P@ssw0rd!",
+            DisplayName = "  Ben Kimball  ",
+        };
+
+        ApplicationUser? createdUser = null;
+        _userManagerMock
+            .Setup(m => m.CreateAsync(It.IsAny<ApplicationUser>(), request.Password))
+            .ReturnsAsync(IdentityResult.Success)
+            .Callback<ApplicationUser, string>((u, _) =>
+            {
+                u.Id = Guid.CreateVersion7();
+                createdUser = u;
+            });
+
+        // Act
+        await _service.RegisterAsync(request, SystemCaller);
+
+        // Assert
+        Assert.IsNotNull(createdUser);
+        Assert.AreEqual("Ben Kimball", createdUser!.DisplayName);
+    }
+
+    [TestMethod]
+    public async Task RegisterAsync_DuplicateDisplayName_ThrowsInvalidOperationException()
+    {
+        // Arrange — another user already has the display name "Ben Kimball"
+        var existing = new ApplicationUser
+        {
+            Id = Guid.CreateVersion7(),
+            UserName = "someoneelse",
+            DisplayName = "Ben Kimball",
+        };
+        _userManagerMock.Setup(m => m.Users)
+            .Returns(new List<ApplicationUser> { existing }.AsQueryable());
+
+        var request = new RegisterRequest
+        {
+            Username = "benkimball",
+            Email = "bpkimball@gmail.com",
+            Password = "P@ssw0rd!",
+            DisplayName = "Ben Kimball",
+        };
+
+        // Act & Assert
+        try
+        {
+            await _service.RegisterAsync(request, SystemCaller);
+            Assert.Fail("Expected InvalidOperationException for duplicate display name");
+        }
+        catch (InvalidOperationException ex)
+        {
+            Assert.IsTrue(ex.Message.Contains("already in use", StringComparison.Ordinal));
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // InitiatePasswordResetAsync
+    // ---------------------------------------------------------------------------
+
+    [TestMethod]
+    public async Task InitiatePasswordResetAsync_UserWithNoEmail_DoesNotGenerateTokenOrSend()
+    {
+        // Arrange
+        var user = new ApplicationUser
+        {
+            Id = Guid.CreateVersion7(),
+            UserName = "noemailuser",
+            Email = null,
+            DisplayName = "No Email User",
+        };
+
+        _userManagerMock.Setup(m => m.FindByNameAsync("noemailuser")).ReturnsAsync(user);
+
+        // Act
+        await _service.InitiatePasswordResetAsync("noemailuser");
+
+        // Assert
+        _userManagerMock.Verify(
+            m => m.GeneratePasswordResetTokenAsync(user),
+            Times.Never,
+            "No reset token should be generated when the account has no email on file");
+        _emailSenderMock.Verify(
+            m => m.SendAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()),
+            Times.Never,
+            "No reset email should be sent when the account has no email on file");
+    }
+
+    [TestMethod]
+    public async Task InitiatePasswordResetAsync_UserFoundByEmail_GeneratesTokenAndSends()
+    {
+        // Arrange
+        var user = new ApplicationUser
+        {
+            Id = Guid.CreateVersion7(),
+            UserName = "testuser",
+            Email = "user@example.com",
+            DisplayName = "Test User",
+        };
+
+        _userManagerMock.Setup(m => m.FindByNameAsync("user@example.com")).ReturnsAsync((ApplicationUser?)null);
+        _userManagerMock.Setup(m => m.FindByEmailAsync("user@example.com")).ReturnsAsync(user);
+        _userManagerMock.Setup(m => m.GeneratePasswordResetTokenAsync(user)).ReturnsAsync("reset-token");
+        _emailSenderMock
+            .Setup(m => m.SendAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
+            .Returns(Task.CompletedTask);
+
+        // Act
+        await _service.InitiatePasswordResetAsync("user@example.com");
+
+        // Assert
+        _userManagerMock.Verify(
+            m => m.GeneratePasswordResetTokenAsync(user),
+            Times.Once);
+        _emailSenderMock.Verify(
+            m => m.SendAsync("user@example.com", It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()),
+            Times.Once,
+            "A reset email should be sent to the account's email address");
+    }
+
+    [TestMethod]
+    public async Task InitiatePasswordResetAsync_UnknownAccount_DoesNotThrow()
+    {
+        // Arrange
+        _userManagerMock.Setup(m => m.FindByNameAsync("ghost")).ReturnsAsync((ApplicationUser?)null);
+        _userManagerMock.Setup(m => m.FindByEmailAsync("ghost")).ReturnsAsync((ApplicationUser?)null);
+
+        // Act & Assert
+        await _service.InitiatePasswordResetAsync("ghost");
+
+        _userManagerMock.Verify(
+            m => m.GeneratePasswordResetTokenAsync(It.IsAny<ApplicationUser>()),
+            Times.Never);
+        _emailSenderMock.Verify(
+            m => m.SendAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()),
+            Times.Never);
     }
 }

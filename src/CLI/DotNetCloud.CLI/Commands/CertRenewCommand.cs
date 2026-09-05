@@ -182,6 +182,7 @@ internal static class CertRenewCommand
                 "",
                 "# Admin credentials (used by AdminSeeder)",
                 $"DotNetCloud__AdminEmail={config.AdminEmail ?? ""}",
+                $"DotNetCloud__AdminUsername={config.AdminUsername ?? ""}",
                 "",
                 "# Collabora Online",
                 $"Files__Collabora__ServerUrl={publicOrigin}",

@@ -102,16 +102,18 @@ public class AuthEndpointTests
     public async Task Login_ValidCredentials_ReturnsOk()
     {
         // Arrange — register first
-        var email = $"login-{Guid.CreateVersion7():N}@test.local";
+        var username = $"login-{Guid.CreateVersion7():N}";
+        var email = $"{username}@test.local";
         var password = "TestP@ssw0rd!";
 
         var registerRequest = new RegisterRequestBuilder()
+            .WithUsername(username)
             .WithEmail(email)
             .WithPassword(password)
             .Build();
         await _client.PostAsJsonAsync("/api/v1/core/auth/register", registerRequest);
 
-        var loginRequest = new LoginRequest { Email = email, Password = password };
+        var loginRequest = new LoginRequest { Username = username, Password = password };
 
         // Act
         var response = await _client.PostAsJsonAsync("/api/v1/core/auth/login", loginRequest);
@@ -126,7 +128,7 @@ public class AuthEndpointTests
         // Arrange
         var request = new LoginRequest
         {
-            Email = "nonexistent@test.local",
+            Username = "nonexistent",
             Password = "WrongPassword123!",
         };
 
@@ -168,11 +170,13 @@ public class AuthEndpointTests
     // ---------------------------------------------------------------------------
 
     [TestMethod]
-    public async Task ForgotPassword_ValidEmail_ReturnsOk()
+    public async Task ForgotPassword_ValidIdentifier_ReturnsOk()
     {
         // Arrange — register a user
-        var email = $"forgot-{Guid.CreateVersion7():N}@test.local";
+        var username = $"forgot-{Guid.CreateVersion7():N}";
+        var email = $"{username}@test.local";
         var registerRequest = new RegisterRequestBuilder()
+            .WithUsername(username)
             .WithEmail(email)
             .WithPassword("TestP@ssw0rd!")
             .Build();
@@ -181,7 +185,7 @@ public class AuthEndpointTests
         // Act
         var response = await _client.PostAsJsonAsync(
             "/api/v1/core/auth/password/forgot",
-            new { Email = email });
+            new { Identifier = username });
 
         // Assert — should succeed (even if email isn't actually sent in tests)
         Assert.AreNotEqual(HttpStatusCode.InternalServerError, response.StatusCode,

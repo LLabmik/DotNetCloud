@@ -283,7 +283,8 @@ public sealed class GroupsController : ControllerBase
             GroupId = member.GroupId,
             UserId = member.UserId,
             UserDisplayName = user?.DisplayName ?? string.Empty,
-            UserEmail = user?.Email ?? string.Empty,
+            Username = user?.UserName ?? string.Empty,
+            UserEmail = user?.Email,
             AddedAt = member.AddedAt,
             AddedByUserId = member.AddedByUserId,
         };

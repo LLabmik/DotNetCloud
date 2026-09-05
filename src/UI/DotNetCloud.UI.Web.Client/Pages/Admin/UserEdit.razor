@@ -32,6 +32,12 @@ else
             </div>
 
             <div class="form-group">
+                <label for="email">Email (optional)</label>
+                <InputText id="email" class="input" @bind-Value="_model!.Email" placeholder="you@example.com" />
+                <span class="hint">Leave blank to remove the email from this account.</span>
+            </div>
+
+            <div class="form-group">
                 <label for="locale">Language / Region</label>
                 <InputSelect id="locale" class="input" @bind-Value="_model!.Locale">
                     @if (!LocaleOptions.Any(x => x.Code.Equals(_model!.Locale, StringComparison.OrdinalIgnoreCase)))
@@ -49,15 +55,15 @@ else
                 <label for="timezone">Timezone</label>
                 <InputText id="timezone" class="input" @bind-Value="_model!.Timezone" />
                 <span class="hint">e.g., UTC, America/New_York, Europe/London</span>
-                <button type="button" class="btn btn-sm btn-outline" style="margin-top: 6px;" @onclick="DetectTimezoneAsync" disabled="@_detectingTimezone">
+                <button type="button" class="btn btn-sm btn-outline" style="margin-top: 6px;" @onclick="DetectTimezoneAsync"
+                        disabled="@_detectingTimezone">
                     @(_detectingTimezone ? "Detecting..." : "Detect from browser")
                 </button>
             </div>
 
             <div class="form-group">
                 <label for="quotaMb">Storage Quota (MB)</label>
-                <input id="quotaMb" type="number" class="input" step="1" min="0"
-                       @bind="_quotaMb" />
+                <input id="quotaMb" type="number" class="input" step="1" min="0" @bind="_quotaMb" />
                 <span class="hint">0 = unlimited. Sets the maximum storage this user can consume.</span>
             </div>
 
@@ -98,6 +104,7 @@ else
             {
                 _model = new UpdateUserDto
                 {
+                    Email = user.Email,
                     DisplayName = user.DisplayName,
                     Locale = user.Locale,
                     Timezone = user.Timezone
@@ -137,6 +144,10 @@ else
 
             Toast.ShowSuccess("User updated.");
             Nav.NavigateTo($"/admin/users/{UserId}");
+        }
+        catch (ApiException ex)
+        {
+            _errorMessage = ex.Message;
         }
         catch (HttpRequestException)
         {

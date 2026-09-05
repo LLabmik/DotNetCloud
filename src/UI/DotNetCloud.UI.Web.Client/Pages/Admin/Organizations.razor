@@ -129,7 +129,7 @@ else
                     <thead>
                         <tr>
                             <th>Name</th>
-                            <th>Email</th>
+                            <th>Username</th>
                             <th style="width: 70px;">Admin</th>
                             <th style="width: 80px;">Manager</th>
                             <th style="width: 75px;">Member</th>
@@ -143,7 +143,13 @@ else
                             var isSaving = _savingRolesFor == member.UserId;
                             <tr>
                                 <td>@member.DisplayName</td>
-                                <td>@member.Email</td>
+                                <td>
+                                    @member.Username
+                                    @if (!string.IsNullOrWhiteSpace(member.Email))
+                                    {
+                                        <div class="text-muted" style="font-size: 0.85em;">@member.Email</div>
+                                    }
+                                </td>
                                 <td><input type="checkbox" checked="@member.RoleIds.Contains(OrgRoleIds.OrgAdmin)" @onchange="(e) => ToggleRoleAsync(member, OrgRoleIds.OrgAdmin, (bool)e.Value!)" disabled="@isSaving" /></td>
                                 <td><input type="checkbox" checked="@member.RoleIds.Contains(OrgRoleIds.OrgManager)" @onchange="(e) => ToggleRoleAsync(member, OrgRoleIds.OrgManager, (bool)e.Value!)" disabled="@isSaving" /></td>
                                 <td><input type="checkbox" checked="@member.RoleIds.Contains(OrgRoleIds.OrgMember)" @onchange="(e) => ToggleRoleAsync(member, OrgRoleIds.OrgMember, (bool)e.Value!)" disabled="@isSaving" /></td>
@@ -199,7 +205,7 @@ else
                     <thead>
                         <tr>
                             <th>Name</th>
-                            <th>Email</th>
+                            <th>Username</th>
                             <th style="width: 80px;">Actions</th>
                         </tr>
                     </thead>
@@ -208,7 +214,13 @@ else
                         {
                             <tr>
                                 <td>@user.DisplayName</td>
-                                <td>@user.Email</td>
+                                <td>
+                                    @user.Username
+                                    @if (!string.IsNullOrWhiteSpace(user.Email))
+                                    {
+                                        <div class="text-muted" style="font-size: 0.85em;">@user.Email</div>
+                                    }
+                                </td>
                                 <td>
                                     <button class="btn btn-sm btn-primary" @onclick="() => AddMemberAsync(user)" disabled="@_saving">Add</button>
                                 </td>

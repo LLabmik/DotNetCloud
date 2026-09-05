@@ -55,23 +55,25 @@ public class ClosedSystemIntegrationTests
 
     /// <summary>
     /// Seeds a test user directly in the database via UserManager.
-    /// Returns the email and password used.
+    /// Returns the username, email and password used.
     /// </summary>
-    private static async Task<(string Email, string Password, Guid UserId)> SeedUserAsync(
+    private static async Task<(string Username, string Email, string Password, Guid UserId)> SeedUserAsync(
         string emailPrefix,
         string password = "TestP@ssw0rd!",
         bool passwordChangeRequired = false)
     {
-        var email = $"{emailPrefix}-{Guid.CreateVersion7():N}@test.local";
+        var username = $"{emailPrefix}-{Guid.CreateVersion7():N}";
+        var email = $"{username}@test.local";
         using var scope = _factory.Services.CreateScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         var user = new ApplicationUserBuilder()
+            .WithUsername(username)
             .WithEmail(email)
             .WithDisplayName("Integration Test User")
             .Build();
         user.PasswordChangeRequired = passwordChangeRequired;
         await userManager.CreateAsync(user, password);
-        return (email, password, user.Id);
+        return (username, email, password, user.Id);
     }
 
     // ---------------------------------------------------------------------------
@@ -108,10 +110,10 @@ public class ClosedSystemIntegrationTests
     public async Task Login_PasswordChangeRequired_ReturnsForbidden()
     {
         // Arrange — seed a user with PasswordChangeRequired = true in the database
-        var (email, password, _) = await SeedUserAsync("pwreq", passwordChangeRequired: true);
+        var (username, _, password, _) = await SeedUserAsync("pwreq", passwordChangeRequired: true);
 
         // Act — try to login via API
-        var loginRequest = new LoginRequest { Email = email, Password = password };
+        var loginRequest = new LoginRequest { Username = username, Password = password };
         var loginResponse = await _anonClient.PostAsJsonAsync("/api/v1/core/auth/login", loginRequest);
 
         // Assert — should return 403 with PASSWORD_CHANGE_REQUIRED
@@ -127,10 +129,10 @@ public class ClosedSystemIntegrationTests
     public async Task Login_PasswordChangeNotRequired_ReturnsOk()
     {
         // Arrange — seed a normal user (PasswordChangeRequired = false)
-        var (email, password, _) = await SeedUserAsync("normalpw", passwordChangeRequired: false);
+        var (username, _, password, _) = await SeedUserAsync("normalpw", passwordChangeRequired: false);
 
         // Act — try to login via API
-        var loginRequest = new LoginRequest { Email = email, Password = password };
+        var loginRequest = new LoginRequest { Username = username, Password = password };
         var loginResponse = await _anonClient.PostAsJsonAsync("/api/v1/core/auth/login", loginRequest);
 
         // Assert — should succeed (200 OK)
@@ -146,7 +148,7 @@ public class ClosedSystemIntegrationTests
     public async Task ChangePassword_AfterChange_LoginSucceeds()
     {
         // Arrange — seed a user with PasswordChangeRequired = true
-        var (email, password, userId) = await SeedUserAsync("pwchange", passwordChangeRequired: true);
+        var (username, email, password, userId) = await SeedUserAsync("pwchange", passwordChangeRequired: true);
 
         // Change password and clear flag via service scope (simulating what the controller does)
         var newPassword = "NewP@ssw0rd!";
@@ -167,7 +169,7 @@ public class ClosedSystemIntegrationTests
         }
 
         // Act — login with new password
-        var loginRequest = new LoginRequest { Email = email, Password = newPassword };
+        var loginRequest = new LoginRequest { Username = username, Password = newPassword };
         var loginResponse = await _anonClient.PostAsJsonAsync("/api/v1/core/auth/login", loginRequest);
 
         // Assert — should succeed

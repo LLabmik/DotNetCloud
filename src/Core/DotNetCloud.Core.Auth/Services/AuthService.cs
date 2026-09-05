@@ -91,11 +91,11 @@ public sealed class AuthService : IAuthService
 
         var user = new ApplicationUser
         {
-            UserName = request.Email,
-            Email = request.Email,
+            UserName = request.Username,
+            Email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim(),
             DisplayName = string.IsNullOrWhiteSpace(request.DisplayName)
-                ? request.Email.Split('@')[0]
-                : request.DisplayName,
+                ? request.Username
+                : request.DisplayName.Trim(),
             Locale = request.Locale,
             Timezone = request.Timezone,
             IsDemoUser = isDemoUser,
@@ -108,17 +108,32 @@ public sealed class AuthService : IAuthService
             user.PasswordChangeRequired = request.PasswordChangeRequired;
         }
 
+        // Display names are the names other users see — they must be unique (case-insensitive).
+        var displayNameTaken = _userManager.Users.Any(u =>
+            u.Id != user.Id &&
+            u.DisplayName.ToLower() == user.DisplayName.ToLower());
+
+        if (displayNameTaken)
+        {
+            _logger.LogWarning(
+                "Registration failed: display name {DisplayName} already in use (username {Username})",
+                LogSanitizer.Sanitize(user.DisplayName),
+                LogSanitizer.Sanitize(user.UserName!));
+            throw new InvalidOperationException(
+                $"Display name '{user.DisplayName}' is already in use. Please choose a different display name.");
+        }
+
         var result = await _userManager.CreateAsync(user, request.Password);
         if (!result.Succeeded)
         {
             var errors = string.Join(", ", result.Errors.Select(e => $"{e.Code}: {e.Description}"));
-            _logger.LogWarning("Registration failed for {Email}: {Errors}", LogSanitizer.Sanitize(request.Email), errors);
+            _logger.LogWarning("Registration failed for {Username}: {Errors}", LogSanitizer.Sanitize(request.Username), errors);
             throw new InvalidOperationException($"Registration failed: {errors}");
         }
 
         _logger.LogInformation(
-            "User {UserId} registered with email {Email} (DemoUser={IsDemoUser})",
-            user.Id, user.Email, isDemoUser);
+            "User {UserId} registered with username {Username} (DemoUser={IsDemoUser})",
+            user.Id, user.UserName, isDemoUser);
 
         // Set 750 MB quota for demo users
         if (isDemoUser)
@@ -127,7 +142,7 @@ public sealed class AuthService : IAuthService
         }
 
         var requiresEmailConfirmation = _userManager.Options.SignIn.RequireConfirmedEmail;
-        if (requiresEmailConfirmation)
+        if (requiresEmailConfirmation && user.Email is not null)
         {
             var confirmToken = await _userManager.GenerateEmailConfirmationTokenAsync(user);
             _logger.LogInformation(
@@ -157,8 +172,8 @@ public sealed class AuthService : IAuthService
         return new RegisterResponse
         {
             UserId = user.Id,
-            Email = user.Email!,
-            RequiresEmailConfirmation = requiresEmailConfirmation,
+            Email = user.Email,
+            RequiresEmailConfirmation = requiresEmailConfirmation && user.Email is not null,
         };
     }
 
@@ -228,10 +243,10 @@ public sealed class AuthService : IAuthService
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var user = await _userManager.FindByEmailAsync(request.Email);
+        var user = await _userManager.FindByNameAsync(request.Username);
         if (user is null)
         {
-            _logger.LogWarning("Login failed: user not found for email {Email}", LogSanitizer.Sanitize(request.Email));
+            _logger.LogWarning("Login failed: user not found for username {Username}", LogSanitizer.Sanitize(request.Username));
             throw new UnauthorizedAccessException("Invalid credentials.");
         }
 
@@ -385,13 +400,22 @@ public sealed class AuthService : IAuthService
     }
 
     /// <inheritdoc/>
-    public async Task InitiatePasswordResetAsync(string email)
+    public async Task InitiatePasswordResetAsync(string usernameOrEmail)
     {
-        var user = await _userManager.FindByEmailAsync(email);
+        var user = await _userManager.FindByNameAsync(usernameOrEmail)
+            ?? await _userManager.FindByEmailAsync(usernameOrEmail);
+
         if (user is null)
         {
-            // Don't reveal whether the email exists (security best practice)
-            _logger.LogInformation("Password reset requested for unknown email {Email}", email);
+            // Don't reveal whether the account exists (security best practice)
+            _logger.LogInformation("Password reset requested for unknown account {Identifier}", usernameOrEmail);
+            return;
+        }
+
+        if (string.IsNullOrEmpty(user.Email))
+        {
+            _logger.LogInformation(
+                "Password reset requested for account {UserId} with no email on file", user.Id);
             return;
         }
 
@@ -400,10 +424,11 @@ public sealed class AuthService : IAuthService
             "Password reset token generated for user {UserId}", user.Id);
 
         var encodedToken = HttpUtility.UrlEncode(token);
-        var encodedEmail = HttpUtility.UrlEncode(email);
-        var resetUrl = $"{_smtpOptions.BaseUrl.TrimEnd('/')}/auth/reset-password?email={encodedEmail}&token={encodedToken}";
+        var encodedUsername = HttpUtility.UrlEncode(user.UserName!);
+        var resetUrl = $"{_smtpOptions.BaseUrl.TrimEnd('/')}/auth/reset-password?username={encodedUsername}&token={encodedToken}";
         var htmlBody = $"""
             <p>A password reset was requested for your DotNetCloud account.</p>
+            <p>Your username is: {user.UserName}</p>
             <p>Click the link below to reset your password:</p>
             <p><a href="{resetUrl}">Reset Password</a></p>
             <p>If the link does not work, copy and paste this URL into your browser:</p>
@@ -413,7 +438,7 @@ public sealed class AuthService : IAuthService
 
         try
         {
-            await _emailSender.SendAsync(user.Email!, user.DisplayName ?? user.Email!,
+            await _emailSender.SendAsync(user.Email!, user.DisplayName ?? user.UserName!,
                 "Reset your DotNetCloud password", htmlBody);
         }
         catch (Exception ex)
@@ -427,7 +452,7 @@ public sealed class AuthService : IAuthService
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var user = await _userManager.FindByEmailAsync(request.Email);
+        var user = await _userManager.FindByNameAsync(request.Username);
         if (user is null)
         {
             return false;
@@ -488,7 +513,8 @@ public sealed class AuthService : IAuthService
         return new UserProfileResponse
         {
             UserId = user.Id,
-            Email = user.Email ?? string.Empty,
+            Username = user.UserName ?? string.Empty,
+            Email = user.Email,
             DisplayName = user.DisplayName,
             AvatarUrl = user.AvatarUrl,
             Locale = user.Locale,
