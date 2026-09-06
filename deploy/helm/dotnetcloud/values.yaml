@@ -5,7 +5,7 @@
 
 image:
   repository: ghcr.io/llabmik/dotnetcloud
-  tag: ""  # defaults to Chart.appVersion
+  tag: "" # defaults to Chart.appVersion
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -50,25 +50,45 @@ ingress:
 env:
   ASPNETCORE_ENVIRONMENT: Production
   ASPNETCORE_URLS: http://+:8080
+  # HTTPS-native: internal loopback clients hardcode https://localhost:5443; the
+  # image bakes a self-signed cert into /app/certs and the container trust store.
+  Kestrel__EnableHttps: "true"
+  Kestrel__HttpPort: "8080"
+  Kestrel__HttpsPort: "5443"
+  Kestrel__CertificatePath: /app/certs/dotnetcloud-localhost.pfx
+  # Allow probes by pod IP. The committed appsettings.json AllowedHosts list is
+  # host-specific (localhost/mint22/…); k8s health probes use the pod IP as the
+  # Host header and would get HTTP 400. Host filtering happens at the ingress.
+  AllowedHosts: "*"
+  # Shared data dir (mounted at /app/data) so Core + module hosts share one Data
+  # Protection key ring; otherwise module hosts can't decrypt Core's auth cookie.
+  DOTNETCLOUD_DATA_DIR: "/app/data"
 
 # ── Database ──────────────────────────────────────────────────────────────────
-
+# provider: "postgresql" (default) or "sqlserver".
 database:
-  # "postgresql" or "sqlserver"
   provider: postgresql
 
-  # PostgreSQL (used when provider=postgresql)
+  # PostgreSQL (used when provider=postgresql).
   postgresql:
-    # Set to true to deploy the Bitnami PostgreSQL sub-chart
+    # When enabled (default), the chart deploys a self-contained PostgreSQL
+    # Deployment + Service + PVC named "<release>-dotnetcloud-postgresql".
+    # Set to false and supply externalConnectionString to use a managed/external DB.
     enabled: true
+    image: postgres:16-alpine
     auth:
       username: dotnetcloud
-      password: ""  # Set via secret or --set
+      # Default dev password — override for production (values file or --set).
+      password: dotnetcloud
       database: dotnetcloud
-    # External PostgreSQL connection string (used when postgresql.enabled=false)
+    persistence:
+      enabled: true
+      storageClass: ""
+      size: 8Gi
+    # External PostgreSQL connection string (used when postgresql.enabled=false).
     externalConnectionString: ""
 
-  # SQL Server (used when provider=sqlserver)
+  # SQL Server (used when provider=sqlserver; external only — no bundled instance).
   sqlserver:
     enabled: false
     externalConnectionString: ""
@@ -87,44 +107,30 @@ persistence:
     size: 1Gi
 
 # ── Module Hosts ──────────────────────────────────────────────────────────────
-# Each module runs as separate process communicating via gRPC/Unix sockets.
-
-modules:
-  files:
-    enabled: true
-    replicaCount: 1
-    resources:
-      requests:
-        cpu: 100m
-        memory: 256Mi
-      limits:
-        cpu: 500m
-        memory: 512Mi
-
-  chat:
-    enabled: true
-    replicaCount: 1
-    resources:
-      requests:
-        cpu: 100m
-        memory: 256Mi
-      limits:
-        cpu: 500m
-        memory: 512Mi
+# Modules are NOT separate pods. Each module host (dotnetcloud.files,
+# dotnetcloud.chat, dotnetcloud.tracks, …) ships inside the image under
+# /app/modules and is spawned by the core ProcessSupervisor as a child process
+# in the SAME pod, talking gRPC over localhost TCP. No per-module resources are
+# needed here — the core Deployment runs them.
 
 # ── Health Checks ─────────────────────────────────────────────────────────────
 
 healthCheck:
+  # Generous thresholds: first boot applies DB migrations and starts all module
+  # hosts before /health/live answers, which can exceed default probe timeouts
+  # (a liveness kill mid-migration causes restart loops on fresh installs).
   liveness:
     path: /health/live
-    initialDelaySeconds: 15
-    periodSeconds: 30
+    initialDelaySeconds: 60
+    periodSeconds: 20
     timeoutSeconds: 5
+    failureThreshold: 6
   readiness:
     path: /health/ready
-    initialDelaySeconds: 10
+    initialDelaySeconds: 30
     periodSeconds: 10
     timeoutSeconds: 5
+    failureThreshold: 30
 
 # ── Resources ─────────────────────────────────────────────────────────────────
 
@@ -146,12 +152,13 @@ serviceAccount:
 # ── Pod Configuration ────────────────────────────────────────────────────────
 
 podAnnotations: {}
+# The container runs as the base image's unprivileged 'app' user (uid/gid 1654).
 podSecurityContext:
-  fsGroup: 1000
+  fsGroup: 1654
 
 securityContext:
   runAsNonRoot: true
-  runAsUser: 1000
+  runAsUser: 1654
   allowPrivilegeEscalation: false
   readOnlyRootFilesystem: false
   capabilities:

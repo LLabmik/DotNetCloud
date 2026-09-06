@@ -74,32 +74,43 @@ public class DbContextSchemaProvider : IModuleSchemaProvider
 
         if (await creator.ExistsAsync(cancellationToken))
         {
-            // Create only tables that don't exist yet. CreateTablesAsync fails
-            // completely if any table exists, so use GenerateCreateScript and
-            // execute each CREATE TABLE individually, ignoring "already exists".
-            await CreateMissingTablesAsync(context, moduleId, cancellationToken);
-
             var pending = (await context.Database.GetPendingMigrationsAsync(cancellationToken)).ToList();
             if (pending.Count != 0)
             {
-                bool migrationApplied = false;
+                // Run EF migrations FIRST. The migration history owns schema evolution, including
+                // moves into the core schema for required modules (promote migrations such as
+                // ALTER TABLE ... SET SCHEMA core). Creating tables from the model BEFORE
+                // replaying migrations made those promote steps collide with the model-created
+                // tables (42P07 "relation ... already exists in schema core"), leaving duplicate
+                // core.* and legacy module.* tables (e.g. both core.Notes AND notes.Notes) and a
+                // migration chain that never completed on fresh installs.
                 try
                 {
                     await context.Database.MigrateAsync(cancellationToken);
-                    migrationApplied = true;
                     _logger.LogInformation("Applied {Count} migrations for module {ModuleId}", pending.Count, moduleId);
+                    return;
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Migration failed for module {ModuleId}", moduleId);
+                    _logger.LogWarning(ex,
+                        "Migrations failed for module {ModuleId}; falling back to model-based table creation", moduleId);
                 }
 
-                if (!migrationApplied)
-                {
-                    foreach (var migrationId in pending)
-                        await RecordMigrationAsAppliedAsync(context, migrationId, cancellationToken);
-                }
+                // Migration replay failed — typically an adoption database that already has tables
+                // but an empty/mismatched migration history. Create any tables missing from the
+                // current model, then mark the pending migrations as applied so they are not
+                // retried (and re-failed) on every subsequent startup.
+                await CreateMissingTablesAsync(context, moduleId, cancellationToken);
+                foreach (var migrationId in pending)
+                    await RecordMigrationAsAppliedAsync(context, migrationId, cancellationToken);
+                return;
             }
+
+            // No pending migrations. Ensure the schema still matches the current model (create any
+            // tables introduced outside the migration history). CreateTablesAsync fails completely
+            // if any table exists, so use GenerateCreateScript and execute each CREATE TABLE
+            // individually, ignoring "already exists".
+            await CreateMissingTablesAsync(context, moduleId, cancellationToken);
             return;
         }
 
@@ -114,26 +125,32 @@ public class DbContextSchemaProvider : IModuleSchemaProvider
             _logger.LogWarning(ex,
                 "Migrations failed for module {ModuleId}, creating tables from model", moduleId);
             await creator.CreateTablesAsync(cancellationToken);
-            var pending = (await context.Database.GetPendingMigrationsAsync(cancellationToken)).ToList();
-            if (pending.Count != 0)
-                await RecordMigrationAsAppliedAsync(context, pending[0], cancellationToken);
+            var remaining = (await context.Database.GetPendingMigrationsAsync(cancellationToken)).ToList();
+            foreach (var migrationId in remaining)
+                await RecordMigrationAsAppliedAsync(context, migrationId, cancellationToken);
         }
 
         _logger.LogInformation("Created schema for module {ModuleId}", moduleId);
     }
 
     /// <summary>
-    /// Inserts a row into <c>__EFMigrationsHistory</c> so the migration is not retried
-    /// on subsequent startups.
+    /// Inserts a row into <c>__EFMigrationsHistory</c> so the migration is not retried on
+    /// subsequent startups. Provider-aware SQL: SQL Server uses bracket quoting while
+    /// PostgreSQL uses double-quote quoting. (The previous version hardcoded SQL Server
+    /// syntax, so every insert failed on PostgreSQL with a 42601 syntax error at or near "[".)
     /// </summary>
     private async Task RecordMigrationAsAppliedAsync(DbContext context, string migrationId,
         CancellationToken cancellationToken)
     {
         try
         {
-            await context.Database.ExecuteSqlRawAsync(
-                "INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion]) VALUES ({0}, '8.0.0')",
-                migrationId);
+            var productVersion = typeof(DbContext).Assembly.GetName().Version?.ToString() ?? "0.0.0";
+            var isPostgres = context.Database.ProviderName?.IndexOf(
+                "Npgsql", StringComparison.OrdinalIgnoreCase) >= 0;
+            var sql = isPostgres
+                ? "INSERT INTO \"__EFMigrationsHistory\" (\"MigrationId\", \"ProductVersion\") VALUES ({0}, {1})"
+                : "INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion]) VALUES ({0}, {1})";
+            await context.Database.ExecuteSqlRawAsync(sql, migrationId, productVersion);
         }
         catch (Exception ex)
         {

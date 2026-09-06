@@ -1,0 +1,102 @@
+{{- if and (eq .Values.database.provider "postgresql") .Values.database.postgresql.enabled }}
+# Self-contained PostgreSQL so the chart works out of the box (no external
+# chart repo or managed DB required). Service hostname matches the connection
+# string built in deployment.yaml: "<release>-dotnetcloud-postgresql".
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "dotnetcloud.fullname" . }}-postgresql
+  labels:
+    app.kubernetes.io/name: {{ include "dotnetcloud.name" . }}-postgresql
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: postgresql
+spec:
+  type: ClusterIP
+  ports:
+    - name: postgresql
+      port: 5432
+      targetPort: postgresql
+      protocol: TCP
+  selector:
+    app.kubernetes.io/component: postgresql
+    app.kubernetes.io/name: {{ include "dotnetcloud.name" . }}-postgresql
+    app.kubernetes.io/instance: {{ .Release.Name }}
+---
+{{- if .Values.database.postgresql.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "dotnetcloud.fullname" . }}-postgresql
+  labels:
+    {{- include "dotnetcloud.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  accessModes:
+    - ReadWriteOnce
+  {{- if .Values.database.postgresql.persistence.storageClass }}
+  storageClassName: {{ .Values.database.postgresql.persistence.storageClass }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.database.postgresql.persistence.size }}
+{{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "dotnetcloud.fullname" . }}-postgresql
+  labels:
+    {{- include "dotnetcloud.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: postgresql
+      app.kubernetes.io/name: {{ include "dotnetcloud.name" . }}-postgresql
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: postgresql
+        app.kubernetes.io/name: {{ include "dotnetcloud.name" . }}-postgresql
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      {{- if .Values.database.postgresql.persistence.enabled }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "dotnetcloud.fullname" . }}-postgresql
+      {{- end }}
+      containers:
+        - name: postgresql
+          image: {{ .Values.database.postgresql.image | quote }}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: postgresql
+              containerPort: 5432
+              protocol: TCP
+          env:
+            - name: POSTGRES_USER
+              value: {{ .Values.database.postgresql.auth.username | quote }}
+            - name: POSTGRES_PASSWORD
+              value: {{ .Values.database.postgresql.auth.password | quote }}
+            - name: POSTGRES_DB
+              value: {{ .Values.database.postgresql.auth.database | quote }}
+          {{- if .Values.database.postgresql.persistence.enabled }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          {{- end }}
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", {{ .Values.database.postgresql.auth.username | quote }}]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", {{ .Values.database.postgresql.auth.username | quote }}]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+{{- end }}

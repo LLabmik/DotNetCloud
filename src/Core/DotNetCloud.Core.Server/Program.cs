@@ -30,9 +30,12 @@ using DotNetCloud.Modules.Music.Data;
 using DotNetCloud.Modules.Photos.Data;
 using DotNetCloud.Modules.Video.Data;
 using DotNetCloud.Modules.AI.Data;
+using DotNetCloud.Modules.Bookmarks.Data;
 using DotNetCloud.Modules.Chat.Data;
 using DotNetCloud.Modules.Chat.Services;
 using DotNetCloud.Modules.Calendar.Data;
+using DotNetCloud.Modules.Contacts.Data;
+using DotNetCloud.Modules.Email.Data;
 using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.UI.Web.Client.Services;
 using DotNetCloud.UI.Web.Services;
@@ -380,6 +383,23 @@ public class Program
         // AI chat goes through the process-isolated module host via IAiApiClient (gRPC).
         builder.Services.AddDbContext<AiDbContext>(options =>
             ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.AI.Data.SqlServer"),
+            ServiceLifetime.Transient);
+
+        // Contacts/Bookmarks/Email DbContexts for schema creation by DbContextSchemaProvider.
+        // These modules are process-isolated — their hosts query the shared DB directly, but the
+        // schema must exist before the module host starts. Without these registrations the schema
+        // provider skipped them entirely and no contacts/bookmarks/email tables were ever created on
+        // server-only (Docker/Helm) installs that never run `dotnetcloud migrate`. The .Data.SqlServer
+        // migrations assembly string is only used on SQL Server; on PostgreSQL Npgsql discovers the
+        // (Postgres) migrations in the DbContext's own .Data assembly.
+        builder.Services.AddDbContext<ContactsDbContext>(options =>
+            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Contacts.Data.SqlServer"),
+            ServiceLifetime.Transient);
+        builder.Services.AddDbContext<BookmarksDbContext>(options =>
+            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Bookmarks.Data.SqlServer"),
+            ServiceLifetime.Transient);
+        builder.Services.AddDbContext<EmailDbContext>(options =>
+            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Email.Data.SqlServer"),
             ServiceLifetime.Transient);
 
         // Override Chat services with no-op/stub implementations for the global UI.

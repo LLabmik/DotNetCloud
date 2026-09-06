@@ -32,6 +32,19 @@ spec:
       serviceAccountName: {{ include "dotnetcloud.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if and (eq .Values.database.provider "postgresql") .Values.database.postgresql.enabled }}
+      initContainers:
+        - name: wait-for-postgresql
+          image: {{ .Values.database.postgresql.image | quote }}
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              until pg_isready -h {{ include "dotnetcloud.fullname" . }}-postgresql -p 5432 -U {{ .Values.database.postgresql.auth.username | quote }}; do
+                echo "waiting for postgresql..."
+                sleep 2
+              done
+      {{- end }}
       containers:
         - name: {{ .Chart.Name }}
           securityContext:
@@ -70,6 +83,7 @@ spec:
             initialDelaySeconds: {{ .Values.healthCheck.liveness.initialDelaySeconds }}
             periodSeconds: {{ .Values.healthCheck.liveness.periodSeconds }}
             timeoutSeconds: {{ .Values.healthCheck.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.healthCheck.liveness.failureThreshold }}
           readinessProbe:
             httpGet:
               path: {{ .Values.healthCheck.readiness.path }}
@@ -77,6 +91,7 @@ spec:
             initialDelaySeconds: {{ .Values.healthCheck.readiness.initialDelaySeconds }}
             periodSeconds: {{ .Values.healthCheck.readiness.periodSeconds }}
             timeoutSeconds: {{ .Values.healthCheck.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.healthCheck.readiness.failureThreshold }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:

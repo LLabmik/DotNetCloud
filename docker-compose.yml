@@ -20,9 +20,27 @@ services:
     container_name: dotnetcloud-server
     ports:
       - "8080:8080"
+      - "5443:5443"
     environment:
-      ASPNETCORE_ENVIRONMENT: Development
+      # Production: module hosts embedded in this image run as child processes
+      # and inherit this environment. Development enables strict DI scope
+      # validation + dev-cert handling that breaks module hosts in a container.
+      ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
+      # HTTPS-native: internal loopback clients hardcode https://localhost:5443.
+      # The image entrypoint generates a self-signed cert under the data volume;
+      # Kestrel serves HTTPS here + HTTP on 8080 (TLS for browsers at the proxy).
+      Kestrel__EnableHttps: "true"
+      Kestrel__HttpPort: "8080"
+      Kestrel__HttpsPort: "5443"
+      Kestrel__CertificatePath: /app/certs/dotnetcloud-localhost.pfx
+      # Health checks hit the container IP as Host; appsettings AllowedHosts is
+      # host-specific (localhost/mint22/…) and would 400 those probes.
+      AllowedHosts: "*"
+      # Shared data dir so Core + module hosts use one Data Protection key ring
+      # (mounts the dotnetcloud-data volume); without this module hosts can't
+      # decrypt Core's auth cookies and file open/save fail with 401.
+      DOTNETCLOUD_DATA_DIR: /app/data
       DOTNET_CLI_TELEMETRY_OPTOUT: "1"
       DOTNET_NOLOGO: "1"
       ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=dotnetcloud;Username=dotnetcloud;Password=dotnetcloud_dev_password"
@@ -31,16 +49,24 @@ services:
     volumes:
       - dotnetcloud-data:/app/data
       - dotnetcloud-logs:/app/logs
-      - dotnetcloud-modules:/app/modules
     depends_on:
       db:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health/live"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--no-check-certificate",
+          "--tries=1",
+          "--spider",
+          "https://localhost:5443/health/live",
+        ]
       interval: 30s
       timeout: 5s
-      start_period: 15s
+      start_period: 20s
       retries: 3
 
   # ---------------------------------------------------------------------------
@@ -82,7 +108,11 @@ services:
       - sqlserver-data:/var/opt/mssql
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'DotNetCloud_Dev_123!' -C -Q 'SELECT 1' || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'DotNetCloud_Dev_123!' -C -Q 'SELECT 1' || exit 1",
+        ]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -95,6 +125,4 @@ volumes:
   dotnetcloud-data:
     driver: local
   dotnetcloud-logs:
-    driver: local
-  dotnetcloud-modules:
     driver: local

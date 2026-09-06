@@ -5540,8 +5540,7 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 
 **2026-08-19 (offline scan):** the SOC 2 scanner is now an **offline audit tool** (source available; SAST-style). Reverted the server-side coordinator/admin page so production has no source access; `deploy.sh` no longer ships the scanner or grants a traverse ACL; the `/home/benk` ACL was revoked. Walkthrough in `docs/admin/SOC2_COMPLIANCE_ADMIN_GUIDE.md` §3.
 
-**Next:** deploy the split to production (`sudo ./scripts/deploy.sh`), user testing (audit rows on login, key rotation, offline SOC 2 scan per admin guide §3), then commit on `feature/soc2-level-ii-compliance`.
----
+## **Next:** deploy the split to production (`sudo ./scripts/deploy.sh`), user testing (audit rows on login, key rotation, offline SOC 2 scan per admin guide §3), then commit on `feature/soc2-level-ii-compliance`.
 
 ## Database / Server Outage Resilience
 
@@ -5636,3 +5635,57 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - ✓ Tests: `QuickVideoEnrichmentPolicyTests`, `QuickVideoEnrichmentServiceTests`, `VideoEnrichmentBackgroundServiceTests` (Video suite 209 ✅)
 
 **Notes:** Fast-track jobs are scoped to the specific newly added videos so small uploads are not delayed by a large pre-existing backlog. Runs in the Video module host process (shares the enrichment queue/worker). Deployment requires a Video host restart.
+
+---
+
+## Container Packaging Modernization & Server-Only DB-Init Fixes (2026-09-06)
+
+**Status:** completed ✅ (work tree on branch `fix/modernize-docker-and-helm-chart`, uncommitted — pending review before commit)
+**Goal:** Verify Docker/Compose and the Helm chart produce a working, fully-functional server; modernize the stale packaging; and fix the app-level database-initialization bugs that fresh-install (server-only, no CLI `migrate`) verification exposed.
+
+### Step: dnc-1 — Modernize Dockerfile / docker-compose / Helm chart
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ `Dockerfile` — publishes Core.Server + all 14 module hosts to `/app/publish/modules/<id>` (dir name == AssemblyName); HTTPS-native Kestrel (8080/5443); unprivileged `app` runtime; BuildHost `bin\Debug` glob workaround (dotnet/msbuild#12546)
+- ✓ `docker-compose.yml` — Production env, shared data volume (single Data-Protection key ring), DB + HTTPS healthchecks
+- ✓ Helm chart — bundled PostgreSQL (new `templates/postgresql.yaml`), init `wait-for-postgresql`, distinct labels, tuned probes, HTTPS env, uid 1654
+- ✓ `.dockerignore` — `.nuget/` + literal-backslash `bin\Debug`-style dir exclusion
+- ✓ `deploy/docker/entrypoint.sh` — self-signed cert generated once into the persisted data volume (stable across rebuilds)
+- ✓ Verified e2e: `docker compose` (14 modules healthy; login; Contacts/Bookmarks/Email/Notes/Music pages + APIs 200) and Helm in kind (deployment Ready 1/1)
+
+### Step: dnc-2 — Server-only DB-init fixes (`DbContextSchemaProvider` / `Core.Server`)
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ `EnsureSchemaAsync` applies EF migrations first; model-based table creation only as an adoption fallback (fixes `42P07` duplicates, e.g. `core.Notes` + `notes.Notes`)
+- ✓ `RecordMigrationAsAppliedAsync` provider-aware (fixes `42601` — hardcoded SQL Server `[…]` INSERT on PostgreSQL)
+- ✓ Contacts/Bookmarks/Email DbContexts registered in Core.Server (schema provider creates their tables on server-only installs)
+- ✓ Fresh-DB verified: contacts/bookmarks/email schemas created; Notes/Contacts tables live only in `core`; zero migration errors
+
+### Step: dnc-3 — Contacts promote-to-required-module migration
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ `20260906081246_PromoteContactsToRequiredModule` moves the 9 contacts tables `contacts.*` → `core` (Contacts is a required module; its Postgres migrations had lagged the model, unlike Notes/Calendar)
+
+### Step: dnc-4 — Music migration baseline rebase
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ Rebased Music's single stale/corrupt `InitialCreate` (`20260906084702`) from the current model — adds `UserTrackId` FK design + `CanonicalArtist.LogoUrl` (fixes `42703`)
+
+### Step: dnc-5 — Follow-ups (pending)
+
+**Status:** pending ☐
+**Deliverables:**
+
+- ☐ First-boot schema race — freshly wiped DB: some module schemas not ready in time → transient `42P01`, currently recovered by a container restart; make first boot self-healing
+- ☐ Music `.Data.SqlServer` migration parity — SQL Server chain still uses the old TrackId design; needs the same rebase as the Postgres `.Data`
+- ☐ Review + commit this work package
+
+**Notes:** Packaging modernization + DB-init/migration fixes verified end-to-end against a fresh PostgreSQL in the compose stack (image `ghcr.io/llabmik/dotnetcloud:0.1.0-alpha`; all module pages load). Bare-metal deploys use the CLI `migrate` path (ServiceProviderFactory registers all module DbContexts); the Docker/Helm server-only path relies on `DbContextSchemaProvider`, which is what these fixes target.

@@ -6712,3 +6712,32 @@ while email becomes an **optional** field. No schema migration — ASP.NET Core 
 - ✓ Display name must be unique (case-insensitive) among users — enforced in `AuthService.RegisterAsync`, `UserManagementService.UpdateUserAsync`, and web `Register.razor` with a clear "already in use" message
 - ✓ Profile/admin-edit API surfaces the server's error message (`ApiException` thrown by `DotNetCloudApiClient.UpdateUserAsync`; shown on `Profile.razor` and `UserEdit.razor`)
 - ✓ Tests: +6 display-name cases (blank→username fallback, trim, duplicate rejection at register/update)
+
+---
+
+## Container Packaging Modernization & Server-Only DB-Init Fixes (2026-09-06)
+
+> Work package on branch `fix/modernize-docker-and-helm-chart` (uncommitted — pending review before commit).
+
+### Docker / Compose / Helm Packaging
+
+- ✓ Modernize `Dockerfile`: publish Core.Server + all 14 module hosts into `/app/publish/modules/<id>`; HTTPS-native Kestrel (8080/5443); unprivileged `app` runtime; BuildHost `bin\Debug` glob workaround (dotnet/msbuild#12546)
+- ✓ Modernize `docker-compose.yml` (Production env, shared data volume for one Data-Protection key ring, DB + HTTPS healthchecks)
+- ✓ Modernize Helm chart (bundled PostgreSQL via new `templates/postgresql.yaml`, wait-for-postgres init, distinct labels, tuned probes, uid 1654)
+- ✓ Update `.dockerignore` (`.nuget/` + literal-backslash `bin\Debug`-style dir exclusion)
+- ✓ Add `deploy/docker/entrypoint.sh` — self-signed cert generated once into the persisted data volume (stable across image rebuilds; no per-build host re-trust)
+- ✓ Verify compose e2e (14 modules healthy; Contacts/Bookmarks/Email/Notes/Music pages + APIs load) and Helm e2e in kind (deployment Ready 1/1)
+
+### Server-Only DB Initialization Fixes (Docker/Helm never run `dotnetcloud migrate`)
+
+- ✓ `DbContextSchemaProvider.EnsureSchemaAsync`: apply EF migrations first; model-based creation only as adoption fallback (fixes `42P07` duplicate `core.*`/legacy tables, e.g. `core.Notes` + `notes.Notes`)
+- ✓ `RecordMigrationAsAppliedAsync`: provider-aware SQL (fixes `42601` — was hardcoded SQL Server `[…]` INSERT on PostgreSQL)
+- ✓ Register Contacts/Bookmarks/Email DbContexts in Core.Server so the schema provider creates their tables on server-only installs
+- ✓ Contacts: `20260906081246_PromoteContactsToRequiredModule` migration moves `contacts.*` → `core`
+- ✓ Music: rebase `InitialCreate` (`20260906084702`) from the current model — adds `UserTrackId` FKs + `CanonicalArtist.LogoUrl` (fixes `42703`)
+
+### Follow-ups (pending)
+
+- ☐ Fix first-boot schema race (freshly wiped DB: transient `42P01` until a container restart; make first boot self-healing)
+- ☐ Rebase stale Music `.Data.SqlServer` migration chain (SQL Server parity with the Postgres `.Data`)
+- ☐ Review + commit this work package (per repo rules: build clean, tests pass, live-verified first)
