@@ -18,7 +18,7 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasDefaultSchema("music")
-                .HasAnnotation("ProductVersion", "10.0.3")
+                .HasAnnotation("ProductVersion", "10.0.10")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -129,6 +129,10 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
 
                     b.Property<DateTime?>("LastEnrichedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LogoUrl")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
 
                     b.Property<string>("MusicBrainzId")
                         .HasMaxLength(36)
@@ -439,8 +443,7 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("UserTrackId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("UserTrackId");
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("AddedAt")
                         .ValueGeneratedOnAdd()
@@ -489,8 +492,7 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("UserTrackId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("UserTrackId");
+                        .HasColumnType("uuid");
 
                     b.HasKey("Id");
 

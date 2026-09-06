@@ -21,6 +21,20 @@
 **/out/
 artifacts/
 
+# .NET SDK on Linux can create build-output dirs with a literal backslash in the
+# name (e.g. a directory literally named "bin\Debug" under a project). `**/bin/`
+# does NOT match those (the backslash is a legal single path character on Linux),
+# and when they enter the build context MSBuild glob expansion fails with
+# "MSB3552: Resource file \"**/*.resx\" cannot be found" (dotnet/msbuild#12546).
+# Mirror the .gitignore patterns: ? matches the backslash character.
+[Bb]in?[Dd]ebug*/
+[Bb]in?[Rr]elease*/
+[Oo]bj?*/
+
+# Local NuGet package cache (can be many GB and is restored inside the image)
+.nuget/
+**/.nuget/
+
 # Documentation (not needed in image)
 docs/
 *.md

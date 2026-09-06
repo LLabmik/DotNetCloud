@@ -66,7 +66,6 @@ COPY src/Modules/Notes/DotNetCloud.Modules.Notes.Data/DotNetCloud.Modules.Notes.
 COPY src/Modules/Notes/DotNetCloud.Modules.Notes.Host/DotNetCloud.Modules.Notes.Host.csproj src/Modules/Notes/DotNetCloud.Modules.Notes.Host/
 # Clients (Android/MAUI excluded — requires workloads not in SDK Docker image)
 COPY src/Clients/DotNetCloud.Client.Core/DotNetCloud.Client.Core.csproj src/Clients/DotNetCloud.Client.Core/
-COPY src/Clients/DotNetCloud.Client.SyncService/DotNetCloud.Client.SyncService.csproj src/Clients/DotNetCloud.Client.SyncService/
 COPY src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj src/Clients/DotNetCloud.Client.SyncTray/
 
 # Copy test projects (needed for solution restore; excluded from publish)
@@ -83,8 +82,12 @@ COPY tests/DotNetCloud.Modules.Contacts.Tests/DotNetCloud.Modules.Contacts.Tests
 COPY tests/DotNetCloud.Modules.Calendar.Tests/DotNetCloud.Modules.Calendar.Tests.csproj tests/DotNetCloud.Modules.Calendar.Tests/
 COPY tests/DotNetCloud.Modules.Notes.Tests/DotNetCloud.Modules.Notes.Tests.csproj tests/DotNetCloud.Modules.Notes.Tests/
 COPY tests/DotNetCloud.Client.Core.Tests/DotNetCloud.Client.Core.Tests.csproj tests/DotNetCloud.Client.Core.Tests/
-COPY tests/DotNetCloud.Client.SyncService.Tests/DotNetCloud.Client.SyncService.Tests.csproj tests/DotNetCloud.Client.SyncService.Tests/
 COPY tests/DotNetCloud.Client.SyncTray.Tests/DotNetCloud.Client.SyncTray.Tests.csproj tests/DotNetCloud.Client.SyncTray.Tests/
+
+# Bring in the complete source tree so every current project (new modules,
+# new test projects, etc.) is available to restore. .dockerignore keeps the
+# layer lean by excluding bin/obj/artifacts/docs/.git and other heavy paths.
+COPY . .
 
 RUN dotnet restore DotNetCloud.CI.slnf
 
@@ -98,7 +101,13 @@ WORKDIR /src
 COPY src/ src/
 COPY tests/ tests/
 
-RUN dotnet build DotNetCloud.CI.slnf --no-restore --configuration Release
+# The .NET SDK can create build-output dirs with a literal backslash in the name on
+# Linux (e.g. a directory literally named "bin\Debug" under a project, from the
+# Roslyn Workspaces.MSBuild BuildHost content copy). MSBuild's glob expansion then
+# chokes on them -> "MSB3552: Resource file "**/*.resx" cannot be found"
+# (dotnet/msbuild#12546). Remove any such dirs before building.
+RUN find . -type d -name '*\\*' -prune -exec rm -rf {} + ; \
+    dotnet build DotNetCloud.CI.slnf --no-restore --configuration Release
 
 # ---------------------------------------------------------------------------
 # Stage 3: Publish
@@ -111,37 +120,101 @@ RUN dotnet publish src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.cspr
     --configuration Release \
     --output /app/publish
 
+# Publish every module host into /app/publish/modules/<module-id>/ so the core
+# ProcessSupervisor can discover and spawn them at runtime. Module ID = the
+# host csproj AssemblyName (e.g. "dotnetcloud.files"). Mirrors the module list
+# and layout in .github/workflows/release.yml.
+RUN set -eux; \
+    for host_csproj in \
+    src/Modules/Contacts/DotNetCloud.Modules.Contacts.Host/DotNetCloud.Modules.Contacts.Host.csproj \
+    src/Modules/Calendar/DotNetCloud.Modules.Calendar.Host/DotNetCloud.Modules.Calendar.Host.csproj \
+    src/Modules/Chat/DotNetCloud.Modules.Chat.Host/DotNetCloud.Modules.Chat.Host.csproj \
+    src/Modules/Files/DotNetCloud.Modules.Files.Host/DotNetCloud.Modules.Files.Host.csproj \
+    src/Modules/Notes/DotNetCloud.Modules.Notes.Host/DotNetCloud.Modules.Notes.Host.csproj \
+    src/Modules/Tracks/DotNetCloud.Modules.Tracks.Host/DotNetCloud.Modules.Tracks.Host.csproj \
+    src/Modules/Music/DotNetCloud.Modules.Music.Host/DotNetCloud.Modules.Music.Host.csproj \
+    src/Modules/Photos/DotNetCloud.Modules.Photos.Host/DotNetCloud.Modules.Photos.Host.csproj \
+    src/Modules/Video/DotNetCloud.Modules.Video.Host/DotNetCloud.Modules.Video.Host.csproj \
+    src/Core/DotNetCloud.Core.Search.Extraction.Host/DotNetCloud.Core.Search.Extraction.Host.csproj \
+    src/Modules/Bookmarks/DotNetCloud.Modules.Bookmarks.Host/DotNetCloud.Modules.Bookmarks.Host.csproj \
+    src/Modules/Email/DotNetCloud.Modules.Email.Host/DotNetCloud.Modules.Email.Host.csproj \
+    src/Modules/About/DotNetCloud.Modules.About.Host/DotNetCloud.Modules.About.Host.csproj \
+    src/Modules/AI/DotNetCloud.Modules.AI.Host/DotNetCloud.Modules.AI.Host.csproj; do \
+    module_name="$(sed -n 's:.*<AssemblyName>\([^<]*\)</AssemblyName>.*:\1:p' "$host_csproj" | head -n1)"; \
+    echo "Publishing module host: ${module_name}"; \
+    dotnet publish "$host_csproj" --no-build --configuration Release \
+    --output "/app/publish/modules/${module_name}"; \
+    done
+
 # ---------------------------------------------------------------------------
 # Stage 4: Runtime
 # ---------------------------------------------------------------------------
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
-# Create non-root user for security
-RUN groupadd --gid 1000 dotnetcloud && \
-    useradd --uid 1000 --gid dotnetcloud --shell /bin/bash --create-home dotnetcloud
+# Native libraries required at runtime: Npgsql (PostgreSQL driver) loads
+# libgssapi_krb5.so.2 for GSSAPI/SSPI support (module hosts crash without it),
+# and openssl generates the self-signed TLS cert for the internal HTTPS loopback.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends libgssapi-krb5-2 openssl util-linux && \
+    rm -rf /var/lib/apt/lists/*
 
-# Create data directories
-RUN mkdir -p /app/data /app/logs /app/modules && \
-    chown -R dotnetcloud:dotnetcloud /app
-
+# Copy the published server + module hosts first…
 COPY --from=publish /app/publish .
+
+# …then make the app tree writable by the unprivileged 'app' user (uid/gid 1654,
+# shipped in the base image; uid/gid 1000 is taken by 'ubuntu'). Module hosts run
+# from /app/modules/<id> and create runtime state (data-protection keys, etc.)
+# in their own directories, so this MUST happen after the COPY above.
+RUN mkdir -p /app/data /app/logs /app/modules /run/dotnetcloud && \
+    chown -R app:app /app /run/dotnetcloud
 
 # Set environment variables
 ENV ASPNETCORE_URLS=http://+:8080
 ENV ASPNETCORE_ENVIRONMENT=Production
+# HTTPS-native: the app's internal loopback clients (realtime hub, SSR API,
+# Contacts/Calendar pages) hardcode https://localhost:5443 and bypass cert
+# validation, so Kestrel must serve HTTPS here. The entrypoint generates a
+# self-signed cert into the persisted data volume on first start. HTTP on 8080
+# is also served; public TLS is terminated by an upstream proxy/ingress.
+ENV Kestrel__EnableHttps=true
+ENV Kestrel__HttpPort=8080
+ENV Kestrel__HttpsPort=5443
+ENV Kestrel__CertificatePath=/app/data/certs/dotnetcloud-localhost.pfx
+# appsettings.json ships a host-specific AllowedHosts list (localhost/mint22/…).
+# Orchestrator health probes connect to the container/pod IP as Host, which would
+# be rejected with HTTP 400. Allow all hosts; filtering happens at the edge.
+ENV AllowedHosts=*
+# Shared data dir: Core and every module host persist their ASP.NET Data
+# Protection keys (and OIDC keys) under {DOTNETCLOUD_DATA_DIR}/data-protection-keys.
+# Without this they each generate their own key ring, so module hosts cannot
+# decrypt the auth cookie issued by Core ("Unprotect ticket failed").
+ENV DOTNETCLOUD_DATA_DIR=/app/data
 ENV DOTNET_EnableDiagnostics=0
 ENV DOTNET_CLI_TELEMETRY_OPTOUT=1
 ENV DOTNET_NOLOGO=1
+# ProcessSupervisor: module hosts are discovered under /app/modules (default);
+# keep any IPC sockets under /run/dotnetcloud.
+ENV ProcessSupervisor__UnixSocketDirectory=/run/dotnetcloud
 
-# Expose HTTP port
-EXPOSE 8080
+# The self-signed cert for the internal HTTPS loopback is generated at FIRST
+# container start by the entrypoint into the persisted data volume
+# ({DOTNETCLOUD_DATA_DIR}/certs) and trusted in the container CA store there.
+# Baking it at build time regenerated it on every image rebuild, which kept
+# invalidating the host's trust of the demo cert.
 
-# Health check (wget is available in Debian-based aspnet images; curl is not)
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health/live || exit 1
+# Expose HTTP (proxy/health) and HTTPS (loopback + direct access) ports
+EXPOSE 8080 5443
 
-# Switch to non-root user
-USER dotnetcloud
+# Health check over HTTPS (self-signed => skip verification). wget is available
+# in Debian-based aspnet images; curl is not.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD wget --no-verbose --no-check-certificate --tries=1 --spider https://localhost:5443/health/live || exit 1
 
-ENTRYPOINT ["dotnet", "DotNetCloud.Core.Server.dll"]
+# Copy the entrypoint. It runs as root (the image default) to generate/trust the
+# self-signed cert in the persisted data volume on first start, then drops to the
+# unprivileged 'app' user (uid/gid 1654) to run the server.
+COPY deploy/docker/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+ENTRYPOINT ["/app/entrypoint.sh"]

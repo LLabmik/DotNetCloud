@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DotNetCloud.Modules.Music.Data.Migrations
 {
     [DbContext(typeof(MusicDbContext))]
-    [Migration("20260601020920_InitialCreate")]
+    [Migration("20260906084702_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -21,7 +21,7 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasDefaultSchema("music")
-                .HasAnnotation("ProductVersion", "10.0.3")
+                .HasAnnotation("ProductVersion", "10.0.10")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -132,6 +132,10 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
 
                     b.Property<DateTime?>("LastEnrichedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LogoUrl")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
 
                     b.Property<string>("MusicBrainzId")
                         .HasMaxLength(36)
@@ -370,13 +374,13 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("TrackId")
+                    b.Property<Guid>("UserTrackId")
                         .HasColumnType("uuid")
-                        .HasColumnName("TrackId");
+                        .HasColumnName("UserTrackId");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TrackId")
+                    b.HasIndex("UserTrackId")
                         .HasDatabaseName("ix_playback_history_user_track_id");
 
                     b.HasIndex("UserId", "PlayedAt")
@@ -441,9 +445,8 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                     b.Property<Guid>("PlaylistId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("TrackId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("TrackId");
+                    b.Property<Guid>("UserTrackId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("AddedAt")
                         .ValueGeneratedOnAdd()
@@ -453,9 +456,9 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                     b.Property<int>("SortOrder")
                         .HasColumnType("integer");
 
-                    b.HasKey("PlaylistId", "TrackId");
+                    b.HasKey("PlaylistId", "UserTrackId");
 
-                    b.HasIndex("TrackId");
+                    b.HasIndex("UserTrackId");
 
                     b.HasIndex("PlaylistId", "SortOrder")
                         .HasDatabaseName("ix_playlist_tracks_playlist_sort");
@@ -491,13 +494,12 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("TrackId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("TrackId");
+                    b.Property<Guid>("UserTrackId")
+                        .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TrackId")
+                    b.HasIndex("UserTrackId")
                         .HasDatabaseName("ix_scrobble_records_user_track_id");
 
                     b.HasIndex("UserId", "ScrobbledAt")
@@ -798,7 +800,7 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                 {
                     b.HasOne("DotNetCloud.Modules.Music.Models.UserTrack", "UserTrack")
                         .WithMany()
-                        .HasForeignKey("TrackId")
+                        .HasForeignKey("UserTrackId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -815,7 +817,7 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
 
                     b.HasOne("DotNetCloud.Modules.Music.Models.UserTrack", "UserTrack")
                         .WithMany("PlaylistTracks")
-                        .HasForeignKey("TrackId")
+                        .HasForeignKey("UserTrackId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -828,7 +830,7 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                 {
                     b.HasOne("DotNetCloud.Modules.Music.Models.UserTrack", "UserTrack")
                         .WithMany()
-                        .HasForeignKey("TrackId")
+                        .HasForeignKey("UserTrackId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 

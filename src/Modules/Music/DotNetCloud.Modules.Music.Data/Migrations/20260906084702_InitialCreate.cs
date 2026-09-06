@@ -47,6 +47,7 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                     MusicBrainzId = table.Column<string>(type: "character varying(36)", maxLength: 36, nullable: true),
                     Biography = table.Column<string>(type: "character varying(10000)", maxLength: 10000, nullable: true),
                     ImageUrl = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
+                    LogoUrl = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
                     WikipediaUrl = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
                     DiscogsUrl = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
                     OfficialUrl = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
@@ -354,7 +355,7 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     UserId = table.Column<Guid>(type: "uuid", nullable: false),
-                    TrackId = table.Column<Guid>(type: "uuid", nullable: false),
+                    UserTrackId = table.Column<Guid>(type: "uuid", nullable: false),
                     PlayedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP"),
                     DurationPlayedSeconds = table.Column<int>(type: "integer", nullable: false)
                 },
@@ -362,8 +363,8 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                 {
                     table.PrimaryKey("PK_PlaybackHistories", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_PlaybackHistories_user_tracks_TrackId",
-                        column: x => x.TrackId,
+                        name: "FK_PlaybackHistories_user_tracks_UserTrackId",
+                        column: x => x.UserTrackId,
                         principalSchema: "music",
                         principalTable: "user_tracks",
                         principalColumn: "Id",
@@ -376,13 +377,13 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                 columns: table => new
                 {
                     PlaylistId = table.Column<Guid>(type: "uuid", nullable: false),
-                    TrackId = table.Column<Guid>(type: "uuid", nullable: false),
+                    UserTrackId = table.Column<Guid>(type: "uuid", nullable: false),
                     SortOrder = table.Column<int>(type: "integer", nullable: false),
                     AddedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP")
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_PlaylistTracks", x => new { x.PlaylistId, x.TrackId });
+                    table.PrimaryKey("PK_PlaylistTracks", x => new { x.PlaylistId, x.UserTrackId });
                     table.ForeignKey(
                         name: "FK_PlaylistTracks_Playlists_PlaylistId",
                         column: x => x.PlaylistId,
@@ -391,8 +392,8 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
-                        name: "FK_PlaylistTracks_user_tracks_TrackId",
-                        column: x => x.TrackId,
+                        name: "FK_PlaylistTracks_user_tracks_UserTrackId",
+                        column: x => x.UserTrackId,
                         principalSchema: "music",
                         principalTable: "user_tracks",
                         principalColumn: "Id",
@@ -406,7 +407,7 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     UserId = table.Column<Guid>(type: "uuid", nullable: false),
-                    TrackId = table.Column<Guid>(type: "uuid", nullable: false),
+                    UserTrackId = table.Column<Guid>(type: "uuid", nullable: false),
                     ArtistName = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
                     TrackTitle = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
                     AlbumTitle = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
@@ -416,8 +417,8 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                 {
                     table.PrimaryKey("PK_ScrobbleRecords", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_ScrobbleRecords_user_tracks_TrackId",
-                        column: x => x.TrackId,
+                        name: "FK_ScrobbleRecords_user_tracks_UserTrackId",
+                        column: x => x.UserTrackId,
                         principalSchema: "music",
                         principalTable: "user_tracks",
                         principalColumn: "Id",
@@ -538,7 +539,7 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                 name: "ix_playback_history_user_track_id",
                 schema: "music",
                 table: "PlaybackHistories",
-                column: "TrackId");
+                column: "UserTrackId");
 
             migrationBuilder.CreateIndex(
                 name: "ix_playlists_is_deleted",
@@ -565,10 +566,10 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                 columns: new[] { "PlaylistId", "SortOrder" });
 
             migrationBuilder.CreateIndex(
-                name: "IX_PlaylistTracks_TrackId",
+                name: "IX_PlaylistTracks_UserTrackId",
                 schema: "music",
                 table: "PlaylistTracks",
-                column: "TrackId");
+                column: "UserTrackId");
 
             migrationBuilder.CreateIndex(
                 name: "ix_scrobble_records_user_scrobbled_at",
@@ -580,7 +581,7 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                 name: "ix_scrobble_records_user_track_id",
                 schema: "music",
                 table: "ScrobbleRecords",
-                column: "TrackId");
+                column: "UserTrackId");
 
             migrationBuilder.CreateIndex(
                 name: "ix_starred_items_user_id",
