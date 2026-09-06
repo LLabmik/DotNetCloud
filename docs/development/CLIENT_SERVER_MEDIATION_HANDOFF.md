@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-09-06 (Blazor form defaults — Enter-submit in text boxes + autofocus + TOTP auto-submit → server agent mint22)
+Last updated: 2026-09-06 (Blazor form defaults implemented + deployed by server agent mint22 → back to client agent for PR/next)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -16,7 +16,7 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
-- **Current active branch:** `fix/form-submit-handling` (Blazor form defaults handoff → server agent `mint22`)
+- **Current active branch:** `fix/form-submit-handling` (Blazor form defaults — implemented commit `5ddc81dd`, deployed to mint22 dev; awaiting user PR merge → client agent `monolith` for next steps)
 
 ## Archived Handoff — SyncTray test machine: DB Outage SyncTray Simulation (plan §11.4) ✅ PASS
 
@@ -170,11 +170,19 @@ Setup note: because the *applying* client generates the updater script from its 
 
 ## Active Handoff
 
-**Status:** ⏳ Blazor form defaults — Enter-submits in text boxes (NOT text areas) + autofocus + TOTP 6-digit auto-submit → **server agent (mint22)** implementation.
+**Status:** ✅ COMPLETED — Blazor form defaults implemented, deployed to mint22 dev, and user-tested (2026-09-06, server agent mint22). Next: user PR merge to main; client agent may wire more forms via the shared mechanism (plan §6).
 
-**Target agent:** mint22 (server / Blazor UI)
-**Branch:** `fix/form-submit-handling` (HEAD `c9aa08a3` = `origin/main`)
+**Target agent:** monolith (client, next steps)
+**Branch:** `fix/form-submit-handling` (HEAD `5ddc81dd` = implementation)
 **Canonical plan:** `docs/FORM_ENTER_SUBMIT_PLAN.md` (read it FIRST — fully self-contained)
+
+### Completion record (2026-09-06, server agent mint22) ✅
+- Implemented per the plan on `fix/form-submit-handling` (commit `5ddc81dd`): new `form-defaults.js` (shared, attribute-driven) registered in `App.razor`; auth pages wired (Login autofocus + `autocomplete="current-password"`, MfaVerify `data-autosubmit="6"`, MfaSetup `@bind:event="oninput"` + `@bind:after` auto-submit + autofocus); Files dialogs got `data-enter-submit`/`data-autofocus-first` (per-row for New File) and the four `Handle*KeyDown` C# handlers trimmed to Escape-only.
+- **Acceptance fix 1 (Files Enter used stale value):** dialog inputs bound `@bind` (onchange) lagged the model on Enter → added `@bind:event="oninput"` to the four Files dialog inputs so Enter submits with the typed value (Rename `Test.txt`→`Test2.txt`; New File `Test.docx`).
+- **Acceptance fix 2 (browser password save):** Login password field had no `autocomplete` → added `autocomplete="current-password"`; Firefox now prompts to save (Edge needs per-site state cleared — not a code issue).
+- **Deploy + verify:** `tools/redeploy-baremetal.sh` → `/health/ready` + `/health/live` Healthy, no pending migrations; `_content/DotNetCloud.UI.Web/js/form-defaults.js` → 200 text/javascript. Files module tests 757/757.
+- **User acceptance:** login autofocus + Enter-submit; Files create/rename via Enter (after fix 1); text areas still insert newline (no submit); no double actions. MFA verify/setup auto-submit at 6 digits implemented via native (`data-autosubmit`) and interactive C# (`@bind:after`) paths; full TOTP flow still needs a real authenticator session.
+- **Relay → monolith (client):** implemented + deployed; create the PR to merge `fix/form-submit-handling` → `main`, and extend the mechanism to more forms later (plan §2 out-of-scope list, §6 extension path).
 
 ### Context (2026-09-06, from client agent monolith)
 User requirement: "Default for forms (login, TOTP, file create name, etc.) should submit when Enter is pressed in a text box (not a text area)." Confirmed scope for this pass:

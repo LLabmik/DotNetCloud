@@ -1,7 +1,7 @@
 # Plan — Blazor Form Defaults: Enter submits in a text box (not a text area) + autofocus + TOTP auto-submit
 
-**Status:** ⏳ handoff to server agent (mint22) for implementation
-**Branch:** `fix/form-submit-handling` (HEAD = `c9aa08a3`, same as `origin/main`)
+**Status:** ✅ implemented by server agent (mint22), deployed to mint22 dev, user-tested
+**Branch:** `fix/form-submit-handling` (HEAD = `5ddc81dd`)
 **Canonical plan:** this file
 **From:** client agent (monolith), 2026-09-06
 **Target:** server agent (mint22) — implementation + deploy to dev; interactive acceptance by user
