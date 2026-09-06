@@ -15,7 +15,8 @@
             <div class="form-group">
                 <label for="code">Verification Code</label>
                 <input id="code" name="code" class="input input-code" type="text" inputmode="numeric" pattern="[0-9]*"
-                       maxlength="6" placeholder="000000" autocomplete="one-time-code" required autofocus />
+                       maxlength="6" placeholder="000000" autocomplete="one-time-code" required autofocus
+                       data-autosubmit="6" data-autofocus />
             </div>
 
             <input type="hidden" name="returnUrl" value="@SafeReturnUrl" />

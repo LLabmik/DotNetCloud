@@ -63,11 +63,12 @@
                     </div>
                 </div>
 
-                <EditForm Model="_verifyModel" OnValidSubmit="VerifyAsync" FormName="mfa-setup-verify">
+                <EditForm Model="_verifyModel" OnValidSubmit="VerifyAsync" FormName="mfa-setup-verify" @ref="_verifyForm">
                     <div class="form-group">
                         <label for="verify-code">Verification Code</label>
                         <InputText id="verify-code" class="input input-code" @bind-Value="_verifyModel!.Code"
-                                   placeholder="000000" maxlength="6" />
+                                   @bind:event="oninput" @bind:after="OnVerifyCodeChanged" placeholder="000000" maxlength="6"
+                                   autofocus data-autofocus />
                         <ValidationMessage For="@(() => _verifyModel!.Code)" />
                     </div>
 
@@ -134,6 +135,7 @@
     private bool _submitting;
     private TotpVerifyModel _verifyModel = new();
     private string _returnUrl = "/";
+    private EditForm? _verifyForm;
 
     [Inject] private IMfaService MfaService { get; set; } = default!;
     [Inject] private SignInManager<ApplicationUser> SignInManager { get; set; } = default!;
@@ -182,6 +184,26 @@
             _errorMessage = $"Failed to initialize MFA setup: {ex.Message}";
             _state = SetupState.Error;
         }
+    }
+
+    /// <summary>
+    /// Runs after the verify-code input value is bound (oninput). Auto-submits once the
+    /// 6th digit is present, reusing the same validation+verify path as the Verify button.
+    /// </summary>
+    private async Task OnVerifyCodeChanged()
+    {
+        if (_submitting || _state != SetupState.Ready)
+            return;
+
+        var code = _verifyModel.Code?.Trim() ?? string.Empty;
+        if (code.Length < 6)
+            return;
+
+        // Mirror OnValidSubmit: only proceed when DataAnnotations validation passes.
+        if (_verifyForm?.EditContext is { } editContext && !editContext.Validate())
+            return;
+
+        await VerifyAsync();
     }
 
     private async Task VerifyAsync()

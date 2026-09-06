@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-09-02 (SyncTray Linux auto-update fix — **live-verified ✅** on Linux `mint-OptiPlex-7010`; merged to `main`; release/tag `v0.4.13`)
+Last updated: 2026-09-06 (Blazor form defaults implemented + deployed by server agent mint22 → back to client agent for PR/next)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -16,7 +16,7 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
-- **Current active branch:** `main` (SyncTray Linux auto-update fix merged as `v0.4.13`)
+- **Current active branch:** `fix/form-submit-handling` (Blazor form defaults — implemented commit `5ddc81dd`, deployed to mint22 dev; awaiting user PR merge → client agent `monolith` for next steps)
 
 ## Archived Handoff — SyncTray test machine: DB Outage SyncTray Simulation (plan §11.4) ✅ PASS
 
@@ -170,25 +170,46 @@ Setup note: because the *applying* client generates the updater script from its 
 
 ## Active Handoff
 
-**Status:** ⏳ Calendar event description Markdown — server side DONE & deployed to mint22; Android client build/install pending.
+**Status:** ✅ COMPLETED — Blazor form defaults implemented, deployed to mint22 dev, and user-tested (2026-09-06, server agent mint22). Next: user PR merge to main; client agent may wire more forms via the shared mechanism (plan §6).
 
-**Branch:** `fix/calendar-description-multiline` (commit `a242b3da`)
+**Target agent:** monolith (client, next steps)
+**Branch:** `fix/form-submit-handling` (HEAD `5ddc81dd` = implementation)
+**Canonical plan:** `docs/FORM_ENTER_SUBMIT_PLAN.md` (read it FIRST — fully self-contained)
 
-### Context (2026-09-03)
-The calendar event **Description** field is now multiline and supports Markdown across Blazor and Android:
+### Completion record (2026-09-06, server agent mint22) ✅
+- Implemented per the plan on `fix/form-submit-handling` (commit `5ddc81dd`): new `form-defaults.js` (shared, attribute-driven) registered in `App.razor`; auth pages wired (Login autofocus + `autocomplete="current-password"`, MfaVerify `data-autosubmit="6"`, MfaSetup `@bind:event="oninput"` + `@bind:after` auto-submit + autofocus); Files dialogs got `data-enter-submit`/`data-autofocus-first` (per-row for New File) and the four `Handle*KeyDown` C# handlers trimmed to Escape-only.
+- **Acceptance fix 1 (Files Enter used stale value):** dialog inputs bound `@bind` (onchange) lagged the model on Enter → added `@bind:event="oninput"` to the four Files dialog inputs so Enter submits with the typed value (Rename `Test.txt`→`Test2.txt`; New File `Test.docx`).
+- **Acceptance fix 2 (browser password save):** Login password field had no `autocomplete` → added `autocomplete="current-password"`; Firefox now prompts to save (Edge needs per-site state cleared — not a code issue).
+- **Deploy + verify:** `tools/redeploy-baremetal.sh` → `/health/ready` + `/health/live` Healthy, no pending migrations; `_content/DotNetCloud.UI.Web/js/form-defaults.js` → 200 text/javascript. Files module tests 757/757.
+- **User acceptance:** login autofocus + Enter-submit; Files create/rename via Enter (after fix 1); text areas still insert newline (no submit); no double actions. MFA verify/setup auto-submit at 6 digits implemented via native (`data-autosubmit`) and interactive C# (`@bind:after`) paths; full TOTP flow still needs a real authenticator session.
+- **Relay → monolith (client):** implemented + deployed; create the PR to merge `fix/form-submit-handling` → `main`, and extend the mechanism to more forms later (plan §2 out-of-scope list, §6 extension path).
 
-- **Blazor** `src/Modules/Calendar/DotNetCloud.Modules.Calendar/UI/CalendarPage.razor` — event Description replaced the single-line `InputText` with the shared `MarkdownEditor` (compact toolbar + Edit/Preview, `Rows=6`), injected `IMarkdownRenderer`.
-- **Android** `Views/EventEditPage.xaml` (+`.cs`) — description keeps its multiline `Editor` and gains a **Preview** toggle rendered via `MarkdownWebView`/`MarkdownHtmlFormatter` (local render; re-renders on toggle so the WebView re-measures).
-- **Android** `Views/EventDetailPage.xaml` — description now renders as Markdown: inline `MarkdownConverter` for plain text, `MarkdownWebView` for rich/block content (same pattern as `AiPage`).
+### Context (2026-09-06, from client agent monolith)
+User requirement: "Default for forms (login, TOTP, file create name, etc.) should submit when Enter is pressed in a text box (not a text area)." Confirmed scope for this pass:
 
-### Server deploy (mint22 dev) — DONE ✅
-- Deployed via `sudo ./scripts/deploy.sh`. `/health/ready` Healthy, database reachable, all module hosts running. Deployed `DotNetCloud.Modules.Calendar.dll` confirmed to contain the new markup ("Description (Markdown supported)", `MarkdownEditor`, `IMarkdownRenderer`). No pending migrations.
+- **Login**, **TOTP** (verify + MFA-setup verify step), **Files** create/rename dialogs.
+- **Shared global mechanism** (attribute-driven JS default), not per-form bespoke C# keydown handlers.
+- All listed forms **auto-focus their first text box**.
+- **TOTP auto-submits when the 6th digit is filled.**
+- Files **New File** = **per-row** primary action (Enter in Document row → create document; Enter in freeform File row → create freeform file).
 
-### Remaining (Android agent — `monolith`)
-- Build `DotNetCloud.Client.Android` from this branch and install on the Android device/emulator, then visually verify:
-  - Event **edit**: multiline Description editor + Preview toggle renders Markdown.
-  - Event **detail**: Description renders Markdown.
-- Note: the Android render path is already covered by 257 passing `DotNetCloud.Client.Android.Tests` (markdown converter/formatter); this is a visual acceptance pass.
+### What to do (server agent — mint22)
+1. Read `docs/FORM_ENTER_SUBMIT_PLAN.md` and implement it on `fix/form-submit-handling`:
+   - NEW `src/UI/DotNetCloud.UI.Web/wwwroot/js/form-defaults.js` (full source in plan §4.2).
+   - Register it in `src/UI/DotNetCloud.UI.Web/Components/App.razor` (before `_framework/blazor.web.js`; versioned include).
+   - Auth: `Login.razor` autofocus Username; `MfaVerify.razor` add `data-autosubmit="6"`; `MfaSetup.razor` (interactive EditForm) → `@bind:event="oninput"` + `@bind:after` auto-submit at 6 digits + autofocus.
+   - Files: `UI/FileBrowser.razor` → `data-enter-submit` on the New Folder/rename containers and on **each** `.create-file-row`; `data-autofocus-first` on the dialog containers; trim the four C# `Handle*KeyDown` handlers to **Escape-only** (avoid double actions).
+2. Build the changed projects — 0 warnings (`TreatWarningsAsErrors` is on).
+3. Deploy to mint22 dev via the usual deploy script; verify `/health/ready` Healthy, no pending migrations, and the new static asset `_content/DotNetCloud.UI.Web/js/form-defaults.js` returns 200.
+4. Record server-side verification, then hand the interactive **browser acceptance matrix (plan §7.3)** to the user/moderator (server agent cannot obtain a session).
+
+### Do NOT (this pass)
+- Do NOT touch Register/Forgot/Reset password, admin forms, Profile, or other modules' dialogs (plan §2 out-of-scope list). User will request more forms later.
+
+### Notes for the implementer
+- Module markup lives under each module RCL `UI/` folder (e.g. `src/Modules/Files/DotNetCloud.Modules.Files/UI/`). If `read_file`/grep tooling looks stale there, read from disk (`git show HEAD:<path>` / `Get-Content`) — files may be open in an editor buffer.
+- Interactive `EditForm` auto-submit MUST be C# (`@bind:event="oninput"` + `@bind:after`), NOT JS `data-autosubmit` (JS `requestSubmit()` races the Blazor model round-trip) — plan §4.1-B explains.
+- Keep the existing Escape-to-close behavior on the Files dialogs. No schema/CSS/test-project changes expected.
 
 ## Moderator Communication (Minimal)
 

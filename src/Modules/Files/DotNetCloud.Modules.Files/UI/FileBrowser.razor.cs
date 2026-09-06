@@ -777,10 +777,8 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         await LoadCurrentFolderAsync();
     }
 
-    protected async Task HandleFolderKeyDown(KeyboardEventArgs e)
+    protected void HandleFolderKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "Enter")
-            await CreateFolder();
         if (e.Key == "Escape")
             _showCreateFolder = false;
     }
@@ -830,20 +828,14 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
 
     protected void HideCreateDocumentDialog() => _showCreateDocument = false;
 
-    protected async Task HandleCreateDocumentKeyDown(KeyboardEventArgs e)
+    protected void HandleCreateDocumentKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "Enter")
-            await CreateDocumentAsync();
-
         if (e.Key == "Escape")
             _showCreateDocument = false;
     }
 
-    protected async Task HandleFreeformFileKeyDown(KeyboardEventArgs e)
+    protected void HandleFreeformFileKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "Enter")
-            await CreateFreeformFileAsync();
-
         if (e.Key == "Escape")
             _showCreateDocument = false;
     }
@@ -1318,10 +1310,8 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     }
 
     /// <summary>Handles keyboard events in the rename dialog.</summary>
-    protected async Task HandleRenameKeyDown(KeyboardEventArgs e)
+    protected void HandleRenameKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "Enter")
-            await ConfirmRename();
         if (e.Key == "Escape")
             CancelRename();
     }
