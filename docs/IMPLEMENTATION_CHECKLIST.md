@@ -6736,8 +6736,12 @@ while email becomes an **optional** field. No schema migration — ASP.NET Core 
 - ✓ Contacts: `20260906081246_PromoteContactsToRequiredModule` migration moves `contacts.*` → `core`
 - ✓ Music: rebase `InitialCreate` (`20260906084702`) from the current model — adds `UserTrackId` FKs + `CanonicalArtist.LogoUrl` (fixes `42703`)
 
-### Follow-ups (pending)
+### Follow-ups (this branch: `fix/first-boot-ef-race`)
 
-- ☐ Fix first-boot schema race (freshly wiped DB: transient `42P01` until a container restart; make first boot self-healing)
-- ☐ Rebase stale Music `.Data.SqlServer` migration chain (SQL Server parity with the Postgres `.Data`)
-- ☐ Review + commit this work package (per repo rules: build clean, tests pass, live-verified first)
+- ✓ Fix first-boot schema race — two changes:
+  - `ProcessSupervisor.StartAllModulesAsync` now ensures every discovered module's schema exists (via `ModuleSchemaService` → `DbContextSchemaProvider`) **before** spawning any module host.
+  - `ModuleSchemaService` now serializes schema operations **per module**. Root cause: on a fresh DB `ProcessSupervisor` and `ModuleUiRegistrationHostedService.SeedKnownModulesAsync` both call `EnsureModuleSchemaAsync` for the same module concurrently, so two EF `MigrateAsync` runs collided with `42P07` ("relation … already exists") and left schemas half-created (tracks got only 2 of its tables) → module hosts then hit transient `42P01` until a container restart. Per-module locking makes first boot deterministic and self-healing.
+- ✓ Rebase stale Music `.Data.SqlServer` migration chain — removed the 5-migration legacy chain (PascalCase `Tracks`/`TrackId` design era) + stale snapshot and regenerated `20260906184453_InitialCreate` from the current model — SQL Server parity with the Postgres `.Data` rebase (`20260906084702_InitialCreate`): `user_tracks`/`canonical_*`, `CanonicalArtist.LogoUrl`, `PlaylistTracks_UserTrackId`, `NEWSEQUENTIALID()` defaults.
+- ✓ Tests: `ModuleSchemaServiceTests` (same-module concurrency serialized; different-module parallelism preserved)
+- ✓ Live-verified (fresh-DB compose, `down -v` → `up`, local image `ghcr.io/llabmik/dotnetcloud:0.1.0-alpha`): first boot produced **0** `42P01`/`42P07`/migration failures, all **14** module hosts running with **RestartCount=0** (no container restart needed), `tracks` schema fully migrated (41 tables — previously 2), HTTPS login page + `/health/live` 200.
+- ✓ Review + commit this work package (per repo rules: build clean, tests pass, live-verified first; committed on `fix/first-boot-ef-race` — no PR created; user handles the PR)

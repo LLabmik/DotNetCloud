@@ -6,17 +6,20 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace DotNetCloud.Modules.Music.Data.SqlServer.Migrations
 {
     /// <inheritdoc />
-    public partial class AddCanonicalTables : Migration
+    public partial class InitialCreate : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.EnsureSchema(
+                name: "music");
+
             migrationBuilder.CreateTable(
                 name: "canonical_albums",
                 schema: "music",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false, defaultValueSql: "NEWSEQUENTIALID()"),
                     Title = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     Year = table.Column<int>(type: "int", nullable: true),
                     HasCoverArt = table.Column<bool>(type: "bit", nullable: false),
@@ -38,12 +41,13 @@ namespace DotNetCloud.Modules.Music.Data.SqlServer.Migrations
                 schema: "music",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false, defaultValueSql: "NEWSEQUENTIALID()"),
                     Name = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     SortName = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     MusicBrainzId = table.Column<string>(type: "nvarchar(36)", maxLength: 36, nullable: true),
                     Biography = table.Column<string>(type: "nvarchar(max)", maxLength: 10000, nullable: true),
                     ImageUrl = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
+                    LogoUrl = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
                     WikipediaUrl = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
                     DiscogsUrl = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
                     OfficialUrl = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
@@ -61,7 +65,7 @@ namespace DotNetCloud.Modules.Music.Data.SqlServer.Migrations
                 schema: "music",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false, defaultValueSql: "NEWSEQUENTIALID()"),
                     Name = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false)
                 },
                 constraints: table =>
@@ -97,11 +101,65 @@ namespace DotNetCloud.Modules.Music.Data.SqlServer.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "EqPresets",
+                schema: "music",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false, defaultValueSql: "NEWSEQUENTIALID()"),
+                    OwnerId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    Name = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    IsBuiltIn = table.Column<bool>(type: "bit", nullable: false),
+                    BandsJson = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP"),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP")
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_EqPresets", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Playlists",
+                schema: "music",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false, defaultValueSql: "NEWSEQUENTIALID()"),
+                    OwnerId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
+                    IsPublic = table.Column<bool>(type: "bit", nullable: false),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    DeletedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP"),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP")
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Playlists", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "StarredItems",
+                schema: "music",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false, defaultValueSql: "NEWSEQUENTIALID()"),
+                    UserId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ItemType = table.Column<int>(type: "int", nullable: false),
+                    ItemId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    StarredAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP")
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_StarredItems", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "user_albums",
                 schema: "music",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false, defaultValueSql: "NEWSEQUENTIALID()"),
                     OwnerId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     CanonicalAlbumId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     IsDeleted = table.Column<bool>(type: "bit", nullable: false),
@@ -154,7 +212,7 @@ namespace DotNetCloud.Modules.Music.Data.SqlServer.Migrations
                 schema: "music",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false, defaultValueSql: "NEWSEQUENTIALID()"),
                     OwnerId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     CanonicalArtistId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     IsDeleted = table.Column<bool>(type: "bit", nullable: false),
@@ -234,7 +292,7 @@ namespace DotNetCloud.Modules.Music.Data.SqlServer.Migrations
                 schema: "music",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false, defaultValueSql: "NEWSEQUENTIALID()"),
                     OwnerId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     FileNodeId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     CanonicalTrackHash = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false),
@@ -262,6 +320,108 @@ namespace DotNetCloud.Modules.Music.Data.SqlServer.Migrations
                         principalSchema: "music",
                         principalTable: "canonical_tracks",
                         principalColumn: "ContentHash",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "UserMusicPreferences",
+                schema: "music",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false, defaultValueSql: "NEWSEQUENTIALID()"),
+                    UserId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ActiveEqPresetId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    Volume = table.Column<double>(type: "float", nullable: false),
+                    ShuffleEnabled = table.Column<bool>(type: "bit", nullable: false),
+                    RepeatMode = table.Column<int>(type: "int", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP")
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_UserMusicPreferences", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_UserMusicPreferences_EqPresets_ActiveEqPresetId",
+                        column: x => x.ActiveEqPresetId,
+                        principalSchema: "music",
+                        principalTable: "EqPresets",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.SetNull);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "PlaybackHistories",
+                schema: "music",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false, defaultValueSql: "NEWSEQUENTIALID()"),
+                    UserId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    UserTrackId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    PlayedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP"),
+                    DurationPlayedSeconds = table.Column<int>(type: "int", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_PlaybackHistories", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_PlaybackHistories_user_tracks_UserTrackId",
+                        column: x => x.UserTrackId,
+                        principalSchema: "music",
+                        principalTable: "user_tracks",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "PlaylistTracks",
+                schema: "music",
+                columns: table => new
+                {
+                    PlaylistId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    UserTrackId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    SortOrder = table.Column<int>(type: "int", nullable: false),
+                    AddedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP")
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_PlaylistTracks", x => new { x.PlaylistId, x.UserTrackId });
+                    table.ForeignKey(
+                        name: "FK_PlaylistTracks_Playlists_PlaylistId",
+                        column: x => x.PlaylistId,
+                        principalSchema: "music",
+                        principalTable: "Playlists",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_PlaylistTracks_user_tracks_UserTrackId",
+                        column: x => x.UserTrackId,
+                        principalSchema: "music",
+                        principalTable: "user_tracks",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ScrobbleRecords",
+                schema: "music",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false, defaultValueSql: "NEWSEQUENTIALID()"),
+                    UserId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    UserTrackId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ArtistName = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    TrackTitle = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    AlbumTitle = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    ScrobbledAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP")
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ScrobbleRecords", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ScrobbleRecords_user_tracks_UserTrackId",
+                        column: x => x.UserTrackId,
+                        principalSchema: "music",
+                        principalTable: "user_tracks",
+                        principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
 
@@ -359,6 +519,85 @@ namespace DotNetCloud.Modules.Music.Data.SqlServer.Migrations
                 column: "Title");
 
             migrationBuilder.CreateIndex(
+                name: "ix_eq_presets_owner_id",
+                schema: "music",
+                table: "EqPresets",
+                column: "OwnerId");
+
+            migrationBuilder.CreateIndex(
+                name: "ix_eq_presets_owner_name",
+                schema: "music",
+                table: "EqPresets",
+                columns: new[] { "OwnerId", "Name" });
+
+            migrationBuilder.CreateIndex(
+                name: "ix_playback_history_user_played_at",
+                schema: "music",
+                table: "PlaybackHistories",
+                columns: new[] { "UserId", "PlayedAt" });
+
+            migrationBuilder.CreateIndex(
+                name: "ix_playback_history_user_track_id",
+                schema: "music",
+                table: "PlaybackHistories",
+                column: "UserTrackId");
+
+            migrationBuilder.CreateIndex(
+                name: "ix_playlists_is_deleted",
+                schema: "music",
+                table: "Playlists",
+                column: "IsDeleted");
+
+            migrationBuilder.CreateIndex(
+                name: "ix_playlists_name",
+                schema: "music",
+                table: "Playlists",
+                column: "Name");
+
+            migrationBuilder.CreateIndex(
+                name: "ix_playlists_owner_id",
+                schema: "music",
+                table: "Playlists",
+                column: "OwnerId");
+
+            migrationBuilder.CreateIndex(
+                name: "ix_playlist_tracks_playlist_sort",
+                schema: "music",
+                table: "PlaylistTracks",
+                columns: new[] { "PlaylistId", "SortOrder" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PlaylistTracks_UserTrackId",
+                schema: "music",
+                table: "PlaylistTracks",
+                column: "UserTrackId");
+
+            migrationBuilder.CreateIndex(
+                name: "ix_scrobble_records_user_scrobbled_at",
+                schema: "music",
+                table: "ScrobbleRecords",
+                columns: new[] { "UserId", "ScrobbledAt" });
+
+            migrationBuilder.CreateIndex(
+                name: "ix_scrobble_records_user_track_id",
+                schema: "music",
+                table: "ScrobbleRecords",
+                column: "UserTrackId");
+
+            migrationBuilder.CreateIndex(
+                name: "ix_starred_items_user_id",
+                schema: "music",
+                table: "StarredItems",
+                column: "UserId");
+
+            migrationBuilder.CreateIndex(
+                name: "uq_starred_items_user_type_item",
+                schema: "music",
+                table: "StarredItems",
+                columns: new[] { "UserId", "ItemType", "ItemId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "ix_user_albums_canonical_album_id",
                 schema: "music",
                 table: "user_albums",
@@ -450,6 +689,19 @@ namespace DotNetCloud.Modules.Music.Data.SqlServer.Migrations
                 table: "user_tracks",
                 columns: new[] { "FileNodeId", "OwnerId" },
                 unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_UserMusicPreferences_ActiveEqPresetId",
+                schema: "music",
+                table: "UserMusicPreferences",
+                column: "ActiveEqPresetId");
+
+            migrationBuilder.CreateIndex(
+                name: "uq_user_music_preferences_user_id",
+                schema: "music",
+                table: "UserMusicPreferences",
+                column: "UserId",
+                unique: true);
         }
 
         /// <inheritdoc />
@@ -468,6 +720,22 @@ namespace DotNetCloud.Modules.Music.Data.SqlServer.Migrations
                 schema: "music");
 
             migrationBuilder.DropTable(
+                name: "PlaybackHistories",
+                schema: "music");
+
+            migrationBuilder.DropTable(
+                name: "PlaylistTracks",
+                schema: "music");
+
+            migrationBuilder.DropTable(
+                name: "ScrobbleRecords",
+                schema: "music");
+
+            migrationBuilder.DropTable(
+                name: "StarredItems",
+                schema: "music");
+
+            migrationBuilder.DropTable(
                 name: "user_albums",
                 schema: "music");
 
@@ -476,7 +744,7 @@ namespace DotNetCloud.Modules.Music.Data.SqlServer.Migrations
                 schema: "music");
 
             migrationBuilder.DropTable(
-                name: "user_tracks",
+                name: "UserMusicPreferences",
                 schema: "music");
 
             migrationBuilder.DropTable(
@@ -484,7 +752,19 @@ namespace DotNetCloud.Modules.Music.Data.SqlServer.Migrations
                 schema: "music");
 
             migrationBuilder.DropTable(
+                name: "Playlists",
+                schema: "music");
+
+            migrationBuilder.DropTable(
+                name: "user_tracks",
+                schema: "music");
+
+            migrationBuilder.DropTable(
                 name: "canonical_artists",
+                schema: "music");
+
+            migrationBuilder.DropTable(
+                name: "EqPresets",
                 schema: "music");
 
             migrationBuilder.DropTable(

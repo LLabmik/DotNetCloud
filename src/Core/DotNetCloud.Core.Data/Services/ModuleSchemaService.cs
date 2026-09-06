@@ -1,6 +1,7 @@
 using DotNetCloud.Core.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using System.Collections.Concurrent;
 
 namespace DotNetCloud.Core.Data.Services;
 
@@ -14,6 +15,14 @@ public class ModuleSchemaService
     private readonly IReadOnlyList<IModuleSchemaProvider> _providers;
     private readonly ILogger<ModuleSchemaService> _logger;
 
+    // Serializes schema operations per module. Multiple startup paths can call
+    // EnsureModuleSchemaAsync for the same module concurrently (ProcessSupervisor's
+    // pre-spawn schema pass and ModuleUiRegistrationHostedService's lazy seed). Running
+    // EF MigrateAsync twice for the same module at the same time collided with 42P07
+    // ("relation ... already exists"), which left the schema half-created on first boot.
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> _moduleLocks =
+        new(StringComparer.OrdinalIgnoreCase);
+
     public ModuleSchemaService(
         IEnumerable<IModuleSchemaProvider> providers,
         ILogger<ModuleSchemaService> logger)
@@ -24,29 +33,50 @@ public class ModuleSchemaService
 
     public async Task EnsureModuleSchemaAsync(string moduleId, CancellationToken cancellationToken = default)
     {
-        foreach (var provider in _providers)
+        var gate = GetOrAddLock(moduleId);
+        await gate.WaitAsync(cancellationToken);
+        try
         {
-            if (provider.IsCoreManaged(moduleId))
+            foreach (var provider in _providers)
             {
-                await provider.EnsureSchemaAsync(moduleId, cancellationToken);
-                return;
+                if (provider.IsCoreManaged(moduleId))
+                {
+                    await provider.EnsureSchemaAsync(moduleId, cancellationToken);
+                    return;
+                }
             }
-        }
 
-        _logger.LogInformation("Module {ModuleId} is self-managed; skipping core-driven schema creation", moduleId);
+            _logger.LogInformation("Module {ModuleId} is self-managed; skipping core-driven schema creation", moduleId);
+        }
+        finally
+        {
+            gate.Release();
+        }
     }
 
     public async Task DropModuleSchemaAsync(string moduleId, CancellationToken cancellationToken = default)
     {
-        foreach (var provider in _providers)
+        var gate = GetOrAddLock(moduleId);
+        await gate.WaitAsync(cancellationToken);
+        try
         {
-            if (provider.IsCoreManaged(moduleId))
+            foreach (var provider in _providers)
             {
-                await provider.DropSchemaAsync(moduleId, cancellationToken);
-                return;
+                if (provider.IsCoreManaged(moduleId))
+                {
+                    await provider.DropSchemaAsync(moduleId, cancellationToken);
+                    return;
+                }
             }
-        }
 
-        _logger.LogInformation("Module {ModuleId} is self-managed; skipping core-driven schema drop", moduleId);
+            _logger.LogInformation("Module {ModuleId} is self-managed; skipping core-driven schema drop", moduleId);
+        }
+        finally
+        {
+            gate.Release();
+        }
     }
+
+    private SemaphoreSlim GetOrAddLock(string moduleId) =>
+        _moduleLocks.GetOrAdd(moduleId, static _ => new SemaphoreSlim(1, 1));
 }
