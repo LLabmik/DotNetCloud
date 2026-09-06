@@ -125,6 +125,51 @@
     }
   }
 
+  // A text input that is actually laid out (visible), not one inside a hidden dialog.
+  function isVisibleTextInput(el) {
+    if (!isTextInput(el)) return false;
+    var r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0;
+  }
+
+  // Focus the page's declared autofocus target when it is visible. Returns true
+  // if something was focused (so callers know to leave focus alone otherwise).
+  function focusDeclaredTarget() {
+    if (userIsTyping()) return false;
+    var direct = document.querySelector("[data-autofocus]");
+    if (direct && isVisibleTextInput(direct)) {
+      tryFocus(direct);
+      return true;
+    }
+    var containers = document.querySelectorAll("[data-autofocus-first]");
+    for (var i = 0; i < containers.length; i++) {
+      var input = firstVisibleTextInput(containers[i]);
+      if (input) {
+        tryFocus(input);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Blazor's <FocusOnNavigate> (Routes.razor) moves focus to the page <h1> after
+  // every navigation — including the initial load once the interactive circuit
+  // connects — and that steals focus from a field that opted into autofocus
+  // (login username, TOTP code, MFA-setup verify code). When the h1 receives
+  // focus, re-assert the declared target if one is visible; otherwise leave the
+  // h1 focus in place (accessibility announcement on non-form pages).
+  document.addEventListener(
+    "focusin",
+    function (e) {
+      var t = e.target;
+      if (!t || t.tagName !== "H1") return;
+      if (document.querySelector("[data-autofocus], [data-autofocus-first]")) {
+        focusDeclaredTarget();
+      }
+    },
+    true,
+  );
+
   document.addEventListener("keydown", onKeyDown, true);
   document.addEventListener("input", onInput, true);
 
@@ -133,10 +178,34 @@
   } else {
     focusTargets();
   }
+  // On DOM changes:
+  //  - childList (new autofocus targets appearing, e.g. dialogs / the MFA-setup
+  //    Ready step) → focusTargets().
+  //  - a tabindex attribute change is the signal that Blazor's interactive
+  //    <FocusOnNavigate> is moving focus to the page <h1> after navigation
+  //    (it sets tabindex="-1" then calls focus()). That steals focus from any
+  //    field that opted into autofocus, so re-assert the declared target. This
+  //    covers focus events too, which are not fired when the document isn't the
+  //    active element.
+  function onDomMutation(mutations) {
+    var declaredExists = !!document.querySelector(
+      "[data-autofocus], [data-autofocus-first]",
+    );
+    for (var i = 0; i < mutations.length; i++) {
+      var m = mutations[i];
+      if (m.type === "attributes" && m.attributeName === "tabindex") {
+        if (declaredExists) focusDeclaredTarget();
+        return;
+      }
+    }
+    focusTargets();
+  }
   try {
-    new MutationObserver(focusTargets).observe(document.documentElement, {
+    new MutationObserver(onDomMutation).observe(document.documentElement, {
       childList: true,
       subtree: true,
+      attributes: true,
+      attributeFilter: ["tabindex"],
     });
   } catch (err) {
     /* observer not available — autofocus still runs on load */
