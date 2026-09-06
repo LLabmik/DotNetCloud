@@ -5679,13 +5679,14 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 
 - ✓ Rebased Music's single stale/corrupt `InitialCreate` (`20260906084702`) from the current model — adds `UserTrackId` FK design + `CanonicalArtist.LogoUrl` (fixes `42703`)
 
-### Step: dnc-5 — Follow-ups (pending)
+### Step: dnc-5 — Follow-ups (completed)
 
-**Status:** pending ☐
+**Status:** completed ✅
 **Deliverables:**
 
-- ☐ First-boot schema race — freshly wiped DB: some module schemas not ready in time → transient `42P01`, currently recovered by a container restart; make first boot self-healing
-- ☐ Music `.Data.SqlServer` migration parity — SQL Server chain still uses the old TrackId design; needs the same rebase as the Postgres `.Data`
-- ☐ Review + commit this work package
+- ✓ First-boot schema race — `ProcessSupervisor.StartAllModulesAsync` now creates every discovered module's schema (`ModuleSchemaService` → `DbContextSchemaProvider`) BEFORE spawning module hosts. On a fresh DB the lazy pass (`ModuleUiRegistrationHostedService.SeedKnownModulesAsync`) ALSO ran concurrently and both called `EnsureModuleSchemaAsync` for the same modules; two parallel EF `MigrateAsync` runs collided with `42P07` ("relation … already exists") and left schemas half-created → module hosts hit transient `42P01` until a container restart. Fixed by serializing schema operations per module in `ModuleSchemaService` (concurrent same-module calls are now safe; different modules still run in parallel).
+- ✓ Music `.Data.SqlServer` migration parity — removed the stale 5-migration SQL Server chain (PascalCase `Tracks`/`TrackId` design) + snapshot and regenerated a single `InitialCreate` (`20260906184453_InitialCreate`) from the current model, matching the Postgres `.Data` rebase (`20260906084702_InitialCreate`).
+- ✓ Tests: `ModuleSchemaServiceTests` added (same-module concurrency serialized; different-module parallelism preserved)
+- ✓ Review + commit — `dotnet build DotNetCloud.CI.slnf` clean; full CI test suite green; fresh-DB compose e2e verified; committed on `fix/first-boot-ef-race` (no PR created; user handles the PR)
 
-**Notes:** Packaging modernization + DB-init/migration fixes verified end-to-end against a fresh PostgreSQL in the compose stack (image `ghcr.io/llabmik/dotnetcloud:0.1.0-alpha`; all module pages load). Bare-metal deploys use the CLI `migrate` path (ServiceProviderFactory registers all module DbContexts); the Docker/Helm server-only path relies on `DbContextSchemaProvider`, which is what these fixes target.
+**Notes:** Packaging modernization + DB-init/migration fixes verified end-to-end against a fresh PostgreSQL in the compose stack (image `ghcr.io/llabmik/dotnetcloud:0.1.0-alpha`; all module pages load). Bare-metal deploys use the CLI `migrate` path (ServiceProviderFactory registers all module DbContexts); the Docker/Helm server-only path relies on `DbContextSchemaProvider`, which is what these fixes target. Live fresh-DB e2e (compose `down -v` → `up`, image rebuilt from this branch): **0** `42P01`/`42P07`/migration failures on first boot, **14/14** module hosts running with `RestartCount=0` (no container restart required), `tracks` schema fully migrated (41 tables vs 2 before the fix), HTTPS login + `/health/live` return 200.

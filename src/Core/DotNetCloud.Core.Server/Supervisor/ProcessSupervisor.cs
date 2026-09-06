@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Entities.Modules;
+using DotNetCloud.Core.Data.Services;
 using DotNetCloud.Core.Grpc.Lifecycle;
 using DotNetCloud.Core;
 using DotNetCloud.Core.Modules;
@@ -30,6 +31,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
     private readonly GrpcChannelManager _channelManager;
     private readonly ResourceLimiter _resourceLimiter;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly ModuleSchemaService _moduleSchemaService;
     private readonly ConcurrentDictionary<string, ModuleProcessHandle> _modules = new();
     private readonly SemaphoreSlim _startStopLock = new(1, 1);
 
@@ -40,7 +42,8 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         ModuleManifestLoader manifestLoader,
         GrpcChannelManager channelManager,
         ResourceLimiter resourceLimiter,
-        IServiceScopeFactory scopeFactory)
+        IServiceScopeFactory scopeFactory,
+        ModuleSchemaService moduleSchemaService)
     {
         _logger = logger;
         _options = options.Value;
@@ -49,6 +52,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         _channelManager = channelManager;
         _resourceLimiter = resourceLimiter;
         _scopeFactory = scopeFactory;
+        _moduleSchemaService = moduleSchemaService;
     }
 
     // ---- IProcessSupervisor ----
@@ -70,6 +74,15 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             _logger.LogInformation("Starting {Count} discovered modules", discovered.Count);
 
             await SyncDiscoveredModulesToDatabaseAsync(discovered, cancellationToken);
+
+            // Ensure every module's database schema exists BEFORE its host process is spawned.
+            // On a fresh database the InstalledModules table is empty when core startup runs, so
+            // the normal pre-start schema pass (Program.InitializeDatabaseAsync) is a no-op, and
+            // the lazy pass (ModuleUiRegistrationHostedService) skipped schema creation because the
+            // supervisor had just synced the module records above. Module hosts would then query
+            // tables that don't exist yet and crash with 42P01 until a container restart. Creating
+            // schemas here, before any host starts, makes first boot deterministic and self-healing.
+            await EnsureModuleSchemasAsync(discovered, cancellationToken);
 
             foreach (var module in discovered)
             {
@@ -859,6 +872,36 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to sync discovered modules to database. Admin UI may not show all modules.");
+        }
+    }
+
+    /// <summary>
+    /// Creates the database schema for every discovered module before its host process
+    /// starts. Core-managed (first-party) modules have their EF migrations applied here;
+    /// self-managed (third-party) modules are skipped and create their own schema.
+    /// A per-module failure is logged and does not block the remaining modules — the
+    /// supervisor's restart policy still lets an individual host recover.
+    /// </summary>
+    private async Task EnsureModuleSchemasAsync(
+        IReadOnlyList<DiscoveredModule> discovered, CancellationToken cancellationToken)
+    {
+        foreach (var module in discovered)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            try
+            {
+                _logger.LogInformation("Ensuring database schema for module {ModuleId}", SanitizeForLog(module.ModuleId));
+                await _moduleSchemaService.EnsureModuleSchemaAsync(module.ModuleId, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to ensure database schema for module {ModuleId}", SanitizeForLog(module.ModuleId));
+            }
         }
     }
 }
