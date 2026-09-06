@@ -39,7 +39,8 @@ else
                 <label class="btn btn-sm btn-primary avatar-upload-label" for="avatar-upload">
                     Upload Image
                 </label>
-                <InputFile id="avatar-upload" OnChange="HandleAvatarUploadAsync" accept="image/jpeg,image/png,image/gif,image/webp" style="display:none" />
+                <InputFile id="avatar-upload" OnChange="HandleAvatarUploadAsync"
+                           accept="image/jpeg,image/png,image/gif,image/webp" style="display:none" />
                 @if (!string.IsNullOrWhiteSpace(_profile.AvatarUrl))
                 {
                     <button class="btn btn-sm btn-outline" @onclick="RemoveAvatarAsync" disabled="@_avatarUploading">
@@ -64,9 +65,16 @@ else
                 <DataAnnotationsValidator />
 
                 <div class="form-group">
+                    <label for="username">Username</label>
+                    <input id="username" type="text" class="input" value="@_profile.Username" readonly disabled />
+                    <span class="hint">Username cannot be changed.</span>
+                </div>
+
+                <div class="form-group">
                     <label for="email">Email</label>
-                    <input id="email" type="text" class="input" value="@_profile.Email" readonly disabled />
-                    <span class="hint">Email cannot be changed from this page.</span>
+                    <input id="email" type="text" class="input"
+                           value="@(string.IsNullOrWhiteSpace(_profile.Email) ? "—" : _profile.Email)" readonly disabled />
+                    <span class="hint">@(string.IsNullOrWhiteSpace(_profile.Email) ? "No email on file." : "Email cannot be changed from this page.")</span>
                 </div>
 
                 <div class="form-group">
@@ -77,7 +85,8 @@ else
                 <div class="form-group">
                     <label for="locale">Language / Region</label>
                     <InputSelect id="locale" class="input" @bind-Value="_profileModel!.Locale">
-                        @if (!LocaleOptions.Any(x => x.Code.Equals(_profileModel!.Locale, StringComparison.OrdinalIgnoreCase)))
+                        @if (!LocaleOptions.Any(x => x.Code.Equals(_profileModel!.Locale,
+                    StringComparison.OrdinalIgnoreCase)))
                         {
                             <option value="@_profileModel!.Locale">@_profileModel!.Locale (current)</option>
                         }
@@ -92,7 +101,8 @@ else
                     <label for="timezone">Timezone</label>
                     <InputText id="timezone" class="input" @bind-Value="_profileModel!.Timezone" />
                     <span class="hint">e.g., UTC, America/New_York, Europe/London</span>
-                    <button type="button" class="btn btn-sm btn-outline" style="margin-top: 6px;" @onclick="DetectTimezoneAsync" disabled="@_detectingTimezone">
+                    <button type="button" class="btn btn-sm btn-outline" style="margin-top: 6px;"
+                            @onclick="DetectTimezoneAsync" disabled="@_detectingTimezone">
                         @(_detectingTimezone ? "Detecting..." : "Update based on current location")
                     </button>
                 </div>
@@ -122,7 +132,8 @@ else
 
                 <div class="form-group">
                     <label for="currentPassword">Current Password</label>
-                    <InputText id="currentPassword" type="password" class="input" @bind-Value="_passwordModel!.CurrentPassword" />
+                    <InputText id="currentPassword" type="password" class="input"
+                               @bind-Value="_passwordModel!.CurrentPassword" />
                 </div>
 
                 <div class="form-group">
@@ -265,7 +276,7 @@ else
         var name = _profile.DisplayName;
         if (string.IsNullOrWhiteSpace(name))
         {
-            name = _profile.Email;
+            name = _profile.Username;
         }
 
         if (string.IsNullOrWhiteSpace(name)) return "?";
@@ -334,8 +345,15 @@ else
             _profile.DisplayName = result.DisplayName;
             _profile.Locale = result.Locale;
             _profile.Timezone = result.Timezone;
+            _profileModel.DisplayName = result.DisplayName;
+            _profileModel.Locale = result.Locale;
+            _profileModel.Timezone = result.Timezone;
             _profileSuccess = "Profile updated successfully.";
             Toast.ShowSuccess("Profile updated.");
+        }
+        catch (ApiException ex)
+        {
+            _profileError = ex.Message;
         }
         catch (HttpRequestException)
         {

@@ -786,6 +786,7 @@ public sealed class UserManagementControllerTests : IDisposable
     private static UserDto CreateUserDto(Guid userId, string displayName = "Test User") => new()
     {
         Id = userId,
+        Username = "testuser",
         Email = "test@example.com",
         DisplayName = displayName,
         Locale = "en-US",

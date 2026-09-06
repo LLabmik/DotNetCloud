@@ -48,30 +48,30 @@ public sealed class AuthSessionController : ControllerBase
     [HttpPost("login")]
     [AllowAnonymous]
     public async Task<IActionResult> LoginAsync(
-        [FromForm] string email,
+        [FromForm] string username,
         [FromForm] string password,
         [FromForm] string? returnUrl = null)
     {
-        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
         {
-            _logger.LogWarning("Form login rejected: missing email or password");
-            return RedirectToLogin("Email and password are required.", returnUrl, email);
+            _logger.LogWarning("Form login rejected: missing username or password");
+            return RedirectToLogin("Username and password are required.", returnUrl, username);
         }
 
         try
         {
             var result = await _signInManager.PasswordSignInAsync(
-                email,
+                username,
                 password,
                 isPersistent: true,
                 lockoutOnFailure: true);
 
             if (result.Succeeded)
             {
-                await UpdateLastLoginAsync(email);
+                await UpdateLastLoginAsync(username);
 
                 // Check if password change is required (closed system mode)
-                var user = await _userManager.FindByEmailAsync(email);
+                var user = await _userManager.FindByNameAsync(username);
                 if (user is not null)
                 {
                     await _auditLogger.LogAsync(new AuditEntry
@@ -113,7 +113,7 @@ public sealed class AuthSessionController : ControllerBase
                     }
                 }
 
-                var target = await ResolvePostLoginTargetAsync(email, returnUrl);
+                var target = await ResolvePostLoginTargetAsync(username, returnUrl);
                 return LocalRedirect(target);
             }
 
@@ -126,24 +126,24 @@ public sealed class AuthSessionController : ControllerBase
 
             if (result.IsLockedOut)
             {
-                await LogLoginFailureAsync(email, "locked-out");
-                return RedirectToLogin("Account locked. Please try again later.", returnUrl, email);
+                await LogLoginFailureAsync(username, "locked-out");
+                return RedirectToLogin("Account locked. Please try again later.", returnUrl, username);
             }
 
             if (result.IsNotAllowed)
             {
-                await LogLoginFailureAsync(email, "not-allowed");
-                return RedirectToLogin("Login not allowed. Please confirm your email.", returnUrl, email);
+                await LogLoginFailureAsync(username, "not-allowed");
+                return RedirectToLogin("Login not allowed. Please confirm your email.", returnUrl, username);
             }
 
-            await LogLoginFailureAsync(email, "invalid-credentials");
-            return RedirectToLogin("Invalid email or password.", returnUrl, email);
+            await LogLoginFailureAsync(username, "invalid-credentials");
+            return RedirectToLogin("Invalid username or password.", returnUrl, username);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Form login failed for {Email}", LogSanitizer.Sanitize(email));
-            await LogLoginFailureAsync(email, "exception");
-            return RedirectToLogin($"Login error: {ex.GetType().Name}", returnUrl, email);
+            _logger.LogError(ex, "Form login failed for {Username}", LogSanitizer.Sanitize(username));
+            await LogLoginFailureAsync(username, "exception");
+            return RedirectToLogin($"Login error: {ex.GetType().Name}", returnUrl, username);
         }
     }
 
@@ -305,13 +305,13 @@ public sealed class AuthSessionController : ControllerBase
         return LocalRedirect(safeReturn);
     }
 
-    private IActionResult RedirectToLogin(string error, string? returnUrl, string? email)
+    private IActionResult RedirectToLogin(string error, string? returnUrl, string? username)
     {
         var safeReturn = IsSafeLocalReturnUrl(returnUrl) ? returnUrl! : "/";
         var encodedError = Uri.EscapeDataString(error);
         var encodedReturn = Uri.EscapeDataString(safeReturn);
-        var encodedEmail = Uri.EscapeDataString(email ?? string.Empty);
-        return LocalRedirect($"/auth/login?returnUrl={encodedReturn}&error={encodedError}&email={encodedEmail}");
+        var encodedUsername = Uri.EscapeDataString(username ?? string.Empty);
+        return LocalRedirect($"/auth/login?returnUrl={encodedReturn}&error={encodedError}&username={encodedUsername}");
     }
 
     private IActionResult RedirectToChangePassword(string error, string? returnUrl)
@@ -337,13 +337,13 @@ public sealed class AuthSessionController : ControllerBase
             && !returnUrl.StartsWith("//", StringComparison.Ordinal);
     }
 
-    private async Task<string> ResolvePostLoginTargetAsync(string email, string? returnUrl)
+    private async Task<string> ResolvePostLoginTargetAsync(string username, string? returnUrl)
     {
         var safeTarget = IsSafeLocalReturnUrl(returnUrl) ? returnUrl! : "/";
         if (!safeTarget.StartsWith(AdminBasePath, StringComparison.OrdinalIgnoreCase))
             return safeTarget;
 
-        var user = await _userManager.FindByEmailAsync(email);
+        var user = await _userManager.FindByNameAsync(username);
         if (user is null)
             return "/";
 
@@ -366,13 +366,13 @@ public sealed class AuthSessionController : ControllerBase
         return isAdmin ? returnUrl : "/";
     }
 
-    private async Task LogLoginFailureAsync(string email, string reason)
+    private async Task LogLoginFailureAsync(string username, string reason)
     {
-        var sanitizedEmail = LogSanitizer.Sanitize(email);
-        _logger.LogWarning("Form login failed for {Email}: {Reason}", sanitizedEmail, reason);
+        var sanitizedUsername = LogSanitizer.Sanitize(username);
+        _logger.LogWarning("Form login failed for {Username}: {Reason}", sanitizedUsername, reason);
 
         // Resolve the user so the audit entry can carry their ID when the account exists.
-        var user = await _userManager.FindByEmailAsync(email);
+        var user = await _userManager.FindByNameAsync(username);
         await _auditLogger.LogAsync(new AuditEntry
         {
             Caller = CallerContext.CreateSystemContext(),
@@ -380,7 +380,7 @@ public sealed class AuthSessionController : ControllerBase
             Action = AuditAction.Read,
             EntityType = "User",
             EntityId = user?.Id ?? Guid.Empty,
-            Description = $"form-login-failed:{reason}:{sanitizedEmail}",
+            Description = $"form-login-failed:{reason}:{sanitizedUsername}",
         });
     }
 
@@ -401,14 +401,14 @@ public sealed class AuthSessionController : ControllerBase
         });
     }
 
-    private async Task UpdateLastLoginAsync(string email)
+    private async Task UpdateLastLoginAsync(string username)
     {
         // Use ExecuteUpdateAsync to avoid a second tracked instance conflicting with
         // the ApplicationUser already tracked by PasswordSignInAsync in the same DbContext scope.
         var now = DateTime.UtcNow;
-        var normalizedEmail = _userManager.NormalizeEmail(email);
+        var normalizedUsername = _userManager.NormalizeName(username);
         var updated = await _userManager.Users
-            .Where(u => u.NormalizedEmail == normalizedEmail)
+            .Where(u => u.NormalizedUserName == normalizedUsername)
             .ExecuteUpdateAsync(s => s.SetProperty(u => u.LastLoginAt, now));
         if (updated == 0)
             _logger.LogWarning("Could not persist LastLoginAt: user not found");

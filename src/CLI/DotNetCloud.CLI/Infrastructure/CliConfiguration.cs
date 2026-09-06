@@ -248,6 +248,11 @@ internal sealed class CliConfig
     public string? AdminEmail { get; set; }
 
     /// <summary>
+    /// The admin username created during setup (used for login).
+    /// </summary>
+    public string? AdminUsername { get; set; }
+
+    /// <summary>
     /// Whether TOTP MFA should be enabled for the admin user on first login.
     /// Set during interactive setup when the user answers Yes to the MFA prompt.
     /// </summary>

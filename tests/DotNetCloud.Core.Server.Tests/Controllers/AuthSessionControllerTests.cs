@@ -206,48 +206,48 @@ public sealed class AuthSessionControllerTests
     public async Task LoginAsync_InvalidCredentials_LogsAndAuditsFailure()
     {
         _signInManagerMock
-            .Setup(m => m.PasswordSignInAsync("kaminskidale@gmail.com", "wrong-password", true, true))
+            .Setup(m => m.PasswordSignInAsync("kaminskidale", "wrong-password", true, true))
             .ReturnsAsync(Microsoft.AspNetCore.Identity.SignInResult.Failed);
 
-        var result = await _controller.LoginAsync("kaminskidale@gmail.com", "wrong-password", "/");
+        var result = await _controller.LoginAsync("kaminskidale", "wrong-password", "/");
 
         var redirect = AssertRedirectToLogin(result);
-        Assert.IsTrue(redirect.Contains("Invalid email or password"),
+        Assert.IsTrue(redirect.Contains("Invalid username or password"),
             "Expected invalid credentials error message");
 
-        VerifyLoginFailureAudited("invalid-credentials", "kaminskidale@gmail.com");
+        VerifyLoginFailureAudited("invalid-credentials", "kaminskidale");
     }
 
     [TestMethod]
     public async Task LoginAsync_LockedOut_LogsAndAuditsFailure()
     {
         _signInManagerMock
-            .Setup(m => m.PasswordSignInAsync("kaminskidale@gmail.com", "pw", true, true))
+            .Setup(m => m.PasswordSignInAsync("kaminskidale", "pw", true, true))
             .ReturnsAsync(Microsoft.AspNetCore.Identity.SignInResult.LockedOut);
 
-        var result = await _controller.LoginAsync("kaminskidale@gmail.com", "pw", "/");
+        var result = await _controller.LoginAsync("kaminskidale", "pw", "/");
 
         var redirect = AssertRedirectToLogin(result);
         Assert.IsTrue(redirect.Contains("Account locked"),
             "Expected lockout error message");
 
-        VerifyLoginFailureAudited("locked-out", "kaminskidale@gmail.com");
+        VerifyLoginFailureAudited("locked-out", "kaminskidale");
     }
 
     [TestMethod]
     public async Task LoginAsync_NotAllowed_LogsAndAuditsFailure()
     {
         _signInManagerMock
-            .Setup(m => m.PasswordSignInAsync("kaminskidale@gmail.com", "pw", true, true))
+            .Setup(m => m.PasswordSignInAsync("kaminskidale", "pw", true, true))
             .ReturnsAsync(Microsoft.AspNetCore.Identity.SignInResult.NotAllowed);
 
-        var result = await _controller.LoginAsync("kaminskidale@gmail.com", "pw", "/");
+        var result = await _controller.LoginAsync("kaminskidale", "pw", "/");
 
         var redirect = AssertRedirectToLogin(result);
         Assert.IsTrue(redirect.Contains("confirm your email"),
             "Expected not-allowed error message");
 
-        VerifyLoginFailureAudited("not-allowed", "kaminskidale@gmail.com");
+        VerifyLoginFailureAudited("not-allowed", "kaminskidale");
     }
 
     [TestMethod]

@@ -99,8 +99,9 @@ public sealed partial class LoginViewModel : ObservableObject
 
             // Extract user info from the id_token (signed JWT, decodable client-side).
             // The access token is JWE-encrypted so we cannot decode it here.
-            var email = ExtractClaimFromToken(result.IdToken ?? result.AccessToken, "email")
-                        ?? ExtractClaimFromToken(result.IdToken ?? result.AccessToken, "preferred_username")
+            // preferred_username is authoritative (email may be absent for no-email accounts).
+            var email = ExtractClaimFromToken(result.IdToken ?? result.AccessToken, "preferred_username")
+                        ?? ExtractClaimFromToken(result.IdToken ?? result.AccessToken, "email")
                         ?? ExtractClaimFromToken(result.IdToken ?? result.AccessToken, "name")
                         ?? new Uri(normalizedUrl).Host;
             var displayName = ExtractClaimFromToken(result.IdToken ?? result.AccessToken, "name")

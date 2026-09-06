@@ -18,7 +18,11 @@ namespace DotNetCloud.Core.Server.Initialization;
 /// </summary>
 /// <remarks>
 /// This seeder is idempotent — it only creates a user when none exist.
-/// The admin email is read from configuration (<c>DotNetCloud:AdminEmail</c>).
+/// The admin username is read from configuration (<c>DotNetCloud:AdminUsername</c>,
+/// fallback <c>adminUsername</c>) and the admin email from
+/// (<c>DotNetCloud:AdminEmail</c>, fallback <c>adminEmail</c>). Email is optional;
+/// on legacy installs that only set an email, the username is derived from the
+/// email local-part.
 /// The admin password is read from either:
 /// <list type="bullet">
 ///   <item><c>DotNetCloud:AdminPassword</c> environment variable (set by <c>dotnetcloud start</c>)</item>
@@ -57,12 +61,24 @@ internal sealed class AdminSeeder
     /// </summary>
     public async Task SeedAsync(CancellationToken cancellationToken = default)
     {
+        var username = GetConfigValue("DotNetCloud:AdminUsername", "adminUsername");
         var email = GetConfigValue("DotNetCloud:AdminEmail", "adminEmail");
 
-        // On existing installations, ensure the configured admin account has the Administrator role.
-        if (!string.IsNullOrWhiteSpace(email))
+        // Legacy installs only set AdminEmail; derive a username from the email local-part
+        // to match the LegacyUsernameMigration backfill.
+        if (string.IsNullOrWhiteSpace(username) && !string.IsNullOrWhiteSpace(email))
         {
-            var existingAdmin = await _userManager.FindByEmailAsync(email);
+            username = email.Split('@')[0];
+        }
+
+        // On existing installations, ensure the configured admin account has the Administrator role.
+        if (!string.IsNullOrWhiteSpace(username) || !string.IsNullOrWhiteSpace(email))
+        {
+            var existingAdmin = string.IsNullOrWhiteSpace(username)
+                ? await _userManager.FindByEmailAsync(email!)
+                : await _userManager.FindByNameAsync(username)
+                    ?? (string.IsNullOrWhiteSpace(email) ? null : await _userManager.FindByEmailAsync(email));
+
             if (existingAdmin is not null)
             {
                 await EnsureAdministratorRoleExistsAsync();
@@ -100,7 +116,7 @@ internal sealed class AdminSeeder
 
         var password = ReadAdminPassword();
 
-        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
         {
             _logger.LogWarning(
                 "No admin credentials provided. " +
@@ -112,8 +128,8 @@ internal sealed class AdminSeeder
 
         var user = new ApplicationUser
         {
-            UserName = email,
-            Email = email,
+            UserName = username!,
+            Email = string.IsNullOrWhiteSpace(email) ? null : email,
             DisplayName = "Administrator",
             EmailConfirmed = true,
             IsActive = true

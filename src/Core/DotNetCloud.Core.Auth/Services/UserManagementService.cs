@@ -44,11 +44,12 @@ public sealed class UserManagementService : IUserManagementService
             usersQuery = usersQuery.Where(u => u.IsActive == query.IsActive.Value);
         }
 
-        // Search by email or display name
+        // Search by username, email, or display name
         if (!string.IsNullOrWhiteSpace(query.Search))
         {
             var search = query.Search.Trim();
             usersQuery = usersQuery.Where(u =>
+                u.UserName!.Contains(search) ||
                 u.Email!.Contains(search) ||
                 u.DisplayName.Contains(search));
         }
@@ -66,8 +67,8 @@ public sealed class UserManagementService : IUserManagementService
                 ? usersQuery.OrderByDescending(u => u.LastLoginAt)
                 : usersQuery.OrderBy(u => u.LastLoginAt),
             _ => query.SortDirection?.Equals("desc", StringComparison.OrdinalIgnoreCase) == true
-                ? usersQuery.OrderByDescending(u => u.Email)
-                : usersQuery.OrderBy(u => u.Email),
+                ? usersQuery.OrderByDescending(u => u.UserName)
+                : usersQuery.OrderBy(u => u.UserName),
         };
 
         var totalCount = await usersQuery.CountAsync();
@@ -122,7 +123,28 @@ public sealed class UserManagementService : IUserManagementService
 
         if (dto.DisplayName is not null)
         {
-            user.DisplayName = dto.DisplayName;
+            // A display name is the name other users see; never allow it to be blank.
+            // Falling back to the username guarantees everyone always has a visible name.
+            var newDisplayName = string.IsNullOrWhiteSpace(dto.DisplayName)
+                ? user.UserName!
+                : dto.DisplayName.Trim();
+
+            // Display names must be unique (case-insensitive) so users aren't confused.
+            var displayNameTaken = _userManager.Users.Any(u =>
+                u.Id != user.Id &&
+                u.DisplayName.ToLower() == newDisplayName.ToLower());
+
+            if (displayNameTaken)
+            {
+                _logger.LogWarning(
+                    "Failed to update user {UserId}: display name {DisplayName} already in use",
+                    userId,
+                    LogSanitizer.Sanitize(newDisplayName));
+                throw new InvalidOperationException(
+                    $"Display name '{newDisplayName}' is already in use. Please choose a different display name.");
+            }
+
+            user.DisplayName = newDisplayName;
         }
 
         if (dto.AvatarUrl is not null)
@@ -143,6 +165,15 @@ public sealed class UserManagementService : IUserManagementService
         if (dto.IsActive.HasValue)
         {
             user.IsActive = dto.IsActive.Value;
+        }
+
+        // Email semantics: null = leave unchanged; empty/whitespace = clear; else set (validated unique).
+        // UserManager.UpdateAsync does NOT re-normalize the email, so always update NormalizedEmail
+        // alongside Email or uniqueness checks and lookups will break.
+        if (dto.Email is not null)
+        {
+            user.Email = string.IsNullOrWhiteSpace(dto.Email) ? null : dto.Email.Trim();
+            user.NormalizedEmail = _userManager.NormalizeEmail(user.Email);
         }
 
         var result = await _userManager.UpdateAsync(user);
@@ -266,7 +297,8 @@ public sealed class UserManagementService : IUserManagementService
         return new UserDto
         {
             Id = user.Id,
-            Email = user.Email!,
+            Username = user.UserName!,
+            Email = user.Email,
             DisplayName = user.DisplayName,
             AvatarUrl = user.AvatarUrl,
             Locale = user.Locale,

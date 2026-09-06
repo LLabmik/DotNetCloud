@@ -48,8 +48,8 @@ public sealed class MfaService : IMfaService
             key = await _userManager.GetAuthenticatorKeyAsync(user);
         }
 
-        var email = user.Email ?? user.UserName ?? userId.ToString();
-        var qrCodeUri = GenerateQrCodeUri(email, key!);
+        var accountLabel = user.UserName ?? user.Email ?? userId.ToString();
+        var qrCodeUri = GenerateQrCodeUri(accountLabel, key!);
 
         var remainingCodes = await _dbContext.UserBackupCodes
             .CountAsync(c => c.UserId == userId && !c.IsUsed);

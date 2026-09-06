@@ -21,7 +21,7 @@ public class UserManagementServiceTests
     private static readonly ApplicationUser TestUser = new()
     {
         Id = Guid.CreateVersion7(),
-        UserName = "user@example.com",
+        UserName = "testuser",
         Email = "user@example.com",
         DisplayName = "Test User",
         Locale = "en-US",
@@ -38,6 +38,11 @@ public class UserManagementServiceTests
         var storeMock = new Mock<IUserStore<ApplicationUser>>();
         _userManagerMock = new Mock<UserManager<ApplicationUser>>(
             storeMock.Object, null, null, null, null, null, null, null, null);
+
+        // Default: no existing users. Individual tests override this to simulate
+        // duplicate usernames/display names.
+        _userManagerMock.Setup(m => m.Users)
+            .Returns(Enumerable.Empty<ApplicationUser>().AsQueryable());
 
         _loggerMock = new Mock<ILogger<UserManagementService>>();
         var eventBusMock = new Mock<IEventBus>();
@@ -69,6 +74,7 @@ public class UserManagementServiceTests
         // Assert
         Assert.IsNotNull(result);
         Assert.AreEqual(TestUser.Id, result.Id);
+        Assert.AreEqual(TestUser.UserName, result.Username);
         Assert.AreEqual(TestUser.Email, result.Email);
         Assert.AreEqual(TestUser.DisplayName, result.DisplayName);
         Assert.IsTrue(result.Roles.Contains("admin"));
@@ -115,6 +121,94 @@ public class UserManagementServiceTests
         // Assert
         Assert.IsNotNull(result);
         Assert.AreEqual("Updated Name", result.DisplayName);
+    }
+
+    [TestMethod]
+    public async Task WhenUserClearsDisplayName_ThenFallsBackToUsername()
+    {
+        // Arrange
+        _userManagerMock
+            .Setup(m => m.FindByIdAsync(TestUser.Id.ToString()))
+            .ReturnsAsync(TestUser);
+        _userManagerMock
+            .Setup(m => m.UpdateAsync(It.IsAny<ApplicationUser>()))
+            .ReturnsAsync(IdentityResult.Success);
+        _userManagerMock
+            .Setup(m => m.GetRolesAsync(TestUser))
+            .ReturnsAsync(new List<string>());
+
+        var dto = new UpdateUserDto { DisplayName = "   " };
+
+        // Act
+        var result = await _service.UpdateUserAsync(TestUser.Id, dto);
+
+        // Assert — display name is what others see, so it must never be blank
+        Assert.IsNotNull(result);
+        Assert.AreEqual(TestUser.UserName, result.DisplayName,
+            "Clearing the display name should fall back to the username");
+        Assert.AreEqual(TestUser.UserName, TestUser.DisplayName);
+    }
+
+    [TestMethod]
+    public async Task WhenUserSetsWhitespacePaddedDisplayName_ThenTrims()
+    {
+        // Arrange
+        _userManagerMock
+            .Setup(m => m.FindByIdAsync(TestUser.Id.ToString()))
+            .ReturnsAsync(TestUser);
+        _userManagerMock
+            .Setup(m => m.UpdateAsync(It.IsAny<ApplicationUser>()))
+            .ReturnsAsync(IdentityResult.Success);
+        _userManagerMock
+            .Setup(m => m.GetRolesAsync(TestUser))
+            .ReturnsAsync(new List<string>());
+
+        var dto = new UpdateUserDto { DisplayName = "  Ben Kimball  " };
+
+        // Act
+        var result = await _service.UpdateUserAsync(TestUser.Id, dto);
+
+        // Assert
+        Assert.IsNotNull(result);
+        Assert.AreEqual("Ben Kimball", result.DisplayName);
+    }
+
+    [TestMethod]
+    public async Task WhenDisplayNameAlreadyUsedByAnotherUser_ThenUpdateThrows()
+    {
+        // Arrange — another user already has the requested display name
+        var other = new ApplicationUser
+        {
+            Id = Guid.CreateVersion7(),
+            UserName = "someoneelse",
+            DisplayName = "Taken Name",
+        };
+        _userManagerMock.Setup(m => m.Users)
+            .Returns(new List<ApplicationUser> { other }.AsQueryable());
+        _userManagerMock
+            .Setup(m => m.FindByIdAsync(TestUser.Id.ToString()))
+            .ReturnsAsync(TestUser);
+        _userManagerMock
+            .Setup(m => m.UpdateAsync(It.IsAny<ApplicationUser>()))
+            .ReturnsAsync(IdentityResult.Success);
+
+        var originalDisplayName = TestUser.DisplayName;
+        var dto = new UpdateUserDto { DisplayName = "Taken Name" };
+
+        // Act & Assert
+        try
+        {
+            await _service.UpdateUserAsync(TestUser.Id, dto);
+            Assert.Fail("Expected InvalidOperationException for duplicate display name");
+        }
+        catch (InvalidOperationException ex)
+        {
+            Assert.IsTrue(ex.Message.Contains("already in use", StringComparison.Ordinal));
+        }
+
+        // The user's display name must be left unchanged
+        Assert.AreEqual(originalDisplayName, TestUser.DisplayName,
+            "Display name must not change when the update fails");
     }
 
     [TestMethod]
@@ -203,7 +297,7 @@ public class UserManagementServiceTests
         var user = new ApplicationUser
         {
             Id = Guid.CreateVersion7(),
-            UserName = "active@example.com",
+            UserName = "activeuser",
             Email = "active@example.com",
             DisplayName = "Active User",
             IsActive = true,
@@ -249,7 +343,7 @@ public class UserManagementServiceTests
         var user = new ApplicationUser
         {
             Id = Guid.CreateVersion7(),
-            UserName = "disabled@example.com",
+            UserName = "disableduser",
             Email = "disabled@example.com",
             DisplayName = "Disabled User",
             IsActive = false,

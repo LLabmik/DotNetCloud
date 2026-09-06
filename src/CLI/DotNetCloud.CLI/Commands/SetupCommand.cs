@@ -291,14 +291,17 @@ internal static class SetupCommand
         // ───────────────────────────────────────────────
         ConsoleOutput.WriteStep(3, TotalSteps, "Admin User Configuration");
         Console.WriteLine();
-        ConsoleOutput.WriteInfo("Your email address will be your login username for the DotNetCloud web UI.");
-        ConsoleOutput.WriteInfo("It must be a valid email address (e.g., admin@example.com).");
-        ConsoleOutput.WriteInfo("This is separate from the database credentials you entered above.");
-        Console.WriteLine();
+        ConsoleOutput.WriteInfo("Choose a username for your admin account. This is what you will use to sign in.");
+        ConsoleOutput.WriteInfo("Allowed characters: letters, digits, '-', '.', '_' (e.g. Bill.Jones, pat123).");
+        config.AdminUsername = ConsoleOutput.Prompt("Admin username", config.AdminUsername);
 
-        config.AdminEmail = ConsoleOutput.Prompt(
-            "Admin email (this is your login username)",
-            config.AdminEmail);
+        Console.WriteLine();
+        ConsoleOutput.WriteInfo("Enter the admin email address (optional). Leave blank if the account has none.");
+        config.AdminEmail = ConsoleOutput.Prompt("Admin email (optional)", config.AdminEmail ?? "");
+        if (string.IsNullOrWhiteSpace(config.AdminEmail))
+        {
+            config.AdminEmail = null;
+        }
 
         // Password entry with retry loop and strength validation
         Console.WriteLine();
@@ -652,7 +655,8 @@ internal static class SetupCommand
         }
         ConsoleOutput.WriteDetail("Database", config.DatabaseProvider);
         ConsoleOutput.WriteDetail("Connection", MaskConnectionString(config.ConnectionString));
-        ConsoleOutput.WriteDetail("Admin Login", config.AdminEmail ?? "(not set)");
+        ConsoleOutput.WriteDetail("Admin Username", config.AdminUsername ?? "(not set)");
+        ConsoleOutput.WriteDetail("Admin Email", config.AdminEmail ?? "(none)");
         ConsoleOutput.WriteDetail("Organization", config.OrganizationName ?? "(not set)");
         ConsoleOutput.WriteDetail("HTTPS", config.EnableHttps ? $"Enabled (port {config.HttpsPort})" : "Disabled");
         if (config.EnableHttps)
@@ -850,7 +854,7 @@ internal static class SetupCommand
         Console.WriteLine($"    {loginUrl}");
         Console.ResetColor();
         Console.WriteLine();
-        ConsoleOutput.WriteInfo($"Login username: {config.AdminEmail}");
+        ConsoleOutput.WriteInfo($"Login username: {config.AdminUsername}");
         ConsoleOutput.WriteInfo("Login password: the admin password you chose during this setup");
         Console.WriteLine();
 
@@ -1319,7 +1323,7 @@ internal static class SetupCommand
             Console.WriteLine($"    1. DotNetCloud is running locally at {loginUrl}.");
             Console.WriteLine($"    2. Set up your reverse proxy to forward https://{config.LetsEncryptDomain} to http://localhost:{config.HttpPort}.");
             Console.WriteLine($"    3. Add TLS for {config.LetsEncryptDomain} on the reverse proxy.");
-            Console.WriteLine($"    4. After that is done, open https://{config.LetsEncryptDomain} and sign in with {config.AdminEmail}.");
+            Console.WriteLine($"    4. After that is done, open https://{config.LetsEncryptDomain} and sign in with {config.AdminUsername}.");
             Console.WriteLine("    5. If you want to test locally before the reverse proxy is ready, use the internal app URL shown above.");
             Console.WriteLine("       A reverse proxy is recommended for public installs because it keeps DotNetCloud on a local-only port and makes TLS/443 handling easier.");
             Console.WriteLine($"       Beginner guide: {ReverseProxyBeginnerGuideUrl}");
@@ -1329,14 +1333,14 @@ internal static class SetupCommand
             Console.WriteLine($"    1. DotNetCloud is configured to serve your public domain directly at {loginUrl}.");
             Console.WriteLine($"    2. Make sure your TLS certificate file exists at {config.TlsCertificatePath}.");
             Console.WriteLine($"    3. Make sure your firewall/router sends public traffic for {config.LetsEncryptDomain} to port {config.HttpsPort} on this server.");
-            Console.WriteLine($"    4. Open {loginUrl} and sign in with {config.AdminEmail}.");
+            Console.WriteLine($"    4. Open {loginUrl} and sign in with {config.AdminUsername}.");
             Console.WriteLine("    5. A reverse proxy is still recommended for most public installs because it makes ports 80/443, certificate renewal, and future services easier to manage.");
             Console.WriteLine($"       If you want to switch to a reverse proxy later, use this guide: {ReverseProxyBeginnerGuideUrl}");
         }
         else
         {
             Console.WriteLine($"    1. Open {loginUrl} in your browser.");
-            Console.WriteLine($"    2. Sign in with {config.AdminEmail} and the admin password you chose.");
+            Console.WriteLine($"    2. Sign in with {config.AdminUsername} and the admin password you chose.");
             if (config.UseSelfSignedTls)
             {
                 Console.WriteLine("    3. Your browser will likely show a certificate warning the first time because this install uses a self-signed certificate.");

@@ -113,6 +113,9 @@ public class UserManagementController : ControllerBase
 
             // Regular users cannot change their own active status
             dto.IsActive = null;
+
+            // Regular users cannot set or clear their own email
+            dto.Email = null;
         }
 
         try

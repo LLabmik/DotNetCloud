@@ -121,7 +121,12 @@ public static class OpenIddictEndpointsExtensions
         {
             identity.SetClaim(Claims.Name, user.DisplayName);
             identity.SetClaim(Claims.PreferredUsername, user.UserName);
-            identity.SetClaim(Claims.Email, user.Email);
+
+            // Email is optional; only emit the claim when the user actually has one.
+            if (!string.IsNullOrEmpty(user.Email))
+            {
+                identity.SetClaim(Claims.Email, user.Email);
+            }
         }
 
         // Copy role claims from the authenticated principal
@@ -210,7 +215,7 @@ public static class OpenIddictEndpointsExtensions
                 {
                     sub,
                     email = user.Email,
-                    email_verified = user.EmailConfirmed,
+                    email_verified = user.EmailConfirmed && !string.IsNullOrEmpty(user.Email),
                     name = user.DisplayName,
                     preferred_username = user.UserName
                 });

@@ -16,7 +16,7 @@ public interface IAuthService
     /// <summary>
     /// Registers a new user account.
     /// </summary>
-    /// <param name="request">Registration details including email, password, and profile info.</param>
+    /// <param name="request">Registration details including username, optional email, password, and profile info.</param>
     /// <param name="caller">Context identifying who initiated the registration.</param>
     /// <returns>A response containing the new user's ID and whether email confirmation is required.</returns>
     Task<RegisterResponse> RegisterAsync(RegisterRequest request, CallerContext caller);
@@ -24,7 +24,7 @@ public interface IAuthService
     /// <summary>
     /// Validates user credentials and returns authenticated user information.
     /// </summary>
-    /// <param name="request">Login credentials (email, password, optional TOTP code).</param>
+    /// <param name="request">Login credentials (username, password, optional TOTP code).</param>
     /// <param name="caller">Context identifying the caller.</param>
     /// <returns>
     /// User identity and placeholder token data. The access/refresh token fields are
@@ -57,15 +57,17 @@ public interface IAuthService
     Task<bool> ConfirmEmailAsync(Guid userId, string token);
 
     /// <summary>
-    /// Generates a password reset token and logs it (email delivery is Phase 0.x).
+    /// Generates a password reset token and emails the reset link to the account.
+    /// Accepts either a username or an email address. If the matched account has no
+    /// email on file, no reset link is sent.
     /// </summary>
-    /// <param name="email">The email address of the account requesting the reset.</param>
-    Task InitiatePasswordResetAsync(string email);
+    /// <param name="usernameOrEmail">The username or email of the account requesting the reset.</param>
+    Task InitiatePasswordResetAsync(string usernameOrEmail);
 
     /// <summary>
     /// Resets the user's password using a valid reset token.
     /// </summary>
-    /// <param name="request">Reset details including email, token, and new password.</param>
+    /// <param name="request">Reset details including username, token, and new password.</param>
     /// <returns><see langword="true"/> if the password was reset successfully; otherwise <see langword="false"/>.</returns>
     Task<bool> ResetPasswordAsync(ResetPasswordRequest request);
 

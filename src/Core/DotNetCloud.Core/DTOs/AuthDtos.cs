@@ -1,14 +1,14 @@
 namespace DotNetCloud.Core.DTOs;
 
 /// <summary>
-/// Request to authenticate a user with email and password.
+/// Request to authenticate a user with username and password.
 /// </summary>
 public sealed class LoginRequest
 {
     /// <summary>
-    /// Gets or sets the user's email address.
+    /// Gets or sets the user's username (used for login).
     /// </summary>
-    public string Email { get; set; } = string.Empty;
+    public string Username { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets the user's password.
@@ -69,9 +69,14 @@ public sealed class LoginResponse
 public sealed class RegisterRequest
 {
     /// <summary>
-    /// Gets or sets the user's email address (used as login identifier).
+    /// Gets or sets the user's username (used for login).
     /// </summary>
-    public string Email { get; set; } = string.Empty;
+    public string Username { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the user's email address (optional).
+    /// </summary>
+    public string? Email { get; set; }
 
     /// <summary>
     /// Gets or sets the plaintext password (hashed before storage).
@@ -112,9 +117,9 @@ public sealed class RegisterResponse
     public Guid UserId { get; set; }
 
     /// <summary>
-    /// Gets or sets the registered email address.
+    /// Gets or sets the registered email address (null when none was provided).
     /// </summary>
-    public string Email { get; set; } = string.Empty;
+    public string? Email { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether the user must confirm their email before logging in.
@@ -192,9 +197,9 @@ public sealed class ChangePasswordRequest
 public sealed class ResetPasswordRequest
 {
     /// <summary>
-    /// Gets or sets the email address of the account to reset.
+    /// Gets or sets the username of the account to reset.
     /// </summary>
-    public string Email { get; set; } = string.Empty;
+    public string Username { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets the password reset token received via email.
@@ -225,9 +230,14 @@ public sealed class UserProfileResponse
     public Guid UserId { get; set; }
 
     /// <summary>
+    /// Gets or sets the user's username.
+    /// </summary>
+    public string Username { get; set; } = string.Empty;
+
+    /// <summary>
     /// Gets or sets the user's email address.
     /// </summary>
-    public string Email { get; set; } = string.Empty;
+    public string? Email { get; set; }
 
     /// <summary>
     /// Gets or sets the user's display name.

@@ -76,6 +76,11 @@ public static class AuthServiceExtensions
             // Email
             options.User.RequireUniqueEmail = true;
             options.SignIn.RequireConfirmedEmail = false;
+
+            // Usernames may contain letters, digits, '-', '.', '_' only.
+            // '@' and '+' are excluded so a username can never look like an email address.
+            options.User.AllowedUserNameCharacters =
+                "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._";
         })
         .AddEntityFrameworkStores<CoreDbContext>()
         .AddDefaultTokenProviders();

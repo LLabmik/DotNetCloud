@@ -115,6 +115,7 @@ public class CliConfigTests
             LetsEncryptDomain = "cloud.example.com",
             OrganizationName = "TestOrg",
             AdminEmail = "admin@example.com",
+            AdminUsername = "admin",
             EnabledModules = ["dotnetcloud.files", "dotnetcloud.chat"],
             DataDirectory = "/var/lib/dotnetcloud/data",
             LogDirectory = "/var/log/dotnetcloud",
@@ -141,6 +142,7 @@ public class CliConfigTests
         Assert.AreEqual(original.LetsEncryptDomain, deserialized.LetsEncryptDomain);
         Assert.AreEqual(original.OrganizationName, deserialized.OrganizationName);
         Assert.AreEqual(original.AdminEmail, deserialized.AdminEmail);
+        Assert.AreEqual(original.AdminUsername, deserialized.AdminUsername);
         CollectionAssert.AreEqual(original.EnabledModules, deserialized.EnabledModules);
         Assert.AreEqual(original.DataDirectory, deserialized.DataDirectory);
         Assert.AreEqual(original.LogDirectory, deserialized.LogDirectory);
@@ -208,6 +210,13 @@ public class CliConfigTests
     {
         var config = new CliConfig();
         Assert.IsNull(config.AdminEmail);
+    }
+
+    [TestMethod]
+    public void CliConfig_AdminUsernameIsNull()
+    {
+        var config = new CliConfig();
+        Assert.IsNull(config.AdminUsername);
     }
 
     [TestMethod]

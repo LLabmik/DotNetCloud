@@ -74,6 +74,7 @@ public sealed class GroupsEndpointIntegrationTests
         var addedMember = DataOrRoot(addedMemberRoot);
 
         Assert.AreEqual(memberUserId, addedMember.GetProperty("userId").GetGuid());
+        Assert.AreEqual("member", addedMember.GetProperty("username").GetString());
         Assert.AreEqual("member@example.com", addedMember.GetProperty("userEmail").GetString());
         Assert.AreEqual(adminUserId, addedMember.GetProperty("addedByUserId").GetGuid());
 
@@ -97,11 +98,12 @@ public sealed class GroupsEndpointIntegrationTests
 
     private static ApplicationUser CreateUser(Guid userId, string email, string displayName)
     {
+        var username = email.Split('@')[0];
         return new ApplicationUser
         {
             Id = userId,
-            UserName = email,
-            NormalizedUserName = email.ToUpperInvariant(),
+            UserName = username,
+            NormalizedUserName = username.ToUpperInvariant(),
             Email = email,
             NormalizedEmail = email.ToUpperInvariant(),
             EmailConfirmed = true,

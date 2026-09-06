@@ -110,9 +110,14 @@ public class GroupMemberDto
     public string UserDisplayName { get; set; } = null!;
 
     /// <summary>
-    /// Gets or sets the user's email.
+    /// Gets or sets the user's username.
     /// </summary>
-    public string UserEmail { get; set; } = null!;
+    public string Username { get; set; } = null!;
+
+    /// <summary>
+    /// Gets or sets the user's email (null when none is set).
+    /// </summary>
+    public string? UserEmail { get; set; }
 
     /// <summary>
     /// Gets or sets the date and time the member was added to the group.

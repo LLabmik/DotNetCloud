@@ -9,257 +9,276 @@
 <div class="page-header">
     <div>
         <h1>Groups</h1>
-        <p class="text-muted">Manage organization-wide permission groups and review the protected built-in All Users membership view.</p>
-    </div>
-    <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
-        <select class="form-control" style="min-width: 260px;" value="@_selectedOrganizationId" @onchange="OnOrganizationChanged" disabled="@(_orgs.Count == 0)">
-            @foreach (var org in _orgs)
-            {
-                <option value="@org.Id">@org.Name</option>
-            }
-        </select>
-        <button class="btn btn-primary" @onclick="ShowCreate" disabled="@(_orgs.Count == 0)">Create Group</button>
-    </div>
-</div>
-
-@if (!string.IsNullOrWhiteSpace(_error))
-{
-    <div class="alert alert-danger">@_error</div>
-}
-
-@if (_loading)
-{
-    <LoadingIndicator Message="Loading groups..." />
-}
-else if (_orgs.Count == 0)
-{
-    <div class="alert alert-info">
-        No organizations are available yet. Create an organization first, then come back here to manage groups.
-    </div>
-}
-else
-{
-    <div class="table-container">
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Type</th>
-                    <th>Members</th>
-                    <th>Created</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                @if (_groups.Count == 0)
-                {
-                    <tr>
-                        <td colspan="5" class="text-center">No groups found for this organization.</td>
-                    </tr>
-                }
-                @foreach (var group in _groups)
-                {
-                    <tr>
-                        <td>
-                            <strong>@group.Name</strong>
-                            @if (!string.IsNullOrWhiteSpace(group.Description))
-                            {
-                                <div class="text-muted" style="font-size: 0.9rem; margin-top: 0.15rem;">@group.Description</div>
-                            }
-                        </td>
-                        <td>@(group.IsAllUsersGroup ? "Built-in" : "Custom")</td>
-                        <td>@group.MemberCount</td>
-                        <td>@group.CreatedAt.ToString("yyyy-MM-dd")</td>
-                        <td>
-                            <button class="btn btn-sm btn-outline" @onclick="() => ShowMembersAsync(group)">Members</button>
-                            @if (!group.IsAllUsersGroup)
-                            {
-                                <button class="btn btn-sm btn-outline" @onclick="() => StartEdit(group)">Edit</button>
-                                <button class="btn btn-sm btn-danger" @onclick="() => DeleteAsync(group)">Delete</button>
-                            }
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    </div>
-}
-
-@if (_showCreate)
-{
-    <DncModal Title="Create Group" StartVisible OnClose="CloseCreate">
-        <div class="form-group">
-            <label>Organization</label>
-            <select class="form-control" value="@_createOrganizationId" @onchange="OnCreateOrganizationChanged">
+        <p class="text-muted">Manage organization-wide permission groups and review the protected built-in All Users
+            membership view.</p>
+        </div>
+        <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+            <select class="form-control" style="min-width: 260px;" value="@_selectedOrganizationId"
+                    @onchange="OnOrganizationChanged" disabled="@(_orgs.Count == 0)">
                 @foreach (var org in _orgs)
                 {
                     <option value="@org.Id">@org.Name</option>
                 }
             </select>
+            <button class="btn btn-primary" @onclick="ShowCreate" disabled="@(_orgs.Count == 0)">Create Group</button>
         </div>
-        <div class="form-group">
-            <label>Name *</label>
-            <input type="text" class="form-control" @bind="_createName" placeholder="Group name" />
-        </div>
-        <div class="form-group">
-            <label>Description</label>
-            <textarea class="form-control" rows="3" @bind="_createDescription" placeholder="Optional description"></textarea>
-        </div>
-        @if (!string.IsNullOrEmpty(_modalError))
-        {
-            <div class="alert alert-danger">@_modalError</div>
-        }
-        <div class="form-actions">
-            <button class="btn btn-primary" @onclick="CreateAsync" disabled="@_saving">
-                @(_saving ? "Creating..." : "Create")
-            </button>
-            <button class="btn btn-secondary" @onclick="CloseCreate">Cancel</button>
-        </div>
-    </DncModal>
-}
+    </div>
 
-@if (_showEdit)
-{
-    <DncModal Title="Edit Group" StartVisible OnClose="CloseEdit">
-        <div class="form-group">
-            <label>Name *</label>
-            <input type="text" class="form-control" @bind="_editName" />
-        </div>
-        <div class="form-group">
-            <label>Description</label>
-            <textarea class="form-control" rows="3" @bind="_editDescription"></textarea>
-        </div>
-        @if (!string.IsNullOrEmpty(_modalError))
-        {
-            <div class="alert alert-danger">@_modalError</div>
-        }
-        <div class="form-actions">
-            <button class="btn btn-primary" @onclick="SaveEditAsync" disabled="@_saving">
-                @(_saving ? "Saving..." : "Save")
-            </button>
-            <button class="btn btn-secondary" @onclick="CloseEdit">Cancel</button>
-        </div>
-    </DncModal>
-}
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="alert alert-danger">@_error</div>
+    }
 
-@if (_showMembers)
-{
-    <DncModal Title="@($"Members — {_membersGroupName}")" StartVisible OnClose="CloseMembers" ExtraWide>
-        @if (_membersGroupIsBuiltIn)
-        {
-            <div class="alert alert-info" style="margin-bottom: 1rem;">
-                This built-in group is system-managed. Membership comes from active organization membership, so add and remove actions are intentionally disabled here.
-            </div>
-        }
-        else
-        {
-            <div style="display: flex; justify-content: flex-end; margin-bottom: 0.75rem;">
-                <button class="btn btn-sm btn-primary" @onclick="ShowAddMember">Add Member</button>
-            </div>
-        }
-
-        @if (_membersLoading)
-        {
-            <LoadingIndicator Message="Loading members..." />
-        }
-        else if (_members.Count == 0)
-        {
-            <p class="text-center" style="color: var(--text-secondary); padding: 1rem 0;">No members in this group.</p>
-        }
-        else
-        {
-            <div class="table-container">
-                <table class="data-table">
-                    <thead>
+    @if (_loading)
+    {
+        <LoadingIndicator Message="Loading groups..." />
+    }
+    else if (_orgs.Count == 0)
+    {
+        <div class="alert alert-info">
+            No organizations are available yet. Create an organization first, then come back here to manage groups.
+        </div>
+    }
+    else
+    {
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th>Members</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (_groups.Count == 0)
+                    {
                         <tr>
-                            <th>Name</th>
-                            <th>Email</th>
-                            <th>Added</th>
-                            <th style="width: 80px;">Actions</th>
+                            <td colspan="5" class="text-center">No groups found for this organization.</td>
                         </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var member in _members)
-                        {
-                            <tr>
-                                <td>@member.UserDisplayName</td>
-                                <td>@member.UserEmail</td>
-                                <td>@member.AddedAt.ToString("yyyy-MM-dd")</td>
-                                <td>
-                                    @if (!_membersGroupIsBuiltIn)
-                                    {
-                                        <button class="btn btn-sm btn-danger" @onclick="() => RemoveMemberAsync(member)">Remove</button>
-                                    }
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-        }
-
-        @if (!string.IsNullOrEmpty(_membersError))
-        {
-            <div class="alert alert-danger">@_membersError</div>
-        }
-    </DncModal>
-}
-
-@if (_showAddMember)
-{
-    <DncModal Title="@($"Add Member — {_membersGroupName}")" StartVisible OnClose="CloseAddMember" Wide>
-        <div class="form-group">
-            <label>Search users</label>
-            <input type="text" class="form-control" placeholder="Search by name or email..."
-                   @bind="_addMemberSearch" @bind:event="oninput" @bind:after="SearchUsersAsync" />
+                    }
+                    @foreach (var group in _groups)
+                    {
+                        <tr>
+                            <td>
+                                <strong>@group.Name</strong>
+                                @if (!string.IsNullOrWhiteSpace(group.Description))
+                                {
+                                    <div class="text-muted" style="font-size: 0.9rem; margin-top: 0.15rem;">@group.Description</div>
+                                }
+                            </td>
+                            <td>@(group.IsAllUsersGroup ? "Built-in" : "Custom")</td>
+                            <td>@group.MemberCount</td>
+                            <td>@group.CreatedAt.ToString("yyyy-MM-dd")</td>
+                            <td>
+                                <button class="btn btn-sm btn-outline" @onclick="() => ShowMembersAsync(group)">Members</button>
+                                @if (!group.IsAllUsersGroup)
+                                {
+                                    <button class="btn btn-sm btn-outline" @onclick="() => StartEdit(group)">Edit</button>
+                                    <button class="btn btn-sm btn-danger" @onclick="() => DeleteAsync(group)">Delete</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
         </div>
-        @if (_candidateUsersLoading)
-        {
-            <LoadingIndicator Message="Searching users..." />
-        }
-        else if (string.IsNullOrWhiteSpace(_addMemberSearch))
-        {
-            <p class="text-center" style="color: var(--text-secondary); padding: 1rem 0;">Start typing to find active users who are not already in this group.</p>
-        }
+    }
+
+    @if (_showCreate)
+    {
+        <DncModal Title="Create Group" StartVisible OnClose="CloseCreate">
+            <div class="form-group">
+                <label>Organization</label>
+                <select class="form-control" value="@_createOrganizationId" @onchange="OnCreateOrganizationChanged">
+                    @foreach (var org in _orgs)
+                    {
+                        <option value="@org.Id">@org.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Name *</label>
+                <input type="text" class="form-control" @bind="_createName" placeholder="Group name" />
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea class="form-control" rows="3" @bind="_createDescription"
+                          placeholder="Optional description"></textarea>
+            </div>
+            @if (!string.IsNullOrEmpty(_modalError))
+            {
+                <div class="alert alert-danger">@_modalError</div>
+            }
+            <div class="form-actions">
+                <button class="btn btn-primary" @onclick="CreateAsync" disabled="@_saving">
+                    @(_saving ? "Creating..." : "Create")
+                </button>
+                <button class="btn btn-secondary" @onclick="CloseCreate">Cancel</button>
+            </div>
+        </DncModal>
+    }
+
+    @if (_showEdit)
+    {
+        <DncModal Title="Edit Group" StartVisible OnClose="CloseEdit">
+            <div class="form-group">
+                <label>Name *</label>
+                <input type="text" class="form-control" @bind="_editName" />
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea class="form-control" rows="3" @bind="_editDescription"></textarea>
+            </div>
+            @if (!string.IsNullOrEmpty(_modalError))
+            {
+                <div class="alert alert-danger">@_modalError</div>
+            }
+            <div class="form-actions">
+                <button class="btn btn-primary" @onclick="SaveEditAsync" disabled="@_saving">
+                    @(_saving ? "Saving..." : "Save")
+                </button>
+                <button class="btn btn-secondary" @onclick="CloseEdit">Cancel</button>
+            </div>
+        </DncModal>
+    }
+
+    @if (_showMembers)
+    {
+        <DncModal Title="@($"Members — {_membersGroupName}")" StartVisible OnClose="CloseMembers" ExtraWide>
+            @if (_membersGroupIsBuiltIn)
+            {
+                <div class="alert alert-info" style="margin-bottom: 1rem;">
+                    This built-in group is system-managed. Membership comes from active organization membership, so add and remove
+                    actions are intentionally disabled here.
+                </div>
+            }
+            else
+            {
+                <div style="display: flex; justify-content: flex-end; margin-bottom: 0.75rem;">
+                    <button class="btn btn-sm btn-primary" @onclick="ShowAddMember">Add Member</button>
+                </div>
+            }
+
+            @if (_membersLoading)
+            {
+                <LoadingIndicator Message="Loading members..." />
+            }
+            else if (_members.Count == 0)
+            {
+                <p class="text-center" style="color: var(--text-secondary); padding: 1rem 0;">No members in this group.</p>
+            }
+            else
+            {
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Username</th>
+                                <th>Added</th>
+                                <th style="width: 80px;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var member in _members)
+                            {
+                                <tr>
+                                    <td>@member.UserDisplayName</td>
+                                    <td>
+                                        @member.Username
+                                        @if (!string.IsNullOrWhiteSpace(member.UserEmail))
+                                        {
+                                            <div class="text-muted" style="font-size: 0.85em;">@member.UserEmail</div>
+                                        }
+                                    </td>
+                                    <td>@member.AddedAt.ToString("yyyy-MM-dd")</td>
+                                    <td>
+                                        @if (!_membersGroupIsBuiltIn)
+                                        {
+                                            <button class="btn btn-sm btn-danger" @onclick="() => RemoveMemberAsync(member)">Remove</button>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+
+            @if (!string.IsNullOrEmpty(_membersError))
+            {
+                <div class="alert alert-danger">@_membersError</div>
+            }
+        </DncModal>
+    }
+
+    @if (_showAddMember)
+    {
+        <DncModal Title="@($"Add Member — {_membersGroupName}")" StartVisible OnClose="CloseAddMember" Wide>
+            <div class="form-group">
+                <label>Search users</label>
+                <input type="text" class="form-control" placeholder="Search by name or email..." @bind="_addMemberSearch"
+                       @bind:event="oninput" @bind:after="SearchUsersAsync" />
+            </div>
+            @if (_candidateUsersLoading)
+            {
+                <LoadingIndicator Message="Searching users..." />
+            }
+            else if (string.IsNullOrWhiteSpace(_addMemberSearch))
+            {
+                <p class="text-center" style="color: var(--text-secondary); padding: 1rem 0;">Start typing to find active users who
+                    are not already in this group.</p>
+                }
         else if (_candidateUsers.Count == 0)
-        {
-            <p class="text-center" style="color: var(--text-secondary); padding: 1rem 0;">No matching users available to add.</p>
+                {
+                    <p class="text-center" style="color: var(--text-secondary); padding: 1rem 0;">No matching users available to add.
+                    </p>
+                }
+                else
+                {
+                    <div class="table-container" style="max-height: 300px; overflow-y: auto;">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Username</th>
+                                    <th style="width: 80px;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var user in _candidateUsers)
+                                {
+                                    <tr>
+                                        <td>@user.DisplayName</td>
+                                        <td>
+                                            @user.Username
+                                            @if (!string.IsNullOrWhiteSpace(user.Email))
+                                            {
+                                                <div class="text-muted" style="font-size: 0.85em;">@user.Email</div>
+                                            }
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-sm btn-primary" @onclick="() => AddMemberAsync(user)"
+                                                    disabled="@_saving">Add</button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                @if (!string.IsNullOrEmpty(_membersError))
+                {
+                    <div class="alert alert-danger">@_membersError</div>
+                }
+                <div class="form-actions">
+                    <button class="btn btn-secondary" @onclick="CloseAddMember">Close</button>
+                </div>
+            </DncModal>
         }
-        else
-        {
-            <div class="table-container" style="max-height: 300px; overflow-y: auto;">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Email</th>
-                            <th style="width: 80px;">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var user in _candidateUsers)
-                        {
-                            <tr>
-                                <td>@user.DisplayName</td>
-                                <td>@user.Email</td>
-                                <td>
-                                    <button class="btn btn-sm btn-primary" @onclick="() => AddMemberAsync(user)" disabled="@_saving">Add</button>
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-        }
-        @if (!string.IsNullOrEmpty(_membersError))
-        {
-            <div class="alert alert-danger">@_membersError</div>
-        }
-        <div class="form-actions">
-            <button class="btn btn-secondary" @onclick="CloseAddMember">Close</button>
-        </div>
-    </DncModal>
-}
 
 <ConfirmDialog @ref="_confirmDialog" />
 

@@ -89,9 +89,14 @@ public class OrganizationMemberDto
     public Guid UserId { get; set; }
 
     /// <summary>
-    /// Gets or sets the user's email address.
+    /// Gets or sets the user's username.
     /// </summary>
-    public string Email { get; set; } = null!;
+    public string Username { get; set; } = null!;
+
+    /// <summary>
+    /// Gets or sets the user's email address (null when none is set).
+    /// </summary>
+    public string? Email { get; set; }
 
     /// <summary>
     /// Gets or sets the user's display name.

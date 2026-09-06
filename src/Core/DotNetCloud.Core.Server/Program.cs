@@ -168,6 +168,11 @@ public class Program
                 var dbInitializer = scope.ServiceProvider.GetRequiredService<DbInitializer>();
                 await dbInitializer.InitializeAsync();
 
+                // Backfill legacy usernames (UserName == email) BEFORE the admin seeder runs,
+                // so the migrated admin can be found by FindByNameAsync below.
+                var usernameMigration = scope.ServiceProvider.GetRequiredService<LegacyUsernameMigration>();
+                await usernameMigration.MigrateAsync();
+
                 var adminSeeder = scope.ServiceProvider.GetRequiredService<AdminSeeder>();
                 await adminSeeder.SeedAsync();
 
@@ -733,6 +738,7 @@ public class Program
         // Register initialization services
         builder.Services.AddScoped<AdminSeeder>();
         builder.Services.AddScoped<OidcClientSeeder>();
+        builder.Services.AddScoped<LegacyUsernameMigration>();
 
         builder.Services.AddHostedService<ModuleUiRegistrationHostedService>();
         builder.Services.AddHostedService<NotificationEventSubscriber>();

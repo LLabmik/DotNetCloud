@@ -6666,3 +6666,49 @@ gRPC call now has a size-scaled timeout so it cancels and falls back to the reli
 ### Tests
 
 - ✓ Client.Core suite passes (299), SyncTray suite passes (149); `dotnet build` clean (0 warnings/errors)
+
+## Username-Based Login (2026-09-05)
+
+**Objective:** Switch sign-in from email to a distinct **username** (`Bill.Jones`, `pat123`, `danh`),
+while email becomes an **optional** field. No schema migration — ASP.NET Core Identity already has
+`UserName` on `AspNetUsers`; previously the app set `UserName = Email` everywhere. Plan:
+`docs/USERNAME_LOGIN_PLAN.md`. Branch: `feature/convert-to-username-login`.
+
+### Domain / Identity
+
+- ✓ `LoginRequest.Email` → `LoginRequest.Username`; `ResetPasswordRequest.Email` → `Username`; `RegisterRequest` gains required `Username` + nullable `Email`; `RegisterResponse.Email`/`UserProfileResponse.Email` nullable; `UserProfileResponse`/`UserDto`/`UserSearchResultDto`/`GroupMemberDto`/`OrganizationMemberDto` expose `Username`
+- ✓ `UserDto.Email`/`CreateUserDto.Email`/`UpdateUserDto.Email`/`UserSearchResultDto.Email` nullable; `UpdateUserDto.Email` semantics: null = no change, empty = clear, set = update (normalized)
+- ✓ `AllowedUserNameCharacters` = letters, digits, `-`, `.`, `_` (no `@`/`+` so a username can't look like an email)
+
+### Services & Server
+
+- ✓ `AuthService.RegisterAsync` creates users with `UserName = request.Username`, trims/nulls optional email; `LoginAsync` looks up by username (`FindByNameAsync`); `InitiatePasswordResetAsync` accepts username **or** email and skips send when the account has no email; `ResetPasswordAsync` by username; profile returns `Username`
+- ✓ MFA QR label prefers username (`UserName ?? Email ?? id`)
+- ✓ `AuthController` (legacy JSON API) + `AuthSessionController` (cookie form login) authenticate by username; last-login writes `NormalizedUserName`; redirects carry `username=`
+- ✓ OpenIddict authorize/userinfo guard null `email` claim; `email_verified` only true when an email exists; `preferred_username = UserName` authoritative
+- ✓ `AdminSeeder` reads `DotNetCloud:AdminUsername` (fallback derives from `AdminEmail` local-part), finds existing admin by username then email
+- ✓ `UserManagementService` searches/sorts by username, maps `Username`, and (re)normalizes email on update; non-admin profile updates can't set/clear email
+- ✓ New `LegacyUsernameMigration` (idempotent, runs before `AdminSeeder`) rewrites legacy `UserName` (=email) to the sanitized local-part with numeric suffixes for collisions, preserving email
+
+### Web UI / CLI / Clients
+
+- ✓ `Login.razor`, `Register.razor` (username field + optional email), `ForgotPassword.razor` (username-or-email + "no email on file" message), `ResetPassword.razor` (username) updated
+- ✓ Admin pages (`UserCreate`, `UserEdit`, `UserList`, `UserDetail`, `Profile`, `Groups`, `Organizations`) show username, guard blank email (`—`)
+- ✓ CLI setup prompts for admin username + optional email, writes `AdminUsername`/`adminUsername` to env + config, updates summaries; install scripts (`install.sh`, `install-windows.ps1`) carry `admin_username`/`AdminUsername`
+- ✓ Android `LoginViewModel` prefers `preferred_username` over `email` (email may now be absent); SyncTray unchanged (verification only)
+
+### Tests
+
+- ✓ AuthService, UserManagementService, AuthSessionController, AdminSeeder, CLI config tests updated for username login
+- ✓ New `LegacyUsernameMigrationTests` (local-part rewrite, suffix collisions, idempotency, preserves email, existing-username collision)
+- ✓ New `AuthService` register/forgot-password tests (null email storage, no-email reset does not generate/send)
+- ✓ Integration builders (`ApplicationUserBuilder`, `RegisterRequestBuilder`) seed distinct usernames; API integration tests login by username
+- ✓ `dotnet build DotNetCloud.CI.slnf` clean (0 warnings/errors); Core.Auth (171), Core.Server (630), CLI (138), API integration (165) suites pass
+
+### Display Name (unique)
+
+- ✓ Display name is collected at registration (web signup + admin "Create User") and editable on the user's `/profile` page — it is the name other users see
+- ✓ Display name can never be blank — falls back to the username (registration + profile save) and is trimmed
+- ✓ Display name must be unique (case-insensitive) among users — enforced in `AuthService.RegisterAsync`, `UserManagementService.UpdateUserAsync`, and web `Register.razor` with a clear "already in use" message
+- ✓ Profile/admin-edit API surfaces the server's error message (`ApiException` thrown by `DotNetCloudApiClient.UpdateUserAsync`; shown on `Profile.razor` and `UserEdit.razor`)
+- ✓ Tests: +6 display-name cases (blank→username fallback, trim, duplicate rejection at register/update)

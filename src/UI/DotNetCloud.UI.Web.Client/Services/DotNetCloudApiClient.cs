@@ -173,7 +173,13 @@ public sealed class DotNetCloudApiClient
     public async Task<UserDto?> UpdateUserAsync(Guid userId, UpdateUserDto dto, CancellationToken ct = default)
     {
         var response = await _http.PutAsJsonAsync($"api/v1/core/users/{userId}", dto, ct);
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync(ct);
+            throw new ApiException(ExtractApiErrorMessage(body)
+                ?? $"Request failed with status {(int)response.StatusCode}.");
+        }
+
         var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<UserDto>>(ct);
         return envelope?.Data;
     }
@@ -192,18 +198,27 @@ public sealed class DotNetCloudApiClient
 
         var body = await response.Content.ReadAsStringAsync(ct);
         // Try to extract a meaningful error message from the API response body
+        var message = ExtractApiErrorMessage(body);
+        return (false, message ?? body);
+    }
+
+    /// <summary>
+    /// Extracts the human-readable error message from a standard DotNetCloud error envelope
+    /// (<c>{ "error": { "message": "..." } }</c>), or <see langword="null"/> when the body
+    /// isn't in that shape.
+    /// </summary>
+    private static string? ExtractApiErrorMessage(string body)
+    {
         try
         {
             using var doc = JsonDocument.Parse(body);
             var message = doc.RootElement.GetProperty("error").GetProperty("message").GetString();
-            if (!string.IsNullOrWhiteSpace(message))
-                return (false, message);
+            return string.IsNullOrWhiteSpace(message) ? null : message;
         }
         catch
         {
-            // Fall through to raw body
+            return null;
         }
-        return (false, body);
     }
 
     /// <summary>

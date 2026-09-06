@@ -10,8 +10,8 @@
 </div>
 
 <div class="toolbar">
-    <input type="text" class="input" placeholder="Search users..."
-           @bind="_search" @bind:event="oninput" @bind:after="SearchAsync" />
+    <input type="text" class="input" placeholder="Search users..." @bind="_search" @bind:event="oninput"
+           @bind:after="SearchAsync" />
 </div>
 
 @if (_loading)
@@ -25,6 +25,7 @@ else
             <thead>
                 <tr>
                     <th>Display Name</th>
+                    <th>Username</th>
                     <th>Email</th>
                     <th>Status</th>
                     <th>Created</th>
@@ -36,7 +37,7 @@ else
                 @if (_result.Items.Count == 0)
                 {
                     <tr>
-                        <td colspan="6" class="text-center">No users found.</td>
+                        <td colspan="7" class="text-center">No users found.</td>
                     </tr>
                 }
                 @foreach (var user in _result.Items)
@@ -49,46 +50,49 @@ else
                                 @if (q.MaxBytes > 0)
                                 {
                                     <div class="quota-bar quota-bar-sm">
-                                        <div class="quota-bar-fill @QuotaBarClass(q)" style="width: @(Math.Min(q.UsagePercent, 100).ToString("F0"))%"></div>
+                                        <div class="quota-bar-fill @QuotaBarClass(q)"
+                                             style="width: @(Math.Min(q.UsagePercent, 100).ToString("F0"))%"></div>
                                     </div>
-                                    <span class="text-muted text-sm">@FormatBytes(q.UsedBytes) / @FormatBytes(q.MaxBytes) (@q.UsagePercent.ToString("F0")%)</span>
+                                    <span class="text-muted text-sm">@FormatBytes(q.UsedBytes) / @FormatBytes(q.MaxBytes)
+                                        (@q.UsagePercent.ToString("F0")%)</span>
+                                    }
+                                else
+                                    {
+                                        <span class="text-muted text-sm">Quota: Unlimited</span>
+                                    }
                                 }
                                 else
                                 {
                                     <span class="text-muted text-sm">Quota: Unlimited</span>
                                 }
-                            }
-                            else
-                            {
-                                <span class="text-muted text-sm">Quota: Unlimited</span>
-                            }
-                        </td>
-                        <td>@user.Email</td>
-                        <td>
-                            <span class="badge badge-@(user.IsActive ? "success" : "muted")">
-                                @(user.IsActive ? "Active" : "Disabled")
-                            </span>
-                        </td>
-                        <td>@user.CreatedAt.ToString("yyyy-MM-dd")</td>
-                        <td>@(user.LastLoginAt?.ToString("yyyy-MM-dd HH:mm") ?? "Never")</td>
-                        <td class="actions">
-                            <a href="/admin/users/@user.Id/edit" class="btn btn-sm btn-outline">Edit</a>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    </div>
-
-    @if (_result.TotalPages > 1)
-    {
-        <div class="pagination">
-            <button class="btn btn-sm btn-outline" disabled="@(_page <= 1)" @onclick="PreviousPage">Previous</button>
-            <span class="pagination-info">Page @_page of @_result.TotalPages (@_result.TotalCount total)</span>
-            <button class="btn btn-sm btn-outline" disabled="@(_page >= _result.TotalPages)" @onclick="NextPage">Next</button>
+                            </td>
+                            <td>@user.Username</td>
+                            <td>@(string.IsNullOrWhiteSpace(user.Email) ? "—" : user.Email)</td>
+                            <td>
+                                <span class="badge badge-@(user.IsActive ? "success" : "muted")">
+                                    @(user.IsActive ? "Active" : "Disabled")
+                                </span>
+                            </td>
+                            <td>@user.CreatedAt.ToString("yyyy-MM-dd")</td>
+                            <td>@(user.LastLoginAt?.ToString("yyyy-MM-dd HH:mm") ?? "Never")</td>
+                            <td class="actions">
+                                <a href="/admin/users/@user.Id/edit" class="btn btn-sm btn-outline">Edit</a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
         </div>
+
+        @if (_result.TotalPages > 1)
+        {
+            <div class="pagination">
+                <button class="btn btn-sm btn-outline" disabled="@(_page <= 1)" @onclick="PreviousPage">Previous</button>
+                <span class="pagination-info">Page @_page of @_result.TotalPages (@_result.TotalCount total)</span>
+                <button class="btn btn-sm btn-outline" disabled="@(_page >= _result.TotalPages)" @onclick="NextPage">Next</button>
+            </div>
+        }
     }
-}
 
 @code {
     [Inject] private DotNetCloudApiClient Api { get; set; } = default!;
