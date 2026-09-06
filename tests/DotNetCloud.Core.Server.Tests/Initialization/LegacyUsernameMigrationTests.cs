@@ -14,6 +14,7 @@ public class LegacyUsernameMigrationTests
     {
         var options = new DbContextOptionsBuilder<CoreDbContext>()
             .UseInMemoryDatabase(databaseName)
+            .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking)
             .Options;
         return new CoreDbContext(options, new PostgreSqlNamingStrategy());
     }

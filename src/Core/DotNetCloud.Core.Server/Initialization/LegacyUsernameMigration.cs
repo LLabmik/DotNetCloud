@@ -43,6 +43,7 @@ internal sealed class LegacyUsernameMigration
     public async Task MigrateAsync(CancellationToken cancellationToken = default)
     {
         var legacyUsers = await _dbContext.Users
+            .AsTracking()
             .Where(u => u.UserName != null && u.UserName.Contains("@"))
             .OrderBy(u => u.Id)
             .ToListAsync(cancellationToken);
