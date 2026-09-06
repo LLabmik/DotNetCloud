@@ -46,7 +46,7 @@
                         </span>
                     </div>
                     <span class="files-header-subtitle">@TaggedNodes.Count @(TaggedNodes.Count == 1 ? "file" :
-                                                             "files")</span>
+                                                                                     "files")</span>
                     </div>
 
                     @if (IsLoading)
@@ -201,9 +201,9 @@ else
 
                                 @if (IsShowCreateFolder)
                                 {
-                                    <div class="create-folder-dialog">
-                                        <input type="text" @bind="NewFolderName" placeholder="Folder name" @onkeydown="HandleFolderKeyDown"
-                                               autofocus />
+                                    <div class="create-folder-dialog" data-enter-submit data-autofocus-first>
+                                        <input type="text" @bind="NewFolderName" @bind:event="oninput" placeholder="Folder name"
+                                               @onkeydown="HandleFolderKeyDown" />
                                         <button class="btn btn-primary btn-sm" @onclick="CreateFolder">Create</button>
                                         <button class="btn btn-sm" @onclick="HideCreateFolder">Cancel</button>
                                     </div>
@@ -211,13 +211,13 @@ else
 
                                 @if (IsShowCreateDocument)
                                 {
-                                    <div class="create-file-dialog">
+                                    <div class="create-file-dialog" data-autofocus-first>
                                         @if (CollaboraNewFileExtensions.Count > 0)
                                         {
-                                            <div class="create-file-row">
+                                            <div class="create-file-row" data-enter-submit>
                                                 <span class="create-file-label">Document</span>
-                                                <input type="text" @bind="NewDocumentName" placeholder="Document name"
-                                                       @onkeydown="HandleCreateDocumentKeyDown" autofocus />
+                                                <input type="text" @bind="NewDocumentName" @bind:event="oninput" placeholder="Document name"
+                                                       @onkeydown="HandleCreateDocumentKeyDown" />
                                                 <select @bind="SelectedDocumentExtension">
                                                     @foreach (var extension in CollaboraNewFileExtensions)
                                                     {
@@ -227,9 +227,9 @@ else
                                                 <button class="btn btn-primary btn-sm" @onclick="CreateDocumentAsync">Create</button>
                                             </div>
                                         }
-                                        <div class="create-file-row">
+                                        <div class="create-file-row" data-enter-submit>
                                             <span class="create-file-label">File</span>
-                                            <input type="text" @bind="FreeformFileName" placeholder="filename.txt"
+                                            <input type="text" @bind="FreeformFileName" @bind:event="oninput" placeholder="filename.txt"
                                                    @onkeydown="HandleFreeformFileKeyDown" @ref="_freeformInput" />
                                             <button class="btn btn-primary btn-sm" @onclick="CreateFreeformFileAsync">Create</button>
                                         </div>
@@ -408,10 +408,8 @@ else
 
                                     @if (_showBulkShareDialog && _bulkShareTargetIds.Count > 1)
                                     {
-                                        <BulkShareDialog Nodes="BulkShareTargetNodes"
-                                                         OnClose="HideBulkShareDialog"
-                                                         OnSearch="HandleShareSearchAsync"
-                                                         OnShareCreated="HandleBulkShareCreatedAsync" />
+                                        <BulkShareDialog Nodes="BulkShareTargetNodes" OnClose="HideBulkShareDialog"
+                                                         OnSearch="HandleShareSearchAsync" OnShareCreated="HandleBulkShareCreatedAsync" />
                                     }
 
                                     <FileContextMenu IsVisible="_showContextMenu" X="_contextMenuX" Y="_contextMenuY"
@@ -430,7 +428,7 @@ else
                                                         @if (_tagTargetNodeIds.Count == 1)
                                                         {
                                                             <text>Tag: @(_nodes.FirstOrDefault(n => n.Id == _tagTargetNodeIds[0])?.Name ??
-                                                                                                                                                                "file")</text>
+                                                                                                                                                                                                                                "file")</text>
                                                             }
                         else
                                                             {
@@ -475,122 +473,124 @@ else
                                                         <button class="btn-icon" @onclick="CancelDelete" aria-label="Close" title="Close">X</button>
                                                     </div>
                                                     <div class="dialog-body">
-                                                        <p>Move @_deleteTargetNodeIds.Count @(_deleteTargetNodeIds.Count == 1 ? "item" : "items") to the trash? You can restore them from the Trash view.</p>
-                                                    </div>
-                                                    <div class="dialog-footer">
-                                                        <button class="btn btn-danger btn-sm" @onclick="ConfirmDeleteAsync">Delete</button>
-                                                        <button class="btn btn-sm" @onclick="CancelDelete">Cancel</button>
+                                                        <p>Move @_deleteTargetNodeIds.Count @(_deleteTargetNodeIds.Count == 1 ? "item" : "items") to the
+                                                            trash? You can restore them from the Trash view.</p>
+                                                        </div>
+                                                        <div class="dialog-footer">
+                                                            <button class="btn btn-danger btn-sm" @onclick="ConfirmDeleteAsync">Delete</button>
+                                                            <button class="btn btn-sm" @onclick="CancelDelete">Cancel</button>
+                                                        </div>
                                                     </div>
                                                 </div>
-                                            </div>
-                                        }
+                                            }
 
-                                        @if (_showRenameDialog && _renameNode is not null)
-                                        {
-                                            <div class="create-folder-dialog">
-                                                <input type="text" @bind="_renameNewName" placeholder="New name" @onkeydown="HandleRenameKeyDown"
-                                                       autofocus />
-                                                <button class="btn btn-primary btn-sm" @onclick="ConfirmRename">Rename</button>
-                                                <button class="btn btn-sm" @onclick="CancelRename">Cancel</button>
-                                            </div>
-                                        }
+                                            @if (_showRenameDialog && _renameNode is not null)
+                                            {
+                                                <div class="create-folder-dialog" data-enter-submit data-autofocus-first>
+                                                    <input type="text" @bind="_renameNewName" @bind:event="oninput" placeholder="New name"
+                                                           @onkeydown="HandleRenameKeyDown" />
+                                                    <button class="btn btn-primary btn-sm" @onclick="ConfirmRename">Rename</button>
+                                                    <button class="btn btn-sm" @onclick="CancelRename">Cancel</button>
+                                                </div>
+                                            }
 
-                                    </div>
-                                }
+                                        </div>
+                                    }
 
-                                @if (IsShowPreview && PreviewNode is not null)
-                                {
-                                    <FilePreview Node="@PreviewNode" AllNodes="SortedNodes" ApiBaseUrl="@ApiBaseUrl"
-                                                 ShowCommentsButton="@(!PreviewNode.IsReadOnly)" ShowShareButton="@(!PreviewNode.IsVirtual)"
-                                                 OnClose="HidePreview" OnShare="HandlePreviewShare" OnDownload="HandlePreviewDownload"
-                                                 OnComments="HandlePreviewComments" />
-                                }
+                                    @if (IsShowPreview && PreviewNode is not null)
+                                    {
+                                        <FilePreview Node="@PreviewNode" AllNodes="SortedNodes" ApiBaseUrl="@ApiBaseUrl"
+                                                     ShowCommentsButton="@(!PreviewNode.IsReadOnly)" ShowShareButton="@(!PreviewNode.IsVirtual)"
+                                                     OnClose="HidePreview" OnShare="HandlePreviewShare" OnDownload="HandlePreviewDownload"
+                                                     OnComments="HandlePreviewComments" />
+                                    }
 
-                                @if (IsShowDocumentEditor && EditorNode is not null)
-                                {
-                                    <div class="document-editor-overlay">
-                                        <DocumentEditor FileId="@EditorNode.Id" FileName="@EditorNode.Name" ApiBaseUrl="@ApiBaseUrl"
-                                                        OnClose="HideDocumentEditor" OnDownload="HandleEditorDownload" />
-                                    </div>
-                                }
+                                    @if (IsShowDocumentEditor && EditorNode is not null)
+                                    {
+                                        <div class="document-editor-overlay">
+                                            <DocumentEditor FileId="@EditorNode.Id" FileName="@EditorNode.Name" ApiBaseUrl="@ApiBaseUrl"
+                                                            OnClose="HideDocumentEditor" OnDownload="HandleEditorDownload" />
+                                        </div>
+                                    }
 
-                                @if (_showVersionHistory && _versionHistoryFileName is not null)
-                                {
-                                    <VersionHistoryPanel FileName="@_versionHistoryFileName" InitialVersions="_versionHistoryItems"
-                                                         OnClose="HideVersionHistory" OnDownloadVersion="HandleDownloadVersion"
-                                                         OnRestoreVersion="HandleRestoreVersion" OnDeleteVersion="HandleDeleteVersion"
-                                                         OnLabelSaved="HandleVersionLabelSaved" />
-                                }
+                                    @if (_showVersionHistory && _versionHistoryFileName is not null)
+                                    {
+                                        <VersionHistoryPanel FileName="@_versionHistoryFileName" InitialVersions="_versionHistoryItems"
+                                                             OnClose="HideVersionHistory" OnDownloadVersion="HandleDownloadVersion"
+                                                             OnRestoreVersion="HandleRestoreVersion" OnDeleteVersion="HandleDeleteVersion"
+                                                             OnLabelSaved="HandleVersionLabelSaved" />
+                                    }
 
-                                @if (_showComments && _commentsFileName is not null)
-                                {
-                                    <CommentsPanel FileName="@_commentsFileName" CurrentUserId="_currentUserId" InitialComments="_commentItems"
-                                                   OnClose="HideComments" OnAddComment="HandleAddComment" OnReplyComment="HandleReplyComment"
-                                                   OnEditComment="HandleEditComment" OnDeleteComment="HandleDeleteComment" />
-                                }
+                                    @if (_showComments && _commentsFileName is not null)
+                                    {
+                                        <CommentsPanel FileName="@_commentsFileName" CurrentUserId="_currentUserId" InitialComments="_commentItems"
+                                                       OnClose="HideComments" OnAddComment="HandleAddComment" OnReplyComment="HandleReplyComment"
+                                                       OnEditComment="HandleEditComment" OnDeleteComment="HandleDeleteComment" />
+                                    }
 
-                                @if (_showFolderPicker)
-                                {
-                                    <div class="folder-picker-overlay" @onclick="HideFolderPicker">
-                                        <div class="folder-picker-dialog" @onclick:stopPropagation>
-                                            <div class="folder-picker-header">
-                                                <h3>@(_folderPickerMode == FolderPickerMode.Move ? "Move to…" : "Copy to…")</h3>
-                                                <button class="btn-icon" @onclick="HideFolderPicker" title="Close">✕</button>
-                                            </div>
+                                    @if (_showFolderPicker)
+                                    {
+                                        <div class="folder-picker-overlay" @onclick="HideFolderPicker">
+                                            <div class="folder-picker-dialog" @onclick:stopPropagation>
+                                                <div class="folder-picker-header">
+                                                    <h3>@(_folderPickerMode == FolderPickerMode.Move ? "Move to…" : "Copy to…")</h3>
+                                                    <button class="btn-icon" @onclick="HideFolderPicker" title="Close">✕</button>
+                                                </div>
 
-                                            <nav class="folder-picker-breadcrumbs">
-                                                <button class="btn btn-sm" @onclick="() => PickerNavigate(null)">Home</button>
-                                                @foreach (var crumb in _pickerBreadcrumbs)
-                                                {
-                                                    <span class="separator">/</span>
-                                                    <button class="btn btn-sm" @onclick="() => PickerNavigate(crumb.Id)">@crumb.Name</button>
-                                                }
-                                            </nav>
-
-                                            <div class="folder-picker-list">
-                                                @if (_pickerFolders.Count == 0)
-                                                {
-                                                    <p class="text-muted folder-picker-empty">No subfolders</p>
-                                                }
-                                                else
-                                                {
-                                                    @foreach (var folder in _pickerFolders)
+                                                <nav class="folder-picker-breadcrumbs">
+                                                    <button class="btn btn-sm" @onclick="() => PickerNavigate(null)">Home</button>
+                                                    @foreach (var crumb in _pickerBreadcrumbs)
                                                     {
-                                                        <button class="folder-picker-item" @onclick="() => PickerNavigate(folder.Id)">
-                                                            📁 @folder.Name
-                                                        </button>
+                                                        <span class="separator">/</span>
+                                                        <button class="btn btn-sm" @onclick="() => PickerNavigate(crumb.Id)">@crumb.Name</button>
                                                     }
-                                                }
-                                            </div>
+                                                </nav>
 
-                                            <div class="folder-picker-actions">
-                                                <button class="btn btn-primary btn-sm" @onclick="ConfirmFolderPicker">
-                                                    @(_folderPickerMode == FolderPickerMode.Move ? "Move here" : "Copy here")
-                                                </button>
-                                                <button class="btn btn-sm" @onclick="HideFolderPicker">Cancel</button>
+                                                <div class="folder-picker-list">
+                                                    @if (_pickerFolders.Count == 0)
+                                                    {
+                                                        <p class="text-muted folder-picker-empty">No subfolders</p>
+                                                    }
+                                                    else
+                                                    {
+                                                        @foreach (var folder in _pickerFolders)
+                                                        {
+                                                            <button class="folder-picker-item" @onclick="() => PickerNavigate(folder.Id)">
+                                                                📁 @folder.Name
+                                                            </button>
+                                                        }
+                                                    }
+                                                </div>
+
+                                                <div class="folder-picker-actions">
+                                                    <button class="btn btn-primary btn-sm" @onclick="ConfirmFolderPicker">
+                                                        @(_folderPickerMode == FolderPickerMode.Move ? "Move here" : "Copy here")
+                                                    </button>
+                                                    <button class="btn btn-sm" @onclick="HideFolderPicker">Cancel</button>
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                }
+                                    }
 
-                                @if (_showZipErrorModal)
-                                {
-                                    <div class="dialog-overlay" @onclick="HideZipErrorModal">
-                                        <div class="dialog" @onclick:stopPropagation>
-                                            <div class="dialog-header">
-                                                <h3>Download too large</h3>
-                                                <button class="btn-icon" @onclick="HideZipErrorModal" aria-label="Close" title="Close">X</button>
-                                            </div>
-                                            <div class="dialog-body">
-                                                <p>@_zipErrorMessage</p>
-                                                <p class="text-muted">Tip: select fewer or smaller files and folders, then try downloading again.</p>
-                                            </div>
-                                            <div class="dialog-footer">
-                                                <button class="btn btn-sm" @onclick="HideZipErrorModal">OK</button>
+                                    @if (_showZipErrorModal)
+                                    {
+                                        <div class="dialog-overlay" @onclick="HideZipErrorModal">
+                                            <div class="dialog" @onclick:stopPropagation>
+                                                <div class="dialog-header">
+                                                    <h3>Download too large</h3>
+                                                    <button class="btn-icon" @onclick="HideZipErrorModal" aria-label="Close" title="Close">X</button>
+                                                </div>
+                                                <div class="dialog-body">
+                                                    <p>@_zipErrorMessage</p>
+                                                    <p class="text-muted">Tip: select fewer or smaller files and folders, then try downloading again.
+                                                    </p>
+                                                </div>
+                                                <div class="dialog-footer">
+                                                    <button class="btn btn-sm" @onclick="HideZipErrorModal">OK</button>
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                }
+                                    }
 
-                            </div> @* .files-page-main *@
-                        </div> @* .files-page-layout *@
+                                </div> @* .files-page-main *@
+                            </div> @* .files-page-layout *@
