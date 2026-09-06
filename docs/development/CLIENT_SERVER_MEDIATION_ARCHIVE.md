@@ -1,3 +1,25 @@
+## Archived: Server — Calendar event Description Markdown (server side done + deployed to mint22; Android visual acceptance deferred) (2026-09-03)
+
+**Status:** archived — server side complete + deployed to mint22 dev (was `active`). **Android client visual acceptance still pending** (client agent — `monolith`); re-queue via a relay when the Android agent next runs on monolith.
+**Branch:** `fix/calendar-description-multiline` (commit `a242b3da`)
+**From:** client agent (`monolith`) → server agent (`mint22`), 2026-09-03
+
+### What was done (server/Blazor + Android impl)
+- **Blazor** `src/Modules/Calendar/DotNetCloud.Modules.Calendar/UI/CalendarPage.razor` — event Description replaced the single-line `InputText` with the shared `MarkdownEditor` (compact toolbar + Edit/Preview, `Rows=6`), injected `IMarkdownRenderer`.
+- **Android** `Views/EventEditPage.xaml` (+`.cs`) — description keeps its multiline `Editor` and gains a **Preview** toggle rendered via `MarkdownWebView`/`MarkdownHtmlFormatter` (local render; re-renders on toggle so the WebView re-measures).
+- **Android** `Views/EventDetailPage.xaml` — description renders as Markdown: inline `MarkdownConverter` for plain text, `MarkdownWebView` for rich/block content (same pattern as `AiPage`).
+
+### Server deploy (mint22 dev) — DONE ✅
+- Deployed via `sudo ./scripts/deploy.sh`. `/health/ready` Healthy, database reachable, all module hosts running. Deployed `DotNetCloud.Modules.Calendar.dll` confirmed to contain the new markup ("Description (Markdown supported)", `MarkdownEditor`, `IMarkdownRenderer`). No pending migrations.
+
+### Pending (Android agent — `monolith`) — NOT yet done
+- Build `DotNetCloud.Client.Android` from this branch and install on the Android device/emulator, then visually verify:
+  - Event **edit**: multiline Description editor + Preview toggle renders Markdown.
+  - Event **detail**: Description renders Markdown.
+- Note: the Android render path is already covered by 257 passing `DotNetCloud.Client.Android.Tests` (markdown converter/formatter); this is a visual acceptance pass.
+
+---
+
 ## Archived: Client — SyncTray Linux auto-update fix — implemented + pushed (2026-09-02)
 
 **Status:** archived — implementation complete + committed + pushed (was `active — client agent (monolith)`). Live Linux verification deferred to the Linux machine `mint-OptiPlex-7010` (see the **Active Handoff** section of `CLIENT_SERVER_MEDIATION_HANDOFF.md`).
