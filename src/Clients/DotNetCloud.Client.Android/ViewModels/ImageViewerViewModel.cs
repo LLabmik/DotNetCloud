@@ -384,15 +384,23 @@ public sealed partial class ImageViewerViewModel : ObservableObject, IQueryAttri
         {
             var fileItem = _folderItems[index];
             using var stream = await _fileApi.DownloadAsync(_serverUrl, _accessToken, fileItem.Id, ct);
-            var ms = new MemoryStream();
+            using var ms = new MemoryStream();
             await stream.CopyToAsync(ms, ct);
-            ms.Position = 0;
+
+            // Materialize the image payload exactly ONCE and off the UI thread. The
+            // StreamImageSource factory below may run more than once, but each invocation
+            // wraps the SAME byte array (no copy), so a full-resolution photo is retained
+            // a single time in managed memory instead of being duplicated on every access
+            // (the previous inline ms.ToArray() copied the whole buffer each time). The
+            // decoded display bitmap is downsampled to view size by the MAUI/Glide image
+            // handler, so no full-resolution Bitmap is ever held in memory.
+            var imageBytes = ms.ToArray();
 
             await MainThread.InvokeOnMainThreadAsync(() =>
             {
                 if (ct.IsCancellationRequested)
                     return;
-                carouselItem.Source = ImageSource.FromStream(() => new MemoryStream(ms.ToArray()));
+                carouselItem.Source = ImageSource.FromStream(() => new MemoryStream(imageBytes, writable: false));
                 carouselItem.IsItemLoading = false;
             });
 

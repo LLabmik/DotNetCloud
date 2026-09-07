@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 #if ANDROID
 using Android.Content;
 #endif
@@ -400,6 +402,8 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     /// <summary>Triggers a full rescan of optional modules on the server, updating tab visibility.</summary>
     [RelayCommand]
+    [UnconditionalSuppressMessage("Trimming", "IL2075",
+        Justification = "App.TriggerModuleRescanAsync has a direct static caller (the AppShell 'Rescan Modules' menu) so trimming preserves it; reflection is used so this ViewModel stays compilable in DotNetCloud.Client.Android.Tests, which does not compile the MAUI Application class. Validated on-device in the Release E2E.")]
     private async Task RescanModulesAsync()
     {
         IsRescanning = true;
@@ -408,6 +412,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         {
             // Trigger module rescan if running inside a MAUI application context.
             // In test environments, Application.Current may be null — gracefully skip.
+            // (IL2075 is suppressed at the method level via UnconditionalSuppressMessage,
+            // which applies to both the Roslyn trim analyzer and the ILLink step.)
             var appType = Microsoft.Maui.Controls.Application.Current?.GetType();
             var method = appType?.GetMethod("TriggerModuleRescanAsync", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
             if (method is not null)

@@ -109,6 +109,9 @@ internal sealed class ThumbnailCache : IThumbnailCache
         catch { }
     }
 
+    /// <inheritdoc />
+    public void TrimMemory() => _memory.Clear();
+
     private string GetDiskPath(Guid fileNodeId) =>
         Path.Combine(_diskDir, $"{fileNodeId:N}.jpg");
 

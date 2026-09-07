@@ -92,6 +92,9 @@ internal sealed class AlbumArtCache : IAlbumArtCache
         catch { }
     }
 
+    /// <inheritdoc />
+    public void TrimMemory() => _memory.Clear();
+
     private string GetDiskPath(Guid albumId) =>
         Path.Combine(_diskDir, $"{albumId:N}.jpg");
 

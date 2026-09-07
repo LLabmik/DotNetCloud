@@ -148,6 +148,44 @@
 		<AndroidSigningStorePass>$(KEYSTORE_PASS)</AndroidSigningStorePass>
 		<!-- Required for F-Droid reproducible builds -->
 		<AndroidUseAapt2>true</AndroidUseAapt2>
+
+		<!-- Google Play efficiency (Feb 2027 enforcement): optimized DEX via R8,
+		     AOT compilation for fast startup, and framework/SDK managed trimming for
+		     lower runtime memory. App/Core assemblies are deliberately NOT trimmed
+		     (AndroidLinkMode=SdkOnly): the client deserializes DotNetCloud.Core.DTOs
+		     records that use C# 'required' members via reflection JSON, and FULL managed
+		     trimming breaks that at runtime (JsonPropertyRequiredAndNotDeserializable,
+		     verified on-device). R8 still runs in full mode over the merged DEX and AOT
+		     still compiles the app assemblies, so the efficiency / optimized-DEX goals
+		     are met without the reflection breakage. Moving the client to JSON source
+		     generators (the only way to enable full trimming) is tracked as separate
+		     follow-up work.
+		     Verification = clean Release build + on-device E2E across all tabs +
+		     F-Droid flavor build. -->
+		<PublishTrimmed>true</PublishTrimmed>
+		<AndroidLinkMode>SdkOnly</AndroidLinkMode>
+		<AndroidEnableR8>true</AndroidEnableR8>
+		<RunAOTCompilation>true</RunAOTCompilation>
+		<AndroidManagedSymbols>true</AndroidManagedSymbols>
+
+		<!-- Full trimming disables reflection-based System.Text.Json by default: the SDK sets
+		     JsonSerializerIsReflectionEnabledByDefault=false under PublishTrimmed, which turns the
+		     switch off in runtimeconfig AND passes it to ILLink, so every JsonSerializer.Deserialize<T>
+		     / ReadFromJsonAsync<T> throws JsonSerializerIsReflectionDisabled at runtime. This client
+		     serializes all API DTOs, SignalR payloads, and preferences via typed reflection JSON, so
+		     converting every call site to JSON source generators is a large, separate effort. Setting
+		     the property to true re-enables the reflection serializer under trimming; the linker keeps
+		     the closed generic types used at typed call sites. (Setting only a RuntimeHostConfigurationOption
+		     does NOT work — the SDK derives this option from the property and its false default wins.) -->
+		<JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
+
+                <!-- MAUI XAML string-path bindings ({Binding Foo} without x:DataType) are resolved at
+                     runtime by reflection against rooted ViewModel types, so the XAML source generator's
+                     calls into Binding(string, ...) trigger IL2026 under trimming. This is a
+                     framework-inherent limitation of string bindings (compiled bindings via x:DataType
+                     avoid it). The bound types are all DI-rooted/instantiated, so suppression is safe;
+                     runtime correctness is validated on-device in the Release E2E. -->
+                <NoWarn>$(NoWarn);IL2026</NoWarn>
 	</PropertyGroup>
 
 	<!-- ========================

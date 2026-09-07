@@ -313,6 +313,17 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
                 try
                 {
                     await Task.Delay(delay).ConfigureAwait(false);
+
+                    // Pause reconnect attempts while the app is backgrounded. A hidden app
+                    // has no UI to refresh, and retrying during Doze only drains the battery
+                    // (Google Play efficiency rules). The loop resumes automatically when the
+                    // app returns to the foreground.
+                    if (_foregroundService is not null && !_foregroundService.IsInForeground)
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+                        continue;
+                    }
+
                     if (_reachability is null || _reachability.IsServerOnline)
                     {
                         await ConnectAsync(_serverBaseUrl, cancellationToken: default).ConfigureAwait(false);
