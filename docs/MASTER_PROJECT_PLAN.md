@@ -5690,3 +5690,28 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - ✓ Review + commit — `dotnet build DotNetCloud.CI.slnf` clean; full CI test suite green; fresh-DB compose e2e verified; committed on `fix/first-boot-ef-race` (no PR created; user handles the PR)
 
 **Notes:** Packaging modernization + DB-init/migration fixes verified end-to-end against a fresh PostgreSQL in the compose stack (image `ghcr.io/llabmik/dotnetcloud:0.1.0-alpha`; all module pages load). Bare-metal deploys use the CLI `migrate` path (ServiceProviderFactory registers all module DbContexts); the Docker/Helm server-only path relies on `DbContextSchemaProvider`, which is what these fixes target. Live fresh-DB e2e (compose `down -v` → `up`, image rebuilt from this branch): **0** `42P01`/`42P07`/migration failures on first boot, **14/14** module hosts running with `RestartCount=0` (no container restart required), `tracks` schema fully migrated (41 tables vs 2 before the fix), HTTPS login + `/health/live` return 200.
+
+---
+
+## Module Error Recovery (2026-09-06)
+
+**Status:** completed ✅ (implemented + live-verified on mint22 dev; branch `fix/module-error-recovery` — commit pending)
+**Canonical plan:** `docs/MODULE_ERROR_RECOVERY_PLAN.md`
+**Goal:** When a module page throws (unhandled exception during render/lifecycle), the entire content area errored and navigation appeared dead until a full browser refresh. Fix: auto-recover the `ErrorBoundary` on navigation **and** isolate module errors so only the module's content area blanks.
+
+### Deliverables
+
+- ✓ `src/UI/DotNetCloud.UI.Web/Components/Shared/ErrorDisplay.razor` — added configurable `DismissText` parameter (default `"Try Again"`); the retry button renders it
+- ✓ `src/UI/DotNetCloud.UI.Web/Components/Layout/MainLayout.razor` — inject `NavigationManager`; recover the layout-level `ErrorBoundary` on every `LocationChanged`; unsubscribe in `Dispose` (existing `PersistingComponentStateSubscription` preserved)
+- ✓ `src/UI/DotNetCloud.UI.Web/Components/Shared/ModulePageHost.razor` — each module page now renders inside its own `<ErrorBoundary>` wrapping `<DynamicComponent>` (content-area only); module retry button reads **"Reload module"** (layout-level keeps **"Try Again"**); recovers on navigation so same-module query-string navigation (e.g. Files `?fileId=...&_nav=...`) can't leave the boundary stuck
+- ✓ Builds clean — `UI.Web` + `Core.Server` 0 warnings / 0 errors; `DotNetCloud.UI.Shared.Tests` 62/62 pass
+
+### Notes
+
+- **Root cause:** a single layout-level `ErrorBoundary` wraps the whole `@Body`. Blazor boundaries stay in the errored state across route changes (the layout is persistent), so every navigation kept rendering the stale error until a full refresh rebuilt the circuit.
+- **Live-verified on mint22 dev (`https://mint22:5443/`)** with temporary injected throws (both removed before final deploy):
+  - Test A (module error isolation + cross-module recovery): Files showed an inline "Something went wrong"/**"Reload module"** error while the sidebar/top bar stayed interactive; clicking **Chat rendered without refresh** — the core fix. ✅
+  - Test B (layout boundary auto-recovery on non-module pages): a non-module page (Home) error showed the layout "Something went wrong"/**"Try Again"** (default text unchanged); navigating away rendered normally without refresh. ✅
+- `Recover()` on a non-errored `ErrorBoundary` is a safe no-op, so calling it on every navigation is intentional.
+- Final clean deploy live — `/health/ready` Healthy, **14/14 modules** Running.
+- Commit + push on `fix/module-error-recovery`; no PR created (user handles the PR).

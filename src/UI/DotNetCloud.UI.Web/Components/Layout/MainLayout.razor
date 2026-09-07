@@ -7,6 +7,7 @@
 @inject AuthenticationStateProvider AuthStateProvider
 @inject PersistentComponentState PersistentState
 @inject MusicPlaybackState MusicPlayback
+@inject NavigationManager Navigation
 @implements IDisposable
 
 <div class="app-container @(MusicPlayback.NowPlaying is not null ? "has-global-player" : "")">
@@ -93,6 +94,7 @@
     protected override async Task OnInitializedAsync()
     {
         _persistingSubscription = PersistentState.RegisterOnPersisting(PersistState);
+        Navigation.LocationChanged += OnLocationChanged;
 
         if (PersistentState.TryTakeFromJson<bool>(NavbarCollapsedKey, out var restored))
         {
@@ -175,5 +177,14 @@
 
     private void RecoverError() => _errorBoundary?.Recover();
 
-    public void Dispose() => _persistingSubscription.Dispose();
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        _errorBoundary?.Recover();
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+        _persistingSubscription.Dispose();
+    }
 }
