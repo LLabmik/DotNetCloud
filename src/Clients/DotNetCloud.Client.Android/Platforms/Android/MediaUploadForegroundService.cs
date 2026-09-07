@@ -90,6 +90,29 @@ public sealed class MediaUploadForegroundService : Service
         return StartCommandResult.Sticky;
     }
 
+    /// <summary>
+    /// Called by the system when an Android 15+ (API 35) dataSync foreground service
+    /// exceeds its 6-hour-per-24h allowance. Stops cleanly instead of being force-stopped.
+    /// The auto-upload loop restarts the service when the app is next in the foreground or
+    /// when auto-upload is toggled in Settings.
+    /// </summary>
+#pragma warning disable CA1416 // OnTimeout(int) is only invoked on API 30+; min supported is API 26
+    public override void OnTimeout(int startId)
+    {
+        try
+        {
+            _logger?.LogInformation("MediaUploadForegroundService hit the dataSync foreground-service timeout; stopping.");
+            StopForeground(StopForegroundFlags.Remove);
+            StopSelf();
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "MediaUploadForegroundService failed to stop cleanly on timeout.");
+        }
+        base.OnTimeout(startId);
+    }
+#pragma warning restore CA1416
+
     /// <inheritdoc />
     public override void OnDestroy()
     {

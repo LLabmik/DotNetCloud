@@ -1,6 +1,10 @@
 using Android.App;
+using Android.Content;
 using Android.Media;
 using Android.Runtime;
+using Android.Util;
+using CommunityToolkit.Mvvm.DependencyInjection;
+using DotNetCloud.Client.Android.Services;
 
 namespace DotNetCloud.Client.Android;
 
@@ -34,6 +38,29 @@ public class MainApplication : MauiApplication
     {
         base.OnCreate();
         CreateNotificationChannels();
+    }
+
+    /// <inheritdoc />
+    public override void OnTrimMemory(TrimMemory level)
+    {
+        base.OnTrimMemory(level);
+
+        // Google Play efficiency (Feb 2027): release cached image sources when the system
+        // is under memory pressure so their ImageSource references can be reclaimed. The
+        // entries are disk-backed, so the next lookup re-reads from disk instead of
+        // re-downloading. Best-effort — a failure here must never crash the process.
+        if (level >= TrimMemory.RunningLow)
+        {
+            try
+            {
+                Ioc.Default.GetService<IThumbnailCache>()?.TrimMemory();
+                Ioc.Default.GetService<IAlbumArtCache>()?.TrimMemory();
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("DotNetCloud", $"OnTrimMemory cache cleanup failed: {ex.Message}");
+            }
+        }
     }
 
     /// <inheritdoc />

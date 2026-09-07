@@ -16,6 +16,17 @@ Both flavors can be installed side-by-side on the same device due to separate ap
 
 ## Release Build
 
+> **Efficiency / Play compliance (Feb 2027):** Release builds enable **R8 DEX optimization**
+> (`AndroidEnableR8`), **AOT compilation** (`RunAOTCompilation`), and **SDK/framework managed
+> trimming** (`PublishTrimmed`, `AndroidLinkMode=SdkOnly`) for fast startup and low runtime
+> memory. App/Core assemblies are deliberately NOT trimmed: the client deserializes
+> `DotNetCloud.Core.DTOs` records with C# `required` members via reflection JSON, which FULL
+> trimming breaks at runtime (`JsonPropertyRequiredAndNotDeserializable`, verified on-device).
+> R8 still runs in full mode over the merged DEX and AOT still compiles the app, so the
+> efficiency / optimized-DEX goals are met. Moving the client to JSON source generators (the
+> path to full trimming) is separate follow-up work. These settings apply to **both** flavors
+> and to direct APK builds.
+
 ### Google Play / Direct APK
 
 ```powershell
@@ -164,6 +175,16 @@ Builds:
     sudo:
       - apt-get update
       - apt-get install -y dotnet-sdk-10.0
+    prebuild:
+      # Release builds run R8 + AOT with SDK/framework trimming (see "Release Build"
+      # above); AOT output is deterministic only when the exact SDK/workload is used. The
+      # SDK must match global.json (10.0.100, rollForward latestMinor); the workload install
+      # runs during F-Droid's setup phase (network available). dotnet restore warms the
+      # NuGet cache so the offline publish step can complete. NOTE: the fdroid flavor
+      # depends on the UnifiedPush.NET package, which is NOT on nuget.org — the build needs
+      # that package available from a configured feed/source.
+      - dotnet workload install maui-android
+      - dotnet restore
     build:
       - dotnet publish -c Release -f net10.0-android -p:BuildFlavor=fdroid
 

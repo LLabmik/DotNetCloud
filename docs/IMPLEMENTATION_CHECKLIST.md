@@ -3557,6 +3557,29 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Create direct APK download option
 - ✓ Write app store listing description
 
+#### Play Store Efficiency Compliance (Feb 2027)
+
+Google Play begins enforcing efficiency/quality rules in **Feb 2027** (optimized DEX code,
+memory/bitmap limits, background-resource behavior). Release builds now enable R8 DEX
+optimization + AOT + SDK/framework trimming (`AndroidLinkMode=SdkOnly`; app assemblies are
+NOT trimmed because the client deserializes `required`-member DTO records via reflection
+JSON — full trimming breaks that at runtime, verified on-device). Image buffers are
+single-materialized; in-memory image caches are released on `OnTrimMemory`; and `dataSync`
+foreground services are gated to the foreground and stop cleanly on the Android 15+ timeout.
+Zero-tap sign-in (Apr 2027) and the API 36 target bump are tracked separately (deferred).
+
+- ✓ Enable R8 DEX optimization + AOT + SDK/framework trimming for Release (`PublishTrimmed`, `AndroidLinkMode=SdkOnly`, `AndroidEnableR8`, `RunAOTCompilation`) — app assemblies kept intact to preserve reflection JSON for `required`-member DTOs
+- ✓ Surface + resolve trim warnings; only sanctioned suppressions are documented MAUI XAML string bindings (`IL2026`) and the `SettingsViewModel` module-rescan reflection site (`IL2075`)
+- ✓ Single-materialize full-resolution image bytes in `ImageViewerViewModel.LoadImageAsync` (no per-access buffer copy)
+- ✓ Release in-memory `ThumbnailCache`/`AlbumArtCache` entries on `MainApplication.OnTrimMemory` (disk retained)
+- ✓ `ChatConnectionService`/`MediaUploadForegroundService` stop cleanly on Android 15+ `dataSync` FGS `OnTimeout`
+- ✓ Run chat foreground service only while the app is foregrounded (push handles background delivery)
+- ✓ Pause SignalR reconnect attempts while the app is backgrounded
+- ✓ Update `docs/clients/android/DISTRIBUTION.md` Release build + F-Droid recipe (MAUI workload, restore prebuild)
+- ✓ On-device Release E2E passed 2026-09-07 (Samsung R5CWC356B2K): startup/AOT clean, session restore + SignalR, Files/Calendar/Notes/AI/Settings load data, Rescan Modules reflection path runs, background FGS gating verified (`dumpsys activity services` shows no idle chat FGS), memory reclaimed when backgrounded (`dumpsys meminfo`)
+- ☐ F-Droid flavor build + UnifiedPush smoke test — DEFERRED: `UnifiedPush.NET` is not on nuget.org and not cached, so the `fdroid` flavor cannot restore in this environment (pre-existing; unrelated to these changes). Needs the package from a configured feed before this build can run.
+- ☐ Play Console Android Vitals / pre-launch report confirmation — DEFERRED: requires uploading a release-signed AAB to Play Console; set `KEYSTORE_FILE`/`KEYSTORE_ALIAS`/`KEYSTORE_PASS` env vars and build with signing enabled (`-p:AndroidKeyStore=true`) first.
+
 #### Music Tab
 
 - ✓ Create `MusicPage.xaml` with browsing UI (artists, albums, tracks, playlists)

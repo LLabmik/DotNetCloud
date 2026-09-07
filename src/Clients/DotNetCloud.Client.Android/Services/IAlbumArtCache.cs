@@ -14,4 +14,11 @@ public interface IAlbumArtCache
 
     /// <summary>Clears the entire cache (memory + disk).</summary>
     void Clear();
+
+    /// <summary>
+    /// Drops all in-memory entries so their <see cref="ImageSource"/> references can be
+    /// reclaimed. Called from <c>OnTrimMemory</c> under system memory pressure. Disk
+    /// contents are retained so the next lookup re-reads from disk instead of re-downloading.
+    /// </summary>
+    void TrimMemory();
 }
