@@ -4,6 +4,8 @@ using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs.Chat;
 using DotNetCloud.Core.Services.ModuleApis;
+using ChatMessageNotifier = DotNetCloud.Modules.Chat.Services.IChatMessageNotifier;
+using ChatTypingNotification = DotNetCloud.Modules.Chat.Services.ChatTypingNotification;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
@@ -21,6 +23,7 @@ internal sealed class ChatHub : Hub
     private readonly IChatApiClient _chatApiClient;
     private readonly IRealtimeBroadcaster _broadcaster;
     private readonly ILogger<ChatHub> _logger;
+    private readonly ChatMessageNotifier? _messageNotifier;
 
     // Tracks messageId → channelId for reaction broadcasts where the
     // caller only provides the messageId and we need the channel group.
@@ -29,11 +32,13 @@ internal sealed class ChatHub : Hub
     public ChatHub(
         IChatApiClient chatApiClient,
         IRealtimeBroadcaster broadcaster,
-        ILogger<ChatHub> logger)
+        ILogger<ChatHub> logger,
+        ChatMessageNotifier? messageNotifier = null)
     {
         _chatApiClient = chatApiClient ?? throw new ArgumentNullException(nameof(chatApiClient));
         _broadcaster = broadcaster ?? throw new ArgumentNullException(nameof(broadcaster));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _messageNotifier = messageNotifier;
     }
 
     private static string ChannelGroup(Guid channelId) => $"chat-channel-{channelId}";
@@ -134,6 +139,9 @@ internal sealed class ChatHub : Hub
             await _broadcaster.BroadcastAsync(
                 ChannelGroup(channelId), "TypingIndicator",
                 new { channelId, userId, displayName }, Context.ConnectionAborted);
+
+            // Mirror to in-process Blazor circuits (they are not SignalR hub clients).
+            _messageNotifier?.NotifyTypingChanged(new ChatTypingNotification(channelId, userId, displayName));
         }
         catch (Exception ex) when (TryConvertToHubException(ex, out var hubException))
         {
@@ -150,6 +158,9 @@ internal sealed class ChatHub : Hub
         await _broadcaster.BroadcastAsync(
             ChannelGroup(channelId), "TypingIndicator",
             new { channelId, userId, displayName = (string?)null }, Context.ConnectionAborted);
+
+        // NOTE: receivers treat TypingIndicator as a heartbeat; they hide via a
+        // timeout and on new messages, so no explicit stop notification is raised.
     }
 
     /// <summary>

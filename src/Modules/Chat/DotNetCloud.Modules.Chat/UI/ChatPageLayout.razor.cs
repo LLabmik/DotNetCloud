@@ -6,6 +6,7 @@ using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Chat.DTOs;
 using DotNetCloud.Modules.Chat.Models;
 using DotNetCloud.Modules.Chat.Services;
+using DotNetCloud.UI.Shared.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.Logging;
@@ -22,6 +23,10 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 {
     private const int MessagePageSize = 50;
     private const int SearchPageSize = 25;
+
+    // Chat message sound ("ding") preference — stored as a per-user setting.
+    private const string ChatSoundModule = "dotnetcloud.chat";
+    private const string ChatSoundSettingKey = "message-sound-enabled";
 
     [Inject] private IChannelService ChannelService { get; set; } = default!;
     [Inject] private IMessageService MessageService { get; set; } = default!;
@@ -44,6 +49,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     [Inject] private GlobalChatNotificationState GlobalNotificationState { get; set; } = default!;
     [Inject] private IChatImageStore ChatImageStore { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
+    [Inject] private BrowserTimeProvider TimeProvider { get; set; } = default!;
     [Inject] private ILogger<ChatPageLayout> Logger { get; set; } = default!;
 
     /// <summary>
@@ -92,6 +98,10 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     // Pending image attachments (uploaded, waiting to be sent with next message)
     private readonly List<PendingAttachment> _pendingAttachments = [];
+
+    // Number of image uploads (paste into the composer or file-picker attach) currently in flight.
+    private int _uploadsInProgress;
+
     private readonly string _fileInputId = $"chat-file-input-{Guid.CreateVersion7():N}";
     private ElementReference _fileInputRef;
 
@@ -122,8 +132,17 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     private string? _announcementErrorMessage;
     private readonly HashSet<Guid> _dismissedAnnouncementIds = [];
 
-    // Typing state
+    // Typing state — tracks remote users typing in the selected channel.
+    // _typingState holds the last-seen heartbeat per user so entries expire
+    // shortly after the remote user stops sending heartbeats.
     private List<TypingUserViewModel> _typingUsers = [];
+    private readonly Dictionary<Guid, (TypingUserViewModel User, DateTime SeenUtc)> _typingState = [];
+    private System.Threading.Timer? _typingPruneTimer;
+    private static readonly TimeSpan TypingVisible = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan TypingPruneInterval = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan TypingBroadcastThrottle = TimeSpan.FromMilliseconds(2500);
+    private DateTime _lastTypingBroadcastUtc = DateTime.MinValue;
+    private readonly object _typingBroadcastLock = new();
 
     // Invite state
     private bool _showInviteDialog;
@@ -200,6 +219,9 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     // User state
     private Guid _currentUserId;
     private string _currentUserRole = "Member";
+
+    // Whether the "ding" should play when a new chat message arrives (default: enabled).
+    private bool _chatSoundEnabled = true;
     private bool _currentUserIsAdminOrOwner;
     private readonly Dictionary<Guid, string> _displayNameCache = [];
     private readonly Dictionary<Guid, string> _avatarUrlCache = [];
@@ -246,6 +268,14 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     /// <inheritdoc />
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        // Fetch the browser timezone once interactive so wall-clock times (e.g. search-result
+        // post times) render in the viewer's local time, then re-render to apply it.
+        if (firstRender)
+        {
+            await TimeProvider.EnsureInitializedAsync();
+            StateHasChanged();
+        }
+
         // Consume the pending action BEFORE awaiting so a re-entrant render can't re-run it.
         var action = _pendingScrollAction;
         _pendingScrollAction = PendingScrollAction.None;
@@ -278,6 +308,13 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         catch { /* JS interop may not be available during pre-render or after dispose */ }
     }
 
+    /// <summary>
+    /// Formats a message's UTC sent time for the search results list in the viewer's
+    /// local timezone (search results always render as a wall-clock post time).
+    /// </summary>
+    private string FormatSearchResultTime(DateTime sentAtUtc)
+        => TimeProvider.ToLocal(sentAtUtc).ToString("MMM d, HH:mm");
+
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
     {
@@ -306,6 +343,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         await LoadChannelsAsync();
         await LoadBlockedUsersAsync();
         await LoadAnnouncementsAsync();
+        await LoadChatSoundPreferenceAsync();
 
         ChatMessageNotifier.MessageReceived += OnRemoteMessageReceived;
         ChatMessageNotifier.MessageEdited += OnRemoteMessageEdited;
@@ -320,6 +358,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         ChatMessageNotifier.ChannelAdded += OnChannelAdded;
         ChatMessageNotifier.ChannelDeleted += OnChannelDeleted;
         ChatMessageNotifier.UserBlockStatusChanged += OnUserBlockStatusChanged;
+        ChatMessageNotifier.TypingChanged += OnRemoteTypingChanged;
         GlobalNotificationState.OnCallAccepted += OnGlobalCallAccepted;
 
         // Check if a call was accepted from the global notification overlay before navigation
@@ -378,7 +417,11 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         ChatMessageNotifier.ChannelAdded -= OnChannelAdded;
         ChatMessageNotifier.ChannelDeleted -= OnChannelDeleted;
         ChatMessageNotifier.UserBlockStatusChanged -= OnUserBlockStatusChanged;
+        ChatMessageNotifier.TypingChanged -= OnRemoteTypingChanged;
         GlobalNotificationState.OnCallAccepted -= OnGlobalCallAccepted;
+
+        _typingPruneTimer?.Dispose();
+        _typingPruneTimer = null;
 
         _callDurationTimer?.Stop();
         _callDurationTimer?.Dispose();
@@ -404,6 +447,16 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             return;
         InvokeAsync(async () =>
         {
+            // Play the message "ding" for incoming messages unless the user muted chat
+            // sounds, muted this channel, or the message is our own echo.
+            var soundChannelIsMuted = channelId == _selectedChannel?.Id
+                ? (_selectedChannel?.IsMuted ?? false)
+                : _channels.FirstOrDefault(c => c.Id == channelId)?.IsMuted ?? false;
+            if (ShouldPlayMessageSound(_chatSoundEnabled, message.SenderUserId, _currentUserId, soundChannelIsMuted))
+            {
+                await PlayMessageDingAsync();
+            }
+
             if (_selectedChannel is not null && _selectedChannel.Id == channelId)
             {
                 if (_messages.Any(m => m.Id == message.Id))
@@ -416,6 +469,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
                 { wasNearBottom = await JS.InvokeAsync<bool>("dotnetcloudChatScroll.isNearBottom", ".chat-message-list", 150); }
                 catch { wasNearBottom = true; }
 
+                // The sender just sent a message, so they are no longer typing.
+                RemoveTypingUser(message.SenderUserId);
                 _messages.Add(ToMessageViewModel(message));
                 if (wasNearBottom)
                 {
@@ -614,6 +669,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         _showMemberPanel = false;
         _isSearchOpen = false;
         _searchResults = [];
+        ResetTypingState();
 
         await LoadMessagesAsync(channel.Id);
         await LoadMembersAsync(channel.Id);
@@ -678,6 +734,78 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             _channelErrorMessage = ex.Message;
         }
     }
+
+    // ── Chat message sound ("ding") ────────────────────────────────
+
+    /// <summary>
+    /// Loads the current user's chat message-sound preference (whether new incoming
+    /// messages should play the "ding"). Defaults to enabled when unset/unreadable.
+    /// </summary>
+    private async Task LoadChatSoundPreferenceAsync()
+    {
+        try
+        {
+            var setting = await UserSettingsService.GetSettingAsync(_currentUserId, ChatSoundModule, ChatSoundSettingKey);
+            _chatSoundEnabled = setting?.Value is not "false";
+        }
+        catch
+        {
+            // Non-critical: default to enabled
+            _chatSoundEnabled = true;
+        }
+    }
+
+    /// <summary>
+    /// Handles the channel-header chat sound toggle: flips the in-memory state and
+    /// persists the preference for the current user.
+    /// </summary>
+    protected async Task HandleToggleChatSound()
+    {
+        _chatSoundEnabled = !_chatSoundEnabled;
+
+        try
+        {
+            await UserSettingsService.UpsertSettingAsync(
+                _currentUserId,
+                ChatSoundModule,
+                ChatSoundSettingKey,
+                new UpsertUserSettingDto
+                {
+                    Value = _chatSoundEnabled ? "true" : "false",
+                    Description = "Play a sound when a new chat message arrives"
+                });
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to persist chat message-sound preference.");
+        }
+
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Plays the incoming-message "ding" (best-effort; failures never break the chat).
+    /// </summary>
+    private async Task PlayMessageDingAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("dotnetcloudChatSound.playDing");
+        }
+        catch (JSDisconnectedException) { /* Circuit gone — nothing to notify */ }
+        catch (Exception ex) { Logger.LogDebug(ex, "Failed to play chat message sound."); }
+    }
+
+    /// <summary>
+    /// Decides whether an incoming message should trigger the audible "ding".
+    /// The sound plays only when it is enabled, the sender is not the current user
+    /// (avoids dinging on our own sent messages), and the channel is not muted.
+    /// </summary>
+    internal static bool ShouldPlayMessageSound(bool chatSoundEnabled, Guid senderUserId, Guid currentUserId, bool channelIsMuted)
+        => chatSoundEnabled
+            && !channelIsMuted
+            && senderUserId != Guid.Empty
+            && senderUserId != currentUserId;
 
     /// <summary>Loads all users blocked by the current user.</summary>
     private async Task LoadBlockedUsersAsync()
@@ -1551,20 +1679,149 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     // ── Typing Indicators ───────────────────────────────────────────
 
-    /// <summary>Handles typing indicator action.</summary>
+    /// <summary>Handles typing indicator action from the composer.</summary>
     protected async Task HandleTyping()
     {
         if (_selectedChannel is null)
             return;
         try
         {
+            // Throttle broadcasts so continuous typing emits at most one heartbeat
+            // per TypingBroadcastThrottle; receivers expire entries shortly after
+            // the last heartbeat (see TypingVisible).
+            var now = DateTime.UtcNow;
+            lock (_typingBroadcastLock)
+            {
+                if ((now - _lastTypingBroadcastUtc) < TypingBroadcastThrottle)
+                    return;
+                _lastTypingBroadcastUtc = now;
+            }
+
             var caller = await GetCallerContextAsync();
             await TypingService.NotifyTypingAsync(_selectedChannel.Id, caller);
+
+            // Broadcast to other members (SignalR hub clients) and mirror to
+            // in-process Blazor circuits so "X is typing…" shows live.
+            await ChatRealtimeService.BroadcastTypingAsync(_selectedChannel.Id, caller.UserId, _currentUserDisplayName);
+            ChatMessageNotifier.NotifyTypingChanged(new ChatTypingNotification(_selectedChannel.Id, caller.UserId, _currentUserDisplayName));
         }
         catch
         {
             // Non-critical
         }
+    }
+
+    /// <summary>
+    /// Handles a typing-indicator heartbeat from another member of the selected channel.
+    /// Every event is a heartbeat — entries are hidden by the expiry pruner or when
+    /// the remote user's message arrives.
+    /// </summary>
+    private void OnRemoteTypingChanged(ChatTypingNotification notification)
+    {
+        if (_isDisposed)
+            return;
+        if (_selectedChannel is null || _selectedChannel.Id != notification.ChannelId)
+            return;
+        if (notification.UserId == _currentUserId)
+            return; // Ignore our own typing echoes.
+
+        InvokeAsync(() =>
+        {
+            UpdateTypingUser(notification.UserId, notification.DisplayName);
+            SafeStateHasChanged();
+        });
+    }
+
+    /// <summary>Adds or refreshes a user in the typing indicator state and arms the expiry pruner.</summary>
+    private void UpdateTypingUser(Guid userId, string? displayName)
+    {
+        var name = string.IsNullOrWhiteSpace(displayName)
+            ? ResolveTypingDisplayName(userId)
+            : displayName;
+        _typingState[userId] = (new TypingUserViewModel(userId, name), DateTime.UtcNow);
+        RebuildTypingUsers();
+        EnsureTypingPruneTimer();
+    }
+
+    /// <summary>Removes a user from the typing indicator state.</summary>
+    private void RemoveTypingUser(Guid userId)
+    {
+        if (_typingState.Remove(userId))
+        {
+            RebuildTypingUsers();
+            EnsureTypingPruneTimer();
+        }
+    }
+
+    /// <summary>Clears all typing indicator state (channel switch).</summary>
+    private void ResetTypingState()
+    {
+        _typingState.Clear();
+        RebuildTypingUsers();
+        EnsureTypingPruneTimer();
+        _lastTypingBroadcastUtc = DateTime.MinValue;
+    }
+
+    /// <summary>Rebuilds the display list from the typing state, ordered by last heartbeat.</summary>
+    private void RebuildTypingUsers()
+    {
+        _typingUsers.Clear();
+        _typingUsers.AddRange(_typingState.Values
+            .OrderBy(v => v.SeenUtc)
+            .Select(v => v.User));
+    }
+
+    /// <summary>Prunes typing entries whose heartbeats have gone stale.</summary>
+    private void PruneTypingState()
+    {
+        if (_isDisposed || _typingState.Count == 0)
+            return;
+
+        var cutoff = DateTime.UtcNow - TypingVisible;
+        var stale = _typingState.Where(kvp => kvp.Value.SeenUtc < cutoff).Select(kvp => kvp.Key).ToList();
+        if (stale.Count == 0)
+            return;
+
+        foreach (var userId in stale)
+            _typingState.Remove(userId);
+        RebuildTypingUsers();
+        SafeStateHasChanged();
+    }
+
+    /// <summary>Starts (or keeps alive) the periodic expiry pruner while anyone is typing.</summary>
+    private void EnsureTypingPruneTimer()
+    {
+        if (_typingState.Count == 0)
+        {
+            _typingPruneTimer?.Dispose();
+            _typingPruneTimer = null;
+            return;
+        }
+
+        if (_typingPruneTimer is not null)
+            return;
+
+        _typingPruneTimer = new System.Threading.Timer(
+            _ => InvokeAsync(PruneTypingState),
+            null,
+            TypingPruneInterval,
+            TypingPruneInterval);
+    }
+
+    /// <summary>Resolves a user's display name for the typing indicator from cache or member list.</summary>
+    private string ResolveTypingDisplayName(Guid userId)
+    {
+        if (_displayNameCache.TryGetValue(userId, out var cached) && !string.IsNullOrWhiteSpace(cached))
+            return cached;
+
+        var member = _members.FirstOrDefault(m => m.UserId == userId);
+        if (member is not null && !string.IsNullOrWhiteSpace(member.DisplayName))
+        {
+            _displayNameCache[userId] = member.DisplayName;
+            return member.DisplayName;
+        }
+
+        return userId == Guid.Empty ? "Someone" : userId.ToString()[..8];
     }
 
     // ── Image Upload & Attachment ──────────────────────────────────
@@ -1583,9 +1840,40 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         }
     }
 
+    /// <summary>Whether an image is currently being uploaded before it can be attached.</summary>
+    protected bool IsUploadingImage => _uploadsInProgress > 0;
+
+    /// <summary>
+    /// Called from JS when an image upload starts or finishes (paste into the composer or a
+    /// file-picker attachment). Increments/decrements the in-flight counter so the UI can show
+    /// an "Uploading" indicator while the image is being uploaded or processed.
+    /// </summary>
+    [JSInvokable]
+    public void HandleImageUploadStateChanged(bool isUploading)
+    {
+        _uploadsInProgress = Math.Max(0, _uploadsInProgress + (isUploading ? 1 : -1));
+        SafeStateHasChanged();
+    }
+
+    /// <summary>
+    /// Marks one in-flight image upload as complete. Invoked by the handlers that receive the
+    /// finished upload (<see cref="HandlePasteImage"/> or <see cref="HandleImageUploaded"/>) so the
+    /// uploading indicator is cleared once the thumbnail has been added.
+    /// </summary>
+    private void CompleteImageUpload()
+    {
+        if (_uploadsInProgress > 0)
+        {
+            _uploadsInProgress--;
+        }
+    }
+
     /// <summary>Handles an image pasted into the composer.</summary>
     protected async Task HandlePasteImage(PastedImageData pastedImage)
     {
+        // A paste was in flight while this payload was produced — clear its uploading indicator.
+        CompleteImageUpload();
+
         if (_selectedChannel is null)
             return;
 
@@ -1637,6 +1925,9 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     [JSInvokable]
     public async Task HandleImageUploaded(string url, string fileName, string mimeType, long fileSize)
     {
+        // The attach upload finished — clear its uploading indicator.
+        CompleteImageUpload();
+
         if (_selectedChannel is null)
             return;
 
@@ -3517,7 +3808,16 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
                 MimeType = a.MimeType,
                 FileSize = a.FileSize,
                 ThumbnailUrl = a.ThumbnailUrl
-            }).ToList()
+            }).ToList(),
+            LinkPreview = dto.LinkPreview is null ? null : new LinkPreviewViewModel
+            {
+                Url = dto.LinkPreview.Url,
+                Title = dto.LinkPreview.Title,
+                Description = dto.LinkPreview.Description,
+                ImageUrl = dto.LinkPreview.ImageUrl,
+                SiteName = dto.LinkPreview.SiteName,
+                FaviconUrl = dto.LinkPreview.FaviconUrl
+            }
         };
     }
 

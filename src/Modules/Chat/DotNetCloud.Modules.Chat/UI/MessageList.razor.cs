@@ -1,3 +1,4 @@
+using DotNetCloud.UI.Shared.Services;
 using Microsoft.AspNetCore.Components;
 using System.Text;
 using System.Text.Encodings.Web;
@@ -29,6 +30,10 @@ public partial class MessageList : ComponentBase
     private bool _lightboxOpen;
     private string _lightboxImageUrl = string.Empty;
     private string _lightboxImageAlt = string.Empty;
+
+    /// <summary>Converts UTC message timestamps to the viewer's browser timezone.</summary>
+    [Inject]
+    private BrowserTimeProvider TimeProvider { get; set; } = default!;
 
     /// <summary>The list of messages to display.</summary>
     [Parameter]
@@ -99,6 +104,18 @@ public partial class MessageList : ComponentBase
         set => _messageListRef = value;
     }
 
+    /// <inheritdoc />
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Fetch the browser timezone once interactive so wall-clock message times render
+        // in the viewer's local time, then re-render so already-shown messages update.
+        if (firstRender)
+        {
+            await TimeProvider.EnsureInitializedAsync();
+            StateHasChanged();
+        }
+    }
+
     /// <summary>Toggles a reaction on a message.</summary>
     protected async Task ToggleReaction(Guid messageId, string emoji)
     {
@@ -140,11 +157,27 @@ public partial class MessageList : ComponentBase
         };
     }
 
-    /// <summary>Formats a timestamp for display.</summary>
-    protected static string FormatTime(DateTime sentAt)
+    /// <summary>
+    /// Formats a message's sent time for display. <paramref name="sentAtUtc"/> is a UTC
+    /// instant; it is converted to the viewer's browser timezone via
+    /// <see cref="TimeProvider"/> so the wall-clock time (and any day boundaries) are
+    /// relative to where the user actually is rather than UTC.
+    /// </summary>
+    protected string FormatTime(DateTime sentAtUtc)
     {
-        var now = DateTime.UtcNow;
-        var diff = now - sentAt;
+        var localSentAt = TimeProvider.ToLocal(sentAtUtc);
+        var localNow = TimeProvider.ToLocal(DateTime.UtcNow);
+        return FormatLocalTime(localSentAt, localNow);
+    }
+
+    /// <summary>
+    /// Formats a message time that has already been converted to the viewer's local time.
+    /// Recent messages render as a relative age ("5m ago"); older messages render as a
+    /// wall-clock post time so they read naturally in the user's timezone.
+    /// </summary>
+    internal static string FormatLocalTime(DateTime localSentAt, DateTime localNow)
+    {
+        var diff = localNow - localSentAt;
 
         if (diff.TotalMinutes < 1)
         {
@@ -156,17 +189,17 @@ public partial class MessageList : ComponentBase
             return $"{(int)diff.TotalMinutes}m ago";
         }
 
-        if (sentAt.Date == now.Date)
+        if (localSentAt.Date == localNow.Date)
         {
-            return sentAt.ToString("HH:mm");
+            return localSentAt.ToString("HH:mm");
         }
 
-        if (sentAt.Date == now.Date.AddDays(-1))
+        if (localSentAt.Date == localNow.Date.AddDays(-1))
         {
-            return $"Yesterday {sentAt:HH:mm}";
+            return $"Yesterday {localSentAt:HH:mm}";
         }
 
-        return sentAt.ToString("MMM d, HH:mm");
+        return localSentAt.ToString("MMM d, HH:mm");
     }
 
     /// <summary>Formats a file size for display.</summary>
@@ -191,6 +224,14 @@ public partial class MessageList : ComponentBase
             2 => $"{TypingUsers[0].DisplayName} and {TypingUsers[1].DisplayName} are typing...",
             _ => "Several people are typing..."
         };
+    }
+
+    /// <summary>Extracts the display host (e.g. "github.com") from a link preview URL.</summary>
+    private static string GetLinkHost(string url)
+    {
+        return Uri.TryCreate(url, UriKind.Absolute, out var uri) && !string.IsNullOrWhiteSpace(uri.Host)
+            ? uri.Host.Replace("www.", string.Empty, StringComparison.OrdinalIgnoreCase)
+            : url;
     }
 
     /// <summary>

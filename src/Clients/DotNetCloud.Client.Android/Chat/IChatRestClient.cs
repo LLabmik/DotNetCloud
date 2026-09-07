@@ -223,6 +223,7 @@ public sealed record ChatAttachment(
 /// <param name="SentAt">When the message was sent (UTC).</param>
 /// <param name="IsEdited">Whether the message has been edited.</param>
 /// <param name="Attachments">Attachments on this message (optional).</param>
+/// <param name="LinkPreview">Rich link preview for the first URL in the message (optional).</param>
 public sealed record ChatMessage(
     Guid Id,
     Guid ChannelId,
@@ -231,7 +232,23 @@ public sealed record ChatMessage(
     string Content,
     DateTimeOffset SentAt,
     bool IsEdited,
-    IReadOnlyList<ChatAttachment>? Attachments = null);
+    IReadOnlyList<ChatAttachment>? Attachments = null,
+    ChatLinkPreview? LinkPreview = null);
+
+/// <summary>Rich link preview metadata captured from a URL in a chat message.</summary>
+/// <param name="Url">URL the preview was fetched from.</param>
+/// <param name="Title">Resolved page title.</param>
+/// <param name="Description">Resolved page description.</param>
+/// <param name="ImageUrl">Preview image URL.</param>
+/// <param name="SiteName">Site name.</param>
+/// <param name="FaviconUrl">Favicon URL.</param>
+public sealed record ChatLinkPreview(
+    string Url,
+    string? Title,
+    string? Description,
+    string? ImageUrl,
+    string? SiteName,
+    string? FaviconUrl);
 
 /// <summary>Summary of a channel member for the member list.</summary>
 /// <param name="UserId">User identifier.</param>
@@ -255,6 +272,19 @@ internal sealed record SignalRAttachmentDto(
     string MimeType,
     long FileSize,
     string? ThumbnailUrl);
+
+/// <summary>
+/// Minimal link-preview DTO for SignalR deserialization of a message's rich link preview.
+/// Defined here (rather than in SignalRChatClient.cs) so it's reachable from ViewModels
+/// compiled outside the Android target (e.g., unit tests).
+/// </summary>
+internal sealed record SignalRLinkPreviewDto(
+    [property: System.Text.Json.Serialization.JsonPropertyName("url")] string Url,
+    [property: System.Text.Json.Serialization.JsonPropertyName("title")] string? Title,
+    [property: System.Text.Json.Serialization.JsonPropertyName("description")] string? Description,
+    [property: System.Text.Json.Serialization.JsonPropertyName("imageUrl")] string? ImageUrl,
+    [property: System.Text.Json.Serialization.JsonPropertyName("siteName")] string? SiteName,
+    [property: System.Text.Json.Serialization.JsonPropertyName("faviconUrl")] string? FaviconUrl);
 
 /// <summary>Result from a user search query for the DM user picker.</summary>
 /// <param name="UserId">User identifier.</param>

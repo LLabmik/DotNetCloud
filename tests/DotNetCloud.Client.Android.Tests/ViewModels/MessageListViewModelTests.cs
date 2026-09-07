@@ -48,7 +48,7 @@ public sealed class MessageListViewModelTests
         new(userId, displayName, "Member", true);
 
     private Mock<IChatRestClient> _chatApi = null!;
-    private Mock<IChatSignalRClient> _signalR = null!;
+    private Mock<ICoreHubClient> _signalR = null!;
     private Mock<ILocalMessageCache> _cache = null!;
     private Mock<IOfflineOperationQueue> _offlineQueue = null!;
     private Mock<IConnectivityMonitor> _connectivity = null!;
@@ -62,13 +62,18 @@ public sealed class MessageListViewModelTests
     public void Setup()
     {
         _chatApi = new Mock<IChatRestClient>(MockBehavior.Strict);
-        _signalR = new Mock<IChatSignalRClient>(MockBehavior.Loose);
+        _signalR = new Mock<ICoreHubClient>(MockBehavior.Loose);
         _cache = new Mock<ILocalMessageCache>(MockBehavior.Loose);
         _offlineQueue = new Mock<IOfflineOperationQueue>(MockBehavior.Loose);
         _connectivity = new Mock<IConnectivityMonitor>(MockBehavior.Loose);
         _serverStore = new Mock<IServerConnectionStore>(MockBehavior.Strict);
         _tokenStore = new Mock<ISecureTokenStore>(MockBehavior.Strict);
         _logger = new Mock<ILogger<MessageListViewModel>>(MockBehavior.Loose);
+
+        // Typing heartbeats are fire-and-forget; keep the strict chat API mock calm
+        // so any background heartbeat started by a test that sets ComposerText is benign.
+        _chatApi.Setup(x => x.NotifyTypingAsync(ServerUrl, It.IsAny<string>(), ChannelId, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
         // Default auth setup: active server connection with a JWT containing CurrentUserId
         var connection = new ServerConnection(ServerUrl, "Test Server", "test@test.com");
@@ -468,6 +473,140 @@ public sealed class MessageListViewModelTests
         FireNewChatMessage(otherChannelId.ToString(), OtherUserId, "User", "Wrong channel!", Guid.NewGuid(), DateTime.UtcNow);
 
         Assert.IsFalse(raised, "NewMessageAdded must NOT be raised for a message in a different channel.");
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    //  Typing indicator (real-time heartbeats + composer heartbeat send)
+    // ══════════════════════════════════════════════════════════════════
+
+    [TestMethod]
+    public async Task OnChatTyping_RemoteMember_ShowsTypingTextResolvedFromMembers()
+    {
+        await InitializeHappyPathAsync();
+
+        // No display name in the payload — resolved from the channel member list.
+        FireChatTyping(ChannelId.ToString(), OtherUserId, null);
+
+        Assert.AreEqual("Other User is typing…", _vm.TypingIndicatorText);
+    }
+
+    [TestMethod]
+    public async Task OnChatTyping_ProvidedDisplayName_IsUsed()
+    {
+        await InitializeHappyPathAsync();
+
+        var unknownUserId = Guid.Parse("44444444-4444-4444-4444-444444444444");
+        FireChatTyping(ChannelId.ToString(), unknownUserId, "Alice");
+
+        Assert.AreEqual("Alice is typing…", _vm.TypingIndicatorText);
+    }
+
+    [TestMethod]
+    public async Task OnChatTyping_TwoRemoteUsers_ShowsBothNames()
+    {
+        await InitializeHappyPathAsync();
+
+        var thirdUserId = Guid.Parse("44444444-4444-4444-4444-444444444444");
+        FireChatTyping(ChannelId.ToString(), OtherUserId, null);
+        FireChatTyping(ChannelId.ToString(), thirdUserId, "Carol");
+
+        Assert.IsTrue(_vm.TypingIndicatorText.Contains("Other User", StringComparison.Ordinal));
+        Assert.IsTrue(_vm.TypingIndicatorText.Contains("Carol", StringComparison.Ordinal));
+        Assert.IsTrue(_vm.TypingIndicatorText.EndsWith("are typing…", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public async Task OnChatTyping_SelfTyping_Ignored()
+    {
+        await InitializeHappyPathAsync();
+
+        FireChatTyping(ChannelId.ToString(), CurrentUserId, "Current User");
+
+        Assert.IsEmpty(_vm.TypingIndicatorText);
+    }
+
+    [TestMethod]
+    public async Task OnChatTyping_WrongChannel_Ignored()
+    {
+        await InitializeHappyPathAsync();
+
+        var otherChannelId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+        FireChatTyping(otherChannelId.ToString(), OtherUserId, null);
+
+        Assert.IsEmpty(_vm.TypingIndicatorText);
+    }
+
+    [TestMethod]
+    public async Task NewMessage_FromTypingUser_ClearsTypingIndicator()
+    {
+        await InitializeHappyPathAsync();
+
+        FireChatTyping(ChannelId.ToString(), OtherUserId, null);
+        Assert.AreEqual("Other User is typing…", _vm.TypingIndicatorText);
+
+        // The user's message arrives — they are no longer typing.
+        FireNewChatMessage(ChannelId.ToString(), OtherUserId, "Other User", "Sent it!", Guid.NewGuid(), DateTime.UtcNow);
+
+        Assert.IsEmpty(_vm.TypingIndicatorText);
+    }
+
+    [TestMethod]
+    public async Task ComposerText_NonEmpty_EventuallySendsTypingHeartbeat()
+    {
+        await InitializeHappyPathAsync();
+
+        _vm.ComposerText = "Hello there";
+
+        await WaitUntilAsync(() =>
+        {
+            try
+            {
+                _chatApi.Verify(
+                    x => x.NotifyTypingAsync(ServerUrl, It.IsAny<string>(), ChannelId, It.IsAny<CancellationToken>()),
+                    Times.AtLeastOnce);
+                return true;
+            }
+            catch (Moq.MockException)
+            {
+                return false;
+            }
+        }, TimeSpan.FromSeconds(2));
+
+        // Stop the background heartbeat loop so it doesn't linger after the test.
+        _vm.ComposerText = string.Empty;
+    }
+
+    [TestMethod]
+    public async Task ComposerText_Cleared_StopsSendingHeartbeats()
+    {
+        await InitializeHappyPathAsync();
+
+        _vm.ComposerText = "Typing...";
+        await WaitUntilAsync(() =>
+        {
+            try
+            {
+                _chatApi.Verify(
+                    x => x.NotifyTypingAsync(ServerUrl, It.IsAny<string>(), ChannelId, It.IsAny<CancellationToken>()),
+                    Times.AtLeastOnce);
+                return true;
+            }
+            catch (Moq.MockException)
+            {
+                return false;
+            }
+        }, TimeSpan.FromSeconds(2));
+
+        var callsBeforeClear = _chatApi.Invocations.Count(i => i.Method.Name == nameof(IChatRestClient.NotifyTypingAsync));
+
+        _vm.ComposerText = string.Empty;
+
+        // Give a stale in-flight heartbeat a chance to fire, then assert no new calls
+        // (the heartbeat loop is cancelled as soon as the composer is cleared).
+        await Task.Delay(300);
+        var callsAfterClear = _chatApi.Invocations.Count(i => i.Method.Name == nameof(IChatRestClient.NotifyTypingAsync));
+
+        Assert.AreEqual(callsBeforeClear, callsAfterClear, "Heartbeats must stop after the composer is cleared.");
     }
 
     // ══════════════════════════════════════════════════════════════════
@@ -926,5 +1065,27 @@ public sealed class MessageListViewModelTests
             senderUserId);
 
         _signalR.Raise(x => x.OnNewChatMessage += null, _signalR.Object, args);
+    }
+
+    /// <summary>
+    /// Fires the <c>OnChatTyping</c> event on the SignalR mock, simulating a typing heartbeat.
+    /// </summary>
+    private void FireChatTyping(string channelId, Guid userId, string? displayName)
+    {
+        _signalR.Raise(x => x.OnChatTyping += null, _signalR.Object, new ChatTypingEventArgs(channelId, userId, displayName));
+    }
+
+    /// <summary>Polls until <paramref name="condition"/> returns true or the timeout elapses.</summary>
+    private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            if (condition())
+                return;
+            await Task.Delay(50);
+        }
+
+        Assert.Fail($"Condition was not met within {timeout.TotalSeconds}s.");
     }
 }

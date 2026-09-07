@@ -10,13 +10,9 @@
 
 <div class="chat-layout">
     <div class="chat-sidebar">
-        <ChannelList Channels="@_channels"
-                     IsLoading="@_isLoadingChannels"
-                     ErrorMessage="@_channelErrorMessage"
-                     OnChannelSelected="@HandleChannelSelected"
-                     OnCreateChannel="@HandleCreateChannel"
-                     OnChannelReordered="@HandleChannelReordered"
-                     OnNewDm="@HandleOpenDmUserPicker" />
+        <ChannelList Channels="@_channels" IsLoading="@_isLoadingChannels" ErrorMessage="@_channelErrorMessage"
+                     OnChannelSelected="@HandleChannelSelected" OnCreateChannel="@HandleCreateChannel"
+                     OnChannelReordered="@HandleChannelReordered" OnNewDm="@HandleOpenDmUserPicker" />
 
         <ModuleHelpLink ModuleId="chat" Collapsed="false" />
     </div>
@@ -24,40 +20,31 @@
     <div class="chat-main">
         @if (_activeAnnouncement is not null)
         {
-            <AnnouncementBanner Announcement="@_activeAnnouncement"
-                                IsAcknowledged="false"
-                                OnAcknowledge="@HandleAcknowledgeAnnouncement"
-                                OnDismiss="@HandleDismissAnnouncement" />
+            <AnnouncementBanner Announcement="@_activeAnnouncement" IsAcknowledged="false"
+                                OnAcknowledge="@HandleAcknowledgeAnnouncement" OnDismiss="@HandleDismissAnnouncement" />
         }
 
-        <ChannelHeader Channel="@_selectedChannel"
-                       IsAdminOrOwner="@_currentUserIsAdminOrOwner"
-                       HasActiveCall="@_hasActiveCall"
-                       IsDirectPeerBlocked="@IsSelectedDirectPeerBlocked"
-                       OnPinChanged="@HandlePinChanged"
-                       OnMuteChanged="@HandleMuteChanged"
-                       OnToggleDirectPeerBlock="@HandleToggleDirectPeerBlock"
-                       OnEditChannel="@HandleEditChannel"
-                       OnArchiveChannel="@HandleArchiveChannel"
-                       OnLeaveChannel="@HandleLeaveChannel"
-                       OnToggleMemberList="@HandleToggleMemberList"
-                       OnSearch="@HandleSearch"
-                       OnInvite="@HandleOpenInviteDialog"
-                       OnAddPeople="@HandleOpenChannelAddPeoplePicker"
-                       OnAudioCall="@HandleStartAudioCall"
-                       OnVideoCall="@HandleStartVideoCall"
-                       OnJoinCall="@HandleJoinActiveCall"
+        <ChannelHeader Channel="@_selectedChannel" IsAdminOrOwner="@_currentUserIsAdminOrOwner"
+                       HasActiveCall="@_hasActiveCall" IsDirectPeerBlocked="@IsSelectedDirectPeerBlocked"
+                       IsChatSoundEnabled="@_chatSoundEnabled" OnToggleChatSound="@HandleToggleChatSound"
+                       OnPinChanged="@HandlePinChanged" OnMuteChanged="@HandleMuteChanged"
+                       OnToggleDirectPeerBlock="@HandleToggleDirectPeerBlock" OnEditChannel="@HandleEditChannel"
+                       OnArchiveChannel="@HandleArchiveChannel" OnLeaveChannel="@HandleLeaveChannel"
+                       OnToggleMemberList="@HandleToggleMemberList" OnSearch="@HandleSearch" OnInvite="@HandleOpenInviteDialog"
+                       OnAddPeople="@HandleOpenChannelAddPeoplePicker" OnAudioCall="@HandleStartAudioCall"
+                       OnVideoCall="@HandleStartVideoCall" OnJoinCall="@HandleJoinActiveCall"
                        OnCallHistory="@HandleToggleCallHistory" />
 
         @if (_isSearchOpen && _selectedChannel is not null)
         {
             <div class="chat-search-panel">
                 <div class="search-input-row">
-                    <input type="text" class="search-input" placeholder="Search messages..." @bind="_searchQuery" @bind:event="oninput" />
+                    <input type="text" class="search-input" placeholder="Search messages..." @bind="_searchQuery"
+                           @bind:event="oninput" />
                     <button class="btn btn-sm btn-primary" @onclick="() => HandleSearchSubmit(_searchQuery)">Search</button>
                     <button class="btn btn-sm" @onclick="HandleCloseSearch" title="Close search">
-       <MaterialIcon Icon="close" />
-   </button>
+                        <MaterialIcon Icon="close" />
+                    </button>
                 </div>
                 @if (_isSearching)
                 {
@@ -70,7 +57,7 @@
                         {
                             <div class="search-result-item" @onclick="() => HandleChannelSelected(_selectedChannel)">
                                 <span class="search-result-sender">@result.SenderName</span>
-                                <span class="search-result-time">@result.SentAt.ToString("MMM d, HH:mm")</span>
+                                <span class="search-result-time">@FormatSearchResultTime(result.SentAt)</span>
                                 <div class="search-result-content">@result.Content</div>
                             </div>
                         }
@@ -85,97 +72,79 @@
 
         <div class="chat-content-area">
             <div class="chat-messages-wrapper">
-                <MessageList Messages="@_messages"
-                             IsLoading="@_isLoadingMessages"
-                             IsLoadingMore="@_isLoadingMore"
-                             ErrorMessage="@_messageErrorMessage"
-                             HasMoreMessages="@_hasMoreMessages"
-                             TypingUsers="@_typingUsers"
-                             ChannelSelected="@(_selectedChannel is not null)"
-                             CurrentUserId="@_currentUserId"
-                             EditingMessage="@_editingMessage"
-                             OnLoadMore="@HandleLoadMoreMessages"
-                             OnReactionToggle="@HandleReactionToggle"
-                             OnEditMessage="@HandleStartEditMessage"
-                             OnDeleteMessage="@HandleDeleteMessage"
-                             OnReplyToMessage="@HandleReplyToMessage" />
+                <MessageList Messages="@_messages" IsLoading="@_isLoadingMessages" IsLoadingMore="@_isLoadingMore"
+                             ErrorMessage="@_messageErrorMessage" HasMoreMessages="@_hasMoreMessages" TypingUsers="@_typingUsers"
+                             ChannelSelected="@(_selectedChannel is not null)" CurrentUserId="@_currentUserId"
+                             EditingMessage="@_editingMessage" OnLoadMore="@HandleLoadMoreMessages"
+                             OnReactionToggle="@HandleReactionToggle" OnEditMessage="@HandleStartEditMessage"
+                             OnDeleteMessage="@HandleDeleteMessage" OnReplyToMessage="@HandleReplyToMessage" />
 
                 @if (_selectedChannel is not null)
                 {
                     @if (IsBlockedBySelectedPeer)
                     {
                         <div class="chat-blocked-banner">
-                            <span class="blocked-icon"><MaterialIcon Icon="block" /></span>
+                            <span class="blocked-icon">
+                                <MaterialIcon Icon="block" />
+                            </span>
                             <span>You have been blocked by this user. You cannot send messages or make calls.</span>
                         </div>
                     }
                     else
                     {
-                        @if (_pendingAttachments.Count > 0)
+                        @if (_pendingAttachments.Count > 0 || IsUploadingImage)
                         {
                             <div class="pending-attachments-preview">
+                                @if (IsUploadingImage)
+                                {
+                                    <div class="pending-upload-item" role="status" aria-live="polite">
+                                        <span class="pending-upload-spinner" aria-hidden="true"></span>
+                                        <span class="pending-upload-label">Uploading image…</span>
+                                    </div>
+                                }
                                 @foreach (var attachment in _pendingAttachments)
                                 {
                                     <div class="pending-attachment-item">
                                         <img src="@attachment.Url" alt="@attachment.FileName" class="pending-attachment-thumb" />
                                         <span class="pending-attachment-name">@attachment.FileName</span>
-                                        <button class="pending-attachment-remove" @onclick="() => HandleRemovePendingAttachment(attachment.Id)" title="Remove">
-                            <MaterialIcon Icon="close" />
-                        </button>
+                                        <button class="pending-attachment-remove"
+                                                @onclick="() => HandleRemovePendingAttachment(attachment.Id)" title="Remove">
+                                            <MaterialIcon Icon="close" />
+                                        </button>
                                     </div>
                                 }
                             </div>
                         }
 
-                        <MessageComposer ChannelName="@_selectedChannel.Name"
-                                         ChannelType="@_selectedChannel.Type"
-                                         ChannelId="@_selectedChannel.Id"
-                                         HasPendingAttachments="@(_pendingAttachments.Count > 0)"
-                                         ReplyToMessage="@_replyToMessage"
-                                         EditingMessage="@_editingMessage"
-                                         MentionSuggestions="@_memberSuggestions"
-                                         OnSend="@HandleSendMessage"
-                                         OnEditSend="@HandleEditMessage"
-                                         OnCancelReply="@HandleCancelReply"
-                                         OnCancelEdit="@HandleCancelEditMessage"
-                                         OnTyping="@HandleTyping"
-                                         OnAttach="@HandleAttach"
-                                         OnPasteImage="@HandlePasteImage" />
+                        <MessageComposer ChannelName="@_selectedChannel.Name" ChannelType="@_selectedChannel.Type"
+                                         ChannelId="@_selectedChannel.Id" HasPendingAttachments="@(_pendingAttachments.Count > 0)"
+                                         ReplyToMessage="@_replyToMessage" EditingMessage="@_editingMessage"
+                                         MentionSuggestions="@_memberSuggestions" OnSend="@HandleSendMessage" OnEditSend="@HandleEditMessage"
+                                         OnCancelReply="@HandleCancelReply" OnCancelEdit="@HandleCancelEditMessage" OnTyping="@HandleTyping"
+                                         OnAttach="@HandleAttach" OnPasteImage="@HandlePasteImage"
+                                         OnUploadActivityChanged="HandleImageUploadStateChanged" />
 
-                        <input type="file"
-                               id="@_fileInputId"
-                               accept="image/*"
-                               style="display:none"
-                               @ref="_fileInputRef" />
+                        <input type="file" id="@_fileInputId" accept="image/*" style="display:none" @ref="_fileInputRef" />
                     }
                 }
             </div>
 
             @if (_showMemberPanel)
             {
-                <MemberListPanel Members="@_members"
-                                 CanManageMembers="@_currentUserIsAdminOrOwner"
-                                 CurrentUserId="@_currentUserId"
-                                 IsChannelMuted="@(_selectedChannel?.IsMuted ?? false)"
-                                 BlockedUserIds="@_blockedUserIds"
-                                 OnClose="@HandleCloseMemberPanel"
-                                 OnPromoteMember="@HandlePromoteMember"
-                                 OnDemoteMember="@HandleDemoteMember"
-                                 OnRemoveMember="@HandleRemoveMember"
-                                 OnAddPeople="@HandleOpenChannelAddPeoplePicker"
-                                 OnAudioCallUser="@HandleAudioCallUser"
-                                 OnVideoCallUser="@HandleVideoCallUser"
+                <MemberListPanel Members="@_members" CanManageMembers="@_currentUserIsAdminOrOwner"
+                                 CurrentUserId="@_currentUserId" IsChannelMuted="@(_selectedChannel?.IsMuted ?? false)"
+                                 BlockedUserIds="@_blockedUserIds" OnClose="@HandleCloseMemberPanel"
+                                 OnPromoteMember="@HandlePromoteMember" OnDemoteMember="@HandleDemoteMember"
+                                 OnRemoveMember="@HandleRemoveMember" OnAddPeople="@HandleOpenChannelAddPeoplePicker"
+                                 OnAudioCallUser="@HandleAudioCallUser" OnVideoCallUser="@HandleVideoCallUser"
                                  OnToggleBlockUser="@HandleToggleBlockUser" />
             }
 
             @if (_showCallHistoryPanel)
             {
-                <CallHistoryPanel Calls="@_callHistory"
-                                  IsLoading="@_isLoadingCallHistory"
-                                  IsLoadingMore="@_isLoadingMoreCallHistory"
-                                  HasMore="@_hasMoreCallHistory"
-                                  OnClose="@HandleCloseCallHistory"
-                                  OnLoadMore="@HandleLoadMoreCallHistory"
+                <CallHistoryPanel Calls="@_callHistory" IsLoading="@_isLoadingCallHistory"
+                                  IsLoadingMore="@_isLoadingMoreCallHistory" HasMore="@_hasMoreCallHistory"
+                                  OnClose="@HandleCloseCallHistory" OnLoadMore="@HandleLoadMoreCallHistory"
                                   OnCallBack="@HandleCallBack" />
             }
         </div>
@@ -184,26 +153,18 @@
 
 @if (_showSettingsDialog && _selectedChannel is not null)
 {
-    <ChannelSettingsDialog IsVisible="@_showSettingsDialog"
-                           Channel="@_selectedChannel"
-                           Members="@_members"
-                           CanManageChannel="@_currentUserIsAdminOrOwner"
-                           OnSave="@HandleSaveChannelSettings"
+    <ChannelSettingsDialog IsVisible="@_showSettingsDialog" Channel="@_selectedChannel" Members="@_members"
+                           CanManageChannel="@_currentUserIsAdminOrOwner" OnSave="@HandleSaveChannelSettings"
                            OnNotificationPrefChanged="@HandleNotificationPrefChanged"
-                           OnArchive="@(() => HandleArchiveChannel(_selectedChannel))"
-                           OnDelete="@HandleDeleteChannel"
-                           OnClose="@HandleCloseSettingsDialog"
-                           OnAddMember="@HandleAddMember"
-                           OnRemoveMember="@HandleRemoveMember"
+                           OnArchive="@(() => HandleArchiveChannel(_selectedChannel))" OnDelete="@HandleDeleteChannel"
+                           OnClose="@HandleCloseSettingsDialog" OnAddMember="@HandleAddMember" OnRemoveMember="@HandleRemoveMember"
                            OnChangeMemberRole="@HandleChangeMemberRole" />
 }
 
 @if (_showAnnouncementEditor)
 {
-    <AnnouncementEditor IsVisible="@_showAnnouncementEditor"
-                        IsEditing="@_isEditingAnnouncement"
-                        OnSave="@HandleSaveAnnouncement"
-                        OnCancel="@HandleCloseAnnouncementEditor" />
+    <AnnouncementEditor IsVisible="@_showAnnouncementEditor" IsEditing="@_isEditingAnnouncement"
+                        OnSave="@HandleSaveAnnouncement" OnCancel="@HandleCloseAnnouncementEditor" />
 }
 
 @if (_showInviteDialog && _selectedChannel is not null)
@@ -213,8 +174,8 @@
             <div class="dialog-header">
                 <h2>Invite to #@_selectedChannel.Name</h2>
                 <button class="btn btn-sm" @onclick="HandleCloseInviteDialog">
-    <MaterialIcon Icon="close" />
-</button>
+                    <MaterialIcon Icon="close" />
+                </button>
             </div>
             <div class="dialog-body">
                 <div class="settings-section">
@@ -223,7 +184,8 @@
                 </div>
                 <div class="settings-section">
                     <label>Message (optional)</label>
-                    <input type="text" @bind="_inviteMessage" placeholder="Add a note to your invite" disabled="@_isInviting" />
+                    <input type="text" @bind="_inviteMessage" placeholder="Add a note to your invite"
+                           disabled="@_isInviting" />
                 </div>
 
                 @if (_inviteErrorMessage is not null)
@@ -236,7 +198,8 @@
                 }
 
                 <div class="settings-actions">
-                    <button class="btn btn-primary" @onclick="HandleSendInvite" disabled="@(_isInviting || string.IsNullOrWhiteSpace(_inviteUsername))">
+                    <button class="btn btn-primary" @onclick="HandleSendInvite"
+                            disabled="@(_isInviting || string.IsNullOrWhiteSpace(_inviteUsername))">
                         @(_isInviting ? "Sending..." : "Send Invite")
                     </button>
                     <button class="btn" @onclick="HandleCloseInviteDialog">Cancel</button>
@@ -252,15 +215,15 @@
         <div class="dialog dm-user-picker-dialog" @onclick:stopPropagation="true">
             <div class="dm-picker-header">
                 <div class="dm-picker-title-row">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round">
                         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                     </svg>
                     <h3 class="dm-picker-title">New Direct Message</h3>
                 </div>
                 <button class="dm-picker-close" @onclick="HandleCloseDmUserPicker" aria-label="Close">
-    <MaterialIcon Icon="close" />
-</button>
+                    <MaterialIcon Icon="close" />
+                </button>
             </div>
             <div class="dm-picker-body">
                 <div class="dm-picker-search-wrapper">
@@ -269,14 +232,9 @@
                         <circle cx="11" cy="11" r="8" />
                         <line x1="21" y1="21" x2="16.65" y2="16.65" />
                     </svg>
-                    <input type="search"
-                           class="dm-picker-search-input"
-                           @ref="_dmSearchInputRef"
-                           @bind="_dmSearchTerm"
-                           @bind:event="oninput"
-                           @bind:after="() => SearchUsersForDmAsync(_dmSearchTerm)"
-                           placeholder="Search by name or email…"
-                           aria-label="Search users for a direct message" />
+                    <input type="search" class="dm-picker-search-input" @ref="_dmSearchInputRef" @bind="_dmSearchTerm"
+                           @bind:event="oninput" @bind:after="() => SearchUsersForDmAsync(_dmSearchTerm)"
+                           placeholder="Search by name or email…" aria-label="Search users for a direct message" />
                 </div>
 
                 @if (!string.IsNullOrWhiteSpace(_dmSearchError))
@@ -302,156 +260,135 @@
                                     }
                                     else
                                     {
-                                        <span class="dm-picker-avatar">@(user.DisplayName.Length > 0 ? user.DisplayName.Substring(0, 1).ToUpperInvariant() : "?")</span>
-                                    }
-                                    <span class="dm-picker-user-info">
-                                        <span class="dm-picker-name">@user.DisplayName</span>
-                                        <span class="dm-picker-email">@user.Email</span>
-                                    </span>
-                                </button>
-                                <span class="dm-picker-actions">
-                                    <button type="button" class="dm-picker-icon-btn" title="Send a message"
-                                            @onclick="() => StartDmWithUserAsync(user.UserId)">
-                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                                        </svg>
+                                        <span class="dm-picker-avatar">@(user.DisplayName.Length > 0 ? user.DisplayName.Substring(0,
+                                                                                                                    1).ToUpperInvariant() : "?")</span>
+                                        }
+                                        <span class="dm-picker-user-info">
+                                            <span class="dm-picker-name">@user.DisplayName</span>
+                                            <span class="dm-picker-email">@user.Email</span>
+                                        </span>
                                     </button>
-                                    <button type="button" class="dm-picker-icon-btn" title="Audio call"
-                                            @onclick="@(() => CallUserDirectlyAsync(user.UserId, "Audio"))">📞</button>
-                                    <button type="button" class="dm-picker-icon-btn" title="Video call"
-                                            @onclick="@(() => CallUserDirectlyAsync(user.UserId, "Video"))">📹</button>
-                                </span>
-                            </div>
-                        }
-                    </div>
-                }
+                                    <span class="dm-picker-actions">
+                                        <button type="button" class="dm-picker-icon-btn" title="Send a message"
+                                                @onclick="() => StartDmWithUserAsync(user.UserId)">
+                                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                                            </svg>
+                                        </button>
+                                        <button type="button" class="dm-picker-icon-btn" title="Audio call"
+                                                @onclick="@(() => CallUserDirectlyAsync(user.UserId, "Audio"))">📞</button>
+                                        <button type="button" class="dm-picker-icon-btn" title="Video call"
+                                                @onclick="@(() => CallUserDirectlyAsync(user.UserId, "Video"))">📹</button>
+                                    </span>
+                                </div>
+                            }
+                        </div>
+                    }
                 else if (!string.IsNullOrWhiteSpace(_dmSearchTerm))
-                {
-                    <p class="dm-picker-status">No users found matching "<strong>@_dmSearchTerm</strong>"</p>
-                }
+                    {
+                        <p class="dm-picker-status">No users found matching "<strong>@_dmSearchTerm</strong>"</p>
+                    }
+                </div>
             </div>
         </div>
-    </div>
-}
+    }
 
-@if (_showChannelAddPeoplePicker && _selectedChannel is not null)
-{
-    <div class="dialog-overlay" @onclick="HandleCloseChannelAddPeoplePicker">
-        <div class="dialog dm-user-picker-dialog" @onclick:stopPropagation="true">
-            <div class="dm-picker-header">
-                <div class="dm-picker-title-row">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                        <circle cx="8.5" cy="7" r="4" />
-                        <line x1="20" y1="8" x2="20" y2="14" />
-                        <line x1="23" y1="11" x2="17" y2="11" />
-                    </svg>
-                    <h3 class="dm-picker-title">Add People to #@_selectedChannel.Name</h3>
+    @if (_showChannelAddPeoplePicker && _selectedChannel is not null)
+    {
+        <div class="dialog-overlay" @onclick="HandleCloseChannelAddPeoplePicker">
+            <div class="dialog dm-user-picker-dialog" @onclick:stopPropagation="true">
+                <div class="dm-picker-header">
+                    <div class="dm-picker-title-row">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                             stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                            <circle cx="8.5" cy="7" r="4" />
+                            <line x1="20" y1="8" x2="20" y2="14" />
+                            <line x1="23" y1="11" x2="17" y2="11" />
+                        </svg>
+                        <h3 class="dm-picker-title">Add People to #@_selectedChannel.Name</h3>
+                    </div>
+                    <button class="dm-picker-close" @onclick="HandleCloseChannelAddPeoplePicker" aria-label="Close">
+                        <MaterialIcon Icon="close" />
+                    </button>
                 </div>
-                <button class="dm-picker-close" @onclick="HandleCloseChannelAddPeoplePicker" aria-label="Close">
-    <MaterialIcon Icon="close" />
-</button>
-            </div>
-            <div class="dm-picker-body">
-                <div class="dm-picker-search-wrapper">
-                    <svg class="dm-picker-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none"
-                         stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="11" cy="11" r="8" />
-                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                    </svg>
-                    <input type="search"
-                           class="dm-picker-search-input"
-                           @bind="_channelAddPeopleSearchTerm"
-                           @bind:event="oninput"
-                           @bind:after="() => SearchUsersForChannelAddAsync(_channelAddPeopleSearchTerm)"
-                           placeholder="Search by name or email…"
-                           aria-label="Search people to add" />
-                </div>
+                <div class="dm-picker-body">
+                    <div class="dm-picker-search-wrapper">
+                        <svg class="dm-picker-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="11" cy="11" r="8" />
+                            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                        </svg>
+                        <input type="search" class="dm-picker-search-input" @bind="_channelAddPeopleSearchTerm"
+                               @bind:event="oninput" @bind:after="() => SearchUsersForChannelAddAsync(_channelAddPeopleSearchTerm)"
+                               placeholder="Search by name or email…" aria-label="Search people to add" />
+                    </div>
 
-                @if (_isChannelAddPeopleSearching)
-                {
-                    <p class="dm-picker-status">Searching…</p>
-                }
-                else if (_channelAddPeopleResults.Count > 0)
-                {
-                    <div class="dm-picker-results">
-                        @foreach (var user in _channelAddPeopleResults)
-                        {
-                            <div class="dm-picker-result">
-                                <button type="button" class="dm-picker-result-main" title="Add @user.DisplayName"
-                                        @onclick="() => AddUserToCurrentChannelAsync(user.UserId)">
-                                    @if (!string.IsNullOrEmpty(user.AvatarUrl))
-                                    {
-                                        <img class="dm-picker-avatar-img" src="@user.AvatarUrl" alt="@user.DisplayName" />
-                                    }
-                                    else
-                                    {
-                                        <span class="dm-picker-avatar">@(user.DisplayName.Length > 0 ? user.DisplayName.Substring(0, 1).ToUpperInvariant() : "?")</span>
-                                    }
-                                    <span class="dm-picker-user-info">
-                                        <span class="dm-picker-name">@user.DisplayName</span>
-                                        <span class="dm-picker-email">@user.Email</span>
-                                    </span>
-                                </button>
-                                <span class="dm-picker-actions">
-                                    <button type="button" class="dm-picker-icon-btn" title="Add to channel"
+                    @if (_isChannelAddPeopleSearching)
+                    {
+                        <p class="dm-picker-status">Searching…</p>
+                    }
+                    else if (_channelAddPeopleResults.Count > 0)
+                    {
+                        <div class="dm-picker-results">
+                            @foreach (var user in _channelAddPeopleResults)
+                            {
+                                <div class="dm-picker-result">
+                                    <button type="button" class="dm-picker-result-main" title="Add @user.DisplayName"
                                             @onclick="() => AddUserToCurrentChannelAsync(user.UserId)">
-                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                             stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                            <line x1="12" y1="5" x2="12" y2="19" />
-                                            <line x1="5" y1="12" x2="19" y2="12" />
-                                        </svg>
-                                    </button>
-                                </span>
+                                        @if (!string.IsNullOrEmpty(user.AvatarUrl))
+                                        {
+                                            <img class="dm-picker-avatar-img" src="@user.AvatarUrl" alt="@user.DisplayName" />
+                                        }
+                                        else
+                                        {
+                                            <span class="dm-picker-avatar">@(user.DisplayName.Length > 0 ? user.DisplayName.Substring(0,
+                                                                                                                            1).ToUpperInvariant() : "?")</span>
+                                            }
+                                            <span class="dm-picker-user-info">
+                                                <span class="dm-picker-name">@user.DisplayName</span>
+                                                <span class="dm-picker-email">@user.Email</span>
+                                            </span>
+                                        </button>
+                                        <span class="dm-picker-actions">
+                                            <button type="button" class="dm-picker-icon-btn" title="Add to channel"
+                                                    @onclick="() => AddUserToCurrentChannelAsync(user.UserId)">
+                                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                                     stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                                    <line x1="12" y1="5" x2="12" y2="19" />
+                                                    <line x1="5" y1="12" x2="19" y2="12" />
+                                                </svg>
+                                            </button>
+                                        </span>
+                                    </div>
+                                }
                             </div>
                         }
-                    </div>
-                }
                 else if (!string.IsNullOrWhiteSpace(_channelAddPeopleSearchTerm))
-                {
-                    <p class="dm-picker-status">No users found matching "<strong>@_channelAddPeopleSearchTerm</strong>"</p>
-                }
+                        {
+                            <p class="dm-picker-status">No users found matching "<strong>@_channelAddPeopleSearchTerm</strong>"</p>
+                        }
+                    </div>
+                </div>
             </div>
-        </div>
-    </div>
-}
+        }
 
-<VideoCallDialog IsVisible="@_showVideoCallDialog"
-                 ChannelName="@(_selectedChannel?.Name ?? "")"
-                 CallState="@_currentCallState"
-                 LocalDisplayName="@_currentUserDisplayName"
-                 LocalAvatarUrl="@(_avatarUrlCache.GetValueOrDefault(_currentUserId))"
-                 CurrentUserId="@_currentUserId"
-                 HostUserId="@(_currentCallHostUserId ?? Guid.Empty)"
-                 RemoteParticipants="@_remoteParticipants"
-                 IsMuted="@_isCallMuted"
-                 IsCameraOff="@_isCallCameraOff"
-                 IsScreenSharing="@_isCallScreenSharing"
-                 IsBackgroundBlurred="@_isCallBackgroundBlurred"
-                 IsBlurSupported="@_isBlurSupported"
-                 HasVirtualBackground="@_hasVirtualBackground"
-                 ActiveVirtualBackgroundUrl="@_activeVirtualBackgroundUrl"
-                 BlurIntensity="@_blurIntensity"
-                 VirtualBackgrounds="@DefaultVirtualBackgrounds"
-                 DurationSeconds="@_callDurationSeconds"
-                 ConnectionQuality="@_callConnectionQuality"
-                 ShowAddPeoplePicker="@_showCallAddPeoplePicker"
-                 AddPeopleSearchTerm="@_callAddPeopleSearchTerm"
-                 IsAddPeopleSearching="@_isCallAddPeopleSearching"
-                 AddPeopleSearchResults="@_callAddPeopleResults"
-                 OnToggleMute="@HandleCallToggleMute"
-                 OnToggleCamera="@HandleCallToggleCamera"
-                 OnToggleScreenShare="@HandleCallToggleScreenShare"
-                 OnToggleBackgroundBlur="@HandleCallToggleBackgroundBlur"
-                 OnBlurIntensityChanged="@HandleCallBlurIntensityChanged"
-                 OnVirtualBackgroundSelected="@HandleCallVirtualBackgroundSelected"
-                 OnAddPeople="@HandleOpenCallAddPeoplePicker"
-                 OnCloseAddPeoplePicker="@HandleCloseCallAddPeoplePicker"
-                 OnAddPeopleSearchChanged="@SearchUsersForCallAddAsync"
-                 OnInviteToCall="@InviteUserToCurrentCallAsync"
-                 OnTransferHost="@TransferHostAsync"
-                 OnHangUp="@HandleCallHangUp"
-                 OnMinimize="@HandleCallMinimize"
-                 OnPipClick="@HandleCallPipClick" />
+        <VideoCallDialog IsVisible="@_showVideoCallDialog" ChannelName="@(_selectedChannel?.Name ?? "")"
+                         CallState="@_currentCallState" LocalDisplayName="@_currentUserDisplayName"
+                         LocalAvatarUrl="@(_avatarUrlCache.GetValueOrDefault(_currentUserId))" CurrentUserId="@_currentUserId"
+                         HostUserId="@(_currentCallHostUserId ?? Guid.Empty)" RemoteParticipants="@_remoteParticipants"
+                         IsMuted="@_isCallMuted" IsCameraOff="@_isCallCameraOff" IsScreenSharing="@_isCallScreenSharing"
+                         IsBackgroundBlurred="@_isCallBackgroundBlurred" IsBlurSupported="@_isBlurSupported"
+                         HasVirtualBackground="@_hasVirtualBackground" ActiveVirtualBackgroundUrl="@_activeVirtualBackgroundUrl"
+                         BlurIntensity="@_blurIntensity" VirtualBackgrounds="@DefaultVirtualBackgrounds"
+                         DurationSeconds="@_callDurationSeconds" ConnectionQuality="@_callConnectionQuality"
+                         ShowAddPeoplePicker="@_showCallAddPeoplePicker" AddPeopleSearchTerm="@_callAddPeopleSearchTerm"
+                         IsAddPeopleSearching="@_isCallAddPeopleSearching" AddPeopleSearchResults="@_callAddPeopleResults"
+                         OnToggleMute="@HandleCallToggleMute" OnToggleCamera="@HandleCallToggleCamera"
+                         OnToggleScreenShare="@HandleCallToggleScreenShare" OnToggleBackgroundBlur="@HandleCallToggleBackgroundBlur"
+                         OnBlurIntensityChanged="@HandleCallBlurIntensityChanged"
+                         OnVirtualBackgroundSelected="@HandleCallVirtualBackgroundSelected" OnAddPeople="@HandleOpenCallAddPeoplePicker"
+                         OnCloseAddPeoplePicker="@HandleCloseCallAddPeoplePicker" OnAddPeopleSearchChanged="@SearchUsersForCallAddAsync"
+                         OnInviteToCall="@InviteUserToCurrentCallAsync" OnTransferHost="@TransferHostAsync" OnHangUp="@HandleCallHangUp"
+                         OnMinimize="@HandleCallMinimize" OnPipClick="@HandleCallPipClick" />

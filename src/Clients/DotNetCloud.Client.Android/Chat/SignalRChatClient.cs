@@ -32,7 +32,8 @@ internal sealed record SignalRMessageDto(
     [property: JsonPropertyName("senderUserId")] Guid SenderUserId,
     [property: JsonPropertyName("senderName")] string? SenderName,
     [property: JsonPropertyName("sentAt")] DateTime SentAt,
-    [property: JsonPropertyName("attachments")] IReadOnlyList<SignalRAttachmentDto>? Attachments = null);
+    [property: JsonPropertyName("attachments")] IReadOnlyList<SignalRAttachmentDto>? Attachments = null,
+    [property: JsonPropertyName("linkPreview")] SignalRLinkPreviewDto? LinkPreview = null);
 
 /// <summary>
 /// Server payload for new messages: { channelId, message }.
@@ -40,6 +41,14 @@ internal sealed record SignalRMessageDto(
 internal sealed record NewMessagePayload(
     [property: JsonPropertyName("channelId")] string ChannelId,
     [property: JsonPropertyName("message")] SignalRMessageDto Message);
+
+/// <summary>
+/// Server payload for typing indicators: { channelId, userId, displayName }.
+/// </summary>
+internal sealed record TypingIndicatorPayload(
+    [property: JsonPropertyName("channelId")] string ChannelId,
+    [property: JsonPropertyName("userId")] Guid UserId,
+    [property: JsonPropertyName("displayName")] string? DisplayName = null);
 
 /// <summary>
 /// <see cref="ICoreHubClient"/> implementation that maintains a persistent SignalR
@@ -72,6 +81,9 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
 
     /// <inheritdoc />
     public event EventHandler<ChatMessageReceivedEventArgs>? OnNewChatMessage;
+
+    /// <inheritdoc />
+    public event EventHandler<ChatTypingEventArgs>? OnChatTyping;
 
     /// <inheritdoc />
     public event Action? CalendarsChanged;
@@ -128,6 +140,14 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
         _hub.On<UnreadCountUpdatedPayload>("UnreadCountUpdated", payload =>
             OnUnreadCountUpdated?.Invoke(this, new ChatUnreadCountUpdatedEventArgs(payload.ChannelId, payload.Count, payload.HasMention)));
 
+        _hub.On<TypingIndicatorPayload>("TypingIndicator", payload =>
+        {
+#if ANDROID
+            Log.Info("DotNetCloud", $"SignalRChatClient: TypingIndicator channel={payload.ChannelId} userId={payload.UserId} displayName='{payload.DisplayName}'");
+#endif
+            OnChatTyping?.Invoke(this, new ChatTypingEventArgs(payload.ChannelId, payload.UserId, payload.DisplayName));
+        });
+
         _hub.On<NewMessagePayload>("NewMessage", payload =>
         {
             var senderName = !string.IsNullOrEmpty(payload.Message.SenderName)
@@ -143,6 +163,12 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
                 attachmentsJson = JsonSerializer.Serialize(payload.Message.Attachments);
             }
 
+            string? linkPreviewJson = null;
+            if (payload.Message.LinkPreview is not null)
+            {
+                linkPreviewJson = JsonSerializer.Serialize(payload.Message.LinkPreview);
+            }
+
             OnNewChatMessage?.Invoke(this, new ChatMessageReceivedEventArgs(
                 payload.ChannelId,
                 string.Empty,
@@ -152,7 +178,8 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
                 payload.Message.SentAt,
                 false,
                 payload.Message.SenderUserId,
-                attachmentsJson));
+                attachmentsJson,
+                linkPreviewJson));
 
 #if ANDROID
             Log.Info("DotNetCloud", $"SignalR notification: foreground={_foregroundService.IsInForeground}, channelId={payload.ChannelId}");

@@ -20,7 +20,7 @@ namespace DotNetCloud.Client.Android.ViewModels;
 public sealed partial class MessageListViewModel : ObservableObject, IDisposable
 {
     private readonly IChatRestClient _chatApi;
-    private readonly IChatSignalRClient _signalR;
+    private readonly ICoreHubClient _signalR;
     private readonly ILocalMessageCache _cache;
     private readonly IOfflineOperationQueue _offlineQueue;
     private readonly IConnectivityMonitor _connectivity;
@@ -39,8 +39,13 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
     // UserId → display name lookup for resolving sender names
     private Dictionary<Guid, string> _memberLookup = [];
 
-    // Typing indicator debounce
-    private CancellationTokenSource _typingCts = new();
+    // Typing indicator — sends heartbeats while composing and shows remote users typing.
+    private CancellationTokenSource? _typingHeartbeatCts;
+    private static readonly TimeSpan TypingHeartbeatInterval = TimeSpan.FromSeconds(2.5);
+    private static readonly TimeSpan TypingVisibleTimeout = TimeSpan.FromSeconds(5);
+    private readonly Dictionary<Guid, (string DisplayName, DateTime SeenUtc)> _typingUsersByUser = [];
+    private System.Threading.Timer? _typingPruneTimer;
+    private readonly object _typingStateLock = new();
 
     // Pending attachment uploaded to server but waiting for Send button
     private ChatAttachment? _pendingAttachment;
@@ -86,7 +91,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
     /// <summary>Initializes a new <see cref="MessageListViewModel"/>.</summary>
     public MessageListViewModel(
         IChatRestClient chatApi,
-        IChatSignalRClient signalR,
+        ICoreHubClient signalR,
         ILocalMessageCache cache,
         IOfflineOperationQueue offlineQueue,
         IConnectivityMonitor connectivity,
@@ -104,6 +109,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
         _logger = logger;
 
         _signalR.OnNewChatMessage += OnNewChatMessage;
+        _signalR.OnChatTyping += OnChatTyping;
     }
 
     /// <summary>Messages displayed in the list, oldest-first.</summary>
@@ -138,6 +144,13 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private bool _isEmojiPickerOpen;
 
+    /// <summary>
+    /// Text for the "X is typing…" indicator shown above the composer while another
+    /// channel member is typing. Empty when nobody is typing.
+    /// </summary>
+    [ObservableProperty]
+    private string _typingIndicatorText = string.Empty;
+
     /// <summary>Whether the @mention suggestion list should be shown.</summary>
     [ObservableProperty]
     private bool _showMentionSuggestions;
@@ -162,6 +175,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
     {
         _channelId = channelId;
         ChannelName = channelName;
+        ResetRemoteTyping();
 
         _logger.LogInformation("InitializeAsync STARTED for channel {ChannelId} ('{ChannelName}')", channelId, channelName);
 
@@ -289,7 +303,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
             {
                 var senderName = ResolveSenderName(m.SenderUserId, m.SenderName);
                 var isOwn = m.SenderUserId == _currentUserId;
-                Messages.Add(new MessageItemViewModel(m.Id, senderName, m.Content, m.SentAt, isOwn, m.Attachments, _serverUrl));
+                Messages.Add(new MessageItemViewModel(m.Id, senderName, m.Content, m.SentAt, isOwn, m.Attachments, _serverUrl, linkPreview: m.LinkPreview));
             }
 
             _logger.LogInformation("LoadMessagesAsync: Messages.Count={Count} after populate", Messages.Count);
@@ -376,7 +390,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
             {
                 var senderName = ResolveSenderName(m.SenderUserId, m.SenderName);
                 var isOwn = m.SenderUserId == _currentUserId;
-                return new MessageItemViewModel(m.Id, senderName, m.Content, m.SentAt, isOwn, m.Attachments, _serverUrl);
+                return new MessageItemViewModel(m.Id, senderName, m.Content, m.SentAt, isOwn, m.Attachments, _serverUrl, linkPreview: m.LinkPreview);
             }).ToList();
 
             var insertIndex = 0;
@@ -464,7 +478,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
             // OnNewChatMessage handler may have already added it — dedup by ID.
             var senderName = ResolveSenderName(sentMessage.SenderUserId, sentMessage.SenderName);
             var isOwn = sentMessage.SenderUserId == _currentUserId;
-            var vm = new MessageItemViewModel(sentMessage.Id, senderName, sentMessage.Content, sentMessage.SentAt, isOwn, sentMessage.Attachments, _serverUrl);
+            var vm = new MessageItemViewModel(sentMessage.Id, senderName, sentMessage.Content, sentMessage.SentAt, isOwn, sentMessage.Attachments, _serverUrl, linkPreview: sentMessage.LinkPreview);
             if (Messages.All(m => m.Id != sentMessage.Id))
             {
                 Messages.Add(vm);
@@ -632,19 +646,216 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
 
     partial void OnComposerTextChanged(string value)
     {
-        // Debounced typing indicator — fires 500 ms after last keystroke
-        _typingCts.Cancel();
-        _typingCts = new CancellationTokenSource();
-        var token = _typingCts.Token;
-        _ = Task.Run(async () =>
-        {
-            await Task.Delay(500, token).ConfigureAwait(false);
-            if (_serverUrl is not null && _accessToken is not null)
-                await _chatApi.NotifyTypingAsync(_serverUrl, _accessToken, _channelId, token).ConfigureAwait(false);
-        }, token);
-
         // @mention autocomplete — detect trailing @word
         UpdateMentionSuggestions(value);
+
+        // Typing indicator: while the composer has text, send typing heartbeats so
+        // other members see "X is typing…". Heartbeats stop when the text is cleared
+        // (send) or when the page is disposed.
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            StopTypingHeartbeat();
+        }
+        else
+        {
+            StartTypingHeartbeatIfNeeded();
+        }
+    }
+
+    /// <summary>Starts the typing-heartbeat loop if it isn't already running.</summary>
+    private void StartTypingHeartbeatIfNeeded()
+    {
+        if (_typingHeartbeatCts is not null)
+            return;
+
+        var cts = new CancellationTokenSource();
+        _typingHeartbeatCts = cts;
+        _ = RunTypingHeartbeatAsync(cts.Token);
+    }
+
+    /// <summary>Stops the typing-heartbeat loop.</summary>
+    private void StopTypingHeartbeat()
+    {
+        var cts = _typingHeartbeatCts;
+        _typingHeartbeatCts = null;
+        if (cts is null)
+            return;
+
+        try
+        {
+            cts.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Already disposed — nothing to cancel.
+        }
+
+        cts.Dispose();
+    }
+
+    /// <summary>
+    /// Sends a typing heartbeat immediately and then every <see cref="TypingHeartbeatInterval"/>
+    /// while the composer holds text. The server broadcasts the heartbeat to the channel group.
+    /// </summary>
+    private async Task RunTypingHeartbeatAsync(CancellationToken token)
+    {
+        try
+        {
+            while (!token.IsCancellationRequested)
+            {
+                if (_serverUrl is not null && _accessToken is not null && _channelId != Guid.Empty)
+                {
+                    try
+                    {
+                        await _chatApi.NotifyTypingAsync(_serverUrl, _accessToken, _channelId, token).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        return;
+                    }
+                    catch (Exception ex)
+                    {
+                        // Typing is best-effort; never surface to the user.
+                        _logger.LogDebug(ex, "Typing heartbeat failed for channel {ChannelId}.", _channelId);
+                    }
+                }
+
+                try
+                {
+                    await Task.Delay(TypingHeartbeatInterval, token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancelled — stop sending heartbeats.
+        }
+    }
+
+    /// <summary>Handles a typing heartbeat received from another member of this channel.</summary>
+    private void OnChatTyping(object? sender, ChatTypingEventArgs e)
+    {
+        if (!Guid.TryParse(e.ChannelId, out var channelId) || channelId != _channelId)
+            return;
+        if (e.UserId == _currentUserId)
+            return; // Ignore echoes of our own typing.
+
+        // Dispatch to UI thread for ObservableCollection/Property updates.
+        // If not on a UI platform (e.g., unit tests), execute inline.
+        Action dispatch = () =>
+        {
+            var name = ResolveSenderName(e.UserId, e.DisplayName ?? string.Empty);
+            lock (_typingStateLock)
+            {
+                _typingUsersByUser[e.UserId] = (name, DateTime.UtcNow);
+            }
+
+            RefreshTypingIndicator();
+        };
+
+        try
+        {
+            MainThread.BeginInvokeOnMainThread(dispatch);
+        }
+        catch
+        {
+            // Unit test environment without a UI thread — run inline.
+            dispatch();
+        }
+    }
+
+    /// <summary>Removes a user from the typing indicator state (e.g. their message just arrived).</summary>
+    private void RemoveRemoteTyping(Guid userId)
+    {
+        lock (_typingStateLock)
+        {
+            if (!_typingUsersByUser.Remove(userId))
+                return;
+            RefreshTypingIndicatorLocked();
+        }
+    }
+
+    /// <summary>Clears all remote typing state (channel switch / page init).</summary>
+    private void ResetRemoteTyping()
+    {
+        lock (_typingStateLock)
+        {
+            if (_typingUsersByUser.Count == 0 && TypingIndicatorText.Length == 0)
+                return;
+            _typingUsersByUser.Clear();
+            RefreshTypingIndicatorLocked();
+        }
+    }
+
+    /// <summary>Refreshes the typing indicator text and manages the expiry pruner.</summary>
+    private void RefreshTypingIndicator()
+    {
+        lock (_typingStateLock)
+        {
+            RefreshTypingIndicatorLocked();
+        }
+    }
+
+    /// <summary>Callers must hold <see cref="_typingStateLock"/>.</summary>
+    private void RefreshTypingIndicatorLocked()
+    {
+        var cutoff = DateTime.UtcNow - TypingVisibleTimeout;
+        var stale = _typingUsersByUser.Where(kvp => kvp.Value.SeenUtc < cutoff).Select(kvp => kvp.Key).ToList();
+        foreach (var userId in stale)
+            _typingUsersByUser.Remove(userId);
+
+        var names = _typingUsersByUser
+            .OrderBy(kvp => kvp.Value.SeenUtc)
+            .Select(kvp => kvp.Value.DisplayName)
+            .ToList();
+
+        TypingIndicatorText = BuildTypingText(names);
+
+        // Run the pruner only while somebody is typing so the indicator disappears
+        // shortly after the last heartbeat even without a new message.
+        if (_typingUsersByUser.Count == 0)
+        {
+            _typingPruneTimer?.Dispose();
+            _typingPruneTimer = null;
+        }
+        else if (_typingPruneTimer is null)
+        {
+            _typingPruneTimer = new System.Threading.Timer(
+                _ => PruneTypingTimerTick(),
+                null,
+                TimeSpan.FromSeconds(1),
+                TimeSpan.FromSeconds(1));
+        }
+    }
+
+    /// <summary>Timer tick — re-evaluates typing state (on the UI thread when available).</summary>
+    private void PruneTypingTimerTick()
+    {
+        Action dispatch = RefreshTypingIndicator;
+        try
+        {
+            MainThread.BeginInvokeOnMainThread(dispatch);
+        }
+        catch
+        {
+            dispatch();
+        }
+    }
+
+    /// <summary>Builds the indicator text for the given typing display names.</summary>
+    private static string BuildTypingText(IReadOnlyList<string> names)
+    {
+        return names.Count switch
+        {
+            0 => string.Empty,
+            1 => $"{names[0]} is typing…",
+            2 => $"{names[0]} and {names[1]} are typing…",
+            _ => "Several people are typing…"
+        };
     }
 
     private void UpdateMentionSuggestions(string text)
@@ -722,6 +933,29 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
             ["ImageUrl"] = urls.Split('|')[0],
             ["FileName"] = names.Split('|')[0],
         });
+    }
+
+    /// <summary>Opens a message's link preview URL in the system browser.</summary>
+    [RelayCommand]
+    private async Task OpenLinkPreviewAsync(MessageItemViewModel? message)
+    {
+        if (message?.LinkPreview is null || string.IsNullOrWhiteSpace(message.LinkPreview.Url))
+            return;
+
+        if (!Uri.TryCreate(message.LinkPreview.Url, UriKind.Absolute, out var uri)
+            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            return;
+        }
+
+        try
+        {
+            await Launcher.Default.OpenAsync(uri);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to open link preview URL {Url}", uri);
+        }
     }
 
     // ── Search commands ──────────────────────────────────────────────
@@ -815,7 +1049,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
                 var senderName = ResolveSenderName(m.SenderUserId, m.SenderName);
                 var isOwn = m.SenderUserId == _currentUserId;
                 Messages.Insert(insertIndex, new MessageItemViewModel(
-                    m.Id, senderName, m.Content, m.SentAt, isOwn, m.Attachments, _serverUrl));
+                    m.Id, senderName, m.Content, m.SentAt, isOwn, m.Attachments, _serverUrl, linkPreview: m.LinkPreview));
                 insertIndex++;
             }
 
@@ -905,7 +1139,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
                     var isOwn = m.SenderUserId == _currentUserId;
                     Messages.Add(new MessageItemViewModel(
                         m.Id, senderName, m.Content, m.SentAt, isOwn,
-                        m.Attachments, _serverUrl, searchQuery: query));
+                        m.Attachments, _serverUrl, searchQuery: query, linkPreview: m.LinkPreview));
                 }
 
                 if (result.Messages.Count == 0)
@@ -960,7 +1194,10 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         _signalR.OnNewChatMessage -= OnNewChatMessage;
-        _typingCts.Dispose();
+        _signalR.OnChatTyping -= OnChatTyping;
+        StopTypingHeartbeat();
+        _typingPruneTimer?.Dispose();
+        _typingPruneTimer = null;
 
         // Leave the SignalR broadcast group (best-effort, fire-and-forget)
         if (_channelId != Guid.Empty)
@@ -980,6 +1217,9 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
         // If not on a UI platform (e.g., unit tests), execute inline.
         Action dispatch = () =>
         {
+            // The sender just sent a message, so they are no longer typing.
+            RemoveRemoteTyping(e.SenderUserId);
+
             // Dedup: the sending client already added this message from the HTTP response
             // (see SendAsync/AttachFileAsync). Skip the SignalR echo to avoid duplicates.
             if (Messages.Any(m => m.Id == e.MessageId))
@@ -1003,8 +1243,26 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
                 }
             }
 
+            // Parse the link preview from the SignalR payload if present
+            ChatLinkPreview? linkPreview = null;
+            if (!string.IsNullOrEmpty(e.LinkPreviewJson))
+            {
+                try
+                {
+                    var dto = System.Text.Json.JsonSerializer.Deserialize<SignalRLinkPreviewDto>(e.LinkPreviewJson);
+                    if (dto is not null)
+                    {
+                        linkPreview = new ChatLinkPreview(dto.Url, dto.Title, dto.Description, dto.ImageUrl, dto.SiteName, dto.FaviconUrl);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to parse link preview JSON from SignalR message.");
+                }
+            }
+
             var isOwn = e.SenderUserId != Guid.Empty && e.SenderUserId == _currentUserId;
-            var vm = new MessageItemViewModel(e.MessageId, e.SenderDisplayName, e.MessagePreview, new DateTimeOffset(e.SentAt, TimeSpan.Zero), isOwn, attachments, _serverUrl);
+            var vm = new MessageItemViewModel(e.MessageId, e.SenderDisplayName, e.MessagePreview, new DateTimeOffset(e.SentAt, TimeSpan.Zero), isOwn, attachments, _serverUrl, linkPreview: linkPreview);
             Messages.Add(vm);
 
             // Signal the view that a new real-time message arrived so it can auto-scroll
@@ -1034,7 +1292,16 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
 public sealed class MessageItemViewModel
 {
     /// <summary>Initializes a message list item.</summary>
-    public MessageItemViewModel(Guid id, string senderName, string content, DateTimeOffset sentAt, bool isOwnMessage = false, IReadOnlyList<ChatAttachment>? attachments = null, string? serverBaseUrl = null, string? searchQuery = null)
+    public MessageItemViewModel(
+        Guid id,
+        string senderName,
+        string content,
+        DateTimeOffset sentAt,
+        bool isOwnMessage = false,
+        IReadOnlyList<ChatAttachment>? attachments = null,
+        string? serverBaseUrl = null,
+        string? searchQuery = null,
+        ChatLinkPreview? linkPreview = null)
     {
         Id = id;
         SenderName = senderName;
@@ -1043,6 +1310,17 @@ public sealed class MessageItemViewModel
         IsOwnMessage = isOwnMessage;
         Attachments = attachments ?? [];
         HasImageAttachment = Attachments.Any(a => a.MimeType.StartsWith("image/", StringComparison.OrdinalIgnoreCase));
+
+        // Rich link preview for the first URL in this message.
+        LinkPreview = linkPreview;
+        HasLinkPreview = linkPreview is not null;
+        HasLinkPreviewImage = !string.IsNullOrWhiteSpace(linkPreview?.ImageUrl);
+        LinkPreviewImageUrl = ResolveUrl(linkPreview?.ImageUrl, serverBaseUrl);
+        LinkPreviewTitle = linkPreview?.Title;
+        LinkPreviewDescription = linkPreview?.Description;
+        LinkPreviewSiteLabel = !string.IsNullOrWhiteSpace(linkPreview?.SiteName)
+            ? linkPreview!.SiteName
+            : GetHost(linkPreview?.Url);
 
         // Build highlighted FormattedString if a search query is active
         if (!string.IsNullOrEmpty(searchQuery) && content.Contains(searchQuery, StringComparison.OrdinalIgnoreCase))
@@ -1058,13 +1336,34 @@ public sealed class MessageItemViewModel
         var firstImage = Attachments.FirstOrDefault(a => a.MimeType.StartsWith("image/", StringComparison.OrdinalIgnoreCase));
         if (firstImage?.ThumbnailUrl is not null)
         {
-            var url = firstImage.ThumbnailUrl;
-            if (url.StartsWith('/') && serverBaseUrl is not null)
-            {
-                url = serverBaseUrl.TrimEnd('/') + url;
-            }
-            FirstImageUrl = url;
+            FirstImageUrl = ResolveUrl(firstImage.ThumbnailUrl, serverBaseUrl);
         }
+    }
+
+    /// <summary>Resolves a possibly-relative URL against the server base URL.</summary>
+    private static string? ResolveUrl(string? url, string? serverBaseUrl)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return null;
+        }
+
+        return url.StartsWith('/') && serverBaseUrl is not null
+            ? serverBaseUrl.TrimEnd('/') + url
+            : url;
+    }
+
+    /// <summary>Derives a display host (e.g. "github.com") from a URL.</summary>
+    private static string GetHost(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return string.Empty;
+        }
+
+        return Uri.TryCreate(url, UriKind.Absolute, out var uri) && !string.IsNullOrWhiteSpace(uri.Host)
+            ? uri.Host.Replace("www.", string.Empty, StringComparison.OrdinalIgnoreCase)
+            : url;
     }
 
     /// <summary>
@@ -1134,6 +1433,33 @@ public sealed class MessageItemViewModel
 
     /// <summary>Absolute URL of the first image attachment for inline preview.</summary>
     public string? FirstImageUrl { get; }
+
+    /// <summary>Rich link preview metadata, or <c>null</c> when the message has no preview.</summary>
+    public ChatLinkPreview? LinkPreview { get; }
+
+    /// <summary>Whether this message has a rich link preview to display.</summary>
+    public bool HasLinkPreview { get; }
+
+    /// <summary>Whether the link preview has an image to display.</summary>
+    public bool HasLinkPreviewImage { get; }
+
+    /// <summary>Absolute link preview image URL (resolved against the server base URL if relative).</summary>
+    public string? LinkPreviewImageUrl { get; }
+
+    /// <summary>Link preview page title (may be <c>null</c>).</summary>
+    public string? LinkPreviewTitle { get; }
+
+    /// <summary>Link preview page description (may be <c>null</c>).</summary>
+    public string? LinkPreviewDescription { get; }
+
+    /// <summary>Site label: site name when available, otherwise the URL host.</summary>
+    public string? LinkPreviewSiteLabel { get; }
+
+    /// <summary>Whether a link preview title is available for display.</summary>
+    public bool HasLinkPreviewTitle => !string.IsNullOrWhiteSpace(LinkPreviewTitle);
+
+    /// <summary>Whether a link preview description is available for display.</summary>
+    public bool HasLinkPreviewDescription => !string.IsNullOrWhiteSpace(LinkPreviewDescription);
 
     /// <summary>
     /// When non-null, the message content should use this FormattedString instead of <see cref="Content"/>

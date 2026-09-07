@@ -231,6 +231,96 @@
                                     </DataTrigger>
                                 </Label.Triggers>
                             </Label>
+
+                            <!-- Rich link preview card (shown when the message has a captured preview) -->
+                            <Border
+                                Stroke="#334155"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 8"
+                                BackgroundColor="#111827"
+                                Margin="36,6,0,0">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer
+                                        Command="{Binding BindingContext.OpenLinkPreviewCommand, Source={x:Reference ThisPage}}"
+                                        CommandParameter="{Binding .}"/>
+                                </Border.GestureRecognizers>
+                                <Border.Triggers>
+                                    <DataTrigger TargetType="Border"
+                                                 Binding="{Binding HasLinkPreview}"
+                                                 Value="False">
+                                        <Setter Property="IsVisible"
+                                                Value="False"/>
+                                    </DataTrigger>
+                                    <DataTrigger TargetType="Border"
+                                                 Binding="{Binding IsOwnMessage}"
+                                                 Value="True">
+                                        <Setter Property="Margin"
+                                                Value="0,6,0,0"/>
+                                    </DataTrigger>
+                                </Border.Triggers>
+
+                                <Grid ColumnDefinitions="Auto,*"
+                                      ColumnSpacing="0">
+                                    <!-- Preview thumbnail -->
+                                    <Image
+                                        Grid.Column="0"
+                                        Source="{Binding LinkPreviewImageUrl}"
+                                        WidthRequest="100"
+                                        HeightRequest="100"
+                                        Aspect="AspectFill">
+                                        <Image.Triggers>
+                                            <DataTrigger TargetType="Image"
+                                                         Binding="{Binding HasLinkPreviewImage}"
+                                                         Value="False">
+                                                <Setter Property="IsVisible"
+                                                        Value="False"/>
+                                            </DataTrigger>
+                                        </Image.Triggers>
+                                    </Image>
+
+                                    <VerticalStackLayout
+                                        Grid.Column="1"
+                                        Padding="10,8"
+                                        Spacing="2">
+                                        <Label
+                                            FontSize="13"
+                                            FontAttributes="Bold"
+                                            TextColor="#F1F5F9"
+                                            LineBreakMode="TailTruncation"
+                                            MaxLines="2"
+                                            Text="{Binding LinkPreviewTitle}">
+                                            <Label.Triggers>
+                                                <DataTrigger TargetType="Label"
+                                                             Binding="{Binding HasLinkPreviewTitle}"
+                                                             Value="False">
+                                                    <Setter Property="IsVisible"
+                                                            Value="False"/>
+                                                </DataTrigger>
+                                            </Label.Triggers>
+                                        </Label>
+                                        <Label
+                                            FontSize="12"
+                                            TextColor="#CBD5E1"
+                                            LineBreakMode="TailTruncation"
+                                            MaxLines="3"
+                                            Text="{Binding LinkPreviewDescription}">
+                                            <Label.Triggers>
+                                                <DataTrigger TargetType="Label"
+                                                             Binding="{Binding HasLinkPreviewDescription}"
+                                                             Value="False">
+                                                    <Setter Property="IsVisible"
+                                                            Value="False"/>
+                                                </DataTrigger>
+                                            </Label.Triggers>
+                                        </Label>
+                                        <Label
+                                            FontSize="10"
+                                            TextColor="#94A3B8"
+                                            LineBreakMode="TailTruncation"
+                                            Text="{Binding LinkPreviewSiteLabel}"/>
+                                    </VerticalStackLayout>
+                                </Grid>
+                            </Border>
                         </VerticalStackLayout>
                     </Border>
                 </DataTemplate>
@@ -271,6 +361,17 @@
         <VerticalStackLayout
             Grid.Row="2"
             Spacing="0">
+
+            <!-- "X is typing…" indicator shown while another member is typing -->
+            <Label
+                IsVisible="{Binding TypingIndicatorText, Converter={StaticResource IsNotNullOrEmpty}}"
+                Text="{Binding TypingIndicatorText}"
+                TextColor="#38BDF8"
+                FontSize="12"
+                FontAttributes="Italic"
+                BackgroundColor="#1E293B"
+                Padding="14,4"
+                LineBreakMode="TailTruncation"/>
 
             <Label
                 IsVisible="{Binding QueuedStatusText, Converter={StaticResource IsNotNullOrEmpty}}"

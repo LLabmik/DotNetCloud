@@ -458,6 +458,52 @@ namespace DotNetCloud.Modules.Chat.Data.Migrations
                     b.ToTable("MessageAttachments", "core");
                 });
 
+            modelBuilder.Entity("DotNetCloud.Modules.Chat.Models.MessageLinkPreview", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("FaviconUrl")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTime>("FetchedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ImageUrl")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SiteName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Title")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MessageId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_chat_message_link_previews_message_id");
+
+                    b.ToTable("MessageLinkPreviews", "core");
+                });
+
             modelBuilder.Entity("DotNetCloud.Modules.Chat.Models.MessageMention", b =>
                 {
                     b.Property<Guid>("Id")
@@ -727,6 +773,17 @@ namespace DotNetCloud.Modules.Chat.Data.Migrations
                     b.Navigation("Message");
                 });
 
+            modelBuilder.Entity("DotNetCloud.Modules.Chat.Models.MessageLinkPreview", b =>
+                {
+                    b.HasOne("DotNetCloud.Modules.Chat.Models.Message", "Message")
+                        .WithOne("LinkPreview")
+                        .HasForeignKey("DotNetCloud.Modules.Chat.Models.MessageLinkPreview", "MessageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Message");
+                });
+
             modelBuilder.Entity("DotNetCloud.Modules.Chat.Models.MessageMention", b =>
                 {
                     b.HasOne("DotNetCloud.Modules.Chat.Models.Message", "Message")
@@ -798,6 +855,8 @@ namespace DotNetCloud.Modules.Chat.Data.Migrations
             modelBuilder.Entity("DotNetCloud.Modules.Chat.Models.Message", b =>
                 {
                     b.Navigation("Attachments");
+
+                    b.Navigation("LinkPreview");
 
                     b.Navigation("Mentions");
 

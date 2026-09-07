@@ -1,4 +1,3 @@
-using DotNetCloud.Client.Android.Calendar;
 using DotNetCloud.Client.Core;
 
 namespace DotNetCloud.Client.Android.Services;
@@ -14,4 +13,10 @@ public interface ICoreHubClient : IChatSignalRClient
     /// Consumers can listen and refresh their data.
     /// </summary>
     event Action? CalendarsChanged;
+
+    /// <summary>
+    /// Raised when a user in a joined channel is typing (a heartbeat). The UI hides
+    /// the indicator after a short timeout or when that user's message arrives.
+    /// </summary>
+    event EventHandler<ChatTypingEventArgs>? OnChatTyping;
 }

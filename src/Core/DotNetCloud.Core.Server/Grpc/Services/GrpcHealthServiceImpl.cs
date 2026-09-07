@@ -589,6 +589,23 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
                         channelId);
                     break;
                 }
+                case "TypingIndicator":
+                {
+                    if (!root.TryGetProperty("channelId", out var chEl) || !chEl.TryGetGuid(out var channelId))
+                        return;
+                    if (!root.TryGetProperty("userId", out var uEl) || !uEl.TryGetGuid(out var userId))
+                        return;
+
+                    string? displayName = null;
+                    if (root.TryGetProperty("displayName", out var dnEl) && dnEl.ValueKind == JsonValueKind.String)
+                        displayName = dnEl.GetString();
+
+                    notifier.NotifyTypingChanged(new ChatTypingNotification(channelId, userId, displayName));
+
+                    _logger.LogDebug("Forwarded TypingIndicator to IChatMessageNotifier for channel {ChannelId}",
+                        channelId);
+                    break;
+                }
             }
         }
         catch (Exception ex)

@@ -98,7 +98,8 @@
                                 @if (message.SenderUserId == CurrentUserId)
                                 {
                                     <button class="msg-action-btn" @onclick="() => RequestEdit(message)" title="Edit">✏️</button>
-                                    <button class="msg-action-btn msg-action-danger" @onclick="() => RequestDelete(message.Id)" title="Delete">🗑️</button>
+                                    <button class="msg-action-btn msg-action-danger" @onclick="() => RequestDelete(message.Id)"
+                                            title="Delete">🗑️</button>
                                 }
                             </div>
                         </div>
@@ -132,11 +133,10 @@
                                     @if (IsInlinePreviewAttachment(attachment))
                                     {
                                         <div class="attachment-preview">
-                                            @if (attachment.MimeType.StartsWith("image/", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(attachment.ThumbnailUrl))
+                                            @if (attachment.MimeType.StartsWith("image/", StringComparison.OrdinalIgnoreCase) &&
+                    !string.IsNullOrEmpty(attachment.ThumbnailUrl))
                                             {
-                                                <img src="@attachment.ThumbnailUrl"
-                                                     alt="@attachment.FileName"
-                                                     class="image-preview"
+                                                <img src="@attachment.ThumbnailUrl" alt="@attachment.FileName" class="image-preview"
                                                      onerror="this.style.display='none'"
                                                      @onclick="() => OpenImageLightbox(attachment.ThumbnailUrl, attachment.FileName)" />
                                             }
@@ -154,14 +154,47 @@
                             </div>
                         }
 
+                        @if (message.LinkPreview is { } preview)
+                        {
+                            var previewHost = GetLinkHost(preview.Url);
+                            <a class="link-preview-card" href="@preview.Url" target="_blank" rel="noopener noreferrer"
+                               title="@preview.Url">
+                                @if (!string.IsNullOrWhiteSpace(preview.ImageUrl))
+                                {
+                                    <div class="link-preview-thumb">
+                                        <img src="@preview.ImageUrl" alt="" loading="lazy" referrerpolicy="no-referrer"
+                                             onerror="this.closest('.link-preview-thumb').style.display='none'" />
+                                    </div>
+                                }
+
+                                <div class="link-preview-body">
+                                    @if (!string.IsNullOrWhiteSpace(preview.Title))
+                                    {
+                                        <div class="link-preview-title">@preview.Title</div>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(preview.Description))
+                                    {
+                                        <div class="link-preview-desc">@preview.Description</div>
+                                    }
+                                    <div class="link-preview-site">
+                                        @if (!string.IsNullOrWhiteSpace(preview.FaviconUrl))
+                                        {
+                                            <img class="link-preview-favicon" src="@preview.FaviconUrl" alt="" loading="lazy"
+                                                 referrerpolicy="no-referrer" onerror="this.style.display='none'" />
+                                        }
+                                        <span>@(string.IsNullOrWhiteSpace(preview.SiteName) ? previewHost : preview.SiteName)</span>
+                                    </div>
+                                </div>
+                            </a>
+                        }
+
                         @if (message.Reactions.Count > 0)
                         {
                             <div class="message-reactions">
                                 @foreach (var reaction in message.Reactions)
                                 {
                                     <button class="reaction-badge @(reaction.HasReacted ? "reacted" : "")"
-                                            title="Toggle reaction @reaction.Emoji"
-                                            aria-label="Toggle reaction @reaction.Emoji"
+                                            title="Toggle reaction @reaction.Emoji" aria-label="Toggle reaction @reaction.Emoji"
                                             @onclick="() => ToggleReaction(message.Id, reaction.Emoji)">
                                         @reaction.Emoji @reaction.Count
                                     </button>
@@ -176,8 +209,13 @@
 
     @if (TypingUsers.Count > 0)
     {
-        <div class="typing-indicator">
-            @GetTypingText()
+        <div class="typing-indicator" role="status" aria-live="polite">
+            <div class="typing-dots" aria-hidden="true">
+                <span class="typing-dot"></span>
+                <span class="typing-dot"></span>
+                <span class="typing-dot"></span>
+            </div>
+            <span class="typing-indicator-text">@GetTypingText()</span>
         </div>
     }
 

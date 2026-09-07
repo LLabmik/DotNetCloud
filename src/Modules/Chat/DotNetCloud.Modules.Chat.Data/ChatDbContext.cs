@@ -54,6 +54,9 @@ public class ChatDbContext : DbContext
     /// <summary>File attachments on messages.</summary>
     public DbSet<MessageAttachment> MessageAttachments => Set<MessageAttachment>();
 
+    /// <summary>Rich link previews captured from URLs in messages.</summary>
+    public DbSet<MessageLinkPreview> MessageLinkPreviews => Set<MessageLinkPreview>();
+
     /// <summary>Emoji reactions on messages.</summary>
     public DbSet<MessageReaction> MessageReactions => Set<MessageReaction>();
 
@@ -93,6 +96,7 @@ public class ChatDbContext : DbContext
         modelBuilder.ApplyConfiguration(new ChannelConfiguration());
         modelBuilder.ApplyConfiguration(new ChannelMemberConfiguration());
         modelBuilder.ApplyConfiguration(new MessageConfiguration());
+        modelBuilder.ApplyConfiguration(new MessageLinkPreviewConfiguration());
         modelBuilder.ApplyConfiguration(new MessageAttachmentConfiguration());
         modelBuilder.ApplyConfiguration(new MessageReactionConfiguration());
         modelBuilder.ApplyConfiguration(new MessageMentionConfiguration());
