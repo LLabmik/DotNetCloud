@@ -108,6 +108,33 @@ public sealed class AiGrpcService : AiService.AiServiceBase
     }
 
     /// <inheritdoc />
+    public override async Task<GetConversationStatsResponse> GetConversationStats(
+        GetConversationStatsRequest request, ServerCallContext context)
+    {
+        try
+        {
+            if (!Guid.TryParse(request.UserId, out var userId) || userId == Guid.Empty)
+            {
+                return new GetConversationStatsResponse { Success = false, ErrorMessage = "Invalid user id." };
+            }
+
+            var stats = await _chatService.GetConversationStatsAsync(userId, context.CancellationToken);
+
+            return new GetConversationStatsResponse
+            {
+                Success = true,
+                TotalConversations = stats.TotalConversations,
+                LastActivityUtc = stats.LastActivityAt?.ToString("O") ?? string.Empty
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "GetConversationStats failed");
+            return new GetConversationStatsResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    /// <inheritdoc />
     public override async Task<DeleteConversationResponse> DeleteConversation(
         DeleteConversationRequest request, ServerCallContext context)
     {

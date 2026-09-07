@@ -1081,6 +1081,137 @@ textarea.input {
   letter-spacing: 0.4px;
 }
 
+/* --- Module Home Widgets --- */
+.widgets-section {
+  margin-top: 28px;
+}
+.widgets-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.widgets-section-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.widget-refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition:
+    border-color var(--transition),
+    color var(--transition),
+    background var(--transition);
+}
+.widget-refresh-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: var(--color-surface);
+}
+.widget-refresh-btn:active {
+  transform: scale(0.95);
+}
+.widget-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+.widget-loading {
+  padding: 8px 0;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+.widget-empty {
+  padding: 8px 0;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+.widget-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.widget-list-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: 13px;
+  color: var(--color-text);
+  border-bottom: 1px solid var(--color-border);
+}
+.widget-list-item:last-child {
+  border-bottom: none;
+}
+.widget-list-item-title {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.widget-list-item-meta {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+.widget-list-item a {
+  color: var(--color-text);
+  text-decoration: none;
+}
+.widget-list-item a:hover {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
+/* Quota bar (Files widget) */
+.widget-quota {
+  margin-bottom: 10px;
+}
+.widget-quota-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin-bottom: 4px;
+}
+.widget-quota-bar {
+  height: 6px;
+  background: var(--color-border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.widget-quota-bar-fill {
+  height: 100%;
+  background: var(--color-primary);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+/* Widget stat callout (AI widget) */
+.widget-stat {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1.2;
+}
+.widget-stat-label {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin-top: 2px;
+}
+
 /* --- Detail View --- */
 .detail-grid {
   display: grid;

@@ -33,7 +33,7 @@ public class CalendarSecurityTests
         _db = new CalendarDbContext(options);
         _eventBusMock = new Mock<IEventBus>();
         _calendarService = new CalendarService(_db, _eventBusMock.Object, Mock.Of<DotNetCloud.Core.Capabilities.IOrganizationDirectory>(), Mock.Of<DotNetCloud.Core.Capabilities.IAuditLogger>(), NullLogger<CalendarService>.Instance);
-        _eventService = new CalendarEventService(_db, _eventBusMock.Object, Mock.Of<DotNetCloud.Core.Capabilities.IOrganizationDirectory>(), NullLogger<CalendarEventService>.Instance);
+        _eventService = new CalendarEventService(_db, _eventBusMock.Object, Mock.Of<DotNetCloud.Core.Capabilities.IOrganizationDirectory>(), new OccurrenceExpansionService(_db, new RecurrenceEngine(NullLogger<RecurrenceEngine>.Instance), NullLogger<OccurrenceExpansionService>.Instance), NullLogger<CalendarEventService>.Instance);
         _shareService = new CalendarShareService(_db, _eventBusMock.Object, NullLogger<CalendarShareService>.Instance);
         _userA = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
         _userB = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);

@@ -6,6 +6,7 @@ service AiService {
   rpc CreateConversation (CreateConversationRequest) returns (ConversationResponse);
   rpc GetConversation (GetConversationRequest) returns (ConversationResponse);
   rpc ListConversations (ListConversationsRequest) returns (ListConversationsResponse);
+  rpc GetConversationStats (GetConversationStatsRequest) returns (GetConversationStatsResponse);
   rpc DeleteConversation (DeleteConversationRequest) returns (DeleteConversationResponse);
   rpc RenameConversation (RenameConversationRequest) returns (ConversationResponse);
   rpc SendMessage (SendMessageRequest) returns (ChatResponse);
@@ -46,3 +47,5 @@ message MessageChunk { string content = 1; bool done = 2; int32 eval_count = 3; 
 message ListModelsResponse { bool success = 1; string error_message = 2; repeated ModelInfoMessage models = 3; }
 message ModelInfoMessage { string name = 1; string provider = 2; }
 message SettingsResponse { bool success = 1; string error_message = 2; string provider = 3; string api_base_url = 4; string default_model = 5; int32 max_tokens = 6; int32 request_timeout_seconds = 7; }
+message GetConversationStatsRequest { string user_id = 1; }
+message GetConversationStatsResponse { bool success = 1; string error_message = 2; int32 total_conversations = 3; string last_activity_utc = 4; }

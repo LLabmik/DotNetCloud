@@ -48,6 +48,17 @@ public sealed class BookmarkService : IBookmarkService
     }
 
     /// <inheritdoc />
+    public async Task<IReadOnlyList<BookmarkItem>> GetRecentBookmarksAsync(CallerContext caller, int count = 5, CancellationToken ct = default)
+    {
+        return await _db.Bookmarks.AsNoTracking()
+            .Include(b => b.Preview)
+            .Where(b => b.OwnerId == caller.UserId)
+            .OrderByDescending(b => b.CreatedAt)
+            .Take(count)
+            .ToListAsync(ct);
+    }
+
+    /// <inheritdoc />
     public async Task<BookmarkItem?> GetAsync(Guid id, CallerContext caller, CancellationToken ct = default)
     {
         return await _db.Bookmarks.AsNoTracking()

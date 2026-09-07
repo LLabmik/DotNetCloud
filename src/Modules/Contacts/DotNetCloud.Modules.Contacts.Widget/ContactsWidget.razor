@@ -1,0 +1,29 @@
+@namespace DotNetCloud.Modules.Contacts.Widget
+
+@if (_loading)
+{
+    <div class="widget-loading">Loading…</div>
+}
+else if (_error is not null)
+{
+    <div class="widget-empty">@_error</div>
+}
+else if (_items.Count == 0)
+{
+    <div class="widget-empty">@EmptyMessage</div>
+}
+else
+{
+    <ul class="widget-list">
+        @foreach (var item in _items)
+        {
+            <li class="widget-list-item">
+                <a class="widget-list-item-title" href="@HrefFor(item)">@item.DisplayName</a>
+                @if (!string.IsNullOrEmpty(item.Organization))
+                {
+                    <span class="widget-list-item-meta">@item.Organization</span>
+                }
+            </li>
+        }
+    </ul>
+}

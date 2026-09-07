@@ -19,6 +19,9 @@ public interface IAiChatService
     /// <summary>Lists all conversations for the caller, most recent first.</summary>
     Task<IReadOnlyList<Conversation>> ListConversationsAsync(CallerContext caller, CancellationToken cancellationToken = default);
 
+    /// <summary>Gets conversation count and last activity time for the given user.</summary>
+    Task<AiConversationStatsDto> GetConversationStatsAsync(Guid userId, CancellationToken cancellationToken = default);
+
     /// <summary>Deletes (soft-delete) a conversation.</summary>
     Task<bool> DeleteConversationAsync(CallerContext caller, Guid conversationId, CancellationToken cancellationToken = default);
 
@@ -39,4 +42,14 @@ public interface IAiChatService
 
     /// <summary>Lists available models from the configured provider(s).</summary>
     Task<IReadOnlyList<LlmModelInfo>> ListModelsAsync(CallerContext caller, CancellationToken cancellationToken = default);
+}
+
+/// <summary>Conversation count and last activity for the AI widget.</summary>
+public sealed record AiConversationStatsDto
+{
+    /// <summary>Total number of conversations.</summary>
+    public int TotalConversations { get; init; }
+
+    /// <summary>Timestamp of the most recent conversation activity (UTC), if any.</summary>
+    public DateTime? LastActivityAt { get; init; }
 }

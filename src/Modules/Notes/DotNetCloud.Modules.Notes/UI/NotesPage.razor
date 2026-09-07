@@ -190,7 +190,7 @@
                 <div class="notes-detail-actions">
                     <button class="btn btn-outline-primary" @onclick="BeginEditSelected">Edit</button>
                     <button class="btn btn-outline-warning" @onclick="ToggleFavoriteAsync">@(_selectedNote.IsFavorite ?
-                                                        "Unfavorite" : "Favorite")</button>
+                                                                                "Unfavorite" : "Favorite")</button>
                         <button class="btn btn-outline-secondary" @onclick="ToggleSharePanel">
                             @(_showSharePanel ? "Hide Shares" : "Share")
                         </button>
@@ -270,6 +270,14 @@
 <DncConfirmDialog @ref="_confirmDialog" />
 
 @code {
+    /// <summary>
+    /// Optional note ID to open when the page loads (deep-link from the home widget).
+    /// </summary>
+    [Parameter]
+    public string? NoteId { get; set; }
+
+    private Guid? _lastHandledNoteId;
+
     private bool _isLoading;
     private DncConfirmDialog _confirmDialog = default!;
 
@@ -337,6 +345,36 @@
         }
 
         await ReloadAsync();
+        await HandleNoteDeepLinkAsync();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Handle noteId changes when already on the page (same-page navigation).
+        await HandleNoteDeepLinkAsync();
+    }
+
+    /// <summary>
+    /// Opens the note referenced by the <c>NoteId</c> deep-link parameter when it is a new,
+    /// well-formed id. Repeat handling of the same id is guarded, and a bad id never breaks
+    /// the page.
+    /// </summary>
+    private async Task HandleNoteDeepLinkAsync()
+    {
+        if (string.IsNullOrWhiteSpace(NoteId) || !Guid.TryParse(NoteId, out var noteId) || noteId == _lastHandledNoteId)
+        {
+            return;
+        }
+
+        _lastHandledNoteId = noteId;
+        try
+        {
+            await SelectNoteAsync(noteId);
+        }
+        catch (Exception)
+        {
+            // A stale or inaccessible note id must not break the page.
+        }
     }
 
     private async Task ToggleSidebar()

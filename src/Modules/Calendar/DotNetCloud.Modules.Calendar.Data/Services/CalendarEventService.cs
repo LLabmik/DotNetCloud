@@ -18,6 +18,7 @@ public sealed class CalendarEventService : ICalendarEventService
     private readonly CalendarDbContext _db;
     private readonly IEventBus _eventBus;
     private readonly OrgDirectory _orgDirectory;
+    private readonly IOccurrenceExpansionService _occurrenceExpansion;
     private readonly ILogger<CalendarEventService> _logger;
 
     /// <summary>
@@ -27,11 +28,13 @@ public sealed class CalendarEventService : ICalendarEventService
         CalendarDbContext db,
         IEventBus eventBus,
         DotNetCloud.Core.Capabilities.IOrganizationDirectory orgDirectory,
+        IOccurrenceExpansionService occurrenceExpansion,
         ILogger<CalendarEventService> logger)
     {
         _db = db;
         _eventBus = eventBus;
         _orgDirectory = orgDirectory;
+        _occurrenceExpansion = occurrenceExpansion;
         _logger = logger;
     }
 
@@ -385,6 +388,35 @@ public sealed class CalendarEventService : ICalendarEventService
 
         return events.Select(MapToDto).ToList();
     }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<CalendarEventDto>> GetUpcomingEventsAsync(CallerContext caller, DateTime fromUtc, DateTime toUtc, int count = 5, CancellationToken cancellationToken = default)
+    {
+        // The window must be UTC when compared against the timestamptz column (Npgsql rejects
+        // Kind=Local values), regardless of how a caller serialized the boundary timestamps.
+        var from = NormalizeToUtc(fromUtc);
+        var to = NormalizeToUtc(toUtc);
+
+        // Route through occurrence expansion so recurring events whose occurrences fall within the
+        // window are discovered too, then keep only events that START inside the window (upcoming
+        // semantics — an already-in-progress event that merely overlaps the start boundary is not
+        // treated as upcoming).
+        var expanded = await _occurrenceExpansion.SearchExpandedEventsAsync(
+            caller, query: null, from: from, to: to, skip: 0, take: 500, cancellationToken);
+
+        return expanded
+            .Where(e => e.StartUtc >= from && e.StartUtc <= to)
+            .OrderBy(e => e.StartUtc)
+            .Take(count)
+            .ToList();
+    }
+
+    private static DateTime NormalizeToUtc(DateTime value) => value.Kind switch
+    {
+        DateTimeKind.Utc => value,
+        DateTimeKind.Local => value.ToUniversalTime(),
+        _ => DateTime.SpecifyKind(value, DateTimeKind.Utc),
+    };
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<CalendarEventDto>> ListAllEventsAsync(int skip = 0, int take = int.MaxValue, CancellationToken cancellationToken = default)

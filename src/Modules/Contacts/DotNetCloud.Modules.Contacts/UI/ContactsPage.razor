@@ -13,7 +13,8 @@
             {
                 <h3 class="contacts-sidebar-title">Contacts</h3>
             }
-            <button class="contacts-sidebar-toggle" @onclick="ToggleSidebar" title="@(_sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")">
+            <button class="contacts-sidebar-toggle" @onclick="ToggleSidebar"
+                    title="@(_sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")">
                 <MaterialIcon Icon="@(_sidebarCollapsed ? "chevron_right" : "chevron_left")" />
             </button>
             @if (!_sidebarCollapsed)
@@ -26,29 +27,30 @@
         @if (!_sidebarCollapsed)
         {
             <div class="contacts-search">
-                <input type="text" class="form-control form-control-sm"
-                       placeholder="Search contacts..."
-                       @bind="_searchQuery"
-                       @bind:event="oninput" />
+                <input type="text" class="form-control form-control-sm" placeholder="Search contacts..."
+                       @bind="_searchQuery" @bind:event="oninput" />
                 <button class="btn btn-sm btn-outline-secondary" @onclick="ReloadAsync">Search</button>
             </div>
         }
         <nav class="contacts-nav">
-            <a class="contacts-nav-item @(_activeSection == "all" ? "active" : "")" @onclick='() => ChangeSection("all")' title="All Contacts">
+            <a class="contacts-nav-item @(_activeSection == "all" ? "active" : "")"
+               @onclick='() => ChangeSection("all")' title="All Contacts">
                 <span class="nav-icon">👤</span>
                 @if (!_sidebarCollapsed)
                 {
                     <span class="nav-label">All Contacts</span>
                 }
             </a>
-            <a class="contacts-nav-item @(_activeSection == "groups" ? "active" : "")" @onclick='() => ChangeSection("groups")' title="Groups">
+            <a class="contacts-nav-item @(_activeSection == "groups" ? "active" : "")"
+               @onclick='() => ChangeSection("groups")' title="Groups">
                 <span class="nav-icon">👥</span>
                 @if (!_sidebarCollapsed)
                 {
                     <span class="nav-label">Groups</span>
                 }
             </a>
-            <a class="contacts-nav-item @(_activeSection == "recent" ? "active" : "")" @onclick='() => ChangeSection("recent")' title="Recently Added">
+            <a class="contacts-nav-item @(_activeSection == "recent" ? "active" : "")"
+               @onclick='() => ChangeSection("recent")' title="Recently Added">
                 <span class="nav-icon">🆕</span>
                 @if (!_sidebarCollapsed)
                 {
@@ -104,8 +106,10 @@
                     <InputText class="form-control" @bind-Value="_editingContact.LastName" placeholder="Last Name" />
                     <InputText class="form-control" @bind-Value="_editingContact.Organization" placeholder="Organization" />
                     <InputText class="form-control" @bind-Value="_editingContact.JobTitle" placeholder="Job Title" />
-                    <InputText class="form-control" @bind-Value="_editingContact.PrimaryEmail" placeholder="Primary Email" />
-                    <InputText class="form-control" @bind-Value="_editingContact.PrimaryPhone" placeholder="Primary Phone" />
+                    <InputText class="form-control" @bind-Value="_editingContact.PrimaryEmail"
+                               placeholder="Primary Email" />
+                    <InputText class="form-control" @bind-Value="_editingContact.PrimaryPhone"
+                               placeholder="Primary Phone" />
                 </div>
                 <div class="contacts-form-actions">
                     <button class="btn btn-primary" type="submit">Save</button>
@@ -175,33 +179,44 @@
                             @foreach (var share in _shares)
                             {
                                 <div class="share-item">
-                                    <span>User: @(share.SharedWithUserId?.ToString("N")[..8] ?? share.SharedWithTeamId?.ToString("N")[..8] ?? "—")… — @share.Permission</span>
-                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => RevokeShareAsync(share.Id)">Revoke</button>
-                                </div>
+                                    <span>User: @(share.SharedWithUserId?.ToString("N")[..8] ??
+                                                                share.SharedWithTeamId?.ToString("N")[..8] ?? "—")… — @share.Permission</span>
+                                        <button class="btn btn-sm btn-outline-danger"
+                                                @onclick="() => RevokeShareAsync(share.Id)">Revoke</button>
+                                    </div>
+                                }
                             }
-                        }
-                        <div class="share-form">
-                            <input type="text" class="form-control form-control-sm" placeholder="User ID" @bind="_shareUserId" />
-                            <select class="form-select form-select-sm" @bind="_sharePermission" style="max-width:140px;">
-                                <option value="ReadOnly">Read Only</option>
-                                <option value="ReadWrite">Read/Write</option>
-                            </select>
-                            <button class="btn btn-sm btn-primary" @onclick="AddShareAsync">Share</button>
+                            <div class="share-form">
+                                <input type="text" class="form-control form-control-sm" placeholder="User ID"
+                                       @bind="_shareUserId" />
+                                <select class="form-select form-select-sm" @bind="_sharePermission" style="max-width:140px;">
+                                    <option value="ReadOnly">Read Only</option>
+                                    <option value="ReadWrite">Read/Write</option>
+                                </select>
+                                <button class="btn btn-sm btn-primary" @onclick="AddShareAsync">Share</button>
+                            </div>
                         </div>
-                    </div>
-                }
-            </div>
-        }
+                    }
+                </div>
+            }
         else
-        {
-            <div class="contacts-placeholder">
-                <p>Select a contact or create a new one to get started.</p>
-            </div>
-        }
+            {
+                <div class="contacts-placeholder">
+                    <p>Select a contact or create a new one to get started.</p>
+                </div>
+            }
+        </div>
     </div>
-</div>
 
 @code {
+    /// <summary>
+    /// Optional contact ID to open when the page loads (deep-link from the home widget).
+    /// </summary>
+    [Parameter]
+    public string? ContactId { get; set; }
+
+    private Guid? _lastHandledContactId;
+
     private readonly List<ContactDto> _contacts = [];
     private readonly List<ContactGroupDto> _groups = [];
     private readonly List<ContactShareResponse> _shares = [];
@@ -226,7 +241,8 @@
     {
         try
         {
-            var collapsed = await JSRuntime.InvokeAsync<string>("localStorage.getItem", new object?[] { "dotnetcloud.sidebar:contacts" });
+            var collapsed = await JSRuntime.InvokeAsync<string>("localStorage.getItem", new object?[] {
+"dotnetcloud.sidebar:contacts" });
             if (bool.TryParse(collapsed ?? "false", out var parsed))
             {
                 _sidebarCollapsed = parsed;
@@ -238,6 +254,37 @@
         }
 
         await ReloadAsync();
+        await HandleContactDeepLinkAsync();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Handle contactId changes when already on the page (same-page navigation).
+        await HandleContactDeepLinkAsync();
+    }
+
+    /// <summary>
+    /// Opens the contact referenced by the <c>ContactId</c> deep-link parameter when it is a new,
+    /// well-formed id. Repeat handling of the same id is guarded, and a bad id never breaks
+    /// the page.
+    /// </summary>
+    private async Task HandleContactDeepLinkAsync()
+    {
+        if (string.IsNullOrWhiteSpace(ContactId) || !Guid.TryParse(ContactId, out var contactId) || contactId ==
+_lastHandledContactId)
+        {
+            return;
+        }
+
+        _lastHandledContactId = contactId;
+        try
+        {
+            await SelectContactAsync(contactId);
+        }
+        catch (Exception)
+        {
+            // A stale or inaccessible contact id must not break the page.
+        }
     }
 
     private async Task ToggleSidebar()
@@ -250,7 +297,8 @@
     {
         try
         {
-            await JSRuntime.InvokeAsync<object?>("localStorage.setItem", new object?[] { "dotnetcloud.sidebar:contacts", _sidebarCollapsed.ToString().ToLowerInvariant() });
+            await JSRuntime.InvokeAsync<object?>("localStorage.setItem", new object?[] { "dotnetcloud.sidebar:contacts",
+_sidebarCollapsed.ToString().ToLowerInvariant() });
         }
         catch
         {

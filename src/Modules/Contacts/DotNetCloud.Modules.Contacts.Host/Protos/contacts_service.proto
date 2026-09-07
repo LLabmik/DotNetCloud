@@ -16,6 +16,9 @@ service ContactsService {
   // Lists contacts for a user.
   rpc ListContacts (ListContactsRequest) returns (ListContactsResponse);
 
+  // Gets the caller's most recently created contacts.
+  rpc GetRecentContacts (GetRecentContactsRequest) returns (GetRecentContactsResponse);
+
   // Updates a contact.
   rpc UpdateContact (UpdateContactRequest) returns (ContactResponse);
 
@@ -114,6 +117,19 @@ message ListContactsRequest {
 }
 
 message ListContactsResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated ContactMessage contacts = 3;
+}
+
+// --- GetRecentContacts ---
+
+message GetRecentContactsRequest {
+  string user_id = 1;
+  int32 count = 2;
+}
+
+message GetRecentContactsResponse {
   bool success = 1;
   string error_message = 2;
   repeated ContactMessage contacts = 3;

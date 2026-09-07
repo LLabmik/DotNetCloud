@@ -18,6 +18,9 @@ public interface IChannelService
     /// <summary>Lists channels the caller belongs to.</summary>
     Task<IReadOnlyList<ChannelDto>> ListChannelsAsync(CallerContext caller, CancellationToken cancellationToken = default);
 
+    /// <summary>Gets the caller's most recently active channels.</summary>
+    Task<IReadOnlyList<ChannelDto>> GetRecentChannelsAsync(CallerContext caller, int count = 5, CancellationToken cancellationToken = default);
+
     /// <summary>Updates a channel's metadata.</summary>
     Task<ChannelDto> UpdateChannelAsync(Guid channelId, UpdateChannelDto dto, CallerContext caller, CancellationToken cancellationToken = default);
 

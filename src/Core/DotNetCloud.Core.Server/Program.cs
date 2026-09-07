@@ -514,6 +514,7 @@ public class Program
         // Blazor UI services (server-side prerendering needs these too)
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddSingleton<ModuleUiRegistry>();
+        builder.Services.AddSingleton<WidgetUiRegistry>();
         builder.Services.AddScoped<DotNetCloud.UI.Shared.Services.BrowserTimeProvider>();
         builder.Services.AddScoped<ToastService>();
         builder.Services.AddScoped<DotNetCloud.Core.Server.Middleware.CookieCaptureStore>();
@@ -761,6 +762,7 @@ public class Program
         builder.Services.AddScoped<LegacyUsernameMigration>();
 
         builder.Services.AddHostedService<ModuleUiRegistrationHostedService>();
+        builder.Services.AddHostedService<WidgetUiRegistrationHostedService>();
         builder.Services.AddHostedService<NotificationEventSubscriber>();
         builder.Services.AddHostedService<SearchEventSubscriber>();
         // Hosted service backed by the concrete singleton registered above (keeps it resolvable).

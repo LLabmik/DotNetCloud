@@ -209,6 +209,23 @@ public sealed class CalendarGrpcApiClient : ICalendarApiClient, IDisposable
             return !response.Success ? (IReadOnlyList<CalendarEventDto>)[] : response.Events.Select(e => ToEventDto(e)!).Where(e => e is not null).Select(e => e!).ToList();
         }, "SearchEvents", Array.Empty<CalendarEventDto>()))!;
 
+    // ─── Upcoming Events (home widget) ──────────────────────────────────────
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<CalendarEventDto>> GetUpcomingEventsAsync(DateTime fromUtc, DateTime toUtc, int count = 5, CancellationToken cancellationToken = default)
+        => (await SafeCallListAsync(async () =>
+        {
+            var request = new GetUpcomingEventsRequest
+            {
+                UserId = GetUserId(),
+                FromUtc = fromUtc.ToString("O"),
+                ToUtc = toUtc.ToString("O"),
+                Count = count
+            };
+            var response = await _client.Value.GetUpcomingEventsAsync(request, DeadlineHeaders(cancellationToken)).ResponseAsync;
+            return !response.Success ? (IReadOnlyList<CalendarEventDto>)[] : response.Events.Select(e => ToEventDto(e)!).Where(e => e is not null).Select(e => e!).ToList();
+        }, "GetUpcomingEvents", Array.Empty<CalendarEventDto>()))!;
+
     // ─── Sharing ────────────────────────────────────────────────────────────
 
     /// <inheritdoc />

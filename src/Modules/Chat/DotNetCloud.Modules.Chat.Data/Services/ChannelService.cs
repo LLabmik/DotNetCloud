@@ -183,6 +183,44 @@ internal sealed class ChannelService : IChannelService
         return result;
     }
 
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<ChannelDto>> GetRecentChannelsAsync(CallerContext caller, int count = 5, CancellationToken cancellationToken = default)
+    {
+        await EnsureDefaultPublicChannelForUserAsync(caller, cancellationToken);
+
+        var memberships = await _db.ChannelMembers
+            .AsNoTracking()
+            .Where(m => m.UserId == caller.UserId)
+            .Select(m => new { m.ChannelId, m.IsMuted })
+            .ToListAsync(cancellationToken);
+
+        var channelIds = memberships.Select(m => m.ChannelId).ToList();
+        var muteStates = memberships.ToDictionary(m => m.ChannelId, m => m.IsMuted);
+
+        var memberCounts = await _db.ChannelMembers
+            .AsNoTracking()
+            .Where(m => channelIds.Contains(m.ChannelId))
+            .GroupBy(m => m.ChannelId)
+            .Select(g => new { ChannelId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.ChannelId, x => x.Count, cancellationToken);
+
+        var channels = await _db.Channels
+            .AsNoTracking()
+            .Where(c => channelIds.Contains(c.Id) && !c.IsDeleted)
+            .OrderByDescending(c => c.LastActivityAt ?? c.CreatedAt)
+            .Take(count)
+            .ToListAsync(cancellationToken);
+
+        var result = channels
+            .Select(c => ToChannelDto(c, memberCounts.GetValueOrDefault(c.Id, 0), muteStates.GetValueOrDefault(c.Id)))
+            .ToList();
+
+        // Resolve DM channel names to the other participant's display name
+        await ResolveDmChannelNamesAsync(result, caller.UserId, cancellationToken);
+
+        return result;
+    }
+
     private async Task ResolveDmChannelNamesAsync(List<ChannelDto> channels, Guid currentUserId, CancellationToken cancellationToken)
     {
         var dmChannels = channels.Where(c => c.Type == "DirectMessage").ToList();

@@ -79,8 +79,8 @@
                     <MaterialIcon Icon="@(_isSyncing ? "hourglass_empty" : "sync")" />
                     <span class="email-nav-text">@(_isSyncing ? "Syncing..." : "Sync Now")</span>
                 </button>
-                <button class="email-nav-item email-nav-item-danger"
-                        @onclick="() => _confirmDeleteAccount = true" title="Delete Account">
+                <button class="email-nav-item email-nav-item-danger" @onclick="() => _confirmDeleteAccount = true"
+                        title="Delete Account">
                     <MaterialIcon Icon="delete" />
                     <span class="email-nav-text">Delete Account</span>
                 </button>
@@ -100,304 +100,307 @@
                     <button class="email-modal-close" @onclick="() => _confirmDeleteAccount = false">✕</button>
                 </div>
                 <div class="email-modal-body">
-                    <p>Are you sure you want to delete the email account <strong>@_selectedAccount.EmailAddress</strong>?</p>
-                    <p class="email-text-danger">This will permanently remove the account and all synced messages. This cannot be undone.</p>
-                </div>
-                <div class="email-modal-footer">
-                    <button class="email-btn email-btn-secondary"
-                            @onclick="() => _confirmDeleteAccount = false">Cancel</button>
-                    <button class="email-btn email-btn-danger"
-                            @onclick="ConfirmDeleteAccount">Delete Account</button>
+                    <p>Are you sure you want to delete the email account <strong>@_selectedAccount.EmailAddress</strong>?
+                    </p>
+                    <p class="email-text-danger">This will permanently remove the account and all synced messages. This
+                        cannot be undone.</p>
+                    </div>
+                    <div class="email-modal-footer">
+                        <button class="email-btn email-btn-secondary"
+                                @onclick="() => _confirmDeleteAccount = false">Cancel</button>
+                        <button class="email-btn email-btn-danger" @onclick="ConfirmDeleteAccount">Delete Account</button>
+                    </div>
                 </div>
             </div>
-        </div>
-    }
+        }
 
-    @* ── Main Content ── *@
-    <div class="email-main">
-        @if (_gmailMessage is not null)
-        {
-            <div class="email-banner @(_gmailMessage.Contains("successfully") ? "success" : "warning")">
-                <span>@_gmailMessage</span>
-                <button class="email-banner-close" @onclick='() => _gmailMessage = null'>×</button>
-            </div>
-        }
-        @if (_isLoading)
-        {
-            <DncLoadingIndicator />
-        }
-        else if (_errorMessage is not null)
-        {
-            <DncErrorDisplay Message="@_errorMessage" />
-        }
-        else if (_showAddAccount)
-        {
-            @* ── Add Account ── *@
-            <div class="email-panel">
-                <h3>Add Email Account</h3>
-                <div class="email-tabs">
-                    <button class="email-tab @(_addAccountType == "imap" ? "active" : "")"
-                            @onclick='() => _addAccountType = "imap"'>IMAP / SMTP</button>
-                    <button class="email-tab @(_addAccountType == "gmail" ? "active" : "")"
-                            @onclick='() => _addAccountType = "gmail"'>Gmail (OAuth)</button>
+        @* ── Main Content ── *@
+        <div class="email-main">
+            @if (_gmailMessage is not null)
+            {
+                <div class="email-banner @(_gmailMessage.Contains("successfully") ? "success" : "warning")">
+                    <span>@_gmailMessage</span>
+                    <button class="email-banner-close" @onclick='() => _gmailMessage = null'>×</button>
                 </div>
+            }
+            @if (_isLoading)
+            {
+                <DncLoadingIndicator />
+            }
+            else if (_errorMessage is not null)
+            {
+                <DncErrorDisplay Message="@_errorMessage" />
+            }
+            else if (_showAddAccount)
+            {
+                @* ── Add Account ── *@
+                <div class="email-panel">
+                    <h3>Add Email Account</h3>
+                    <div class="email-tabs">
+                        <button class="email-tab @(_addAccountType == "imap" ? "active" : "")"
+                                @onclick='() => _addAccountType = "imap"'>IMAP / SMTP</button>
+                        <button class="email-tab @(_addAccountType == "gmail" ? "active" : "")"
+                                @onclick='() => _addAccountType = "gmail"'>Gmail (OAuth)</button>
+                    </div>
 
-                @if (_addAccountType == "imap")
-                {
-                    <div class="email-form-group">
-                        <label>Display Name</label>
-                        <input class="email-input" @bind="_imapDisplayName" placeholder="Work Email" />
-                    </div>
-                    <div class="email-form-group">
-                        <label>Email Address</label>
-                        <input class="email-input" @bind="_imapEmail" placeholder="user@example.com" />
-                    </div>
-                    <div class="email-form-group">
-                        <label>IMAP Host</label>
-                        <input class="email-input" @bind="_imapHost" placeholder="imap.example.com" />
-                    </div>
-                    <div class="email-form-group">
-                        <label>IMAP Port</label>
-                        <input class="email-input" type="number" @bind="_imapPort" />
-                    </div>
-                    <div class="email-form-group">
-                        <label>SMTP Host</label>
-                        <input class="email-input" @bind="_smtpHost" placeholder="smtp.example.com" />
-                    </div>
-                    <div class="email-form-group">
-                        <label>SMTP Port</label>
-                        <input class="email-input" type="number" @bind="_smtpPort" />
-                    </div>
-                    <div class="email-form-group">
-                        <label>Username</label>
-                        <input class="email-input" @bind="_imapUser" placeholder="user@example.com" />
-                    </div>
-                    <div class="email-form-group">
-                        <label>Password</label>
-                        <input class="email-input" type="password" @bind="_imapPassword" />
-                    </div>
-                    <div class="email-form-actions">
-                        <button class="email-btn email-btn-primary" @onclick="AddImapAccount">Add Account</button>
-                        <button class="email-btn email-btn-secondary" @onclick="CancelAddAccount">Cancel</button>
-                    </div>
-                }
-                @if (_addAccountType == "gmail")
-                {
-                    @if (_gmailOAuthConfigured)
+                    @if (_addAccountType == "imap")
                     {
-                        <p>Connect your Gmail account via Google OAuth.</p>
+                        <div class="email-form-group">
+                            <label>Display Name</label>
+                            <input class="email-input" @bind="_imapDisplayName" placeholder="Work Email" />
+                        </div>
+                        <div class="email-form-group">
+                            <label>Email Address</label>
+                            <input class="email-input" @bind="_imapEmail" placeholder="user@example.com" />
+                        </div>
+                        <div class="email-form-group">
+                            <label>IMAP Host</label>
+                            <input class="email-input" @bind="_imapHost" placeholder="imap.example.com" />
+                        </div>
+                        <div class="email-form-group">
+                            <label>IMAP Port</label>
+                            <input class="email-input" type="number" @bind="_imapPort" />
+                        </div>
+                        <div class="email-form-group">
+                            <label>SMTP Host</label>
+                            <input class="email-input" @bind="_smtpHost" placeholder="smtp.example.com" />
+                        </div>
+                        <div class="email-form-group">
+                            <label>SMTP Port</label>
+                            <input class="email-input" type="number" @bind="_smtpPort" />
+                        </div>
+                        <div class="email-form-group">
+                            <label>Username</label>
+                            <input class="email-input" @bind="_imapUser" placeholder="user@example.com" />
+                        </div>
+                        <div class="email-form-group">
+                            <label>Password</label>
+                            <input class="email-input" type="password" @bind="_imapPassword" />
+                        </div>
                         <div class="email-form-actions">
-                            <button class="email-btn email-btn-primary" @onclick="StartGmailOAuth">Connect Gmail</button>
+                            <button class="email-btn email-btn-primary" @onclick="AddImapAccount">Add Account</button>
                             <button class="email-btn email-btn-secondary" @onclick="CancelAddAccount">Cancel</button>
                         </div>
                     }
-                    else
+                    @if (_addAccountType == "gmail")
                     {
-                        <div class="email-info-message">
-                            <p><strong>Gmail OAuth not yet configured.</strong></p>
-                            <p>The server administrator needs to set up a Google Cloud OAuth 2.0 client.
-                            Once configured, users will be able to connect their Gmail accounts here.</p>
-                            <p><small>See the DotNetCloud documentation for setup instructions.</small></p>
-                        </div>
-                        <div class="email-form-actions">
-                            <button class="email-btn email-btn-secondary" @onclick="CancelAddAccount">Cancel</button>
-                        </div>
-                    }
-                }
-            </div>
-        }
-        else if (_showRules)
-        {
-            @* ── Rules ── *@
-            <div class="email-rules-panel">
-                <div class="email-rules-header">
-                    <h3>Email Rules</h3>
-                    <button class="email-btn email-btn-primary" @onclick="BeginAddRule">+ Add Rule</button>
-                </div>
-                @if (_editingRule is not null)
-                {
-                    <EditRuleForm Rule="_editingRule" Accounts="_accounts"
-                                  OnSave="SaveRuleAsync" OnCancel="CancelEditRule" />
-                }
-                else if (_rules.Count > 0)
-                {
-                    <div class="email-rules-list">
-                        @foreach (var rule in _rules.OrderBy(r => r.Priority))
+                        @if (_gmailOAuthConfigured)
                         {
-                            <div class="email-rule-card @(rule.IsEnabled ? "" : "disabled")">
-                                <div class="email-rule-info">
-                                    <strong>@rule.Name</strong>
-                                    <span class="email-rule-priority">Priority: @rule.Priority</span>
-                                    @if (!rule.IsEnabled) { <span class="email-rule-disabled">Disabled</span> }
+                            <p>Connect your Gmail account via Google OAuth.</p>
+                            <div class="email-form-actions">
+                                <button class="email-btn email-btn-primary" @onclick="StartGmailOAuth">Connect Gmail</button>
+                                <button class="email-btn email-btn-secondary" @onclick="CancelAddAccount">Cancel</button>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="email-info-message">
+                                <p><strong>Gmail OAuth not yet configured.</strong></p>
+                                <p>The server administrator needs to set up a Google Cloud OAuth 2.0 client.
+                                    Once configured, users will be able to connect their Gmail accounts here.</p>
+                                    <p><small>See the DotNetCloud documentation for setup instructions.</small></p>
                                 </div>
-                                <div class="email-rule-actions">
-                                    <button class="email-btn email-btn-secondary"
-                                            @onclick="() => _editingRule = rule">Edit</button>
-                                    <button class="email-btn email-btn-danger"
-                                            @onclick="() => DeleteRule(rule)">Delete</button>
+                                <div class="email-form-actions">
+                                    <button class="email-btn email-btn-secondary" @onclick="CancelAddAccount">Cancel</button>
                                 </div>
+                            }
+                        }
+                    </div>
+                }
+        else if (_showRules)
+                {
+                    @* ── Rules ── *@
+                    <div class="email-rules-panel">
+                        <div class="email-rules-header">
+                            <h3>Email Rules</h3>
+                            <button class="email-btn email-btn-primary" @onclick="BeginAddRule">+ Add Rule</button>
+                        </div>
+                        @if (_editingRule is not null)
+                        {
+                            <EditRuleForm Rule="_editingRule" Accounts="_accounts" OnSave="SaveRuleAsync" OnCancel="CancelEditRule" />
+                        }
+                        else if (_rules.Count > 0)
+                        {
+                            <div class="email-rules-list">
+                                @foreach (var rule in _rules.OrderBy(r => r.Priority))
+                                {
+                                    <div class="email-rule-card @(rule.IsEnabled ? "" : "disabled")">
+                                        <div class="email-rule-info">
+                                            <strong>@rule.Name</strong>
+                                            <span class="email-rule-priority">Priority: @rule.Priority</span>
+                                            @if (!rule.IsEnabled)
+                                            {
+                                                <span class="email-rule-disabled">Disabled</span>
+                                            }
+                                        </div>
+                                        <div class="email-rule-actions">
+                                            <button class="email-btn email-btn-secondary" @onclick="() => _editingRule = rule">Edit</button>
+                                            <button class="email-btn email-btn-danger" @onclick="() => DeleteRule(rule)">Delete</button>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="email-empty">
+                                <p>No rules configured. Create a rule to automatically organize your email.</p>
+                            </div>
+                        }
+                        <div class="email-form-actions">
+                            <button class="email-btn email-btn-secondary" @onclick="RunRules">Run Rules Now</button>
+                        </div>
+                    </div>
+                }
+                else if (_composing is not null)
+                {
+                    @* ── Compose ── *@
+                    <EmailComposeForm Compose="_composing" Accounts="_accounts" IsReply="_isReply" IsSending="_isSending"
+                                      OnSend="request => SendEmailAsync(request)" OnCancel="CancelCompose" />
+                }
+                else if (_selectedThread is not null)
+                {
+                    @* ── Thread Detail ── *@
+                    <div class="email-thread-detail">
+                        <div class="email-thread-header">
+                            <button class="email-btn email-btn-ghost email-thread-back"
+                                    @onclick="() => { _selectedThread = null; }">
+                                <MaterialIcon Icon="arrow_back" /> Back
+                            </button>
+                            <h3>@_selectedThread.Subject</h3>
+                            <div class="email-thread-actions">
+                                <button class="email-btn email-btn-primary email-btn-reply"
+                                        @onclick="() => ReplyToThread(_selectedThread)">
+                                    <MaterialIcon Icon="reply" /> Reply
+                                </button>
+                                <button class="email-btn email-btn-secondary email-btn-forward"
+                                        @onclick="() => ForwardThread(_selectedThread)">
+                                    <MaterialIcon Icon="forward" /> Forward
+                                </button>
+                            </div>
+                        </div>
+                        @if (_threadMessages.Count > 0)
+                        {
+                            @foreach (var msg in _threadMessages.OrderBy(m => m.DateReceived ?? m.CreatedAt))
+                            {
+                                var isLoadingBody = _loadingBodyMessageId == msg.Id;
+                                _expandedMessageBodies.TryGetValue(msg.Id, out var bodyHtml);
+
+                                // When no BodyHtml from server, convert plain text preview to formatted HTML
+                                var displayHtml = !isLoadingBody && string.IsNullOrWhiteSpace(bodyHtml)
+                                    ? ConvertPlainTextToHtml(msg.BodyPreview)
+                                    : bodyHtml;
+
+                                <div class="email-message @(msg.IsRead ? "" : "unread") expanded">
+                                    <div class="email-message-header">
+                                        <span class="email-message-from">
+                                            @FormatFrom(msg.FromJson)
+                                        </span>
+                                        <span class="email-message-date">
+                                            @(msg.DateReceived?.ToString("g") ?? msg.CreatedAt.ToString("g"))
+                                        </span>
+                                    </div>
+                                    <div class="email-message-body">
+                                        @if (isLoadingBody)
+                                        {
+                                            <div class="email-body-loading">Loading message content...</div>
+                                        }
+                                        else if (!string.IsNullOrWhiteSpace(displayHtml))
+                                        {
+                                            <div class="email-body-html">@((MarkupString)displayHtml)</div>
+                                        }
+                                        @if (msg.Attachments is { Count: > 0 })
+                                        {
+                                            <div class="email-attachments">
+                                                @foreach (var att in msg.Attachments)
+                                                {
+                                                    var downloadUrl = $"/api/v1/email/attachments/{att.Id}/download";
+                                                    var fileIcon = GetFileTypeIcon(att.ContentType);
+                                                    var sizeFormatted = FormatFileSize(att.Size);
+                                                    var isDetaching = _detachingAttachmentId == att.Id;
+                                                    <div class="email-attachment-item">
+                                                        <a href="@downloadUrl" class="email-attachment-chip" download="@att.FileName"
+                                                           title="@att.FileName (@sizeFormatted)">
+                                                            <MaterialIcon Icon="@fileIcon" CssClass="email-attachment-icon" />
+                                                            <span class="email-attachment-name">@att.FileName</span>
+                                                            <span class="email-attachment-size">@sizeFormatted</span>
+                                                        </a>
+                                                        @if (!string.IsNullOrWhiteSpace(att.StorageKey))
+                                                        {
+                                                            <button class="email-attachment-save-btn" @onclick="() => DetachAttachment(att.Id)"
+                                                                    disabled="@isDetaching" title="Save to Files">
+                                                                <MaterialIcon Icon="@(isDetaching ? "hourglass_empty" : "folder")" />
+                                                            </button>
+                                                        }
+                                                    </div>
+                                                }
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="email-empty">
+                                <p>No messages in this thread.</p>
+                            </div>
+                        }
+                    </div>
+                }
+                else if (_selectedMailbox is not null)
+                {
+                    @* ── Thread List ── *@
+                    <div class="email-thread-list">
+                        @if (_threads.Count > 0)
+                        {
+                            @foreach (var thread in _threads.OrderByDescending(t => t.LastMessageAt))
+                            {
+                                <div class="email-thread-card" @onclick="() => SelectThread(thread)">
+                                    <div class="email-thread-subject">
+                                        @(string.IsNullOrWhiteSpace(thread.Subject) ? "(No Subject)" : thread.Subject)
+                                    </div>
+                                    <div class="email-thread-meta">
+                                        <span class="email-thread-participants">
+                                            @FormatParticipants(thread.ParticipantsJson)
+                                        </span>
+                                        <span class="email-thread-count">@thread.MessageCount</span>
+                                        <span class="email-thread-date">
+                                            @(thread.LastMessageAt?.ToString("MMM dd") ?? "")
+                                        </span>
+                                    </div>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="email-empty">
+                                <div class="email-empty-icon">📭</div>
+                                <h3>No messages</h3>
+                                <p>This folder is empty, or messages haven't synced yet.</p>
                             </div>
                         }
                     </div>
                 }
                 else
                 {
+                    @* ── Default / No account ── *@
                     <div class="email-empty">
-                        <p>No rules configured. Create a rule to automatically organize your email.</p>
-                    </div>
-                }
-                <div class="email-form-actions">
-                    <button class="email-btn email-btn-secondary" @onclick="RunRules">Run Rules Now</button>
-                </div>
-            </div>
-        }
-        else if (_composing is not null)
-        {
-            @* ── Compose ── *@
-            <EmailComposeForm Compose="_composing" Accounts="_accounts" IsReply="_isReply" IsSending="_isSending"
-                              OnSend="request => SendEmailAsync(request)" OnCancel="CancelCompose" />
-        }
-        else if (_selectedThread is not null)
-        {
-            @* ── Thread Detail ── *@
-            <div class="email-thread-detail">
-                <div class="email-thread-header">
-                    <button class="email-btn email-btn-ghost email-thread-back"
-                            @onclick="() => { _selectedThread = null; }">
-                        <MaterialIcon Icon="arrow_back" /> Back
-                    </button>
-                    <h3>@_selectedThread.Subject</h3>
-                    <div class="email-thread-actions">
-                        <button class="email-btn email-btn-primary email-btn-reply" @onclick="() => ReplyToThread(_selectedThread)">
-                            <MaterialIcon Icon="reply" /> Reply
-                        </button>
-                        <button class="email-btn email-btn-secondary email-btn-forward" @onclick="() => ForwardThread(_selectedThread)">
-                            <MaterialIcon Icon="forward" /> Forward
-                        </button>
-                    </div>
-                </div>
-                @if (_threadMessages.Count > 0)
-                {
-                    @foreach (var msg in _threadMessages.OrderBy(m => m.DateReceived ?? m.CreatedAt))
-                    {
-                        var isLoadingBody = _loadingBodyMessageId == msg.Id;
-                        _expandedMessageBodies.TryGetValue(msg.Id, out var bodyHtml);
-
-                        // When no BodyHtml from server, convert plain text preview to formatted HTML
-                        var displayHtml = !isLoadingBody && string.IsNullOrWhiteSpace(bodyHtml)
-                            ? ConvertPlainTextToHtml(msg.BodyPreview)
-                            : bodyHtml;
-
-                        <div class="email-message @(msg.IsRead ? "" : "unread") expanded">
-                            <div class="email-message-header">
-                                <span class="email-message-from">
-                                    @FormatFrom(msg.FromJson)
-                                </span>
-                                <span class="email-message-date">
-                                    @(msg.DateReceived?.ToString("g") ?? msg.CreatedAt.ToString("g"))
-                                </span>
-                            </div>
-                            <div class="email-message-body">
-                                @if (isLoadingBody)
-                                {
-                                    <div class="email-body-loading">Loading message content...</div>
-                                }
-                                else if (!string.IsNullOrWhiteSpace(displayHtml))
-                                {
-                                    <div class="email-body-html">@((MarkupString)displayHtml)</div>
-                                }
-                                @if (msg.Attachments is { Count: > 0 })
-                                {
-                                    <div class="email-attachments">
-                                        @foreach (var att in msg.Attachments)
-                                        {
-                                            var downloadUrl = $"/api/v1/email/attachments/{att.Id}/download";
-                                            var fileIcon = GetFileTypeIcon(att.ContentType);
-                                            var sizeFormatted = FormatFileSize(att.Size);
-                                            var isDetaching = _detachingAttachmentId == att.Id;
-                                            <div class="email-attachment-item">
-                                                <a href="@downloadUrl" class="email-attachment-chip" download="@att.FileName" title="@att.FileName (@sizeFormatted)">
-                                                    <MaterialIcon Icon="@fileIcon" CssClass="email-attachment-icon" />
-                                                    <span class="email-attachment-name">@att.FileName</span>
-                                                    <span class="email-attachment-size">@sizeFormatted</span>
-                                                </a>
-                                                @if (!string.IsNullOrWhiteSpace(att.StorageKey))
-                                                {
-                                                    <button class="email-attachment-save-btn" @onclick="() => DetachAttachment(att.Id)"
-                                                            disabled="@isDetaching" title="Save to Files">
-                                                        <MaterialIcon Icon="@(isDetaching ? "hourglass_empty" : "folder")" />
-                                                    </button>
-                                                }
-                                            </div>
-                                        }
-                                    </div>
-                                }
-                            </div>
-                        </div>
-                    }
-                }
-                else
-                {
-                    <div class="email-empty">
-                        <p>No messages in this thread.</p>
+                        <div class="email-empty-icon">📧</div>
+                        <h3>Welcome to Email</h3>
+                        @if (_accounts.Count == 0)
+                        {
+                            <p>Add your first email account to get started.</p>
+                            <button class="email-btn email-btn-primary" @onclick="BeginAddAccount">+ Add Account</button>
+                        }
+                        else
+                        {
+                            <p>Select a mailbox from the sidebar to view your email.</p>
+                        }
                     </div>
                 }
             </div>
-        }
-        else if (_selectedMailbox is not null)
-        {
-            @* ── Thread List ── *@
-            <div class="email-thread-list">
-                @if (_threads.Count > 0)
-                {
-                    @foreach (var thread in _threads.OrderByDescending(t => t.LastMessageAt))
-                    {
-                        <div class="email-thread-card"
-                             @onclick="() => SelectThread(thread)">
-                            <div class="email-thread-subject">
-                                @(string.IsNullOrWhiteSpace(thread.Subject) ? "(No Subject)" : thread.Subject)
-                            </div>
-                            <div class="email-thread-meta">
-                                <span class="email-thread-participants">
-                                    @FormatParticipants(thread.ParticipantsJson)
-                                </span>
-                                <span class="email-thread-count">@thread.MessageCount</span>
-                                <span class="email-thread-date">
-                                    @(thread.LastMessageAt?.ToString("MMM dd") ?? "")
-                                </span>
-                            </div>
-                        </div>
-                    }
-                }
-                else
-                {
-                    <div class="email-empty">
-                        <div class="email-empty-icon">📭</div>
-                        <h3>No messages</h3>
-                        <p>This folder is empty, or messages haven't synced yet.</p>
-                    </div>
-                }
-            </div>
-        }
-        else
-        {
-            @* ── Default / No account ── *@
-            <div class="email-empty">
-                <div class="email-empty-icon">📧</div>
-                <h3>Welcome to Email</h3>
-                @if (_accounts.Count == 0)
-                {
-                    <p>Add your first email account to get started.</p>
-                    <button class="email-btn email-btn-primary" @onclick="BeginAddAccount">+ Add Account</button>
-                }
-                else
-                {
-                    <p>Select a mailbox from the sidebar to view your email.</p>
-                }
-            </div>
-        }
-    </div>
-</div>
+        </div>
 
 @code {
     private bool _sidebarCollapsed;
@@ -414,6 +417,11 @@
     private Guid? _loadingBodyMessageId;
     private bool _isSyncing;
     private List<EmailRule> _rules = [];
+
+    [Parameter]
+    public string? ThreadId { get; set; }
+
+    private Guid? _lastHandledThreadId;
 
     private EmailAccount? _selectedAccount;
     private Guid? _selectedAccountId;
@@ -441,6 +449,13 @@
     private bool _gmailOAuthConfigured;
     private string? _gmailMessage;
     private bool _confirmDeleteAccount;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Runs after OnInitializedAsync on first render and again whenever the
+        // parent re-supplies parameters (e.g. a changed ?threadId= query value).
+        await HandleThreadDeepLinkAsync();
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -603,6 +618,114 @@
         {
             _errorMessage = $"Failed to load messages: {ex.Message}";
         }
+    }
+
+    /// <summary>
+    /// Opens the thread referenced by the <c>?threadId=</c> deep link when the page's
+    /// <see cref="ThreadId"/> parameter points at a valid thread. Guards against
+    /// re-handling the same deep link on repeated parameter sets / re-renders.
+    /// </summary>
+    private async Task HandleThreadDeepLinkAsync()
+    {
+        if (string.IsNullOrWhiteSpace(ThreadId))
+        {
+            _lastHandledThreadId = null;
+            return;
+        }
+
+        if (!Guid.TryParse(ThreadId, out var threadId))
+        {
+            _logger.LogWarning("Email deep link ignored: threadId '{ThreadId}' is not a valid id.", ThreadId);
+            return;
+        }
+
+        // Already handled this exact deep link.
+        if (_lastHandledThreadId == threadId)
+            return;
+
+        // Accounts must be loaded before ownership can be resolved. On the first
+        // render OnParametersSetAsync runs after OnInitializedAsync, so by the time
+        // we get here the accounts (and current mailbox threads) are available.
+        if (_accounts.Count == 0)
+            return;
+
+        try
+        {
+            if (await OpenThreadDeepLinkAsync(threadId))
+                _lastHandledThreadId = threadId;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Email deep link to thread {ThreadId} failed", threadId);
+        }
+    }
+
+    /// <summary>
+    /// Resolves and selects the account/mailbox that owns <paramref name="threadId"/> and
+    /// opens the thread pane. Checks the already-loaded mailbox first, then scans the rest
+    /// of the user's accounts/mailboxes via this page's own API client (which has no
+    /// single-thread lookup). Returns true when the thread was opened.
+    /// </summary>
+    private async Task<bool> OpenThreadDeepLinkAsync(Guid threadId)
+    {
+        // Cheap path: the thread may already be loaded for the current mailbox.
+        if (_selectedAccount is not null && _selectedMailbox is not null)
+        {
+            var current = _threads.FirstOrDefault(t => t.Id == threadId);
+            if (current is not null)
+            {
+                await SelectThread(current);
+                return true;
+            }
+        }
+
+        // Fallback: scan every account/mailbox until the thread is found.
+        foreach (var account in _accounts)
+        {
+            List<EmailMailbox> mailboxes;
+            try
+            {
+                mailboxes = (await ApiClient.ListMailboxesAsync(account.Id)).ToList();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Email deep link: failed to list mailboxes for account {AccountId}", account.Id);
+                continue;
+            }
+
+            foreach (var mailbox in mailboxes)
+            {
+                List<EmailThread> threads;
+                try
+                {
+                    threads = (await ApiClient.ListThreadsAsync(account.Id, mailbox.Id)).ToList();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Email deep link: failed to list threads for mailbox {MailboxId}", mailbox.Id);
+                    continue;
+                }
+
+                var match = threads.FirstOrDefault(t => t.Id == threadId);
+                if (match is null)
+                    continue;
+
+                // Select the owning account and mailbox, then open the thread pane.
+                _selectedAccount = account;
+                _selectedAccountId = account.Id;
+                _mailboxes = mailboxes;
+                _selectedMailbox = mailbox;
+                _threads = threads;
+                _showRules = false;
+                _composing = null;
+
+                await SelectThread(match);
+                return true;
+            }
+        }
+
+        _logger.LogWarning("Email deep link: thread {ThreadId} was not found in any mailbox", threadId);
+        return false;
     }
 
     private async Task LoadMessageBodyAsync(Guid messageId)

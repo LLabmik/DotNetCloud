@@ -547,6 +547,39 @@ public sealed class CalendarGrpcService : Protos.CalendarGrpcService.CalendarGrp
         return response;
     }
 
+    // ─── GetUpcomingEvents ───────────────────────────────────────────────────
+
+    /// <inheritdoc />
+    public override async Task<GetUpcomingEventsResponse> GetUpcomingEvents(
+        GetUpcomingEventsRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.UserId, out var userId))
+            return new GetUpcomingEventsResponse { Success = false, ErrorMessage = "Invalid user ID format." };
+
+        if (!DateTime.TryParse(request.FromUtc, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var fromUtc) ||
+            !DateTime.TryParse(request.ToUtc, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var toUtc))
+            return new GetUpcomingEventsResponse { Success = false, ErrorMessage = "Invalid date format." };
+
+        // RoundtripKind keeps a trailing 'Z' as Kind=Utc; an offset (or no designator) yields
+        // Kind=Local/Unspecified — normalize to UTC so the value is compared correctly against
+        // the timestamptz column and passed to recurrence expansion as UTC.
+        if (fromUtc.Kind != DateTimeKind.Utc)
+            fromUtc = fromUtc.ToUniversalTime();
+        if (toUtc.Kind != DateTimeKind.Utc)
+            toUtc = toUtc.ToUniversalTime();
+
+        var count = request.Count > 0 ? request.Count : 5;
+
+        var results = await _eventService.GetUpcomingEventsAsync(
+            new CallerContext(userId, Array.Empty<string>(), CallerType.User),
+            fromUtc, toUtc, count,
+            context.CancellationToken);
+
+        var response = new GetUpcomingEventsResponse { Success = true };
+        response.Events.AddRange(results.Select(ToEventMessage));
+        return response;
+    }
+
     // ─── Sharing ─────────────────────────────────────────────────────────────
 
     /// <inheritdoc />

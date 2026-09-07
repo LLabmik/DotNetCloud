@@ -24,6 +24,9 @@ public interface IContactService
     /// <summary>Lists contacts for the calling user with optional search.</summary>
     Task<IReadOnlyList<ContactDto>> ListContactsAsync(CallerContext caller, string? search = null, int skip = 0, int take = 50, CancellationToken cancellationToken = default);
 
+    /// <summary>Gets the caller's most recently created contacts.</summary>
+    Task<IReadOnlyList<ContactDto>> GetRecentContactsAsync(CallerContext caller, int count = 5, CancellationToken cancellationToken = default);
+
     /// <summary>Gets contacts by a list of IDs.</summary>
     Task<IReadOnlyList<ContactDto>> GetContactsByIdsAsync(IEnumerable<Guid> contactIds, CallerContext caller, CancellationToken cancellationToken = default);
 }

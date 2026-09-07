@@ -8,6 +8,10 @@ namespace DotNetCloud.Core.Services.ModuleApis;
 public interface IContactsApiClient
 {
     Task<IReadOnlyList<ContactDto>> ListContactsAsync(string? search, int skip, int take, CancellationToken cancellationToken = default);
+
+    /// <summary>Gets the current user's most recently created contacts.</summary>
+    Task<IReadOnlyList<ContactDto>> GetRecentContactsAsync(int count = 5, CancellationToken cancellationToken = default);
+
     Task<ContactDto?> GetContactAsync(Guid contactId, CancellationToken cancellationToken = default);
     Task<ContactDto?> CreateContactAsync(CreateContactDto dto, CancellationToken cancellationToken = default);
     Task<ContactDto?> UpdateContactAsync(Guid contactId, UpdateContactDto dto, CancellationToken cancellationToken = default);

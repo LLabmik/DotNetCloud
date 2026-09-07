@@ -64,9 +64,13 @@ public sealed class EmailGrpcService : EmailService.EmailServiceBase
     public override async Task<ListAccountsResponse> ListAccounts(
         ListAccountsRequest request, ServerCallContext context)
     {
+        if (!Guid.TryParse(request.UserId, out var userId))
+            return new ListAccountsResponse { Success = false, ErrorMessage = "Invalid user ID." };
+
         try
         {
-            var accounts = await _accountService.ListAsync(SystemCaller, context.CancellationToken);
+            var caller = new CallerContext(userId, [], CallerType.User);
+            var accounts = await _accountService.ListAsync(caller, context.CancellationToken);
             var response = new ListAccountsResponse { Success = true };
             response.Accounts.AddRange(accounts.Select(ToAccountMessage));
             return response;
@@ -216,6 +220,98 @@ public sealed class EmailGrpcService : EmailService.EmailServiceBase
         {
             _logger.LogError(ex, "ListThreads gRPC failed");
             return new ListThreadsResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    public override async Task<GetRecentThreadsResponse> GetRecentThreads(
+        GetRecentThreadsRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.UserId, out var userId))
+            return new GetRecentThreadsResponse { Success = false, ErrorMessage = "Invalid user ID." };
+
+        try
+        {
+            var take = request.Count > 0 && request.Count <= 100 ? request.Count : 5;
+
+            // Restrict to threads belonging to the caller's accounts.
+            var accountIds = await _db.EmailAccounts
+                .AsNoTracking()
+                .Where(a => a.OwnerId == userId)
+                .Select(a => a.Id)
+                .ToListAsync(context.CancellationToken);
+
+            if (accountIds.Count == 0)
+                return new GetRecentThreadsResponse { Success = true };
+
+            var threads = await _db.EmailThreads
+                .AsNoTracking()
+                .Where(t => accountIds.Contains(t.AccountId))
+                .OrderByDescending(t => t.LastMessageAt)
+                .Take(take)
+                .ToListAsync(context.CancellationToken);
+
+            var response = new GetRecentThreadsResponse { Success = true };
+            response.Threads.AddRange(threads.Select(ToThreadMessage));
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "GetRecentThreads gRPC failed");
+            return new GetRecentThreadsResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    public override async Task<GetThreadResponse> GetThread(
+        GetThreadRequest request, ServerCallContext context)
+    {
+        if (string.IsNullOrEmpty(request.UserId) || !Guid.TryParse(request.UserId, out var userId))
+            return new GetThreadResponse { Success = false, ErrorMessage = "Invalid user ID." };
+
+        try
+        {
+            if (!Guid.TryParse(request.ThreadId, out var threadId))
+                return new GetThreadResponse { Success = false, ErrorMessage = "Invalid thread ID." };
+
+            // Restrict to threads belonging to the caller's accounts.
+            var accountIds = await _db.EmailAccounts
+                .AsNoTracking()
+                .Where(a => a.OwnerId == userId)
+                .Select(a => a.Id)
+                .ToListAsync(context.CancellationToken);
+
+            if (accountIds.Count == 0)
+                return new GetThreadResponse { Success = false, ErrorMessage = "Thread not found." };
+
+            var thread = await _db.EmailThreads
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t => t.Id == threadId && accountIds.Contains(t.AccountId), context.CancellationToken);
+
+            if (thread is null)
+                return new GetThreadResponse { Success = false, ErrorMessage = "Thread not found." };
+
+            // Locate the mailbox of the thread's most recent message (empty when the thread has no messages).
+            var latestMessage = await _db.EmailMessages
+                .AsNoTracking()
+                .Where(m => m.ThreadId == threadId)
+                .OrderByDescending(m => m.DateReceived ?? m.CreatedAt)
+                .FirstOrDefaultAsync(context.CancellationToken);
+
+            var response = new GetThreadResponse
+            {
+                Success = true,
+                Thread = ToThreadMessage(thread),
+                AccountId = thread.AccountId.ToString()
+            };
+
+            if (latestMessage is not null && latestMessage.MailboxId is { } mailboxId)
+                response.MailboxId = mailboxId.ToString();
+
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "GetThread gRPC failed for {ThreadId}", request.ThreadId);
+            return new GetThreadResponse { Success = false, ErrorMessage = ex.Message };
         }
     }
 

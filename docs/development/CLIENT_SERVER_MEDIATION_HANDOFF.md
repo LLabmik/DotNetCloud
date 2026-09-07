@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-09-06 (Blazor form defaults implemented + deployed by server agent mint22 → back to client agent for PR/next)
+Last updated: 2026-09-06 (Module Home Widgets plan committed on feature/module-widgets → handed to mint22 for implementation)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -16,7 +16,7 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
-- **Current active branch:** `fix/form-submit-handling` (Blazor form defaults — implemented commit `5ddc81dd`, deployed to mint22 dev; awaiting user PR merge → client agent `monolith` for next steps)
+- **Current active branch:** `feature/module-widgets` (Module Home Widgets — plan `docs/MODULE_WIDGETS_PLAN.md`; awaiting mint22 implementation)
 
 ## Archived Handoff — SyncTray test machine: DB Outage SyncTray Simulation (plan §11.4) ✅ PASS
 
@@ -168,7 +168,7 @@ Setup note: because the *applying* client generates the updater script from its 
 
 **Result: PASS** — no client regressions observed. The machine was reconfigured to **per-user installs** (benk's copy now at `~/.local/share/dotnetcloud-desktop-client/SyncTray`, `0.4.13`, direct-copy updates, no root password); the shared `/opt` install, `/usr/local/bin` launcher, and system `.desktop`/icon were removed. Branch merged to `main`; tag/release `v0.4.13` already points at a commit on `main`'s history.
 
-## Active Handoff
+## Archived Handoff — Blazor form defaults (2026-09-06) ✅ COMPLETED
 
 **Status:** ✅ COMPLETED — Blazor form defaults implemented, deployed to mint22 dev, and user-tested (2026-09-06, server agent mint22). Next: user PR merge to main; client agent may wire more forms via the shared mechanism (plan §6).
 
@@ -210,6 +210,34 @@ User requirement: "Default for forms (login, TOTP, file create name, etc.) shoul
 - Module markup lives under each module RCL `UI/` folder (e.g. `src/Modules/Files/DotNetCloud.Modules.Files/UI/`). If `read_file`/grep tooling looks stale there, read from disk (`git show HEAD:<path>` / `Get-Content`) — files may be open in an editor buffer.
 - Interactive `EditForm` auto-submit MUST be C# (`@bind:event="oninput"` + `@bind:after`), NOT JS `data-autosubmit` (JS `requestSubmit()` races the Blazor model round-trip) — plan §4.1-B explains.
 - Keep the existing Escape-to-close behavior on the Files dialogs. No schema/CSS/test-project changes expected.
+
+## Active Handoff
+
+**Status:** ✅ READY FOR IMPLEMENTATION — Module Home Widgets (2026-09-06, client agent). Plan committed on `feature/module-widgets`; awaiting mint22 implementation.
+
+**Target agent:** mint22 (server)
+**Branch:** `feature/module-widgets`
+**Canonical plan:** `docs/MODULE_WIDGETS_PLAN.md` (read it FIRST — fully self-contained; written to be implementable with no prior context)
+
+### What to do (server agent — mint22)
+1. Implement `docs/MODULE_WIDGETS_PLAN.md` on branch `feature/module-widgets`, following it end-to-end:
+   - **Phase 0** — shared widget infrastructure: `WidgetUiRegistry`, `WidgetCard`, `WidgetUiRegistrationHostedService`, plus `Program.cs` and `Home.razor` wiring.
+   - **Phases 1–3** — the 12 widget projects (`DotNetCloud.Modules.<Module>.Widget`), including the new in-process "recent" service methods (Photos/Notes/Chat/Tracks) and the full gRPC chains for process-isolated modules (Calendar/Contacts/Bookmarks/Email/AI).
+   - **Phase 4** — solution + CI filter + Core.Server `ProjectReference`s + `KnownWidgetDescriptors` table.
+2. Build `dotnet build DotNetCloud.CI.slnf -c Release` — must be 0 warnings (`TreatWarningsAsErrors` is on).
+3. Add + run the unit tests listed in plan §12.1 (`dotnet test` per affected module test project).
+4. Deploy to mint22 dev via the usual deploy script; verify `/health/ready` Healthy and all modules Running; verify Home renders the widgets and "Your Apps" is gone.
+5. Record server-side verification, then hand the browser acceptance checks (plan §13) to the user/moderator.
+
+### Do NOT (this pass)
+- Do NOT add per-user widget show/hide or drag-and-drop reorder (deferred follow-up — plan §2 decision 7).
+- Do NOT add widgets for About, Example, or Search (plan §1/§2).
+
+### Notes for the implementer
+- `read_file` may return stale editor-buffer content; if files look wrong, read from disk (`git show HEAD:<path>`).
+- Process-isolated widgets do NOT build a `CallerContext` — the gRPC `I*ApiClient` resolves the user internally; in-process widgets DO build one (plan §6.3).
+- Verify two flagged spots while implementing: Tracks `WorkItemAssignment.UserId` navigation property (plan §9.4) and the Email thread query location behind `ListThreadsAsync` (plan §10.4).
+- Module ids in `KnownWidgetDescriptors` must match `InstalledModules.ModuleId` exactly (plan §11.4 table).
 
 ## Moderator Communication (Minimal)
 

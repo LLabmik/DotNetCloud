@@ -209,6 +209,9 @@ public interface IBookmarkService
     /// <summary>Searches bookmarks by query text.</summary>
     Task<IReadOnlyList<BookmarkItem>> SearchAsync(CallerContext caller, string query, int skip, int take, CancellationToken ct = default);
 
+    /// <summary>Gets the caller's most recently created bookmarks.</summary>
+    Task<IReadOnlyList<BookmarkItem>> GetRecentBookmarksAsync(CallerContext caller, int count = 5, CancellationToken ct = default);
+
     /// <summary>Gets bookmark changes since a specific timestamp for delta sync.</summary>
     Task<BookmarkSyncChangesResult> GetSyncChangesAsync(DateTimeOffset since, int limit, CallerContext caller, CancellationToken ct = default);
 

@@ -17,6 +17,9 @@ public interface INoteService
     /// <summary>Lists notes for the calling user with optional folder filter.</summary>
     Task<IReadOnlyList<NoteDto>> ListNotesAsync(CallerContext caller, Guid? folderId = null, int skip = 0, int take = 50, CancellationToken cancellationToken = default);
 
+    /// <summary>Gets the most recently edited notes for the caller.</summary>
+    Task<IReadOnlyList<NoteDto>> GetRecentNotesAsync(CallerContext caller, int count = 5, CancellationToken cancellationToken = default);
+
     /// <summary>Updates an existing note.</summary>
     Task<NoteDto> UpdateNoteAsync(Guid noteId, UpdateNoteDto dto, CallerContext caller, CancellationToken cancellationToken = default);
 

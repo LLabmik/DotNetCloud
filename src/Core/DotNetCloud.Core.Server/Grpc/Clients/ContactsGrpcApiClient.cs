@@ -83,6 +83,15 @@ public sealed class ContactsGrpcApiClient : IContactsApiClient, IDisposable
         }, "ListContacts", []))!;
 
     /// <inheritdoc />
+    public async Task<IReadOnlyList<ContactDto>> GetRecentContactsAsync(int count = 5, CancellationToken cancellationToken = default)
+        => (await SafeCallAsync(async () =>
+        {
+            var request = new GetRecentContactsRequest { UserId = GetUserId(), Count = count };
+            var response = await _client.Value.GetRecentContactsAsync(request, DeadlineHeaders(cancellationToken)).ResponseAsync;
+            return !response.Success ? [] : response.Contacts.Select(c => ToContactDto(c)!).Where(c => c is not null).Select(c => c!).ToList();
+        }, "GetRecentContacts", []))!;
+
+    /// <inheritdoc />
     public async Task<ContactDto?> GetContactAsync(Guid contactId, CancellationToken cancellationToken = default)
         => await SafeCallAsync(async () =>
         {

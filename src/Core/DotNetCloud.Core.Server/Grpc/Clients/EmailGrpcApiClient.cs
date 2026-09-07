@@ -321,6 +321,30 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
     }
 
     /// <inheritdoc />
+    public async Task<IReadOnlyList<EmailThreadDto>> GetRecentThreadsAsync(int count = 5, CancellationToken ct = default)
+    {
+        var request = new GetRecentThreadsRequest { UserId = GetUserId(), Count = count };
+        try
+        {
+            var response = await _client.Value.GetRecentThreadsAsync(request, DeadlineHeaders(ct)).ResponseAsync;
+            return !response.Success ? [] : response.Threads.Select(ToThread).Where(t => t is not null).Select(t => t!).ToList();
+        }
+        catch (RpcException ex) { _logger.LogError(ex, "EmailGrpcApiClient.GetRecentThreadsAsync failed"); return []; }
+    }
+
+    /// <inheritdoc />
+    public async Task<EmailThreadDetailsDto?> GetThreadAsync(Guid threadId, CancellationToken ct = default)
+    {
+        var request = new GetThreadRequest { UserId = GetUserId(), ThreadId = threadId.ToString() };
+        try
+        {
+            var response = await _client.Value.GetThreadAsync(request, DeadlineHeaders(ct)).ResponseAsync;
+            return !response.Success ? null : ToThreadDetails(response);
+        }
+        catch (RpcException ex) { _logger.LogError(ex, "EmailGrpcApiClient.GetThreadAsync failed"); return null; }
+    }
+
+    /// <inheritdoc />
     public async Task<IReadOnlyList<EmailMessageDto>> ListThreadMessagesAsync(Guid threadId, CancellationToken ct = default)
     {
         var request = new ListThreadMessagesRequest { ThreadId = threadId.ToString(), UserId = GetUserId() };
@@ -577,6 +601,22 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
             LastMessageAt = DateTime.TryParse(m.LastMessageAt, out var lma) ? lma : null,
             CreatedAt = DateTime.MinValue,
             UpdatedAt = DateTime.MinValue
+        };
+    }
+
+    private static EmailThreadDetailsDto? ToThreadDetails(GetThreadResponse response)
+    {
+        var thread = response.Thread;
+        if (thread is null || string.IsNullOrEmpty(thread.Id))
+            return null;
+        return new EmailThreadDetailsDto
+        {
+            Id = Guid.Parse(thread.Id),
+            AccountId = string.IsNullOrEmpty(response.AccountId)
+                ? Guid.Parse(thread.AccountId)
+                : Guid.Parse(response.AccountId),
+            MailboxId = string.IsNullOrEmpty(response.MailboxId) ? null : Guid.Parse(response.MailboxId),
+            Subject = thread.Subject
         };
     }
 

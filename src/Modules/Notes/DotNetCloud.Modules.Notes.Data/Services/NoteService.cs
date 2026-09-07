@@ -150,6 +150,18 @@ public sealed class NoteService : INoteService
     }
 
     /// <inheritdoc />
+    public async Task<IReadOnlyList<NoteDto>> GetRecentNotesAsync(CallerContext caller, int count = 5, CancellationToken cancellationToken = default)
+    {
+        var notes = await QueryNotes()
+            .Where(n => n.OwnerId == caller.UserId || n.Shares.Any(s => s.SharedWithUserId == caller.UserId))
+            .OrderByDescending(n => n.UpdatedAt)
+            .Take(count)
+            .ToListAsync(cancellationToken);
+
+        return notes.Select(MapToDto).ToList();
+    }
+
+    /// <inheritdoc />
     public async Task<NoteDto> UpdateNoteAsync(Guid noteId, UpdateNoteDto dto, CallerContext caller, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(dto);
