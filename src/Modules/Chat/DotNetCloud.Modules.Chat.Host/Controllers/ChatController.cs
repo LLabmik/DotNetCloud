@@ -781,7 +781,12 @@ public class ChatController : ChatControllerBase
     {
         try
         {
-            await _typingService.NotifyTypingAsync(channelId, GetAuthenticatedCaller());
+            var caller = GetAuthenticatedCaller();
+            await _typingService.NotifyTypingAsync(channelId, caller);
+
+            // Broadcast a typing heartbeat to the channel so other members see
+            // "X is typing…". Receivers resolve the display name locally.
+            await _chatRealtimeService.BroadcastTypingAsync(channelId, caller.UserId, null);
             return Ok(Envelope(new { typing = true }));
         }
         catch (ArgumentException ex)

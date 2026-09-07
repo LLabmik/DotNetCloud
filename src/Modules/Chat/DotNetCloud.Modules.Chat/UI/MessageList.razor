@@ -176,8 +176,13 @@
 
     @if (TypingUsers.Count > 0)
     {
-        <div class="typing-indicator">
-            @GetTypingText()
+        <div class="typing-indicator" role="status" aria-live="polite">
+            <div class="typing-dots" aria-hidden="true">
+                <span class="typing-dot"></span>
+                <span class="typing-dot"></span>
+                <span class="typing-dot"></span>
+            </div>
+            <span class="typing-indicator-text">@GetTypingText()</span>
         </div>
     }
 

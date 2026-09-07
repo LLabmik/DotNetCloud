@@ -74,3 +74,16 @@ public sealed record ChatMessageReceivedEventArgs(
     bool IsMention,
     Guid SenderUserId = default,
     string? AttachmentsJson = null);
+
+/// <summary>
+/// Event payload for a typing-indicator heartbeat received for a channel.
+/// Every event means the user is actively typing; the UI hides the indicator
+/// after a short timeout or when that user's message arrives.
+/// </summary>
+/// <param name="ChannelId">Chat channel identifier (server Guid as string).</param>
+/// <param name="UserId">User ID of the typist.</param>
+/// <param name="DisplayName">Display name of the typist, or <c>null</c> when it must be resolved locally.</param>
+public sealed record ChatTypingEventArgs(
+    string ChannelId,
+    Guid UserId,
+    string? DisplayName);

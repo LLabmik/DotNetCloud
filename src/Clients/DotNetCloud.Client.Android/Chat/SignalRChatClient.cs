@@ -42,6 +42,14 @@ internal sealed record NewMessagePayload(
     [property: JsonPropertyName("message")] SignalRMessageDto Message);
 
 /// <summary>
+/// Server payload for typing indicators: { channelId, userId, displayName }.
+/// </summary>
+internal sealed record TypingIndicatorPayload(
+    [property: JsonPropertyName("channelId")] string ChannelId,
+    [property: JsonPropertyName("userId")] Guid UserId,
+    [property: JsonPropertyName("displayName")] string? DisplayName = null);
+
+/// <summary>
 /// <see cref="ICoreHubClient"/> implementation that maintains a persistent SignalR
 /// connection to the DotNetCloud CoreHub. Consolidates chat, calendar, and future
 /// module events into a single WebSocket connection.
@@ -72,6 +80,9 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
 
     /// <inheritdoc />
     public event EventHandler<ChatMessageReceivedEventArgs>? OnNewChatMessage;
+
+    /// <inheritdoc />
+    public event EventHandler<ChatTypingEventArgs>? OnChatTyping;
 
     /// <inheritdoc />
     public event Action? CalendarsChanged;
@@ -127,6 +138,14 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
 
         _hub.On<UnreadCountUpdatedPayload>("UnreadCountUpdated", payload =>
             OnUnreadCountUpdated?.Invoke(this, new ChatUnreadCountUpdatedEventArgs(payload.ChannelId, payload.Count, payload.HasMention)));
+
+        _hub.On<TypingIndicatorPayload>("TypingIndicator", payload =>
+        {
+#if ANDROID
+            Log.Info("DotNetCloud", $"SignalRChatClient: TypingIndicator channel={payload.ChannelId} userId={payload.UserId} displayName='{payload.DisplayName}'");
+#endif
+            OnChatTyping?.Invoke(this, new ChatTypingEventArgs(payload.ChannelId, payload.UserId, payload.DisplayName));
+        });
 
         _hub.On<NewMessagePayload>("NewMessage", payload =>
         {

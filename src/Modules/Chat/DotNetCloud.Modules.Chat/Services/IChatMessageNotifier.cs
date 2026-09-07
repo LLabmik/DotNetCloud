@@ -92,6 +92,17 @@ public sealed record UserPresenceChangedNotification(
     bool IsOnline);
 
 /// <summary>
+/// Payload for a typing-indicator heartbeat raised via <see cref="IChatMessageNotifier"/>.
+/// Receivers treat the event as "user is typing" and hide the indicator via a short
+/// timeout or when the user's message arrives. <see cref="DisplayName"/> is optional;
+/// when null receivers resolve the display name from their own member list.
+/// </summary>
+public sealed record ChatTypingNotification(
+    Guid ChannelId,
+    Guid UserId,
+    string? DisplayName);
+
+/// <summary>
 /// Payload for a new-message toast notification delivered per-user after mute/DND filtering.
 /// Raised via <see cref="IChatMessageNotifier"/> for in-process Blazor circuits.
 /// </summary>
@@ -136,6 +147,9 @@ public interface IChatMessageNotifier
 
     /// <summary>Raised when a message is deleted.</summary>
     event Action<Guid, Guid>? MessageDeleted;
+
+    /// <summary>Raised when a user is typing in a channel (a heartbeat; hidden via timeout or on the user's message).</summary>
+    event Action<ChatTypingNotification>? TypingChanged;
 
     /// <summary>Raised when a call starts ringing in a channel.</summary>
     event Action<CallRingingNotification>? CallRinging;
@@ -193,6 +207,9 @@ public interface IChatMessageNotifier
 
     /// <summary>Notifies all subscribers that a message was deleted.</summary>
     void NotifyMessageDeleted(Guid channelId, Guid messageId);
+
+    /// <summary>Notifies all subscribers that a user's typing state changed in a channel.</summary>
+    void NotifyTypingChanged(ChatTypingNotification notification);
 
     /// <summary>Notifies all subscribers that a call is ringing in a channel.</summary>
     void NotifyCallRinging(CallRingingNotification notification);
@@ -278,6 +295,13 @@ public sealed class InProcessChatMessageNotifier : IChatMessageNotifier
     /// <inheritdoc />
     public void NotifyMessageDeleted(Guid channelId, Guid messageId)
         => MessageDeleted?.Invoke(channelId, messageId);
+
+    /// <inheritdoc />
+    public event Action<ChatTypingNotification>? TypingChanged;
+
+    /// <inheritdoc />
+    public void NotifyTypingChanged(ChatTypingNotification notification)
+        => TypingChanged?.Invoke(notification);
 
     /// <inheritdoc />
     public void NotifyCallRinging(CallRingingNotification notification)

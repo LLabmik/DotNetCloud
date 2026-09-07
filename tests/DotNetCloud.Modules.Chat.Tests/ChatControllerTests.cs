@@ -147,6 +147,28 @@ public class ChatControllerTests
     }
 
     [TestMethod]
+    public async Task NotifyTypingAsync_WhenSuccessful_ThenBroadcastsTypingHeartbeat()
+    {
+        var channelId = Guid.CreateVersion7();
+        _typingService
+            .Setup(s => s.NotifyTypingAsync(channelId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var result = await _controller.NotifyTypingAsync(channelId);
+
+        var ok = result as OkObjectResult;
+        Assert.IsNotNull(ok);
+
+        // The typing heartbeat must be broadcast so other channel members see "X is typing…".
+        _typingService.Verify(s => s.NotifyTypingAsync(channelId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()), Times.Once);
+        _chatRealtimeService.Verify(r => r.BroadcastTypingAsync(
+            channelId,
+            It.IsAny<Guid>(),
+            It.IsAny<string?>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [TestMethod]
     public async Task GetPinnedMessagesAsync_WhenInvalidOperation_ThenReturnsNotFound()
     {
         _pinService

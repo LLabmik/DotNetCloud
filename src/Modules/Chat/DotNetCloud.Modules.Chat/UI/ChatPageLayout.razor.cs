@@ -122,8 +122,17 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     private string? _announcementErrorMessage;
     private readonly HashSet<Guid> _dismissedAnnouncementIds = [];
 
-    // Typing state
+    // Typing state — tracks remote users typing in the selected channel.
+    // _typingState holds the last-seen heartbeat per user so entries expire
+    // shortly after the remote user stops sending heartbeats.
     private List<TypingUserViewModel> _typingUsers = [];
+    private readonly Dictionary<Guid, (TypingUserViewModel User, DateTime SeenUtc)> _typingState = [];
+    private System.Threading.Timer? _typingPruneTimer;
+    private static readonly TimeSpan TypingVisible = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan TypingPruneInterval = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan TypingBroadcastThrottle = TimeSpan.FromMilliseconds(2500);
+    private DateTime _lastTypingBroadcastUtc = DateTime.MinValue;
+    private readonly object _typingBroadcastLock = new();
 
     // Invite state
     private bool _showInviteDialog;
@@ -320,6 +329,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         ChatMessageNotifier.ChannelAdded += OnChannelAdded;
         ChatMessageNotifier.ChannelDeleted += OnChannelDeleted;
         ChatMessageNotifier.UserBlockStatusChanged += OnUserBlockStatusChanged;
+        ChatMessageNotifier.TypingChanged += OnRemoteTypingChanged;
         GlobalNotificationState.OnCallAccepted += OnGlobalCallAccepted;
 
         // Check if a call was accepted from the global notification overlay before navigation
@@ -378,7 +388,11 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         ChatMessageNotifier.ChannelAdded -= OnChannelAdded;
         ChatMessageNotifier.ChannelDeleted -= OnChannelDeleted;
         ChatMessageNotifier.UserBlockStatusChanged -= OnUserBlockStatusChanged;
+        ChatMessageNotifier.TypingChanged -= OnRemoteTypingChanged;
         GlobalNotificationState.OnCallAccepted -= OnGlobalCallAccepted;
+
+        _typingPruneTimer?.Dispose();
+        _typingPruneTimer = null;
 
         _callDurationTimer?.Stop();
         _callDurationTimer?.Dispose();
@@ -416,6 +430,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
                 { wasNearBottom = await JS.InvokeAsync<bool>("dotnetcloudChatScroll.isNearBottom", ".chat-message-list", 150); }
                 catch { wasNearBottom = true; }
 
+                // The sender just sent a message, so they are no longer typing.
+                RemoveTypingUser(message.SenderUserId);
                 _messages.Add(ToMessageViewModel(message));
                 if (wasNearBottom)
                 {
@@ -614,6 +630,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         _showMemberPanel = false;
         _isSearchOpen = false;
         _searchResults = [];
+        ResetTypingState();
 
         await LoadMessagesAsync(channel.Id);
         await LoadMembersAsync(channel.Id);
@@ -1551,20 +1568,149 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     // ── Typing Indicators ───────────────────────────────────────────
 
-    /// <summary>Handles typing indicator action.</summary>
+    /// <summary>Handles typing indicator action from the composer.</summary>
     protected async Task HandleTyping()
     {
         if (_selectedChannel is null)
             return;
         try
         {
+            // Throttle broadcasts so continuous typing emits at most one heartbeat
+            // per TypingBroadcastThrottle; receivers expire entries shortly after
+            // the last heartbeat (see TypingVisible).
+            var now = DateTime.UtcNow;
+            lock (_typingBroadcastLock)
+            {
+                if ((now - _lastTypingBroadcastUtc) < TypingBroadcastThrottle)
+                    return;
+                _lastTypingBroadcastUtc = now;
+            }
+
             var caller = await GetCallerContextAsync();
             await TypingService.NotifyTypingAsync(_selectedChannel.Id, caller);
+
+            // Broadcast to other members (SignalR hub clients) and mirror to
+            // in-process Blazor circuits so "X is typing…" shows live.
+            await ChatRealtimeService.BroadcastTypingAsync(_selectedChannel.Id, caller.UserId, _currentUserDisplayName);
+            ChatMessageNotifier.NotifyTypingChanged(new ChatTypingNotification(_selectedChannel.Id, caller.UserId, _currentUserDisplayName));
         }
         catch
         {
             // Non-critical
         }
+    }
+
+    /// <summary>
+    /// Handles a typing-indicator heartbeat from another member of the selected channel.
+    /// Every event is a heartbeat — entries are hidden by the expiry pruner or when
+    /// the remote user's message arrives.
+    /// </summary>
+    private void OnRemoteTypingChanged(ChatTypingNotification notification)
+    {
+        if (_isDisposed)
+            return;
+        if (_selectedChannel is null || _selectedChannel.Id != notification.ChannelId)
+            return;
+        if (notification.UserId == _currentUserId)
+            return; // Ignore our own typing echoes.
+
+        InvokeAsync(() =>
+        {
+            UpdateTypingUser(notification.UserId, notification.DisplayName);
+            SafeStateHasChanged();
+        });
+    }
+
+    /// <summary>Adds or refreshes a user in the typing indicator state and arms the expiry pruner.</summary>
+    private void UpdateTypingUser(Guid userId, string? displayName)
+    {
+        var name = string.IsNullOrWhiteSpace(displayName)
+            ? ResolveTypingDisplayName(userId)
+            : displayName;
+        _typingState[userId] = (new TypingUserViewModel(userId, name), DateTime.UtcNow);
+        RebuildTypingUsers();
+        EnsureTypingPruneTimer();
+    }
+
+    /// <summary>Removes a user from the typing indicator state.</summary>
+    private void RemoveTypingUser(Guid userId)
+    {
+        if (_typingState.Remove(userId))
+        {
+            RebuildTypingUsers();
+            EnsureTypingPruneTimer();
+        }
+    }
+
+    /// <summary>Clears all typing indicator state (channel switch).</summary>
+    private void ResetTypingState()
+    {
+        _typingState.Clear();
+        RebuildTypingUsers();
+        EnsureTypingPruneTimer();
+        _lastTypingBroadcastUtc = DateTime.MinValue;
+    }
+
+    /// <summary>Rebuilds the display list from the typing state, ordered by last heartbeat.</summary>
+    private void RebuildTypingUsers()
+    {
+        _typingUsers.Clear();
+        _typingUsers.AddRange(_typingState.Values
+            .OrderBy(v => v.SeenUtc)
+            .Select(v => v.User));
+    }
+
+    /// <summary>Prunes typing entries whose heartbeats have gone stale.</summary>
+    private void PruneTypingState()
+    {
+        if (_isDisposed || _typingState.Count == 0)
+            return;
+
+        var cutoff = DateTime.UtcNow - TypingVisible;
+        var stale = _typingState.Where(kvp => kvp.Value.SeenUtc < cutoff).Select(kvp => kvp.Key).ToList();
+        if (stale.Count == 0)
+            return;
+
+        foreach (var userId in stale)
+            _typingState.Remove(userId);
+        RebuildTypingUsers();
+        SafeStateHasChanged();
+    }
+
+    /// <summary>Starts (or keeps alive) the periodic expiry pruner while anyone is typing.</summary>
+    private void EnsureTypingPruneTimer()
+    {
+        if (_typingState.Count == 0)
+        {
+            _typingPruneTimer?.Dispose();
+            _typingPruneTimer = null;
+            return;
+        }
+
+        if (_typingPruneTimer is not null)
+            return;
+
+        _typingPruneTimer = new System.Threading.Timer(
+            _ => InvokeAsync(PruneTypingState),
+            null,
+            TypingPruneInterval,
+            TypingPruneInterval);
+    }
+
+    /// <summary>Resolves a user's display name for the typing indicator from cache or member list.</summary>
+    private string ResolveTypingDisplayName(Guid userId)
+    {
+        if (_displayNameCache.TryGetValue(userId, out var cached) && !string.IsNullOrWhiteSpace(cached))
+            return cached;
+
+        var member = _members.FirstOrDefault(m => m.UserId == userId);
+        if (member is not null && !string.IsNullOrWhiteSpace(member.DisplayName))
+        {
+            _displayNameCache[userId] = member.DisplayName;
+            return member.DisplayName;
+        }
+
+        return userId == Guid.Empty ? "Someone" : userId.ToString()[..8];
     }
 
     // ── Image Upload & Attachment ──────────────────────────────────

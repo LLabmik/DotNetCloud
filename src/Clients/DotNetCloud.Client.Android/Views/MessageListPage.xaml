@@ -272,6 +272,17 @@
             Grid.Row="2"
             Spacing="0">
 
+            <!-- "X is typing…" indicator shown while another member is typing -->
+            <Label
+                IsVisible="{Binding TypingIndicatorText, Converter={StaticResource IsNotNullOrEmpty}}"
+                Text="{Binding TypingIndicatorText}"
+                TextColor="#38BDF8"
+                FontSize="12"
+                FontAttributes="Italic"
+                BackgroundColor="#1E293B"
+                Padding="14,4"
+                LineBreakMode="TailTruncation"/>
+
             <Label
                 IsVisible="{Binding QueuedStatusText, Converter={StaticResource IsNotNullOrEmpty}}"
                 Text="{Binding QueuedStatusText}"

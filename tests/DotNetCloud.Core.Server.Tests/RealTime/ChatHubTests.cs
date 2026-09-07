@@ -5,6 +5,8 @@ using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs.Chat;
 using DotNetCloud.Core.Server.RealTime;
 using DotNetCloud.Core.Services.ModuleApis;
+using ChatMessageNotifier = DotNetCloud.Modules.Chat.Services.IChatMessageNotifier;
+using ChatTypingNotification = DotNetCloud.Modules.Chat.Services.ChatTypingNotification;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -238,6 +240,29 @@ public class ChatHubTests
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
+    [TestMethod]
+    public async Task WhenStartTypingCalledThenForwardsToInProcessChatNotifier()
+    {
+        var userId = Guid.CreateVersion7();
+        var channelId = Guid.CreateVersion7();
+
+        var chatApiMock = new Mock<IChatApiClient>();
+        chatApiMock
+            .Setup(c => c.NotifyTypingAsync(channelId, userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        var broadcasterMock = new Mock<IRealtimeBroadcaster>();
+        var notifierMock = new Mock<ChatMessageNotifier>();
+
+        var hub = CreateHub(userId, chatApiMock, broadcasterMock, notifierMock);
+
+        await hub.StartTypingAsync(channelId, "Ben");
+
+        notifierMock.Verify(n => n.NotifyTypingChanged(
+            It.Is<ChatTypingNotification>(t =>
+                t.ChannelId == channelId && t.UserId == userId && t.DisplayName == "Ben")), Times.Once);
+    }
+
     private static void TrackMessageInHub(Guid messageId, Guid channelId)
     {
         var field = typeof(ChatHub).GetField("MessageChannelMap", BindingFlags.Static | BindingFlags.NonPublic);
@@ -248,7 +273,8 @@ public class ChatHubTests
     private static ChatHub CreateHub(
         Guid userId,
         Mock<IChatApiClient>? chatApiClientMock = null,
-        Mock<IRealtimeBroadcaster>? broadcasterMock = null)
+        Mock<IRealtimeBroadcaster>? broadcasterMock = null,
+        Mock<ChatMessageNotifier>? notifierMock = null)
     {
         chatApiClientMock ??= new Mock<IChatApiClient>();
         broadcasterMock ??= new Mock<IRealtimeBroadcaster>();
@@ -256,7 +282,8 @@ public class ChatHubTests
         var hub = new ChatHub(
             chatApiClientMock.Object,
             broadcasterMock.Object,
-            NullLogger<ChatHub>.Instance);
+            NullLogger<ChatHub>.Instance,
+            notifierMock?.Object);
 
         var mockCallerContext = new Mock<HubCallerContext>();
         var identity = new ClaimsIdentity(new[]
