@@ -25,6 +25,7 @@ internal sealed class MessageService : IMessageService
     private readonly IUserDirectory? _userDirectory;
     private readonly IMentionNotificationService? _mentionNotifier;
     private readonly IUserBlockService? _userBlockService;
+    private readonly ILinkPreviewService? _linkPreviewService;
     private readonly ILogger<MessageService> _logger;
 
     public MessageService(
@@ -34,7 +35,8 @@ internal sealed class MessageService : IMessageService
         ILogger<MessageService> logger,
         IUserDirectory? userDirectory = null,
         IMentionNotificationService? mentionNotifier = null,
-        IUserBlockService? userBlockService = null)
+        IUserBlockService? userBlockService = null,
+        ILinkPreviewService? linkPreviewService = null)
     {
         _db = db;
         _eventBus = eventBus;
@@ -43,6 +45,7 @@ internal sealed class MessageService : IMessageService
         _userDirectory = userDirectory;
         _mentionNotifier = mentionNotifier;
         _userBlockService = userBlockService;
+        _linkPreviewService = linkPreviewService;
     }
 
     /// <inheritdoc />
@@ -133,6 +136,11 @@ internal sealed class MessageService : IMessageService
 
         await _db.SaveChangesAsync(cancellationToken);
 
+        // Capture a rich link preview for the first URL in the content (best-effort and
+        // SSRF-safe). Runs after the message is persisted so a slow/unreachable page never
+        // delays or loses the message itself.
+        await TryCaptureLinkPreviewAsync(message, cancellationToken);
+
         await _auditLogger.LogAsync(new AuditEntry
         {
             Caller = caller,
@@ -201,6 +209,10 @@ internal sealed class MessageService : IMessageService
         var newMentions = await ParseAndStoreMentionsAsync(message, cancellationToken);
 
         await _db.SaveChangesAsync(cancellationToken);
+
+        // Refresh the link preview: the edited content may reference a different URL (or none).
+        // Best-effort and SSRF-safe; never fails the edit when the fetch cannot complete.
+        await RefreshLinkPreviewAsync(message, cancellationToken);
 
         await _eventBus.PublishAsync(new MessageEditedEvent
         {
@@ -291,6 +303,7 @@ internal sealed class MessageService : IMessageService
             .Include(m => m.Attachments)
             .Include(m => m.Reactions)
             .Include(m => m.Mentions)
+            .Include(m => m.LinkPreview)
             .ToListAsync(cancellationToken);
 
         var dtos = new List<MessageDto>(messages.Count);
@@ -325,6 +338,7 @@ internal sealed class MessageService : IMessageService
             .Include(m => m.Attachments)
             .Include(m => m.Reactions)
             .Include(m => m.Mentions)
+            .Include(m => m.LinkPreview)
             .ToListAsync(cancellationToken);
 
         var dtos = new List<MessageDto>(messages.Count);
@@ -348,6 +362,7 @@ internal sealed class MessageService : IMessageService
             .Include(m => m.Attachments)
             .Include(m => m.Reactions)
             .Include(m => m.Mentions)
+            .Include(m => m.LinkPreview)
             .FirstOrDefaultAsync(m => m.Id == messageId, cancellationToken);
 
         return message is null ? null : await ToMessageDtoAsync(message, cancellationToken);
@@ -535,7 +550,79 @@ internal sealed class MessageService : IMessageService
                 MentionedUserId = m.MentionedUserId,
                 StartIndex = m.StartIndex,
                 Length = m.Length
-            }).ToList()
+            }).ToList(),
+            LinkPreview = message.LinkPreview is null ? null : new MessageLinkPreviewDto
+            {
+                Url = message.LinkPreview.Url,
+                Title = message.LinkPreview.Title,
+                Description = message.LinkPreview.Description,
+                ImageUrl = message.LinkPreview.ImageUrl,
+                SiteName = message.LinkPreview.SiteName,
+                FaviconUrl = message.LinkPreview.FaviconUrl
+            }
         };
+    }
+
+    /// <summary>
+    /// Captures a rich link preview for the first URL in a newly-sent message.
+    /// Best-effort: any detection/fetch failure leaves the message without a preview
+    /// but never affects message delivery. Assumes the message has no existing preview.
+    /// </summary>
+    private async Task TryCaptureLinkPreviewAsync(Message message, CancellationToken cancellationToken)
+    {
+        if (_linkPreviewService is null)
+        {
+            return;
+        }
+
+        var url = _linkPreviewService.FindFirstUrl(message.Content);
+        if (url is null)
+        {
+            return;
+        }
+
+        var result = await _linkPreviewService.FetchPreviewAsync(url, cancellationToken);
+        if (result is null)
+        {
+            _logger.LogDebug("Link preview: no metadata captured for {Url}", url);
+            return;
+        }
+
+        var preview = new MessageLinkPreview
+        {
+            MessageId = message.Id,
+            Url = result.Url,
+            Title = result.Title,
+            Description = result.Description,
+            ImageUrl = result.ImageUrl,
+            SiteName = result.SiteName,
+            FaviconUrl = result.FaviconUrl,
+            FetchedAt = DateTime.UtcNow
+        };
+
+        _db.MessageLinkPreviews.Add(preview);
+        message.LinkPreview = preview;
+        await _db.SaveChangesAsync(cancellationToken);
+        _logger.LogDebug("Link preview captured for message {MessageId} from {Url}", message.Id, url);
+    }
+
+    /// <summary>
+    /// Refreshes the link preview after a message edit: removes any previous preview and
+    /// captures a fresh one from the (possibly different) first URL in the new content.
+    /// Best-effort and SSRF-safe; never fails the edit.
+    /// </summary>
+    private async Task RefreshLinkPreviewAsync(Message message, CancellationToken cancellationToken)
+    {
+        var existing = await _db.MessageLinkPreviews
+            .FirstOrDefaultAsync(p => p.MessageId == message.Id, cancellationToken);
+
+        if (existing is not null)
+        {
+            _db.MessageLinkPreviews.Remove(existing);
+            await _db.SaveChangesAsync(cancellationToken);
+            message.LinkPreview = null;
+        }
+
+        await TryCaptureLinkPreviewAsync(message, cancellationToken);
     }
 }

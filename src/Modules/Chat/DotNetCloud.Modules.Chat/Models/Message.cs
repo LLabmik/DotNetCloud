@@ -52,4 +52,7 @@ public sealed class Message
 
     /// <summary>Mentions in this message.</summary>
     public ICollection<MessageMention> Mentions { get; set; } = [];
+
+    /// <summary>Rich link preview for the first URL in this message, if one was captured.</summary>
+    public MessageLinkPreview? LinkPreview { get; set; }
 }

@@ -92,6 +92,33 @@ public sealed class MessageViewModel
 
     /// <summary>Whether this message mentions the current user (directly or via @all/@channel).</summary>
     public bool IsMentioningCurrentUser { get; set; }
+
+    /// <summary>Rich link preview for the first URL in this message, when one was captured.</summary>
+    public LinkPreviewViewModel? LinkPreview { get; init; }
+}
+
+/// <summary>
+/// View model for the rich link preview card shown under a message that contains a URL.
+/// </summary>
+public sealed class LinkPreviewViewModel
+{
+    /// <summary>URL the preview was fetched from.</summary>
+    public string Url { get; init; } = string.Empty;
+
+    /// <summary>Resolved page title.</summary>
+    public string? Title { get; init; }
+
+    /// <summary>Resolved page description.</summary>
+    public string? Description { get; init; }
+
+    /// <summary>Preview image URL.</summary>
+    public string? ImageUrl { get; init; }
+
+    /// <summary>Site name.</summary>
+    public string? SiteName { get; init; }
+
+    /// <summary>Favicon URL.</summary>
+    public string? FaviconUrl { get; init; }
 }
 
 /// <summary>

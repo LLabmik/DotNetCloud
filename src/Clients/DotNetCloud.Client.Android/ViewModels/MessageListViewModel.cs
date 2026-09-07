@@ -303,7 +303,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
             {
                 var senderName = ResolveSenderName(m.SenderUserId, m.SenderName);
                 var isOwn = m.SenderUserId == _currentUserId;
-                Messages.Add(new MessageItemViewModel(m.Id, senderName, m.Content, m.SentAt, isOwn, m.Attachments, _serverUrl));
+                Messages.Add(new MessageItemViewModel(m.Id, senderName, m.Content, m.SentAt, isOwn, m.Attachments, _serverUrl, linkPreview: m.LinkPreview));
             }
 
             _logger.LogInformation("LoadMessagesAsync: Messages.Count={Count} after populate", Messages.Count);
@@ -390,7 +390,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
             {
                 var senderName = ResolveSenderName(m.SenderUserId, m.SenderName);
                 var isOwn = m.SenderUserId == _currentUserId;
-                return new MessageItemViewModel(m.Id, senderName, m.Content, m.SentAt, isOwn, m.Attachments, _serverUrl);
+                return new MessageItemViewModel(m.Id, senderName, m.Content, m.SentAt, isOwn, m.Attachments, _serverUrl, linkPreview: m.LinkPreview);
             }).ToList();
 
             var insertIndex = 0;
@@ -478,7 +478,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
             // OnNewChatMessage handler may have already added it — dedup by ID.
             var senderName = ResolveSenderName(sentMessage.SenderUserId, sentMessage.SenderName);
             var isOwn = sentMessage.SenderUserId == _currentUserId;
-            var vm = new MessageItemViewModel(sentMessage.Id, senderName, sentMessage.Content, sentMessage.SentAt, isOwn, sentMessage.Attachments, _serverUrl);
+            var vm = new MessageItemViewModel(sentMessage.Id, senderName, sentMessage.Content, sentMessage.SentAt, isOwn, sentMessage.Attachments, _serverUrl, linkPreview: sentMessage.LinkPreview);
             if (Messages.All(m => m.Id != sentMessage.Id))
             {
                 Messages.Add(vm);
@@ -935,6 +935,29 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
         });
     }
 
+    /// <summary>Opens a message's link preview URL in the system browser.</summary>
+    [RelayCommand]
+    private async Task OpenLinkPreviewAsync(MessageItemViewModel? message)
+    {
+        if (message?.LinkPreview is null || string.IsNullOrWhiteSpace(message.LinkPreview.Url))
+            return;
+
+        if (!Uri.TryCreate(message.LinkPreview.Url, UriKind.Absolute, out var uri)
+            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            return;
+        }
+
+        try
+        {
+            await Launcher.Default.OpenAsync(uri);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to open link preview URL {Url}", uri);
+        }
+    }
+
     // ── Search commands ──────────────────────────────────────────────
 
     /// <summary>Toggles the search panel open/closed.</summary>
@@ -1026,7 +1049,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
                 var senderName = ResolveSenderName(m.SenderUserId, m.SenderName);
                 var isOwn = m.SenderUserId == _currentUserId;
                 Messages.Insert(insertIndex, new MessageItemViewModel(
-                    m.Id, senderName, m.Content, m.SentAt, isOwn, m.Attachments, _serverUrl));
+                    m.Id, senderName, m.Content, m.SentAt, isOwn, m.Attachments, _serverUrl, linkPreview: m.LinkPreview));
                 insertIndex++;
             }
 
@@ -1116,7 +1139,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
                     var isOwn = m.SenderUserId == _currentUserId;
                     Messages.Add(new MessageItemViewModel(
                         m.Id, senderName, m.Content, m.SentAt, isOwn,
-                        m.Attachments, _serverUrl, searchQuery: query));
+                        m.Attachments, _serverUrl, searchQuery: query, linkPreview: m.LinkPreview));
                 }
 
                 if (result.Messages.Count == 0)
@@ -1220,8 +1243,26 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
                 }
             }
 
+            // Parse the link preview from the SignalR payload if present
+            ChatLinkPreview? linkPreview = null;
+            if (!string.IsNullOrEmpty(e.LinkPreviewJson))
+            {
+                try
+                {
+                    var dto = System.Text.Json.JsonSerializer.Deserialize<SignalRLinkPreviewDto>(e.LinkPreviewJson);
+                    if (dto is not null)
+                    {
+                        linkPreview = new ChatLinkPreview(dto.Url, dto.Title, dto.Description, dto.ImageUrl, dto.SiteName, dto.FaviconUrl);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to parse link preview JSON from SignalR message.");
+                }
+            }
+
             var isOwn = e.SenderUserId != Guid.Empty && e.SenderUserId == _currentUserId;
-            var vm = new MessageItemViewModel(e.MessageId, e.SenderDisplayName, e.MessagePreview, new DateTimeOffset(e.SentAt, TimeSpan.Zero), isOwn, attachments, _serverUrl);
+            var vm = new MessageItemViewModel(e.MessageId, e.SenderDisplayName, e.MessagePreview, new DateTimeOffset(e.SentAt, TimeSpan.Zero), isOwn, attachments, _serverUrl, linkPreview: linkPreview);
             Messages.Add(vm);
 
             // Signal the view that a new real-time message arrived so it can auto-scroll
@@ -1251,7 +1292,16 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
 public sealed class MessageItemViewModel
 {
     /// <summary>Initializes a message list item.</summary>
-    public MessageItemViewModel(Guid id, string senderName, string content, DateTimeOffset sentAt, bool isOwnMessage = false, IReadOnlyList<ChatAttachment>? attachments = null, string? serverBaseUrl = null, string? searchQuery = null)
+    public MessageItemViewModel(
+        Guid id,
+        string senderName,
+        string content,
+        DateTimeOffset sentAt,
+        bool isOwnMessage = false,
+        IReadOnlyList<ChatAttachment>? attachments = null,
+        string? serverBaseUrl = null,
+        string? searchQuery = null,
+        ChatLinkPreview? linkPreview = null)
     {
         Id = id;
         SenderName = senderName;
@@ -1260,6 +1310,17 @@ public sealed class MessageItemViewModel
         IsOwnMessage = isOwnMessage;
         Attachments = attachments ?? [];
         HasImageAttachment = Attachments.Any(a => a.MimeType.StartsWith("image/", StringComparison.OrdinalIgnoreCase));
+
+        // Rich link preview for the first URL in this message.
+        LinkPreview = linkPreview;
+        HasLinkPreview = linkPreview is not null;
+        HasLinkPreviewImage = !string.IsNullOrWhiteSpace(linkPreview?.ImageUrl);
+        LinkPreviewImageUrl = ResolveUrl(linkPreview?.ImageUrl, serverBaseUrl);
+        LinkPreviewTitle = linkPreview?.Title;
+        LinkPreviewDescription = linkPreview?.Description;
+        LinkPreviewSiteLabel = !string.IsNullOrWhiteSpace(linkPreview?.SiteName)
+            ? linkPreview!.SiteName
+            : GetHost(linkPreview?.Url);
 
         // Build highlighted FormattedString if a search query is active
         if (!string.IsNullOrEmpty(searchQuery) && content.Contains(searchQuery, StringComparison.OrdinalIgnoreCase))
@@ -1275,13 +1336,34 @@ public sealed class MessageItemViewModel
         var firstImage = Attachments.FirstOrDefault(a => a.MimeType.StartsWith("image/", StringComparison.OrdinalIgnoreCase));
         if (firstImage?.ThumbnailUrl is not null)
         {
-            var url = firstImage.ThumbnailUrl;
-            if (url.StartsWith('/') && serverBaseUrl is not null)
-            {
-                url = serverBaseUrl.TrimEnd('/') + url;
-            }
-            FirstImageUrl = url;
+            FirstImageUrl = ResolveUrl(firstImage.ThumbnailUrl, serverBaseUrl);
         }
+    }
+
+    /// <summary>Resolves a possibly-relative URL against the server base URL.</summary>
+    private static string? ResolveUrl(string? url, string? serverBaseUrl)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return null;
+        }
+
+        return url.StartsWith('/') && serverBaseUrl is not null
+            ? serverBaseUrl.TrimEnd('/') + url
+            : url;
+    }
+
+    /// <summary>Derives a display host (e.g. "github.com") from a URL.</summary>
+    private static string GetHost(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return string.Empty;
+        }
+
+        return Uri.TryCreate(url, UriKind.Absolute, out var uri) && !string.IsNullOrWhiteSpace(uri.Host)
+            ? uri.Host.Replace("www.", string.Empty, StringComparison.OrdinalIgnoreCase)
+            : url;
     }
 
     /// <summary>
@@ -1351,6 +1433,33 @@ public sealed class MessageItemViewModel
 
     /// <summary>Absolute URL of the first image attachment for inline preview.</summary>
     public string? FirstImageUrl { get; }
+
+    /// <summary>Rich link preview metadata, or <c>null</c> when the message has no preview.</summary>
+    public ChatLinkPreview? LinkPreview { get; }
+
+    /// <summary>Whether this message has a rich link preview to display.</summary>
+    public bool HasLinkPreview { get; }
+
+    /// <summary>Whether the link preview has an image to display.</summary>
+    public bool HasLinkPreviewImage { get; }
+
+    /// <summary>Absolute link preview image URL (resolved against the server base URL if relative).</summary>
+    public string? LinkPreviewImageUrl { get; }
+
+    /// <summary>Link preview page title (may be <c>null</c>).</summary>
+    public string? LinkPreviewTitle { get; }
+
+    /// <summary>Link preview page description (may be <c>null</c>).</summary>
+    public string? LinkPreviewDescription { get; }
+
+    /// <summary>Site label: site name when available, otherwise the URL host.</summary>
+    public string? LinkPreviewSiteLabel { get; }
+
+    /// <summary>Whether a link preview title is available for display.</summary>
+    public bool HasLinkPreviewTitle => !string.IsNullOrWhiteSpace(LinkPreviewTitle);
+
+    /// <summary>Whether a link preview description is available for display.</summary>
+    public bool HasLinkPreviewDescription => !string.IsNullOrWhiteSpace(LinkPreviewDescription);
 
     /// <summary>
     /// When non-null, the message content should use this FormattedString instead of <see cref="Content"/>

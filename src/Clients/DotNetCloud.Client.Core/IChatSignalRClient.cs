@@ -64,6 +64,7 @@ public sealed record ChatUnreadCountUpdatedEventArgs(string ChannelId, int Unrea
 /// <param name="IsMention">Whether the message contains a mention for the current user.</param>
 /// <param name="SenderUserId">User ID of the sender, or <c>default</c> if unknown.</param>
 /// <param name="AttachmentsJson">JSON-serialized array of attachment objects, or <c>null</c> if none.</param>
+/// <param name="LinkPreviewJson">JSON-serialized link preview object, or <c>null</c> if none.</param>
 public sealed record ChatMessageReceivedEventArgs(
     string ChannelId,
     string ChannelDisplayName,
@@ -73,7 +74,8 @@ public sealed record ChatMessageReceivedEventArgs(
     DateTime SentAt,
     bool IsMention,
     Guid SenderUserId = default,
-    string? AttachmentsJson = null);
+    string? AttachmentsJson = null,
+    string? LinkPreviewJson = null);
 
 /// <summary>
 /// Event payload for a typing-indicator heartbeat received for a channel.

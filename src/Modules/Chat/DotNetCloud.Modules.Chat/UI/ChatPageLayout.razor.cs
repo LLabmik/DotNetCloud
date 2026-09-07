@@ -3808,7 +3808,16 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
                 MimeType = a.MimeType,
                 FileSize = a.FileSize,
                 ThumbnailUrl = a.ThumbnailUrl
-            }).ToList()
+            }).ToList(),
+            LinkPreview = dto.LinkPreview is null ? null : new LinkPreviewViewModel
+            {
+                Url = dto.LinkPreview.Url,
+                Title = dto.LinkPreview.Title,
+                Description = dto.LinkPreview.Description,
+                ImageUrl = dto.LinkPreview.ImageUrl,
+                SiteName = dto.LinkPreview.SiteName,
+                FaviconUrl = dto.LinkPreview.FaviconUrl
+            }
         };
     }
 

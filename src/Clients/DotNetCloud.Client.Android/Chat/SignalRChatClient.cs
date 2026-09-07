@@ -32,7 +32,8 @@ internal sealed record SignalRMessageDto(
     [property: JsonPropertyName("senderUserId")] Guid SenderUserId,
     [property: JsonPropertyName("senderName")] string? SenderName,
     [property: JsonPropertyName("sentAt")] DateTime SentAt,
-    [property: JsonPropertyName("attachments")] IReadOnlyList<SignalRAttachmentDto>? Attachments = null);
+    [property: JsonPropertyName("attachments")] IReadOnlyList<SignalRAttachmentDto>? Attachments = null,
+    [property: JsonPropertyName("linkPreview")] SignalRLinkPreviewDto? LinkPreview = null);
 
 /// <summary>
 /// Server payload for new messages: { channelId, message }.
@@ -162,6 +163,12 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
                 attachmentsJson = JsonSerializer.Serialize(payload.Message.Attachments);
             }
 
+            string? linkPreviewJson = null;
+            if (payload.Message.LinkPreview is not null)
+            {
+                linkPreviewJson = JsonSerializer.Serialize(payload.Message.LinkPreview);
+            }
+
             OnNewChatMessage?.Invoke(this, new ChatMessageReceivedEventArgs(
                 payload.ChannelId,
                 string.Empty,
@@ -171,7 +178,8 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
                 payload.Message.SentAt,
                 false,
                 payload.Message.SenderUserId,
-                attachmentsJson));
+                attachmentsJson,
+                linkPreviewJson));
 
 #if ANDROID
             Log.Info("DotNetCloud", $"SignalR notification: foreground={_foregroundService.IsInForeground}, channelId={payload.ChannelId}");

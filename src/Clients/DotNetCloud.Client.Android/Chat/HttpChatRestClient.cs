@@ -467,7 +467,14 @@ internal sealed class HttpChatRestClient : IChatRestClient
         new(d.Id, d.ChannelId, d.SenderUserId,
             string.IsNullOrWhiteSpace(d.SenderName) ? string.Empty : d.SenderName,
             d.Content, d.SentAt, d.IsEdited,
-            d.Attachments?.Select(a => new ChatAttachment(a.Id, a.FileName, a.MimeType, a.FileSize, a.ThumbnailUrl)).ToList());
+            d.Attachments?.Select(a => new ChatAttachment(a.Id, a.FileName, a.MimeType, a.FileSize, a.ThumbnailUrl)).ToList(),
+            d.LinkPreview is null ? null : new ChatLinkPreview(
+                d.LinkPreview.Url,
+                d.LinkPreview.Title,
+                d.LinkPreview.Description,
+                d.LinkPreview.ImageUrl,
+                d.LinkPreview.SiteName,
+                d.LinkPreview.FaviconUrl));
 
     private static ChannelMemberSummary ToMemberSummary(ChannelMemberDto d) =>
         new(d.UserId, d.DisplayName, d.Role, d.IsOnline);
@@ -532,6 +539,17 @@ internal sealed class HttpChatRestClient : IChatRestClient
         public DateTimeOffset SentAt { get; init; }
         public bool IsEdited { get; init; }
         public List<ChatMessageAttachmentDto>? Attachments { get; init; }
+        public ChatMessageLinkPreviewDto? LinkPreview { get; init; }
+    }
+
+    private sealed class ChatMessageLinkPreviewDto
+    {
+        public string Url { get; init; } = string.Empty;
+        public string? Title { get; init; }
+        public string? Description { get; init; }
+        public string? ImageUrl { get; init; }
+        public string? SiteName { get; init; }
+        public string? FaviconUrl { get; init; }
     }
 
     private sealed class ChatMessageAttachmentDto

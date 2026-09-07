@@ -163,6 +163,33 @@ public sealed record MessageDto
 
     /// <summary>@mentions parsed from this message.</summary>
     public IReadOnlyList<MessageMentionDto> Mentions { get; init; } = [];
+
+    /// <summary>Rich link preview for the first URL in the message, when one was captured.</summary>
+    public MessageLinkPreviewDto? LinkPreview { get; init; }
+}
+
+/// <summary>
+/// Rich link preview metadata captured from a URL in a chat message.
+/// </summary>
+public sealed record MessageLinkPreviewDto
+{
+    /// <summary>URL the preview was fetched from.</summary>
+    public required string Url { get; init; }
+
+    /// <summary>Resolved page title.</summary>
+    public string? Title { get; init; }
+
+    /// <summary>Resolved page description.</summary>
+    public string? Description { get; init; }
+
+    /// <summary>Preview image URL.</summary>
+    public string? ImageUrl { get; init; }
+
+    /// <summary>Site name.</summary>
+    public string? SiteName { get; init; }
+
+    /// <summary>Favicon URL.</summary>
+    public string? FaviconUrl { get; init; }
 }
 
 /// <summary>

@@ -30,6 +30,11 @@ public static class ChatServiceRegistration
         services.AddScoped<IReactionService, ReactionService>();
         services.AddScoped<IPinService, PinService>();
         services.AddSingleton<ITypingIndicatorService, TypingIndicatorService>();
+
+        // SSRF-safe link previews for chat messages (registered alongside MessageService so both
+        // the in-process web host and the process-isolated module host unfurl consistently).
+        services.AddSingleton<SafeUrlFetcher>();
+        services.AddSingleton<ILinkPreviewService, LinkPreviewService>();
         services.AddSingleton<IChatRealtimeService, ChatRealtimeService>();
         services.AddSingleton<IChatMessageNotifier, InProcessChatMessageNotifier>();
         services.AddScoped<GlobalChatNotificationState>();

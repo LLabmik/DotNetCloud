@@ -226,6 +226,14 @@ public partial class MessageList : ComponentBase
         };
     }
 
+    /// <summary>Extracts the display host (e.g. "github.com") from a link preview URL.</summary>
+    private static string GetLinkHost(string url)
+    {
+        return Uri.TryCreate(url, UriKind.Absolute, out var uri) && !string.IsNullOrWhiteSpace(uri.Host)
+            ? uri.Host.Replace("www.", string.Empty, StringComparison.OrdinalIgnoreCase)
+            : url;
+    }
+
     /// <summary>
     /// Converts Markdown to safe HTML for message display.
     /// Supports bold, italic, strikethrough, inline code, code blocks,
