@@ -7,6 +7,7 @@ using DotNetCloud.Modules.Chat.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using IUserDirectory = DotNetCloud.Core.Capabilities.IUserDirectory;
 
 namespace DotNetCloud.Modules.Chat.Tests;
 
@@ -143,5 +144,116 @@ public class ChannelServiceGetRecentChannelsTests
         var membership = await _db.ChannelMembers
             .FirstOrDefaultAsync(m => m.ChannelId == result[0].Id && m.UserId == _caller.UserId);
         Assert.IsNotNull(membership);
+    }
+
+    private async Task<Channel> SeedDmChannelAsync(Guid otherUserId, DateTime? lastActivityAt)
+    {
+        var dm = new Channel
+        {
+            Name = $"DM-{_caller.UserId}-{otherUserId}",
+            Type = ChannelType.DirectMessage,
+            OrganizationId = null,
+            CreatedByUserId = _caller.UserId,
+            LastActivityAt = lastActivityAt,
+            CreatedAt = lastActivityAt ?? DateTime.UtcNow
+        };
+        _db.Channels.Add(dm);
+        _db.ChannelMembers.Add(new ChannelMember { ChannelId = dm.Id, UserId = _caller.UserId });
+        _db.ChannelMembers.Add(new ChannelMember { ChannelId = dm.Id, UserId = otherUserId });
+        await _db.SaveChangesAsync();
+        return dm;
+    }
+
+    private static Mock<IUserDirectory> CreateUserDirectoryMock(Dictionary<Guid, string> displayNames)
+    {
+        var userDirectory = new Mock<IUserDirectory>();
+        userDirectory
+            .Setup(ud => ud.GetDisplayNamesAsync(
+                It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IEnumerable<Guid> ids, CancellationToken _) =>
+                ids.Where(displayNames.ContainsKey).ToDictionary(id => id, id => displayNames[id]));
+        return userDirectory;
+    }
+
+    [TestMethod]
+    public async Task GetRecentChannels_DmWithHyphenatedGuidName_ResolvesToOtherUsersDisplayName()
+    {
+        await SeedDefaultPublicChannelAsync();
+        var now = DateTime.UtcNow;
+        var otherUser = Guid.CreateVersion7();
+        var dm = await SeedDmChannelAsync(otherUser, now);
+
+        // DM names store hyphenated GUIDs (DM-{guid1}-{guid2} → 11 dash segments).
+        var userDirectory = CreateUserDirectoryMock(new Dictionary<Guid, string>
+        {
+            [otherUser] = "Alice Example"
+        });
+        var service = new ChannelService(
+            _db,
+            new Mock<IEventBus>().Object,
+            NullLogger<ChannelService>.Instance,
+            _realtimeMock.Object,
+            userDirectory.Object);
+
+        var result = await service.GetRecentChannelsAsync(_caller);
+
+        var dmResult = result.Single(c => c.Id == dm.Id);
+        Assert.AreEqual("Alice Example", dmResult.Name);
+        Assert.IsFalse(dmResult.Name.StartsWith("DM-"));
+    }
+
+    [TestMethod]
+    public async Task GetRecentChannels_DmWithOtherUserFirst_ResolvesToOtherUsersDisplayName()
+    {
+        await SeedDefaultPublicChannelAsync();
+        var now = DateTime.UtcNow;
+        var otherUser = Guid.CreateVersion7();
+
+        // Name has the other user first: DM-{otherUser}-{caller}. Resolution must pick the caller's peer.
+        var dm = new Channel
+        {
+            Name = $"DM-{otherUser}-{_caller.UserId}",
+            Type = ChannelType.DirectMessage,
+            OrganizationId = null,
+            CreatedByUserId = otherUser,
+            LastActivityAt = now,
+            CreatedAt = now
+        };
+        _db.Channels.Add(dm);
+        _db.ChannelMembers.Add(new ChannelMember { ChannelId = dm.Id, UserId = _caller.UserId });
+        _db.ChannelMembers.Add(new ChannelMember { ChannelId = dm.Id, UserId = otherUser });
+        await _db.SaveChangesAsync();
+
+        var userDirectory = CreateUserDirectoryMock(new Dictionary<Guid, string>
+        {
+            [otherUser] = "Bob Builder"
+        });
+        var service = new ChannelService(
+            _db,
+            new Mock<IEventBus>().Object,
+            NullLogger<ChannelService>.Instance,
+            _realtimeMock.Object,
+            userDirectory.Object);
+
+        var result = await service.GetRecentChannelsAsync(_caller);
+
+        var dmResult = result.Single(c => c.Id == dm.Id);
+        Assert.AreEqual("Bob Builder", dmResult.Name);
+    }
+
+    [TestMethod]
+    public async Task GetRecentChannels_DmWithoutUserDirectory_UsesFallbackPrefix()
+    {
+        await SeedDefaultPublicChannelAsync();
+        var now = DateTime.UtcNow;
+        var otherUser = Guid.CreateVersion7();
+        var dm = await SeedDmChannelAsync(otherUser, now);
+
+        // No IUserDirectory (constructor default) → falls back to the other user's ID prefix.
+        var result = await _service.GetRecentChannelsAsync(_caller);
+
+        var dmResult = result.Single(c => c.Id == dm.Id);
+        Assert.AreEqual(otherUser.ToString()[..8], dmResult.Name);
+        Assert.IsFalse(dmResult.Name.StartsWith("DM-"));
     }
 }

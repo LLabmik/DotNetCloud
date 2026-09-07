@@ -228,22 +228,22 @@ internal sealed class ChannelService : IChannelService
         if (dmChannels.Count == 0)
             return;
 
-        // Parse DM-{guid1}-{guid2} names to find the other user
+        // Parse DM-{guid1}-{guid2} names to find the other user. GUIDs are stored in
+        // hyphenated form (8-4-4-4-12), so the name splits into 1 + 5 + 5 = 11 segments.
         var otherUserIds = new HashSet<Guid>();
         var channelToOtherUser = new Dictionary<Guid, Guid>();
 
         foreach (var dm in dmChannels)
         {
-            var parts = dm.Name.Split('-');
-            _logger.LogDebug("ResolveDmChannelNames: parsing name '{Name}', parts={Parts}", dm.Name, parts.Length);
-            if (parts.Length >= 3
-                && Guid.TryParse(parts[1], out var guid1)
-                && Guid.TryParse(parts[2], out var guid2))
+            if (!TryParseDmParticipantIds(dm.Name, out var guid1, out var guid2))
             {
-                var other = guid1 == currentUserId ? guid2 : guid1;
-                channelToOtherUser[dm.Id] = other;
-                otherUserIds.Add(other);
+                _logger.LogDebug("ResolveDmChannelNames: name '{Name}' is not a parseable DM name", dm.Name);
+                continue;
             }
+
+            var other = guid1 == currentUserId ? guid2 : guid1;
+            channelToOtherUser[dm.Id] = other;
+            otherUserIds.Add(other);
         }
 
         _logger.LogInformation("ResolveDmChannelNames: found {Count} other user IDs to resolve", otherUserIds.Count);
@@ -280,6 +280,41 @@ internal sealed class ChannelService : IChannelService
         {
             _logger.LogWarning(ex, "Failed to resolve DM channel display names for user {UserId}", currentUserId);
         }
+    }
+
+    /// <summary>
+    /// Parses the two participant IDs from a DM channel name of the form
+    /// <c>DM-{guid1}-{guid2}</c>.
+    /// </summary>
+    /// <param name="name">The DM channel name.</param>
+    /// <param name="guid1">The first participant ID.</param>
+    /// <param name="guid2">The second participant ID.</param>
+    /// <returns><c>true</c> when the name contained two parseable GUIDs.</returns>
+    private static bool TryParseDmParticipantIds(string name, out Guid guid1, out Guid guid2)
+    {
+        guid1 = default;
+        guid2 = default;
+
+        if (string.IsNullOrWhiteSpace(name) || !name.StartsWith("DM-", StringComparison.Ordinal))
+            return false;
+
+        var parts = name.Split('-');
+
+        // Canonical (hyphenated GUIDs): DM-{8-4-4-4-12}-{8-4-4-4-12} → 11 segments.
+        if (parts.Length == 11)
+        {
+            return Guid.TryParse(string.Join("-", parts[1..6]), out guid1)
+                && Guid.TryParse(string.Join("-", parts[6..11]), out guid2);
+        }
+
+        // Legacy compact (unhyphenated GUIDs): DM-{32-hex}-{32-hex} → 3 segments.
+        if (parts.Length == 3)
+        {
+            return Guid.TryParse(parts[1], out guid1)
+                && Guid.TryParse(parts[2], out guid2);
+        }
+
+        return false;
     }
 
     private async Task EnsureDefaultPublicChannelForUserAsync(CallerContext caller, CancellationToken cancellationToken)
