@@ -96,6 +96,10 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     // Pending image attachments (uploaded, waiting to be sent with next message)
     private readonly List<PendingAttachment> _pendingAttachments = [];
+
+    // Number of image uploads (paste into the composer or file-picker attach) currently in flight.
+    private int _uploadsInProgress;
+
     private readonly string _fileInputId = $"chat-file-input-{Guid.CreateVersion7():N}";
     private ElementReference _fileInputRef;
 
@@ -1819,9 +1823,40 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         }
     }
 
+    /// <summary>Whether an image is currently being uploaded before it can be attached.</summary>
+    protected bool IsUploadingImage => _uploadsInProgress > 0;
+
+    /// <summary>
+    /// Called from JS when an image upload starts or finishes (paste into the composer or a
+    /// file-picker attachment). Increments/decrements the in-flight counter so the UI can show
+    /// an "Uploading" indicator while the image is being uploaded or processed.
+    /// </summary>
+    [JSInvokable]
+    public void HandleImageUploadStateChanged(bool isUploading)
+    {
+        _uploadsInProgress = Math.Max(0, _uploadsInProgress + (isUploading ? 1 : -1));
+        SafeStateHasChanged();
+    }
+
+    /// <summary>
+    /// Marks one in-flight image upload as complete. Invoked by the handlers that receive the
+    /// finished upload (<see cref="HandlePasteImage"/> or <see cref="HandleImageUploaded"/>) so the
+    /// uploading indicator is cleared once the thumbnail has been added.
+    /// </summary>
+    private void CompleteImageUpload()
+    {
+        if (_uploadsInProgress > 0)
+        {
+            _uploadsInProgress--;
+        }
+    }
+
     /// <summary>Handles an image pasted into the composer.</summary>
     protected async Task HandlePasteImage(PastedImageData pastedImage)
     {
+        // A paste was in flight while this payload was produced — clear its uploading indicator.
+        CompleteImageUpload();
+
         if (_selectedChannel is null)
             return;
 
@@ -1873,6 +1908,9 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     [JSInvokable]
     public async Task HandleImageUploaded(string url, string fileName, string mimeType, long fileSize)
     {
+        // The attach upload finished — clear its uploading indicator.
+        CompleteImageUpload();
+
         if (_selectedChannel is null)
             return;
 

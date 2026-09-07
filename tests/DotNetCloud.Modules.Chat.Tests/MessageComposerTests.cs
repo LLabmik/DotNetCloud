@@ -100,6 +100,22 @@ public class MessageComposerTests
     }
 
     [TestMethod]
+    public async Task WhenValidPastedImagePayloadThenReturnsTrue()
+    {
+        var composer = CreateComposer();
+        var callbackReceiver = new object();
+        composer.OnPasteImage = EventCallback.Factory.Create<PastedImageData>(callbackReceiver, _ => { });
+
+        var forwarded = await composer.ProcessPastedImageForTestAsync(
+            fileName: "clip.png",
+            contentType: "image/png",
+            dataUrl: "data:image/png;base64,SGVsbG8=",
+            sizeBytes: 5);
+
+        Assert.IsTrue(forwarded);
+    }
+
+    [TestMethod]
     public async Task WhenInvalidPastedImagePayloadThenCallbackIsNotInvoked()
     {
         var composer = CreateComposer();
@@ -115,6 +131,58 @@ public class MessageComposerTests
             sizeBytes: 0);
 
         Assert.AreEqual(0, callbackCount);
+    }
+
+    [TestMethod]
+    public async Task WhenInvalidPastedImagePayloadThenReturnsFalse()
+    {
+        var composer = CreateComposer();
+        var callbackReceiver = new object();
+        composer.OnPasteImage = EventCallback.Factory.Create<PastedImageData>(callbackReceiver, _ => { });
+
+        var forwarded = await composer.ProcessPastedImageForTestAsync(
+            fileName: "clip.png",
+            contentType: "image/png",
+            dataUrl: "not-a-data-url",
+            sizeBytes: 0);
+
+        Assert.IsFalse(forwarded);
+    }
+
+    [TestMethod]
+    public async Task WhenPasteUploadStartsThenParentIsNotifiedWithTrue()
+    {
+        var composer = CreateComposer();
+        var callbackReceiver = new object();
+        bool? received = null;
+        composer.OnUploadActivityChanged = EventCallback.Factory.Create<bool>(callbackReceiver, value => received = value);
+
+        await composer.HandlePasteImageUploadStateChangedForTestAsync(true);
+
+        Assert.IsTrue(received);
+    }
+
+    [TestMethod]
+    public async Task WhenPasteUploadFinishesThenParentIsNotifiedWithFalse()
+    {
+        var composer = CreateComposer();
+        var callbackReceiver = new object();
+        bool? received = null;
+        composer.OnUploadActivityChanged = EventCallback.Factory.Create<bool>(callbackReceiver, value => received = value);
+
+        await composer.HandlePasteImageUploadStateChangedForTestAsync(false);
+
+        Assert.IsFalse(received);
+    }
+
+    [TestMethod]
+    public async Task WhenPasteUploadActivityHasNoParentSubscribedThenNoError()
+    {
+        var composer = CreateComposer();
+
+        // No OnUploadActivityChanged delegate set — must not throw.
+        await composer.HandlePasteImageUploadStateChangedForTestAsync(true);
+        await composer.HandlePasteImageUploadStateChangedForTestAsync(false);
     }
 
     private static TestableComposer CreateComposer()
@@ -151,9 +219,14 @@ public class MessageComposerTests
             return SelectMentionAsync(member);
         }
 
-        public Task ProcessPastedImageForTestAsync(string fileName, string contentType, string dataUrl, long sizeBytes)
+        public Task<bool> ProcessPastedImageForTestAsync(string fileName, string contentType, string dataUrl, long sizeBytes)
         {
             return ProcessPastedImageAsync(fileName, contentType, dataUrl, sizeBytes);
+        }
+
+        public Task HandlePasteImageUploadStateChangedForTestAsync(bool isUploading)
+        {
+            return HandlePasteImageUploadStateChanged(isUploading);
         }
     }
 }

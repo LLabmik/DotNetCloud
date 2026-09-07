@@ -70,6 +70,13 @@ public partial class MessageComposer : ComponentBase, IAsyncDisposable
     [Parameter]
     public EventCallback<PastedImageData> OnPasteImage { get; set; }
 
+    /// <summary>
+    /// Callback raised when a pasted image begins uploading (true) or finishes/fails (false).
+    /// Lets the parent (which owns the pending-attachments preview) show an uploading indicator.
+    /// </summary>
+    [Parameter]
+    public EventCallback<bool> OnUploadActivityChanged { get; set; }
+
     /// <summary>The current channel ID, used to upload pasted images via HTTP.</summary>
     [Parameter]
     public Guid? ChannelId { get; set; }
@@ -200,11 +207,27 @@ public partial class MessageComposer : ComponentBase, IAsyncDisposable
         }
     }
 
-    /// <summary>JS callback invoked when an image is pasted.</summary>
+    /// <summary>
+    /// JS callback invoked when a pasted image upload starts (true) or finishes/fails (false).
+    /// Forwarded to <see cref="OnUploadActivityChanged"/> so the parent can show an indicator.
+    /// </summary>
     [JSInvokable]
-    public async Task HandlePastedImageFromJs(string fileName, string contentType, string dataUrl, long sizeBytes)
+    public async Task HandlePasteImageUploadStateChanged(bool isUploading)
     {
-        await ProcessPastedImageAsync(fileName, contentType, dataUrl, sizeBytes);
+        if (OnUploadActivityChanged.HasDelegate)
+        {
+            await OnUploadActivityChanged.InvokeAsync(isUploading);
+        }
+    }
+
+    /// <summary>
+    /// JS callback invoked when an image is pasted. Returns true when the payload was forwarded
+    /// to the parent (an attachment is pending); false when it could not be processed.
+    /// </summary>
+    [JSInvokable]
+    public async Task<bool> HandlePastedImageFromJs(string fileName, string contentType, string dataUrl, long sizeBytes)
+    {
+        return await ProcessPastedImageAsync(fileName, contentType, dataUrl, sizeBytes);
     }
 
     /// <summary>JS callback invoked when a pasted image has been uploaded via HTTP.</summary>
@@ -355,12 +378,13 @@ public partial class MessageComposer : ComponentBase, IAsyncDisposable
 
     /// <summary>
     /// Processes a pasted-image payload and forwards it to the parent callback.
+    /// Returns true when the payload was forwarded; false when it could not be processed.
     /// </summary>
-    protected async Task ProcessPastedImageAsync(string fileName, string contentType, string dataUrl, long sizeBytes)
+    protected async Task<bool> ProcessPastedImageAsync(string fileName, string contentType, string dataUrl, long sizeBytes)
     {
         if (!TryExtractBase64Data(dataUrl, out var base64Data))
         {
-            return;
+            return false;
         }
 
         byte[] bytes;
@@ -370,7 +394,7 @@ public partial class MessageComposer : ComponentBase, IAsyncDisposable
         }
         catch (FormatException)
         {
-            return;
+            return false;
         }
 
         var normalizedFileName = string.IsNullOrWhiteSpace(fileName)
@@ -386,6 +410,7 @@ public partial class MessageComposer : ComponentBase, IAsyncDisposable
         };
 
         await OnPasteImage.InvokeAsync(payload);
+        return true;
     }
 
     private void UpdateMentionAutocomplete()

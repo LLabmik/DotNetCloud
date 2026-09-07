@@ -92,9 +92,16 @@
                     }
                     else
                     {
-                        @if (_pendingAttachments.Count > 0)
+                        @if (_pendingAttachments.Count > 0 || IsUploadingImage)
                         {
                             <div class="pending-attachments-preview">
+                                @if (IsUploadingImage)
+                                {
+                                    <div class="pending-upload-item" role="status" aria-live="polite">
+                                        <span class="pending-upload-spinner" aria-hidden="true"></span>
+                                        <span class="pending-upload-label">Uploading image…</span>
+                                    </div>
+                                }
                                 @foreach (var attachment in _pendingAttachments)
                                 {
                                     <div class="pending-attachment-item">
@@ -114,7 +121,8 @@
                                          ReplyToMessage="@_replyToMessage" EditingMessage="@_editingMessage"
                                          MentionSuggestions="@_memberSuggestions" OnSend="@HandleSendMessage" OnEditSend="@HandleEditMessage"
                                          OnCancelReply="@HandleCancelReply" OnCancelEdit="@HandleCancelEditMessage" OnTyping="@HandleTyping"
-                                         OnAttach="@HandleAttach" OnPasteImage="@HandlePasteImage" />
+                                         OnAttach="@HandleAttach" OnPasteImage="@HandlePasteImage"
+                                         OnUploadActivityChanged="HandleImageUploadStateChanged" />
 
                         <input type="file" id="@_fileInputId" accept="image/*" style="display:none" @ref="_fileInputRef" />
                     }
@@ -253,7 +261,7 @@
                                     else
                                     {
                                         <span class="dm-picker-avatar">@(user.DisplayName.Length > 0 ? user.DisplayName.Substring(0,
-                                                                        1).ToUpperInvariant() : "?")</span>
+                                                                                                                    1).ToUpperInvariant() : "?")</span>
                                         }
                                         <span class="dm-picker-user-info">
                                             <span class="dm-picker-name">@user.DisplayName</span>
@@ -336,7 +344,7 @@
                                         else
                                         {
                                             <span class="dm-picker-avatar">@(user.DisplayName.Length > 0 ? user.DisplayName.Substring(0,
-                                                                            1).ToUpperInvariant() : "?")</span>
+                                                                                                                            1).ToUpperInvariant() : "?")</span>
                                             }
                                             <span class="dm-picker-user-info">
                                                 <span class="dm-picker-name">@user.DisplayName</span>
