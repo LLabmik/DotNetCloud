@@ -16,6 +16,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using System.Data;
 using System.Data.Common;
 
 namespace DotNetCloud.Core.Server.Services;
@@ -198,41 +199,66 @@ public class DbContextSchemaProvider : IModuleSchemaProvider
             var created = 0;
             var skipped = 0;
 
-            // Retry loop: each pass tries all remaining batches. FKs to later
-            // tables resolve once those tables are created in a previous pass.
-            for (var pass = 0; pass < 10 && failedBatches.Count > 0; pass++)
-            {
-                var stillFailing = new List<string>();
-                foreach (var batch in failedBatches)
-                {
-                    try
-                    {
-                        await context.Database.ExecuteSqlRawAsync(batch, cancellationToken);
-                        created++;
-                    }
-                    catch (DbException ex)
-                    {
-                        var msg = ex.Message;
-                        if (msg.Contains("already exists", StringComparison.OrdinalIgnoreCase)
-                            || msg.Contains("already an object", StringComparison.OrdinalIgnoreCase)
-                            || msg.Contains("duplicate", StringComparison.OrdinalIgnoreCase)
-                            || msg.Contains("cycles or multiple cascade", StringComparison.OrdinalIgnoreCase)
-                            || msg.Contains("SET options", StringComparison.OrdinalIgnoreCase)
-                            || msg.Contains("Incorrect WHERE clause", StringComparison.OrdinalIgnoreCase))
-                        {
-                            skipped++;
-                            continue;
-                        }
-                        // FK target not yet created — retry on next pass
-                        _logger.LogDebug(ex, "Batch still failing (pass {Pass}): {Batch}",
-                            pass, batch[..System.Math.Min(batch.Length, 200)]);
-                        stillFailing.Add(batch);
-                    }
-                }
+            // Execute the CREATE batches through a raw DbCommand on the module's connection
+            // rather than context.Database.ExecuteSqlRawAsync. EF Core logs a CommandError at
+            // Error level for every failed command (EventId 20102) *before* the catch below can
+            // treat "already exists" as an expected outcome, which flooded the log with ~1000
+            // spurious ERR lines on every boot of a healthy, fully-migrated database. Running
+            // the batches ourselves keeps the "ignore already exists" semantics while those
+            // expected failures are skipped quietly.
+            var connection = context.Database.GetDbConnection();
+            var openedConnection = connection.State != ConnectionState.Open;
+            if (openedConnection)
+                await connection.OpenAsync(cancellationToken);
 
-                if (stillFailing.Count == failedBatches.Count)
-                    break; // No progress — stop retrying
-                failedBatches = stillFailing;
+            try
+            {
+                var commandTimeout = context.Database.GetCommandTimeout() ?? 30;
+
+                // Retry loop: each pass tries all remaining batches. FKs to later
+                // tables resolve once those tables are created in a previous pass.
+                for (var pass = 0; pass < 10 && failedBatches.Count > 0; pass++)
+                {
+                    var stillFailing = new List<string>();
+                    foreach (var batch in failedBatches)
+                    {
+                        try
+                        {
+                            await using var command = connection.CreateCommand();
+                            command.CommandText = batch;
+                            command.CommandTimeout = commandTimeout;
+                            await command.ExecuteNonQueryAsync(cancellationToken);
+                            created++;
+                        }
+                        catch (DbException ex)
+                        {
+                            var msg = ex.Message;
+                            if (msg.Contains("already exists", StringComparison.OrdinalIgnoreCase)
+                                || msg.Contains("already an object", StringComparison.OrdinalIgnoreCase)
+                                || msg.Contains("duplicate", StringComparison.OrdinalIgnoreCase)
+                                || msg.Contains("cycles or multiple cascade", StringComparison.OrdinalIgnoreCase)
+                                || msg.Contains("SET options", StringComparison.OrdinalIgnoreCase)
+                                || msg.Contains("Incorrect WHERE clause", StringComparison.OrdinalIgnoreCase))
+                            {
+                                skipped++;
+                                continue;
+                            }
+                            // FK target not yet created — retry on next pass
+                            _logger.LogDebug(ex, "Batch still failing (pass {Pass}): {Batch}",
+                                pass, batch[..System.Math.Min(batch.Length, 200)]);
+                            stillFailing.Add(batch);
+                        }
+                    }
+
+                    if (stillFailing.Count == failedBatches.Count)
+                        break; // No progress — stop retrying
+                    failedBatches = stillFailing;
+                }
+            }
+            finally
+            {
+                if (openedConnection)
+                    await connection.CloseAsync();
             }
 
             if (created > 0 || skipped > 0)
