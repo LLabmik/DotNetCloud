@@ -3,7 +3,7 @@
     <p>@(Exception?.Message ?? "An unexpected error occurred.")</p>
     @if (OnDismiss.HasDelegate)
     {
-        <button class="btn btn-primary" @onclick="OnDismiss">Try Again</button>
+        <button class="btn btn-primary" @onclick="OnDismiss">@DismissText</button>
     }
 </div>
 
@@ -13,4 +13,10 @@
 
     [Parameter]
     public EventCallback OnDismiss { get; set; }
+
+    /// <summary>
+    /// Text shown on the dismiss/retry button. Defaults to "Try Again".
+    /// </summary>
+    [Parameter]
+    public string DismissText { get; set; } = "Try Again";
 }

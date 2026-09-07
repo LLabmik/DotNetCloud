@@ -6745,3 +6745,25 @@ while email becomes an **optional** field. No schema migration — ASP.NET Core 
 - ✓ Tests: `ModuleSchemaServiceTests` (same-module concurrency serialized; different-module parallelism preserved)
 - ✓ Live-verified (fresh-DB compose, `down -v` → `up`, local image `ghcr.io/llabmik/dotnetcloud:0.1.0-alpha`): first boot produced **0** `42P01`/`42P07`/migration failures, all **14** module hosts running with **RestartCount=0** (no container restart needed), `tracks` schema fully migrated (41 tables — previously 2), HTTPS login page + `/health/live` 200.
 - ✓ Review + commit this work package (per repo rules: build clean, tests pass, live-verified first; committed on `fix/first-boot-ef-race` — no PR created; user handles the PR)
+
+---
+
+## Module Error Recovery (2026-09-06)
+
+> Work package on branch `fix/module-error-recovery`. Canonical plan: `docs/MODULE_ERROR_RECOVERY_PLAN.md`.
+
+### Problem
+
+A module page throwing (unhandled exception during render/lifecycle) left the entire content area errored; after that, clicking to another module appeared to do nothing until the user refreshed the browser. Root cause: one layout-level `ErrorBoundary` wrapped the whole `@Body`, and Blazor boundaries stay in the errored state across route changes (the layout is persistent) — only a full refresh rebuilt the circuit.
+
+### Fix — auto-recover on navigation + per-module error isolation
+
+- ✓ `src/UI/DotNetCloud.UI.Web/Components/Shared/ErrorDisplay.razor` — added configurable `DismissText` parameter (default `"Try Again"`)
+- ✓ `src/UI/DotNetCloud.UI.Web/Components/Layout/MainLayout.razor` — recover the layout `ErrorBoundary` on every `Navigation.LocationChanged` (subscribe in `OnInitializedAsync`, unsubscribe in `Dispose`; `PersistingComponentStateSubscription` preserved)
+- ✓ `src/UI/DotNetCloud.UI.Web/Components/Shared/ModulePageHost.razor` — each module page renders inside its own `<ErrorBoundary>` (content-area only, so sidebar/top bar stay interactive); module retry button reads **"Reload module"**; recovers on navigation (handles same-module query-string deep links too)
+- ✓ Builds clean — `UI.Web` + `Core.Server` 0 warnings / 0 errors; `DotNetCloud.UI.Shared.Tests` 62/62 pass
+- ✓ Live-verified on mint22 dev (`https://mint22:5443/`):
+  - Test A (module error isolation + cross-module recovery): Files showed inline error with **"Reload module"** while sidebar/top bar stayed clickable; Files → **Chat rendered without refresh** ✅
+  - Test B (layout boundary auto-recovery, non-module page): Home error showed **"Try Again"** (default text unchanged); navigating away rendered normally without refresh ✅
+- ✓ Temporary test throws removed; final clean deploy live — `/health/ready` Healthy, **14/14 modules**
+- ✓ Tracking docs updated (targeted edits on disk): `MASTER_PROJECT_PLAN.md` + this checklist

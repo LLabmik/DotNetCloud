@@ -1,10 +1,21 @@
 @using DotNetCloud.UI.Web.Services
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Routing
 
 @inject ModuleUiRegistry ModuleRegistry
+@inject NavigationManager Navigation
+@implements IDisposable
 
 @if (_componentType is not null)
 {
-    <DynamicComponent Type="_componentType" Parameters="Parameters" />
+    <ErrorBoundary @ref="_moduleErrorBoundary">
+        <ChildContent>
+            <DynamicComponent Type="_componentType" Parameters="Parameters" />
+        </ChildContent>
+        <ErrorContent Context="ex">
+            <ErrorDisplay Exception="ex" OnDismiss="RecoverModule" DismissText="Reload module" />
+        </ErrorContent>
+    </ErrorBoundary>
 }
 else
 {
@@ -27,9 +38,27 @@ else
     public IDictionary<string, object>? Parameters { get; set; }
 
     private Type? _componentType;
+    private ErrorBoundary? _moduleErrorBoundary;
+
+    protected override void OnInitialized()
+    {
+        Navigation.LocationChanged += OnLocationChanged;
+    }
 
     protected override void OnParametersSet()
     {
         _componentType = ModuleRegistry.GetPage(RouteKey);
+    }
+
+    private void RecoverModule() => _moduleErrorBoundary?.Recover();
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        _moduleErrorBoundary?.Recover();
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
     }
 }
