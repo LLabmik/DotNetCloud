@@ -57,7 +57,7 @@
                         {
                             <div class="search-result-item" @onclick="() => HandleChannelSelected(_selectedChannel)">
                                 <span class="search-result-sender">@result.SenderName</span>
-                                <span class="search-result-time">@result.SentAt.ToString("MMM d, HH:mm")</span>
+                                <span class="search-result-time">@FormatSearchResultTime(result.SentAt)</span>
                                 <div class="search-result-content">@result.Content</div>
                             </div>
                         }

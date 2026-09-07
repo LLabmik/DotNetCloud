@@ -6,6 +6,7 @@ using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Chat.DTOs;
 using DotNetCloud.Modules.Chat.Models;
 using DotNetCloud.Modules.Chat.Services;
+using DotNetCloud.UI.Shared.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.Logging;
@@ -48,6 +49,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     [Inject] private GlobalChatNotificationState GlobalNotificationState { get; set; } = default!;
     [Inject] private IChatImageStore ChatImageStore { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
+    [Inject] private BrowserTimeProvider TimeProvider { get; set; } = default!;
     [Inject] private ILogger<ChatPageLayout> Logger { get; set; } = default!;
 
     /// <summary>
@@ -266,6 +268,14 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     /// <inheritdoc />
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        // Fetch the browser timezone once interactive so wall-clock times (e.g. search-result
+        // post times) render in the viewer's local time, then re-render to apply it.
+        if (firstRender)
+        {
+            await TimeProvider.EnsureInitializedAsync();
+            StateHasChanged();
+        }
+
         // Consume the pending action BEFORE awaiting so a re-entrant render can't re-run it.
         var action = _pendingScrollAction;
         _pendingScrollAction = PendingScrollAction.None;
@@ -297,6 +307,13 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         }
         catch { /* JS interop may not be available during pre-render or after dispose */ }
     }
+
+    /// <summary>
+    /// Formats a message's UTC sent time for the search results list in the viewer's
+    /// local timezone (search results always render as a wall-clock post time).
+    /// </summary>
+    private string FormatSearchResultTime(DateTime sentAtUtc)
+        => TimeProvider.ToLocal(sentAtUtc).ToString("MMM d, HH:mm");
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
