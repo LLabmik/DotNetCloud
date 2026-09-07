@@ -23,6 +23,10 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     private const int MessagePageSize = 50;
     private const int SearchPageSize = 25;
 
+    // Chat message sound ("ding") preference — stored as a per-user setting.
+    private const string ChatSoundModule = "dotnetcloud.chat";
+    private const string ChatSoundSettingKey = "message-sound-enabled";
+
     [Inject] private IChannelService ChannelService { get; set; } = default!;
     [Inject] private IMessageService MessageService { get; set; } = default!;
     [Inject] private IReactionService ReactionService { get; set; } = default!;
@@ -209,6 +213,9 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     // User state
     private Guid _currentUserId;
     private string _currentUserRole = "Member";
+
+    // Whether the "ding" should play when a new chat message arrives (default: enabled).
+    private bool _chatSoundEnabled = true;
     private bool _currentUserIsAdminOrOwner;
     private readonly Dictionary<Guid, string> _displayNameCache = [];
     private readonly Dictionary<Guid, string> _avatarUrlCache = [];
@@ -315,6 +322,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         await LoadChannelsAsync();
         await LoadBlockedUsersAsync();
         await LoadAnnouncementsAsync();
+        await LoadChatSoundPreferenceAsync();
 
         ChatMessageNotifier.MessageReceived += OnRemoteMessageReceived;
         ChatMessageNotifier.MessageEdited += OnRemoteMessageEdited;
@@ -418,6 +426,16 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             return;
         InvokeAsync(async () =>
         {
+            // Play the message "ding" for incoming messages unless the user muted chat
+            // sounds, muted this channel, or the message is our own echo.
+            var soundChannelIsMuted = channelId == _selectedChannel?.Id
+                ? (_selectedChannel?.IsMuted ?? false)
+                : _channels.FirstOrDefault(c => c.Id == channelId)?.IsMuted ?? false;
+            if (ShouldPlayMessageSound(_chatSoundEnabled, message.SenderUserId, _currentUserId, soundChannelIsMuted))
+            {
+                await PlayMessageDingAsync();
+            }
+
             if (_selectedChannel is not null && _selectedChannel.Id == channelId)
             {
                 if (_messages.Any(m => m.Id == message.Id))
@@ -695,6 +713,78 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             _channelErrorMessage = ex.Message;
         }
     }
+
+    // ── Chat message sound ("ding") ────────────────────────────────
+
+    /// <summary>
+    /// Loads the current user's chat message-sound preference (whether new incoming
+    /// messages should play the "ding"). Defaults to enabled when unset/unreadable.
+    /// </summary>
+    private async Task LoadChatSoundPreferenceAsync()
+    {
+        try
+        {
+            var setting = await UserSettingsService.GetSettingAsync(_currentUserId, ChatSoundModule, ChatSoundSettingKey);
+            _chatSoundEnabled = setting?.Value is not "false";
+        }
+        catch
+        {
+            // Non-critical: default to enabled
+            _chatSoundEnabled = true;
+        }
+    }
+
+    /// <summary>
+    /// Handles the channel-header chat sound toggle: flips the in-memory state and
+    /// persists the preference for the current user.
+    /// </summary>
+    protected async Task HandleToggleChatSound()
+    {
+        _chatSoundEnabled = !_chatSoundEnabled;
+
+        try
+        {
+            await UserSettingsService.UpsertSettingAsync(
+                _currentUserId,
+                ChatSoundModule,
+                ChatSoundSettingKey,
+                new UpsertUserSettingDto
+                {
+                    Value = _chatSoundEnabled ? "true" : "false",
+                    Description = "Play a sound when a new chat message arrives"
+                });
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to persist chat message-sound preference.");
+        }
+
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Plays the incoming-message "ding" (best-effort; failures never break the chat).
+    /// </summary>
+    private async Task PlayMessageDingAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("dotnetcloudChatSound.playDing");
+        }
+        catch (JSDisconnectedException) { /* Circuit gone — nothing to notify */ }
+        catch (Exception ex) { Logger.LogDebug(ex, "Failed to play chat message sound."); }
+    }
+
+    /// <summary>
+    /// Decides whether an incoming message should trigger the audible "ding".
+    /// The sound plays only when it is enabled, the sender is not the current user
+    /// (avoids dinging on our own sent messages), and the channel is not muted.
+    /// </summary>
+    internal static bool ShouldPlayMessageSound(bool chatSoundEnabled, Guid senderUserId, Guid currentUserId, bool channelIsMuted)
+        => chatSoundEnabled
+            && !channelIsMuted
+            && senderUserId != Guid.Empty
+            && senderUserId != currentUserId;
 
     /// <summary>Loads all users blocked by the current user.</summary>
     private async Task LoadBlockedUsersAsync()

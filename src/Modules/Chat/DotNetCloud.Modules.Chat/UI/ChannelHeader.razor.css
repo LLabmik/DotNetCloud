@@ -4,228 +4,242 @@
    ============================================================ */
 
 .chat-channel-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 10px 16px;
-    border-bottom: 1px solid var(--color-border, #e2e8f0);
-    background: var(--color-surface, #ffffff);
-    flex-shrink: 0;
-    min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
+  background: var(--color-surface, #ffffff);
+  flex-shrink: 0;
+  min-height: 52px;
 }
 
 /* --- Channel Info (left side) --- */
 
 .channel-info {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-width: 0;
-    flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
 }
 
 .channel-icon {
-    flex-shrink: 0;
-    font-size: 18px;
-    opacity: 0.7;
+  flex-shrink: 0;
+  font-size: 18px;
+  opacity: 0.7;
 }
 
 .channel-name {
-    font-size: 16px;
-    font-weight: 700;
-    margin: 0;
-    color: var(--color-text, #1e293b);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0;
+  color: var(--color-text, #1e293b);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .channel-topic {
-    font-size: 13px;
-    color: var(--color-text-secondary, #64748b);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    padding-left: 8px;
-    border-left: 1px solid var(--color-border, #e2e8f0);
+  font-size: 13px;
+  color: var(--color-text-secondary, #64748b);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-left: 8px;
+  border-left: 1px solid var(--color-border, #e2e8f0);
 }
 
 /* --- Actions (right side) --- */
 
 .channel-actions {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    flex-shrink: 0;
-    flex-wrap: wrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
 }
 
 .member-count {
-    font-size: 13px;
-    color: var(--color-text-secondary, #64748b);
-    padding: 4px 8px;
-    border-radius: 6px;
-    background: var(--color-bg, #f5f7fa);
-    white-space: nowrap;
+  font-size: 13px;
+  color: var(--color-text-secondary, #64748b);
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--color-bg, #f5f7fa);
+  white-space: nowrap;
 }
 
 /* Make header action buttons compact and consistent */
 .channel-actions .btn {
-    font-size: 12px;
-    padding: 4px 10px;
-    border: 1px solid var(--color-border, #e2e8f0);
-    background: var(--color-surface, #ffffff);
-    color: var(--color-text-secondary, #64748b);
-    border-radius: 6px;
-    transition: all 150ms ease;
+  font-size: 12px;
+  padding: 4px 10px;
+  border: 1px solid var(--color-border, #e2e8f0);
+  background: var(--color-surface, #ffffff);
+  color: var(--color-text-secondary, #64748b);
+  border-radius: 6px;
+  transition: all 150ms ease;
 }
 
 .channel-actions .btn:hover:not(:disabled) {
-    border-color: var(--color-primary, #3b82f6);
-    color: var(--color-primary, #3b82f6);
-    background: var(--color-bg, #f5f7fa);
+  border-color: var(--color-primary, #3b82f6);
+  color: var(--color-primary, #3b82f6);
+  background: var(--color-bg, #f5f7fa);
 }
 
 .channel-actions .btn-danger {
-    border-color: rgba(239, 68, 68, 0.3);
-    color: var(--color-danger, #ef4444);
-    background: transparent;
+  border-color: rgba(239, 68, 68, 0.3);
+  color: var(--color-danger, #ef4444);
+  background: transparent;
 }
 
 .channel-actions .btn-danger:hover:not(:disabled) {
-    background: rgba(239, 68, 68, 0.08);
-    border-color: var(--color-danger, #ef4444);
+  background: rgba(239, 68, 68, 0.08);
+  border-color: var(--color-danger, #ef4444);
 }
 
 /* --- Call Buttons --- */
 
 .channel-actions .btn-call {
-    border-color: rgba(59, 130, 246, 0.3);
-    color: var(--color-primary, #3b82f6);
-    background: transparent;
+  border-color: rgba(59, 130, 246, 0.3);
+  color: var(--color-primary, #3b82f6);
+  background: transparent;
 }
 
 .channel-actions .btn-call:hover:not(:disabled) {
-    background: rgba(59, 130, 246, 0.08);
-    border-color: var(--color-primary, #3b82f6);
+  background: rgba(59, 130, 246, 0.08);
+  border-color: var(--color-primary, #3b82f6);
 }
 
 .channel-actions .btn-call-active {
-    border-color: rgba(34, 197, 94, 0.4);
-    color: #16a34a;
-    background: rgba(34, 197, 94, 0.06);
-    animation: callPulse 2s ease-in-out infinite;
+  border-color: rgba(34, 197, 94, 0.4);
+  color: #16a34a;
+  background: rgba(34, 197, 94, 0.06);
+  animation: callPulse 2s ease-in-out infinite;
 }
 
 .channel-actions .btn-call-active:hover:not(:disabled) {
-    background: rgba(34, 197, 94, 0.12);
-    border-color: #16a34a;
+  background: rgba(34, 197, 94, 0.12);
+  border-color: #16a34a;
 }
 
 @keyframes callPulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.7; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
 }
 
 /* --- Help Popover --- */
 
 .help-wrapper {
-    position: relative;
+  position: relative;
 }
 
 .btn-help {
-    font-weight: 700;
-    font-size: 13px;
-    width: 28px;
-    height: 28px;
-    padding: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    border: 1px solid var(--color-border, #e2e8f0);
-    background: var(--color-surface, #ffffff);
-    color: var(--color-text-secondary, #64748b);
-    cursor: pointer;
-    transition: all 150ms ease;
+  font-weight: 700;
+  font-size: 13px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid var(--color-border, #e2e8f0);
+  background: var(--color-surface, #ffffff);
+  color: var(--color-text-secondary, #64748b);
+  cursor: pointer;
+  transition: all 150ms ease;
 }
 
 .btn-help:hover {
-    border-color: var(--color-primary, #3b82f6);
-    color: var(--color-primary, #3b82f6);
-    background: var(--color-bg, #f5f7fa);
+  border-color: var(--color-primary, #3b82f6);
+  color: var(--color-primary, #3b82f6);
+  background: var(--color-bg, #f5f7fa);
 }
 
 .help-popover {
-    position: absolute;
-    top: calc(100% + 8px);
-    right: 0;
-    z-index: 100;
-    width: 320px;
-    background: var(--color-surface, #ffffff);
-    border: 1px solid var(--color-border, #e2e8f0);
-    border-radius: 8px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-    padding: 0;
-    overflow: hidden;
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 100;
+  width: 320px;
+  background: var(--color-surface, #ffffff);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  padding: 0;
+  overflow: hidden;
 }
 
 .help-popover-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 14px;
-    border-bottom: 1px solid var(--color-border, #e2e8f0);
-    background: var(--color-bg, #f5f7fa);
-    font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
+  background: var(--color-bg, #f5f7fa);
+  font-size: 13px;
 }
 
 .btn-close-sm {
-    border: none;
-    background: transparent;
-    cursor: pointer;
-    font-size: 14px;
-    color: var(--color-text-secondary, #64748b);
-    padding: 2px 4px;
-    border-radius: 4px;
-    line-height: 1;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--color-text-secondary, #64748b);
+  padding: 2px 4px;
+  border-radius: 4px;
+  line-height: 1;
 }
 
 .btn-close-sm:hover {
-    background: rgba(0, 0, 0, 0.06);
-    color: var(--color-text, #1e293b);
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--color-text, #1e293b);
 }
 
 .help-list {
-    padding: 10px 14px;
-    margin: 0;
-    font-size: 13px;
-    line-height: 1.5;
+  padding: 10px 14px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .help-list dt {
-    font-weight: 600;
-    color: var(--color-text, #1e293b);
-    margin-top: 8px;
+  font-weight: 600;
+  color: var(--color-text, #1e293b);
+  margin-top: 8px;
 }
 
 .help-list dt:first-child {
-    margin-top: 0;
+  margin-top: 0;
 }
 
 .help-list dd {
-    margin: 2px 0 0 0;
-    color: var(--color-text-secondary, #64748b);
+  margin: 2px 0 0 0;
+  color: var(--color-text-secondary, #64748b);
 }
 
 /* --- Mute Button --- */
 
 .btn-muted {
-    background: var(--color-muted-bg, #f1f5f9);
-    color: var(--color-muted-text, #64748b);
+  background: var(--color-muted-bg, #f1f5f9);
+  color: var(--color-muted-text, #64748b);
 }
 
 .btn-muted:hover {
-    background: var(--color-muted-bg-hover, #e2e8f0);
+  background: var(--color-muted-bg-hover, #e2e8f0);
+}
+
+/* --- Chat Sound ("ding") Toggle --- */
+
+.channel-actions .btn-sound-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
 }
