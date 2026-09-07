@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>DotNetCloud.Modules.Chat.Widget</RootNamespace>
+    <AssemblyName>DotNetCloud.Modules.Chat.Widget</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DotNetCloud.Modules.Chat\DotNetCloud.Modules.Chat.csproj" />
+    <ProjectReference Include="..\..\..\UI\DotNetCloud.UI.Shared\DotNetCloud.UI.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

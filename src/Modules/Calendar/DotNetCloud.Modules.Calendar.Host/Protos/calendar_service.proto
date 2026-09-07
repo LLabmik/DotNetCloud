@@ -52,6 +52,9 @@ service CalendarGrpcService {
   // Searches events across a user's calendars.
   rpc SearchEvents (SearchEventsRequest) returns (SearchEventsResponse);
 
+  // Gets the caller's upcoming events in a UTC window.
+  rpc GetUpcomingEvents (GetUpcomingEventsRequest) returns (GetUpcomingEventsResponse);
+
   // ─── Sharing ──────────────────────────────────────────────────────────
   // Lists shares for a calendar.
   rpc ListCalendarShares (ListCalendarSharesRequest) returns (ListCalendarSharesResponse);
@@ -342,6 +345,21 @@ message SearchEventsRequest {
 }
 
 message SearchEventsResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated EventMessage events = 3;
+}
+
+// ─── GetUpcomingEvents ───────────────────────────────────────────────────
+
+message GetUpcomingEventsRequest {
+  string user_id = 1;
+  string from_utc = 2;        // ISO 8601 timestamp
+  string to_utc = 3;          // ISO 8601 timestamp
+  int32 count = 4;
+}
+
+message GetUpcomingEventsResponse {
   bool success = 1;
   string error_message = 2;
   repeated EventMessage events = 3;

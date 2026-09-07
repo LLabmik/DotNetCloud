@@ -17,6 +17,9 @@ public interface IPhotoService
     /// <summary>Lists photos with paging.</summary>
     Task<IReadOnlyList<PhotoDto>> ListPhotosAsync(CallerContext caller, int skip = 0, int take = 50, CancellationToken cancellationToken = default);
 
+    /// <summary>Gets the most recently added photos for the caller.</summary>
+    Task<IReadOnlyList<PhotoDto>> GetRecentPhotosAsync(CallerContext caller, int count = 5, CancellationToken cancellationToken = default);
+
     /// <summary>Returns photos within a date range for timeline view.</summary>
     Task<IReadOnlyList<PhotoDto>> GetTimelineAsync(CallerContext caller, DateTime from, DateTime to, CancellationToken cancellationToken = default);
 

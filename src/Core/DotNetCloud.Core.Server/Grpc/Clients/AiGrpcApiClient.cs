@@ -100,6 +100,21 @@ public sealed class AiGrpcApiClient : IAiApiClient, IDisposable
         }, "ListConversations", []))!;
 
     /// <inheritdoc />
+    public async Task<ConversationStatsDto?> GetConversationStatsAsync(Guid userId, CancellationToken ct = default)
+        => await SafeCall(async () =>
+        {
+            var request = new GetConversationStatsRequest { UserId = userId.ToString() };
+            var resp = await _client.Value.GetConversationStatsAsync(request, DeadlineHeaders(ct)).ResponseAsync;
+            return !resp.Success
+                ? null
+                : new ConversationStatsDto
+                {
+                    TotalConversations = resp.TotalConversations,
+                    LastActivityAt = string.IsNullOrEmpty(resp.LastActivityUtc) ? null : DateTime.Parse(resp.LastActivityUtc)
+                };
+        }, "GetConversationStats");
+
+    /// <inheritdoc />
     public async Task<bool> DeleteConversationAsync(Guid userId, Guid conversationId, CancellationToken ct = default)
         => (await SafeCall(async () =>
         {

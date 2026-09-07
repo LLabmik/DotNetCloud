@@ -668,6 +668,36 @@ public sealed class WorkItemService
             attachmentCount: 0)).ToList();
     }
 
+    /// <summary>
+    /// Gets work items assigned to or watched by the user whose due dates fall within the
+    /// next <paramref name="daysAhead"/> days and whose swimlane is not done.
+    /// </summary>
+    public async Task<List<WorkItemDto>> GetMyUpcomingDueItemsAsync(
+        Guid userId, int count = 5, int daysAhead = 14, CancellationToken ct = default)
+    {
+        var now = DateTime.UtcNow;
+        var horizon = now.Date.AddDays(daysAhead);
+        var items = await _db.WorkItems
+            .Include(wi => wi.Swimlane)
+            .Where(wi => !wi.IsArchived && !wi.IsDeleted
+                && wi.DueDate.HasValue
+                && wi.DueDate.Value >= now
+                && wi.DueDate.Value <= horizon
+                && (wi.Assignments.Any(a => a.UserId == userId) || wi.Watchers.Any(w => w.UserId == userId))
+                && (wi.Swimlane == null || !wi.Swimlane.IsDone))
+            .OrderBy(wi => wi.DueDate)
+            .Take(count)
+            .ToListAsync(ct);
+
+        return items.Select(wi => MapToDto(
+            wi,
+            wi.Swimlane?.Title,
+            new List<WorkItemAssignmentDto>(),
+            new List<LabelDto>(),
+            commentCount: 0,
+            attachmentCount: 0)).ToList();
+    }
+
     public async Task<List<WorkItemDto>> GetChildWorkItemsAsync(Guid parentWorkItemId, CancellationToken ct)
     {
         var children = await _db.WorkItems

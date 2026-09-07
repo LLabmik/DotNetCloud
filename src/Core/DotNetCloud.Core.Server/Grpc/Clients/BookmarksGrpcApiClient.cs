@@ -202,6 +202,22 @@ public sealed class BookmarksGrpcApiClient : IBookmarksApiClient, IDisposable
         }
     }
 
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<BookmarkItemDto>> GetRecentBookmarksAsync(int count = 5, CancellationToken ct = default)
+    {
+        var request = new Proto.GetRecentBookmarksRequest { UserId = GetUserId(), Count = count };
+        try
+        {
+            var response = await _client.Value.GetRecentBookmarksAsync(request, DeadlineHeaders(ct)).ResponseAsync;
+            return !response.Success ? [] : response.Bookmarks.Select(ToItem).Where(i => i is not null).Select(i => i!).ToList();
+        }
+        catch (RpcException ex)
+        {
+            _logger.LogError(ex, "BookmarksGrpcApiClient.GetRecentBookmarksAsync failed");
+            return [];
+        }
+    }
+
     // ─── Folders ────────────────────────────────────────────────────────────
 
     /// <inheritdoc />

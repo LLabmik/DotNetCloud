@@ -23,6 +23,10 @@ public interface ICalendarApiClient
     // Search
     Task<IReadOnlyList<CalendarEventDto>> SearchEventsAsync(string? query, DateTime? from, DateTime? to, int skip = 0, int take = 50, CancellationToken cancellationToken = default);
 
+    // Upcoming events (home widget)
+    /// <summary>Gets the caller's upcoming events in the given UTC window.</summary>
+    Task<IReadOnlyList<CalendarEventDto>> GetUpcomingEventsAsync(DateTime fromUtc, DateTime toUtc, int count = 5, CancellationToken cancellationToken = default);
+
     // Sharing
     Task<IReadOnlyList<CalendarShareResponse>> ListSharesAsync(Guid calendarId, CancellationToken cancellationToken = default);
     Task<CalendarShareResponse?> ShareCalendarAsync(Guid calendarId, Guid? userId, Guid? teamId, string permission = "ReadOnly", CancellationToken cancellationToken = default);

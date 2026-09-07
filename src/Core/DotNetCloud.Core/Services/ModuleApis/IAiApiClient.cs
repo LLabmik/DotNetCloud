@@ -17,6 +17,9 @@ public interface IAiApiClient
     /// <summary>Lists all conversations for the current user.</summary>
     Task<IReadOnlyList<ConversationSummaryDto>> ListConversationsAsync(Guid userId, CancellationToken ct = default);
 
+    /// <summary>Gets the given user's AI conversation stats.</summary>
+    Task<ConversationStatsDto?> GetConversationStatsAsync(Guid userId, CancellationToken ct = default);
+
     /// <summary>Deletes a conversation (soft-delete).</summary>
     Task<bool> DeleteConversationAsync(Guid userId, Guid conversationId, CancellationToken ct = default);
 
@@ -150,4 +153,14 @@ public sealed record SettingsDto
     public int MaxTokens { get; init; }
     /// <summary>Request timeout in seconds.</summary>
     public int RequestTimeoutSeconds { get; init; }
+}
+
+/// <summary>Conversation count and last activity for the AI widget.</summary>
+public sealed record ConversationStatsDto
+{
+    /// <summary>Total number of conversations.</summary>
+    public int TotalConversations { get; init; }
+
+    /// <summary>Timestamp of the most recent conversation activity (UTC), if any.</summary>
+    public DateTime? LastActivityAt { get; init; }
 }

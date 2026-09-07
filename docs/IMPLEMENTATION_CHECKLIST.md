@@ -6767,3 +6767,43 @@ A module page throwing (unhandled exception during render/lifecycle) left the en
   - Test B (layout boundary auto-recovery, non-module page): Home error showed **"Try Again"** (default text unchanged); navigating away rendered normally without refresh ✅
 - ✓ Temporary test throws removed; final clean deploy live — `/health/ready` Healthy, **14/14 modules**
 - ✓ Tracking docs updated (targeted edits on disk): `MASTER_PROJECT_PLAN.md` + this checklist
+
+## Module Home Widgets (2026-09-06 / 2026-09-07)
+
+> Work package on branch `feature/module-widgets`. Canonical plan: `docs/MODULE_WIDGETS_PLAN.md`.
+
+### Shared Infrastructure
+
+- ✓ `WidgetUiRegistry` (`src/UI/DotNetCloud.UI.Web/Services/WidgetUiRegistry.cs`) — register/unregister widgets, sorted by sort order, `OnChange` notification
+- ✓ `WidgetCard` shared shell (`src/UI/DotNetCloud.UI.Shared/Components/DataDisplay/WidgetCard.razor` + `.razor.css`) — header (icon + title + "Open" link) + body slot
+- ✓ `WidgetUiRegistrationHostedService` (`src/Core/DotNetCloud.Core.Server/Initialization/WidgetUiRegistrationHostedService.cs`) — read-only 15s poll; registers widgets only for modules whose `InstalledModules` status is `Enabled` (installed/enabled gating, same as the sidebar); never seeds `InstalledModules`
+- ✓ `Program.cs` — `AddSingleton<WidgetUiRegistry>()` + `AddHostedService<WidgetUiRegistrationHostedService>()`
+- ✓ `Home.razor` — "Your Apps" section replaced by the widgets grid (`WidgetCard` + `DynamicComponent`); top summary cards retained; grid live-updates on registry change; **refresh icon button** force-reloads all widget data (remount via `@key`)
+- ✓ Global widget CSS in `app.css` (`widget-card`, `widget-grid`, list/empty/loading states, section header, refresh button); Material icons added (`event`, `contacts`, `photo`, `note`, `mail`, `task_alt`, `refresh`)
+
+### Widget Projects (12) + Icons
+
+- ✓ All 12 widget projects (`DotNetCloud.Modules.<Module>.Widget`) — Files, Video, Music, Photos, Notes, Chat, Tracks, Calendar, Contacts, Bookmarks, Email, AI
+- ✓ Widget header icons match the sidebar module icons (emoji, per user request)
+
+### Clickable Items / Deep Links
+
+- ✓ Files → `/apps/files?fileId={id}&_nav={nonce}` (opens containing folder)
+- ✓ Video → `/apps/video?videoId={id}` · Music → `/apps/music?albumId={id}` · Tracks → `/apps/tracks/item/{ProductId}/{ItemNumber}`
+- ✓ Calendar → `/apps/calendar?eventId={id}` · Bookmarks → opens external `{Url}` in a new tab
+- ✓ Notes (`noteId`→`SelectNoteAsync`), Chat (`channelId`→select channel), Photos (`photoId`→lightbox), Contacts (`contactId`→`SelectContactAsync`), Email (`threadId`→open thread) — wrapper `[SupplyParameterFromQuery]` → module page `[Parameter]` wiring added
+
+### Server Methods (per-user scoped)
+
+- ✓ In-process: `GetRecentPhotosAsync`, `GetRecentNotesAsync`, `GetRecentChannelsAsync`, `GetMyUpcomingDueItemsAsync`
+- ✓ Full gRPC chains: Contacts `GetRecentContacts`, Calendar `GetUpcomingEvents`, Bookmarks `GetRecentBookmarks`, Email `GetRecentThreads` (+ `GetThread`), AI `GetConversationStats`
+- ✓ Per-user scoping audited (owner-only or shared-with-me; gRPC handlers derive user from `request.UserId`; widgets never fall back to a system/empty user)
+- ✓ Calendar widget fix: gRPC dates were parsed `Kind=Local` → Npgsql crash ("only UTC is supported") → RPC threw → widget showed "No upcoming events". Now normalized to UTC in the handler + service, and `GetUpcomingEventsAsync` routes through `OccurrenceExpansionService` so **recurring events are discovered** too
+- ✓ Email gRPC `ListAccounts` scoped by `user_id` (was a system caller)
+
+### Tests & Verification
+
+- ✓ 43 new unit tests (42 service/registry + 1 calendar recurrence) — Photos 224, Notes 133, Bookmarks 24, AI 39, Contacts 137, Calendar 184, Chat 1315, Tracks 205, Core.Server 637, UI.Shared 62 — all passing
+- ✓ `dotnet build DotNetCloud.CI.slnf -c Release` clean — 0 warnings / 0 errors
+- ✓ Deployed to mint22 (server + module hosts, hash-verified) and live-verified: widget icons match sidebar; Files `Test2.txt` deep link opens its containing folder; Calendar widget shows the 9/10 9:00 AM event (and recurring events); empty states correct; Email "No account configured"; refresh button reloads widget data; per-widget error isolation holds
+- ✓ Committed + pushed on `feature/module-widgets` (no PR created — the user handles the PR)

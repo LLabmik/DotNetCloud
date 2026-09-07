@@ -1,0 +1,41 @@
+@namespace DotNetCloud.UI.Shared.Components.DataDisplay
+
+<div class="widget-card">
+    <div class="widget-card-header">
+        <span class="widget-card-icon" role="img" aria-label="@Title">@Icon</span>
+        <h3 class="widget-card-title">@Title</h3>
+        @if (!string.IsNullOrWhiteSpace(Href))
+        {
+            <a class="widget-card-open" href="@Href">Open</a>
+        }
+    </div>
+    <div class="widget-card-body">
+        @ChildContent
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// The widget card title shown in the header.
+    /// </summary>
+    [Parameter]
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Material icon ligature name shown next to the title.
+    /// </summary>
+    [Parameter]
+    public string Icon { get; set; } = "widgets";
+
+    /// <summary>
+    /// Optional "Open" link target. Hidden when empty.
+    /// </summary>
+    [Parameter]
+    public string Href { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The widget body content rendered inside the card.
+    /// </summary>
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+}

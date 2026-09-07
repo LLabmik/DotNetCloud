@@ -5715,3 +5715,29 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - `Recover()` on a non-errored `ErrorBoundary` is a safe no-op, so calling it on every navigation is intentional.
 - Final clean deploy live — `/health/ready` Healthy, **14/14 modules** Running.
 - Commit + push on `fix/module-error-recovery`; no PR created (user handles the PR).
+
+
+## Module Home Widgets (2026-09-06 / 2026-09-07)
+
+**Status:** completed ✅ (implemented, built clean, tests pass, deployed + live-verified on mint22; committed + pushed on `feature/module-widgets`)
+**Canonical plan:** `docs/MODULE_WIDGETS_PLAN.md`
+**Goal:** Add a "widget" card to the Home page (`/`) for each first-party module showing recent/informative data for the signed-in user. Replaces the "Your Apps" section. Widget items are clickable deep links into the module views; icons match the sidebar; a refresh button force-reloads widget data. Per-user show/hide + drag-and-drop reorder is deferred to a follow-up.
+
+### Deliverables
+
+- ✓ Shared infrastructure: `WidgetUiRegistry` (UI.Web), `WidgetCard` (UI.Shared), `WidgetUiRegistrationHostedService` (Core.Server, installed/enabled gating), global widget CSS + new Material icons; wired in `Program.cs`; `Home.razor` renders the widget grid with a **refresh button**
+- ✓ 12 widget projects (`DotNetCloud.Modules.<Module>.Widget`) — Files, Video, Music, Photos, Notes, Chat, Tracks, Calendar, Contacts, Bookmarks, Email, AI; header icons match the sidebar
+- ✓ Clickable deep links: Files opens containing folder, Video/Music/Tracks/Calendar open the item, Bookmarks open externally; Notes/Chat/Photos/Contacts/Email received wrapper + module-page deep-link wiring
+- ✓ In-process recent methods (`GetRecentPhotosAsync`, `GetRecentNotesAsync`, `GetRecentChannelsAsync`, `GetMyUpcomingDueItemsAsync`) and full gRPC chains for Contacts/Calendar/Bookmarks/Email/AI
+- ✓ Per-user scoping audit (owner-only or shared-with-me; gRPC user derived from `request.UserId`)
+- ✓ Calendar widget discovery fix (UTC `Kind=Local` → Npgsql crash) + recurrence support via `OccurrenceExpansionService`
+- ✓ Email gRPC `ListAccounts` scoped by `user_id`
+- ✓ Tests: 43 new unit tests incl. cross-user exclusion + calendar recurrence; Calendar 184, all suites green; `dotnet build DotNetCloud.CI.slnf -c Release` clean
+- ✓ Deployed + live-verified on mint22 (deep links, icons, calendar event discovery, refresh button, empty states)
+
+### Notes
+
+- Widget order = module nav sort order (Files 10 → Email 120). Widgets load once on initial render; each widget handles its own loading/empty/error state so one failure cannot break the page; the Home refresh button remounts all widgets to reload data.
+- In-process widgets build a `CallerContext` from auth claims; process-isolated widgets call gRPC `I*ApiClient` methods (server derives the user from `request.UserId`).
+- Deferred (follow-up): per-user show/hide + drag-and-drop reorder of widgets.
+- Committed + pushed on `feature/module-widgets`; no PR created (the user handles the PR).

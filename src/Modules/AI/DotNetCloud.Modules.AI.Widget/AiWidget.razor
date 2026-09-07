@@ -1,0 +1,22 @@
+@namespace DotNetCloud.Modules.AI.Widget
+
+@if (_loading)
+{
+    <div class="widget-loading">Loading…</div>
+}
+else if (_error is not null)
+{
+    <div class="widget-empty">@_error</div>
+}
+else if (Stats?.TotalConversations == 0)
+{
+    <div class="widget-empty">No conversations yet.</div>
+}
+else
+{
+    <div class="widget-stat">
+        @Stats?.TotalConversations
+        <div class="widget-stat-label">conversations</div>
+    </div>
+    <div class="text-muted" style="margin-top: 8px; font-size: 13px;">Last activity: @LastActivityText</div>
+}

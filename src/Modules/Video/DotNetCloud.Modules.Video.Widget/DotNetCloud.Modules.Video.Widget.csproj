@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>DotNetCloud.Modules.Video.Widget</RootNamespace>
+    <AssemblyName>DotNetCloud.Modules.Video.Widget</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DotNetCloud.Modules.Video\DotNetCloud.Modules.Video.csproj" />
+    <ProjectReference Include="..\..\..\UI\DotNetCloud.UI.Shared\DotNetCloud.UI.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

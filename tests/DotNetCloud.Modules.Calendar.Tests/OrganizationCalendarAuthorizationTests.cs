@@ -45,7 +45,7 @@ public class OrganizationCalendarAuthorizationTests
         _orgDirMock = new Mock<OrgDirectory>();
 
         _calendarService = new CalendarService(_db, _eventBusMock.Object, _orgDirMock.Object, Mock.Of<DotNetCloud.Core.Capabilities.IAuditLogger>(), NullLogger<CalendarService>.Instance);
-        _eventService = new CalendarEventService(_db, _eventBusMock.Object, _orgDirMock.Object, NullLogger<CalendarEventService>.Instance);
+        _eventService = new CalendarEventService(_db, _eventBusMock.Object, _orgDirMock.Object, new OccurrenceExpansionService(_db, new RecurrenceEngine(NullLogger<RecurrenceEngine>.Instance), NullLogger<OccurrenceExpansionService>.Instance), NullLogger<CalendarEventService>.Instance);
         _shareService = new CalendarShareService(_db, _eventBusMock.Object, NullLogger<CalendarShareService>.Instance);
 
         var memberId = Guid.CreateVersion7();

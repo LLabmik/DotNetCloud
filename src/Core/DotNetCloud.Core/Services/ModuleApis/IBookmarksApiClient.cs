@@ -13,6 +13,9 @@ public interface IBookmarksApiClient
     Task DeleteAsync(Guid id, CancellationToken ct = default);
     Task<IReadOnlyList<BookmarkItemDto>> SearchAsync(string query, int skip = 0, int take = 50, CancellationToken ct = default);
 
+    /// <summary>Gets the current user's most recently created bookmarks.</summary>
+    Task<IReadOnlyList<BookmarkItemDto>> GetRecentBookmarksAsync(int count = 5, CancellationToken ct = default);
+
     // Folders
     Task<IReadOnlyList<BookmarkFolderDto>> ListFoldersAsync(Guid? parentId = null, CancellationToken ct = default);
     Task<BookmarkFolderDto?> GetFolderAsync(Guid id, CancellationToken ct = default);

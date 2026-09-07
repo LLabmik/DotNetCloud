@@ -19,6 +19,14 @@ namespace DotNetCloud.Modules.Photos.UI;
 /// </summary>
 public partial class PhotosPage : ComponentBase, IAsyncDisposable
 {
+    /// <summary>
+    /// Optional photo ID to open in the lightbox when the page loads (deep-link from the home widget).
+    /// </summary>
+    [Parameter]
+    public string? PhotoId { get; set; }
+
+    private Guid? _lastHandledPhotoId;
+
     // ── State ────────────────────────────────────────────────
 
     private enum Section { Gallery, Albums, Timeline, Favorites, Map, Shared, Settings }
@@ -115,12 +123,61 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
             _caller = await GetCallerContextAsync();
             await LoadLibraryPathAsync();
             await LoadCurrentSectionAsync();
+            await HandlePhotoDeepLinkAsync();
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to initialize Photos page");
             _errorMessage = "Failed to load photos. Please try again.";
             _loading = false;
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Handle photoId changes when already on the page (same-page navigation).
+        await HandlePhotoDeepLinkAsync();
+    }
+
+    /// <summary>
+    /// Opens the photo referenced by the <c>PhotoId</c> deep-link parameter in the lightbox.
+    /// Prefers a photo already present in the current gallery; otherwise the photo is fetched
+    /// individually. Repeat handling of the same id is guarded, and failures never break the page.
+    /// </summary>
+    private async Task HandlePhotoDeepLinkAsync()
+    {
+        if (string.IsNullOrWhiteSpace(PhotoId) || !Guid.TryParse(PhotoId, out var photoId) || photoId == _lastHandledPhotoId)
+        {
+            return;
+        }
+
+        _lastHandledPhotoId = photoId;
+        try
+        {
+            var photo = _currentPhotos.FirstOrDefault(p => p.Id == photoId);
+            if (photo is null)
+            {
+                if (_caller is null)
+                {
+                    return;
+                }
+
+                photo = await PhotoService.GetPhotoAsync(photoId, _caller);
+                if (photo is null)
+                {
+                    return;
+                }
+
+                // The photo isn't part of the current gallery — show it on its own so the
+                // lightbox index/prev/next logic stays consistent.
+                _currentPhotos = [photo];
+            }
+
+            await OpenLightboxAsync(photo);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to open deep-linked photo {PhotoId}", photoId);
         }
     }
 

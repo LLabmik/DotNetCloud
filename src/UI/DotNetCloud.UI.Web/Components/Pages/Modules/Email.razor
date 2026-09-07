@@ -1,7 +1,22 @@
 @page "/apps/email"
 @rendermode InteractiveServer
 @attribute [Authorize]
+@using Microsoft.AspNetCore.Components
 
 <PageTitle>Email - DotNetCloud</PageTitle>
 
-<ModulePageHost RouteKey="email.page" />
+<ModulePageHost RouteKey="email.page" Parameters="_parameters" />
+
+@code {
+    [SupplyParameterFromQuery(Name = "threadId")]
+    public string? ThreadId { get; set; }
+
+    private Dictionary<string, object>? _parameters;
+
+    protected override void OnParametersSet()
+    {
+        _parameters = string.IsNullOrEmpty(ThreadId)
+            ? null
+            : new Dictionary<string, object> { ["ThreadId"] = ThreadId };
+    }
+}

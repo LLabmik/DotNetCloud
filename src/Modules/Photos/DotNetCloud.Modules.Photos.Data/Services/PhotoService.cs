@@ -135,6 +135,22 @@ public sealed class PhotoService : IPhotoService
     }
 
     /// <summary>
+    /// Gets the most recently added photos for the caller.
+    /// </summary>
+    public async Task<IReadOnlyList<PhotoDto>> GetRecentPhotosAsync(CallerContext caller, int count = 5, CancellationToken cancellationToken = default)
+    {
+        var photos = await _db.Photos
+            .Include(p => p.Metadata)
+            .Include(p => p.Tags)
+            .Where(p => p.OwnerId == caller.UserId)
+            .OrderByDescending(p => p.TakenAt)
+            .Take(count)
+            .ToListAsync(cancellationToken);
+
+        return photos.Select(MapToDto).ToList();
+    }
+
+    /// <summary>
     /// Gets photos in a date range for timeline view.
     /// </summary>
     public async Task<IReadOnlyList<PhotoDto>> GetTimelineAsync(CallerContext caller, DateTime from, DateTime to, CancellationToken cancellationToken = default)

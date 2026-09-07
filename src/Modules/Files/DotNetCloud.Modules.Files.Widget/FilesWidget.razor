@@ -1,0 +1,42 @@
+@namespace DotNetCloud.Modules.Files.Widget
+
+@if (_loading)
+{
+    <div class="widget-loading">Loading…</div>
+}
+else if (_error is not null)
+{
+    <div class="widget-empty">@_error</div>
+}
+else
+{
+    @if (Quota is not null && Quota.MaxBytes > 0)
+    {
+        <div class="widget-quota">
+            <div class="widget-quota-labels">
+                <span>@UsedText of @MaxText</span>
+                <span>@PercentText</span>
+            </div>
+            <div class="widget-quota-bar">
+                <div class="widget-quota-bar-fill" style="width: @PercentWidth"></div>
+            </div>
+        </div>
+    }
+
+    @if (_items.Count == 0)
+    {
+        <div class="widget-empty">@EmptyMessage</div>
+    }
+    else
+    {
+        <ul class="widget-list">
+            @foreach (var item in _items)
+            {
+                <li class="widget-list-item">
+                    <a class="widget-list-item-title" href="@HrefFor(item)">@item.Name</a>
+                    <span class="widget-list-item-meta">@item.UpdatedAt.ToLocalTime().ToString("MMM d, yyyy")</span>
+                </li>
+            }
+        </ul>
+    }
+}

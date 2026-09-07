@@ -19,6 +19,12 @@ public interface IEmailApiClient
     Task<IReadOnlyList<EmailThreadDto>> ListThreadsAsync(Guid accountId, Guid mailboxId, CancellationToken ct = default);
     Task<IReadOnlyList<EmailMessageDto>> ListThreadMessagesAsync(Guid threadId, CancellationToken ct = default);
 
+    /// <summary>Gets the current user's most recent inbox threads.</summary>
+    Task<IReadOnlyList<EmailThreadDto>> GetRecentThreadsAsync(int count = 5, CancellationToken ct = default);
+
+    /// <summary>Gets a single thread with its owning account and the mailbox of its most recent message.</summary>
+    Task<EmailThreadDetailsDto?> GetThreadAsync(Guid threadId, CancellationToken ct = default);
+
     // Messages
     Task<string?> GetMessageBodyAsync(Guid messageId, CancellationToken ct = default);
 
@@ -166,6 +172,22 @@ public sealed record EmailThreadDto
 
     /// <summary>When the thread was last updated.</summary>
     public DateTime UpdatedAt { get; init; }
+}
+
+/// <summary>Details for a single email thread, including the owning account and the mailbox of its most recent message.</summary>
+public sealed record EmailThreadDetailsDto
+{
+    /// <summary>Unique identifier.</summary>
+    public Guid Id { get; init; }
+
+    /// <summary>Owning account ID.</summary>
+    public Guid AccountId { get; init; }
+
+    /// <summary>Mailbox of the thread's most recent message, when the thread has messages.</summary>
+    public Guid? MailboxId { get; init; }
+
+    /// <summary>Thread subject.</summary>
+    public string Subject { get; init; } = "";
 }
 
 // ─── Message DTOs ──────────────────────────────────────────────────────

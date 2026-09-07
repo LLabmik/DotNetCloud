@@ -163,6 +163,35 @@ public sealed class ContactsGrpcService : ContactsService.ContactsServiceBase
     }
 
     /// <inheritdoc />
+    public override async Task<GetRecentContactsResponse> GetRecentContacts(
+        GetRecentContactsRequest request, ServerCallContext context)
+    {
+        try
+        {
+            if (!Guid.TryParse(request.UserId, out var userId))
+            {
+                return new GetRecentContactsResponse { Success = false, ErrorMessage = "Invalid user ID format." };
+            }
+
+            var count = request.Count > 0 ? request.Count : 5;
+
+            var results = await _contactService.GetRecentContactsAsync(
+                new CallerContext(userId, Array.Empty<string>(), CallerType.User),
+                count,
+                context.CancellationToken);
+
+            var response = new GetRecentContactsResponse { Success = true };
+            response.Contacts.AddRange(results.Select(ToContactMessage));
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "GetRecentContacts gRPC handler failed");
+            return new GetRecentContactsResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    /// <inheritdoc />
     public override async Task<ContactResponse> UpdateContact(
         UpdateContactRequest request, ServerCallContext context)
     {

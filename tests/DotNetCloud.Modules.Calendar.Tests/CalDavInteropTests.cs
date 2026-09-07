@@ -32,7 +32,7 @@ public class CalDavInteropTests
             .Options;
         _db = new CalendarDbContext(options);
         _eventBusMock = new Mock<IEventBus>();
-        _eventService = new CalendarEventService(_db, _eventBusMock.Object, Mock.Of<DotNetCloud.Core.Capabilities.IOrganizationDirectory>(), NullLogger<CalendarEventService>.Instance);
+        _eventService = new CalendarEventService(_db, _eventBusMock.Object, Mock.Of<DotNetCloud.Core.Capabilities.IOrganizationDirectory>(), new OccurrenceExpansionService(_db, new RecurrenceEngine(NullLogger<RecurrenceEngine>.Instance), NullLogger<OccurrenceExpansionService>.Instance), NullLogger<CalendarEventService>.Instance);
         _calendarService = new CalendarService(_db, _eventBusMock.Object, Mock.Of<DotNetCloud.Core.Capabilities.IOrganizationDirectory>(), Mock.Of<DotNetCloud.Core.Capabilities.IAuditLogger>(), NullLogger<CalendarService>.Instance);
         _icalService = new ICalService(_db, _eventService, NullLogger<ICalService>.Instance);
         _caller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);

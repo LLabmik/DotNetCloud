@@ -1,7 +1,22 @@
 @page "/apps/photos"
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 @attribute [Authorize]
+@using Microsoft.AspNetCore.Components
 
 <PageTitle>Photos - DotNetCloud</PageTitle>
 
-<ModulePageHost RouteKey="photos.page" />
+<ModulePageHost RouteKey="photos.page" Parameters="_parameters" />
+
+@code {
+    [SupplyParameterFromQuery(Name = "photoId")]
+    public string? PhotoId { get; set; }
+
+    private Dictionary<string, object>? _parameters;
+
+    protected override void OnParametersSet()
+    {
+        _parameters = string.IsNullOrEmpty(PhotoId)
+            ? null
+            : new Dictionary<string, object> { ["PhotoId"] = PhotoId };
+    }
+}

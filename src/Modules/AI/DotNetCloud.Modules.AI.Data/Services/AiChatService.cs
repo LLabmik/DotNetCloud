@@ -106,6 +106,26 @@ public sealed class AiChatService : IAiChatService
     }
 
     /// <inheritdoc />
+    public async Task<AiConversationStatsDto> GetConversationStatsAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        // Soft-deleted conversations are excluded automatically by the entity's global query filter.
+        var totalConversations = await _db.Conversations
+            .CountAsync(c => c.OwnerId == userId, cancellationToken);
+
+        var lastActivityAt = await _db.Conversations
+            .Where(c => c.OwnerId == userId)
+            .MaxAsync(c => (DateTime?)c.UpdatedAt, cancellationToken);
+
+        return new AiConversationStatsDto
+        {
+            TotalConversations = totalConversations,
+            LastActivityAt = lastActivityAt
+        };
+    }
+
+    /// <inheritdoc />
     public async Task<bool> DeleteConversationAsync(
         CallerContext caller,
         Guid conversationId,

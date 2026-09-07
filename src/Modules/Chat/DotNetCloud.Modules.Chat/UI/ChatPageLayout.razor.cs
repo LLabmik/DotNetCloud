@@ -46,6 +46,14 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     [Inject] private IJSRuntime JS { get; set; } = default!;
     [Inject] private ILogger<ChatPageLayout> Logger { get; set; } = default!;
 
+    /// <summary>
+    /// Optional channel ID to open on load (deep-link from the home widget).
+    /// </summary>
+    [Parameter]
+    public string? ChannelId { get; set; }
+
+    private Guid? _lastHandledChannelId;
+
     // Channel state
     private List<ChannelViewModel> _channels = [];
     private ChannelViewModel? _selectedChannel;
@@ -323,6 +331,36 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     }
 
     /// <inheritdoc />
+    protected override async Task OnParametersSetAsync()
+    {
+        // Handle channelId changes when already on the page (same-page navigation).
+        await TrySelectDeepLinkedChannelAsync();
+    }
+
+    /// <summary>
+    /// Selects the channel referenced by the <c>ChannelId</c> deep-link parameter when it is a
+    /// new, well-formed id that matches a loaded channel. Returns <c>true</c> when a channel was
+    /// selected; repeat handling of the same id is guarded.
+    /// </summary>
+    private async Task<bool> TrySelectDeepLinkedChannelAsync()
+    {
+        if (string.IsNullOrWhiteSpace(ChannelId) || !Guid.TryParse(ChannelId, out var channelId) || channelId == _lastHandledChannelId)
+        {
+            return false;
+        }
+
+        var channel = _channels.FirstOrDefault(c => c.Id == channelId);
+        if (channel is null)
+        {
+            return false;
+        }
+
+        _lastHandledChannelId = channelId;
+        await HandleChannelSelected(channel);
+        return true;
+    }
+
+    /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
         _isDisposed = true;
@@ -524,8 +562,10 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             // Load unread counts and apply to channel view models
             await LoadUnreadCountsAsync(caller);
 
-            // Auto-select the first channel so the composer is immediately visible
-            if (_selectedChannel is null && _channels.Count > 0)
+            // Auto-select a channel so the composer is immediately visible — prefer the
+            // deep-linked channel (from the home widget) over the first channel.
+            if (_selectedChannel is null && _channels.Count > 0
+                && !await TrySelectDeepLinkedChannelAsync())
             {
                 await HandleChannelSelected(_channels[0]);
             }

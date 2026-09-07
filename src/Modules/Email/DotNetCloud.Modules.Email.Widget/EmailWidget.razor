@@ -1,0 +1,29 @@
+@namespace DotNetCloud.Modules.Email.Widget
+
+@if (_loading)
+{
+    <div class="widget-loading">Loading…</div>
+}
+else if (_error is not null)
+{
+    <div class="widget-empty">@_error</div>
+}
+else if (!_hasAccount)
+{
+    <div class="widget-empty">No account configured.</div>
+}
+else if (_items.Count == 0)
+{
+    <div class="widget-empty">No recent email.</div>
+}
+else
+{
+    <ul class="widget-list">
+        @foreach (var item in _items)
+        {
+            <li class="widget-list-item">
+                <a class="widget-list-item-title" href="@HrefFor(item)">@item.Subject</a>
+            </li>
+        }
+    </ul>
+}

@@ -1,7 +1,22 @@
 @page "/apps/chat"
 @rendermode InteractiveServer
 @attribute [Authorize]
+@using Microsoft.AspNetCore.Components
 
 <PageTitle>Chat - DotNetCloud</PageTitle>
 
-<ModulePageHost RouteKey="chat.channels" />
+<ModulePageHost RouteKey="chat.channels" Parameters="_parameters" />
+
+@code {
+    [SupplyParameterFromQuery(Name = "channelId")]
+    public string? ChannelId { get; set; }
+
+    private Dictionary<string, object>? _parameters;
+
+    protected override void OnParametersSet()
+    {
+        _parameters = string.IsNullOrEmpty(ChannelId)
+            ? null
+            : new Dictionary<string, object> { ["ChannelId"] = ChannelId };
+    }
+}

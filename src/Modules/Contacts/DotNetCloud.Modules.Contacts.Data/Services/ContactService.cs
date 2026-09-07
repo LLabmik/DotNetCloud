@@ -332,6 +332,18 @@ public sealed class ContactService : IContactService
     }
 
     /// <inheritdoc />
+    public async Task<IReadOnlyList<ContactDto>> GetRecentContactsAsync(CallerContext caller, int count = 5, CancellationToken cancellationToken = default)
+    {
+        var contacts = await QueryContacts()
+            .Where(c => c.OwnerId == caller.UserId || c.Shares.Any(s => s.SharedWithUserId == caller.UserId))
+            .OrderByDescending(c => c.CreatedAt)
+            .Take(count)
+            .ToListAsync(cancellationToken);
+
+        return contacts.Select(MapToDto).ToList();
+    }
+
+    /// <inheritdoc />
     public async Task<IReadOnlyList<ContactDto>> GetContactsByIdsAsync(IEnumerable<Guid> contactIds, CallerContext caller, CancellationToken cancellationToken = default)
     {
         var ids = contactIds.ToList();

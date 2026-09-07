@@ -182,6 +182,32 @@ public sealed class BookmarksGrpcService : BookmarksService.BookmarksServiceBase
         }
     }
 
+    /// <inheritdoc />
+    public override async Task<GetRecentBookmarksResponse> GetRecentBookmarks(
+        GetRecentBookmarksRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.UserId, out var userId))
+            return new GetRecentBookmarksResponse { Success = false, ErrorMessage = "Invalid user ID." };
+
+        var count = request.Count > 0 ? request.Count : 5;
+
+        try
+        {
+            var results = await _bookmarkService.GetRecentBookmarksAsync(
+                new CallerContext(userId, ["user"], CallerType.User),
+                count, context.CancellationToken);
+
+            var response = new GetRecentBookmarksResponse { Success = true };
+            response.Bookmarks.AddRange(results.Select(ToMessage));
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "GetRecentBookmarks gRPC failed");
+            return new GetRecentBookmarksResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
     // ─── Folders ────────────────────────────────────────────────────────────
 
     public override async Task<ListBookmarkFoldersResponse> ListFolders(

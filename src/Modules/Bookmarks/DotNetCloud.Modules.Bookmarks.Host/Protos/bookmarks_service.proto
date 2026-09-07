@@ -14,6 +14,9 @@ service BookmarksService {
   rpc DeleteBookmark (DeleteBookmarkRequest) returns (DeleteBookmarkResponse);
   rpc SearchBookmarks (SearchBookmarksRequest) returns (ListBookmarksResponse);
 
+  // Gets the caller's most recently created bookmarks.
+  rpc GetRecentBookmarks (GetRecentBookmarksRequest) returns (GetRecentBookmarksResponse);
+
   // Folder CRUD
   rpc ListFolders (ListBookmarkFoldersRequest) returns (ListBookmarkFoldersResponse);
   rpc GetFolder (GetBookmarkFolderRequest) returns (BookmarkFolderResponse);
@@ -40,6 +43,17 @@ message ListBookmarksRequest {
 }
 
 message ListBookmarksResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated BookmarkMessage bookmarks = 3;
+}
+
+message GetRecentBookmarksRequest {
+  string user_id = 1;
+  int32 count = 2;
+}
+
+message GetRecentBookmarksResponse {
   bool success = 1;
   string error_message = 2;
   repeated BookmarkMessage bookmarks = 3;
