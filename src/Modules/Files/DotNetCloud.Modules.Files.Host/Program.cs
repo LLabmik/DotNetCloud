@@ -190,9 +190,11 @@ builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
 // desktop/mobile clients that use Content-Encoding: gzip on chunk PUT requests.
 builder.Services.AddRequestDecompression();
 
-// Rate limiting — policies must be registered so [EnableRateLimiting] attributes on
-// controllers don't throw 502. Actual enforcement happens in Core.Server's YARP proxy;
-// these use the same config values for consistency.
+// Rate limiting — policies referenced by [EnableRateLimiting] on this module's
+// controllers. Defaults mirror Core.Server's "RateLimiting:ModuleLimits" config section
+// and can be overridden from the shared config.json (DOTNETCLOUD_CONFIG_DIR). Rejections
+// drain the request body so Core.Server's YARP proxy relays the real 429 (see OnRejected)
+// instead of surfacing a misleading 502.
 builder.Services.AddRateLimiter(limiterOptions =>
 {
     limiterOptions.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -200,10 +202,10 @@ builder.Services.AddRateLimiter(limiterOptions =>
     // Load module rate limits from config (same section as Core.Server)
     var rateLimitSection = builder.Configuration.GetSection("RateLimiting:ModuleLimits");
 
-    void AddModulePolicy(string moduleName, string policyName)
+    void AddModulePolicy(string moduleName, string policyName, int defaultPermitLimit = 100)
     {
         var config = rateLimitSection.GetSection(moduleName);
-        var permitLimit = config.GetValue<int?>("PermitLimit") ?? 100;
+        var permitLimit = config.GetValue<int?>("PermitLimit") ?? defaultPermitLimit;
         var windowSeconds = config.GetValue<int?>("WindowSeconds") ?? 60;
         var perDevice = config.GetValue<bool?>("PerDevice") ?? false;
 
@@ -231,8 +233,40 @@ builder.Services.AddRateLimiter(limiterOptions =>
     AddModulePolicy("sync-reconcile", "module-sync-reconcile");
     AddModulePolicy("sync-stream", "module-sync-stream");
     AddModulePolicy("upload-initiate", "module-upload-initiate");
-    AddModulePolicy("upload-chunks", "module-upload-chunks");
+    // 2400 chunk PUTs / 60 s (per user) so large, fast uploads (e.g. 16 GB = ~4100 chunks)
+    // aren't rejected mid-flight. Kept overridable via RateLimiting:ModuleLimits:upload-chunks.
+    AddModulePolicy("upload-chunks", "module-upload-chunks", defaultPermitLimit: 2400);
     AddModulePolicy("download", "module-download");
+
+    // When a request is rejected, drain its body before responding with 429. If the module
+    // responds without consuming the request body, Kestrel resets the HTTP/2 request stream
+    // mid-body; Core.Server's YARP proxy then sees a stream reset and reports a misleading
+    // 502 instead of relaying this 429. Chunk PUT bodies are small (<= 4 MB), so discarding
+    // them on rejection is cheap and lets the proxy relay the real status to the client.
+    limiterOptions.OnRejected = async (context, cancellationToken) =>
+    {
+        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        try
+        {
+            await context.HttpContext.Request.Body.CopyToAsync(Stream.Null, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (IOException)
+        {
+        }
+
+        context.HttpContext.Response.ContentType = "application/json";
+        await context.HttpContext.Response.WriteAsJsonAsync(new
+        {
+            error = new
+            {
+                code = "RATE_LIMIT_EXCEEDED",
+                message = "Too many requests. Please retry shortly."
+            }
+        }, cancellationToken);
+    };
 });
 
 // gRPC

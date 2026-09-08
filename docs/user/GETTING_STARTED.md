@@ -42,7 +42,7 @@ While in the file browser, press **Ctrl+V** to paste an image from your clipboar
 
 ### Upload Size Limits
 
-The server configures a maximum upload file size (default: 15 GB). If you select a file that exceeds this limit, the upload is rejected immediately with a clear error message showing the maximum allowed size. No data is sent to the server for rejected files.
+The server configures a maximum upload file size (default: 20 GiB). If you select a file that exceeds this limit, the upload is rejected immediately with a clear error message showing the maximum allowed size. No data is sent to the server for rejected files.
 
 ---
 

@@ -10,9 +10,9 @@ public sealed class FileUploadOptions
 
     /// <summary>
     /// Maximum permitted total file size for a single upload, in bytes.
-    /// Default: 15 GB (16,106,127,360 bytes).
+    /// Default: 20 GiB (21,474,836,480 bytes) — comfortably supports files larger than 16 GiB.
     /// </summary>
-    public long MaxFileSizeBytes { get; set; } = 16_106_127_360L;
+    public long MaxFileSizeBytes { get; set; } = 21_474_836_480L;
 
     /// <summary>
     /// Maximum size of a generated multi-item ZIP download, in bytes.
