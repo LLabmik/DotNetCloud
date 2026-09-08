@@ -198,6 +198,32 @@
             </div>
         }
 
+        @if (_showLibrarySetupHint && _librarySources.Count == 0)
+        {
+            <div class="library-setup-hint" style="display:flex;align-items:center;gap:12px;margin:12px 0;padding:10px 14px;border:1px solid var(--color-border, rgba(255,255,255,0.14));border-left:3px solid var(--color-primary, #3b82f6);border-radius:10px;background:var(--color-surface, rgba(255,255,255,0.03));">
+                <span style="display:inline-flex;color:var(--color-primary, #3b82f6);flex-shrink:0;">
+                    <MaterialIcon Icon="music_note" Size="MaterialIconSize.Lg" />
+                </span>
+                <span style="flex:1;min-width:0;font-size:13px;line-height:1.4;color:var(--color-text-secondary, rgba(255,255,255,0.7));">
+                    No music library folder selected yet. Open <strong style="color:var(--color-text, #fff);">Library Settings</strong> to pick the folder your music lives in — new music you add there is detected and imported automatically.
+                </span>
+                <span style="display:inline-flex;flex-shrink:0;">
+                    <button type="button" class="btn btn-outline btn-sm" @onclick="GoToLibrarySettingsFromHintAsync">Open Library Settings</button>
+                </span>
+                <button type="button" class="btn btn-icon" @onclick="DismissLibrarySetupHint" title="Dismiss" aria-label="Dismiss" style="flex-shrink:0;color:var(--color-text-secondary, rgba(255,255,255,0.6));">
+                    <MaterialIcon Icon="close" />
+                </button>
+            </div>
+        }
+
+        @if (_importNotice is not null)
+        {
+            <div class="import-notice" style="display:flex;align-items:center;gap:10px;margin:12px 0;padding:10px 14px;border:1px solid rgba(16,185,129,0.4);border-left:3px solid #10b981;border-radius:10px;background:rgba(16,185,129,0.08);">
+                <span style="flex:1;min-width:0;font-size:13px;color:var(--color-text, #fff);">@_importNotice</span>
+                <button type="button" class="btn btn-outline btn-sm" @onclick="DismissImportNotice">Dismiss</button>
+            </div>
+        }
+
         @if (_loading)
         {
             <div class="music-loading">
@@ -1167,6 +1193,104 @@
                             @(_settingsResetting ? "Resetting..." : "Yes, Reset")
                         </button>
                         <button class="btn btn-secondary" @onclick="() => _showResetConfirm = false">Cancel</button>
+                    </Footer>
+                </DncModal>
+            }
+
+            @* ── New Music Available Prompt ── *@
+            @if (_showNewMediaModal)
+            {
+                <DncModal Title="New Music Available" StartVisible OnClose="DismissNewMediaPrompt">
+                    <ChildContent>
+                        @if (IsScanActive)
+                        {
+                            <p>Importing new music into your library…</p>
+                            <div class="scan-progress-panel">
+                                @if (CurrentScanProgress is { } p)
+                                {
+                                    <div class="scan-progress-header">
+                                        <span class="scan-phase">@p.Phase</span>
+                                        <span class="scan-elapsed">@FormatDuration(p.ElapsedTime)</span>
+                                    </div>
+                                    <div class="scan-progress-bar">
+                                        @if (p.TotalFiles == 0)
+                                        {
+                                            <div class="scan-progress-fill indeterminate"></div>
+                                        }
+                                        else
+                                        {
+                                            <div class="scan-progress-fill" style="width: @(p.PercentComplete)%"></div>
+                                        }
+                                    </div>
+                                    <div class="scan-progress-detail">
+                                        @if (!string.IsNullOrEmpty(p.CurrentFile))
+                                        {
+                                            <span class="scan-current-file" title="@p.CurrentFile">@TruncateFileName(p.CurrentFile, 60)</span>
+                                        }
+                                        <div class="scan-counts">
+                                            <span class="scan-count added">+@p.TracksAdded added</span>
+                                            <span class="scan-count skipped">→@p.TracksSkipped skipped</span>
+                                            @if (p.TracksFailed > 0)
+                                            {
+                                                <span class="scan-count failed">✕@p.TracksFailed failed</span>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="scan-progress-header">
+                                        <span class="scan-phase">Scan starting…</span>
+                                    </div>
+                                    <div class="scan-progress-bar">
+                                        <div class="scan-progress-fill indeterminate"></div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else if (_newMediaNeedsImport)
+                        {
+                            <p>
+                                Found <strong>@_newMediaCount</strong> new music file(s) in your library folders that
+                                haven't been imported yet. Import them now to hear them in your library?
+                            </p>
+                            @if (_newMediaSampleNames.Count > 0)
+                            {
+                                <ul style="margin:8px 0 0 18px;padding:0;font-size:13px;color:var(--color-muted,rgba(255,255,255,0.6));">
+                                    @foreach (var name in _newMediaSampleNames.Take(5))
+                                    {
+                                        <li>@name</li>
+                                    }
+                                    @if (_newMediaSampleNames.Count > 5)
+                                    {
+                                        <li>…and @(_newMediaSampleNames.Count - 5) more</li>
+                                    }
+                                </ul>
+                            }
+                        }
+                        else
+                        {
+                            <p>
+                                <strong>@_newMediaCount</strong> new track(s) were added to your library since your last visit.
+                                View them in your library.
+                            </p>
+                        }
+                    </ChildContent>
+                    <Footer>
+                        @if (IsScanActive)
+                        {
+                            <button class="btn btn-secondary" @onclick="CancelScan">Stop</button>
+                        }
+                        else if (_newMediaNeedsImport)
+                        {
+                            <button class="btn btn-secondary" @onclick="DismissNewMediaPrompt">Not Now</button>
+                            <button class="btn btn-primary" @onclick="ImportNewMediaFromPromptAsync">Scan Now</button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-secondary" @onclick="DismissNewMediaPrompt">Dismiss</button>
+                            <button class="btn btn-primary" @onclick="ViewNewMediaAsync">View New Music</button>
+                        }
                     </Footer>
                 </DncModal>
             }

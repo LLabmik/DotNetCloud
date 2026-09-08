@@ -39,6 +39,17 @@ public interface IMediaLibraryScanner
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Result with counts of found and indexed files.</returns>
     Task<MediaScanResult> ScanSourcesAsync(IReadOnlyCollection<MediaLibrarySource> sources, Guid ownerId, string mediaType, IProgress<MediaScanProgress>? progress = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Discovers new (not yet indexed) media files across the given sources without importing them.
+    /// Read-only — no indexing, removal, or other mutation of module data is performed.
+    /// </summary>
+    /// <param name="sources">The enabled media-library sources to inspect.</param>
+    /// <param name="ownerId">User ID whose personal media library should be checked.</param>
+    /// <param name="mediaType">Type of media to look for: "Photos", "Music", or "Video".</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Discovery result with the count of new (unindexed) files found.</returns>
+    Task<MediaDiscoveryResult> DiscoverNewMediaFilesAsync(IReadOnlyCollection<MediaLibrarySource> sources, Guid ownerId, string mediaType, CancellationToken cancellationToken = default);
 }
 
 /// <summary>

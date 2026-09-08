@@ -142,28 +142,24 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
             PercentComplete = 0,
         });
 
-        var scanResult = await _filesApiClient.ScanMediaFoldersAsync(
-            sources, ownerId, mediaType, cancellationToken);
+        var discovery = await DiscoverCandidatesAsync(sources, ownerId, mediaType, parsed, cancellationToken);
 
-        if (!scanResult.Success)
+        if (!discovery.Success)
         {
-            result.Errors.Add(scanResult.ErrorMessage ?? "Media folder scan failed.");
-            _logger.LogWarning("Media folder scan via gRPC failed: {Error}", LogSanitizer.Sanitize(scanResult.ErrorMessage ?? ""));
+            result.Errors.Add(discovery.ErrorMessage ?? "Media folder scan failed.");
+            _logger.LogWarning("Media folder scan via gRPC failed: {Error}", LogSanitizer.Sanitize(discovery.ErrorMessage ?? ""));
             return result;
         }
 
-        result.TotalFound = scanResult.TotalFound;
+        result.TotalFound = discovery.TotalFound;
         _logger.LogInformation(
             "Media source scan: found {Count} {MediaType} files via gRPC for user {OwnerId}",
             result.TotalFound, parsed, ownerId);
 
         // ── Determine already-indexed files ──
-        var alreadyIndexedIds = await GetAlreadyIndexedIdsAsync(parsed, ownerId, cancellationToken);
-        var currentFileNodeIds = scanResult.Candidates.Select(c => c.Id).ToHashSet();
-        var filesToIndex = scanResult.Candidates
-            .Where(candidate => !alreadyIndexedIds.Contains(candidate.Id))
-            .OrderBy(candidate => candidate.Name, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        var alreadyIndexedIds = discovery.AlreadyIndexedIds;
+        var currentFileNodeIds = discovery.Candidates.Select(c => c.Id).ToHashSet();
+        var filesToIndex = discovery.FilesToIndex;
 
         result.Skipped = result.TotalFound - filesToIndex.Count;
 
@@ -248,6 +244,99 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
             result.Imported, result.Skipped, result.Removed, result.Failed, result.TotalFound);
 
         return result;
+    }
+
+    /// <inheritdoc />
+    public async Task<MediaDiscoveryResult> DiscoverNewMediaFilesAsync(
+        IReadOnlyCollection<MediaLibrarySource> sources,
+        Guid ownerId,
+        string mediaType,
+        CancellationToken cancellationToken = default)
+    {
+        if (!Enum.TryParse<MediaScanType>(mediaType, ignoreCase: true, out var parsed))
+        {
+            throw new ArgumentException($"Invalid media type: {mediaType}", nameof(mediaType));
+        }
+
+        if (sources.Count == 0)
+        {
+            _logger.LogDebug("Media discovery: no {MediaType} sources for user {OwnerId} — nothing to detect", parsed, ownerId);
+            return new MediaDiscoveryResult { Success = true };
+        }
+
+        _logger.LogInformation(
+            "User {OwnerId} requested a {MediaType} discovery check across {SourceCount} configured sources",
+            ownerId, parsed, sources.Count);
+
+        var discovery = await DiscoverCandidatesAsync(sources, ownerId, mediaType, parsed, cancellationToken);
+
+        if (!discovery.Success)
+        {
+            _logger.LogWarning("Media discovery failed for user {OwnerId}: {Error}",
+                ownerId, LogSanitizer.Sanitize(discovery.ErrorMessage ?? ""));
+            return new MediaDiscoveryResult { Success = false, ErrorMessage = discovery.ErrorMessage };
+        }
+
+        var newFiles = discovery.FilesToIndex;
+        return new MediaDiscoveryResult
+        {
+            Success = true,
+            TotalFound = discovery.TotalFound,
+            AlreadyIndexed = discovery.TotalFound - newFiles.Count,
+            NewFileCount = newFiles.Count,
+            SampleFileNames = newFiles.Take(20).Select(file => file.Name).ToList(),
+        };
+    }
+
+    /// <summary>
+    /// Runs the shared discovery pass: queries the Files module via gRPC for matching file
+    /// candidates and diffs them against the module's already-indexed file node IDs.
+    /// No files are indexed, updated, or removed here.
+    /// </summary>
+    private async Task<MediaDiscovery> DiscoverCandidatesAsync(
+        IReadOnlyCollection<MediaLibrarySource> sources,
+        Guid ownerId,
+        string mediaType,
+        MediaScanType parsed,
+        CancellationToken cancellationToken)
+    {
+        var scanResult = await _filesApiClient.ScanMediaFoldersAsync(sources, ownerId, mediaType, cancellationToken);
+
+        if (!scanResult.Success)
+        {
+            return MediaDiscovery.Failed(scanResult.ErrorMessage ?? "Media folder scan failed.");
+        }
+
+        var alreadyIndexedIds = await GetAlreadyIndexedIdsAsync(parsed, ownerId, cancellationToken);
+        var filesToIndex = scanResult.Candidates
+            .Where(candidate => !alreadyIndexedIds.Contains(candidate.Id))
+            .OrderBy(candidate => candidate.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return new MediaDiscovery(
+            Success: true,
+            ErrorMessage: null,
+            TotalFound: scanResult.TotalFound,
+            Candidates: scanResult.Candidates,
+            AlreadyIndexedIds: alreadyIndexedIds,
+            FilesToIndex: filesToIndex);
+    }
+
+    /// <summary>
+    /// Internal carrier for a discovery pass: the gRPC scan outcome plus the already-indexed
+    /// set and the ordered list of files still to be indexed.
+    /// </summary>
+    private sealed record MediaDiscovery(
+        bool Success,
+        string? ErrorMessage,
+        int TotalFound,
+        IReadOnlyList<MediaFileCandidateDto> Candidates,
+        HashSet<Guid> AlreadyIndexedIds,
+        List<MediaFileCandidateDto> FilesToIndex)
+    {
+        /// <summary>Creates a failed discovery result.</summary>
+        public static MediaDiscovery Failed(string errorMessage) =>
+            new(false, errorMessage, 0, [], [], []);
     }
 
     private async Task<HashSet<Guid>> GetAlreadyIndexedIdsAsync(
