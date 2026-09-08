@@ -326,4 +326,206 @@ public class NotificationProducerTests
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }
+
+    // ─── Team fan-out ────────────────────────────────────────────────────
+
+    private static NotificationProducer CreateProducer(
+        ITeamDirectory teamDirectory,
+        INotificationService notificationService)
+    {
+        var serviceProvider = new Mock<IServiceProvider>();
+        serviceProvider
+            .Setup(sp => sp.GetService(typeof(INotificationService)))
+            .Returns(notificationService);
+        serviceProvider
+            .Setup(sp => sp.GetService(typeof(ITeamDirectory)))
+            .Returns(teamDirectory);
+
+        var scope = new Mock<IServiceScope>();
+        scope.Setup(s => s.ServiceProvider).Returns(serviceProvider.Object);
+
+        var scopeFactory = new Mock<IServiceScopeFactory>();
+        scopeFactory.Setup(f => f.CreateScope()).Returns(scope.Object);
+
+        return new NotificationProducer(scopeFactory.Object);
+    }
+
+    private static ITeamDirectory CreateTeamDirectory(Guid teamId, params Guid[] memberIds)
+    {
+        var teamDirectory = new Mock<ITeamDirectory>();
+        teamDirectory
+            .Setup(x => x.GetTeamMembersAsync(teamId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(memberIds.Select(id => new TeamMemberInfo
+            {
+                TeamId = teamId,
+                UserId = id,
+                JoinedAt = DateTime.UtcNow,
+            }).ToArray());
+        return teamDirectory.Object;
+    }
+
+    [TestMethod]
+    public async Task ResourceSharedEvent_WithTeam_FansOutToMembersExceptSharer()
+    {
+        var sharer = Guid.CreateVersion7();
+        var memberA = Guid.CreateVersion7();
+        var memberB = Guid.CreateVersion7();
+        var teamId = Guid.CreateVersion7();
+        var entityId = Guid.CreateVersion7();
+
+        var notificationService = new Mock<INotificationService>();
+        var producer = CreateProducer(CreateTeamDirectory(teamId, sharer, memberA, memberB), notificationService.Object);
+
+        var @event = new ResourceSharedEvent
+        {
+            EventId = Guid.CreateVersion7(),
+            CreatedAt = DateTime.UtcNow,
+            SharedByUserId = sharer,
+            SharedWithUserId = null,
+            SharedWithTeamId = teamId,
+            SourceModuleId = "dotnetcloud.notes",
+            EntityType = "Note",
+            EntityId = entityId,
+            EntityDisplayName = "Meeting notes",
+            Permission = "ReadWrite"
+        };
+
+        await producer.HandleAsync(@event);
+
+        // Sharer excluded; one notification per remaining member.
+        notificationService.Verify(
+            n => n.SendAsync(memberA, It.Is<NotificationDto>(d =>
+                d.Title == "Note shared with your team" &&
+                d.SourceModuleId == "dotnetcloud.notes"), It.IsAny<CancellationToken>()),
+            Times.Once);
+        notificationService.Verify(
+            n => n.SendAsync(memberB, It.Is<NotificationDto>(d => d.Title == "Note shared with your team"), It.IsAny<CancellationToken>()),
+            Times.Once);
+        notificationService.Verify(
+            n => n.SendAsync(sharer, It.IsAny<NotificationDto>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [TestMethod]
+    public async Task ResourceSharedEvent_WithTeam_NoOtherMembers_ProducesNoNotification()
+    {
+        var sharer = Guid.CreateVersion7();
+        var teamId = Guid.CreateVersion7();
+
+        var notificationService = new Mock<INotificationService>();
+        var producer = CreateProducer(CreateTeamDirectory(teamId, sharer), notificationService.Object);
+
+        var @event = new ResourceSharedEvent
+        {
+            EventId = Guid.CreateVersion7(),
+            CreatedAt = DateTime.UtcNow,
+            SharedByUserId = sharer,
+            SharedWithTeamId = teamId,
+            SourceModuleId = "dotnetcloud.notes",
+            EntityType = "Note",
+            EntityId = Guid.CreateVersion7(),
+            EntityDisplayName = "Meeting notes",
+            Permission = "ReadOnly"
+        };
+
+        await producer.HandleAsync(@event);
+
+        notificationService.Verify(
+            n => n.SendAsync(It.IsAny<Guid>(), It.IsAny<NotificationDto>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [TestMethod]
+    public async Task FileSharedEvent_WithTeam_FansOutToMembersExceptSharer()
+    {
+        var sharer = Guid.CreateVersion7();
+        var memberA = Guid.CreateVersion7();
+        var teamId = Guid.CreateVersion7();
+        var fileNodeId = Guid.CreateVersion7();
+
+        var notificationService = new Mock<INotificationService>();
+        var producer = CreateProducer(CreateTeamDirectory(teamId, sharer, memberA), notificationService.Object);
+
+        var @event = new FileSharedEvent
+        {
+            EventId = Guid.CreateVersion7(),
+            CreatedAt = DateTime.UtcNow,
+            FileNodeId = fileNodeId,
+            FileName = "budget.xlsx",
+            ShareId = Guid.CreateVersion7(),
+            ShareType = "Team",
+            SharedWithTeamId = teamId,
+            SharedByUserId = sharer
+        };
+
+        await producer.HandleAsync(@event);
+
+        notificationService.Verify(
+            n => n.SendAsync(memberA, It.Is<NotificationDto>(d =>
+                d.Title == "File shared with your team" &&
+                d.ActionUrl == $"/apps/files?node={fileNodeId}"), It.IsAny<CancellationToken>()),
+            Times.Once);
+        notificationService.Verify(
+            n => n.SendAsync(sharer, It.IsAny<NotificationDto>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [TestMethod]
+    public async Task AlbumSharedEvent_WithUser_ProducesSingleNotification()
+    {
+        var userId = Guid.CreateVersion7();
+        var albumId = Guid.CreateVersion7();
+        var @event = new AlbumSharedEvent
+        {
+            EventId = Guid.CreateVersion7(),
+            CreatedAt = DateTime.UtcNow,
+            AlbumId = albumId,
+            SharedByUserId = Guid.CreateVersion7(),
+            SharedWithUserId = userId,
+            Permission = "ReadOnly"
+        };
+
+        await _producer.HandleAsync(@event);
+
+        _notificationService.Verify(
+            n => n.SendAsync(
+                userId,
+                It.Is<NotificationDto>(d =>
+                    d.Type == NotificationType.Share &&
+                    d.SourceModuleId == "dotnetcloud.photos" &&
+                    d.Title == "Album shared with you" &&
+                    d.ActionUrl == $"/photos?album={albumId}"),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [TestMethod]
+    public async Task ResourceSharedEvent_WithUser_ProducesSingleNotification()
+    {
+        var userId = Guid.CreateVersion7();
+        var entityId = Guid.CreateVersion7();
+        var @event = new ResourceSharedEvent
+        {
+            EventId = Guid.CreateVersion7(),
+            CreatedAt = DateTime.UtcNow,
+            SharedByUserId = Guid.CreateVersion7(),
+            SharedWithUserId = userId,
+            SourceModuleId = "dotnetcloud.contacts",
+            EntityType = "Contact",
+            EntityId = entityId,
+            EntityDisplayName = "Ada Lovelace",
+            Permission = "Read"
+        };
+
+        await _producer.HandleAsync(@event);
+
+        _notificationService.Verify(
+            n => n.SendAsync(
+                userId,
+                It.Is<NotificationDto>(d =>
+                    d.Title == "Contact shared with you" &&
+                    d.ActionUrl == $"/contacts?id={entityId}"),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
 }

@@ -289,6 +289,15 @@ public class ContactsController : ContactsControllerBase
         return NoContent();
     }
 
+    /// <summary>Lists contacts shared with the caller (user and team shares) for aggregated surfaces.</summary>
+    [HttpGet("shared-with-me")]
+    public async Task<IActionResult> ListSharedWithMeAsync()
+    {
+        var caller = GetAuthenticatedCaller();
+        var items = await _shareService.ListSharedWithMeAsync(caller);
+        return Ok(Envelope(items));
+    }
+
     // ─── Avatars ───────────────────────────────────────────────────────
 
     /// <summary>Uploads or replaces the avatar for a contact.</summary>

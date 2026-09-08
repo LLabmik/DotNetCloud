@@ -84,8 +84,11 @@ public sealed class NotesApiClient : INotesApiClient
     }
 
     public async Task<NoteShareDto?> ShareNoteAsync(Guid noteId, Guid userId, NoteSharePermission permission = NoteSharePermission.ReadOnly, CancellationToken cancellationToken = default)
+        => await ShareNoteAsync(noteId, userId, null, permission, cancellationToken);
+
+    public async Task<NoteShareDto?> ShareNoteAsync(Guid noteId, Guid? userId, Guid? teamId, NoteSharePermission permission = NoteSharePermission.ReadOnly, CancellationToken cancellationToken = default)
     {
-        var body = new { UserId = userId, Permission = permission };
+        var body = new { UserId = userId, TeamId = teamId, Permission = permission };
         var response = await _httpClient.PostAsJsonAsync($"api/v1/notes/{noteId}/shares", body, cancellationToken);
         response.EnsureSuccessStatusCode();
         return await ReadDataAsync<NoteShareDto>(response, cancellationToken);

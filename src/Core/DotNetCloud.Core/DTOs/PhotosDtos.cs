@@ -239,8 +239,11 @@ public sealed record PhotoShareDto
     /// <summary>Album ID being shared (null if photo share).</summary>
     public Guid? AlbumId { get; init; }
 
-    /// <summary>User this is shared with (null for public link).</summary>
+    /// <summary>User this is shared with (null for team shares).</summary>
     public Guid? SharedWithUserId { get; init; }
+
+    /// <summary>Team this is shared with (user XOR team; null for user shares).</summary>
+    public Guid? SharedWithTeamId { get; init; }
 
     /// <summary>Permission level for the share.</summary>
     public required PhotoSharePermission Permission { get; init; }

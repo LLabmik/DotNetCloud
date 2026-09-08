@@ -4,6 +4,7 @@ using DotNetCloud.Modules.Calendar.Models;
 using DotNetCloud.Modules.Calendar.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using ITeamDirectory = DotNetCloud.Core.Capabilities.ITeamDirectory;
 
 namespace DotNetCloud.Modules.Calendar.Data.Services;
 
@@ -15,6 +16,7 @@ public sealed class OccurrenceExpansionService : IOccurrenceExpansionService
 {
     private readonly CalendarDbContext _db;
     private readonly IRecurrenceEngine _recurrenceEngine;
+    private readonly ITeamDirectory? _teamDirectory;
     private readonly ILogger<OccurrenceExpansionService> _logger;
 
     /// <summary>
@@ -23,11 +25,36 @@ public sealed class OccurrenceExpansionService : IOccurrenceExpansionService
     public OccurrenceExpansionService(
         CalendarDbContext db,
         IRecurrenceEngine recurrenceEngine,
-        ILogger<OccurrenceExpansionService> logger)
+        ILogger<OccurrenceExpansionService> logger,
+        ITeamDirectory? teamDirectory = null)
     {
         _db = db;
         _recurrenceEngine = recurrenceEngine;
+        _teamDirectory = teamDirectory;
         _logger = logger;
+    }
+
+    /// <summary>
+    /// Resolves the caller's team IDs for team-share access checks (empty when the
+    /// team directory capability is unavailable).
+    /// </summary>
+    private async Task<Guid[]> GetCallerTeamIdsAsync(CallerContext caller, CancellationToken cancellationToken)
+    {
+        if (_teamDirectory is null)
+        {
+            return [];
+        }
+
+        try
+        {
+            var teams = await _teamDirectory.GetTeamsForUserAsync(caller.UserId, cancellationToken);
+            return teams.Select(t => t.Id).ToArray();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to resolve team memberships for {UserId}", caller.UserId);
+            return [];
+        }
     }
 
     /// <inheritdoc />
@@ -40,6 +67,8 @@ public sealed class OccurrenceExpansionService : IOccurrenceExpansionService
         int take = 200,
         CancellationToken cancellationToken = default)
     {
+        var teamIds = await GetCallerTeamIdsAsync(caller, cancellationToken);
+
         // 1. Fetch non-recurring events in the window.
         var concreteEvents = await _db.CalendarEvents
             .Include(e => e.Calendar)
@@ -51,7 +80,8 @@ public sealed class OccurrenceExpansionService : IOccurrenceExpansionService
                 && e.RecurringEventId == null
                 && e.EndUtc >= from && e.StartUtc <= to
                 && (e.Calendar!.OwnerId == caller.UserId
-                    || e.Calendar.Shares.Any(s => s.SharedWithUserId == caller.UserId)))
+                    || e.Calendar.Shares.Any(s => s.SharedWithUserId == caller.UserId
+                        || (s.SharedWithTeamId != null && teamIds.Contains(s.SharedWithTeamId.Value)))))
             .ToListAsync(cancellationToken);
 
         // 2. Fetch recurring master events in this calendar.
@@ -65,7 +95,8 @@ public sealed class OccurrenceExpansionService : IOccurrenceExpansionService
                 && e.RecurrenceRule != null
                 && e.RecurringEventId == null
                 && (e.Calendar!.OwnerId == caller.UserId
-                    || e.Calendar.Shares.Any(s => s.SharedWithUserId == caller.UserId)))
+                    || e.Calendar.Shares.Any(s => s.SharedWithUserId == caller.UserId
+                        || (s.SharedWithTeamId != null && teamIds.Contains(s.SharedWithTeamId.Value)))))
             .ToListAsync(cancellationToken);
 
         // 3. Fetch exception instances for these masters (already stored in the DB).
@@ -179,10 +210,12 @@ public sealed class OccurrenceExpansionService : IOccurrenceExpansionService
         var windowEnd = to ?? DateTime.UtcNow.AddYears(1);
 
         // Get the user's calendar IDs
+        var teamIds = await GetCallerTeamIdsAsync(caller, cancellationToken);
         var calendarIds = await _db.Calendars
             .AsNoTracking()
             .Where(c => c.OwnerId == caller.UserId
-                || c.Shares.Any(s => s.SharedWithUserId == caller.UserId))
+                || c.Shares.Any(s => s.SharedWithUserId == caller.UserId
+                    || (s.SharedWithTeamId != null && teamIds.Contains(s.SharedWithTeamId.Value))))
             .Select(c => c.Id)
             .ToListAsync(cancellationToken);
 

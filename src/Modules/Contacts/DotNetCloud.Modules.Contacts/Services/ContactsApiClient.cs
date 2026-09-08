@@ -83,6 +83,11 @@ public sealed class ContactsApiClient : IContactsApiClient
         response.EnsureSuccessStatusCode();
     }
 
+    public async Task<IReadOnlyList<ContactSharedItem>> ListSharedWithMeAsync(CancellationToken cancellationToken = default)
+    {
+        return await ReadDataAsync<IReadOnlyList<ContactSharedItem>>("api/v1/contacts/shared-with-me", cancellationToken) ?? [];
+    }
+
     public Task<string?> GetAvatarUrlAsync(Guid contactId)
     {
         return Task.FromResult<string?>($"{_httpClient.BaseAddress}api/v1/contacts/{contactId}/avatar");

@@ -17,8 +17,11 @@ public sealed class PhotoShare
     /// <summary>User who created the share.</summary>
     public Guid SharedByUserId { get; set; }
 
-    /// <summary>User this is shared with (null for public link).</summary>
+    /// <summary>User this is shared with (null for team shares).</summary>
     public Guid? SharedWithUserId { get; set; }
+
+    /// <summary>Team this is shared with (user XOR team; null for user shares).</summary>
+    public Guid? SharedWithTeamId { get; set; }
 
     /// <summary>Permission level.</summary>
     public PhotoSharePermissionLevel Permission { get; set; } = PhotoSharePermissionLevel.ReadOnly;

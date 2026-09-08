@@ -3,11 +3,15 @@
 @using DotNetCloud.Core.DTOs
 @using DotNetCloud.Core.Capabilities
 @using DotNetCloud.Modules.Calendar.Services
+@using DotNetCloud.Modules.Calendar.Models
 @using Microsoft.AspNetCore.WebUtilities
 @using DotNetCloud.UI.Shared.Components.Editors
+@using DotNetCloud.UI.Shared.Components.Dialogs
 @using DotNetCloud.UI.Shared.Services
 @inject ICalendarApiClient ApiClient
 @inject IOrganizationDirectory OrgDirectory
+@inject IUserDirectory UserDirectory
+@inject ITeamDirectory TeamDirectory
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager Navigation
 @inject Microsoft.JSInterop.IJSRuntime JSRuntime
@@ -20,7 +24,8 @@
             {
                 <h3 class="calendar-sidebar-title">Calendar</h3>
             }
-            <button class="calendar-sidebar-toggle" @onclick="ToggleSidebar" title="@(_sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")">
+            <button class="calendar-sidebar-toggle" @onclick="ToggleSidebar"
+                    title="@(_sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")">
                 <MaterialIcon Icon="@(_sidebarCollapsed ? "chevron_right" : "chevron_left")" />
             </button>
             @if (!_sidebarCollapsed)
@@ -31,28 +36,32 @@
             }
         </div>
         <nav class="calendar-nav">
-            <a class="calendar-nav-item @(_activeView == "month" ? "active" : "")" @onclick='() => SetView("month")' title="Month">
+            <a class="calendar-nav-item @(_activeView == "month" ? "active" : "")" @onclick='() => SetView("month")'
+               title="Month">
                 <span class="calendar-nav-icon">📅</span>
                 @if (!_sidebarCollapsed)
                 {
                     <span class="calendar-nav-label">Month</span>
                 }
             </a>
-            <a class="calendar-nav-item @(_activeView == "week" ? "active" : "")" @onclick='() => SetView("week")' title="Week">
+            <a class="calendar-nav-item @(_activeView == "week" ? "active" : "")" @onclick='() => SetView("week")'
+               title="Week">
                 <span class="calendar-nav-icon">🗓️</span>
                 @if (!_sidebarCollapsed)
                 {
                     <span class="calendar-nav-label">Week</span>
                 }
             </a>
-            <a class="calendar-nav-item @(_activeView == "day" ? "active" : "")" @onclick='() => SetView("day")' title="Day">
+            <a class="calendar-nav-item @(_activeView == "day" ? "active" : "")" @onclick='() => SetView("day")'
+               title="Day">
                 <span class="calendar-nav-icon">☀️</span>
                 @if (!_sidebarCollapsed)
                 {
                     <span class="calendar-nav-label">Day</span>
                 }
             </a>
-            <a class="calendar-nav-item @(_activeView == "agenda" ? "active" : "")" @onclick='() => SetView("agenda")' title="Agenda">
+            <a class="calendar-nav-item @(_activeView == "agenda" ? "active" : "")" @onclick='() => SetView("agenda")'
+               title="Agenda">
                 <span class="calendar-nav-icon">📝</span>
                 @if (!_sidebarCollapsed)
                 {
@@ -69,8 +78,7 @@
             @foreach (var calendar in _calendars)
             {
                 <button class="calendar-item @(_selectedCalendar?.Id == calendar.Id ? "selected" : "")"
-                        title="@calendar.Name"
-                        @onclick="() => SelectCalendarAsync(calendar.Id)">
+                        title="@calendar.Name" @onclick="() => SelectCalendarAsync(calendar.Id)">
                     <span class="calendar-dot" style="background:@(calendar.Color ?? "#3b82f6")"></span>
                     @if (!_sidebarCollapsed)
                     {
@@ -99,50 +107,25 @@
                 @if (_selectedCalendar is not null)
                 {
                     <button class="btn btn-sm btn-outline-secondary" @onclick="BeginEditCalendar">Edit</button>
-                    <button class="btn btn-sm btn-outline-secondary" @onclick="ToggleSharePanel">
-                        @(_showSharePanel ? "Hide Shares" : "Share")
-                    </button>
+                    @if (_selectedCalendar.OrganizationId is null)
+                    {
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="OpenShareDialogAsync">Share</button>
+                    }
                     <button class="btn btn-sm btn-outline-secondary" @onclick="ExportCalendarAsync">Export iCal</button>
-                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => _showImportPanel = !_showImportPanel">Import</button>
+                    <button class="btn btn-sm btn-outline-secondary"
+                            @onclick="() => _showImportPanel = !_showImportPanel">Import</button>
                     <button class="btn btn-sm btn-outline-danger" @onclick="DeleteCalendarAsync">Delete</button>
                 }
-            </div>
-        }
-
-        @if (!_sidebarCollapsed && _showSharePanel && _selectedCalendar is not null)
-        {
-            <div class="calendar-share-panel">
-                <h4>Shares</h4>
-                @if (_shares.Count == 0)
-                {
-                    <p>Not shared.</p>
-                }
-                else
-                {
-                    @foreach (var share in _shares)
-                    {
-                        <div class="share-item">
-                            <span>@(share.SharedWithUserId?.ToString("N")[..8] ?? share.SharedWithTeamId?.ToString("N")[..8] ?? "—")… — @share.Permission</span>
-                            <button class="btn btn-sm btn-outline-danger" @onclick="() => RevokeShareAsync(share.Id)">Revoke</button>
-                        </div>
-                    }
-                }
-                <div class="share-form">
-                    <input type="text" class="form-control form-control-sm" placeholder="User ID" @bind="_shareUserId" />
-                    <select class="form-select form-select-sm" @bind="_sharePermission" style="max-width:140px;">
-                        <option value="ReadOnly">Read Only</option>
-                        <option value="ReadWrite">Read/Write</option>
-                    </select>
-                    <button class="btn btn-sm btn-primary" @onclick="AddShareAsync">Share</button>
-                </div>
             </div>
         }
 
         @if (!_sidebarCollapsed && _showImportPanel && _selectedCalendar is not null)
         {
             <div class="calendar-import-panel">
-                <textarea class="form-control form-control-sm" rows="4" placeholder="Paste iCalendar (.ics) data here…" @bind="_importText"></textarea>
-                <button class="btn btn-sm btn-primary" @onclick="ImportCalendarAsync" style="margin-top:8px;">Import</button>
+                <textarea class="form-control form-control-sm" rows="4" placeholder="Paste iCalendar (.ics) data here…"
+                          @bind="_importText"></textarea>
+                <button class="btn btn-sm btn-primary" @onclick="ImportCalendarAsync"
+                        style="margin-top:8px;">Import</button>
             </div>
         }
 
@@ -161,7 +144,8 @@
             <button class="btn btn-sm btn-outline-secondary" @onclick="GoToToday">Today</button>
             <div class="calendar-org-picker">
                 <button class="btn btn-sm btn-outline-secondary" @onclick="ToggleOrgDropdown">
-                    @(_selectedOrgId is null ? "Personal" : (_organizations.FirstOrDefault(o => o.Id == _selectedOrgId)?.Name ?? "Org"))
+                    @(_selectedOrgId is null ? "Personal" : (_organizations.FirstOrDefault(o => o.Id ==
+                    _selectedOrgId)?.Name ?? "Org"))
                     <span class="calendar-org-arrow">▾</span>
                 </button>
                 @if (_showOrgDropdown)
@@ -206,9 +190,8 @@
                         @foreach (var evt in visibleEvents)
                         {
                             <div class="calendar-day-event @(evt.IsAllDay ? "all-day" : "")"
-                                 style="background:@(GetEventColor(evt))"
-                                 @onclick:stopPropagation @onclick="() => BeginEditEvent(evt)"
-                                 title="@evt.Title">
+                                 style="background:@(GetEventColor(evt))" @onclick:stopPropagation
+                                 @onclick="() => BeginEditEvent(evt)" title="@evt.Title">
                                 @if (!evt.IsAllDay)
                                 {
                                     <span class="calendar-event-time-badge">@evt.StartUtc.ToLocalTime().ToString("HH:mm")</span>
@@ -218,8 +201,8 @@
                         }
                         @if (overflowCount > 0)
                         {
-                            <div class="calendar-more-events"
-                                 @onclick:stopPropagation @onclick="() => ShowDayDetails(day.Date, dayEvents)">
+                            <div class="calendar-more-events" @onclick:stopPropagation
+                                 @onclick="() => ShowDayDetails(day.Date, dayEvents)">
                                 +@overflowCount more
                             </div>
                         }
@@ -248,8 +231,8 @@
                                 @foreach (var evt in dayEvents)
                                 {
                                     <div class="calendar-day-event @(evt.IsAllDay ? "all-day" : "")"
-                                         style="background:@(GetEventColor(evt))"
-                                         @onclick:stopPropagation @onclick="() => BeginEditEvent(evt)">
+                                         style="background:@(GetEventColor(evt))" @onclick:stopPropagation
+                                         @onclick="() => BeginEditEvent(evt)">
                                         @if (!evt.IsAllDay)
                                         {
                                             <span class="calendar-event-time-badge">@evt.StartUtc.ToLocalTime().ToString("HH:mm")</span>
@@ -270,448 +253,475 @@
                 {
                     var hour = h;
                     var hourEvents = GetEventsForHour(_anchorDate, hour);
-                    <div class="calendar-hour-row @(DateTime.Now.Hour == hour && _anchorDate.Date == DateTime.Today ? "current-hour" : "")">
+                    <div
+                        class="calendar-hour-row @(DateTime.Now.Hour == hour && _anchorDate.Date == DateTime.Today ? "current-hour" : "")">
                         <div class="calendar-hour-label">@($"{hour:D2}:00")</div>
                         <div class="calendar-hour-content" @onclick="() => CreateEventAtHour(hour)">
                             @foreach (var evt in hourEvents)
                             {
                                 <div class="calendar-day-event @(evt.IsAllDay ? "all-day" : "")"
-                                     style="background:@(GetEventColor(evt))"
-                                     @onclick:stopPropagation @onclick="() => BeginEditEvent(evt)">
+                                     style="background:@(GetEventColor(evt))" @onclick:stopPropagation
+                                     @onclick="() => BeginEditEvent(evt)">
                                     <span class="calendar-event-title">@evt.Title</span>
                                     @if (!evt.IsAllDay)
                                     {
-                                        <span class="calendar-event-time-badge">@evt.StartUtc.ToLocalTime().ToString("HH:mm") – @evt.EndUtc.ToLocalTime().ToString("HH:mm")</span>
-                                    }
-                                </div>
-                            }
-                        </div>
-                    </div>
-                }
-            </div>
-        }
-        else
-        {
-            @* Agenda view — flat event list *@
-            <div class="calendar-events-panel">
-                @if (_events.Count == 0)
-                {
-                    <p>No events in this range.</p>
-                }
-                else
-                {
-                    @foreach (var eventItem in _events.OrderBy(e => e.StartUtc))
-                    {
-                        <div class="calendar-event-row">
-                            <button class="btn btn-link p-0 text-start" @onclick="() => BeginEditEvent(eventItem)">
-                                <strong>@eventItem.Title</strong>
-                                <span>@eventItem.StartUtc.ToLocalTime().ToString("g") – @eventItem.EndUtc.ToLocalTime().ToString("g")</span>
-                                <span>@eventItem.Location</span>
-                            </button>
-                            @if (CanCurrentUserRsvp(eventItem))
-                            {
-                                <div class="calendar-rsvp-buttons">
-                                    <button class="btn btn-sm btn-outline-success" @onclick="() => RsvpAsync(eventItem.Id, AttendeeStatus.Accepted)">Accept</button>
-                                    <button class="btn btn-sm btn-outline-warning" @onclick="() => RsvpAsync(eventItem.Id, AttendeeStatus.Tentative)">Maybe</button>
-                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => RsvpAsync(eventItem.Id, AttendeeStatus.Declined)">Decline</button>
-                                </div>
-                            }
-                            <CrossModuleLinkList Requests="BuildAttendeeContactRequests(eventItem)" />
-                        </div>
-                    }
-                }
-            </div>
-        }
-    </div>
-</div>
-
-@* ═══════════════════════════════════════════
-   MODALS
-   ═══════════════════════════════════════════ *@
-
-@* ── Event Add/Edit Modal ── *@
-@if (_showEventModal && _eventEditor is not null)
-{
-    <div class="calendar-modal-backdrop" @onclick="CancelEventEdit">
-        <div class="calendar-modal" @onclick:stopPropagation>
-            <div class="calendar-modal-header">
-                <h4>@(_eventEditor.Id.HasValue ? "Edit Event" : "New Event")</h4>
-                <button class="calendar-modal-close" @onclick="CancelEventEdit" title="Close">✕</button>
-            </div>
-            <div class="calendar-modal-body">
-                <EditForm Model="_eventEditor" OnValidSubmit="SaveEventAsync">
-                    <div class="calendar-form-grid">
-                        <InputText class="form-control" @bind-Value="_eventEditor.Title" placeholder="Title" />
-                        <div class="calendar-form-row">
-                            <label class="calendar-form-check">
-                                <InputCheckbox @bind-Value="_eventEditor.IsAllDay" />
-                                <span>All-day event</span>
-                            </label>
-                        </div>
-                        <div class="calendar-form-row">
-                            <label class="calendar-form-label">Start</label>
-                            <div class="calendar-form-datetime">
-                                <InputDate class="form-control" @bind-Value="_eventEditor.StartDate" />
-                                @if (!_eventEditor.IsAllDay)
-                                {
-                                    <InputDate Type="InputDateType.Time" class="form-control" @bind-Value="_eventEditor.StartTime" />
-                                }
-                            </div>
-                        </div>
-                        <div class="calendar-form-row">
-                            <label class="calendar-form-label">End</label>
-                            <div class="calendar-form-datetime">
-                                <InputDate class="form-control" @bind-Value="_eventEditor.EndDate" />
-                                @if (!_eventEditor.IsAllDay)
-                                {
-                                    <InputDate Type="InputDateType.Time" class="form-control" @bind-Value="_eventEditor.EndTime" />
-                                }
-                            </div>
-                        </div>
-                        <InputText class="form-control" @bind-Value="_eventEditor.Location" placeholder="Location" />
-                        <div class="calendar-form-row">
-                            <label class="calendar-form-label">Repeat</label>
-                            <select class="form-select" @bind="_eventEditor.RecurrenceType">
-                                <option value="None">None</option>
-                                <option value="Daily">Daily</option>
-                                <option value="Weekly">Weekly</option>
-                                <option value="Biweekly">Biweekly</option>
-                                <option value="Monthly">Monthly</option>
-                                <option value="Yearly">Yearly</option>
-                            </select>
-                        </div>
-                        @if (_eventEditor.RecurrenceType != "None")
-                        {
-                            <div class="calendar-form-row">
-                                <label class="calendar-form-label">Ends on</label>
-                                <InputDate class="form-control" @bind-Value="_eventEditor.RecurrenceEndDate" />
-                            </div>
-                        }
-                        <ColorSwatchPicker @bind-Color="_eventEditor.Color" />
-                        <InputText class="form-control" @bind-Value="_eventEditor.Url" placeholder="URL (e.g., video call link)" />
-
-                        @* ── Advanced Recurrence (BYDAY) ── *@
-                        @if (_eventEditor.RecurrenceType is "Weekly" or "Biweekly")
-                        {
-                            <div class="calendar-form-row">
-                                <label class="calendar-form-label">On days</label>
-                                <div class="calendar-weekday-picker">
-                                    <button type="button"
-                                            class="calendar-weekday-btn @(_eventEditor.RecurOnMon ? "active" : "")"
-                                            @onclick="() => _eventEditor.RecurOnMon = !_eventEditor.RecurOnMon">M</button>
-                                    <button type="button"
-                                            class="calendar-weekday-btn @(_eventEditor.RecurOnTue ? "active" : "")"
-                                            @onclick="() => _eventEditor.RecurOnTue = !_eventEditor.RecurOnTue">T</button>
-                                    <button type="button"
-                                            class="calendar-weekday-btn @(_eventEditor.RecurOnWed ? "active" : "")"
-                                            @onclick="() => _eventEditor.RecurOnWed = !_eventEditor.RecurOnWed">W</button>
-                                    <button type="button"
-                                            class="calendar-weekday-btn @(_eventEditor.RecurOnThu ? "active" : "")"
-                                            @onclick="() => _eventEditor.RecurOnThu = !_eventEditor.RecurOnThu">T</button>
-                                    <button type="button"
-                                            class="calendar-weekday-btn @(_eventEditor.RecurOnFri ? "active" : "")"
-                                            @onclick="() => _eventEditor.RecurOnFri = !_eventEditor.RecurOnFri">F</button>
-                                    <button type="button"
-                                            class="calendar-weekday-btn @(_eventEditor.RecurOnSat ? "active" : "")"
-                                            @onclick="() => _eventEditor.RecurOnSat = !_eventEditor.RecurOnSat">S</button>
-                                    <button type="button"
-                                            class="calendar-weekday-btn @(_eventEditor.RecurOnSun ? "active" : "")"
-                                            @onclick="() => _eventEditor.RecurOnSun = !_eventEditor.RecurOnSun">S</button>
-                                </div>
-                            </div>
-                        }
-                        @if (_eventEditor.RecurrenceType == "Monthly")
-                        {
-                            <div class="calendar-form-row">
-                                <label class="calendar-form-label">On the</label>
-                                <select class="form-select" style="max-width:130px;"
-                                        @bind="_eventEditor.MonthlyByDayPosition">
-                                    <option value="">Day of month</option>
-                                    <option value="1">First</option>
-                                    <option value="2">Second</option>
-                                    <option value="3">Third</option>
-                                    <option value="4">Fourth</option>
-                                    <option value="-1">Last</option>
-                                </select>
-                                @if (_eventEditor.MonthlyByDayPosition.HasValue)
-                                {
-                                    <div class="calendar-weekday-picker">
-                                        <button type="button"
-                                                class="calendar-weekday-btn @(_eventEditor.RecurOnMon ? "active" : "")"
-                                                @onclick="() => _eventEditor.RecurOnMon = !_eventEditor.RecurOnMon">M</button>
-                                        <button type="button"
-                                                class="calendar-weekday-btn @(_eventEditor.RecurOnTue ? "active" : "")"
-                                                @onclick="() => _eventEditor.RecurOnTue = !_eventEditor.RecurOnTue">T</button>
-                                        <button type="button"
-                                                class="calendar-weekday-btn @(_eventEditor.RecurOnWed ? "active" : "")"
-                                                @onclick="() => _eventEditor.RecurOnWed = !_eventEditor.RecurOnWed">W</button>
-                                        <button type="button"
-                                                class="calendar-weekday-btn @(_eventEditor.RecurOnThu ? "active" : "")"
-                                                @onclick="() => _eventEditor.RecurOnThu = !_eventEditor.RecurOnThu">T</button>
-                                        <button type="button"
-                                                class="calendar-weekday-btn @(_eventEditor.RecurOnFri ? "active" : "")"
-                                                @onclick="() => _eventEditor.RecurOnFri = !_eventEditor.RecurOnFri">F</button>
-                                        <button type="button"
-                                                class="calendar-weekday-btn @(_eventEditor.RecurOnSat ? "active" : "")"
-                                                @onclick="() => _eventEditor.RecurOnSat = !_eventEditor.RecurOnSat">S</button>
-                                        <button type="button"
-                                                class="calendar-weekday-btn @(_eventEditor.RecurOnSun ? "active" : "")"
-                                                @onclick="() => _eventEditor.RecurOnSun = !_eventEditor.RecurOnSun">S</button>
+                                        <span class="calendar-event-time-badge">@evt.StartUtc.ToLocalTime().ToString("HH:mm") –
+                                            @evt.EndUtc.ToLocalTime().ToString("HH:mm")</span>
+                                        }
                                     </div>
                                 }
                             </div>
-                        }
-
-                        @* ── Reminders ── *@
-                        <div class="calendar-section">
-                            <div class="calendar-section-header">
-                                <label class="calendar-form-label">Reminders</label>
-                                <button type="button" class="btn btn-sm btn-outline-secondary"
-                                        @onclick="() => _eventEditor.Reminders.Add(new ReminderEditorModel())">+ Add</button>
-                            </div>
-                            @foreach (var r in _eventEditor.Reminders)
-                            {
-                                var reminder = r;
-                                <div class="calendar-form-row" style="margin-bottom:4px;">
-                                    <select class="form-select" @bind="reminder.Method" style="max-width:140px;">
-                                        <option value="Notification">Notification</option>
-                                        <option value="Email">Email</option>
-                                    </select>
-                                    <input type="number" class="form-control" @bind="reminder.MinutesBefore"
-                                           style="max-width:100px;" placeholder="Minutes" />
-                                    <span class="text-sm text-muted">min before</span>
-                                    <button type="button" class="btn btn-sm btn-outline-danger"
-                                            @onclick="() => _eventEditor.Reminders.Remove(reminder)">✕</button>
-                                </div>
-                            }
-                        </div>
-
-                        @* ── Attendees ── *@
-                        <div class="calendar-section">
-                            <div class="calendar-section-header">
-                                <label class="calendar-form-label">Attendees</label>
-                                <button type="button" class="btn btn-sm btn-outline-secondary"
-                                        @onclick="() => _eventEditor.Attendees.Add(new AttendeeEditorModel())">+ Add</button>
-                            </div>
-                            @for (int i = 0; i < _eventEditor.Attendees.Count; i++)
-                            {
-                                var attendee = _eventEditor.Attendees[i];
-                                var index = i;
-                                <div class="calendar-form-row" style="margin-bottom:4px; flex-wrap:wrap;">
-                                    @if (attendee.ContactId.HasValue)
-                                    {
-                                        @* Selected contact display *@
-                                        <span class="badge" style="background:#e0e7ff;color:#3730a3;padding:4px 8px;margin-right:8px;display:inline-flex;align-items:center;gap:4px;">
-                                            @attendee.DisplayName (@attendee.Email)
-                                            <button type="button" class="btn btn-sm" style="padding:0 4px;font-size:12px;line-height:1;"
-                                                    @onclick="() => StartManualAttendeeEntry(attendee)" title="Change to manual entry">✕</button>
-                                        </span>
-                                    }
-                                    else
-                                    {
-                                        @* Contact search input + manual email/name *@
-                                        <div style="position:relative;max-width:200px;">
-                                            <input class="form-control" placeholder="Search contacts..."
-                                                   value="@(_contactSearchActiveIndex == index ? _contactSearchQuery : string.Empty)"
-                                                   @oninput="(ChangeEventArgs e) => { _contactSearchQuery = e.Value?.ToString() ?? string.Empty; _ = SearchContactsAsync(_contactSearchQuery, index); }"
-                                                   @onfocus="() => _contactSearchActiveIndex = index"
-                                                   style="max-width:200px;" />
-                                            @if (_contactSearchVisible && _contactSearchActiveIndex == index && _contactSearchResults.Count > 0)
-                                            {
-                                                <div class="dropdown-menu show" style="position:absolute;top:100%;left:0;z-index:1000;max-height:200px;overflow-y:auto;width:280px;">
-                                                    @foreach (var contact in _contactSearchResults)
-                                                    {
-                                                        <button type="button" class="dropdown-item"
-                                                                @onclick="() => SelectContactForAttendee(contact, attendee)"
-                                                                @onclick:stopPropagation="true">
-                                                            <div><strong>@contact.DisplayName</strong></div>
-                                                            <small class="text-muted">@string.Join(", ", contact.Emails.Select(e => e.Address))</small>
-                                                        </button>
-                                                    }
-                                                </div>
-                                            }
-                                        </div>
-                                        <input class="form-control" @bind="attendee.Email" placeholder="email"
-                                               style="max-width:200px;" />
-                                        <input class="form-control" @bind="attendee.DisplayName" placeholder="Name"
-                                               style="max-width:140px;" />
-                                    }
-                                    <select class="form-select" @bind="attendee.Role" style="max-width:130px;">
-                                        <option value="Required">Required</option>
-                                        <option value="Optional">Optional</option>
-                                        <option value="Informational">FYI</option>
-                                    </select>
-                                    <button type="button" class="btn btn-sm btn-outline-danger"
-                                            @onclick="() => _eventEditor.Attendees.Remove(attendee)">✕</button>
-                                </div>
-                            }
-                        </div>
-
-                        <div class="calendar-form-row">
-                            <label class="calendar-form-label">Description</label>
-                            <MarkdownEditor Compact
-                                            Rows="6"
-                                            Placeholder="Description (Markdown supported)"
-                                            Content="@(_eventEditor.Description ?? string.Empty)"
-                                            ContentChanged="@(v => _eventEditor.Description = v)"
-                                            Renderer="MarkdownRenderer" />
-                        </div>
-                    </div>
-                    <div class="calendar-form-actions">
-                        <button type="submit" class="btn btn-primary">Save Event</button>
-                        @if (_eventEditor.Id.HasValue)
-                        {
-                            <button type="button" class="btn btn-danger" @onclick="DeleteEventAsync">Delete</button>
-                        }
-                        <button type="button" class="btn btn-secondary" @onclick="CancelEventEdit">Cancel</button>
-                    </div>
-                </EditForm>
-            </div>
-        </div>
-    </div>
-}
-
-@* ── Calendar Add/Edit Modal ── *@
-@if (_showCalendarModal && _calendarEditor is not null)
-{
-    <div class="calendar-modal-backdrop" @onclick="CancelCalendarEdit">
-        <div class="calendar-modal" @onclick:stopPropagation>
-            <div class="calendar-modal-header">
-                <h4>@(_calendarEditor.Id.HasValue ? "Edit Calendar" : "New Calendar")</h4>
-                <button class="calendar-modal-close" @onclick="CancelCalendarEdit" title="Close">✕</button>
-            </div>
-            <div class="calendar-modal-body">
-                <EditForm Model="_calendarEditor" OnValidSubmit="SaveCalendarAsync">
-                    <div class="calendar-form-grid">
-                        <InputText class="form-control" @bind-Value="_calendarEditor.Name" placeholder="Calendar Name" />
-                        <ColorSwatchPicker @bind-Color="_calendarEditor.Color" />
-                        <InputText class="form-control" @bind-Value="_calendarEditor.Description" placeholder="Description" />
-                        @if (_selectedOrgId.HasValue)
-                        {
-                            var orgName = _organizations.FirstOrDefault(o => o.Id == _selectedOrgId.Value)?.Name ?? "Organization";
-                            <div class="calendar-form-row">
-                                <label class="calendar-form-label">Owner</label>
-                                <span class="calendar-org-badge">🏢 @orgName</span>
-                            </div>
-                        }
-                    </div>
-                    <div class="calendar-form-actions">
-                        <button type="submit" class="btn btn-primary">Save Calendar</button>
-                        <button type="button" class="btn btn-secondary" @onclick="CancelCalendarEdit">Cancel</button>
-                    </div>
-                </EditForm>
-            </div>
-        </div>
-    </div>
-}
-
-@* ── Day Details Modal ── *@
-@if (_showDayModal)
-{
-    <div class="calendar-modal-backdrop" @onclick="CloseDayModal">
-        <div class="calendar-modal calendar-modal-sm" @onclick:stopPropagation>
-            <div class="calendar-modal-header">
-                <h4>@_dayModalDate.ToString("dddd, MMM d")</h4>
-                <button class="calendar-modal-close" @onclick="CloseDayModal" title="Close">✕</button>
-            </div>
-            <div class="calendar-modal-body">
-                @if (_dayModalEvents.Count == 0)
-                {
-                    <p class="calendar-empty-state">No events on this day.</p>
-                }
-                else
-                {
-                    @foreach (var evt in _dayModalEvents.OrderBy(e => e.IsAllDay ? 0 : 1).ThenBy(e => e.StartUtc))
-                    {
-                        <div class="calendar-day-detail-event"
-                             style="border-left-color: @(GetEventColor(evt))"
-                             @onclick="() => { CloseDayModal(); BeginEditEvent(evt); }">
-                            <div class="calendar-day-detail-time">
-                                @if (evt.IsAllDay)
-                                {
-                                    <span class="calendar-all-day-badge">All day</span>
-                                }
-                                else
-                                {
-                                    <span>@evt.StartUtc.ToLocalTime().ToString("HH:mm") – @evt.EndUtc.ToLocalTime().ToString("HH:mm")</span>
-                                }
-                            </div>
-                            <div class="calendar-day-detail-title">@evt.Title</div>
-                            @if (!string.IsNullOrWhiteSpace(evt.Location))
-                            {
-                                <div class="calendar-day-detail-location">📍 @evt.Location</div>
-                            }
                         </div>
                     }
+                </div>
+            }
+        else
+            {
+                @* Agenda view — flat event list *@
+                <div class="calendar-events-panel">
+                    @if (_events.Count == 0)
+                    {
+                        <p>No events in this range.</p>
+                    }
+                    else
+                    {
+                        @foreach (var eventItem in _events.OrderBy(e => e.StartUtc))
+                        {
+                            <div class="calendar-event-row">
+                                <button class="btn btn-link p-0 text-start" @onclick="() => BeginEditEvent(eventItem)">
+                                    <strong>@eventItem.Title</strong>
+                                    <span>@eventItem.StartUtc.ToLocalTime().ToString("g") –
+                                        @eventItem.EndUtc.ToLocalTime().ToString("g")</span>
+                                        <span>@eventItem.Location</span>
+                                    </button>
+                                    @if (CanCurrentUserRsvp(eventItem))
+                                    {
+                                        <div class="calendar-rsvp-buttons">
+                                            <button class="btn btn-sm btn-outline-success"
+                                                    @onclick="() => RsvpAsync(eventItem.Id, AttendeeStatus.Accepted)">Accept</button>
+                                            <button class="btn btn-sm btn-outline-warning"
+                                                    @onclick="() => RsvpAsync(eventItem.Id, AttendeeStatus.Tentative)">Maybe</button>
+                                            <button class="btn btn-sm btn-outline-danger"
+                                                    @onclick="() => RsvpAsync(eventItem.Id, AttendeeStatus.Declined)">Decline</button>
+                                        </div>
+                                    }
+                                    <CrossModuleLinkList Requests="BuildAttendeeContactRequests(eventItem)" />
+                                </div>
+                            }
+                        }
+                    </div>
                 }
-                <div class="calendar-form-actions" style="margin-top: 16px;">
-                    <button class="btn btn-primary" @onclick="CreateEventOnDay">+ Add Event</button>
-                    <button class="btn btn-secondary" @onclick="CloseDayModal">Close</button>
-                </div>
             </div>
         </div>
-    </div>
-}
 
-@* ── Delete Confirmation Modal ── *@
-@if (_showDeleteModal && _eventEditor is not null)
-{
-    <div class="calendar-modal-backdrop" @onclick="CancelDelete">
-        <div class="calendar-modal calendar-modal-sm" @onclick:stopPropagation>
-            <div class="calendar-modal-header">
-                <h4>Delete Event</h4>
-                <button class="calendar-modal-close" @onclick="CancelDelete" title="Close">✕</button>
-            </div>
-            <div class="calendar-modal-body">
-                <p>Are you sure you want to delete <strong>"@_eventEditor.Title"</strong>?</p>
-                <p class="calendar-delete-warning">This action cannot be undone.</p>
-                <div class="calendar-form-actions">
-                    <button class="btn btn-danger" @onclick="ConfirmDeleteAsync">Delete</button>
-                    <button class="btn btn-secondary" @onclick="CancelDelete">Cancel</button>
-                </div>
-            </div>
-        </div>
-    </div>
-}
+        @* ═══════════════════════════════════════════
+   MODALS
+   ═══════════════════════════════════════════ *@
 
-@* ── Delete Calendar Confirmation Modal ── *@
-@if (_showDeleteCalendarModal && _selectedCalendar is not null)
-{
-    <div class="calendar-modal-backdrop" @onclick="CancelDeleteCalendar">
-        <div class="calendar-modal calendar-modal-sm" @onclick:stopPropagation>
-            <div class="calendar-modal-header">
-                <h4>Delete Calendar</h4>
-                <button class="calendar-modal-close" @onclick="CancelDeleteCalendar" title="Close">✕</button>
-            </div>
-            <div class="calendar-modal-body">
-                <p>Are you sure you want to delete <strong>"@_selectedCalendar.Name"</strong>?</p>
-                <p class="calendar-delete-warning">All events in this calendar will also be deleted. This action cannot be undone.</p>
-                <div class="calendar-form-actions">
-                    <button class="btn btn-danger" @onclick="ConfirmDeleteCalendarAsync">Delete</button>
-                    <button class="btn btn-secondary" @onclick="CancelDeleteCalendar">Cancel</button>
+        @* ── Event Add/Edit Modal ── *@
+        @if (_showEventModal && _eventEditor is not null)
+        {
+            <div class="calendar-modal-backdrop" @onclick="CancelEventEdit">
+                <div class="calendar-modal" @onclick:stopPropagation>
+                    <div class="calendar-modal-header">
+                        <h4>@(_eventEditor.Id.HasValue ? "Edit Event" : "New Event")</h4>
+                        <button class="calendar-modal-close" @onclick="CancelEventEdit" title="Close">✕</button>
+                    </div>
+                    <div class="calendar-modal-body">
+                        <EditForm Model="_eventEditor" OnValidSubmit="SaveEventAsync">
+                            <div class="calendar-form-grid">
+                                <InputText class="form-control" @bind-Value="_eventEditor.Title" placeholder="Title" />
+                                <div class="calendar-form-row">
+                                    <label class="calendar-form-check">
+                                        <InputCheckbox @bind-Value="_eventEditor.IsAllDay" />
+                                        <span>All-day event</span>
+                                    </label>
+                                </div>
+                                <div class="calendar-form-row">
+                                    <label class="calendar-form-label">Start</label>
+                                    <div class="calendar-form-datetime">
+                                        <InputDate class="form-control" @bind-Value="_eventEditor.StartDate" />
+                                        @if (!_eventEditor.IsAllDay)
+                                        {
+                                            <InputDate Type="InputDateType.Time" class="form-control"
+                                                       @bind-Value="_eventEditor.StartTime" />
+                                        }
+                                    </div>
+                                </div>
+                                <div class="calendar-form-row">
+                                    <label class="calendar-form-label">End</label>
+                                    <div class="calendar-form-datetime">
+                                        <InputDate class="form-control" @bind-Value="_eventEditor.EndDate" />
+                                        @if (!_eventEditor.IsAllDay)
+                                        {
+                                            <InputDate Type="InputDateType.Time" class="form-control"
+                                                       @bind-Value="_eventEditor.EndTime" />
+                                        }
+                                    </div>
+                                </div>
+                                <InputText class="form-control" @bind-Value="_eventEditor.Location" placeholder="Location" />
+                                <div class="calendar-form-row">
+                                    <label class="calendar-form-label">Repeat</label>
+                                    <select class="form-select" @bind="_eventEditor.RecurrenceType">
+                                        <option value="None">None</option>
+                                        <option value="Daily">Daily</option>
+                                        <option value="Weekly">Weekly</option>
+                                        <option value="Biweekly">Biweekly</option>
+                                        <option value="Monthly">Monthly</option>
+                                        <option value="Yearly">Yearly</option>
+                                    </select>
+                                </div>
+                                @if (_eventEditor.RecurrenceType != "None")
+                                {
+                                    <div class="calendar-form-row">
+                                        <label class="calendar-form-label">Ends on</label>
+                                        <InputDate class="form-control" @bind-Value="_eventEditor.RecurrenceEndDate" />
+                                    </div>
+                                }
+                                <ColorSwatchPicker @bind-Color="_eventEditor.Color" />
+                                <InputText class="form-control" @bind-Value="_eventEditor.Url"
+                                           placeholder="URL (e.g., video call link)" />
+
+                                @* ── Advanced Recurrence (BYDAY) ── *@
+                                @if (_eventEditor.RecurrenceType is "Weekly" or "Biweekly")
+                                {
+                                    <div class="calendar-form-row">
+                                        <label class="calendar-form-label">On days</label>
+                                        <div class="calendar-weekday-picker">
+                                            <button type="button"
+                                                    class="calendar-weekday-btn @(_eventEditor.RecurOnMon ? "active" : "")"
+                                                    @onclick="() => _eventEditor.RecurOnMon = !_eventEditor.RecurOnMon">M</button>
+                                            <button type="button"
+                                                    class="calendar-weekday-btn @(_eventEditor.RecurOnTue ? "active" : "")"
+                                                    @onclick="() => _eventEditor.RecurOnTue = !_eventEditor.RecurOnTue">T</button>
+                                            <button type="button"
+                                                    class="calendar-weekday-btn @(_eventEditor.RecurOnWed ? "active" : "")"
+                                                    @onclick="() => _eventEditor.RecurOnWed = !_eventEditor.RecurOnWed">W</button>
+                                            <button type="button"
+                                                    class="calendar-weekday-btn @(_eventEditor.RecurOnThu ? "active" : "")"
+                                                    @onclick="() => _eventEditor.RecurOnThu = !_eventEditor.RecurOnThu">T</button>
+                                            <button type="button"
+                                                    class="calendar-weekday-btn @(_eventEditor.RecurOnFri ? "active" : "")"
+                                                    @onclick="() => _eventEditor.RecurOnFri = !_eventEditor.RecurOnFri">F</button>
+                                            <button type="button"
+                                                    class="calendar-weekday-btn @(_eventEditor.RecurOnSat ? "active" : "")"
+                                                    @onclick="() => _eventEditor.RecurOnSat = !_eventEditor.RecurOnSat">S</button>
+                                            <button type="button"
+                                                    class="calendar-weekday-btn @(_eventEditor.RecurOnSun ? "active" : "")"
+                                                    @onclick="() => _eventEditor.RecurOnSun = !_eventEditor.RecurOnSun">S</button>
+                                        </div>
+                                    </div>
+                                }
+                                @if (_eventEditor.RecurrenceType == "Monthly")
+                                {
+                                    <div class="calendar-form-row">
+                                        <label class="calendar-form-label">On the</label>
+                                        <select class="form-select" style="max-width:130px;" @bind="_eventEditor.MonthlyByDayPosition">
+                                            <option value="">Day of month</option>
+                                            <option value="1">First</option>
+                                            <option value="2">Second</option>
+                                            <option value="3">Third</option>
+                                            <option value="4">Fourth</option>
+                                            <option value="-1">Last</option>
+                                        </select>
+                                        @if (_eventEditor.MonthlyByDayPosition.HasValue)
+                                        {
+                                            <div class="calendar-weekday-picker">
+                                                <button type="button"
+                                                        class="calendar-weekday-btn @(_eventEditor.RecurOnMon ? "active" : "")"
+                                                        @onclick="() => _eventEditor.RecurOnMon = !_eventEditor.RecurOnMon">M</button>
+                                                <button type="button"
+                                                        class="calendar-weekday-btn @(_eventEditor.RecurOnTue ? "active" : "")"
+                                                        @onclick="() => _eventEditor.RecurOnTue = !_eventEditor.RecurOnTue">T</button>
+                                                <button type="button"
+                                                        class="calendar-weekday-btn @(_eventEditor.RecurOnWed ? "active" : "")"
+                                                        @onclick="() => _eventEditor.RecurOnWed = !_eventEditor.RecurOnWed">W</button>
+                                                <button type="button"
+                                                        class="calendar-weekday-btn @(_eventEditor.RecurOnThu ? "active" : "")"
+                                                        @onclick="() => _eventEditor.RecurOnThu = !_eventEditor.RecurOnThu">T</button>
+                                                <button type="button"
+                                                        class="calendar-weekday-btn @(_eventEditor.RecurOnFri ? "active" : "")"
+                                                        @onclick="() => _eventEditor.RecurOnFri = !_eventEditor.RecurOnFri">F</button>
+                                                <button type="button"
+                                                        class="calendar-weekday-btn @(_eventEditor.RecurOnSat ? "active" : "")"
+                                                        @onclick="() => _eventEditor.RecurOnSat = !_eventEditor.RecurOnSat">S</button>
+                                                <button type="button"
+                                                        class="calendar-weekday-btn @(_eventEditor.RecurOnSun ? "active" : "")"
+                                                        @onclick="() => _eventEditor.RecurOnSun = !_eventEditor.RecurOnSun">S</button>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+
+                                @* ── Reminders ── *@
+                                <div class="calendar-section">
+                                    <div class="calendar-section-header">
+                                        <label class="calendar-form-label">Reminders</label>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary"
+                                                @onclick="() => _eventEditor.Reminders.Add(new ReminderEditorModel())">+ Add</button>
+                                    </div>
+                                    @foreach (var r in _eventEditor.Reminders)
+                                    {
+                                        var reminder = r;
+                                        <div class="calendar-form-row" style="margin-bottom:4px;">
+                                            <select class="form-select" @bind="reminder.Method" style="max-width:140px;">
+                                                <option value="Notification">Notification</option>
+                                                <option value="Email">Email</option>
+                                            </select>
+                                            <input type="number" class="form-control" @bind="reminder.MinutesBefore"
+                                                   style="max-width:100px;" placeholder="Minutes" />
+                                            <span class="text-sm text-muted">min before</span>
+                                            <button type="button" class="btn btn-sm btn-outline-danger"
+                                                    @onclick="() => _eventEditor.Reminders.Remove(reminder)">✕</button>
+                                        </div>
+                                    }
+                                </div>
+
+                                @* ── Attendees ── *@
+                                <div class="calendar-section">
+                                    <div class="calendar-section-header">
+                                        <label class="calendar-form-label">Attendees</label>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary"
+                                                @onclick="() => _eventEditor.Attendees.Add(new AttendeeEditorModel())">+ Add</button>
+                                    </div>
+                                    @for (int i = 0; i < _eventEditor.Attendees.Count; i++)
+                                    {
+                                        var attendee = _eventEditor.Attendees[i];
+                                        var index = i;
+                                        <div class="calendar-form-row" style="margin-bottom:4px; flex-wrap:wrap;">
+                                            @if (attendee.ContactId.HasValue)
+                                            {
+                                                @* Selected contact display *@
+                                                <span class="badge"
+                                                      style="background:#e0e7ff;color:#3730a3;padding:4px 8px;margin-right:8px;display:inline-flex;align-items:center;gap:4px;">
+                                                    @attendee.DisplayName (@attendee.Email)
+                                                    <button type="button" class="btn btn-sm"
+                                                            style="padding:0 4px;font-size:12px;line-height:1;"
+                                                            @onclick="() => StartManualAttendeeEntry(attendee)"
+                                                            title="Change to manual entry">✕</button>
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                @* Contact search input + manual email/name *@
+                                                <div style="position:relative;max-width:200px;">
+                                                    <input class="form-control" placeholder="Search contacts..."
+                                                           value="@(_contactSearchActiveIndex == index ? _contactSearchQuery : string.Empty)"
+                                                           @oninput="(ChangeEventArgs e) => { _contactSearchQuery = e.Value?.ToString() ?? string.Empty; _ = SearchContactsAsync(_contactSearchQuery, index); }"
+                                                           @onfocus="() => _contactSearchActiveIndex = index" style="max-width:200px;" />
+                                                    @if (_contactSearchVisible && _contactSearchActiveIndex == index &&
+                                        _contactSearchResults.Count > 0)
+                                                    {
+                                                        <div class="dropdown-menu show"
+                                                             style="position:absolute;top:100%;left:0;z-index:1000;max-height:200px;overflow-y:auto;width:280px;">
+                                                            @foreach (var contact in _contactSearchResults)
+                                                            {
+                                                                <button type="button" class="dropdown-item"
+                                                                        @onclick="() => SelectContactForAttendee(contact, attendee)"
+                                                                        @onclick:stopPropagation="true">
+                                                                    <div><strong>@contact.DisplayName</strong></div>
+                                                                    <small class="text-muted">@string.Join(", ", contact.Emails.Select(e =>
+                                                                                                                                                                                            e.Address))</small>
+                                                                    </button>
+                                                                }
+                                                            </div>
+                                                        }
+                                                    </div>
+                                                    <input class="form-control" @bind="attendee.Email" placeholder="email"
+                                                           style="max-width:200px;" />
+                                                    <input class="form-control" @bind="attendee.DisplayName" placeholder="Name"
+                                                           style="max-width:140px;" />
+                                                }
+                                                <select class="form-select" @bind="attendee.Role" style="max-width:130px;">
+                                                    <option value="Required">Required</option>
+                                                    <option value="Optional">Optional</option>
+                                                    <option value="Informational">FYI</option>
+                                                </select>
+                                                <button type="button" class="btn btn-sm btn-outline-danger"
+                                                        @onclick="() => _eventEditor.Attendees.Remove(attendee)">✕</button>
+                                            </div>
+                                        }
+                                    </div>
+
+                                    <div class="calendar-form-row">
+                                        <label class="calendar-form-label">Description</label>
+                                        <MarkdownEditor Compact Rows="6" Placeholder="Description (Markdown supported)"
+                                                        Content="@(_eventEditor.Description ?? string.Empty)"
+                                                        ContentChanged="@(v => _eventEditor.Description = v)" Renderer="MarkdownRenderer" />
+                                    </div>
+                                </div>
+                                <div class="calendar-form-actions">
+                                    <button type="submit" class="btn btn-primary">Save Event</button>
+                                    @if (_eventEditor.Id.HasValue)
+                                    {
+                                        <button type="button" class="btn btn-danger" @onclick="DeleteEventAsync">Delete</button>
+                                    }
+                                    <button type="button" class="btn btn-secondary" @onclick="CancelEventEdit">Cancel</button>
+                                </div>
+                            </EditForm>
+                        </div>
+                    </div>
                 </div>
-            </div>
-        </div>
-    </div>
-}
+            }
+
+            @* ── Calendar Add/Edit Modal ── *@
+            @if (_showCalendarModal && _calendarEditor is not null)
+            {
+                <div class="calendar-modal-backdrop" @onclick="CancelCalendarEdit">
+                    <div class="calendar-modal" @onclick:stopPropagation>
+                        <div class="calendar-modal-header">
+                            <h4>@(_calendarEditor.Id.HasValue ? "Edit Calendar" : "New Calendar")</h4>
+                            <button class="calendar-modal-close" @onclick="CancelCalendarEdit" title="Close">✕</button>
+                        </div>
+                        <div class="calendar-modal-body">
+                            <EditForm Model="_calendarEditor" OnValidSubmit="SaveCalendarAsync">
+                                <div class="calendar-form-grid">
+                                    <InputText class="form-control" @bind-Value="_calendarEditor.Name" placeholder="Calendar Name" />
+                                    <ColorSwatchPicker @bind-Color="_calendarEditor.Color" />
+                                    <InputText class="form-control" @bind-Value="_calendarEditor.Description"
+                                               placeholder="Description" />
+                                    @if (_selectedOrgId.HasValue)
+                                    {
+                                        var orgName = _organizations.FirstOrDefault(o => o.Id == _selectedOrgId.Value)?.Name ??
+                             "Organization";
+                                        <div class="calendar-form-row">
+                                            <label class="calendar-form-label">Owner</label>
+                                            <span class="calendar-org-badge">🏢 @orgName</span>
+                                        </div>
+                                    }
+                                </div>
+                                <div class="calendar-form-actions">
+                                    <button type="submit" class="btn btn-primary">Save Calendar</button>
+                                    <button type="button" class="btn btn-secondary" @onclick="CancelCalendarEdit">Cancel</button>
+                                </div>
+                            </EditForm>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            @* ── Day Details Modal ── *@
+            @if (_showDayModal)
+            {
+                <div class="calendar-modal-backdrop" @onclick="CloseDayModal">
+                    <div class="calendar-modal calendar-modal-sm" @onclick:stopPropagation>
+                        <div class="calendar-modal-header">
+                            <h4>@_dayModalDate.ToString("dddd, MMM d")</h4>
+                            <button class="calendar-modal-close" @onclick="CloseDayModal" title="Close">✕</button>
+                        </div>
+                        <div class="calendar-modal-body">
+                            @if (_dayModalEvents.Count == 0)
+                            {
+                                <p class="calendar-empty-state">No events on this day.</p>
+                            }
+                            else
+                            {
+                                @foreach (var evt in _dayModalEvents.OrderBy(e => e.IsAllDay ? 0 : 1).ThenBy(e => e.StartUtc))
+                                {
+                                    <div class="calendar-day-detail-event" style="border-left-color: @(GetEventColor(evt))"
+                                         @onclick="() => { CloseDayModal(); BeginEditEvent(evt); }">
+                                        <div class="calendar-day-detail-time">
+                                            @if (evt.IsAllDay)
+                                            {
+                                                <span class="calendar-all-day-badge">All day</span>
+                                            }
+                                            else
+                                            {
+                                                <span>@evt.StartUtc.ToLocalTime().ToString("HH:mm") –
+                                                    @evt.EndUtc.ToLocalTime().ToString("HH:mm")</span>
+                                                }
+                                            </div>
+                                            <div class="calendar-day-detail-title">@evt.Title</div>
+                                            @if (!string.IsNullOrWhiteSpace(evt.Location))
+                                            {
+                                                <div class="calendar-day-detail-location">📍 @evt.Location</div>
+                                            }
+                                        </div>
+                                    }
+                                }
+                                <div class="calendar-form-actions" style="margin-top: 16px;">
+                                    <button class="btn btn-primary" @onclick="CreateEventOnDay">+ Add Event</button>
+                                    <button class="btn btn-secondary" @onclick="CloseDayModal">Close</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                @* ── Delete Confirmation Modal ── *@
+                @if (_showDeleteModal && _eventEditor is not null)
+                {
+                    <div class="calendar-modal-backdrop" @onclick="CancelDelete">
+                        <div class="calendar-modal calendar-modal-sm" @onclick:stopPropagation>
+                            <div class="calendar-modal-header">
+                                <h4>Delete Event</h4>
+                                <button class="calendar-modal-close" @onclick="CancelDelete" title="Close">✕</button>
+                            </div>
+                            <div class="calendar-modal-body">
+                                <p>Are you sure you want to delete <strong>"@_eventEditor.Title"</strong>?</p>
+                                <p class="calendar-delete-warning">This action cannot be undone.</p>
+                                <div class="calendar-form-actions">
+                                    <button class="btn btn-danger" @onclick="ConfirmDeleteAsync">Delete</button>
+                                    <button class="btn btn-secondary" @onclick="CancelDelete">Cancel</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                @* ── Delete Calendar Confirmation Modal ── *@
+                @if (_showDeleteCalendarModal && _selectedCalendar is not null)
+                {
+                    <div class="calendar-modal-backdrop" @onclick="CancelDeleteCalendar">
+                        <div class="calendar-modal calendar-modal-sm" @onclick:stopPropagation>
+                            <div class="calendar-modal-header">
+                                <h4>Delete Calendar</h4>
+                                <button class="calendar-modal-close" @onclick="CancelDeleteCalendar" title="Close">✕</button>
+                            </div>
+                            <div class="calendar-modal-body">
+                                <p>Are you sure you want to delete <strong>"@_selectedCalendar.Name"</strong>?</p>
+                                <p class="calendar-delete-warning">All events in this calendar will also be deleted. This action cannot be
+                                    undone.</p>
+                                    <div class="calendar-form-actions">
+                                        <button class="btn btn-danger" @onclick="ConfirmDeleteCalendarAsync">Delete</button>
+                                        <button class="btn btn-secondary" @onclick="CancelDeleteCalendar">Cancel</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    @if (_showShareDialog && _selectedCalendar is not null)
+                    {
+                        <DncShareDialog ItemName="@_selectedCalendar.Name" ItemCount="1" AllowPermissionEditing="false"
+                                        PermissionOptions="CalendarPermissionOptions" ExistingShares="_shareDialogShares"
+                                        IsLoadingShares="_isLoadingShareDialogShares" OnClose="CloseShareDialogAsync"
+                                        OnShareCreated="HandleShareCreatedAsync" OnShareRemoved="HandleShareRemovedAsync" />
+                    }
 
 @code {
     private readonly List<CalendarDto> _calendars = [];
     private readonly List<CalendarEventDto> _events = [];
-    private readonly List<CalendarShareResponse> _shares = [];
     private string _activeView = "month";
     private CalendarDto? _selectedCalendar;
     private DateTime _anchorDate = DateTime.UtcNow.Date;
     private CalendarEditorModel? _calendarEditor;
     private EventEditorModel? _eventEditor;
-    private bool _showSharePanel;
+    private bool _showShareDialog;
     private bool _showImportPanel;
     private Guid? _currentUserId;
     private string? _operationError;
-    private string _shareUserId = string.Empty;
-    private string _sharePermission = "ReadOnly";
     private string _importText = string.Empty;
     private bool _sidebarCollapsed;
+    private List<DncShareEntry> _shareDialogShares = [];
+    private bool _isLoadingShareDialogShares;
+
+    /// <summary>Permission choices for calendar shares (ReadOnly / ReadWrite).</summary>
+    private static readonly IReadOnlyList<DncSharePermissionOption> CalendarPermissionOptions =
+    [
+        new() { Value = "Read", Label = "View only" },
+        new() { Value = "ReadWrite", Label = "Can edit" },
+    ];
 
     // ── Contact search state ──
     private string _contactSearchQuery = string.Empty;
@@ -836,7 +846,8 @@
     {
         try
         {
-            await JSRuntime.InvokeAsync<object?>("localStorage.setItem", new object?[] { "dotnetcloud.sidebar:calendar", _sidebarCollapsed.ToString().ToLowerInvariant() });
+            await JSRuntime.InvokeAsync<object?>("localStorage.setItem", new object?[] { "dotnetcloud.sidebar:calendar",
+_sidebarCollapsed.ToString().ToLowerInvariant() });
         }
         catch
         {
@@ -848,7 +859,8 @@
     {
         try
         {
-            var collapsed = await JSRuntime.InvokeAsync<string>("localStorage.getItem", new object?[] { "dotnetcloud.sidebar:calendar" });
+            var collapsed = await JSRuntime.InvokeAsync<string>("localStorage.getItem", new object?[] {
+"dotnetcloud.sidebar:calendar" });
             if (bool.TryParse(collapsed ?? "false", out var parsed))
             {
                 _sidebarCollapsed = parsed;
@@ -863,6 +875,7 @@
         await LoadOrganizationsAsync();
         await ReloadCalendarsAsync();
         await TryOpenEventFromQueryAsync();
+        await TryOpenCalendarFromQueryAsync();
     }
 
     private async Task TryOpenEventFromQueryAsync()
@@ -893,6 +906,23 @@
         {
             // Event not found or access denied — ignore
         }
+    }
+
+    private async Task TryOpenCalendarFromQueryAsync()
+    {
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        if (!QueryHelpers.ParseQuery(uri.Query).TryGetValue("calendarId", out var calendarIdValue))
+            return;
+        if (!Guid.TryParse(calendarIdValue, out var calendarId))
+            return;
+
+        // Select the shared/owned calendar by id when present in the visible calendar list.
+        var calendar = _calendars.FirstOrDefault(c => c.Id == calendarId);
+        if (calendar is null) return;
+
+        _selectedCalendar = calendar;
+        _anchorDate = DateTime.Today;
+        await ReloadEventsAsync();
     }
 
     private async Task ResolveCurrentUserAsync()
@@ -1024,7 +1054,8 @@
             "day" => (_anchorDate.Date, _anchorDate.Date.AddDays(1)),
             "week" => (_anchorDate.Date, _anchorDate.Date.AddDays(7)),
             "agenda" => (_anchorDate.Date, _anchorDate.Date.AddDays(30)),
-            _ => (new DateTime(_anchorDate.Year, _anchorDate.Month, 1), new DateTime(_anchorDate.Year, _anchorDate.Month, 1).AddMonths(1))
+            _ => (new DateTime(_anchorDate.Year, _anchorDate.Month, 1), new DateTime(_anchorDate.Year, _anchorDate.Month,
+1).AddMonths(1))
         };
     }
 
@@ -1330,36 +1361,134 @@
         }
     }
 
-    private async Task ToggleSharePanel()
+    private async Task OpenShareDialogAsync()
     {
-        _showSharePanel = !_showSharePanel;
-        if (_showSharePanel && _selectedCalendar is not null)
-        {
-            _shares.Clear();
-            _shares.AddRange(await ApiClient.ListSharesAsync(_selectedCalendar.Id));
-        }
-    }
-
-    private async Task AddShareAsync()
-    {
-        if (_selectedCalendar is null || !Guid.TryParse(_shareUserId, out var userId))
-        {
+        if (_selectedCalendar is null)
             return;
-        }
 
-        await ApiClient.ShareCalendarAsync(_selectedCalendar.Id, userId, null, _sharePermission);
-        _shareUserId = string.Empty;
-        _shares.Clear();
-        _shares.AddRange(await ApiClient.ListSharesAsync(_selectedCalendar.Id));
+        _showShareDialog = true;
+        _shareDialogShares = [];
+        _isLoadingShareDialogShares = true;
+        StateHasChanged();
+
+        try
+        {
+            await LoadShareDialogEntriesAsync();
+        }
+        finally
+        {
+            _isLoadingShareDialogShares = false;
+        }
     }
 
-    private async Task RevokeShareAsync(Guid shareId)
+    private void CloseShareDialogAsync()
+    {
+        _showShareDialog = false;
+    }
+
+    private async Task LoadShareDialogEntriesAsync()
+    {
+        if (_selectedCalendar is null)
+            return;
+
+        var shares = await ApiClient.ListSharesAsync(_selectedCalendar.Id);
+        _shareDialogShares = await MapShareDtosToEntriesAsync(shares);
+    }
+
+    private async Task HandleShareCreatedAsync(DncShareCreatedEventArgs args)
+    {
+        if (_selectedCalendar is null)
+            return;
+
+        var perm = args.Permission == "ReadWrite" ? CalendarSharePermission.ReadWrite : CalendarSharePermission.ReadOnly;
+        Guid? targetUserId = args.ShareType == "Team" ? null : args.TargetId;
+        Guid? targetTeamId = args.ShareType == "Team" ? args.TargetId : null;
+
+        var result = await ApiClient.ShareCalendarAsync(_selectedCalendar.Id, targetUserId, targetTeamId, perm.ToString());
+        if (result is not null)
+        {
+            await LoadShareDialogEntriesAsync();
+        }
+    }
+
+    private async Task HandleShareRemovedAsync(Guid shareId)
     {
         await ApiClient.RevokeShareAsync(shareId);
-        if (_selectedCalendar is not null)
+        _shareDialogShares = [.. _shareDialogShares.Where(e => e.ShareId != shareId)];
+    }
+
+    private async Task<List<DncShareEntry>> MapShareDtosToEntriesAsync(IReadOnlyList<CalendarShareResponse> shares)
+    {
+        var userNames = await ResolveUserNamesAsync(shares);
+        var entries = new List<DncShareEntry>(shares.Count);
+
+        foreach (var share in shares)
         {
-            _shares.Clear();
-            _shares.AddRange(await ApiClient.ListSharesAsync(_selectedCalendar.Id));
+            var isTeam = share.SharedWithTeamId is not null;
+            string recipientName;
+
+            if (isTeam)
+            {
+                recipientName = await ResolveTeamNameAsync(share.SharedWithTeamId!.Value)
+                    ?? $"{share.SharedWithTeamId.Value:N}"[..8];
+            }
+            else if (share.SharedWithUserId is { } sharedWithUserId)
+            {
+                recipientName = userNames.TryGetValue(sharedWithUserId, out var name)
+                    ? name
+                    : $"{sharedWithUserId:N}"[..8];
+            }
+            else
+            {
+                recipientName = "Unknown";
+            }
+
+            entries.Add(new DncShareEntry
+            {
+                ShareId = share.Id,
+                RecipientName = recipientName,
+                RecipientType = isTeam ? "Team" : "User",
+                Permission = share.Permission == CalendarSharePermission.ReadWrite ? "ReadWrite" : "Read",
+                CreatedAt = share.CreatedAt
+            });
+        }
+
+        return entries;
+    }
+
+    private async Task<IReadOnlyDictionary<Guid, string>> ResolveUserNamesAsync(IReadOnlyList<CalendarShareResponse> shares)
+    {
+        var ids = shares
+            .Where(s => s.SharedWithTeamId is null && s.SharedWithUserId is not null)
+            .Select(s => s.SharedWithUserId!.Value)
+            .Distinct()
+            .ToArray();
+
+        if (ids.Length == 0)
+        {
+            return new Dictionary<Guid, string>();
+        }
+
+        try
+        {
+            return await UserDirectory.GetDisplayNamesAsync(ids);
+        }
+        catch
+        {
+            return new Dictionary<Guid, string>();
+        }
+    }
+
+    private async Task<string?> ResolveTeamNameAsync(Guid teamId)
+    {
+        try
+        {
+            var team = await TeamDirectory.GetTeamAsync(teamId);
+            return team?.Name;
+        }
+        catch
+        {
+            return null;
         }
     }
 
@@ -1423,12 +1552,12 @@
         public DateTime EndLocal { get; set; }
 
         // Separate date/time bindings so the time picker doesn't clobber the date,
-        // and vice versa.  InputDate of type Time always produces DateTime.Today +
+        // and vice versa. InputDate of type Time always produces DateTime.Today +
         // the selected time-of-day, so we must preserve the date portion ourselves.
         public DateTime StartDate { get => StartLocal.Date; set => StartLocal = value.Date + StartLocal.TimeOfDay; }
         public DateTime StartTime { get => StartLocal; set => StartLocal = StartLocal.Date + value.TimeOfDay; }
-        public DateTime EndDate   { get => EndLocal.Date;   set => EndLocal   = value.Date   + EndLocal.TimeOfDay; }
-        public DateTime EndTime   { get => EndLocal;        set => EndLocal   = EndLocal.Date + value.TimeOfDay; }
+        public DateTime EndDate { get => EndLocal.Date; set => EndLocal = value.Date + EndLocal.TimeOfDay; }
+        public DateTime EndTime { get => EndLocal; set => EndLocal = EndLocal.Date + value.TimeOfDay; }
 
         public bool IsAllDay { get; set; }
         public string? Color { get; set; }

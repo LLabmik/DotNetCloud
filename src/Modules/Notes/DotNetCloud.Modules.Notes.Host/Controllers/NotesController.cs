@@ -268,7 +268,7 @@ public class NotesController : NotesControllerBase
         }
     }
 
-    /// <summary>Shares a note with a user.</summary>
+    /// <summary>Shares a note with a user or team.</summary>
     [HttpPost("{noteId:guid}/shares")]
     public async Task<IActionResult> ShareNoteAsync(Guid noteId, [FromBody] ShareNoteRequest request)
     {
@@ -277,7 +277,7 @@ public class NotesController : NotesControllerBase
         try
         {
             var share = await _shareService.ShareNoteAsync(
-                noteId, request.UserId, request.Permission, caller);
+                noteId, request.UserId, request.TeamId, request.Permission, caller);
             return Created($"/api/v1/notes/{noteId}/shares", Envelope(share));
         }
         catch (ValidationException ex)
@@ -353,8 +353,11 @@ public class NotesController : NotesControllerBase
 /// <summary>Request body for sharing a note.</summary>
 public sealed record ShareNoteRequest
 {
-    /// <summary>User ID to share with.</summary>
-    public required Guid UserId { get; init; }
+    /// <summary>User ID to share with (null for team shares).</summary>
+    public Guid? UserId { get; init; }
+
+    /// <summary>Team ID to share with (set when sharing with a team; user XOR team).</summary>
+    public Guid? TeamId { get; init; }
 
     /// <summary>Permission level to grant.</summary>
     public NoteSharePermission Permission { get; init; }

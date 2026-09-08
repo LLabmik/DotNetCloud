@@ -16,6 +16,12 @@ public sealed class NoteShare
     /// <summary>The user this note is shared with.</summary>
     public Guid SharedWithUserId { get; set; }
 
+    /// <summary>
+    /// The team this note is shared with (user XOR team; team shares store
+    /// <see cref="Guid.Empty"/> in <see cref="SharedWithUserId"/>).
+    /// </summary>
+    public Guid? SharedWithTeamId { get; set; }
+
     /// <summary>Permission level granted.</summary>
     public NoteSharePermission Permission { get; set; } = NoteSharePermission.ReadOnly;
 

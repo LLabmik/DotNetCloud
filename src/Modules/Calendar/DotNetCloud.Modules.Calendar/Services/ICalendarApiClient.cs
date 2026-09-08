@@ -1,4 +1,5 @@
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Modules.Calendar.Models;
 
 namespace DotNetCloud.Modules.Calendar.Services;
 
@@ -27,6 +28,9 @@ public interface ICalendarApiClient
     Task<IReadOnlyList<CalendarShareResponse>> ListSharesAsync(Guid calendarId, CancellationToken cancellationToken = default);
     Task<CalendarShareResponse?> ShareCalendarAsync(Guid calendarId, Guid? userId, Guid? teamId, string permission = "ReadOnly", CancellationToken cancellationToken = default);
     Task RevokeShareAsync(Guid shareId, CancellationToken cancellationToken = default);
+
+    // Shared with me (aggregated surfaces — Files virtual folders)
+    Task<IReadOnlyList<CalendarSharedItem>> ListSharedWithMeAsync(CancellationToken cancellationToken = default);
 
     // Import/Export
     Task<string> ExportCalendarICalAsync(Guid calendarId, CancellationToken cancellationToken = default);
@@ -69,7 +73,7 @@ public sealed record CalendarShareResponse
     public Guid? SharedWithTeamId { get; init; }
 
     /// <summary>Permission level.</summary>
-    public string Permission { get; init; } = "ReadOnly";
+    public CalendarSharePermission Permission { get; init; } = CalendarSharePermission.ReadOnly;
 
     /// <summary>When the share was created.</summary>
     public DateTime CreatedAt { get; init; }

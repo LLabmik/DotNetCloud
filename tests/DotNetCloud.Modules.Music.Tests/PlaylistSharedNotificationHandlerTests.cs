@@ -22,7 +22,7 @@ public class PlaylistSharedNotificationHandlerTests
         await handler.HandleAsync(evt, CancellationToken.None);
 
         notifMock.Verify(n => n.SendAsync(
-            evt.SharedWithUserId,
+            evt.SharedWithUserId!.Value,
             It.Is<NotificationDto>(d =>
                 d.Type == NotificationType.Share &&
                 d.SourceModuleId == "dotnetcloud.music"),
@@ -41,7 +41,7 @@ public class PlaylistSharedNotificationHandlerTests
         await handler.HandleAsync(evt, CancellationToken.None);
 
         notifMock.Verify(n => n.SendAsync(
-            evt.SharedWithUserId,
+            evt.SharedWithUserId!.Value,
             It.Is<NotificationDto>(d => d.ActionUrl!.Contains("/music/albums/")),
             It.IsAny<CancellationToken>()), Times.Once);
     }
@@ -58,7 +58,7 @@ public class PlaylistSharedNotificationHandlerTests
         await handler.HandleAsync(evt, CancellationToken.None);
 
         notifMock.Verify(n => n.SendAsync(
-            evt.SharedWithUserId,
+            evt.SharedWithUserId!.Value,
             It.Is<NotificationDto>(d => d.ActionUrl!.Contains("/music/tracks/")),
             It.IsAny<CancellationToken>()), Times.Once);
     }

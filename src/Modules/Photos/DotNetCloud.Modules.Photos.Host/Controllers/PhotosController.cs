@@ -307,7 +307,7 @@ public class PhotosController : PhotosControllerBase
 
     // ─── Sharing ──────────────────────────────────────────────────────────
 
-    /// <summary>Creates a share for a photo.</summary>
+    /// <summary>Creates a share for a photo (user or team target).</summary>
     [HttpPost("{photoId:guid}/shares")]
     public async Task<IActionResult> SharePhotoAsync(Guid photoId, [FromBody] CreatePhotoShareRequest dto)
     {
@@ -315,12 +315,16 @@ public class PhotosController : PhotosControllerBase
         try
         {
             var share = await _shareService.SharePhotoAsync(
-                photoId, dto.SharedWithUserId!.Value, dto.Permission, caller);
+                photoId, dto.SharedWithUserId, dto.SharedWithTeamId, dto.Permission, caller);
             return Created($"/api/v1/photos/{photoId}/shares/{share.Id}", Envelope(share));
         }
         catch (DotNetCloudException ex) when (ex.ErrorCode == ErrorCodes.PhotoNotFound)
         {
             return NotFound(ErrorEnvelope(ErrorCodes.PhotoNotFound, ex.Message));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ErrorEnvelope("INVALID_SHARE_TARGET", ex.Message));
         }
     }
 
@@ -412,8 +416,11 @@ public sealed record CreatePhotoRequest
 /// <summary>Request DTO for sharing a photo.</summary>
 public sealed record CreatePhotoShareRequest
 {
-    /// <summary>User to share with (null for public link).</summary>
+    /// <summary>User to share with (null for team shares).</summary>
     public Guid? SharedWithUserId { get; init; }
+
+    /// <summary>Team to share with (set for team shares; user XOR team).</summary>
+    public Guid? SharedWithTeamId { get; init; }
 
     /// <summary>Permission level.</summary>
     public PhotoSharePermission Permission { get; init; }

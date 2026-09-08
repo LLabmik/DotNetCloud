@@ -16,4 +16,10 @@ public interface ICalendarShareService
 
     /// <summary>Lists shares for a calendar.</summary>
     Task<IReadOnlyList<CalendarShare>> ListSharesAsync(Guid calendarId, CallerContext caller, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists the calendars shared with the caller (direct user shares plus shares targeting a
+    /// team the caller belongs to), including the calendar name for aggregated surfaces.
+    /// </summary>
+    Task<IReadOnlyList<CalendarSharedItem>> ListSharedWithMeAsync(CallerContext caller, CancellationToken cancellationToken = default);
 }

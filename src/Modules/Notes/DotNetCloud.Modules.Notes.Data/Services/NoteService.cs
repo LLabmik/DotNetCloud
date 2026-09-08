@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using IAuditLogger = DotNetCloud.Core.Capabilities.IAuditLogger;
 using AuditEntry = DotNetCloud.Core.Capabilities.AuditEntry;
 using AuditAction = DotNetCloud.Core.Capabilities.AuditAction;
+using ITeamDirectory = DotNetCloud.Core.Capabilities.ITeamDirectory;
 
 namespace DotNetCloud.Modules.Notes.Data.Services;
 
@@ -20,17 +21,42 @@ public sealed class NoteService : INoteService
     private readonly NotesDbContext _db;
     private readonly IEventBus _eventBus;
     private readonly IAuditLogger _auditLogger;
+    private readonly ITeamDirectory? _teamDirectory;
     private readonly ILogger<NoteService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="NoteService"/> class.
     /// </summary>
-    public NoteService(NotesDbContext db, IEventBus eventBus, IAuditLogger auditLogger, ILogger<NoteService> logger)
+    public NoteService(NotesDbContext db, IEventBus eventBus, IAuditLogger auditLogger, ILogger<NoteService> logger, ITeamDirectory? teamDirectory = null)
     {
         _db = db;
         _eventBus = eventBus;
         _auditLogger = auditLogger;
+        _teamDirectory = teamDirectory;
         _logger = logger;
+    }
+
+    /// <summary>
+    /// Resolves the caller's team IDs for team-share access checks (empty when the
+    /// team directory capability is unavailable).
+    /// </summary>
+    private async Task<Guid[]> GetCallerTeamIdsAsync(CallerContext caller, CancellationToken cancellationToken)
+    {
+        if (_teamDirectory is null)
+        {
+            return [];
+        }
+
+        try
+        {
+            var teams = await _teamDirectory.GetTeamsForUserAsync(caller.UserId, cancellationToken);
+            return teams.Select(t => t.Id).ToArray();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to resolve team memberships for {UserId}", caller.UserId);
+            return [];
+        }
     }
 
     /// <inheritdoc />
@@ -120,19 +146,24 @@ public sealed class NoteService : INoteService
     /// <inheritdoc />
     public async Task<NoteDto?> GetNoteAsync(Guid noteId, CallerContext caller, CancellationToken cancellationToken = default)
     {
+        var teamIds = await GetCallerTeamIdsAsync(caller, cancellationToken);
         var note = await QueryNotes()
-            .FirstOrDefaultAsync(n => n.Id == noteId &&
-                (n.OwnerId == caller.UserId || n.Shares.Any(s => s.SharedWithUserId == caller.UserId)),
+            .FirstOrDefaultAsync(n => n.Id == noteId && (
+                n.OwnerId == caller.UserId ||
+                n.Shares.Any(s => s.SharedWithUserId == caller.UserId ||
+                    (s.SharedWithTeamId != null && teamIds.Contains(s.SharedWithTeamId.Value)))),
                 cancellationToken);
 
-        return note is null ? null : MapToDto(note);
+        return note is null ? null : MapToDto(note, GetViewerPermission(note, caller, teamIds));
     }
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<NoteDto>> ListNotesAsync(CallerContext caller, Guid? folderId = null, int skip = 0, int take = 50, CancellationToken cancellationToken = default)
     {
+        var teamIds = await GetCallerTeamIdsAsync(caller, cancellationToken);
         var query = QueryNotes()
-            .Where(n => n.OwnerId == caller.UserId || n.Shares.Any(s => s.SharedWithUserId == caller.UserId));
+            .Where(n => n.OwnerId == caller.UserId ||
+                        n.Shares.Any(s => s.SharedWithUserId == caller.UserId || (s.SharedWithTeamId != null && teamIds.Contains(s.SharedWithTeamId.Value))));
 
         if (folderId.HasValue)
         {
@@ -146,19 +177,21 @@ public sealed class NoteService : INoteService
             .Take(take)
             .ToListAsync(cancellationToken);
 
-        return notes.Select(MapToDto).ToList();
+        return notes.Select(n => MapToDto(n, GetViewerPermission(n, caller, teamIds))).ToList();
     }
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<NoteDto>> GetRecentNotesAsync(CallerContext caller, int count = 5, CancellationToken cancellationToken = default)
     {
+        var teamIds = await GetCallerTeamIdsAsync(caller, cancellationToken);
         var notes = await QueryNotes()
-            .Where(n => n.OwnerId == caller.UserId || n.Shares.Any(s => s.SharedWithUserId == caller.UserId))
+            .Where(n => n.OwnerId == caller.UserId ||
+                        n.Shares.Any(s => s.SharedWithUserId == caller.UserId || (s.SharedWithTeamId != null && teamIds.Contains(s.SharedWithTeamId.Value))))
             .OrderByDescending(n => n.UpdatedAt)
             .Take(count)
             .ToListAsync(cancellationToken);
 
-        return notes.Select(MapToDto).ToList();
+        return notes.Select(n => MapToDto(n, GetViewerPermission(n, caller, teamIds))).ToList();
     }
 
     /// <inheritdoc />
@@ -166,11 +199,14 @@ public sealed class NoteService : INoteService
     {
         ArgumentNullException.ThrowIfNull(dto);
 
+        var teamIds = await GetCallerTeamIdsAsync(caller, cancellationToken);
         var note = await _db.Notes
             .Include(n => n.Shares)
             .FirstOrDefaultAsync(n => n.Id == noteId && !n.IsDeleted &&
                 (n.OwnerId == caller.UserId ||
-                 n.Shares.Any(s => s.SharedWithUserId == caller.UserId && s.Permission == NoteSharePermission.ReadWrite)),
+                 n.Shares.Any(s =>
+                     (s.SharedWithUserId == caller.UserId || (s.SharedWithTeamId != null && teamIds.Contains(s.SharedWithTeamId.Value))) &&
+                     s.Permission == NoteSharePermission.ReadWrite)),
                 cancellationToken)
             ?? throw new Core.Errors.ValidationException(Core.Errors.ErrorCodes.NoteNotFound, "Note not found or access denied.");
 
@@ -270,7 +306,7 @@ public sealed class NoteService : INoteService
         // Reload with all navigations for the response DTO
         var updated = await QueryNotes()
             .FirstAsync(n => n.Id == noteId, cancellationToken);
-        return MapToDto(updated);
+        return MapToDto(updated, GetViewerPermission(updated, caller, teamIds));
     }
 
     /// <inheritdoc />
@@ -311,9 +347,10 @@ public sealed class NoteService : INoteService
     /// <inheritdoc />
     public async Task<IReadOnlyList<NoteDto>> SearchNotesAsync(CallerContext caller, string? query = null, int skip = 0, int take = 50, CancellationToken cancellationToken = default)
     {
+        var teamIds = await GetCallerTeamIdsAsync(caller, cancellationToken);
         var q = QueryNotes()
             .Where(n => n.OwnerId == caller.UserId ||
-                        n.Shares.Any(s => s.SharedWithUserId == caller.UserId));
+                        n.Shares.Any(s => s.SharedWithUserId == caller.UserId || (s.SharedWithTeamId != null && teamIds.Contains(s.SharedWithTeamId.Value))));
 
         if (!string.IsNullOrWhiteSpace(query))
         {
@@ -331,16 +368,18 @@ public sealed class NoteService : INoteService
             .Take(take)
             .ToListAsync(cancellationToken);
 
-        return notes.Select(MapToDto).ToList();
+        return notes.Select(n => MapToDto(n, GetViewerPermission(n, caller, teamIds))).ToList();
     }
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<NoteVersionDto>> GetVersionHistoryAsync(Guid noteId, CallerContext caller, CancellationToken cancellationToken = default)
     {
         // Verify access
+        var teamIds = await GetCallerTeamIdsAsync(caller, cancellationToken);
         var noteExists = await _db.Notes
             .AnyAsync(n => n.Id == noteId &&
-                (n.OwnerId == caller.UserId || n.Shares.Any(s => s.SharedWithUserId == caller.UserId)),
+                (n.OwnerId == caller.UserId ||
+                 n.Shares.Any(s => s.SharedWithUserId == caller.UserId || (s.SharedWithTeamId != null && teamIds.Contains(s.SharedWithTeamId.Value)))),
                 cancellationToken);
 
         if (!noteExists)
@@ -413,12 +452,32 @@ public sealed class NoteService : INoteService
             .AsNoTracking();
     }
 
-    private static NoteDto MapToDto(Note n)
+    /// <summary>
+    /// Computes the permission the given caller holds on a shared note, or <c>null</c>
+    /// when the caller is the note's owner.
+    /// </summary>
+    private static NoteSharePermission? GetViewerPermission(
+        Note note, CallerContext caller, IReadOnlyCollection<Guid> callerTeamIds)
+    {
+        if (note.OwnerId == caller.UserId)
+        {
+            return null;
+        }
+
+        var share = note.Shares.FirstOrDefault(s =>
+            s.SharedWithUserId == caller.UserId ||
+            (s.SharedWithTeamId is { } teamId && callerTeamIds.Contains(teamId)));
+
+        return share?.Permission;
+    }
+
+    private static NoteDto MapToDto(Note n, NoteSharePermission? viewerPermission = null)
     {
         return new NoteDto
         {
             Id = n.Id,
             OwnerId = n.OwnerId,
+            ViewerPermission = viewerPermission,
             FolderId = n.FolderId,
             Title = n.Title,
             Content = n.Content,

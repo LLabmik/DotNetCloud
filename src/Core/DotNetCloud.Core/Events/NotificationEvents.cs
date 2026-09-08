@@ -1,8 +1,8 @@
 namespace DotNetCloud.Core.Events;
 
 /// <summary>
-/// Raised when a resource is shared with a user.
-/// Triggers in-app notification for the recipient.
+/// Raised when a resource is shared with a user or team.
+/// Triggers in-app notifications for the recipient(s).
 /// </summary>
 public sealed record ResourceSharedEvent : IEvent
 {
@@ -18,9 +18,15 @@ public sealed record ResourceSharedEvent : IEvent
     public required Guid SharedByUserId { get; init; }
 
     /// <summary>
-    /// The ID of the user the resource was shared with.
+    /// The ID of the user the resource was shared with (null for team shares).
     /// </summary>
-    public required Guid SharedWithUserId { get; init; }
+    public Guid? SharedWithUserId { get; init; }
+
+    /// <summary>
+    /// The ID of the team the resource was shared with (set for team shares;
+    /// user XOR team).
+    /// </summary>
+    public Guid? SharedWithTeamId { get; init; }
 
     /// <summary>
     /// The module that owns the shared resource (e.g., "dotnetcloud.files", "dotnetcloud.notes").

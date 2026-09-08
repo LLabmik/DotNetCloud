@@ -22,7 +22,7 @@ public class VideoSharedNotificationHandlerTests
         await handler.HandleAsync(evt, CancellationToken.None);
 
         notifMock.Verify(n => n.SendAsync(
-            evt.SharedWithUserId,
+            evt.SharedWithUserId!.Value,
             It.Is<NotificationDto>(d =>
                 d.Type == NotificationType.Share &&
                 d.SourceModuleId == "dotnetcloud.video"),
@@ -41,7 +41,7 @@ public class VideoSharedNotificationHandlerTests
         await handler.HandleAsync(evt, CancellationToken.None);
 
         notifMock.Verify(n => n.SendAsync(
-            evt.SharedWithUserId,
+            evt.SharedWithUserId!.Value,
             It.Is<NotificationDto>(d => d.ActionUrl!.Contains("/video/collections/")),
             It.IsAny<CancellationToken>()), Times.Once);
     }

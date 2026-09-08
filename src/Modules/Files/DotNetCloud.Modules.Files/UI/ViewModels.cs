@@ -61,6 +61,21 @@ public sealed class FileNodeViewModel
 
     /// <summary>Optional relative path within a synthetic source.</summary>
     public string? VirtualRelativePath { get; init; }
+
+    /// <summary>Module that owns a shared-with-me virtual item (e.g. "notes").</summary>
+    public string? ModuleId { get; init; }
+
+    /// <summary>Entity type of a shared-with-me virtual item (e.g. "Note").</summary>
+    public string? EntityType { get; init; }
+
+    /// <summary>Identifier of the underlying module entity for a shared-with-me virtual item.</summary>
+    public Guid? SourceEntityId { get; init; }
+
+    /// <summary>Owning-module route to open a shared-with-me virtual item (e.g. "/apps/notes?noteId=...").</summary>
+    public string? DeepLinkUrl { get; init; }
+
+    /// <summary>Optional material icon ligature overriding the default folder/file icon.</summary>
+    public string? IconName { get; init; }
 }
 
 /// <summary>
@@ -264,51 +279,6 @@ public sealed class FileTagViewModel
 }
 
 /// <summary>
-/// View model for displaying an existing share on a file or folder.
-/// </summary>
-public sealed class ShareViewModel
-{
-    /// <summary>Share ID.</summary>
-    public Guid Id { get; init; }
-
-    /// <summary>Share type: "User", "Team", "Group", or "PublicLink".</summary>
-    public string ShareType { get; init; } = string.Empty;
-
-    /// <summary>Display name of the share recipient (user name, team name, or "Public Link").</summary>
-    public string RecipientName { get; init; } = string.Empty;
-
-    /// <summary>Permission level: "Read", "ReadWrite", or "Full".</summary>
-    public string Permission { get; set; } = "Read";
-
-    /// <summary>Public link token (only for PublicLink shares).</summary>
-    public string? LinkToken { get; init; }
-
-    /// <summary>Full public link URL (only for PublicLink shares).</summary>
-    public string? LinkUrl { get; init; }
-
-    /// <summary>Whether the public link has a password set.</summary>
-    public bool HasPassword { get; init; }
-
-    /// <summary>Download count (for public links).</summary>
-    public int DownloadCount { get; init; }
-
-    /// <summary>Max downloads (for public links, null = unlimited).</summary>
-    public int? MaxDownloads { get; init; }
-
-    /// <summary>Expiration date (null = never).</summary>
-    public DateTime? ExpiresAt { get; init; }
-
-    /// <summary>When the share was created.</summary>
-    public DateTime CreatedAt { get; init; }
-
-    /// <summary>Note attached to the share.</summary>
-    public string? Note { get; init; }
-
-    /// <summary>Whether this share is expired.</summary>
-    public bool IsExpired => ExpiresAt.HasValue && ExpiresAt.Value < DateTime.UtcNow;
-}
-
-/// <summary>
 /// View model for an item in the "Shared with me" or "Shared by me" views.
 /// </summary>
 public sealed class SharedItemViewModel
@@ -360,24 +330,6 @@ public sealed class SharedItemViewModel
 
     /// <summary>Whether this share is expired.</summary>
     public bool IsExpired => ExpiresAt.HasValue && ExpiresAt.Value < DateTime.UtcNow;
-}
-
-/// <summary>
-/// Search result item for user/team/group search in the share dialog.
-/// </summary>
-public sealed class ShareSearchResult
-{
-    /// <summary>Entity ID.</summary>
-    public Guid Id { get; init; }
-
-    /// <summary>Display name.</summary>
-    public string DisplayName { get; init; } = string.Empty;
-
-    /// <summary>Secondary text (e.g., email for users, member count for teams).</summary>
-    public string? SecondaryText { get; init; }
-
-    /// <summary>Result type: "User", "Team", or "Group".</summary>
-    public string ResultType { get; init; } = "User";
 }
 
 /// <summary>

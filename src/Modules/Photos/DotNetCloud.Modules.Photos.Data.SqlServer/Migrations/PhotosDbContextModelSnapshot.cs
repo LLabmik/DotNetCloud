@@ -18,7 +18,7 @@ namespace DotNetCloud.Modules.Photos.Data.SqlServer.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasDefaultSchema("photos")
-                .HasAnnotation("ProductVersion", "10.0.3")
+                .HasAnnotation("ProductVersion", "10.0.10")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -316,6 +316,9 @@ namespace DotNetCloud.Modules.Photos.Data.SqlServer.Migrations
                     b.Property<Guid>("SharedByUserId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("SharedWithTeamId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid?>("SharedWithUserId")
                         .HasColumnType("uniqueidentifier");
 
@@ -326,6 +329,9 @@ namespace DotNetCloud.Modules.Photos.Data.SqlServer.Migrations
 
                     b.HasIndex("PhotoId")
                         .HasDatabaseName("ix_photo_shares_photo_id");
+
+                    b.HasIndex("SharedWithTeamId")
+                        .HasDatabaseName("ix_photo_shares_shared_with_team");
 
                     b.HasIndex("SharedWithUserId")
                         .HasDatabaseName("ix_photo_shares_shared_with");

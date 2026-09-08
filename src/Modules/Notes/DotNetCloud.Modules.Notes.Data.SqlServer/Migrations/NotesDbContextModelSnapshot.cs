@@ -18,7 +18,7 @@ namespace DotNetCloud.Modules.Notes.Data.SqlServer.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasDefaultSchema("core")
-                .HasAnnotation("ProductVersion", "10.0.3")
+                .HasAnnotation("ProductVersion", "10.0.10")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -212,6 +212,9 @@ namespace DotNetCloud.Modules.Notes.Data.SqlServer.Migrations
                     b.Property<int>("Permission")
                         .HasColumnType("int");
 
+                    b.Property<Guid?>("SharedWithTeamId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid>("SharedWithUserId")
                         .HasColumnType("uniqueidentifier");
 
@@ -223,8 +226,10 @@ namespace DotNetCloud.Modules.Notes.Data.SqlServer.Migrations
                     b.HasIndex("SharedWithUserId")
                         .HasDatabaseName("ix_note_shares_user_id");
 
+                    b.HasIndex("NoteId", "SharedWithTeamId")
+                        .HasDatabaseName("ix_note_shares_note_team");
+
                     b.HasIndex("NoteId", "SharedWithUserId")
-                        .IsUnique()
                         .HasDatabaseName("ix_note_shares_note_user");
 
                     b.ToTable("NoteShares", "core");

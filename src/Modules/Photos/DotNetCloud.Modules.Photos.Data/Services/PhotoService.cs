@@ -11,6 +11,7 @@ using Microsoft.Extensions.Logging;
 using IAuditLogger = DotNetCloud.Core.Capabilities.IAuditLogger;
 using AuditEntry = DotNetCloud.Core.Capabilities.AuditEntry;
 using AuditAction = DotNetCloud.Core.Capabilities.AuditAction;
+using ITeamDirectory = DotNetCloud.Core.Capabilities.ITeamDirectory;
 
 namespace DotNetCloud.Modules.Photos.Data.Services;
 
@@ -22,17 +23,42 @@ public sealed class PhotoService : IPhotoService
     private readonly PhotosDbContext _db;
     private readonly IEventBus _eventBus;
     private readonly IAuditLogger _auditLogger;
+    private readonly ITeamDirectory? _teamDirectory;
     private readonly ILogger<PhotoService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PhotoService"/> class.
     /// </summary>
-    public PhotoService(PhotosDbContext db, IEventBus eventBus, IAuditLogger auditLogger, ILogger<PhotoService> logger)
+    public PhotoService(PhotosDbContext db, IEventBus eventBus, IAuditLogger auditLogger, ILogger<PhotoService> logger, ITeamDirectory? teamDirectory = null)
     {
         _db = db;
         _eventBus = eventBus;
         _auditLogger = auditLogger;
+        _teamDirectory = teamDirectory;
         _logger = logger;
+    }
+
+    /// <summary>
+    /// Resolves the caller's team IDs for team-share access checks (empty when the
+    /// team directory capability is unavailable).
+    /// </summary>
+    private async Task<Guid[]> GetCallerTeamIdsAsync(CallerContext caller, CancellationToken cancellationToken)
+    {
+        if (_teamDirectory is null)
+        {
+            return [];
+        }
+
+        try
+        {
+            var teams = await _teamDirectory.GetTeamsForUserAsync(caller.UserId, cancellationToken);
+            return teams.Select(t => t.Id).ToArray();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to resolve team memberships for {UserId}", caller.UserId);
+            return [];
+        }
     }
 
     /// <summary>
@@ -105,13 +131,15 @@ public sealed class PhotoService : IPhotoService
     /// </summary>
     public async Task<PhotoDto?> GetPhotoAsync(Guid photoId, CallerContext caller, CancellationToken cancellationToken = default)
     {
+        var teamIds = await GetCallerTeamIdsAsync(caller, cancellationToken);
+
         var photo = await _db.Photos
             .Include(p => p.Metadata)
             .Include(p => p.Tags)
             .Include(p => p.EditRecords)
             .FirstOrDefaultAsync(p => p.Id == photoId, cancellationToken);
 
-        if (photo is null || (photo.OwnerId != caller.UserId && !await HasShareAccessAsync(photoId, caller.UserId, cancellationToken)))
+        if (photo is null || (photo.OwnerId != caller.UserId && !await HasShareAccessAsync(photoId, caller.UserId, teamIds, cancellationToken)))
             return null;
 
         return MapToDto(photo);
@@ -244,12 +272,15 @@ public sealed class PhotoService : IPhotoService
     }
 
     /// <summary>
-    /// Checks if a user has share access to a photo.
+    /// Checks whether a user has share access to a photo, either through a direct
+    /// user share or through a share targeting a team the user belongs to.
     /// </summary>
-    internal async Task<bool> HasShareAccessAsync(Guid photoId, Guid userId, CancellationToken cancellationToken = default)
+    internal async Task<bool> HasShareAccessAsync(Guid photoId, Guid userId, IReadOnlyCollection<Guid> teamIds, CancellationToken cancellationToken = default)
     {
         return await _db.PhotoShares.AnyAsync(
-            s => s.PhotoId == photoId && s.SharedWithUserId == userId &&
+            s => s.PhotoId == photoId &&
+                 (s.SharedWithUserId == userId ||
+                  (s.SharedWithTeamId != null && teamIds.Contains(s.SharedWithTeamId.Value))) &&
                  (s.ExpiresAt == null || s.ExpiresAt > DateTime.UtcNow),
             cancellationToken);
     }

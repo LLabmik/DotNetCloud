@@ -11,8 +11,14 @@ public interface IPhotoShareService
     /// <summary>Shares a photo with another user.</summary>
     Task<PhotoShareDto> SharePhotoAsync(Guid photoId, Guid sharedWithUserId, PhotoSharePermission permission, CallerContext caller, CancellationToken cancellationToken = default);
 
+    /// <summary>Shares a photo with a user or a team (user XOR team).</summary>
+    Task<PhotoShareDto> SharePhotoAsync(Guid photoId, Guid? sharedWithUserId, Guid? sharedWithTeamId, PhotoSharePermission permission, CallerContext caller, CancellationToken cancellationToken = default);
+
     /// <summary>Shares an album with another user.</summary>
     Task<PhotoShareDto> ShareAlbumAsync(Guid albumId, Guid sharedWithUserId, PhotoSharePermission permission, CallerContext caller, CancellationToken cancellationToken = default);
+
+    /// <summary>Shares an album with a user or a team (user XOR team).</summary>
+    Task<PhotoShareDto> ShareAlbumAsync(Guid albumId, Guid? sharedWithUserId, Guid? sharedWithTeamId, PhotoSharePermission permission, CallerContext caller, CancellationToken cancellationToken = default);
 
     /// <summary>Removes a share.</summary>
     Task RemoveShareAsync(Guid shareId, CallerContext caller, CancellationToken cancellationToken = default);

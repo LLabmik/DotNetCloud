@@ -18,7 +18,7 @@ namespace DotNetCloud.Modules.Photos.Data.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasDefaultSchema("photos")
-                .HasAnnotation("ProductVersion", "10.0.3")
+                .HasAnnotation("ProductVersion", "10.0.10")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -311,6 +311,9 @@ namespace DotNetCloud.Modules.Photos.Data.Migrations
                     b.Property<Guid>("SharedByUserId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("SharedWithTeamId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid?>("SharedWithUserId")
                         .HasColumnType("uuid");
 
@@ -321,6 +324,9 @@ namespace DotNetCloud.Modules.Photos.Data.Migrations
 
                     b.HasIndex("PhotoId")
                         .HasDatabaseName("ix_photo_shares_photo_id");
+
+                    b.HasIndex("SharedWithTeamId")
+                        .HasDatabaseName("ix_photo_shares_shared_with_team");
 
                     b.HasIndex("SharedWithUserId")
                         .HasDatabaseName("ix_photo_shares_shared_with");

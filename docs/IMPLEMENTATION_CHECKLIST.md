@@ -8,6 +8,16 @@
 
 ---
 
+## Recent Work — Share Dialog Unification & Team Shares (2026-09-08)
+
+> Tracked in `docs/SHARE_DIALOG_UNIFICATION_AND_TEAM_SHARES_PLAN.md` (branch `fix/sharing`).
+
+- ✓ Unified share dialog (`DncShareDialog` in `DotNetCloud.UI.Shared`) — Files, Notes, Photos, Contacts & Calendar share UIs are now identical; Files keeps bulk share + public link; other modules are revoke-only.
+- ✓ Recipient type-ahead by display name (users platform-wide + the caller's teams) via `IShareRecipientSearchService`.
+- ✓ Team shares on all five modules — user-XOR-team targets, team-membership read access via the cached `ITeamDirectory` gRPC capability, EF migrations for Notes/Photos.
+- ✓ Team-share bell notifications fan out to every team member except the sharer; Photos album shares now produce bell notifications.
+- ☐ Live end-to-end verification per module (share by display name for users/teams, team-member view + notification, revoke; Files single/bulk/public-link regression) — required before commit.
+
 ## Table of Contents
 
 1. [Pre-Implementation Setup](#pre-implementation-setup)
@@ -1320,10 +1330,10 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Architecture overview documentation (`docs/architecture/ARCHITECTURE.md`)
 - ✓ Development environment setup guide (`docs/development/README.md`, `IDE_SETUP.md`, `DATABASE_SETUP.md`, `DOCKER_SETUP.md`)
 - ✓ Bare-metal server installation and fast redeploy runbook (`docs/admin/server/INSTALLATION.md`)
-- ✓ Add one-command bare-metal redeploy helper script (`tools/redeploy-baremetal.sh`) and document usage in server install guide
+- ✓ One-command local-source redeploy via `scripts/deploy.sh --force` (documented in the server install guide); the earlier `tools/redeploy-baremetal.sh` helper was consolidated into it and removed (2026-09-08)
 - ✓ Clarify local-server workflow: prefer source redeploy helper for local changes and keep `tools/install.sh` in parity for fresh-machine installs
 - ✓ Ensure redeploy helper health probe parity with installer defaults (auto-tries HTTPS `:15443` and HTTP `:5080`)
-- ✓ Harden `tools/redeploy-baremetal.sh` to repair build-output ownership and purge stale normal/malformed Debug outputs before Linux Release build/publish runs
+- ✓ Harden the local deploy pipeline to repair build-output ownership (restore repo files to the invoking user) and purge stale normal/malformed Debug outputs before the Linux Release build/publish runs — now in `scripts/deploy.sh`
 - ✓ Align installer and `dotnetcloud setup` local health probes with configured Kestrel ports, including self-signed HTTPS checks; clarify that `5080`/`5443` are internal defaults while `15443` is a reverse-proxy/public deployment port
 - ✓ Make installer print explicit direct local access URLs, health probe URLs, and the internal-Kestrel-vs-reverse-proxy port distinction at completion
 - ✓ Add beginner-friendly setup mode and fresh-install default flow that auto-selects the recommended local PostgreSQL + self-signed HTTPS path and ends with a plain-language summary of chosen settings and next steps

@@ -31,8 +31,23 @@ public sealed class NoteShareService : INoteShareService
     }
 
     /// <inheritdoc />
-    public async Task<NoteShareDto> ShareNoteAsync(Guid noteId, Guid targetUserId, NoteSharePermission permission, CallerContext caller, CancellationToken cancellationToken = default)
+    public Task<NoteShareDto> ShareNoteAsync(Guid noteId, Guid targetUserId, NoteSharePermission permission, CallerContext caller, CancellationToken cancellationToken = default)
+        => ShareNoteAsync(noteId, targetUserId, null, permission, caller, cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<NoteShareDto> ShareNoteAsync(Guid noteId, Guid? targetUserId, Guid? targetTeamId, NoteSharePermission permission, CallerContext caller, CancellationToken cancellationToken = default)
     {
+        // User XOR team target.
+        if (targetUserId is null && targetTeamId is null)
+        {
+            throw new ArgumentException("A note share requires a user or a team target.", nameof(targetTeamId));
+        }
+
+        if (targetUserId is not null && targetTeamId is not null)
+        {
+            throw new ArgumentException("A note share cannot target both a user and a team.", nameof(targetTeamId));
+        }
+
         // Verify the note exists and the caller owns it
         var noteExists = await _db.Notes
             .AnyAsync(n => n.Id == noteId && n.OwnerId == caller.UserId, cancellationToken);
@@ -43,9 +58,18 @@ public sealed class NoteShareService : INoteShareService
                 Core.Errors.ErrorCodes.NoteNotFound, "Note not found or access denied.");
         }
 
-        // Check if already shared
-        var existingShare = await _db.NoteShares
-            .FirstOrDefaultAsync(s => s.NoteId == noteId && s.SharedWithUserId == targetUserId, cancellationToken);
+        // Check if already shared with this target
+        NoteShare? existingShare;
+        if (targetUserId is { } userId)
+        {
+            existingShare = await _db.NoteShares
+                .FirstOrDefaultAsync(s => s.NoteId == noteId && s.SharedWithUserId == userId, cancellationToken);
+        }
+        else
+        {
+            existingShare = await _db.NoteShares
+                .FirstOrDefaultAsync(s => s.NoteId == noteId && s.SharedWithTeamId == targetTeamId, cancellationToken);
+        }
 
         if (existingShare is not null)
         {
@@ -59,7 +83,8 @@ public sealed class NoteShareService : INoteShareService
         var share = new NoteShare
         {
             NoteId = noteId,
-            SharedWithUserId = targetUserId,
+            SharedWithUserId = targetUserId ?? Guid.Empty,
+            SharedWithTeamId = targetTeamId,
             Permission = permission,
             CreatedByUserId = caller.UserId,
             UpdatedByUserId = caller.UserId
@@ -74,6 +99,7 @@ public sealed class NoteShareService : INoteShareService
             CreatedAt = DateTime.UtcNow,
             SharedByUserId = caller.UserId,
             SharedWithUserId = targetUserId,
+            SharedWithTeamId = targetTeamId,
             SourceModuleId = "dotnetcloud.notes",
             EntityType = "Note",
             EntityId = noteId,
@@ -81,8 +107,13 @@ public sealed class NoteShareService : INoteShareService
             Permission = permission.ToString()
         }, caller, cancellationToken);
 
-        _logger.LogInformation("Note {NoteId} shared with user {TargetUserId} ({Permission}) by user {UserId}",
-            noteId, targetUserId, permission, caller.UserId);
+        _logger.LogInformation(
+            "Note {NoteId} shared with {TargetType} {TargetId} ({Permission}) by user {UserId}",
+            noteId,
+            targetTeamId is not null ? "team" : "user",
+            targetTeamId ?? targetUserId,
+            permission,
+            caller.UserId);
 
         return MapToDto(share);
     }
@@ -138,6 +169,7 @@ public sealed class NoteShareService : INoteShareService
             Id = s.Id,
             NoteId = s.NoteId,
             SharedWithUserId = s.SharedWithUserId,
+            SharedWithTeamId = s.SharedWithTeamId,
             Permission = s.Permission,
             CreatedAt = s.CreatedAt
         };

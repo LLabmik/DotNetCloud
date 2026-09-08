@@ -17,7 +17,8 @@ internal sealed class NotificationProducer :
     IEventHandler<QuotaWarningEvent>,
     IEventHandler<QuotaCriticalEvent>,
     IEventHandler<PublicLinkAccessedEvent>,
-    IEventHandler<ShareExpiringEvent>
+    IEventHandler<ShareExpiringEvent>,
+    IEventHandler<AlbumSharedEvent>
 {
     private readonly IServiceScopeFactory _scopeFactory;
 
@@ -29,20 +30,78 @@ internal sealed class NotificationProducer :
     /// <inheritdoc />
     public async Task HandleAsync(ResourceSharedEvent e, CancellationToken ct = default)
     {
-        await SendAsync(new NotificationDto
+        if (e.SharedWithUserId is { } userId)
         {
-            Id = Guid.CreateVersion7(),
-            UserId = e.SharedWithUserId,
-            SourceModuleId = e.SourceModuleId,
-            Type = NotificationType.Share,
-            Title = $"{e.EntityType} shared with you",
-            Message = $"{e.EntityDisplayName} was shared with permission: {e.Permission}.",
-            Priority = NotificationPriority.Normal,
-            ActionUrl = BuildActionUrl(e.EntityType, e.EntityId),
-            RelatedEntityType = MapEntityType(e.EntityType),
-            RelatedEntityId = e.EntityId,
-            CreatedAtUtc = e.CreatedAt
-        }, ct);
+            // User-targeted share → single recipient notification.
+            await SendAsync(new NotificationDto
+            {
+                Id = Guid.CreateVersion7(),
+                UserId = userId,
+                SourceModuleId = e.SourceModuleId,
+                Type = NotificationType.Share,
+                Title = $"{e.EntityType} shared with you",
+                Message = $"{e.EntityDisplayName} was shared with permission: {e.Permission}.",
+                Priority = NotificationPriority.Normal,
+                ActionUrl = BuildActionUrl(e.EntityType, e.EntityId),
+                RelatedEntityType = MapEntityType(e.EntityType),
+                RelatedEntityId = e.EntityId,
+                CreatedAtUtc = e.CreatedAt
+            }, ct);
+            return;
+        }
+
+        // Team-targeted share → fan out to every team member except the sharer.
+        if (e.SharedWithTeamId is { } teamId)
+        {
+            await SendTeamFanOutAsync(
+                teamId,
+                e.SharedByUserId,
+                e.SourceModuleId,
+                title: $"{e.EntityType} shared with your team",
+                message: $"{e.EntityDisplayName} was shared with your team.",
+                actionUrl: BuildActionUrl(e.EntityType, e.EntityId),
+                relatedEntityType: MapEntityType(e.EntityType),
+                relatedEntityId: e.EntityId,
+                createdAtUtc: e.CreatedAt,
+                ct);
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task HandleAsync(AlbumSharedEvent e, CancellationToken ct = default)
+    {
+        if (e.SharedWithUserId is { } userId)
+        {
+            await SendAsync(new NotificationDto
+            {
+                Id = Guid.CreateVersion7(),
+                UserId = userId,
+                SourceModuleId = "dotnetcloud.photos",
+                Type = NotificationType.Share,
+                Title = "Album shared with you",
+                Message = $"An album was shared with you (permission: {e.Permission}).",
+                Priority = NotificationPriority.Normal,
+                ActionUrl = $"/photos?album={e.AlbumId}",
+                RelatedEntityId = e.AlbumId,
+                CreatedAtUtc = e.CreatedAt
+            }, ct);
+            return;
+        }
+
+        if (e.SharedWithTeamId is { } teamId)
+        {
+            await SendTeamFanOutAsync(
+                teamId,
+                e.SharedByUserId,
+                "dotnetcloud.photos",
+                title: "Album shared with your team",
+                message: "An album was shared with your team.",
+                actionUrl: $"/photos?album={e.AlbumId}",
+                relatedEntityType: null,
+                relatedEntityId: e.AlbumId,
+                createdAtUtc: e.CreatedAt,
+                ct);
+        }
     }
 
     /// <inheritdoc />
@@ -86,22 +145,39 @@ internal sealed class NotificationProducer :
     /// <inheritdoc />
     public async Task HandleAsync(FileSharedEvent e, CancellationToken ct = default)
     {
-        // Only user-targeted shares; public-link shares do not target a user.
-        if (e.SharedWithUserId is null)
-            return;
-
-        await SendAsync(new NotificationDto
+        if (e.SharedWithUserId is { } userId)
         {
-            Id = Guid.CreateVersion7(),
-            UserId = e.SharedWithUserId.Value,
-            SourceModuleId = "dotnetcloud.files",
-            Type = NotificationType.Share,
-            Title = "File shared with you",
-            Message = $"\"{e.FileName}\" has been shared with you.",
-            Priority = NotificationPriority.Normal,
-            ActionUrl = $"/apps/files?node={e.FileNodeId}",
-            CreatedAtUtc = e.CreatedAt
-        }, ct);
+            // User-targeted file share.
+            await SendAsync(new NotificationDto
+            {
+                Id = Guid.CreateVersion7(),
+                UserId = userId,
+                SourceModuleId = "dotnetcloud.files",
+                Type = NotificationType.Share,
+                Title = "File shared with you",
+                Message = $"\"{e.FileName}\" has been shared with you.",
+                Priority = NotificationPriority.Normal,
+                ActionUrl = $"/apps/files?node={e.FileNodeId}",
+                CreatedAtUtc = e.CreatedAt
+            }, ct);
+            return;
+        }
+
+        // Team-targeted file share → fan out to every team member except the sharer.
+        if (e.SharedWithTeamId is { } teamId)
+        {
+            await SendTeamFanOutAsync(
+                teamId,
+                e.SharedByUserId,
+                "dotnetcloud.files",
+                title: "File shared with your team",
+                message: $"\"{e.FileName}\" has been shared with your team.",
+                actionUrl: $"/apps/files?node={e.FileNodeId}",
+                relatedEntityType: null,
+                relatedEntityId: e.FileNodeId,
+                createdAtUtc: e.CreatedAt,
+                ct);
+        }
     }
 
     /// <inheritdoc />
@@ -177,6 +253,73 @@ internal sealed class NotificationProducer :
         await using var scope = _scopeFactory.CreateAsyncScope();
         var service = scope.ServiceProvider.GetRequiredService<INotificationService>();
         await service.SendAsync(notification.UserId, notification, ct);
+    }
+
+    /// <summary>
+    /// Fans a team share out to every team member except the sharer — one in-app
+    /// notification per member. No-op when the team can't be resolved or has no
+    /// other members.
+    /// </summary>
+    private async Task SendTeamFanOutAsync(
+        Guid teamId,
+        Guid sharedByUserId,
+        string sourceModuleId,
+        string title,
+        string message,
+        string? actionUrl,
+        CrossModuleLinkType? relatedEntityType,
+        Guid relatedEntityId,
+        DateTime createdAtUtc,
+        CancellationToken ct)
+    {
+        await using var scope = _scopeFactory.CreateAsyncScope();
+
+        var teamDirectory = scope.ServiceProvider.GetService<ITeamDirectory>();
+        if (teamDirectory is null)
+        {
+            return;
+        }
+
+        IReadOnlyList<TeamMemberInfo> members;
+        try
+        {
+            members = await teamDirectory.GetTeamMembersAsync(teamId, ct);
+        }
+        catch (Exception)
+        {
+            // A membership failure must never break the share operation — no-op.
+            return;
+        }
+
+        var recipients = members
+            .Where(m => m.UserId != sharedByUserId)
+            .Select(m => m.UserId)
+            .Distinct()
+            .ToArray();
+
+        if (recipients.Length == 0)
+        {
+            return;
+        }
+
+        var service = scope.ServiceProvider.GetRequiredService<INotificationService>();
+        foreach (var recipientId in recipients)
+        {
+            await service.SendAsync(recipientId, new NotificationDto
+            {
+                Id = Guid.CreateVersion7(),
+                UserId = recipientId,
+                SourceModuleId = sourceModuleId,
+                Type = NotificationType.Share,
+                Title = title,
+                Message = message,
+                Priority = NotificationPriority.Normal,
+                ActionUrl = actionUrl,
+                RelatedEntityType = relatedEntityType,
+                RelatedEntityId = relatedEntityId,
+                CreatedAtUtc = createdAtUtc
+            }, ct);
+        }
     }
 
     // Keep the URL shapes from the original InAppNotificationEventHandler.

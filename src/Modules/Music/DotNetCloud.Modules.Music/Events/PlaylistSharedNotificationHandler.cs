@@ -41,12 +41,18 @@ public sealed class PlaylistSharedNotificationHandler : IEventHandler<ResourceSh
             return;
         }
 
+        // Music shares are user-targeted only.
+        if (@event.SharedWithUserId is not { } sharedWithUserId)
+        {
+            return;
+        }
+
         try
         {
             var notification = new NotificationDto
             {
                 Id = Guid.CreateVersion7(),
-                UserId = @event.SharedWithUserId,
+                UserId = sharedWithUserId,
                 SourceModuleId = "dotnetcloud.music",
                 Type = NotificationType.Share,
                 Title = $"A {FormatEntityType(@event.EntityType)} was shared with you",
@@ -57,11 +63,11 @@ public sealed class PlaylistSharedNotificationHandler : IEventHandler<ResourceSh
                 CreatedAtUtc = DateTime.UtcNow
             };
 
-            await _notificationService.SendAsync(@event.SharedWithUserId, notification, cancellationToken);
+            await _notificationService.SendAsync(sharedWithUserId, notification, cancellationToken);
 
             _logger.LogInformation(
                 "Notification sent for music share: {EntityType} {EntityId} shared with user {UserId}",
-                @event.EntityType, @event.EntityId, @event.SharedWithUserId);
+                @event.EntityType, @event.EntityId, sharedWithUserId);
         }
         catch (Exception ex)
         {

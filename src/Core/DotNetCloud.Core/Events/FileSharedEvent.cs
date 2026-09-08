@@ -28,6 +28,9 @@ public sealed record FileSharedEvent : IEvent
     /// <summary>The user the file was shared with (for user shares).</summary>
     public Guid? SharedWithUserId { get; init; }
 
+    /// <summary>The team the file was shared with (for team shares; user XOR team).</summary>
+    public Guid? SharedWithTeamId { get; init; }
+
     /// <summary>The user who created the share.</summary>
     public required Guid SharedByUserId { get; init; }
 }

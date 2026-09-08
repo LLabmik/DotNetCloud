@@ -2,9 +2,13 @@
 
 @using DotNetCloud.Core.DTOs
 @using DotNetCloud.Modules.Contacts.Services
+@using DotNetCloud.Modules.Contacts.Models
 @using DotNetCloud.UI.Shared.Components.Notifications
+@using DotNetCloud.UI.Shared.Components.Dialogs
 @inject IContactsApiClient ApiClient
 @inject Microsoft.JSInterop.IJSRuntime JSRuntime
+@inject DotNetCloud.Core.Capabilities.IUserDirectory UserDirectory
+@inject DotNetCloud.Core.Capabilities.ITeamDirectory TeamDirectory
 
 <div class="contacts-page-layout">
     <div class="contacts-sidebar @(_sidebarCollapsed ? "collapsed" : "")">
@@ -161,52 +165,26 @@
 
                 <div class="contacts-detail-actions">
                     <button class="btn btn-primary" @onclick="BeginEditSelected">Edit Contact</button>
-                    <button class="btn btn-outline-secondary" @onclick="ToggleSharePanel">
-                        @(_showSharePanel ? "Hide Shares" : "Share")
-                    </button>
+                    <button class="btn btn-outline-secondary" @onclick="OpenShareDialogAsync">Share</button>
                 </div>
-
-                @if (_showSharePanel)
-                {
-                    <div class="contacts-share-panel">
-                        <h4>Shares</h4>
-                        @if (_shares.Count == 0)
-                        {
-                            <p>Not shared with anyone.</p>
-                        }
-                        else
-                        {
-                            @foreach (var share in _shares)
-                            {
-                                <div class="share-item">
-                                    <span>User: @(share.SharedWithUserId?.ToString("N")[..8] ??
-                                                                share.SharedWithTeamId?.ToString("N")[..8] ?? "—")… — @share.Permission</span>
-                                        <button class="btn btn-sm btn-outline-danger"
-                                                @onclick="() => RevokeShareAsync(share.Id)">Revoke</button>
-                                    </div>
-                                }
-                            }
-                            <div class="share-form">
-                                <input type="text" class="form-control form-control-sm" placeholder="User ID"
-                                       @bind="_shareUserId" />
-                                <select class="form-select form-select-sm" @bind="_sharePermission" style="max-width:140px;">
-                                    <option value="ReadOnly">Read Only</option>
-                                    <option value="ReadWrite">Read/Write</option>
-                                </select>
-                                <button class="btn btn-sm btn-primary" @onclick="AddShareAsync">Share</button>
-                            </div>
-                        </div>
-                    }
-                </div>
-            }
+            </div>
+        }
         else
-            {
-                <div class="contacts-placeholder">
-                    <p>Select a contact or create a new one to get started.</p>
-                </div>
-            }
-        </div>
+        {
+            <div class="contacts-placeholder">
+                <p>Select a contact or create a new one to get started.</p>
+            </div>
+        }
     </div>
+</div>
+
+@if (_showShareDialog && _selectedContact is not null)
+{
+    <DncShareDialog ItemName="@_selectedContact.DisplayName" ItemCount="1" AllowPermissionEditing="false"
+                    PermissionOptions="ContactPermissionOptions" ExistingShares="_shareDialogShares"
+                    IsLoadingShares="_isLoadingShareDialogShares" OnClose="CloseShareDialogAsync"
+                    OnShareCreated="HandleShareCreatedAsync" OnShareRemoved="HandleShareRemovedAsync" />
+}
 
 @code {
     /// <summary>
@@ -219,17 +197,23 @@
 
     private readonly List<ContactDto> _contacts = [];
     private readonly List<ContactGroupDto> _groups = [];
-    private readonly List<ContactShareResponse> _shares = [];
     private ContactRelatedEntitiesDto _related = new();
     private ContactDto? _selectedContact;
     private ContactEditorModel? _editingContact;
     private string _searchQuery = string.Empty;
     private string _activeSection = "all";
     private bool _isLoading;
-    private bool _showSharePanel;
-    private string _shareUserId = string.Empty;
-    private string _sharePermission = "ReadOnly";
+    private bool _showShareDialog;
+    private List<DncShareEntry> _shareDialogShares = [];
+    private bool _isLoadingShareDialogShares;
     private bool _sidebarCollapsed;
+
+    /// <summary>Permission choices for contact shares (ReadOnly / ReadWrite).</summary>
+    private static readonly IReadOnlyList<DncSharePermissionOption> ContactPermissionOptions =
+    [
+        new() { Value = "Read", Label = "View only" },
+        new() { Value = "ReadWrite", Label = "Can edit" },
+    ];
 
     private IEnumerable<ContactDto> VisibleContacts => _activeSection switch
     {
@@ -398,36 +382,134 @@ _sidebarCollapsed.ToString().ToLowerInvariant() });
         await ReloadAsync();
     }
 
-    private async Task ToggleSharePanel()
+    private async Task OpenShareDialogAsync()
     {
-        _showSharePanel = !_showSharePanel;
-        if (_showSharePanel && _selectedContact is not null)
-        {
-            _shares.Clear();
-            _shares.AddRange(await ApiClient.ListSharesAsync(_selectedContact.Id));
-        }
-    }
-
-    private async Task AddShareAsync()
-    {
-        if (_selectedContact is null || !Guid.TryParse(_shareUserId, out var userId))
-        {
+        if (_selectedContact is null)
             return;
-        }
 
-        await ApiClient.ShareContactAsync(_selectedContact.Id, userId, null, _sharePermission);
-        _shareUserId = string.Empty;
-        _shares.Clear();
-        _shares.AddRange(await ApiClient.ListSharesAsync(_selectedContact.Id));
+        _showShareDialog = true;
+        _shareDialogShares = [];
+        _isLoadingShareDialogShares = true;
+        StateHasChanged();
+
+        try
+        {
+            await LoadShareDialogEntriesAsync();
+        }
+        finally
+        {
+            _isLoadingShareDialogShares = false;
+        }
     }
 
-    private async Task RevokeShareAsync(Guid shareId)
+    private void CloseShareDialogAsync()
+    {
+        _showShareDialog = false;
+    }
+
+    private async Task LoadShareDialogEntriesAsync()
+    {
+        if (_selectedContact is null)
+            return;
+
+        var shares = await ApiClient.ListSharesAsync(_selectedContact.Id);
+        _shareDialogShares = await MapShareDtosToEntriesAsync(shares);
+    }
+
+    private async Task HandleShareCreatedAsync(DncShareCreatedEventArgs args)
+    {
+        if (_selectedContact is null)
+            return;
+
+        var perm = args.Permission == "ReadWrite" ? ContactSharePermission.ReadWrite : ContactSharePermission.ReadOnly;
+        Guid? targetUserId = args.ShareType == "Team" ? null : args.TargetId;
+        Guid? targetTeamId = args.ShareType == "Team" ? args.TargetId : null;
+
+        var result = await ApiClient.ShareContactAsync(_selectedContact.Id, targetUserId, targetTeamId, perm.ToString());
+        if (result is not null)
+        {
+            await LoadShareDialogEntriesAsync();
+        }
+    }
+
+    private async Task HandleShareRemovedAsync(Guid shareId)
     {
         await ApiClient.RevokeShareAsync(shareId);
-        if (_selectedContact is not null)
+        _shareDialogShares = [.. _shareDialogShares.Where(e => e.ShareId != shareId)];
+    }
+
+    private async Task<List<DncShareEntry>> MapShareDtosToEntriesAsync(IReadOnlyList<ContactShareResponse> shares)
+    {
+        var userNames = await ResolveUserNamesAsync(shares);
+        var entries = new List<DncShareEntry>(shares.Count);
+
+        foreach (var share in shares)
         {
-            _shares.Clear();
-            _shares.AddRange(await ApiClient.ListSharesAsync(_selectedContact.Id));
+            var isTeam = share.SharedWithTeamId is not null;
+            string recipientName;
+
+            if (isTeam)
+            {
+                recipientName = await ResolveTeamNameAsync(share.SharedWithTeamId!.Value)
+                    ?? $"{share.SharedWithTeamId.Value:N}"[..8];
+            }
+            else if (share.SharedWithUserId is { } sharedWithUserId)
+            {
+                recipientName = userNames.TryGetValue(sharedWithUserId, out var name)
+                    ? name
+                    : $"{sharedWithUserId:N}"[..8];
+            }
+            else
+            {
+                recipientName = "Unknown";
+            }
+
+            entries.Add(new DncShareEntry
+            {
+                ShareId = share.Id,
+                RecipientName = recipientName,
+                RecipientType = isTeam ? "Team" : "User",
+                Permission = share.Permission == ContactSharePermission.ReadWrite ? "ReadWrite" : "Read",
+                CreatedAt = share.CreatedAt
+            });
+        }
+
+        return entries;
+    }
+
+    private async Task<IReadOnlyDictionary<Guid, string>> ResolveUserNamesAsync(IReadOnlyList<ContactShareResponse> shares)
+    {
+        var ids = shares
+            .Where(s => s.SharedWithTeamId is null && s.SharedWithUserId is not null)
+            .Select(s => s.SharedWithUserId!.Value)
+            .Distinct()
+            .ToArray();
+
+        if (ids.Length == 0)
+        {
+            return new Dictionary<Guid, string>();
+        }
+
+        try
+        {
+            return await UserDirectory.GetDisplayNamesAsync(ids);
+        }
+        catch
+        {
+            return new Dictionary<Guid, string>();
+        }
+    }
+
+    private async Task<string?> ResolveTeamNameAsync(Guid teamId)
+    {
+        try
+        {
+            var team = await TeamDirectory.GetTeamAsync(teamId);
+            return team?.Name;
+        }
+        catch
+        {
+            return null;
         }
     }
 

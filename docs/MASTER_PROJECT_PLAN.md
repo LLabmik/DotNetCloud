@@ -12,6 +12,8 @@
 
 ---
 
+> **Recent feature work (2026-09-08):** Share Dialog Unification + Team Shares across Files/Notes/Photos/Contacts/Calendar is tracked in `docs/SHARE_DIALOG_UNIFICATION_AND_TEAM_SHARES_PLAN.md` (branch `fix/sharing`). Phases 0–6 implemented (build + tests green); Phase 7 live end-to-end verification is pending before commit.
+
 ## Quick Status Summary
 
 | Phase                                | Steps   | Completed | In Progress | Pending |

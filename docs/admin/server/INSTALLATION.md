@@ -1069,17 +1069,20 @@ This is the preferred workflow for local server development. You do not need to 
 Fastest path (one command):
 
 ```bash
-./tools/redeploy-baremetal.sh
+sudo ./scripts/deploy.sh --force
 ```
 
-This helper performs publish + service restart + health verification and fails fast if any step fails.
-By default it probes both local HTTPS (`https://localhost:15443/health/live`) and installer-default local HTTP (`http://localhost:5080/health/live`). You can override with `HEALTH_URL=...`.
+This is the full local-source deploy: it builds the CI solution filter (Release), publishes the server to `/opt/dotnetcloud/server`, the CLI to `/opt/dotnetcloud`, and every module host to `/opt/dotnetcloud/modules`, then runs `dotnetcloud migrate`, restarts `dotnetcloud.service`, and verifies health. It fails fast if any step fails.
+
+Notes:
+- Use `--force` for local development. Incremental mode diffs `last_deploy..HEAD`, so it cannot see **uncommitted** working-tree changes.
+- The legacy one-command helper `tools/redeploy-baremetal.sh` was consolidated into `scripts/deploy.sh` (removed 2026-09-08); it targeted the old `/opt/dotnetcloud/cli` layout and never deployed module hosts.
 
 Maintenance rule for contributors:
 
 - If you change the bare-metal deployment process used by local redeploys, update `tools/install.sh` to keep first-install and upgrade behavior in sync for other machines.
 - Validate both paths when process changes are made:
-  - local source redeploy (`./tools/redeploy-baremetal.sh`)
+  - local source redeploy (`sudo ./scripts/deploy.sh --force`)
   - GitHub-based installer (`tools/install.sh`, including fresh install/upgrade expectations)
 
 1. Confirm the service unit points to your expected publish directory:

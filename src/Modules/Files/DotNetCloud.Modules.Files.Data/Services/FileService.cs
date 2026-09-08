@@ -3,6 +3,7 @@ using DotNetCloud.Core.DTOs.Search;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Events.Search;
+using DotNetCloud.Core.SharedWithMe;
 using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Events;
@@ -24,6 +25,9 @@ internal sealed class FileService : IFileService
 {
     /// <summary>Maximum folder depth to prevent runaway nesting.</summary>
     private const int MaxDepth = 50;
+
+    /// <summary>Module id used for the Files module's own virtual "Shared With Me" folder.</summary>
+    private const string FilesModuleId = "files";
 
     // Characters that are illegal in Windows filenames (outside of path separators).
     private static readonly char[] WindowsIllegalChars = ['\\', '/', ':', '*', '?', '"', '<', '>', '|'];
@@ -50,8 +54,9 @@ internal sealed class FileService : IFileService
     private readonly IQuotaService _quotaService;
     private readonly FileSystemOptions _fileSystemOptions;
     private readonly IShareAccessMembershipResolver? _shareAccessMembershipResolver;
+    private readonly ISharedWithMeModuleRegistry? _sharedWithMe;
 
-    public FileService(FilesDbContext db, IEventBus eventBus, ILogger<FileService> logger, IPermissionService permissions, IDeviceContext deviceContext, IQuotaService quotaService, IOptions<FileSystemOptions> fileSystemOptions, ISyncChangeNotifier syncNotifier, IShareAccessMembershipResolver? shareAccessMembershipResolver = null)
+    public FileService(FilesDbContext db, IEventBus eventBus, ILogger<FileService> logger, IPermissionService permissions, IDeviceContext deviceContext, IQuotaService quotaService, IOptions<FileSystemOptions> fileSystemOptions, ISyncChangeNotifier syncNotifier, IShareAccessMembershipResolver? shareAccessMembershipResolver = null, ISharedWithMeModuleRegistry? sharedWithMe = null)
     {
         _db = db;
         _eventBus = eventBus;
@@ -62,6 +67,7 @@ internal sealed class FileService : IFileService
         _fileSystemOptions = fileSystemOptions.Value;
         _syncNotifier = syncNotifier;
         _shareAccessMembershipResolver = shareAccessMembershipResolver;
+        _sharedWithMe = sharedWithMe;
     }
 
     /// <inheritdoc />
@@ -844,16 +850,12 @@ internal sealed class FileService : IFileService
 
         if (nodeId == SharedWithMeRootId)
         {
-            var mountedItems = await ListMountedAccessAsync(caller, cancellationToken);
-            return CreateVirtualFolderDto(
-                SharedWithMeRootId,
-                "Shared With Me",
-                DotNetCloudRootId,
-                caller.UserId,
-                mountedItems.Count,
-                DateTime.UtcNow,
-                isReadOnly: true,
-                sourceKind: "SharedWithMeRoot");
+            return await CreateSharedWithMeFolderDtoAsync(caller, cancellationToken);
+        }
+
+        if (_sharedWithMe is not null && FindSharedWithMeModuleFolder(nodeId) is { } sharedWithMeModule)
+        {
+            return await CreateSharedWithMeModuleFolderDtoAsync(sharedWithMeModule, caller, cancellationToken);
         }
 
         var adminRootDefinition = await GetAccessibleAdminSharedFolderByVirtualRootIdAsync(nodeId, caller, cancellationToken);
@@ -1000,6 +1002,11 @@ internal sealed class FileService : IFileService
             return await ListSharedWithMeChildrenAsync(caller, cancellationToken);
         }
 
+        if (_sharedWithMe is not null && FindSharedWithMeModuleFolder(folderId) is { } sharedWithMeModule)
+        {
+            return await ListSharedWithMeModuleChildrenAsync(sharedWithMeModule, caller, cancellationToken);
+        }
+
         var definition = await GetAccessibleAdminSharedFolderByVirtualRootIdAsync(folderId, caller, cancellationToken);
         if (definition is not null)
         {
@@ -1037,20 +1044,11 @@ internal sealed class FileService : IFileService
 
     private async Task<IReadOnlyList<FileNodeDto>> ListDotNetCloudChildrenAsync(CallerContext caller, CancellationToken cancellationToken)
     {
-        var mountedItems = await ListMountedAccessAsync(caller, cancellationToken);
         var adminFolders = await ListAccessibleAdminSharedFoldersAsync(caller, cancellationToken);
 
         var result = new List<FileNodeDto>(adminFolders.Count + 1)
         {
-            CreateVirtualFolderDto(
-                SharedWithMeRootId,
-                "Shared With Me",
-                DotNetCloudRootId,
-                caller.UserId,
-                mountedItems.Count,
-                DateTime.UtcNow,
-                isReadOnly: true,
-                sourceKind: "SharedWithMeRoot")
+            await CreateSharedWithMeFolderDtoAsync(caller, cancellationToken)
         };
 
         foreach (var definition in adminFolders)
@@ -1061,17 +1059,219 @@ internal sealed class FileService : IFileService
         return result;
     }
 
+    /// <summary>
+    /// Builds the virtual "Shared With Me" folder node. When a shared-with-me module registry is
+    /// present (core process), its children are per-module folders (Files + providers); otherwise
+    /// the legacy layout is preserved where file-share items are listed directly beneath it.
+    /// </summary>
+    private async Task<FileNodeDto> CreateSharedWithMeFolderDtoAsync(CallerContext caller, CancellationToken cancellationToken)
+    {
+        if (_sharedWithMe is null)
+        {
+            var mountedItems = await ListMountedAccessAsync(caller, cancellationToken);
+            return CreateVirtualFolderDto(
+                SharedWithMeRootId,
+                "Shared With Me",
+                DotNetCloudRootId,
+                caller.UserId,
+                mountedItems.Count,
+                DateTime.UtcNow,
+                isReadOnly: true,
+                sourceKind: "SharedWithMeRoot");
+        }
+
+        var moduleFolders = await ListSharedWithMeModuleFoldersAsync(caller, cancellationToken);
+        return CreateVirtualFolderDto(
+            SharedWithMeRootId,
+            "Shared With Me",
+            DotNetCloudRootId,
+            caller.UserId,
+            moduleFolders.Count,
+            DateTime.UtcNow,
+            isReadOnly: true,
+            sourceKind: "SharedWithMeRoot");
+    }
+
+    /// <summary>
+    /// Lists the children of the virtual "Shared With Me" folder. With a shared-with-me module
+    /// registry present this is one virtual folder per module that currently has shared items
+    /// (Files first, then each registered provider). Without a registry the legacy file-share-only
+    /// listing is preserved.
+    /// </summary>
     private async Task<IReadOnlyList<FileNodeDto>> ListSharedWithMeChildrenAsync(CallerContext caller, CancellationToken cancellationToken)
     {
-        var mountedItems = await ListMountedAccessAsync(caller, cancellationToken);
-        return mountedItems
-            .Select(node => node with
+        if (_sharedWithMe is null)
+        {
+            var mountedItems = await ListMountedAccessAsync(caller, cancellationToken);
+            return mountedItems
+                .Select(node => node with
+                {
+                    ParentId = SharedWithMeRootId,
+                    VirtualSourceKind = "SharedWithMe",
+                    VirtualSourceId = SharedWithMeRootId,
+                })
+                .ToList();
+        }
+
+        var moduleFolders = await ListSharedWithMeModuleFoldersAsync(caller, cancellationToken);
+        var result = new List<FileNodeDto>(moduleFolders.Count);
+        foreach (var (module, childCount) in moduleFolders)
+        {
+            result.Add(CreateSharedWithMeModuleFolderDto(module, childCount, caller.UserId));
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Enumerates the module folders to surface under "Shared With Me" together with their current
+    /// child count. The Files module folder is included only when the caller has mounted file-share
+    /// items; each registered provider is included only when it currently reports shared items — so
+    /// the UI never shows an empty folder for a module.
+    /// </summary>
+    private async Task<List<(SharedWithMeModule Module, int ChildCount)>> ListSharedWithMeModuleFoldersAsync(CallerContext caller, CancellationToken cancellationToken)
+    {
+        var result = new List<(SharedWithMeModule, int)>();
+
+        if (_sharedWithMe is null)
+        {
+            return result;
+        }
+
+        var mountedCount = (await ListMountedAccessAsync(caller, cancellationToken)).Count;
+        if (mountedCount > 0)
+        {
+            result.Add((new SharedWithMeModule(FilesModuleId, "Files", "folder"), mountedCount));
+        }
+
+        foreach (var module in _sharedWithMe.Modules)
+        {
+            var count = await _sharedWithMe.CountAsync(module.ModuleId, caller.UserId, cancellationToken);
+            if (count > 0)
             {
-                ParentId = SharedWithMeRootId,
-                VirtualSourceKind = "SharedWithMe",
-                VirtualSourceId = SharedWithMeRootId,
-            })
+                result.Add((module, count));
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Resolves a module-folder virtual id (Files or any registered provider) back to its module
+    /// descriptor, or returns <see langword="null"/> when the id is not a known module folder.
+    /// </summary>
+    private SharedWithMeModule? FindSharedWithMeModuleFolder(Guid nodeId)
+    {
+        if (_sharedWithMe is null)
+        {
+            return null;
+        }
+
+        if (nodeId == VirtualMountedNodeRegistry.GetSharedWithMeModuleFolderId(FilesModuleId))
+        {
+            return new SharedWithMeModule(FilesModuleId, "Files", "folder");
+        }
+
+        foreach (var module in _sharedWithMe.Modules)
+        {
+            if (nodeId == VirtualMountedNodeRegistry.GetSharedWithMeModuleFolderId(module.ModuleId))
+            {
+                return module;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Builds a virtual module folder node (e.g. "Files" or "Notes") inside "Shared With Me".
+    /// </summary>
+    private static FileNodeDto CreateSharedWithMeModuleFolderDto(SharedWithMeModule module, int childCount, Guid ownerUserId)
+    {
+        var folderId = VirtualMountedNodeRegistry.GetSharedWithMeModuleFolderId(module.ModuleId);
+        var dto = CreateVirtualFolderDto(
+            folderId,
+            module.DisplayName,
+            SharedWithMeRootId,
+            ownerUserId,
+            childCount,
+            DateTime.UtcNow,
+            isReadOnly: true,
+            sourceKind: "SharedWithMeModule",
+            sourceId: folderId);
+
+        return dto with { ModuleId = module.ModuleId, IconName = module.IconName };
+    }
+
+    /// <summary>
+    /// Builds a single shared-with-me module folder node (used when resolving a module folder id
+    /// directly, e.g. when the browser opens it to check read-only state).
+    /// </summary>
+    private async Task<FileNodeDto> CreateSharedWithMeModuleFolderDtoAsync(SharedWithMeModule module, CallerContext caller, CancellationToken cancellationToken)
+    {
+        var childCount = module.ModuleId == FilesModuleId
+            ? (await ListMountedAccessAsync(caller, cancellationToken)).Count
+            : await _sharedWithMe!.CountAsync(module.ModuleId, caller.UserId, cancellationToken);
+
+        return CreateSharedWithMeModuleFolderDto(module, childCount, caller.UserId);
+    }
+
+    /// <summary>
+    /// Lists the children of a shared-with-me module folder. The Files folder returns the caller's
+    /// mounted file-share items; other module folders return the module provider's shared items
+    /// mapped to virtual deep-link entries.
+    /// </summary>
+    private async Task<IReadOnlyList<FileNodeDto>> ListSharedWithMeModuleChildrenAsync(SharedWithMeModule module, CallerContext caller, CancellationToken cancellationToken)
+    {
+        var folderId = VirtualMountedNodeRegistry.GetSharedWithMeModuleFolderId(module.ModuleId);
+
+        if (module.ModuleId == FilesModuleId)
+        {
+            var mountedItems = await ListMountedAccessAsync(caller, cancellationToken);
+            return mountedItems
+                .Select(node => node with
+                {
+                    ParentId = folderId,
+                    VirtualSourceKind = "SharedWithMe",
+                    VirtualSourceId = folderId,
+                })
+                .ToList();
+        }
+
+        var items = await _sharedWithMe!.ListAsync(module.ModuleId, caller.UserId, cancellationToken);
+        return items
+            .Select(item => CreateSharedWithMeModuleItemDto(item, folderId, caller.UserId))
             .ToList();
+    }
+
+    /// <summary>
+    /// Maps a module's shared-with-me item to a synthetic read-only virtual file node that the UI
+    /// opens by navigating to the item's deep link.
+    /// </summary>
+    private static FileNodeDto CreateSharedWithMeModuleItemDto(SharedWithMeModuleItem item, Guid parentFolderId, Guid ownerUserId)
+    {
+        var itemId = VirtualMountedNodeRegistry.GetSharedWithMeItemId(item.ModuleId, item.EntityType, item.EntityId);
+        var updatedAt = item.UpdatedAt ?? DateTime.UtcNow;
+
+        var dto = CreateVirtualFileDto(
+            itemId,
+            item.Title,
+            parentFolderId,
+            ownerUserId,
+            size: 0,
+            updatedAt,
+            mimeType: null,
+            sourceKind: "SharedWithMeModule",
+            sourceId: itemId);
+
+        return dto with
+        {
+            ModuleId = item.ModuleId,
+            EntityType = item.EntityType,
+            SourceEntityId = item.EntityId,
+            DeepLinkUrl = item.DeepLink,
+            IconName = item.IconName,
+        };
     }
 
     private async Task<FileNodeDto> CreateAdminSharedFolderRootDtoAsync(AdminSharedFolderDefinition definition, CancellationToken cancellationToken)

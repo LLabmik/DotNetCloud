@@ -20,6 +20,24 @@ internal static class VirtualMountedNodeRegistry
     internal static Guid GetMountedNodeId(Guid sharedFolderId, string relativePath, bool isDirectory)
         => CreateStableGuid($"virtual::admin-shared-entry::{sharedFolderId:D}::{(isDirectory ? "dir" : "file")}::{NormalizeRelativePath(relativePath)}");
 
+    /// <summary>
+    /// Stable id of a module's virtual folder inside the <c>SharedWithMe</c> tree
+    /// (e.g. <c>"notes"</c> → the "Notes" folder). Ephemeral — never persisted.
+    /// </summary>
+    /// <param name="moduleId">Stable module id, e.g. <c>"files"</c> or <c>"notes"</c>.</param>
+    internal static Guid GetSharedWithMeModuleFolderId(string moduleId)
+        => CreateStableGuid($"virtual::swm-module::{moduleId}");
+
+    /// <summary>
+    /// Stable id of a single module item surfaced as a virtual entry under the module's
+    /// <c>SharedWithMe</c> folder. Ephemeral — computed at list time, never persisted.
+    /// </summary>
+    /// <param name="moduleId">Stable module id, e.g. <c>"notes"</c>.</param>
+    /// <param name="entityType">Entity type discriminator, e.g. <c>"Note"</c>.</param>
+    /// <param name="entityId">Identifier of the underlying module entity.</param>
+    internal static Guid GetSharedWithMeItemId(string moduleId, string entityType, Guid entityId)
+        => CreateStableGuid($"virtual::swm-item::{moduleId}::{entityType}::{entityId:D}");
+
     internal static void Register(VirtualMountedNodeDescriptor descriptor)
     {
         Entries[descriptor.Id] = descriptor;

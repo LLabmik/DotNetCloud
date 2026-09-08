@@ -5,6 +5,7 @@ using DotNetCloud.Core.DTOs.Media;
 using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Photos.Events;
 using DotNetCloud.Modules.Photos.Services;
+using DotNetCloud.UI.Shared.Components.Dialogs;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Web;
@@ -25,7 +26,15 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
     [Parameter]
     public string? PhotoId { get; set; }
 
+    /// <summary>
+    /// Optional album ID to open when the page loads (deep-link from cross-module surfaces such as
+    /// Files' shared-with-me tree). The album may be owned by or shared with the caller.
+    /// </summary>
+    [Parameter]
+    public string? AlbumId { get; set; }
+
     private Guid? _lastHandledPhotoId;
+    private Guid? _lastHandledAlbumId;
 
     // ── State ────────────────────────────────────────────────
 
@@ -82,11 +91,20 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
     private List<PhotoDto> _slideshowPhotos = [];
     private System.Threading.Timer? _slideshowTimer;
 
-    // Share
+    // Share (unified DncShareDialog)
     private bool _showShareDialog;
-    private Guid? _shareTargetPhotoId;
-    private string _shareUserId = string.Empty;
-    private PhotoSharePermission _sharePermission = PhotoSharePermission.ReadOnly;
+    private string _shareDialogItemName = string.Empty;
+    private Guid? _shareDialogPhotoId;
+    private Guid? _shareDialogAlbumId;
+    private List<DncShareEntry> _shareDialogShares = [];
+    private bool _isLoadingShareDialogShares;
+
+    /// <summary>Permission choices for photo/album shares (ReadOnly / Download).</summary>
+    private static readonly IReadOnlyList<DncSharePermissionOption> PhotoPermissionOptions =
+    [
+        new() { Value = "Read", Label = "View only" },
+        new() { Value = "ReadWrite", Label = "Can download" },
+    ];
 
     // Auth
     private CallerContext? _caller;
@@ -124,6 +142,7 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
             await LoadLibraryPathAsync();
             await LoadCurrentSectionAsync();
             await HandlePhotoDeepLinkAsync();
+            await HandleAlbumDeepLinkAsync();
         }
         catch (Exception ex)
         {
@@ -135,8 +154,9 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
 
     protected override async Task OnParametersSetAsync()
     {
-        // Handle photoId changes when already on the page (same-page navigation).
+        // Handle photoId/albumId changes when already on the page (same-page navigation).
         await HandlePhotoDeepLinkAsync();
+        await HandleAlbumDeepLinkAsync();
     }
 
     /// <summary>
@@ -178,6 +198,49 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to open deep-linked photo {PhotoId}", photoId);
+        }
+    }
+
+    /// <summary>
+    /// Opens the album referenced by the <c>AlbumId</c> deep-link parameter. Switches to the
+    /// Albums section and selects the album (the album may be shared with the caller, so it is
+    /// resolved by id rather than requiring it in the owned-albums list). Repeat handling of the
+    /// same id is guarded, and failures never break the page.
+    /// </summary>
+    private async Task HandleAlbumDeepLinkAsync()
+    {
+        if (string.IsNullOrWhiteSpace(AlbumId) || !Guid.TryParse(AlbumId, out var albumId) || albumId == _lastHandledAlbumId)
+        {
+            return;
+        }
+
+        _lastHandledAlbumId = albumId;
+        try
+        {
+            if (_caller is null)
+            {
+                return;
+            }
+
+            // Verify the caller can actually open this album (owner or shared) before switching.
+            var album = await AlbumService.GetAlbumAsync(albumId, _caller);
+            if (album is null)
+            {
+                return;
+            }
+
+            _section = Section.Albums;
+            _searchResults = null;
+            _searchQuery = string.Empty;
+            _page = 0;
+            _selectedAlbumId = albumId;
+            _selectedAlbum = null;
+            await LoadCurrentSectionAsync();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to open deep-linked album {AlbumId}", albumId);
         }
     }
 
@@ -629,30 +692,196 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
 
     // ── Sharing ──────────────────────────────────────────────
 
-    private void BeginShare(PhotoDto photo)
+    /// <summary>Opens the share dialog for a photo owned by the caller.</summary>
+    private async Task BeginShare(PhotoDto photo)
     {
-        _shareTargetPhotoId = photo.Id;
-        _shareUserId = string.Empty;
-        _sharePermission = PhotoSharePermission.ReadOnly;
+        _shareDialogPhotoId = photo.Id;
+        _shareDialogAlbumId = null;
+        _shareDialogItemName = photo.FileName;
         _showShareDialog = true;
-    }
-
-    private async Task SaveShareAsync()
-    {
-        if (_caller is null || !_shareTargetPhotoId.HasValue)
-            return;
-        if (!Guid.TryParse(_shareUserId, out var userId))
-            return;
+        _shareDialogShares = [];
+        _isLoadingShareDialogShares = true;
+        StateHasChanged();
 
         try
         {
-            await ShareService.SharePhotoAsync(_shareTargetPhotoId.Value, userId, _sharePermission, _caller);
-            _showShareDialog = false;
-            StateHasChanged();
+            var shares = await ShareService.GetPhotoSharesAsync(photo.Id, _caller!);
+            _shareDialogShares = await MapShareDtosToEntriesAsync(shares);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Failed to share photo");
+            Logger.LogError(ex, "Failed to load shares for photo {PhotoId}", photo.Id);
+            _shareDialogShares = [];
+        }
+        finally
+        {
+            _isLoadingShareDialogShares = false;
+        }
+    }
+
+    /// <summary>Opens the share dialog for the selected album (owner only).</summary>
+    private async Task BeginAlbumShare()
+    {
+        if (_caller is null || _selectedAlbum is null)
+            return;
+
+        _shareDialogAlbumId = _selectedAlbum.Id;
+        _shareDialogPhotoId = null;
+        _shareDialogItemName = _selectedAlbum.Title;
+        _showShareDialog = true;
+        _shareDialogShares = [];
+        _isLoadingShareDialogShares = true;
+        StateHasChanged();
+
+        try
+        {
+            var shares = await ShareService.GetAlbumSharesAsync(_selectedAlbum.Id, _caller);
+            _shareDialogShares = await MapShareDtosToEntriesAsync(shares);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load shares for album {AlbumId}", _selectedAlbum.Id);
+            _shareDialogShares = [];
+        }
+        finally
+        {
+            _isLoadingShareDialogShares = false;
+        }
+    }
+
+    private void CloseShareDialog()
+    {
+        _showShareDialog = false;
+    }
+
+    private async Task HandleShareCreatedAsync(DncShareCreatedEventArgs args)
+    {
+        if (_caller is null)
+            return;
+
+        var perm = args.Permission == "ReadWrite" ? PhotoSharePermission.Download : PhotoSharePermission.ReadOnly;
+        Guid? targetUserId = args.ShareType == "Team" ? null : args.TargetId;
+        Guid? targetTeamId = args.ShareType == "Team" ? args.TargetId : null;
+
+        if (_shareDialogPhotoId is { } photoId)
+        {
+            await ShareService.SharePhotoAsync(photoId, targetUserId, targetTeamId, perm, _caller);
+        }
+        else if (_shareDialogAlbumId is { } albumId)
+        {
+            await ShareService.ShareAlbumAsync(albumId, targetUserId, targetTeamId, perm, _caller);
+        }
+        else
+        {
+            return;
+        }
+
+        await ReloadShareDialogEntriesAsync();
+    }
+
+    private async Task HandleShareRemovedAsync(Guid shareId)
+    {
+        await ShareService.RemoveShareAsync(shareId, _caller!);
+        _shareDialogShares = [.. _shareDialogShares.Where(e => e.ShareId != shareId)];
+    }
+
+    /// <summary>Reloads the current target's shares and re-supplies the dialog list.</summary>
+    private async Task ReloadShareDialogEntriesAsync()
+    {
+        if (_caller is null)
+            return;
+
+        IReadOnlyList<PhotoShareDto> shares;
+        if (_shareDialogPhotoId is { } photoId)
+        {
+            shares = await ShareService.GetPhotoSharesAsync(photoId, _caller);
+        }
+        else if (_shareDialogAlbumId is { } albumId)
+        {
+            shares = await ShareService.GetAlbumSharesAsync(albumId, _caller);
+        }
+        else
+        {
+            return;
+        }
+
+        _shareDialogShares = await MapShareDtosToEntriesAsync(shares);
+        StateHasChanged();
+    }
+
+    /// <summary>Maps server shares to dialog entries, resolving recipient display names.</summary>
+    private async Task<List<DncShareEntry>> MapShareDtosToEntriesAsync(IReadOnlyList<PhotoShareDto> shares)
+    {
+        var userNames = await ResolveUserNamesAsync(shares);
+        var entries = new List<DncShareEntry>(shares.Count);
+
+        foreach (var share in shares)
+        {
+            var isTeam = share.SharedWithTeamId is not null;
+            string recipientName;
+
+            if (isTeam)
+            {
+                recipientName = await ResolveTeamNameAsync(share.SharedWithTeamId!.Value)
+                    ?? $"{share.SharedWithTeamId.Value:N}"[..8];
+            }
+            else if (share.SharedWithUserId is { } userId && userNames.TryGetValue(userId, out var name))
+            {
+                recipientName = name;
+            }
+            else
+            {
+                recipientName = share.SharedWithUserId is { } fallback ? $"{fallback:N}"[..8] : "Unknown";
+            }
+
+            entries.Add(new DncShareEntry
+            {
+                ShareId = share.Id,
+                RecipientName = recipientName,
+                RecipientType = isTeam ? "Team" : "User",
+                Permission = share.Permission is PhotoSharePermission.Download or PhotoSharePermission.Contribute
+                    ? "ReadWrite"
+                    : "Read",
+                CreatedAt = share.CreatedAt
+            });
+        }
+
+        return entries;
+    }
+
+    private async Task<IReadOnlyDictionary<Guid, string>> ResolveUserNamesAsync(IReadOnlyList<PhotoShareDto> shares)
+    {
+        var ids = shares
+            .Where(s => s.SharedWithTeamId is null && s.SharedWithUserId is not null)
+            .Select(s => s.SharedWithUserId!.Value)
+            .Distinct()
+            .ToArray();
+
+        if (ids.Length == 0)
+        {
+            return new Dictionary<Guid, string>();
+        }
+
+        try
+        {
+            return await UserDirectory.GetDisplayNamesAsync(ids);
+        }
+        catch
+        {
+            return new Dictionary<Guid, string>();
+        }
+    }
+
+    private async Task<string?> ResolveTeamNameAsync(Guid teamId)
+    {
+        try
+        {
+            var team = await TeamDirectory.GetTeamAsync(teamId);
+            return team?.Name;
+        }
+        catch
+        {
+            return null;
         }
     }
 

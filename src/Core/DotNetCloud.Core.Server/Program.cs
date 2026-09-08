@@ -354,6 +354,15 @@ public class Program
             ServiceLifetime.Transient);
         builder.Services.AddFilesUiServices(builder.Configuration!);
 
+        // Shared-with-me aggregation for the Files virtual "_DotNetCloud/SharedWithMe" tree.
+        // Each module registers an ISharedWithMeProvider; the registry facade feeds the Files
+        // module which never references other modules directly (aggregation is a core concern).
+        builder.Services.AddSingleton<DotNetCloud.Core.SharedWithMe.ISharedWithMeProvider, DotNetCloud.Core.Server.SharedWithMe.NotesSharedWithMeProvider>();
+        builder.Services.AddSingleton<DotNetCloud.Core.SharedWithMe.ISharedWithMeProvider, DotNetCloud.Core.Server.SharedWithMe.PhotosSharedWithMeProvider>();
+        builder.Services.AddSingleton<DotNetCloud.Core.SharedWithMe.ISharedWithMeProvider, DotNetCloud.Core.Server.SharedWithMe.ContactsSharedWithMeProvider>();
+        builder.Services.AddSingleton<DotNetCloud.Core.SharedWithMe.ISharedWithMeProvider, DotNetCloud.Core.Server.SharedWithMe.CalendarSharedWithMeProvider>();
+        builder.Services.AddSingleton<DotNetCloud.Core.SharedWithMe.ISharedWithMeModuleRegistry, DotNetCloud.Core.Server.SharedWithMe.SharedWithMeModuleRegistry>();
+
         // Chat module UI services (ChatPageLayout and related Blazor components).
         builder.Services.AddDbContext<ChatDbContext>(options =>
             ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Chat.Data"),
@@ -517,6 +526,10 @@ public class Program
         builder.Services.AddSingleton<WidgetUiRegistry>();
         builder.Services.AddScoped<DotNetCloud.UI.Shared.Services.BrowserTimeProvider>();
         builder.Services.AddScoped<ToastService>();
+        // Shared share-recipient search (users + the caller's teams) used by the
+        // unified DncShareDialog across every module UI.
+        DotNetCloud.UI.Shared.Services.ShareRecipientSearchServiceCollectionExtensions
+            .AddShareRecipientSearch(builder.Services);
         builder.Services.AddScoped<DotNetCloud.Core.Server.Middleware.CookieCaptureStore>();
         builder.Services.AddScoped<Microsoft.AspNetCore.Components.Server.Circuits.CircuitHandler, DotNetCloud.Core.Server.Middleware.CookieCaptureCircuitHandler>();
         builder.Services.AddTransient<DotNetCloud.Core.Server.Middleware.CookieForwardingHandler>();

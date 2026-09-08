@@ -22,7 +22,7 @@ public class AlbumSharedNotificationHandlerTests
         await handler.HandleAsync(evt, CancellationToken.None);
 
         notifMock.Verify(n => n.SendAsync(
-            evt.SharedWithUserId,
+            evt.SharedWithUserId!.Value,
             It.Is<NotificationDto>(d =>
                 d.UserId == evt.SharedWithUserId &&
                 d.Type == NotificationType.Share &&
@@ -54,6 +54,32 @@ public class AlbumSharedNotificationHandlerTests
             notifMock.Object);
 
         await handler.HandleAsync(CreateEvent(), CancellationToken.None);
+    }
+
+    [TestMethod]
+    public async Task HandleAsync_TeamShare_SkipsDirectUserNotification()
+    {
+        var notifMock = new Mock<INotificationService>();
+        var handler = new AlbumSharedNotificationHandler(
+            Mock.Of<ILogger<AlbumSharedNotificationHandler>>(),
+            notifMock.Object);
+
+        var evt = new AlbumSharedEvent
+        {
+            EventId = Guid.CreateVersion7(),
+            CreatedAt = DateTime.UtcNow,
+            AlbumId = Guid.CreateVersion7(),
+            SharedByUserId = Guid.CreateVersion7(),
+            SharedWithUserId = null,
+            SharedWithTeamId = Guid.CreateVersion7(),
+            Permission = "ReadOnly"
+        };
+
+        await handler.HandleAsync(evt, CancellationToken.None);
+
+        notifMock.Verify(
+            n => n.SendAsync(It.IsAny<Guid>(), It.IsAny<NotificationDto>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [TestMethod]

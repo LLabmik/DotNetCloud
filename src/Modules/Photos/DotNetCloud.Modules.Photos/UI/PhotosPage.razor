@@ -19,6 +19,8 @@
 @inject DotNetCloud.Modules.Photos.Events.IPhotoIndexingCallback PhotoIndexingCallback
 @inject IJSRuntime Js
 @inject Microsoft.Extensions.Logging.ILogger<PhotosPage> Logger
+@inject DotNetCloud.Core.Capabilities.IUserDirectory UserDirectory
+@inject DotNetCloud.Core.Capabilities.ITeamDirectory TeamDirectory
 
 <div class="photos-layout">
     @* ─── Sidebar ─── *@
@@ -134,6 +136,12 @@
                 }
             </div>
             <div class="toolbar-right">
+                @if (_section == Section.Albums && _selectedAlbum is not null && _selectedAlbum.OwnerId ==
+                _caller?.UserId)
+                {
+                    <button class="btn-primary photos-album-share-btn" @onclick="BeginAlbumShare"
+                            title="Share album">Share</button>
+                }
                 <div class="search-box">
                     <input type="text" placeholder="Search photos…" @bind="_searchQuery" @bind:event="oninput"
                            @onkeyup="HandleSearchKeyUp" />
@@ -511,7 +519,10 @@
                                             <button class="lb-btn" @onclick="() => _showEditPanel = !_showEditPanel" title="Edit">✎</button>
                                             <button class="lb-btn" @onclick="() => _showInfoPanel = !_showInfoPanel" title="Info">ⓘ</button>
                                             <button class="lb-btn" @onclick="() => BeginSlideshow()" title="Slideshow">▶</button>
-                                            <button class="lb-btn" @onclick="() => BeginShare(_lightboxPhoto)" title="Share">↗</button>
+                                            @if (_lightboxPhoto.OwnerId == _caller?.UserId)
+                                            {
+                                                <button class="lb-btn" @onclick="() => BeginShare(_lightboxPhoto)" title="Share">↗</button>
+                                            }
                                             <button class="lb-btn danger" @onclick="() => DeletePhotoAsync(_lightboxPhoto)"
                                                     title="Delete">🗑</button>
                                             <button class="lb-btn close" @onclick="CloseLightbox" title="Close">✕</button>
@@ -686,34 +697,13 @@
                                                     </div>
                                                 }
 
-                                                @* ─── Share Dialog ─── *@
-                                                @if (_showShareDialog && _shareTargetPhotoId.HasValue)
-                                                {
-                                                    <div class="dialog-overlay" @onclick="() => _showShareDialog = false">
-                                                        <div class="dialog-panel" @onclick:stopPropagation="true">
-                                                            <div class="dialog-header">
-                                                                <h4>Share Photo</h4>
-                                                                <button class="btn-icon" @onclick="() => _showShareDialog = false" aria-label="Close"
-                                                                        title="Close">X</button>
-                                                            </div>
-                                                            <div class="dialog-form">
-                                                                <label>Share with (User ID)
-                                                                    <input type="text" @bind="_shareUserId" placeholder="User ID" />
-                                                                </label>
-                                                                <label>Permission
-                                                                    <select @bind="_sharePermission">
-                                                                        <option value="@PhotoSharePermission.ReadOnly">View only</option>
-                                                                        <option value="@PhotoSharePermission.Download">Download</option>
-                                                                        <option value="@PhotoSharePermission.Contribute">Contribute</option>
-                                                                    </select>
-                                                                </label>
-                                                            </div>
-                                                            <div class="dialog-actions">
-                                                                <button class="btn-primary" @onclick="SaveShareAsync">Share</button>
-                                                                <button class="btn-cancel" @onclick="() => _showShareDialog = false">Cancel</button>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                }
                                             </main>
+
+                                            @if (_showShareDialog)
+                                            {
+                                                <DncShareDialog ItemName="@_shareDialogItemName" ItemCount="1" AllowPermissionEditing="false"
+                                                                PermissionOptions="PhotoPermissionOptions" ExistingShares="_shareDialogShares"
+                                                                IsLoadingShares="_isLoadingShareDialogShares" OnClose="CloseShareDialog"
+                                                                OnShareCreated="HandleShareCreatedAsync" OnShareRemoved="HandleShareRemovedAsync" />
+                                            }
                                         </div>
