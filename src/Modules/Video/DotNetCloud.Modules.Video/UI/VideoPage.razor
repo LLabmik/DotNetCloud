@@ -1033,7 +1033,7 @@
                                                 </div>
                                                 <span class="hint" style="word-break: break-word;">@source.DisplayPath</span>
                                             </div>
-                                            <button type="button" class="btn btn-outline btn-sm" @onclick="() => RemoveLibrarySource(source)">Remove</button>
+                                            <button type="button" class="btn btn-outline btn-sm" @onclick="() => RequestRemoveLibrarySourceAsync(source)">Remove</button>
                                         </div>
                                     }
                                 }
@@ -1211,6 +1211,36 @@
                         </div>
                     </div>
                 </div>
+            }
+
+            @* ── Remove Source Confirmation Modal ── *@
+            @if (_sourceRemovePending is { } pendingSource)
+            {
+                <DncModal Title="Remove Library Source" StartVisible OnClose="CancelRemoveLibrarySource">
+                    <ChildContent>
+                        <p>Remove <strong>@pendingSource.DisplayName</strong> as a video library source?</p>
+                        @if (_sourceRemoveCount >= 0)
+                        {
+                            <p class="tracks-modal-warning">
+                                <MaterialIcon Icon="warning" /> This will remove <strong>@_sourceRemoveCount</strong>
+                                item(s) from your library that exist only in this folder. Your actual video files are NOT affected.
+                            </p>
+                        }
+                        else
+                        {
+                            <p class="tracks-modal-warning">
+                                <MaterialIcon Icon="warning" /> Content that exists only in this folder will be removed
+                                from your library. Your actual video files are NOT affected.
+                            </p>
+                        }
+                    </ChildContent>
+                    <Footer>
+                        <button class="btn btn-secondary" @onclick="CancelRemoveLibrarySource" disabled="@_removingSource">Cancel</button>
+                        <button class="btn btn-danger" @onclick="ConfirmRemoveLibrarySourceAsync" disabled="@_removingSource">
+                            @(_removingSource ? "Removing..." : "Remove Source")
+                        </button>
+                    </Footer>
+                </DncModal>
             }
 
             @* ── Reset Collection Confirmation Modal ── *@

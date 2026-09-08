@@ -190,24 +190,76 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
     public async Task<int> RemoveDeletedVideosAsync(IReadOnlyCollection<Guid> deletedFileNodeIds, Guid ownerId, CancellationToken cancellationToken = default)
     {
         var videos = await _db.UserVideos
-            .Where(uv => uv.OwnerId == ownerId && deletedFileNodeIds.Contains(uv.FileNodeId) && !uv.IsDeleted)
+            .IgnoreQueryFilters()
+            .Where(uv => uv.OwnerId == ownerId && deletedFileNodeIds.Contains(uv.FileNodeId))
             .ToListAsync(cancellationToken);
 
         if (videos.Count == 0)
             return 0;
 
-        // Soft-delete the user video records.
-        var now = DateTime.UtcNow;
-        foreach (var uv in videos)
+        var deletedVideoIds = videos.Select(uv => uv.Id).ToHashSet();
+        var removedContentHashes = videos.Select(uv => uv.CanonicalContentHash).Distinct().ToList();
+
+        // The same content can live under several file nodes (e.g. one series stored in two
+        // library sources as duplicate copies). Only treat a content hash as fully removed when
+        // NO other non-deleted copy remains for this owner, so removing one source does not wipe
+        // a series that is still present under another source.
+        var hashesStillOwned = await _db.UserVideos
+            .IgnoreQueryFilters()
+            .Where(uv => uv.OwnerId == ownerId && !uv.IsDeleted
+                && removedContentHashes.Contains(uv.CanonicalContentHash)
+                && !deletedVideoIds.Contains(uv.Id))
+            .Select(uv => uv.CanonicalContentHash)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+        var fullyRemovedHashes = removedContentHashes.Except(hashesStillOwned).ToList();
+
+        // Drop per-user collection membership only for content fully leaving this owner's library.
+        if (fullyRemovedHashes.Count > 0)
         {
-            uv.IsDeleted = true;
-            uv.DeletedAt = now;
+            var collectionIds = await _db.UserVideoCollections
+                .Where(c => c.OwnerId == ownerId)
+                .Select(c => c.Id)
+                .ToListAsync(cancellationToken);
+            var staleItems = await _db.UserVideoCollectionItems
+                .Where(ci => collectionIds.Contains(ci.CollectionId) && fullyRemovedHashes.Contains(ci.CanonicalContentHash))
+                .ToListAsync(cancellationToken);
+            _db.UserVideoCollectionItems.RemoveRange(staleItems);
         }
 
+        // Hard-delete the user-video junction rows so the unique (FileNodeId, OwnerId) index slot
+        // is freed and the file can be re-imported if the source is added back later.
+        _db.UserVideos.RemoveRange(videos);
         await _db.SaveChangesAsync(cancellationToken);
 
+        // Remove canonical series items/episodes only for content that no longer has ANY user
+        // video across all owners. Shared content (another copy or another user) keeps its series
+        // membership.
+        var hashesWithRemainingUsers = await _db.UserVideos
+            .IgnoreQueryFilters()
+            .Where(uv => removedContentHashes.Contains(uv.CanonicalContentHash))
+            .Select(uv => uv.CanonicalContentHash)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+        var orphanedHashes = removedContentHashes.Except(hashesWithRemainingUsers).ToList();
+
+        if (orphanedHashes.Count > 0)
+        {
+            var orphanedSeriesItems = await _db.CanonicalVideoSeriesItems
+                .Where(i => orphanedHashes.Contains(i.VideoContentHash))
+                .ToListAsync(cancellationToken);
+            _db.CanonicalVideoSeriesItems.RemoveRange(orphanedSeriesItems);
+
+            var orphanedEpisodes = await _db.CanonicalVideoEpisodes
+                .Where(e => orphanedHashes.Contains(e.VideoContentHash))
+                .ToListAsync(cancellationToken);
+            _db.CanonicalVideoEpisodes.RemoveRange(orphanedEpisodes);
+
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+
         _logger.LogInformation(
-            "Removed {Count} deleted video records for user {OwnerId}",
+            "Hard-deleted {Count} video records for user {OwnerId} (removed from library)",
             videos.Count, ownerId);
 
         return videos.Count;

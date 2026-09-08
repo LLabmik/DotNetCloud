@@ -111,6 +111,18 @@ public sealed class VideoService : IVideoService
             }
         }
 
+        // Hard-delete any stale soft-deleted tombstone for this (owner, file node) so a re-import
+        // after a source removal doesn't collide with the unique (FileNodeId, OwnerId) index.
+        var tombstones = await _db.UserVideos
+            .IgnoreQueryFilters()
+            .Where(uv => uv.OwnerId == ownerId && uv.FileNodeId == fileNodeId && uv.IsDeleted)
+            .ToListAsync(cancellationToken);
+        if (tombstones.Count > 0)
+        {
+            _db.UserVideos.RemoveRange(tombstones);
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+
         var userVideo = new UserVideo
         {
             OwnerId = ownerId,

@@ -79,6 +79,18 @@ public sealed class PhotoService : IPhotoService
     /// </summary>
     public async Task<PhotoDto> CreatePhotoAsync(Guid fileNodeId, string fileName, string mimeType, long sizeBytes, Guid ownerId, CallerContext caller, CancellationToken cancellationToken = default)
     {
+        // Hard-delete any stale soft-deleted tombstone for this (owner, file node) so a re-import
+        // after a source removal doesn't collide with the unique (FileNodeId, OwnerId) index.
+        var tombstones = await _db.Photos
+            .IgnoreQueryFilters()
+            .Where(p => p.OwnerId == ownerId && p.FileNodeId == fileNodeId && p.IsDeleted)
+            .ToListAsync(cancellationToken);
+        if (tombstones.Count > 0)
+        {
+            _db.Photos.RemoveRange(tombstones);
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+
         var photo = new Photo
         {
             FileNodeId = fileNodeId,

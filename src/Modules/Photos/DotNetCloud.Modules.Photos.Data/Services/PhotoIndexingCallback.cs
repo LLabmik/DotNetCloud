@@ -83,7 +83,8 @@ public sealed class PhotoIndexingCallback : IPhotoIndexingCallback
     public async Task<int> RemoveDeletedPhotosAsync(IReadOnlyCollection<Guid> deletedFileNodeIds, Guid ownerId, CancellationToken cancellationToken = default)
     {
         var photos = await _db.Photos
-            .Where(p => p.OwnerId == ownerId && deletedFileNodeIds.Contains(p.FileNodeId) && !p.IsDeleted)
+            .IgnoreQueryFilters()
+            .Where(p => p.OwnerId == ownerId && deletedFileNodeIds.Contains(p.FileNodeId))
             .ToListAsync(cancellationToken);
 
         if (photos.Count == 0)
@@ -117,18 +118,13 @@ public sealed class PhotoIndexingCallback : IPhotoIndexingCallback
             .ToListAsync(cancellationToken);
         _db.PhotoMetadata.RemoveRange(metadatas);
 
-        // Soft-delete the photo records.
-        var now = DateTime.UtcNow;
-        foreach (var photo in photos)
-        {
-            photo.IsDeleted = true;
-            photo.DeletedAt = now;
-        }
-
+        // Hard-delete the photo records so the unique (FileNodeId, OwnerId) index slot is freed
+        // and the photos can be re-imported if the source is added back later.
+        _db.Photos.RemoveRange(photos);
         await _db.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation(
-            "Removed {Count} deleted photo records for user {OwnerId}",
+            "Hard-deleted {Count} photo records for user {OwnerId} (removed from library)",
             photos.Count, ownerId);
 
         return photos.Count;
