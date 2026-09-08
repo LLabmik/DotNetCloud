@@ -37,6 +37,10 @@ public sealed class PhotoShareConfiguration : IEntityTypeConfiguration<PhotoShar
         builder.HasIndex(s => s.SharedWithUserId)
             .HasDatabaseName("ix_photo_shares_shared_with");
 
+        // Index by shared team (team shares)
+        builder.HasIndex(s => s.SharedWithTeamId)
+            .HasDatabaseName("ix_photo_shares_shared_with_team");
+
         builder.HasIndex(s => s.PhotoId)
             .HasDatabaseName("ix_photo_shares_photo_id");
 

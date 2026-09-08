@@ -22,6 +22,7 @@ public interface INotesApiClient
     // Sharing
     Task<IReadOnlyList<NoteShareDto>> ListSharesAsync(Guid noteId, CancellationToken cancellationToken = default);
     Task<NoteShareDto?> ShareNoteAsync(Guid noteId, Guid userId, NoteSharePermission permission = NoteSharePermission.ReadOnly, CancellationToken cancellationToken = default);
+    Task<NoteShareDto?> ShareNoteAsync(Guid noteId, Guid? userId, Guid? teamId, NoteSharePermission permission = NoteSharePermission.ReadOnly, CancellationToken cancellationToken = default);
     Task RevokeShareAsync(Guid shareId, CancellationToken cancellationToken = default);
 
     // Version history

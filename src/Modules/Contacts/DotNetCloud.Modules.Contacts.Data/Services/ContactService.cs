@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using IAuditLogger = DotNetCloud.Core.Capabilities.IAuditLogger;
 using AuditEntry = DotNetCloud.Core.Capabilities.AuditEntry;
 using AuditAction = DotNetCloud.Core.Capabilities.AuditAction;
+using ITeamDirectory = DotNetCloud.Core.Capabilities.ITeamDirectory;
 
 namespace DotNetCloud.Modules.Contacts.Data.Services;
 
@@ -20,17 +21,47 @@ public sealed class ContactService : IContactService
     private readonly ContactsDbContext _db;
     private readonly IEventBus _eventBus;
     private readonly IAuditLogger _auditLogger;
+    private readonly ITeamDirectory? _teamDirectory;
     private readonly ILogger<ContactService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ContactService"/> class.
     /// </summary>
-    public ContactService(ContactsDbContext db, IEventBus eventBus, IAuditLogger auditLogger, ILogger<ContactService> logger)
+    public ContactService(
+        ContactsDbContext db,
+        IEventBus eventBus,
+        IAuditLogger auditLogger,
+        ILogger<ContactService> logger,
+        ITeamDirectory? teamDirectory = null)
     {
         _db = db;
         _eventBus = eventBus;
         _auditLogger = auditLogger;
+        _teamDirectory = teamDirectory;
         _logger = logger;
+    }
+
+    /// <summary>
+    /// Resolves the caller's team IDs for team-share access checks (empty when the
+    /// team directory capability is unavailable).
+    /// </summary>
+    private async Task<Guid[]> GetCallerTeamIdsAsync(CallerContext caller, CancellationToken cancellationToken)
+    {
+        if (_teamDirectory is null)
+        {
+            return [];
+        }
+
+        try
+        {
+            var teams = await _teamDirectory.GetTeamsForUserAsync(caller.UserId, cancellationToken);
+            return teams.Select(t => t.Id).ToArray();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to resolve team memberships for {UserId}", caller.UserId);
+            return [];
+        }
     }
 
     /// <inheritdoc />
@@ -140,8 +171,12 @@ public sealed class ContactService : IContactService
     /// <inheritdoc />
     public async Task<ContactDto?> GetContactAsync(Guid contactId, CallerContext caller, CancellationToken cancellationToken = default)
     {
+        var teamIds = await GetCallerTeamIdsAsync(caller, cancellationToken);
         var contact = await QueryContacts()
-            .FirstOrDefaultAsync(c => c.Id == contactId && (c.OwnerId == caller.UserId || c.Shares.Any(s => s.SharedWithUserId == caller.UserId)), cancellationToken);
+            .FirstOrDefaultAsync(c => c.Id == contactId && (
+                c.OwnerId == caller.UserId ||
+                c.Shares.Any(s => s.SharedWithUserId == caller.UserId ||
+                    (s.SharedWithTeamId != null && teamIds.Contains(s.SharedWithTeamId.Value)))), cancellationToken);
 
         return contact is null ? null : MapToDto(contact);
     }
@@ -308,8 +343,11 @@ public sealed class ContactService : IContactService
     /// <inheritdoc />
     public async Task<IReadOnlyList<ContactDto>> ListContactsAsync(CallerContext caller, string? search = null, int skip = 0, int take = 50, CancellationToken cancellationToken = default)
     {
+        var teamIds = await GetCallerTeamIdsAsync(caller, cancellationToken);
         var query = QueryContacts()
-            .Where(c => c.OwnerId == caller.UserId || c.Shares.Any(s => s.SharedWithUserId == caller.UserId));
+            .Where(c => c.OwnerId == caller.UserId ||
+                        c.Shares.Any(s => s.SharedWithUserId == caller.UserId ||
+                            (s.SharedWithTeamId != null && teamIds.Contains(s.SharedWithTeamId.Value))));
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -334,8 +372,11 @@ public sealed class ContactService : IContactService
     /// <inheritdoc />
     public async Task<IReadOnlyList<ContactDto>> GetRecentContactsAsync(CallerContext caller, int count = 5, CancellationToken cancellationToken = default)
     {
+        var teamIds = await GetCallerTeamIdsAsync(caller, cancellationToken);
         var contacts = await QueryContacts()
-            .Where(c => c.OwnerId == caller.UserId || c.Shares.Any(s => s.SharedWithUserId == caller.UserId))
+            .Where(c => c.OwnerId == caller.UserId ||
+                        c.Shares.Any(s => s.SharedWithUserId == caller.UserId ||
+                            (s.SharedWithTeamId != null && teamIds.Contains(s.SharedWithTeamId.Value))))
             .OrderByDescending(c => c.CreatedAt)
             .Take(count)
             .ToListAsync(cancellationToken);
@@ -350,8 +391,12 @@ public sealed class ContactService : IContactService
         if (ids.Count == 0)
             return [];
 
+        var teamIds = await GetCallerTeamIdsAsync(caller, cancellationToken);
         var contacts = await QueryContacts()
-            .Where(c => ids.Contains(c.Id) && (c.OwnerId == caller.UserId || c.Shares.Any(s => s.SharedWithUserId == caller.UserId)))
+            .Where(c => ids.Contains(c.Id) && (
+                c.OwnerId == caller.UserId ||
+                c.Shares.Any(s => s.SharedWithUserId == caller.UserId ||
+                    (s.SharedWithTeamId != null && teamIds.Contains(s.SharedWithTeamId.Value)))))
             .ToListAsync(cancellationToken);
 
         return contacts.Select(MapToDto).ToList();

@@ -344,6 +344,7 @@ public sealed class NotesGrpcService : Protos.NotesGrpcService.NotesGrpcServiceB
                 Id = s.Id.ToString(),
                 NoteId = s.NoteId.ToString(),
                 SharedWithUserId = s.SharedWithUserId.ToString(),
+                SharedWithTeamId = s.SharedWithTeamId?.ToString() ?? string.Empty,
                 Permission = s.Permission.ToString(),
                 CreatedAt = s.CreatedAt.ToString("O")
             }));
@@ -361,9 +362,24 @@ public sealed class NotesGrpcService : Protos.NotesGrpcService.NotesGrpcServiceB
         ShareNoteRequest request, ServerCallContext context)
     {
         if (!Guid.TryParse(request.NoteId, out var noteId) ||
-            !Guid.TryParse(request.UserId, out var userId) ||
-            !Guid.TryParse(request.TargetUserId, out var targetUserId))
+            !Guid.TryParse(request.UserId, out var userId))
             return new ShareNoteResponse { Success = false, ErrorMessage = "Invalid ID format." };
+
+        // User XOR team target.
+        Guid? targetUserId = null;
+        Guid? targetTeamId = null;
+        if (!string.IsNullOrWhiteSpace(request.TargetUserId) && Guid.TryParse(request.TargetUserId, out var parsedUser))
+        {
+            targetUserId = parsedUser;
+        }
+        else if (!string.IsNullOrWhiteSpace(request.TargetTeamId) && Guid.TryParse(request.TargetTeamId, out var parsedTeam))
+        {
+            targetTeamId = parsedTeam;
+        }
+        else
+        {
+            return new ShareNoteResponse { Success = false, ErrorMessage = "Invalid ID format." };
+        }
 
         var permission = Enum.TryParse<NoteSharePermission>(request.Permission, true, out var perm)
             ? perm : NoteSharePermission.ReadOnly;
@@ -371,7 +387,7 @@ public sealed class NotesGrpcService : Protos.NotesGrpcService.NotesGrpcServiceB
         try
         {
             var result = await _shareService.ShareNoteAsync(
-                noteId, targetUserId, permission,
+                noteId, targetUserId, targetTeamId, permission,
                 new CallerContext(userId, ["user"], CallerType.User), context.CancellationToken);
             return new ShareNoteResponse
             {
@@ -381,6 +397,7 @@ public sealed class NotesGrpcService : Protos.NotesGrpcService.NotesGrpcServiceB
                     Id = result.Id.ToString(),
                     NoteId = result.NoteId.ToString(),
                     SharedWithUserId = result.SharedWithUserId.ToString(),
+                    SharedWithTeamId = result.SharedWithTeamId?.ToString() ?? string.Empty,
                     Permission = result.Permission.ToString(),
                     CreatedAt = result.CreatedAt.ToString("O")
                 }

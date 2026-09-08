@@ -318,6 +318,15 @@ public class CalendarController : CalendarControllerBase
         }
     }
 
+    /// <summary>Lists calendars shared with the caller (user and team shares) for aggregated surfaces.</summary>
+    [HttpGet("shared-with-me")]
+    public async Task<IActionResult> ListSharedWithMeAsync()
+    {
+        var caller = GetAuthenticatedCaller();
+        var items = await _shareService.ListSharedWithMeAsync(caller);
+        return Ok(Envelope(items));
+    }
+
     // ─── iCalendar Import/Export ──────────────────────────────────────────
 
     /// <summary>Exports a single event as iCalendar text.</summary>

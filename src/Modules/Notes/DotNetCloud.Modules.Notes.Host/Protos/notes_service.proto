@@ -218,6 +218,7 @@ message NoteShareMessage {
   string shared_with_user_id = 3;
   string permission = 4;  // "ReadOnly", "ReadWrite"
   string created_at = 5;
+  string shared_with_team_id = 6;  // empty when shared with a user
 }
 
 message ShareNoteRequest {
@@ -225,6 +226,7 @@ message ShareNoteRequest {
   string user_id = 2;
   string target_user_id = 3;
   string permission = 4;
+  string target_team_id = 5;  // set when sharing with a team (user XOR team)
 }
 
 message ShareNoteResponse {

@@ -16,6 +16,13 @@ public sealed record NoteDto
     public required Guid OwnerId { get; init; }
 
     /// <summary>
+    /// The permission the current caller holds on this note when it was shared with
+    /// them (user or team share); <c>null</c> when the caller is the owner. Lets
+    /// clients render a read-only vs editable affordance without another round trip.
+    /// </summary>
+    public NoteSharePermission? ViewerPermission { get; init; }
+
+    /// <summary>
     /// Optional folder this note is filed under.
     /// </summary>
     public Guid? FolderId { get; init; }
@@ -392,8 +399,11 @@ public sealed record NoteShareDto
     /// <summary>Note ID.</summary>
     public required Guid NoteId { get; init; }
 
-    /// <summary>User the note is shared with.</summary>
+    /// <summary>User the note is shared with (Guid.Empty for team shares).</summary>
     public required Guid SharedWithUserId { get; init; }
+
+    /// <summary>Team the note is shared with, when the share target is a team.</summary>
+    public Guid? SharedWithTeamId { get; init; }
 
     /// <summary>Permission level.</summary>
     public required NoteSharePermission Permission { get; init; }

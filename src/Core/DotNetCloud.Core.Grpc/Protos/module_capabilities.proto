@@ -36,6 +36,12 @@ service CoreCapabilities {
   // Gets basic group information by ID (IGroupDirectory capability).
   rpc GetGroup (GetGroupRequest) returns (GetGroupResponse);
 
+  // Gets basic team information by ID (ITeamDirectory capability).
+  rpc GetTeam (GetTeamRequest) returns (GetTeamResponse);
+
+  // Lists the teams a given user is a member of (ITeamDirectory capability).
+  rpc GetTeamsForUser (GetTeamsForUserRequest) returns (GetTeamsForUserResponse);
+
   // Broadcasts a real-time event to connected SignalR clients.
   // Called by process-isolated module hosts that need to push real-time
   // events (new messages, typing indicators, etc.) to web/mobile clients
@@ -211,6 +217,36 @@ message GroupInfoMessage {
   bool is_all_users_group = 5;
   int32 member_count = 6;
   string created_at = 7;
+}
+
+// --- ITeamDirectory ---
+
+message GetTeamRequest {
+  CallerContextMessage caller = 1;
+  string team_id = 2;
+}
+
+message GetTeamResponse {
+  bool found = 1;
+  TeamInfoMessage team = 2;
+}
+
+message GetTeamsForUserRequest {
+  CallerContextMessage caller = 1;
+  string user_id = 2;
+}
+
+message GetTeamsForUserResponse {
+  repeated TeamInfoMessage teams = 1;
+}
+
+message TeamInfoMessage {
+  string id = 1;
+  string organization_id = 2;
+  string name = 3;
+  string description = 4;
+  int32 member_count = 5;
+  string created_at = 6;
 }
 
 // --- BroadcastRealtimeEvent ---

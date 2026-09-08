@@ -164,6 +164,10 @@ builder.Services.AddSingleton<ITableNamingStrategy>(string.Equals(dbProvider, "P
 // Files module business logic services
 builder.Services.AddFilesServices(builder.Configuration);
 
+// Team directory capability over gRPC (short-lived cache) — lets share/read services
+// resolve a caller's team membership from Core.Server without a round trip per access query.
+builder.Services.AddGrpcTeamDirectory();
+
 // Media metadata extractors (EXIF for photos, tag readers for audio/video)
 builder.Services.AddMediaMetadataExtractors();
 

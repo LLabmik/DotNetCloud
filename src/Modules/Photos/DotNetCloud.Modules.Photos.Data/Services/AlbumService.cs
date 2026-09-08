@@ -7,6 +7,7 @@ using DotNetCloud.Modules.Photos.Models;
 using DotNetCloud.Modules.Photos.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using ITeamDirectory = DotNetCloud.Core.Capabilities.ITeamDirectory;
 
 namespace DotNetCloud.Modules.Photos.Data.Services;
 
@@ -17,16 +18,41 @@ public sealed class AlbumService : Photos.Services.IAlbumService
 {
     private readonly PhotosDbContext _db;
     private readonly IEventBus _eventBus;
+    private readonly ITeamDirectory? _teamDirectory;
     private readonly ILogger<AlbumService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AlbumService"/> class.
     /// </summary>
-    public AlbumService(PhotosDbContext db, IEventBus eventBus, ILogger<AlbumService> logger)
+    public AlbumService(PhotosDbContext db, IEventBus eventBus, ILogger<AlbumService> logger, ITeamDirectory? teamDirectory = null)
     {
         _db = db;
         _eventBus = eventBus;
+        _teamDirectory = teamDirectory;
         _logger = logger;
+    }
+
+    /// <summary>
+    /// Resolves the caller's team IDs for team-share access checks (empty when the
+    /// team directory capability is unavailable).
+    /// </summary>
+    private async Task<Guid[]> GetCallerTeamIdsAsync(CallerContext caller, CancellationToken cancellationToken)
+    {
+        if (_teamDirectory is null)
+        {
+            return [];
+        }
+
+        try
+        {
+            var teams = await _teamDirectory.GetTeamsForUserAsync(caller.UserId, cancellationToken);
+            return teams.Select(t => t.Id).ToArray();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to resolve team memberships for {UserId}", caller.UserId);
+            return [];
+        }
     }
 
     /// <summary>
@@ -66,6 +92,8 @@ public sealed class AlbumService : Photos.Services.IAlbumService
     /// </summary>
     public async Task<AlbumDto?> GetAlbumAsync(Guid albumId, CallerContext caller, CancellationToken cancellationToken = default)
     {
+        var teamIds = await GetCallerTeamIdsAsync(caller, cancellationToken);
+
         var album = await _db.Albums
             .Include(a => a.AlbumPhotos)
             .Include(a => a.Shares)
@@ -74,7 +102,7 @@ public sealed class AlbumService : Photos.Services.IAlbumService
         if (album is null)
             return null;
 
-        if (album.OwnerId != caller.UserId && !await HasAlbumShareAccessAsync(albumId, caller.UserId, cancellationToken))
+        if (album.OwnerId != caller.UserId && !await HasAlbumShareAccessAsync(albumId, caller.UserId, teamIds, cancellationToken))
             return null;
 
         return MapToDto(album);
@@ -189,8 +217,12 @@ public sealed class AlbumService : Photos.Services.IAlbumService
         if (album is null)
             return [];
 
-        if (album.OwnerId != caller.UserId && !await HasAlbumShareAccessAsync(albumId, caller.UserId, cancellationToken))
-            return [];
+        if (album.OwnerId != caller.UserId)
+        {
+            var teamIds = await GetCallerTeamIdsAsync(caller, cancellationToken);
+            if (!await HasAlbumShareAccessAsync(albumId, caller.UserId, teamIds, cancellationToken))
+                return [];
+        }
 
         var photos = await _db.AlbumPhotos
             .Include(ap => ap.Photo).ThenInclude(p => p!.Tags)
@@ -203,10 +235,12 @@ public sealed class AlbumService : Photos.Services.IAlbumService
         return photos.Select(PhotoService.MapToDto).ToList();
     }
 
-    private async Task<bool> HasAlbumShareAccessAsync(Guid albumId, Guid userId, CancellationToken cancellationToken)
+    private async Task<bool> HasAlbumShareAccessAsync(Guid albumId, Guid userId, IReadOnlyCollection<Guid> teamIds, CancellationToken cancellationToken)
     {
         return await _db.PhotoShares.AnyAsync(
-            s => s.AlbumId == albumId && s.SharedWithUserId == userId &&
+            s => s.AlbumId == albumId &&
+                 (s.SharedWithUserId == userId ||
+                  (s.SharedWithTeamId != null && teamIds.Contains(s.SharedWithTeamId.Value))) &&
                  (s.ExpiresAt == null || s.ExpiresAt > DateTime.UtcNow),
             cancellationToken);
     }

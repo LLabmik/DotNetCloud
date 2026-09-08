@@ -16,4 +16,10 @@ public interface IContactShareService
 
     /// <summary>Lists shares for a contact.</summary>
     Task<IReadOnlyList<ContactShare>> ListSharesAsync(Guid contactId, CallerContext caller, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists the contacts shared with the caller (direct user shares plus shares targeting a
+    /// team the caller belongs to), including the contact display name for aggregated surfaces.
+    /// </summary>
+    Task<IReadOnlyList<ContactSharedItem>> ListSharedWithMeAsync(CallerContext caller, CancellationToken cancellationToken = default);
 }

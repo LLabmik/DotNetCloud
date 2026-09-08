@@ -6,6 +6,7 @@ using DotNetCloud.Modules.Calendar.Models;
 using DotNetCloud.Modules.Calendar.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using ITeamDirectory = DotNetCloud.Core.Capabilities.ITeamDirectory;
 
 namespace DotNetCloud.Modules.Calendar.Data.Services;
 
@@ -17,28 +18,55 @@ public sealed class ICalService : IICalendarService
 {
     private readonly CalendarDbContext _db;
     private readonly ICalendarEventService _eventService;
+    private readonly ITeamDirectory? _teamDirectory;
     private readonly ILogger<ICalService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ICalService"/> class.
     /// </summary>
-    public ICalService(CalendarDbContext db, ICalendarEventService eventService, ILogger<ICalService> logger)
+    public ICalService(CalendarDbContext db, ICalendarEventService eventService, ILogger<ICalService> logger, ITeamDirectory? teamDirectory = null)
     {
         _db = db;
         _eventService = eventService;
+        _teamDirectory = teamDirectory;
         _logger = logger;
+    }
+
+    /// <summary>
+    /// Resolves the caller's team IDs for team-share access checks (empty when the
+    /// team directory capability is unavailable).
+    /// </summary>
+    private async Task<Guid[]> GetCallerTeamIdsAsync(CallerContext caller, CancellationToken cancellationToken)
+    {
+        if (_teamDirectory is null)
+        {
+            return [];
+        }
+
+        try
+        {
+            var teams = await _teamDirectory.GetTeamsForUserAsync(caller.UserId, cancellationToken);
+            return teams.Select(t => t.Id).ToArray();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to resolve team memberships for {UserId}", caller.UserId);
+            return [];
+        }
     }
 
     /// <inheritdoc />
     public async Task<string> ExportEventAsync(Guid eventId, CallerContext caller, CancellationToken cancellationToken = default)
     {
+        var teamIds = await GetCallerTeamIdsAsync(caller, cancellationToken);
         var calendarEvent = await _db.CalendarEvents
             .Include(e => e.Attendees)
             .Include(e => e.Reminders)
             .AsNoTracking()
             .FirstOrDefaultAsync(e => e.Id == eventId && !e.IsDeleted &&
                 (e.Calendar!.OwnerId == caller.UserId ||
-                 e.Calendar.Shares.Any(s => s.SharedWithUserId == caller.UserId)),
+                 e.Calendar.Shares.Any(s => s.SharedWithUserId == caller.UserId ||
+                     (s.SharedWithTeamId != null && teamIds.Contains(s.SharedWithTeamId.Value)))),
                 cancellationToken)
             ?? throw new Core.Errors.ValidationException(Core.Errors.ErrorCodes.CalendarEventNotFound, "Calendar event not found.");
 
@@ -48,10 +76,12 @@ public sealed class ICalService : IICalendarService
     /// <inheritdoc />
     public async Task<string> ExportCalendarAsync(Guid calendarId, CallerContext caller, CancellationToken cancellationToken = default)
     {
+        var teamIds = await GetCallerTeamIdsAsync(caller, cancellationToken);
         var calendar = await _db.Calendars
             .AsNoTracking()
             .FirstOrDefaultAsync(c => c.Id == calendarId &&
-                (c.OwnerId == caller.UserId || c.Shares.Any(s => s.SharedWithUserId == caller.UserId)),
+                (c.OwnerId == caller.UserId || c.Shares.Any(s => s.SharedWithUserId == caller.UserId ||
+                    (s.SharedWithTeamId != null && teamIds.Contains(s.SharedWithTeamId.Value)))),
                 cancellationToken)
             ?? throw new Core.Errors.ValidationException(Core.Errors.ErrorCodes.CalendarNotFound, "Calendar not found.");
 

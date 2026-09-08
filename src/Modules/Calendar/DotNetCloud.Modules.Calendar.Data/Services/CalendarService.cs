@@ -1,6 +1,7 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Modules.Calendar.Models;
 using DotNetCloud.Modules.Calendar.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -8,6 +9,7 @@ using OrgDirectory = DotNetCloud.Core.Capabilities.IOrganizationDirectory;
 using IAuditLogger = DotNetCloud.Core.Capabilities.IAuditLogger;
 using AuditEntry = DotNetCloud.Core.Capabilities.AuditEntry;
 using AuditAction = DotNetCloud.Core.Capabilities.AuditAction;
+using ITeamDirectory = DotNetCloud.Core.Capabilities.ITeamDirectory;
 
 namespace DotNetCloud.Modules.Calendar.Data.Services;
 
@@ -20,6 +22,7 @@ public sealed class CalendarService : ICalendarService
     private readonly IEventBus _eventBus;
     private readonly OrgDirectory _orgDirectory;
     private readonly IAuditLogger _auditLogger;
+    private readonly ITeamDirectory? _teamDirectory;
     private readonly ILogger<CalendarService> _logger;
 
     /// <summary>
@@ -30,13 +33,38 @@ public sealed class CalendarService : ICalendarService
         IEventBus eventBus,
         DotNetCloud.Core.Capabilities.IOrganizationDirectory orgDirectory,
         IAuditLogger auditLogger,
-        ILogger<CalendarService> logger)
+        ILogger<CalendarService> logger,
+        ITeamDirectory? teamDirectory = null)
     {
         _db = db;
         _eventBus = eventBus;
         _orgDirectory = orgDirectory;
         _auditLogger = auditLogger;
+        _teamDirectory = teamDirectory;
         _logger = logger;
+    }
+
+    /// <summary>
+    /// Resolves the caller's team IDs for team-share access checks (empty when the
+    /// team directory capability is unavailable).
+    /// </summary>
+    private async Task<Guid[]> GetCallerTeamIdsAsync(CallerContext caller, CancellationToken cancellationToken)
+    {
+        if (_teamDirectory is null)
+        {
+            return [];
+        }
+
+        try
+        {
+            var teams = await _teamDirectory.GetTeamsForUserAsync(caller.UserId, cancellationToken);
+            return teams.Select(t => t.Id).ToArray();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to resolve team memberships for {UserId}", caller.UserId);
+            return [];
+        }
     }
 
     /// <inheritdoc />
@@ -84,6 +112,7 @@ public sealed class CalendarService : ICalendarService
     {
         var calendar = await _db.Calendars
             .AsNoTracking()
+            .Include(c => c.Shares)
             .FirstOrDefaultAsync(c => c.Id == calendarId, cancellationToken);
 
         if (calendar is null)
@@ -98,10 +127,13 @@ public sealed class CalendarService : ICalendarService
     /// <inheritdoc />
     public async Task<IReadOnlyList<CalendarDto>> ListCalendarsAsync(CallerContext caller, CancellationToken cancellationToken = default)
     {
+        var teamIds = await GetCallerTeamIdsAsync(caller, cancellationToken);
+
         // Load all user-owned + shared calendars
         var calendars = await _db.Calendars
             .AsNoTracking()
-            .Where(c => c.OwnerId == caller.UserId || c.Shares.Any(s => s.SharedWithUserId == caller.UserId))
+            .Where(c => c.OwnerId == caller.UserId || c.Shares.Any(s => s.SharedWithUserId == caller.UserId ||
+                (s.SharedWithTeamId != null && teamIds.Contains(s.SharedWithTeamId.Value))))
             .OrderBy(c => c.Name)
             .ToListAsync(cancellationToken);
 
@@ -132,6 +164,7 @@ public sealed class CalendarService : ICalendarService
         ArgumentNullException.ThrowIfNull(dto);
 
         var calendar = await _db.Calendars
+            .Include(c => c.Shares)
             .FirstOrDefaultAsync(c => c.Id == calendarId, cancellationToken)
             ?? throw new Core.Errors.ValidationException(Core.Errors.ErrorCodes.CalendarNotFound, "Calendar not found.");
 
@@ -163,6 +196,7 @@ public sealed class CalendarService : ICalendarService
     public async Task DeleteCalendarAsync(Guid calendarId, CallerContext caller, CancellationToken cancellationToken = default)
     {
         var calendar = await _db.Calendars
+            .Include(c => c.Shares)
             .FirstOrDefaultAsync(c => c.Id == calendarId, cancellationToken)
             ?? throw new Core.Errors.ValidationException(Core.Errors.ErrorCodes.CalendarNotFound, "Calendar not found.");
 
@@ -209,8 +243,20 @@ public sealed class CalendarService : ICalendarService
 
         if (calendar.OrganizationId is null)
         {
-            // User-owned: owner has full access; shares checked separately
-            return calendar.OwnerId == caller.UserId || calendar.Shares.Any(s => s.SharedWithUserId == caller.UserId);
+            // User-owned: owner has full access; shared users get access via user/team shares.
+            if (calendar.OwnerId == caller.UserId)
+                return true;
+
+            var teamIds = await GetCallerTeamIdsAsync(caller, cancellationToken);
+            if (!requireWrite)
+            {
+                return calendar.Shares.Any(s => s.SharedWithUserId == caller.UserId ||
+                    (s.SharedWithTeamId != null && teamIds.Contains(s.SharedWithTeamId.Value)));
+            }
+
+            return calendar.Shares.Any(s => s.Permission == CalendarSharePermission.ReadWrite &&
+                (s.SharedWithUserId == caller.UserId ||
+                 (s.SharedWithTeamId != null && teamIds.Contains(s.SharedWithTeamId.Value))));
         }
 
         // Org-owned: user must be an active member

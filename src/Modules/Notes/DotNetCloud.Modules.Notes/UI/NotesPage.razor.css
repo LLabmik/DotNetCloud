@@ -377,7 +377,6 @@
   padding: 8px 16px;
 }
 
-.notes-share-panel,
 .notes-version-panel {
   padding: 12px;
   background: var(--color-bg);
@@ -385,7 +384,6 @@
   margin-bottom: 16px;
 }
 
-.notes-share-panel h4,
 .notes-version-panel h4 {
   margin: 0 0 8px 0;
   font-size: 13px;
@@ -393,50 +391,10 @@
   color: var(--color-text);
 }
 
-.notes-share-panel p,
 .notes-version-panel p {
   margin: 0 0 6px 0;
   font-size: 12px;
   color: var(--color-muted);
-}
-
-.share-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 8px;
-  border-radius: var(--radius);
-  margin-bottom: 4px;
-  font-size: 12px;
-}
-
-.share-item button {
-  padding: 4px 8px;
-}
-
-.share-form {
-  display: flex;
-  gap: 6px;
-  margin-top: 8px;
-}
-
-.share-form input {
-  padding: 8px 10px;
-  border-radius: var(--radius);
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  color: var(--color-text);
-  font-size: 12px;
-  min-width: 120px;
-}
-
-.share-form select {
-  padding: 8px 10px;
-  border-radius: var(--radius);
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  color: var(--color-text);
-  font-size: 12px;
 }
 
 .notes-cross-module-links {
@@ -689,4 +647,64 @@
 .markdown-editor:focus {
   outline: none;
   border-color: var(--color-accent);
+}
+
+/* --- Shared-with-you indicators --- */
+.notes-list-item-share-badge {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.dark-mode .notes-list-item-share-badge {
+  background: #14532d;
+  color: #86efac;
+}
+
+.notes-list-item-share-badge-ro {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.dark-mode .notes-list-item-share-badge-ro {
+  background: #451a03;
+  color: #fcd34d;
+}
+
+.notes-share-notice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+
+.notes-share-notice-ro {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.dark-mode .notes-share-notice-ro {
+  background: #451a03;
+  color: #fcd34d;
+}
+
+.notes-share-notice-edit {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.dark-mode .notes-share-notice-edit {
+  background: #14532d;
+  color: #86efac;
 }

@@ -309,6 +309,97 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
     }
 
     /// <summary>
+    /// Gets basic team information by ID (ITeamDirectory capability).
+    /// </summary>
+    public override async Task<GetTeamResponse> GetTeam(GetTeamRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.TeamId, out var teamId))
+        {
+            _logger.LogWarning("GetTeam called with invalid TeamId '{RawId}'", LogSanitizer.Sanitize(request.TeamId));
+            return new GetTeamResponse { Found = false };
+        }
+
+        _logger.LogInformation("GetTeam called for {TeamId} by module {ModuleId}",
+            teamId, GetModuleId(context));
+
+        try
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var teamDirectory = scope.ServiceProvider.GetRequiredService<ITeamDirectory>();
+            var team = await teamDirectory.GetTeamAsync(teamId, context.CancellationToken);
+
+            if (team is null)
+            {
+                _logger.LogInformation("GetTeam: team {TeamId} not found in database", teamId);
+                return new GetTeamResponse { Found = false };
+            }
+
+            _logger.LogInformation("GetTeam: found team {TeamId} ('{TeamName}') for org {OrgId}",
+                teamId, team.Name, team.OrganizationId);
+
+            return new GetTeamResponse
+            {
+                Found = true,
+                Team = new TeamInfoMessage
+                {
+                    Id = team.Id.ToString(),
+                    OrganizationId = team.OrganizationId.ToString(),
+                    Name = team.Name,
+                    Description = team.Description ?? string.Empty,
+                    MemberCount = team.MemberCount,
+                    CreatedAt = team.CreatedAt.ToString("O"),
+                }
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "GetTeam failed for {TeamId}", teamId);
+            return new GetTeamResponse { Found = false };
+        }
+    }
+
+    /// <summary>
+    /// Lists the teams a given user belongs to (ITeamDirectory capability).
+    /// </summary>
+    public override async Task<GetTeamsForUserResponse> GetTeamsForUser(GetTeamsForUserRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.UserId, out var userId))
+        {
+            _logger.LogWarning("GetTeamsForUser called with invalid UserId '{RawId}'", LogSanitizer.Sanitize(request.UserId));
+            return new GetTeamsForUserResponse();
+        }
+
+        _logger.LogInformation("GetTeamsForUser called for {UserId} by module {ModuleId}",
+            userId, GetModuleId(context));
+
+        try
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var teamDirectory = scope.ServiceProvider.GetRequiredService<ITeamDirectory>();
+            var teams = await teamDirectory.GetTeamsForUserAsync(userId, context.CancellationToken);
+
+            var response = new GetTeamsForUserResponse();
+            response.Teams.AddRange(teams.Select(t => new TeamInfoMessage
+            {
+                Id = t.Id.ToString(),
+                OrganizationId = t.OrganizationId.ToString(),
+                Name = t.Name,
+                Description = t.Description ?? string.Empty,
+                MemberCount = t.MemberCount,
+                CreatedAt = t.CreatedAt.ToString("O"),
+            }));
+
+            _logger.LogDebug("GetTeamsForUser: found {Count} teams for user {UserId}", response.Teams.Count, userId);
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "GetTeamsForUser failed for {UserId}", userId);
+            return new GetTeamsForUserResponse();
+        }
+    }
+
+    /// <summary>
     /// Triggers cleanup of orphaned media sources and entities after an
     /// admin shared folder is deleted. Called by the Files module host.
     /// </summary>

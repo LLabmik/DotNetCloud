@@ -83,8 +83,11 @@ public sealed record AlbumSharedEvent : IEvent
     /// <summary>The ID of the user who shared the album.</summary>
     public required Guid SharedByUserId { get; init; }
 
-    /// <summary>The ID of the user the album was shared with.</summary>
-    public required Guid SharedWithUserId { get; init; }
+    /// <summary>The ID of the user the album was shared with (null for team shares).</summary>
+    public Guid? SharedWithUserId { get; init; }
+
+    /// <summary>The ID of the team the album was shared with (set for team shares; user XOR team).</summary>
+    public Guid? SharedWithTeamId { get; init; }
 
     /// <summary>The permission level granted.</summary>
     public required string Permission { get; init; }

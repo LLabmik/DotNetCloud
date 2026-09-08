@@ -39,7 +39,8 @@ public static class ContactsServiceRegistration
             new ContactAvatarService(
                 sp.GetRequiredService<ContactsDbContext>(),
                 sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<ContactAvatarService>>(),
-                storagePath));
+                storagePath,
+                sp.GetService<DotNetCloud.Core.Capabilities.ITeamDirectory>()));
 
         return services;
     }

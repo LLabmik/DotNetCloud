@@ -128,6 +128,10 @@ builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
 // Register all contacts business-logic services (Contact, Group, Share, VCard)
 builder.Services.AddContactsServices(builder.Configuration);
 
+// Team directory capability over gRPC (short-lived cache) — lets share/read services
+// resolve a caller's team membership from Core.Server without a round trip per access query.
+builder.Services.AddGrpcTeamDirectory();
+
 builder.Services.AddGrpc();
 
 // REST API controllers

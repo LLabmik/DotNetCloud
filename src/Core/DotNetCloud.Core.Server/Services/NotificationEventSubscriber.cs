@@ -43,13 +43,14 @@ internal sealed class NotificationEventSubscriber : IHostedService
         await _eventBus.SubscribeAsync<PublicLinkAccessedEvent>(_producer, cancellationToken);
         await _eventBus.SubscribeAsync<ShareExpiringEvent>(_producer, cancellationToken);
         await _eventBus.SubscribeAsync<ResourceSharedEvent>(_producer, cancellationToken);
+        await _eventBus.SubscribeAsync<AlbumSharedEvent>(_producer, cancellationToken);
         await _eventBus.SubscribeAsync<UserMentionedEvent>(_producer, cancellationToken);
         await _eventBus.SubscribeAsync<ReminderTriggeredEvent>(_producer, cancellationToken);
 
         await _eventBus.SubscribeAsync<NotificationCreatedEvent>(_fanOutDispatcher, cancellationToken);
 
         _loggerFactory.CreateLogger<NotificationEventSubscriber>()
-            .LogInformation("Notification producers + fan-out dispatcher subscribed (8 events -> 1 pipeline)");
+            .LogInformation("Notification producers + fan-out dispatcher subscribed (9 events -> 1 pipeline)");
     }
 
     /// <inheritdoc />
@@ -63,6 +64,7 @@ internal sealed class NotificationEventSubscriber : IHostedService
             await _eventBus.UnsubscribeAsync<PublicLinkAccessedEvent>(_producer, cancellationToken);
             await _eventBus.UnsubscribeAsync<ShareExpiringEvent>(_producer, cancellationToken);
             await _eventBus.UnsubscribeAsync<ResourceSharedEvent>(_producer, cancellationToken);
+            await _eventBus.UnsubscribeAsync<AlbumSharedEvent>(_producer, cancellationToken);
             await _eventBus.UnsubscribeAsync<UserMentionedEvent>(_producer, cancellationToken);
             await _eventBus.UnsubscribeAsync<ReminderTriggeredEvent>(_producer, cancellationToken);
         }

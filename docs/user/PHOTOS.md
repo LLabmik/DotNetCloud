@@ -82,7 +82,7 @@ Start a fullscreen slideshow that automatically advances through your photos.
 
 ## Sharing
 
-Share individual photos with other users by entering their user ID in the share dialog, and manage your shares from the **Shared** section.
+Share individual photos with other users or teams by searching for their display name in the share dialog, and manage your shares from the **Shared** section.
 
 ---
 

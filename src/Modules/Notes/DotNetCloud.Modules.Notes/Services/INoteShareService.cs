@@ -12,6 +12,12 @@ public interface INoteShareService
     /// <summary>Shares a note with a user.</summary>
     Task<NoteShareDto> ShareNoteAsync(Guid noteId, Guid targetUserId, NoteSharePermission permission, CallerContext caller, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Shares a note with a user or a team (exactly one of <paramref name="targetUserId"/>
+    /// or <paramref name="targetTeamId"/> must be set).
+    /// </summary>
+    Task<NoteShareDto> ShareNoteAsync(Guid noteId, Guid? targetUserId, Guid? targetTeamId, NoteSharePermission permission, CallerContext caller, CancellationToken cancellationToken = default);
+
     /// <summary>Lists shares for a note.</summary>
     Task<IReadOnlyList<NoteShareDto>> ListSharesAsync(Guid noteId, CallerContext caller, CancellationToken cancellationToken = default);
 

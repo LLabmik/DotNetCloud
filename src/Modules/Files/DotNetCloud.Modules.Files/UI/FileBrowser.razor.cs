@@ -1,11 +1,13 @@
 using System.Security.Claims;
 using System.Net.Http.Json;
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Options;
 using DotNetCloud.Modules.Files.Services;
+using DotNetCloud.UI.Shared.Components.Dialogs;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Web;
@@ -36,6 +38,9 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     [Inject] private ITagService TagService { get; set; } = default!;
     [Inject] private ICommentService CommentService { get; set; } = default!;
     [Inject] private IUserManagementService UserManagementService { get; set; } = default!;
+    [Inject] private IUserDirectory UserDirectory { get; set; } = default!;
+    [Inject] private ITeamDirectory TeamDirectory { get; set; } = default!;
+    [Inject] private IGroupDirectory GroupDirectory { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
     [Inject] private IJSRuntime Js { get; set; } = default!;
@@ -639,6 +644,14 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
             return;
         }
 
+        // Cross-module shortcuts are opened (navigated to their owning module) on click; they are
+        // never part of multi-select operations because they have no in-Files storage node.
+        if (IsCrossModuleShortcut(node))
+        {
+            _ = OpenNodeAsync(node);
+            return;
+        }
+
         if (_selectedNodes.Contains(node.Id))
             _selectedNodes.Remove(node.Id);
         else
@@ -648,6 +661,12 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     /// <summary>Toggles selection of a single item.</summary>
     protected void ToggleSelect(Guid id)
     {
+        var node = _nodes.FirstOrDefault(candidate => candidate.Id == id);
+        if (node is not null && IsCrossModuleShortcut(node))
+        {
+            return;
+        }
+
         if (!_selectedNodes.Add(id))
             _selectedNodes.Remove(id);
     }
@@ -675,6 +694,15 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         Logger.LogInformation("HandleNodeDoubleClick: Name={Name} Type={Type} Mime={Mime} CanNative={CanNative} CanDocEditor={CanDocEditor}",
             node.Name, node.NodeType, node.MimeType,
             CanOpenInNativePreview(node), CanOpenInDocumentEditor(node));
+
+        // Cross-module shared-with-me shortcut: open the item in its owning module instead of
+        // previewing/downloading it inside Files (the virtual entry has no real storage node).
+        if (IsCrossModuleShortcut(node))
+        {
+            Logger.LogInformation("Opening cross-module shared item {Name} via {DeepLinkUrl}", node.Name, node.DeepLinkUrl);
+            Navigation.NavigateTo(node.DeepLinkUrl!);
+            return;
+        }
 
         if (node.NodeType == "Folder")
         {
@@ -975,6 +1003,13 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
             }
 
             var node = _nodes.FirstOrDefault(candidate => candidate.Id == id);
+            // Cross-module shortcuts have no in-Files actions (rename/move/share/download would
+            // target a non-existent storage node); they open by navigating to their owning module.
+            if (node is not null && IsCrossModuleShortcut(node))
+            {
+                return;
+            }
+
             _contextMenuNodeId = id;
             _contextMenuNodeType = node?.NodeType ?? nodeType;
             _contextMenuNodeIsReadOnly = node?.IsReadOnly == true;
@@ -1726,21 +1761,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         {
             var caller = await GetCallerContextAsync();
             var shares = await ShareService.GetSharesAsync(node.Id, caller);
-            _shareDialogShares = shares.Select(s => new ShareViewModel
-            {
-                Id = s.Id,
-                ShareType = s.ShareType,
-                RecipientName = s.SharedWithUserId?.ToString() ?? "Public Link",
-                Permission = s.Permission,
-                LinkToken = s.LinkToken,
-                LinkUrl = s.LinkToken is not null ? $"{Navigation.BaseUri.TrimEnd('/')}/s/{s.LinkToken}" : null,
-                HasPassword = s.HasPassword,
-                DownloadCount = s.DownloadCount,
-                MaxDownloads = s.MaxDownloads,
-                ExpiresAt = s.ExpiresAt,
-                CreatedAt = s.CreatedAt,
-                Note = s.Note
-            }).ToList();
+            _shareDialogShares = await MapSharesToEntriesAsync(shares);
         }
         catch
         {
@@ -1765,8 +1786,8 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         _bulkShareTargetIds = [];
     }
 
-    /// <summary>Creates the chosen share on every targeted node.</summary>
-    protected async Task HandleBulkShareCreatedAsync(BulkShareCreatedEventArgs args)
+    /// <summary>Creates the chosen share on every targeted node (bulk mode).</summary>
+    protected async Task HandleBulkShareCreatedAsync(DncShareCreatedEventArgs args)
     {
         if (_bulkShareTargetIds.Count == 0)
             return;
@@ -1791,31 +1812,10 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         HideBulkShareDialog();
     }
 
-    private List<ShareViewModel> _shareDialogShares = [];
+    private List<DncShareEntry> _shareDialogShares = [];
     private bool _isLoadingShareDialogShares;
 
-    protected async Task<IReadOnlyList<ShareSearchResult>> HandleShareSearchAsync(string query)
-    {
-        if (string.IsNullOrWhiteSpace(query) || query.Length < 2)
-            return [];
-
-        var result = await UserManagementService.ListUsersAsync(new UserListQuery
-        {
-            Search = query,
-            PageSize = 10,
-            IsActive = true
-        });
-
-        return result.Items.Select(u => new ShareSearchResult
-        {
-            Id = u.Id,
-            DisplayName = u.DisplayName,
-            SecondaryText = null,
-            ResultType = "User"
-        }).ToList();
-    }
-
-    protected async Task HandleShareCreatedAsync(ShareCreatedEventArgs args)
+    protected async Task HandleShareCreatedAsync(DncShareCreatedEventArgs args)
     {
         if (_shareTargetNode is null)
             return;
@@ -1832,10 +1832,18 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
             Note = args.Note
         };
 
-        await ShareService.CreateShareAsync(_shareTargetNode.Id, dto, caller);
+        var result = await ShareService.CreateShareAsync(_shareTargetNode.Id, dto, caller);
+
+        // Re-supply the dialog with the persisted share so it can reconcile its list.
+        var newEntry = ToEntry(result, args.TargetName);
+        _shareDialogShares =
+        [
+            .. _shareDialogShares.Where(e => !(e.RecipientType == newEntry.RecipientType && e.RecipientName == newEntry.RecipientName)),
+            newEntry,
+        ];
     }
 
-    protected async Task HandleShareUpdatedAsync(ShareUpdatedEventArgs args)
+    protected async Task HandleShareUpdatedAsync(DncShareUpdatedEventArgs args)
     {
         var caller = await GetCallerContextAsync();
         var dto = new UpdateShareDto
@@ -1848,26 +1856,12 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
 
         var result = await ShareService.UpdateShareAsync(args.ShareId, dto, caller);
 
-        // Update local share state so UI reflects changes (e.g. HasPassword)
-        var idx = _shareDialogShares.FindIndex(s => s.Id == args.ShareId);
+        // Replace the affected entry so the dialog reflects the persisted state (e.g. HasPassword).
+        var idx = _shareDialogShares.FindIndex(s => s.ShareId == args.ShareId);
         if (idx >= 0)
         {
-            var old = _shareDialogShares[idx];
-            _shareDialogShares[idx] = new ShareViewModel
-            {
-                Id = result.Id,
-                ShareType = result.ShareType,
-                RecipientName = old.RecipientName,
-                Permission = result.Permission,
-                LinkToken = result.LinkToken,
-                LinkUrl = result.LinkToken is not null ? $"{Navigation.BaseUri.TrimEnd('/')}/s/{result.LinkToken}" : old.LinkUrl,
-                HasPassword = result.HasPassword,
-                DownloadCount = result.DownloadCount,
-                MaxDownloads = result.MaxDownloads,
-                ExpiresAt = result.ExpiresAt,
-                CreatedAt = result.CreatedAt,
-                Note = result.Note
-            };
+            var recipientName = _shareDialogShares[idx].RecipientName;
+            _shareDialogShares = [.. _shareDialogShares.Take(idx), ToEntry(result, recipientName), .. _shareDialogShares.Skip(idx + 1)];
             StateHasChanged();
         }
     }
@@ -1876,7 +1870,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     {
         var caller = await GetCallerContextAsync();
         await ShareService.DeleteShareAsync(shareId, caller);
-        _shareDialogShares.RemoveAll(s => s.Id == shareId);
+        _shareDialogShares = [.. _shareDialogShares.Where(s => s.ShareId != shareId)];
     }
 
     protected async Task HandlePublicLinkToggledAsync(bool enabled)
@@ -1886,45 +1880,147 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
 
         var caller = await GetCallerContextAsync();
 
-        if (enabled)
+        if (!enabled)
         {
-            var dto = new CreateShareDto
+            // Deleting the public link is the dialog's own responsibility now (toggled off).
+            var existing = _shareDialogShares.FirstOrDefault(s => s.RecipientType == "PublicLink");
+            if (existing is not null)
             {
-                ShareType = "PublicLink",
-                Permission = "Read"
-            };
-
-            var result = await ShareService.CreateShareAsync(_shareTargetNode.Id, dto, caller);
-
-            // Update the dialog shares list with the real server-created share
-            var linkUrl = result.LinkToken is not null
-                ? $"{Navigation.BaseUri.TrimEnd('/')}/s/{result.LinkToken}"
-                : null;
-
-            // Replace placeholder with real share
-            var placeholder = _shareDialogShares.FirstOrDefault(s => s.ShareType == "PublicLink");
-            if (placeholder is not null)
-            {
-                _shareDialogShares.Remove(placeholder);
+                await ShareService.DeleteShareAsync(existing.ShareId, caller);
+                _shareDialogShares = [.. _shareDialogShares.Where(s => s.ShareId != existing.ShareId)];
             }
 
-            _shareDialogShares.Add(new ShareViewModel
-            {
-                Id = result.Id,
-                ShareType = result.ShareType,
-                RecipientName = "Public Link",
-                Permission = result.Permission,
-                LinkToken = result.LinkToken,
-                LinkUrl = linkUrl,
-                HasPassword = result.HasPassword,
-                DownloadCount = result.DownloadCount,
-                MaxDownloads = result.MaxDownloads,
-                ExpiresAt = result.ExpiresAt,
-                CreatedAt = result.CreatedAt
-            });
-
-            StateHasChanged();
+            return;
         }
+
+        var dto = new CreateShareDto
+        {
+            ShareType = "PublicLink",
+            Permission = "Read"
+        };
+
+        var result = await ShareService.CreateShareAsync(_shareTargetNode.Id, dto, caller);
+
+        // Re-supply the dialog with the real server-created public link share.
+        _shareDialogShares =
+        [
+            .. _shareDialogShares.Where(s => s.RecipientType != "PublicLink"),
+            ToEntry(result, "Public Link"),
+        ];
+    }
+
+    // ── Share-dialog helpers ────────────────────────────────────────────────
+
+    /// <summary>Maps server shares to dialog entries, resolving recipient display names.</summary>
+    private async Task<List<DncShareEntry>> MapSharesToEntriesAsync(IReadOnlyList<FileShareDto> shares)
+    {
+        var userNames = await ResolveUserNamesAsync(shares);
+        var entries = new List<DncShareEntry>(shares.Count);
+
+        foreach (var share in shares)
+        {
+            entries.Add(ToEntry(share, await ResolveRecipientNameAsync(share, userNames)));
+        }
+
+        return entries;
+    }
+
+    /// <summary>Batch-resolves display names for user shares.</summary>
+    private async Task<IReadOnlyDictionary<Guid, string>> ResolveUserNamesAsync(IEnumerable<FileShareDto> shares)
+    {
+        var ids = shares
+            .Where(s => s.ShareType == "User" && s.SharedWithUserId is not null)
+            .Select(s => s.SharedWithUserId!.Value)
+            .Distinct()
+            .ToArray();
+
+        if (ids.Length == 0)
+        {
+            return new Dictionary<Guid, string>();
+        }
+
+        try
+        {
+            return await UserDirectory.GetDisplayNamesAsync(ids);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to resolve display names for {Count} users", ids.Length);
+            return new Dictionary<Guid, string>();
+        }
+    }
+
+    /// <summary>Resolves a share's recipient to a display name (user/team/group).</summary>
+    private async Task<string> ResolveRecipientNameAsync(FileShareDto share, IReadOnlyDictionary<Guid, string> userNames)
+    {
+        if (share.ShareType == "PublicLink")
+        {
+            return "Public Link";
+        }
+
+        if (share.ShareType == "User" && share.SharedWithUserId is { } userId)
+        {
+            return userNames.TryGetValue(userId, out var name) ? name : $"{userId:N}"[..8];
+        }
+
+        if (share.ShareType == "Team" && share.SharedWithTeamId is { } teamId)
+        {
+            try
+            {
+                var team = await TeamDirectory.GetTeamAsync(teamId);
+                if (team is not null)
+                {
+                    return team.Name;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Failed to resolve team name for {TeamId}", teamId);
+            }
+
+            return $"{teamId:N}"[..8];
+        }
+
+        if (share.ShareType == "Group" && share.SharedWithGroupId is { } groupId)
+        {
+            try
+            {
+                var group = await GroupDirectory.GetGroupAsync(groupId);
+                if (group is not null)
+                {
+                    return group.Name;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Failed to resolve group name for {GroupId}", groupId);
+            }
+
+            return $"{groupId:N}"[..8];
+        }
+
+        return share.SharedWithUserId is { } fallbackUserId ? $"{fallbackUserId:N}"[..8] : "Unknown";
+    }
+
+    /// <summary>Converts a server share DTO into a dialog entry.</summary>
+    private DncShareEntry ToEntry(FileShareDto share, string recipientName)
+    {
+        return new DncShareEntry
+        {
+            ShareId = share.Id,
+            RecipientName = recipientName,
+            RecipientType = share.ShareType,
+            Permission = share.Permission,
+            LinkUrl = share.LinkToken is null
+                ? null
+                : $"{Navigation.BaseUri.TrimEnd('/')}/s/{share.LinkToken}",
+            HasPassword = share.HasPassword,
+            DownloadCount = share.DownloadCount,
+            MaxDownloads = share.MaxDownloads,
+            ExpiresAt = share.ExpiresAt,
+            CreatedAt = share.CreatedAt,
+            Note = share.Note,
+        };
     }
 
     protected void ShowPreview(FileNodeViewModel node)
@@ -2119,10 +2215,19 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
 
     protected static string GetNodeIcon(FileNodeViewModel node)
     {
+        if (!string.IsNullOrEmpty(node.IconName))
+            return node.IconName!;
         if (node.NodeType == "Folder")
             return "folder";
         return GetFileIcon(node.MimeType);
     }
+
+    /// <summary>
+    /// True when the node is a synthetic cross-module shortcut (a shared item surfaced under
+    /// a module folder in the virtual "Shared With Me" tree) that opens in its owning module.
+    /// </summary>
+    private static bool IsCrossModuleShortcut(FileNodeViewModel node)
+        => node.IsVirtual && !string.IsNullOrEmpty(node.DeepLinkUrl);
 
     protected static string GetFileIcon(string? mimeType)
     {
@@ -2631,6 +2736,11 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
             VirtualSourceKind = dto.VirtualSourceKind,
             VirtualSourceId = dto.VirtualSourceId,
             VirtualRelativePath = dto.VirtualRelativePath,
+            ModuleId = dto.ModuleId,
+            EntityType = dto.EntityType,
+            SourceEntityId = dto.SourceEntityId,
+            DeepLinkUrl = dto.DeepLinkUrl,
+            IconName = dto.IconName,
         };
     }
 

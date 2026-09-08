@@ -31,12 +31,20 @@ public sealed class AlbumSharedNotificationHandler : IEventHandler<AlbumSharedEv
             return;
         }
 
+        // Team shares are fanned out per member by the core notification producer
+        // (Phase 6); this handler only notifies the direct recipient of a user share.
+        if (@event.SharedWithUserId is not { } recipientUserId)
+        {
+            _logger.LogDebug("Team-targeted album share — skipping direct user notification");
+            return;
+        }
+
         try
         {
             var notification = new NotificationDto
             {
                 Id = Guid.CreateVersion7(),
-                UserId = @event.SharedWithUserId,
+                UserId = recipientUserId,
                 SourceModuleId = "dotnetcloud.photos",
                 Type = NotificationType.Share,
                 Title = "A photo album was shared with you",
@@ -47,11 +55,11 @@ public sealed class AlbumSharedNotificationHandler : IEventHandler<AlbumSharedEv
                 CreatedAtUtc = DateTime.UtcNow
             };
 
-            await _notificationService.SendAsync(@event.SharedWithUserId, notification, cancellationToken);
+            await _notificationService.SendAsync(recipientUserId, notification, cancellationToken);
 
             _logger.LogInformation(
                 "Notification sent for album share: Album {AlbumId} shared with user {UserId}",
-                @event.AlbumId, @event.SharedWithUserId);
+                @event.AlbumId, recipientUserId);
         }
         catch (Exception ex)
         {

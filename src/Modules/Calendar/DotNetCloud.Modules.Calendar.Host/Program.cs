@@ -183,6 +183,10 @@ builder.Services.AddScoped<IOrganizationDirectory, OrganizationDirectoryService>
 // Register all calendar business-logic services (Calendar, Event, Share, ICal)
 builder.Services.AddCalendarServices(builder.Configuration);
 
+// Team directory capability over gRPC (short-lived cache) — lets share/read services
+// resolve a caller's team membership from Core.Server without a round trip per access query.
+builder.Services.AddGrpcTeamDirectory();
+
 // CoreCapabilities gRPC client — connects to Core.Server for in-app notifications
 // and real-time event broadcasting. The endpoint is provided by the ProcessSupervisor.
 var coreEndpoint = Environment.GetEnvironmentVariable("DOTNETCLOUD_CORE_ENDPOINT");

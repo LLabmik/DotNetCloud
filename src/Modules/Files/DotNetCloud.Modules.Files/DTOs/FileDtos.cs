@@ -82,6 +82,37 @@ public sealed record FileNodeDto
 
     /// <summary>Optional relative path within a synthetic source.</summary>
     public string? VirtualRelativePath { get; init; }
+
+    /// <summary>
+    /// For a shared-with-me module virtual entry: the module that owns the underlying item
+    /// (e.g. <c>"notes"</c>). <see langword="null"/> for normal and other virtual nodes.
+    /// </summary>
+    public string? ModuleId { get; init; }
+
+    /// <summary>
+    /// For a shared-with-me module virtual entry: the type discriminator of the underlying item
+    /// (e.g. <c>"Note"</c>). <see langword="null"/> otherwise.
+    /// </summary>
+    public string? EntityType { get; init; }
+
+    /// <summary>
+    /// For a shared-with-me module virtual entry: the identifier of the underlying module entity.
+    /// <see langword="null"/> otherwise.
+    /// </summary>
+    public Guid? SourceEntityId { get; init; }
+
+    /// <summary>
+    /// For a shared-with-me module virtual entry: the owning-module route that opens the item
+    /// (e.g. <c>"/apps/notes?noteId=..."</c>). When set, the UI navigates there instead of
+    /// previewing/downloading. <see langword="null"/> otherwise.
+    /// </summary>
+    public string? DeepLinkUrl { get; init; }
+
+    /// <summary>
+    /// Optional material icon ligature overriding the default folder/file icon (used for module
+    /// folders and shared-with-me module items, e.g. <c>"edit_note"</c>). <see langword="null"/> to use defaults.
+    /// </summary>
+    public string? IconName { get; init; }
 }
 
 /// <summary>

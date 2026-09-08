@@ -85,6 +85,7 @@ internal sealed class ShareService : IShareService
             ShareId = share.Id,
             ShareType = share.ShareType.ToString(),
             SharedWithUserId = share.SharedWithUserId,
+            SharedWithTeamId = share.SharedWithTeamId,
             SharedByUserId = caller.UserId
         }, caller, cancellationToken);
 

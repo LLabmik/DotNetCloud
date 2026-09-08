@@ -4,6 +4,7 @@ using DotNetCloud.Modules.Contacts.Models;
 using DotNetCloud.Modules.Contacts.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using ITeamDirectory = DotNetCloud.Core.Capabilities.ITeamDirectory;
 
 namespace DotNetCloud.Modules.Contacts.Data.Services;
 
@@ -16,6 +17,7 @@ public sealed class ContactAvatarService : IContactAvatarService
     private readonly ContactsDbContext _db;
     private readonly ILogger<ContactAvatarService> _logger;
     private readonly string _storageBasePath;
+    private readonly ITeamDirectory? _teamDirectory;
 
     /// <summary>Maximum allowed avatar file size (5 MB).</summary>
     private const long MaxAvatarSize = 5 * 1024 * 1024;
@@ -31,11 +33,35 @@ public sealed class ContactAvatarService : IContactAvatarService
     /// <summary>
     /// Initializes a new instance of the <see cref="ContactAvatarService"/> class.
     /// </summary>
-    public ContactAvatarService(ContactsDbContext db, ILogger<ContactAvatarService> logger, string storageBasePath)
+    public ContactAvatarService(ContactsDbContext db, ILogger<ContactAvatarService> logger, string storageBasePath, ITeamDirectory? teamDirectory = null)
     {
         _db = db;
         _logger = logger;
         _storageBasePath = storageBasePath;
+        _teamDirectory = teamDirectory;
+    }
+
+    /// <summary>
+    /// Resolves the caller's team IDs for team-share access checks (empty when the
+    /// team directory capability is unavailable).
+    /// </summary>
+    private async Task<Guid[]> GetCallerTeamIdsAsync(CallerContext caller, CancellationToken cancellationToken)
+    {
+        if (_teamDirectory is null)
+        {
+            return [];
+        }
+
+        try
+        {
+            var teams = await _teamDirectory.GetTeamsForUserAsync(caller.UserId, cancellationToken);
+            return teams.Select(t => t.Id).ToArray();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to resolve team memberships for {UserId}", caller.UserId);
+            return [];
+        }
     }
 
     /// <inheritdoc />
@@ -89,12 +115,14 @@ public sealed class ContactAvatarService : IContactAvatarService
     public async Task<(Stream Stream, string ContentType, string FileName)?> GetAvatarAsync(
         Guid contactId, CallerContext caller, CancellationToken cancellationToken = default)
     {
+        var teamIds = await GetCallerTeamIdsAsync(caller, cancellationToken);
         var avatar = await _db.ContactAttachments
             .Include(a => a.Contact)
             .AsNoTracking()
             .FirstOrDefaultAsync(a => a.ContactId == contactId && a.IsAvatar
                 && a.Contact != null
-                && (a.Contact.OwnerId == caller.UserId || a.Contact.Shares.Any(s => s.SharedWithUserId == caller.UserId)),
+                && (a.Contact.OwnerId == caller.UserId || a.Contact.Shares.Any(s => s.SharedWithUserId == caller.UserId
+                    || (s.SharedWithTeamId != null && teamIds.Contains(s.SharedWithTeamId.Value)))),
                 cancellationToken);
 
         if (avatar is null)
@@ -111,12 +139,14 @@ public sealed class ContactAvatarService : IContactAvatarService
     public async Task<(byte[] Data, string ContentType)?> GetAvatarBytesAsync(
         Guid contactId, CallerContext caller, CancellationToken cancellationToken = default)
     {
+        var teamIds = await GetCallerTeamIdsAsync(caller, cancellationToken);
         var avatar = await _db.ContactAttachments
             .Include(a => a.Contact)
             .AsNoTracking()
             .FirstOrDefaultAsync(a => a.ContactId == contactId && a.IsAvatar
                 && a.Contact != null
-                && (a.Contact.OwnerId == caller.UserId || a.Contact.Shares.Any(s => s.SharedWithUserId == caller.UserId)),
+                && (a.Contact.OwnerId == caller.UserId || a.Contact.Shares.Any(s => s.SharedWithUserId == caller.UserId
+                    || (s.SharedWithTeamId != null && teamIds.Contains(s.SharedWithTeamId.Value)))),
                 cancellationToken);
 
         if (avatar is null)
@@ -232,12 +262,14 @@ public sealed class ContactAvatarService : IContactAvatarService
     public async Task<(Stream Stream, string ContentType, string FileName)?> GetAttachmentAsync(
         Guid attachmentId, CallerContext caller, CancellationToken cancellationToken = default)
     {
+        var teamIds = await GetCallerTeamIdsAsync(caller, cancellationToken);
         var attachment = await _db.ContactAttachments
             .Include(a => a.Contact)
             .AsNoTracking()
             .FirstOrDefaultAsync(a => a.Id == attachmentId
                 && a.Contact != null
-                && (a.Contact.OwnerId == caller.UserId || a.Contact.Shares.Any(s => s.SharedWithUserId == caller.UserId)),
+                && (a.Contact.OwnerId == caller.UserId || a.Contact.Shares.Any(s => s.SharedWithUserId == caller.UserId
+                    || (s.SharedWithTeamId != null && teamIds.Contains(s.SharedWithTeamId.Value)))),
                 cancellationToken);
 
         if (attachment is null)
@@ -282,12 +314,14 @@ public sealed class ContactAvatarService : IContactAvatarService
     public async Task<IReadOnlyList<ContactAttachmentDto>> ListAttachmentsAsync(
         Guid contactId, CallerContext caller, CancellationToken cancellationToken = default)
     {
+        var teamIds = await GetCallerTeamIdsAsync(caller, cancellationToken);
         var attachments = await _db.ContactAttachments
             .Include(a => a.Contact)
             .AsNoTracking()
             .Where(a => a.ContactId == contactId
                 && a.Contact != null
-                && (a.Contact.OwnerId == caller.UserId || a.Contact.Shares.Any(s => s.SharedWithUserId == caller.UserId)))
+                && (a.Contact.OwnerId == caller.UserId || a.Contact.Shares.Any(s => s.SharedWithUserId == caller.UserId
+                    || (s.SharedWithTeamId != null && teamIds.Contains(s.SharedWithTeamId.Value)))))
             .OrderBy(a => a.CreatedAt)
             .ToListAsync(cancellationToken);
 

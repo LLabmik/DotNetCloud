@@ -7,6 +7,7 @@ using DotNetCloud.Modules.Photos.Models;
 using DotNetCloud.Modules.Photos.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using ITeamDirectory = DotNetCloud.Core.Capabilities.ITeamDirectory;
 
 namespace DotNetCloud.Modules.Photos.Data.Services;
 
@@ -17,62 +18,165 @@ public sealed class PhotoShareService : IPhotoShareService
 {
     private readonly PhotosDbContext _db;
     private readonly IEventBus _eventBus;
+    private readonly ITeamDirectory? _teamDirectory;
     private readonly ILogger<PhotoShareService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PhotoShareService"/> class.
     /// </summary>
-    public PhotoShareService(PhotosDbContext db, IEventBus eventBus, ILogger<PhotoShareService> logger)
+    public PhotoShareService(PhotosDbContext db, IEventBus eventBus, ILogger<PhotoShareService> logger, ITeamDirectory? teamDirectory = null)
     {
         _db = db;
         _eventBus = eventBus;
+        _teamDirectory = teamDirectory;
         _logger = logger;
     }
 
     /// <summary>
-    /// Shares a photo with another user.
+    /// Resolves the caller's team IDs for team-share access checks (empty when the
+    /// team directory capability is unavailable).
     /// </summary>
-    public async Task<PhotoShareDto> SharePhotoAsync(Guid photoId, Guid sharedWithUserId, PhotoSharePermission permission, CallerContext caller, CancellationToken cancellationToken = default)
+    private async Task<Guid[]> GetCallerTeamIdsAsync(CallerContext caller, CancellationToken cancellationToken)
     {
+        if (_teamDirectory is null)
+        {
+            return [];
+        }
+
+        try
+        {
+            var teams = await _teamDirectory.GetTeamsForUserAsync(caller.UserId, cancellationToken);
+            return teams.Select(t => t.Id).ToArray();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to resolve team memberships for {UserId}", caller.UserId);
+            return [];
+        }
+    }
+
+    /// <inheritdoc />
+    public Task<PhotoShareDto> SharePhotoAsync(Guid photoId, Guid sharedWithUserId, PhotoSharePermission permission, CallerContext caller, CancellationToken cancellationToken = default)
+        => SharePhotoAsync(photoId, sharedWithUserId, null, permission, caller, cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<PhotoShareDto> SharePhotoAsync(Guid photoId, Guid? sharedWithUserId, Guid? sharedWithTeamId, PhotoSharePermission permission, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        // User XOR team target.
+        if (sharedWithUserId is null && sharedWithTeamId is null)
+        {
+            throw new ArgumentException("A photo share requires a user or a team target.", nameof(sharedWithTeamId));
+        }
+
+        if (sharedWithUserId is not null && sharedWithTeamId is not null)
+        {
+            throw new ArgumentException("A photo share cannot target both a user and a team.", nameof(sharedWithTeamId));
+        }
+
         var photo = await _db.Photos.FirstOrDefaultAsync(p => p.Id == photoId && p.OwnerId == caller.UserId, cancellationToken)
             ?? throw new BusinessRuleException(ErrorCodes.PhotoNotFound, "Photo not found.");
+
+        PhotoShare? existingShare;
+        if (sharedWithUserId is { } userId)
+        {
+            existingShare = await _db.PhotoShares
+                .FirstOrDefaultAsync(s => s.PhotoId == photoId && s.SharedWithUserId == userId, cancellationToken);
+        }
+        else
+        {
+            existingShare = await _db.PhotoShares
+                .FirstOrDefaultAsync(s => s.PhotoId == photoId && s.SharedWithTeamId == sharedWithTeamId, cancellationToken);
+        }
+
+        if (existingShare is not null)
+        {
+            // Update permission on the existing share for this target.
+            existingShare.Permission = MapPermission(permission);
+            await _db.SaveChangesAsync(cancellationToken);
+            return MapToDto(existingShare);
+        }
 
         var share = new PhotoShare
         {
             PhotoId = photoId,
             SharedByUserId = caller.UserId,
             SharedWithUserId = sharedWithUserId,
+            SharedWithTeamId = sharedWithTeamId,
             Permission = MapPermission(permission)
         };
 
         _db.PhotoShares.Add(share);
         await _db.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Photo {PhotoId} shared with user {SharedWithUserId} by {SharedByUserId}", photoId, sharedWithUserId, caller.UserId);
+        _logger.LogInformation(
+            "Photo {PhotoId} shared with {TargetType} {TargetId} by {SharedByUserId}",
+            photoId,
+            sharedWithTeamId is not null ? "team" : "user",
+            sharedWithTeamId ?? sharedWithUserId,
+            caller.UserId);
 
         return MapToDto(share);
     }
 
-    /// <summary>
-    /// Shares an album with another user.
-    /// </summary>
-    public async Task<PhotoShareDto> ShareAlbumAsync(Guid albumId, Guid sharedWithUserId, PhotoSharePermission permission, CallerContext caller, CancellationToken cancellationToken = default)
+    /// <inheritdoc />
+    public Task<PhotoShareDto> ShareAlbumAsync(Guid albumId, Guid sharedWithUserId, PhotoSharePermission permission, CallerContext caller, CancellationToken cancellationToken = default)
+        => ShareAlbumAsync(albumId, sharedWithUserId, null, permission, caller, cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<PhotoShareDto> ShareAlbumAsync(Guid albumId, Guid? sharedWithUserId, Guid? sharedWithTeamId, PhotoSharePermission permission, CallerContext caller, CancellationToken cancellationToken = default)
     {
+        // User XOR team target.
+        if (sharedWithUserId is null && sharedWithTeamId is null)
+        {
+            throw new ArgumentException("An album share requires a user or a team target.", nameof(sharedWithTeamId));
+        }
+
+        if (sharedWithUserId is not null && sharedWithTeamId is not null)
+        {
+            throw new ArgumentException("An album share cannot target both a user and a team.", nameof(sharedWithTeamId));
+        }
+
         var album = await _db.Albums.FirstOrDefaultAsync(a => a.Id == albumId && a.OwnerId == caller.UserId, cancellationToken)
             ?? throw new BusinessRuleException(ErrorCodes.AlbumNotFound, "Album not found.");
+
+        PhotoShare? existingShare;
+        if (sharedWithUserId is { } userId)
+        {
+            existingShare = await _db.PhotoShares
+                .FirstOrDefaultAsync(s => s.AlbumId == albumId && s.SharedWithUserId == userId, cancellationToken);
+        }
+        else
+        {
+            existingShare = await _db.PhotoShares
+                .FirstOrDefaultAsync(s => s.AlbumId == albumId && s.SharedWithTeamId == sharedWithTeamId, cancellationToken);
+        }
+
+        if (existingShare is not null)
+        {
+            // Update permission on the existing share for this target.
+            existingShare.Permission = MapPermission(permission);
+            await _db.SaveChangesAsync(cancellationToken);
+            return MapToDto(existingShare);
+        }
 
         var share = new PhotoShare
         {
             AlbumId = albumId,
             SharedByUserId = caller.UserId,
             SharedWithUserId = sharedWithUserId,
+            SharedWithTeamId = sharedWithTeamId,
             Permission = MapPermission(permission)
         };
 
         _db.PhotoShares.Add(share);
         await _db.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Album {AlbumId} shared with user {SharedWithUserId} by {SharedByUserId}", albumId, sharedWithUserId, caller.UserId);
+        _logger.LogInformation(
+            "Album {AlbumId} shared with {TargetType} {TargetId} by {SharedByUserId}",
+            albumId,
+            sharedWithTeamId is not null ? "team" : "user",
+            sharedWithTeamId ?? sharedWithUserId,
+            caller.UserId);
 
         await _eventBus.PublishAsync(new AlbumSharedEvent
         {
@@ -81,6 +185,7 @@ public sealed class PhotoShareService : IPhotoShareService
             AlbumId = albumId,
             SharedByUserId = caller.UserId,
             SharedWithUserId = sharedWithUserId,
+            SharedWithTeamId = sharedWithTeamId,
             Permission = permission.ToString()
         }, caller, cancellationToken);
 
@@ -124,13 +229,18 @@ public sealed class PhotoShareService : IPhotoShareService
     }
 
     /// <summary>
-    /// Gets photos/albums shared with a user.
+    /// Gets photos/albums shared with the caller (direct user shares plus shares
+    /// targeting a team the caller belongs to).
     /// </summary>
     public async Task<IReadOnlyList<PhotoShareDto>> GetSharedWithMeAsync(CallerContext caller, CancellationToken cancellationToken = default)
     {
+        var teamIds = await GetCallerTeamIdsAsync(caller, cancellationToken);
+
         var shares = await _db.PhotoShares
-            .Where(s => s.SharedWithUserId == caller.UserId &&
-                       (s.ExpiresAt == null || s.ExpiresAt > DateTime.UtcNow))
+            .Where(s =>
+                (s.SharedWithUserId == caller.UserId ||
+                 (s.SharedWithTeamId != null && teamIds.Contains(s.SharedWithTeamId.Value))) &&
+                (s.ExpiresAt == null || s.ExpiresAt > DateTime.UtcNow))
             .ToListAsync(cancellationToken);
 
         return shares.Select(MapToDto).ToList();
@@ -150,6 +260,7 @@ public sealed class PhotoShareService : IPhotoShareService
         PhotoId = share.PhotoId,
         AlbumId = share.AlbumId,
         SharedWithUserId = share.SharedWithUserId,
+        SharedWithTeamId = share.SharedWithTeamId,
         Permission = share.Permission switch
         {
             PhotoSharePermissionLevel.Download => PhotoSharePermission.Download,

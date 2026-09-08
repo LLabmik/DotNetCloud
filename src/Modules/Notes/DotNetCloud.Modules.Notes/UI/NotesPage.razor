@@ -3,9 +3,13 @@
 @using DotNetCloud.Core.DTOs
 @using DotNetCloud.Modules.Notes.Services
 @using DotNetCloud.Modules.Notes.Models
+@using System.Security.Claims
 @inject INotesApiClient ApiClient
 @inject IMarkdownRenderer MarkdownRenderer
 @inject Microsoft.JSInterop.IJSRuntime JSRuntime
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthState
+@inject DotNetCloud.Core.Capabilities.IUserDirectory UserDirectory
+@inject DotNetCloud.Core.Capabilities.ITeamDirectory TeamDirectory
 
 <div class="notes-page-layout">
     <div class="notes-sidebar @(_sidebarCollapsed ? "collapsed" : "")">
@@ -126,6 +130,13 @@
                                 @onclick="() => SelectNoteAsync(note.Id)">
                             <div class="notes-list-item-header">
                                 <strong class="notes-list-item-title">@note.Title</strong>
+                                @if (!IsOwner(note))
+                                {
+                                    <span class="notes-list-item-share-badge @(CanEdit(note) ? "" : "notes-list-item-share-badge-ro")"
+                                          title="@(CanEdit(note) ? "Shared with you — can edit" : "Shared with you — read only")">
+                                        @(CanEdit(note) ? "Shared" : "Read-only")
+                                    </span>
+                                }
                                 @if (note.IsFavorite)
                                 {
                                     <span class="notes-list-item-favorite" title="Favorite">★</span>
@@ -187,49 +198,33 @@
             <div class="notes-detail">
                 <h2>@_selectedNote.Title</h2>
                 <p><strong>Tags:</strong> @string.Join(", ", _selectedNote.Tags)</p>
+                @if (!IsOwner(_selectedNote))
+                {
+                    <div
+                        class="notes-share-notice @(CanEdit(_selectedNote) ? "notes-share-notice-edit" : "notes-share-notice-ro")">
+                        <MaterialIcon Icon="@(CanEdit(_selectedNote) ? "edit_note" : "lock")" Size="MaterialIconSize.Sm" />
+                        <span>@(CanEdit(_selectedNote) ? "Shared with you — you can edit" : "Shared with you — read only")</span>
+                    </div>
+                }
                 <div class="notes-detail-actions">
-                    <button class="btn btn-outline-primary" @onclick="BeginEditSelected">Edit</button>
-                    <button class="btn btn-outline-warning" @onclick="ToggleFavoriteAsync">@(_selectedNote.IsFavorite ?
-                                                                                "Unfavorite" : "Favorite")</button>
-                        <button class="btn btn-outline-secondary" @onclick="ToggleSharePanel">
-                            @(_showSharePanel ? "Hide Shares" : "Share")
-                        </button>
+                    @if (CanEdit(_selectedNote))
+                    {
+                        <button class="btn btn-outline-primary" @onclick="BeginEditSelected">Edit</button>
+                        <button class="btn btn-outline-warning" @onclick="ToggleFavoriteAsync">@(_selectedNote.IsFavorite ?
+                                                                                                                                    "Unfavorite" : "Favorite")</button>
+                        }
+                        @if (IsOwner(_selectedNote))
+                        {
+                            <button class="btn btn-outline-secondary" @onclick="OpenShareDialogAsync">Share</button>
+                        }
                         <button class="btn btn-outline-secondary" @onclick="ToggleVersionPanel">
                             @(_showVersionPanel ? "Hide History" : "History")
                         </button>
-                        <button class="btn btn-outline-danger" @onclick="DeleteNoteFromDetailAsync">Delete</button>
+                        @if (IsOwner(_selectedNote))
+                        {
+                            <button class="btn btn-outline-danger" @onclick="DeleteNoteFromDetailAsync">Delete</button>
+                        }
                     </div>
-
-                    @if (_showSharePanel)
-                    {
-                        <div class="notes-share-panel">
-                            <h4>Shares</h4>
-                            @if (_noteShares.Count == 0)
-                            {
-                                <p>Not shared.</p>
-                            }
-                            else
-                            {
-                                @foreach (var share in _noteShares)
-                                {
-                                    <div class="share-item">
-                                        <span>User: @share.SharedWithUserId.ToString("N")[..8]… — @share.Permission</span>
-                                        <button class="btn btn-sm btn-outline-danger"
-                                                @onclick="() => RevokeShareAsync(share.Id)">Revoke</button>
-                                    </div>
-                                }
-                            }
-                            <div class="share-form">
-                                <input type="text" class="form-control form-control-sm" placeholder="User ID"
-                                       @bind="_shareUserId" />
-                                <select class="form-select form-select-sm" @bind="_sharePermission" style="max-width:140px;">
-                                    <option value="ReadOnly">Read Only</option>
-                                    <option value="ReadWrite">Read/Write</option>
-                                </select>
-                                <button class="btn btn-sm btn-primary" @onclick="AddShareAsync">Share</button>
-                            </div>
-                        </div>
-                    }
 
                     @if (_showVersionPanel)
                     {
@@ -245,8 +240,11 @@
                                 {
                                     <div class="version-item">
                                         <span>v@(version.VersionNumber) — @version.CreatedAt.ToLocalTime().ToString("g")</span>
-                                        <button class="btn btn-sm btn-outline-primary"
-                                                @onclick="() => RestoreVersionAsync(version.Id)">Restore</button>
+                                        @if (CanEdit(_selectedNote))
+                                        {
+                                            <button class="btn btn-sm btn-outline-primary"
+                                                    @onclick="() => RestoreVersionAsync(version.Id)">Restore</button>
+                                        }
                                     </div>
                                 }
                             }
@@ -267,6 +265,14 @@
         </div>
     </div>
 
+    @if (_showShareDialog && _selectedNote is not null)
+    {
+        <DncShareDialog ItemName="@_selectedNote.Title" ItemCount="1" AllowPermissionEditing="false"
+                        PermissionOptions="NotePermissionOptions" ExistingShares="_shareDialogShares"
+                        IsLoadingShares="_isLoadingShareDialogShares" OnClose="CloseShareDialogAsync"
+                        OnShareCreated="HandleShareCreatedAsync" OnShareRemoved="HandleShareRemovedAsync" />
+    }
+
 <DncConfirmDialog @ref="_confirmDialog" />
 
 @code {
@@ -283,21 +289,63 @@
 
     private readonly List<NoteDto> _notes = [];
     private readonly List<NoteFolderDto> _folders = [];
-    private readonly List<NoteShareDto> _noteShares = [];
     private readonly List<NoteVersionDto> _versions = [];
     private NoteDto? _selectedNote;
     private NoteEditorModel? _editingNote;
     private string _searchQuery = string.Empty;
     private string _activeSection = "all";
     private Guid? _selectedFolderId;
-    private bool _showSharePanel;
+    private bool _showShareDialog;
     private bool _showVersionPanel;
-    private string _shareUserId = string.Empty;
-    private string _sharePermission = "ReadOnly";
+    private List<DncShareEntry> _shareDialogShares = [];
+    private bool _isLoadingShareDialogShares;
     private bool _showFolderForm;
     private string _folderName = string.Empty;
     private Guid? _editingFolderId;
     private bool _sidebarCollapsed;
+
+    /// <summary>The current authenticated user ID (Guid.Empty until resolved).</summary>
+    private Guid _currentUserId = Guid.Empty;
+
+    /// <summary>Whether the caller owns the note.</summary>
+    private bool IsOwner(NoteDto note) => _currentUserId != Guid.Empty && note.OwnerId == _currentUserId;
+
+    /// <summary>
+    /// Whether the caller may edit the note: the owner, or a viewer granted ReadWrite
+    /// via a user/team share.
+    /// </summary>
+    private bool CanEdit(NoteDto note) => IsOwner(note) || note.ViewerPermission == NoteSharePermission.ReadWrite;
+
+    /// <summary>Resolves the current user ID from the authentication state.</summary>
+    private async Task<Guid> GetCurrentUserIdAsync()
+    {
+        try
+        {
+            var state = await AuthState.GetAuthenticationStateAsync();
+            var user = state.User;
+            if (user.Identity?.IsAuthenticated != true)
+            {
+                return Guid.Empty;
+            }
+
+            var claim = user.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                ?? user.FindFirst("sub")?.Value;
+
+            return Guid.TryParse(claim, out var userId) ? userId : Guid.Empty;
+        }
+        catch (Exception)
+        {
+            return Guid.Empty;
+        }
+    }
+
+    /// <summary>Permission choices for note shares (ReadOnly / ReadWrite).</summary>
+    private static readonly IReadOnlyList<DncSharePermissionOption> NotePermissionOptions =
+    [
+        new() { Value = "Read", Label = "View only" },
+        new() { Value = "ReadWrite", Label = "Can edit" },
+    ];
+
 
     private static string GetPreview(string content)
     {
@@ -321,7 +369,7 @@
             var filtered = _activeSection switch
             {
                 "favorites" => query.Where(n => n.IsFavorite),
-                "shared" => query,
+                "shared" => query.Where(n => !IsOwner(n)),
                 _ => query
             };
 
@@ -331,6 +379,8 @@
 
     protected override async Task OnInitializedAsync()
     {
+        _currentUserId = await GetCurrentUserIdAsync();
+
         try
         {
             var collapsed = await JSRuntime.InvokeAsync<string>("localStorage.getItem", new object?[] { "dotnetcloud.sidebar:notes" });
@@ -549,45 +599,138 @@ _sidebarCollapsed.ToString().ToLowerInvariant() });
         await ReloadAsync();
     }
 
-    private async Task ToggleSharePanel()
+    private async Task OpenShareDialogAsync()
     {
-        _showSharePanel = !_showSharePanel;
-        _showVersionPanel = false;
-        if (_showSharePanel && _selectedNote is not null)
-        {
-            _noteShares.Clear();
-            _noteShares.AddRange(await ApiClient.ListSharesAsync(_selectedNote.Id));
-        }
-    }
-
-    private async Task AddShareAsync()
-    {
-        if (_selectedNote is null || !Guid.TryParse(_shareUserId, out var userId))
-        {
+        if (_selectedNote is null)
             return;
-        }
 
-        var perm = _sharePermission == "ReadWrite" ? NoteSharePermission.ReadWrite : NoteSharePermission.ReadOnly;
-        await ApiClient.ShareNoteAsync(_selectedNote.Id, userId, perm);
-        _shareUserId = string.Empty;
-        _noteShares.Clear();
-        _noteShares.AddRange(await ApiClient.ListSharesAsync(_selectedNote.Id));
+        _showShareDialog = true;
+        _showVersionPanel = false;
+        _shareDialogShares = [];
+        _isLoadingShareDialogShares = true;
+        StateHasChanged();
+
+        try
+        {
+            await LoadShareDialogEntriesAsync();
+        }
+        finally
+        {
+            _isLoadingShareDialogShares = false;
+        }
     }
 
-    private async Task RevokeShareAsync(Guid shareId)
+    private void CloseShareDialogAsync()
+    {
+        _showShareDialog = false;
+    }
+
+    private async Task LoadShareDialogEntriesAsync()
+    {
+        if (_selectedNote is null)
+            return;
+
+        var shares = await ApiClient.ListSharesAsync(_selectedNote.Id);
+        _shareDialogShares = await MapShareDtosToEntriesAsync(shares);
+    }
+
+    private async Task HandleShareCreatedAsync(DncShareCreatedEventArgs args)
+    {
+        if (_selectedNote is null)
+            return;
+
+        var perm = args.Permission == "ReadWrite" ? NoteSharePermission.ReadWrite : NoteSharePermission.ReadOnly;
+        Guid? targetUserId = args.ShareType == "Team" ? null : args.TargetId;
+        Guid? targetTeamId = args.ShareType == "Team" ? args.TargetId : null;
+
+        var result = await ApiClient.ShareNoteAsync(_selectedNote.Id, targetUserId, targetTeamId, perm);
+        if (result is not null)
+        {
+            await LoadShareDialogEntriesAsync();
+        }
+    }
+
+    private async Task HandleShareRemovedAsync(Guid shareId)
     {
         await ApiClient.RevokeShareAsync(shareId);
-        if (_selectedNote is not null)
+        _shareDialogShares = [.. _shareDialogShares.Where(e => e.ShareId != shareId)];
+    }
+
+    private async Task<List<DncShareEntry>> MapShareDtosToEntriesAsync(IReadOnlyList<NoteShareDto> shares)
+    {
+        var userNames = await ResolveUserNamesAsync(shares);
+        var entries = new List<DncShareEntry>(shares.Count);
+
+        foreach (var share in shares)
         {
-            _noteShares.Clear();
-            _noteShares.AddRange(await ApiClient.ListSharesAsync(_selectedNote.Id));
+            var isTeam = share.SharedWithTeamId is not null;
+            string recipientName;
+
+            if (isTeam)
+            {
+                recipientName = await ResolveTeamNameAsync(share.SharedWithTeamId!.Value)
+                    ?? $"{share.SharedWithTeamId.Value:N}"[..8];
+            }
+            else
+            {
+                recipientName = userNames.TryGetValue(share.SharedWithUserId, out var name)
+                    ? name
+                    : $"{share.SharedWithUserId:N}"[..8];
+            }
+
+            entries.Add(new DncShareEntry
+            {
+                ShareId = share.Id,
+                RecipientName = recipientName,
+                RecipientType = isTeam ? "Team" : "User",
+                Permission = share.Permission == NoteSharePermission.ReadWrite ? "ReadWrite" : "Read",
+                CreatedAt = share.CreatedAt
+            });
+        }
+
+        return entries;
+    }
+
+    private async Task<IReadOnlyDictionary<Guid, string>> ResolveUserNamesAsync(IReadOnlyList<NoteShareDto> shares)
+    {
+        var ids = shares
+            .Where(s => s.SharedWithTeamId is null)
+            .Select(s => s.SharedWithUserId)
+            .Distinct()
+            .ToArray();
+
+        if (ids.Length == 0)
+        {
+            return new Dictionary<Guid, string>();
+        }
+
+        try
+        {
+            return await UserDirectory.GetDisplayNamesAsync(ids);
+        }
+        catch
+        {
+            return new Dictionary<Guid, string>();
+        }
+    }
+
+    private async Task<string?> ResolveTeamNameAsync(Guid teamId)
+    {
+        try
+        {
+            var team = await TeamDirectory.GetTeamAsync(teamId);
+            return team?.Name;
+        }
+        catch
+        {
+            return null;
         }
     }
 
     private async Task ToggleVersionPanel()
     {
         _showVersionPanel = !_showVersionPanel;
-        _showSharePanel = false;
+        _showShareDialog = false;
         if (_showVersionPanel && _selectedNote is not null)
         {
             _versions.Clear();

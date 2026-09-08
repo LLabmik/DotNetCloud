@@ -136,6 +136,11 @@ public sealed class CalendarApiClient : ICalendarApiClient
         response.EnsureSuccessStatusCode();
     }
 
+    public async Task<IReadOnlyList<CalendarSharedItem>> ListSharedWithMeAsync(CancellationToken cancellationToken = default)
+    {
+        return await ReadDataAsync<IReadOnlyList<CalendarSharedItem>>("api/v1/calendars/shared-with-me", cancellationToken) ?? [];
+    }
+
     public async Task<string> ExportCalendarICalAsync(Guid calendarId, CancellationToken cancellationToken = default)
     {
         var response = await _httpClient.GetAsync($"api/v1/calendars/{calendarId}/export", cancellationToken);

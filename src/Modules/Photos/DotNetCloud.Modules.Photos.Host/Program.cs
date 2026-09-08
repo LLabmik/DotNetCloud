@@ -129,6 +129,10 @@ builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
 // Register all business-logic services
 builder.Services.AddPhotosServices(builder.Configuration);
 
+// Team directory capability over gRPC (short-lived cache) — lets share/read services
+// resolve a caller's team membership from Core.Server without a round trip per access query.
+builder.Services.AddGrpcTeamDirectory();
+
 // gRPC
 builder.Services.AddGrpc();
 builder.Services.AddControllers();

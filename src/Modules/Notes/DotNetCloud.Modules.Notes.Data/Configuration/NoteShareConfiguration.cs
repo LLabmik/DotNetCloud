@@ -25,12 +25,16 @@ public sealed class NoteShareConfiguration : IEntityTypeConfiguration<NoteShare>
         builder.Property(s => s.CreatedByUserId);
         builder.Property(s => s.UpdatedByUserId);
 
-        // Unique constraint: one share per note/user pair
+        // One share per note/target pair is enforced in code (user XOR team) — the
+        // DB index is intentionally non-unique because team shares store Guid.Empty in
+        // SharedWithUserId, which would otherwise collide on a (NoteId, UserId) unique key.
         builder.HasIndex(s => new { s.NoteId, s.SharedWithUserId })
-            .IsUnique()
             .HasDatabaseName("ix_note_shares_note_user");
 
         builder.HasIndex(s => s.SharedWithUserId)
             .HasDatabaseName("ix_note_shares_user_id");
+
+        builder.HasIndex(s => new { s.NoteId, s.SharedWithTeamId })
+            .HasDatabaseName("ix_note_shares_note_team");
     }
 }

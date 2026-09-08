@@ -7,6 +7,7 @@ using DotNetCloud.Modules.Calendar.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using OrgDirectory = DotNetCloud.Core.Capabilities.IOrganizationDirectory;
+using ITeamDirectory = DotNetCloud.Core.Capabilities.ITeamDirectory;
 
 namespace DotNetCloud.Modules.Calendar.Data.Services;
 
@@ -19,6 +20,7 @@ public sealed class CalendarEventService : ICalendarEventService
     private readonly IEventBus _eventBus;
     private readonly OrgDirectory _orgDirectory;
     private readonly IOccurrenceExpansionService _occurrenceExpansion;
+    private readonly ITeamDirectory? _teamDirectory;
     private readonly ILogger<CalendarEventService> _logger;
 
     /// <summary>
@@ -29,13 +31,38 @@ public sealed class CalendarEventService : ICalendarEventService
         IEventBus eventBus,
         DotNetCloud.Core.Capabilities.IOrganizationDirectory orgDirectory,
         IOccurrenceExpansionService occurrenceExpansion,
-        ILogger<CalendarEventService> logger)
+        ILogger<CalendarEventService> logger,
+        ITeamDirectory? teamDirectory = null)
     {
         _db = db;
         _eventBus = eventBus;
         _orgDirectory = orgDirectory;
         _occurrenceExpansion = occurrenceExpansion;
+        _teamDirectory = teamDirectory;
         _logger = logger;
+    }
+
+    /// <summary>
+    /// Resolves the caller's team IDs for team-share access checks (empty when the
+    /// team directory capability is unavailable).
+    /// </summary>
+    private async Task<Guid[]> GetCallerTeamIdsAsync(CallerContext caller, CancellationToken cancellationToken)
+    {
+        if (_teamDirectory is null)
+        {
+            return [];
+        }
+
+        try
+        {
+            var teams = await _teamDirectory.GetTeamsForUserAsync(caller.UserId, cancellationToken);
+            return teams.Select(t => t.Id).ToArray();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to resolve team memberships for {UserId}", caller.UserId);
+            return [];
+        }
     }
 
     /// <inheritdoc />
@@ -45,6 +72,7 @@ public sealed class CalendarEventService : ICalendarEventService
 
         // Verify the calendar exists and user has access
         var calendar = await _db.Calendars
+            .Include(c => c.Shares)
             .FirstOrDefaultAsync(c => c.Id == dto.CalendarId, cancellationToken)
             ?? throw new Core.Errors.ValidationException(Core.Errors.ErrorCodes.CalendarNotFound, "Calendar not found.");
 
@@ -149,6 +177,7 @@ public sealed class CalendarEventService : ICalendarEventService
         // Verify calendar access first
         var calendar = await _db.Calendars
             .AsNoTracking()
+            .Include(c => c.Shares)
             .FirstOrDefaultAsync(c => c.Id == calendarId, cancellationToken);
 
         if (calendar is null || !await CanAccessCalendarAsync(calendar, caller, requireWrite: false, cancellationToken))
@@ -179,6 +208,7 @@ public sealed class CalendarEventService : ICalendarEventService
 
         var calendarEvent = await _db.CalendarEvents
             .Include(e => e.Calendar)
+            .ThenInclude(c => c!.Shares)
             .Include(e => e.Attendees)
             .Include(e => e.Reminders)
             .FirstOrDefaultAsync(e => e.Id == eventId && !e.IsDeleted, cancellationToken)
@@ -278,6 +308,7 @@ public sealed class CalendarEventService : ICalendarEventService
     {
         var calendarEvent = await _db.CalendarEvents
             .Include(e => e.Calendar)
+            .ThenInclude(c => c!.Shares)
             .FirstOrDefaultAsync(e => e.Id == eventId && !e.IsDeleted, cancellationToken)
             ?? throw new Core.Errors.ValidationException(Core.Errors.ErrorCodes.CalendarEventNotFound, "Calendar event not found.");
 
@@ -329,6 +360,7 @@ public sealed class CalendarEventService : ICalendarEventService
             .Include(e => e.Attendees)
             .Include(e => e.Reminders)
             .Include(e => e.Calendar)
+            .ThenInclude(c => c!.Shares)
             .FirstOrDefaultAsync(e => e.Id == eventId && !e.IsDeleted, cancellationToken)
             ?? throw new Core.Errors.ValidationException(Core.Errors.ErrorCodes.CalendarEventNotFound, "Calendar event not found.");
 
@@ -361,9 +393,11 @@ public sealed class CalendarEventService : ICalendarEventService
     /// <inheritdoc />
     public async Task<IReadOnlyList<CalendarEventDto>> SearchEventsAsync(CallerContext caller, string? query = null, DateTime? from = null, DateTime? to = null, int skip = 0, int take = 50, CancellationToken cancellationToken = default)
     {
+        var teamIds = await GetCallerTeamIdsAsync(caller, cancellationToken);
         var q = QueryEvents()
             .Where(e => e.Calendar!.OwnerId == caller.UserId ||
-                        e.Calendar.Shares.Any(s => s.SharedWithUserId == caller.UserId));
+                        e.Calendar.Shares.Any(s => s.SharedWithUserId == caller.UserId ||
+                            (s.SharedWithTeamId != null && teamIds.Contains(s.SharedWithTeamId.Value))));
 
         if (!string.IsNullOrWhiteSpace(query))
         {
@@ -434,6 +468,7 @@ public sealed class CalendarEventService : ICalendarEventService
     {
         return _db.CalendarEvents
             .Include(e => e.Calendar)
+            .ThenInclude(c => c!.Shares)
             .Include(e => e.Attendees)
             .Include(e => e.Reminders)
             .AsSplitQuery()
@@ -491,12 +526,20 @@ public sealed class CalendarEventService : ICalendarEventService
 
         if (calendar.OrganizationId is null)
         {
-            // User-owned: owner has full access; shares checked separately
+            // User-owned: owner has full access; shared users get access via user/team shares.
             if (calendar.OwnerId == caller.UserId)
                 return true;
+
+            var teamIds = await GetCallerTeamIdsAsync(caller, cancellationToken);
             if (!requireWrite)
-                return calendar.Shares.Any(s => s.SharedWithUserId == caller.UserId);
-            return calendar.Shares.Any(s => s.SharedWithUserId == caller.UserId && s.Permission == CalendarSharePermission.ReadWrite);
+            {
+                return calendar.Shares.Any(s => s.SharedWithUserId == caller.UserId ||
+                    (s.SharedWithTeamId != null && teamIds.Contains(s.SharedWithTeamId.Value)));
+            }
+
+            return calendar.Shares.Any(s => s.Permission == CalendarSharePermission.ReadWrite &&
+                (s.SharedWithUserId == caller.UserId ||
+                 (s.SharedWithTeamId != null && teamIds.Contains(s.SharedWithTeamId.Value))));
         }
 
         // Org-owned: user must be an active member

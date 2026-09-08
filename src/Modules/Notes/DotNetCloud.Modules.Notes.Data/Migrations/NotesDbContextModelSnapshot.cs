@@ -18,7 +18,7 @@ namespace DotNetCloud.Modules.Notes.Data.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasDefaultSchema("core")
-                .HasAnnotation("ProductVersion", "10.0.3")
+                .HasAnnotation("ProductVersion", "10.0.10")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -208,6 +208,9 @@ namespace DotNetCloud.Modules.Notes.Data.Migrations
                     b.Property<int>("Permission")
                         .HasColumnType("integer");
 
+                    b.Property<Guid?>("SharedWithTeamId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("SharedWithUserId")
                         .HasColumnType("uuid");
 
@@ -219,8 +222,10 @@ namespace DotNetCloud.Modules.Notes.Data.Migrations
                     b.HasIndex("SharedWithUserId")
                         .HasDatabaseName("ix_note_shares_user_id");
 
+                    b.HasIndex("NoteId", "SharedWithTeamId")
+                        .HasDatabaseName("ix_note_shares_note_team");
+
                     b.HasIndex("NoteId", "SharedWithUserId")
-                        .IsUnique()
                         .HasDatabaseName("ix_note_shares_note_user");
 
                     b.ToTable("NoteShares", "core");

@@ -400,16 +400,26 @@ else
 
                                     @if (IsShowShareDialog && ShareTargetNode is not null)
                                     {
-                                        <ShareDialog Node="ShareTargetNode" OnClose="HideShareDialog" OnSearch="HandleShareSearchAsync"
-                                                     OnShareCreated="HandleShareCreatedAsync" OnShareUpdated="HandleShareUpdatedAsync"
-                                                     OnShareRemoved="HandleShareRemovedAsync" OnPublicLinkToggled="HandlePublicLinkToggledAsync"
-                                                     InitialShares="_shareDialogShares" IsLoadingShares="_isLoadingShareDialogShares" />
+                                        <DncShareDialog ItemName="@ShareTargetNode.Name"
+                                                        ItemCount="1"
+                                                        EnablePublicLink="true"
+                                                        ShowNewShareExtras="true"
+                                                        ExistingShares="_shareDialogShares"
+                                                        IsLoadingShares="_isLoadingShareDialogShares"
+                                                        OnClose="HideShareDialog"
+                                                        OnShareCreated="HandleShareCreatedAsync"
+                                                        OnShareUpdated="HandleShareUpdatedAsync"
+                                                        OnShareRemoved="HandleShareRemovedAsync"
+                                                        OnPublicLinkToggled="HandlePublicLinkToggledAsync" />
                                     }
 
                                     @if (_showBulkShareDialog && _bulkShareTargetIds.Count > 1)
                                     {
-                                        <BulkShareDialog Nodes="BulkShareTargetNodes" OnClose="HideBulkShareDialog"
-                                                         OnSearch="HandleShareSearchAsync" OnShareCreated="HandleBulkShareCreatedAsync" />
+                                        <DncShareDialog ItemName="@(BulkShareTargetNodes.FirstOrDefault()?.Name ?? string.Empty)"
+                                                        ItemCount="@_bulkShareTargetIds.Count"
+                                                        ExistingShares="@(Array.Empty<DncShareEntry>())"
+                                                        OnClose="HideBulkShareDialog"
+                                                        OnShareCreated="HandleBulkShareCreatedAsync" />
                                     }
 
                                     <FileContextMenu IsVisible="_showContextMenu" X="_contextMenuX" Y="_contextMenuY"

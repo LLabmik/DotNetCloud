@@ -1,4 +1,5 @@
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Modules.Contacts.Models;
 
 namespace DotNetCloud.Modules.Contacts.Services;
 
@@ -19,6 +20,9 @@ public interface IContactsApiClient
     Task<IReadOnlyList<ContactShareResponse>> ListSharesAsync(Guid contactId, CancellationToken cancellationToken = default);
     Task<ContactShareResponse?> ShareContactAsync(Guid contactId, Guid? userId, Guid? teamId, string permission = "ReadOnly", CancellationToken cancellationToken = default);
     Task RevokeShareAsync(Guid shareId, CancellationToken cancellationToken = default);
+
+    // Shared with me (aggregated surfaces — Files virtual folders)
+    Task<IReadOnlyList<ContactSharedItem>> ListSharedWithMeAsync(CancellationToken cancellationToken = default);
 
     // Avatar
     Task<string?> GetAvatarUrlAsync(Guid contactId);
@@ -45,7 +49,7 @@ public sealed record ContactShareResponse
     public Guid? SharedWithTeamId { get; init; }
 
     /// <summary>Permission level.</summary>
-    public string Permission { get; init; } = "ReadOnly";
+    public ContactSharePermission Permission { get; init; } = ContactSharePermission.ReadOnly;
 
     /// <summary>When the share was created.</summary>
     public DateTime CreatedAt { get; init; }
