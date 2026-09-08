@@ -223,6 +223,70 @@ a:hover {
   font-size: 14px;
 }
 
+/* Items that expose an "open in new tab" affordance on hover */
+.nav-item-has-external {
+  position: relative;
+}
+
+/* Don't offer "open in new tab" for the page the user is already on. */
+.nav-item-has-external .nav-link.active ~ .nav-external {
+  display: none;
+}
+
+/* Reserve space so the revealed icon never overlaps the label. */
+.nav-item-has-external .nav-link {
+  padding-right: 34px;
+}
+
+/* Small "open in new tab" icon, revealed on row hover / keyboard focus. */
+.nav-external {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px;
+  border-radius: 4px;
+  color: var(--color-sidebar-text);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity var(--transition),
+    visibility var(--transition),
+    color var(--transition),
+    background var(--transition);
+}
+.nav-item-has-external:hover .nav-external,
+.nav-external:focus-visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+.nav-external:hover {
+  color: #fff;
+  background: var(--color-sidebar-hover);
+}
+.nav-external .material-icon {
+  display: block;
+}
+
+/* Icon-only rail: drop the new-tab affordance entirely. */
+.sidebar.collapsed .nav-external {
+  display: none;
+}
+.sidebar.collapsed .nav-item-has-external .nav-link {
+  padding-right: 12px;
+}
+
+/* Keep Material icons inside sidebar links sized like their emoji neighbours. */
+.sidebar .nav-link .material-icon {
+  width: 18px;
+  height: 18px;
+}
+
 /* --- Main Content --- */
 .main-content {
   flex: 1;

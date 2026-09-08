@@ -6830,3 +6830,35 @@ A module page throwing (unhandled exception during render/lifecycle) left the en
 - ✓ `dotnet build DotNetCloud.CI.slnf -c Release` clean — 0 warnings / 0 errors
 - ✓ Deployed to mint22 (server + module hosts, hash-verified) and live-verified: widget icons match sidebar; Files `Test2.txt` deep link opens its containing folder; Calendar widget shows the 9/10 9:00 AM event (and recurring events); empty states correct; Email "No account configured"; refresh button reloads widget data; per-widget error isolation holds
 - ✓ Committed + pushed on `feature/module-widgets` (no PR created — the user handles the PR)
+
+## Side Navbar Improvements: Open-in-New-Tab Icons + Desktop Sync Client (2026-09-07)
+
+> Work on branch `fix/side-navbar-improvements`.
+
+### Sidebar "Open in New Tab" Icons
+
+- ✓ Hover-reveal `open_in_new` icon on each app/module sidebar item (and About) in `NavMenu.razor` — Home and the admin section are excluded; the affordance is hidden in the icon-only (collapsed) rail
+- ✓ Added `open_in_new` (and `download`) Material SVG paths to `MaterialSvgIcons.cs`
+- ✓ `.nav-external` hover-reveal CSS + collapsed-rail hide in `app.css`
+
+### Desktop Sync Client Item + Download Page
+
+- ✓ Static "Desktop Sync Client" sidebar item in the bottom group, pinned directly above About → routes to `/apps/synctray` (login required)
+- ✓ `/apps/synctray` page (`UI.Web/Components/Pages/DesktopSync.razor` + `.razor.css`, server-rendered in the interactive-server shell): human-focused "Your files, always in reach / Why you'd want it / Download / Getting connected" (no Avalonia/gRPC jargon)
+- ✓ Downloads are direct links to the **GitHub latest release** (`github.com/LLabmik/DotNetCloud/releases/latest`) per OS (Windows ZIP / Linux), macOS shown as "Coming soon" — **no server-side GitHub proxy / update-API dependency, no asset fetching**, nothing hosted on the local server
+- ✓ "Open in new tab" icon is hidden for the currently active item (`.nav-link.active ~ .nav-external` display:none)
+- ✓ Full per-format **installation instructions** on the page (Windows ZIP, Linux tar.gz, .deb, .rpm, AppImage) incl. uninstall + AppImage FUSE note
+
+### Release pipeline: publish more client formats on tags
+
+- ✓ Added `tools/packaging/build-desktop-client-rpm.sh` (client RPM builder, mirrors .deb layout; RPM filenames can't contain hyphens → version tilde-mapped)
+- ✓ `release.yml`: after the ZIP/tar.gz bundle step, now also builds + checksums + attaches `.deb`, AppImage, and `.rpm` (Ubuntu runner installs `rpm` to get `rpmbuild`)
+- ✓ Windows = ZIP only (accurate today; MSIX deferred — requires a code-signing cert before it's installable)
+- ☐ Next tagged release will carry tar.gz / zip / .deb / AppImage / .rpm
+
+### Tests & Verification
+
+- ✓ `MaterialSvgIconsTests` (icons used by the sidebar/page resolve to real SVG path data; `open_in_new` + `download` paths added)
+- ✓ UI.Shared suite green (72 passing); UI.Web / UI.Web.Client / Core.Server build clean (0 warnings / 0 errors)
+- ✓ Redeployed to dev server mint22 (`/opt/dotnetcloud`, health = Healthy); hover icons + `/apps/synctray` page live-verified by the user in the browser
+- ✓ Committed + pushed on `fix/side-navbar-improvements`
