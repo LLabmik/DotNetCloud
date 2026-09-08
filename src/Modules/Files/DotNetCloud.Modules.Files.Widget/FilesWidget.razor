@@ -10,19 +10,6 @@ else if (_error is not null)
 }
 else
 {
-    @if (Quota is not null && Quota.MaxBytes > 0)
-    {
-        <div class="widget-quota">
-            <div class="widget-quota-labels">
-                <span>@UsedText of @MaxText</span>
-                <span>@PercentText</span>
-            </div>
-            <div class="widget-quota-bar">
-                <div class="widget-quota-bar-fill" style="width: @PercentWidth"></div>
-            </div>
-        </div>
-    }
-
     @if (_items.Count == 0)
     {
         <div class="widget-empty">@EmptyMessage</div>
@@ -38,5 +25,21 @@ else
                 </li>
             }
         </ul>
+    }
+
+    @if (Quota is not null && Quota.MaxBytes > 0)
+    {
+        <div class="widget-quota">
+            <div class="widget-quota-labels">
+                <span class="widget-quota-title">Storage Quota</span>
+                <span>@PercentText</span>
+            </div>
+            <div class="widget-quota-bar" role="progressbar"
+                 aria-valuemin="0" aria-valuemax="100"
+                 aria-valuenow="@PercentValue" aria-label="Storage usage">
+                <div class="widget-quota-bar-fill" style="width: @PercentWidth"></div>
+            </div>
+            <div class="widget-quota-usage">@UsedText used of @MaxText</div>
+        </div>
     }
 }

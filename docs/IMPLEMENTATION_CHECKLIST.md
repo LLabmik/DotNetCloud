@@ -6816,6 +6816,8 @@ A module page throwing (unhandled exception during render/lifecycle) left the en
 
 > Work package on branch `feature/module-widgets`. Canonical plan: `docs/MODULE_WIDGETS_PLAN.md`.
 
+- ✓ Files widget UX refinement (branch `fix/file-widget`): storage quota bar moved to the **bottom** of the widget (below the recent-files list) and clearly labeled — "Storage Quota" title + usage caption ("X used of Y") + percent, styled as a separated footer (`app.css` `.widget-quota` now uses top border/margin; bar gets `role="progressbar"` with `aria-valuenow` via new `FilesWidget.PercentValue`)
+
 ### Shared Infrastructure
 
 - ✓ `WidgetUiRegistry` (`src/UI/DotNetCloud.UI.Web/Services/WidgetUiRegistry.cs`) — register/unregister widgets, sorted by sort order, `OnChange` notification
