@@ -65,6 +65,10 @@ public partial class FilesWidget : ComponentBase
         ? $"{Math.Min(100, q.UsedBytes * 100.0 / q.MaxBytes):0}%"
         : "0%";
 
+    private int PercentValue => _quota is { MaxBytes: > 0 } q
+        ? (int)Math.Min(100, q.UsedBytes * 100.0 / q.MaxBytes)
+        : 0;
+
     private static string FormatBytes(long bytes)
     {
         string[] units = ["B", "KB", "MB", "GB", "TB"];
