@@ -12,7 +12,8 @@
     <div class="chat-sidebar">
         <ChannelList Channels="@_channels" IsLoading="@_isLoadingChannels" ErrorMessage="@_channelErrorMessage"
                      OnChannelSelected="@HandleChannelSelected" OnCreateChannel="@HandleCreateChannel"
-                     OnChannelReordered="@HandleChannelReordered" OnNewDm="@HandleOpenDmUserPicker" />
+                     OnChannelReordered="@HandleChannelReordered" OnNewDm="@HandleOpenDmUserPicker"
+                     IsChatSoundEnabled="@_chatSoundEnabled" OnToggleChatSound="@HandleToggleChatSound" />
 
         <ModuleHelpLink ModuleId="chat" Collapsed="false" />
     </div>
@@ -26,7 +27,6 @@
 
         <ChannelHeader Channel="@_selectedChannel" IsAdminOrOwner="@_currentUserIsAdminOrOwner"
                        HasActiveCall="@_hasActiveCall" IsDirectPeerBlocked="@IsSelectedDirectPeerBlocked"
-                       IsChatSoundEnabled="@_chatSoundEnabled" OnToggleChatSound="@HandleToggleChatSound"
                        OnPinChanged="@HandlePinChanged" OnMuteChanged="@HandleMuteChanged"
                        OnToggleDirectPeerBlock="@HandleToggleDirectPeerBlock" OnEditChannel="@HandleEditChannel"
                        OnArchiveChannel="@HandleArchiveChannel" OnLeaveChannel="@HandleLeaveChannel"
@@ -261,7 +261,7 @@
                                     else
                                     {
                                         <span class="dm-picker-avatar">@(user.DisplayName.Length > 0 ? user.DisplayName.Substring(0,
-                                                                                                                    1).ToUpperInvariant() : "?")</span>
+                                                                                                                                                                1).ToUpperInvariant() : "?")</span>
                                         }
                                         <span class="dm-picker-user-info">
                                             <span class="dm-picker-name">@user.DisplayName</span>
@@ -344,7 +344,7 @@
                                         else
                                         {
                                             <span class="dm-picker-avatar">@(user.DisplayName.Length > 0 ? user.DisplayName.Substring(0,
-                                                                                                                            1).ToUpperInvariant() : "?")</span>
+                                                                                                                                                                            1).ToUpperInvariant() : "?")</span>
                                             }
                                             <span class="dm-picker-user-info">
                                                 <span class="dm-picker-name">@user.DisplayName</span>

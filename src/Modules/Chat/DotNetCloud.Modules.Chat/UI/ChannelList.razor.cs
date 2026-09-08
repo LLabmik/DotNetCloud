@@ -53,6 +53,17 @@ public partial class ChannelList : ComponentBase
     [Parameter]
     public EventCallback OnNewDm { get; set; }
 
+    /// <summary>Whether the chat message "ding" sound is enabled for the current user (global, all channels).</summary>
+    [Parameter]
+    public bool IsChatSoundEnabled { get; set; } = true;
+
+    /// <summary>Event callback to toggle the chat message "ding" sound.</summary>
+    [Parameter]
+    public EventCallback OnToggleChatSound { get; set; }
+
+    /// <summary>Toggles the chat message "ding" sound via callback.</summary>
+    protected Task ToggleChatSound() => OnToggleChatSound.InvokeAsync();
+
     /// <summary>Whether channels are currently loading.</summary>
     [Parameter]
     public bool IsLoading { get; set; }

@@ -20,19 +20,17 @@
 
             <div class="channel-actions">
                 <span class="member-count" title="Channel members">👥 @Channel.MemberCount</span>
-                <button class="btn btn-sm btn-sound-toggle @(!IsChatSoundEnabled ? "btn-muted" : "")"
-                        @onclick="OnToggleChatSoundClick"
-                        title="@(IsChatSoundEnabled ? "Chat sounds are on — click to mute the ding on new messages" : "Chat sounds are off — click to hear a ding on new messages")">
-                    <MaterialIcon Icon="@(IsChatSoundEnabled ? "volume_up" : "volume_off")" Size="MaterialIconSize.Sm" />
-                    @(IsChatSoundEnabled ? "Sound" : "Sound off")
-                </button>
                 <button class="btn btn-sm" @onclick="OnTogglePinClick"
                         title="@(Channel.IsPinned ? "Unpin this channel from the top of the sidebar" : "Pin this channel to the top of the sidebar")">
                     @(Channel.IsPinned ? "📌 Unpin" : "📌 Pin")
                 </button>
-                <button class="btn btn-sm @(Channel.IsMuted ? "btn-muted" : "")" @onclick="OnToggleMuteClick"
-                        title="@(Channel.IsMuted ? "Unmute notifications for this channel" : "Mute notifications for this channel")">
-                    @(Channel.IsMuted ? "🔇 Muted" : "🔔 Mute")
+                <button class="btn btn-sm btn-channel-notifications @(Channel.IsMuted ? "btn-muted" : "")"
+                        @onclick="OnToggleMuteClick"
+                        title="@(Channel.IsMuted
+                            ? "Notifications for this channel are muted — click to unmute"
+                            : "Mute notifications (badges/toasts) for this channel only. Chat sounds are controlled separately from the bell at the top of the sidebar.")">
+                    <MaterialIcon Icon="@(Channel.IsMuted ? "notifications_off" : "notifications_none")" Size="MaterialIconSize.Sm" />
+                    @(Channel.IsMuted ? "Notifications off" : "Mute notifications")
                 </button>
                 @if (Channel!.Type == "DirectMessage")
                 {
@@ -106,15 +104,17 @@
                             </div>
                             <dl class="help-list">
                                 <dt>
-                                    <MaterialIcon Icon="volume_up" Size="MaterialIconSize.Sm" /> Sound /
-                                    <MaterialIcon Icon="volume_off" Size="MaterialIconSize.Sm" /> Sound off
+                                    <MaterialIcon Icon="notifications_none" Size="MaterialIconSize.Sm" /> Mute notifications
                                 </dt>
-                                <dd>Toggle the "ding" played when a new message arrives anywhere in Chat.</dd>
+                                <dd>Stops badges/toasts for this channel only — it doesn't affect the chat "ding" sound.
+                                </dd>
+                                <dt>
+                                    <MaterialIcon Icon="notifications_active" Size="MaterialIconSize.Sm" /> Chat sounds
+                                </dt>
+                                <dd>Turn the global "ding" on new messages on/off from the bell at the top of the Chat sidebar.
+                                </dd>
                                 <dt>📌 Pin / Unpin</dt>
                                 <dd>Pin this channel to the top of your sidebar for quick access.</dd>
-                                <dt>🔔 Mute / 🔇 Muted</dt>
-                                <dd>Mute or unmute notifications for this channel. Muted channels won't show toast notifications.
-                                </dd>
                                 <dt>🗄️ Archive</dt>
                                 <dd>Hide this channel from the sidebar. Messages are preserved and it can be restored later.</dd>
                                 <dt>✏️ Edit</dt>

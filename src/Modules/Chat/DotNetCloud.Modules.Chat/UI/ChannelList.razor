@@ -8,11 +8,22 @@
 <div class="chat-channel-list">
     <div class="channel-list-header">
         <h2>Chat</h2>
-        <button class="btn btn-sm btn-primary" @onclick="ShowCreateChannel" title="Create channel" aria-label="Create a new channel">+</button>
+        <div class="channel-list-header-actions">
+            <button class="btn btn-sm channel-list-sound-btn @(IsChatSoundEnabled ? "" : "btn-muted")"
+                    @onclick="ToggleChatSound" title="@(IsChatSoundEnabled
+                                            ? "Chat sounds are on — click to mute the ding on new messages"
+                                            : "Chat sounds are off — click to hear a ding on new messages")"
+                    aria-label="Toggle chat sounds">
+                <MaterialIcon Icon="@(IsChatSoundEnabled ? "volume_up" : "volume_off")" Size="MaterialIconSize.Sm" />
+            </button>
+            <button class="btn btn-sm btn-primary" @onclick="ShowCreateChannel" title="Create channel"
+                    aria-label="Create a new channel">+</button>
+        </div>
     </div>
 
     <div class="channel-search">
-        <input type="text" placeholder="Search channels..." @bind="SearchQuery" @bind:event="oninput" aria-label="Search channels" />
+        <input type="text" placeholder="Search channels..." @bind="SearchQuery" @bind:event="oninput"
+               aria-label="Search channels" />
     </div>
 
     @if (IsShowCreateChannel)
@@ -70,18 +81,11 @@
                 @foreach (var channel in PinnedChannels)
                 {
                     <div class="channel-item channel-item-pinned @(channel.IsActive ? "active" : "") @GetPinnedDragClass(channel.Id)"
-                         draggable="true"
-                         role="button"
-                         tabindex="0"
-                         aria-label="Open pinned channel @channel.Name"
-                         @ondragstart="() => HandlePinnedDragStart(channel.Id)"
-                         @ondragover:preventDefault="true"
-                         @ondragover="() => HandlePinnedDragOver(channel.Id)"
-                         @ondragend="HandlePinnedDragEnd"
-                         @ondrop:preventDefault="true"
-                         @ondrop="() => HandlePinnedDropAsync(channel.Id)"
-                         @onkeydown="(e) => HandleChannelKeyDown(e, channel)"
-                         @onclick="() => SelectChannel(channel)">
+                         draggable="true" role="button" tabindex="0" aria-label="Open pinned channel @channel.Name"
+                         @ondragstart="() => HandlePinnedDragStart(channel.Id)" @ondragover:preventDefault="true"
+                         @ondragover="() => HandlePinnedDragOver(channel.Id)" @ondragend="HandlePinnedDragEnd"
+                         @ondrop:preventDefault="true" @ondrop="() => HandlePinnedDropAsync(channel.Id)"
+                         @onkeydown="(e) => HandleChannelKeyDown(e, channel)" @onclick="() => SelectChannel(channel)">
                         <span class="channel-icon">📌</span>
                         <span class="channel-name">@channel.Name</span>
                         @if (channel.IsMuted)
@@ -103,11 +107,8 @@
             <h3>Channels</h3>
             @foreach (var channel in FilteredChannels.Where(c => c.Type is "Public" or "Private" && !c.IsPinned))
             {
-                <div class="channel-item @(channel.IsActive ? "active" : "")"
-                     role="button"
-                     tabindex="0"
-                     aria-label="Open channel @channel.Name"
-                     @onkeydown="(e) => HandleChannelKeyDown(e, channel)"
+                <div class="channel-item @(channel.IsActive ? "active" : "")" role="button" tabindex="0"
+                     aria-label="Open channel @channel.Name" @onkeydown="(e) => HandleChannelKeyDown(e, channel)"
                      @onclick="() => SelectChannel(channel)">
                     <span class="channel-icon">@(channel.Type == "Private" ? "🔒" : "#")</span>
                     <span class="channel-name">@channel.Name</span>
@@ -128,15 +129,13 @@
         <div class="channel-group">
             <div class="channel-group-header">
                 <h3>Direct Messages</h3>
-                <button class="btn btn-sm btn-new-dm" @onclick="HandleNewDmClick" title="New direct message" aria-label="Start a new direct message">+</button>
+                <button class="btn btn-sm btn-new-dm" @onclick="HandleNewDmClick" title="New direct message"
+                        aria-label="Start a new direct message">+</button>
             </div>
             @foreach (var channel in FilteredChannels.Where(c => c.Type is "DirectMessage" or "Group" && !c.IsPinned))
             {
-                <div class="channel-item @(channel.IsActive ? "active" : "")"
-                     role="button"
-                     tabindex="0"
-                     aria-label="Open direct message @channel.Name"
-                     @onkeydown="(e) => HandleChannelKeyDown(e, channel)"
+                <div class="channel-item @(channel.IsActive ? "active" : "")" role="button" tabindex="0"
+                     aria-label="Open direct message @channel.Name" @onkeydown="(e) => HandleChannelKeyDown(e, channel)"
                      @onclick="() => SelectChannel(channel)">
                     <span class="channel-icon">💬</span>
                     <span class="presence-dot @GetPresenceClass(channel)" title="@channel.PresenceStatus"></span>
