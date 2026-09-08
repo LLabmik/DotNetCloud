@@ -1,3 +1,4 @@
+using DotNetCloud.Core;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Events.Search;
@@ -584,7 +585,7 @@ internal sealed class MessageService : IMessageService
         var result = await _linkPreviewService.FetchPreviewAsync(url, cancellationToken);
         if (result is null)
         {
-            _logger.LogDebug("Link preview: no metadata captured for {Url}", url);
+            _logger.LogDebug("Link preview: no metadata captured for {Url}", LogSanitizer.Sanitize(url.ToString()));
             return;
         }
 
@@ -603,7 +604,7 @@ internal sealed class MessageService : IMessageService
         _db.MessageLinkPreviews.Add(preview);
         message.LinkPreview = preview;
         await _db.SaveChangesAsync(cancellationToken);
-        _logger.LogDebug("Link preview captured for message {MessageId} from {Url}", message.Id, url);
+        _logger.LogDebug("Link preview captured for message {MessageId} from {Url}", message.Id, LogSanitizer.Sanitize(url.ToString()));
     }
 
     /// <summary>

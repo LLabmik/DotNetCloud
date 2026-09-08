@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 using AngleSharp.Dom;
 using AngleSharp.Html.Parser;
+using DotNetCloud.Core;
 using DotNetCloud.Modules.Chat.Services;
 using Microsoft.Extensions.Logging;
 
@@ -125,7 +126,7 @@ public sealed partial class LinkPreviewService : ILinkPreviewService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Link preview: unexpected failure fetching {Url}", url);
+            _logger.LogWarning(ex, "Link preview: unexpected failure fetching {Url}", LogSanitizer.Sanitize(url.ToString()));
             return null;
         }
 
@@ -142,7 +143,7 @@ public sealed partial class LinkPreviewService : ILinkPreviewService
         var fetch = await _fetcher.FetchAsync(url, cancellationToken);
         if (!fetch.Success || fetch.Content is null)
         {
-            _logger.LogDebug("Link preview: fetch failed for {Url}: {Reason}", url, fetch.ErrorReason);
+            _logger.LogDebug("Link preview: fetch failed for {Url}: {Reason}", LogSanitizer.Sanitize(url.ToString()), LogSanitizer.Sanitize(fetch.ErrorReason));
             return null;
         }
 
@@ -152,7 +153,7 @@ public sealed partial class LinkPreviewService : ILinkPreviewService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Link preview: failed to parse HTML for {Url}", url);
+            _logger.LogWarning(ex, "Link preview: failed to parse HTML for {Url}", LogSanitizer.Sanitize(url.ToString()));
             return null;
         }
     }

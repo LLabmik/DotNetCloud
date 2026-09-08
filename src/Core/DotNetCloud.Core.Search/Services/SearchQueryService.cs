@@ -64,12 +64,12 @@ public sealed class SearchQueryService
 
         _logger.LogDebug(
             "Executing search: \"{QueryText}\" (terms={Terms}, phrases={Phrases}, exclusions={Exclusions}, module={Module}, type={Type}, page={Page})",
-            query.QueryText,
+            LogSanitizer.Sanitize(query.QueryText),
             string.Join(", ", parsed.Terms),
             string.Join(", ", parsed.Phrases),
             string.Join(", ", parsed.Exclusions),
-            effectiveQuery.ModuleFilter ?? "all",
-            effectiveQuery.EntityTypeFilter ?? "all",
+            LogSanitizer.Sanitize(effectiveQuery.ModuleFilter ?? "all"),
+            LogSanitizer.Sanitize(effectiveQuery.EntityTypeFilter ?? "all"),
             effectiveQuery.Page);
 
         var result = await _searchProvider.SearchAsync(effectiveQuery, cancellationToken);
@@ -89,7 +89,7 @@ public sealed class SearchQueryService
     /// <summary>Triggers a full reindex for a specific module.</summary>
     public async Task ReindexModuleAsync(string moduleId, CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Triggering reindex for module {ModuleId}", moduleId);
+        _logger.LogInformation("Triggering reindex for module {ModuleId}", LogSanitizer.Sanitize(moduleId));
         await _searchProvider.ReindexModuleAsync(moduleId, cancellationToken);
     }
 }

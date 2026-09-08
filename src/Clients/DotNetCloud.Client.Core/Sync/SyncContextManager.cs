@@ -204,9 +204,9 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
             catch (Exception ex)
             {
                 _logger.LogError(ex,
-                    "Failed to start sync engine for new context {ContextId} ({DisplayName}). " +
+                    "Failed to start sync engine for new context {ContextId}. " +
                     "Account will be saved as offline.",
-                    contextId, request.DisplayName);
+                    contextId);
 
                 // Register the context as offline so the account still appears in the UI.
                 RegisterOfflineContext(registration);
@@ -220,8 +220,7 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
             _lock.Release();
         }
 
-        _logger.LogInformation("Added sync context {ContextId} ({DisplayName}).",
-            contextId, request.DisplayName);
+        _logger.LogInformation("Added sync context {ContextId}.", contextId);
 
         // Best-effort server-side registration of the sync folder.
         var addedRunning = await GetRunningContextAsync(contextId);
@@ -435,8 +434,8 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
             ApplyScopedFolderExclusions();
 
             _logger.LogInformation(
-                "Re-authenticated account (key {AccountKey}): updated {Count} context(s).",
-                accountKey, updated);
+                "Re-authenticated account: updated {Count} context(s).",
+                updated);
             return updated;
         }
         finally
@@ -479,8 +478,8 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
                 await SaveRegistrationsAsync(cancellationToken);
 
             _logger.LogInformation(
-                "Updated display name for account (key {AccountKey}) to '{DisplayName}' ({Count} context(s)).",
-                accountKey, displayName, updated);
+                "Updated display name for account (context {ContextId}, {Count} context(s)).",
+                contextId, updated);
             return updated;
         }
         finally
@@ -835,8 +834,7 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
             SelectiveSync = selectiveSync,
         };
 
-        _logger.LogDebug("Started sync engine for context {ContextId} ({DisplayName}).",
-            registration.Id, registration.DisplayName);
+        _logger.LogDebug("Started sync engine for context {ContextId}.", registration.Id);
     }
 
     /// <summary>
@@ -867,8 +865,7 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
             SelectiveSync = new SelectiveSyncConfig(),
         };
 
-        _logger.LogWarning("Registered context {ContextId} ({DisplayName}) as offline.",
-            registration.Id, registration.DisplayName);
+        _logger.LogWarning("Registered context {ContextId} as offline.", registration.Id);
     }
 
     /// <summary>

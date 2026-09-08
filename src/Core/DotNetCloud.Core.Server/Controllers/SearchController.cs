@@ -90,7 +90,8 @@ public sealed class SearchController : SearchControllerBase
         var result = await _queryService.SearchAsync(query);
         _logger.LogInformation(
             "Search query \"{Query}\" by user {UserId} (module={Module}, type={Type}, page={Page}) returned {Count} results",
-            q, caller.UserId, module ?? "all", type ?? "all", query.Page, result.TotalCount);
+            LogSanitizer.Sanitize(q), caller.UserId, LogSanitizer.Sanitize(module ?? "all"),
+            LogSanitizer.Sanitize(type ?? "all"), query.Page, result.TotalCount);
         return Ok(Envelope(result));
     }
 
@@ -123,7 +124,7 @@ public sealed class SearchController : SearchControllerBase
         var result = await _queryService.SearchAsync(query);
         _logger.LogInformation(
             "Search suggest \"{Query}\" by user {UserId} returned {Count} suggestions",
-            q, caller.UserId, result.Items.Count);
+            LogSanitizer.Sanitize(q), caller.UserId, result.Items.Count);
 
         // Return just the top items for suggestions
         return Ok(Envelope(result.Items.Take(10)));
@@ -179,7 +180,7 @@ public sealed class SearchController : SearchControllerBase
     {
         var caller = GetAuthenticatedCaller();
 
-        _logger.LogInformation("Admin {UserId} triggered reindex for module {ModuleId}", caller.UserId, moduleId);
+        _logger.LogInformation("Admin {UserId} triggered reindex for module {ModuleId}", caller.UserId, LogSanitizer.Sanitize(moduleId));
 
         if (_reindexService is not null)
         {

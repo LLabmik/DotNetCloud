@@ -744,8 +744,8 @@ public sealed class SettingsViewModel : ViewModelBase
             }
 
             _logger.LogInformation(
-                "Adding account: UserId={UserId}, DisplayName={DisplayName}, Folder={Folder}.",
-                data.UserId, data.DisplayName, data.LocalFolderPath);
+                "Adding account: UserId={UserId}, Folder={Folder}.",
+                data.UserId, data.LocalFolderPath);
 
             using var addCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             addCts.CancelAfter(TimeSpan.FromSeconds(30));
