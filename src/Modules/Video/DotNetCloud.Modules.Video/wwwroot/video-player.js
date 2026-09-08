@@ -156,6 +156,28 @@
   }
 
   /**
+   * Removes any `.dnc-player` DOM already present inside `container`.
+   *
+   * The player must never render twice in the same page. Normally `player.init`
+   * tears the previous instance down via `player.destroy()` before building a
+   * new one, but if `video-player.js` has been re-injected/re-executed (e.g.
+   * `LoadPlayerScriptsAsync` runs again on a repeated visit) its IIFE resets the
+   * module's private `instance` to null, so the previous root is no longer
+   * tracked and `destroy()` cannot remove it — leaving two stacked players.
+   * Blazor renders the container empty and JS owns all player DOM, so clearing
+   * the container of any leftover player before building is always safe.
+   */
+  function clearStalePlayers(container) {
+    if (!container) return;
+    var stale = container.querySelectorAll(".dnc-player");
+    for (var i = 0; i < stale.length; i++) {
+      if (stale[i].parentNode) {
+        stale[i].parentNode.removeChild(stale[i]);
+      }
+    }
+  }
+
+  /**
    * Creates a new player instance and starts playback.
    */
   function createPlayer(config) {
@@ -185,6 +207,9 @@
    * the stream pipeline.
    */
   function buildPlayer(container, config) {
+    // Guarantee a single player: remove any root left in the container by a
+    // previous init whose instance bookkeeping was lost (see clearStalePlayers).
+    clearStalePlayers(container);
     var p = {
       _container: container,
       _config: config,
