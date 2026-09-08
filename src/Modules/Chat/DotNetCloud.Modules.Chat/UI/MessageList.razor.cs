@@ -173,7 +173,8 @@ public partial class MessageList : ComponentBase
     /// <summary>
     /// Formats a message time that has already been converted to the viewer's local time.
     /// Recent messages render as a relative age ("5m ago"); older messages render as a
-    /// wall-clock post time so they read naturally in the user's timezone.
+    /// wall-clock post time so they read naturally in the user's timezone. Wall-clock
+    /// times use a 12-hour clock with an AM/PM indicator (e.g., "3:42 PM").
     /// </summary>
     internal static string FormatLocalTime(DateTime localSentAt, DateTime localNow)
     {
@@ -191,15 +192,15 @@ public partial class MessageList : ComponentBase
 
         if (localSentAt.Date == localNow.Date)
         {
-            return localSentAt.ToString("HH:mm");
+            return localSentAt.ToString("h:mm tt");
         }
 
         if (localSentAt.Date == localNow.Date.AddDays(-1))
         {
-            return $"Yesterday {localSentAt:HH:mm}";
+            return $"Yesterday {localSentAt:h:mm tt}";
         }
 
-        return localSentAt.ToString("MMM d, HH:mm");
+        return localSentAt.ToString("MMM d, h:mm tt");
     }
 
     /// <summary>Formats a file size for display.</summary>
