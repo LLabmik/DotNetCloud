@@ -253,13 +253,18 @@ window.dotnetcloudUpload = (function () {
                     return;
                 }
 
+                // Read this one chunk (4 MB) from the File on demand. Chunk bytes are not
+                // retained between requests, so a 16 GB+ upload only holds a single chunk in
+                // memory at a time instead of the whole file.
+                const chunkData = await file.slice(chunk.start, chunk.end).arrayBuffer();
+
                 const putResp = await fetch(
                     `${apiBase}/upload/${sessionId}/chunks/${chunk.hash}`,
                     {
                         method: "PUT",
                         headers: { "Content-Type": "application/octet-stream" },
                         credentials: "same-origin",
-                        body: chunk.data,
+                        body: chunkData,
                         signal: state.abortController.signal
                     }
                 );
@@ -394,7 +399,9 @@ window.dotnetcloudUpload = (function () {
                 .map(b => b.toString(16).padStart(2, "0"))
                 .join("");
 
-            chunks.push({ hash: hashHex, data: new Uint8Array(buffer) });
+            // Only the hash and slice offsets are retained. The chunk bytes are re-read
+            // from the File at upload time so a large file is never held fully in memory.
+            chunks.push({ hash: hashHex, start: start, end: end });
 
             // Hashing progress: 0-5%
             const pct = Math.round(((i + 1) / totalChunks) * 5);
