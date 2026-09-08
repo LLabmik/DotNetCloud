@@ -206,13 +206,21 @@ public partial class VideoPage : IAsyncDisposable
     /// module static asset path, and video-player.js is served via the
     /// /api/v1/videos/video-player-js endpoint to work around the .NET 10
     /// static-web-assets bug. The eval returns a Promise that Blazor awaits.
+    ///
+    /// The load is guarded so the scripts are injected at most once per page
+    /// session: re-executing video-player.js re-runs its IIFE, which resets the
+    /// player module's private `instance` to null. If that happens between two
+    /// player inits (e.g. a repeated deep-link render), the second init's
+    /// `destroy()` can no longer see the first player root and two players stack
+    /// in the page. On a genuine page refresh the object is gone and the fresh,
+    /// cache-busted file is loaded again.
     /// </summary>
     private async Task LoadPlayerScriptsAsync()
     {
         // Timestamp cache-buster (Date.now) so a freshly deployed video-player.js is
         // never served stale from the browser cache.
         await Js.InvokeVoidAsync("eval",
-            "(function(){return new Promise(function(res){var h=document.createElement('script');h.src='/_content/DotNetCloud.Modules.Video/hls.min.js?v=1';h.onload=function(){var p=document.createElement('script');p.src='/api/v1/videos/video-player-js?_='+Date.now();p.onload=res;p.onerror=res;document.head.appendChild(p);};h.onerror=res;document.head.appendChild(h);});})()");
+            "(function(){return new Promise(function(res){if(window.DotNetCloudVideoPlayer){res();return;}var h=document.createElement('script');h.src='/_content/DotNetCloud.Modules.Video/hls.min.js?v=1';h.onload=function(){var p=document.createElement('script');p.src='/api/v1/videos/video-player-js?_='+Date.now();p.onload=res;p.onerror=res;document.head.appendChild(p);};h.onerror=res;document.head.appendChild(h);});})()");
     }
 
     /// <summary>

@@ -4361,6 +4361,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Backend: `AudioStreamInfo`, `VideoAudioStreamDto`, `ProbeStreamsAsync`, audio-index threading through `FfmpegArgumentBuilder`/`IVideoTranscodingService`/`VideoTranscodingService`/`VideoController`
 - ✓ Blazor: `VideoPage` hosts only the player container; new `OnError`/`OnStrategy`/`OnEnded`/`OnNavigateEpisode` JSInvokables; `NavigateEpisodeAsync` + testable `ComputeNextEpisodeIndex` helper
 - ✓ Cancel background ffmpeg when leaving the video player — `video-player.js` `cancelServerStream` (fired from `destroy()` + `pagehide`) posts to `POST /api/v1/videos/cancel-stream/{videoId}`; all Blazor teardown paths (Close, section switch, navigate away, series/season nav) route through JS destroy; `HlsStreamWatchdog` cancels abandoned HLS streams after `HlsIdleTimeoutSeconds` (default 300) with no segment requests
+- ✓ Fix double-video when opening a video from the home widget / deep link — `video-player.js` now clears any stale `.dnc-player` from `#video-player-root` before building (guarantees a single player even if the page re-inits), and `LoadPlayerScriptsAsync` no longer re-injects/re-executes the player script on every visit (the IIFE re-run was resetting the player module's `instance`, so a second init could not remove the first player and two players stacked)
 - ✓ Tests: `ParseCodecInfo` audio-stream parsing, `FfmpegArgumentBuilder` audio-map, `ComputeNextEpisodeIndex` (video suite 169 passing)
 
 ### Sub-Phase E: Integration & Quality (Steps 5.19–5.20)
