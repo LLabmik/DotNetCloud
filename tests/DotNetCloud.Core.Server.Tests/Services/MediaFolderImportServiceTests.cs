@@ -164,6 +164,133 @@ public sealed class MediaFolderImportServiceTests
             Times.Never);
     }
 
+    [TestMethod]
+    public async Task DiscoverNewMediaFilesAsync_UnindexedFiles_ReturnsCountWithoutIndexing()
+    {
+        var ownerId = Guid.CreateVersion7();
+        var existingPhotoId = Guid.CreateVersion7();
+        var newPhotoOneId = Guid.CreateVersion7();
+        var newPhotoTwoId = Guid.CreateVersion7();
+
+        var filesApiClientMock = new Mock<IFilesApiClient>();
+        filesApiClientMock
+            .Setup(client => client.ScanMediaFoldersAsync(
+                It.IsAny<IReadOnlyCollection<MediaLibrarySource>>(),
+                ownerId,
+                "Photos",
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MediaScanCandidatesResult
+            {
+                Success = true,
+                TotalFound = 3,
+                Candidates =
+                [
+                    new MediaFileCandidateDto { Id = newPhotoOneId, Name = "a-new.jpg", MimeType = "image/jpeg" },
+                    new MediaFileCandidateDto { Id = existingPhotoId, Name = "b-existing.jpg", MimeType = "image/jpeg" },
+                    new MediaFileCandidateDto { Id = newPhotoTwoId, Name = "c-new.png", MimeType = "image/png" },
+                ],
+            });
+
+        var photoCallbackMock = new Mock<IPhotoIndexingCallback>();
+        photoCallbackMock
+            .Setup(callback => callback.GetIndexedFileNodeIdsAsync(ownerId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([existingPhotoId]);
+
+        using var provider = CreateServiceProvider(Guid.CreateVersion7().ToString(), filesApiClientMock, photoCallbackMock.Object);
+        var service = CreateService(provider);
+
+        var result = await service.DiscoverNewMediaFilesAsync(
+            [
+                new MediaLibrarySource
+                {
+                    SourceKind = MediaLibrarySourceKind.SharedMount,
+                    SharedFolderId = Guid.CreateVersion7(),
+                    DisplayName = "Library",
+                    DisplayPath = "/_DotNetCloud/Library",
+                    Enabled = true,
+                }
+            ],
+            ownerId,
+            "Photos");
+
+        Assert.IsTrue(result.Success);
+        Assert.AreEqual(3, result.TotalFound);
+        Assert.AreEqual(1, result.AlreadyIndexed);
+        Assert.AreEqual(2, result.NewFileCount);
+        Assert.AreEqual(2, result.SampleFileNames.Count);
+        Assert.IsTrue(result.SampleFileNames.Contains("a-new.jpg"));
+        Assert.IsTrue(result.SampleFileNames.Contains("c-new.png"));
+
+        // Detection must not mutate: no files indexed, none removed.
+        photoCallbackMock.Verify(
+            callback => callback.IndexPhotoAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        photoCallbackMock.Verify(
+            callback => callback.RemoveDeletedPhotosAsync(It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [TestMethod]
+    public async Task DiscoverNewMediaFilesAsync_NoSources_ReturnsZeroWithoutQueryingFiles()
+    {
+        var ownerId = Guid.CreateVersion7();
+        var filesApiClientMock = new Mock<IFilesApiClient>();
+
+        using var provider = CreateServiceProvider(
+            Guid.CreateVersion7().ToString(), filesApiClientMock, new Mock<IPhotoIndexingCallback>().Object);
+        var service = CreateService(provider);
+
+        var result = await service.DiscoverNewMediaFilesAsync([], ownerId, "Photos");
+
+        Assert.IsTrue(result.Success);
+        Assert.AreEqual(0, result.TotalFound);
+        Assert.AreEqual(0, result.AlreadyIndexed);
+        Assert.AreEqual(0, result.NewFileCount);
+        Assert.AreEqual(0, result.SampleFileNames.Count);
+        filesApiClientMock.Verify(
+            client => client.ScanMediaFoldersAsync(It.IsAny<IReadOnlyCollection<MediaLibrarySource>>(), It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [TestMethod]
+    public async Task DiscoverNewMediaFilesAsync_FilesModuleUnavailable_ReturnsFailedResult()
+    {
+        var ownerId = Guid.CreateVersion7();
+        var filesApiClientMock = new Mock<IFilesApiClient>();
+        filesApiClientMock
+            .Setup(client => client.ScanMediaFoldersAsync(
+                It.IsAny<IReadOnlyCollection<MediaLibrarySource>>(),
+                ownerId,
+                "Photos",
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MediaScanCandidatesResult
+            {
+                Success = false,
+                ErrorMessage = "Files module offline",
+            });
+
+        using var provider = CreateServiceProvider(
+            Guid.CreateVersion7().ToString(), filesApiClientMock, new Mock<IPhotoIndexingCallback>().Object);
+        var service = CreateService(provider);
+
+        var result = await service.DiscoverNewMediaFilesAsync(
+            [
+                new MediaLibrarySource
+                {
+                    SourceKind = MediaLibrarySourceKind.OwnedFileNode,
+                    DisplayName = "Camera",
+                    DisplayPath = "/Camera",
+                    Enabled = true,
+                }
+            ],
+            ownerId,
+            "Photos");
+
+        Assert.IsFalse(result.Success);
+        Assert.AreEqual("Files module offline", result.ErrorMessage);
+        Assert.AreEqual(0, result.NewFileCount);
+    }
+
     private static ServiceProvider CreateServiceProvider(string dbName, Mock<IFilesApiClient> filesApiClientMock, IPhotoIndexingCallback photoCallback)
     {
         var services = new ServiceCollection();

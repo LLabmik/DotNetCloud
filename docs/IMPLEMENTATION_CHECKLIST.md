@@ -4291,6 +4291,16 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Step 5.13 — Subsonic API Compatibility
 - ✓ Step 5.14 — Music API, gRPC & Blazor UI
 
+### Media Library Auto-Discovery Prompt (Video + Music) — feature/auto-media-scanning
+
+- ✓ `IMediaLibraryScanner.DiscoverNewMediaFilesAsync` — read-only "new files" discovery (no import)
+- ✓ `MediaDiscoveryResult` DTO (`src/Core/DotNetCloud.Core/DTOs/Media/MediaDiscoveryResult.cs`)
+- ✓ Shared discovery pass in `MediaFolderImportService` reused by the full scan and the new detection method
+- ✓ Video module (`VideoPage`): first-visit-per-browser-session background detection, "New Videos Available" modal (Scan Now / Not Now), in-modal progress, auto-refresh + summary notice after import, one-time no-sources setup hint
+- ✓ Music module (`MusicPage`): mirrored "New Music Available" flow, including MusicBrainz enrichment after import
+- ✓ 3 new `MediaFolderImportServiceTests` cases (detection counts without mutation; empty sources; Files module unavailable)
+- ☐ Live E2E verification (new files → modal → Scan Now → page refresh) — pending before commit (repo rule #1)
+
 ### Sub-Phase C.1: MusicBrainz Metadata Enrichment
 
 #### Phase A — Data Model Changes (Migration)

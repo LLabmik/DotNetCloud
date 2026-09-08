@@ -2771,6 +2771,25 @@ Also fixed Android music play order (2026-09-04, `fix/android-music-play-order`)
 
 ---
 
+### Section: Media Library Auto-Discovery Prompt (Video + Music)
+
+#### Step: feature/auto-media-scanning — first-visit new-media detection & import prompt
+
+**Status:** implemented — awaiting live E2E verification before commit
+
+**Deliverables:**
+
+- ✓ `IMediaLibraryScanner.DiscoverNewMediaFilesAsync(...)` — read-only discovery that reports unindexed files without importing (`DotNetCloud.Core`)
+- ✓ `MediaDiscoveryResult` DTO (`src/Core/DotNetCloud.Core/DTOs/Media/MediaDiscoveryResult.cs`)
+- ✓ Shared discovery pass in `MediaFolderImportService` reused by both the full scan and the detection method
+- ✓ Video module (`VideoPage`): first-visit-per-browser-session background detection, "New Videos Available" modal with Scan Now / Not Now, in-modal live progress, current-section refresh + summary notice after import, one-time no-sources setup hint
+- ✓ Music module (`MusicPage`): mirrored "New Music Available" flow, including MusicBrainz enrichment after import
+- ✓ 3 new `MediaFolderImportServiceTests` (unindexed count without mutation; empty sources; Files module unavailable)
+
+**Notes:** Runs once per browser-tab session via `sessionStorage` (`dnc.media-check.video` / `dnc.media-check.music`). Scan semantics are detect-first, import-on-click. No-sources shows a one-time setup hint (`dnc.media-hint.*`). Build clean (0 warnings/0 errors); Core.Server.Tests 674 pass, Video.Tests 209 pass, Music.Tests 387 pass. Live E2E verification still required before commit (repo rule #1).
+
+---
+
 ## Phase 5: MusicBrainz Metadata Enrichment (Sub-Phase C.1)
 
 ### Section: Phase A - Data Model Changes (Migration)
@@ -5719,7 +5738,6 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - `Recover()` on a non-errored `ErrorBoundary` is a safe no-op, so calling it on every navigation is intentional.
 - Final clean deploy live — `/health/ready` Healthy, **14/14 modules** Running.
 - Commit + push on `fix/module-error-recovery`; no PR created (user handles the PR).
-
 
 ## Module Home Widgets (2026-09-06 / 2026-09-07)
 

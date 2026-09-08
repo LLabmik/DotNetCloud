@@ -151,6 +151,19 @@ public partial class MusicPage : IAsyncDisposable
     // Sidebar collapse state
     private bool _sidebarCollapsed;
 
+    // First-visit new-media notification (runs each time the module is opened)
+    private const string SetupHintSessionKey = "dnc.media-hint.music";
+    private const string ImportPromptAtKey = "dnc.media-prompt.music";
+    private const string MusicLastSeenKey = "music-last-seen";
+    private static readonly TimeSpan ImportPromptCooldown = TimeSpan.FromMinutes(3);
+    private bool _mediaCheckStarted;
+    private bool _showNewMediaModal;
+    private bool _newMediaNeedsImport;
+    private int _newMediaCount;
+    private List<string> _newMediaSampleNames = [];
+    private bool _showLibrarySetupHint;
+    private string? _importNotice;
+
     private async Task ToggleSidebar()
     {
         _sidebarCollapsed = !_sidebarCollapsed;
@@ -240,6 +253,13 @@ public partial class MusicPage : IAsyncDisposable
     /// <inheritdoc />
     protected override async Task OnParametersSetAsync()
     {
+        // Re-run the new-media check whenever the module is (re)selected — some shells keep
+        // module pages alive, so this can fire even without a fresh component mount.
+        if (_caller is not null)
+        {
+            _ = RunFirstVisitMediaCheckAsync();
+        }
+
         // Handle fileId changes when already on the page (same-page navigation via search).
         // FileIdNav is a timestamp nonce that changes on every click, even for the same file.
         if (!string.IsNullOrEmpty(FileId) && FileIdNav != _lastHandledNav && Guid.TryParse(FileId, out var fileId))
@@ -289,6 +309,12 @@ public partial class MusicPage : IAsyncDisposable
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (firstRender)
+        {
+            // Once per browser-tab session: background check for new, unimported music files.
+            _ = RunFirstVisitMediaCheckAsync();
+        }
+
         // Auto-play needs the global player's JS to be ready; trigger play if a file was queued during init
         if (_pendingAutoPlayTrack is not null)
         {
@@ -423,6 +449,8 @@ public partial class MusicPage : IAsyncDisposable
         _selectedGenre = null;
         _searchResults = null;
         _breadcrumb.Clear();
+        _importNotice = null;
+        _showLibrarySetupHint = false;
         await LoadCurrentSectionAsync();
     }
 
@@ -1080,8 +1108,16 @@ public partial class MusicPage : IAsyncDisposable
         try
         {
             _librarySources = (await MediaLibrarySourceSettings.LoadSourcesAsync(UserSettingsService, _caller.UserId, "music")).ToList();
+            Logger.LogInformation("Music LoadLibraryPathAsync: user {UserId} loaded {SourceCount} source(s)", _caller.UserId, _librarySources.Count);
+            if (_librarySources.Count > 0)
+            {
+                _showLibrarySetupHint = false;
+            }
         }
-        catch { /* ignore load failures */ }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Music LoadLibraryPathAsync failed for user {UserId}", _caller.UserId);
+        }
     }
 
     private Task SaveLibraryPathAsync()
@@ -1107,6 +1143,11 @@ public partial class MusicPage : IAsyncDisposable
                 "music",
                 _librarySources,
                 "Music library scan sources");
+
+            if (_librarySources.Count > 0)
+            {
+                _showLibrarySetupHint = false;
+            }
 
             if (showSuccessMessage)
             {
@@ -1135,9 +1176,33 @@ public partial class MusicPage : IAsyncDisposable
         _settingsError = null;
         _settingsSuccess = null;
         _scanResult = null;
+        StateHasChanged();
+
+        try
+        {
+            await RunLibraryImportAsync();
+        }
+        finally
+        {
+            _settingsScanning = false;
+        }
+    }
+
+    /// <summary>
+    /// Runs the actual music library import (scan) over the configured sources, bridging progress
+    /// into the shared per-user scan state so the UI can render live progress. Shared by the
+    /// Settings "Scan Now" button and the first-visit import prompt.
+    /// </summary>
+    private async Task RunLibraryImportAsync()
+    {
+        if (_caller is null)
+            return;
+
+        _settingsError = null;
+        _settingsSuccess = null;
+        _scanResult = null;
         var scanStartedAt = DateTimeOffset.UtcNow;
         var scanCts = ScanProgress.StartScan(_caller.UserId);
-        StateHasChanged();
 
         var scanStopwatch = System.Diagnostics.Stopwatch.StartNew();
         try
@@ -1204,11 +1269,229 @@ public partial class MusicPage : IAsyncDisposable
             ScanProgress.CompleteScan(_caller.UserId);
             _settingsError = $"Scan failed: {ex.Message}";
         }
-        finally
+    }
+
+    /// <summary>
+    /// Fired each time the module page is opened. Looks for anything new since the user's last
+    /// visit: (a) audio files in library sources that aren't indexed yet → offers an import
+    /// (Scan Now); (b) tracks already added to the library since the last visit → offers to view
+    /// them. If no sources are configured a one-time setup hint is shown instead.
+    /// </summary>
+    private async Task RunFirstVisitMediaCheckAsync()
+    {
+        if (_mediaCheckStarted || _caller is null)
+            return;
+        _mediaCheckStarted = true;
+        try
         {
-            _settingsScanning = false;
+            Logger.LogInformation("Music new-media check: user {UserId}, sources={SourceCount}",
+                _caller.UserId, _librarySources.Count);
+
+            // A configured source means the "no sources" hint no longer applies.
+            if (_librarySources.Count > 0)
+            {
+                _showLibrarySetupHint = false;
+            }
+
+            // The check can fire before OnInitializedAsync's async source load completes
+            // (e.g. via OnParametersSetAsync), so (re)load sources here rather than assuming
+            // "no sources" and skipping detection.
+            if (_librarySources.Count == 0)
+            {
+                await LoadLibraryPathAsync();
+            }
+
+            if (_librarySources.Count == 0)
+            {
+                // One-time setup hint per tab session (auto-suppressed after first show).
+                var hint = await Js.InvokeAsync<string>("sessionStorage.getItem", new object?[] { SetupHintSessionKey });
+                if (string.IsNullOrEmpty(hint))
+                {
+                    await Js.InvokeAsync<object?>("sessionStorage.setItem", new object?[] { SetupHintSessionKey, "1" });
+                    _showLibrarySetupHint = true;
+                    await InvokeAsync(StateHasChanged);
+                }
+                return;
+            }
+
+            // (a) Unindexed audio files in the configured sources (need importing). This is checked
+            // on EVERY open — including the very first — so files uploaded out-of-band (e.g. via
+            // the Files module) are always offered for import rather than baseline-skipped.
+            var discovery = await MediaLibraryScanner.DiscoverNewMediaFilesAsync(_librarySources, _caller.UserId, "Music");
+            var unindexedCount = discovery is { Success: true } ? discovery.NewFileCount : 0;
+
+            if (unindexedCount > 0)
+            {
+                // Avoid nagging: only re-offer an import once per cooldown within this tab.
+                var lastPromptRaw = await Js.InvokeAsync<string>("sessionStorage.getItem", new object?[] { ImportPromptAtKey });
+                var suppress = long.TryParse(lastPromptRaw, out var lastPromptMs)
+                    && (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - lastPromptMs) < (long)ImportPromptCooldown.TotalMilliseconds;
+                if (suppress)
+                    return;
+
+                Logger.LogInformation("Music new-media check: showing import prompt ({Unindexed} unindexed files)", unindexedCount);
+                await Js.InvokeAsync<object?>("sessionStorage.setItem",
+                    new object?[] { ImportPromptAtKey, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString() });
+                _newMediaNeedsImport = true;
+                _newMediaCount = unindexedCount;
+                _newMediaSampleNames = discovery.SampleFileNames;
+                _showNewMediaModal = true;
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
+
+            // (b) Tracks added to the library since the user last visited. On the first ever
+            // open (no baseline yet) record the baseline so only future additions are reported.
+            var lastSeen = await LoadLastSeenAsync();
+            if (lastSeen is null)
+            {
+                await SaveLastSeenAsync(DateTime.UtcNow);
+                return;
+            }
+
+            var indexedNewCount = await CountNewIndexedSinceAsync(lastSeen.Value);
+            if (indexedNewCount > 0)
+            {
+                Logger.LogInformation("Music new-media check: showing view prompt ({IndexedNew} added since last visit)", indexedNewCount);
+                _newMediaNeedsImport = false;
+                _newMediaCount = indexedNewCount;
+                _newMediaSampleNames = [];
+                _showNewMediaModal = true;
+                await InvokeAsync(StateHasChanged);
+            }
+            else
+            {
+                Logger.LogInformation("Music new-media check: nothing new (unindexed={Unindexed}, added-since-last-visit={IndexedNew})",
+                    unindexedCount, indexedNewCount);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Music library 'new media' check failed");
         }
     }
+
+    /// <summary>
+    /// Starts the real import from the "new music available" prompt. The modal stays open and shows
+    /// live scan progress; when the import finishes the modal closes, the current section reloads so
+    /// the newly added tracks appear, and a summary notice is shown.
+    /// </summary>
+    private async Task ImportNewMediaFromPromptAsync()
+    {
+        if (_caller is null || _librarySources.Count == 0)
+        {
+            _showNewMediaModal = false;
+            return;
+        }
+
+        await RunLibraryImportAsync();
+
+        _showNewMediaModal = false;
+        if (!string.IsNullOrEmpty(_settingsError))
+        {
+            _importNotice = $"Music import failed: {_settingsError}";
+        }
+        else if (string.Equals(_settingsSuccess, "Scan cancelled.", StringComparison.Ordinal))
+        {
+            _importNotice = "Music import cancelled.";
+        }
+        else
+        {
+            _importNotice = _scanResult is { Imported: > 0 }
+                ? $"{_scanResult.Imported} new track(s) imported."
+                : "Music import complete — no new files found.";
+        }
+
+        await LoadCurrentSectionAsync();
+        await SaveLastSeenAsync(DateTime.UtcNow);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>Navigates to the library when the user acknowledges new content.</summary>
+    private async Task ViewNewMediaAsync()
+    {
+        _showNewMediaModal = false;
+        _newMediaCount = 0;
+        _newMediaSampleNames = [];
+        _newMediaNeedsImport = false;
+        await SaveLastSeenAsync(DateTime.UtcNow);
+        await SwitchSection(Section.Library);
+    }
+
+    /// <summary>Closes the "new media" prompt without importing/viewing.</summary>
+    private void DismissNewMediaPrompt()
+    {
+        var wasImport = _newMediaNeedsImport;
+        _showNewMediaModal = false;
+        _newMediaCount = 0;
+        _newMediaSampleNames = [];
+        _newMediaNeedsImport = false;
+        // For the "view new" prompt, mark the content seen so it isn't re-offered every open.
+        if (!wasImport)
+            _ = SaveLastSeenAsync(DateTime.UtcNow);
+    }
+
+    /// <summary>Navigates to Library Settings from the no-sources setup hint.</summary>
+    private async Task GoToLibrarySettingsFromHintAsync()
+    {
+        _showLibrarySetupHint = false;
+        await SwitchSection(Section.Settings);
+    }
+
+    /// <summary>Hides the no-sources setup hint.</summary>
+    private void DismissLibrarySetupHint() => _showLibrarySetupHint = false;
+
+    /// <summary>Hides the post-import summary notice.</summary>
+    private void DismissImportNotice() => _importNotice = null;
+
+    /// <summary>Loads the UTC timestamp of the user's last visit (null on first use).</summary>
+    private async Task<DateTime?> LoadLastSeenAsync()
+    {
+        if (_caller is null)
+            return null;
+        var setting = await UserSettingsService.GetSettingAsync(_caller.UserId, MediaLibrarySourceSettings.SettingsModule, MusicLastSeenKey);
+        return DateTime.TryParse(setting?.Value, out var parsed) ? AsUtc(parsed) : null;
+    }
+
+    /// <summary>Persists the UTC timestamp of the user's last visit for new-media notifications.</summary>
+    private async Task SaveLastSeenAsync(DateTime utc)
+    {
+        if (_caller is null)
+            return;
+        await UserSettingsService.UpsertSettingAsync(
+            _caller.UserId,
+            MediaLibrarySourceSettings.SettingsModule,
+            MusicLastSeenKey,
+            new UpsertUserSettingDto
+            {
+                Value = utc.ToUniversalTime().ToString("O"),
+                Description = "Music library last visited (new-media notifications)",
+            });
+    }
+
+    /// <summary>Counts tracks added to the library after <paramref name="sinceUtc"/>.</summary>
+    private async Task<int> CountNewIndexedSinceAsync(DateTime sinceUtc)
+    {
+        try
+        {
+            if (_caller is null)
+                return 0;
+            var recent = await TrackService.GetRecentTracksAsync(_caller, 300);
+            return recent.Count(track => AsUtc(track.CreatedAt) > sinceUtc);
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    /// <summary>Interprets a stored DateTime as UTC regardless of its <see cref="DateTime.Kind"/>.</summary>
+    private static DateTime AsUtc(DateTime value) => value.Kind switch
+    {
+        DateTimeKind.Utc => value,
+        DateTimeKind.Local => value.ToUniversalTime(),
+        _ => DateTime.SpecifyKind(value, DateTimeKind.Utc),
+    };
 
     private async Task<bool> QueuePostScanEnrichmentAsync(DateTimeOffset scanStartedAt)
     {
