@@ -193,7 +193,7 @@ public sealed class PostgreSqlSearchProvider : ISearchProvider
         _db.SearchIndexEntries.RemoveRange(entries);
         await _db.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Cleared {Count} index entries for module {ModuleId}", entries.Count, moduleId);
+        _logger.LogInformation("Cleared {Count} index entries for module {ModuleId}", entries.Count, LogSanitizer.Sanitize(moduleId));
     }
 
     /// <summary>

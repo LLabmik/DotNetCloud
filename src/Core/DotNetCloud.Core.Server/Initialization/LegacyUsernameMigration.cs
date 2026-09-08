@@ -83,9 +83,7 @@ internal sealed class LegacyUsernameMigration
             user.NormalizedUserName = final.ToUpperInvariant();
 
             _logger.LogInformation(
-                "Migrated legacy username {OldUserName} -> {NewUserName} (user {UserId})",
-                oldUserName ?? string.Empty,
-                final,
+                "Migrated legacy user {UserId} to a non-email username",
                 user.Id);
         }
 

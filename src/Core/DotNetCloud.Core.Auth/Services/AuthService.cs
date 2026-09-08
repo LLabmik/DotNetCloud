@@ -133,7 +133,7 @@ public sealed class AuthService : IAuthService
 
         _logger.LogInformation(
             "User {UserId} registered with username {Username} (DemoUser={IsDemoUser})",
-            user.Id, user.UserName, isDemoUser);
+            user.Id, LogSanitizer.Sanitize(user.UserName!), isDemoUser);
 
         // Set 750 MB quota for demo users
         if (isDemoUser)
@@ -407,8 +407,9 @@ public sealed class AuthService : IAuthService
 
         if (user is null)
         {
-            // Don't reveal whether the account exists (security best practice)
-            _logger.LogInformation("Password reset requested for unknown account {Identifier}", usernameOrEmail);
+            // Don't reveal whether the account exists (security best practice) and
+            // don't write the supplied username/email (PII) to the log.
+            _logger.LogInformation("Password reset requested for an unknown account");
             return;
         }
 

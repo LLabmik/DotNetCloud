@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
+using DotNetCloud.Core;
 using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Modules.Chat.Data.Services;
@@ -54,13 +55,13 @@ public sealed class SafeUrlFetcher
     {
         if (!IsAllowedScheme(uri))
         {
-            _logger.LogWarning("Link preview: blocked URL with disallowed scheme: {Uri}", uri);
+            _logger.LogWarning("Link preview: blocked URL with disallowed scheme: {Uri}", LogSanitizer.Sanitize(uri.ToString()));
             return SafeFetchResult.Failure($"Scheme '{uri.Scheme}' is not allowed.");
         }
 
         if (IsBlockedIp(uri.Host))
         {
-            _logger.LogWarning("Link preview: blocked private/internal IP for host: {Host}", uri.Host);
+            _logger.LogWarning("Link preview: blocked private/internal IP for host: {Host}", LogSanitizer.Sanitize(uri.Host));
             return SafeFetchResult.Failure("Private/internal IP addresses are not allowed.", uri.Host);
         }
 
@@ -85,7 +86,7 @@ public sealed class SafeUrlFetcher
             }
             catch (HttpRequestException ex)
             {
-                _logger.LogWarning(ex, "Link preview: HTTP request failed for {Uri}", currentUri);
+                _logger.LogWarning(ex, "Link preview: HTTP request failed for {Uri}", LogSanitizer.Sanitize(currentUri.ToString()));
                 return SafeFetchResult.Failure($"Request failed: {ex.Message}");
             }
 
@@ -108,13 +109,13 @@ public sealed class SafeUrlFetcher
 
                 if (!IsAllowedScheme(location))
                 {
-                    _logger.LogWarning("Link preview: blocked redirect to disallowed scheme: {Uri}", location);
+                    _logger.LogWarning("Link preview: blocked redirect to disallowed scheme: {Uri}", LogSanitizer.Sanitize(location.ToString()));
                     return SafeFetchResult.Failure($"Redirect scheme '{location.Scheme}' not allowed.");
                 }
 
                 if (IsBlockedIp(location.Host))
                 {
-                    _logger.LogWarning("Link preview: blocked redirect to private IP: {Host}", location.Host);
+                    _logger.LogWarning("Link preview: blocked redirect to private IP: {Host}", LogSanitizer.Sanitize(location.Host));
                     return SafeFetchResult.Failure("Redirect to private IP blocked.", location.Host);
                 }
 

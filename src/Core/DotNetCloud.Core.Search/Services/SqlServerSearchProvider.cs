@@ -241,7 +241,7 @@ public sealed class SqlServerSearchProvider : ISearchProvider
             if (transaction is not null)
                 await transaction.CommitAsync(cancellationToken);
 
-            _logger.LogInformation("Cleared {Count} index entries for module {ModuleId}", entries.Count, moduleId);
+            _logger.LogInformation("Cleared {Count} index entries for module {ModuleId}", entries.Count, LogSanitizer.Sanitize(moduleId));
         });
     }
 

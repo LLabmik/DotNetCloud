@@ -391,7 +391,7 @@ public class AdminController : ControllerBase
         }
 
         _logger.LogInformation("Backup triggered by admin completed: {Path} ({Count} files, {Size:N0} bytes)",
-            result.FilePath, result.FileCount, result.SizeBytes);
+            SanitizeForLog(result.FilePath), result.FileCount, result.SizeBytes);
         return Ok(new { success = true, data = result });
     }
 
