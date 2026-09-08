@@ -1,0 +1,240 @@
+@page "/apps/synctray"
+@attribute [Authorize]
+@using DotNetCloud.UI.Shared.Services
+
+<PageTitle>Desktop Sync Client - DotNetCloud</PageTitle>
+
+<div class="page-header">
+    <h1>Desktop Sync Client</h1>
+    <p class="text-muted">Keep a folder on your computer in sync with your DotNetCloud server — automatically.</p>
+</div>
+
+<div class="ds-hero">
+    <div class="ds-hero-icon">
+        <MaterialIcon Icon="sync" Size="MaterialIconSize.Xl" />
+    </div>
+    <div class="ds-hero-body">
+        <h2>Your files, always in reach</h2>
+        <p>
+            The Desktop Sync Client is a small app that sits quietly in your taskbar and keeps a folder on your
+            computer in step with your DotNetCloud server. Save a file locally and it's copied up; change something
+            on the server and it appears on your computer — no manual uploads or downloads.
+        </p>
+        <p class="ds-hero-note">
+            <MaterialIcon Icon="info" Size="MaterialIconSize.Sm" /> The newest builds are published to
+            <a href="https://github.com/LLabmik/DotNetCloud/releases/latest" target="_blank"
+               rel="noopener noreferrer">GitHub Releases</a>.
+            Pick the download for your operating system below.
+        </p>
+    </div>
+</div>
+
+@* ── Why you'd want it ─────────────────────────────────── *@
+<div class="ds-section">
+    <h2 class="ds-section-title">Why you'd want it</h2>
+    <div class="ds-grid">
+        <div class="ds-card">
+            <div class="ds-card-icon">
+                <MaterialIcon Icon="sync" />
+            </div>
+            <h3>Always up to date</h3>
+            <p>Files stay in step across every device, with zero manual steps.</p>
+        </div>
+        <div class="ds-card">
+            <div class="ds-card-icon">
+                <MaterialIcon Icon="cloud" />
+            </div>
+            <h3>Works offline</h3>
+            <p>Edit in your local folder even when disconnected — changes sync when you're back online.</p>
+        </div>
+        <div class="ds-card">
+            <div class="ds-card-icon">
+                <MaterialIcon Icon="folder" />
+            </div>
+            <h3>Sync what you need</h3>
+            <p>Choose only the folders you want on your machine to save space.</p>
+        </div>
+        <div class="ds-card">
+            <div class="ds-card-icon">
+                <MaterialIcon Icon="favorite" />
+            </div>
+            <h3>Nothing gets lost</h3>
+            <p>If the same file is edited in two places, both versions are kept safe.</p>
+        </div>
+    </div>
+</div>
+
+@* ── Downloads ─────────────────────────────────────────── *@
+<div class="ds-section">
+    <h2 class="ds-section-title">Download</h2>
+    <p class="ds-muted ds-hint">
+        Each download below opens the latest release on GitHub, where you'll find the installers for that platform.
+        Pick the file whose name matches your system.
+    </p>
+    <div class="ds-grid">
+        <div class="ds-card ds-download">
+            <div class="ds-platform">
+                <MaterialIcon Icon="computer" /> Windows
+            </div>
+            <p class="ds-muted">
+                <code>dotnetcloud-desktop-client-win-x64-…zip</code> — a portable ZIP bundle.
+            </p>
+            <a class="btn btn-primary ds-dl-btn" href="https://github.com/LLabmik/DotNetCloud/releases/latest"
+               target="_blank" rel="noopener noreferrer">
+                <MaterialIcon Icon="download" Size="MaterialIconSize.Sm" /> Download for Windows
+            </a>
+        </div>
+        <div class="ds-card ds-download">
+            <div class="ds-platform">
+                <MaterialIcon Icon="computer" /> Linux
+            </div>
+            <p class="ds-muted">
+                <code>…linux-x64-….tar.gz</code>, <code>.deb</code>, <code>.rpm</code>, or AppImage — pick the one for
+                your distro.
+            </p>
+            <a class="btn btn-primary ds-dl-btn" href="https://github.com/LLabmik/DotNetCloud/releases/latest"
+               target="_blank" rel="noopener noreferrer">
+                <MaterialIcon Icon="download" Size="MaterialIconSize.Sm" /> Download for Linux
+            </a>
+        </div>
+        <div class="ds-card ds-download ds-soon">
+            <div class="ds-platform">
+                <MaterialIcon Icon="computer" /> macOS <span class="badge badge-muted">Coming soon</span>
+            </div>
+            <p class="ds-muted">A macOS build is on the way.</p>
+            <a class="btn btn-outline ds-dl-btn" href="https://github.com/LLabmik/DotNetCloud/releases" target="_blank"
+               rel="noopener noreferrer">Browse all releases</a>
+        </div>
+    </div>
+</div>
+
+@* ── Installation ──────────────────────────────────────── *@
+<div class="ds-section">
+    <h2 class="ds-section-title">Installation</h2>
+
+    <div class="ds-accordion">
+        <details class="ds-install">
+            <summary>
+                <MaterialIcon Icon="computer" /> Windows — ZIP bundle
+            </summary>
+            <div class="ds-install-body">
+                <ol class="ds-steps">
+                    <li>Download <code>dotnetcloud-desktop-client-win-x64-&lt;version&gt;.zip</code> from the release.</li>
+                    <li>Right-click the ZIP and choose <strong>Extract All…</strong>, or open it in File Explorer and drag the contents out.</li>
+                    <li>Open the extracted folder. You'll see <code>install.cmd</code> and an <code>Install-DesktopClient.ps1</code>.</li>
+                    <li>
+                        Right-click the folder, open a <strong>terminal / PowerShell as Administrator</strong>, then run:
+                        <pre>install.cmd</pre>
+                        <span class="ds-muted">(or <code>powershell -ExecutionPolicy Bypass -File .\Install-DesktopClient.ps1</code>)</span>
+                    </li>
+                    <li>Launch <strong>DotNetCloud SyncTray</strong> from the Start menu. It also starts automatically when you sign in.</li>
+                </ol>
+                <p class="ds-muted ds-hint">
+                    To remove it, open an elevated terminal in the same folder and run <code>uninstall.cmd</code>.
+                </p>
+            </div>
+        </details>
+
+        <details class="ds-install">
+            <summary>
+                <MaterialIcon Icon="computer" /> Linux — tar.gz (any distro)
+            </summary>
+            <div class="ds-install-body">
+                <ol class="ds-steps">
+                    <li>Download <code>dotnetcloud-desktop-client-linux-x64-&lt;version&gt;.tar.gz</code>.</li>
+                    <li>Extract it:
+                        <pre>tar -xzf dotnetcloud-desktop-client-linux-x64-&lt;version&gt;.tar.gz
+cd linux-x64</pre>
+                    </li>
+                    <li>
+                        Install. For a single user (no root, recommended):
+                        <pre>./install.sh</pre>
+                        or system-wide for all users:
+                        <pre>sudo ./install.sh</pre>
+                    </li>
+                    <li>Launch <strong>DotNetCloud Sync Client</strong> from your app menu, or run
+                        <code>dotnetcloud-sync-tray</code> in a terminal.</li>
+                </ol>
+                <p class="ds-muted ds-hint">
+                    To uninstall, run <code>./uninstall.sh</code> (or <code>sudo ./uninstall.sh</code> for a system
+                    install) from the extracted <code>linux-x64</code> folder.
+                </p>
+            </div>
+        </details>
+
+        <details class="ds-install">
+            <summary>
+                <MaterialIcon Icon="computer" /> Linux — Debian / Ubuntu (<code>.deb</code>)
+            </summary>
+            <div class="ds-install-body">
+                <ol class="ds-steps">
+                    <li>Download <code>dotnetcloud-sync-tray_&lt;version&gt;_amd64.deb</code>.</li>
+                    <li>Install it:
+                        <pre>sudo apt install ./dotnetcloud-sync-tray_&lt;version&gt;_amd64.deb</pre>
+                    </li>
+                    <li>Launch <strong>DotNetCloud Sync Client</strong> from your app menu, or run
+                        <code>dotnetcloud-sync-tray</code>.</li>
+                </ol>
+                <p class="ds-muted ds-hint">
+                    To uninstall: <code>sudo apt remove dotnetcloud-sync-tray</code>.
+                </p>
+            </div>
+        </details>
+
+        <details class="ds-install">
+            <summary>
+                <MaterialIcon Icon="computer" /> Linux — Fedora / RHEL / openSUSE (<code>.rpm</code>)
+            </summary>
+            <div class="ds-install-body">
+                <ol class="ds-steps">
+                    <li>Download <code>dotnetcloud-sync-tray-&lt;version&gt;-1.x86_64.rpm</code>.</li>
+                    <li>
+                        Install it:
+                        <pre># Fedora / RHEL
+sudo dnf install ./dotnetcloud-sync-tray-&lt;version&gt;-1.x86_64.rpm
+
+# openSUSE
+sudo zypper install ./dotnetcloud-sync-tray-&lt;version&gt;-1.x86_64.rpm</pre>
+                    </li>
+                    <li>Launch <strong>DotNetCloud Sync Client</strong> from your app menu, or run
+                        <code>dotnetcloud-sync-tray</code>.</li>
+                </ol>
+                <p class="ds-muted ds-hint">
+                    To uninstall: <code>sudo dnf remove dotnetcloud-sync-tray</code>.
+                </p>
+            </div>
+        </details>
+
+        <details class="ds-install">
+            <summary>
+                <MaterialIcon Icon="computer" /> Linux — AppImage (portable)
+            </summary>
+            <div class="ds-install-body">
+                <ol class="ds-steps">
+                    <li>Download <code>DotNetCloud_Sync_Client-&lt;version&gt;-x86_64.AppImage</code>.</li>
+                    <li>Make it executable and run it:
+                        <pre>chmod +x DotNetCloud_Sync_Client-&lt;version&gt;-x86_64.AppImage
+./DotNetCloud_Sync_Client-&lt;version&gt;-x86_64.AppImage</pre>
+                    </li>
+                    <li>The SyncTray icon appears in your system tray.</li>
+                </ol>
+                <p class="ds-muted ds-hint">
+                    AppImages are portable — there's nothing to install. Move the file anywhere you like; delete it to
+                    remove the app. If launching fails with a FUSE error on some distros, try
+                    <code>./DotNetCloud_Sync_Client-&lt;version&gt;-x86_64.AppImage --appimage-extract-and-run</code>.
+                </p>
+            </div>
+        </details>
+    </div>
+</div>
+
+@* ── Getting connected ─────────────────────────────────── *@
+<div class="ds-section">
+    <h2 class="ds-section-title">Getting connected</h2>
+    <ol class="ds-steps">
+        <li>Install the app for your operating system above.</li>
+        <li>Open it from your taskbar and choose <strong>Settings…</strong>.</li>
+        <li>Add your account using your server address (for example, <code>https://cloud.example.com</code>).</li>
+        <li>Pick a folder to sync — and you're done. Everything runs in the background from there.</li>
+    </ol>
+</div>

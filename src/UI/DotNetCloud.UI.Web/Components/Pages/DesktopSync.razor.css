@@ -1,0 +1,266 @@
+/* ═══════════════════════════════════════════════════════
+   Desktop Sync Client page — scoped styles (server-rendered)
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Hero ─────────────────────────────────────────────── */
+.ds-hero {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 28px 24px;
+  margin-bottom: 28px;
+  background: linear-gradient(
+    135deg,
+    rgba(37, 99, 235, 0.14),
+    rgba(37, 99, 235, 0.02)
+  );
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.ds-hero-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  flex-shrink: 0;
+  border-radius: 16px;
+  background: var(--color-primary);
+  color: #fff;
+  box-shadow: var(--shadow);
+}
+
+.ds-hero-body {
+  min-width: 0;
+}
+
+.ds-hero h2 {
+  margin: 0 0 10px;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.ds-hero p {
+  margin: 0 0 10px;
+  color: var(--color-text-secondary);
+  line-height: 1.65;
+  max-width: 720px;
+}
+
+.ds-hero .ds-hero-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  margin-bottom: 0;
+}
+
+.ds-hero .ds-hero-note .material-icon {
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+/* ── Sections / grid ──────────────────────────────────── */
+.ds-section {
+  margin-bottom: 28px;
+}
+
+.ds-section-title {
+  margin: 0 0 14px;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.ds-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.ds-card {
+  padding: 20px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.ds-card-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--color-primary-bg, #dbeafe);
+  color: var(--color-primary);
+  margin-bottom: 14px;
+}
+
+.ds-card h3 {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.ds-card p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  line-height: 1.55;
+}
+
+/* ── Download cards ───────────────────────────────────── */
+.ds-download {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.ds-download p {
+  margin-bottom: 16px;
+}
+
+.ds-platform {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: 10px;
+}
+
+.ds-platform .material-icon {
+  color: var(--color-primary);
+}
+
+.ds-platform .badge {
+  margin-left: auto;
+}
+
+.ds-dl-btn {
+  margin-top: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ds-soon .ds-dl-btn {
+  opacity: 0.85;
+}
+
+.ds-soon {
+  background: color-mix(in srgb, var(--color-surface) 60%, transparent);
+}
+
+.ds-muted {
+  color: var(--color-text-secondary);
+}
+
+.ds-hint {
+  margin-top: 14px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.ds-card code,
+.ds-hint code,
+.ds-steps code {
+  background: var(--color-bg);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+/* ── Steps ────────────────────────────────────────────── */
+.ds-steps {
+  margin: 0;
+  padding-left: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+}
+
+.ds-steps pre {
+  margin: 8px 0;
+  padding: 10px 12px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-x: auto;
+}
+
+/* ── Install accordion ────────────────────────────────── */
+.ds-accordion {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ds-install {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  overflow: hidden;
+}
+
+.ds-install summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+  list-style: none;
+}
+
+.ds-install summary::-webkit-details-marker {
+  display: none;
+}
+
+.ds-install summary::after {
+  content: "▸";
+  margin-left: auto;
+  color: var(--color-text-secondary);
+  transition: transform var(--transition);
+}
+
+.ds-install[open] summary::after {
+  transform: rotate(90deg);
+}
+
+.ds-install summary .material-icon {
+  color: var(--color-primary);
+}
+
+.ds-install summary:hover {
+  background: var(--color-bg);
+}
+
+.ds-install-body {
+  padding: 6px 18px 18px 46px;
+  border-top: 1px solid var(--color-border);
+}
+
+.ds-install-body .ds-hint {
+  margin-top: 12px;
+}
+
+/* ── Responsive ───────────────────────────────────────── */
+@media (max-width: 640px) {
+  .ds-hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

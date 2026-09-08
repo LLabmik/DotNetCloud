@@ -5742,3 +5742,27 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - In-process widgets build a `CallerContext` from auth claims; process-isolated widgets call gRPC `I*ApiClient` methods (server derives the user from `request.UserId`).
 - Deferred (follow-up): per-user show/hide + drag-and-drop reorder of widgets.
 - Committed + pushed on `feature/module-widgets`; no PR created (the user handles the PR).
+
+## Side Navbar Improvements: Open-in-New-Tab Icons + Desktop Sync Client (2026-09-07)
+
+**Status:** completed ✅ (implemented, builds clean, tests pass, live-verified on dev server mint22; committed + pushed on `fix/side-navbar-improvements`)
+**Branch:** `fix/side-navbar-improvements`
+**Goal:** Add a hover-reveal "open in new tab" icon to every non-Home sidebar item (hidden on the currently active item) and a bottom-pinned "Desktop Sync Client" item linking to a new `/apps/synctray` download/info page.
+
+### Deliverables
+
+- ✓ Hover-reveal `open_in_new` icon on module/app sidebar items + About (Home + admin excluded; hidden when the rail is collapsed AND hidden for the item you're already on) — `NavMenu.razor` + `app.css`
+- ✓ `open_in_new` + `download` Material SVG paths added to `MaterialSvgIcons.cs`
+- ✓ "Desktop Sync Client" item pinned directly above About in the bottom sidebar group (`/apps/synctray`, login required)
+- ✓ New `/apps/synctray` page (`UI.Web/Components/Pages/DesktopSync.razor`): human-focused overview + reasons + download cards linking **directly to the GitHub latest release** per OS (Windows ZIP, Linux tar.gz/.deb/.rpm/AppImage); macOS "Coming soon". No server GitHub-proxy/update-API dependency; nothing fetched or hosted locally
+- ✓ Full per-format **installation instructions** (accordion): Windows ZIP, Linux tar.gz, .deb, .rpm, AppImage — incl. uninstall + AppImage FUSE note
+- ✓ Release pipeline: new `tools/packaging/build-desktop-client-rpm.sh`; `release.yml` now also builds + checksums + attaches `.deb`, AppImage, `.rpm` on tagged releases (rpm version tilde-mapped; Windows stays ZIP-only until a signing story for MSIX exists)
+- ✓ Tests: `MaterialSvgIconsTests`; UI.Shared suite 72 passing; UI.Web / UI.Web.Client / Core.Server build clean
+- ✓ Redeployed to dev server mint22 (`/opt/dotnetcloud`), health Healthy
+
+### Notes
+
+- Page copy is benefit-first / end-user oriented (no Avalonia/gRPC jargon in the hero or "What is it").
+- Naming: the user-facing label is "Desktop Sync Client"; "SyncTray" remains the internal/product code name (used in docs/troubleshooting).
+- The earlier `DesktopSyncReleaseClassifier` helper + tests were removed once the page stopped fetching/filtering release assets (dead code).
+- Live-verified on dev server mint22 (hover icons hide on the active item; `/apps/synctray` renders with install instructions). Committed + pushed on `fix/side-navbar-improvements`; no PR created (the user handles the PR).

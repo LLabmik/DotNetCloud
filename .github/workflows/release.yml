@@ -171,6 +171,38 @@ jobs:
             -Configuration "Release" `
             -OutputDir "./artifacts/installers"
 
+      - name: Install RPM packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rpm
+
+      - name: Build desktop client .deb package
+        run: |
+          ./tools/packaging/build-desktop-client-deb.sh \
+            "${{ steps.version.outputs.version }}" \
+            "Release" \
+            "./artifacts/installers"
+
+      - name: Build desktop client AppImage
+        run: |
+          ./tools/packaging/build-desktop-client-appimage.sh \
+            "${{ steps.version.outputs.version }}" \
+            "Release" \
+            "./artifacts/installers"
+
+      - name: Build desktop client RPM package
+        run: |
+          ./tools/packaging/build-desktop-client-rpm.sh \
+            "${{ steps.version.outputs.version }}" \
+            "Release" \
+            "./artifacts/installers"
+
+      - name: Compute RPM filename version
+        run: |
+          # RPM filenames cannot contain hyphens; map 0.1.0-alpha -> 0.1.0~alpha
+          VERSION="${{ steps.version.outputs.version }}"
+          echo "rpm_version=${VERSION//-/~}" >> "$GITHUB_ENV"
+
       - name: Generate SHA256 checksum
         run: |
           cd artifacts
@@ -179,7 +211,12 @@ jobs:
           cat "$(basename "${{ env.tarball }}").sha256"
 
           cd installers
-          for file in dotnetcloud-desktop-client-linux-x64-${{ steps.version.outputs.version }}.tar.gz dotnetcloud-desktop-client-win-x64-${{ steps.version.outputs.version }}.zip; do
+          for file in \
+            dotnetcloud-desktop-client-linux-x64-${{ steps.version.outputs.version }}.tar.gz \
+            dotnetcloud-desktop-client-win-x64-${{ steps.version.outputs.version }}.zip \
+            dotnetcloud-sync-tray_${{ steps.version.outputs.version }}_amd64.deb \
+            DotNetCloud_Sync_Client-${{ steps.version.outputs.version }}-x86_64.AppImage \
+            dotnetcloud-sync-tray-${{ env.rpm_version }}-1.x86_64.rpm; do
             sha256sum "$file" > "$file.sha256"
           done
 
@@ -201,3 +238,9 @@ jobs:
             artifacts/installers/dotnetcloud-desktop-client-linux-x64-${{ steps.version.outputs.version }}.tar.gz.sha256
             artifacts/installers/dotnetcloud-desktop-client-win-x64-${{ steps.version.outputs.version }}.zip
             artifacts/installers/dotnetcloud-desktop-client-win-x64-${{ steps.version.outputs.version }}.zip.sha256
+            artifacts/installers/dotnetcloud-sync-tray_${{ steps.version.outputs.version }}_amd64.deb
+            artifacts/installers/dotnetcloud-sync-tray_${{ steps.version.outputs.version }}_amd64.deb.sha256
+            artifacts/installers/DotNetCloud_Sync_Client-${{ steps.version.outputs.version }}-x86_64.AppImage
+            artifacts/installers/DotNetCloud_Sync_Client-${{ steps.version.outputs.version }}-x86_64.AppImage.sha256
+            artifacts/installers/dotnetcloud-sync-tray-${{ env.rpm_version }}-1.x86_64.rpm
+            artifacts/installers/dotnetcloud-sync-tray-${{ env.rpm_version }}-1.x86_64.rpm.sha256

@@ -173,7 +173,7 @@
                 <ul class="nav-list">
                     @foreach (var item in mainItems)
                     {
-                        <li class="nav-item">
+                        <li class="nav-item nav-item-has-external">
                             <NavLink href="@item.Href" Match="NavLinkMatch.Prefix" class="nav-link" title="@item.Label"
                                      aria-label="@item.Label">
                                 <span class="nav-icon">@item.Icon</span>
@@ -182,30 +182,61 @@
                                     <span class="nav-text">@item.Label</span>
                                 }
                             </NavLink>
+                            @if (!Collapsed)
+                            {
+                                <a href="@item.Href" target="_blank" rel="noopener" class="nav-external"
+                                   title="Open @item.Label in a new tab"
+                                   aria-label="Open @item.Label in a new tab">
+                                    <MaterialIcon Icon="open_in_new" Size="MaterialIconSize.Sm" />
+                                </a>
+                            }
                         </li>
                     }
                 </ul>
             }
 
-            @if (bottomItems.Count > 0)
-            {
-                <div class="nav-separator"></div>
-                <ul class="nav-list">
-                    @foreach (var item in bottomItems)
+            <div class="nav-separator"></div>
+            <ul class="nav-list">
+                <li class="nav-item nav-item-has-external">
+                    <NavLink href="/apps/synctray" Match="NavLinkMatch.Prefix" class="nav-link" title="Desktop Sync Client"
+                             aria-label="Desktop Sync Client">
+                        <span class="nav-icon"><MaterialIcon Icon="sync" /></span>
+                        @if (!Collapsed)
+                        {
+                            <span class="nav-text">Desktop Sync Client</span>
+                        }
+                    </NavLink>
+                    @if (!Collapsed)
                     {
-                        <li class="nav-item">
-                            <NavLink href="@item.Href" Match="NavLinkMatch.Prefix" class="nav-link" title="@item.Label"
-                                     aria-label="@item.Label">
-                                <span class="nav-icon">@item.Icon</span>
-                                @if (!Collapsed)
-                                {
-                                    <span class="nav-text">@item.Label</span>
-                                }
-                            </NavLink>
-                        </li>
+                        <a href="/apps/synctray" target="_blank" rel="noopener" class="nav-external"
+                           title="Open Desktop Sync Client in a new tab"
+                           aria-label="Open Desktop Sync Client in a new tab">
+                            <MaterialIcon Icon="open_in_new" Size="MaterialIconSize.Sm" />
+                        </a>
                     }
-                </ul>
-            }
+                </li>
+                @foreach (var item in bottomItems)
+                {
+                    <li class="nav-item nav-item-has-external">
+                        <NavLink href="@item.Href" Match="NavLinkMatch.Prefix" class="nav-link" title="@item.Label"
+                                 aria-label="@item.Label">
+                            <span class="nav-icon">@item.Icon</span>
+                            @if (!Collapsed)
+                            {
+                                <span class="nav-text">@item.Label</span>
+                            }
+                        </NavLink>
+                        @if (!Collapsed)
+                        {
+                            <a href="@item.Href" target="_blank" rel="noopener" class="nav-external"
+                               title="Open @item.Label in a new tab"
+                               aria-label="Open @item.Label in a new tab">
+                                <MaterialIcon Icon="open_in_new" Size="MaterialIconSize.Sm" />
+                            </a>
+                        }
+                    </li>
+                }
+            </ul>
         </Authorized>
         <NotAuthorized>
             <ul class="nav-list">
