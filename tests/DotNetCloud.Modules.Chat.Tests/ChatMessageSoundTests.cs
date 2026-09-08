@@ -5,7 +5,7 @@ namespace DotNetCloud.Modules.Chat.Tests;
 
 /// <summary>
 /// Tests for the chat incoming-message sound ("ding") — the play decision in
-/// <see cref="ChatPageLayout"/> and the <see cref="ChannelHeader"/> sound toggle.
+/// <see cref="ChatPageLayout"/> and the global chat-sound toggle on <see cref="ChannelList"/>.
 /// </summary>
 [TestClass]
 public class ChatMessageSoundTests
@@ -46,14 +46,14 @@ public class ChatMessageSoundTests
     }
 
     [TestMethod]
-    public async Task OnToggleChatSoundClick_InvokesOnToggleChatSoundCallback()
+    public async Task ToggleChatSound_InvokesOnToggleChatSoundCallback()
     {
-        var header = new TestableChannelHeader();
+        var list = new TestableChannelList();
         var invoked = false;
         var receiver = new object();
-        header.OnToggleChatSound = EventCallback.Factory.Create(receiver, () => invoked = true);
+        list.OnToggleChatSound = EventCallback.Factory.Create(receiver, () => invoked = true);
 
-        await header.InvokeToggleChatSoundClick();
+        await list.InvokeToggleChatSound();
 
         Assert.IsTrue(invoked);
     }
@@ -61,26 +61,26 @@ public class ChatMessageSoundTests
     [TestMethod]
     public void IsChatSoundEnabled_DefaultIsTrue()
     {
-        var header = new TestableChannelHeader();
+        var list = new TestableChannelList();
 
-        Assert.IsTrue(header.TestIsChatSoundEnabled);
+        Assert.IsTrue(list.TestIsChatSoundEnabled);
     }
 
     [TestMethod]
     public void IsChatSoundEnabled_WhenSetToFalse_IsFalse()
     {
-        var header = new TestableChannelHeader();
-        header.SetIsChatSoundEnabled(false);
+        var list = new TestableChannelList();
+        list.SetIsChatSoundEnabled(false);
 
-        Assert.IsFalse(header.TestIsChatSoundEnabled);
+        Assert.IsFalse(list.TestIsChatSoundEnabled);
     }
 
-    private sealed class TestableChannelHeader : ChannelHeader
+    private sealed class TestableChannelList : ChannelList
     {
         public bool TestIsChatSoundEnabled => IsChatSoundEnabled;
 
         public void SetIsChatSoundEnabled(bool value) => IsChatSoundEnabled = value;
 
-        public Task InvokeToggleChatSoundClick() => OnToggleChatSoundClick();
+        public Task InvokeToggleChatSound() => ToggleChatSound();
     }
 }

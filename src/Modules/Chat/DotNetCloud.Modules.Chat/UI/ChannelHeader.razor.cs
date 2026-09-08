@@ -43,14 +43,6 @@ public partial class ChannelHeader : ComponentBase
     [Parameter]
     public EventCallback<(Guid ChannelId, bool IsMuted)> OnMuteChanged { get; set; }
 
-    /// <summary>Whether the chat message sound ("ding") is enabled for the current user.</summary>
-    [Parameter]
-    public bool IsChatSoundEnabled { get; set; } = true;
-
-    /// <summary>Callback to toggle the chat message sound on/off for the current user.</summary>
-    [Parameter]
-    public EventCallback OnToggleChatSound { get; set; }
-
     /// <summary>Whether the direct-message peer is blocked by the current user.</summary>
     [Parameter]
     public bool IsDirectPeerBlocked { get; set; }
@@ -198,11 +190,5 @@ public partial class ChannelHeader : ComponentBase
 
         Channel.IsMuted = !Channel.IsMuted;
         await OnMuteChanged.InvokeAsync((Channel.Id, Channel.IsMuted));
-    }
-
-    /// <summary>Toggles the chat message sound ("ding") and raises callback.</summary>
-    protected async Task OnToggleChatSoundClick()
-    {
-        await OnToggleChatSound.InvokeAsync();
     }
 }

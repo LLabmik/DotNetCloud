@@ -235,9 +235,9 @@
   background: var(--color-muted-bg-hover, #e2e8f0);
 }
 
-/* --- Chat Sound ("ding") Toggle --- */
+/* --- Channel Notification Mute --- */
 
-.channel-actions .btn-sound-toggle {
+.channel-actions .btn-channel-notifications {
   display: inline-flex;
   align-items: center;
   gap: 4px;
