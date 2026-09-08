@@ -212,6 +212,42 @@ public class ChannelServiceTests
     }
 
     [TestMethod]
+    public async Task WhenGetOrCreateDmThenOtherUserIdIsSet()
+    {
+        var otherUserId = Guid.CreateVersion7();
+
+        var result = await _service.GetOrCreateDirectMessageAsync(otherUserId, _caller);
+
+        Assert.AreEqual("DirectMessage", result.Type);
+        Assert.AreEqual(otherUserId, result.OtherUserId);
+    }
+
+    [TestMethod]
+    public async Task WhenGetOrCreateDmThenExistingChannelOtherUserIdIsSet()
+    {
+        var otherUserId = Guid.CreateVersion7();
+
+        await _service.GetOrCreateDirectMessageAsync(otherUserId, _caller);
+        var second = await _service.GetOrCreateDirectMessageAsync(otherUserId, _caller);
+
+        Assert.AreEqual(otherUserId, second.OtherUserId);
+    }
+
+    [TestMethod]
+    public async Task WhenListChannelsThenDmChannelCarriesOtherUserId()
+    {
+        var otherUserId = Guid.CreateVersion7();
+        await _service.GetOrCreateDirectMessageAsync(otherUserId, _caller);
+
+        var channels = await _service.ListChannelsAsync(_caller);
+
+        var dm = channels.Single(c => c.Type == "DirectMessage");
+        Assert.AreEqual(otherUserId, dm.OtherUserId);
+        // No IUserDirectory in the test host, so the name falls back to a peer id prefix.
+        Assert.IsFalse(dm.Name.StartsWith("DM-", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public async Task WhenCreateChannelWithMembersThenMembersAreAdded()
     {
         var memberId = Guid.CreateVersion7();

@@ -250,6 +250,15 @@ internal sealed class ChannelService : IChannelService
         if (otherUserIds.Count == 0)
             return;
 
+        // Stamp the peer id on every DM DTO so clients can attribute presence and block
+        // state without re-parsing the (now display-name) channel name.
+        foreach (var kvp in channelToOtherUser)
+        {
+            var stampIdx = channels.FindIndex(c => c.Id == kvp.Key);
+            if (stampIdx >= 0)
+                channels[stampIdx] = channels[stampIdx] with { OtherUserId = kvp.Value };
+        }
+
         if (_userDirectory is null)
         {
             _logger.LogWarning("ResolveDmChannelNames: IUserDirectory not available, using fallback names");
@@ -492,7 +501,7 @@ internal sealed class ChannelService : IChannelService
                 .Where(m => m.ChannelId == existingChannel.Id && m.UserId == caller.UserId)
                 .Select(m => m.IsMuted)
                 .FirstOrDefaultAsync(cancellationToken);
-            return ToChannelDto(existingChannel, 2, existingMembership);
+            return ToChannelDto(existingChannel, 2, existingMembership) with { OtherUserId = otherUserId };
         }
 
         // Create new DM channel
@@ -527,7 +536,7 @@ internal sealed class ChannelService : IChannelService
 
         _logger.LogInformation("DM channel {ChannelId} created between {User1} and {User2}", channel.Id, caller.UserId, otherUserId);
 
-        return ToChannelDto(channel, 2, isMuted: false);
+        return ToChannelDto(channel, 2, isMuted: false) with { OtherUserId = otherUserId };
     }
 
     private async Task ValidateChannelNameUniqueAsync(string name, Guid? organizationId, Guid? excludeChannelId, CancellationToken cancellationToken)

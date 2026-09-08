@@ -38,6 +38,12 @@ public sealed record ChannelDto
     /// <summary>User who created the channel.</summary>
     public Guid CreatedByUserId { get; init; }
 
+    /// <summary>
+    /// For DirectMessage channels, the ID of the other participant (the peer).
+    /// Null for non-DM channels or when the peer could not be determined.
+    /// </summary>
+    public Guid? OtherUserId { get; init; }
+
     /// <summary>Whether the current user has muted this channel.</summary>
     public bool IsMuted { get; init; }
 }

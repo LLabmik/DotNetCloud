@@ -369,6 +369,7 @@ public partial class ChannelList : ComponentBase
             Id = dto.Id,
             Name = dto.Name,
             Type = dto.Type,
+            OtherUserId = dto.OtherUserId,
             Topic = dto.Topic,
             LastActivityAt = dto.LastActivityAt,
             MemberCount = dto.MemberCount,

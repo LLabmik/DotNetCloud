@@ -347,6 +347,7 @@ public partial class DirectMessageView : ComponentBase
             Id = channel.Id,
             Name = channel.Name,
             Type = channel.Type,
+            OtherUserId = channel.OtherUserId,
             Topic = channel.Topic,
             LastActivityAt = channel.LastActivityAt,
             MemberCount = channel.MemberCount,
