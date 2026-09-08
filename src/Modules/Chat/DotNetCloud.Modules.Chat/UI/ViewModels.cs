@@ -14,6 +14,12 @@ public sealed class ChannelViewModel
     /// <summary>Channel type (Public, Private, DirectMessage, Group).</summary>
     public string Type { get; init; } = "Public";
 
+    /// <summary>
+    /// For DirectMessage channels, the ID of the peer user (other participant).
+    /// Used to attribute presence and block state. Null for non-DM channels.
+    /// </summary>
+    public Guid? OtherUserId { get; init; }
+
     /// <summary>Channel topic.</summary>
     public string? Topic { get; set; }
 

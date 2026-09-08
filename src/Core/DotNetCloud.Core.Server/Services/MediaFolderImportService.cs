@@ -288,6 +288,76 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
         };
     }
 
+    /// <inheritdoc />
+    public async Task<int> CountLibraryItemsNotInSourcesAsync(
+        IReadOnlyCollection<MediaLibrarySource> remainingSources,
+        Guid ownerId,
+        string mediaType,
+        CancellationToken cancellationToken = default)
+    {
+        if (!Enum.TryParse<MediaScanType>(mediaType, ignoreCase: true, out var parsed))
+        {
+            throw new ArgumentException($"Invalid media type: {mediaType}", nameof(mediaType));
+        }
+
+        var orphanedIds = await GetOrphanedFileNodeIdsAsync(remainingSources, ownerId, mediaType, parsed, cancellationToken);
+        return orphanedIds.Count;
+    }
+
+    /// <inheritdoc />
+    public async Task<int> RemoveLibraryItemsNotInSourcesAsync(
+        IReadOnlyCollection<MediaLibrarySource> remainingSources,
+        Guid ownerId,
+        string mediaType,
+        CancellationToken cancellationToken = default)
+    {
+        if (!Enum.TryParse<MediaScanType>(mediaType, ignoreCase: true, out var parsed))
+        {
+            throw new ArgumentException($"Invalid media type: {mediaType}", nameof(mediaType));
+        }
+
+        var orphanedIds = await GetOrphanedFileNodeIdsAsync(remainingSources, ownerId, mediaType, parsed, cancellationToken);
+        if (orphanedIds.Count == 0)
+        {
+            return 0;
+        }
+
+        _logger.LogInformation(
+            "Removing {Count} {MediaType} items no longer reachable under the remaining sources for user {OwnerId}",
+            orphanedIds.Count, parsed, ownerId);
+
+        return await RemoveDeletedAsync(parsed, orphanedIds, ownerId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Computes the set of the user's indexed file node IDs that are not discoverable under the
+    /// given (remaining) sources — i.e., the items a source removal would prune.
+    /// </summary>
+    private async Task<List<Guid>> GetOrphanedFileNodeIdsAsync(
+        IReadOnlyCollection<MediaLibrarySource> remainingSources,
+        Guid ownerId,
+        string mediaType,
+        MediaScanType parsed,
+        CancellationToken cancellationToken)
+    {
+        // No remaining sources → nothing is discoverable, so every indexed item is orphaned.
+        if (remainingSources.Count == 0)
+        {
+            return (await GetAlreadyIndexedIdsAsync(parsed, ownerId, cancellationToken)).ToList();
+        }
+
+        var discovery = await DiscoverCandidatesAsync(remainingSources, ownerId, mediaType, parsed, cancellationToken);
+        if (!discovery.Success)
+        {
+            throw new InvalidOperationException(discovery.ErrorMessage ?? "Media folder scan failed.");
+        }
+
+        var reachableIds = discovery.Candidates.Select(candidate => candidate.Id).ToHashSet();
+        return discovery.AlreadyIndexedIds
+            .Where(id => !reachableIds.Contains(id))
+            .ToList();
+    }
+
     /// <summary>
     /// Runs the shared discovery pass: queries the Files module via gRPC for matching file
     /// candidates and diffs them against the module's already-indexed file node IDs.

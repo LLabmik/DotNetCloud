@@ -40,7 +40,8 @@ public class MessageListFormatTimeTests
         var now = new DateTime(2026, 9, 7, 15, 0, 0);
         var sentAt = new DateTime(2026, 9, 7, 9, 30, 0);
 
-        Assert.AreEqual("09:30", MessageList.FormatLocalTime(sentAt, now));
+        // 12-hour clock with AM/PM indicator (was "09:30" in 24-hour format).
+        Assert.AreEqual("9:30 AM", MessageList.FormatLocalTime(sentAt, now));
     }
 
     [TestMethod]
@@ -49,7 +50,8 @@ public class MessageListFormatTimeTests
         var now = new DateTime(2026, 9, 7, 9, 0, 0);
         var sentAt = new DateTime(2026, 9, 6, 23, 15, 0);
 
-        Assert.AreEqual("Yesterday 23:15", MessageList.FormatLocalTime(sentAt, now));
+        // 12-hour clock with AM/PM indicator (was "Yesterday 23:15" in 24-hour format).
+        Assert.AreEqual("Yesterday 11:15 PM", MessageList.FormatLocalTime(sentAt, now));
     }
 
     [TestMethod]
@@ -57,7 +59,7 @@ public class MessageListFormatTimeTests
     {
         var now = new DateTime(2026, 9, 7, 9, 0, 0);
         var sentAt = new DateTime(2026, 9, 4, 14, 5, 0);
-        var expected = sentAt.ToString("MMM d, HH:mm");
+        var expected = sentAt.ToString("MMM d, h:mm tt");
 
         Assert.AreEqual(expected, MessageList.FormatLocalTime(sentAt, now));
     }
@@ -73,7 +75,8 @@ public class MessageListFormatTimeTests
         var localSentAt = new DateTime(2026, 9, 6, 19, 30, 0);
         var localNow = new DateTime(2026, 9, 7, 9, 0, 0);
 
-        Assert.AreEqual("Yesterday 19:30", MessageList.FormatLocalTime(localSentAt, localNow));
+        // 12-hour clock with AM/PM indicator (was "Yesterday 19:30" in 24-hour format).
+        Assert.AreEqual("Yesterday 7:30 PM", MessageList.FormatLocalTime(localSentAt, localNow));
     }
 
     [TestMethod]
@@ -85,6 +88,7 @@ public class MessageListFormatTimeTests
         var localSentAt = new DateTime(2026, 9, 7, 0, 30, 0);
         var localNow = new DateTime(2026, 9, 7, 9, 0, 0);
 
-        Assert.AreEqual("00:30", MessageList.FormatLocalTime(localSentAt, localNow));
+        // 12-hour clock with AM/PM indicator (was "00:30" in 24-hour format).
+        Assert.AreEqual("12:30 AM", MessageList.FormatLocalTime(localSentAt, localNow));
     }
 }

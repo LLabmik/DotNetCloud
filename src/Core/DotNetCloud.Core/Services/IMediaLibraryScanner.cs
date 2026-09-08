@@ -50,6 +50,33 @@ public interface IMediaLibraryScanner
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Discovery result with the count of new (unindexed) files found.</returns>
     Task<MediaDiscoveryResult> DiscoverNewMediaFilesAsync(IReadOnlyCollection<MediaLibrarySource> sources, Guid ownerId, string mediaType, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Counts how many of the user's indexed library items would no longer be reachable if the
+    /// library were limited to <paramref name="remainingSources"/> — i.e., items whose backing files
+    /// exist only under sources that were removed. Used to show a confirmation count before the user
+    /// deletes a media source. Read-only — no indexing or deletion is performed.
+    /// </summary>
+    /// <param name="remainingSources">The media-library sources that would remain after removal.</param>
+    /// <param name="ownerId">User ID whose personal media library should be checked.</param>
+    /// <param name="mediaType">Type of media to inspect: "Photos", "Music", or "Video".</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The number of indexed library items that would become unreachable.</returns>
+    Task<int> CountLibraryItemsNotInSourcesAsync(IReadOnlyCollection<MediaLibrarySource> remainingSources, Guid ownerId, string mediaType, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Removes indexed library items whose backing files are no longer reachable under
+    /// <paramref name="remainingSources"/> (they exist only under sources the user removed). This is
+    /// the cleanup counterpart of a source removal — it mirrors the "deleted files" prune that a full
+    /// scan performs, without re-indexing or importing anything. The actual media files are never
+    /// affected; only indexed library metadata is removed.
+    /// </summary>
+    /// <param name="remainingSources">The media-library sources that remain after removal.</param>
+    /// <param name="ownerId">User ID whose personal media library should be pruned.</param>
+    /// <param name="mediaType">Type of media to prune: "Photos", "Music", or "Video".</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The number of library items removed.</returns>
+    Task<int> RemoveLibraryItemsNotInSourcesAsync(IReadOnlyCollection<MediaLibrarySource> remainingSources, Guid ownerId, string mediaType, CancellationToken cancellationToken = default);
 }
 
 /// <summary>

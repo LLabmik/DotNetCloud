@@ -310,10 +310,11 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     /// <summary>
     /// Formats a message's UTC sent time for the search results list in the viewer's
-    /// local timezone (search results always render as a wall-clock post time).
+    /// local timezone (search results always render as a wall-clock post time with an
+    /// AM/PM indicator, e.g., "Sep 4, 2:05 PM").
     /// </summary>
     private string FormatSearchResultTime(DateTime sentAtUtc)
-        => TimeProvider.ToLocal(sentAtUtc).ToString("MMM d, HH:mm");
+        => TimeProvider.ToLocal(sentAtUtc).ToString("MMM d, h:mm tt");
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
@@ -2121,6 +2122,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             Id = dto.Id,
             Name = dto.Name,
             Type = dto.Type,
+            OtherUserId = dto.OtherUserId,
             Topic = dto.Topic,
             LastActivityAt = dto.LastActivityAt,
             MemberCount = dto.MemberCount,
@@ -2132,8 +2134,11 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     }
 
     /// <summary>
-    /// Resolves the display name for DM channels by parsing the raw "DM-{guid1}-{guid2}" name,
-    /// finding the other participant, and replacing the name with their display name.
+    /// Resolves the peer participant for each DM channel so presence dots and live
+    /// presence events can be attributed to the correct user. The server returns DM
+    /// channels already named with the peer's display name, so the peer id is taken
+    /// from <see cref="ChannelViewModel.OtherUserId"/> when available; otherwise it is
+    /// parsed from the raw "DM-{guid1}-{guid2}" name (newly created channels).
     /// </summary>
     private async Task ResolveDmChannelNamesAsync()
     {
@@ -2145,23 +2150,25 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
         foreach (var dm in dmChannels)
         {
-            // DM name format: "DM-{guid1}-{guid2}" — each GUID is 36 chars, total 76
-            if (dm.Name.StartsWith("DM-", StringComparison.Ordinal) && dm.Name.Length == 76)
+            if (dm.OtherUserId is Guid peerId && peerId != Guid.Empty)
             {
-                var guid1Str = dm.Name.Substring(3, 36);
-                var guid2Str = dm.Name.Substring(40, 36);
+                dmToOtherUser[dm.Id] = peerId;
+                continue;
+            }
 
-                if (Guid.TryParse(guid1Str, out var guid1) && Guid.TryParse(guid2Str, out var guid2))
-                {
-                    dmToOtherUser[dm.Id] = guid1 == _currentUserId ? guid2 : guid1;
-                }
+            // Fallback: DM name format "DM-{guid1}-{guid2}" — each GUID is 36 chars, total 76.
+            if (dm.Name.StartsWith("DM-", StringComparison.Ordinal) && dm.Name.Length == 76
+                && Guid.TryParse(dm.Name.Substring(3, 36), out var guid1)
+                && Guid.TryParse(dm.Name.Substring(40, 36), out var guid2))
+            {
+                dmToOtherUser[dm.Id] = guid1 == _currentUserId ? guid2 : guid1;
             }
         }
 
         if (dmToOtherUser.Count == 0)
             return;
 
-        // Batch-resolve unknown display names
+        // Batch-resolve display names for any raw DM names still present
         var unknownIds = dmToOtherUser.Values
             .Where(id => !_displayNameCache.ContainsKey(id))
             .Distinct()
@@ -2182,12 +2189,16 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             }
         }
 
-        // Replace raw DM names with resolved display names
+        // Replace raw DM names with resolved display names and record the peer mapping
         foreach (var dm in dmChannels)
         {
             if (dmToOtherUser.TryGetValue(dm.Id, out var otherUserId))
             {
-                dm.Name = _displayNameCache.GetValueOrDefault(otherUserId, otherUserId.ToString()[..8]);
+                if (dm.Name.StartsWith("DM-", StringComparison.Ordinal))
+                {
+                    dm.Name = _displayNameCache.GetValueOrDefault(otherUserId, otherUserId.ToString()[..8]);
+                }
+
                 _dmChannelToOtherUser[dm.Id] = otherUserId;
             }
         }

@@ -120,10 +120,13 @@ namespace DotNetCloud.Core.Services
             ArgumentNullException.ThrowIfNull(settingsService);
 
             var sourcesSetting = await settingsService.GetSettingAsync(userId, SettingsModule, GetSourcesKey(mediaType));
-            var sources = Deserialize(sourcesSetting?.Value);
-            if (sources.Count > 0)
+
+            // The JSON-backed sources key is authoritative whenever it has been written — even when it
+            // holds an empty list (the user removed all sources). Only fall back to the legacy single-path
+            // settings when the JSON key has never been persisted for this user/media type.
+            if (sourcesSetting is not null)
             {
-                return sources;
+                return Deserialize(sourcesSetting.Value);
             }
 
             var pathSetting = await settingsService.GetSettingAsync(userId, SettingsModule, GetLegacyPathKey(mediaType));

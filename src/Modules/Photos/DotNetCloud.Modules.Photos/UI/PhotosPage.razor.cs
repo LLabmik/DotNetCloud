@@ -119,6 +119,11 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
     private string? _settingsSuccess;
     private MediaScanResult? _scanResult;
 
+    // Source removal (confirmation + library prune)
+    private MediaLibrarySource? _sourceRemovePending;
+    private int _sourceRemoveCount;
+    private bool _removingSource;
+
     // Directory Browser
     private bool _showDirBrowser;
     private Guid? _dirBrowserFolderId;
@@ -1180,18 +1185,141 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
         _librarySources.Add(source);
         _librarySources = MediaLibrarySourceSettings.Normalize(_librarySources).ToList();
         _settingsError = null;
-        _settingsSuccess = "Source added. Save changes or scan now to persist it.";
+        _settingsSuccess = null;
         _showDirBrowser = false;
+
+        // Persist immediately so the source is not lost if the user navigates away without
+        // pressing Scan Now / Save Sources.
+        await PersistLibrarySourcesAsync(showSuccessMessage: false);
+        if (_settingsError is null)
+        {
+            _settingsSuccess = "Source added.";
+        }
     }
 
-    private void RemoveLibrarySource(MediaLibrarySource source)
+    /// <summary>
+    /// Entry point for the source "Remove" button. When removing a source can orphan library items
+    /// (files reachable only through that folder), a confirmation modal is shown with the affected
+    /// item count before anything destructive happens.
+    /// </summary>
+    private async Task RequestRemoveLibrarySourceAsync(MediaLibrarySource source)
     {
-        var sourceKey = MediaLibrarySourceSettings.GetSourceKey(source);
-        _librarySources = _librarySources
-            .Where(existing => !string.Equals(MediaLibrarySourceSettings.GetSourceKey(existing), sourceKey, StringComparison.OrdinalIgnoreCase))
-            .ToList();
+        if (_caller is null)
+            return;
+
+        _removingSource = true;
         _settingsError = null;
-        _settingsSuccess = "Source removed. Save changes or scan now to persist it.";
+        _settingsSuccess = null;
+        try
+        {
+            var remainingSources = _librarySources
+                .Where(existing => !string.Equals(
+                    MediaLibrarySourceSettings.GetSourceKey(existing),
+                    MediaLibrarySourceSettings.GetSourceKey(source),
+                    StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            var count = await MediaLibraryScanner.CountLibraryItemsNotInSourcesAsync(remainingSources, _caller.UserId, "Photos");
+            if (count == 0)
+            {
+                // Nothing indexed would be lost — remove the source without a destructive prompt.
+                await ApplyLibrarySourceRemovalAsync(source, remainingSources, attemptPrune: false);
+            }
+            else
+            {
+                _sourceRemovePending = source;
+                _sourceRemoveCount = count;
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Photos source removal preview failed for user {UserId}", _caller.UserId);
+            // Files module unreachable — fall back to a generic confirmation so removal still works.
+            _sourceRemovePending = source;
+            _sourceRemoveCount = -1;
+            StateHasChanged();
+        }
+        finally
+        {
+            _removingSource = false;
+        }
+    }
+
+    /// <summary>Confirms the pending source removal and prunes orphaned library items.</summary>
+    private async Task ConfirmRemoveLibrarySourceAsync()
+    {
+        if (_sourceRemovePending is null || _caller is null)
+            return;
+
+        var source = _sourceRemovePending;
+        var remainingSources = _librarySources
+            .Where(existing => !string.Equals(
+                MediaLibrarySourceSettings.GetSourceKey(existing),
+                MediaLibrarySourceSettings.GetSourceKey(source),
+                StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        _sourceRemovePending = null;
+        _sourceRemoveCount = 0;
+        _settingsError = null;
+        _settingsSuccess = null;
+        _removingSource = true;
+        try
+        {
+            await ApplyLibrarySourceRemovalAsync(source, remainingSources, attemptPrune: true);
+        }
+        finally
+        {
+            _removingSource = false;
+        }
+    }
+
+    /// <summary>Cancels the pending source removal confirmation.</summary>
+    private void CancelRemoveLibrarySource()
+    {
+        _sourceRemovePending = null;
+        _sourceRemoveCount = 0;
+    }
+
+    /// <summary>
+    /// Applies the source removal: removes the source from the persisted list and, when
+    /// <paramref name="attemptPrune"/> is set, immediately removes library items whose files are only
+    /// reachable through the removed source.
+    /// </summary>
+    private async Task ApplyLibrarySourceRemovalAsync(
+        MediaLibrarySource source,
+        IReadOnlyCollection<MediaLibrarySource> remainingSources,
+        bool attemptPrune)
+    {
+        if (_caller is null)
+            return;
+
+        _librarySources = remainingSources.ToList();
+
+        // Persist immediately so the removal is not lost if the user navigates away.
+        await PersistLibrarySourcesAsync(showSuccessMessage: false);
+        if (_settingsError is not null)
+            return;
+
+        if (!attemptPrune)
+        {
+            _settingsSuccess = "Source removed.";
+            return;
+        }
+
+        try
+        {
+            var removed = await MediaLibraryScanner.RemoveLibraryItemsNotInSourcesAsync(remainingSources, _caller.UserId, "Photos");
+            _settingsSuccess = removed > 0
+                ? $"Source removed. {removed} item(s) removed from your library."
+                : "Source removed.";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Photos library prune after source removal failed for user {UserId}", _caller.UserId);
+            _settingsSuccess = "Source removed, but some items remain until the next scan (cleanup could not run just now).";
+        }
     }
 
     private async Task<MediaLibrarySource?> CreateLibrarySourceFromBrowserAsync()

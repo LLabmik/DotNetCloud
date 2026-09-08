@@ -291,6 +291,157 @@ public sealed class MediaFolderImportServiceTests
         Assert.AreEqual(0, result.NewFileCount);
     }
 
+    [TestMethod]
+    public async Task CountLibraryItemsNotInSourcesAsync_StaleIndexedFiles_ReturnsOrphanedCountWithoutMutating()
+    {
+        var ownerId = Guid.CreateVersion7();
+        var sharedFolderId = Guid.CreateVersion7();
+        var reachableId = Guid.CreateVersion7();
+        var staleId = Guid.CreateVersion7();
+
+        var filesApiClientMock = new Mock<IFilesApiClient>();
+        filesApiClientMock
+            .Setup(client => client.ScanMediaFoldersAsync(
+                It.IsAny<IReadOnlyCollection<MediaLibrarySource>>(),
+                ownerId,
+                "Photos",
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MediaScanCandidatesResult
+            {
+                Success = true,
+                TotalFound = 1,
+                Candidates =
+                [
+                    new MediaFileCandidateDto { Id = reachableId, Name = "reachable.jpg", MimeType = "image/jpeg" },
+                ],
+            });
+
+        var photoCallbackMock = new Mock<IPhotoIndexingCallback>();
+        photoCallbackMock
+            .Setup(callback => callback.GetIndexedFileNodeIdsAsync(ownerId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([reachableId, staleId]);
+
+        using var provider = CreateServiceProvider(Guid.CreateVersion7().ToString(), filesApiClientMock, photoCallbackMock.Object);
+        var service = CreateService(provider);
+
+        var remaining = new List<MediaLibrarySource>
+        {
+            new MediaLibrarySource
+            {
+                SourceKind = MediaLibrarySourceKind.SharedMount,
+                SharedFolderId = sharedFolderId,
+                DisplayName = "Gallery",
+                DisplayPath = "/_DotNetCloud/Gallery",
+                Enabled = true,
+            }
+        };
+
+        var count = await service.CountLibraryItemsNotInSourcesAsync(remaining, ownerId, "Photos");
+
+        Assert.AreEqual(1, count);
+        // Preview must not delete anything.
+        photoCallbackMock.Verify(
+            callback => callback.RemoveDeletedPhotosAsync(It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [TestMethod]
+    public async Task RemoveLibraryItemsNotInSourcesAsync_StaleIndexedFiles_RemovesOnlyOrphanedItems()
+    {
+        var ownerId = Guid.CreateVersion7();
+        var sharedFolderId = Guid.CreateVersion7();
+        var reachableId = Guid.CreateVersion7();
+        var staleId = Guid.CreateVersion7();
+
+        var filesApiClientMock = new Mock<IFilesApiClient>();
+        filesApiClientMock
+            .Setup(client => client.ScanMediaFoldersAsync(
+                It.IsAny<IReadOnlyCollection<MediaLibrarySource>>(),
+                ownerId,
+                "Photos",
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MediaScanCandidatesResult
+            {
+                Success = true,
+                TotalFound = 1,
+                Candidates =
+                [
+                    new MediaFileCandidateDto { Id = reachableId, Name = "reachable.jpg", MimeType = "image/jpeg" },
+                ],
+            });
+
+        var photoCallbackMock = new Mock<IPhotoIndexingCallback>();
+        photoCallbackMock
+            .Setup(callback => callback.GetIndexedFileNodeIdsAsync(ownerId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([reachableId, staleId]);
+        photoCallbackMock
+            .Setup(callback => callback.RemoveDeletedPhotosAsync(
+                It.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(staleId)),
+                ownerId,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
+
+        using var provider = CreateServiceProvider(Guid.CreateVersion7().ToString(), filesApiClientMock, photoCallbackMock.Object);
+        var service = CreateService(provider);
+
+        var remaining = new List<MediaLibrarySource>
+        {
+            new MediaLibrarySource
+            {
+                SourceKind = MediaLibrarySourceKind.SharedMount,
+                SharedFolderId = sharedFolderId,
+                DisplayName = "Gallery",
+                DisplayPath = "/_DotNetCloud/Gallery",
+                Enabled = true,
+            }
+        };
+
+        var removed = await service.RemoveLibraryItemsNotInSourcesAsync(remaining, ownerId, "Photos");
+
+        Assert.AreEqual(1, removed);
+        photoCallbackMock.Verify(
+            callback => callback.RemoveDeletedPhotosAsync(
+                It.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(staleId)),
+                ownerId,
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+        photoCallbackMock.Verify(
+            callback => callback.IndexPhotoAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [TestMethod]
+    public async Task RemoveLibraryItemsNotInSourcesAsync_NoRemainingSources_RemovesAllIndexedItems()
+    {
+        var ownerId = Guid.CreateVersion7();
+        var firstPhotoId = Guid.CreateVersion7();
+        var secondPhotoId = Guid.CreateVersion7();
+
+        var filesApiClientMock = new Mock<IFilesApiClient>();
+        var photoCallbackMock = new Mock<IPhotoIndexingCallback>();
+        photoCallbackMock
+            .Setup(callback => callback.GetIndexedFileNodeIdsAsync(ownerId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([firstPhotoId, secondPhotoId]);
+        photoCallbackMock
+            .Setup(callback => callback.RemoveDeletedPhotosAsync(
+                It.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 2 && ids.Contains(firstPhotoId) && ids.Contains(secondPhotoId)),
+                ownerId,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(2);
+
+        using var provider = CreateServiceProvider(Guid.CreateVersion7().ToString(), filesApiClientMock, photoCallbackMock.Object);
+        var service = CreateService(provider);
+
+        // Removing the last source leaves no remaining sources → every indexed item is orphaned.
+        var removed = await service.RemoveLibraryItemsNotInSourcesAsync([], ownerId, "Photos");
+
+        Assert.AreEqual(2, removed);
+        // The Files module should not be queried when there are no remaining sources to enumerate.
+        filesApiClientMock.Verify(
+            client => client.ScanMediaFoldersAsync(It.IsAny<IReadOnlyCollection<MediaLibrarySource>>(), It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
     private static ServiceProvider CreateServiceProvider(string dbName, Mock<IFilesApiClient> filesApiClientMock, IPhotoIndexingCallback photoCallback)
     {
         var services = new ServiceCollection();

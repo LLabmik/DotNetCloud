@@ -1158,6 +1158,19 @@ public sealed class LibraryScanService
         string? musicBrainzRecordingId,
         CancellationToken cancellationToken)
     {
+        // ── 0. Purge stale soft-deleted tombstones for this (owner, file node) ──
+        // A re-import after a source removal must not collide with the unique (FileNodeId, OwnerId)
+        // index. RemoveRange-based deletion never leaves tombstones, but older state may.
+        var tombstones = await _db.UserTracks
+            .IgnoreQueryFilters()
+            .Where(ut => ut.OwnerId == ownerId && ut.FileNodeId == fileNodeId && ut.IsDeleted)
+            .ToListAsync(cancellationToken);
+        if (tombstones.Count > 0)
+        {
+            _db.UserTracks.RemoveRange(tombstones);
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+
         // ── 1. Create UserTrack junction ──
         var userTrack = new UserTrack
         {
@@ -1801,7 +1814,8 @@ public sealed class LibraryScanService
             return 0;
 
         var tracksToDelete = await _db.UserTracks
-            .Where(ut => ut.OwnerId == ownerId && deletedFileNodeIds.Contains(ut.FileNodeId) && !ut.IsDeleted)
+            .IgnoreQueryFilters()
+            .Where(ut => ut.OwnerId == ownerId && deletedFileNodeIds.Contains(ut.FileNodeId))
             .ToListAsync(cancellationToken);
 
         if (tracksToDelete.Count == 0)

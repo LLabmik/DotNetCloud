@@ -2,6 +2,7 @@ using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Photos.Data;
 using DotNetCloud.Modules.Photos.Data.Services;
 using DotNetCloud.Modules.Photos.Services;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
 
@@ -103,6 +104,44 @@ public class PhotoIndexingCallbackTests
         await _callback.IndexPhotoAsync(fileNodeId, "sunset.jpg", "image/jpeg", 2_000_000, ownerId);
         await _callback.IndexPhotoAsync(fileNodeId, "sunset.jpg", "image/jpeg", 2_000_000, ownerId);
 
+        Assert.AreEqual(1, _db.Photos.Count(p => p.FileNodeId == fileNodeId));
+    }
+
+    [TestMethod]
+    public async Task RemoveDeletedPhotosAsync_HardDeletesPhotoRows()
+    {
+        var fileNodeId = Guid.CreateVersion7();
+        var ownerId = Guid.CreateVersion7();
+
+        await _callback.IndexPhotoAsync(fileNodeId, "sunset.jpg", "image/jpeg", 2_000_000, ownerId);
+
+        var removed = await _callback.RemoveDeletedPhotosAsync([fileNodeId], ownerId);
+
+        Assert.AreEqual(1, removed);
+        // Hard delete: the row must be gone entirely (even ignoring query filters), so the
+        // unique (FileNodeId, OwnerId) index slot is freed for a later re-import.
+        Assert.AreEqual(0, _db.Photos.IgnoreQueryFilters().Count(p => p.FileNodeId == fileNodeId));
+    }
+
+    [TestMethod]
+    public async Task IndexPhotoAsync_StaleTombstoneForFileNode_IsPurgedOnReimport()
+    {
+        var fileNodeId = Guid.CreateVersion7();
+        var ownerId = Guid.CreateVersion7();
+
+        await _callback.IndexPhotoAsync(fileNodeId, "sunset.jpg", "image/jpeg", 2_000_000, ownerId);
+
+        // Simulate the leftover soft-deleted tombstone the old removal path left behind.
+        var tombstone = _db.Photos.IgnoreQueryFilters().First(p => p.FileNodeId == fileNodeId);
+        tombstone.IsDeleted = true;
+        tombstone.DeletedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        // Re-importing (e.g. re-adding the source + Scan Now) must purge the tombstone first,
+        // otherwise the insert collides with the unique (FileNodeId, OwnerId) index.
+        await _callback.IndexPhotoAsync(fileNodeId, "sunset.jpg", "image/jpeg", 2_000_000, ownerId);
+
+        Assert.AreEqual(0, _db.Photos.IgnoreQueryFilters().Count(p => p.FileNodeId == fileNodeId && p.IsDeleted));
         Assert.AreEqual(1, _db.Photos.Count(p => p.FileNodeId == fileNodeId));
     }
 }

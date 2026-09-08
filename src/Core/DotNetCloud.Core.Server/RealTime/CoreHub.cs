@@ -9,6 +9,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using EventBus = DotNetCloud.Core.Events.IEventBus;
+using ChatMessageNotifier = DotNetCloud.Modules.Chat.Services.IChatMessageNotifier;
+using UserPresenceChangedNotification = DotNetCloud.Modules.Chat.Services.UserPresenceChangedNotification;
 
 namespace DotNetCloud.Core.Server.RealTime;
 
@@ -26,6 +28,7 @@ internal sealed class CoreHub : Hub
     private readonly IChatApiClient _chatApiClient;
     private readonly IRealtimeBroadcaster _broadcaster;
     private readonly EventBus? _eventBus;
+    private readonly ChatMessageNotifier? _chatMessageNotifier;
     private readonly ILogger<CoreHub> _logger;
 
     public CoreHub(
@@ -34,13 +37,15 @@ internal sealed class CoreHub : Hub
         IChatApiClient chatApiClient,
         IRealtimeBroadcaster broadcaster,
         ILogger<CoreHub> logger,
-        EventBus? eventBus = null)
+        EventBus? eventBus = null,
+        ChatMessageNotifier? chatMessageNotifier = null)
     {
         _connectionTracker = connectionTracker ?? throw new ArgumentNullException(nameof(connectionTracker));
         _presenceService = presenceService ?? throw new ArgumentNullException(nameof(presenceService));
         _chatApiClient = chatApiClient ?? throw new ArgumentNullException(nameof(chatApiClient));
         _broadcaster = broadcaster ?? throw new ArgumentNullException(nameof(broadcaster));
         _eventBus = eventBus;
+        _chatMessageNotifier = chatMessageNotifier;
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -72,6 +77,11 @@ internal sealed class CoreHub : Hub
 
             // Notify other clients that this user is now online
             await Clients.Others.SendAsync("UserOnline", new { UserId = userId, Timestamp = DateTime.UtcNow });
+
+            // Notify in-process subscribers (Blazor circuits) so their presence dots
+            // and member lists update immediately when this user comes online.
+            _chatMessageNotifier?.NotifyUserPresenceChanged(
+                new UserPresenceChangedNotification(userId, IsOnline: true));
         }
 
         await base.OnConnectedAsync();
@@ -97,6 +107,11 @@ internal sealed class CoreHub : Hub
 
                 // Notify other clients that this user is now offline
                 await Clients.Others.SendAsync("UserOffline", new { UserId = userId, Timestamp = DateTime.UtcNow });
+
+                // Notify in-process subscribers (Blazor circuits) so their presence dots
+                // and member lists update immediately when this user goes offline.
+                _chatMessageNotifier?.NotifyUserPresenceChanged(
+                    new UserPresenceChangedNotification(userId, IsOnline: false));
             }
         }
 
