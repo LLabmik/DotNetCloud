@@ -425,7 +425,7 @@ Include>` (no project reference to the app). `ChannelListViewModel` is **not** c
 - `/health/ready` → **Healthy**: `startup` Healthy, `database` Healthy, `linux-resources` Healthy, `modules-aggregate` Healthy (13 health-registered modules all healthy).
 - All **14 module host processes running**: about, ai, bookmarks, calendar, chat, contacts, email, extraction, files, music, notes, photos, tracks, video.
 - No pending DB migrations (core up to date; module schemas initialized). `blazor.web.js` → 200 (no static-asset regression).
-- **Blocked on the way (resolved):** fresh NuGet audit advisory `GHSA-23fw-v26w-5fgq` (NPOI 2.8.0 → SourceLink.GitHub 8.0.0 → Tasks.Git 8.0.0, no patched 8.0.x) broke `dotnet restore` (NU1902). Added a documented `NuGetAuditSuppress` in `Directory.Build.props` (3rd entry, SOC 2 compensating control, review 2026-12-09) to unblock. ⚠️ This suppression is an **uncommitted working-tree change on the server** — it must be committed on the branch and merged to `main`, or every full build anywhere will fail restore.
+- **Blocked on the way (resolved):** fresh NuGet audit advisory `GHSA-23fw-v26w-5fgq` (NPOI 2.8.0 → SourceLink.GitHub 8.0.0 → Tasks.Git 8.0.0, no patched 8.0.x) broke `dotnet restore` (NU1902). Added a documented `NuGetAuditSuppress` in `Directory.Build.props` (3rd entry, SOC 2 compensating control, review 2026-12-09) to unblock. ✅ Suppression committed on this branch @ `9cf5f579` (2026-09-09) — **still needs a merge to `main`** (operator PR), or every full build anywhere will fail restore.
 - **Remaining for live E2E (§8.2 above):** needs operator/client-agent action — web user + Android phone `R5CWC356B2K` DM presence-dot checks (server agent cannot obtain browser sessions/tokens).
 
 ---
