@@ -1,5 +1,6 @@
 using DotNetCloud.Client.Core.LocalState;
 using DotNetCloud.Client.Core.SelectiveSync;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -137,6 +138,8 @@ public class SelectiveSyncConfigTests
         }
         finally
         {
+            // Release pooled SQLite handles (the pool retains the file) so the temp DB can be deleted on Windows.
+            SqliteConnection.ClearAllPools();
             if (File.Exists(dbPath))
                 File.Delete(dbPath);
         }
@@ -156,6 +159,8 @@ public class SelectiveSyncConfigTests
         }
         finally
         {
+            // Release pooled SQLite handles (the pool retains the file) so the temp DB can be deleted on Windows.
+            SqliteConnection.ClearAllPools();
             if (File.Exists(dbPath))
                 File.Delete(dbPath);
         }
@@ -185,6 +190,8 @@ public class SelectiveSyncConfigTests
         }
         finally
         {
+            // Release pooled SQLite handles (the pool retains the file) so the temp DB can be deleted on Windows.
+            SqliteConnection.ClearAllPools();
             if (File.Exists(dbPath))
                 File.Delete(dbPath);
         }

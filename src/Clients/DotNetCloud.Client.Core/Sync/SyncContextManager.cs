@@ -106,7 +106,7 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
 
                 // Register the context without a running engine so it still
                 // appears in ListContexts (shown as offline/error in the UI).
-                RegisterOfflineContext(reg);
+                RegisterOfflineContext(reg, FormatStartFailure(ex));
             }
         }
 
@@ -209,7 +209,7 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
                     contextId);
 
                 // Register the context as offline so the account still appears in the UI.
-                RegisterOfflineContext(registration);
+                RegisterOfflineContext(registration, FormatStartFailure(ex));
             }
 
             ApplyScopedFolderExclusions();
@@ -284,7 +284,7 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to start sync engine for new folder context {ContextId}.", contextId);
-                RegisterOfflineContext(newRegistration);
+                RegisterOfflineContext(newRegistration, FormatStartFailure(ex));
             }
 
             // Make sibling engines (e.g. the whole-account context) exclude the new scoped folder.
@@ -424,7 +424,7 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
                         _logger.LogError(ex,
                             "Failed to restart sync engine for context {ContextId} after re-authentication.",
                             registration.Id);
-                        RegisterOfflineContext(registration);
+                        RegisterOfflineContext(registration, FormatStartFailure(ex));
                     }
                 }
 
@@ -502,7 +502,12 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
                 return null;
 
             if (running.Engine is null)
-                return new SyncStatus { State = SyncState.Error, LastError = "Sync engine failed to start." };
+            {
+                var reason = string.IsNullOrWhiteSpace(running.OfflineReason)
+                    ? "Sync engine failed to start."
+                    : $"Sync engine failed to start: {running.OfflineReason}";
+                return new SyncStatus { State = SyncState.Error, LastError = reason };
+            }
 
             return await running.Engine.GetStatusAsync(running.SyncContext, cancellationToken);
         }
@@ -841,7 +846,9 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
     /// Registers a context as offline (no running engine) so it still appears in
     /// <see cref="GetContextsAsync"/> and the tray can show it with an error/offline state.
     /// </summary>
-    private void RegisterOfflineContext(SyncContextRegistration registration)
+    /// <param name="registration">The persisted context registration.</param>
+    /// <param name="failureReason">Optional human-readable reason the engine could not start.</param>
+    private void RegisterOfflineContext(SyncContextRegistration registration, string? failureReason = null)
     {
         var syncContext = new SyncContext
         {
@@ -863,9 +870,11 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
             StateDb = null,
             ApiClient = null,
             SelectiveSync = new SelectiveSyncConfig(),
+            OfflineReason = failureReason,
         };
 
-        _logger.LogWarning("Registered context {ContextId} as offline.", registration.Id);
+        _logger.LogWarning("Registered context {ContextId} as offline. Reason: {Reason}",
+            registration.Id, failureReason);
     }
 
     /// <summary>
@@ -1233,19 +1242,21 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
 
         if (OperatingSystem.IsWindows())
         {
-            // When running inside an MSIX package, the service may not have
-            // write access to ProgramData. Use LocalApplicationData instead.
-            var baseDir = AppContext.BaseDirectory;
-            if (baseDir.Contains(@"\WindowsApps\", StringComparison.OrdinalIgnoreCase))
+            // MSIX-packaged processes run in a sandbox that cannot rely on write access
+            // to ProgramData, so always use the per-user location for them.
+            if (AppContext.BaseDirectory.Contains(@"\WindowsApps\", StringComparison.OrdinalIgnoreCase))
             {
-                return Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "DotNetCloud", "Sync");
+                return GetUserLocalDataRoot();
             }
 
-            return Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-                "DotNetCloud", "Sync");
+            // Prefer the machine-wide location, but only when the current user can actually
+            // create AND overwrite files there. If it is not usable (e.g. a previous elevated or
+            // SYSTEM run owns it, or the machine restricts user writes), fall back to the per-user
+            // location so token/state files stay owned by the current user. This prevents the
+            // "Access to ... .tok is denied" failure when the client later tries to save tokens.
+            return CanUseDirectory(GetMachineDataRoot())
+                ? GetMachineDataRoot()
+                : GetUserLocalDataRoot();
         }
 
         // Prefer the system-wide location when writable (service/root context).
@@ -1264,6 +1275,23 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
             "Sync");
     }
 
+    private static string GetMachineDataRoot() =>
+        Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+            "DotNetCloud",
+            "Sync");
+
+    private static string GetUserLocalDataRoot() =>
+        Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "DotNetCloud",
+            "Sync");
+
+    /// <summary>
+    /// Verifies the current user can create, write, overwrite, and delete a probe file in
+    /// <paramref name="path"/> (creating the directory first when needed). Overwrite matters:
+    /// a folder may allow creating new files yet forbid replacing existing ones.
+    /// </summary>
     private static bool CanUseDirectory(string path)
     {
         try
@@ -1271,17 +1299,37 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
             Directory.CreateDirectory(path);
 
             var probePath = Path.Combine(path, $".write-test-{Guid.CreateVersion7():N}");
-            using (File.Create(probePath))
+            using (var stream = File.Create(probePath))
             {
+                stream.WriteByte(0x1);
             }
-            File.Delete(probePath);
 
+            // Re-open and overwrite to mirror how token/state files are updated in place.
+            using (var stream = File.Create(probePath))
+            {
+                stream.WriteByte(0x2);
+            }
+
+            File.Delete(probePath);
             return true;
         }
         catch
         {
             return false;
         }
+    }
+
+    /// <summary>Flattens a start-up failure into a single, human-readable line for the UI.</summary>
+    private static string FormatStartFailure(Exception ex)
+    {
+        var message = ex.Message?.Trim();
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return ex.GetType().Name;
+        }
+
+        var firstLine = message.Split('\n')[0].Trim();
+        return firstLine.Length > 300 ? firstLine[..300] : firstLine;
     }
 
     /// <summary>
@@ -1480,5 +1528,11 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
 
         /// <summary>True when the sync engine is running.</summary>
         public bool IsOnline => Engine is not null;
+
+        /// <summary>
+        /// Human-readable reason the engine failed to start (surfaced via
+        /// <see cref="GetStatusAsync"/> when the context is offline). Null when online.
+        /// </summary>
+        public string? OfflineReason { get; init; }
     }
 }

@@ -78,4 +78,55 @@ public class EncryptedFileTokenStoreTests
         Assert.AreEqual("token-1", loaded1?.AccessToken);
         Assert.AreEqual("token-2", loaded2?.AccessToken);
     }
+
+    [TestMethod]
+    public async Task SaveAsync_WhenExistingFileNotWritable_ThrowsActionableUnauthorizedAccess()
+    {
+        var tokens = new TokenInfo { AccessToken = "tok", ExpiresAt = DateTimeOffset.UtcNow.AddHours(1) };
+        await _store.SaveAsync("account-key-1", tokens);
+
+        // Make the existing token file read-only so the overwrite is denied. This mirrors the
+        // real-world case where a token file is owned by another user / created elevated.
+        var tokFile = Directory.EnumerateFiles(_tempDir).Single();
+        File.SetAttributes(tokFile, FileAttributes.ReadOnly);
+        try
+        {
+            var ex = await Assert.ThrowsExactlyAsync<UnauthorizedAccessException>(
+                () => _store.SaveAsync("account-key-1", tokens));
+
+            // The message should explain the cause and how to recover, not be a bare OS error.
+            StringAssert.Contains(ex.Message, "denied");
+            StringAssert.Contains(ex.Message, "sync data folder");
+        }
+        finally
+        {
+            File.SetAttributes(tokFile, FileAttributes.Normal);
+        }
+    }
+
+    [TestMethod]
+    public async Task DeleteAsync_WhenExistingFileNotWritable_ThrowsUnauthorizedAccess()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            // On Unix, deletion is governed by directory permissions, not the file's read-only
+            // bit, so this scenario cannot be simulated portably there.
+            return;
+        }
+
+        var tokens = new TokenInfo { AccessToken = "tok", ExpiresAt = DateTimeOffset.UtcNow.AddHours(1) };
+        await _store.SaveAsync("to-delete", tokens);
+
+        var tokFile = Directory.EnumerateFiles(_tempDir).Single();
+        File.SetAttributes(tokFile, FileAttributes.ReadOnly);
+        try
+        {
+            await Assert.ThrowsExactlyAsync<UnauthorizedAccessException>(
+                () => _store.DeleteAsync("to-delete"));
+        }
+        finally
+        {
+            File.SetAttributes(tokFile, FileAttributes.Normal);
+        }
+    }
 }
