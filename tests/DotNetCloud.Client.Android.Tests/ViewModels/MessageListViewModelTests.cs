@@ -526,6 +526,25 @@ public sealed class MessageListViewModelTests
     }
 
     [TestMethod]
+    public async Task OnChatTyping_SelfTyping_Ignored_WhenUserIdResolvedFromIdToken()
+    {
+        // Real OIDC deployment: the access token is JWE-encrypted and cannot be decoded
+        // client-side, so the user id must be resolved from the signed id_token. Without
+        // this, the ViewModel would treat its own typing echoes as remote and show them.
+        var undecodableAccessToken = "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..encrypted.payload.value";
+        _tokenStore.Setup(x => x.GetAccessTokenAsync(ServerUrl, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(undecodableAccessToken);
+        _tokenStore.Setup(x => x.GetIdTokenAsync(ServerUrl, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(MakeTestJwt(CurrentUserId));
+
+        await InitializeHappyPathAsync();
+
+        FireChatTyping(ChannelId.ToString(), CurrentUserId, "Current User");
+
+        Assert.IsEmpty(_vm.TypingIndicatorText, "Own typing must be ignored even when the access token is JWE-encrypted.");
+    }
+
+    [TestMethod]
     public async Task OnChatTyping_WrongChannel_Ignored()
     {
         await InitializeHappyPathAsync();

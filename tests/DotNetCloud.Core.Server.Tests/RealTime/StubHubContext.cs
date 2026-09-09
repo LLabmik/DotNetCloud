@@ -20,6 +20,7 @@ internal sealed class StubHubClients : IHubClients
 {
     public List<(string Method, IReadOnlyList<string> ConnectionIds)> ClientsCalls { get; } = [];
     public List<string> GroupCalls { get; } = [];
+    public List<(string GroupName, IReadOnlyList<string> ExcludedConnectionIds)> GroupExceptCalls { get; } = [];
 
     private readonly StubClientProxy _proxy = new();
 
@@ -46,7 +47,12 @@ internal sealed class StubHubClients : IHubClients
         return _proxy;
     }
 
-    public IClientProxy GroupExcept(string groupName, IReadOnlyList<string> excludedConnectionIds) => _proxy;
+    public IClientProxy GroupExcept(string groupName, IReadOnlyList<string> excludedConnectionIds)
+    {
+        GroupExceptCalls.Add((groupName, excludedConnectionIds));
+        return _proxy;
+    }
+
     public IClientProxy Groups(IReadOnlyList<string> groupNames) => _proxy;
     public IClientProxy User(string userId) => _proxy;
     public IClientProxy Users(IReadOnlyList<string> userIds) => _proxy;
