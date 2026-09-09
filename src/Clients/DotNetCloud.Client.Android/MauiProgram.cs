@@ -3,6 +3,7 @@ using DotNetCloud.Client.Android.Ai;
 using DotNetCloud.Client.Android.Auth;
 using DotNetCloud.Client.Android.Calendar;
 using DotNetCloud.Client.Android.Chat;
+using DotNetCloud.Client.Android.Controls;
 using DotNetCloud.Client.Android.Files;
 using DotNetCloud.Client.Android.Music;
 using DotNetCloud.Client.Android.Notes;
@@ -15,6 +16,7 @@ using DotNetCloud.Client.Core.Api;
 using DotNetCloud.Client.Core.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Maui.ApplicationModel;
+using Microsoft.Maui.Hosting;
 
 namespace DotNetCloud.Client.Android;
 
@@ -35,6 +37,11 @@ public static class MauiProgram
                 fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
                 fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
                 fonts.AddFont("MaterialIcons-Regular.ttf", "MaterialIcons");
+            })
+            .ConfigureMauiHandlers(handlers =>
+            {
+                // Auto-link URLs in chat message text so they render as tappable links.
+                handlers.AddHandler<AutoLinkLabel, AutoLinkLabelHandler>();
             });
 
         // ── Infrastructure ────────────────────────────────────────────
