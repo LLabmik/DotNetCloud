@@ -96,7 +96,10 @@ public class EncryptedFileTokenStoreTests
 
             // The message should explain the cause and how to recover, not be a bare OS error.
             StringAssert.Contains(ex.Message, "denied");
-            StringAssert.Contains(ex.Message, "sync data folder");
+            // Remediation wording is platform-specific: Windows suggests repairing the sync data
+            // folder (icacls), while Unix/macOS points at sync data directory ownership.
+            var expectedWording = OperatingSystem.IsWindows() ? "sync data folder" : "sync data directory";
+            StringAssert.Contains(ex.Message, expectedWording);
         }
         finally
         {
