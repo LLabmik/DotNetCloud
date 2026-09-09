@@ -135,7 +135,8 @@
             RefreshColor="#0EA5E9">
 
             <CollectionView
-                ItemsSource="{Binding Channels}"
+                ItemsSource="{Binding ChannelGroups}"
+                IsGrouped="True"
                 SelectionMode="None">
 
                 <CollectionView.ItemTemplate>
@@ -249,6 +250,19 @@
                         </Border>
                     </DataTemplate>
                 </CollectionView.ItemTemplate>
+
+                <!-- Section headers: Channels / Direct Messages -->
+                <CollectionView.GroupHeaderTemplate>
+                    <DataTemplate x:DataType="vm:ChannelGroupViewModel">
+                        <Label
+                            FontAttributes="Bold"
+                            FontSize="12"
+                            TextColor="#64748B"
+                            Text="{Binding Title}"
+                            TextTransform="Uppercase"
+                            Margin="18,18,18,4"/>
+                    </DataTemplate>
+                </CollectionView.GroupHeaderTemplate>
 
                 <CollectionView.Header>
                     <BoxView HeightRequest="8"

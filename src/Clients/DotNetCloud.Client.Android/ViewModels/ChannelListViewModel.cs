@@ -52,8 +52,14 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
         _signalR.OnNewChatMessage += OnNewMessage;
     }
 
-    /// <summary>All visible channels, bound to the UI.</summary>
+    /// <summary>All visible channels (flat, source of truth for real-time updates).</summary>
     public ObservableCollection<ChannelItemViewModel> Channels { get; } = [];
+
+    /// <summary>
+    /// Channels grouped into display sections for the UI — "Channels" (Public/Private) and
+    /// "Direct Messages" (DirectMessage/Group) — mirroring the Blazor chat sidebar.
+    /// </summary>
+    public ObservableCollection<ChannelGroupViewModel> ChannelGroups { get; } = [];
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowInitialLoadError))]
@@ -109,6 +115,8 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
 
                     _muteState.ReplaceAll(muteStates);
 
+                    RebuildChannelGroups();
+
                     await ResolveDmChannelNamesAsync(serverUrl, token, ct);
 
                     HasCompletedInitialLoad = true;
@@ -147,6 +155,26 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
         {
             IsLoading = false;
         }
+    }
+
+    /// <summary>
+    /// Rebuilds <see cref="ChannelGroups"/> from the flat <see cref="Channels"/> list.
+    /// Mirrors the Blazor chat sidebar: Public/Private channels go under "Channels", and
+    /// DirectMessage/Group channels under "Direct Messages". Empty sections are omitted.
+    /// </summary>
+    private void RebuildChannelGroups()
+    {
+        ChannelGroups.Clear();
+        if (Channels.Count == 0)
+            return;
+
+        var channelsSection = Channels.Where(c => c.ChannelType is not ("DirectMessage" or "Group")).ToList();
+        var dmSection = Channels.Where(c => c.ChannelType is "DirectMessage" or "Group").ToList();
+
+        if (channelsSection.Count > 0)
+            ChannelGroups.Add(new ChannelGroupViewModel("Channels", channelsSection));
+        if (dmSection.Count > 0)
+            ChannelGroups.Add(new ChannelGroupViewModel("Direct Messages", dmSection));
     }
 
     /// <summary>Navigates into a channel when tapped.</summary>
@@ -478,4 +506,22 @@ public sealed partial class ChannelItemViewModel : ObservableObject
 
     /// <summary>Preview of the last message.</summary>
     public string? LastMessagePreview { get; }
+}
+
+/// <summary>
+/// A section of the channel list ("Channels" or "Direct Messages"). Inherits from
+/// <see cref="List{T}"/> so the grouped <see cref="Microsoft.Maui.Controls.CollectionView"/>
+/// can enumerate its items, while <see cref="Title"/> is bound by the group header template.
+/// </summary>
+public sealed class ChannelGroupViewModel : List<ChannelItemViewModel>
+{
+    /// <summary>Initializes a new channel-list group.</summary>
+    public ChannelGroupViewModel(string title, IEnumerable<ChannelItemViewModel> items)
+        : base(items)
+    {
+        Title = title;
+    }
+
+    /// <summary>Header text shown above the group.</summary>
+    public string Title { get; }
 }
