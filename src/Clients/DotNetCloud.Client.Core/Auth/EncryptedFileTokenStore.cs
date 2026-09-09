@@ -31,7 +31,15 @@ public sealed class EncryptedFileTokenStore : ITokenStore
         var json = JsonSerializer.SerializeToUtf8Bytes(tokens, JsonOptions);
         var encrypted = EncryptAesGcm(json);
         var path = GetPath(accountKey);
-        await File.WriteAllBytesAsync(path, encrypted, cancellationToken);
+        try
+        {
+            await File.WriteAllBytesAsync(path, encrypted, cancellationToken);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            throw BuildAccessDenied(path, ex);
+        }
+
         _logger.LogDebug("Saved encrypted tokens for account.");
     }
 
@@ -60,7 +68,17 @@ public sealed class EncryptedFileTokenStore : ITokenStore
     {
         var path = GetPath(accountKey);
         if (File.Exists(path))
-            File.Delete(path);
+        {
+            try
+            {
+                File.Delete(path);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                throw BuildAccessDenied(path, ex);
+            }
+        }
+
         return Task.CompletedTask;
     }
 
@@ -68,6 +86,30 @@ public sealed class EncryptedFileTokenStore : ITokenStore
     {
         var safe = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(accountKey)));
         return Path.Combine(_storeDirectory, $"{safe}.tok");
+    }
+
+    /// <summary>
+    /// Builds an <see cref="UnauthorizedAccessException"/> that explains the likely cause of a
+    /// denied credentials write (the file is owned by a different user or was created by an
+    /// elevated/Administrator run) and how to recover, rather than surfacing a bare OS message.
+    /// </summary>
+    private static UnauthorizedAccessException BuildAccessDenied(string path, Exception inner)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return new UnauthorizedAccessException(
+                $"Access to the sign-in credentials file '{path}' was denied. The file is probably " +
+                "owned by a different user or was created while the app ran as Administrator, so the " +
+                "current user can only read it. Repair the permissions on the sync data folder once " +
+                "(elevated PowerShell: icacls \"<sync data folder>\" /grant \"Users:(OI)(CI)F\" /T), " +
+                "or remove and re-add the account while running the app as Administrator.",
+                inner);
+        }
+
+        return new UnauthorizedAccessException(
+            $"Access to the sign-in credentials file '{path}' was denied. Ensure the current user " +
+            "owns the sync data directory and has write permission on it.",
+            inner);
     }
 
     private static byte[] EncryptAesGcm(byte[] plaintext)
