@@ -240,9 +240,10 @@ User requirement: "Default for forms (login, TOTP, file create name, etc.) shoul
 - Verify two flagged spots while implementing: Tracks `WorkItemAssignment.UserId` navigation property (plan §9.4) and the Email thread query location behind `ListThreadsAsync` (plan §10.4).
 - Module ids in `KnownWidgetDescriptors` must match `InstalledModules.ModuleId` exactly (plan §11.4 table).
 
-## Active Handoff — Deploy DM presence-dots server changes to cloud.kimball.home (2026-09-09)
+## Active Handoff — DM presence-dots: server deploy DONE ✅ — awaiting live E2E (2026-09-09)
 
-**Status:** ✅ READY TO DEPLOY (operator-requested). Server (Core.Server) + Android changes for DM presence dots are code-complete and unit/build-verified on monolith (`fix/android-improvements`); the server deploy below is the first step of the live E2E (plan §8.2). **Precondition:** monolith must commit + push `fix/android-improvements` before this is relayed (nothing has been committed yet — the cross-machine verification deploy is the sanctioned path to clear the commit-gate for E2E).
+**Status:** ✅ SERVER DEPLOY COMPLETE + VERIFIED on cloud.kimball.home (2026-09-09, server agent). Core.Server presence-dots changes are live (`fix/android-improvements` @ `c9ca7caf`, version 0.6.04). `/health/ready` Healthy (startup/database/linux-resources/modules-aggregate), all 14 module hosts running, `.last-deploy-commit` = `c9ca7caf`. Deployed `Core.Server.dll` contains `GetPresenceStatusAsync` + `UserOnline`/`UserOffline` CoreHub broadcasts (strings-verified). Full record in plan `docs/ANDROID_CHAT_PRESENCE_DOTS_PLAN.md` §8.2. **Next step = live E2E (§8.2) by the operator/client agent** (web user + Android phone `R5CWC356B2K` DM presence dots) — server agent cannot obtain sessions/tokens.
+⚠️ **Deploy blocker resolved on the server — needs a repo commit:** a fresh NuGet audit advisory (`GHSA-23fw-v26w-5fgq`; NPOI 2.8.0 → SourceLink.GitHub 8.0.0 → Tasks.Git 8.0.0, no patched 8.0.x) broke `dotnet restore` (NU1902). A documented `NuGetAuditSuppress` was added to `Directory.Build.props` on the server to unblock. ⚠️ **This suppression is UNCOMMITTED** — it must be committed (this branch → `main`) or every full build anywhere fails restore.
 
 **Target agent:** server — `cloud.kimball.home` (`https://cloud.dotnetcloud.net/`, production)
 **Branch:** `fix/android-improvements`
