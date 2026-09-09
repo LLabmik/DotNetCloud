@@ -1,8 +1,4 @@
 using System.Diagnostics.CodeAnalysis;
-
-#if ANDROID
-using Android.Content;
-#endif
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DotNetCloud.Client.Android.Auth;
@@ -31,6 +27,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly IBatteryOptimizationService _batteryService;
     private readonly IExactAlarmPermissionService _exactAlarmPermission;
     private readonly INotificationPermissionService _notificationPermission;
+    private readonly IMediaPermissionService _mediaPermission;
     private readonly IAppPreferences _preferences;
     private readonly IAndroidUpdateService _updateService;
     private readonly IChatRestClient? _chatApi;
@@ -47,6 +44,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         IBatteryOptimizationService batteryService,
         IExactAlarmPermissionService exactAlarmPermission,
         INotificationPermissionService notificationPermission,
+        IMediaPermissionService mediaPermission,
         IAppPreferences preferences,
         IAndroidUpdateService updateService,
         ILogger<SettingsViewModel> logger,
@@ -58,6 +56,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _batteryService = batteryService;
         _exactAlarmPermission = exactAlarmPermission;
         _notificationPermission = notificationPermission;
+        _mediaPermission = mediaPermission;
         _preferences = preferences;
         _updateService = updateService;
         _chatApi = chatApi;
@@ -77,6 +76,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _batteryThreshold = _preferences.Get(PrefBatteryThreshold, 20);
 
         RefreshBatteryStatus();
+        RefreshMediaPermission();
     }
 
     // ── Account ──────────────────────────────────────────────────────
@@ -107,7 +107,11 @@ public sealed partial class SettingsViewModel : ObservableObject
     // ── File sync settings ───────────────────────────────────────────
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowMediaAccessCard))]
     private bool _autoUploadEnabled;
+
+    /// <summary>True when auto-upload is enabled but media-library read access is missing.</summary>
+    public bool ShowMediaAccessCard => AutoUploadEnabled && IsMediaAccessDenied;
 
     [ObservableProperty]
     private bool _wifiOnlyEnabled;
@@ -139,6 +143,11 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private bool _isNotificationDenied = true;
 
+    /// <summary>Whether the app lacks media-library read permission (Android 13+ READ_MEDIA_*).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowMediaAccessCard))]
+    private bool _isMediaAccessDenied = true;
+
     // ── Chat notification preferences ───────────────────────────────
 
     /// <summary>Whether Do Not Disturb is enabled for chat notifications.</summary>
@@ -165,40 +174,11 @@ public sealed partial class SettingsViewModel : ObservableObject
         if (value)
         {
             _ = _mediaUploadService.StartAsync();
-
-#if ANDROID
-            // Start the foreground service so uploads survive backgrounding.
-            try
-            {
-                var ctx = global::Android.App.Application.Context;
-                var intent = new Intent(ctx, typeof(global::DotNetCloud.Client.Android.MediaUploadForegroundService));
-                intent.SetAction(global::DotNetCloud.Client.Android.MediaUploadForegroundService.ActionStart);
-                ctx.StartForegroundService(intent);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to start media upload foreground service.");
-            }
-#endif
+            _ = RequestMediaPermissionIfNeededAsync();
         }
         else
         {
             _ = _mediaUploadService.StopAsync();
-
-#if ANDROID
-            // Stop the foreground service to release resources.
-            try
-            {
-                var ctx = global::Android.App.Application.Context;
-                var intent = new Intent(ctx, typeof(global::DotNetCloud.Client.Android.MediaUploadForegroundService));
-                intent.SetAction(global::DotNetCloud.Client.Android.MediaUploadForegroundService.ActionStop);
-                ctx.StartForegroundService(intent);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to stop media upload foreground service.");
-            }
-#endif
         }
     }
 
@@ -333,6 +313,54 @@ public sealed partial class SettingsViewModel : ObservableObject
                 IsNotificationDenied = !_notificationPermission.HasNotificationPermission();
             });
         });
+    }
+
+    /// <summary>Refreshes whether the app may read the shared photo/video library. Call when the page appears.</summary>
+    public void RefreshMediaPermission()
+    {
+        IsMediaAccessDenied = !_mediaPermission.HasMediaReadPermission();
+        _logger.LogDebug("Media read permission granted: {Granted}.", !IsMediaAccessDenied);
+    }
+
+    /// <summary>
+    /// Requests the media-library read permission (first-time system dialog) and, if denied,
+    /// opens the system app permissions page. Refreshes the UI and triggers an immediate scan
+    /// once the user grants access.
+    /// </summary>
+    [RelayCommand]
+    private async Task RequestMediaPermissionAsync()
+    {
+        var granted = await _mediaPermission.EnsureGrantedAsync();
+        if (!granted)
+            _mediaPermission.OpenMediaPermissionSettings();
+
+        RefreshMediaPermission();
+        if (granted)
+            _ = _mediaUploadService.ScanAndUploadNowAsync();
+    }
+
+    /// <summary>
+    /// Best-effort permission request fired (non-blocking) when the user enables auto-upload.
+    /// Swallows failures so the toggle never depends on the dialog succeeding.
+    /// </summary>
+    private async Task RequestMediaPermissionIfNeededAsync()
+    {
+        try
+        {
+            if (_mediaPermission.HasMediaReadPermission())
+                return;
+
+            var granted = await _mediaPermission.EnsureGrantedAsync();
+            if (granted)
+            {
+                RefreshMediaPermission();
+                _ = _mediaUploadService.ScanAndUploadNowAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Media permission prompt unavailable in this context.");
+        }
     }
 
     /// <summary>Opens the system battery optimization exemption dialog.</summary>

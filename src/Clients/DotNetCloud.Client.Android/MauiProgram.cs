@@ -136,6 +136,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<ICalendarReminderScheduler, CalendarReminderScheduler>();
         builder.Services.AddSingleton<IExactAlarmPermissionService, AndroidExactAlarmPermissionService>();
         builder.Services.AddSingleton<INotificationPermissionService, AndroidNotificationPermissionService>();
+        builder.Services.AddSingleton<IMediaPermissionService, AndroidMediaPermissionService>();
 
         // ── Notes ───────────────────────────────────────────────────────
         builder.Services.AddHttpClient<INotesRestClient, HttpNotesRestClient>()

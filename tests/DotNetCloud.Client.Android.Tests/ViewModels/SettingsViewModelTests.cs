@@ -16,6 +16,7 @@ public sealed class SettingsViewModelTests
     private Mock<IBatteryOptimizationService> _batteryService = null!;
     private Mock<IExactAlarmPermissionService> _exactAlarmPermission = null!;
     private Mock<INotificationPermissionService> _notificationPermission = null!;
+    private Mock<IMediaPermissionService> _mediaPermission = null!;
     private Mock<IAppPreferences> _preferences = null!;
     private Mock<IAndroidUpdateService> _updateService = null!;
     private Mock<ILogger<SettingsViewModel>> _logger = null!;
@@ -29,6 +30,7 @@ public sealed class SettingsViewModelTests
         _batteryService = new Mock<IBatteryOptimizationService>();
         _exactAlarmPermission = new Mock<IExactAlarmPermissionService>();
         _notificationPermission = new Mock<INotificationPermissionService>();
+        _mediaPermission = new Mock<IMediaPermissionService>();
         _preferences = new Mock<IAppPreferences>();
         _updateService = new Mock<IAndroidUpdateService>();
         _logger = new Mock<ILogger<SettingsViewModel>>();
@@ -323,6 +325,86 @@ public sealed class SettingsViewModelTests
         _serverStore.Verify(x => x.Remove(It.IsAny<string>()), Times.Never);
     }
 
+    [TestMethod]
+    public void Constructor_RefreshMediaPermission_ClearsDenied_WhenPermissionGranted()
+    {
+        // Arrange
+        _mediaPermission.Setup(x => x.HasMediaReadPermission()).Returns(true);
+
+        // Act
+        var vm = CreateViewModel();
+
+        // Assert
+        Assert.IsFalse(vm.IsMediaAccessDenied);
+    }
+
+    [TestMethod]
+    public void Constructor_RefreshMediaPermission_SetsDenied_WhenPermissionMissing()
+    {
+        // Arrange
+        _mediaPermission.Setup(x => x.HasMediaReadPermission()).Returns(false);
+        _preferences.Setup(x => x.Get(SettingsViewModel.PrefEnabled, false)).Returns(true);
+
+        // Act
+        var vm = CreateViewModel();
+
+        // Assert
+        Assert.IsTrue(vm.IsMediaAccessDenied);
+        Assert.IsTrue(vm.ShowMediaAccessCard, "Photos access card should show when auto-upload is on and permission is missing");
+    }
+
+    [TestMethod]
+    public void ShowMediaAccessCard_Hidden_WhenAutoUploadDisabled_EvenIfPermissionMissing()
+    {
+        // Arrange
+        _mediaPermission.Setup(x => x.HasMediaReadPermission()).Returns(false);
+        _preferences.Setup(x => x.Get(SettingsViewModel.PrefEnabled, false)).Returns(false);
+
+        // Act
+        var vm = CreateViewModel();
+
+        // Assert
+        Assert.IsFalse(vm.ShowMediaAccessCard);
+    }
+
+    [TestMethod]
+    public async Task RequestMediaPermissionCommand_WhenGranted_TriggersScan()
+    {
+        // Arrange
+        // The mock simulates "already granted after the request succeeds" (real service reports
+        // granted once the runtime dialog is accepted).
+        _mediaPermission.Setup(x => x.HasMediaReadPermission()).Returns(true);
+        _mediaPermission.Setup(x => x.EnsureGrantedAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        var vm = CreateViewModel();
+
+        // Act
+        await vm.RequestMediaPermissionCommand.ExecuteAsync(CancellationToken.None);
+
+        // Assert
+        _mediaPermission.Verify(x => x.EnsureGrantedAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _mediaUploadService.Verify(x => x.ScanAndUploadNowAsync(It.IsAny<CancellationToken>()), Times.Once);
+        Assert.IsFalse(vm.IsMediaAccessDenied);
+    }
+
+    [TestMethod]
+    public async Task RequestMediaPermissionCommand_WhenDenied_OpensSettings_AndDoesNotScan()
+    {
+        // Arrange
+        _mediaPermission.Setup(x => x.HasMediaReadPermission()).Returns(false);
+        _mediaPermission.Setup(x => x.EnsureGrantedAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+        var vm = CreateViewModel();
+
+        // Act
+        await vm.RequestMediaPermissionCommand.ExecuteAsync(CancellationToken.None);
+
+        // Assert
+        _mediaPermission.Verify(x => x.OpenMediaPermissionSettings(), Times.Once);
+        _mediaUploadService.Verify(x => x.ScanAndUploadNowAsync(It.IsAny<CancellationToken>()), Times.Never);
+        Assert.IsTrue(vm.IsMediaAccessDenied);
+    }
+
     private SettingsViewModel CreateViewModel()
     {
         return new SettingsViewModel(
@@ -332,6 +414,7 @@ public sealed class SettingsViewModelTests
             _batteryService.Object,
             _exactAlarmPermission.Object,
             _notificationPermission.Object,
+            _mediaPermission.Object,
             _preferences.Object,
             _updateService.Object,
             _logger.Object);

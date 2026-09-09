@@ -640,10 +640,15 @@ public sealed partial class FileBrowserViewModel : ObservableObject
             return;
         }
 
-        // Show the last upload timestamp if available.
-        var lastPhotoTs = prefs.Get("media_upload_last_photo_ts", 0L);
-        var lastVideoTs = prefs.Get("media_upload_last_video_ts", 0L);
-        var latestTs = Math.Max(lastPhotoTs, lastVideoTs);
+        // Show the last upload timestamp if available. Prefer the watcher's consolidated
+        // "last successful pass" marker; fall back to the legacy per-kind watermarks.
+        var latestTs = prefs.Get("media_upload_last_success", 0L);
+        if (latestTs <= 0)
+        {
+            latestTs = Math.Max(
+                prefs.Get("media_upload_last_photo_ts", 0L),
+                prefs.Get("media_upload_last_video_ts", 0L));
+        }
 
         if (latestTs > 0)
         {

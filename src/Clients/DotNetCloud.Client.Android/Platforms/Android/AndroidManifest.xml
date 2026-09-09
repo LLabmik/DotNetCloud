@@ -74,6 +74,8 @@
 	<!-- Photo auto-upload: read media -->
 	<uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
 	<uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+	<!-- READ_EXTERNAL_STORAGE covers API 29-32 (Android 10-12); Android 13+ uses READ_MEDIA_* above -->
+	<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
 
 	<!-- Camera for photo/video capture -->
 	<uses-permission android:name="android.permission.CAMERA" />
