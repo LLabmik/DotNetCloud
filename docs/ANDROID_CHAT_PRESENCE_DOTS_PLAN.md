@@ -428,6 +428,16 @@ Include>` (no project reference to the app). `ChannelListViewModel` is **not** c
 - **Blocked on the way (resolved):** fresh NuGet audit advisory `GHSA-23fw-v26w-5fgq` (NPOI 2.8.0 → SourceLink.GitHub 8.0.0 → Tasks.Git 8.0.0, no patched 8.0.x) broke `dotnet restore` (NU1902). Added a documented `NuGetAuditSuppress` in `Directory.Build.props` (3rd entry, SOC 2 compensating control, review 2026-12-09) to unblock. ✅ Suppression committed on this branch @ `9cf5f579` (2026-09-09) — **still needs a merge to `main`** (operator PR), or every full build anywhere will fail restore.
 - **Remaining for live E2E (§8.2 above):** needs operator/client-agent action — web user + Android phone `R5CWC356B2K` DM presence-dot checks (server agent cannot obtain browser sessions/tokens).
 
+#### Client E2E findings + fixes (monolith + operator — 2026-09-09)
+
+- ✅ **Cold-start snapshot dots correct** on-device (phone `R5CWC356B2K`, `cloud.dotnetcloud.net`): Test Dude **green** (online), Dale Kaminski / Fonda Kimball **gray**; channel (Public) and group rows have **no dot**. App stable (logcat clean, no crash after screenshot). Acceptance §1 items 1–3 & 6 verified.
+- ✅ **Real-time ONLINE immediate:** operator logged in as Test Dude on the web → dot went **green at once** on both Android and Blazor (server web→CoreHub `UserOnline` broadcast → Android handler). Acceptance item 4 (web peer reachability) — online direction verified.
+- ⚠️ **Real-time OFFLINE delayed on the first deployed build:** closing the Test Dude browser only grayed the dot after Blazor's circuit reconnect-retention (~3 min). **Root cause:** `PresenceCircuitHandler` only hooked `OnCircuitOpenedAsync`/`OnCircuitClosedAsync`; Blazor Server retains a disconnected circuit for reconnect, so `OnCircuitClosedAsync` fires late.
+  - **Fix (server):** the handler now also overrides `OnConnectionDownAsync` (offline on connection drop) and `OnConnectionUpAsync` (online on reconnect); `OnCircuitClosedAsync` remains as an idempotent safety net. Presence now follows connection state → browser close marks the user offline within seconds.
+- 🐛 **Android peer-ID plumbing bug found + fixed:** the live server returns DM channels with **already-resolved display names** plus `ChannelDto.OtherUserId`, but the Android `ChannelSummary` DTO dropped `OtherUserId`, so name-parsing could not recover peer GUIDs → `_dmChannelToOtherUser` empty → no dots seeded. **Fix (Android):** plumb `otherUserId` through `HttpChatRestClient.ChannelSummaryDto`/`ToChannelSummary` → `ChannelSummary` → set on `ChannelItemViewModel.OtherUserId` in `LoadChannelsAsync`; `ResolveDmChannelNamesAsync` now prefers the server peer ID and only name-parses (`DM-{guid1}-{guid2}`) as a fallback. Verified on-device (dots render).
+- **Verification:** Core.Server 697 passed / 1 pre-existing `ProgramRootCaTests` fail / 1 skip (693 + 4 new connection up/down tests in `PresenceCircuitHandlerTests`). Android app builds clean (arm64, 0 warnings); Android.Tests 269 pass / 1 skip.
+- ⏳ **Still to verify after the server fix is redeployed** (relay to `cloud.kimball.home`): re-run step 3 — close the Test Dude web chat → Android/Blazor dot gray **within a few seconds** (was ~3 min). Native↔native (step 5) also still to run.
+
 ---
 
 ## 9. Documentation Updates (after implementation)

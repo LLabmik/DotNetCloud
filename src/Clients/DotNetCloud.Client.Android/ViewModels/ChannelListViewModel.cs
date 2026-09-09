@@ -118,7 +118,11 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
                     foreach (var ch in channels)
                     {
                         muteStates[ch.Id] = ch.IsMuted;
-                        Channels.Add(new ChannelItemViewModel(ch.Id, ch.Name, ch.ChannelType, ch.UnreadCount, ch.HasMention, ch.IsMuted, ch.LastMessagePreview));
+                        Channels.Add(new ChannelItemViewModel(ch.Id, ch.Name, ch.ChannelType, ch.UnreadCount, ch.HasMention, ch.IsMuted, ch.LastMessagePreview)
+                        {
+                            // DM rows carry the peer ID the server resolved (used for presence dots).
+                            OtherUserId = ch.OtherUserId is { } peer && peer != Guid.Empty ? peer : null
+                        });
                     }
 
                     _muteState.ReplaceAll(muteStates);
@@ -461,28 +465,29 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
             // The access token is JWE-encrypted and cannot be decoded client-side.
             var currentUserId = await GetCurrentUserIdAsync(serverUrl, ct);
 
-            // Parse DM channel names (format: DM-{userId1}-{userId2}) to find the other user's ID.
+            // Build the DM-channel → peer map used for presence dots + name resolution.
+            // Prefer the peer ID the server sends (ChannelDto.OtherUserId, already set on the
+            // item in LoadChannelsAsync); fall back to parsing the legacy raw DM name format
+            // (DM-{userId1}-{userId2}) for servers that return unresolved channel names.
             _dmChannelToOtherUser.Clear();
             var otherUserIds = new List<Guid>();
 
             foreach (var dm in dmChannels)
             {
-                var parts = dm.Name.Split('-');
-                // DM name format: DM-{guid1}-{guid2}
-                // Each GUID has 5 dash-segments, so total = 1 (DM) + 5 + 5 = 11 parts
-                if (parts.Length == 11
-                    && Guid.TryParse(string.Join("-", parts[1..6]), out var guid1)
-                    && Guid.TryParse(string.Join("-", parts[6..11]), out var guid2))
+                var peerId = dm.OtherUserId is { } p && p != Guid.Empty
+                    ? p
+                    : ParseDmChannelPeer(dm.Name, currentUserId);
+
+                if (peerId != Guid.Empty)
                 {
-                    var other = guid1 == currentUserId ? guid2 : guid1;
-                    _dmChannelToOtherUser[dm.ChannelId] = other;
-                    dm.OtherUserId = other;
-                    otherUserIds.Add(other);
-                    Log.Info("DotNetCloud", $"ResolveDmChannelNamesAsync: DM channel {dm.ChannelId} → other user={other}");
+                    _dmChannelToOtherUser[dm.ChannelId] = peerId;
+                    dm.OtherUserId = peerId;
+                    otherUserIds.Add(peerId);
+                    Log.Info("DotNetCloud", $"ResolveDmChannelNamesAsync: DM channel {dm.ChannelId} → other user={peerId}");
                 }
                 else
                 {
-                    Log.Warn("DotNetCloud", $"ResolveDmChannelNamesAsync: failed to parse DM name='{dm.Name}' (parts={parts.Length})");
+                    Log.Warn("DotNetCloud", $"ResolveDmChannelNamesAsync: no peer user ID for DM channel '{dm.Name}'");
                 }
             }
 
@@ -511,6 +516,27 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
             Log.Error("DotNetCloud", $"ResolveDmChannelNamesAsync FAILED: {ex.GetType().Name}: {ex.Message}");
             _logger.LogWarning(ex, "Failed to resolve DM channel display names.");
         }
+    }
+
+    /// <summary>
+    /// Parses the legacy raw DM channel name format <c>DM-{userId1}-{userId2}</c> to find the other
+    /// participant. Returns <see cref="Guid.Empty"/> when the name is not in that format (e.g. it is
+    /// already a resolved display name — in that case the peer comes from the server's
+    /// <c>OtherUserId</c>, which <see cref="LoadChannelsAsync"/> stores on the item).
+    /// </summary>
+    private static Guid ParseDmChannelPeer(string dmName, Guid currentUserId)
+    {
+        var parts = dmName.Split('-');
+        // DM name format: DM-{guid1}-{guid2}
+        // Each GUID has 5 dash-segments, so total = 1 (DM) + 5 + 5 = 11 parts
+        if (parts.Length == 11
+            && Guid.TryParse(string.Join("-", parts[1..6]), out var guid1)
+            && Guid.TryParse(string.Join("-", parts[6..11]), out var guid2))
+        {
+            return guid1 == currentUserId ? guid2 : guid1;
+        }
+
+        return Guid.Empty;
     }
 
     /// <summary>Gets the current user's ID from the id_token's <c>sub</c> claim.</summary>

@@ -82,6 +82,83 @@ public class PresenceCircuitHandlerTests
         notifier.Verify(n => n.NotifyUserPresenceChanged(It.IsAny<UserPresenceChangedNotification>()), Times.Never);
     }
 
+    [TestMethod]
+    public async Task OnConnectionDownAsync_LastConnection_BroadcastsUserOfflineToCoreHubClients()
+    {
+        var userId = Guid.CreateVersion7();
+        var (handler, hub, _, notifier) = CreateHandler(userId);
+        var circuit = CreateCircuit();
+
+        await handler.OnCircuitOpenedAsync(circuit, CancellationToken.None);
+        hub.StubClients.LastProxy.Invocations.Clear();
+
+        await handler.OnConnectionDownAsync(circuit, CancellationToken.None);
+
+        var invocation = hub.StubClients.LastProxy.Invocations.Single(i => i.Method == "UserOffline");
+        Assert.AreEqual(userId, ReadUserId(invocation.Args![0]!));
+        notifier.Verify(n => n.NotifyUserPresenceChanged(
+            It.Is<UserPresenceChangedNotification>(p => p.UserId == userId && !p.IsOnline)),
+            Times.Once);
+    }
+
+    [TestMethod]
+    public async Task OnConnectionDownAsync_RemainingConnection_DoesNotBroadcast()
+    {
+        var userId = Guid.CreateVersion7();
+        var (handler, hub, _, notifier) = CreateHandler(userId, preSeedConnectionId: "existing-conn");
+        var circuit = CreateCircuit();
+
+        // The pre-seeded connection means this circuit is a *subsequent* connection (no broadcast).
+        await handler.OnCircuitOpenedAsync(circuit, CancellationToken.None);
+        hub.StubClients.LastProxy.Invocations.Clear();
+
+        // Dropping this connection leaves "existing-conn" — the user stays online.
+        await handler.OnConnectionDownAsync(circuit, CancellationToken.None);
+
+        Assert.IsFalse(hub.StubClients.LastProxy.Invocations.Any(i => i.Method is "UserOnline" or "UserOffline"));
+        notifier.Verify(n => n.NotifyUserPresenceChanged(It.IsAny<UserPresenceChangedNotification>()), Times.Never);
+    }
+
+    [TestMethod]
+    public async Task OnConnectionUpAsync_ReconnectAfterDrop_BroadcastsUserOnlineToCoreHubClients()
+    {
+        var userId = Guid.CreateVersion7();
+        var (handler, hub, tracker, _) = CreateHandler(userId);
+        var circuit = CreateCircuit();
+
+        // Open (online) → connection drops (offline) → connection re-established (online again).
+        await handler.OnCircuitOpenedAsync(circuit, CancellationToken.None);
+        await handler.OnConnectionDownAsync(circuit, CancellationToken.None);
+        Assert.IsFalse(tracker.IsOnline(userId));
+        hub.StubClients.LastProxy.Invocations.Clear();
+
+        await handler.OnConnectionUpAsync(circuit, CancellationToken.None);
+
+        Assert.IsTrue(tracker.IsOnline(userId));
+        var invocation = hub.StubClients.LastProxy.Invocations.Single(i => i.Method == "UserOnline");
+        Assert.AreEqual(userId, ReadUserId(invocation.Args![0]!));
+    }
+
+    [TestMethod]
+    public async Task OnConnectionUpAsync_AlreadyRegistered_DoesNotBroadcast()
+    {
+        var userId = Guid.CreateVersion7();
+        var (handler, hub, _, notifier) = CreateHandler(userId);
+        var circuit = CreateCircuit();
+
+        // On the initial connect the framework fires OnConnectionUpAsync right after
+        // OnCircuitOpenedAsync; the circuit is already registered, so no duplicate online event.
+        await handler.OnCircuitOpenedAsync(circuit, CancellationToken.None);
+        hub.StubClients.LastProxy.Invocations.Clear();
+
+        await handler.OnConnectionUpAsync(circuit, CancellationToken.None);
+
+        Assert.IsFalse(hub.StubClients.LastProxy.Invocations.Any(i => i.Method is "UserOnline" or "UserOffline"));
+        notifier.Verify(n => n.NotifyUserPresenceChanged(
+            It.Is<UserPresenceChangedNotification>(p => p.UserId == userId && p.IsOnline)),
+            Times.Once); // only the one from OnCircuitOpenedAsync
+    }
+
     private static (
         PresenceCircuitHandler Handler,
         StubHubContext Hub,

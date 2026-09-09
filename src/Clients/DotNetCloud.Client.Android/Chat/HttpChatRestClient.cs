@@ -461,7 +461,8 @@ internal sealed class HttpChatRestClient : IChatRestClient
 
     private static ChannelSummary ToChannelSummary(ChannelSummaryDto d) =>
         new(d.Id, d.Name, d.Type, d.UnreadCount, d.HasMention, d.IsMuted, d.LastMessagePreview,
-            d.LastMessageAt ?? (d.LastActivityAt.HasValue ? new DateTimeOffset(d.LastActivityAt.Value, TimeSpan.Zero) : null));
+            d.LastMessageAt ?? (d.LastActivityAt.HasValue ? new DateTimeOffset(d.LastActivityAt.Value, TimeSpan.Zero) : null),
+            d.OtherUserId);
 
     private static ChatMessage ToChatMessage(ChatMessageDto d) =>
         new(d.Id, d.ChannelId, d.SenderUserId,
@@ -524,6 +525,7 @@ internal sealed class HttpChatRestClient : IChatRestClient
         public int UnreadCount { get; init; }
         public bool HasMention { get; init; }
         public bool IsMuted { get; init; }
+        public Guid? OtherUserId { get; init; }
         public string? LastMessagePreview { get; init; }
         public DateTimeOffset? LastMessageAt { get; init; }
         public DateTime? LastActivityAt { get; init; }

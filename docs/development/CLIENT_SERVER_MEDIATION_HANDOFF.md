@@ -240,29 +240,37 @@ User requirement: "Default for forms (login, TOTP, file create name, etc.) shoul
 - Verify two flagged spots while implementing: Tracks `WorkItemAssignment.UserId` navigation property (plan §9.4) and the Email thread query location behind `ListThreadsAsync` (plan §10.4).
 - Module ids in `KnownWidgetDescriptors` must match `InstalledModules.ModuleId` exactly (plan §11.4 table).
 
-## Active Handoff — DM presence-dots: server deploy DONE ✅ — awaiting live E2E (2026-09-09)
+## Active Handoff — DM presence-dots: redeploy prompt-offline fix to cloud.kimball.home (2026-09-09)
 
-**Status:** ✅ SERVER DEPLOY COMPLETE + VERIFIED on cloud.kimball.home (2026-09-09, server agent). Core.Server presence-dots changes are live (`fix/android-improvements` @ `c9ca7caf`, version 0.6.04). `/health/ready` Healthy (startup/database/linux-resources/modules-aggregate), all 14 module hosts running, `.last-deploy-commit` = `c9ca7caf`. Deployed `Core.Server.dll` contains `GetPresenceStatusAsync` + `UserOnline`/`UserOffline` CoreHub broadcasts (strings-verified). Full record in plan `docs/ANDROID_CHAT_PRESENCE_DOTS_PLAN.md` §8.2. **Next step = live E2E (§8.2) by the operator/client agent** (web user + Android phone `R5CWC356B2K` DM presence dots) — server agent cannot obtain sessions/tokens.
-⚠️ **Deploy blocker resolved on the server — needs a repo commit:** a fresh NuGet audit advisory (`GHSA-23fw-v26w-5fgq`; NPOI 2.8.0 → SourceLink.GitHub 8.0.0 → Tasks.Git 8.0.0, no patched 8.0.x) broke `dotnet restore` (NU1902). A documented `NuGetAuditSuppress` was added to `Directory.Build.props` on the server to unblock. ✅ **Suppression committed on this branch @ `9cf5f579`** — still needs a merge to `main` (operator PR) or every full build anywhere fails restore.
+**Status:** ⏸️ E2E FOUND 2 ISSUES — both fixed on monolith; **server redeploy needed**. First deploy (`fix/android-improvements` @ `c9ca7caf`) is live + healthy on cloud.kimball.home. Live E2E results so far (operator + client agent):
+
+- ✅ **Cold-start snapshot dots correct** (Android phone `R5CWC356B2K`): Test Dude green (online), Dale Kaminski / Fonda Kimball gray; channel/group rows have no dot.
+- ✅ **Real-time ONLINE works immediately:** operator logged in as Test Dude on the web → Android **and** Blazor dots went green at once (server web→CoreHub broadcast→Android verified).
+- ⚠️ **Real-time OFFLINE delayed on the deployed build:** closing the Test Dude browser only grayed the dot after Blazor's circuit-reconnect retention (~3 min) elapsed, not "≤ a few seconds".
+  - **Root cause:** `PresenceCircuitHandler` only hooked circuit open/close. Blazor Server retains a disconnected circuit for reconnect, so `OnCircuitClosedAsync` fires late. **Fix (below):** the handler now also hooks `OnConnectionDownAsync` (offline on connection drop) + `OnConnectionUpAsync` (online on reconnect) so a closed browser marks the user offline promptly.
+- ✅ **Android peer-ID bug found + fixed:** the server returns resolved DM display names + `ChannelDto.OtherUserId`, but the Android `ChannelSummary` DTO dropped `OtherUserId`, so name-parsing couldn't recover peer GUIDs and no dots seeded. Fixed by plumbing `otherUserId` through `HttpChatRestClient` → `ChannelItemViewModel` (Blazor pattern). Verified on-device (dots render correctly).
+
+Server tests: **697 passed** / 1 pre-existing `ProgramRootCaTests` fail / 1 skip (693 + 4 new connection up/down tests). Android app builds clean (arm64, 0 warnings); Android.Tests 269 pass / 1 skip.
 
 **Target agent:** server — `cloud.kimball.home` (`https://cloud.dotnetcloud.net/`, production)
-**Branch:** `fix/android-improvements`
+**Branch:** `fix/android-improvements` (new commit with the connection down/up fix — below)
 **Canonical plan:** `docs/ANDROID_CHAT_PRESENCE_DOTS_PLAN.md` (read FIRST — §4 server changes, §8 verification)
 **From:** client agent (monolith), 2026-09-09
 
-### What changed (server-side — Core.Server only)
-1. `src/Core/DotNetCloud.Core.Server/RealTime/PresenceCircuitHandler.cs` — on a Blazor (web) user's **first** circuit connection the handler now broadcasts `UserOnline` to native CoreHub clients, and on the **last** connection `UserOffline` (injects `IHubContext<CoreHub>`). Web users now appear online/offline to Android/mobile clients — previously only the in-process notifier fired, so web presence never reached native clients.
-2. `src/Core/DotNetCloud.Core.Server/RealTime/CoreHub.cs` — new hub method `GetPresenceStatusAsync(IReadOnlyList<Guid>)` returning `IReadOnlyDictionary<Guid,bool>` (delegates to `PresenceService`), letting remote clients seed DM dots from a snapshot on load.
+### What changed since the last deploy (server-side — Core.Server only)
+`src/Core/DotNetCloud.Core.Server/RealTime/PresenceCircuitHandler.cs` — presence now follows **connection** state:
+- `OnConnectionDownAsync` (new): connection dropped (browser closed / network blip) while the circuit is retained → remove the tracked connection and, if it was the user's last, broadcast `UserOffline` to CoreHub clients + fire the in-process notifier **immediately** (was delayed until `OnCircuitClosedAsync` after the ~3-min reconnect-retention window).
+- `OnConnectionUpAsync` (new): re-register on reconnect and broadcast `UserOnline` again; idempotent with `OnCircuitOpenedAsync` on the initial connect (no duplicate).
+- `OnCircuitClosedAsync` kept as a safety net (no double-offline — removal is idempotent via `UserConnectionTracker`).
 
-No DB schema, migration, config, or module-host change. No client version bump.
+No DB schema, migration, config, or module-host change. The Android `OtherUserId` fix is client-side (already verified on-device) and needs no redeploy.
 
 ### What to do (server agent — cloud.kimball.home)
-1. `git fetch origin && git checkout fix/android-improvements && git pull` (branch must be pushed by monolith first — see precondition).
+1. `git fetch origin && git checkout fix/android-improvements && git pull` (pushed by monolith — see relay).
 2. Deploy a full rebuild so Core.Server is refreshed: `sudo ./scripts/deploy.sh --force --verify`.
-3. Verify health: `curl -sk https://cloud.dotnetcloud.net/health/ready` → `Healthy`, `database` Healthy, all modules Running (expect 14/14). Confirm `/opt/dotnetcloud/server/.last-deploy-commit` matches the pushed `fix/android-improvements` commit.
-4. Confirm the new Core.Server assembly is live (the deployed `DotNetCloud.Core.Server.dll` must contain `GetPresenceStatusAsync` — e.g. `strings`/hash-check the artifact; `--verify` already hash-checks assemblies against the build output).
-5. Quick smoke of the hub method / circuit broadcast requires an authenticated SignalR client or two real user sessions — the server agent cannot obtain tokens/passwords. **Leave the §8.2 live E2E** (web user + Android phone `R5CWC356B2K` DM presence dots: green while web peer's chat is open, gray within a few seconds of close, correct on cold start, native↔native still works) **to the operator/client agent after this deploy is confirmed.**
-6. Record deploy + health verification below (or in the plan doc §8.2), then report back for E2E.
+3. Verify `/health/ready` → `Healthy` (startup/database/linux-resources/modules-aggregate), all 14 module hosts Running; confirm `/opt/dotnetcloud/server/.last-deploy-commit` matches the new pushed commit.
+4. Confirm the deployed `Core.Server.dll` contains the connection down/up presence handling (hash/strings-verify via `--verify`).
+5. Report deploy done; the operator then re-runs the **offline E2E**: close the Test Dude web chat → Android/Blazor dot should go gray **within a few seconds** (was ~3 min).
 
 ### Do NOT (this pass)
 - Do NOT run DB migrations or change any config/module code (there are none for this change).
@@ -271,6 +279,7 @@ No DB schema, migration, config, or module-host change. No client version bump.
 ### Notes
 - Non-destructive deploy: no schema changes, so no migration step.
 - Keep the existing `feature/module-widgets` work for mint22 untouched (deferred entry above).
+- Still pending from the first deploy note: the `GHSA-23fw-v26w-5fgq` `NuGetAuditSuppress` committed @ `9cf5f579` needs a merge to `main` (operator PR).
 
 ## Moderator Communication (Minimal)
 
