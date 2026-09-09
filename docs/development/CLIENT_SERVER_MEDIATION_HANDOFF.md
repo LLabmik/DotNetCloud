@@ -240,46 +240,50 @@ User requirement: "Default for forms (login, TOTP, file create name, etc.) shoul
 - Verify two flagged spots while implementing: Tracks `WorkItemAssignment.UserId` navigation property (plan §9.4) and the Email thread query location behind `ListThreadsAsync` (plan §10.4).
 - Module ids in `KnownWidgetDescriptors` must match `InstalledModules.ModuleId` exactly (plan §11.4 table).
 
-## Active Handoff — DM presence-dots: redeploy prompt-offline fix to cloud.kimball.home (2026-09-09)
+## Active Handoff — DM presence-dots: prompt-offline fix NOT live yet — verify + redeploy (2026-09-09)
 
-**Status:** ⏸️ E2E FOUND 2 ISSUES — both fixed on monolith; **server redeploy needed**. First deploy (`fix/android-improvements` @ `c9ca7caf`) is live + healthy on cloud.kimball.home. Live E2E results so far (operator + client agent):
+**Status:** ⚠️ FIX NOT LIVE — offline is still delayed ~3 min after the claimed redeploy, identical to the old build. The operator closed the Test Dude web browser and the Android/Blazor dot only went gray after ~3 minutes **again** (same as before `f566369c`). The online direction works (web login → green immediately), confirming the first deploy (`c9ca7caf`) is live — but `f566369c`'s prompt-offline behavior is NOT taking effect. Conclusion: **the running server still has the `c9ca7caf` build** (or older). The `f566369c` fix must actually be deployed and verified before re-testing.
 
+Live E2E results so far (operator + client agent):
 - ✅ **Cold-start snapshot dots correct** (Android phone `R5CWC356B2K`): Test Dude green (online), Dale Kaminski / Fonda Kimball gray; channel/group rows have no dot.
-- ✅ **Real-time ONLINE works immediately:** operator logged in as Test Dude on the web → Android **and** Blazor dots went green at once (server web→CoreHub broadcast→Android verified).
-- ⚠️ **Real-time OFFLINE delayed on the deployed build:** closing the Test Dude browser only grayed the dot after Blazor's circuit-reconnect retention (~3 min) elapsed, not "≤ a few seconds".
-  - **Root cause:** `PresenceCircuitHandler` only hooked circuit open/close. Blazor Server retains a disconnected circuit for reconnect, so `OnCircuitClosedAsync` fires late. **Fix (below):** the handler now also hooks `OnConnectionDownAsync` (offline on connection drop) + `OnConnectionUpAsync` (online on reconnect) so a closed browser marks the user offline promptly.
-- ✅ **Android peer-ID bug found + fixed:** the server returns resolved DM display names + `ChannelDto.OtherUserId`, but the Android `ChannelSummary` DTO dropped `OtherUserId`, so name-parsing couldn't recover peer GUIDs and no dots seeded. Fixed by plumbing `otherUserId` through `HttpChatRestClient` → `ChannelItemViewModel` (Blazor pattern). Verified on-device (dots render correctly).
+- ✅ **Real-time ONLINE immediate:** operator logged in as Test Dude on the web → Android **and** Blazor dots went green at once.
+- ⚠️ **Real-time OFFLINE still ~3 min** (twice, pre- and post-`f566369c`): closing the Test Dude browser only grays the dot after Blazor's reconnect-retention window. The fix for this is in `f566369c` (below) but is not observable → not deployed.
+- ✅ **Android peer-ID bug fixed** (`f566369c`): server returns resolved DM names + `ChannelDto.OtherUserId`, but Android's DTO dropped it → dots couldn't seed. Fixed by plumbing `otherUserId` (Blazor pattern). Verified on-device.
+- ℹ️ Phone hub connection flapped ~every 32 s during the test window (multiple "hub reconnected → re-querying presence") — worth a server-agent glance at SignalR/keep-alive, but did not block the checks.
 
-Server tests: **697 passed** / 1 pre-existing `ProgramRootCaTests` fail / 1 skip (693 + 4 new connection up/down tests). Android app builds clean (arm64, 0 warnings); Android.Tests 269 pass / 1 skip.
+Server tests: **697 passed** / 1 pre-existing `ProgramRootCaTests` fail / 1 skip. Android app builds clean (arm64, 0 warnings); Android.Tests 269 pass / 1 skip.
 
 **Target agent:** server — `cloud.kimball.home` (`https://cloud.dotnetcloud.net/`, production)
-**Branch:** `fix/android-improvements` (new commit with the connection down/up fix — below)
+**Branch:** `fix/android-improvements`
 **Canonical plan:** `docs/ANDROID_CHAT_PRESENCE_DOTS_PLAN.md` (read FIRST — §4 server changes, §8 verification)
 **From:** client agent (monolith), 2026-09-09
 
-### What changed since the last deploy (server-side — Core.Server only)
-`src/Core/DotNetCloud.Core.Server/RealTime/PresenceCircuitHandler.cs` — presence now follows **connection** state:
-- `OnConnectionDownAsync` (new): connection dropped (browser closed / network blip) while the circuit is retained → remove the tracked connection and, if it was the user's last, broadcast `UserOffline` to CoreHub clients + fire the in-process notifier **immediately** (was delayed until `OnCircuitClosedAsync` after the ~3-min reconnect-retention window).
-- `OnConnectionUpAsync` (new): re-register on reconnect and broadcast `UserOnline` again; idempotent with `OnCircuitOpenedAsync` on the initial connect (no duplicate).
-- `OnCircuitClosedAsync` kept as a safety net (no double-offline — removal is idempotent via `UserConnectionTracker`).
+### The fix that must be deployed (server-side — Core.Server only)
+`src/Core/DotNetCloud.Core.Server/RealTime/PresenceCircuitHandler.cs` (@ `f566369c`) — presence follows **connection** state so a closed browser marks the user offline promptly:
+- `OnConnectionDownAsync` (new): connection dropped (browser closed / network) while the circuit is retained → remove the tracked connection and, if last, broadcast `UserOffline` + fire the in-process notifier immediately (was delayed until `OnCircuitClosedAsync` after the ~3-min retention window).
+- `OnConnectionUpAsync` (new): re-register + broadcast `UserOnline` on reconnect (idempotent with the initial open).
+- `OnCircuitClosedAsync`: kept as an idempotent safety net.
+No DB schema/migration/config change.
 
-No DB schema, migration, config, or module-host change. The Android `OtherUserId` fix is client-side (already verified on-device) and needs no redeploy.
-
-### What to do (server agent — cloud.kimball.home)
-1. `git fetch origin && git checkout fix/android-improvements && git pull` (pushed by monolith — see relay).
-2. Deploy a full rebuild so Core.Server is refreshed: `sudo ./scripts/deploy.sh --force --verify`.
-3. Verify `/health/ready` → `Healthy` (startup/database/linux-resources/modules-aggregate), all 14 module hosts Running; confirm `/opt/dotnetcloud/server/.last-deploy-commit` matches the new pushed commit.
-4. Confirm the deployed `Core.Server.dll` contains the connection down/up presence handling (hash/strings-verify via `--verify`).
-5. Report deploy done; the operator then re-runs the **offline E2E**: close the Test Dude web chat → Android/Blazor dot should go gray **within a few seconds** (was ~3 min).
+### What to do (server agent — cloud.kimball.home) — CRITICAL: verify the deployed commit this time
+1. Check what is actually live FIRST: `cat /opt/dotnetcloud/server/.last-deploy-commit` — it must equal **`f566369c`**. If it shows `c9ca7caf` or older, the previous redeploy did not take effect.
+2. Confirm the checkout: `git -C <repo> rev-parse HEAD` on `cloud.kimball.home` must be `f566369c` (or newer) — if the local checkout is stale, `git fetch origin && git checkout fix/android-improvements && git pull`.
+3. Redeploy from the correct commit: `sudo ./scripts/deploy.sh --force --verify` (full rebuild so Core.Server is recompiled from `f566369c`).
+4. Verify AFTER deploy:
+   - `/opt/dotnetcloud/server/.last-deploy-commit` == `f566369c`.
+   - `/health/ready` → Healthy, all 14 module hosts Running.
+   - Confirm the deployed `DotNetCloud.Core.Server.dll` contains the fix: `strings <deploy>/DotNetCloud.Core.Server.dll | grep -c OnConnectionDownAsync` → expect ≥ 1 (the old `c9ca7caf` build has no `OnConnectionDownAsync` override).
+5. Report the exact `.last-deploy-commit` + the strings result. Only then will the operator re-run the offline E2E (close Test Dude web chat → Android/Blazor dot gray within a few seconds).
 
 ### Do NOT (this pass)
-- Do NOT run DB migrations or change any config/module code (there are none for this change).
-- Do NOT merge to `main` or create a PR (monolith pushes the working branch; merge is the operator's job).
+- Do NOT run DB migrations or change any config/module code (none for this change).
+- Do NOT merge to `main` or create a PR.
 
 ### Notes
-- Non-destructive deploy: no schema changes, so no migration step.
-- Keep the existing `feature/module-widgets` work for mint22 untouched (deferred entry above).
-- Still pending from the first deploy note: the `GHSA-23fw-v26w-5fgq` `NuGetAuditSuppress` committed @ `9cf5f579` needs a merge to `main` (operator PR).
+- Android client fix (`OtherUserId`) is verified on-device and needs no redeploy — only the server rebuild matters.
+- Non-destructive deploy (no schema change).
+- Keep `feature/module-widgets` (mint22) untouched (deferred entry above).
+- `GHSA-23fw-v26w-5fgq` `NuGetAuditSuppress` (@ `9cf5f579`) still needs a merge to `main` (operator PR).
 
 ## Moderator Communication (Minimal)
 
