@@ -488,6 +488,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>App version display string (e.g. "DotNetCloud for Android v0.1.7").</summary>
     public string AppVersionText { get; } = $"DotNetCloud for Android v{GetAppVersion()}";
 
+    /// <summary>Short version label (e.g. "v0.1.7") shown in the account card.</summary>
+    public string AppVersionShort { get; } = $"v{GetAppVersion()}";
+
     /// <summary>Whether an update notification banner should be shown.</summary>
     [ObservableProperty]
     private bool _isUpdateAvailable;
