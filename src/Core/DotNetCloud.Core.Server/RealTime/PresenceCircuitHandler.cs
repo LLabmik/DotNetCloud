@@ -1,6 +1,7 @@
 using DotNetCloud.Modules.Chat.Services;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Server.Circuits;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using System.Security.Claims;
 
@@ -17,6 +18,7 @@ internal sealed class PresenceCircuitHandler : CircuitHandler
     private readonly PresenceService _presenceService;
     private readonly AuthenticationStateProvider _authStateProvider;
     private readonly IChatMessageNotifier? _chatMessageNotifier;
+    private readonly IHubContext<CoreHub>? _hubContext;
     private readonly ILogger<PresenceCircuitHandler> _logger;
 
     private string? _connectionId;
@@ -27,11 +29,13 @@ internal sealed class PresenceCircuitHandler : CircuitHandler
         PresenceService presenceService,
         AuthenticationStateProvider authStateProvider,
         ILogger<PresenceCircuitHandler> logger,
+        IHubContext<CoreHub>? hubContext = null,
         IChatMessageNotifier? chatMessageNotifier = null)
     {
         _connectionTracker = connectionTracker;
         _presenceService = presenceService;
         _authStateProvider = authStateProvider;
+        _hubContext = hubContext;
         _chatMessageNotifier = chatMessageNotifier;
         _logger = logger;
     }
@@ -61,6 +65,17 @@ internal sealed class PresenceCircuitHandler : CircuitHandler
                 if (isFirstConnection)
                 {
                     await _presenceService.UserConnectedAsync(userId, _connectionId);
+
+                    // Broadcast to native CoreHub clients (mobile/desktop) so their DM
+                    // presence dots update when a web (Blazor circuit) user comes online.
+                    // This is safe on first connection: the user has no other live
+                    // connection (CoreHub or circuit) to self-echo to.
+                    if (_hubContext is not null)
+                    {
+                        await _hubContext.Clients.All.SendAsync(
+                            "UserOnline",
+                            new { UserId = userId, Timestamp = DateTime.UtcNow });
+                    }
 
                     // Notify in-process subscribers (other Blazor circuits) so their
                     // presence dots and member lists update when this user comes online.
@@ -95,6 +110,16 @@ internal sealed class PresenceCircuitHandler : CircuitHandler
                 if (isLastConnection)
                 {
                     await _presenceService.UserDisconnectedAsync(userId, _connectionId);
+
+                    // Broadcast to native CoreHub clients (mobile/desktop) so their DM
+                    // presence dots update when a web (Blazor circuit) user goes offline.
+                    // Safe on last connection: the user has no other live connection left.
+                    if (_hubContext is not null)
+                    {
+                        await _hubContext.Clients.All.SendAsync(
+                            "UserOffline",
+                            new { UserId = userId, Timestamp = DateTime.UtcNow });
+                    }
 
                     // Notify in-process subscribers (other Blazor circuits) so their
                     // presence dots and member lists update when this user goes offline.

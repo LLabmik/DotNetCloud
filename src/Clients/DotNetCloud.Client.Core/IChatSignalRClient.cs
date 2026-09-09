@@ -89,3 +89,11 @@ public sealed record ChatTypingEventArgs(
     string ChannelId,
     Guid UserId,
     string? DisplayName);
+
+/// <summary>
+/// Payload for a user presence change received over the CoreHub connection
+/// (<c>UserOnline</c> / <c>UserOffline</c> broadcasts).
+/// </summary>
+/// <param name="UserId">User whose presence changed.</param>
+/// <param name="IsOnline">Whether the user is now online.</param>
+public sealed record UserPresenceChangedEventArgs(Guid UserId, bool IsOnline);

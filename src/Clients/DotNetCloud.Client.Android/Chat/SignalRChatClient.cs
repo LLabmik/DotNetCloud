@@ -51,6 +51,14 @@ internal sealed record TypingIndicatorPayload(
     [property: JsonPropertyName("displayName")] string? DisplayName = null);
 
 /// <summary>
+/// Server payload for presence broadcasts: { userId, timestamp } (camelCase).
+/// Both web (Blazor circuit) and native CoreHub presence transitions use the same shape.
+/// </summary>
+internal sealed record PresenceEventPayload(
+    [property: JsonPropertyName("userId")] Guid UserId,
+    [property: JsonPropertyName("timestamp")] DateTime Timestamp);
+
+/// <summary>
 /// <see cref="ICoreHubClient"/> implementation that maintains a persistent SignalR
 /// connection to the DotNetCloud CoreHub. Consolidates chat, calendar, and future
 /// module events into a single WebSocket connection.
@@ -84,6 +92,12 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
 
     /// <inheritdoc />
     public event EventHandler<ChatTypingEventArgs>? OnChatTyping;
+
+    /// <inheritdoc />
+    public event EventHandler<UserPresenceChangedEventArgs>? OnUserPresenceChanged;
+
+    /// <inheritdoc />
+    public event EventHandler? Reconnected;
 
     /// <inheritdoc />
     public event Action? CalendarsChanged;
@@ -146,6 +160,25 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
             Log.Info("DotNetCloud", $"SignalRChatClient: TypingIndicator channel={payload.ChannelId} userId={payload.UserId} displayName='{payload.DisplayName}'");
 #endif
             OnChatTyping?.Invoke(this, new ChatTypingEventArgs(payload.ChannelId, payload.UserId, payload.DisplayName));
+        });
+
+        // Presence broadcasts are emitted by the server when a user's FIRST connection opens
+        // or LAST connection closes — covering both native CoreHub connections AND web
+        // (Blazor circuit) users, so remote clients see web peers' presence correctly.
+        _hub.On<PresenceEventPayload>("UserOnline", payload =>
+        {
+#if ANDROID
+            Log.Info("DotNetCloud", $"SignalRChatClient: UserOnline userId={payload.UserId}");
+#endif
+            OnUserPresenceChanged?.Invoke(this, new UserPresenceChangedEventArgs(payload.UserId, IsOnline: true));
+        });
+
+        _hub.On<PresenceEventPayload>("UserOffline", payload =>
+        {
+#if ANDROID
+            Log.Info("DotNetCloud", $"SignalRChatClient: UserOffline userId={payload.UserId}");
+#endif
+            OnUserPresenceChanged?.Invoke(this, new UserPresenceChangedEventArgs(payload.UserId, IsOnline: false));
         });
 
         _hub.On<NewMessagePayload>("NewMessage", payload =>
@@ -282,6 +315,11 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
             {
                 _logger.LogWarning(ex, "Failed to resync calendar alarms after reconnect.");
             }
+
+            // Let subscribers (e.g. ChannelListViewModel) re-query presence snapshots after
+            // the connection is re-established, so DM dots are correct even if peers changed
+            // presence while we were disconnected.
+            Reconnected?.Invoke(this, EventArgs.Empty);
         };
         _hub.Closed += async error =>
         {
@@ -436,6 +474,48 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
         var groupName = $"chat-channel-{channelId}";
         await _hub.InvokeAsync("LeaveGroupAsync", groupName, cancellationToken).ConfigureAwait(false);
         _logger.LogDebug("Left SignalR group {Group}.", groupName);
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyDictionary<Guid, bool>> GetPresenceStatusAsync(
+        IReadOnlyList<Guid> userIds,
+        CancellationToken ct = default)
+    {
+        if (userIds is null || userIds.Count == 0)
+            return new Dictionary<Guid, bool>();
+
+        if (_hub?.State is not HubConnectionState.Connected)
+        {
+            _logger.LogDebug("Cannot query presence: hub not connected (state={State}).", _hub?.State);
+            return new Dictionary<Guid, bool>();
+        }
+
+        try
+        {
+            // The server method is GetPresenceStatusAsync(IReadOnlyList<Guid>). Sending the
+            // IDs as GUID strings round-trips cleanly through the JSON wire protocol.
+            var result = await _hub.InvokeAsync<Dictionary<string, bool>>(
+                "GetPresenceStatusAsync",
+                userIds.Select(id => id.ToString()).ToList(),
+                ct).ConfigureAwait(false);
+
+            var mapped = new Dictionary<Guid, bool>(result?.Count ?? 0);
+            if (result is not null)
+            {
+                foreach (var (key, online) in result)
+                {
+                    if (Guid.TryParse(key, out var guid))
+                        mapped[guid] = online;
+                }
+            }
+
+            return mapped;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to query presence status for {Count} users.", userIds.Count);
+            return new Dictionary<Guid, bool>();
+        }
     }
 
     /// <inheritdoc />

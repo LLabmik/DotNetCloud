@@ -20,11 +20,17 @@ namespace DotNetCloud.Client.Android.ViewModels;
 public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
 {
     private readonly IChatRestClient _chatApi;
-    private readonly IChatSignalRClient _signalR;
+    private readonly ICoreHubClient _signalR;
     private readonly IServerConnectionStore _serverStore;
     private readonly ISecureTokenStore _tokenStore;
     private readonly IChannelMuteStateService _muteState;
     private readonly ILogger<ChannelListViewModel> _logger;
+
+    /// <summary>
+    /// Maps each DirectMessage channel ID to the other participant's user ID.
+    /// Populated while resolving DM names; drives the presence-dot seed and live updates.
+    /// </summary>
+    private readonly Dictionary<Guid, Guid> _dmChannelToOtherUser = new();
 
     /// <summary>Raised when a channel is selected and the app should navigate to it.</summary>
     public event EventHandler<(Guid ChannelId, string Name)>? ChannelSelected;
@@ -35,7 +41,7 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
     /// <summary>Initializes a new <see cref="ChannelListViewModel"/>.</summary>
     public ChannelListViewModel(
         IChatRestClient chatApi,
-        IChatSignalRClient signalR,
+        ICoreHubClient signalR,
         IServerConnectionStore serverStore,
         ISecureTokenStore tokenStore,
         IChannelMuteStateService muteState,
@@ -50,6 +56,8 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
 
         _signalR.OnUnreadCountUpdated += OnUnreadCountUpdated;
         _signalR.OnNewChatMessage += OnNewMessage;
+        _signalR.OnUserPresenceChanged += OnUserPresenceChanged;
+        _signalR.Reconnected += OnReconnected;
     }
 
     /// <summary>All visible channels (flat, source of truth for real-time updates).</summary>
@@ -118,6 +126,11 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
                     RebuildChannelGroups();
 
                     await ResolveDmChannelNamesAsync(serverUrl, token, ct);
+
+                    // Seed DM presence dots from a snapshot (no need to wait for a live
+                    // presence event). Fire-and-forget: the list shows immediately and dots
+                    // populate when the query returns; failures leave dots offline.
+                    _ = RefreshPresenceAsync();
 
                     HasCompletedInitialLoad = true;
                     RecalculateTotalUnread();
@@ -189,6 +202,8 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
     {
         _signalR.OnUnreadCountUpdated -= OnUnreadCountUpdated;
         _signalR.OnNewChatMessage -= OnNewMessage;
+        _signalR.OnUserPresenceChanged -= OnUserPresenceChanged;
+        _signalR.Reconnected -= OnReconnected;
     }
 
     // ── Direct Message ──────────────────────────────────────────────
@@ -342,6 +357,85 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
         });
     }
 
+    // ── DM presence dots ─────────────────────────────────────────────
+
+    /// <summary>
+    /// Queries a current presence snapshot for all DM peers and updates the matching dots.
+    /// Safe to call from any thread; runs when the DM peer map is non-empty.
+    /// </summary>
+    private async Task RefreshPresenceAsync()
+    {
+        if (_dmChannelToOtherUser.Count == 0)
+            return;
+
+        try
+        {
+            var peerIds = _dmChannelToOtherUser.Values.Distinct().ToList();
+            var online = await _signalR.GetPresenceStatusAsync(peerIds);
+            if (online.Count == 0)
+                return;
+
+            Action dispatch = () =>
+            {
+                foreach (var item in Channels)
+                {
+                    if (item.ChannelType == "DirectMessage"
+                        && item.OtherUserId is { } peer
+                        && online.TryGetValue(peer, out var isOnline))
+                    {
+                        item.IsOnline = isOnline;
+                    }
+                }
+            };
+
+            try
+            {
+                MainThread.BeginInvokeOnMainThread(dispatch);
+            }
+            catch
+            {
+                dispatch(); // unit-test environment without a UI thread
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to refresh DM presence dots; leaving dots offline.");
+        }
+    }
+
+    /// <summary>Re-seeds DM presence after the hub reconnects (peers may have changed presence while disconnected).</summary>
+    private void OnReconnected(object? sender, EventArgs e)
+    {
+        Log.Info("DotNetCloud", "ChannelListViewModel: hub reconnected — re-querying DM presence.");
+        _ = Task.Run(async () => await RefreshPresenceAsync());
+    }
+
+    private void OnUserPresenceChanged(object? sender, UserPresenceChangedEventArgs e)
+    {
+        // Find the DM channel whose peer's presence changed and update the shared item in
+        // place (the flat Channels list and grouped ChannelGroups share item instances).
+        Action dispatch = () =>
+        {
+            foreach (var item in Channels)
+            {
+                if (item.ChannelType == "DirectMessage" && item.OtherUserId == e.UserId)
+                {
+                    item.IsOnline = e.IsOnline;
+                    return;
+                }
+            }
+        };
+
+        try
+        {
+            MainThread.BeginInvokeOnMainThread(dispatch);
+        }
+        catch
+        {
+            dispatch(); // unit-test environment without a UI thread
+        }
+    }
+
     /// <summary>Recomputes the sum of unread counts and broadcasts it for the tab indicator.</summary>
     private void RecalculateTotalUnread()
     {
@@ -368,8 +462,8 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
             var currentUserId = await GetCurrentUserIdAsync(serverUrl, ct);
 
             // Parse DM channel names (format: DM-{userId1}-{userId2}) to find the other user's ID.
+            _dmChannelToOtherUser.Clear();
             var otherUserIds = new List<Guid>();
-            var channelToOtherUser = new Dictionary<Guid, Guid>();
 
             foreach (var dm in dmChannels)
             {
@@ -381,7 +475,8 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
                     && Guid.TryParse(string.Join("-", parts[6..11]), out var guid2))
                 {
                     var other = guid1 == currentUserId ? guid2 : guid1;
-                    channelToOtherUser[dm.ChannelId] = other;
+                    _dmChannelToOtherUser[dm.ChannelId] = other;
+                    dm.OtherUserId = other;
                     otherUserIds.Add(other);
                     Log.Info("DotNetCloud", $"ResolveDmChannelNamesAsync: DM channel {dm.ChannelId} → other user={other}");
                 }
@@ -403,7 +498,7 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
 
             foreach (var dm in dmChannels)
             {
-                if (channelToOtherUser.TryGetValue(dm.ChannelId, out var otherUserId)
+                if (_dmChannelToOtherUser.TryGetValue(dm.ChannelId, out var otherUserId)
                     && names.TryGetValue(otherUserId, out var displayName))
                 {
                     Log.Info("DotNetCloud", $"ResolveDmChannelNamesAsync: updating DM name '{dm.Name}' → '{displayName}'");
@@ -494,6 +589,18 @@ public sealed partial class ChannelItemViewModel : ObservableObject
 
     /// <summary>Channel type: Public, Private, DirectMessage, or Group.</summary>
     public string? ChannelType { get; }
+
+    /// <summary>True for DirectMessage rows (drives the presence-dot visibility in XAML).</summary>
+    public bool IsDirectMessage => ChannelType == "DirectMessage";
+
+    /// <summary>
+    /// For DirectMessage rows: the other participant's user ID (used to match live
+    /// presence events and the initial snapshot). Null for other channel types.
+    /// </summary>
+    public Guid? OtherUserId { get; set; }
+
+    /// <summary>Whether the DM peer is currently online (DirectMessage rows only).</summary>
+    [ObservableProperty] private bool _isOnline;
 
     /// <summary>Unread message count (updated in real-time).</summary>
     [ObservableProperty] private int _unreadCount;

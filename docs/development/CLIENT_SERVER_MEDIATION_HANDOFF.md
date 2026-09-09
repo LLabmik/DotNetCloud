@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-09-06 (Module Home Widgets plan committed on feature/module-widgets → handed to mint22 for implementation)
+Last updated: 2026-09-09 (Android Chat DM presence dots — server changes ready to deploy on cloud.kimball.home; plan `docs/ANDROID_CHAT_PRESENCE_DOTS_PLAN.md`)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -16,7 +16,8 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
-- **Current active branch:** `feature/module-widgets` (Module Home Widgets — plan `docs/MODULE_WIDGETS_PLAN.md`; awaiting mint22 implementation)
+- **Current active branch:** `fix/android-improvements` (Android Chat DM presence dots — server deploy to `cloud.kimball.home`; plan `docs/ANDROID_CHAT_PRESENCE_DOTS_PLAN.md`)
+- **Still pending (mint22, dev):** `feature/module-widgets` — Module Home Widgets (plan `docs/MODULE_WIDGETS_PLAN.md`); kept below as a deferred handoff
 
 ## Archived Handoff — SyncTray test machine: DB Outage SyncTray Simulation (plan §11.4) ✅ PASS
 
@@ -211,9 +212,9 @@ User requirement: "Default for forms (login, TOTP, file create name, etc.) shoul
 - Interactive `EditForm` auto-submit MUST be C# (`@bind:event="oninput"` + `@bind:after`), NOT JS `data-autosubmit` (JS `requestSubmit()` races the Blazor model round-trip) — plan §4.1-B explains.
 - Keep the existing Escape-to-close behavior on the Files dialogs. No schema/CSS/test-project changes expected.
 
-## Active Handoff
+## Archived (deferred) Handoff — Module Home Widgets (mint22, dev) — STILL PENDING
 
-**Status:** ✅ READY FOR IMPLEMENTATION — Module Home Widgets (2026-09-06, client agent). Plan committed on `feature/module-widgets`; awaiting mint22 implementation.
+**Status:** ⏳ DEFERRED (kept for mint22) — Module Home Widgets (2026-09-06, client agent). Plan committed on `feature/module-widgets`; awaiting mint22 implementation.
 
 **Target agent:** mint22 (server)
 **Branch:** `feature/module-widgets`
@@ -238,6 +239,37 @@ User requirement: "Default for forms (login, TOTP, file create name, etc.) shoul
 - Process-isolated widgets do NOT build a `CallerContext` — the gRPC `I*ApiClient` resolves the user internally; in-process widgets DO build one (plan §6.3).
 - Verify two flagged spots while implementing: Tracks `WorkItemAssignment.UserId` navigation property (plan §9.4) and the Email thread query location behind `ListThreadsAsync` (plan §10.4).
 - Module ids in `KnownWidgetDescriptors` must match `InstalledModules.ModuleId` exactly (plan §11.4 table).
+
+## Active Handoff — Deploy DM presence-dots server changes to cloud.kimball.home (2026-09-09)
+
+**Status:** ✅ READY TO DEPLOY (operator-requested). Server (Core.Server) + Android changes for DM presence dots are code-complete and unit/build-verified on monolith (`fix/android-improvements`); the server deploy below is the first step of the live E2E (plan §8.2). **Precondition:** monolith must commit + push `fix/android-improvements` before this is relayed (nothing has been committed yet — the cross-machine verification deploy is the sanctioned path to clear the commit-gate for E2E).
+
+**Target agent:** server — `cloud.kimball.home` (`https://cloud.dotnetcloud.net/`, production)
+**Branch:** `fix/android-improvements`
+**Canonical plan:** `docs/ANDROID_CHAT_PRESENCE_DOTS_PLAN.md` (read FIRST — §4 server changes, §8 verification)
+**From:** client agent (monolith), 2026-09-09
+
+### What changed (server-side — Core.Server only)
+1. `src/Core/DotNetCloud.Core.Server/RealTime/PresenceCircuitHandler.cs` — on a Blazor (web) user's **first** circuit connection the handler now broadcasts `UserOnline` to native CoreHub clients, and on the **last** connection `UserOffline` (injects `IHubContext<CoreHub>`). Web users now appear online/offline to Android/mobile clients — previously only the in-process notifier fired, so web presence never reached native clients.
+2. `src/Core/DotNetCloud.Core.Server/RealTime/CoreHub.cs` — new hub method `GetPresenceStatusAsync(IReadOnlyList<Guid>)` returning `IReadOnlyDictionary<Guid,bool>` (delegates to `PresenceService`), letting remote clients seed DM dots from a snapshot on load.
+
+No DB schema, migration, config, or module-host change. No client version bump.
+
+### What to do (server agent — cloud.kimball.home)
+1. `git fetch origin && git checkout fix/android-improvements && git pull` (branch must be pushed by monolith first — see precondition).
+2. Deploy a full rebuild so Core.Server is refreshed: `sudo ./scripts/deploy.sh --force --verify`.
+3. Verify health: `curl -sk https://cloud.dotnetcloud.net/health/ready` → `Healthy`, `database` Healthy, all modules Running (expect 14/14). Confirm `/opt/dotnetcloud/server/.last-deploy-commit` matches the pushed `fix/android-improvements` commit.
+4. Confirm the new Core.Server assembly is live (the deployed `DotNetCloud.Core.Server.dll` must contain `GetPresenceStatusAsync` — e.g. `strings`/hash-check the artifact; `--verify` already hash-checks assemblies against the build output).
+5. Quick smoke of the hub method / circuit broadcast requires an authenticated SignalR client or two real user sessions — the server agent cannot obtain tokens/passwords. **Leave the §8.2 live E2E** (web user + Android phone `R5CWC356B2K` DM presence dots: green while web peer's chat is open, gray within a few seconds of close, correct on cold start, native↔native still works) **to the operator/client agent after this deploy is confirmed.**
+6. Record deploy + health verification below (or in the plan doc §8.2), then report back for E2E.
+
+### Do NOT (this pass)
+- Do NOT run DB migrations or change any config/module code (there are none for this change).
+- Do NOT merge to `main` or create a PR (monolith pushes the working branch; merge is the operator's job).
+
+### Notes
+- Non-destructive deploy: no schema changes, so no migration step.
+- Keep the existing `feature/module-widgets` work for mint22 untouched (deferred entry above).
 
 ## Moderator Communication (Minimal)
 

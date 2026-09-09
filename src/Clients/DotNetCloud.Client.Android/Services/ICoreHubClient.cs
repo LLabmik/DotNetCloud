@@ -19,4 +19,30 @@ public interface ICoreHubClient : IChatSignalRClient
     /// the indicator after a short timeout or when that user's message arrives.
     /// </summary>
     event EventHandler<ChatTypingEventArgs>? OnChatTyping;
+
+    /// <summary>
+    /// Raised when a user's presence (online/offline) changes over the CoreHub connection.
+    /// The server broadcasts this when a peer's first connection opens or last connection
+    /// closes — regardless of whether that peer is on the web (Blazor circuit) or native.
+    /// </summary>
+    event EventHandler<UserPresenceChangedEventArgs>? OnUserPresenceChanged;
+
+    /// <summary>
+    /// Raised when the underlying CoreHub connection has re-established after a drop.
+    /// A visible page can use this to re-query state (e.g. re-seed DM presence dots).
+    /// </summary>
+    event EventHandler? Reconnected;
+
+    /// <summary>
+    /// Returns online/offline presence for the given user IDs (a current snapshot).
+    /// Presence is global: a user is online with any active connection (Blazor circuit
+    /// or CoreHub). Returns an empty dictionary when disconnected — callers treat
+    /// absent users as offline.
+    /// </summary>
+    /// <param name="userIds">The user IDs to query.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>A dictionary keyed by user ID indicating whether each is online.</returns>
+    Task<IReadOnlyDictionary<Guid, bool>> GetPresenceStatusAsync(
+        IReadOnlyList<Guid> userIds,
+        CancellationToken ct = default);
 }

@@ -129,6 +129,64 @@ public class CoreHubTests
             Times.Never);
     }
 
+    [TestMethod]
+    public async Task GetPresenceStatusAsync_ReturnsOnlineStatusForRequestedUsers()
+    {
+        var online = Guid.CreateVersion7();
+        var offline = Guid.CreateVersion7();
+        var tracker = new UserConnectionTracker();
+        tracker.AddConnection(online, "conn-online");
+
+        var presence = new PresenceService(tracker, NullLogger<PresenceService>.Instance);
+        var hub = CreateHub(
+            tracker,
+            presence,
+            new Mock<IChatMessageNotifier>(),
+            Guid.CreateVersion7(),
+            "conn-caller");
+
+        var result = await hub.GetPresenceStatusAsync([online, offline]);
+
+        Assert.IsNotNull(result);
+        Assert.AreEqual(2, result.Count);
+        Assert.IsTrue(result[online]);
+        Assert.IsFalse(result[offline]);
+    }
+
+    [TestMethod]
+    public async Task GetPresenceStatusAsync_EmptyInput_ReturnsEmpty()
+    {
+        var tracker = new UserConnectionTracker();
+        var presence = new PresenceService(tracker, NullLogger<PresenceService>.Instance);
+        var hub = CreateHub(
+            tracker,
+            presence,
+            new Mock<IChatMessageNotifier>(),
+            Guid.CreateVersion7(),
+            "conn-caller");
+
+        var result = await hub.GetPresenceStatusAsync([]);
+
+        Assert.IsNotNull(result);
+        Assert.AreEqual(0, result.Count);
+    }
+
+    [TestMethod]
+    public async Task GetPresenceStatusAsync_NullInput_ThrowsArgumentNullException()
+    {
+        var tracker = new UserConnectionTracker();
+        var presence = new PresenceService(tracker, NullLogger<PresenceService>.Instance);
+        var hub = CreateHub(
+            tracker,
+            presence,
+            new Mock<IChatMessageNotifier>(),
+            Guid.CreateVersion7(),
+            "conn-caller");
+
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(
+            () => hub.GetPresenceStatusAsync(null!));
+    }
+
     private static CoreHub CreateHub(
         UserConnectionTracker tracker,
         PresenceService presence,

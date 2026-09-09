@@ -1550,6 +1550,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ Direct APK download option documented
 - ✓ App store listing description written
 - ✓ Play Store efficiency compliance (Feb 2027): Release R8 + AOT + SDK/framework trimming (`PublishTrimmed`, `AndroidLinkMode=SdkOnly`, `AndroidEnableR8`, `RunAOTCompilation`; app assemblies kept intact for reflection JSON of `required`-member DTOs); single-materialized image buffers; `OnTrimMemory` cache release; `dataSync` FGS gated to foreground with clean Android 15+ `OnTimeout`; SignalR reconnect paused while backgrounded
+- ✓ Android DM presence dots in the channel list (2026-09-09): green/gray per DM peer online state; server broadcasts web (Blazor circuit) presence to native CoreHub clients and adds a `GetPresenceStatusAsync` snapshot hub method; Android seeds dots on load, live-updates on `UserOnline`/`UserOffline`, and resyncs on hub reconnect
 
 **Dependencies:** phase-2.7, phase-2.8
 **Blocking Issues:** None

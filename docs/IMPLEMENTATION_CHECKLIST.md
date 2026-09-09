@@ -3508,6 +3508,7 @@ This phase implements real-time chat, announcements, push notifications, and the
   - ✓ File attachment (camera, gallery, file picker)
   - ✓ `@mention` autocomplete
 - ✓ Create channel details view (members, settings)
+- ✓ DM presence dots in channel list (green online / gray offline; live updates from both web and native peers; snapshot on load + resync on reconnect)
 - ✓ Implement pull-to-refresh for message history
 - ✓ Auto-scroll to newest message on real-time arrival when the user is pinned to the bottom (reading history is never interrupted)
 - ✓ Support dark/light theme

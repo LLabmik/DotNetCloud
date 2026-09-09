@@ -264,6 +264,21 @@ internal sealed class CoreHub : Hub
     }
 
     /// <summary>
+    /// Returns the current online/offline presence for the requested user IDs.
+    /// Presence is global: a user is online with any active connection
+    /// (a Blazor circuit or a CoreHub connection). This is the wire equivalent of
+    /// <see cref="PresenceService.GetOnlineStatusAsync"/> used by Blazor in-process,
+    /// letting remote native clients seed presence dots without waiting for an event.
+    /// </summary>
+    /// <param name="userIds">The user IDs to query. Only these IDs' presence is revealed.</param>
+    /// <returns>A dictionary keyed by user ID indicating whether each user is currently online.</returns>
+    public async Task<IReadOnlyDictionary<Guid, bool>> GetPresenceStatusAsync(IReadOnlyList<Guid> userIds)
+    {
+        ArgumentNullException.ThrowIfNull(userIds);
+        return await _presenceService.GetOnlineStatusAsync(userIds).ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Updates the caller's presence status and optional custom status message.
     /// Broadcasts the change via chat real-time and publishes a cross-module event.
     /// </summary>
