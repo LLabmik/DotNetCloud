@@ -65,9 +65,9 @@ public sealed class SearchQueryService
         _logger.LogDebug(
             "Executing search: \"{QueryText}\" (terms={Terms}, phrases={Phrases}, exclusions={Exclusions}, module={Module}, type={Type}, page={Page})",
             LogSanitizer.Sanitize(query.QueryText),
-            string.Join(", ", parsed.Terms),
-            string.Join(", ", parsed.Phrases),
-            string.Join(", ", parsed.Exclusions),
+            LogSanitizer.Sanitize(string.Join(", ", parsed.Terms)),
+            LogSanitizer.Sanitize(string.Join(", ", parsed.Phrases)),
+            LogSanitizer.Sanitize(string.Join(", ", parsed.Exclusions)),
             LogSanitizer.Sanitize(effectiveQuery.ModuleFilter ?? "all"),
             LogSanitizer.Sanitize(effectiveQuery.EntityTypeFilter ?? "all"),
             effectiveQuery.Page);

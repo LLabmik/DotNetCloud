@@ -1,3 +1,4 @@
+using DotNetCloud.Core;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Events;
@@ -111,7 +112,7 @@ public sealed class NoteShareService : INoteShareService
             "Note {NoteId} shared with {TargetType} {TargetId} ({Permission}) by user {UserId}",
             noteId,
             targetTeamId is not null ? "team" : "user",
-            targetTeamId ?? targetUserId,
+            LogSanitizer.Sanitize((targetTeamId ?? targetUserId).ToString()),
             permission,
             caller.UserId);
 
