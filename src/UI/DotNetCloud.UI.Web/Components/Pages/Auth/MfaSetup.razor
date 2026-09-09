@@ -50,7 +50,7 @@
                         <summary>Can't scan the code? Enter key manually</summary>
                         <div class="manual-key-box">
                             <code id="mfa-shared-key">@_setup?.SharedKey</code>
-                            <button type="button" class="btn btn-sm btn-outline" onclick="navigator.clipboard?.writeText('@_setup?.SharedKey')">Copy</button>
+                            <button type="button" class="btn btn-sm btn-outline" @onclick="CopySharedKeyAsync">Copy</button>
                         </div>
                     </details>
                 </div>
@@ -281,6 +281,21 @@
         try
         {
             await Js.InvokeVoidAsync("navigator.clipboard.writeText", text);
+        }
+        catch
+        {
+            // Clipboard API may fail in some browser contexts; silently ignore
+        }
+    }
+
+    private async Task CopySharedKeyAsync()
+    {
+        if (string.IsNullOrEmpty(_setup?.SharedKey))
+            return;
+
+        try
+        {
+            await Js.InvokeVoidAsync("navigator.clipboard.writeText", _setup.SharedKey);
         }
         catch
         {

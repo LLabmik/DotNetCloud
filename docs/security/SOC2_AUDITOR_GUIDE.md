@@ -130,7 +130,7 @@ Compare your outputs to the artifacts the operator provided. Discrepancies are a
 
 These are documented design decisions to review, not necessarily findings:
 
-- Blazor WebAssembly requires CSP `unsafe-inline`/`unsafe-eval`/`wasm-unsafe-eval`.
+- Blazor CSP is strict: only `wasm-unsafe-eval` is used; the app's static inline scripts are hash allow-listed in `CspPolicy.cs` and dynamic inline handlers use Blazor `@onclick`/JS interop. `object-src` is `'none'`.
 - Video streaming removes `X-Content-Type-Options: nosniff` for codec probing.
 - Two NuGet advisories are suppressed with dated compensating controls (AngleSharp mXSS, Microsoft.OpenApi) pending upstream releases.
 - Rate limiting is permissive (self-hosted trust model).

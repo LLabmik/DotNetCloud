@@ -115,7 +115,7 @@
                         <input type="text" id="register-timezone" name="_model.Timezone" class="input"
                                value="@(_model?.Timezone ?? "UTC")" style="flex: 1;" placeholder="e.g. America/New_York" />
                         <button type="button" class="btn btn-sm btn-outline"
-                                onclick="dotnetcloud.detectAndFillTimezone('register-timezone')">Detect</button>
+                                @onclick="DetectTimezoneAsync">Detect</button>
                     </div>
                 </div>
 
@@ -186,6 +186,7 @@
 @code {
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
     [Inject] private IAdminSettingsService AdminSettingsService { get; set; } = default!;
+    [Inject] private IJSRuntime Js { get; set; } = default!;
 
     [SupplyParameterFromForm]
     private RegisterFormModel? _model { get; set; }
@@ -283,6 +284,18 @@
         finally
         {
             _submitting = false;
+        }
+    }
+
+    private async Task DetectTimezoneAsync()
+    {
+        try
+        {
+            await Js.InvokeVoidAsync("dotnetcloud.detectAndFillTimezone", "register-timezone");
+        }
+        catch
+        {
+            // timezone.js may not have loaded yet; the timezone input already defaults to UTC.
         }
     }
 

@@ -145,7 +145,7 @@ User → Login → OpenIddict Server ──► Access Token (JWT, 60 min)
 
 ## Assumptions & Accepted Risks
 
-1. **Blazor WebAssembly CSP requirements:** `unsafe-inline`, `unsafe-eval`, `wasm-unsafe-eval` are required for Blazor WASM runtime and cannot be removed without breaking the application
+1. **Blazor CSP:** On .NET 8+ the client-side Blazor runtime requires only `wasm-unsafe-eval`. `unsafe-inline`/`unsafe-eval` are avoided by SHA-256 hash allow-listing the app's three static inline `<script>` blocks (`CspPolicy` in `DotNetCloud.Core.ServiceDefaults`) and by using Blazor `@onclick` + JS interop instead of inline event handlers. `object-src` is `'none'`.
 2. **Self-hosted trust model:** The platform assumes the administrator controls the hosting environment; network-level DoS mitigation is out of scope
 3. **Video streaming:** `X-Content-Type-Options: nosniff` is intentionally removed for video endpoints to enable browser codec probing
 4. **Design-time factories:** Connection strings in design-time factories are for local development only; production uses `DOTNETCLOUD_DB_CONNECTION` environment variable

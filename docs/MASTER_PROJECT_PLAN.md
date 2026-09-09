@@ -372,7 +372,7 @@ Create a sample appsettings.Development.json for local configuration.
 **Key Findings:**
 
 - **3 Critical Issues:** All remediated (Email TLS bypass, 17 hardcoded credential files, vulnerable dependency pinned)
-- **5 High Issues:** 1 remediated (AllowedHosts), 4 documented (file upload validation — implemented, CSP required by Blazor)
+- **5 High Issues:** 2 remediated (AllowedHosts, Blazor CSP — strict hash-based policy, 2026-09), 3 documented (file upload validation — implemented)
 - **8 Medium Issues:** 4 remediated (host header, logging leaks ×3), 4 documented
 - **4 Low Issues:** All documented for GA roadmap
 - **41 security regression tests added** — all pass
@@ -5557,7 +5557,7 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - ✓ **L — Evidence docs:** `docs/security/SOC2_CONTROL_MATRIX.md`, `docs/security/SOC2_TYPE_II_AUDITOR_REPORT.md`, `docs/security/PII_INVENTORY.md`
 - ✓ **M — Tracking:** this plan + `IMPLEMENTATION_CHECKLIST.md` updated
 
-**Notes:** All workstreams A–M complete. Build verified on Core.Server, Core.Data, Core.Grpc and all 15 module hosts (0 errors). Scanner report generated with full module coverage. Two pre-existing items documented as accepted risks: (1) Blazor CSP `unsafe-*` and video `nosniff` removal; (2) PostgreSQL migration generation blocked by a pre-existing EF/OpenIddict model-differ NRE — the `AddAuditLog` PostgreSQL migration was authored by hand to match provider conventions, and the repo's PostgreSQL migration pipeline has been paused since May (production is SQL Server).
+**Notes:** All workstreams A–M complete. Build verified on Core.Server, Core.Data, Core.Grpc and all 15 module hosts (0 errors). Scanner report generated with full module coverage. Remaining documented items: (1) video `nosniff` removal for codec probing (the Blazor CSP was hardened to a strict hash-based policy in 2026-09 — no `unsafe-inline`/`unsafe-eval`, only `wasm-unsafe-eval` + inline-script hashes, see `CspPolicy`); (2) PostgreSQL migration generation blocked by a pre-existing EF/OpenIddict model-differ NRE — the `AddAuditLog` PostgreSQL migration was authored by hand to match provider conventions, and the repo's PostgreSQL migration pipeline has been paused since May (production is SQL Server).
 
 **2026-08-19 update:** Completed the repo-wide dual-provider migration split — separate `*.Data.SqlServer` projects for Core + all 14 modules (SQL Server migrations + design-time factories moved into their own assemblies), removed the `ProviderAwareMigrationsAssembly` runtime filter, wired host/CLI/Core.Server references + solution/CI filter. Verified: `dotnet build DotNetCloud.CI.slnf -c Release` = 0 warnings/errors; all unit test projects pass (Core.Data 175, Core.Server 601, CLI 120, all modules). Applied `AddAuditLog_SqlServer` (plus 2 pre-existing pending Core migrations: `AddMfaSetupRequiredColumn_SqlServer`, `AddSequentialGuidDefaults`) to production SQL Server; verified `dbo.AuditLogs` table (10 columns, 0 rows) + model snapshot synced (no pending-model-changes).
 
