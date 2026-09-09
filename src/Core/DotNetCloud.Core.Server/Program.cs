@@ -18,6 +18,7 @@ using DotNetCloud.Core.Server.Middleware;
 using DotNetCloud.Core.Server.Services;
 using DotNetCloud.Core.ServiceDefaults.Extensions;
 using DotNetCloud.Core.ServiceDefaults.HealthChecks;
+using DotNetCloud.Core.ServiceDefaults.Middleware;
 using DotNetCloud.Core.ServiceDefaults.Telemetry;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Services;
@@ -518,6 +519,16 @@ public class Program
             .AddInteractiveWebAssemblyComponents()
             .AddAuthenticationStateSerialization();
 
+        // Antiforgery cookie hardening. The framework default (SameAsRequest) can emit the
+        // antiforgery cookie without the Secure flag when the request scheme is ambiguous
+        // behind a proxy; the app is HTTPS-only (HSTS), so force Secure + HttpOnly + Strict.
+        builder.Services.AddAntiforgery(options =>
+        {
+            options.Cookie.HttpOnly = true;
+            options.Cookie.SameSite = SameSiteMode.Strict;
+            options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+        });
+
         builder.Services.AddCascadingAuthenticationState();
 
         // Blazor UI services (server-side prerendering needs these too)
@@ -873,8 +884,7 @@ public class Program
             }
 
             var collaboraOrigin = collaboraUri.GetLeftPart(UriPartial.Authority);
-            headers.ContentSecurityPolicy =
-                $"default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' ws: wss:; media-src 'self' blob:; worker-src 'self' blob:; frame-src 'self' {collaboraOrigin}; child-src 'self' {collaboraOrigin}; frame-ancestors 'self';";
+            headers.ContentSecurityPolicy = CspPolicy.WithCollabora(collaboraOrigin);
         });
 
         // Map health checks

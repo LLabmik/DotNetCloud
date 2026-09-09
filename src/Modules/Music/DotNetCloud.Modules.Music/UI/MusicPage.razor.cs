@@ -329,14 +329,15 @@ public partial class MusicPage : IAsyncDisposable
             StateHasChanged();
         }
 
-        // Scroll the currently-playing track row into view
+        // Scroll the currently-playing track row into view.
+        // Uses a named JS function (not eval) so it complies with the strict CSP
+        // that forbids 'unsafe-eval'.
         if (_pendingScrollToPlaying)
         {
             _pendingScrollToPlaying = false;
             try
             {
-                await Js.InvokeVoidAsync("eval",
-                    "document.querySelector('.track-row.playing')?.scrollIntoView({behavior:'smooth',block:'center'})");
+                await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.scrollToPlaying");
             }
             catch (JSDisconnectedException) { }
         }

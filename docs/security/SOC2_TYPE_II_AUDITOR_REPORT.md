@@ -86,8 +86,9 @@ here, referencing the control matrix row.
 
 These are documented design decisions. The auditor reviews whether each remains acceptable.
 
-1. **Blazor CSP:** `unsafe-inline` / `unsafe-eval` / `wasm-unsafe-eval` are required by
-   Blazor WebAssembly. Deviation from a strict CSP; accepted with documented rationale.
+1. **Blazor CSP:** Since 2026-09 the CSP is strict — only `wasm-unsafe-eval` is present; the app's static
+   inline `<script>` blocks are allow-listed by SHA-256 hash (`CspPolicy.cs`) and `object-src` is `'none'`.
+   No `unsafe-inline`/`unsafe-eval`. This is no longer treated as an accepted-risk deviation.
 2. **Video `nosniff`:** `X-Content-Type-Options: nosniff` is removed for the video streaming
    endpoint to permit codec probing. Accepted; only affects media streams.
 3. **Suppressed NuGet advisories:** AngleSharp mXSS (`GHSA-pgww-w46g-26qg`) and

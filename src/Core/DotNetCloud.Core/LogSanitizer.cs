@@ -16,28 +16,25 @@ public static class LogSanitizer
     /// <returns>A sanitized string. Returns "(null)" if value is null.</returns>
     public static string Sanitize(string? value)
     {
-        if (string.IsNullOrEmpty(value))
-            return value ?? "(null)";
-
         // Cap to a reasonable length before processing.
-        if (value.Length > 10_000)
+        if (value is not null && value.Length > 10_000)
             value = value[..10_000];
 
-        // Replace every line ending (CRLF, LF, and CR) with a space.
-        // This call is intentionally ALWAYS on the return path — never guarded
-        // by a "clean input" fast path — so that static analysis
-        // (CodeQL cs/log-forging) can see untrusted input is neutralized before
-        // it reaches a log sink, regardless of the runtime value.
-        value = value.ReplaceLineEndings(" ");
+        // Replace every line ending (CRLF, LF, and CR) with a space. This call
+        // is intentionally ALWAYS on the single return path — there is no early
+        // return that bypasses it — so that static analysis (CodeQL
+        // cs/log-forging) sees untrusted input neutralized by a recognized
+        // sanitizer before it can reach a log sink.
+        var result = (value ?? "(null)").ReplaceLineEndings(" ");
 
         // Defense-in-depth: replace any remaining C0 control characters (other
         // than tab) with spaces so structured log output cannot be corrupted
         // by characters such as NUL or ESC. Line endings are already handled
         // above.
-        if (HasControlCharacters(value))
-            value = ReplaceControlCharacters(value);
+        if (HasControlCharacters(result))
+            result = ReplaceControlCharacters(result);
 
-        return value;
+        return result;
     }
 
     private static bool HasControlCharacters(string value)

@@ -207,37 +207,55 @@ The auto-generated systemd service files handle most of this automatically.
 
 ### Current Policy
 
-The default CSP header sent on all responses:
+The CSP header is centralized in `CspPolicy` (`src/Core/DotNetCloud.Core.ServiceDefaults/Middleware/CspPolicy.cs`)
+and applied by `SecurityHeadersMiddleware`. The policy is strict — no `unsafe-inline` and no `unsafe-eval`:
 
 ```
-default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' ws: wss:; frame-ancestors 'self';
+default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'sha256-hTcoG55CxSil045VWrxfzU4efHtbQdijt+XlUjHFOa0=' 'sha256-RnuCcxxWUg+bO/ctB+WDXamgM0HHQPXLhk5J0IDXT54=' 'sha256-JqHvlAUKT6P5m4HK/7n20uRVrQkhMsVXaQ888/G9Qwo='; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' ws: wss:; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; upgrade-insecure-requests;
 ```
 
-### Why `unsafe-inline` and `unsafe-eval` Are Required
+When Collabora is configured, `CspPolicy.WithCollabora(origin)` additionally emits `frame-src`/`child-src` for
+the Collabora origin so its UI can be embedded in an iframe.
 
-These directives are **required by Blazor WebAssembly** and cannot be removed without breaking the application:
+### Why `wasm-unsafe-eval` but not `unsafe-eval` / `unsafe-inline`
 
-| Directive            | Why It's Needed                                                                          |
-| -------------------- | ---------------------------------------------------------------------------------------- |
-| `'unsafe-inline'`    | Blazor uses inline `<script>` blocks for boot configuration and initializer registration |
-| `'unsafe-eval'`      | The Mono WASM runtime uses `eval()` for JIT compilation of C# IL to WebAssembly          |
-| `'wasm-unsafe-eval'` | Required for WebAssembly execution in modern browsers                                    |
+On .NET 8+ the client-side Blazor Mono runtime is compiled to native WebAssembly, so only
+`wasm-unsafe-eval` is required for WebAssembly compilation — `unsafe-eval` (JavaScript `eval`) is **not** needed.
+`unsafe-inline` is also unnecessary because the app's few static inline `<script>` blocks are allow-listed by
+SHA-256 hash:
+
+| Inline script                                                     | Purpose                                      |
+| ----------------------------------------------------------------- | -------------------------------------------- |
+| `window.blazorCulture` (`App.razor`)                              | Culture bootstrap read by `blazor.web.js`    |
+| Register timezone/locale autofill (`Register.razor`)               | Pre-fills timezone/locale on the register form |
+| Change-password success redirect (`ChangePassword.razor`)          | Redirects after a successful password change |
+
+Inline event handlers that previously embedded dynamic content were converted to Blazor `@onclick` handlers
+backed by JS interop (MFA shared-key copy, register timezone "Detect" button), so the `unsafe-hashes` keyword
+is not required either.
 
 ### Risk Mitigation
 
-While these directives broaden the XSS attack surface compared to a strict CSP, the risk is partially mitigated by:
+Beyond the strict CSP, XSS risk is further reduced by:
 
 1. **Blazor's built-in antiforgery** — all interactive components go through the Blazor circuit with automatic antiforgery token validation
 2. **API authentication** — all API endpoints require OAuth2 bearer tokens
-3. **Server-side rendering** — the initial page load is server-rendered; the CSP applies to the SPA runtime
-4. **HtmlSanitizer** — all user-supplied HTML is sanitized before rendering (configurable via `DotNetCloud:HtmlSanitizer`)
+3. **HtmlSanitizer** — all user-supplied HTML is sanitized before rendering (configurable via `DotNetCloud:HtmlSanitizer`)
 
-### Future CSP Hardening
+### Cookie Security
 
-If non-Blazor pages are added (static pages, marketing, docs), they should use a separate stricter CSP:
+All cookies are `Secure` + `HttpOnly`:
 
-- `script-src 'self'` (no `unsafe-inline` or `unsafe-eval`)
-- Nonce-based CSP for injected scripts
+- **Identity app cookie** (`.AspNetCore.Identity.Application`) — `CookieSecurePolicy.Always` (`AuthServiceExtensions.cs`)
+- **Localization cookie** (`.AspNetCore.Culture`) — `Secure = true` (`App.razor`, `CultureController`)
+- **Antiforgery cookie** (`.AspNetCore.Antiforgery.*`) — `CookieSecurePolicy.Always` configured via `AddAntiforgery` in `Core.Server/Program.cs`
+
+### If an Inline Script Hash Drifts
+
+If any allow-listed inline script's content changes (even whitespace/indentation), recompute its SHA-256 hash
+(base64, over the raw text between `<script>` and `</script>`) and update it in **both** `CspPolicy.cs` and
+`appsettings.json` (`Security:SecurityHeaders:ContentSecurityPolicy`). The browser dev-tools console prints the
+required hash for any inline script blocked by the policy.
 
 ## 11. OIDC Key Rotation
 

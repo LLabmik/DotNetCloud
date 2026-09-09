@@ -127,7 +127,7 @@ public sealed class AuthService : IAuthService
         if (!result.Succeeded)
         {
             var errors = string.Join(", ", result.Errors.Select(e => $"{e.Code}: {e.Description}"));
-            _logger.LogWarning("Registration failed for {Username}: {Errors}", LogSanitizer.Sanitize(request.Username), errors);
+            _logger.LogWarning("Registration failed for {Username}: {Errors}", LogSanitizer.Sanitize(request.Username), LogSanitizer.Sanitize(errors));
             throw new InvalidOperationException($"Registration failed: {errors}");
         }
 

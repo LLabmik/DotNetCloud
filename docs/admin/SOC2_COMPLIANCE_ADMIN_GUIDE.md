@@ -249,7 +249,7 @@ The audit table grows with usage. Estimate and monitor:
 | `Password=`/`ApiKey=` in `appsettings.Development.json` | Acceptable (dev only) — note "dev default, prod uses env vars"        |
 | `ConnectionString` in `appsettings.json`                | Verify it is a dev default; prod must use `DOTNETCLOUD_DB_CONNECTION` |
 | `AllowInsecureTls` / TLS bypass                         | Verify it is env-gated (off in production); note the gate             |
-| `unsafe-inline`/`unsafe-eval` in CSP                    | Accepted risk (Blazor WASM requirement) — documented deviation        |
+| `unsafe-inline`/`unsafe-eval` in CSP                    | Resolved — strict CSP since 2026-09; static inline scripts hash allow-listed in `CspPolicy.cs`, only `wasm-unsafe-eval` remains |
 | `X-Content-Type-Options` removed for video              | Accepted risk (codec probing) — documented deviation                  |
 | Suppressed NuGet advisories                             | Verify the dated compensating control + review date still hold        |
 | TODO/FIXME mentioning security                          | Schedule or close it; record the disposition                          |

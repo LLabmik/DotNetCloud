@@ -118,23 +118,27 @@ Same 6 endpoints — content type determined by extension only, not file signatu
 
 ### H-4: CSP Allows unsafe-inline/unsafe-eval/wasm-unsafe-eval
 
-**Status:** ✅ Documented — Required by Blazor WebAssembly
+**Status:** ✅ Remediated — strict CSP (hash allow-list; no `unsafe-inline`/`unsafe-eval`)
 
-**Location:** `SecurityHeadersMiddleware.cs:86`
+**Location:** `CspPolicy.cs` (central policy), `SecurityHeadersMiddleware.cs`, `Program.cs` (Collabora override)
 
-**Analysis:** These directives are required for Blazor WebAssembly:
+**Original finding:** `script-src` contained `unsafe-inline`, `unsafe-eval`, and `wasm-unsafe-eval`, and no
+`object-src` directive was set.
 
-- `'unsafe-inline'` — Blazor uses inline `<script>` for boot configuration
-- `'unsafe-eval'` — Required by Mono WASM runtime for JIT compilation
-- `'wasm-unsafe-eval'` — Required for WASM execution
+**Fix applied:**
 
-Without these, Blazor WebAssembly cannot function. The CSP is correctly configured for the framework. Risk is partially mitigated by:
+- `unsafe-eval` removed — the .NET 8+ Mono WebAssembly runtime is compiled to native WASM and requires only
+  `wasm-unsafe-eval`.
+- `unsafe-inline` removed from `script-src`. The three static inline `<script>` blocks (`window.blazorCulture`
+  in `App.razor`, register timezone/locale autofill, change-password redirect) are allow-listed by SHA-256 hash.
+  The redirect script was made static by moving its dynamic `returnUrl` into a `data-` attribute.
+- Dynamic inline handlers converted to Blazor `@onclick` + JS interop (MFA shared-key copy, register timezone
+  "Detect") so `unsafe-hashes` is not required.
+- Added `object-src 'none'`, `base-uri 'self'`, `form-action 'self'`, and `upgrade-insecure-requests`.
+- Antiforgery cookie now uses `CookieSecurePolicy.Always` (was being emitted without the `Secure` flag).
 
-- Blazor's built-in antiforgery protection
-- All API calls going through authenticated channels
-- Server-side rendering for initial page load
-
-**Recommendation:** Document in deployment hardening guide. Consider nonce-based CSP for non-Blazor pages if added later.
+**Remaining risk:** `style-src 'unsafe-inline'` remains for Blazor's runtime inline style attributes (scoped CSS,
+`Virtualize` spacers).
 
 ### H-5: AllowedHosts: "\*" in Production Config
 
@@ -336,7 +340,7 @@ Without these, Blazor WebAssembly cannot function. The CSP is correctly configur
 | ----------------------- | ------------- | ----------------------------------------------------------------------------------------------------------- |
 | SQL injection           | ✅ Verified   | No `FromSqlRaw`/`ExecuteSqlRaw` with unsanitized user input found; EF Core parameterization used throughout |
 | DatabaseSetupHelper     | ✅ Verified   | `psql` command variables are parameterized                                                                  |
-| XSS — CSP               | ✅ Documented | `unsafe-inline`/`unsafe-eval` required by Blazor (see H-4)                                                  |
+| XSS — CSP               | ✅ Remediated | Strict CSP: inline scripts hash allow-listed, only `wasm-unsafe-eval` (see H-4)          |
 | HtmlSanitizer usage     | ✅ Verified   | Applied to all user-supplied HTML before rendering                                                          |
 | MarkupString usage      | ✅ Verified   | All instances reviewed — input sanitized before casting                                                     |
 | Output encoding         | ✅ Verified   | Razor auto-escaping not bypassed; no `@Html.Raw()` on unsanitized input                                     |

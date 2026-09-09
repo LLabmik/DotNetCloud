@@ -1,3 +1,4 @@
+using DotNetCloud.Core;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Contacts.Models;
@@ -130,7 +131,7 @@ public sealed class ContactShareService : IContactShareService
             "Contact {ContactId} shared with {TargetType} {TargetId} ({Permission}) by user {UserId}",
             contactId,
             teamId is not null ? "team" : "user",
-            teamId ?? userId,
+            LogSanitizer.Sanitize((teamId ?? userId).ToString()),
             permission,
             caller.UserId);
 

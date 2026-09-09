@@ -233,7 +233,18 @@ window.dotnetcloudMusicPlayer = window.dotnetcloudMusicPlayer || (function () {
         }
     }
 
-    return { init: init, detach: detach, isPlaying: isPlaying, dispose: dispose, play: play, resume: resume, pause: pause, stop: stop, seek: seek, setVolume: setVolume, setMuted: setMuted, setEqBand: setEqBand, setEqBands: setEqBands, handleProgressClick: handleProgressClick, getAudioContext: function () { return audioCtx; }, getSourceNode: function () { return sourceNode; } };
+    /**
+     * Scrolls the currently-playing track row (.track-row.playing) into view.
+     * Named function (no eval) so it complies with the strict CSP that forbids 'unsafe-eval'.
+     */
+    function scrollToPlaying() {
+        var el = document.querySelector(".track-row.playing");
+        if (el) {
+            el.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+    }
+
+    return { init: init, detach: detach, isPlaying: isPlaying, dispose: dispose, play: play, resume: resume, pause: pause, stop: stop, seek: seek, setVolume: setVolume, setMuted: setMuted, setEqBand: setEqBand, setEqBands: setEqBands, handleProgressClick: handleProgressClick, scrollToPlaying: scrollToPlaying, getAudioContext: function () { return audioCtx; }, getSourceNode: function () { return sourceNode; } };
 })();
 
 /**

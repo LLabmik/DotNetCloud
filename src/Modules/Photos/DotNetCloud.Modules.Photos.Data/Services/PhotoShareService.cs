@@ -1,3 +1,4 @@
+using DotNetCloud.Core;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
@@ -112,7 +113,7 @@ public sealed class PhotoShareService : IPhotoShareService
             "Photo {PhotoId} shared with {TargetType} {TargetId} by {SharedByUserId}",
             photoId,
             sharedWithTeamId is not null ? "team" : "user",
-            sharedWithTeamId ?? sharedWithUserId,
+            LogSanitizer.Sanitize((sharedWithTeamId ?? sharedWithUserId).ToString()),
             caller.UserId);
 
         return MapToDto(share);
@@ -175,7 +176,7 @@ public sealed class PhotoShareService : IPhotoShareService
             "Album {AlbumId} shared with {TargetType} {TargetId} by {SharedByUserId}",
             albumId,
             sharedWithTeamId is not null ? "team" : "user",
-            sharedWithTeamId ?? sharedWithUserId,
+            LogSanitizer.Sanitize((sharedWithTeamId ?? sharedWithUserId).ToString()),
             caller.UserId);
 
         await _eventBus.PublishAsync(new AlbumSharedEvent
