@@ -265,10 +265,10 @@ User requirement: "Default for forms (login, TOTP, file create name, etc.) shoul
 - ✅ **Live event path** — logcat: `SignalRChatClient: UserPresence userId=019f11a9… status=Online` received over the deployed server.
 - ✅ **Snapshot path** — verified after a cold start using Test Dude online with NO live event since launch → dot still green (snapshot `GetPresenceStatusAsync` returns statuses).
   - 🔧 **Bug found + fixed on-device (`c17c7fa3` + follow-up):** on cold start the DM-dot seed ran ~0.5 s **before** the CoreHub connection completed, so the snapshot returned an empty dict and every DM dot stayed gray until a live event happened to arrive. `SignalRChatClient.GetPresenceStatusAsync` now waits (~6 s, bounded) for the hub to connect before querying. No server change required — **no redeploy needed** for this fix.
-- ☐ Set idle threshold temporarily to **1 min** via Admin Settings → "Online indicators" → one user goes idle → their dot turns **yellow** in the other client (no disconnect); interaction returns it to **green**.
+- ✅ **Yellow when interaction stops** — browser closed; phone logged `UserPresence status=Away` at **19:49:12** = last real interaction (≈19:46:12) + the **default 3 min** threshold. No disconnect (still connected at that point).
+- ✅ **Then gray when the connection drops** — phone logged `UserPresence status=Offline` at **19:49:24** (~12 s after Away). Confirms the operator decision: the browser-close retention window shows as **yellow**, then **gray**.
+- ☐ Admin change to `PresenceIdleTimeoutMinutes` applies within ≤30 s (no restart) — **not yet exercised** (the 1-minute test was not performed; the yellow/gray above ran on the default 3 min).
 - ☐ Enable DND from Blazor (top-bar toggle) → Android sees **red**; disable → green/yellow. Repeat from Android Settings (DND) → Blazor sees red.
-- ☐ Close the browser tab → peer shows **yellow** during the ~2–3 min relay/circuit retention, then **gray**.
-- ☐ Admin change to `PresenceIdleTimeoutMinutes` applies within ≤30 s (no restart).
 - ☐ Android + web channel-details member rows show the 4-state dots and update live.
 
 ### Notes / non-goals
