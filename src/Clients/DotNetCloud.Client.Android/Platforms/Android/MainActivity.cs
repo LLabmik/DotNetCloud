@@ -67,7 +67,9 @@ public class MainActivity : MauiAppCompatActivity
             if (running)
             {
                 intent.SetAction(ChatConnectionService.ActionStart);
-                StartForegroundService(intent);
+                // TEMPORARY: foreground promotion is gated by AndroidForegroundServicePolicy while
+                // the Android 15/16 dataSync FGS budget crash is pending its proper fix.
+                AndroidForegroundServicePolicy.StartService(this, intent);
             }
             else
             {

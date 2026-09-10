@@ -242,7 +242,10 @@ User requirement: "Default for forms (login, TOTP, file create name, etc.) shoul
 
 ## Active Handoff — Presence indicators 4-state: deploy `c17c7fa3` to `cloud.kimball.home` + live E2E (2026-09-09)
 
-**Status:** 🔁 HANDED BACK TO MONOLITH to finish the Android + idle (yellow) E2E. Server deployed + server-side verified on `cloud.kimball.home`; **operator browser E2E partial-PASS: green ✓ / red ✓ / gray ✓**; **yellow (idle) and the Android cross-device checks remain** — finish on monolith. Full-stack 4-state presence (Online / Away / Do-Not-Disturb / Offline) was implemented on the monolith at the operator's request (server + Blazor + Android), unit-tested, and pushed at `c17c7fa3` on `fix/android-improvements`.
+**Status:** ✅ **4-state presence LIVE-VERIFIED (both clients)** — server deployed + verified on `cloud.kimball.home` (server agent); operator browser run ✓ green / ✓ red / ✓ gray / ✓ yellow; Android on-device run ✓ green (live event + cold-start snapshot) / ✓ yellow / ✓ gray / ✓ red (DND both directions). Full-stack 4-state presence (Online / Away / Do-Not-Disturb / Offline) implemented on the monolith at the operator's request (server + Blazor + Android), unit-tested, pushed at `c17c7fa3` (+ `f1d45f07` cold-start fix).
+
+> **Remaining (minor):** Admin `PresenceIdleTimeoutMinutes` runtime-pickup check (≤30 s) not exercised, and the Android/web channel-details member-row dots not explicitly spot-checked. Neither blocks the feature.
+> **Unrelated on-device issue handled:** Android 15/16 `dataSync` FGS budget crash (`ForegroundServiceDidNotStopInTimeException`) crashed the app in a loop → **temporarily disabled foreground-service promotion** for the chat + media-upload services (policy kill-switch `AndroidForegroundServicePolicy`); proper FGS-type fix planned on a separate branch. Also fixed the `.gitignore` `modules/` rule that silently ignored NEW files under `src/Modules/**` (it caused the first cloud deploy to fail on the missing `PresenceStatusHelpers.cs`).
 
 > This supersedes the prior relay-delay finding (archived below): the operator **accepted** the ~2–3 min relay retention window as the new **yellow (Away)** state, so the separate "presence vs delivery connection" refactor is **NOT** in this scope.
 

@@ -167,17 +167,18 @@ public sealed partial class SettingsViewModel : ObservableObject
             _ = _mediaUploadService.StartAsync();
 
 #if ANDROID
-            // Start the foreground service so uploads survive backgrounding.
+            // Start the background service so uploads survive backgrounding.
             try
             {
                 var ctx = global::Android.App.Application.Context;
                 var intent = new Intent(ctx, typeof(global::DotNetCloud.Client.Android.MediaUploadForegroundService));
                 intent.SetAction(global::DotNetCloud.Client.Android.MediaUploadForegroundService.ActionStart);
-                ctx.StartForegroundService(intent);
+                // TEMPORARY: foreground promotion gated by AndroidForegroundServicePolicy (dataSync FGS fix pending).
+                global::DotNetCloud.Client.Android.AndroidForegroundServicePolicy.StartService(ctx, intent);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to start media upload foreground service.");
+                _logger.LogWarning(ex, "Failed to start media upload service.");
             }
 #endif
         }
@@ -186,17 +187,17 @@ public sealed partial class SettingsViewModel : ObservableObject
             _ = _mediaUploadService.StopAsync();
 
 #if ANDROID
-            // Stop the foreground service to release resources.
+            // Stop the background service to release resources.
             try
             {
                 var ctx = global::Android.App.Application.Context;
                 var intent = new Intent(ctx, typeof(global::DotNetCloud.Client.Android.MediaUploadForegroundService));
                 intent.SetAction(global::DotNetCloud.Client.Android.MediaUploadForegroundService.ActionStop);
-                ctx.StartForegroundService(intent);
+                global::DotNetCloud.Client.Android.AndroidForegroundServicePolicy.StartService(ctx, intent);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to stop media upload foreground service.");
+                _logger.LogWarning(ex, "Failed to stop media upload service.");
             }
 #endif
         }

@@ -7,6 +7,11 @@ namespace DotNetCloud.Client.Android.Views;
 /// <summary>Channel list screen — shows all channels the user has access to.</summary>
 public partial class ChannelListPage : ContentPage
 {
+    // Persisted so the welcome overlay ("Begin Chatting") is a one-time intro: Shell can
+    // re-create this page when re-entering Chat from the drawer, and without persistence the
+    // overlay would reappear instead of going straight to the channel list.
+    private const string LandingDismissedKey = "chat_landing_dismissed";
+
     private readonly ChannelListViewModel _vm;
 
     /// <summary>Initializes a new <see cref="ChannelListPage"/>.</summary>
@@ -20,13 +25,29 @@ public partial class ChannelListPage : ContentPage
         // Show the connected server URL on the landing overlay
         var connection = serverStore.GetActive();
         ServerUrlLabel.Text = connection?.ServerBaseUrl ?? string.Empty;
+
+        // Skip the welcome overlay once it has been dismissed, so tapping "Chat" in the
+        // hamburger menu always lands on the channel list.
+        if (Preferences.Default.Get(LandingDismissedKey, false))
+        {
+            DismissLanding(persist: false);
+        }
     }
 
     /// <summary>Hides the landing overlay, revealing the chat interface below.</summary>
-    private void DismissLanding()
+    /// <param name="persist">
+    /// When <c>true</c> (default) the dismissal is remembered across page re-creation and app
+    /// restarts so the welcome overlay is shown only once.
+    /// </param>
+    private void DismissLanding(bool persist = true)
     {
         LandingOverlay.IsVisible = false;
         LandingOverlay.InputTransparent = true;
+
+        if (persist)
+        {
+            Preferences.Default.Set(LandingDismissedKey, true);
+        }
     }
 
     private void OnBeginChattingClicked(object? sender, EventArgs e)

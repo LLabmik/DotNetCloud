@@ -61,10 +61,11 @@ public partial class LoginPage : ContentPage
         await App.CheckMusicModuleAvailabilityAsync();
         Log.Info("DotNetCloud", "LoginPage.OnLoginSucceeded: module check done");
 
-        // Start the SignalR chat connection foreground service after successful login
+        // Start the SignalR chat connection service after successful login
         var intent = new Intent(global::Android.App.Application.Context, typeof(ChatConnectionService));
         intent.SetAction(ChatConnectionService.ActionStart);
-        global::Android.App.Application.Context.StartForegroundService(intent);
+        // TEMPORARY: foreground promotion gated by AndroidForegroundServicePolicy (dataSync FGS fix pending).
+        AndroidForegroundServicePolicy.StartService(global::Android.App.Application.Context, intent);
         Log.Info("DotNetCloud", "LoginPage.OnLoginSucceeded: chat service started");
 
         // Start the calendar SignalR connection for real-time event notifications
