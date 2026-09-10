@@ -7,10 +7,12 @@ namespace DotNetCloud.Client.Android.Views;
 /// <summary>Channel list screen — shows all channels the user has access to.</summary>
 public partial class ChannelListPage : ContentPage
 {
-    // Persisted so the welcome overlay ("Begin Chatting") is a one-time intro: Shell can
-    // re-create this page when re-entering Chat from the drawer, and without persistence the
-    // overlay would reappear instead of going straight to the channel list.
-    private const string LandingDismissedKey = "chat_landing_dismissed";
+    // Whether the welcome overlay ("Begin Chatting") has already been dismissed during the
+    // CURRENT app run. Deliberately static (not a persisted Preference): Shell re-creates this
+    // page when re-entering Chat from the drawer, so instance state is lost and the overlay
+    // would wrongly reappear mid-session. A static resets when the app process restarts, so the
+    // overlay shows once per app launch — and only once.
+    private static bool _landingDismissedThisRun;
 
     private readonly ChannelListViewModel _vm;
 
@@ -26,28 +28,29 @@ public partial class ChannelListPage : ContentPage
         var connection = serverStore.GetActive();
         ServerUrlLabel.Text = connection?.ServerBaseUrl ?? string.Empty;
 
-        // Skip the welcome overlay once it has been dismissed, so tapping "Chat" in the
-        // hamburger menu always lands on the channel list.
-        if (Preferences.Default.Get(LandingDismissedKey, false))
+        // Already dismissed earlier in this run (e.g. the page was re-created by the drawer):
+        // stay on the channel list instead of showing the welcome again.
+        if (_landingDismissedThisRun)
         {
-            DismissLanding(persist: false);
+            HideLandingOverlay();
         }
     }
 
-    /// <summary>Hides the landing overlay, revealing the chat interface below.</summary>
-    /// <param name="persist">
-    /// When <c>true</c> (default) the dismissal is remembered across page re-creation and app
-    /// restarts so the welcome overlay is shown only once.
-    /// </param>
-    private void DismissLanding(bool persist = true)
+    /// <summary>
+    /// Hides the landing overlay, revealing the chat interface below, and remembers the
+    /// dismissal for the rest of the current app run.
+    /// </summary>
+    private void DismissLanding()
+    {
+        _landingDismissedThisRun = true;
+        HideLandingOverlay();
+    }
+
+    /// <summary>Hides the landing overlay without recording a dismissal.</summary>
+    private void HideLandingOverlay()
     {
         LandingOverlay.IsVisible = false;
         LandingOverlay.InputTransparent = true;
-
-        if (persist)
-        {
-            Preferences.Default.Set(LandingDismissedKey, true);
-        }
     }
 
     private void OnBeginChattingClicked(object? sender, EventArgs e)
