@@ -71,7 +71,7 @@ project.fragment.lock.json
 artifacts/
 
 # Process-isolated module host binaries (published at build/deploy time)
-modules/
+/modules/
 
 # Runtime data (file storage chunks, uploads, etc.)
 **/storage/chunks/
