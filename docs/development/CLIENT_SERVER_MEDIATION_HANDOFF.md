@@ -242,9 +242,11 @@ User requirement: "Default for forms (login, TOTP, file create name, etc.) shoul
 
 ## Active Handoff — Presence indicators 4-state: deploy `c17c7fa3` to `cloud.kimball.home` + live E2E (2026-09-09)
 
-**Status:** ⏳ READY TO DEPLOY. Full-stack 4-state presence (Online / Away / Do-Not-Disturb / Offline) was implemented on the monolith at the operator's request (server + Blazor + Android), unit-tested, and pushed at `c17c7fa3` on `fix/android-improvements`. The server/Blazor/Admin half is now ready to deploy; the Android half is client-only (rebuilt arm64) and will be exercised in the cross-device E2E below.
+**Status:** 🔁 HANDED BACK TO MONOLITH to finish the Android + idle (yellow) E2E. Server deployed + server-side verified on `cloud.kimball.home`; **operator browser E2E partial-PASS: green ✓ / red ✓ / gray ✓**; **yellow (idle) and the Android cross-device checks remain** — finish on monolith. Full-stack 4-state presence (Online / Away / Do-Not-Disturb / Offline) was implemented on the monolith at the operator's request (server + Blazor + Android), unit-tested, and pushed at `c17c7fa3` on `fix/android-improvements`.
 
 > This supersedes the prior relay-delay finding (archived below): the operator **accepted** the ~2–3 min relay retention window as the new **yellow (Away)** state, so the separate "presence vs delivery connection" refactor is **NOT** in this scope.
+
+> **Status update (2026-09-09, server agent — `cloud.kimball.home`):** deployed and server-side verified; **operator browser E2E: green ✓ / red ✓ / gray ✓**, yellow (idle) pending. **Next agent: monolith** — finish the Android + idle (yellow) cross-device E2E (see "What to do (client agent — monolith)" and the checklist below). See the server-side verification record below.
 
 ### What changed (`c17c7fa3`, plan `docs/PRESENCE_DOTS_4STATE_PLAN.md`)
 - **Server (Core/Core.Data/Core.Server):** `PresenceState` enum (names over the wire); `PresenceService` derives 4-state (Offline > DoNotDisturb > Away/Online) with DND persisted-pref caching at connect, `ReportActivityAsync` (real interaction only), and a `PresenceStateChanged` event; `PresenceActivityMonitor` (30 s sweep, reads admin `PresenceIdleTimeoutMinutes` at runtime, default 3, clamp 1–60); `PresenceChangePublisher` broadcasts **`UserPresence` {UserId, Status, Timestamp}** (replaces `UserOnline`/`UserOffline`); DND→presence bridge (`PresenceAwareNotificationPreferenceStore`); SignalR `ClientTimeoutSeconds` 30→300 (fixes the Android ~31 s reconnect churn); `PresenceIdleTimeoutMinutes` seeded in `DbInitializer`.
@@ -260,16 +262,45 @@ User requirement: "Default for forms (login, TOTP, file create name, etc.) shoul
 5. Server-side automated checks you can run: `dotnet test tests/DotNetCloud.Core.Server.Tests/` (expect 725 pass + the known `ProgramRootCa` fail), `dotnet test tests/DotNetCloud.Modules.Chat.Tests/` (1406 pass).
 6. Confirm from server logs that **no ~31 s reconnect churn** remains for Android connections (the heartbeat fix).
 
+### Server-side verification record (2026-09-09, server agent — `cloud.kimball.home`) ✅
+
+Deployed HEAD `72e401d1` (the handoff commit containing `c17c7fa3`) via `sudo ./scripts/deploy.sh --force --verify`:
+
+- ✓ **Deploy blocker found & fixed:** the first deploy attempt **failed** — `DotNetCloud.Modules.Chat` (11 × `CS0103: The name 'PresenceStatusHelpers' does not exist`) because the helper was referenced by 6 Chat UI files + `PresenceStatusHelpersTests` but **never committed**. Server agent authored `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/PresenceStatusHelpers.cs` (`GetCssClass` / `GetLabel` / `ToStatusString`, namespace `DotNetCloud.Modules.Chat.UI`) reconstructed from the test contract + `PresenceState`; Chat module then built **0 warnings / 0 errors**. The server agent **committed** it so the branch builds for the monolith E2E.
+- ✓ **Build/deploy:** all **15 targets succeeded** (Core.Server + 14 module hosts + CLI); elapsed 481 s; hash verification passed for `DotNetCloud.Core.Server.dll` + all 14 module host DLLs.
+- ✓ **Health:** `/health/ready` → **Healthy** (`startup`, `database`, `linux-resources` Healthy; `modules-aggregate`: **14 module(s) — all healthy**).
+- ✓ **Commit marker:** `/opt/dotnetcloud/server/.last-deploy-commit` = `72e401d157f47e801be7b9432c040d2103d38422`; installed version `0.6.04`.
+- ✓ **Presence code deployed:** deployed `DotNetCloud.Core.Server.dll` contains `PresenceActivityMonitor`, `PresenceChangePublisher`, `PresenceStateChanged`, `UserPresence` (verified via `strings -e l`); deployed DLL md5 identical to build output (`f94667c668576f0c9adb4004a43f3868`).
+- ✓ **Migrations:** none pending (`Core database is up to date`); all module schemas initialized. Seed-only `PresenceIdleTimeoutMinutes` handled idempotently at startup (no migration).
+- ✓ **Tests:** `DotNetCloud.Modules.Chat.Tests` → **1406 passed / 0 failed** (incl. 19 `PresenceStatusHelpersTests`); `DotNetCloud.Core.Server.Tests` → **725 passed / 0 failed / 2 skipped** (Linux-only `OnNonLinux` tests; the previously-noted `ProgramRootCa` failure did **not** occur).
+- ✓ **Heartbeat fix live:** deployed `appsettings.json` `SignalR.ClientTimeoutSeconds` = **300** (was 30). Fresh log (`dotnetcloud-20260909_005.log`) shows normal presence transitions (2 online / 1 offline, real users) with **no timeout/keepalive disconnect warnings and no ~31 s reconnect churn**.
+- ✓ **Operator browser E2E (2026-09-09):** **green ✓, red ✓, gray ✓** confirmed in the browser. **Yellow (idle) not yet observed**, and the Android cross-client checks are unfinished → **handed back to monolith** (see "What to do (client agent — monolith)" below).
+
+### What to do (client agent — monolith): finish the Android + idle (yellow) E2E
+
+Server side is done and deployed on `cloud.kimball.home` (see verification record above). Browser half **green ✓ / red ✓ / gray ✓**; Android green + cold-start snapshot **✓** (incl. the `f1d45f07` cold-start race fix). Remaining work is the idle/yellow window + the remaining cross-device checks:
+
+1. `git pull` — branch `fix/android-improvements`. Note: the server agent committed the previously-missing `PresenceStatusHelpers.cs` (branch did not build without it), so a fresh build is required.
+2. Android `.apk` is already installed on the phone (Samsung `R5CWC356B2K`), signed in to `https://cloud.dotnetcloud.net/`.
+3. Complete the remaining checklist items below: **idle → yellow** (temporarily set Admin Settings → "Online indicators" to **1 min**); cross-client DND **both** directions; member-row 4-state dots; admin idle-timeout applies ≤30 s.
+4. Confirm the ~31 s SignalR reconnect churn is gone on Android (server `SignalR.ClientTimeoutSeconds` is now **300**).
+5. Record the results, and hand any client-side fixes / the final verdict back to the server agent + operator.
+
 ### Live E2E checklist (operator, two users — web + Android on device) — plan §9
-- ✅ **Green while interacting** — verified on-device (Samsung `R5CWC356B2K`): Test Dude online → phone DM dot **green**; other peers gray; channel rows show **no dot** (DM-only layout correct).
-- ✅ **Live event path** — logcat: `SignalRChatClient: UserPresence userId=019f11a9… status=Online` received over the deployed server.
-- ✅ **Snapshot path** — verified after a cold start using Test Dude online with NO live event since launch → dot still green (snapshot `GetPresenceStatusAsync` returns statuses).
-  - 🔧 **Bug found + fixed on-device (`c17c7fa3` + follow-up):** on cold start the DM-dot seed ran ~0.5 s **before** the CoreHub connection completed, so the snapshot returned an empty dict and every DM dot stayed gray until a live event happened to arrive. `SignalRChatClient.GetPresenceStatusAsync` now waits (~6 s, bounded) for the hub to connect before querying. No server change required — **no redeploy needed** for this fix.
-- ☐ Set idle threshold temporarily to **1 min** via Admin Settings → "Online indicators" → one user goes idle → their dot turns **yellow** in the other client (no disconnect); interaction returns it to **green**.
-- ☐ Enable DND from Blazor (top-bar toggle) → Android sees **red**; disable → green/yellow. Repeat from Android Settings (DND) → Blazor sees red.
-- ☐ Close the browser tab → peer shows **yellow** during the ~2–3 min relay/circuit retention, then **gray**.
-- ☐ Admin change to `PresenceIdleTimeoutMinutes` applies within ≤30 s (no restart).
-- ☐ Android + web channel-details member rows show the 4-state dots and update live.
+
+**Operator browser run (2026-09-09):** ✓ green · ✓ red · ✓ gray; ⏳ yellow (idle) not yet observed.
+**Android on-device run (monolith, 2026-09-09):** ✓ green (live event + cold-start snapshot); cold-start gray-dot bug found + fixed.
+
+- ✅ **Green while interacting** — **browser ✓**. Android on-device (Samsung `R5CWC356B2K`): Test Dude online → phone DM dot **green**; other peers gray; channel rows show **no dot** (DM-only layout correct).
+- ✅ **Android live event path** — logcat: `SignalRChatClient: UserPresence userId=019f11a9… status=Online` received over the deployed server.
+- ✅ **Android snapshot path** — verified after a cold start using Test Dude online with NO live event since launch → dot still green (snapshot `GetPresenceStatusAsync` returns statuses).
+  - 🔧 **Bug found + fixed on-device (`f1d45f07`):** on cold start the DM-dot seed ran ~0.5 s **before** the CoreHub connection completed, so the snapshot returned an empty dict and every DM dot stayed gray until a live event happened to arrive. `SignalRChatClient.GetPresenceStatusAsync` now waits (~6 s, bounded) for the hub to connect before querying. No server change required — **no redeploy needed** for this fix.
+- ✅ **DND → red** — **browser ✓** (Blazor top-bar toggle → red).
+- ✅ **Browser tab close → gray** — **browser ✓** (after the ~2–3 min relay/circuit retention window).
+- ⏳ **Idle → yellow** — set idle threshold temporarily to **1 min** via Admin Settings → "Online indicators" → one user goes idle → their dot turns **yellow** in the other client (no disconnect); interaction returns it to **green**. *(pending — finish on monolith)*
+- ⏳ **Cross-client DND** — Blazor DND → **Android** sees red; Android Settings DND → **Blazor** sees red. *(Android direction pending)*
+- ⏳ **Admin change to `PresenceIdleTimeoutMinutes` applies within ≤30 s** (no restart).
+- ⏳ **Android + web channel-details member rows** show the 4-state dots and update live.
 
 ### Notes / non-goals
 - The prior relay-retention finding is **archived below** — intentionally not fixed (yellow represents the retention window per operator decision 2026-09-09).
