@@ -1,7 +1,8 @@
 @namespace DotNetCloud.Modules.Chat.UI
 
 @*
-    Member list panel — displays channel members grouped by role and online status.
+    Member list panel — displays channel members grouped by presence state (4-state
+    Online / Idle / Do Not Disturb / Offline) with per-member colored status dots.
     Code-behind: MemberListPanel.razor.cs
 *@
 
@@ -20,17 +21,15 @@
     }
     else
     {
-        var online = Members.Where(m => m.Status is "Online" or "Away").ToList();
-        var offline = Members.Where(m => m.Status is "Offline" or "DoNotDisturb").ToList();
-
-        @if (online.Count > 0)
+        @foreach (var (groupLabel, groupMembers) in MemberGroups)
         {
             <div class="member-group">
-                <h4 class="member-group-label">Online — @online.Count</h4>
-                @foreach (var member in online)
+                <h4 class="member-group-label">@groupLabel — @groupMembers.Count</h4>
+                @foreach (var member in groupMembers)
                 {
-                    <div class="member-item">
-                        <span class="member-status-dot online"></span>
+                    <div class="member-item @(member.Status == "Offline" ? "offline" : "")">
+                        <span class="member-status-dot @GetStatusDotClass(member.Status)"
+                              title="@PresenceStatusHelpers.GetLabel(member.Status)"></span>
                         @if (!string.IsNullOrEmpty(member.AvatarUrl))
                         {
                             <img class="member-avatar" src="@member.AvatarUrl" alt="@member.DisplayName" />
@@ -44,57 +43,6 @@
                         {
                             <span class="member-role @(member.Role == "Owner" ? "member-role-owner" : "member-role-admin")">@member.Role</span>
                         }
-
-                        @if (member.UserId != CurrentUserId)
-                        {
-                            <div class="member-call-actions">
-                                <button class="btn btn-sm btn-icon" @onclick="() => OnAudioCallUser.InvokeAsync(member.UserId)" disabled="@IsChannelMuted" title="@(IsChannelMuted ? "Unmute channel to place calls" : $"Audio call {member.DisplayName}")">📞</button>
-                                <button class="btn btn-sm btn-icon" @onclick="() => OnVideoCallUser.InvokeAsync(member.UserId)" disabled="@IsChannelMuted" title="@(IsChannelMuted ? "Unmute channel to place calls" : $"Video call {member.DisplayName}")">📹</button>
-                                <button class="btn btn-sm btn-icon btn-block-call" @onclick="() => ToggleBlockUser(member.UserId)" title="@(IsUserBlocked(member.UserId) ? "Unblock calls from this user" : "Block calls from this user")">
-                                    @(IsUserBlocked(member.UserId) ? "✅" : "🚫")
-                                </button>
-                            </div>
-                        }
-
-                        @if (CanManageMembers)
-                        {
-                            <div class="member-actions">
-                                @if (member.Role == "Member")
-                                {
-                                    <button class="btn btn-sm" @onclick="() => Promote(member)">Promote</button>
-                                }
-                                else if (member.Role == "Admin")
-                                {
-                                    <button class="btn btn-sm" @onclick="() => Demote(member)">Demote</button>
-                                }
-                                @if (member.Role != "Owner")
-                                {
-                                    <button class="btn btn-sm btn-danger" @onclick="() => Remove(member)">Remove</button>
-                                }
-                            </div>
-                        }
-                    </div>
-                }
-            </div>
-        }
-
-        @if (offline.Count > 0)
-        {
-            <div class="member-group">
-                <h4 class="member-group-label">Offline — @offline.Count</h4>
-                @foreach (var member in offline)
-                {
-                    <div class="member-item offline">
-                        <span class="member-status-dot offline"></span>
-                        @if (!string.IsNullOrEmpty(member.AvatarUrl))
-                        {
-                            <img class="member-avatar" src="@member.AvatarUrl" alt="@member.DisplayName" />
-                        }
-                        else
-                        {
-                            <span class="member-avatar-placeholder">@GetInitials(member.DisplayName)</span>
-                        }
-                        <button class="member-name-button" @onclick="() => ShowProfile(member)">@member.DisplayName</button>
 
                         @if (member.UserId != CurrentUserId)
                         {
@@ -135,7 +83,7 @@
                 <button class="btn btn-sm" @onclick="HideProfile">Close</button>
             </div>
             <div class="profile-row">Role: @SelectedMember.Role</div>
-            <div class="profile-row">Status: @SelectedMember.Status</div>
+            <div class="profile-row">Status: @PresenceStatusHelpers.GetLabel(SelectedMember.Status)</div>
             @if (!string.IsNullOrWhiteSpace(SelectedMember.Username))
             {
                 <div class="profile-row">Handle: @($"@@{SelectedMember.Username}")</div>

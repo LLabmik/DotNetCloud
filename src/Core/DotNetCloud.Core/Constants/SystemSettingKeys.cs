@@ -137,4 +137,28 @@ public static class SystemSettingKeys
     /// <b>Effect:</b> The admin UI shows a "restart to activate keys" banner while set.
     /// </remarks>
     public const string OidcKeysPendingRestart = "OidcKeysPendingRestart";
+
+    // ──────────────────────────────────────────────
+    //  Presence Settings
+    // ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Setting key for the presence idle threshold in minutes. A connected user with no real
+    /// interaction for at least this long is shown as <c>Away</c> (yellow); any real interaction
+    /// returns them to <c>Online</c> (green). Read at runtime by the presence activity monitor
+    /// (≤30 s propagation, no restart).
+    /// </summary>
+    /// <remarks>
+    /// <b>Module:</b> <see cref="CoreModule"/><br/>
+    /// <b>Type:</b> <c>int</c> minutes, clamped 1–60<br/>
+    /// <b>Default:</b> <c>"3"</c><br/>
+    /// <b>Effect:</b> Controls how quickly a connected-but-inactive user's presence dot turns
+    /// yellow for their peers.
+    /// </remarks>
+    public const string PresenceIdleTimeoutMinutes = "PresenceIdleTimeoutMinutes";
+
+    /// <summary>
+    /// Default value for <see cref="PresenceIdleTimeoutMinutes"/>.
+    /// </summary>
+    public const string PresenceIdleTimeoutMinutesDefault = "3";
 }

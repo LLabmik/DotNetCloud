@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using DotNetCloud.Core.Capabilities;
+using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Server.RealTime;
 using DotNetCloud.Core.Services.ModuleApis;
@@ -65,7 +66,7 @@ public class CoreHubTests
         await hub.OnConnectedAsync();
 
         notifierMock.Verify(m => m.NotifyUserPresenceChanged(
-            It.Is<UserPresenceChangedNotification>(n => n.UserId == userId && n.IsOnline)),
+            It.Is<UserPresenceChangedNotification>(n => n.UserId == userId && n.Status == PresenceState.Online)),
             Times.Once);
     }
 
@@ -104,7 +105,7 @@ public class CoreHubTests
         await hub.OnDisconnectedAsync(exception: null);
 
         notifierMock.Verify(m => m.NotifyUserPresenceChanged(
-            It.Is<UserPresenceChangedNotification>(n => n.UserId == userId && !n.IsOnline)),
+            It.Is<UserPresenceChangedNotification>(n => n.UserId == userId && n.Status == PresenceState.Offline)),
             Times.Once);
     }
 
@@ -130,14 +131,17 @@ public class CoreHubTests
     }
 
     [TestMethod]
-    public async Task GetPresenceStatusAsync_ReturnsOnlineStatusForRequestedUsers()
+    public async Task GetPresenceStatusAsync_ReturnsStatesForRequestedUsers()
     {
         var online = Guid.CreateVersion7();
+        var dnd = Guid.CreateVersion7();
         var offline = Guid.CreateVersion7();
         var tracker = new UserConnectionTracker();
         tracker.AddConnection(online, "conn-online");
+        tracker.AddConnection(dnd, "conn-dnd");
 
         var presence = new PresenceService(tracker, NullLogger<PresenceService>.Instance);
+        presence.CacheDoNotDisturb(dnd, enabled: true);
         var hub = CreateHub(
             tracker,
             presence,
@@ -145,12 +149,13 @@ public class CoreHubTests
             Guid.CreateVersion7(),
             "conn-caller");
 
-        var result = await hub.GetPresenceStatusAsync([online, offline]);
+        var result = await hub.GetPresenceStatusAsync([online, dnd, offline]);
 
         Assert.IsNotNull(result);
-        Assert.AreEqual(2, result.Count);
-        Assert.IsTrue(result[online]);
-        Assert.IsFalse(result[offline]);
+        Assert.AreEqual(3, result.Count);
+        Assert.AreEqual(PresenceState.Online, result[online]);
+        Assert.AreEqual(PresenceState.DoNotDisturb, result[dnd]);
+        Assert.AreEqual(PresenceState.Offline, result[offline]);
     }
 
     [TestMethod]
@@ -187,6 +192,62 @@ public class CoreHubTests
             () => hub.GetPresenceStatusAsync(null!));
     }
 
+    [TestMethod]
+    public async Task PingAsync_ReportsActivity_FlipsIdleUserBackToOnline()
+    {
+        var userId = Guid.CreateVersion7();
+        var tracker = new UserConnectionTracker();
+        var time = new MutableTimeProvider();
+        var presence = new PresenceService(tracker, NullLogger<PresenceService>.Instance, timeProvider: time);
+        presence.UpdateIdleThreshold(TimeSpan.FromMinutes(1));
+        var notifierMock = new Mock<IChatMessageNotifier>();
+
+        tracker.AddConnection(userId, "conn-1");
+        await presence.UserConnectedAsync(userId, "conn-1");
+
+        // Go idle past the threshold, then ping (real activity) and expect an online transition.
+        time.Advance(TimeSpan.FromMinutes(2));
+        await presence.RecomputeAsync(userId);
+        Assert.AreEqual(PresenceState.Away, presence.GetDisplayState(userId));
+
+        PresenceState? raised = null;
+        presence.PresenceStateChanged += (_, state) => raised = state;
+
+        var hub = CreateHub(tracker, presence, notifierMock, userId, "conn-1");
+        await hub.PingAsync();
+
+        Assert.AreEqual(PresenceState.Online, presence.GetDisplayState(userId));
+        Assert.AreEqual(PresenceState.Online, raised, "PingAsync (activity) should raise the state-changed event");
+    }
+
+    [TestMethod]
+    public async Task OnConnectedAsync_FirstConnection_BroadcastsUserPresenceWithStatus()
+    {
+        var userId = Guid.CreateVersion7();
+        var tracker = new UserConnectionTracker();
+        var presence = new PresenceService(tracker, NullLogger<PresenceService>.Instance);
+        var notifierMock = new Mock<IChatMessageNotifier>();
+
+        var othersProxy = new Mock<IClientProxy>();
+        othersProxy
+            .Setup(p => p.SendCoreAsync(It.IsAny<string>(), It.IsAny<object?[]>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var hub = CreateHub(tracker, presence, notifierMock, userId, "conn-1");
+        var clients = new Mock<IHubCallerClients>();
+        clients.SetupGet(c => c.Others).Returns(othersProxy.Object);
+        hub.Clients = clients.Object;
+        hub.Groups = new StubGroupManager();
+
+        await hub.OnConnectedAsync();
+
+        othersProxy.Verify(p => p.SendCoreAsync(
+            "UserPresence",
+            It.Is<object?[]>(a => a.Length == 1 && a[0] != null),
+            It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
     private static CoreHub CreateHub(
         UserConnectionTracker tracker,
         PresenceService presence,
@@ -215,6 +276,18 @@ public class CoreHubTests
         hub.Clients = clients.Object;
         hub.Groups = new StubGroupManager();
         return hub;
+    }
+
+    /// <summary>
+    /// A simple controllable <see cref="TimeProvider"/> for deterministic idle/away tests.
+    /// </summary>
+    private sealed class MutableTimeProvider : TimeProvider
+    {
+        private DateTimeOffset _utcNow = DateTimeOffset.UtcNow;
+
+        public override DateTimeOffset GetUtcNow() => _utcNow;
+
+        public void Advance(TimeSpan delta) => _utcNow += delta;
     }
 }
 

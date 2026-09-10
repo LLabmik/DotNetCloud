@@ -534,12 +534,13 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         InvokeAsync(() =>
         {
             var changed = false;
+            var statusString = PresenceStatusHelpers.ToStatusString(notification.Status);
 
             // Update member list
             var member = _members.FirstOrDefault(m => m.UserId == notification.UserId);
             if (member is not null)
             {
-                member.Status = notification.IsOnline ? "Online" : "Offline";
+                member.Status = statusString;
                 changed = true;
             }
 
@@ -551,7 +552,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
                     var channel = _channels.FirstOrDefault(c => c.Id == channelId);
                     if (channel is not null)
                     {
-                        channel.PresenceStatus = notification.IsOnline ? "Online" : "Offline";
+                        channel.PresenceStatus = statusString;
                         changed = true;
                     }
                 }
@@ -1410,14 +1411,14 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
             _members = members.Select(ToMemberViewModel).ToList();
 
-            // Query actual presence status for all members
+            // Query actual 4-state presence for all members
             var memberIds = _members.Select(m => m.UserId).ToList();
-            var onlineStatus = await PresenceTracker.GetOnlineStatusAsync(memberIds);
+            var presenceStates = await PresenceTracker.GetOnlineStatusAsync(memberIds);
             foreach (var member in _members)
             {
-                if (onlineStatus.TryGetValue(member.UserId, out var isOnline) && isOnline)
+                if (presenceStates.TryGetValue(member.UserId, out var state))
                 {
-                    member.Status = "Online";
+                    member.Status = PresenceStatusHelpers.ToStatusString(state);
                 }
             }
 
@@ -2203,18 +2204,17 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             }
         }
 
-        // Query presence for DM peers
+        // Query 4-state presence for DM peers
         var peerIds = dmToOtherUser.Values.Distinct().ToList();
         if (peerIds.Count > 0)
         {
-            var onlineStatus = await PresenceTracker.GetOnlineStatusAsync(peerIds);
+            var presenceStates = await PresenceTracker.GetOnlineStatusAsync(peerIds);
             foreach (var dm in dmChannels)
             {
                 if (dmToOtherUser.TryGetValue(dm.Id, out var peerId)
-                    && onlineStatus.TryGetValue(peerId, out var isOnline)
-                    && isOnline)
+                    && presenceStates.TryGetValue(peerId, out var state))
                 {
-                    dm.PresenceStatus = "Online";
+                    dm.PresenceStatus = PresenceStatusHelpers.ToStatusString(state);
                 }
             }
         }

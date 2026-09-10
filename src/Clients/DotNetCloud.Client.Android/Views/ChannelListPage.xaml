@@ -175,12 +175,12 @@
                                     VerticalOptions="Center"
                                     Spacing="8">
 
-                                    <!-- Presence dot — green when the DM peer is online,
-                                         gray when offline. Visible only for DirectMessage rows;
-                                         channel/group rows are unaffected. -->
+                                    <!-- Presence dot — 4-state (green online / yellow idle /
+                                         red DND / gray offline). Visible only for DirectMessage
+                                         rows; channel/group rows are unaffected. -->
                                     <Ellipse
                                         IsVisible="{Binding IsDirectMessage}"
-                                        Fill="{Binding IsOnline, Converter={StaticResource OnlineStatusToColor}}"
+                                        Fill="{Binding PresenceStatus, Converter={StaticResource OnlineStatusToColor}}"
                                         HeightRequest="9"
                                         WidthRequest="9"
                                         VerticalOptions="Center"/>

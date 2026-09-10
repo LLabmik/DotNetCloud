@@ -73,15 +73,17 @@ internal sealed class CoreHub : Hub
 
         if (isFirstConnection)
         {
-            await _presenceService.UserConnectedAsync(userId, connectionId);
+            // Seeds presence (Online, or DoNotDisturb when the user has DND enabled) and
+            // returns the display state so the broadcast below carries the correct status.
+            var state = await _presenceService.UserConnectedAsync(userId, connectionId);
 
-            // Notify other clients that this user is now online
-            await Clients.Others.SendAsync("UserOnline", new { UserId = userId, Timestamp = DateTime.UtcNow });
+            // Notify other clients of this user's (derived) presence state.
+            await Clients.Others.SendAsync("UserPresence", new { UserId = userId, Status = state, Timestamp = DateTime.UtcNow });
 
             // Notify in-process subscribers (Blazor circuits) so their presence dots
             // and member lists update immediately when this user comes online.
             _chatMessageNotifier?.NotifyUserPresenceChanged(
-                new UserPresenceChangedNotification(userId, IsOnline: true));
+                new UserPresenceChangedNotification(userId, state));
         }
 
         await base.OnConnectedAsync();
@@ -103,15 +105,15 @@ internal sealed class CoreHub : Hub
 
             if (isLastConnection)
             {
-                await _presenceService.UserDisconnectedAsync(userId, connectionId);
+                var state = await _presenceService.UserDisconnectedAsync(userId, connectionId);
 
-                // Notify other clients that this user is now offline
-                await Clients.Others.SendAsync("UserOffline", new { UserId = userId, Timestamp = DateTime.UtcNow });
+                // Notify other clients of this user's (derived) presence state (Offline).
+                await Clients.Others.SendAsync("UserPresence", new { UserId = userId, Status = state, Timestamp = DateTime.UtcNow });
 
                 // Notify in-process subscribers (Blazor circuits) so their presence dots
                 // and member lists update immediately when this user goes offline.
                 _chatMessageNotifier?.NotifyUserPresenceChanged(
-                    new UserPresenceChangedNotification(userId, IsOnline: false));
+                    new UserPresenceChangedNotification(userId, state));
             }
         }
 
@@ -254,25 +256,26 @@ internal sealed class CoreHub : Hub
     }
 
     /// <summary>
-    /// Pings the server to keep the connection alive and update presence.
-    /// Clients can call this periodically to signal activity.
+    /// Reports genuine user activity for the calling user, resetting their idle clock.
+    /// Activity clients invoke this (throttled) on real interaction; a previously idle
+    /// (<see cref="PresenceState.Away"/>) user is pushed back to green for peers.
     /// </summary>
     public async Task PingAsync()
     {
         var userId = GetUserId();
-        await _presenceService.UpdateLastSeenAsync(userId);
+        await _presenceService.ReportActivityAsync(userId);
     }
 
     /// <summary>
-    /// Returns the current online/offline presence for the requested user IDs.
+    /// Returns the derived 4-state presence for the requested user IDs.
     /// Presence is global: a user is online with any active connection
     /// (a Blazor circuit or a CoreHub connection). This is the wire equivalent of
     /// <see cref="PresenceService.GetOnlineStatusAsync"/> used by Blazor in-process,
     /// letting remote native clients seed presence dots without waiting for an event.
     /// </summary>
     /// <param name="userIds">The user IDs to query. Only these IDs' presence is revealed.</param>
-    /// <returns>A dictionary keyed by user ID indicating whether each user is currently online.</returns>
-    public async Task<IReadOnlyDictionary<Guid, bool>> GetPresenceStatusAsync(IReadOnlyList<Guid> userIds)
+    /// <returns>A dictionary keyed by user ID of the user's current presence state.</returns>
+    public async Task<IReadOnlyDictionary<Guid, PresenceState>> GetPresenceStatusAsync(IReadOnlyList<Guid> userIds)
     {
         ArgumentNullException.ThrowIfNull(userIds);
         return await _presenceService.GetOnlineStatusAsync(userIds).ConfigureAwait(false);

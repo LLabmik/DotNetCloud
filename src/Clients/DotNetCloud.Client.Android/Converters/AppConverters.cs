@@ -96,15 +96,32 @@ public sealed class MentionToBadgeColorConverter : IValueConverter
         throw new NotSupportedException();
 }
 
-/// <summary>Returns a green color when online, gray when offline.</summary>
+/// <summary>
+/// Maps a 4-state presence value to its dot color. Accepts a canonical status string
+/// ("Online", "Away", "DoNotDisturb", "Offline") or a legacy <see cref="bool"/> (online/offline).
+/// </summary>
 public sealed class OnlineStatusToColorConverter : IValueConverter
 {
     private static readonly SolidColorBrush OnlineBrush = new(Color.FromArgb("#22C55E"));
-    private static readonly SolidColorBrush OfflineBrush = new(Color.FromArgb("#475569"));
+    private static readonly SolidColorBrush AwayBrush = new(Color.FromArgb("#EAB308"));
+    private static readonly SolidColorBrush DoNotDisturbBrush = new(Color.FromArgb("#EF4444"));
+    private static readonly SolidColorBrush OfflineBrush = new(Color.FromArgb("#64748B"));
 
     /// <inheritdoc />
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
-        value is true ? OnlineBrush : OfflineBrush;
+        value switch
+        {
+            true => OnlineBrush,
+            false => OfflineBrush,
+            string status => status.Trim() switch
+            {
+                "Online" => OnlineBrush,
+                "Away" => AwayBrush,
+                "DoNotDisturb" => DoNotDisturbBrush,
+                _ => OfflineBrush
+            },
+            _ => OfflineBrush
+        };
 
     /// <inheritdoc />
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>

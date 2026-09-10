@@ -191,4 +191,19 @@ public partial class ChannelHeader : ComponentBase
         Channel.IsMuted = !Channel.IsMuted;
         await OnMuteChanged.InvokeAsync((Channel.Id, Channel.IsMuted));
     }
+
+    /// <summary>
+    /// Maps the DM peer's presence status to the header dot CSS modifier
+    /// (<c>online</c>, <c>away</c>, <c>dnd</c>, or <c>offline</c>).
+    /// </summary>
+    protected static string GetPresenceModifier(string? status)
+    {
+        return status?.Trim().ToLowerInvariant() switch
+        {
+            "online" => "online",
+            "away" => "away",
+            "donotdisturb" => "dnd",
+            _ => "offline"
+        };
+    }
 }

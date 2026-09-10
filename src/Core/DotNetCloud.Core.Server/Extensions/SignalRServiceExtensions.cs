@@ -41,9 +41,21 @@ internal static class SignalRServiceExtensions
         // Register connection tracking (singleton for cross-request state)
         services.AddSingleton<UserConnectionTracker>();
 
-        // Register presence service (singleton, wraps connection tracker + last-seen state)
+        // Register presence service (singleton, wraps connection tracker + last-seen state).
+        // PresenceService resolves the persisted DND preference at connect via the singleton
+        // ChatDbContext factory (registered in Program.cs), so no scoped-from-singleton trap.
         services.AddSingleton<PresenceService>();
         services.AddSingleton<IPresenceTracker>(sp => sp.GetRequiredService<PresenceService>());
+
+        // Fan derived presence transitions (idle sweep / activity / DND) out to CoreHub
+        // clients + in-process Blazor subscribers. Hosted so it subscribes at startup.
+        services.AddSingleton<PresenceChangePublisher>();
+        services.AddHostedService(sp => sp.GetRequiredService<PresenceChangePublisher>());
+
+        // Idle sweep monitor: reads the admin idle threshold at runtime and recomputes each
+        // online user's display state so green → yellow (and back) needs no client heartbeat.
+        services.AddSingleton<PresenceActivityMonitor>();
+        services.AddHostedService(sp => sp.GetRequiredService<PresenceActivityMonitor>());
 
         // Register broadcaster (singleton, uses IHubContext which is also singleton)
         services.AddSingleton<RealtimeBroadcasterService>();

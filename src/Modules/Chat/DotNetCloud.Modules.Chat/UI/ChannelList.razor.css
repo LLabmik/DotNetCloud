@@ -227,15 +227,19 @@
 }
 
 .presence-online {
-  background-color: #16a34a;
+  background-color: #22c55e;
 }
 
 .presence-away {
-  background-color: #d97706;
+  background-color: #eab308;
+}
+
+.presence-dnd {
+  background-color: #ef4444;
 }
 
 .presence-offline {
-  background-color: #6b7280;
+  background-color: #64748b;
 }
 
 /* --- Pinned Channel Drag & Drop --- */

@@ -51,11 +51,14 @@ internal sealed record TypingIndicatorPayload(
     [property: JsonPropertyName("displayName")] string? DisplayName = null);
 
 /// <summary>
-/// Server payload for presence broadcasts: { userId, timestamp } (camelCase).
-/// Both web (Blazor circuit) and native CoreHub presence transitions use the same shape.
+/// Server payload for presence broadcasts: { userId, status, timestamp } (camelCase).
+/// The single <c>UserPresence</c> event carries the user's derived 4-state status
+/// ("Online" / "Away" / "DoNotDisturb" / "Offline"). Both web (Blazor circuit) and
+/// native CoreHub presence transitions use the same shape.
 /// </summary>
-internal sealed record PresenceEventPayload(
+internal sealed record PresenceStatePayload(
     [property: JsonPropertyName("userId")] Guid UserId,
+    [property: JsonPropertyName("status")] string Status,
     [property: JsonPropertyName("timestamp")] DateTime Timestamp);
 
 /// <summary>
@@ -162,23 +165,17 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
             OnChatTyping?.Invoke(this, new ChatTypingEventArgs(payload.ChannelId, payload.UserId, payload.DisplayName));
         });
 
-        // Presence broadcasts are emitted by the server when a user's FIRST connection opens
-        // or LAST connection closes — covering both native CoreHub connections AND web
-        // (Blazor circuit) users, so remote clients see web peers' presence correctly.
-        _hub.On<PresenceEventPayload>("UserOnline", payload =>
+        // Presence broadcasts are emitted by the server on every derived 4-state transition
+        // (first/last connection, idle sweep Online ↔ Away, DND toggles) — covering both native
+        // CoreHub connections AND web (Blazor circuit) users, so remote clients see web peers'
+        // presence correctly.
+        _hub.On<PresenceStatePayload>("UserPresence", payload =>
         {
+            var status = NormalizePresenceStatus(payload.Status);
 #if ANDROID
-            Log.Info("DotNetCloud", $"SignalRChatClient: UserOnline userId={payload.UserId}");
+            Log.Info("DotNetCloud", $"SignalRChatClient: UserPresence userId={payload.UserId} status={status}");
 #endif
-            OnUserPresenceChanged?.Invoke(this, new UserPresenceChangedEventArgs(payload.UserId, IsOnline: true));
-        });
-
-        _hub.On<PresenceEventPayload>("UserOffline", payload =>
-        {
-#if ANDROID
-            Log.Info("DotNetCloud", $"SignalRChatClient: UserOffline userId={payload.UserId}");
-#endif
-            OnUserPresenceChanged?.Invoke(this, new UserPresenceChangedEventArgs(payload.UserId, IsOnline: false));
+            OnUserPresenceChanged?.Invoke(this, new UserPresenceChangedEventArgs(payload.UserId, status));
         });
 
         _hub.On<NewMessagePayload>("NewMessage", payload =>
@@ -477,35 +474,36 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyDictionary<Guid, bool>> GetPresenceStatusAsync(
+    public async Task<IReadOnlyDictionary<Guid, string>> GetPresenceStatusAsync(
         IReadOnlyList<Guid> userIds,
         CancellationToken ct = default)
     {
         if (userIds is null || userIds.Count == 0)
-            return new Dictionary<Guid, bool>();
+            return new Dictionary<Guid, string>();
 
         if (_hub?.State is not HubConnectionState.Connected)
         {
             _logger.LogDebug("Cannot query presence: hub not connected (state={State}).", _hub?.State);
-            return new Dictionary<Guid, bool>();
+            return new Dictionary<Guid, string>();
         }
 
         try
         {
-            // The server method is GetPresenceStatusAsync(IReadOnlyList<Guid>). Sending the
-            // IDs as GUID strings round-trips cleanly through the JSON wire protocol.
-            var result = await _hub.InvokeAsync<Dictionary<string, bool>>(
+            // The server method is GetPresenceStatusAsync(IReadOnlyList<Guid>) and returns a
+            // Guid→PresenceState dictionary serialized as Guid-string keys + enum-name values.
+            // Sending the IDs as GUID strings round-trips cleanly through the JSON wire protocol.
+            var result = await _hub.InvokeAsync<Dictionary<string, string>>(
                 "GetPresenceStatusAsync",
                 userIds.Select(id => id.ToString()).ToList(),
                 ct).ConfigureAwait(false);
 
-            var mapped = new Dictionary<Guid, bool>(result?.Count ?? 0);
+            var mapped = new Dictionary<Guid, string>(result?.Count ?? 0);
             if (result is not null)
             {
-                foreach (var (key, online) in result)
+                foreach (var (key, status) in result)
                 {
                     if (Guid.TryParse(key, out var guid))
-                        mapped[guid] = online;
+                        mapped[guid] = NormalizePresenceStatus(status);
                 }
             }
 
@@ -514,8 +512,41 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to query presence status for {Count} users.", userIds.Count);
-            return new Dictionary<Guid, bool>();
+            return new Dictionary<Guid, string>();
         }
+    }
+
+    /// <inheritdoc />
+    public async Task ReportActivityAsync(CancellationToken ct = default)
+    {
+        if (_hub?.State is not HubConnectionState.Connected)
+        {
+            return;
+        }
+
+        try
+        {
+            await _hub.InvokeAsync("PingAsync", ct).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to report presence activity to CoreHub");
+        }
+    }
+
+    /// <summary>
+    /// Normalizes a presence status value to one of the four canonical status strings,
+    /// defaulting to <c>"Offline"</c> for absent/unknown values.
+    /// </summary>
+    private static string NormalizePresenceStatus(string? status)
+    {
+        return status?.Trim() switch
+        {
+            "Online" => "Online",
+            "Away" => "Away",
+            "DoNotDisturb" => "DoNotDisturb",
+            _ => "Offline"
+        };
     }
 
     /// <inheritdoc />

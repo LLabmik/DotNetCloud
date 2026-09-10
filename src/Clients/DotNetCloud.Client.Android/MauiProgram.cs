@@ -66,6 +66,9 @@ public static class MauiProgram
         // ── Chat / real-time (single shared CoreHub connection) ─────
         builder.Services.AddSingleton<ICoreHubClient, SignalRChatClient>();
         builder.Services.AddSingleton<IChatSignalRClient>(sp => sp.GetRequiredService<ICoreHubClient>());
+        // Reports genuine user interaction (platform touch/key events, resume) to CoreHub so
+        // the user's presence stays green while they actively use the app.
+        builder.Services.AddSingleton<IActivityReporter, PresenceActivityReporter>();
         builder.Services.AddSingleton<ICalendarSignalRClient, CalendarSignalRClient>();
         builder.Services.AddHttpClient<IChatRestClient, HttpChatRestClient>()
             .AddHttpMessageHandler<TimeoutHandler>()

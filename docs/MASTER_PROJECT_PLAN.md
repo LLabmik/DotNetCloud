@@ -12,7 +12,7 @@
 
 ---
 
-> **Recent feature work (2026-09-08):** Share Dialog Unification + Team Shares across Files/Notes/Photos/Contacts/Calendar is tracked in `docs/SHARE_DIALOG_UNIFICATION_AND_TEAM_SHARES_PLAN.md` (branch `fix/sharing`). Phases 0–6 implemented (build + tests green); Phase 7 live end-to-end verification is pending before commit.
+> **Recent feature work (2026-09-09):** Presence indicators are upgraded to **4-state** (Online / Idle / Do-Not-Disturb / Offline) — server + Blazor + Android code implemented and unit-tested on `fix/android-improvements` (`docs/PRESENCE_DOTS_4STATE_PLAN.md`); live cross-device E2E pending deploy to `cloud.kimball.home`. Share Dialog Unification + Team Shares (`docs/SHARE_DIALOG_UNIFICATION_AND_TEAM_SHARES_PLAN.md`, branch `fix/sharing`) Phases 0–6 implemented (build + tests green); Phase 7 live E2E pending.
 
 ## Quick Status Summary
 
