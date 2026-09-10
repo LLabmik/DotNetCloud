@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-09-09 (DM presence-dots — server agent verified `f566369c` IS deployed + live on cloud, but prompt-offline is STILL delayed; root cause = per-circuit `RealtimeNotificationClient` relay holds web presence until circuit disposal. Plan `docs/ANDROID_CHAT_PRESENCE_DOTS_PLAN.md`; see Active Handoff.)
+Last updated: 2026-09-09 (Presence indicators → **4-state** Online/Away/Do-Not-Disturb/Offline — full-stack code committed on `fix/android-improvements` at `c17c7fa3`; server + Blazor + Admin changes are ready to deploy to `cloud.kimball.home` and require the live E2E in the Active Handoff. Plan `docs/PRESENCE_DOTS_4STATE_PLAN.md`; see Active Handoff.)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -16,7 +16,7 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
-- **Current active branch:** `fix/android-improvements` (Android Chat DM presence dots — server deploy to `cloud.kimball.home`; plan `docs/ANDROID_CHAT_PRESENCE_DOTS_PLAN.md`)
+- **Current active branch:** `fix/android-improvements` (Presence 4-state — server deploy to `cloud.kimball.home`; plan `docs/PRESENCE_DOTS_4STATE_PLAN.md`)
 - **Still pending (mint22, dev):** `feature/module-widgets` — Module Home Widgets (plan `docs/MODULE_WIDGETS_PLAN.md`); kept below as a deferred handoff
 
 ## Archived Handoff — SyncTray test machine: DB Outage SyncTray Simulation (plan §11.4) ✅ PASS
@@ -240,56 +240,48 @@ User requirement: "Default for forms (login, TOTP, file create name, etc.) shoul
 - Verify two flagged spots while implementing: Tracks `WorkItemAssignment.UserId` navigation property (plan §9.4) and the Email thread query location behind `ListThreadsAsync` (plan §10.4).
 - Module ids in `KnownWidgetDescriptors` must match `InstalledModules.ModuleId` exactly (plan §11.4 table).
 
-## Active Handoff — DM presence-dots: fix IS deployed but INEFFECTIVE — relay connection root cause (2026-09-09)
+## Active Handoff — Presence indicators 4-state: deploy `c17c7fa3` to `cloud.kimball.home` + live E2E (2026-09-09)
 
-**Status:** 🔴 FIX DEPLOYED BUT NOT EFFECTIVE. Server agent (cloud) verified `f566369c` **is live** (previous handoff's "not deployed" premise was wrong — a redeploy will NOT help). Yet offline is still delayed ~3–4.5 min after browser close. **Root cause identified (server-side, Core.Server only):** a web user's presence is also held by the per-circuit `RealtimeNotificationClient` server→server CoreHub connection (notification-bell relay), which is only disposed at circuit disposal (default `DisconnectedCircuitRetentionPeriod` ≈ 3 min). `f566369c`'s `OnConnectionDownAsync` removes the circuit connection promptly, but the relay keeps the user "online" until then → offline stays ~3–4.5 min late. A code fix is required (recommendation below), then deploy + re-run the offline E2E.
+**Status:** ⏳ READY TO DEPLOY. Full-stack 4-state presence (Online / Away / Do-Not-Disturb / Offline) was implemented on the monolith at the operator's request (server + Blazor + Android), unit-tested, and pushed at `c17c7fa3` on `fix/android-improvements`. The server/Blazor/Admin half is now ready to deploy; the Android half is client-only (rebuilt arm64) and will be exercised in the cross-device E2E below.
 
-### Server verification evidence (cloud agent, 2026-09-09) — the fix IS live
-- `/opt/dotnetcloud/server/.last-deploy-commit` = `f566369c9f1a…`; running Core.Server PID `2218514` started **15:59:11** (loaded `Core.Server.dll`, mtime 15:55:17).
-- Deployed `DotNetCloud.Core.Server.dll` hash `bc1ce049…` == build output; contains `PresenceCircuitHandler.OnConnectionDownAsync`/`OnConnectionUpAsync` (strings-verified).
-- `/health/ready` Healthy; 14/14 modules Running.
+> This supersedes the prior relay-delay finding (archived below): the operator **accepted** the ~2–3 min relay retention window as the new **yellow (Away)** state, so the separate "presence vs delivery connection" refactor is **NOT** in this scope.
 
-### Live E2E log evidence — post-deploy, Test Dude web user `019f11a9-a1f3-7884-adad-6a117ab162eb`
-- **16:02:25** — Blazor circuit `462e…` opened → online (`blazor-462e…`, first: True).
-- **16:02:26.192** — 2nd connection `vI2pKYlSgrwWYLef0UPNmw` connected via **CoreHub** (first: False).
-- **16:02:26.243** — `Realtime notification connection started.` (= the `RealtimeNotificationClient` relay; same second as `vI2pKY…`).
-- **16:07:01** — `vI2pKY…` disconnected (last: True) → user offline (~4.5 min after session start ≈ circuit disposal after ~3-min retention).
+### What changed (`c17c7fa3`, plan `docs/PRESENCE_DOTS_4STATE_PLAN.md`)
+- **Server (Core/Core.Data/Core.Server):** `PresenceState` enum (names over the wire); `PresenceService` derives 4-state (Offline > DoNotDisturb > Away/Online) with DND persisted-pref caching at connect, `ReportActivityAsync` (real interaction only), and a `PresenceStateChanged` event; `PresenceActivityMonitor` (30 s sweep, reads admin `PresenceIdleTimeoutMinutes` at runtime, default 3, clamp 1–60); `PresenceChangePublisher` broadcasts **`UserPresence` {UserId, Status, Timestamp}** (replaces `UserOnline`/`UserOffline`); DND→presence bridge (`PresenceAwareNotificationPreferenceStore`); SignalR `ClientTimeoutSeconds` 30→300 (fixes the Android ~31 s reconnect churn); `PresenceIdleTimeoutMinutes` seeded in `DbInitializer`.
+- **Blazor (in-process, deployed with server):** DM presence dots are now **Direct Message rows only** (Group rows no dot), 4 colors + Online/Idle/Do Not Disturb/Offline labels, DM thread-header dot+label, per-member 4-state member list, global web activity reporter (`presence-activity.js`), and a dedicated **Admin Settings → "Online indicators"** numeric field.
+- **Android (client-only):** consumes the new `UserPresence` event + status snapshot; DM + channel-details member dots are 4-state and live; touch/key presence activity reporter.
+- **Tests:** Core.Server **725 pass** (1 pre-existing `ProgramRootCaTests` fail + 1 skip — unrelated), Chat module 1406, Android 269, Core 501, Core.Data 177. Full `DotNetCloud.sln` + Android arm64 build clean (0 warnings).
 
-### Root cause
-1. A logged-in web page renders `NotificationBell` → injects scoped `IRealtimeNotificationClient` (`RealtimeNotificationClient`, Core.Server `Program.cs:670`) which opens a **server→server CoreHub connection** (`/hubs/core`, SSE/LongPolling, forwarded cookie) to receive `notification.created`.
-2. `CoreHub.OnConnectedAsync` registers it in `UserConnectionTracker` → it counts as a **presence** connection.
-3. A web user therefore holds TWO tracked connections: the Blazor circuit (`blazor-{circuit}`) + the relay.
-4. Browser close: `f566369c`'s `OnConnectionDownAsync` removes the circuit connection promptly (silent — not the last), but the relay keeps the user "online" until the circuit is disposed after retention → offline delayed ~3–4.5 min. `f566369c` is defeated by the relay.
+### Do (server agent — `cloud.kimball.home`)
+1. `git pull` (branch `fix/android-improvements` at `c17c7fa3`).
+2. Deploy: `sudo ./scripts/deploy.sh --force --verify`.
+3. Verify: `/health/ready` **Healthy**; **14/14** modules Running; `.last-deploy-commit` = `c17c7fa3`; `PresenceActivityMonitor`/`PresenceChangePublisher` present in the deployed `DotNetCloud.Core.Server.dll` (strings).
+4. No DB migration is required (seed-only change — `DbInitializer` inserts the `PresenceIdleTimeoutMinutes` row idempotently on next startup).
+5. Server-side automated checks you can run: `dotnet test tests/DotNetCloud.Core.Server.Tests/` (expect 725 pass + the known `ProgramRootCa` fail), `dotnet test tests/DotNetCloud.Modules.Chat.Tests/` (1406 pass).
+6. Confirm from server logs that **no ~31 s reconnect churn** remains for Android connections (the heartbeat fix).
 
-### Why the relay cannot simply be removed from tracking
-`RealtimeBroadcasterService.SendToUserAsync` → `_connectionTracker.GetConnections(userId)` → `Clients.Clients(ids)`. The relay's real CoreHub connection is the **only valid SignalR target** for a Blazor circuit (`blazor-{circuit}` id is synthetic, not a real CoreHub connection). Removing the relay from the tracker would break the notification bell.
+### Live E2E checklist (operator, two users — web + Android on device) — plan §9
+- ☐ Both users interact → green dots.
+- ☐ Set idle threshold temporarily to **1 min** via Admin Settings → "Online indicators" → one user goes idle → their dot turns **yellow** in the other client (no disconnect); interaction returns it to **green**.
+- ☐ Enable DND from Blazor (top-bar toggle) → Android sees **red**; disable → green/yellow. Repeat from Android Settings (DND) → Blazor sees red.
+- ☐ Close the browser tab → peer shows **yellow** during the ~2–3 min relay/circuit retention, then **gray**.
+- ☐ Admin change to `PresenceIdleTimeoutMinutes` applies within ≤30 s (no restart).
+- ☐ Android + web channel-details member rows show the 4-state dots and update live.
 
-### Recommended fix (Core.Server only; implement + unit tests, then server deploy + operator E2E)
-Separate **presence-bearing** connections (native CoreHub devices + Blazor circuits) from **delivery-only** connections (the server relay) in `UserConnectionTracker`:
-- Track presence connections separately; `AddConnection(userId, connId, isPresence)` / `RemoveConnection` / `IsOnline` / `GetOnlineUsers` / online-count operate on the presence set.
-- `GetConnections` keeps returning ALL connections (delivery to relay unchanged).
-- Mark the relay so `CoreHub` registers it as delivery-only — e.g. add `X-DotNetCloud-Relay: 1` header in `RealtimeNotificationClient`'s `HttpMessageHandlerFactory`, read in `CoreHub.OnConnectedAsync` via `Context.GetHttpContext()`.
-- Effect: web presence follows the circuit only → browser close → circuit removed → offline within seconds; bell delivery unaffected.
-- Files: `RealTime/UserConnectionTracker.cs`, `RealTime/CoreHub.cs`, `RealTime/RealtimeNotificationClient.cs`, plus tests.
-
-### Open question (confirm during next E2E)
-Whether `OnConnectionDownAsync` actually fires on browser close is not yet confirmed: the current build only logs circuit connection-lost when it is the **last** connection (silent otherwise). Add a Debug/Info log in `PresenceCircuitHandler.HandleConnectionLostAsync` for the non-last branch so the next E2E confirms. If it does NOT fire on browser close, circuit-connection removal itself must also be made prompt (relay fix alone would be insufficient).
-
-### What to do next
-1. **Feature owner (monolith/client agent):** implement the recommended fix in `src/Core/DotNetCloud.Core.Server/` + unit tests (incl.: circuit + relay present → remove circuit → user offline while relay remains online for delivery; relay still receives `notification.created`). Push to `fix/android-improvements`.
-2. **Server agent (cloud):** deploy the pushed commit (`sudo ./scripts/deploy.sh --force --verify`), verify health / 14 modules / `.last-deploy-commit` / DLL strings.
-3. **Operator:** re-run the offline E2E — close Test Dude web chat → Android/Blazor dot gray within a few seconds.
-
-### Do NOT (this pass)
-- Do NOT run DB migrations or change config/module-host code (none for this change).
+### Notes / non-goals
+- The prior relay-retention finding is **archived below** — intentionally not fixed (yellow represents the retention window per operator decision 2026-09-09).
+- No dot on Group/Public/Private **channel rows** in the sidebar (DM rows only); member rows inside a conversation keep dots.
+- RED comes from the existing per-user chat **DND** toggle only (no new status picker).
+- Android `.apk` for this branch: rebuilt arm64 (0 warnings). Install on the phone before the cross-device E2E.
 - Do NOT merge to `main` or create a PR (merge is the operator's job).
-
-### Notes
-- Non-destructive (no schema change). Android `OtherUserId` fix needs no redeploy.
-- Keep `feature/module-widgets` (mint22) untouched (deferred entry above).
-- ℹ️ Phone CoreHub connection flaps ~every 31 s (user `587d777a…`) — separate SignalR keep-alive concern; not blocking.
 - `GHSA-23fw-v26w-5fgq` `NuGetAuditSuppress` (@ `9cf5f579`) still needs a merge to `main` (operator PR).
-- Server-agent repo memory: `/memories/repo/web-presence-relay-delay.md` (full detail).
+- Keep `feature/module-widgets` (mint22) untouched (deferred entry above).
+
+---
+
+### Archived — DM presence-dots relay delay (root-caused 2026-09-09, NOT fixed by design)
+**Context:** `f566369c` was verified live on cloud but offline after browser close stayed ~3–4.5 min late. Root cause: a logged-in web page's `NotificationBell` opens a per-circuit server→server `RealtimeNotificationClient` CoreHub connection (relay) that ALSO counts as a presence connection in `UserConnectionTracker`; browser close removes the circuit promptly but the relay keeps the user "online" until circuit disposal (~3-min retention).
+**Operator decision 2026-09-09:** DO NOT refactor presence-vs-delivery connections now. The 4-state presence feature represents that ~2–3 min window as **Away (yellow)**, then gray when the connection finally drops — accepted behavior. The recommended (deferred) fix, if ever wanted: mark the relay as delivery-only in `UserConnectionTracker` (`AddConnection(userId, connId, isPresence)`), keep `GetConnections` returning all for delivery, add `X-DotNetCloud-Relay: 1` in `RealtimeNotificationClient` and read it in `CoreHub.OnConnectedAsync`. Full detail was archived from the prior Active Handoff (and in server-agent memory `/memories/repo/web-presence-relay-delay.md`).
 
 ## Moderator Communication (Minimal)
 
