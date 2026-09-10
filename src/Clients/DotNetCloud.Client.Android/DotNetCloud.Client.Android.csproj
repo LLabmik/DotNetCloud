@@ -197,7 +197,28 @@
 		 ======================== -->
 	<PropertyGroup Condition="'$(Configuration)' == 'Debug'">
 		<EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
-		<AndroidUseInterpreter>true</AndroidUseInterpreter>
+		<!-- The Mono interpreter was enabled here to skip AOT/native compilation for
+		     faster builds. It is documented as Experimental, and it resolves field and
+		     method types LAZILY on whichever thread is executing the IL. A headless
+		     (Activity-less) process start — Android restarting the chat / media-upload
+		     services — brings up SignalR, calendar reminders, the offline sync queue and
+		     the media scan on several thread-pool workers at once, so that lazy
+		     resolution collides and corrupts the runtime's assembly-name metadata:
+		       mono_field_resolve_type -> mono_class_get_checked ->
+		       mono_class_from_typeref_checked -> mono_assembly_load_reference ->
+		       mono_assembly_request_byname -> strcasecmp(<garbage pointer>)
+		     and, separately, EmbeddedAssemblies::open_from_bundles reading past its
+		     buffer. Both die with SIGSEGV 2-4 s into the start and crash-loop the
+		     process (reproduced 6x on 2026-09-09, first occurrence before any local
+		     build change). Release builds use AOT instead of the interpreter, which is
+		     why this has only ever been seen on Debug. Cost of disabling: slower builds. -->
+		<AndroidUseInterpreter>false</AndroidUseInterpreter>
+		<!-- AndroidEnablePreloadAssemblies defaults to false, which loads each assembly
+		     ON DEMAND from the bundled store, on whichever thread happens to need it first.
+		     Preloading makes every assembly load happen once, up front, on the startup
+		     thread before application code runs, removing the concurrent lazy-load path
+		     described above. Cost: slightly slower startup. -->
+		<AndroidEnablePreloadAssemblies>true</AndroidEnablePreloadAssemblies>
 	</PropertyGroup>
 
 </Project>
