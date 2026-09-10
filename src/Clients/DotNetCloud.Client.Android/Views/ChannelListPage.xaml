@@ -135,7 +135,8 @@
             RefreshColor="#0EA5E9">
 
             <CollectionView
-                ItemsSource="{Binding Channels}"
+                ItemsSource="{Binding ChannelGroups}"
+                IsGrouped="True"
                 SelectionMode="None">
 
                 <CollectionView.ItemTemplate>
@@ -168,24 +169,38 @@
                                         Text="{Binding ChannelType, Converter={StaticResource ChannelTypeToIcon}}"/>
                                 </Border>
 
-                                <!-- Channel info -->
-                                <VerticalStackLayout
+                                <!-- Channel info (name + presence dot for DMs) -->
+                                <HorizontalStackLayout
                                     Grid.Column="1"
                                     VerticalOptions="Center"
-                                    Spacing="2">
-                                    <Label
-                                        FontAttributes="{Binding UnreadCount, Converter={StaticResource UnreadToBold}}"
-                                        FontSize="15"
-                                        TextColor="#F1F5F9"
-                                        Text="{Binding Name}"/>
-                                    <Label
-                                        FontSize="13"
-                                        IsVisible="{Binding LastMessagePreview, Converter={StaticResource IsNotNullOrEmpty}}"
-                                        LineBreakMode="TailTruncation"
-                                        MaxLines="1"
-                                        TextColor="#64748B"
-                                        Text="{Binding LastMessagePreview}"/>
-                                </VerticalStackLayout>
+                                    Spacing="8">
+
+                                    <!-- Presence dot — 4-state (green online / yellow idle /
+                                         red DND / gray offline). Visible only for DirectMessage
+                                         rows; channel/group rows are unaffected. -->
+                                    <Ellipse
+                                        IsVisible="{Binding IsDirectMessage}"
+                                        Fill="{Binding PresenceStatus, Converter={StaticResource OnlineStatusToColor}}"
+                                        HeightRequest="9"
+                                        WidthRequest="9"
+                                        VerticalOptions="Center"/>
+
+                                    <VerticalStackLayout Spacing="2">
+                                        <Label
+                                            FontAttributes="{Binding UnreadCount, Converter={StaticResource UnreadToBold}}"
+                                            FontSize="15"
+                                            TextColor="#F1F5F9"
+                                            Text="{Binding Name}"/>
+                                        <Label
+                                            FontSize="13"
+                                            IsVisible="{Binding LastMessagePreview, Converter={StaticResource IsNotNullOrEmpty}}"
+                                            LineBreakMode="TailTruncation"
+                                            MaxLines="1"
+                                            TextColor="#64748B"
+                                            Text="{Binding LastMessagePreview}"/>
+                                    </VerticalStackLayout>
+
+                                </HorizontalStackLayout>
 
                                 <HorizontalStackLayout
                                     Grid.Column="2"
@@ -249,6 +264,19 @@
                         </Border>
                     </DataTemplate>
                 </CollectionView.ItemTemplate>
+
+                <!-- Section headers: Channels / Direct Messages -->
+                <CollectionView.GroupHeaderTemplate>
+                    <DataTemplate x:DataType="vm:ChannelGroupViewModel">
+                        <Label
+                            FontAttributes="Bold"
+                            FontSize="12"
+                            TextColor="#64748B"
+                            Text="{Binding Title}"
+                            TextTransform="Uppercase"
+                            Margin="18,18,18,4"/>
+                    </DataTemplate>
+                </CollectionView.GroupHeaderTemplate>
 
                 <CollectionView.Header>
                     <BoxView HeightRequest="8"

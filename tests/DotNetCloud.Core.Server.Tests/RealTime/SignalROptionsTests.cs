@@ -14,11 +14,13 @@ public class SignalROptionsTests
     }
 
     [TestMethod]
-    public void WhenCreatedThenDefaultClientTimeoutIs30Seconds()
+    public void WhenCreatedThenDefaultClientTimeoutIs300Seconds()
     {
+        // 300 s so battery-friendly clients with a 2-minute transport keepalive (Android)
+        // are not dropped every ~30 s. Presence is last-activity driven + 30 s sweep.
         var options = new SignalROptions();
 
-        Assert.AreEqual(30, options.ClientTimeoutSeconds);
+        Assert.AreEqual(300, options.ClientTimeoutSeconds);
     }
 
     [TestMethod]

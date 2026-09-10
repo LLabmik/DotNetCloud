@@ -138,7 +138,11 @@
                      aria-label="Open direct message @channel.Name" @onkeydown="(e) => HandleChannelKeyDown(e, channel)"
                      @onclick="() => SelectChannel(channel)">
                     <span class="channel-icon">💬</span>
-                    <span class="presence-dot @GetPresenceClass(channel)" title="@channel.PresenceStatus"></span>
+                    @if (channel.Type == "DirectMessage")
+                    {
+                        @* Presence dots appear on Direct Message rows only — a Group row is not a single user. *@
+                        <span class="presence-dot @GetPresenceClass(channel)" title="@GetPresenceLabel(channel)"></span>
+                    }
                     <span class="channel-name">@channel.Name</span>
                     @if (channel.IsMuted)
                     {

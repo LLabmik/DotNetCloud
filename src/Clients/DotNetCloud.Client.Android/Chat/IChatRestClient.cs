@@ -180,6 +180,7 @@ public sealed record PagedMessagesResult(
 /// <param name="IsMuted">Whether notifications are muted for this channel.</param>
 /// <param name="LastMessagePreview">Preview text of the most recent message.</param>
 /// <param name="LastMessageAt">When the most recent message was sent (UTC), or <c>null</c>.</param>
+/// <param name="OtherUserId">For DirectMessage channels, the other participant's user ID; <c>null</c> otherwise.</param>
 public sealed record ChannelSummary(
     Guid Id,
     string Name,
@@ -188,7 +189,8 @@ public sealed record ChannelSummary(
     bool HasMention,
     bool IsMuted,
     string? LastMessagePreview,
-    DateTimeOffset? LastMessageAt);
+    DateTimeOffset? LastMessageAt,
+    Guid? OtherUserId = null);
 
 /// <summary>Result of uploading an image to a chat channel.</summary>
 /// <param name="Url">Serving URL path for the image (e.g., /api/v1/chat/uploads/abc123.png).</param>

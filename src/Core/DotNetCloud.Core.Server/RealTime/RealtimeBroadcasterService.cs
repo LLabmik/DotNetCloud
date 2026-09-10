@@ -38,6 +38,40 @@ internal sealed class RealtimeBroadcasterService : IRealtimeBroadcaster
         await _hubContext.Clients.Group(group).SendAsync(eventName, message, cancellationToken);
     }
 
+    /// <summary>
+    /// Broadcasts a message to every client in a group except the connections belonging to a
+    /// given user (all of their devices/tabs). Used for typing heartbeats so a user never
+    /// receives an echo of their own "X is typing…" indicator.
+    /// </summary>
+    /// <param name="group">The group name (e.g., a channel ID, room ID, or topic).</param>
+    /// <param name="excludedUserId">The user whose connections must not receive the broadcast.</param>
+    /// <param name="eventName">The client-side event name to invoke.</param>
+    /// <param name="message">The payload to send. Must be JSON-serializable.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task BroadcastToGroupExceptUserAsync(
+        string group, Guid excludedUserId, string eventName, object message, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(group))
+            throw new ArgumentException("Group name cannot be null or empty.", nameof(group));
+        if (string.IsNullOrWhiteSpace(eventName))
+            throw new ArgumentException("Event name cannot be null or empty.", nameof(eventName));
+        ArgumentNullException.ThrowIfNull(message);
+
+        var excludedConnections = _connectionTracker.GetConnections(excludedUserId);
+        if (excludedConnections.Count == 0)
+        {
+            // Nobody to exclude — fall back to the plain group broadcast.
+            await BroadcastAsync(group, eventName, message, cancellationToken);
+            return;
+        }
+
+        _logger.LogDebug(
+            "Broadcasting event {EventName} to group {Group} excluding {Count} connection(s) of user {ExcludedUserId}",
+            eventName, group, excludedConnections.Count, excludedUserId);
+
+        await _hubContext.Clients.GroupExcept(group, excludedConnections).SendAsync(eventName, message, cancellationToken);
+    }
+
     /// <inheritdoc />
     public async Task SendToUserAsync(Guid userId, string eventName, object message, CancellationToken cancellationToken = default)
     {

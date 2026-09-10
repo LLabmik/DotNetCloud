@@ -1,3 +1,4 @@
+using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Chat.DTOs;
 
 namespace DotNetCloud.Modules.Chat.Services;
@@ -87,9 +88,11 @@ public sealed record CallParticipantLeftNotification(
 /// <summary>
 /// Payload for a user presence change notification raised via <see cref="IChatMessageNotifier"/>.
 /// </summary>
+/// <param name="UserId">The user whose presence changed.</param>
+/// <param name="Status">The user's new 4-state presence value.</param>
 public sealed record UserPresenceChangedNotification(
     Guid UserId,
-    bool IsOnline);
+    PresenceState Status);
 
 /// <summary>
 /// Payload for a typing-indicator heartbeat raised via <see cref="IChatMessageNotifier"/>.

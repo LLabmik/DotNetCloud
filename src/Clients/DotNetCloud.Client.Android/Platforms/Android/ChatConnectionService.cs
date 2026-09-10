@@ -59,25 +59,37 @@ public sealed class ChatConnectionService : Service
             // Build and show the persistent notification required for foreground services.
             // On Android 13+, POST_NOTIFICATIONS is a runtime permission; wrap in try-catch
             // to prevent StartForeground from crashing the service if the user denied it.
-            try
+            //
+            // TEMPORARY (2026-09-09): foreground promotion is disabled while the Android 15/16
+            // dataSync FGS daily-budget crash (ForegroundServiceDidNotStopInTimeException) is
+            // pending its proper fix — see AndroidForegroundServicePolicy. When disabled the
+            // service runs without a persistent notification and is not subject to the FGS deadline.
+            if (AndroidForegroundServicePolicy.UseForegroundServices)
             {
-                if (Build.VERSION.SdkInt >= BuildVersionCodes.Q)
+                try
                 {
+                    if (Build.VERSION.SdkInt >= BuildVersionCodes.Q)
+                    {
 #pragma warning disable CA1416 // already guarded by runtime SDK check above
-                    StartForeground(NotificationId, BuildNotification(),
-                        global::Android.Content.PM.ForegroundService.TypeDataSync);
+                        StartForeground(NotificationId, BuildNotification(),
+                            global::Android.Content.PM.ForegroundService.TypeDataSync);
 #pragma warning restore CA1416
+                    }
+                    else
+                    {
+                        StartForeground(NotificationId, BuildNotification());
+                    }
+                    Log.Info("DotNetCloud", "ChatConnectionService: StartForeground succeeded.");
                 }
-                else
+                catch (Exception ex)
                 {
-                    StartForeground(NotificationId, BuildNotification());
+                    Log.Warn("DotNetCloud", $"ChatConnectionService: StartForeground failed: {ex.Message}");
+                    _logger?.LogWarning(ex, "StartForeground failed; continuing without persistent notification.");
                 }
-                Log.Info("DotNetCloud", "ChatConnectionService: StartForeground succeeded.");
             }
-            catch (Exception ex)
+            else
             {
-                Log.Warn("DotNetCloud", $"ChatConnectionService: StartForeground failed: {ex.Message}");
-                _logger?.LogWarning(ex, "StartForeground failed; continuing without persistent notification.");
+                Log.Info("DotNetCloud", "ChatConnectionService: foreground promotion disabled (temporary dataSync FGS workaround).");
             }
 
             _logger?.LogInformation("ChatConnectionService started (no wake lock — relying on FCM push for Doze delivery).");

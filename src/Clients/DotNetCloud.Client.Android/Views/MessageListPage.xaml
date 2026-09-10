@@ -4,6 +4,7 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:vm="clr-namespace:DotNetCloud.Client.Android.ViewModels"
+    xmlns:controls="clr-namespace:DotNetCloud.Client.Android.Controls"
     x:Name="ThisPage"
     Title="{Binding ChannelName}"
     BackgroundColor="#0F172A">
@@ -184,30 +185,33 @@
                                 </Image.Triggers>
                             </Image>
 
-                            <!-- Text content — plain (shown when no search highlight) -->
-                            <Label
+                            <!-- Text content — plain (shown when no search highlight); http(s) URLs are auto-linked and tappable -->
+                            <controls:AutoLinkLabel
                                 FontSize="15"
                                 TextColor="#E2E8F0"
+                                LinkColor="#7DD3FC"
                                 Margin="36,0,0,0"
                                 Text="{Binding Content}"
                                 IsVisible="True">
-                                <Label.Triggers>
-                                    <DataTrigger TargetType="Label"
+                                <controls:AutoLinkLabel.Triggers>
+                                    <DataTrigger TargetType="controls:AutoLinkLabel"
                                                  Binding="{Binding IsOwnMessage}"
                                                  Value="True">
                                         <Setter Property="Margin"
                                                 Value="0,0,0,0"/>
                                         <Setter Property="TextColor"
                                                 Value="#FFFFFF"/>
+                                        <Setter Property="LinkColor"
+                                                Value="#E0F2FE"/>
                                     </DataTrigger>
-                                    <DataTrigger TargetType="Label"
+                                    <DataTrigger TargetType="controls:AutoLinkLabel"
                                                  Binding="{Binding IsHighlighted}"
                                                  Value="True">
                                         <Setter Property="IsVisible"
                                                 Value="False"/>
                                     </DataTrigger>
-                                </Label.Triggers>
-                            </Label>
+                                </controls:AutoLinkLabel.Triggers>
+                            </controls:AutoLinkLabel>
 
                             <!-- Text content — highlighted search results (shown when highlighted) -->
                             <Label

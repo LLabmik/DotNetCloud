@@ -19,4 +19,43 @@ public interface ICoreHubClient : IChatSignalRClient
     /// the indicator after a short timeout or when that user's message arrives.
     /// </summary>
     event EventHandler<ChatTypingEventArgs>? OnChatTyping;
+
+    /// <summary>
+    /// Raised when a user's presence (4-state) changes over the CoreHub connection.
+    /// The server broadcasts a single <c>UserPresence</c> event on every derived transition —
+    /// first/last connection, idle sweep (Online ↔ Away), and DND toggles — regardless of
+    /// whether the peer is on the web (Blazor circuit) or native.
+    /// </summary>
+    event EventHandler<UserPresenceChangedEventArgs>? OnUserPresenceChanged;
+
+    /// <summary>
+    /// Raised when the underlying CoreHub connection has re-established after a drop.
+    /// A visible page can use this to re-query state (e.g. re-seed DM presence dots).
+    /// </summary>
+    event EventHandler? Reconnected;
+
+    /// <summary>
+    /// Returns the derived 4-state presence for the given user IDs (a current snapshot).
+    /// Presence is global: a user is online with any active connection (Blazor circuit
+    /// or CoreHub). Returns an empty dictionary when disconnected — callers treat
+    /// absent users as offline.
+    /// </summary>
+    /// <param name="userIds">The user IDs to query.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>
+    /// A dictionary keyed by user ID of canonical status strings ("Online", "Away",
+    /// "DoNotDisturb", "Offline").
+    /// </returns>
+    Task<IReadOnlyDictionary<Guid, string>> GetPresenceStatusAsync(
+        IReadOnlyList<Guid> userIds,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Reports genuine user activity for the signed-in user to the server (invokes
+    /// <c>CoreHub.PingAsync</c>), resetting their idle clock so their presence dot stays
+    /// green while they interact with the app. Callers should throttle (~1 per 20–30 s);
+    /// transport keepalives must NOT use this.
+    /// </summary>
+    /// <param name="ct">Cancellation token.</param>
+    Task ReportActivityAsync(CancellationToken ct = default);
 }

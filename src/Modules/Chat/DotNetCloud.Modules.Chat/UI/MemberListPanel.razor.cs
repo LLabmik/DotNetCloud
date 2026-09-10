@@ -65,6 +65,56 @@ public partial class MemberListPanel : ComponentBase
     /// <summary>Currently selected member profile.</summary>
     protected MemberViewModel? SelectedMember => _selectedMember;
 
+    /// <summary>
+    /// Gets the members grouped by their 4-state presence (Online / Idle / Do Not Disturb /
+    /// Offline), omitting empty groups. Members whose status is unset fall back to Offline.
+    /// </summary>
+    protected List<(string Label, List<MemberViewModel> Members)> MemberGroups
+    {
+        get
+        {
+            static string Normalize(string? status) => status?.Trim() switch
+            {
+                "Online" or "Away" or "DoNotDisturb" or "Offline" => status!,
+                _ => "Offline"
+            };
+
+            var groups = new List<(string Label, string State, List<MemberViewModel> Members)>
+            {
+                ("Online", "Online", new List<MemberViewModel>()),
+                ("Idle", "Away", new List<MemberViewModel>()),
+                ("Do Not Disturb", "DoNotDisturb", new List<MemberViewModel>()),
+                ("Offline", "Offline", new List<MemberViewModel>())
+            };
+
+            foreach (var member in Members)
+            {
+                var state = Normalize(member.Status);
+                groups.First(g => g.State == state).Members.Add(member);
+            }
+
+            return groups
+                .Where(g => g.Members.Count > 0)
+                .Select(g => (g.Label, g.Members))
+                .ToList();
+        }
+    }
+
+    /// <summary>
+    /// Maps a presence status string to its member-status-dot CSS modifier
+    /// (<c>online</c>, <c>away</c>, <c>dnd</c>, or <c>offline</c>).
+    /// </summary>
+    protected static string GetStatusDotClass(string? status)
+    {
+        return status?.Trim().ToLowerInvariant() switch
+        {
+            "online" => "online",
+            "away" => "away",
+            "donotdisturb" => "dnd",
+            _ => "offline"
+        };
+    }
+
     /// <summary>Returns whether a user is blocked by the current user.</summary>
     protected bool IsUserBlocked(Guid userId) => BlockedUserIds.Contains(userId);
 

@@ -48,7 +48,10 @@ internal sealed class MediaStoreContentObserver : ContentObserver
     /// <inheritdoc />
     public override void OnChange(bool selfChange, global::Android.Net.Uri? uri)
     {
-        base.OnChange(selfChange, uri);
+        // NOTE: intentionally do NOT call base.OnChange(...). The base Java implementation
+        // re-dispatches virtually through the generated MediaStoreContentObserver override,
+        // so calling it here recurses forever and blows the stack (StackOverflowError on the
+        // binder thread) on every MediaStore change. The base method is a no-op anyway.
 
         // Cancel any pending debounce timer and start a new one.
         _debounceCts?.Cancel();

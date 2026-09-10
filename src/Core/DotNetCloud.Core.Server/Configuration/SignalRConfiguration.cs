@@ -19,9 +19,15 @@ public sealed class SignalROptions
     /// <summary>
     /// Gets or sets the timeout (in seconds) for client connections.
     /// If the server doesn't receive a message within this period, the connection is closed.
-    /// Defaults to 30 seconds.
+    /// Defaults to 300 seconds.
     /// </summary>
-    public int ClientTimeoutSeconds { get; set; } = 30;
+    /// <remarks>
+    /// Raised from 30 s so battery-friendly clients whose transport keepalive is up to 2 minutes
+    /// (e.g. Android <c>WithKeepAliveInterval(2 min)</c>) are not dropped every ~30 s. Presence
+    /// is now last-activity-driven and reconciled by the 30 s sweep, so stale sockets lingering
+    /// up to this longer timeout are acceptable (they surface as Away/yellow, then gray).
+    /// </remarks>
+    public int ClientTimeoutSeconds { get; set; } = 300;
 
     /// <summary>
     /// Gets or sets the timeout (in seconds) for handshake completion.

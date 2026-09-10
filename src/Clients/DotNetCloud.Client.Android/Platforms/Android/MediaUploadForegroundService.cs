@@ -49,25 +49,37 @@ public sealed class MediaUploadForegroundService : Service
             }
 
             // Show persistent notification required for foreground services.
-            try
+            //
+            // TEMPORARY (2026-09-09): foreground promotion is disabled while the Android 15/16
+            // dataSync FGS daily-budget crash (ForegroundServiceDidNotStopInTimeException) is
+            // pending its proper fix — see AndroidForegroundServicePolicy. When disabled the
+            // service runs without a persistent notification and is not subject to the FGS deadline.
+            if (AndroidForegroundServicePolicy.UseForegroundServices)
             {
-                if (Build.VERSION.SdkInt >= BuildVersionCodes.Q)
+                try
                 {
+                    if (Build.VERSION.SdkInt >= BuildVersionCodes.Q)
+                    {
 #pragma warning disable CA1416
-                    StartForeground(NotificationId, BuildIdleNotification(),
-                        global::Android.Content.PM.ForegroundService.TypeDataSync);
+                        StartForeground(NotificationId, BuildIdleNotification(),
+                            global::Android.Content.PM.ForegroundService.TypeDataSync);
 #pragma warning restore CA1416
+                    }
+                    else
+                    {
+                        StartForeground(NotificationId, BuildIdleNotification());
+                    }
+                    Log.Info("DotNetCloud", "MediaUploadForegroundService: StartForeground succeeded.");
                 }
-                else
+                catch (Exception ex)
                 {
-                    StartForeground(NotificationId, BuildIdleNotification());
+                    Log.Warn("DotNetCloud", $"MediaUploadForegroundService: StartForeground failed: {ex.Message}");
+                    _logger?.LogWarning(ex, "StartForeground failed; continuing without persistent notification.");
                 }
-                Log.Info("DotNetCloud", "MediaUploadForegroundService: StartForeground succeeded.");
             }
-            catch (Exception ex)
+            else
             {
-                Log.Warn("DotNetCloud", $"MediaUploadForegroundService: StartForeground failed: {ex.Message}");
-                _logger?.LogWarning(ex, "StartForeground failed; continuing without persistent notification.");
+                Log.Info("DotNetCloud", "MediaUploadForegroundService: foreground promotion disabled (temporary dataSync FGS workaround).");
             }
 
             // Start the auto-upload background loop.

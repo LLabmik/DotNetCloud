@@ -63,6 +63,68 @@ public class RealtimeBroadcasterServiceTests
             () => _broadcaster.BroadcastAsync("group", "event", null!));
     }
 
+    // --- BroadcastToGroupExceptUserAsync ---
+
+    [TestMethod]
+    public async Task WhenBroadcastToGroupExceptUserWithConnectionsThenExcludesThemFromGroup()
+    {
+        var typingUser = Guid.CreateVersion7();
+        var otherUser = Guid.CreateVersion7();
+        _tracker.AddConnection(typingUser, "conn-typer-1");
+        _tracker.AddConnection(typingUser, "conn-typer-2"); // same user, second device
+        _tracker.AddConnection(otherUser, "conn-other");
+
+        await _broadcaster.BroadcastToGroupExceptUserAsync(
+            "chat-channel-g", typingUser, "TypingIndicator", new { channelId = "g", userId = typingUser });
+
+        // The typing user's own connections are excluded from the group send.
+        Assert.AreEqual(1, _hubContext.StubClients.GroupExceptCalls.Count);
+        Assert.AreEqual("chat-channel-g", _hubContext.StubClients.GroupExceptCalls[0].GroupName);
+        CollectionAssert.AreEquivalent(
+            new[] { "conn-typer-1", "conn-typer-2" },
+            _hubContext.StubClients.GroupExceptCalls[0].ExcludedConnectionIds.ToList());
+        Assert.AreEqual(0, _hubContext.StubClients.GroupCalls.Count, "Should not fall back to a plain group broadcast.");
+        Assert.AreEqual(1, _hubContext.StubClients.LastProxy.Invocations.Count);
+        Assert.AreEqual("TypingIndicator", _hubContext.StubClients.LastProxy.Invocations[0].Method);
+    }
+
+    [TestMethod]
+    public async Task WhenBroadcastToGroupExceptUserWithNoConnectionsThenFallsBackToGroupBroadcast()
+    {
+        var offlineUser = Guid.CreateVersion7();
+
+        await _broadcaster.BroadcastToGroupExceptUserAsync(
+            "chat-channel-g", offlineUser, "TypingIndicator", new { channelId = "g", userId = offlineUser });
+
+        // Nobody to exclude → normal group broadcast so other members still receive it.
+        Assert.AreEqual(1, _hubContext.StubClients.GroupCalls.Count);
+        Assert.AreEqual("chat-channel-g", _hubContext.StubClients.GroupCalls[0]);
+        Assert.AreEqual(0, _hubContext.StubClients.GroupExceptCalls.Count);
+        Assert.AreEqual(1, _hubContext.StubClients.LastProxy.Invocations.Count);
+        Assert.AreEqual("TypingIndicator", _hubContext.StubClients.LastProxy.Invocations[0].Method);
+    }
+
+    [TestMethod]
+    public async Task WhenBroadcastToGroupExceptUserWithNullGroupThenThrows()
+    {
+        await Assert.ThrowsExactlyAsync<ArgumentException>(
+            () => _broadcaster.BroadcastToGroupExceptUserAsync(null!, Guid.CreateVersion7(), "TypingIndicator", new { }));
+    }
+
+    [TestMethod]
+    public async Task WhenBroadcastToGroupExceptUserWithNullEventNameThenThrows()
+    {
+        await Assert.ThrowsExactlyAsync<ArgumentException>(
+            () => _broadcaster.BroadcastToGroupExceptUserAsync("group", Guid.CreateVersion7(), null!, new { }));
+    }
+
+    [TestMethod]
+    public async Task WhenBroadcastToGroupExceptUserWithNullMessageThenThrows()
+    {
+        await Assert.ThrowsExactlyAsync<ArgumentNullException>(
+            () => _broadcaster.BroadcastToGroupExceptUserAsync("group", Guid.CreateVersion7(), "event", null!));
+    }
+
     // --- SendToUserAsync ---
 
     [TestMethod]

@@ -51,6 +51,17 @@ internal sealed record TypingIndicatorPayload(
     [property: JsonPropertyName("displayName")] string? DisplayName = null);
 
 /// <summary>
+/// Server payload for presence broadcasts: { userId, status, timestamp } (camelCase).
+/// The single <c>UserPresence</c> event carries the user's derived 4-state status
+/// ("Online" / "Away" / "DoNotDisturb" / "Offline"). Both web (Blazor circuit) and
+/// native CoreHub presence transitions use the same shape.
+/// </summary>
+internal sealed record PresenceStatePayload(
+    [property: JsonPropertyName("userId")] Guid UserId,
+    [property: JsonPropertyName("status")] string Status,
+    [property: JsonPropertyName("timestamp")] DateTime Timestamp);
+
+/// <summary>
 /// <see cref="ICoreHubClient"/> implementation that maintains a persistent SignalR
 /// connection to the DotNetCloud CoreHub. Consolidates chat, calendar, and future
 /// module events into a single WebSocket connection.
@@ -84,6 +95,12 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
 
     /// <inheritdoc />
     public event EventHandler<ChatTypingEventArgs>? OnChatTyping;
+
+    /// <inheritdoc />
+    public event EventHandler<UserPresenceChangedEventArgs>? OnUserPresenceChanged;
+
+    /// <inheritdoc />
+    public event EventHandler? Reconnected;
 
     /// <inheritdoc />
     public event Action? CalendarsChanged;
@@ -146,6 +163,19 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
             Log.Info("DotNetCloud", $"SignalRChatClient: TypingIndicator channel={payload.ChannelId} userId={payload.UserId} displayName='{payload.DisplayName}'");
 #endif
             OnChatTyping?.Invoke(this, new ChatTypingEventArgs(payload.ChannelId, payload.UserId, payload.DisplayName));
+        });
+
+        // Presence broadcasts are emitted by the server on every derived 4-state transition
+        // (first/last connection, idle sweep Online ↔ Away, DND toggles) — covering both native
+        // CoreHub connections AND web (Blazor circuit) users, so remote clients see web peers'
+        // presence correctly.
+        _hub.On<PresenceStatePayload>("UserPresence", payload =>
+        {
+            var status = NormalizePresenceStatus(payload.Status);
+#if ANDROID
+            Log.Info("DotNetCloud", $"SignalRChatClient: UserPresence userId={payload.UserId} status={status}");
+#endif
+            OnUserPresenceChanged?.Invoke(this, new UserPresenceChangedEventArgs(payload.UserId, status));
         });
 
         _hub.On<NewMessagePayload>("NewMessage", payload =>
@@ -282,6 +312,11 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
             {
                 _logger.LogWarning(ex, "Failed to resync calendar alarms after reconnect.");
             }
+
+            // Let subscribers (e.g. ChannelListViewModel) re-query presence snapshots after
+            // the connection is re-established, so DM dots are correct even if peers changed
+            // presence while we were disconnected.
+            Reconnected?.Invoke(this, EventArgs.Empty);
         };
         _hub.Closed += async error =>
         {
@@ -436,6 +471,123 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
         var groupName = $"chat-channel-{channelId}";
         await _hub.InvokeAsync("LeaveGroupAsync", groupName, cancellationToken).ConfigureAwait(false);
         _logger.LogDebug("Left SignalR group {Group}.", groupName);
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyDictionary<Guid, string>> GetPresenceStatusAsync(
+        IReadOnlyList<Guid> userIds,
+        CancellationToken ct = default)
+    {
+        if (userIds is null || userIds.Count == 0)
+            return new Dictionary<Guid, string>();
+
+        // On cold start the presence-dot seed can run before ChatConnectionService has finished
+        // connecting the hub (channel load completes ~0.5 s before the hub connects). Returning
+        // an empty snapshot here would leave every DM dot gray until a live event happens to
+        // arrive, so briefly wait for the connection before querying.
+        if (!await WaitForHubConnectionAsync(ct).ConfigureAwait(false))
+        {
+            _logger.LogDebug("Cannot query presence: hub not connected after wait (state={State}).", _hub?.State);
+            return new Dictionary<Guid, string>();
+        }
+
+        try
+        {
+            // The server method is GetPresenceStatusAsync(IReadOnlyList<Guid>) and returns a
+            // Guid→PresenceState dictionary serialized as Guid-string keys + enum-name values.
+            // Sending the IDs as GUID strings round-trips cleanly through the JSON wire protocol.
+            var result = await _hub!.InvokeAsync<Dictionary<string, string>>(
+                "GetPresenceStatusAsync",
+                userIds.Select(id => id.ToString()).ToList(),
+                ct).ConfigureAwait(false);
+
+            var mapped = new Dictionary<Guid, string>(result?.Count ?? 0);
+            if (result is not null)
+            {
+                foreach (var (key, status) in result)
+                {
+                    if (Guid.TryParse(key, out var guid))
+                        mapped[guid] = NormalizePresenceStatus(status);
+                }
+            }
+
+            return mapped;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to query presence status for {Count} users.", userIds.Count);
+            return new Dictionary<Guid, string>();
+        }
+    }
+
+    /// <summary>
+    /// Waits briefly (~6 s) for the hub to reach <see cref="HubConnectionState.Connected"/> so
+    /// cold-start callers don't get a silently-empty result. Returns <c>false</c> when the hub is
+    /// absent/disconnected or the wait times out.
+    /// </summary>
+    private async Task<bool> WaitForHubConnectionAsync(CancellationToken ct)
+    {
+        const int maxAttempts = 20;
+        var delay = TimeSpan.FromMilliseconds(300);
+
+        for (var attempt = 0; attempt < maxAttempts; attempt++)
+        {
+            var hub = _hub;
+            if (hub is not null && hub.State == HubConnectionState.Connected)
+            {
+                return true;
+            }
+
+            // Disconnected (not connecting/reconnecting) — it won't come up on its own.
+            if (hub is not null && hub.State == HubConnectionState.Disconnected)
+            {
+                return false;
+            }
+
+            try
+            {
+                await Task.Delay(delay, ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                return false;
+            }
+        }
+
+        return _hub?.State == HubConnectionState.Connected;
+    }
+
+    /// <inheritdoc />
+    public async Task ReportActivityAsync(CancellationToken ct = default)
+    {
+        if (_hub?.State is not HubConnectionState.Connected)
+        {
+            return;
+        }
+
+        try
+        {
+            await _hub.InvokeAsync("PingAsync", ct).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to report presence activity to CoreHub");
+        }
+    }
+
+    /// <summary>
+    /// Normalizes a presence status value to one of the four canonical status strings,
+    /// defaulting to <c>"Offline"</c> for absent/unknown values.
+    /// </summary>
+    private static string NormalizePresenceStatus(string? status)
+    {
+        return status?.Trim() switch
+        {
+            "Online" => "Online",
+            "Away" => "Away",
+            "DoNotDisturb" => "DoNotDisturb",
+            _ => "Offline"
+        };
     }
 
     /// <inheritdoc />

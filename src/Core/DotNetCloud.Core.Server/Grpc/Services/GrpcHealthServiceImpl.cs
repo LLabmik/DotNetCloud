@@ -6,6 +6,7 @@ using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Events.Search;
 using DotNetCloud.Core.Grpc.Capabilities;
 using DotNetCloud.Core.Modules.Supervisor;
+using DotNetCloud.Core.Server.RealTime;
 using DotNetCloud.Core.Server.Services;
 using DotNetCloud.Modules.Chat.DTOs;
 using DotNetCloud.Modules.Chat.Services;
@@ -530,7 +531,23 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
                 if (!string.IsNullOrEmpty(request.PayloadJson))
                     payload = JsonSerializer.Deserialize<object>(request.PayloadJson);
 
-                await broadcaster.BroadcastAsync(request.Group, request.EventName, payload ?? request.PayloadJson, context.CancellationToken);
+                // A typing heartbeat must never be echoed back to the connections of the user
+                // who is typing — the typist must not see their own "X is typing…" indicator on
+                // any of their own devices/tabs. Exclude that user's connections from the group
+                // send; every other channel member still receives the heartbeat and clears it
+                // when the typist's message arrives or the heartbeat expires.
+                if (string.Equals(request.EventName, "TypingIndicator", StringComparison.Ordinal)
+                    && TryGetTypingUserId(request.PayloadJson, out var typingUserId))
+                {
+                    var chatBroadcaster = _serviceProvider.GetRequiredService<RealtimeBroadcasterService>();
+                    await chatBroadcaster.BroadcastToGroupExceptUserAsync(
+                        request.Group, typingUserId, request.EventName,
+                        payload ?? request.PayloadJson, context.CancellationToken);
+                }
+                else
+                {
+                    await broadcaster.BroadcastAsync(request.Group, request.EventName, payload ?? request.PayloadJson, context.CancellationToken);
+                }
             }
 
             // Forward chat events to the in-process IChatMessageNotifier so Blazor Server
@@ -712,5 +729,28 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
         return context.UserState.TryGetValue("ModuleId", out var mid)
             ? mid as string ?? "unknown"
             : "unknown";
+    }
+
+    /// <summary>
+    /// Extracts the typing user's ID from a <c>TypingIndicator</c> event payload, if present.
+    /// The broadcast must exclude this user's own connections so the typist never sees their
+    /// own typing indicator.
+    /// </summary>
+    private static bool TryGetTypingUserId(string? payloadJson, out Guid userId)
+    {
+        userId = Guid.Empty;
+        if (string.IsNullOrWhiteSpace(payloadJson))
+            return false;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(payloadJson);
+            return doc.RootElement.TryGetProperty("userId", out var userIdElement)
+                && userIdElement.TryGetGuid(out userId);
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
     }
 }

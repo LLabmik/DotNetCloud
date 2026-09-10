@@ -382,16 +382,17 @@ public partial class ChannelList : ComponentBase
 
     private static string GetPresenceClass(ChannelViewModel channel)
     {
-        if (channel.Type is not ("DirectMessage" or "Group"))
+        // Only Direct Message rows render a presence dot (Group rows are not a single user).
+        if (channel.Type != "DirectMessage")
         {
             return "presence-offline";
         }
 
-        return channel.PresenceStatus.ToLowerInvariant() switch
-        {
-            "online" => "presence-online",
-            "away" => "presence-away",
-            _ => "presence-offline"
-        };
+        return PresenceStatusHelpers.GetCssClass(channel.PresenceStatus);
     }
+
+    private static string GetPresenceLabel(ChannelViewModel channel)
+        => channel.Type == "DirectMessage"
+            ? PresenceStatusHelpers.GetLabel(channel.PresenceStatus)
+            : string.Empty;
 }

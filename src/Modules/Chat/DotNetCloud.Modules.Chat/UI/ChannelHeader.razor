@@ -12,6 +12,14 @@
             <span class="channel-icon">@(Channel.Type == "Private" ? "🔒" : Channel.Type is "DirectMessage" or "Group" ?
                            "💬" : "#")</span>
                 <h2 class="channel-name">@Channel.Name</h2>
+                @if (Channel.Type == "DirectMessage")
+                {
+                    @* Direct-message thread header: 4-state presence dot + label for the peer. *@
+                    <span class="channel-presence" title="Presence: @PresenceStatusHelpers.GetLabel(Channel.PresenceStatus)">
+                        <span class="channel-presence-dot @GetPresenceModifier(Channel.PresenceStatus)"></span>
+                        <span class="channel-presence-label">@PresenceStatusHelpers.GetLabel(Channel.PresenceStatus)</span>
+                    </span>
+                }
                 @if (!string.IsNullOrEmpty(Channel.Topic))
                 {
                     <span class="channel-topic">@Channel.Topic</span>

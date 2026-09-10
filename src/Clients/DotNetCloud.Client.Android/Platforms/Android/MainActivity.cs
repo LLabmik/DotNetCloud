@@ -22,6 +22,10 @@ namespace DotNetCloud.Client.Android;
     ConfigurationChanges = ConfigChanges.ScreenSize | ConfigChanges.Orientation | ConfigChanges.UiMode | ConfigChanges.ScreenLayout | ConfigChanges.SmallestScreenSize | ConfigChanges.Density)]
 public class MainActivity : MauiAppCompatActivity
 {
+    // Tracks whether the app is in the foreground so presence activity is only reported while
+    // the user is actually looking at the app (a backgrounded phone must go idle/yellow).
+    private bool _foreground;
+
     /// <inheritdoc />
     protected override void OnStart()
     {
@@ -30,6 +34,10 @@ public class MainActivity : MauiAppCompatActivity
         // (see OnStop). Restart it whenever the app returns to the foreground so SignalR
         // reconnects; message notifications while backgrounded are handled by FCM / UnifiedPush.
         TrySetChatServiceRunning(running: true);
+
+        // Returning to the app is itself activity.
+        _foreground = true;
+        NotifyPresenceInteraction();
     }
 
     /// <inheritdoc />
@@ -59,7 +67,9 @@ public class MainActivity : MauiAppCompatActivity
             if (running)
             {
                 intent.SetAction(ChatConnectionService.ActionStart);
-                StartForegroundService(intent);
+                // TEMPORARY: foreground promotion is gated by AndroidForegroundServicePolicy while
+                // the Android 15/16 dataSync FGS budget crash is pending its proper fix.
+                AndroidForegroundServicePolicy.StartService(this, intent);
             }
             else
             {
@@ -98,11 +108,56 @@ public class MainActivity : MauiAppCompatActivity
     protected override void OnPause()
     {
         base.OnPause();
+        _foreground = false;
         try
         {
             Ioc.Default.GetService<IAppForegroundService>()?.SetForeground(false);
         }
         catch { /* Best effort */ }
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Any real touch on the app is genuine user activity — report it (throttled server-side)
+    /// so the user's presence stays green while they interact and goes yellow when idle.
+    /// </remarks>
+    public override bool DispatchTouchEvent(MotionEvent? ev)
+    {
+        if (_foreground && ev is not null && ev.Action == MotionEventActions.Down)
+        {
+            NotifyPresenceInteraction();
+        }
+
+        return base.DispatchTouchEvent(ev);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Keyboard/DPAD interaction also counts as genuine activity.
+    /// </remarks>
+    public override bool DispatchKeyEvent(KeyEvent? e)
+    {
+        if (_foreground && e is not null && e.Action == KeyEventActions.Down)
+        {
+            NotifyPresenceInteraction();
+        }
+
+        return base.DispatchKeyEvent(e);
+    }
+
+    /// <summary>
+    /// Notifies the presence activity reporter (best effort — never crashes the activity).
+    /// </summary>
+    private void NotifyPresenceInteraction()
+    {
+        try
+        {
+            Ioc.Default.GetService<IActivityReporter>()?.NotifyInteraction();
+        }
+        catch
+        {
+            // Best effort — presence reporting must never affect the UI path.
+        }
     }
 
     /// <inheritdoc />

@@ -542,14 +542,15 @@ public partial class App : Application
 
             var chatIntent = new Intent(global::Android.App.Application.Context, typeof(ChatConnectionService));
             chatIntent.SetAction(ChatConnectionService.ActionStart);
-            global::Android.App.Application.Context.StartForegroundService(chatIntent);
+            // TEMPORARY: foreground promotion gated by AndroidForegroundServicePolicy (dataSync FGS fix pending).
+            AndroidForegroundServicePolicy.StartService(global::Android.App.Application.Context, chatIntent);
 
             // Only start the media upload foreground service if the user has enabled auto-upload.
             if (Preferences.Default.Get("media_upload_enabled", false))
             {
                 var uploadIntent = new Intent(global::Android.App.Application.Context, typeof(MediaUploadForegroundService));
                 uploadIntent.SetAction(MediaUploadForegroundService.ActionStart);
-                global::Android.App.Application.Context.StartForegroundService(uploadIntent);
+                AndroidForegroundServicePolicy.StartService(global::Android.App.Application.Context, uploadIntent);
             }
         }
     }

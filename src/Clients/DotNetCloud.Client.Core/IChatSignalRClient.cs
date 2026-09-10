@@ -89,3 +89,14 @@ public sealed record ChatTypingEventArgs(
     string ChannelId,
     Guid UserId,
     string? DisplayName);
+
+/// <summary>
+/// Payload for a user presence change received over the CoreHub connection
+/// (the single <c>UserPresence</c> broadcast).
+/// </summary>
+/// <param name="UserId">User whose presence changed.</param>
+/// <param name="Status">
+/// The user's new 4-state presence: <c>"Online"</c>, <c>"Away"</c>, <c>"DoNotDisturb"</c>,
+/// or <c>"Offline"</c>. Android-only usage.
+/// </param>
+public sealed record UserPresenceChangedEventArgs(Guid UserId, string Status);

@@ -724,6 +724,13 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Track online/offline status
 - ✓ Create last seen timestamps
 - ✓ Implement presence queries
+- ✓ 4-state presence (`PresenceState` Online/Away/DoNotDisturb/Offline) — server-authoritative derivation (offline > DND > away/online), `PresenceService` + 30 s `PresenceActivityMonitor` (runtime admin idle threshold), "UserPresence" broadcasts (`docs/PRESENCE_DOTS_4STATE_PLAN.md`)
+- ✓ Activity = real interaction only — `CoreHub.PingAsync`→`ReportActivityAsync`; Blazor global JS reporter + Android touch/key reporter (throttled)
+- ✓ RED = existing chat DND toggle (Blazor top-bar + `PUT /api/v1/notifications/preferences`) bridged into presence; DND wins while online, gray wins while offline
+- ✓ Blazor presence dots on Direct Message rows only (4 colors + Online/Idle/Do Not Disturb/Offline labels), DM thread header dot/label, per-member 4-state member list
+- ✓ Android DM + channel-details member dots are 4-state + live (CoreHub snapshot/events)
+- ✓ SignalR `ClientTimeoutSeconds` 30→300 (heartbeat fix); admin "Online indicators" numeric field (`dotnetcloud.core`/`PresenceIdleTimeoutMinutes`, default 3, clamp 1–60)
+- ☐ Live cross-device E2E (§9 of plan) on the deployed server before push to `main`
 
 #### WebSocket Configuration
 
@@ -3508,6 +3515,7 @@ This phase implements real-time chat, announcements, push notifications, and the
   - ✓ File attachment (camera, gallery, file picker)
   - ✓ `@mention` autocomplete
 - ✓ Create channel details view (members, settings)
+- ✓ DM presence dots in channel list (green online / gray offline; live updates from both web and native peers; snapshot on load + resync on reconnect)
 - ✓ Implement pull-to-refresh for message history
 - ✓ Auto-scroll to newest message on real-time arrival when the user is pinned to the bottom (reading history is never interrupted)
 - ✓ Support dark/light theme

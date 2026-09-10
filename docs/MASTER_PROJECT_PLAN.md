@@ -12,7 +12,7 @@
 
 ---
 
-> **Recent feature work (2026-09-08):** Share Dialog Unification + Team Shares across Files/Notes/Photos/Contacts/Calendar is tracked in `docs/SHARE_DIALOG_UNIFICATION_AND_TEAM_SHARES_PLAN.md` (branch `fix/sharing`). Phases 0–6 implemented (build + tests green); Phase 7 live end-to-end verification is pending before commit.
+> **Recent feature work (2026-09-09):** Presence indicators are upgraded to **4-state** (Online / Idle / Do-Not-Disturb / Offline) — server + Blazor + Android code implemented and unit-tested on `fix/android-improvements` (`docs/PRESENCE_DOTS_4STATE_PLAN.md`); live cross-device E2E pending deploy to `cloud.kimball.home`. Share Dialog Unification + Team Shares (`docs/SHARE_DIALOG_UNIFICATION_AND_TEAM_SHARES_PLAN.md`, branch `fix/sharing`) Phases 0–6 implemented (build + tests green); Phase 7 live E2E pending.
 
 ## Quick Status Summary
 
@@ -1550,6 +1550,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ Direct APK download option documented
 - ✓ App store listing description written
 - ✓ Play Store efficiency compliance (Feb 2027): Release R8 + AOT + SDK/framework trimming (`PublishTrimmed`, `AndroidLinkMode=SdkOnly`, `AndroidEnableR8`, `RunAOTCompilation`; app assemblies kept intact for reflection JSON of `required`-member DTOs); single-materialized image buffers; `OnTrimMemory` cache release; `dataSync` FGS gated to foreground with clean Android 15+ `OnTimeout`; SignalR reconnect paused while backgrounded
+- ✓ Android DM presence dots in the channel list (2026-09-09): green/gray per DM peer online state; server broadcasts web (Blazor circuit) presence to native CoreHub clients and adds a `GetPresenceStatusAsync` snapshot hub method; Android seeds dots on load, live-updates on `UserOnline`/`UserOffline`, and resyncs on hub reconnect
 
 **Dependencies:** phase-2.7, phase-2.8
 **Blocking Issues:** None

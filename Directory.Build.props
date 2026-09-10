@@ -82,6 +82,19 @@
          production-facing endpoint exposes the affected generator path.
          REVIEW DATE: 2026-11-18. -->
     <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-v5pm-xwqc-g5wc" />
+    <!-- Microsoft.Build.Tasks.Git 8.0.0 (GHSA-23fw-v26w-5fgq, CVE-2026-62900):
+         .NET information disclosure. Transitive dependency from NPOI 2.8.0 (latest),
+         which depends on Microsoft.SourceLink.GitHub 8.0.0 -> Microsoft.Build.Tasks.Git 8.0.0.
+         No patched NuGet version exists for the 8.0.0 line (Microsoft: "update to a fixed
+         .NET 8 SDK"); the .NET 10 SDK in use (10.0.111) already ships the patched Tasks.Git,
+         so this 8.0.0 only reaches projects that consume NPOI (Search.Extraction worker).
+         SourceLink is build-time-only tooling (embeds repo URLs into PDBs) — never deployed
+         or executed at runtime. Suppressed until NPOI releases with a patched SourceLink
+         (>= 10.0.102) or the 8.0.0 line is patched.
+         SOC 2 compensating control (CC7): the affected package is never shipped or run
+         server-side; builds execute only trusted first-party code from the repo's own git
+         remote. REVIEW DATE: 2026-12-09 (re-check NPOI releases for a patched SourceLink). -->
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-23fw-v26w-5fgq" />
   </ItemGroup>
 
   <!-- Code analysis -->

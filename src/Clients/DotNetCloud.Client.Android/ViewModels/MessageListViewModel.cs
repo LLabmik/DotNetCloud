@@ -196,10 +196,13 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
                 return;
             }
 
-            // Extract the current user ID from the JWT for own-message detection
+            // Extract the current user ID for own-message detection and to ignore our own
+            // typing echoes. The OIDC access token is JWE-encrypted and cannot be decoded
+            // client-side, so the user id is read from the signed id_token's `sub` claim
+            // (falling back to the access token for issuers that return plain JWTs).
             try
             {
-                _currentUserId = AccessTokenUserIdExtractor.ExtractUserId(_accessToken);
+                _currentUserId = await ResolveCurrentUserIdAsync(ct);
                 _logger.LogInformation("MessageListViewModel: currentUserId={CurrentUserId}", _currentUserId);
             }
             catch (Exception ex)
@@ -238,6 +241,34 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
             _logger.LogError(ex, "Failed to initialize message list for channel {ChannelId}.", channelId);
             ErrorMessage = ApiExceptionHelper.GetUserFriendlyMessage(ex);
         }
+    }
+
+    /// <summary>
+    /// Resolves the current user's ID from the stored OIDC id_token, falling back to the
+    /// access token when the id_token is unavailable.
+    /// </summary>
+    /// <remarks>
+    /// The access token is JWE-encrypted and cannot be decoded client-side, so the user's
+    /// <c>sub</c> claim is only readable from the signed id_token. This id is used to mark
+    /// own messages and to ignore our own typing echoes.
+    /// </remarks>
+    private async Task<Guid> ResolveCurrentUserIdAsync(CancellationToken ct)
+    {
+        try
+        {
+            var idToken = await _tokenStore.GetIdTokenAsync(_serverUrl!, ct);
+            if (!string.IsNullOrWhiteSpace(idToken))
+                return AccessTokenUserIdExtractor.ExtractUserId(idToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Id token unavailable or unreadable; falling back to access token.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(_accessToken))
+            return AccessTokenUserIdExtractor.ExtractUserId(_accessToken);
+
+        throw new InvalidOperationException("No readable token available to resolve the current user ID.");
     }
 
     private async Task LoadMemberNamesAsync(CancellationToken ct)
