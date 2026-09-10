@@ -481,9 +481,13 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
         if (userIds is null || userIds.Count == 0)
             return new Dictionary<Guid, string>();
 
-        if (_hub?.State is not HubConnectionState.Connected)
+        // On cold start the presence-dot seed can run before ChatConnectionService has finished
+        // connecting the hub (channel load completes ~0.5 s before the hub connects). Returning
+        // an empty snapshot here would leave every DM dot gray until a live event happens to
+        // arrive, so briefly wait for the connection before querying.
+        if (!await WaitForHubConnectionAsync(ct).ConfigureAwait(false))
         {
-            _logger.LogDebug("Cannot query presence: hub not connected (state={State}).", _hub?.State);
+            _logger.LogDebug("Cannot query presence: hub not connected after wait (state={State}).", _hub?.State);
             return new Dictionary<Guid, string>();
         }
 
@@ -492,7 +496,7 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
             // The server method is GetPresenceStatusAsync(IReadOnlyList<Guid>) and returns a
             // Guid→PresenceState dictionary serialized as Guid-string keys + enum-name values.
             // Sending the IDs as GUID strings round-trips cleanly through the JSON wire protocol.
-            var result = await _hub.InvokeAsync<Dictionary<string, string>>(
+            var result = await _hub!.InvokeAsync<Dictionary<string, string>>(
                 "GetPresenceStatusAsync",
                 userIds.Select(id => id.ToString()).ToList(),
                 ct).ConfigureAwait(false);
@@ -514,6 +518,43 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
             _logger.LogWarning(ex, "Failed to query presence status for {Count} users.", userIds.Count);
             return new Dictionary<Guid, string>();
         }
+    }
+
+    /// <summary>
+    /// Waits briefly (~6 s) for the hub to reach <see cref="HubConnectionState.Connected"/> so
+    /// cold-start callers don't get a silently-empty result. Returns <c>false</c> when the hub is
+    /// absent/disconnected or the wait times out.
+    /// </summary>
+    private async Task<bool> WaitForHubConnectionAsync(CancellationToken ct)
+    {
+        const int maxAttempts = 20;
+        var delay = TimeSpan.FromMilliseconds(300);
+
+        for (var attempt = 0; attempt < maxAttempts; attempt++)
+        {
+            var hub = _hub;
+            if (hub is not null && hub.State == HubConnectionState.Connected)
+            {
+                return true;
+            }
+
+            // Disconnected (not connecting/reconnecting) — it won't come up on its own.
+            if (hub is not null && hub.State == HubConnectionState.Disconnected)
+            {
+                return false;
+            }
+
+            try
+            {
+                await Task.Delay(delay, ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                return false;
+            }
+        }
+
+        return _hub?.State == HubConnectionState.Connected;
     }
 
     /// <inheritdoc />
