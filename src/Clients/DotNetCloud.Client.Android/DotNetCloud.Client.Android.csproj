@@ -197,7 +197,15 @@
 		 ======================== -->
 	<PropertyGroup Condition="'$(Configuration)' == 'Debug'">
 		<EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
-		<AndroidUseInterpreter>true</AndroidUseInterpreter>
+		<!-- The Mono interpreter is Experimental and resolves field/method types LAZILY on the
+		     executing thread. On this app that produced native crashes in Debug builds only:
+		     `mono_field_resolve_type` -> ... -> `strcasecmp` on a garbage pointer, and
+		     `EmbeddedAssemblies::open_from_bundles` reading past its buffer (SIGSEGV, SEGV_ACCERR),
+		     crashing a `.NET TP Worker` 2-4 s after headless service cold-start. The same builds
+		     under AOT (Release) never crashed. Disabling the interpreter eliminates the lazy
+		     resolution path; verified 0 crashes in 10 forced headless restarts (2026-09-09).
+		     Trade-off: Debug builds are slower to build (JIT instead of interpreter). -->
+		<AndroidUseInterpreter>false</AndroidUseInterpreter>
 	</PropertyGroup>
 
 </Project>
