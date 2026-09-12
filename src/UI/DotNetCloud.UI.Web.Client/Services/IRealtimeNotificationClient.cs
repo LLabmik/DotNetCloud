@@ -11,6 +11,17 @@ public interface IRealtimeNotificationClient
     event Action<NotificationDto>? NotificationCreated;
 
     /// <summary>
+    /// Raised when an administrator broadcast is delivered, so it can be shown as a
+    /// dismissible modal dialog.
+    /// </summary>
+    event Action<ActiveAdminBroadcastDto>? AdminBroadcastReceived;
+
+    /// <summary>
+    /// Raised when an administrator broadcast is deleted, so any open modal for it closes.
+    /// </summary>
+    event Action<Guid>? AdminBroadcastRemoved;
+
+    /// <summary>
     /// Starts the real-time connection. Safe to call multiple times; no-ops if
     /// already started or if no auth cookie is available.
     /// </summary>

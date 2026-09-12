@@ -65,6 +65,16 @@
                             </NavLink>
                         </li>
                         <li class="nav-item">
+                            <NavLink href="/admin/broadcast" Match="NavLinkMatch.Prefix" class="nav-link"
+                                     title="Broadcast" aria-label="Broadcast">
+                                <MaterialIcon Icon="campaign" CssClass="nav-icon" />
+                                @if (!Collapsed)
+                                {
+                                    <span class="nav-text">Broadcast</span>
+                                }
+                            </NavLink>
+                        </li>
+                        <li class="nav-item">
                             <NavLink href="/admin/files/shared-folders" Match="NavLinkMatch.Prefix" class="nav-link"
                                      title="Shared Folders" aria-label="Shared Folders">
                                 <span class="nav-icon">🗂</span>
@@ -185,8 +195,7 @@
                             @if (!Collapsed)
                             {
                                 <a href="@item.Href" target="_blank" rel="noopener" class="nav-external"
-                                   title="Open @item.Label in a new tab"
-                                   aria-label="Open @item.Label in a new tab">
+                                   title="Open @item.Label in a new tab" aria-label="Open @item.Label in a new tab">
                                     <MaterialIcon Icon="open_in_new" Size="MaterialIconSize.Sm" />
                                 </a>
                             }
@@ -198,9 +207,11 @@
             <div class="nav-separator"></div>
             <ul class="nav-list">
                 <li class="nav-item nav-item-has-external">
-                    <NavLink href="/apps/synctray" Match="NavLinkMatch.Prefix" class="nav-link" title="Desktop Sync Client"
-                             aria-label="Desktop Sync Client">
-                        <span class="nav-icon"><MaterialIcon Icon="sync" /></span>
+                    <NavLink href="/apps/synctray" Match="NavLinkMatch.Prefix" class="nav-link"
+                             title="Desktop Sync Client" aria-label="Desktop Sync Client">
+                        <span class="nav-icon">
+                            <MaterialIcon Icon="sync" />
+                        </span>
                         @if (!Collapsed)
                         {
                             <span class="nav-text">Desktop Sync Client</span>
@@ -229,8 +240,7 @@
                         @if (!Collapsed)
                         {
                             <a href="@item.Href" target="_blank" rel="noopener" class="nav-external"
-                               title="Open @item.Label in a new tab"
-                               aria-label="Open @item.Label in a new tab">
+                               title="Open @item.Label in a new tab" aria-label="Open @item.Label in a new tab">
                                 <MaterialIcon Icon="open_in_new" Size="MaterialIconSize.Sm" />
                             </a>
                         }

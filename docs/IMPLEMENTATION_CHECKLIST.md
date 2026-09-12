@@ -6921,3 +6921,55 @@ A module page throwing (unhandled exception during render/lifecycle) left the en
 - ✓ UI.Shared suite green (72 passing); UI.Web / UI.Web.Client / Core.Server build clean (0 warnings / 0 errors)
 - ✓ Redeployed to dev server mint22 (`/opt/dotnetcloud`, health = Healthy); hover icons + `/apps/synctray` page live-verified by the user in the browser
 - ✓ Committed + pushed on `fix/side-navbar-improvements`
+
+---
+
+## Admin Broadcast — Dismissible Modal for Blazor Users (2026-09-12)
+
+**Reference:** `docs/ADMIN_BROADCAST_PLAN.md` · **Branch:** `feature/admin-broadcast`
+
+Lets an administrator push a short message to every logged-in web user, shown as a dismissible modal dialog
+(e.g. "the server reboots at 22:00 UTC"). Persisted so late logins and post-restart reconnects still see it.
+Blazor-only by design — Android/desktop clients never join the broadcast group.
+
+### Data & service
+
+- ✓ `AdminBroadcast` + `AdminBroadcastDismissal` entities (`Entities/Admin/`), dismissal FK is cascade-delete
+- ✓ `AdminBroadcastSeverity` / `AdminBroadcastStatus` enums + DTOs (`DotNetCloud.Core/DTOs/AdminBroadcastDtos.cs`)
+- ✓ EF configurations (`Configuration/Admin/`): max lengths, snake_case index names, unique `(BroadcastId, UserId)`
+- ✓ `CoreDbContext`: 2 DbSets + `ConfigureAdminBroadcastModels(...)`
+- ✓ Migrations for both providers: `20260912111356_AddAdminBroadcast` (PostgreSQL) and
+  `20260912111409_AddAdminBroadcast_SqlServer`
+- ✓ `IAdminBroadcastService` + `AdminBroadcastService` — create/send-now/schedule/list/delete/active/dismiss/publish-pending
+- ✓ Delete removes the broadcast **and** its dismissal rows (no orphaned flags), and notifies clients
+
+### Realtime, API & scheduler
+
+- ✓ `CoreHub.JoinAdminBroadcastGroupAsync()` — fixed, parameterless group join (`admin-broadcast`)
+- ✓ `RealtimeNotificationClient` joins the group on start + on reconnect; handles `admin.broadcast` /
+  `admin.broadcast.removed`
+- ✓ `IRealtimeNotificationClient`: `AdminBroadcastReceived` / `AdminBroadcastRemoved` events
+- ✓ `AdminBroadcastsController` (`api/v1/core/admin/broadcasts`, RequireAdmin) — GET history, POST create,
+  POST `{id}/send-now`, DELETE `{id}`; all mutations audited
+- ✓ `BroadcastsController` (`api/v1/core/broadcasts`, authenticated) — GET active, POST `{id}/dismiss`
+- ✓ `AdminBroadcastSchedulerHostedService` — 30-second poll delivering scheduled broadcasts, outage-tolerant
+
+### UI
+
+- ✓ `AdminBroadcastModal` (modal host) rendered `InteractiveServer` in `MainLayout` inside `AuthorizeView`
+- ✓ `/admin/broadcast` admin page: compose card, `Send now` / `Schedule`, history table, `Send now` + `Delete`
+  (delete behind a confirmation dialog)
+- ✓ `DotNetCloudApiClient`: 6 broadcast methods
+- ✓ Admin nav entry with `<MaterialIcon Icon="campaign" />`; `campaign` SVG path added to `MaterialSvgIcons.cs`
+
+### Tests & verification
+
+- ✓ `AdminBroadcastServiceTests` (18 tests), `AdminBroadcastsControllerTests`, `BroadcastsControllerTests`
+- ✓ `CoreHubTests.JoinAdminBroadcastGroupAsync_AddsConnectionToFixedBroadcastGroup`
+- ✓ `MaterialSvgIconsTests` row-set for the broadcast icons (`campaign`, `info`, `warning`, `error`, `send`, `schedule`)
+- ✓ Core.Server 760 passed · UI.Shared 91 passed · Core.Data 177 passed
+- ✓ `dotnet build DotNetCloud.CI.slnf -c Release` — 0 warnings / 0 errors
+- ✓ Deployed to mint22: 15/15 targets, 1 pending migration applied, hashes verified, version 0.6.05
+- ✓ `/health/ready` HTTP 200 · both endpoints HTTP 401 unauthenticated · new tables present · scheduler started
+- ✓ Browser E2E (confirmed by the user on the deployed build): modal appears on Send; dismissal persists across
+  reload; Delete closes an open modal; scheduled delivery within 30 s; expiry hides the message

@@ -54,6 +54,32 @@ public class CoreHubTests
     }
 
     [TestMethod]
+    public async Task JoinAdminBroadcastGroupAsync_AddsConnectionToFixedBroadcastGroup()
+    {
+        var userId = Guid.CreateVersion7();
+        var tracker = new UserConnectionTracker();
+        var presence = new PresenceService(tracker, NullLogger<PresenceService>.Instance);
+
+        var hub = new CoreHub(
+            tracker,
+            presence,
+            Mock.Of<DotNetCloud.Core.Services.ModuleApis.IChatApiClient>(),
+            Mock.Of<IRealtimeBroadcaster>(),
+            NullLogger<CoreHub>.Instance);
+
+        var groups = new StubGroupManager();
+        hub.Context = new TestHubCallerContext(userId, "conn-relay");
+        hub.Groups = groups;
+
+        await hub.JoinAdminBroadcastGroupAsync();
+
+        // The wire contract: only clients that join this fixed group receive admin broadcasts.
+        Assert.IsTrue(
+            groups.Operations.Any(o => o.ConnectionId == "conn-relay" && o.GroupName == "admin-broadcast" && o.Action == "Add"),
+            "The relay connection must join the admin-broadcast group.");
+    }
+
+    [TestMethod]
     public async Task OnConnectedAsync_FirstConnection_NotifiesInProcessSubscribersOnline()
     {
         var userId = Guid.CreateVersion7();

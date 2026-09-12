@@ -1,0 +1,346 @@
+@page "/admin/broadcast"
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveAutoRenderMode(prerender: false))
+@attribute [Authorize(Policy = "RequireAdmin")]
+
+<PageTitle>Broadcast - DotNetCloud</PageTitle>
+
+<div class="page-header">
+    <h1>Broadcast Message</h1>
+    <div class="page-header-actions">
+        <button type="button" class="btn btn-outline btn-sm" @onclick="LoadAsync" disabled="@_loading">
+            <MaterialIcon Icon="refresh" Size="MaterialIconSize.Sm" />
+            Refresh
+        </button>
+    </div>
+</div>
+
+<p class="text-muted">
+    Send a message to every logged-in user. It appears as a dismissible dialog on their screen —
+    use it to warn about upcoming events such as a server reboot.
+</p>
+
+<div class="settings-section">
+    <h3>New Broadcast</h3>
+
+    <div class="settings-field">
+        <label for="broadcast-title">Title</label>
+        <InputText id="broadcast-title" class="form-control" @bind-Value="_title" maxlength="200"
+                   placeholder="Planned server reboot" />
+    </div>
+
+    <div class="settings-field">
+        <label for="broadcast-message">Message</label>
+        <InputTextArea id="broadcast-message" class="form-control" @bind-Value="_message" rows="4" maxlength="2000"
+                       placeholder="The server will reboot at 22:00 UTC. Expect a short interruption to sync." />
+    </div>
+
+    <div class="settings-field">
+        <label for="broadcast-severity">Severity</label>
+        <InputSelect id="broadcast-severity" class="form-control" @bind-Value="_severity">
+            <option value="@AdminBroadcastSeverity.Info">Info</option>
+            <option value="@AdminBroadcastSeverity.Warning">Warning</option>
+            <option value="@AdminBroadcastSeverity.Critical">Critical</option>
+        </InputSelect>
+    </div>
+
+    <div class="settings-field">
+        <label for="broadcast-schedule">Send at (optional)</label>
+        <InputDate id="broadcast-schedule" class="form-control" Type="InputDateType.DateTimeLocal"
+                   @bind-Value="_scheduledLocal" />
+        <span class="settings-description">Leave empty to send immediately. Scheduled messages are delivered within 30 seconds of their time.</span>
+    </div>
+
+    <div class="settings-field">
+        <label for="broadcast-expires">Stop showing at (optional)</label>
+        <InputDate id="broadcast-expires" class="form-control" Type="InputDateType.DateTimeLocal"
+                   @bind-Value="_expiresLocal" />
+        <span class="settings-description">Leave empty for no expiry. The message stays visible until deleted or expired.</span>
+    </div>
+
+    @if (_error is not null)
+    {
+        <div class="alert alert-danger" role="alert">@_error</div>
+    }
+
+    <div class="settings-actions">
+        <button type="button" class="btn btn-primary" @onclick="SendNowAsync" disabled="@_busy">
+            <MaterialIcon Icon="send" Size="MaterialIconSize.Sm" />
+            Send now
+        </button>
+        <button type="button" class="btn btn-outline" @onclick="ScheduleAsync" disabled="@_busy">
+            <MaterialIcon Icon="schedule" Size="MaterialIconSize.Sm" />
+            Schedule
+        </button>
+    </div>
+</div>
+
+<div class="settings-section">
+    <h3>History</h3>
+
+    @if (_loading && _broadcasts.Count == 0)
+    {
+        <LoadingIndicator Message="Loading broadcasts..." />
+    }
+    else if (_broadcasts.Count == 0)
+    {
+        <p class="text-muted">No broadcasts have been sent yet.</p>
+    }
+    else
+    {
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Created</th>
+                    <th>Title</th>
+                    <th>Severity</th>
+                    <th>Status</th>
+                    <th>Sent</th>
+                    <th>Expires</th>
+                    <th>Dismissed</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var broadcast in _broadcasts)
+                {
+                    <tr>
+                        <td>@broadcast.CreatedAtUtc.ToLocalTime().ToString("g")</td>
+                        <td>@broadcast.Title</td>
+                        <td>
+                            <MaterialIcon Icon="@SeverityIcon(broadcast.Severity)" Size="MaterialIconSize.Sm" />
+                            @broadcast.Severity
+                        </td>
+                        <td>
+                            <span class="badge">@broadcast.Status</span>
+                        </td>
+                        <td>@(broadcast.SentAtUtc?.ToLocalTime().ToString("g") ?? "—")</td>
+                        <td>@(broadcast.ExpiresAtUtc?.ToLocalTime().ToString("g") ?? "—")</td>
+                        <td>@broadcast.DismissedCount</td>
+                        <td>
+                            @if (broadcast.Status == AdminBroadcastStatus.Scheduled)
+                            {
+                                <button type="button" class="btn btn-outline btn-sm"
+                                        @onclick="() => SendExistingNowAsync(broadcast)" disabled="@_busy">
+                                    Send now
+                                </button>
+                            }
+                            <button type="button" class="btn btn-danger btn-sm"
+                                    @onclick="() => DeleteAsync(broadcast)" disabled="@_busy">
+                                <MaterialIcon Icon="delete" Size="MaterialIconSize.Sm" />
+                                Delete
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+<DncConfirmDialog @ref="_confirmDialog" />
+
+@code {
+    private const int MaxHistory = 100;
+
+    private bool _loading = true;
+    private bool _busy;
+    private string? _error;
+
+    private string _title = string.Empty;
+    private string _message = string.Empty;
+    private AdminBroadcastSeverity _severity = AdminBroadcastSeverity.Warning;
+    private DateTime? _scheduledLocal;
+    private DateTime? _expiresLocal;
+
+    private readonly List<AdminBroadcastDto> _broadcasts = [];
+    private DncConfirmDialog _confirmDialog = default!;
+
+    [Inject] private DotNetCloudApiClient ApiClient { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            var broadcasts = await ApiClient.ListAdminBroadcastsAsync(MaxHistory);
+            _broadcasts.Clear();
+            _broadcasts.AddRange(broadcasts);
+        }
+        catch (Exception ex)
+        {
+            _error = "Unable to load broadcast history.";
+            Toast.ShowError(ex.Message);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private Task SendNowAsync() => CreateAsync(_scheduledLocal, sendNow: true);
+
+    private Task ScheduleAsync() => CreateAsync(_scheduledLocal, sendNow: false);
+
+    private async Task CreateAsync(DateTime? scheduledLocal, bool sendNow)
+    {
+        _error = null;
+
+        if (string.IsNullOrWhiteSpace(_title) || string.IsNullOrWhiteSpace(_message))
+        {
+            _error = "A title and a message are required.";
+            return;
+        }
+
+        var scheduledUtc = sendNow ? null : ToUtc(scheduledLocal);
+        if (!sendNow && scheduledUtc is null)
+        {
+            _error = "Pick a send time, or use \"Send now\".";
+            return;
+        }
+
+        if (!sendNow && scheduledUtc <= DateTime.UtcNow)
+        {
+            _error = "The send time must be in the future. Use \"Send now\" to send immediately.";
+            return;
+        }
+
+        var expiresUtc = ToUtc(_expiresLocal);
+        if (expiresUtc is not null && expiresUtc <= (scheduledUtc ?? DateTime.UtcNow))
+        {
+            _error = "The expiry time must be later than the send time.";
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var created = await ApiClient.CreateAdminBroadcastAsync(new CreateAdminBroadcastRequest
+            {
+                Title = _title.Trim(),
+                Message = _message.Trim(),
+                Severity = _severity,
+                ScheduledForUtc = scheduledUtc,
+                ExpiresAtUtc = expiresUtc,
+            });
+
+            if (created is null)
+            {
+                _error = "The broadcast could not be created.";
+                return;
+            }
+
+            Toast.ShowSuccess(created.Status == AdminBroadcastStatus.Scheduled
+                ? "Broadcast scheduled."
+                : "Broadcast sent.");
+
+            ResetForm();
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = "The broadcast could not be created.";
+            Toast.ShowError(ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task SendExistingNowAsync(AdminBroadcastDto broadcast)
+    {
+        _busy = true;
+        try
+        {
+            if (await ApiClient.SendAdminBroadcastNowAsync(broadcast.Id))
+            {
+                Toast.ShowSuccess("Broadcast sent.");
+                await LoadAsync();
+            }
+            else
+            {
+                Toast.ShowError("The broadcast could not be sent.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError(ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task DeleteAsync(AdminBroadcastDto broadcast)
+    {
+        var confirmed = await _confirmDialog.ShowAsync(
+            $"Delete \"{broadcast.Title}\"? Users who have not dismissed it will stop seeing it, and the message and its dismissal records are removed permanently.",
+            "Delete broadcast");
+
+        if (!confirmed)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            if (await ApiClient.DeleteAdminBroadcastAsync(broadcast.Id))
+            {
+                Toast.ShowSuccess("Broadcast deleted.");
+                await LoadAsync();
+            }
+            else
+            {
+                Toast.ShowError("The broadcast could not be deleted.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError(ex.Message);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void ResetForm()
+    {
+        _title = string.Empty;
+        _message = string.Empty;
+        _severity = AdminBroadcastSeverity.Warning;
+        _scheduledLocal = null;
+        _expiresLocal = null;
+    }
+
+    /// <summary>
+    /// Converts a value from a <c>datetime-local</c> input (browser local time, no zone
+    /// information) into a UTC timestamp.
+    /// </summary>
+    private static DateTime? ToUtc(DateTime? local)
+    {
+        if (local is null)
+        {
+            return null;
+        }
+
+        return local.Value.Kind switch
+        {
+            DateTimeKind.Utc => local.Value,
+            DateTimeKind.Local => local.Value.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(local.Value, DateTimeKind.Local).ToUniversalTime(),
+        };
+    }
+
+    private static string SeverityIcon(AdminBroadcastSeverity severity) => severity switch
+    {
+        AdminBroadcastSeverity.Critical => "error",
+        AdminBroadcastSeverity.Warning => "warning",
+        _ => "info",
+    };
+}

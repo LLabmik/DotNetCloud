@@ -39,12 +39,8 @@
             <div class="topbar-right">
                 <CultureSelector @rendermode="InteractiveAuto" />
                 <NotificationBell @rendermode="InteractiveAuto" />
-                <button
-                    id="theme-toggle-button"
-                    class="theme-toggle"
-                    type="button"
-                    title="Toggle theme"
-                    aria-label="Toggle theme">
+                <button id="theme-toggle-button" class="theme-toggle" type="button" title="Toggle theme"
+                        aria-label="Toggle theme">
                     ☾
                 </button>
                 <AuthorizeView>
@@ -64,6 +60,7 @@
             <AuthorizeView>
                 <Authorized>
                     <DemoBanner @rendermode="InteractiveServer" />
+                    <AdminBroadcastModal @rendermode="InteractiveServer" />
                 </Authorized>
             </AuthorizeView>
             <article class="content-area">

@@ -23,6 +23,84 @@ namespace DotNetCloud.Core.Data.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("DotNetCloud.Core.Data.Entities.Admin.AdminBroadcast", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTime?>("ScheduledForUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("SentAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Severity")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SentAtUtc")
+                        .HasDatabaseName("ix_admin_broadcasts_sent_at");
+
+                    b.HasIndex("SentAtUtc", "ScheduledForUtc")
+                        .HasDatabaseName("ix_admin_broadcasts_pending");
+
+                    b.ToTable("AdminBroadcasts");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Core.Data.Entities.Admin.AdminBroadcastDismissal", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BroadcastId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("DismissedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_admin_broadcast_dismissals_user");
+
+                    b.HasIndex("BroadcastId", "UserId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_admin_broadcast_dismissals_broadcast_user");
+
+                    b.ToTable("AdminBroadcastDismissals");
+                });
+
             modelBuilder.Entity("DotNetCloud.Core.Data.Entities.Audit.AuditLog", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1451,6 +1529,15 @@ namespace DotNetCloud.Core.Data.Migrations
                     b.HasKey("UserId", "LoginProvider", "Name");
 
                     b.ToTable("AspNetUserTokens", (string)null);
+                });
+
+            modelBuilder.Entity("DotNetCloud.Core.Data.Entities.Admin.AdminBroadcastDismissal", b =>
+                {
+                    b.HasOne("DotNetCloud.Core.Data.Entities.Admin.AdminBroadcast", null)
+                        .WithMany()
+                        .HasForeignKey("BroadcastId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("DotNetCloud.Core.Data.Entities.Auth.FidoCredential", b =>

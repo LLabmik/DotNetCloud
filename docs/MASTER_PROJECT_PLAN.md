@@ -5795,3 +5795,44 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - Naming: the user-facing label is "Desktop Sync Client"; "SyncTray" remains the internal/product code name (used in docs/troubleshooting).
 - The earlier `DesktopSyncReleaseClassifier` helper + tests were removed once the page stopped fetching/filtering release assets (dead code).
 - Live-verified on dev server mint22 (hover icons hide on the active item; `/apps/synctray` renders with install instructions). Committed + pushed on `fix/side-navbar-improvements`; no PR created (the user handles the PR).
+
+## Admin Broadcast — Dismissible Modal for Blazor Users (2026-09-12)
+
+**Reference:** `docs/ADMIN_BROADCAST_PLAN.md`
+**Status:** completed ✅ (implemented, tests pass, deployed to mint22, live-verified by the user)
+**Branch:** `feature/admin-broadcast`
+**Goal:** Let an administrator push a short message to every logged-in web user, surfaced as a dismissible modal
+dialog — primarily to warn about upcoming disruptive events such as a server reboot. Android already queues work
+across short outages and is deliberately out of scope.
+
+### Deliverables
+
+- ✓ `AdminBroadcast` entity (title, message, severity, created-by, scheduled/sent/expiry timestamps) +
+  `AdminBroadcastDismissal` (per-user dismissal, FK cascade-delete) in `DotNetCloud.Core.Data/Entities/Admin/`
+- ✓ Migrations for both providers — `AddAdminBroadcast` (PostgreSQL) and `AddAdminBroadcast_SqlServer`
+- ✓ `IAdminBroadcastService` / `AdminBroadcastService`: immediate or scheduled delivery, send-now, delete
+  (removes dismissal rows too), per-user active lookup, idempotent dismissal, pending-broadcast publishing
+- ✓ `AdminBroadcastSchedulerHostedService` — 30-second poll that delivers due broadcasts; failure-tolerant
+- ✓ `AdminBroadcastsController` (RequireAdmin: history / create / send-now / delete, all audited) and
+  `BroadcastsController` (authenticated: active / dismiss)
+- ✓ `CoreHub.JoinAdminBroadcastGroupAsync()` + relay subscription in `RealtimeNotificationClient` — Blazor-only
+  delivery via the fixed `admin-broadcast` group, re-joined on reconnect
+- ✓ `AdminBroadcastModal` host wired into `MainLayout` (inside `AuthorizeView`), built on the shared `DncModal`;
+  severity drives icon + styling; dismissal persists server-side
+- ✓ `/admin/broadcast` admin page (compose, schedule, optional expiry, history with status + dismissal counts,
+  send-now for scheduled rows, delete behind a confirmation dialog) + admin nav entry
+- ✓ `campaign` Material SVG path added (a missing icon silently renders as text)
+- ✓ Tests: `AdminBroadcastServiceTests` (18), `AdminBroadcastsControllerTests`, `BroadcastsControllerTests`,
+  hub join-group contract test, `MaterialSvgIconsTests` rows
+
+### Notes
+
+- Delete is permanent by design (no retract): the message and every dismissal row are removed, and any open modal
+  closes via the `admin.broadcast.removed` event.
+- Realtime is best-effort: the modal host also fetches `/api/v1/core/broadcasts/active` on start, so users who log
+  in late — or reconnect after the reboot the message warns about — still see it. Expiry is evaluated at read time.
+- Native clients are provably unaffected: they never invoke the group-join method, so broadcasts never reach them.
+- Verified on mint22: 15/15 deploy targets, migration applied, hashes verified, version 0.6.05, `/health/ready` 200,
+  new endpoints return 401 unauthenticated, both tables present, `Admin Broadcast Scheduler started.` logged.
+- ✓ Browser E2E confirmed by the user on the deployed build: modal on Send, dismissal survives reload/re-login,
+  Delete closes an open modal, scheduled delivery within 30 s, expiry hides the message.

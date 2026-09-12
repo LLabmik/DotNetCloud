@@ -4,6 +4,7 @@ using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Server.Configuration;
+using DotNetCloud.Core.Server.Services;
 using DotNetCloud.Core.Services.ModuleApis;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
@@ -253,6 +254,25 @@ internal sealed class CoreHub : Hub
         _logger.LogDebug(
             "User {UserId} left board-chat group {Group} via connection {ConnectionId}",
             GetUserId(), groupName, Context.ConnectionId);
+    }
+
+    /// <summary>
+    /// Joins the calling connection to the administrator broadcast group so it receives
+    /// admin messages (surfaced as a dismissible modal dialog).
+    /// </summary>
+    /// <remarks>
+    /// The group name is fixed and only server-side Blazor circuit relays call this method,
+    /// so native clients (Android/desktop) never receive administrator broadcasts. Unlike
+    /// <see cref="JoinGroupAsync"/>, no arbitrary group names are accepted.
+    /// </remarks>
+    public async Task JoinAdminBroadcastGroupAsync()
+    {
+        await Groups.AddToGroupAsync(Context.ConnectionId, AdminBroadcastService.BroadcastGroup);
+
+        _logger.LogDebug(
+            "Connection {ConnectionId} joined the {Group} group",
+            Context.ConnectionId,
+            AdminBroadcastService.BroadcastGroup);
     }
 
     /// <summary>

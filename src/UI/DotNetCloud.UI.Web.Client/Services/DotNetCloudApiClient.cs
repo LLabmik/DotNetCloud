@@ -596,6 +596,73 @@ public sealed class DotNetCloudApiClient
     }
 
     // -----------------------------------------------------------------------
+    // Admin broadcasts
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Gets the active administrator broadcast for the current user, if any.
+    /// </summary>
+    public async Task<ActiveAdminBroadcastDto?> GetActiveAdminBroadcastAsync(CancellationToken ct = default)
+    {
+        var response = await _http.GetAsync("api/v1/core/broadcasts/active", ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            return null;
+        }
+
+        var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<ActiveAdminBroadcastDto?>>(ct);
+        return envelope?.Data;
+    }
+
+    /// <summary>
+    /// Records that the current user dismissed a broadcast so it is never shown again.
+    /// </summary>
+    public async Task DismissAdminBroadcastAsync(Guid broadcastId, CancellationToken ct = default)
+    {
+        var response = await _http.PostAsync($"api/v1/core/broadcasts/{broadcastId}/dismiss", null, ct);
+        response.EnsureSuccessStatusCode();
+    }
+
+    /// <summary>
+    /// Lists broadcasts for the admin history view, newest first.
+    /// </summary>
+    public async Task<IReadOnlyList<AdminBroadcastDto>> ListAdminBroadcastsAsync(int take = 100, CancellationToken ct = default)
+    {
+        var envelope = await _http.GetFromJsonAsync<ApiEnvelope<IReadOnlyList<AdminBroadcastDto>>>(
+            $"api/v1/core/admin/broadcasts?take={Math.Clamp(take, 1, 500)}", ct);
+        return envelope?.Data ?? [];
+    }
+
+    /// <summary>
+    /// Creates a broadcast and delivers it immediately, or schedules it for later.
+    /// </summary>
+    public async Task<AdminBroadcastDto?> CreateAdminBroadcastAsync(CreateAdminBroadcastRequest request, CancellationToken ct = default)
+    {
+        var response = await _http.PostAsJsonAsync("api/v1/core/admin/broadcasts", request, ct);
+        response.EnsureSuccessStatusCode();
+        var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<AdminBroadcastDto>>(ct);
+        return envelope?.Data;
+    }
+
+    /// <summary>
+    /// Delivers a scheduled broadcast immediately.
+    /// </summary>
+    public async Task<bool> SendAdminBroadcastNowAsync(Guid broadcastId, CancellationToken ct = default)
+    {
+        var response = await _http.PostAsync($"api/v1/core/admin/broadcasts/{broadcastId}/send-now", null, ct);
+        return response.IsSuccessStatusCode;
+    }
+
+    /// <summary>
+    /// Permanently deletes a broadcast and its dismissal records.
+    /// </summary>
+    public async Task<bool> DeleteAdminBroadcastAsync(Guid broadcastId, CancellationToken ct = default)
+    {
+        var response = await _http.DeleteAsync($"api/v1/core/admin/broadcasts/{broadcastId}", ct);
+        return response.IsSuccessStatusCode;
+    }
+
+    // -----------------------------------------------------------------------
     // Quotas (Admin)
     // -----------------------------------------------------------------------
 
