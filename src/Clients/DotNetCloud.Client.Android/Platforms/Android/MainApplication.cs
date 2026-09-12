@@ -38,6 +38,37 @@ public class MainApplication : MauiApplication
     {
         base.OnCreate();
         CreateNotificationChannels();
+        StartMediaAutoUploadWatcher();
+    }
+
+    /// <summary>
+    /// Starts the in-process media auto-upload watcher as soon as the process starts.
+    /// </summary>
+    /// <remarks>
+    /// The watcher must not depend on the UI lifecycle: <c>App.OnStart</c> only runs when an
+    /// Activity starts, so a process created in the background (push message, calendar alarm)
+    /// previously left auto-upload dormant until the user next opened the app — a large part of
+    /// why a kill during a long upload stopped all progress for days.
+    /// <c>IMediaAutoUploadService.StartAsync</c> is idempotent, so starting it here and from the
+    /// navigation path is safe.
+    /// </remarks>
+    private void StartMediaAutoUploadWatcher()
+    {
+        try
+        {
+            if (!Preferences.Default.Get("media_upload_enabled", false))
+                return;
+
+            var watcher = Ioc.Default.GetService<IMediaAutoUploadService>();
+            if (watcher is null)
+                return;
+
+            _ = watcher.StartAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("DotNetCloud", $"Media auto-upload start failed: {ex.Message}");
+        }
     }
 
     /// <inheritdoc />

@@ -185,6 +185,12 @@ public static class MauiProgram
         builder.Logging.AddDebug();
 #endif
 
+        // Route ILogger output to logcat so on-device diagnostics are observable via
+        // `adb logcat -s DotNetCloud`. AddDebug() alone is only visible to an attached
+        // debugger, which leaves background work (e.g. the media auto-upload watcher)
+        // impossible to diagnose in the field.
+        builder.Logging.AddProvider(new AndroidLogLoggerProvider());
+
         var app = builder.Build();
 
         // Expose the service provider globally via CommunityToolkit.Mvvm

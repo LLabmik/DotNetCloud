@@ -1,6 +1,6 @@
 # Android Media Auto-Upload Redesign — Status & Resume Plan
 
-> ⚠️ **STATUS: IN PROGRESS (2026-09-09) — code implemented, NOT committed.** Read this file + `/memories/repo/DotNetCloud.md` (`## 🚧 RESUME HERE` section) before doing anything in a new session.
+> ⚠️ **STATUS: IN PROGRESS (2026-09-12) — committed on `feature/android-media-auto-upload`; E2E verified on device.** Read this file + `/memories/repo/DotNetCloud.md` (`## 🚧 RESUME HERE` section) before doing anything in a new session.
 
 ## Goal
 Fix Android media auto-upload (photos/videos → server `AutoUpload/YYYY/MM`), which had not uploaded anything "since last month", and make it robust: take a picture/video, have it back up to the server automatically, respecting the user's storage quota.
@@ -18,11 +18,42 @@ The app **declared but never requested** the Android 13+ runtime permissions `RE
    - **No `dataSync` foreground service** (auto-start removed from `SettingsViewModel.OnAutoUploadEnabledChanged` and `App.NavigateToStartPageAsync`) → watcher runs **in-process** (loop + observer while app alive + catch-up scan on launch). `MediaUploadForegroundService` class + manifest entry remain but are inert (never started).
 3. **Quota watch + notify** — `Services/QuotaGate.cs` (+ `tests/.../Services/QuotaGateTests.cs`, 9 tests). Watcher queries `GetQuotaAsync` each pass, caps each batch to the remaining bytes, and posts an **"Auto-upload paused — storage full"** notification (id 3003, used/total) once per transition when full; clears when room frees; stops the pass on server `409`. Server semantics: `MaxBytes == 0` = unlimited; over-quota upload = `409` + `FILES_QUOTA_EXCEEDED`. ben.kimball account = 50 GB (finite).
 
+## Root cause #2 found & fixed (2026-09-12) — stall after the permission fix
+
+The permission fix worked but the watcher then made **zero progress for ~2.3 days** (`media_upload_last_success` frozen at 2026-09-09 22:31). Three compounding causes:
+
+1. **Head-of-queue blocking (the primary bug).** `QueryMediaCandidates` sorted `date_added ASC` (oldest first) and `MediaUploadIndex` records a row **only after a fully successful upload**. The oldest un-uploaded item was `20240815_203816.mp4` — **1.72 GB**. At `MaxConcurrency = 1` (sequential, deliberately, to avoid HTTP 429) with 4 MB chunks that is ~430 chunk PUTs. Every pass restarted on that same file, so **nothing was ever recorded** until it finished — and it never finished.
+2. **Process death mid-upload.** lmkd reaped the app during that long window (the device was in a foreground-service churn storm — Samsung Health / a fitness-band app / Phone Link each cycling an FGS ~every 60 s; Samsung services alone held ~5.6 GB across 52 processes).
+3. **Watcher never restarted after process death.** `App.NavigateToStartPageAsync` (the only caller of `watcher.StartAsync`) runs solely from `App.OnStart`, i.e. only when an **Activity** starts. A background process start (push, calendar alarm) left auto-upload dormant forever. Confirmed in logs: pid 15938 seeded the index and began uploading; its replacement pid 22182 logged calendar/chat work but **never seeded**, and chunk PUTs froze.
+
+### Fixes applied (2026-09-12)
+
+1. **`MaxSingleItemBytes = 500 MB`** (`MediaAutoUploadService`) — items above the cap are skipped and reported (`Skipped N media item(s) larger than 500 MB.`). Verified on device: **17 oversized items skipped**, including the 1.72 GB video.
+2. **Smallest-first ordering** — `QueryMediaCandidates` now returns `OrderBy(c => c.Size)`, so quick wins are recorded immediately and a single huge file can never block the queue. Verified: uploaded sizes increased monotonically (3457215 → 3710543 bytes) during a pass.
+3. **Watcher starts on process start** — `MainApplication.OnCreate` now calls `StartMediaAutoUploadWatcher()` (guarded by `media_upload_enabled`; `StartAsync` is idempotent, so the existing navigation-path call is harmless). Auto-upload no longer depends on the UI lifecycle.
+4. **Logcat observability (permanent)** — new `Platforms/Android/AndroidLogLoggerProvider.cs`, registered in `MauiProgram.CreateMauiApp`. `AddDebug()` only writes to an attached debugger, so every `ILogger` call — including all of the watcher's `skipped because…` branches — was invisible via `adb logcat`. Now visible under the `DotNetCloud` tag in Debug **and** Release. This is what made the diagnosis possible.
+
+### `dataSync` 24-h FGS budget — verified NOT consumed (2026-09-12)
+
+| Path | FGS type | Budget impact |
+| --- | --- | --- |
+| Media auto-upload watcher | **none** (in-process loop + `ContentObserver`) | ✓ zero |
+| `ChatConnectionService` | `dataSync` | ✓ gated off — `AndroidForegroundServicePolicy.UseForegroundServices = false`; log shows `foreground promotion disabled` |
+| `MediaUploadForegroundService` | would be `dataSync` | ✓ not in the manifest, never started |
+| `MusicPlaybackService` | `mediaPlayback` | separate budget; only during playback |
+
+The only `StartForegroundService` call site in the whole app is inside the disabled policy. Live check: `dumpsys activity services net.dotnetcloud.client` → nothing running.
+
 ## Verification state (2026-09-09)
 - Build: `dotnet build src\Clients\DotNetCloud.Client.Android -f net10.0-android -c Debug -r android-arm64 /p:AndroidSdkDirectory="C:\Program Files (x86)\Android\android-sdk"` → clean, 0 warnings/errors.
 - Tests: `dotnet test tests\DotNetCloud.Client.Android.Tests` → **283 passed / 1 skipped**.
 - On-device (R5CWC356B2K, cloud.dotnetcloud.net): permission grant via Fix worked; watcher uploaded a large backfill in the foreground (progress notification 3001 counted to 40+); **no** media FGS; app stable; leftover JobScheduler test job purged.
-- ⚠️ **Not fully verified / blocked today:** clean end-to-end after the Android 15/16 `dataSync` FGS budget reset; quota-full notification path (needs a tiny quota); background sync when the app is closed.
+
+## Verification state (2026-09-12) — E2E PASSING
+- Build: arm64 Debug → **0 warnings / 0 errors**. Tests: `dotnet test tests\DotNetCloud.Client.Android.Tests` → **283 passed / 1 skipped / 0 failed**.
+- Merge of `origin/main` resolved (in-process watcher kept; no `dataSync` auto-start).
+- **End-to-end verified on R5CWC356B2K:** watcher seeded 734 server files → `Skipped 17 media item(s) larger than 500 MB` → `Found 113 new … uploading 40 this pass` → **40/40 uploaded in one pass**, all 40 distinct (no duplicates). Index grew 40,960 → 45,056 bytes; new destination folders `2024/09`, `2024/10`, `2024/11`, `2026/02`, `2026/09` appeared (newest was previously `2024/08`). `media_upload_last_success` advanced 1788993076 → **1789191395** (14 s before wall clock). Next pass found **73** pending (113 − 40) and continued on the 1-minute backlog cadence. Process stable (`pidof` unchanged across passes), **zero foreground services**.
+- Still open: quota-full notification path (needs a tiny quota); true background/headless sync when the app is closed (P5).
 
 ## Known issues / gotchas
 - **`dataSync` FGS 24-h budget (Android 15/16):** rolling per-24 h window, persisted across reboots (reboot does NOT reset). When exhausted the platform throws `ForegroundServiceDidNotStopInTimeException` and can crash-loop via Sticky restarts. Today the **ChatConnectionService** (still `dataSync`, pre-existing) is the recurring crash source — separate fix needed (non-`dataSync` FGS type, e.g. `remoteMessaging` on API 34+, or stop Sticky restart when exhausted).
@@ -34,7 +65,7 @@ The app **declared but never requested** the Android 13+ runtime permissions `RE
 
 ## Not done (deferred, needs device/decisions)
 - **P4 capture→gallery single path:** Files-tab camera should launch the system camera and land the photo in the shared gallery so ONE watcher path uploads it (spike: `MediaScannerConnection.ScanFile` vs no-`EXTRA_OUTPUT`). Current capture path still works (uploads to AutoUpload when enabled).
-- **P5 background sync** (the "max files/day" ask): headless-safe periodic job (JobScheduler or compatible WorkManager) + larger batches on WiFi/charging.
+- **P5 background sync** (the "max files/day" ask): headless-safe periodic job (JobScheduler or compatible WorkManager) + larger batches on WiFi/charging. **Now the top remaining risk:** because the watcher is in-process only, any lmkd kill stops auto-upload until the process restarts — and the 1.72 GB-video scenario shows how expensive that is. Do NOT solve this with a `dataSync` FGS (it would burn the same 24-h budget that crash-loops `ChatConnectionService`); use WorkManager or a non-`dataSync` type such as `specialUse`/`shortService`.
 - Chat FGS `dataSync` type change.
 - Server `AutoUpload` may contain test screenshots `dnc_*.png` from this session — deletable.
 

@@ -38,6 +38,19 @@ internal sealed class MediaAutoUploadService : IMediaAutoUploadService
     /// <summary>Maximum number of items uploaded in a single scan pass (keeps memory + notification churn bounded during a first-run backfill).</summary>
     private const int MaxItemsPerPass = 40;
 
+    /// <summary>
+    /// Largest single item the watcher will upload; anything bigger is skipped entirely.
+    /// </summary>
+    /// <remarks>
+    /// Candidates are drained smallest-first and a row is only recorded in the index after a fully
+    /// successful upload. A multi-gigabyte file therefore used to sit at the head of the queue and
+    /// block all progress: at the sequential chunk cadence (~4 MB chunks, <c>MaxConcurrency = 1</c>
+    /// to avoid HTTP 429) it took long enough that a process kill mid-upload meant the next attempt
+    /// restarted from the same file and recorded nothing, so the backup never advanced. Oversized
+    /// items are reported in the log and left on the device rather than silently dropped.
+    /// </remarks>
+    private const long MaxSingleItemBytes = 500L * 1024 * 1024;
+
     private readonly IServerConnectionStore _connectionStore;
     private readonly ISecureTokenStore _tokenStore;
     private readonly IFileRestClient _fileApi;
@@ -754,19 +767,33 @@ internal sealed class MediaAutoUploadService : IMediaAutoUploadService
 
     /// <summary>
     /// Enumerates (read-only) every photo and video currently visible to the app in MediaStore,
-    /// oldest first. On Android 13+ this requires READ_MEDIA_IMAGES/VIDEO to see other apps'
-    /// media; without the permission the query returns at most the app's own rows.
+    /// smallest first and skipping anything above <see cref="MaxSingleItemBytes"/>. On Android 13+
+    /// this requires READ_MEDIA_IMAGES/VIDEO to see other apps' media; without the permission the
+    /// query returns at most the app's own rows.
     /// </summary>
-    private static List<MediaCandidate> QueryMediaCandidates()
+    private List<MediaCandidate> QueryMediaCandidates()
     {
         var result = new List<MediaCandidate>();
+        var oversizedCount = 0;
         var resolver = Platform.AppContext?.ContentResolver;
         if (resolver is null)
             return result;
 
         Collect(MediaStore.Images.Media.ExternalContentUri, isVideo: false);
         Collect(MediaStore.Video.Media.ExternalContentUri, isVideo: true);
-        return result.OrderBy(c => c.DateAddedSeconds).ToList();
+
+        if (oversizedCount > 0)
+        {
+            _logger.LogInformation(
+                "Skipped {SkippedCount} media item(s) larger than {MaxMb} MB.",
+                oversizedCount, MaxSingleItemBytes / (1024 * 1024));
+        }
+
+        // Smallest first: the index records an item only once its upload fully succeeds, so
+        // draining quick wins first keeps the queue advancing even if the process is killed
+        // mid-pass. Ordering by date previously parked a 1.7 GB video at the head and blocked
+        // every subsequent pass from making any progress.
+        return result.OrderBy(c => c.Size).ToList();
 
         void Collect(AndroidUri? collectionUri, bool isVideo)
         {
@@ -797,6 +824,15 @@ internal sealed class MediaAutoUploadService : IMediaAutoUploadService
                     var name = cursor.GetString(nameIdx) ?? $"media_{id}";
                     var size = sizeIdx >= 0 ? cursor.GetLong(sizeIdx) : 0L;
                     var date = cursor.GetLong(dateIdx);
+
+                    // Leave oversized items untouched on the device: uploading one can outlast a
+                    // process lifetime, and a partial attempt records no progress at all.
+                    if (size > MaxSingleItemBytes)
+                    {
+                        oversizedCount++;
+                        continue;
+                    }
+
                     result.Add(new MediaCandidate(
                         ContentUris.WithAppendedId(collectionUri, id).ToString() ?? $"media_{id}",
                         name, size, date, isVideo));

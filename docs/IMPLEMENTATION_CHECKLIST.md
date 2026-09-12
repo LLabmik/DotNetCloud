@@ -3573,6 +3573,16 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Upload via `IFileRestClient` (chunked upload with folder parentId)
 - ✓ Add `ChannelIdMediaUpload` notification channel in `MainApplication.cs`
 - ✓ Register `IMediaAutoUploadService` → `MediaAutoUploadService` in DI
+- ✓ Request Android 13+ `READ_MEDIA_IMAGES`/`READ_MEDIA_VIDEO` at runtime (Fix card in Settings; watcher previously saw an empty gallery)
+- ✓ Replace watermark fingerprint prefs with SQLite dedup index (`media_upload.db3`, key = name|size|dateAddedSec)
+- ✓ Server-side dedup seed (walks `AutoUpload` tree once per process; skips name+size already present)
+- ✓ Serialize scans (semaphore) so loop / observer / manual sync cannot race
+- ✓ Cap each pass at 40 items with a 1-minute backlog cadence
+- ✓ Smallest-first candidate ordering (`OrderBy(c => c.Size)`) so a single huge file cannot block the queue
+- ✓ Skip media items larger than 500 MB (`MaxSingleItemBytes`) and log the count
+- ✓ Start the in-process watcher from `MainApplication.OnCreate` so auto-upload survives process restarts without relying on the UI lifecycle
+- ✓ Route `ILogger` output to logcat (`AndroidLogLoggerProvider`) so background-service decisions are diagnosable in the field
+- ✓ Verify `dataSync` FGS 24-h budget is not consumed (media watcher runs in-process with no service; chat promotion gated off)
 
 #### Android Distribution
 
