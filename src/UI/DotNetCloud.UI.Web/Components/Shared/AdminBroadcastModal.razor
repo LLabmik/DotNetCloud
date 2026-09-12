@@ -1,0 +1,24 @@
+@*
+    Global host for administrator broadcasts.
+
+    Renders a dismissible modal dialog over the whole app whenever an admin broadcast
+    is active (e.g. a warning about an upcoming server reboot). Mounted once from
+    MainLayout and driven by the server-circuit realtime relay plus a one-shot fetch
+    of the active broadcast, so users who log in late still see it.
+*@
+
+@if (_active is not null)
+{
+    <DncModal @key="_active.Id" Title="@_active.Title" StartVisible="true" CloseOnOverlayClick="false"
+              OnClose="DismissAsync">
+        <ChildContent>
+            <div class="alert @SeverityClass(_active.Severity)" role="alert">
+                <MaterialIcon Icon="@SeverityIcon(_active.Severity)" Size="MaterialIconSize.Lg" />
+                <span>@_active.Message</span>
+            </div>
+        </ChildContent>
+        <Footer>
+            <button type="button" class="btn btn-primary" @onclick="DismissAsync">Dismiss</button>
+        </Footer>
+    </DncModal>
+}

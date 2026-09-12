@@ -39,6 +39,12 @@ internal sealed class RealtimeNotificationClient : IRealtimeNotificationClient, 
     public event Action<NotificationDto>? NotificationCreated;
 
     /// <inheritdoc />
+    public event Action<ActiveAdminBroadcastDto>? AdminBroadcastReceived;
+
+    /// <inheritdoc />
+    public event Action<Guid>? AdminBroadcastRemoved;
+
+    /// <inheritdoc />
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
         if (_hub is not null)
@@ -80,9 +86,20 @@ internal sealed class RealtimeNotificationClient : IRealtimeNotificationClient, 
         _hub.On<NotificationDto>("notification.created", notification =>
             NotificationCreated?.Invoke(notification));
 
+        // Administrator broadcasts (rendered as a dismissible modal dialog). The relay joins
+        // the fixed admin-broadcast group so native clients are never targeted.
+        _hub.On<ActiveAdminBroadcastDto>("admin.broadcast", broadcast =>
+            AdminBroadcastReceived?.Invoke(broadcast));
+
+        _hub.On<Guid>("admin.broadcast.removed", broadcastId =>
+            AdminBroadcastRemoved?.Invoke(broadcastId));
+
+        _hub.Reconnected += _ => JoinAdminBroadcastGroupAsync();
+
         try
         {
             await _hub.StartAsync(cancellationToken);
+            await JoinAdminBroadcastGroupAsync();
             _logger.LogInformation("Realtime notification connection started.");
         }
         catch (Exception ex)
@@ -100,6 +117,28 @@ internal sealed class RealtimeNotificationClient : IRealtimeNotificationClient, 
         {
             await _hub.DisposeAsync();
             _hub = null;
+        }
+    }
+
+    /// <summary>
+    /// Subscribes this circuit's relay connection to administrator broadcasts.
+    /// Failures are logged and ignored — the modal host also fetches the active
+    /// broadcast directly, so a missed subscription only costs immediacy.
+    /// </summary>
+    private async Task JoinAdminBroadcastGroupAsync()
+    {
+        if (_hub is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _hub.InvokeAsync("JoinAdminBroadcastGroupAsync");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to join the admin-broadcast group.");
         }
     }
 }

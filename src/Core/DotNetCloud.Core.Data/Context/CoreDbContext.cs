@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Entities.Admin;
 using DotNetCloud.Core.Data.Entities.Auth;
 using DotNetCloud.Core.Data.Entities.Identity;
 using DotNetCloud.Core.Data.Entities.Modules;
@@ -7,6 +8,7 @@ using DotNetCloud.Core.Data.Entities.Settings;
 using DotNetCloud.Core.Data.Entities.Notifications;
 using DotNetCloud.Core.Data.Entities.Audit;
 using DotNetCloud.Core.Data.Entities.Search;
+using DotNetCloud.Core.Data.Configuration.Admin;
 using DotNetCloud.Core.Data.Configuration.Search;
 using DotNetCloud.Core.Data.Configuration.Identity;
 using DotNetCloud.Core.Data.Configuration.Modules;
@@ -205,6 +207,26 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
     /// </remarks>
     public DbSet<Notification> Notifications => Set<Notification>();
 
+    // Admin Broadcast DbSets
+    /// <summary>
+    /// Gets or sets the AdminBroadcasts DbSet.
+    /// </summary>
+    /// <remarks>
+    /// Represents administrator-authored messages broadcast to every logged-in user
+    /// (e.g. a warning about an upcoming server reboot). Delivered as a dismissible
+    /// modal to connected Blazor clients.
+    /// </remarks>
+    public DbSet<AdminBroadcast> AdminBroadcasts => Set<AdminBroadcast>();
+
+    /// <summary>
+    /// Gets or sets the AdminBroadcastDismissals DbSet.
+    /// </summary>
+    /// <remarks>
+    /// Tracks which users have dismissed which broadcasts so a dismissed message is
+    /// never shown again. Rows are cascade-deleted with their parent broadcast.
+    /// </remarks>
+    public DbSet<AdminBroadcastDismissal> AdminBroadcastDismissals => Set<AdminBroadcastDismissal>();
+
     // Module Registry DbSets
     /// <summary>
     /// Gets or sets the InstalledModules DbSet.
@@ -300,6 +322,7 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
         ConfigureSettingModels(modelBuilder);
         ConfigureDeviceModels(modelBuilder);
         ConfigureNotificationModels(modelBuilder);
+        ConfigureAdminBroadcastModels(modelBuilder);
         ConfigureAuditModels(modelBuilder);
         ConfigureSearchModels(modelBuilder);
         ConfigureModuleModels(modelBuilder);
@@ -414,6 +437,16 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
     private void ConfigureNotificationModels(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfiguration(new NotificationConfiguration());
+    }
+
+    /// <summary>
+    /// Configures administrator broadcast entities.
+    /// Includes AdminBroadcast and AdminBroadcastDismissal.
+    /// </summary>
+    private void ConfigureAdminBroadcastModels(ModelBuilder modelBuilder)
+    {
+        modelBuilder.ApplyConfiguration(new AdminBroadcastConfiguration());
+        modelBuilder.ApplyConfiguration(new AdminBroadcastDismissalConfiguration());
     }
 
     /// <summary>

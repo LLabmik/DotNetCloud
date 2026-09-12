@@ -459,6 +459,10 @@ public class Program
         builder.Services.AddSingleton<DotNetCloud.Core.Services.IUpdateService, DotNetCloud.Core.Server.Services.GitHubUpdateService>();
         builder.Services.AddScoped<DotNetCloud.Core.Capabilities.INotificationService, NotificationService>();
 
+        // Admin broadcasts: dismissible modal messages delivered to all logged-in Blazor users
+        // (e.g. a warning about an upcoming server reboot).
+        builder.Services.AddScoped<DotNetCloud.Core.Services.IAdminBroadcastService, AdminBroadcastService>();
+
         // Notification fan-out channels
         builder.Services.AddScoped<INotificationChannel, RealtimeNotificationChannel>();
         builder.Services.AddScoped<INotificationChannel, PushNotificationChannel>();
@@ -811,6 +815,9 @@ public class Program
 
         // Enforce audit-log retention (SOC 2 C2/P6): daily purge of expired rows.
         builder.Services.AddHostedService<AuditLogPurgeHostedService>();
+
+        // Deliver scheduled admin broadcasts shortly after their send time (30s poll).
+        builder.Services.AddHostedService<AdminBroadcastSchedulerHostedService>();
 
         // Register admin shared folder cleanup handler
         builder.Services.AddSingleton<AdminSharedFolderCleanupService>();
