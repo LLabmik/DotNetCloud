@@ -31,4 +31,11 @@ public interface IMediaAutoUploadService
 
     /// <summary>Whether the background watcher is currently active.</summary>
     bool IsRunning { get; }
+
+    /// <summary>
+    /// True when the most recent scan pass left more media queued than it could upload, i.e. a
+    /// backfill is still draining. The background job uses this to poll every few minutes until
+    /// the queue is empty instead of waiting out its idle interval.
+    /// </summary>
+    bool HasPendingWork { get; }
 }

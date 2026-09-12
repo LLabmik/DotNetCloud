@@ -20,6 +20,13 @@
 			android:foregroundServiceType="mediaPlayback"
 			android:exported="false" />
 
+		<!-- Periodic background media auto-upload job (JobScheduler). Uses NO foreground
+		     service, so it never consumes the Android 15/16 dataSync 24-hour budget. -->
+		<service
+			android:name=".MediaUploadJobService"
+			android:permission="android.permission.BIND_JOB_SERVICE"
+			android:exported="false" />
+
 		<!-- Firebase Cloud Messaging handler (Google Play flavor) -->
 		<service
 			android:name=".FcmMessagingService"

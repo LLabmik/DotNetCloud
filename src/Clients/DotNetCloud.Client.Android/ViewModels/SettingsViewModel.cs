@@ -31,6 +31,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly IAppPreferences _preferences;
     private readonly IAndroidUpdateService _updateService;
     private readonly IChatRestClient? _chatApi;
+    private readonly IBackgroundMediaSync? _backgroundMediaSync;
     private readonly ILogger<SettingsViewModel> _logger;
 
     /// <summary>Raised when the user logs out and the app should return to login.</summary>
@@ -48,7 +49,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         IAppPreferences preferences,
         IAndroidUpdateService updateService,
         ILogger<SettingsViewModel> logger,
-        IChatRestClient? chatApi = null)
+        IChatRestClient? chatApi = null,
+        IBackgroundMediaSync? backgroundMediaSync = null)
     {
         _serverStore = serverStore;
         _tokenStore = tokenStore;
@@ -60,6 +62,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _preferences = preferences;
         _updateService = updateService;
         _chatApi = chatApi;
+        _backgroundMediaSync = backgroundMediaSync;
         _logger = logger;
 
         var active = serverStore.GetActive();
@@ -170,6 +173,13 @@ public sealed partial class SettingsViewModel : ObservableObject
     {
         _preferences.Set(PrefEnabled, value);
         _logger.LogInformation("Auto-upload {State}.", value ? "enabled" : "disabled");
+
+        // Keep the periodic background job in step with the toggle. It uses no foreground
+        // service, so it never consumes the Android 15/16 dataSync 24-hour budget.
+        if (value)
+            _backgroundMediaSync?.Schedule();
+        else
+            _backgroundMediaSync?.Cancel();
 
         if (value)
         {

@@ -89,6 +89,10 @@ public static class MauiProgram
             .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
         builder.Services.AddSingleton<IMediaAutoUploadService, MediaAutoUploadService>();
 
+        // Periodic background media sync (JobScheduler; no foreground service, so it never
+        // consumes the Android 15/16 dataSync 24-hour budget).
+        builder.Services.AddSingleton<Services.IBackgroundMediaSync, AndroidBackgroundMediaSync>();
+
         // ── Platform services ─────────────────────────────────────────
         builder.Services.AddSingleton<IBatteryOptimizationService, AndroidBatteryOptimizationService>();
 

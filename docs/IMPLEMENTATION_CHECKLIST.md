@@ -3583,6 +3583,12 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Start the in-process watcher from `MainApplication.OnCreate` so auto-upload survives process restarts without relying on the UI lifecycle
 - ✓ Route `ILogger` output to logcat (`AndroidLogLoggerProvider`) so background-service decisions are diagnosable in the field
 - ✓ Verify `dataSync` FGS 24-h budget is not consumed (media watcher runs in-process with no service; chat promotion gated off)
+- ✓ P5 headless background sync: persisted one-shot `JobScheduler` job (`MediaUploadJobService`, id 3107; Wi-Fi only) wakes the app to scan while it is closed — no foreground service, so no `dataSync` budget use
+- ✓ Adaptive background cadence: the job re-arms itself every 5 minutes while media is still queued and hourly once the queue is empty (a periodic job cannot do this — `SetPeriodic` has a 15-minute platform floor)
+- ✓ Bound OS deferral with `SetOverrideDeadline(delay + 2 min)` — a min-latency-only one-shot job was observed deferred indefinitely (`TIME=-1m50s` while `RUNNABLE`, bucket ACTIVE)
+- ✓ Verified the full adaptive cycle on device with the app dead: 5-minute re-arm fired on its own, drained the queue, then returned to the hourly cadence
+- ✓ Abstract background scheduling via `IBackgroundMediaSync` so `SettingsViewModel` stays testable on plain `net10.0`; schedule/cancel follows the auto-upload toggle
+- ✓ Verified headless on device: job survives reboot, cold-starts with the app dead, and uploads a photo captured while the app was closed; zero foreground services
 
 #### Android Distribution
 

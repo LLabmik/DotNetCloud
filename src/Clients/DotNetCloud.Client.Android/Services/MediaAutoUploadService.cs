@@ -89,6 +89,11 @@ internal sealed class MediaAutoUploadService : IMediaAutoUploadService
     // shortens its next delay to chew through the backlog.
     private bool _hasBacklog;
 
+    // True when the last pass left media queued — either a backlog beyond the per-pass cap, or
+    // items this pass selected but could not finish. Drives the background job's adaptive cadence
+    // (short poll while work remains, idle interval once the queue is empty).
+    private bool _hasPendingWork;
+
     // Storage-quota state: remaining bytes (long.MaxValue when unlimited) plus a flag so the
     // "storage full" notification is raised once per transition rather than on every scan.
     private long _quotaRemainingBytes = long.MaxValue;
@@ -103,6 +108,9 @@ internal sealed class MediaAutoUploadService : IMediaAutoUploadService
 
     /// <inheritdoc />
     public bool IsRunning => _loopCts is not null && !_loopCts.IsCancellationRequested;
+
+    /// <inheritdoc />
+    public bool HasPendingWork => _hasPendingWork;
 
     /// <summary>Initializes a new <see cref="MediaAutoUploadService"/>.</summary>
     public MediaAutoUploadService(
@@ -301,6 +309,7 @@ internal sealed class MediaAutoUploadService : IMediaAutoUploadService
             return;
 
         _hasBacklog = false;
+        _hasPendingWork = false;
 
         // Serialise scans — the periodic loop, the observer and a manual "Sync now" can all
         // arrive here concurrently and must not race (which previously caused duplicates).
@@ -436,6 +445,10 @@ internal sealed class MediaAutoUploadService : IMediaAutoUploadService
 
             if (uploaded > 0)
                 Preferences.Default.Set(PrefLastSuccessTs, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+
+            // Anything this pass could not finish — a backlog beyond the per-pass cap, or items
+            // that failed and so were not recorded — keeps the background job on its short cadence.
+            _hasPendingWork = _hasBacklog || uploaded < toUpload.Count;
 
             nm.Cancel(NotificationId);
         }

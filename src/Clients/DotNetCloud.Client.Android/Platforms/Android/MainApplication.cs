@@ -39,6 +39,7 @@ public class MainApplication : MauiApplication
         base.OnCreate();
         CreateNotificationChannels();
         StartMediaAutoUploadWatcher();
+        ScheduleBackgroundMediaSync();
     }
 
     /// <summary>
@@ -69,6 +70,28 @@ public class MainApplication : MauiApplication
         {
             Log.Warn("DotNetCloud", $"Media auto-upload start failed: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Registers the periodic <c>JobScheduler</c> job that wakes the app to
+    /// back up new media while it is closed, or removes it when auto-upload is switched off.
+    /// </summary>
+    /// <remarks>
+    /// The in-process watcher only lives as long as the process, so without a trigger nothing would
+    /// run while the app is closed. This job supplies that trigger and uses <b>no</b> foreground
+    /// service, so it never consumes the Android 15/16 <c>dataSync</c> 24-hour budget.
+    /// Scheduling is idempotent, so calling it on every process start is safe.
+    /// </remarks>
+    private void ScheduleBackgroundMediaSync()
+    {
+        var sync = Ioc.Default.GetService<IBackgroundMediaSync>();
+        if (sync is null)
+            return;
+
+        if (Preferences.Default.Get("media_upload_enabled", false))
+            sync.Schedule();
+        else
+            sync.Cancel();
     }
 
     /// <inheritdoc />
