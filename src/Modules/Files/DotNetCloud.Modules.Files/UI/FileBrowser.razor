@@ -136,8 +136,8 @@ else
                                     title="@(_selectionMode ? "Exit selection" : "Select items")">
                                 @(_selectionMode ? "✕ Cancel" : "☑ Select")
                             </button>
-                            <button class="btn btn-sm" @onclick="ToggleViewMode" title="Toggle view">
-                                @GetViewToggleLabel()
+                            <button class="btn btn-sm" @onclick="ToggleViewMode" title="Switch to @GetViewToggleLabel() view">
+                                <MaterialIcon Icon="@GetViewToggleIcon()" Size="MaterialIconSize.Sm" /> @GetViewToggleLabel()
                             </button>
                             <button class="btn btn-sm" @onclick="RefreshAsync" disabled="@IsLoading"
                                     title="Refresh current directory">
@@ -278,7 +278,61 @@ else
                                             }
                                         </div>
                                     }
-    else
+                                    else if (_viewMode == ViewMode.Gallery)
+                                    {
+                                        <div class="files-gallery">
+                                            <div class="gallery-toolbar">
+                                                <span class="gallery-count">
+                                                    @GalleryImages.Count @(GalleryImages.Count == 1 ? "image" : "images") in this folder
+                                                </span>
+                                                <button class="btn btn-sm @(IsGallerySlideshow ? "btn-active" : "")"
+                                                        @onclick="ToggleGallerySlideshow"
+                                                        disabled="@(GalleryImages.Count < 2)"
+                                                        title="@(IsGallerySlideshow ? "Disable slideshow when opening an image" : "Start a slideshow when opening an image")">
+                                                    <MaterialIcon Icon="slideshow" Size="MaterialIconSize.Sm" />
+                                                    Slideshow @(IsGallerySlideshow ? "On" : "Off")
+                                                </button>
+                                            </div>
+
+                                            @if (GalleryImages.Count == 0)
+                                            {
+                                                <div class="empty-state" role="status">
+                                                    <p class="empty-state-title">No images in this folder</p>
+                                                    <p class="text-muted empty-state-hint">Switch to Grid or List view to see all files, or upload an image.</p>
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <div class="gallery-grid">
+                                                    @foreach (var image in GalleryImages)
+                                                    {
+                                                        <div class="gallery-tile" data-node-id="@image.Id">
+                                                            <button class="gallery-tile-open" @onclick="() => OpenGalleryImage(image)"
+                                                                    title="Open @image.Name in the image viewer">
+                                                                <span class="gallery-thumb-wrap">
+                                                                    <MaterialIcon Icon="image" Size="MaterialIconSize.Xl" CssClass="gallery-thumb-placeholder" />
+                                                                    <img src="@GetGalleryImageUrl(image)" alt="@image.Name" class="gallery-thumb"
+                                                                         loading="lazy" @onerror="() => HandleGalleryThumbError(image)" />
+                                                                </span>
+                                                                <span class="gallery-tile-overlay">
+                                                                    <span class="gallery-tile-name">@image.Name</span>
+                                                                    <span class="gallery-tile-meta">@FormatSize(image.Size)</span>
+                                                                </span>
+                                                            </button>
+                                                            @if (!image.IsReadOnly)
+                                                            {
+                                                                <button class="btn-icon gallery-tile-delete" @onclick="() => HandleGalleryDelete(image)"
+                                                                        title="Delete @image.Name" aria-label="Delete @image.Name">
+                                                                    <MaterialIcon Icon="delete" Size="MaterialIconSize.Sm" />
+                                                                </button>
+                                                            }
+                                                        </div>
+                                                    }
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                    else
                                     {
                                         @if (_viewMode == ViewMode.List)
                                         {
@@ -476,7 +530,7 @@ else
 
                                         @if (_showDeleteConfirm)
                                         {
-                                            <div class="dialog-overlay" @onclick="CancelDelete">
+                                            <div class="dialog-overlay dialog-overlay--above-preview" @onclick="CancelDelete">
                                                 <div class="dialog" @onclick:stopPropagation>
                                                     <div class="dialog-header">
                                                         <h3>Move to trash?</h3>
@@ -509,10 +563,12 @@ else
 
                                     @if (IsShowPreview && PreviewNode is not null)
                                     {
-                                        <FilePreview Node="@PreviewNode" AllNodes="SortedNodes" ApiBaseUrl="@ApiBaseUrl"
+                                        <FilePreview Node="@PreviewNode" AllNodes="PreviewAllNodes" ApiBaseUrl="@ApiBaseUrl"
                                                      ShowCommentsButton="@(!PreviewNode.IsReadOnly)" ShowShareButton="@(!PreviewNode.IsVirtual)"
+                                                     StartSlideshow="@IsGallerySlideshow" ShowDeleteButton="true"
+                                                     ModalOpen="@_showDeleteConfirm"
                                                      OnClose="HidePreview" OnShare="HandlePreviewShare" OnDownload="HandlePreviewDownload"
-                                                     OnComments="HandlePreviewComments" />
+                                                     OnComments="HandlePreviewComments" OnDelete="HandlePreviewDelete" />
                                     }
 
                                     @if (IsShowDocumentEditor && EditorNode is not null)

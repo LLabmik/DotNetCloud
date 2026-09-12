@@ -13,16 +13,15 @@
         {
             <h3 class="sidebar-title">Files</h3>
         }
-        <button class="sidebar-toggle" @onclick="ToggleCollapsed" title="@(_sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")">
+        <button class="sidebar-toggle" @onclick="ToggleCollapsed"
+                title="@(_sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")">
             <MaterialIcon Icon="@(_sidebarCollapsed ? "chevron_right" : "chevron_left")" />
         </button>
     </div>
     <ul class="sidebar-nav-list">
         <li class="sidebar-nav-item @IsActive(FileSidebarSection.AllFiles)">
-            <a href="#" class="sidebar-nav-link"
-               title="All Files"
-               @onclick="() => Navigate(FileSidebarSection.AllFiles)"
-               @onclick:preventDefault>
+            <a href="#" class="sidebar-nav-link" title="All Files"
+               @onclick="() => Navigate(FileSidebarSection.AllFiles)" @onclick:preventDefault>
                 <span class="nav-icon" aria-hidden="true">📁</span>
                 @if (!_sidebarCollapsed)
                 {
@@ -32,10 +31,8 @@
         </li>
 
         <li class="sidebar-nav-item @IsActive(FileSidebarSection.Favorites)">
-            <a href="#" class="sidebar-nav-link"
-               title="Favorites"
-               @onclick="() => Navigate(FileSidebarSection.Favorites)"
-               @onclick:preventDefault>
+            <a href="#" class="sidebar-nav-link" title="Favorites"
+               @onclick="() => Navigate(FileSidebarSection.Favorites)" @onclick:preventDefault>
                 <span class="nav-icon" aria-hidden="true">⭐</span>
                 @if (!_sidebarCollapsed)
                 {
@@ -45,9 +42,7 @@
         </li>
 
         <li class="sidebar-nav-item @IsActive(FileSidebarSection.Recent)">
-            <a href="#" class="sidebar-nav-link"
-               title="Recent"
-               @onclick="() => Navigate(FileSidebarSection.Recent)"
+            <a href="#" class="sidebar-nav-link" title="Recent" @onclick="() => Navigate(FileSidebarSection.Recent)"
                @onclick:preventDefault>
                 <span class="nav-icon" aria-hidden="true">🕐</span>
                 @if (!_sidebarCollapsed)
@@ -58,10 +53,8 @@
         </li>
 
         <li class="sidebar-nav-item @IsActive(FileSidebarSection.SharedWithMe)">
-            <a href="#" class="sidebar-nav-link"
-               title="Shared with me"
-               @onclick="() => Navigate(FileSidebarSection.SharedWithMe)"
-               @onclick:preventDefault>
+            <a href="#" class="sidebar-nav-link" title="Shared with me"
+               @onclick="() => Navigate(FileSidebarSection.SharedWithMe)" @onclick:preventDefault>
                 <span class="nav-icon" aria-hidden="true">📥</span>
                 @if (!_sidebarCollapsed)
                 {
@@ -71,10 +64,8 @@
         </li>
 
         <li class="sidebar-nav-item @IsActive(FileSidebarSection.SharedByMe)">
-            <a href="#" class="sidebar-nav-link"
-               title="Shared by me"
-               @onclick="() => Navigate(FileSidebarSection.SharedByMe)"
-               @onclick:preventDefault>
+            <a href="#" class="sidebar-nav-link" title="Shared by me"
+               @onclick="() => Navigate(FileSidebarSection.SharedByMe)" @onclick:preventDefault>
                 <span class="nav-icon" aria-hidden="true">📤</span>
                 @if (!_sidebarCollapsed)
                 {
@@ -84,9 +75,7 @@
         </li>
 
         <li class="sidebar-nav-item sidebar-nav-item--expandable @IsActive(FileSidebarSection.Tags)">
-            <button class="sidebar-nav-link sidebar-nav-link--expandable"
-                    @onclick="ToggleTagsExpanded"
-                    title="Tags"
+            <button class="sidebar-nav-link sidebar-nav-link--expandable" @onclick="ToggleTagsExpanded" title="Tags"
                     aria-expanded="@IsTagsExpanded">
                 <span class="nav-icon" aria-hidden="true">🏷️</span>
                 @if (!_sidebarCollapsed)
@@ -108,9 +97,7 @@
                         @foreach (var tag in Tags)
                         {
                             <li class="sidebar-tag-item">
-                                <a href="#" class="sidebar-tag-link"
-                                   @onclick="() => NavigateToTag(tag)"
-                                   @onclick:preventDefault>
+                                <a href="#" class="sidebar-tag-link" @onclick="() => NavigateToTag(tag)" @onclick:preventDefault>
                                     @if (tag.Color is not null)
                                     {
                                         <span class="tag-dot" style="background:@tag.Color" aria-hidden="true"></span>
@@ -126,9 +113,7 @@
         </li>
 
         <li class="sidebar-nav-item @IsActive(FileSidebarSection.Trash)">
-            <a href="#" class="sidebar-nav-link"
-               title="Trash"
-               @onclick="() => Navigate(FileSidebarSection.Trash)"
+            <a href="#" class="sidebar-nav-link" title="Trash" @onclick="() => Navigate(FileSidebarSection.Trash)"
                @onclick:preventDefault>
                 <span class="nav-icon" aria-hidden="true">🗑️</span>
                 @if (!_sidebarCollapsed)
@@ -148,34 +133,36 @@
     @if (!_sidebarCollapsed)
     {
         <div class="sidebar-quota">
-            <div class="sidebar-storage-summary">
-                <div class="storage-line">
-                    <span class="storage-label">Used</span>
-                    <span class="storage-value">@(Quota is not null ? FormatBytes(Quota.UsedBytes) : "—")</span>
-                </div>
-                <div class="storage-line">
-                    <span class="storage-label">In Trash</span>
-                    <span class="storage-value">@(TrashBytes > 0 ? FormatBytes(TrashBytes) : "Empty")</span>
-                </div>
+            <div class="sidebar-quota-labels">
+                <span class="sidebar-quota-title">Storage Quota</span>
                 @if (Quota is not null && Quota.MaxBytes > 0)
                 {
-                    <div class="storage-line">
-                        <span class="storage-label">Quota</span>
-                        <span class="storage-value">@FormatBytes(Quota.MaxBytes)</span>
-                    </div>
-                    <div class="quota-bar quota-bar-sm">
-                        <div class="quota-bar-fill @QuotaBarClass(Quota)" style="width: @(Math.Min(Quota.UsagePercent, 100).ToString("F0"))%"></div>
-                    </div>
-                    <span class="text-muted text-sm">@Quota.UsagePercent.ToString("F1")% used</span>
-                }
-                else
-                {
-                    <div class="storage-line">
-                        <span class="storage-label">Quota</span>
-                        <span class="storage-value">Unlimited</span>
-                    </div>
+                    <span>@Math.Min(100.0, Quota.UsagePercent).ToString("F0")%</span>
                 }
             </div>
+            @if (Quota is not null && Quota.MaxBytes > 0)
+            {
+                <div class="sidebar-quota-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100"
+                     aria-valuenow="@((int)Math.Min(100.0, Quota.UsagePercent))" aria-label="Storage usage">
+                    <div class="sidebar-quota-bar-fill @QuotaBarClass(Quota)"
+                         style="width: @(Math.Min(100.0, Quota.UsagePercent).ToString("F0"))%"></div>
+                </div>
+                <div class="sidebar-quota-usage">@FormatBytes(Quota.UsedBytes) used of @FormatBytes(Quota.MaxBytes)</div>
+            }
+            else
+            {
+                <div class="sidebar-quota-usage">
+                    @(Quota is not null ? $"{FormatBytes(Quota.UsedBytes)} used" : "—") · Unlimited
+                </div>
+            }
+            @if (TrashBytes > 0 || TrashItemCount > 0)
+            {
+                <div class="sidebar-quota-usage sidebar-quota-trash">
+                    @(TrashBytes > 0
+                        ? $"{FormatBytes(TrashBytes)} in trash"
+                        : $"{TrashItemCount} item{(TrashItemCount == 1 ? "" : "s")} in trash")
+                </div>
+            }
         </div>
     }
 

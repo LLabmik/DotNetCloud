@@ -17,16 +17,44 @@
                 <h3 title="@DisplayNode?.Name">@DisplayNode?.Name</h3>
             </div>
             <div class="preview-actions">
+                @if (IsSlideshowAvailable)
+                {
+                    <button class="btn btn-sm @(IsSlideshowActive ? "btn-active" : "")" @onclick="ToggleSlideshow"
+                            title="@(IsSlideshowActive ? "Pause slideshow (Space)" : "Start slideshow (Space)")">
+                        <MaterialIcon Icon="@(IsSlideshowActive ? "pause" : "play_arrow")" Size="MaterialIconSize.Sm" />
+                        @(IsSlideshowActive ? "Pause" : "Slideshow")
+                    </button>
+                    @if (IsSlideshowActive)
+                    {
+                        <select class="preview-slideshow-interval" aria-label="Slideshow speed"
+                                @bind="_slideshowInterval" @bind:after="OnSlideshowIntervalChanged">
+                            <option value="3">3s</option>
+                            <option value="5">5s</option>
+                            <option value="10">10s</option>
+                            <option value="15">15s</option>
+                        </select>
+                    }
+                }
                 @if (ShowShareButton)
                 {
                     <button class="btn btn-sm" @onclick="Share" title="Share this file">Share</button>
                 }
                 @if (ShowCommentsButton)
                 {
-                    <button class="btn btn-sm" @onclick="() => OnComments.InvokeAsync(DisplayNode)" title="Comments">💬 Comments</button>
+                    <button class="btn btn-sm" @onclick="() => OnComments.InvokeAsync(DisplayNode)" title="Comments">
+                        <MaterialIcon Icon="chat_bubble" Size="MaterialIconSize.Sm" /> Comments
+                    </button>
                 }
                 <button class="btn btn-sm" @onclick="Download" title="Download file">Download</button>
-                <button class="btn-icon" @onclick="OnClose" title="Close preview (Esc)">✕</button>
+                @if (CanDelete)
+                {
+                    <button class="btn btn-sm btn-danger" @onclick="Delete" title="Delete this image (Delete)">
+                        <MaterialIcon Icon="delete" Size="MaterialIconSize.Sm" /> Delete
+                    </button>
+                }
+                <button class="btn-icon" @onclick="OnClose" title="Close preview (Esc)" aria-label="Close preview">
+                    <MaterialIcon Icon="close" Size="MaterialIconSize.Sm" />
+                </button>
             </div>
         </div>
 

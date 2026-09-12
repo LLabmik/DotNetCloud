@@ -110,7 +110,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     private readonly List<BreadcrumbItem> _breadcrumbs = [];
     private readonly HashSet<Guid> _selectedNodes = [];
     private Guid? _currentFolderId;
-    private ViewMode _viewMode = ViewMode.Grid;
+    private ViewMode _viewMode = ViewMode.List;
     private string _sortColumn = "Name";
     private bool _sortAscending = true;
     private bool _isLoading;
@@ -167,6 +167,8 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     private FileNodeViewModel? _shareTargetNode;
     private FileNodeViewModel? _previewNode;
     private FileNodeViewModel? _editorNode;
+    private bool _previewFromGallery;
+    private bool _gallerySlideshow;
     private int _currentPage = 1;
     // Selection mode
     private bool _selectionMode;
@@ -268,6 +270,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         {
             _currentFolderId = null;
             _breadcrumbs.Clear();
+            _viewMode = ViewMode.List;
             await LoadCurrentFolderAsync();
         }
         else if (section == FileSidebarSection.Favorites)
@@ -452,6 +455,10 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
             return [.. ordered];
         }
     }
+
+    /// <summary>Image files in the current directory, in the current sort order.</summary>
+    protected IReadOnlyList<FileNodeViewModel> GalleryImages => FilesImageHelper.Filter(SortedNodes);
+
     protected IReadOnlyList<BreadcrumbItem> Breadcrumbs => _breadcrumbs;
 
     /// <summary>
@@ -499,6 +506,16 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     protected string SelectedDocumentExtension { get => _selectedDocumentExtension; set => _selectedDocumentExtension = value; }
     protected FileNodeViewModel? ShareTargetNode => _shareTargetNode;
     protected FileNodeViewModel? PreviewNode => _previewNode;
+
+    /// <summary>
+    /// Nodes offered for prev/next navigation in the preview — the gallery's images when the
+    /// preview was opened from the gallery, otherwise all nodes in the current listing.
+    /// </summary>
+    protected IReadOnlyList<FileNodeViewModel> PreviewAllNodes => _previewFromGallery ? GalleryImages : SortedNodes;
+
+    /// <summary>True when slideshow auto-advance is enabled for gallery previews.</summary>
+    protected bool IsGallerySlideshow => _gallerySlideshow;
+
     protected FileNodeViewModel? EditorNode => _editorNode;
     protected int CurrentPage => _currentPage;
     protected int PageSize => _pageSize;
@@ -550,6 +567,10 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         _currentFolderId = folderId;
         _currentPage = 1;
         _selectedNodes.Clear();
+
+        // A new directory always opens in List view so a previously chosen Grid/Gallery mode
+        // does not carry over to the next folder.
+        _viewMode = ViewMode.List;
 
         if (folderId is null)
         {
@@ -628,6 +649,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
             _currentFolderId = node.ParentId;
             _currentPage = 1;
             _selectedNodes.Clear();
+            _viewMode = ViewMode.List;
             await LoadCurrentFolderAsync();
         }
 
@@ -1432,9 +1454,22 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         if (_deleteTargetNodeIds.Count == 0)
             return;
 
+        var deletedIds = _deleteTargetNodeIds.ToList();
+
+        // When the image viewer is open on an item being deleted, remember where it was so the
+        // viewer can stay open and advance to the next image instead of closing.
+        Guid? previewedDeletedId = null;
+        var previewedDeletedIndex = -1;
+        if (_showPreview && _previewNode is not null && deletedIds.Contains(_previewNode.Id))
+        {
+            previewedDeletedId = _previewNode.Id;
+            var currentList = (_previewFromGallery ? GalleryImages : SortedNodes).ToList();
+            previewedDeletedIndex = currentList.FindIndex(n => n.Id == previewedDeletedId.Value);
+        }
+
         var caller = await GetCallerContextAsync();
 
-        foreach (var nodeId in _deleteTargetNodeIds)
+        foreach (var nodeId in deletedIds)
         {
             await FileService.DeleteAsync(nodeId, caller);
         }
@@ -1443,9 +1478,38 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         _selectedNodes.Clear();
         _selectionMode = false;
 
-        await LoadCurrentFolderAsync();
+        // Refresh via the active section so deletes from Favorites/Recent/Tags keep the correct listing.
+        await RefreshAsync();
         await LoadTrashCountAsync();
+
+        if (previewedDeletedId is not null)
+            AdvancePreviewAfterDelete(previewedDeletedIndex);
+
         StateHasChanged();
+    }
+
+    /// <summary>
+    /// Keeps the image viewer open after deleting the displayed image by moving to the next
+    /// remaining file (falling back to the last remaining item when the deleted item was last).
+    /// Closes the viewer only when no files remain.
+    /// </summary>
+    private void AdvancePreviewAfterDelete(int previousIndex)
+    {
+        var remaining = (_previewFromGallery ? GalleryImages : SortedNodes)
+            .Where(n => string.Equals(n.NodeType, "File", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (remaining.Count == 0)
+        {
+            HidePreview();
+            return;
+        }
+
+        var index = previousIndex >= 0 && previousIndex < remaining.Count
+            ? previousIndex
+            : Math.Max(0, remaining.Count - 1);
+
+        _previewNode = remaining[index];
     }
 
     // ── Bulk actions ─────────────────────────────────────────────────────────
@@ -2025,11 +2089,72 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
 
     protected void ShowPreview(FileNodeViewModel node)
     {
+        _previewFromGallery = false;
         _previewNode = node;
         _showPreview = true;
     }
 
-    protected void HidePreview() => _showPreview = false;
+    /// <summary>Opens the full-screen preview for an image selected in the gallery view.</summary>
+    protected void OpenGalleryImage(FileNodeViewModel node)
+    {
+        _previewFromGallery = true;
+        _previewNode = node;
+        _showPreview = true;
+    }
+
+    protected void HidePreview()
+    {
+        _showPreview = false;
+        _previewFromGallery = false;
+    }
+
+    /// <summary>Toggles slideshow auto-advance for images opened from the gallery view.</summary>
+    protected void ToggleGallerySlideshow()
+    {
+        if (GalleryImages.Count < 2)
+            return;
+
+        _gallerySlideshow = !_gallerySlideshow;
+    }
+
+    /// <summary>Opens the delete confirmation dialog for an image in the gallery view.</summary>
+    protected void HandleGalleryDelete(FileNodeViewModel node)
+    {
+        OpenDeleteConfirmation([node.Id]);
+    }
+
+    /// <summary>Opens the delete confirmation for the previewed image, keeping the image viewer open.</summary>
+    protected void HandlePreviewDelete(FileNodeViewModel node)
+    {
+        OpenDeleteConfirmation([node.Id]);
+    }
+
+    /// <summary>Marks a gallery thumbnail as failed so the tile falls back to the full-size content URL.</summary>
+    protected void HandleGalleryThumbError(FileNodeViewModel node)
+    {
+        if (node.ThumbnailFailed)
+            return;
+
+        node.ThumbnailFailed = true;
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Returns the image URL for a gallery tile — the cached thumbnail when available,
+    /// falling back to the full-size content URL after a thumbnail load failure.
+    /// </summary>
+    protected string GetGalleryImageUrl(FileNodeViewModel node)
+    {
+        var baseUrl = string.IsNullOrWhiteSpace(ApiBaseUrl) ? string.Empty : ApiBaseUrl.TrimEnd('/');
+
+        if (node.ThumbnailFailed)
+        {
+            var version = node.CurrentVersion > 0 ? node.CurrentVersion : 1;
+            return $"{baseUrl}/api/v1/files/{node.Id}/content?v={version}";
+        }
+
+        return $"{baseUrl}/api/v1/files/{node.Id}/thumbnail?size=medium";
+    }
 
     /// <summary>Closes the preview and opens the share dialog for the given node.</summary>
     protected async Task HandlePreviewShare(FileNodeViewModel node)
@@ -2201,17 +2326,34 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
 
     protected void ToggleViewMode()
     {
-        _viewMode = _viewMode == ViewMode.Grid ? ViewMode.List : ViewMode.Grid;
+        _viewMode = _viewMode switch
+        {
+            ViewMode.Grid => ViewMode.List,
+            ViewMode.List => ViewMode.Gallery,
+            _ => ViewMode.Grid
+        };
     }
 
     protected void PreviousPage() { if (_currentPage > 1) _currentPage--; }
     protected void NextPage() { if (_currentPage < TotalPages) _currentPage++; }
 
-    protected string GetViewToggleLabel() =>
-        _viewMode == ViewMode.Grid ? "List" : "Grid";
+    protected string GetViewToggleLabel() => _viewMode switch
+    {
+        ViewMode.Grid => "List",
+        ViewMode.List => "Gallery",
+        _ => "Grid"
+    };
+
+    /// <summary>Material icon for the view-mode toggle button (the mode it switches to).</summary>
+    protected string GetViewToggleIcon() => _viewMode switch
+    {
+        ViewMode.Grid => "view_list",
+        ViewMode.List => "photo_library",
+        _ => "grid_view"
+    };
 
     protected string GetFilesContainerClass() =>
-        _viewMode == ViewMode.Grid ? "files-grid" : "files-list";
+        _viewMode == ViewMode.List ? "files-list" : "files-grid";
 
     protected static string GetNodeIcon(FileNodeViewModel node)
     {
