@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Security.Claims;
+using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Server.RealTime;
 using DotNetCloud.Modules.Chat.Services;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -25,10 +26,10 @@ public class PresenceCircuitHandlerTests
 
         await handler.OnCircuitOpenedAsync(CreateCircuit(), CancellationToken.None);
 
-        var invocation = hub.StubClients.LastProxy.Invocations.Single(i => i.Method == "UserOnline");
+        var invocation = hub.StubClients.LastProxy.Invocations.Single(i => i.Method == "UserPresence");
         Assert.AreEqual(userId, ReadUserId(invocation.Args![0]!));
         notifier.Verify(n => n.NotifyUserPresenceChanged(
-            It.Is<UserPresenceChangedNotification>(p => p.UserId == userId && p.IsOnline)),
+            It.Is<UserPresenceChangedNotification>(p => p.UserId == userId && p.Status == PresenceState.Online)),
             Times.Once);
     }
 
@@ -40,7 +41,7 @@ public class PresenceCircuitHandlerTests
 
         await handler.OnCircuitOpenedAsync(CreateCircuit(), CancellationToken.None);
 
-        Assert.IsFalse(hub.StubClients.LastProxy.Invocations.Any(i => i.Method is "UserOnline" or "UserOffline"));
+        Assert.IsFalse(hub.StubClients.LastProxy.Invocations.Any(i => i.Method == "UserPresence"));
         notifier.Verify(n => n.NotifyUserPresenceChanged(It.IsAny<UserPresenceChangedNotification>()), Times.Never);
     }
 
@@ -57,10 +58,10 @@ public class PresenceCircuitHandlerTests
 
         await handler.OnCircuitClosedAsync(circuit, CancellationToken.None);
 
-        var invocation = hub.StubClients.LastProxy.Invocations.Single(i => i.Method == "UserOffline");
+        var invocation = hub.StubClients.LastProxy.Invocations.Single(i => i.Method == "UserPresence");
         Assert.AreEqual(userId, ReadUserId(invocation.Args![0]!));
         notifier.Verify(n => n.NotifyUserPresenceChanged(
-            It.Is<UserPresenceChangedNotification>(p => p.UserId == userId && !p.IsOnline)),
+            It.Is<UserPresenceChangedNotification>(p => p.UserId == userId && p.Status == PresenceState.Offline)),
             Times.Once);
     }
 
@@ -78,7 +79,7 @@ public class PresenceCircuitHandlerTests
         // Closing this circuit leaves "existing-conn" — the user stays online, no broadcast.
         await handler.OnCircuitClosedAsync(circuit, CancellationToken.None);
 
-        Assert.IsFalse(hub.StubClients.LastProxy.Invocations.Any(i => i.Method is "UserOnline" or "UserOffline"));
+        Assert.IsFalse(hub.StubClients.LastProxy.Invocations.Any(i => i.Method == "UserPresence"));
         notifier.Verify(n => n.NotifyUserPresenceChanged(It.IsAny<UserPresenceChangedNotification>()), Times.Never);
     }
 
@@ -94,10 +95,10 @@ public class PresenceCircuitHandlerTests
 
         await handler.OnConnectionDownAsync(circuit, CancellationToken.None);
 
-        var invocation = hub.StubClients.LastProxy.Invocations.Single(i => i.Method == "UserOffline");
+        var invocation = hub.StubClients.LastProxy.Invocations.Single(i => i.Method == "UserPresence");
         Assert.AreEqual(userId, ReadUserId(invocation.Args![0]!));
         notifier.Verify(n => n.NotifyUserPresenceChanged(
-            It.Is<UserPresenceChangedNotification>(p => p.UserId == userId && !p.IsOnline)),
+            It.Is<UserPresenceChangedNotification>(p => p.UserId == userId && p.Status == PresenceState.Offline)),
             Times.Once);
     }
 
@@ -115,7 +116,7 @@ public class PresenceCircuitHandlerTests
         // Dropping this connection leaves "existing-conn" — the user stays online.
         await handler.OnConnectionDownAsync(circuit, CancellationToken.None);
 
-        Assert.IsFalse(hub.StubClients.LastProxy.Invocations.Any(i => i.Method is "UserOnline" or "UserOffline"));
+        Assert.IsFalse(hub.StubClients.LastProxy.Invocations.Any(i => i.Method == "UserPresence"));
         notifier.Verify(n => n.NotifyUserPresenceChanged(It.IsAny<UserPresenceChangedNotification>()), Times.Never);
     }
 
@@ -135,7 +136,7 @@ public class PresenceCircuitHandlerTests
         await handler.OnConnectionUpAsync(circuit, CancellationToken.None);
 
         Assert.IsTrue(tracker.IsOnline(userId));
-        var invocation = hub.StubClients.LastProxy.Invocations.Single(i => i.Method == "UserOnline");
+        var invocation = hub.StubClients.LastProxy.Invocations.Single(i => i.Method == "UserPresence");
         Assert.AreEqual(userId, ReadUserId(invocation.Args![0]!));
     }
 
@@ -153,9 +154,9 @@ public class PresenceCircuitHandlerTests
 
         await handler.OnConnectionUpAsync(circuit, CancellationToken.None);
 
-        Assert.IsFalse(hub.StubClients.LastProxy.Invocations.Any(i => i.Method is "UserOnline" or "UserOffline"));
+        Assert.IsFalse(hub.StubClients.LastProxy.Invocations.Any(i => i.Method == "UserPresence"));
         notifier.Verify(n => n.NotifyUserPresenceChanged(
-            It.Is<UserPresenceChangedNotification>(p => p.UserId == userId && p.IsOnline)),
+            It.Is<UserPresenceChangedNotification>(p => p.UserId == userId && p.Status == PresenceState.Online)),
             Times.Once); // only the one from OnCircuitOpenedAsync
     }
 

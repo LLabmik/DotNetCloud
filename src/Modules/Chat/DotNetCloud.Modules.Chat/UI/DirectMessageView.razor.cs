@@ -382,4 +382,19 @@ public partial class DirectMessageView : ComponentBase
             _ => $"{parts[0][..1]}{parts[^1][..1]}".ToUpperInvariant()
         };
     }
+
+    /// <summary>
+    /// Maps a presence status string to its status-dot CSS modifier
+    /// (<c>online</c>, <c>away</c>, <c>dnd</c>, or <c>offline</c>).
+    /// </summary>
+    protected static string GetStatusDotClass(string? status)
+    {
+        return status?.Trim().ToLowerInvariant() switch
+        {
+            "online" => "online",
+            "away" => "away",
+            "donotdisturb" => "dnd",
+            _ => "offline"
+        };
+    }
 }

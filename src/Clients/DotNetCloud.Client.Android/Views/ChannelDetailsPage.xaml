@@ -155,10 +155,10 @@
                                             Text="{Binding RoleLabel}" />
                                     </VerticalStackLayout>
 
-                                    <!-- Online status indicator -->
+                                    <!-- 4-state presence dot (green/yellow/red/gray) -->
                                     <Ellipse
                                         Grid.Column="2"
-                                        Fill="{Binding IsOnline, Converter={StaticResource OnlineStatusToColor}}"
+                                        Fill="{Binding PresenceStatus, Converter={StaticResource OnlineStatusToColor}}"
                                         HeightRequest="10"
                                         VerticalOptions="Center"
                                         WidthRequest="10" />

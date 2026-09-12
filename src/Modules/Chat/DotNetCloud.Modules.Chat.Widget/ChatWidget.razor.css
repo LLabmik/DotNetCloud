@@ -1,0 +1,27 @@
+/* 4-state presence dot on Direct Message rows — mirrors ChannelList.razor.css so the
+   Home-page Chat widget matches the chat sidebar. Scoped CSS is bundled/hashed
+   automatically, so no manual cache-buster is needed. */
+.presence-dot {
+  flex-shrink: 0;
+  align-self: center;
+  display: inline-block;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+}
+
+.presence-online {
+  background-color: #22c55e;
+}
+
+.presence-away {
+  background-color: #eab308;
+}
+
+.presence-dnd {
+  background-color: #ef4444;
+}
+
+.presence-offline {
+  background-color: #64748b;
+}

@@ -480,6 +480,13 @@ public class DbInitializer
                 Value = "false",
                 Description = "When true, all administrator accounts must set up multi-factor authentication (TOTP) before accessing the system"
             },
+            new SystemSetting
+            {
+                Module = "dotnetcloud.core",
+                Key = "PresenceIdleTimeoutMinutes",
+                Value = "3",
+                Description = "Presence idle threshold in minutes — a connected user with no real interaction for this long shows as Away/yellow (clamp 1-60)"
+            },
 
             // Files module settings
             new SystemSetting

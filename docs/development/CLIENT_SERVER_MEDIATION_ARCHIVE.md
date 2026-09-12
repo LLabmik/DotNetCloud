@@ -1,3 +1,20 @@
+## Archived: DM presence-dots relay delay — root-caused; intentionally NOT fixed (2026-09-09)
+
+**Status:** archived — root cause identified; **operator decision: not fixing now** (4-state presence's yellow/Away state represents the ~2–3 min relay retention window; see Active Handoff in `CLIENT_SERVER_MEDIATION_HANDOFF.md`).
+**Branch:** `fix/android-improvements` (finding on `f566369c`; superseded by `c17c7fa3` 4-state presence).
+**From:** server agent (`cloud.kimball.home`) → client agent, 2026-09-09.
+
+### Finding
+`f566369c` (prompt-offline fix) was verified **live** on cloud (`.last-deploy-commit` = `f566369c9f1a…`, Core.Server PID `2218514` started 15:59:11, DLL strings-verified) but offline after browser close stayed ~3–4.5 min late.
+
+**Root cause:** a logged-in web page's `NotificationBell` opens a per-circuit server→server `RealtimeNotificationClient` CoreHub connection (the notification relay) which ALSO counts as a presence connection in `UserConnectionTracker`. Browser close removes the Blazor circuit connection promptly (`f566369c`), but the relay keeps the user "online" until circuit disposal (~3-min `DisconnectedCircuitRetentionPeriod`). Live E2E log evidence (Test Dude web user `019f11a9…`): circuit opened 16:02:25 → relay CoreHub connection `vI2pKY…` 16:02:26 → last connection dropped 16:07:01 (~4.5 min later).
+
+**Why the relay can't just be removed from tracking:** `RealtimeBroadcasterService.SendToUserAsync` → `_connectionTracker.GetConnections(userId)` → `Clients.Clients(ids)`; the relay's real CoreHub connection is the only valid SignalR target for a Blazor circuit (`blazor-{circuit}` is synthetic), so removing the relay would break the notification bell.
+
+**Deferred recommended fix (NOT implemented):** separate presence-bearing (native devices + circuits) from delivery-only (relay) connections in `UserConnectionTracker` — e.g. `AddConnection(userId, connId, isPresence)`; `GetConnections` returns ALL for delivery; mark the relay via `X-DotNetCloud-Relay: 1` header read in `CoreHub.OnConnectedAsync`.
+
+---
+
 ## Archived: Server — Calendar event Description Markdown (server side done + deployed to mint22; Android visual acceptance deferred) (2026-09-03)
 
 **Status:** archived — server side complete + deployed to mint22 dev (was `active`). **Android client visual acceptance still pending** (client agent — `monolith`); re-queue via a relay when the Android agent next runs on monolith.

@@ -76,8 +76,10 @@
     border: 2px solid var(--color-surface, #ffffff);
 }
 
-.status-dot.online  { background: #16a34a; }
-.status-dot.offline { background: #9ca3af; }
+.status-dot.online  { background: #22c55e; }
+.status-dot.away    { background: #eab308; }
+.status-dot.dnd     { background: #ef4444; }
+.status-dot.offline { background: #64748b; }
 
 /* User name and status */
 

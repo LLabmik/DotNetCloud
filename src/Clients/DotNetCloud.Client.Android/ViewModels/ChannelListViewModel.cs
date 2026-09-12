@@ -375,8 +375,8 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
         try
         {
             var peerIds = _dmChannelToOtherUser.Values.Distinct().ToList();
-            var online = await _signalR.GetPresenceStatusAsync(peerIds);
-            if (online.Count == 0)
+            var statuses = await _signalR.GetPresenceStatusAsync(peerIds);
+            if (statuses.Count == 0)
                 return;
 
             Action dispatch = () =>
@@ -385,9 +385,9 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
                 {
                     if (item.ChannelType == "DirectMessage"
                         && item.OtherUserId is { } peer
-                        && online.TryGetValue(peer, out var isOnline))
+                        && statuses.TryGetValue(peer, out var status))
                     {
-                        item.IsOnline = isOnline;
+                        item.PresenceStatus = status;
                     }
                 }
             };
@@ -424,7 +424,7 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
             {
                 if (item.ChannelType == "DirectMessage" && item.OtherUserId == e.UserId)
                 {
-                    item.IsOnline = e.IsOnline;
+                    item.PresenceStatus = e.Status;
                     return;
                 }
             }
@@ -625,8 +625,16 @@ public sealed partial class ChannelItemViewModel : ObservableObject
     /// </summary>
     public Guid? OtherUserId { get; set; }
 
-    /// <summary>Whether the DM peer is currently online (DirectMessage rows only).</summary>
-    [ObservableProperty] private bool _isOnline;
+    /// <summary>
+    /// The DM peer's 4-state presence (DirectMessage rows only): "Online", "Away",
+    /// "DoNotDisturb", or "Offline". Defaults to offline.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsOnline))]
+    private string _presenceStatus = "Offline";
+
+    /// <summary>True when the DM peer has any non-offline presence (any active connection).</summary>
+    public bool IsOnline => PresenceStatus != "Offline";
 
     /// <summary>Unread message count (updated in real-time).</summary>
     [ObservableProperty] private int _unreadCount;

@@ -17,6 +17,24 @@
     </button>
 </div>
 
+<div class="settings-grid">
+    <section class="settings-section">
+        <h2>Online indicators</h2>
+        <div class="form-group">
+            <label for="presence-idle-minutes">Idle threshold (minutes)</label>
+            <input id="presence-idle-minutes" type="number" min="1" max="60" class="input input-sm"
+                   @bind="_presenceIdleMinutes" @bind:event="oninput" style="width: 120px;" />
+            <span class="hint">
+                How long a connected user can go without real interaction (clicks, keys, scroll)
+                before their presence dot turns yellow ("Idle") for other users in chat. Range 1–60;
+                default 3. Changes apply within about 30 seconds — no server restart needed.
+            </span>
+        </div>
+        <button class="btn btn-primary btn-sm" @onclick="SavePresenceIdleAsync"
+                disabled="@_actionInProgress">Save</button>
+    </section>
+</div>
+
 @if (_rotationStatus?.RestartPending == true && !_restartBannerDismissed)
 {
     <div class="alert alert-warning alert-dismissible">
@@ -141,10 +159,64 @@
     private string _editDescription = string.Empty;
     private ConfirmDialog _confirmDialog = default!;
 
+    // Dedicated "Online indicators" presence idle-threshold field
+    // (system setting dotnetcloud.core / PresenceIdleTimeoutMinutes).
+    private const string PresenceModule = "dotnetcloud.core";
+    private const string PresenceIdleTimeoutKey = "PresenceIdleTimeoutMinutes";
+    private const int PresenceIdleMinutesDefault = 3;
+    private const int PresenceIdleMinutesMin = 1;
+    private const int PresenceIdleMinutesMax = 60;
+
+    private int _presenceIdleMinutes = PresenceIdleMinutesDefault;
+
     protected override async Task OnInitializedAsync()
     {
         await LoadSettingsAsync();
         await LoadOidcKeyRotationStatusAsync();
+        await LoadPresenceIdleAsync();
+    }
+
+    private async Task LoadPresenceIdleAsync()
+    {
+        try
+        {
+            var setting = await Api.GetSettingAsync(PresenceModule, PresenceIdleTimeoutKey);
+            _presenceIdleMinutes = int.TryParse(setting?.Value, out var value)
+                ? Math.Clamp(value, PresenceIdleMinutesMin, PresenceIdleMinutesMax)
+                : PresenceIdleMinutesDefault;
+        }
+        catch
+        {
+            _presenceIdleMinutes = PresenceIdleMinutesDefault;
+        }
+    }
+
+    private async Task SavePresenceIdleAsync()
+    {
+        var minutes = Math.Clamp(_presenceIdleMinutes, PresenceIdleMinutesMin, PresenceIdleMinutesMax);
+        _presenceIdleMinutes = minutes;
+        _actionInProgress = true;
+        try
+        {
+            var dto = new UpsertSystemSettingDto
+            {
+                Value = minutes.ToString(),
+                Description = "Presence idle threshold in minutes — a connected user with no real interaction for this long shows as Away/yellow (clamp 1-60)"
+            };
+
+            if (await Api.UpsertSettingAsync(PresenceModule, PresenceIdleTimeoutKey, dto))
+            {
+                Toast.ShowSuccess($"Online indicators idle threshold set to {minutes} minute(s).");
+            }
+            else
+            {
+                Toast.ShowError("Failed to save the online indicators setting.");
+            }
+        }
+        finally
+        {
+            _actionInProgress = false;
+        }
     }
 
     private async Task LoadOidcKeyRotationStatusAsync()

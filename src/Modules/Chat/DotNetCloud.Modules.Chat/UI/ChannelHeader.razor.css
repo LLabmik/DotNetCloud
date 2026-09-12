@@ -51,6 +51,48 @@
   border-left: 1px solid var(--color-border, #e2e8f0);
 }
 
+/* --- Direct Message presence (thread header dot + label) --- */
+
+.channel-presence {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--color-text-secondary, #64748b);
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--color-bg, #f5f7fa);
+}
+
+.channel-presence-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: #64748b;
+}
+
+.channel-presence-dot.online {
+  background: #22c55e;
+}
+
+.channel-presence-dot.away {
+  background: #eab308;
+}
+
+.channel-presence-dot.dnd {
+  background: #ef4444;
+}
+
+.channel-presence-dot.offline {
+  background: #64748b;
+}
+
+.channel-presence-label {
+  white-space: nowrap;
+}
+
 /* --- Actions (right side) --- */
 
 .channel-actions {

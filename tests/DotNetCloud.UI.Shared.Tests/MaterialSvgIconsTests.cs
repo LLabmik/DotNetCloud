@@ -31,6 +31,31 @@ public class MaterialSvgIconsTests
         Assert.IsTrue(path!.Length > 10, $"Icon '{icon}' path data is unexpectedly short.");
     }
 
+    /// <summary>
+    /// Icons referenced by the Files module browser, image gallery view, and
+    /// full-screen preview (including slideshow and delete controls). Missing
+    /// paths fall back to plain text, which overlaps the button label.
+    /// </summary>
+    [TestMethod]
+    [DataRow("view_list")]
+    [DataRow("grid_view")]
+    [DataRow("photo_library")]
+    [DataRow("slideshow")]
+    [DataRow("image")]
+    [DataRow("delete")]
+    [DataRow("play_arrow")]
+    [DataRow("pause")]
+    [DataRow("chat_bubble")]
+    [DataRow("close")]
+    [DataRow("refresh")]
+    public void GetPath_IconUsedByFilesBrowserOrGallery_ReturnsPathData(string icon)
+    {
+        Assert.IsTrue(MaterialSvgIcons.HasPath(icon), $"Icon '{icon}' has no SVG path and would render as text.");
+        var path = MaterialSvgIcons.GetPath(icon);
+        Assert.IsNotNull(path, $"Icon '{icon}' returned a null path.");
+        Assert.IsTrue(path!.Length > 10, $"Icon '{icon}' path data is unexpectedly short.");
+    }
+
     [TestMethod]
     public void GetPath_UnknownIcon_ReturnsNull()
     {

@@ -135,15 +135,17 @@ internal sealed class PresenceCircuitHandler : CircuitHandler
     /// </summary>
     private async Task MarkOnlineAsync(Guid userId, Circuit circuit)
     {
-        await _presenceService.UserConnectedAsync(userId, _connectionId!);
+        // Seeds presence (Online, or DoNotDisturb when the user has DND enabled) and returns
+        // the display state so the broadcast below carries the correct status.
+        var state = await _presenceService.UserConnectedAsync(userId, _connectionId!);
 
         // Broadcast to native CoreHub clients. Safe on a first connection: the user has no
         // other live connection (CoreHub or circuit) to self-echo to.
         if (_hubContext is not null)
         {
             await _hubContext.Clients.All.SendAsync(
-                "UserOnline",
-                new { UserId = userId, Timestamp = DateTime.UtcNow });
+                "UserPresence",
+                new { UserId = userId, Status = state, Timestamp = DateTime.UtcNow });
         }
 
         _logger.LogDebug("Blazor user {UserId} is now online (circuit: {CircuitId})", userId, circuit.Id);
@@ -151,7 +153,7 @@ internal sealed class PresenceCircuitHandler : CircuitHandler
         // Notify in-process subscribers (other Blazor circuits) so their presence dots
         // and member lists update when this user comes online.
         _chatMessageNotifier?.NotifyUserPresenceChanged(
-            new UserPresenceChangedNotification(userId, IsOnline: true));
+            new UserPresenceChangedNotification(userId, state));
     }
 
     /// <summary>
@@ -184,7 +186,7 @@ internal sealed class PresenceCircuitHandler : CircuitHandler
             "Blazor circuit connection lost for user {UserId} (circuit: {CircuitId})",
             userId, circuit.Id);
 
-        await _presenceService.UserDisconnectedAsync(userId, _connectionId);
+        var state = await _presenceService.UserDisconnectedAsync(userId, _connectionId);
 
         // Broadcast to native CoreHub clients (mobile/desktop) so their DM presence dots update
         // when a web (Blazor circuit) user goes offline. Safe on last connection: the user has
@@ -192,13 +194,13 @@ internal sealed class PresenceCircuitHandler : CircuitHandler
         if (_hubContext is not null)
         {
             await _hubContext.Clients.All.SendAsync(
-                "UserOffline",
-                new { UserId = userId, Timestamp = DateTime.UtcNow });
+                "UserPresence",
+                new { UserId = userId, Status = state, Timestamp = DateTime.UtcNow });
         }
 
         // Notify in-process subscribers (other Blazor circuits) so their presence dots
         // and member lists update when this user goes offline.
         _chatMessageNotifier?.NotifyUserPresenceChanged(
-            new UserPresenceChangedNotification(userId, IsOnline: false));
+            new UserPresenceChangedNotification(userId, state));
     }
 }

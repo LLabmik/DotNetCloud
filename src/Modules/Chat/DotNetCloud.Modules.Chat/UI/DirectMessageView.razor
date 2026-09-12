@@ -21,8 +21,8 @@
                     {
                         <span class="avatar-placeholder">@GetInitials(OtherUser.DisplayName)</span>
                     }
-                    <span class="status-dot @(OtherUser.Status == "Online" ? "online" : "offline")"
-                          title="@OtherUser.Status"></span>
+                    <span class="status-dot @GetStatusDotClass(OtherUser.Status)"
+                          title="@PresenceStatusHelpers.GetLabel(OtherUser.Status)"></span>
                 </div>
                 <div class="dm-user-info">
                     <span class="dm-user-name">
@@ -32,7 +32,7 @@
                             <span class="dm-group-badge">· @EffectiveMemberCount members</span>
                         }
                     </span>
-                    <span class="dm-user-status">@OtherUser.Status</span>
+                    <span class="dm-user-status">@PresenceStatusHelpers.GetLabel(OtherUser.Status)</span>
                 </div>
             </div>
             <div class="dm-header-actions">

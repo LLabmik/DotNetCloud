@@ -15,6 +15,7 @@ using DotNetCloud.Core.Server.Grpc.Services;
 using DotNetCloud.Core.Server.HealthChecks;
 using DotNetCloud.Core.Server.Initialization;
 using DotNetCloud.Core.Server.Middleware;
+using DotNetCloud.Core.Server.RealTime;
 using DotNetCloud.Core.Server.Services;
 using DotNetCloud.Core.ServiceDefaults.Extensions;
 using DotNetCloud.Core.ServiceDefaults.HealthChecks;
@@ -33,6 +34,7 @@ using DotNetCloud.Modules.Video.Data;
 using DotNetCloud.Modules.AI.Data;
 using DotNetCloud.Modules.Bookmarks.Data;
 using DotNetCloud.Modules.Chat.Data;
+using DotNetCloud.Modules.Chat.Data.Services;
 using DotNetCloud.Modules.Chat.Services;
 using DotNetCloud.Modules.Calendar.Data;
 using DotNetCloud.Modules.Contacts.Data;
@@ -779,6 +781,21 @@ public class Program
 
         // Add SignalR real-time communication
         builder.Services.AddDotNetCloudSignalR(builder.Configuration!);
+
+        // DND → presence bridge: wrap the DB-backed notification preference store so toggling
+        // Do-Not-Disturb (Blazor top-bar toggle or PUT /api/v1/notifications/preferences) updates
+        // the user's presence (red dot) immediately for peers. The concrete store is registered
+        // so the wrapper can compose it; the wrapper becomes the effective INotificationPreferenceStore
+        // (last registration wins for single-resolution). Stateless, so instance duplication is safe.
+        builder.Services.AddSingleton<DbNotificationPreferenceStore>();
+        builder.Services.AddSingleton<INotificationPreferenceStore>(sp =>
+            new PresenceAwareNotificationPreferenceStore(
+                sp.GetRequiredService<DbNotificationPreferenceStore>(),
+                sp.GetRequiredService<PresenceService>()));
+
+        // Per-circuit web presence activity reporter (used by the global UI interaction
+        // listener so a user stays green while interacting with any page).
+        builder.Services.AddScoped<IPresenceActivityReporter, PresenceActivityReporter>();
 
         // Register initialization services
         builder.Services.AddScoped<AdminSeeder>();
