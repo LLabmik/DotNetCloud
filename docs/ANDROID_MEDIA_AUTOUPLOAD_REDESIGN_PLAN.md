@@ -103,16 +103,52 @@ The cadence is driven by `IMediaAutoUploadService.HasPendingWork`, which is true
 
 ## Not done (deferred, needs device/decisions)
 
-- **P4 capture→gallery single path:** Files-tab camera should launch the system camera and land the photo in the shared gallery so ONE watcher path uploads it (spike: `MediaScannerConnection.ScanFile` vs no-`EXTRA_OUTPUT`). Current capture path still works (uploads to AutoUpload when enabled).
+- ~~**P4 capture→gallery single path**~~ — **DONE 2026-09-12**, by removing the Files-tab capture path entirely rather than redirecting it into the gallery. See "Media ownership" below. The spike question (`MediaScannerConnection.ScanFile` vs no-`EXTRA_OUTPUT`) is moot: we do not write to MediaStore at all, which also sidesteps the Samsung API 34 MediaStore-insert `SIGSEGV` recorded in repo memory.
 - ~~**P5 background sync** (the "max files/day" ask)~~ — **DONE 2026-09-12** (see below).
 - ~~**Chat FGS `dataSync`**~~ — **DONE 2026-09-12**: the FGS was removed outright (not retyped). See the `dataSync` budget table + known-issues note above.
-- Server `AutoUpload` may contain test screenshots `dnc_*.png` from this session — deletable.
+- ~~Server `AutoUpload` test photos~~ — **DONE 2026-09-12**: the ~132 verification test photos and `dnc_*.png` screenshots were deleted from the server `AutoUpload` tree by the operator. No cleanup outstanding.
+
+## Media ownership — one path only (2026-09-12)
+
+**Decision (operator):** DotNetCloud no longer controls the camera. The platform camera app owns capture, MediaStore owns storage and the gallery, and `MediaAutoUploadService` observes MediaStore and uploads whatever appears. Backing up the camera roll is the ONLY media path.
+
+This replaced a two-path design where the Files tab ran its own capture pipeline:
+
+1. `MediaPicker.CapturePhotoAsync()/CaptureVideoAsync()` launched the camera with `EXTRA_OUTPUT` pointed at an **app-private cache file** — so a photo taken from the Files tab never reached the gallery and no other app could back it up.
+2. That file was spooled to `PendingUploads/` and uploaded down a **second, parallel upload path** that re-implemented the rules slightly differently: it honoured only the "auto-upload enabled" preference and ignored the Wi-Fi-only, charging-only and battery-threshold gates, the 500 MB per-item cap, and the storage-quota gate.
+
+**Removed:** `CapturePhotoCommand`, `CaptureVideoCommand`, `UploadMediaFileAsync`, `SaveToPendingUploadsAsync`, `ReadMediaStreamAsync`, `RequestLocationPermissionAsync`, `BuildAndroidStyleFileName`, the `PendingUploads` spool (writer + `UploadPendingFilesAsync` flush), `IMediaAutoUploadService.ResolveUploadTargetFolderAsync` (no callers left), `FileItemViewModel.IsPending` + the Files-tab "Pending" badge, and the two camera toolbar buttons.
+
+**Permissions dropped:** `android.permission.CAMERA` and `android.permission.ACCESS_FINE_LOCATION` (the latter existed only so the camera app could embed GPS EXIF). Verified absent from the installed package. Dropping `CAMERA` also removes an Android quirk: if an app *declares* `CAMERA`, then `ACTION_IMAGE_CAPTURE` requires the runtime grant to be present.
+
+**Kept:** `MessageListViewModel.AttachFileAsync` still uses `MediaPicker.Default.PickPhotosAsync()` — that *picks* from the gallery to attach to a chat message; it does not drive the camera.
+
+**Verified on device (R5CWC356B2K, `--no-incremental`):** `dumpsys package` shows no `CAMERA`/`ACCESS_FINE_LOCATION`; the Files toolbar renders only New Folder + Upload; the watcher seeded 845 server files, skipped 17 oversized items and uploaded a video into `AutoUpload/YYYY/MM`; SignalR connected; zero foreground services; zero crashes.
+
+## ⚠️ Debug interpreter disabled — native-crash root cause (2026-09-12)
+
+The `open_from_bundles` / `strcasecmp` native-crash family was **not** (as first believed) only an incremental-install artifact. Full `data_app_native_crash` history: six crashes on 2026-09-09 with **no** `Incremental` field, and one on 09-12 **with** `Incremental: Yes`. Two independent problems, identical-looking signature.
+
+The real cause is the **Mono interpreter**, which `<AndroidUseInterpreter>true</AndroidUseInterpreter>` enabled in the `Debug` PropertyGroup (from `02b64607`, 2026-03-18). It resolves field/method types **lazily on the executing thread**, matching the symbolized backtrace:
+
+```
+mono_field_resolve_type → mono_class_get_checked → mono_class_from_typeref_checked
+  → mono_assembly_load_reference → mono_assembly_request_byname → strcasecmp  ← garbage pointer
+```
+
+The other variant is `EmbeddedAssemblies::open_from_bundles` reading past its buffer. One variant recurred with a **byte-identical fault address** across runs, so it is deterministic rather than a race. Release was never affected — it uses AOT (`RunAOTCompilation=true`) and never enables the interpreter.
+
+A fix was found on 2026-09-09 (interpreter off → 0 crashes in 10 forced restarts) but **was never committed**; `git log --since=2026-09-01` on the csproj shows only version bumps and the R8/AOT commit. It is now applied and soaked.
+
+**Soak (2026-09-12, this change):** 12 iterations of HOME → `am kill` (process confirmed `DEAD`) → `cmd jobscheduler run -f <pkg> 3107` (headless cold start). **12 distinct pids, 0 crashes** in the crash buffer, 0 new `data_app_native_crash` dropbox entries, 0 DotNetCloud `has died` events. Screen stayed awake and unlocked (`locked=0` every iteration) with Doze `ACTIVE`, so no sleep/Doze confound. ⚠️ Caveat: the crash previously ran ~4×/day, so 12 clean starts is strong evidence but not absolute proof — re-run the soak if this family ever reappears.
+
+⚠️ **Two testing traps hit while doing this:** (1) `am kill` will **not** kill a foreground process, so a soak without `KEYCODE_HOME` first silently reports the same pid every iteration and proves nothing — always assert the process is actually `DEAD` before forcing the job. (2) `.Trim()` on the output of `adb shell pidof` throws when the process is correctly dead (null) — handle null.
 
 ## Resume checklist (tomorrow or next session)
 
 1. `git status --short` — confirm the expected uncommitted files (listed below). Never delete untracked `.cs`.
 2. Re-read this doc's "Verification state" and re-verify device stability (dataSync budget resets on a rolling ~24 h).
-3. On-device E2E: grant photos access → take a stock-camera photo → confirm it lands in server `AutoUpload/YYYY/MM`; Files-tab capture → no double upload; backfill → no duplicates; `pidof` stable with no MediaStore crash.
+3. On-device E2E: grant photos access → take a **stock-camera** photo → confirm it lands in server `AutoUpload/YYYY/MM`; backfill → no duplicates; `pidof` stable with no MediaStore crash. (There is no Files-tab capture to test any more.)
 4. Verify the quota-full notification (temporarily set a tiny quota via admin API on a test user, or accept the 9 unit tests as coverage).
 5. ~~Decide + implement chat FGS type fix and the P5 headless-safe background sync.~~ — **both DONE 2026-09-12** (P5 adaptive job; chat FGS removed along with the `AndroidForegroundServicePolicy` kill-switch).
 6. Update docs (`IMPLEMENTATION_CHECKLIST.md`, `MASTER_PROJECT_PLAN.md`) with targeted edits, then commit (per repo rules only after full verification).
@@ -121,10 +157,20 @@ The cadence is driven by `IMediaAutoUploadService.HasPendingWork`, which is true
 
 Watcher / permission / quota work and P5 — **committed** `e77d20f6` (media stall fix) and `d92dff02` (P5 headless sync + adaptive cadence), pushed to `feature/android-media-auto-upload`.
 
-Chat FGS removal (`feature/android-media-auto-upload`) — pending commit:
+Chat FGS removal (`feature/android-media-auto-upload`) — **committed** `faae32c9`:
 
 - `src/Clients/DotNetCloud.Client.Android/Platforms/Android/ChatConnectionService.cs` — FGS attribute, promotion block, `OnTimeout`, `BuildNotification()` removed
 - `src/Clients/DotNetCloud.Client.Android/Platforms/Android/AndroidManifest.xml` — `foregroundServiceType` dropped; `FOREGROUND_SERVICE_DATA_SYNC` permission removed
 - `src/Clients/DotNetCloud.Client.Android/Platforms/Android/AndroidForegroundServicePolicy.cs` — **deleted** (kill-switch no longer needed)
 - `src/Clients/DotNetCloud.Client.Android/Platforms/Android/MediaUploadForegroundService.cs` — **deleted** (dead code)
 - `src/Clients/DotNetCloud.Client.Android/App.xaml.cs`, `Views/LoginPage.xaml.cs`, `Platforms/Android/MainActivity.cs` — call sites now `StartService` directly
+
+Camera ownership removal + Debug interpreter fix (`feature/android-media-auto-upload`) — **pending commit**:
+
+- `src/Clients/DotNetCloud.Client.Android/DotNetCloud.Client.Android.csproj` — `AndroidUseInterpreter` `true` → **`false`** in the Debug PropertyGroup (with a comment recording the crash signature and why)
+- `src/Clients/DotNetCloud.Client.Android/ViewModels/FileBrowserViewModel.cs` — capture commands + all capture/spool helpers removed; `IsPending` and the pending-count status removed
+- `src/Clients/DotNetCloud.Client.Android/Views/FileBrowserPage.xaml` — camera photo/video buttons removed, grid `Auto,*,Auto,Auto,Auto,Auto` → `Auto,*,Auto,Auto`; "Pending" badge removed
+- `src/Clients/DotNetCloud.Client.Android/Platforms/Android/AndroidManifest.xml` — `CAMERA` + `ACCESS_FINE_LOCATION` removed
+- `src/Clients/DotNetCloud.Client.Android/Services/MediaAutoUploadService.cs` — `UploadPendingFilesAsync`, `PendingUploadsDirName` and `ResolveUploadTargetFolderAsync` removed
+- `src/Clients/DotNetCloud.Client.Android/Services/IMediaAutoUploadService.cs` — `ResolveUploadTargetFolderAsync` removed from the interface
+- `src/Clients/DotNetCloud.Client.Android/Services/MediaUploadIndex.cs` — `MediaKey` doc no longer mentions spooled captures

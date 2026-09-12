@@ -86,9 +86,11 @@
 	<!-- READ_EXTERNAL_STORAGE covers API 29-32 (Android 10-12); Android 13+ uses READ_MEDIA_* above -->
 	<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
 
-	<!-- Camera for photo/video capture -->
-	<uses-permission android:name="android.permission.CAMERA" />
-	<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+	<!-- Camera for photo/video capture removed: the platform camera app owns capture, and the
+	     camera roll is backed up via MediaStore (READ_MEDIA_IMAGES/READ_MEDIA_VIDEO below).
+	     Dropping CAMERA also removes the quirk where declaring the permission makes
+	     ACTION_IMAGE_CAPTURE require an explicit runtime grant.
+	     ACCESS_FINE_LOCATION was only ever requested so the camera app could embed GPS EXIF. -->
 	<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
 
 	<!-- Battery optimization exemption — required for reliable background sync -->

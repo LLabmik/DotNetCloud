@@ -66,12 +66,12 @@ internal sealed class UploadedMediaRow
 {
     /// <summary>
     /// Stable local key for the item, e.g. <c>"&lt;displayName&gt;|&lt;size&gt;|&lt;dateAddedSec&gt;"</c>
-    /// for MediaStore items or the local file path for app-private spooled captures.
+    /// for MediaStore items.
     /// </summary>
     [PrimaryKey]
     public string MediaKey { get; set; } = string.Empty;
 
-    /// <summary>Original source, e.g. the MediaStore content URI or local pending file path.</summary>
+    /// <summary>Original source, e.g. the MediaStore content URI or the local pending file path.</summary>
     public string? SourceUri { get; set; }
 
     /// <summary>File name as uploaded to the server.</summary>

@@ -33,7 +33,6 @@ internal sealed class MediaAutoUploadService : IMediaAutoUploadService
     private const string PrefChargingOnly = "media_upload_charging_only";
     private const string PrefBatteryThreshold = "media_upload_battery_threshold";
     private const string PrefLastSuccessTs = "media_upload_last_success";
-    private const string PendingUploadsDirName = "PendingUploads";
 
     /// <summary>Maximum number of items uploaded in a single scan pass (keeps memory + notification churn bounded during a first-run backfill).</summary>
     private const int MaxItemsPerPass = 40;
@@ -185,16 +184,6 @@ internal sealed class MediaAutoUploadService : IMediaAutoUploadService
             SignalWake();
     }
 
-    /// <inheritdoc />
-    public async Task<Guid?> ResolveUploadTargetFolderAsync(
-        string serverBaseUrl, string accessToken,
-        DateTime? timestamp = null, CancellationToken ct = default)
-    {
-        var dt = timestamp ?? DateTime.UtcNow;
-        return await EnsureUploadFolderAsync(serverBaseUrl, accessToken, dt.Year, dt.Month, ct)
-            .ConfigureAwait(false);
-    }
-
     // ── Private helpers ─────────────────────────────────────────────────────
 
     /// <summary>
@@ -335,10 +324,6 @@ internal sealed class MediaAutoUploadService : IMediaAutoUploadService
                 CancelQuotaNotification();
             }
 
-            // App-private captures made while auto-upload was off don't need the media-library
-            // permission, so flush them before the gallery scan.
-            await UploadPendingFilesAsync(connection.ServerBaseUrl, accessToken, ct).ConfigureAwait(false);
-
             if (!_permissionService.HasMediaReadPermission())
             {
                 _logger.LogWarning(
@@ -455,85 +440,6 @@ internal sealed class MediaAutoUploadService : IMediaAutoUploadService
         finally
         {
             _scanLock.Release();
-        }
-    }
-
-    /// <summary>
-    /// Uploads all files from the local pending uploads queue directory. These are photos/videos
-    /// captured while auto-upload was off (the app-private spool). A file is only removed from the
-    /// queue after a successful upload; each success is recorded in the index so a partially-failed
-    /// pass never re-uploads an item that did make it.
-    /// </summary>
-    private async Task UploadPendingFilesAsync(string serverBaseUrl, string accessToken, CancellationToken ct)
-    {
-        var pendingDir = System.IO.Path.Combine(
-            Microsoft.Maui.Storage.FileSystem.AppDataDirectory,
-            PendingUploadsDirName);
-
-        if (!Directory.Exists(pendingDir))
-            return;
-
-        var files = Directory.GetFiles(pendingDir);
-        if (files.Length == 0)
-            return;
-
-        _logger.LogInformation("Found {Count} pending file(s) in local upload queue.", files.Length);
-
-        foreach (var filePath in files)
-        {
-            ct.ThrowIfCancellationRequested();
-
-            var fileName = System.IO.Path.GetFileName(filePath);
-            var mimeType = GuessMimeType(fileName, "application/octet-stream");
-
-            try
-            {
-                // Skip anything already recorded (e.g. an upload that succeeded but whose local
-                // deletion was interrupted) — delete the leftover file rather than re-uploading.
-                if (await _index.ContainsAsync(filePath, ct).ConfigureAwait(false))
-                {
-                    SafeDeleteFile(filePath);
-                    continue;
-                }
-
-                await using var fileStream = File.OpenRead(filePath);
-                using var ms = new MemoryStream();
-                await fileStream.CopyToAsync(ms, ct).ConfigureAwait(false);
-                ms.Position = 0;
-
-                // Resolve the AutoUpload/YYYY/MM folder.
-                Guid? parentId = null;
-                if (Preferences.Default.Get(PrefOrganizeByDate, true))
-                {
-                    parentId = await EnsureUploadFolderAsync(
-                        serverBaseUrl, accessToken, DateTime.UtcNow.Year, DateTime.UtcNow.Month, ct)
-                        .ConfigureAwait(false);
-                }
-
-                await _fileApi.UploadFileAsync(
-                    serverBaseUrl, accessToken,
-                    fileName, parentId,
-                    ms, ms.Length, mimeType,
-                    progress: null, ct).ConfigureAwait(false);
-
-                await _index.RecordAsync(new UploadedMediaRow
-                {
-                    MediaKey = filePath,
-                    SourceUri = filePath,
-                    DisplayName = fileName,
-                    FileSize = ms.Length,
-                    DateAddedUtcTicks = DateTime.UtcNow.Ticks,
-                    ServerFolder = GetFolderLabel(DateTime.UtcNow),
-                    UploadedAtUtcTicks = DateTime.UtcNow.Ticks
-                }, ct).ConfigureAwait(false);
-
-                _logger.LogInformation("Uploaded pending file {FileName}.", fileName);
-                SafeDeleteFile(filePath);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to upload pending file {FileName}; keeping in queue.", fileName);
-            }
         }
     }
 
