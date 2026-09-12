@@ -144,6 +144,58 @@ A fix was found on 2026-09-09 (interpreter off → 0 crashes in 10 forced restar
 
 ⚠️ **Two testing traps hit while doing this:** (1) `am kill` will **not** kill a foreground process, so a soak without `KEYCODE_HOME` first silently reports the same pid every iteration and proves nothing — always assert the process is actually `DEAD` before forcing the job. (2) `.Trim()` on the output of `adb shell pidof` throws when the process is correctly dead (null) — handle null.
 
+## ⚠️ Music player crash — reproduced, root-caused, fixed (2026-09-12)
+
+The operator reported a crash while listening to music (2026-09-11, 02:00–04:15). **The 9/11 record itself is unrecoverable** — dropbox retains only 09-09 and 09-12 (all 09-10/09-11 entries rotated out before the 09-12 00:52 reboot), and the 13 `tombstone_*.pb` files were emptied at **09-11 03:54** (inside the window), so the content is gone. The timestamp confirms an event occurred but not its cause.
+
+The bug was therefore found by auditing the music path, then **reproduced live**: 8 rapid track changes killed the process with `SIGABRT`.
+
+### Root cause
+
+```
+FATAL UNHANDLED EXCEPTION: Java.Lang.IllegalStateException
+  at Android.Media.MediaPlayer.get_AudioSessionId()
+  at MusicPlayerService.get_AudioSessionId()
+  at AndroidEqualizerService.OnPlaybackStateChanged()
+  at MusicPlayerService.<StartPositionTimer>b__72_0()      ← the 1-second tick timer
+  at System.Threading.TimerQueueTimer...                    ← thread-pool thread, no caller to catch
+```
+
+`AudioSessionId` was `_mediaPlayer?.AudioSessionId ?? 0` — a **live read of the current player**. During a track switch the previous player is `Release()`d while still referenced, so a timer tick landing in that window called `getAudioSessionId()` on a released player. Android throws `Java.Lang.IllegalStateException` for that. Because the read happened inside a `Timer` callback on a thread-pool thread there is no caller to catch it, so it surfaced as an unhandled exception and the .NET runtime called `abort()` → `SIGABRT`. Observed directly in the log: the main thread released the player at `02:23:28.313` and the timer read it at `.319`.
+
+### Fixes
+
+1. **Cache the audio session id** (`_audioSessionId`), captured in `OnTrackPrepared` while the player is guaranteed valid. `AudioSessionId` no longer touches the player at all — this is the real fix.
+2. **Publish `null` before releasing** in `PrepareAndStartAsync` (`_mediaPlayer = null` + `_audioSessionId = 0` *before* `previousPlayer.Release()`), narrowing the window for any reader that already observed the old instance.
+3. **`CurrentPosition`/`Duration` degrade instead of throwing** — they had the identical hazard (`getCurrentPosition()` on a released player throws too) and would have crashed eventually via the ViewModel.
+4. **Exceptions cannot escape the timer callback or the equalizer handler** — `RaisePlaybackStateChangedSafely()` and a try/catch around `AndroidEqualizerService.OnPlaybackStateChanged`. An exception thrown from a `Timer` callback is fatal by construction.
+
+### Also fixed: wake lock leak (`MusicPlaybackService.AcquireWakeLock`)
+
+It created and acquired a **new** `PowerManager.WakeLock` on every `OnStartCommand`, overwriting `_wakeLock` without releasing the previous instance. Wake-lock acquisitions are **not** deduplicated by tag, so each one needs its own release, and only the newest was reachable from `OnDestroy` — so a session leaked one partial wake lock per track start plus one per pause/resume and per notification button, pinning the CPU awake (battery drain, `PowerManagerService: Excessive delay in releasing WakeLock`). Now idempotent (`if (_wakeLock?.IsHeld == true) return;`) with a matching `ReleaseWakeLock()`, and the lock is only acquired when a track is actually loaded.
+
+### Also fixed: background `StartForegroundService` crash path
+
+`MusicPlayerService.UpdateNotification()` used `Context.StartForegroundService` for what is only a notification repaint. On Android 12+ that throws `ForegroundServiceStartNotAllowedException` when called from the background with no running foreground service — exactly the state after playback stops, so a late pause/resume or a notification media-button press could crash the app (a screen-off, backgrounded-music scenario). It now uses `StartService`. It also returned `Sticky` unconditionally, so a system restart with a **null intent** reinstated a `mediaPlayback` FGS with a permanent "Loading…" notification and a wake lock but no playback; that path now releases the lock and stops itself.
+
+### Verification (R5CWC356B2K, `--no-incremental`)
+
+**Before:** 8 rapid track changes → `SIGABRT`, process dead.
+
+**After:** driven via UI automation across **two artists and two albums** (ABBA / *Voyage* 2021 → AC-DC / *Live* 1992), **26+ track changes** producing **39 distinct audio session ids** (`257`…`641`, plus `0`).
+
+| Check | Result |
+| ----------------------------------- | ------------------------------------------------ |
+| Process | **pid 14219 unchanged throughout** (never restarted) |
+| Fatal signals / unhandled exceptions | **0** |
+| Wake lock | **exactly 1**, acquired once at 02:27:10, held 4m59s |
+| `wake lock acquired` / `released` | **1 / 0** — balanced, no leak |
+| Foreground services | 1 (`mediaPlayback`), as intended |
+
+The `0` among the session ids is the significant one: it is the cached session cleared during a switch — the exact state that used to dereference a released player.
+
+⚠️ **Device-testing note:** when the Music tab is missing from the drawer, the module did not register — tap **Rescan Modules** (drawer footer) and it returns. It is not a display quirk.
+
 ## Resume checklist (tomorrow or next session)
 
 1. `git status --short` — confirm the expected uncommitted files (listed below). Never delete untracked `.cs`.
@@ -174,3 +226,9 @@ Camera ownership removal + Debug interpreter fix (`feature/android-media-auto-up
 - `src/Clients/DotNetCloud.Client.Android/Services/MediaAutoUploadService.cs` — `UploadPendingFilesAsync`, `PendingUploadsDirName` and `ResolveUploadTargetFolderAsync` removed
 - `src/Clients/DotNetCloud.Client.Android/Services/IMediaAutoUploadService.cs` — `ResolveUploadTargetFolderAsync` removed from the interface
 - `src/Clients/DotNetCloud.Client.Android/Services/MediaUploadIndex.cs` — `MediaKey` doc no longer mentions spooled captures
+
+Music crash fix (`feature/android-media-auto-upload`) — **pending commit**:
+
+- `src/Clients/DotNetCloud.Client.Android/Services/MusicPlayerService.cs` — cached `_audioSessionId` (+ `TryReadPlayer` for `CurrentPosition`/`Duration`), publish-null-before-release, capture session in `OnTrackPrepared`, `RaisePlaybackStateChangedSafely` for the timer, `UpdateNotification` → `StartService`
+- `src/Clients/DotNetCloud.Client.Android/Services/AndroidEqualizerService.cs` — `OnPlaybackStateChanged` try/catch + single defensive session read; `CreateEqualizer(int)` takes the session id
+- `src/Clients/DotNetCloud.Client.Android/Platforms/Android/MusicPlaybackService.cs` — idempotent `AcquireWakeLock` + `ReleaseWakeLock`, wake lock only when a track is loaded, null-intent sticky-restart guard, release on `ActionStop`
