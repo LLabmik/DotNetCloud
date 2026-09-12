@@ -2327,7 +2327,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Create `FileBrowser.razor` main component:
   - ✓ Grid view (icon + name + size + date)
   - ✓ List view (tabular with columns)
-  - ✓ View mode toggle (grid/list)
+  - ✓ View mode toggle (grid/list/gallery) — defaults to List and resets to List whenever the directory changes
   - ✓ Breadcrumb navigation
   - ✓ Folder navigation (click to enter, back button)
   - ✓ Multi-select (checkbox per item)
@@ -2343,6 +2343,7 @@ This phase implements the core Files module, which is the primary public-facing 
   - ✓ Multi-item ZIP download (files + folders) with configurable `MaxZipSizeBytes` limit (4 GiB default) and informational modal on HTTP 413
   - ✓ Delete confirmation dialog for both context-menu Delete and bulk toolbar Trash
   - ✓ Download context-menu item available for folders (single file → direct download; folder/multi → single ZIP)
+  - ✓ Image gallery view (`ViewMode.Gallery`) — grid of image files in the current directory with thumbnail tiles, per-image delete (with confirmation), and an optional slideshow toggle for opening the preview in slideshow mode
 
 #### File Upload Component
 
@@ -2366,6 +2367,8 @@ This phase implements the core Files module, which is the primary public-facing 
   - ✓ Markdown preview (`<iframe>` embed)
   - ✓ Unsupported format fallback (Download File button)
   - ✓ Navigation between files in same folder (prev/next arrows, ← → keyboard shortcuts)
+  - ✓ Slideshow mode — auto-advances through images in the current context (play/pause button, interval selector, Space shortcut, wraps at end); started from the gallery slideshow toggle or the preview play button
+  - ✓ Delete current image from the preview header (Delete keyboard shortcut) raising `OnDelete`, which closes the preview and opens the delete confirmation dialog
 
 #### Share Dialog Component
 
@@ -2478,6 +2481,9 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Display file metadata in preview (MIME type, size, modified date, position in folder)
 - ✓ Download button from preview (raises OnDownload event callback)
 - ✓ Share button from preview (raises OnShare event; FileBrowser opens ShareDialog)
+- ✓ Optional slideshow auto-advance for image previews (start from the gallery toggle or the play button; wraps at end)
+- ✓ In-preview delete for gallery images with delete confirmation dialog
+- ✓ Image detection/filtering helper (`FilesImageHelper`) shared by the gallery view and preview slideshow
 
 ---
 

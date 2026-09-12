@@ -41,6 +41,12 @@ public sealed class FileNodeViewModel
     /// </summary>
     public string? ThumbnailUrl { get; init; }
 
+    /// <summary>
+    /// True once the server-generated thumbnail failed to load in the image gallery,
+    /// causing the UI to fall back to the full-size content URL.
+    /// </summary>
+    public bool ThumbnailFailed { get; set; }
+
     /// <summary>Tags applied to this node (includes name and color for badge rendering).</summary>
     public IReadOnlyList<FileTagViewModel> Tags { get; set; } = [];
 
@@ -84,7 +90,7 @@ public sealed class FileNodeViewModel
 public sealed record BreadcrumbItem(Guid Id, string Name);
 
 /// <summary>
-/// View mode for the file browser (grid or list).
+/// View mode for the file browser (grid, list, or image gallery).
 /// </summary>
 public enum ViewMode
 {
@@ -92,7 +98,10 @@ public enum ViewMode
     Grid,
 
     /// <summary>List layout with details.</summary>
-    List
+    List,
+
+    /// <summary>Image gallery layout showing only image files in the current directory.</summary>
+    Gallery
 }
 
 /// <summary>

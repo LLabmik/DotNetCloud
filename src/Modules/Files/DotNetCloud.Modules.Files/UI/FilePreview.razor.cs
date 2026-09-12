@@ -40,6 +40,24 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
     /// <summary>Whether to show the Comments button in the preview header.</summary>
     [Parameter] public bool ShowCommentsButton { get; set; } = true;
 
+    /// <summary>When true, the preview starts in slideshow mode and auto-advances through images.</summary>
+    [Parameter] public bool StartSlideshow { get; set; }
+
+    /// <summary>Initial seconds between slideshow advances (clamped to 2–60 seconds).</summary>
+    [Parameter] public int SlideshowIntervalSeconds { get; set; } = 5;
+
+    /// <summary>Whether to show the Delete button in the preview header (for gallery images).</summary>
+    [Parameter] public bool ShowDeleteButton { get; set; }
+
+    /// <summary>
+    /// True when a modal dialog (e.g. the delete confirmation) is displayed over the preview.
+    /// Keyboard shortcuts are ignored and slideshow auto-advance is paused until it closes.
+    /// </summary>
+    [Parameter] public bool ModalOpen { get; set; }
+
+    /// <summary>Invoked when the user requests deletion of the currently displayed file.</summary>
+    [Parameter] public EventCallback<FileNodeViewModel> OnDelete { get; set; }
+
     /// <summary>Invoked when the user closes the preview.</summary>
     [Parameter] public EventCallback OnClose { get; set; }
 
@@ -57,6 +75,11 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
     private DotNetObjectReference<FilePreview>? _gestureDotNetRef;
     private int _gestureHandlerId;
     private double _imageZoom = 1;
+
+    // Slideshow playback state
+    private bool _slideshowActive;
+    private int _slideshowInterval;
+    private System.Threading.Timer? _slideshowTimer;
 
     // Native text preview state
     private string? _textContent;
@@ -87,6 +110,11 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
     /// <inheritdoc />
     protected override void OnParametersSet()
     {
+        // Initialize the slideshow interval once from the parameter (guarded by <= 0 so a
+        // re-render never resets a user-chosen interval).
+        if (_slideshowInterval <= 0)
+            _slideshowInterval = Math.Clamp(SlideshowIntervalSeconds, 2, 60);
+
         // Only reset state when the Node parameter actually changes.
         // Prevents losing loaded text content on spurious parent re-renders
         // (e.g., SSR → WASM circuit handoff in InteractiveAuto mode).
@@ -112,6 +140,9 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
 
             _gestureDotNetRef = DotNetObjectReference.Create(this);
             _gestureHandlerId = await Js.InvokeAsync<int>("dotnetcloudFilePreviewGestures.init", _overlayRef, _gestureDotNetRef);
+
+            if (StartSlideshow)
+                StartSlideshowPlayback();
         }
 
         // Load text content whenever it's needed but not yet loaded.
@@ -249,10 +280,7 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
 
     /// <summary>Zero-based index of <see cref="DisplayNode"/> within <see cref="NavigableFiles"/>.</summary>
     protected int CurrentIndex =>
-        DisplayNode is null
-            ? -1
-            : NavigableFiles.Select((n, i) => (n, i))
-                .FirstOrDefault(x => x.n.Id == DisplayNode.Id, (null!, -1)).i;
+        DisplayNode is null ? -1 : IndexOf(NavigableFiles, DisplayNode.Id);
 
     /// <summary>True when there is a previous file to navigate to.</summary>
     protected bool CanGoPrev => CurrentIndex > 0;
@@ -272,15 +300,7 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
     {
         var idx = CurrentIndex;
         if (idx > 0)
-        {
-            _currentNode = NavigableFiles[idx - 1];
-            _imageZoom = 1;
-            _textContent = null;
-            _isEditingText = false;
-            StateHasChanged();
-            if (IsText || IsCode || IsMarkdown)
-                await LoadTextContentAsync();
-        }
+            await ShowNodeAsync(NavigableFiles[idx - 1]);
     }
 
     /// <summary>Navigates to the next file in the list.</summary>
@@ -288,15 +308,136 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
     {
         var idx = CurrentIndex;
         if (idx >= 0 && idx < NavigableFiles.Count - 1)
+            await ShowNodeAsync(NavigableFiles[idx + 1]);
+    }
+
+    /// <summary>Switches the preview to the given node, resetting per-file state and loading content.</summary>
+    private async Task ShowNodeAsync(FileNodeViewModel node)
+    {
+        _currentNode = node;
+        _imageZoom = 1;
+        _textContent = null;
+        _isLoadingText = false;
+        _isEditingText = false;
+        _editableText = null;
+        StateHasChanged();
+
+        if (IsText || IsCode || IsMarkdown)
+            await LoadTextContentAsync();
+    }
+
+    private static int IndexOf(IReadOnlyList<FileNodeViewModel> list, Guid id)
+    {
+        for (var i = 0; i < list.Count; i++)
         {
-            _currentNode = NavigableFiles[idx + 1];
-            _imageZoom = 1;
-            _textContent = null;
-            _isEditingText = false;
-            StateHasChanged();
-            if (IsText || IsCode || IsMarkdown)
-                await LoadTextContentAsync();
+            if (list[i].Id == id)
+                return i;
         }
+
+        return -1;
+    }
+
+    // ── Slideshow ───────────────────────────────────────────────────────────────
+
+    /// <summary>Image files available for slideshow auto-advance.</summary>
+    protected IReadOnlyList<FileNodeViewModel> SlideshowFiles => FilesImageHelper.Filter(NavigableFiles);
+
+    /// <summary>True when there is more than one image to cycle through in a slideshow.</summary>
+    protected bool IsSlideshowAvailable => SlideshowFiles.Count > 1;
+
+    /// <summary>
+    /// True when the delete action is available for the displayed file — any image that is a
+    /// real (non-virtual), writable file, regardless of whether the viewer was opened from the gallery.
+    /// </summary>
+    protected bool CanDelete =>
+        ShowDeleteButton
+        && DisplayNode is { IsReadOnly: false }
+        && FilesImageHelper.IsImage(DisplayNode);
+
+    /// <summary>True while slideshow auto-advance is running.</summary>
+    protected bool IsSlideshowActive => _slideshowActive;
+
+    /// <summary>Starts or stops slideshow auto-advance.</summary>
+    protected void ToggleSlideshow()
+    {
+        if (_slideshowActive)
+            StopSlideshow();
+        else
+            StartSlideshowPlayback();
+    }
+
+    private void StartSlideshowPlayback()
+    {
+        if (!IsSlideshowAvailable)
+            return;
+
+        _slideshowActive = true;
+        RestartSlideshowTimer();
+        StateHasChanged();
+    }
+
+    private void StopSlideshow()
+    {
+        _slideshowActive = false;
+        _slideshowTimer?.Dispose();
+        _slideshowTimer = null;
+        StateHasChanged();
+    }
+
+    private void RestartSlideshowTimer()
+    {
+        _slideshowTimer?.Dispose();
+        var interval = TimeSpan.FromSeconds(Math.Clamp(_slideshowInterval, 2, 60));
+        _slideshowTimer = new System.Threading.Timer(OnSlideshowTick, null, interval, interval);
+    }
+
+    private void OnSlideshowTick(object? state) => _ = RunSlideshowTickAsync();
+
+    private async Task RunSlideshowTickAsync()
+    {
+        try
+        {
+            await InvokeAsync(async () =>
+            {
+                if (!_slideshowActive || _isEditingText || ModalOpen)
+                    return;
+
+                await AdvanceSlideshowAsync();
+            });
+        }
+        catch (ObjectDisposedException)
+        {
+            // Component disposed while the timer callback was in flight.
+        }
+        catch (InvalidOperationException)
+        {
+            // Renderer already shut down during teardown.
+        }
+    }
+
+    private async Task AdvanceSlideshowAsync()
+    {
+        var images = SlideshowFiles;
+        if (images.Count < 2)
+            return;
+
+        var index = DisplayNode is null ? -1 : IndexOf(images, DisplayNode.Id);
+        var next = index < 0 || index >= images.Count - 1 ? 0 : index + 1;
+        await ShowNodeAsync(images[next]);
+    }
+
+    /// <summary>Restarts the slideshow timer at the newly selected interval.</summary>
+    protected void OnSlideshowIntervalChanged()
+    {
+        if (_slideshowActive)
+            RestartSlideshowTimer();
+    }
+
+    /// <summary>Invokes the delete callback for the currently displayed file.</summary>
+    protected async Task Delete()
+    {
+        if (DisplayNode is not null)
+            await OnDelete.InvokeAsync(DisplayNode);
     }
 
     /// <summary>Handles a swipe-left gesture to navigate forward.</summary>
@@ -329,9 +470,13 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
 
     // ── Keyboard ────────────────────────────────────────────────────────────────
 
-    /// <summary>Handles keyboard shortcuts: Escape = close, ← = prev, → = next.</summary>
+    /// <summary>Handles keyboard shortcuts: Escape = close, ← = prev, → = next, Space = toggle slideshow, Delete = delete.</summary>
     protected async Task HandleKeyDown(KeyboardEventArgs e)
     {
+        // A modal (e.g. delete confirmation) is on top — don't let keys reach the viewer underneath.
+        if (ModalOpen)
+            return;
+
         switch (e.Key)
         {
             case "Escape":
@@ -342,6 +487,12 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
                 break;
             case "ArrowRight":
                 await GoNext();
+                break;
+            case " " when !_isEditingText && IsSlideshowAvailable:
+                ToggleSlideshow();
+                break;
+            case "Delete" when !_isEditingText && CanDelete:
+                await Delete();
                 break;
         }
     }
@@ -506,6 +657,9 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
+        _slideshowTimer?.Dispose();
+        _slideshowTimer = null;
+
         if (_gestureHandlerId != 0)
         {
             try
