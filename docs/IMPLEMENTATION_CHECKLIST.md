@@ -3582,7 +3582,8 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Skip media items larger than 500 MB (`MaxSingleItemBytes`) and log the count
 - ✓ Start the in-process watcher from `MainApplication.OnCreate` so auto-upload survives process restarts without relying on the UI lifecycle
 - ✓ Route `ILogger` output to logcat (`AndroidLogLoggerProvider`) so background-service decisions are diagnosable in the field
-- ✓ Verify `dataSync` FGS 24-h budget is not consumed (media watcher runs in-process with no service; chat promotion gated off)
+- ✓ Verify `dataSync` FGS 24-h budget is not consumed (media watcher runs in-process with no service; chat `dataSync` FGS removed entirely)
+- ✓ Chat `dataSync` FGS removed outright: `ChatConnectionService` no longer declares a foreground service type — promotion branch, `OnTimeout(int)` override and `BuildNotification()` deleted, `AndroidForegroundServicePolicy` (temporary kill-switch) and `MediaUploadForegroundService` (dead code) removed, `FOREGROUND_SERVICE_DATA_SYNC` manifest permission dropped. The Android 15/16 `dataSync` 24-h budget is now **unspendable**, so the `ForegroundServiceDidNotStopInTimeException` crash loop is structurally eliminated rather than gated. Verified on device: `startForegroundCount=0`, no `foregroundServiceType`, SignalR still connects
 - ✓ P5 headless background sync: persisted one-shot `JobScheduler` job (`MediaUploadJobService`, id 3107; Wi-Fi only) wakes the app to scan while it is closed — no foreground service, so no `dataSync` budget use
 - ✓ Adaptive background cadence: the job re-arms itself every 5 minutes while media is still queued and hourly once the queue is empty (a periodic job cannot do this — `SetPeriodic` has a 15-minute platform floor)
 - ✓ Bound OS deferral with `SetOverrideDeadline(delay + 2 min)` — a min-latency-only one-shot job was observed deferred indefinitely (`TIME=-1m50s` while `RUNNABLE`, bucket ACTIVE)
@@ -3604,16 +3605,17 @@ memory/bitmap limits, background-resource behavior). Release builds now enable R
 optimization + AOT + SDK/framework trimming (`AndroidLinkMode=SdkOnly`; app assemblies are
 NOT trimmed because the client deserializes `required`-member DTO records via reflection
 JSON — full trimming breaks that at runtime, verified on-device). Image buffers are
-single-materialized; in-memory image caches are released on `OnTrimMemory`; and `dataSync`
-foreground services are gated to the foreground and stop cleanly on the Android 15+ timeout.
+single-materialized; in-memory image caches are released on `OnTrimMemory`; and the app now
+ships **zero** `dataSync` foreground services — the chat connection runs unpromoted (push
+handles background delivery), so the Android 15+ FGS timeout cannot be reached at all.
 Zero-tap sign-in (Apr 2027) and the API 36 target bump are tracked separately (deferred).
 
 - ✓ Enable R8 DEX optimization + AOT + SDK/framework trimming for Release (`PublishTrimmed`, `AndroidLinkMode=SdkOnly`, `AndroidEnableR8`, `RunAOTCompilation`) — app assemblies kept intact to preserve reflection JSON for `required`-member DTOs
 - ✓ Surface + resolve trim warnings; only sanctioned suppressions are documented MAUI XAML string bindings (`IL2026`) and the `SettingsViewModel` module-rescan reflection site (`IL2075`)
 - ✓ Single-materialize full-resolution image bytes in `ImageViewerViewModel.LoadImageAsync` (no per-access buffer copy)
 - ✓ Release in-memory `ThumbnailCache`/`AlbumArtCache` entries on `MainApplication.OnTrimMemory` (disk retained)
-- ✓ `ChatConnectionService`/`MediaUploadForegroundService` stop cleanly on Android 15+ `dataSync` FGS `OnTimeout`
-- ✓ Run chat foreground service only while the app is foregrounded (push handles background delivery)
+- ✓ Chat `dataSync` FGS eliminated — `ChatConnectionService` declares no foreground service type, so there is no `OnTimeout` deadline to miss and no `dataSync` budget to exhaust
+- ✓ Chat connection runs with no foreground service at all (push handles background delivery) — verified `startForegroundCount=0` with SignalR connected
 - ✓ Pause SignalR reconnect attempts while the app is backgrounded
 - ✓ Update `docs/clients/android/DISTRIBUTION.md` Release build + F-Droid recipe (MAUI workload, restore prebuild)
 - ✓ On-device Release E2E passed 2026-09-07 (Samsung R5CWC356B2K): startup/AOT clean, session restore + SignalR, Files/Calendar/Notes/AI/Settings load data, Rescan Modules reflection path runs, background FGS gating verified (`dumpsys activity services` shows no idle chat FGS), memory reclaimed when backgrounded (`dumpsys meminfo`)

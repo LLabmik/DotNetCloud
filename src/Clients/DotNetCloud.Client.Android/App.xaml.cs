@@ -542,8 +542,7 @@ public partial class App : Application
 
             var chatIntent = new Intent(global::Android.App.Application.Context, typeof(ChatConnectionService));
             chatIntent.SetAction(ChatConnectionService.ActionStart);
-            // TEMPORARY: foreground promotion gated by AndroidForegroundServicePolicy (dataSync FGS fix pending).
-            AndroidForegroundServicePolicy.StartService(global::Android.App.Application.Context, chatIntent);
+            global::Android.App.Application.Context.StartService(chatIntent);
 
             // Auto-upload runs as an in-process watcher loop while the app is alive (plus an
             // immediate scan when a MediaStore change is seen and a catch-up scan on next launch).

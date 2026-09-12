@@ -38,20 +38,20 @@ The permission fix worked but the watcher then made **zero progress for ~2.3 day
 
 ### `dataSync` 24-h FGS budget — verified NOT consumed (2026-09-12)
 
-| Path                           | FGS type                                       | Budget impact                                                                                                           |
-| ------------------------------ | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Media auto-upload watcher      | **none** (in-process loop + `ContentObserver`) | ✓ zero                                                                                                                  |
-| `ChatConnectionService`        | `dataSync`                                     | ✓ gated off — `AndroidForegroundServicePolicy.UseForegroundServices = false`; log shows `foreground promotion disabled` |
-| `MediaUploadForegroundService` | would be `dataSync`                            | ✓ not in the manifest, never started                                                                                    |
-| `MusicPlaybackService`         | `mediaPlayback`                                | separate budget; only during playback                                                                                   |
+| Path                           | FGS type                                       | Budget impact                                                                                               |
+| ------------------------------ | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Media auto-upload watcher      | **none** (in-process loop + `ContentObserver`) | ✓ zero                                                                                                      |
+| `ChatConnectionService`        | **none — FGS removed entirely**                | ✓ zero — `dataSync` declaration, promotion block, notification builder and `OnTimeout` override all deleted |
+| `MediaUploadForegroundService` | — class deleted                                | ✓ gone (file + manifest entry both removed)                                                                 |
+| `MusicPlaybackService`         | `mediaPlayback`                                | separate budget; only during playback                                                                       |
 
-The only `StartForegroundService` call site in the whole app is inside the disabled policy. Live check: `dumpsys activity services net.dotnetcloud.client` → nothing running.
+There is **no** `StartForegroundService` call site left in the app any more, and `FOREGROUND_SERVICE_DATA_SYNC` was dropped from the manifest (only `FOREGROUND_SERVICE` + `FOREGROUND_SERVICE_MEDIA_PLAYBACK` remain). Live check after the change (2026-09-12): `dumpsys activity services net.dotnetcloud.client` → `ChatConnectionService` present with **`startForegroundCount=0`** and no `foregroundServiceType`, and SignalR still connects (`EnsureSignalRConnectedAsync: SignalR connected successfully!`).
 
 ## P5 background sync — implemented & verified (2026-09-12)
 
 **Problem:** the watcher is in-process only, so nothing runs while the app is closed. The trigger was missing — not the ability to scan.
 
-**Design:** a persisted **one-shot** `JobScheduler` job that re-arms itself after every run, on an **adaptive cadence** — every 5 minutes while media is still queued, hourly once the queue is empty. A *periodic* job cannot express the active cadence because `JobInfo.Builder.SetPeriodic` is clamped to a 15-minute platform minimum, whereas `SetMinimumLatency` (one-shot) has no such floor. Deliberately **not** WorkManager (would need a new central package; the earlier `Xamarin.AndroidX.Work.Runtime` attempt hit transitive-AndroidX conflicts) and **not** a foreground service (would spend the `dataSync` budget). `JobScheduler` is Doze-aware, honours network constraints, survives reboots, and is accounted separately from the foreground-service budget.
+**Design:** a persisted **one-shot** `JobScheduler` job that re-arms itself after every run, on an **adaptive cadence** — every 5 minutes while media is still queued, hourly once the queue is empty. A _periodic_ job cannot express the active cadence because `JobInfo.Builder.SetPeriodic` is clamped to a 15-minute platform minimum, whereas `SetMinimumLatency` (one-shot) has no such floor. Deliberately **not** WorkManager (would need a new central package; the earlier `Xamarin.AndroidX.Work.Runtime` attempt hit transitive-AndroidX conflicts) and **not** a foreground service (would spend the `dataSync` budget). `JobScheduler` is Doze-aware, honours network constraints, survives reboots, and is accounted separately from the foreground-service budget.
 
 The cadence is driven by `IMediaAutoUploadService.HasPendingWork`, which is true when a pass left media queued — either a backlog beyond the 40-item per-pass cap, or items the pass selected but failed to upload (failures are not recorded in the index, so they remain pending).
 
@@ -93,7 +93,8 @@ The cadence is driven by `IMediaAutoUploadService.HasPendingWork`, which is true
 
 ## Known issues / gotchas
 
-- **`dataSync` FGS 24-h budget (Android 15/16):** rolling per-24 h window, persisted across reboots (reboot does NOT reset). When exhausted the platform throws `ForegroundServiceDidNotStopInTimeException` and can crash-loop via Sticky restarts. Today the **ChatConnectionService** (still `dataSync`, pre-existing) is the recurring crash source — separate fix needed (non-`dataSync` FGS type, e.g. `remoteMessaging` on API 34+, or stop Sticky restart when exhausted).
+- **`dataSync` FGS 24-h budget (Android 15/16):** rolling per-24 h window, persisted across reboots (reboot does NOT reset). When exhausted the platform throws `ForegroundServiceDidNotStopInTimeException` and can crash-loop via Sticky restarts. **Fixed 2026-09-12 by removing the FGS from `ChatConnectionService` entirely** rather than changing its type. Deleted: the `ForegroundServiceType = DataSync` attribute, the `AndroidForegroundServicePolicy` promotion branch, the `OnTimeout(int)` override, `BuildNotification()`, the `MediaUploadForegroundService` class, and the `FOREGROUND_SERVICE_DATA_SYNC` manifest permission. The change is **behavior-preserving** — promotion was already disabled by the kill-switch, and FCM/UnifiedPush already own background delivery. Live check: `startForegroundCount=0`, no `foregroundServiceType`, SignalR connects, process stable.
+  - ⚠️ **Do NOT re-add a foreground service to `ChatConnectionService`.** `remoteMessaging` (`FOREGROUND_SERVICE_TYPE_REMOTE_MESSAGING`) was evaluated and **rejected** — it is for _device-to-device_ transfer (phone↔watch apps), not server-push messaging, and does not describe a SignalR hub connection. `specialUse` would require a Play Store justification. A Sticky, non-promoted service is the intended end state.
 - **Background-sync experiment re-diagnosed (2026-09-12):** the earlier note claimed a native `JobScheduler` `JobService` "crashed on headless cold-start (MAUI startup assumes an Activity)". **That diagnosis was wrong.** The crash was `signal 11 (SIGSEGV)` in `libmonodroid.so` → `EmbeddedAssemblies::open_from_bundles()` on a `.NET TP Worker` thread, and it was an **incremental-install artifact** (the dropbox record literally says `Incremental: Yes`, with fast-deploy noise like `.__override__` and `open_from_update_dir: assembly file DOES NOT EXIST`). Reinstalling with `adb install -r --no-incremental` and repeating the identical headless start runs **cleanly** — no crash. MAUI has always started headlessly fine (proven by `FcmMessagingService` / `CalendarBootReceiver`). ⚠️ **Always install with `--no-incremental` when testing this app**, or you will chase phantom native crashes in the assembly loader.
 - C#/Android namespace gotcha: inside `namespace DotNetCloud.Client.Android.*`, bare `Android.Content.*`/`Android.Content.PM.Permission` binds to `DotNetCloud.Client.Android` → use `global::Android.*` or `using Android.Content;`.
 - `IFileRestClient.ListChildrenAsync` param is `folderId`, not `parentId`.
@@ -104,7 +105,7 @@ The cadence is driven by `IMediaAutoUploadService.HasPendingWork`, which is true
 
 - **P4 capture→gallery single path:** Files-tab camera should launch the system camera and land the photo in the shared gallery so ONE watcher path uploads it (spike: `MediaScannerConnection.ScanFile` vs no-`EXTRA_OUTPUT`). Current capture path still works (uploads to AutoUpload when enabled).
 - ~~**P5 background sync** (the "max files/day" ask)~~ — **DONE 2026-09-12** (see below).
-- Chat FGS `dataSync` type change.
+- ~~**Chat FGS `dataSync`**~~ — **DONE 2026-09-12**: the FGS was removed outright (not retyped). See the `dataSync` budget table + known-issues note above.
 - Server `AutoUpload` may contain test screenshots `dnc_*.png` from this session — deletable.
 
 ## Resume checklist (tomorrow or next session)
@@ -113,23 +114,17 @@ The cadence is driven by `IMediaAutoUploadService.HasPendingWork`, which is true
 2. Re-read this doc's "Verification state" and re-verify device stability (dataSync budget resets on a rolling ~24 h).
 3. On-device E2E: grant photos access → take a stock-camera photo → confirm it lands in server `AutoUpload/YYYY/MM`; Files-tab capture → no double upload; backfill → no duplicates; `pidof` stable with no MediaStore crash.
 4. Verify the quota-full notification (temporarily set a tiny quota via admin API on a test user, or accept the 9 unit tests as coverage).
-5. Decide + implement chat FGS type fix and the P5 headless-safe background sync.
+5. ~~Decide + implement chat FGS type fix and the P5 headless-safe background sync.~~ — **both DONE 2026-09-12** (P5 adaptive job; chat FGS removed along with the `AndroidForegroundServicePolicy` kill-switch).
 6. Update docs (`IMPLEMENTATION_CHECKLIST.md`, `MASTER_PROJECT_PLAN.md`) with targeted edits, then commit (per repo rules only after full verification).
 
-## Files changed (uncommitted)
+## Files changed
 
-- `src/Clients/DotNetCloud.Client.Android/Services/IMediaPermissionService.cs` (new)
-- `src/Clients/DotNetCloud.Client.Android/Platforms/Android/AndroidMediaPermissionService.cs` (new)
-- `src/Clients/DotNetCloud.Client.Android/Platforms/Android/MediaLibraryReadPermission.cs` (new)
-- `src/Clients/DotNetCloud.Client.Android/Services/MediaUploadIndex.cs` (new)
-- `src/Clients/DotNetCloud.Client.Android/Services/QuotaGate.cs` (new)
-- `src/Clients/DotNetCloud.Client.Android/Services/MediaAutoUploadService.cs` (rewritten)
-- `src/Clients/DotNetCloud.Client.Android/ViewModels/SettingsViewModel.cs`
-- `src/Clients/DotNetCloud.Client.Android/Views/SettingsPage.xaml` + `SettingsPage.xaml.cs`
-- `src/Clients/DotNetCloud.Client.Android/ViewModels/FileBrowserViewModel.cs`
-- `src/Clients/DotNetCloud.Client.Android/MauiProgram.cs`
-- `src/Clients/DotNetCloud.Client.Android/App.xaml.cs`
-- `src/Clients/DotNetCloud.Client.Android/Platforms/Android/AndroidManifest.xml`
-- `tests/DotNetCloud.Client.Android.Tests/DotNetCloud.Client.Android.Tests.csproj`
-- `tests/DotNetCloud.Client.Android.Tests/ViewModels/SettingsViewModelTests.cs`
-- `tests/DotNetCloud.Client.Android.Tests/Services/QuotaGateTests.cs` (new)
+Watcher / permission / quota work and P5 — **committed** `e77d20f6` (media stall fix) and `d92dff02` (P5 headless sync + adaptive cadence), pushed to `feature/android-media-auto-upload`.
+
+Chat FGS removal (`feature/android-media-auto-upload`) — pending commit:
+
+- `src/Clients/DotNetCloud.Client.Android/Platforms/Android/ChatConnectionService.cs` — FGS attribute, promotion block, `OnTimeout`, `BuildNotification()` removed
+- `src/Clients/DotNetCloud.Client.Android/Platforms/Android/AndroidManifest.xml` — `foregroundServiceType` dropped; `FOREGROUND_SERVICE_DATA_SYNC` permission removed
+- `src/Clients/DotNetCloud.Client.Android/Platforms/Android/AndroidForegroundServicePolicy.cs` — **deleted** (kill-switch no longer needed)
+- `src/Clients/DotNetCloud.Client.Android/Platforms/Android/MediaUploadForegroundService.cs` — **deleted** (dead code)
+- `src/Clients/DotNetCloud.Client.Android/App.xaml.cs`, `Views/LoginPage.xaml.cs`, `Platforms/Android/MainActivity.cs` — call sites now `StartService` directly
