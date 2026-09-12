@@ -5750,6 +5750,7 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 
 - ✓ Shared infrastructure: `WidgetUiRegistry` (UI.Web), `WidgetCard` (UI.Shared), `WidgetUiRegistrationHostedService` (Core.Server, installed/enabled gating), global widget CSS + new Material icons; wired in `Program.cs`; `Home.razor` renders the widget grid with a **refresh button**
 - ✓ 12 widget projects (`DotNetCloud.Modules.<Module>.Widget`) — Files, Video, Music, Photos, Notes, Chat, Tracks, Calendar, Contacts, Bookmarks, Email, AI; header icons match the sidebar
+- ✓ Chat widget presence dots (2026-09-11, `fix/blazor-improvements`): 4-state online dots on **Direct Message rows only**, seeded from `IPresenceTracker.GetOnlineStatusAsync` and live-updated from `IChatMessageNotifier.UserPresenceChanged`; shared `ChannelPresenceMapping` helper + 5 unit tests; `.presence-dot` styles in scoped `ChatWidget.razor.css` (auto-bundled, no `app.css` cache-buster)
 - ✓ Clickable deep links: Files opens containing folder, Video/Music/Tracks/Calendar open the item, Bookmarks open externally; Notes/Chat/Photos/Contacts/Email received wrapper + module-page deep-link wiring
 - ✓ In-process recent methods (`GetRecentPhotosAsync`, `GetRecentNotesAsync`, `GetRecentChannelsAsync`, `GetMyUpcomingDueItemsAsync`) and full gRPC chains for Contacts/Calendar/Bookmarks/Email/AI
 - ✓ Per-user scoping audit (owner-only or shared-with-me; gRPC user derived from `request.UserId`)

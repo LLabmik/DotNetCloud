@@ -18,6 +18,13 @@ else
         @foreach (var item in _items)
         {
             <li class="widget-list-item">
+                @if (item.Type == "DirectMessage")
+                {
+                    @* Presence dots appear on Direct Message rows only — a Group row is not a single user. *@
+                    <span class="presence-dot @GetPresenceClass(item.Id)"
+                          title="@GetPresenceLabel(item.Id)"
+                          aria-label="@GetPresenceLabel(item.Id)"></span>
+                }
                 <a class="widget-list-item-title" href="@HrefFor(item)">@item.Name</a>
             </li>
         }

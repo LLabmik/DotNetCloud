@@ -727,7 +727,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ 4-state presence (`PresenceState` Online/Away/DoNotDisturb/Offline) — server-authoritative derivation (offline > DND > away/online), `PresenceService` + 30 s `PresenceActivityMonitor` (runtime admin idle threshold), "UserPresence" broadcasts (`docs/PRESENCE_DOTS_4STATE_PLAN.md`)
 - ✓ Activity = real interaction only — `CoreHub.PingAsync`→`ReportActivityAsync`; Blazor global JS reporter + Android touch/key reporter (throttled)
 - ✓ RED = existing chat DND toggle (Blazor top-bar + `PUT /api/v1/notifications/preferences`) bridged into presence; DND wins while online, gray wins while offline
-- ✓ Blazor presence dots on Direct Message rows only (4 colors + Online/Idle/Do Not Disturb/Offline labels), DM thread header dot/label, per-member 4-state member list
+- ✓ Blazor presence dots on Direct Message rows only (4 colors + Online/Idle/Do Not Disturb/Offline labels), DM thread header dot/label, per-member 4-state member list, and the Home-page **Chat widget** DM rows (live-updated from `IChatMessageNotifier.UserPresenceChanged`)
 - ✓ Android DM + channel-details member dots are 4-state + live (CoreHub snapshot/events)
 - ✓ SignalR `ClientTimeoutSeconds` 30→300 (heartbeat fix); admin "Online indicators" numeric field (`dotnetcloud.core`/`PresenceIdleTimeoutMinutes`, default 3, clamp 1–60)
 - ☐ Live cross-device E2E (§9 of plan) on the deployed server before push to `main`
@@ -6845,6 +6845,7 @@ A module page throwing (unhandled exception during render/lifecycle) left the en
 
 - ✓ All 12 widget projects (`DotNetCloud.Modules.<Module>.Widget`) — Files, Video, Music, Photos, Notes, Chat, Tracks, Calendar, Contacts, Bookmarks, Email, AI
 - ✓ Widget header icons match the sidebar module icons (emoji, per user request)
+- ✓ Chat widget presence dots (2026-09-11, branch `fix/blazor-improvements`) — 4-state online dots on Direct Message rows only (same colors/labels as the chat sidebar); seeded on load via `IPresenceTracker.GetOnlineStatusAsync` and live-updated from `IChatMessageNotifier.UserPresenceChanged`; shared `ChannelPresenceMapping` helper + 5 unit tests; dot CSS in scoped `ChatWidget.razor.css` (`.presence-dot`, auto-bundled into `DotNetCloud.Core.Server.styles.css` — no `app.css` cache-buster needed)
 
 ### Clickable Items / Deep Links
 
