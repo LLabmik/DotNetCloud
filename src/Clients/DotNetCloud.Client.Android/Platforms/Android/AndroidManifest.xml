@@ -8,16 +8,25 @@
 		android:supportsRtl="true"
 		android:label="@string/app_name">
 
-		<!-- Chat foreground service (keeps SignalR connection alive when app is backgrounded) -->
+		<!-- Chat connection service (keeps SignalR alive while the app is running). Deliberately
+		     NOT a foreground service: a dataSync FGS spends the Android 15/16 rolling 24-hour
+		     budget and could crash-loop the app once exhausted. Background message delivery uses
+		     FCM (googleplay) / UnifiedPush (fdroid) instead. -->
 		<service
 			android:name=".ChatConnectionService"
-			android:foregroundServiceType="dataSync"
 			android:exported="false" />
 
 		<!-- Music playback foreground service -->
 		<service
 			android:name=".MusicPlaybackService"
 			android:foregroundServiceType="mediaPlayback"
+			android:exported="false" />
+
+		<!-- Periodic background media auto-upload job (JobScheduler). Uses NO foreground
+		     service, so it never consumes the Android 15/16 dataSync 24-hour budget. -->
+		<service
+			android:name=".MediaUploadJobService"
+			android:permission="android.permission.BIND_JOB_SERVICE"
 			android:exported="false" />
 
 		<!-- Firebase Cloud Messaging handler (Google Play flavor) -->
@@ -63,9 +72,9 @@
 	<!-- Push notifications (Android 13+) -->
 	<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-	<!-- Foreground service for chat connection -->
+	<!-- Foreground services: music playback only. FOREGROUND_SERVICE_DATA_SYNC was removed along
+	     with the chat dataSync FGS (that type is capped to a rolling 24-hour budget on Android 15+). -->
 	<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-	<uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 	<uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 
 	<!-- Equalizer (AudioEffect) requires this to adjust band levels -->
@@ -74,10 +83,14 @@
 	<!-- Photo auto-upload: read media -->
 	<uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
 	<uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+	<!-- READ_EXTERNAL_STORAGE covers API 29-32 (Android 10-12); Android 13+ uses READ_MEDIA_* above -->
+	<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
 
-	<!-- Camera for photo/video capture -->
-	<uses-permission android:name="android.permission.CAMERA" />
-	<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+	<!-- Camera for photo/video capture removed: the platform camera app owns capture, and the
+	     camera roll is backed up via MediaStore (READ_MEDIA_IMAGES/READ_MEDIA_VIDEO below).
+	     Dropping CAMERA also removes the quirk where declaring the permission makes
+	     ACTION_IMAGE_CAPTURE require an explicit runtime grant.
+	     ACCESS_FINE_LOCATION was only ever requested so the camera app could embed GPS EXIF. -->
 	<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
 
 	<!-- Battery optimization exemption — required for reliable background sync -->

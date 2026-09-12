@@ -64,8 +64,7 @@ public partial class LoginPage : ContentPage
         // Start the SignalR chat connection service after successful login
         var intent = new Intent(global::Android.App.Application.Context, typeof(ChatConnectionService));
         intent.SetAction(ChatConnectionService.ActionStart);
-        // TEMPORARY: foreground promotion gated by AndroidForegroundServicePolicy (dataSync FGS fix pending).
-        AndroidForegroundServicePolicy.StartService(global::Android.App.Application.Context, intent);
+        global::Android.App.Application.Context.StartService(intent);
         Log.Info("DotNetCloud", "LoginPage.OnLoginSucceeded: chat service started");
 
         // Start the calendar SignalR connection for real-time event notifications

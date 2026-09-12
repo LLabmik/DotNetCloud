@@ -74,13 +74,30 @@ public sealed class MusicPlaybackService : Service
             if (intent?.Action == ActionStop)
             {
                 _logger?.LogInformation("MusicPlaybackService stopping via intent.");
+                ReleaseWakeLock();
+                StopForeground(StopForegroundFlags.Remove);
+                StopSelf();
+                return StartCommandResult.NotSticky;
+            }
+
+            var player = SafeResolvePlayer();
+
+            // A null intent means Android re-created the service after the process was killed
+            // (StartCommandResult.Sticky) — there is no user action behind it. If nothing is playing,
+            // do NOT reinstate a mediaPlayback foreground service: it would leave a permanent
+            // "Loading..." notification and hold a partial wake lock with no audio to justify it,
+            // and Android 14+ policy can stop a mediaPlayback FGS that is not actually playing media.
+            if (intent is null && player?.CurrentTrack is null)
+            {
+                _logger?.LogInformation(
+                    "MusicPlaybackService restarted with no intent and no active track; stopping.");
+                ReleaseWakeLock();
                 StopForeground(StopForegroundFlags.Remove);
                 StopSelf();
                 return StartCommandResult.NotSticky;
             }
 
             // Handle media button actions
-            var player = SafeResolvePlayer();
             switch (intent?.Action)
             {
                 case ActionPlayPause:
@@ -105,7 +122,13 @@ public sealed class MusicPlaybackService : Service
                 UpdateNotification();
             }
 
-            AcquireWakeLock();
+            // Only justify holding the CPU awake while there is actually a track to play. A wake lock
+            // with no track pins the device awake for nothing (and a background notification refresh
+            // can reach here with nothing loaded).
+            if (player?.CurrentTrack is not null)
+            {
+                AcquireWakeLock();
+            }
         }
         catch (Exception ex)
         {
@@ -194,16 +217,32 @@ public sealed class MusicPlaybackService : Service
     /// <inheritdoc />
     public override void OnDestroy()
     {
-        _wakeLock?.Release();
-        _wakeLock = null;
+        ReleaseWakeLock();
         _logger?.LogInformation("MusicPlaybackService destroyed; wake lock released.");
         base.OnDestroy();
     }
 
+    /// <summary>
+    /// Acquires the partial wake lock that keeps audio alive through Doze.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately idempotent. It used to unconditionally create AND acquire a new
+    /// <see cref="PowerManager.WakeLock"/> on every <see cref="OnStartCommand"/>, overwriting the
+    /// previous instance without releasing it. Wake-lock acquisitions are NOT deduplicated by tag,
+    /// so each one has to be matched by its own release — and only the newest instance was reachable
+    /// from <see cref="OnDestroy"/>. A normal session triggers a start per track plus one per
+    /// pause/resume and per notification button, so partial wake locks leaked without bound. That
+    /// pins the CPU awake (battery drain plus "PowerManagerService: Excessive delay in releasing
+    /// WakeLock") and there is no playback reason to hold more than one.
+    /// </remarks>
     private void AcquireWakeLock()
     {
         try
         {
+            // Already holding it — acquiring again would stack a second lock that nothing releases.
+            if (_wakeLock?.IsHeld == true)
+                return;
+
             var pm = (PowerManager?)GetSystemService(PowerService);
             if (pm is not null)
             {
@@ -215,6 +254,27 @@ public sealed class MusicPlaybackService : Service
         catch (Exception ex)
         {
             Log.Warn("DotNetCloud", $"MusicPlaybackService: wake lock failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>Releases the partial wake lock if held. Safe to call repeatedly.</summary>
+    private void ReleaseWakeLock()
+    {
+        try
+        {
+            if (_wakeLock?.IsHeld == true)
+            {
+                _wakeLock.Release();
+                Log.Info("DotNetCloud", "MusicPlaybackService: wake lock released.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("DotNetCloud", $"MusicPlaybackService: wake lock release failed: {ex.Message}");
+        }
+        finally
+        {
+            _wakeLock = null;
         }
     }
 

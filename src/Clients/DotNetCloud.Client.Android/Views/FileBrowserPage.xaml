@@ -29,7 +29,7 @@
             BackgroundColor="#1E293B"
             StrokeThickness="0"
             Padding="8,8">
-            <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto">
 
                 <!-- Back button -->
                 <ImageButton
@@ -128,48 +128,6 @@
                         Text="📤"/>
                     <Border.GestureRecognizers>
                         <TapGestureRecognizer Command="{Binding UploadFileCommand}"/>
-                    </Border.GestureRecognizers>
-                </Border>
-
-                <!-- Camera photo button -->
-                <Border
-                    Grid.Column="4"
-                    BackgroundColor="#334155"
-                    StrokeThickness="0"
-                    StrokeShape="RoundRectangle 8"
-                    Padding="0"
-                    Margin="4,0"
-                    HeightRequest="36"
-                    WidthRequest="36">
-                    <Label
-                        FontSize="18"
-                        HorizontalOptions="Center"
-                        VerticalOptions="Center"
-                        TextColor="#94A3B8"
-                        Text="📷"/>
-                    <Border.GestureRecognizers>
-                        <TapGestureRecognizer Command="{Binding CapturePhotoCommand}"/>
-                    </Border.GestureRecognizers>
-                </Border>
-
-                <!-- Camera video button -->
-                <Border
-                    Grid.Column="5"
-                    BackgroundColor="#334155"
-                    StrokeThickness="0"
-                    StrokeShape="RoundRectangle 8"
-                    Padding="0"
-                    Margin="4,0"
-                    HeightRequest="36"
-                    WidthRequest="36">
-                    <Label
-                        FontSize="18"
-                        HorizontalOptions="Center"
-                        VerticalOptions="Center"
-                        TextColor="#94A3B8"
-                        Text="🎥"/>
-                    <Border.GestureRecognizers>
-                        <TapGestureRecognizer Command="{Binding CaptureVideoCommand}"/>
                     </Border.GestureRecognizers>
                 </Border>
 
@@ -324,18 +282,6 @@
                                             MaxLines="1"
                                             Text="{Binding Name}"/>
                                         <HorizontalStackLayout Spacing="8">
-                                            <!-- Pending upload badge -->
-                                            <Border
-                                                BackgroundColor="#F59E0B"
-                                                StrokeThickness="0"
-                                                StrokeShape="RoundRectangle 4"
-                                                Padding="6,2"
-                                                IsVisible="{Binding IsPending}">
-                                                <Label
-                                                    FontSize="10"
-                                                    TextColor="#0F172A"
-                                                    Text="Pending"/>
-                                            </Border>
                                             <Label
                                                 FontSize="12"
                                                 TextColor="#64748B"

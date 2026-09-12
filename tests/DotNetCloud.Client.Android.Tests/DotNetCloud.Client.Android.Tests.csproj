@@ -35,6 +35,9 @@
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Auth\ISecureTokenStore.cs" Link="AndroidApp\Auth\ISecureTokenStore.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\IServerConnectionStore.cs" Link="AndroidApp\Services\IServerConnectionStore.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\IMediaAutoUploadService.cs" Link="AndroidApp\Services\IMediaAutoUploadService.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\IBackgroundMediaSync.cs" Link="AndroidApp\Services\IBackgroundMediaSync.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\IMediaPermissionService.cs" Link="AndroidApp\Services\IMediaPermissionService.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\QuotaGate.cs" Link="AndroidApp\Services\QuotaGate.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\IBatteryOptimizationService.cs" Link="AndroidApp\Services\IBatteryOptimizationService.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\IAppPreferences.cs" Link="AndroidApp\Services\IAppPreferences.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\IAndroidUpdateService.cs" Link="AndroidApp\Services\IAndroidUpdateService.cs" />

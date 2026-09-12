@@ -1,4 +1,5 @@
 using Android.Content;
+using Android.Provider;
 using AndroidX.Core.App;
 using DotNetCloud.Client.Android.Auth;
 using DotNetCloud.Client.Android.Files;
@@ -6,15 +7,19 @@ using AndroidUri = global::Android.Net.Uri;
 using AndroidConnectivityManager = global::Android.Net.ConnectivityManager;
 using AndroidTransportType = global::Android.Net.TransportType;
 using Microsoft.Extensions.Logging;
-using System.Security.Cryptography;
+using System.Net;
+using System.Threading.Channels;
 
 namespace DotNetCloud.Client.Android.Services;
 
 /// <summary>
-/// Periodically scans the device's MediaStore for new photos and videos, uploading them
-/// to the active DotNetCloud server using the chunked upload protocol via <see cref="IFileRestClient"/>.
-/// Organises uploads into an <c>AutoUpload/YYYY/MM</c> folder hierarchy by default.
-/// Respects WiFi-only and enabled/disabled preferences.
+/// Scans the device's MediaStore (read-only) for photos and videos and uploads each new
+/// item to the active DotNetCloud server using the chunked upload protocol via
+/// <see cref="IFileRestClient"/>. Uploads are organised into an <c>AutoUpload/YYYY/MM</c>
+/// folder hierarchy by default and tracked in a persistent <see cref="MediaUploadIndex"/>
+/// so nothing is skipped or double-uploaded. Respects WiFi-only / charging-only / battery
+/// preferences and requires the Android 13+ media-library read permission (see
+/// <see cref="IMediaPermissionService"/>).
 /// </summary>
 internal sealed class MediaAutoUploadService : IMediaAutoUploadService
 {
@@ -22,26 +27,76 @@ internal sealed class MediaAutoUploadService : IMediaAutoUploadService
     private const string PrefWifiOnly = "media_upload_wifi_only";
     private const string PrefOrganizeByDate = "media_upload_organize_by_date";
     private const string PrefUploadFolderName = "media_upload_folder_name";
-    private const string PrefLastPhotoTs = "media_upload_last_photo_ts";
-    private const string PrefLastVideoTs = "media_upload_last_video_ts";
     private const int NotificationId = 3001;
+    private const int QuotaNotificationId = 3003;
     private const string DefaultUploadFolderName = "AutoUpload";
-    private const string PrefDedupPrefix = "media_upload_dedup_";
     private const string PrefChargingOnly = "media_upload_charging_only";
     private const string PrefBatteryThreshold = "media_upload_battery_threshold";
-    private const string PendingUploadsDirName = "PendingUploads";
+    private const string PrefLastSuccessTs = "media_upload_last_success";
+
+    /// <summary>Maximum number of items uploaded in a single scan pass (keeps memory + notification churn bounded during a first-run backfill).</summary>
+    private const int MaxItemsPerPass = 40;
+
+    /// <summary>
+    /// Largest single item the watcher will upload; anything bigger is skipped entirely.
+    /// </summary>
+    /// <remarks>
+    /// Candidates are drained smallest-first and a row is only recorded in the index after a fully
+    /// successful upload. A multi-gigabyte file therefore used to sit at the head of the queue and
+    /// block all progress: at the sequential chunk cadence (~4 MB chunks, <c>MaxConcurrency = 1</c>
+    /// to avoid HTTP 429) it took long enough that a process kill mid-upload meant the next attempt
+    /// restarted from the same file and recorded nothing, so the backup never advanced. Oversized
+    /// items are reported in the log and left on the device rather than silently dropped.
+    /// </remarks>
+    private const long MaxSingleItemBytes = 500L * 1024 * 1024;
 
     private readonly IServerConnectionStore _connectionStore;
     private readonly ISecureTokenStore _tokenStore;
     private readonly IFileRestClient _fileApi;
     private readonly ILogger<MediaAutoUploadService> _logger;
     private readonly IAppForegroundService _foregroundService;
+    private readonly IMediaPermissionService _permissionService;
     private readonly TimeSpan _foregroundScanInterval = TimeSpan.FromMinutes(15);
     private readonly TimeSpan _backgroundScanInterval = TimeSpan.FromMinutes(60);
+
+    // Persistent index of already-uploaded media (single source of truth for dedup).
+    private readonly MediaUploadIndex _index = new();
+
+    // Guards scans so the periodic loop, the observer and a manual "Sync now" never overlap.
+    private readonly SemaphoreSlim _scanLock = new(1, 1);
+
+    // Wakes the periodic loop early (from a manual sync, post-permission-grant scan, or the
+    // observer) so a large backlog drains on a ~1-minute cadence instead of waiting out the
+    // loop's normal 15/60-minute sleep before the next scan.
+    private readonly Channel<bool> _wakeChannel = Channel.CreateBounded<bool>(new BoundedChannelOptions(1)
+    {
+        FullMode = BoundedChannelFullMode.DropOldest,
+        SingleWriter = true,
+        SingleReader = true
+    });
 
     // Cached folder IDs so we don't re-create folders on every upload.
     private Guid? _rootFolderId;
     private (int Year, int Month, Guid Id)? _cachedMonthFolder;
+
+    // Names/sizes already present under the server AutoUpload tree (loaded once per process,
+    // so a first-run backfill doesn't re-upload items that were synced in an earlier session).
+    private bool _serverSeedLoaded;
+    private HashSet<(string Name, long Size)>? _serverUploaded;
+
+    // Set when a scan found more items than it could upload in one pass, so the loop
+    // shortens its next delay to chew through the backlog.
+    private bool _hasBacklog;
+
+    // True when the last pass left media queued — either a backlog beyond the per-pass cap, or
+    // items this pass selected but could not finish. Drives the background job's adaptive cadence
+    // (short poll while work remains, idle interval once the queue is empty).
+    private bool _hasPendingWork;
+
+    // Storage-quota state: remaining bytes (long.MaxValue when unlimited) plus a flag so the
+    // "storage full" notification is raised once per transition rather than on every scan.
+    private long _quotaRemainingBytes = long.MaxValue;
+    private bool _quotaBlocked;
 
     private CancellationTokenSource? _loopCts;
     private Task? _loopTask;
@@ -53,18 +108,23 @@ internal sealed class MediaAutoUploadService : IMediaAutoUploadService
     /// <inheritdoc />
     public bool IsRunning => _loopCts is not null && !_loopCts.IsCancellationRequested;
 
+    /// <inheritdoc />
+    public bool HasPendingWork => _hasPendingWork;
+
     /// <summary>Initializes a new <see cref="MediaAutoUploadService"/>.</summary>
     public MediaAutoUploadService(
         IServerConnectionStore connectionStore,
         ISecureTokenStore tokenStore,
         IFileRestClient fileApi,
         IAppForegroundService foregroundService,
+        IMediaPermissionService permissionService,
         ILogger<MediaAutoUploadService> logger)
     {
         _connectionStore = connectionStore;
         _tokenStore = tokenStore;
         _fileApi = fileApi;
         _foregroundService = foregroundService;
+        _permissionService = permissionService;
         _logger = logger;
     }
 
@@ -111,16 +171,17 @@ internal sealed class MediaAutoUploadService : IMediaAutoUploadService
 
     /// <inheritdoc />
     public Task ScanAndUploadNowAsync(CancellationToken cancellationToken = default)
-        => UploadNewMediaAsync(cancellationToken);
+        => RunScanAsync(cancellationToken);
 
-    /// <inheritdoc />
-    public async Task<Guid?> ResolveUploadTargetFolderAsync(
-        string serverBaseUrl, string accessToken,
-        DateTime? timestamp = null, CancellationToken ct = default)
+    /// <summary>
+    /// Runs one scan/upload pass and, if it left a backlog, wakes the periodic loop so it
+    /// continues draining on the short backlog cadence rather than the long idle interval.
+    /// </summary>
+    private async Task RunScanAsync(CancellationToken ct)
     {
-        var dt = timestamp ?? DateTime.UtcNow;
-        return await EnsureUploadFolderAsync(serverBaseUrl, accessToken, dt.Year, dt.Month, ct)
-            .ConfigureAwait(false);
+        await UploadNewMediaAsync(ct).ConfigureAwait(false);
+        if (_hasBacklog)
+            SignalWake();
     }
 
     // ── Private helpers ─────────────────────────────────────────────────────
@@ -145,7 +206,7 @@ internal sealed class MediaAutoUploadService : IMediaAutoUploadService
                 }
 
                 _logger.LogDebug("MediaStore change detected; triggering immediate scan.");
-                _ = UploadNewMediaAsync(ct);
+                _ = RunScanAsync(ct);
             }
         }
         catch (OperationCanceledException)
@@ -162,12 +223,16 @@ internal sealed class MediaAutoUploadService : IMediaAutoUploadService
             {
                 await UploadNewMediaAsync(ct).ConfigureAwait(false);
 
-                // Use a longer scan interval when backgrounded to conserve battery.
-                // When foregrounded, the MediaStoreContentObserver handles real-time detection.
-                var delay = _foregroundService.IsInForeground
-                    ? _foregroundScanInterval
-                    : _backgroundScanInterval;
-                await Task.Delay(delay, ct).ConfigureAwait(false);
+                // While a first-run backfill (or a large backlog) is draining, scan every
+                // minute; otherwise use a battery-friendly interval. When foregrounded the
+                // MediaStoreContentObserver already handles real-time detection. A manual
+                // "Sync now" or permission grant can also wake us early (see SignalWake).
+                var delay = _hasBacklog
+                    ? TimeSpan.FromMinutes(1)
+                    : _foregroundService.IsInForeground
+                        ? _foregroundScanInterval
+                        : _backgroundScanInterval;
+                await WaitForWakeOrDelayAsync(delay, ct).ConfigureAwait(false);
             }
             catch (OperationCanceledException) { break; }
             catch (Exception ex)
@@ -176,6 +241,25 @@ internal sealed class MediaAutoUploadService : IMediaAutoUploadService
                 await Task.Delay(TimeSpan.FromMinutes(1), ct).ConfigureAwait(false);
             }
         }
+    }
+
+    /// <summary>Signals the periodic loop to wake early (e.g. a manual scan left a backlog).</summary>
+    private void SignalWake() => _wakeChannel.Writer.TryWrite(true);
+
+    /// <summary>
+    /// Waits either for the given delay or until <see cref="SignalWake"/> is called, whichever
+    /// comes first. Returns early on a wake so the caller re-scans immediately.
+    /// </summary>
+    private async Task WaitForWakeOrDelayAsync(TimeSpan delay, CancellationToken ct)
+    {
+        using var delayCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var timer = Task.Delay(delay, delayCts.Token);
+        var wake = _wakeChannel.Reader.WaitToReadAsync(ct).AsTask();
+        var winner = await Task.WhenAny(timer, wake).ConfigureAwait(false);
+
+        delayCts.Cancel();
+        _wakeChannel.Reader.TryRead(out _);
+        _ = winner; // if wake won, we return immediately and re-scan
     }
 
     private async Task UploadNewMediaAsync(CancellationToken ct)
@@ -213,155 +297,149 @@ internal sealed class MediaAutoUploadService : IMediaAutoUploadService
         if (accessToken is null)
             return;
 
-        // Collect both photos and videos
-        var lastPhotoTs = Preferences.Default.Get(PrefLastPhotoTs, 0L);
-        var lastVideoTs = Preferences.Default.Get(PrefLastVideoTs, 0L);
+        _hasBacklog = false;
+        _hasPendingWork = false;
 
-        var photos = QueryNewMediaSince("content://media/external/images/media", lastPhotoTs);
-        var videos = QueryNewMediaSince("content://media/external/video/media", lastVideoTs);
-
-        var totalItems = photos.Count + videos.Count;
-        if (totalItems == 0)
+        // Serialise scans — the periodic loop, the observer and a manual "Sync now" can all
+        // arrive here concurrently and must not race (which previously caused duplicates).
+        await _scanLock.WaitAsync(ct).ConfigureAwait(false);
+        try
         {
-            // Also check the local pending uploads queue — files saved by camera capture
-            // while auto-upload was off.
-            await UploadPendingFilesAsync(connection.ServerBaseUrl, accessToken, ct);
-            return;
-        }
-
-        _logger.LogInformation("Found {PhotoCount} new photo(s) and {VideoCount} new video(s) to upload.",
-            photos.Count, videos.Count);
-
-        if (Platform.AppContext is not { } appContext)
-        {
-            _logger.LogWarning("Platform.AppContext is null; cannot show upload notifications.");
-            return;
-        }
-
-        var nm = NotificationManagerCompat.From(appContext);
-        if (nm is null)
-        {
-            _logger.LogWarning("NotificationManagerCompat unavailable; skipping upload notifications.");
-            return;
-        }
-        int uploaded = 0;
-
-        // Upload photos
-        foreach (var (contentUri, fileName, dateAdded) in photos)
-        {
-            ct.ThrowIfCancellationRequested();
-            try
+            // Storage-quota gate: if the account has a finite quota and it is exhausted, stop and
+            // notify rather than letting every upload fail with 409 FILES_QUOTA_EXCEEDED.
+            var (unlimited, remaining, usedBytes, totalBytes) = await QueryQuotaAsync(
+                connection.ServerBaseUrl, accessToken, ct).ConfigureAwait(false);
+            _quotaRemainingBytes = remaining;
+            if (!unlimited && remaining == 0)
             {
-                var mimeType = GuessMimeType(fileName, "image/jpeg");
-                await UploadMediaItemAsync(
-                    connection.ServerBaseUrl, accessToken, contentUri, fileName, mimeType, dateAdded, ct)
-                    .ConfigureAwait(false);
-
-                Preferences.Default.Set(PrefLastPhotoTs, dateAdded);
-                uploaded++;
-                ShowProgress(nm, appContext, "Uploading media", uploaded, totalItems);
+                NotifyQuotaFull(usedBytes, totalBytes);
+                CancelUploadNotification();
+                return;
             }
-            catch (Exception ex)
+
+            if (_quotaBlocked)
             {
-                _logger.LogWarning(ex, "Failed to upload photo {FileName}.", fileName);
+                // Room freed up (or the limit was lifted) — clear the notice and resume.
+                _quotaBlocked = false;
+                CancelQuotaNotification();
             }
-        }
 
-        // Upload videos
-        foreach (var (contentUri, fileName, dateAdded) in videos)
-        {
-            ct.ThrowIfCancellationRequested();
-            try
+            if (!_permissionService.HasMediaReadPermission())
             {
-                var mimeType = GuessMimeType(fileName, "video/mp4");
-                await UploadMediaItemAsync(
-                    connection.ServerBaseUrl, accessToken, contentUri, fileName, mimeType, dateAdded, ct)
-                    .ConfigureAwait(false);
-
-                Preferences.Default.Set(PrefLastVideoTs, dateAdded);
-                uploaded++;
-                ShowProgress(nm, appContext, "Uploading media", uploaded, totalItems);
+                _logger.LogWarning(
+                    "Media auto-upload skipped — no media-library read permission. Grant 'Photos access' in Settings to back up the camera roll.");
+                return;
             }
-            catch (Exception ex)
+
+            var candidates = QueryMediaCandidates();
+            if (candidates.Count == 0)
             {
-                _logger.LogWarning(ex, "Failed to upload video {FileName}.", fileName);
+                CancelUploadNotification();
+                return;
             }
-        }
 
-        // Upload any files in the local pending queue (captured while setting was off).
-        await UploadPendingFilesAsync(connection.ServerBaseUrl, accessToken, ct);
+            // Load (once per process) the file names/sizes already under the server AutoUpload
+            // tree so a first-run backfill doesn't re-upload items synced in an earlier session.
+            await EnsureServerSeedLoadedAsync(connection.ServerBaseUrl, accessToken, ct).ConfigureAwait(false);
 
-        nm.Cancel(NotificationId);
-    }
-
-    /// <summary>
-    /// Uploads all files from the local pending uploads queue directory.
-    /// These are photos/videos captured from the Files tab while auto-upload was off.
-    /// After successful upload, the local file is deleted.
-    /// </summary>
-    private async Task UploadPendingFilesAsync(string serverBaseUrl, string accessToken, CancellationToken ct)
-    {
-        var pendingDir = System.IO.Path.Combine(
-            Microsoft.Maui.Storage.FileSystem.AppDataDirectory,
-            PendingUploadsDirName);
-
-        if (!Directory.Exists(pendingDir))
-            return;
-
-        var files = Directory.GetFiles(pendingDir);
-        if (files.Length == 0)
-            return;
-
-        _logger.LogInformation("Found {Count} pending file(s) in local upload queue.", files.Length);
-
-        foreach (var filePath in files)
-        {
-            ct.ThrowIfCancellationRequested();
-
-            var fileName = System.IO.Path.GetFileName(filePath);
-            var mimeType = GuessMimeType(fileName, "application/octet-stream");
-
-            try
+            var pending = new List<MediaCandidate>(candidates.Count);
+            foreach (var candidate in candidates)
             {
-                await using var fileStream = File.OpenRead(filePath);
-                using var ms = new MemoryStream();
-                await fileStream.CopyToAsync(ms, ct).ConfigureAwait(false);
-                ms.Position = 0;
-
-                // Resolve the AutoUpload/YYYY/MM folder.
-                Guid? parentId = null;
-                if (Preferences.Default.Get(PrefOrganizeByDate, true))
-                {
-                    parentId = await EnsureUploadFolderAsync(
-                        serverBaseUrl, accessToken, DateTime.UtcNow.Year, DateTime.UtcNow.Month, ct)
-                        .ConfigureAwait(false);
-                }
-
-                // Check dedup before uploading.
-                var fingerprint = ComputeFingerprint(ms, ms.Length, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-                if (!string.IsNullOrEmpty(fingerprint) && Preferences.Default.ContainsKey(PrefDedupPrefix + fingerprint))
-                {
-                    _logger.LogDebug("Skipping pending {FileName} — already uploaded.", fileName);
-                    SafeDeleteFile(filePath);
+                if (await _index.ContainsAsync(ComputeMediaKey(candidate), ct).ConfigureAwait(false))
                     continue;
-                }
-
-                await _fileApi.UploadFileAsync(
-                    serverBaseUrl, accessToken,
-                    fileName, parentId,
-                    ms, ms.Length, mimeType,
-                    progress: null, ct).ConfigureAwait(false);
-
-                if (!string.IsNullOrEmpty(fingerprint))
-                    Preferences.Default.Set(PrefDedupPrefix + fingerprint, filePath);
-
-                _logger.LogInformation("Uploaded pending file {FileName}.", fileName);
-                SafeDeleteFile(filePath);
+                if (IsAlreadyOnServer(candidate))
+                    continue;
+                pending.Add(candidate);
             }
-            catch (Exception ex)
+
+            if (pending.Count == 0)
             {
-                _logger.LogWarning(ex, "Failed to upload pending file {FileName}; keeping in queue.", fileName);
+                CancelUploadNotification();
+                return;
             }
+
+            // Respect the (possibly finite) quota: never pick more bytes than remain, and skip
+            // individual items larger than the remaining space — they stay pending until room frees.
+            var toUpload = new List<MediaCandidate>();
+            var budget = _quotaRemainingBytes;
+            foreach (var candidate in pending)
+            {
+                if (candidate.Size > budget)
+                    continue;
+                toUpload.Add(candidate);
+                budget -= candidate.Size;
+                if (toUpload.Count >= MaxItemsPerPass)
+                    break;
+            }
+
+            if (toUpload.Count == 0)
+            {
+                // Nothing fits in the remaining quota right now — wait for space instead of spamming.
+                _hasBacklog = false;
+                CancelUploadNotification();
+                return;
+            }
+            _hasBacklog = pending.Count > toUpload.Count;
+
+            _logger.LogInformation(
+                "Found {PendingCount} new photo(s)/video(s); uploading {BatchCount} this pass.",
+                pending.Count, toUpload.Count);
+
+            if (Platform.AppContext is not { } appContext)
+            {
+                _logger.LogWarning("Platform.AppContext is null; cannot show upload notifications.");
+                return;
+            }
+
+            var nm = NotificationManagerCompat.From(appContext);
+            if (nm is null)
+            {
+                _logger.LogWarning("NotificationManagerCompat unavailable; skipping upload notifications.");
+                return;
+            }
+
+            var uploaded = 0;
+            foreach (var candidate in toUpload)
+            {
+                ct.ThrowIfCancellationRequested();
+                try
+                {
+                    var mimeType = GuessMimeType(candidate.FileName, candidate.IsVideo ? "video/mp4" : "image/jpeg");
+                    await UploadMediaItemAsync(
+                        connection.ServerBaseUrl, accessToken, candidate, mimeType, ct)
+                        .ConfigureAwait(false);
+
+                    // Only record AFTER a successful upload so failures are retried next scan.
+                    await _index.RecordAsync(ToIndexRow(candidate), ct).ConfigureAwait(false);
+                    _serverUploaded?.Add((candidate.FileName, candidate.Size));
+                    uploaded++;
+                    ShowProgress(nm, appContext, "Uploading media", uploaded, toUpload.Count);
+                }
+                catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.Conflict)
+                {
+                    // Server rejected with 409 — quota exhausted mid-batch (or a name clash).
+                    // Stop the pass; the quota gate re-checks next scan and raises the full notice.
+                    _logger.LogWarning(ex, "Upload rejected with 409 for {FileName}; stopping pass (likely quota).", candidate.FileName);
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to upload media {FileName}; will retry next scan.", candidate.FileName);
+                }
+            }
+
+            if (uploaded > 0)
+                Preferences.Default.Set(PrefLastSuccessTs, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+
+            // Anything this pass could not finish — a backlog beyond the per-pass cap, or items
+            // that failed and so were not recorded — keeps the background job on its short cadence.
+            _hasPendingWork = _hasBacklog || uploaded < toUpload.Count;
+
+            nm.Cancel(NotificationId);
+        }
+        finally
+        {
+            _scanLock.Release();
         }
     }
 
@@ -376,13 +454,126 @@ internal sealed class MediaAutoUploadService : IMediaAutoUploadService
         }
     }
 
+    /// <summary>Removes any stale "Uploading media" progress notification (id <see cref="NotificationId"/>).</summary>
+    private static void CancelUploadNotification()
+    {
+        if (Platform.AppContext is not { } context)
+            return;
+        try
+        {
+            NotificationManagerCompat.From(context)?.Cancel(NotificationId);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Failed to cancel upload notification: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Queries the server storage quota. Returns <c>Unlimited=true</c> (remaining =
+    /// <see cref="long.MaxValue"/>) when the account has no finite quota or the query fails; the
+    /// server still rejects truly over-quota uploads with 409 FILES_QUOTA_EXCEEDED.
+    /// </summary>
+    private async Task<(bool Unlimited, long Remaining, long UsedBytes, long TotalBytes)> QueryQuotaAsync(
+        string serverBaseUrl, string accessToken, CancellationToken ct)
+    {
+        try
+        {
+            var quota = await _fileApi.GetQuotaAsync(serverBaseUrl, accessToken, ct).ConfigureAwait(false);
+            var remaining = QuotaGate.RemainingBytes(quota.TotalBytes, quota.UsedBytes);
+            _logger.LogDebug("Storage quota: used={Used} total={Total} remaining={Remaining}.",
+                quota.UsedBytes, quota.TotalBytes,
+                remaining == long.MaxValue ? "unlimited" : remaining.ToString());
+            return (
+                Unlimited: QuotaGate.HasFiniteQuota(quota.TotalBytes) is false,
+                Remaining: remaining,
+                UsedBytes: quota.UsedBytes,
+                TotalBytes: quota.TotalBytes);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Quota check failed; assuming no quota limit for this pass.");
+            return (Unlimited: true, Remaining: long.MaxValue, UsedBytes: 0, TotalBytes: 0);
+        }
+    }
+
+    /// <summary>
+    /// Posts a "storage full — auto-upload paused" notification. Raised once per blocked
+    /// transition so a full account doesn't re-notify on every scan.
+    /// </summary>
+    private void NotifyQuotaFull(long usedBytes, long totalBytes)
+    {
+        if (_quotaBlocked)
+            return;
+        _quotaBlocked = true;
+
+        if (Platform.AppContext is not { } context)
+            return;
+        try
+        {
+            var nm = NotificationManagerCompat.From(context);
+            if (nm is null)
+                return;
+
+            var message = $"You've used {FormatBytes(usedBytes)} of {FormatBytes(totalBytes)}. Free up space in DotNetCloud to resume auto-upload.";
+            var openIntent = new Intent(context, typeof(MainActivity));
+            openIntent.SetFlags(ActivityFlags.SingleTop | ActivityFlags.ClearTop);
+            var pendingIntent = global::Android.App.PendingIntent.GetActivity(
+                context, 1, openIntent,
+                global::Android.App.PendingIntentFlags.Immutable | global::Android.App.PendingIntentFlags.UpdateCurrent);
+
+#pragma warning disable CS8602 // AndroidX Builder fluent setters are annotated nullable
+            var notification = new NotificationCompat.Builder(context, MainApplication.ChannelIdMediaUpload)
+                .SetSmallIcon(global::Android.Resource.Drawable.IcMenuUpload)
+                .SetContentTitle("Auto-upload paused — storage full")
+                .SetContentText(message)
+                .SetStyle(new NotificationCompat.BigTextStyle().BigText(message))
+                .SetContentIntent(pendingIntent)
+                .Build()!;
+#pragma warning restore CS8602
+            nm.Notify(QuotaNotificationId, notification);
+            _logger.LogWarning("Media auto-upload paused: storage quota full ({Used}/{Total}).", usedBytes, totalBytes);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Failed to show quota-full notification: {ex.Message}");
+        }
+    }
+
+    /// <summary>Removes the "storage full" notification (id <see cref="QuotaNotificationId"/>).</summary>
+    private static void CancelQuotaNotification()
+    {
+        if (Platform.AppContext is not { } context)
+            return;
+        try
+        {
+            NotificationManagerCompat.From(context)?.Cancel(QuotaNotificationId);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Failed to cancel quota notification: {ex.Message}");
+        }
+    }
+
+    /// <summary>Formats a byte count as a human-readable string (B/KB/MB/GB/TB).</summary>
+    private static string FormatBytes(long bytes)
+    {
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        var value = (double)bytes;
+        var unit = 0;
+        while (value >= 1024 && unit < units.Length - 1)
+        {
+            value /= 1024;
+            unit++;
+        }
+        return unit == 0 ? $"{bytes} {units[unit]}" : $"{value:0.#} {units[unit]}";
+    }
+
     private async Task UploadMediaItemAsync(
         string serverBaseUrl,
         string accessToken,
-        string contentUri,
-        string fileName,
+        MediaCandidate candidate,
         string mimeType,
-        long dateAdded,
         CancellationToken ct)
     {
         var resolver = Platform.AppContext?.ContentResolver;
@@ -392,18 +583,18 @@ internal sealed class MediaAutoUploadService : IMediaAutoUploadService
             return;
         }
 
-        var uri = AndroidUri.Parse(contentUri);
+        var uri = AndroidUri.Parse(candidate.ContentUri);
         if (uri is null)
         {
-            _logger.LogWarning("Failed to parse content URI: {Uri}", contentUri);
+            _logger.LogWarning("Failed to parse content URI: {Uri}", candidate.ContentUri);
             return;
         }
 
-        // Determine parent folder based on date-organization preference
+        // Determine parent folder based on date-organization preference.
         Guid? parentId = null;
         if (Preferences.Default.Get(PrefOrganizeByDate, true))
         {
-            var mediaDt = DateTimeOffset.FromUnixTimeSeconds(dateAdded).LocalDateTime;
+            var mediaDt = DateTimeOffset.FromUnixTimeSeconds(candidate.DateAddedSeconds).LocalDateTime;
             parentId = await EnsureUploadFolderAsync(
                 serverBaseUrl, accessToken, mediaDt.Year, mediaDt.Month, ct)
                 .ConfigureAwait(false);
@@ -412,7 +603,7 @@ internal sealed class MediaAutoUploadService : IMediaAutoUploadService
         using var inputStream = resolver.OpenInputStream(uri);
         if (inputStream is null)
         {
-            _logger.LogWarning("Failed to open input stream for URI: {Uri}", contentUri);
+            _logger.LogWarning("Failed to open input stream for URI: {Uri}", candidate.ContentUri);
             return;
         }
 
@@ -420,28 +611,14 @@ internal sealed class MediaAutoUploadService : IMediaAutoUploadService
         await inputStream.CopyToAsync(ms, ct).ConfigureAwait(false);
         ms.Position = 0;
 
-        // Dedup: skip if this file was already uploaded (fingerprint matches).
-        var fingerprint = ComputeFingerprint(ms, ms.Length, dateAdded);
-        if (!string.IsNullOrEmpty(fingerprint) && Preferences.Default.ContainsKey(PrefDedupPrefix + fingerprint))
-        {
-            _logger.LogDebug("Skipping {FileName} — already uploaded (fingerprint match).", fileName);
-            return;
-        }
-
-        var result = await _fileApi.UploadFileAsync(
+        await _fileApi.UploadFileAsync(
             serverBaseUrl, accessToken,
-            fileName, parentId,
+            candidate.FileName, parentId,
             ms, ms.Length, mimeType,
             progress: null, ct).ConfigureAwait(false);
 
-        // Store dedup fingerprint so we don't re-upload if the timestamp resets.
-        if (!string.IsNullOrEmpty(fingerprint))
-        {
-            Preferences.Default.Set(PrefDedupPrefix + fingerprint, contentUri);
-        }
-
         _logger.LogInformation("Uploaded {FileName} ({Bytes} bytes) to {FolderName}.",
-            fileName, ms.Length, parentId.HasValue ? "date folder" : "root");
+            candidate.FileName, ms.Length, parentId.HasValue ? "date folder" : "root");
     }
 
     /// <summary>
@@ -499,73 +676,173 @@ internal sealed class MediaAutoUploadService : IMediaAutoUploadService
         return created.Id;
     }
 
-    private static List<(string Uri, string FileName, long DateAdded)> QueryNewMediaSince(
-        string mediaStoreUri, long afterTimestamp)
+    /// <summary>A single photo/video row discovered in MediaStore (read-only).</summary>
+    private sealed record MediaCandidate(
+        string ContentUri,
+        string FileName,
+        long Size,
+        long DateAddedSeconds,
+        bool IsVideo);
+
+    /// <summary>
+    /// Enumerates (read-only) every photo and video currently visible to the app in MediaStore,
+    /// smallest first and skipping anything above <see cref="MaxSingleItemBytes"/>. On Android 13+
+    /// this requires READ_MEDIA_IMAGES/VIDEO to see other apps' media; without the permission the
+    /// query returns at most the app's own rows.
+    /// </summary>
+    private List<MediaCandidate> QueryMediaCandidates()
     {
-        var result = new List<(string, string, long)>();
+        var result = new List<MediaCandidate>();
+        var oversizedCount = 0;
         var resolver = Platform.AppContext?.ContentResolver;
         if (resolver is null)
             return result;
 
-        var uri = AndroidUri.Parse(mediaStoreUri);
-        if (uri is null)
-            return result;
+        Collect(MediaStore.Images.Media.ExternalContentUri, isVideo: false);
+        Collect(MediaStore.Video.Media.ExternalContentUri, isVideo: true);
 
-        var projection = new[] { "_id", "_display_name", "date_added" };
-
-        using var cursor = resolver.Query(
-            uri, projection,
-            selection: "date_added > ?",
-            selectionArgs: [afterTimestamp.ToString()],
-            sortOrder: "date_added ASC");
-
-        if (cursor is null)
-            return result;
-
-        int idIdx = cursor.GetColumnIndexOrThrow("_id");
-        int nameIdx = cursor.GetColumnIndexOrThrow("_display_name");
-        int dateIdx = cursor.GetColumnIndexOrThrow("date_added");
-
-        while (cursor.MoveToNext())
+        if (oversizedCount > 0)
         {
-            var id = cursor.GetLong(idIdx);
-            var name = cursor.GetString(nameIdx) ?? $"media_{id}";
-            var date = cursor.GetLong(dateIdx);
-            result.Add(($"{mediaStoreUri}/{id}", name, date));
+            _logger.LogInformation(
+                "Skipped {SkippedCount} media item(s) larger than {MaxMb} MB.",
+                oversizedCount, MaxSingleItemBytes / (1024 * 1024));
         }
 
-        return result;
+        // Smallest first: the index records an item only once its upload fully succeeds, so
+        // draining quick wins first keeps the queue advancing even if the process is killed
+        // mid-pass. Ordering by date previously parked a 1.7 GB video at the head and blocked
+        // every subsequent pass from making any progress.
+        return result.OrderBy(c => c.Size).ToList();
+
+        void Collect(AndroidUri? collectionUri, bool isVideo)
+        {
+            if (collectionUri is null)
+                return;
+
+            var projection = new[] { "_id", "_display_name", "_size", "date_added" };
+            try
+            {
+                using var cursor = resolver.Query(
+                    collectionUri, projection,
+                    selection: null,
+                    selectionArgs: null,
+                    sortOrder: "date_added ASC");
+                if (cursor is null)
+                    return;
+
+                var idIdx = cursor.GetColumnIndex("_id");
+                var nameIdx = cursor.GetColumnIndex("_display_name");
+                var sizeIdx = cursor.GetColumnIndex("_size");
+                var dateIdx = cursor.GetColumnIndex("date_added");
+                if (idIdx < 0 || nameIdx < 0 || dateIdx < 0)
+                    return;
+
+                while (cursor.MoveToNext())
+                {
+                    var id = cursor.GetLong(idIdx);
+                    var name = cursor.GetString(nameIdx) ?? $"media_{id}";
+                    var size = sizeIdx >= 0 ? cursor.GetLong(sizeIdx) : 0L;
+                    var date = cursor.GetLong(dateIdx);
+
+                    // Leave oversized items untouched on the device: uploading one can outlast a
+                    // process lifetime, and a partial attempt records no progress at all.
+                    if (size > MaxSingleItemBytes)
+                    {
+                        oversizedCount++;
+                        continue;
+                    }
+
+                    result.Add(new MediaCandidate(
+                        ContentUris.WithAppendedId(collectionUri, id).ToString() ?? $"media_{id}",
+                        name, size, date, isVideo));
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"MediaStore query failed for {collectionUri}: {ex.Message}");
+            }
+        }
     }
 
+    /// <summary>Stable identity for dedup across scans: name + size + dateAdded second.</summary>
+    private static string ComputeMediaKey(MediaCandidate candidate)
+        => $"{candidate.FileName}|{candidate.Size}|{candidate.DateAddedSeconds}";
+
     /// <summary>
-    /// Computes a quick fingerprint for deduplication: SHA-256 of (first 4 KB + file size + dateAdded).
-    /// This is a practical balance — full-file hashing of large videos is expensive on-device,
-    /// while first-4KB + metadata is near-unique for consumer photos.
+    /// Loads (once per process) the names/sizes already present under the server's AutoUpload tree
+    /// so a first-run backfill skips items synced in an earlier session instead of creating server
+    /// duplicates. Cached for the lifetime of the service and extended as new uploads succeed.
     /// </summary>
-    private static string ComputeFingerprint(MemoryStream stream, long fileSize, long dateAdded)
+    private async Task EnsureServerSeedLoadedAsync(string serverBaseUrl, string accessToken, CancellationToken ct)
     {
-        var position = stream.Position;
+        if (_serverSeedLoaded)
+            return;
+
+        _serverSeedLoaded = true;
+        var names = new HashSet<(string Name, long Size)>();
         try
         {
-            // Read up to 4 KB from the start of the stream.
-            var sampleSize = (int)Math.Min(4096, stream.Length);
-            var buffer = new byte[sampleSize + 8 + 8];
-            stream.Position = 0;
-            stream.ReadExactly(buffer, 0, sampleSize);
+            var folderName = Preferences.Default.Get(PrefUploadFolderName, DefaultUploadFolderName);
+            var rootChildren = await _fileApi.ListChildrenAsync(serverBaseUrl, accessToken, folderId: null, ct)
+                .ConfigureAwait(false);
+            var root = rootChildren.FirstOrDefault(f =>
+                string.Equals(f.Name, folderName, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(f.NodeType, "Folder", StringComparison.OrdinalIgnoreCase));
+            if (root is null)
+                return;
 
-            // Append file size (8 bytes)
-            BitConverter.GetBytes(fileSize).CopyTo(buffer, sampleSize);
-            // Append dateAdded timestamp (8 bytes)
-            BitConverter.GetBytes(dateAdded).CopyTo(buffer, sampleSize + 8);
+            var yearFolders = await _fileApi.ListChildrenAsync(serverBaseUrl, accessToken, root.Id, ct)
+                .ConfigureAwait(false);
+            foreach (var year in yearFolders.Where(f =>
+                         string.Equals(f.NodeType, "Folder", StringComparison.OrdinalIgnoreCase)))
+            {
+                var monthFolders = await _fileApi.ListChildrenAsync(serverBaseUrl, accessToken, year.Id, ct)
+                    .ConfigureAwait(false);
+                foreach (var month in monthFolders.Where(f =>
+                             string.Equals(f.NodeType, "Folder", StringComparison.OrdinalIgnoreCase)))
+                {
+                    var files = await _fileApi.ListChildrenAsync(serverBaseUrl, accessToken, month.Id, ct)
+                        .ConfigureAwait(false);
+                    foreach (var file in files.Where(f =>
+                                 string.Equals(f.NodeType, "File", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        names.Add((file.Name, file.Size));
+                    }
+                }
+            }
 
-            var hash = SHA256.HashData(buffer.AsSpan(0, sampleSize + 16));
-            return Convert.ToHexStringLower(hash);
+            _logger.LogInformation("Seeded server AutoUpload index with {Count} existing file(s).", names.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to seed server AutoUpload names; backfill may re-upload existing files.");
         }
         finally
         {
-            stream.Position = position;
+            _serverUploaded = names;
         }
     }
+
+    /// <summary>True when a candidate already exists on the server under the AutoUpload tree (name + size match).</summary>
+    private bool IsAlreadyOnServer(MediaCandidate candidate)
+        => _serverUploaded?.Contains((candidate.FileName, candidate.Size)) ?? false;
+
+    /// <summary>Builds the index row recorded after a successful gallery upload.</summary>
+    private UploadedMediaRow ToIndexRow(MediaCandidate candidate)
+        => new()
+        {
+            MediaKey = ComputeMediaKey(candidate),
+            SourceUri = candidate.ContentUri,
+            DisplayName = candidate.FileName,
+            FileSize = candidate.Size,
+            DateAddedUtcTicks = DateTimeOffset.FromUnixTimeSeconds(candidate.DateAddedSeconds).UtcTicks,
+            ServerFolder = GetFolderLabel(DateTimeOffset.FromUnixTimeSeconds(candidate.DateAddedSeconds).LocalDateTime),
+            UploadedAtUtcTicks = DateTime.UtcNow.Ticks
+        };
+
+    /// <summary>Formats a local date-time as the <c>YYYY/MM</c> server folder label.</summary>
+    private static string GetFolderLabel(DateTime local)
+        => $"{local.Year:D4}/{local.Month:D2}";
 
     private static void ShowProgress(
         NotificationManagerCompat nm, global::Android.Content.Context context,

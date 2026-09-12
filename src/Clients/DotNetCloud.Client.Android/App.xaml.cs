@@ -542,15 +542,24 @@ public partial class App : Application
 
             var chatIntent = new Intent(global::Android.App.Application.Context, typeof(ChatConnectionService));
             chatIntent.SetAction(ChatConnectionService.ActionStart);
-            // TEMPORARY: foreground promotion gated by AndroidForegroundServicePolicy (dataSync FGS fix pending).
-            AndroidForegroundServicePolicy.StartService(global::Android.App.Application.Context, chatIntent);
+            global::Android.App.Application.Context.StartService(chatIntent);
 
-            // Only start the media upload foreground service if the user has enabled auto-upload.
+            // Auto-upload runs as an in-process watcher loop while the app is alive (plus an
+            // immediate scan when a MediaStore change is seen and a catch-up scan on next launch).
+            // It deliberately does NOT use a dataSync foreground service — Android 15+ force-kills
+            // those after the platform runtime timeout (ForegroundServiceDidNotStopInTimeException).
             if (Preferences.Default.Get("media_upload_enabled", false))
             {
-                var uploadIntent = new Intent(global::Android.App.Application.Context, typeof(MediaUploadForegroundService));
-                uploadIntent.SetAction(MediaUploadForegroundService.ActionStart);
-                AndroidForegroundServicePolicy.StartService(global::Android.App.Application.Context, uploadIntent);
+                try
+                {
+                    var watcher = Ioc.Default.GetService<DotNetCloud.Client.Android.Services.IMediaAutoUploadService>();
+                    if (watcher is not null)
+                        _ = watcher.StartAsync();
+                }
+                catch (Exception ex)
+                {
+                    Log.Warn("DotNetCloud", $"Media auto-upload start failed: {ex.Message}");
+                }
             }
         }
     }

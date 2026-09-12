@@ -14,6 +14,21 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
 {
     private readonly ILogger<MusicPlayerService> _logger;
     private MediaPlayer? _mediaPlayer;
+
+    /// <summary>
+    /// Audio session id of the current player, captured once it reaches the prepared state.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately CACHED rather than read through the live <see cref="MediaPlayer"/>. Querying a
+    /// released player throws <c>Java.Lang.IllegalStateException</c>, and this value is read from
+    /// arbitrary threads at arbitrary times — the 1-second position timer and the equalizer both
+    /// read it. During a track switch the previous player is released while still referenced, so a
+    /// timer tick landing in that window dereferenced a released player, threw on a thread-pool
+    /// thread and aborted the whole process (SIGABRT, "FATAL UNHANDLED EXCEPTION"). Capturing it
+    /// once, while the player is guaranteed valid, removes that window entirely.
+    /// </remarks>
+    private int _audioSessionId;
+
     private Timer? _positionTimer;
     private string? _serverBaseUrl;
     private string? _accessToken;
@@ -62,18 +77,45 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
     public TrackDto? CurrentTrack { get; private set; }
 
     /// <inheritdoc />
-    public TimeSpan CurrentPosition =>
-        TimeSpan.FromMilliseconds(_mediaPlayer?.CurrentPosition ?? 0);
+    public TimeSpan CurrentPosition => TryReadPlayer(
+        static p => TimeSpan.FromMilliseconds(p.CurrentPosition), TimeSpan.Zero);
 
     /// <inheritdoc />
-    public TimeSpan Duration =>
-        TimeSpan.FromMilliseconds(_mediaPlayer?.Duration ?? 0);
+    public TimeSpan Duration => TryReadPlayer(
+        static p => TimeSpan.FromMilliseconds(p.Duration), TimeSpan.Zero);
 
     /// <inheritdoc />
     public bool IsPlaying { get; private set; }
 
     /// <inheritdoc />
-    public int AudioSessionId => _mediaPlayer?.AudioSessionId ?? 0;
+    public int AudioSessionId => _audioSessionId;
+
+    /// <summary>
+    /// Reads a value from the current <see cref="MediaPlayer"/>, returning <paramref name="fallback"/>
+    /// instead of throwing if the player is missing or no longer in a valid state.
+    /// </summary>
+    /// <remarks>
+    /// These are Java-interop reads performed from arbitrary threads, including the position timer,
+    /// and a released player throws <c>Java.Lang.IllegalStateException</c> on read. An exception
+    /// escaping a timer callback is unhandled (there is no caller to catch it) and kills the process,
+    /// so reads degrade to the fallback value instead.
+    /// </remarks>
+    private T TryReadPlayer<T>(Func<MediaPlayer, T> read, T fallback)
+    {
+        var player = _mediaPlayer;
+        if (player is null)
+            return fallback;
+
+        try
+        {
+            return read(player);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "MediaPlayer read failed (player released or in an invalid state); using fallback.");
+            return fallback;
+        }
+    }
 
     /// <inheritdoc />
     public Guid? PlayingAlbumId => _playingAlbumId;
@@ -175,6 +217,12 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
             var previousPlayer = _mediaPlayer;
             if (previousPlayer is not null)
             {
+                // Publish "no player" and clear the cached session BEFORE releasing. A reader that
+                // observed the old instance could otherwise call into it after Release() and throw
+                // IllegalStateException (getAudioSessionId/getCurrentPosition on a released player).
+                _mediaPlayer = null;
+                _audioSessionId = 0;
+
                 previousPlayer.Completion -= OnTrackCompleted;
                 previousPlayer.Prepared -= OnTrackPrepared;
                 previousPlayer.Error -= OnPlayerError;
@@ -224,6 +272,19 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
 
         // A successful prepare resets the server-died retry counter.
         _serverDiedRetries = 0;
+
+        // Capture the audio session id while the player is guaranteed to be in a valid state, so
+        // the AudioSessionId property never has to touch the player itself.
+        try
+        {
+            _audioSessionId = player.AudioSessionId;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not read AudioSessionId from the prepared player.");
+            _audioSessionId = 0;
+        }
+
         System.Diagnostics.Debug.WriteLine($"[Music] OnTrackPrepared: track {CurrentTrack?.Id} ready t={Environment.TickCount64} — starting playback");
         player.Start();
         IsPlaying = true;
@@ -285,6 +346,7 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
         { _mediaPlayer?.Release(); }
         catch { /* ignore */ }
         _mediaPlayer = null;
+        _audioSessionId = 0;
 
         if (isServerDied && failedTrack is not null && _serverDiedRetries < MaxServerDiedRetries)
         {
@@ -514,10 +576,30 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
     {
         StopPositionTimer();
         _positionTimer = new Timer(
-            _ => PlaybackStateChanged?.Invoke(this, EventArgs.Empty),
+            _ => RaisePlaybackStateChangedSafely(),
             null,
             TimeSpan.FromSeconds(0),
             TimeSpan.FromSeconds(1));
+    }
+
+    /// <summary>
+    /// Raises <see cref="PlaybackStateChanged"/> without letting an exception escape.
+    /// </summary>
+    /// <remarks>
+    /// This runs on a thread-pool thread from a <see cref="Timer"/> callback, so there is no caller
+    /// to catch anything that a subscriber throws: an escaping exception is fatal (the .NET runtime
+    /// aborts the process). A subscriber hiccup must never take the app down.
+    /// </remarks>
+    private void RaisePlaybackStateChangedSafely()
+    {
+        try
+        {
+            PlaybackStateChanged?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "A PlaybackStateChanged subscriber threw; ignoring so the timer keeps running.");
+        }
     }
 
     private void StopPositionTimer()
@@ -542,11 +624,25 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
         global::Android.App.Application.Context.StopService(intent);
     }
 
+    /// <summary>
+    /// Asks the playback service to refresh its notification (track, artist, play/pause icon).
+    /// </summary>
+    /// <remarks>
+    /// Uses <c>StartService</c>, NOT <c>StartForegroundService</c>. This is a notification repaint,
+    /// not the start of playback, and <c>StartForegroundService</c> carries two hazards here:
+    /// (1) on Android 12+ it throws <c>ForegroundServiceStartNotAllowedException</c> when called from
+    /// the background while the app has no running foreground service — which is exactly the state
+    /// after playback stops, so a late pause/resume or a notification media-button press could crash
+    /// the app, and that is a screen-off, backgrounded-music scenario; and (2) it imposes a ~5 s
+    /// <c>startForeground()</c> deadline, and it re-entered <c>OnStartCommand</c> purely to repaint a
+    /// notification, which is also what stacked the partial wake locks. The service is already
+    /// foreground whenever a refresh actually matters.
+    /// </remarks>
     private void UpdateNotification()
     {
         var intent = new Intent(global::Android.App.Application.Context, typeof(MusicPlaybackService));
         intent.SetAction(MusicPlaybackService.ActionUpdateNotification);
-        global::Android.App.Application.Context.StartForegroundService(intent);
+        global::Android.App.Application.Context.StartService(intent);
     }
 
     /// <inheritdoc />

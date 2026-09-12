@@ -102,44 +102,67 @@ internal sealed class AndroidEqualizerService : IEqualizerService, IDisposable
 
     private void OnPlaybackStateChanged(object? sender, EventArgs e)
     {
-        System.Diagnostics.Debug.WriteLine($"[EQ-SVC] OnPlaybackStateChanged: IsPlaying={_player.IsPlaying}, SessionId={_player.AudioSessionId}, _isAvailable={_isAvailable}, _lastSessionId={_lastAudioSessionId}");
-        if (_player.IsPlaying && _player.AudioSessionId != 0)
+        // This handler is invoked from the player's 1-second position timer, i.e. on a thread-pool
+        // thread with no caller to catch anything it throws — an escaping exception aborts the whole
+        // process. It also queries the audio session, and a player released mid-track-switch used to
+        // throw Java.Lang.IllegalStateException here (SIGABRT). Read the session once and never let a
+        // failure escape: worst case the equalizer is skipped for one tick.
+        try
         {
-            // Only create/recreate the EQ if it's not yet available or the audio session changed
-            // (new track). Avoids destroying/recreating the EQ on every minor state change,
-            // which would reset all band gains to zero.
-            if (!_isAvailable || _player.AudioSessionId != _lastAudioSessionId)
+            var isPlaying = _player.IsPlaying;
+            var sessionId = _player.AudioSessionId;
+
+            System.Diagnostics.Debug.WriteLine($"[EQ-SVC] OnPlaybackStateChanged: IsPlaying={isPlaying}, SessionId={sessionId}, _isAvailable={_isAvailable}, _lastSessionId={_lastAudioSessionId}");
+
+            if (isPlaying && sessionId != 0)
             {
-                System.Diagnostics.Debug.WriteLine($"[EQ-SVC] Creating equalizer (wasAvailable={_isAvailable}, prevSession={_lastAudioSessionId}, newSession={_player.AudioSessionId})");
-                _lastAudioSessionId = _player.AudioSessionId;
-                CreateEqualizer();
+                // Only create/recreate the EQ if it's not yet available or the audio session changed
+                // (new track). Avoids destroying/recreating the EQ on every minor state change,
+                // which would reset all band gains to zero.
+                if (!_isAvailable || sessionId != _lastAudioSessionId)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[EQ-SVC] Creating equalizer (wasAvailable={_isAvailable}, prevSession={_lastAudioSessionId}, newSession={sessionId})");
+                    _lastAudioSessionId = sessionId;
+                    CreateEqualizer(sessionId);
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"[EQ-SVC] Skipping equalizer recreation (already available, same session)");
+                }
             }
             else
             {
-                System.Diagnostics.Debug.WriteLine($"[EQ-SVC] Skipping equalizer recreation (already available, same session)");
+                System.Diagnostics.Debug.WriteLine($"[EQ-SVC] Disposing equalizer");
+                DisposeEqualizer();
             }
         }
-        else
+        catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[EQ-SVC] Disposing equalizer");
-            DisposeEqualizer();
+            System.Diagnostics.Debug.WriteLine($"[EQ-SVC] OnPlaybackStateChanged failed; skipping this tick: {ex.Message}");
         }
     }
 
-    private void CreateEqualizer()
+    /// <summary>
+    /// Creates the equalizer for <paramref name="audioSessionId"/>.
+    /// </summary>
+    /// <remarks>
+    /// Takes the session id as a parameter so the caller can read it once (and defensively) rather
+    /// than re-querying the player here, where the player may already have been released.
+    /// </remarks>
+    private void CreateEqualizer(int audioSessionId)
     {
         // AudioEffect must be created on the main looper thread on some Android versions.
         if (!MainThread.IsMainThread)
         {
             System.Diagnostics.Debug.WriteLine("[EQ-SVC] CreateEqualizer called from non-UI thread, dispatching");
-            MainThread.BeginInvokeOnMainThread(CreateEqualizer);
+            MainThread.BeginInvokeOnMainThread(() => CreateEqualizer(audioSessionId));
             return;
         }
 
         try
         {
             DisposeEqualizer();
-            _equalizer = new Equalizer(0, _player.AudioSessionId);
+            _equalizer = new Equalizer(0, audioSessionId);
             _equalizer.SetEnabled(true);
             _isAvailable = true;
 

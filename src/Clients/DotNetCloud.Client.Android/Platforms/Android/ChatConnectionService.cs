@@ -12,18 +12,27 @@ using Microsoft.Extensions.Logging;
 namespace DotNetCloud.Client.Android;
 
 /// <summary>
-/// Android foreground service that maintains the SignalR chat connection while the
-/// app is backgrounded. Does NOT hold a WakeLock — relies on FCM push notifications
-/// to wake the device for real-time message delivery during Doze.
+/// Android background service that maintains the SignalR chat connection while the app is
+/// alive. Does NOT hold a WakeLock — relies on FCM push notifications to wake the device for
+/// real-time message delivery during Doze.
 /// </summary>
 /// <remarks>
-/// Declared in AndroidManifest.xml with <c>android:foregroundServiceType="dataSync"</c>.
-/// Started via <see cref="ActionStart"/> intent; stopped via <see cref="ActionStop"/> intent
-/// or when the app returns to the foreground.
+/// <para>
+/// Deliberately <b>not</b> a foreground service. It used to be promoted with a <c>dataSync</c>
+/// type, but Android 15/16 caps <c>dataSync</c> foreground services to a rolling 24-hour budget;
+/// once exhausted the platform throws <c>ForegroundServiceDidNotStopInTimeException</c>, which —
+/// combined with the sticky restart below — crash-looped the app and burned the whole daily
+/// allowance. Promotion is therefore not used at all, and no foreground-service type is declared
+/// for this component, so the failure cannot recur.
+/// </para>
+/// <para>
+/// Background message delivery does not depend on this service: FCM (googleplay flavour) and
+/// UnifiedPush (fdroid flavour) already deliver notifications while the app is not running, so
+/// losing the connection when the process is reclaimed is not a functional regression.
+/// </para>
+/// <para>Started via <see cref="ActionStart"/>; stopped via <see cref="ActionStop"/>.</para>
 /// </remarks>
-[Service(Name = "net.dotnetcloud.client.ChatConnectionService",
-         ForegroundServiceType = global::Android.Content.PM.ForegroundService.TypeDataSync,
-         Exported = false)]
+[Service(Name = "net.dotnetcloud.client.ChatConnectionService", Exported = false)]
 public sealed class ChatConnectionService : Service
 {
     /// <summary>Intent action that starts the foreground chat service.</summary>
@@ -56,43 +65,10 @@ public sealed class ChatConnectionService : Service
                 return StartCommandResult.NotSticky;
             }
 
-            // Build and show the persistent notification required for foreground services.
-            // On Android 13+, POST_NOTIFICATIONS is a runtime permission; wrap in try-catch
-            // to prevent StartForeground from crashing the service if the user denied it.
-            //
-            // TEMPORARY (2026-09-09): foreground promotion is disabled while the Android 15/16
-            // dataSync FGS daily-budget crash (ForegroundServiceDidNotStopInTimeException) is
-            // pending its proper fix — see AndroidForegroundServicePolicy. When disabled the
-            // service runs without a persistent notification and is not subject to the FGS deadline.
-            if (AndroidForegroundServicePolicy.UseForegroundServices)
-            {
-                try
-                {
-                    if (Build.VERSION.SdkInt >= BuildVersionCodes.Q)
-                    {
-#pragma warning disable CA1416 // already guarded by runtime SDK check above
-                        StartForeground(NotificationId, BuildNotification(),
-                            global::Android.Content.PM.ForegroundService.TypeDataSync);
-#pragma warning restore CA1416
-                    }
-                    else
-                    {
-                        StartForeground(NotificationId, BuildNotification());
-                    }
-                    Log.Info("DotNetCloud", "ChatConnectionService: StartForeground succeeded.");
-                }
-                catch (Exception ex)
-                {
-                    Log.Warn("DotNetCloud", $"ChatConnectionService: StartForeground failed: {ex.Message}");
-                    _logger?.LogWarning(ex, "StartForeground failed; continuing without persistent notification.");
-                }
-            }
-            else
-            {
-                Log.Info("DotNetCloud", "ChatConnectionService: foreground promotion disabled (temporary dataSync FGS workaround).");
-            }
-
-            _logger?.LogInformation("ChatConnectionService started (no wake lock — relying on FCM push for Doze delivery).");
+            // No foreground promotion — see the class remarks. Promoting this service with a
+            // dataSync type would spend the Android 15/16 24-hour budget and can crash-loop the app.
+            Log.Info("DotNetCloud", "ChatConnectionService: running without foreground promotion (push handles background delivery).");
+            _logger?.LogInformation("ChatConnectionService started (no wake lock, no foreground promotion).");
 
             // Ensure the SignalR connection is live.
             _ = EnsureSignalRConnectedAsync();
@@ -104,29 +80,6 @@ public sealed class ChatConnectionService : Service
 
         return StartCommandResult.Sticky;
     }
-
-    /// <summary>
-    /// Called by the system when an Android 15+ (API 35) dataSync foreground service
-    /// exceeds its 6-hour-per-24h allowance. Stops cleanly instead of being force-stopped.
-    /// While the app is backgrounded, message delivery is handled by push
-    /// (FCM / UnifiedPush), so reclaiming this service is not a functional regression.
-    /// </summary>
-#pragma warning disable CA1416 // OnTimeout(int) is only invoked on API 30+; min supported is API 26
-    public override void OnTimeout(int startId)
-    {
-        try
-        {
-            _logger?.LogInformation("ChatConnectionService hit the dataSync foreground-service timeout; stopping.");
-            StopForeground(StopForegroundFlags.Remove);
-            StopSelf();
-        }
-        catch (Exception ex)
-        {
-            _logger?.LogWarning(ex, "ChatConnectionService failed to stop cleanly on timeout.");
-        }
-        base.OnTimeout(startId);
-    }
-#pragma warning restore CA1416
 
     /// <inheritdoc />
     public override void OnDestroy()
@@ -173,30 +126,7 @@ public sealed class ChatConnectionService : Service
         catch (Exception ex)
         {
             Log.Error("DotNetCloud", $"EnsureSignalRConnectedAsync failed: {ex}");
-            _logger?.LogWarning(ex, "Failed to ensure SignalR connection in foreground service.");
+            _logger?.LogWarning(ex, "Failed to ensure SignalR connection in chat service.");
         }
-    }
-
-    private Notification BuildNotification()
-    {
-        var openIntent = new Intent(this, typeof(MainActivity));
-        openIntent.SetFlags(ActivityFlags.SingleTop | ActivityFlags.ClearTop);
-        var pendingIntent = PendingIntent.GetActivity(
-            this, 0, openIntent,
-            PendingIntentFlags.Immutable | PendingIntentFlags.UpdateCurrent);
-
-        var iconRes = ApplicationContext!.Resources!
-            .GetIdentifier("ic_notification", "drawable", ApplicationContext.PackageName);
-        if (iconRes == 0)
-            iconRes = global::Android.Resource.Drawable.IcDialogInfo;
-
-        return new Notification.Builder(this, ConnectionChannelId)
-            .SetContentTitle("DotNetCloud")
-            .SetContentText("Connected")
-            .SetSmallIcon(iconRes)
-            .SetContentIntent(pendingIntent)
-            .SetOngoing(true)
-            .SetShowWhen(false)
-            .Build();
     }
 }

@@ -89,6 +89,10 @@ public static class MauiProgram
             .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
         builder.Services.AddSingleton<IMediaAutoUploadService, MediaAutoUploadService>();
 
+        // Periodic background media sync (JobScheduler; no foreground service, so it never
+        // consumes the Android 15/16 dataSync 24-hour budget).
+        builder.Services.AddSingleton<Services.IBackgroundMediaSync, AndroidBackgroundMediaSync>();
+
         // ── Platform services ─────────────────────────────────────────
         builder.Services.AddSingleton<IBatteryOptimizationService, AndroidBatteryOptimizationService>();
 
@@ -139,6 +143,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<ICalendarReminderScheduler, CalendarReminderScheduler>();
         builder.Services.AddSingleton<IExactAlarmPermissionService, AndroidExactAlarmPermissionService>();
         builder.Services.AddSingleton<INotificationPermissionService, AndroidNotificationPermissionService>();
+        builder.Services.AddSingleton<IMediaPermissionService, AndroidMediaPermissionService>();
 
         // ── Notes ───────────────────────────────────────────────────────
         builder.Services.AddHttpClient<INotesRestClient, HttpNotesRestClient>()
@@ -183,6 +188,12 @@ public static class MauiProgram
 #if DEBUG
         builder.Logging.AddDebug();
 #endif
+
+        // Route ILogger output to logcat so on-device diagnostics are observable via
+        // `adb logcat -s DotNetCloud`. AddDebug() alone is only visible to an attached
+        // debugger, which leaves background work (e.g. the media auto-upload watcher)
+        // impossible to diagnose in the field.
+        builder.Logging.AddProvider(new AndroidLogLoggerProvider());
 
         var app = builder.Build();
 
