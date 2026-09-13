@@ -596,6 +596,17 @@ When the assistant needs the mediator to run a command:
 - Stop and wait for the mediator to run that command.
 - Do not continue with dependent steps until mediator output is received.
 
+### Privileged (`sudo`) Commands — Assistant launches, user types the password (MANDATORY)
+
+For commands that require elevation (e.g. `sudo ./scripts/deploy.sh --force --verify`):
+
+- ✅ The **assistant types out and launches the command itself** in the visible terminal — do NOT just print the command and hand it to the user to run.
+- ✅ The **user types the sudo password directly into that terminal** when `[sudo] password for <user>:` appears. The assistant stops and waits at that prompt without killing the command.
+- ❌ Never ask the user for the password via `vscode_askQuestions`, and never send it with `send_to_terminal` — secrets must never be routed through the model.
+- ❌ Never re-run or duplicate a privileged command that is already sitting at a password prompt.
+- After the user enters the password, check **once** with `get_terminal_output` to confirm the command is underway, then **wait for the automatic completion notification** — do NOT poll repeatedly.
+- ❌ **NEVER kill** the command — not even if it looks slow or stuck. A full build/publish can take 10+ minutes.
+
 ### Git Push Responsibility
 
 - The assistant is responsible for pushing commits to remote by default.
