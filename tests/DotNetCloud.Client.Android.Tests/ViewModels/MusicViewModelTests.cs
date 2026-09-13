@@ -904,6 +904,147 @@ public sealed class MusicViewModelTests
         Assert.AreEqual(MusicView.Albums, _vm.CurrentView);
     }
 
+    // ── System back (Android hardware button / predictive-back gesture) ─
+
+    [TestMethod]
+    public void CanHandleSystemBack_AtArtistsRoot_IsFalse()
+    {
+        Assert.AreEqual(MusicView.Artists, _vm.CurrentView);
+
+        // Nothing in-page to go back to — the platform's default back action should run.
+        Assert.IsFalse(_vm.CanHandleSystemBack);
+    }
+
+    [TestMethod]
+    public void CanHandleSystemBack_WhenSearchOpen_IsTrue()
+    {
+        _vm.ToggleSearchCommand.Execute(null);
+
+        Assert.IsTrue(_vm.CanHandleSystemBack);
+    }
+
+    [TestMethod]
+    public async Task HandleSystemBackAsync_AtArtistsRoot_ReturnsFalse_AndKeepsView()
+    {
+        var handled = await _vm.HandleSystemBackAsync();
+
+        Assert.IsFalse(handled);
+        Assert.AreEqual(MusicView.Artists, _vm.CurrentView);
+        // The press must not trigger a reload — it is handed back to Android to leave the app.
+        _music.Verify(
+            x => x.ListArtistsAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [TestMethod]
+    public async Task HandleSystemBackAsync_WhenSavePresetDialogOpen_ClosesDialog_AndReturnsTrue()
+    {
+        _vm.OpenSavePresetDialogCommand.Execute(null);
+        Assert.IsTrue(_vm.ShowSavePresetDialog);
+
+        var handled = await _vm.HandleSystemBackAsync();
+
+        Assert.IsTrue(handled);
+        Assert.IsFalse(_vm.ShowSavePresetDialog);
+        Assert.AreEqual(MusicView.Artists, _vm.CurrentView); // no navigation — only the dialog dismissed
+    }
+
+    [TestMethod]
+    public async Task HandleSystemBackAsync_WhenSavePresetDialogOpen_ClosesDialogBeforeSearchPanel()
+    {
+        _vm.ToggleSearchCommand.Execute(null);
+        _vm.OpenSavePresetDialogCommand.Execute(null);
+
+        var handled = await _vm.HandleSystemBackAsync();
+
+        // The dialog is the innermost surface, so it consumes this press and the search
+        // panel stays open for the following press.
+        Assert.IsTrue(handled);
+        Assert.IsFalse(_vm.ShowSavePresetDialog);
+        Assert.IsTrue(_vm.IsSearchOpen);
+    }
+
+    [TestMethod]
+    public async Task HandleSystemBackAsync_WhenSearchOpen_ClosesSearch_AndReturnsTrue()
+    {
+        _vm.ToggleSearchCommand.Execute(null);
+        Assert.IsTrue(_vm.IsSearchOpen);
+
+        var handled = await _vm.HandleSystemBackAsync();
+
+        Assert.IsTrue(handled);
+        Assert.IsFalse(_vm.IsSearchOpen);
+        Assert.AreEqual(string.Empty, _vm.SearchQuery);
+        Assert.AreEqual(MusicView.Artists, _vm.CurrentView);
+    }
+
+    [TestMethod]
+    public async Task HandleSystemBackAsync_InArtistScopedAlbums_ReturnsToArtists()
+    {
+        var artist = new ArtistDto { Id = Guid.NewGuid(), Name = "Artist", CreatedAt = DateTime.UtcNow };
+        _music.Setup(x => x.ListArtistsAsync(ServerUrl, "test-access-token", 0, 50, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([artist]);
+        await _vm.LoadArtistsCommand.ExecuteAsync(null);
+
+        _music.Setup(x => x.ListAlbumsByArtistAsync(ServerUrl, "test-access-token", artist.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        await _vm.SelectArtistCommand.ExecuteAsync(artist);
+        Assert.AreEqual(MusicView.Albums, _vm.CurrentView);
+        Assert.IsTrue(_vm.CanHandleSystemBack);
+
+        var handled = await _vm.HandleSystemBackAsync();
+
+        Assert.IsTrue(handled);
+        Assert.AreEqual(MusicView.Artists, _vm.CurrentView);
+        Assert.IsFalse(_vm.CanGoBackToArtist);
+        Assert.IsFalse(_vm.CanHandleSystemBack);
+    }
+
+    [TestMethod]
+    public async Task HandleSystemBackAsync_InPlaylistTracks_ReturnsToPlaylists()
+    {
+        var playlistId = Guid.NewGuid();
+        var track = new TrackDto { Id = Guid.NewGuid(), Title = "Track", OwnerId = Guid.NewGuid(), FileNodeId = Guid.NewGuid(), MimeType = "audio/mpeg", ArtistId = Guid.NewGuid(), ArtistName = "Artist", CreatedAt = DateTime.UtcNow };
+        _player.Setup(x => x.CurrentTrack).Returns(track);
+        _player.Setup(x => x.PlayingAlbumId).Returns((Guid?)null);
+        _player.Setup(x => x.PlayingPlaylistId).Returns(playlistId);
+        _music.Setup(x => x.GetPlaylistTracksAsync(ServerUrl, "test-access-token", playlistId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([track]);
+        await _vm.NavigateToCurrentSourceCommand.ExecuteAsync(null);
+        Assert.AreEqual(MusicView.Tracks, _vm.CurrentView);
+        Assert.IsTrue(_vm.CanGoBackToPlaylist);
+
+        // Keep the playlist list populated so BackAsync takes its synchronous branch.
+        _vm.Playlists = [new PlaylistDto { Id = playlistId, Name = "My Playlist", OwnerId = Guid.NewGuid(), CreatedAt = DateTime.UtcNow }];
+
+        var handled = await _vm.HandleSystemBackAsync();
+
+        Assert.IsTrue(handled);
+        Assert.AreEqual(MusicView.Playlists, _vm.CurrentView);
+    }
+
+    [TestMethod]
+    public async Task HandleSystemBackAsync_InEqView_ReturnsToPreviousView()
+    {
+        var artist = new ArtistDto { Id = Guid.NewGuid(), Name = "Artist", CreatedAt = DateTime.UtcNow };
+        _music.Setup(x => x.ListArtistsAsync(ServerUrl, "test-access-token", 0, 50, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([artist]);
+        await _vm.LoadArtistsCommand.ExecuteAsync(null);
+
+        _music.Setup(x => x.ListEqPresetsAsync(ServerUrl, "test-access-token", It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        await _vm.LoadEqPresetsCommand.ExecuteAsync(null);
+        Assert.AreEqual(MusicView.Eq, _vm.CurrentView);
+
+        // The EQ screen has no back arrow of its own, so the system back must still consume it.
+        Assert.IsTrue(_vm.CanHandleSystemBack);
+
+        var handled = await _vm.HandleSystemBackAsync();
+
+        Assert.IsTrue(handled);
+        Assert.AreEqual(MusicView.Artists, _vm.CurrentView);
+    }
+
     // ── LoadEqPresetsAsync ─────────────────────────────────────────────
 
     [TestMethod]

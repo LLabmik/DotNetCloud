@@ -3647,6 +3647,7 @@ Zero-tap sign-in (Apr 2027) and the API 36 target bump are tracked separately (d
 - ✓ Implement search: toggle search icon in title bar, debounced server-side search by current tab (artists/albums/tracks), results replace collection, restore on close
 - ✓ Implement search guards: infinite scroll disabled during search, tab-switch closes search, back navigates away from search first
 - ✓ Add 16 unit tests for search toggle, close/restore, endpoint routing, error handling, tab-switch closure
+- ✓ Wire the Android system back button (physical button + predictive-back gesture) to the in-page back affordances: `MusicViewModel.HandleSystemBackAsync` closes the save-preset dialog / search panel, leaves the EQ screen, and steps back out of artist/album/playlist-scoped views; at the tab root the default "leave the app" action is unchanged. MAUI 10.0.90 never routes back to `Page.OnBackButtonPressed` for a drawer page with no framework nav stack, so the press is captured by `Platforms/Android/AndroidBackPressScope` (AndroidX `OnBackPressedCallback`, enabled only while the tab has somewhere to go). Verified on-device (R5CWC356B2K, 2026-09-13): albums→artists, tracks→albums, EQ exit, search close, drawer close, root exit, no regressions on other tabs.
 
 ---
 
