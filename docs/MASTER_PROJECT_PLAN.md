@@ -5866,3 +5866,36 @@ module's implementation, with the viewer scrolling when the message overflows.
 - Sanitization is unchanged from the Notes/Chat/AI paths — Markdig + HtmlSanitizer, links allowed, scripts stripped.
 - ✓ Live-verified on mint22 (2026-09-13): composer preview + rendered user modal (H2, bold, list, link) and the
   message region scrolls on overflow (`55vh` cap; `scrollHeight 641 > clientHeight 466`).
+
+### Follow-up — Sent timestamp persistence + dismissal reliability (2026-09-13)
+
+**Status:** completed ✅
+**Branch:** `fix/admin-broadcast`
+**Goal:** Fix four reported defects: the history table showed a bare `Scheduled`, the `Sent` column never filled
+in for scheduled sends, a dismissed broadcast reappeared for users, and the `Send now` / `Delete` buttons did not
+line up.
+
+- ✓ One root cause behind two of the four: `PublishPendingAsync` / `SendNowAsync` mutated entities loaded through
+  `CoreDbContext`'s default `QueryTrackingBehavior.NoTracking` **without** `.AsTracking()`, so `SaveChangesAsync`
+  silently wrote nothing. `SentAtUtc` stayed `NULL`, the row never left the "pending" set, and the 30-second
+  scheduler re-delivered it forever — so a dismissed modal kept coming back
+- ✓ Evidence: logs showed the same broadcast delivered at `16:25:34 → 16:26:04 → 16:26:34 → …` (44 occurrences),
+  while the DB showed two users had already dismissed it
+- ✓ `.AsTracking()` added to both queries (11th occurrence of this repo-wide NoTracking pattern)
+- ✓ History Status badge now shows `Scheduled <local time>`; `Sent` column populates on delivery
+- ✓ History auto-refreshes every 30 s (mirrors the scheduler cadence) so Status / Sent / Dismissed update without a
+  manual Refresh
+- ✓ `Send now` / `Delete` moved into a `.data-table .actions` cell (flex) so they align
+- ✓ Regression tests built on a NoTracking context + fresh-context read-back; both **fail without the fix**
+- ✓ Tests: `AdminBroadcastServiceTests` 32/32 · Core.Server 780 passed / 0 failed
+- ✓ Deployed to production (cloud): 15/15 targets, 0 pending migrations, hashes verified, `/health/ready` 200,
+  14/14 modules Healthy
+- ✓ Data repair: 1 stale row (delivered but `SentAtUtc` NULL) backfilled to its scheduled send time, which stopped
+  the in-flight 30-second re-delivery loop immediately
+- ✓ Live-verified by the user on the deployed build
+
+### Notes
+
+- No schema change — the existing migration set is unchanged, so no new EF migration was required.
+- The broadcast service tests now use a second context that models production; sharing a tracking context with the
+  service is what let this bug ship unnoticed, so new tests should follow the NoTracking pattern.

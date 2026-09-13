@@ -7050,3 +7050,25 @@ Blazor-only by design — Android/desktop clients never join the broadcast group
   reload; Delete closes an open modal; scheduled delivery within 30 s; expiry hides the message
 - ✓ Markdown message browsing E2E (mint22, 2026-09-13): composer preview + user modal render H2 / bold / list /
   link; the modal message region scrolls vertically on overflow
+
+### Follow-up fixes — Sent timestamp & dismissal reliability (2026-09-13)
+
+**Branch:** `fix/admin-broadcast`
+
+- ✓ **Root cause fixed:** `PublishPendingAsync` / `SendNowAsync` mutated entities loaded through
+  `CoreDbContext`'s global `QueryTrackingBehavior.NoTracking` without `.AsTracking()`, so the `SentAtUtc` stamp
+  was never written. Broadcasts stayed "pending" and the 30-second scheduler re-delivered them **indefinitely** —
+  which is also why a dismissed message kept reappearing for users
+- ✓ `.AsTracking()` added to both queries (11th occurrence of this repo-wide pattern; see repo memory)
+- ✓ History Status now reads `Scheduled <local time>` instead of a bare `Scheduled`
+- ✓ `Sent` column now populates once a scheduled broadcast is delivered
+- ✓ History auto-refreshes every 30 seconds (same cadence as the scheduler) so Status / Sent / Dismissed update
+  without pressing Refresh
+- ✓ `Send now` / `Delete` buttons aligned via the standard `.data-table .actions` cell
+- ✓ Regression tests on a **NoTracking** context plus a fresh-context read-back (the pre-existing tests shared a
+  tracking context with the service and therefore hid the bug): `SendNowAsync_WhenPending_PersistsSentAtUtc`,
+  `PublishPendingAsync_WhenDelivered_DoesNotDeliverAgainOnTheNextTick` — both **fail without the fix**
+- ✓ `AdminBroadcastServiceTests` 32/32 · Core.Server 780 passed / 0 failed
+- ✓ Deployed to production (cloud): 15/15 targets, 0 pending migrations, hashes verified, `/health/ready` 200,
+  14/14 modules Healthy, `_framework/blazor.web.js` 200
+- ✓ Live-verified by the user on the deployed build

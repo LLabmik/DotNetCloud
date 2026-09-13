@@ -1,13 +1,14 @@
 @page "/admin/broadcast"
 @rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveAutoRenderMode(prerender: false))
 @attribute [Authorize(Policy = "RequireAdmin")]
+@implements IAsyncDisposable
 
 <PageTitle>Broadcast - DotNetCloud</PageTitle>
 
 <div class="page-header">
     <h1>Broadcast Message</h1>
     <div class="page-header-actions">
-        <button type="button" class="btn btn-outline btn-sm" @onclick="LoadAsync" disabled="@_loading">
+        <button type="button" class="btn btn-outline btn-sm" @onclick="() => LoadAsync()" disabled="@_loading">
             <MaterialIcon Icon="refresh" Size="MaterialIconSize.Sm" />
             Refresh
         </button>
@@ -113,12 +114,12 @@
                             @broadcast.Severity
                         </td>
                         <td>
-                            <span class="badge">@broadcast.Status</span>
+                            <span class="badge">@StatusLabel(broadcast)</span>
                         </td>
                         <td>@(broadcast.SentAtUtc?.ToLocalTime().ToString("g") ?? "—")</td>
                         <td>@(broadcast.ExpiresAtUtc?.ToLocalTime().ToString("g") ?? "—")</td>
                         <td>@broadcast.DismissedCount</td>
-                        <td>
+                        <td class="actions">
                             @if (broadcast.Status == AdminBroadcastStatus.Scheduled)
                             {
                                 <button type="button" class="btn btn-outline btn-sm"
@@ -156,16 +157,74 @@
 
     private readonly List<AdminBroadcastDto> _broadcasts = [];
     private DncConfirmDialog _confirmDialog = default!;
+    private CancellationTokenSource? _refreshCts;
 
     [Inject] private DotNetCloudApiClient ApiClient { get; set; } = default!;
     [Inject] private IMarkdownRenderer MarkdownRenderer { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
 
-    protected override Task OnInitializedAsync() => LoadAsync();
-
-    private async Task LoadAsync()
+    protected override async Task OnInitializedAsync()
     {
-        _loading = true;
+        await LoadAsync();
+
+        // Scheduled broadcasts are delivered by a 30-second background poll on the
+        // server, so the history refreshes on the same cadence: the Status badge and
+        // the Sent column then update on their own rather than going stale until the
+        // administrator presses Refresh.
+        _refreshCts = new CancellationTokenSource();
+        _ = AutoRefreshAsync(_refreshCts.Token);
+    }
+
+    /// <summary>
+    /// Periodically re-reads the history so scheduled sends are reflected without
+    /// a manual refresh.
+    /// </summary>
+    private async Task AutoRefreshAsync(CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(30));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                // Never clobber the list while the administrator is mid-action.
+                if (_busy || _loading)
+                {
+                    continue;
+                }
+
+                await InvokeAsync(async () =>
+                {
+                    await LoadAsync(silent: true);
+                    StateHasChanged();
+                });
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The page was navigated away from; the loop ends with it.
+        }
+    }
+
+    /// <inheritdoc />
+    public async ValueTask DisposeAsync()
+    {
+        if (_refreshCts is null)
+        {
+            return;
+        }
+
+        await _refreshCts.CancelAsync();
+        _refreshCts.Dispose();
+        _refreshCts = null;
+    }
+
+    private async Task LoadAsync(bool silent = false)
+    {
+        if (!silent)
+        {
+            _loading = true;
+        }
+
         try
         {
             var broadcasts = await ApiClient.ListAdminBroadcastsAsync(MaxHistory);
@@ -339,6 +398,17 @@
             _ => DateTime.SpecifyKind(local.Value, DateTimeKind.Local).ToUniversalTime(),
         };
     }
+
+    /// <summary>
+    /// Text for the Status badge. A scheduled broadcast also shows when it will be
+    /// sent, so the administrator does not have to cross-reference the Created column.
+    /// </summary>
+    private static string StatusLabel(AdminBroadcastDto broadcast) => broadcast.Status switch
+    {
+        AdminBroadcastStatus.Scheduled when broadcast.ScheduledForUtc is not null =>
+            $"Scheduled {broadcast.ScheduledForUtc.Value.ToLocalTime():g}",
+        _ => broadcast.Status.ToString(),
+    };
 
     private static string SeverityIcon(AdminBroadcastSeverity severity) => severity switch
     {
