@@ -165,27 +165,42 @@ public sealed class HomeWidgetLayoutService : IDisposable
     public Task<bool> MoveAsync(string moduleId, int delta)
         => MutateAsync(() =>
         {
-            var layout = CurrentLayoutItems().ToList();
-            var from = layout.FindIndex(item =>
-                string.Equals(item.ModuleId, moduleId, StringComparison.OrdinalIgnoreCase));
+            var layout = CurrentLayoutItems();
+            var from = IndexOf(layout, moduleId);
 
-            if (from < 0)
-            {
-                return Rebuild(layout: layout);
-            }
-
-            return Rebuild(layout: Move(layout, from, from + delta));
+            return from < 0
+                ? Rebuild(layout: layout)
+                : Rebuild(layout: Move(layout, from, from + delta));
         });
 
     /// <summary>
-    /// Moves the widget at <paramref name="fromIndex"/> to <paramref name="toIndex"/> and persists it.
-    /// Used by drag and drop.
+    /// Moves a widget to the slot currently held by another widget and persists the change. Used by
+    /// drag and drop: both ends are identified by module id rather than by index, so a stale index
+    /// (the list can be re-rendered between drag start and drop) can never move the wrong widget or
+    /// throw.
     /// </summary>
-    /// <param name="fromIndex">The index being dragged.</param>
-    /// <param name="toIndex">The index it was dropped on.</param>
+    /// <param name="moduleId">The module that owns the widget being dragged.</param>
+    /// <param name="targetModuleId">The module whose slot the widget was dropped on.</param>
     /// <returns><see langword="true"/> when the change was persisted.</returns>
-    public Task<bool> MoveToAsync(int fromIndex, int toIndex)
-        => MutateAsync(() => Rebuild(layout: Move(CurrentLayoutItems().ToList(), fromIndex, toIndex)));
+    public Task<bool> MoveToModuleAsync(string moduleId, string targetModuleId)
+        => MutateAsync(() =>
+        {
+            var layout = CurrentLayoutItems();
+            var from = IndexOf(layout, moduleId);
+            var to = IndexOf(layout, targetModuleId);
+
+            return from < 0 || to < 0
+                ? Rebuild(layout: layout)
+                : Rebuild(layout: Move(layout, from, to));
+        });
+
+    /// <summary>
+    /// Gets the current zero-based display position of a widget, or <c>-1</c> when the module has no
+    /// widget slot.
+    /// </summary>
+    /// <param name="moduleId">The module that owns the widget.</param>
+    /// <returns>The zero-based position, or <c>-1</c>.</returns>
+    public int GetPosition(string moduleId) => IndexOf(CurrentLayoutItems(), moduleId);
 
     /// <summary>
     /// Restores the default style, registry order and full visibility, and persists it.
@@ -231,6 +246,19 @@ public sealed class HomeWidgetLayoutService : IDisposable
         list.RemoveAt(fromIndex);
         list.Insert(toIndex, moved);
         return list;
+    }
+
+    private static int IndexOf(IReadOnlyList<HomeWidgetLayoutItem> layout, string moduleId)
+    {
+        for (var i = 0; i < layout.Count; i++)
+        {
+            if (string.Equals(layout[i].ModuleId, moduleId, StringComparison.OrdinalIgnoreCase))
+            {
+                return i;
+            }
+        }
+
+        return -1;
     }
 
     private IReadOnlyList<HomeWidgetLayoutItem> CurrentLayoutItems()

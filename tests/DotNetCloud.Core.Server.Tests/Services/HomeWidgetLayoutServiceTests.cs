@@ -88,7 +88,7 @@ public sealed class HomeWidgetLayoutServiceTests
     }
 
     [TestMethod]
-    public async Task MoveToAsync_ReordersAndPersistsNewOrder()
+    public async Task MoveToModuleAsync_DraggedOntoAnEarlierSlot_MovesToThatPositionAndPersists()
     {
         var settings = new FakeSettingsService();
         using var service = CreateService(
@@ -96,7 +96,7 @@ public sealed class HomeWidgetLayoutServiceTests
             settings);
         await service.EnsureLoadedAsync();
 
-        await service.MoveToAsync(2, 0);
+        await service.MoveToModuleAsync("dotnetcloud.notes", "dotnetcloud.files");
 
         CollectionAssert.AreEqual(
             new[] { "dotnetcloud.notes", "dotnetcloud.files", "dotnetcloud.chat" },
@@ -105,6 +105,73 @@ public sealed class HomeWidgetLayoutServiceTests
         var moved = settings.Stored!.IndexOf("dotnetcloud.notes", StringComparison.Ordinal);
         var next = settings.Stored.IndexOf("dotnetcloud.files", StringComparison.Ordinal);
         Assert.IsTrue(moved < next, "the persisted payload should lead with the moved widget");
+    }
+
+    [TestMethod]
+    public async Task MoveToModuleAsync_DraggedOntoALaterSlot_MovesToThatPosition()
+    {
+        using var service = CreateService(
+            Registry(("dotnetcloud.files", 10), ("dotnetcloud.chat", 20), ("dotnetcloud.notes", 30)));
+        await service.EnsureLoadedAsync();
+
+        await service.MoveToModuleAsync("dotnetcloud.files", "dotnetcloud.notes");
+
+        CollectionAssert.AreEqual(
+            new[] { "dotnetcloud.chat", "dotnetcloud.notes", "dotnetcloud.files" },
+            service.Slots.Select(s => s.ModuleId).ToArray());
+    }
+
+    [TestMethod]
+    public async Task MoveToModuleAsync_DroppedOnItself_DoesNotChangeOrder()
+    {
+        using var service = CreateService(Registry(("dotnetcloud.files", 10), ("dotnetcloud.chat", 20)));
+        await service.EnsureLoadedAsync();
+
+        await service.MoveToModuleAsync("dotnetcloud.chat", "dotnetcloud.chat");
+
+        CollectionAssert.AreEqual(
+            new[] { "dotnetcloud.files", "dotnetcloud.chat" },
+            service.Slots.Select(s => s.ModuleId).ToArray());
+    }
+
+    [TestMethod]
+    public async Task MoveToModuleAsync_UnknownModuleId_DoesNotChangeOrderOrThrow()
+    {
+        using var service = CreateService(Registry(("dotnetcloud.files", 10), ("dotnetcloud.chat", 20)));
+        await service.EnsureLoadedAsync();
+
+        // A stale index/identifier must never move the wrong widget or raise.
+        await service.MoveToModuleAsync("dotnetcloud.uninstalled", "dotnetcloud.chat");
+        await service.MoveToModuleAsync("dotnetcloud.files", "dotnetcloud.uninstalled");
+
+        CollectionAssert.AreEqual(
+            new[] { "dotnetcloud.files", "dotnetcloud.chat" },
+            service.Slots.Select(s => s.ModuleId).ToArray());
+    }
+
+    [TestMethod]
+    public async Task GetPosition_RegisteredAndUnknownModules_ReturnsIndexOrMinusOne()
+    {
+        using var service = CreateService(Registry(("dotnetcloud.files", 10), ("dotnetcloud.chat", 20)));
+        await service.EnsureLoadedAsync();
+
+        Assert.AreEqual(1, service.GetPosition("dotnetcloud.chat"));
+        Assert.AreEqual(1, service.GetPosition("DOTNETCLOUD.CHAT"), "module ids are case-insensitive");
+        Assert.AreEqual(-1, service.GetPosition("dotnetcloud.uninstalled"));
+    }
+
+    [TestMethod]
+    public async Task MoveAsync_MiddleWidgetMovedDown_SwapsWithTheNextOne()
+    {
+        using var service = CreateService(
+            Registry(("dotnetcloud.files", 10), ("dotnetcloud.chat", 20), ("dotnetcloud.notes", 30)));
+        await service.EnsureLoadedAsync();
+
+        await service.MoveAsync("dotnetcloud.files", 1);
+
+        CollectionAssert.AreEqual(
+            new[] { "dotnetcloud.chat", "dotnetcloud.files", "dotnetcloud.notes" },
+            service.Slots.Select(s => s.ModuleId).ToArray());
     }
 
     [TestMethod]
@@ -199,7 +266,7 @@ public sealed class HomeWidgetLayoutServiceTests
         {
             await first.EnsureLoadedAsync();
             await first.SetStyleAsync(HomeWidgetStyles.HardCopy);
-            await first.MoveToAsync(1, 0);
+            await first.MoveToModuleAsync("dotnetcloud.chat", "dotnetcloud.files");
             await first.SetVisibilityAsync("dotnetcloud.files", false);
         }
 
