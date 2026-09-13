@@ -1,0 +1,162 @@
+@using DotNetCloud.Core.DTOs.Home
+@using DotNetCloud.UI.Web.Services
+@namespace DotNetCloud.UI.Web.Components.Home
+@implements IDisposable
+
+<div class="widget-customizer" role="region" aria-label="Customize widgets">
+    <div class="widget-customizer-head">
+        <h3>Customize widgets</h3>
+        <button type="button" class="widget-customizer-close" aria-label="Close customization" @onclick="CloseAsync">
+            <MaterialIcon Icon="close" Size="MaterialIconSize.Sm" />
+        </button>
+    </div>
+
+    <fieldset class="widget-style-group">
+        <legend>Style</legend>
+        @foreach (var token in HomeWidgetStyles.All)
+        {
+            var active = string.Equals(LayoutService.StyleToken, token, StringComparison.Ordinal);
+            <label class="widget-style-option @(active ? "is-active" : string.Empty)">
+                <input type="radio" name="widget-style" value="@token" checked="@active"
+                       @onchange="() => SelectStyleAsync(token)" />
+                <span class="widget-style-text">
+                    <span class="widget-style-name">@HomeWidgetStyles.GetDisplayName(token)</span>
+                    <span class="widget-style-desc">@HomeWidgetStyles.GetDescription(token)</span>
+                </span>
+            </label>
+        }
+    </fieldset>
+
+    <div class="widget-manage-head">
+        <h4>Widgets</h4>
+        <button type="button" class="widget-reset-btn @(_confirmingReset ? "is-confirming" : string.Empty)"
+                @onclick="ConfirmResetAsync">
+            @(_confirmingReset ? "Click again to confirm" : "Reset to default")
+        </button>
+    </div>
+
+    <ul class="widget-manage-list">
+        @for (var index = 0; index < LayoutService.Slots.Count; index++)
+        {
+            var slot = LayoutService.Slots[index];
+            var position = index + 1;
+            <li class="widget-manage-row @(_draggingIndex == index ? "is-dragging" : string.Empty)" draggable="true"
+                @ondragstart="() => _draggingIndex = index" @ondragover:preventDefault="true"
+                @ondrop="() => DropAsync(index)" @ondragend="() => _draggingIndex = null">
+                <span class="widget-manage-handle" aria-hidden="true">
+                    <MaterialIcon Icon="drag_indicator" Size="MaterialIconSize.Sm" />
+                </span>
+                <input type="checkbox" id="widget-visible-@slot.ModuleId" checked="@slot.Visible"
+                       @onchange="e => SetVisibleAsync(slot, e.Value is true)" />
+                <label class="widget-manage-title" for="widget-visible-@slot.ModuleId">
+                    @slot.Descriptor.Title
+                </label>
+                <span class="widget-manage-moves">
+                    <button type="button" class="widget-manage-move" disabled="@(index == 0)"
+                            aria-label="@($"Move {@slot.Descriptor.Title} up")" @onclick="() => MoveAsync(index, -1)">
+                        <MaterialIcon Icon="expand_less" Size="MaterialIconSize.Sm" />
+                    </button>
+                    <button type="button" class="widget-manage-move" disabled="@(index == LayoutService.Slots.Count - 1)"
+                            aria-label="@($"Move {@slot.Descriptor.Title} down")" @onclick="() => MoveAsync(index, 1)">
+                        <MaterialIcon Icon="expand_more" Size="MaterialIconSize.Sm" />
+                    </button>
+                </span>
+                <span class="widget-manage-position">@position</span>
+            </li>
+        }
+    </ul>
+
+    <p class="widget-customizer-status" aria-live="polite">
+        @if (LayoutService.LastError is not null)
+        {
+            <span class="widget-customizer-error">@LayoutService.LastError</span>
+        }
+        else
+        {
+            @_status
+        }
+    </p>
+</div>
+
+@code {
+    /// <summary>The layout service that owns the user's preferences.</summary>
+    [Inject]
+    private HomeWidgetLayoutService LayoutService { get; set; } = default!;
+
+    /// <summary>Raised when the user closes the panel.</summary>
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    private int? _draggingIndex;
+    private string _status = "Drag to reorder, or use the arrows.";
+    private bool _confirmingReset;
+
+    /// <inheritdoc />
+    protected override async Task OnInitializedAsync()
+    {
+        LayoutService.OnChange += OnLayoutChanged;
+        await LayoutService.EnsureLoadedAsync();
+    }
+
+    /// <inheritdoc />
+    public void Dispose() => LayoutService.OnChange -= OnLayoutChanged;
+
+    private void OnLayoutChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private Task CloseAsync() => OnClose.InvokeAsync();
+
+    private async Task SelectStyleAsync(string token)
+    {
+        await LayoutService.SetStyleAsync(token);
+        _status = $"Style set to {HomeWidgetStyles.GetDisplayName(token)}.";
+    }
+
+    private async Task SetVisibleAsync(HomeWidgetSlot slot, bool visible)
+    {
+        await LayoutService.SetVisibilityAsync(slot.ModuleId, visible);
+        _status = visible
+            ? $"{slot.Descriptor.Title} shown."
+            : $"{slot.Descriptor.Title} hidden.";
+    }
+
+    private async Task MoveAsync(int index, int delta)
+    {
+        var target = index + delta;
+        if (target < 0 || target >= LayoutService.Slots.Count)
+        {
+            return;
+        }
+
+        var title = LayoutService.Slots[index].Descriptor.Title;
+        await LayoutService.MoveToAsync(index, target);
+        _status = $"{title} moved to position {target + 1}.";
+    }
+
+    private async Task DropAsync(int toIndex)
+    {
+        if (_draggingIndex is not { } fromIndex || fromIndex == toIndex)
+        {
+            _draggingIndex = null;
+            return;
+        }
+
+        var title = LayoutService.Slots[fromIndex].Descriptor.Title;
+        await LayoutService.MoveToAsync(fromIndex, toIndex);
+        _draggingIndex = null;
+        _status = $"{title} moved to position {toIndex + 1}.";
+    }
+
+    private async Task ConfirmResetAsync()
+    {
+        if (!_confirmingReset)
+        {
+            _confirmingReset = true;
+            _status = "Reset restores the default style, order and visibility.";
+            return;
+        }
+
+        _confirmingReset = false;
+        await LayoutService.ResetAsync();
+        _status = "Layout reset to default.";
+    }
+}

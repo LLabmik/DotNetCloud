@@ -541,6 +541,7 @@ public class Program
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddSingleton<ModuleUiRegistry>();
         builder.Services.AddSingleton<WidgetUiRegistry>();
+        builder.Services.AddScoped<DotNetCloud.UI.Web.Services.HomeWidgetLayoutService>();
         builder.Services.AddScoped<DotNetCloud.UI.Shared.Services.BrowserTimeProvider>();
         builder.Services.AddScoped<ToastService>();
         // Shared share-recipient search (users + the caller's teams) used by the

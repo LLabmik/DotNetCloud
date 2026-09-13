@@ -10,7 +10,7 @@ public static class ModuleIconProvider
     /// Returns the Material Icons ligature name for the given module ID.
     /// Falls back to <paramref name="defaultIcon"/> (default: "search") for unknown modules.
     /// </summary>
-    public static string GetIcon(string moduleId, string defaultIcon = "search") => moduleId switch
+    public static string GetIcon(string moduleId, string defaultIcon = "search") => NormalizeModuleId(moduleId) switch
     {
         "files" => "folder",
         "notes" => "edit_note",
@@ -31,7 +31,7 @@ public static class ModuleIconProvider
     /// <summary>
     /// Returns a human-readable display name for the given module ID.
     /// </summary>
-    public static string GetDisplayName(string moduleId) => moduleId switch
+    public static string GetDisplayName(string moduleId) => NormalizeModuleId(moduleId) switch
     {
         "files" => "Files",
         "notes" => "Notes",
@@ -48,4 +48,20 @@ public static class ModuleIconProvider
         "about" => "About",
         _ => moduleId
     };
+
+    /// <summary>
+    /// Normalizes a module ID so both short (<c>files</c>) and fully-qualified
+    /// (<c>dotnetcloud.files</c>) forms resolve to the same entry.
+    /// </summary>
+    private static string NormalizeModuleId(string moduleId)
+    {
+        const string prefix = "dotnetcloud.";
+        var id = moduleId ?? string.Empty;
+        if (id.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            id = id[prefix.Length..];
+        }
+
+        return id.ToLowerInvariant();
+    }
 }

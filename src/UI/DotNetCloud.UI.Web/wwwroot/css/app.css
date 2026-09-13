@@ -1146,6 +1146,92 @@ textarea.input {
 }
 
 /* --- Module Home Widgets --- */
+
+/* Card shell for the default "Strictly Business" style.
+   Restored from the former scoped WidgetCard.razor.css: this base must live in GLOBAL css,
+   because Blazor scoped CSS compiles to .widget-card[b-xxxxx] (specificity 0,2,0) and would
+   permanently outrank the attribute-prefixed variant blocks in widgets.variants.css.
+   The icon is a MaterialIcon SVG rather than the original emoji span (raw emoji is not
+   permitted in Blazor UI), so it is sized via the shared material-icon size classes. */
+.widget-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  transition:
+    border-color var(--transition),
+    box-shadow var(--transition);
+}
+
+.widget-card:hover {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow);
+}
+
+.widget-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.widget-card-icon {
+  font-size: 20px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.widget-card-title {
+  flex: 1;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.widget-card-open {
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.widget-card-open:hover {
+  text-decoration: underline;
+}
+
+.widget-card-body {
+  padding: 12px 14px;
+  flex: 1;
+}
+.widget-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary);
+}
+
+.widget-card:hover .widget-card-icon {
+  color: var(--color-primary);
+}
+
+/* The widget passes MaterialIconSize.Lg (32px); the plain style wants the 20px the original
+   emoji occupied, so size the SVG down explicitly. */
+.widget-card-icon .material-icon {
+  width: 20px;
+  height: 20px;
+}
+
 .widgets-section {
   margin-top: 28px;
 }
@@ -1184,6 +1270,16 @@ textarea.input {
 }
 .widget-refresh-btn:active {
   transform: scale(0.95);
+}
+.widgets-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.widget-refresh-btn.is-active {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: var(--color-selected-bg);
 }
 .widget-grid {
   display: grid;

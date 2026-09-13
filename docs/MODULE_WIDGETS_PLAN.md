@@ -37,9 +37,9 @@ Each widget lives in its **own new project** — `DotNetCloud.Modules.<Module>.W
 2. Keep Home's top summary cards; replace only the "Your Apps" section.
 3. Always add a dedicated server-side query method for "recent"/widget data — **no client-side sorting** of generic list endpoints.
 4. New **standalone** `WidgetUiRegistry` + a dedicated hosted service (do NOT extend `ModuleUiRegistry`).
-5. Widget order = module nav sort order (Files 10, Chat 20, Contacts 30, Calendar 40, Notes 50, Tracks 60, Photos 70, Music 80, Video 90, AI 100, Bookmarks 110, Email 120).
+5. Widget order = module nav sort order (Files 10, Chat 20, Contacts 30, Calendar 40, Notes 50, Tracks 60, Photos 70, Music 80, Video 90, AI 100, Bookmarks 110, Email 120). This remains the **default** order; a user's saved order overrides it (see #7).
 6. Widgets load once on initial render (no polling). Each widget handles its own loading/empty/error state so one failing widget cannot break the page.
-7. Per-user show/hide + drag-and-drop reorder is **DEFERRED to a follow-up**. Not in this change.
+7. Per-user show/hide + drag-and-drop reorder was **DEFERRED to a follow-up** at the time. **Implemented 2026-09-12** — canonical plan: `docs/HOME_WIDGET_CUSTOMIZATION_PLAN.md`. That work also adds three user-selectable widget styles (Strictly Business / Art Department / Hard Copy, default Art Department) and persists style + order + visibility per user in the existing `UserSettings` store.
 
 ---
 
