@@ -19,12 +19,15 @@ public sealed class AdminBroadcastServiceTests
     private CoreDbContext _db = null!;
     private Mock<IRealtimeBroadcaster> _broadcasterMock = null!;
     private AdminBroadcastService _service = null!;
+    private string _databaseName = null!;
 
     [TestInitialize]
     public void Setup()
     {
+        _databaseName = Guid.CreateVersion7().ToString();
+
         var options = new DbContextOptionsBuilder<CoreDbContext>()
-            .UseInMemoryDatabase(databaseName: Guid.CreateVersion7().ToString())
+            .UseInMemoryDatabase(databaseName: _databaseName)
             .Options;
 
         _db = new CoreDbContext(options, new PostgreSqlNamingStrategy());
@@ -378,7 +381,91 @@ public sealed class AdminBroadcastServiceTests
         Assert.AreEqual(AdminBroadcastStatus.Expired, result[0].Status);
     }
 
+    // ── Persistence under the production NoTracking default (regression) ──
+    //
+    // CoreDbContext sets QueryTrackingBehavior.NoTracking globally, so a
+    // "load entity → mutate → SaveChangesAsync" path silently writes nothing.
+    // These tests deliberately use a second context that models production rather
+    // than sharing the tracking context with the service, which hides the bug.
+
+    [TestMethod]
+    public async Task SendNowAsync_WhenPending_PersistsSentAtUtc()
+    {
+        var entity = new AdminBroadcast
+        {
+            Id = Guid.CreateVersion7(),
+            Title = "Soon",
+            Message = "Bring it forward.",
+            CreatedByUserId = Guid.CreateVersion7(),
+            ScheduledForUtc = DateTime.UtcNow.AddDays(1),
+        };
+        _db.AdminBroadcasts.Add(entity);
+        await _db.SaveChangesAsync();
+
+        using var db = CreateNoTrackingContext();
+        var service = new AdminBroadcastService(
+            db,
+            _broadcasterMock.Object,
+            NullLogger<AdminBroadcastService>.Instance);
+
+        Assert.IsTrue(await service.SendNowAsync(entity.Id));
+
+        // Read back through a fresh context: the stamp must be durable, not merely an
+        // in-memory mutation. Otherwise the history keeps reporting "Scheduled" with
+        // an empty Sent column for a broadcast that was actually delivered.
+        using var verifyDb = CreateNoTrackingContext();
+        var persisted = await verifyDb.AdminBroadcasts.SingleAsync(b => b.Id == entity.Id);
+        Assert.IsNotNull(persisted.SentAtUtc);
+    }
+
+    [TestMethod]
+    public async Task PublishPendingAsync_WhenDelivered_DoesNotDeliverAgainOnTheNextTick()
+    {
+        var entity = new AdminBroadcast
+        {
+            Id = Guid.CreateVersion7(),
+            Title = "Due",
+            Message = "This one is due.",
+            CreatedByUserId = Guid.CreateVersion7(),
+            CreatedAtUtc = DateTime.UtcNow.AddMinutes(-1),
+            ScheduledForUtc = DateTime.UtcNow.AddSeconds(-1),
+        };
+        _db.AdminBroadcasts.Add(entity);
+        await _db.SaveChangesAsync();
+
+        using var db = CreateNoTrackingContext();
+        var service = new AdminBroadcastService(
+            db,
+            _broadcasterMock.Object,
+            NullLogger<AdminBroadcastService>.Instance);
+
+        Assert.AreEqual(1, await service.PublishPendingAsync());
+
+        // Without a persisted SentAtUtc the row stays pending, so every 30-second tick
+        // re-delivers it — users saw the modal reappear after dismissing it.
+        Assert.AreEqual(0, await service.PublishPendingAsync());
+        _broadcasterMock.Verify(
+            b => b.BroadcastAsync(
+                "admin-broadcast",
+                "admin.broadcast",
+                It.Is<ActiveAdminBroadcastDto>(d => d.Id == entity.Id),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Creates a context that matches production, where <see cref="CoreDbContext"/>
+    /// defaults to <see cref="QueryTrackingBehavior.NoTracking"/>.
+    /// </summary>
+    private CoreDbContext CreateNoTrackingContext() =>
+        new(
+            new DbContextOptionsBuilder<CoreDbContext>()
+                .UseInMemoryDatabase(databaseName: _databaseName)
+                .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking)
+                .Options,
+            new PostgreSqlNamingStrategy());
 
     private async Task<AdminBroadcast> SeedSentBroadcastAsync(DateTime? expiresAtUtc, string title = "Reboot")
     {

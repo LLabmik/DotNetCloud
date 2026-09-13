@@ -189,3 +189,54 @@ The message body is now Markdown instead of plain text, following the Notes modu
   list) — the composer preview and the user modal both rendered it formatted, under the severity banner — and the
   modal message region scrolled vertically on overflow (`max-height: 466px`, `scrollHeight 641 > clientHeight 466`),
   with the editor chrome removed (0px border, transparent background)
+
+## Fix — Sent timestamp persistence & dismissal reliability (2026-09-13)
+
+**Branch:** `fix/admin-broadcast`
+
+Four reported defects, of which two shared a single root cause.
+
+**Root cause (defects 2 and 3).** `CoreDbContext` sets `QueryTrackingBehavior.NoTracking` globally. Both
+`PublishPendingAsync` and `SendNowAsync` did "load entity → mutate → `SaveChangesAsync`" **without**
+`.AsTracking()`, so the write was a silent no-op: `SentAtUtc` was never persisted. The row therefore never left the
+"pending" set and `AdminBroadcastSchedulerHostedService` re-delivered it on **every 30-second tick, forever**.
+That is both why the admin `Sent` column stayed empty and why a dismissed message kept reappearing for users
+(`OnAdminBroadcastReceived` only suppresses re-delivery within one circuit, so a reload or a second tab saw it
+again).
+
+Evidence captured before the fix:
+
+- Server log: the same broadcast id delivered at `16:25:34 → 16:26:04 → 16:26:34 → 16:27:04 → 16:27:34 …`
+- Database: two users had dismissal rows (21:22:11 / 21:22:13) while `SentAtUtc` was still `NULL`
+
+**Fixes.**
+
+- `.AsTracking()` on the `AdminBroadcasts` load in `SendNowAsync` and `PublishPendingAsync` (11th occurrence of
+  this repo-wide NoTracking pattern — see `/memories/repo/notracking-persistence-fix.md`).
+- History Status badge renders `Scheduled <local time>` when the row is still scheduled, instead of a bare
+  `Scheduled`.
+- The history list auto-refreshes every 30 seconds (the scheduler's cadence) so Status / Sent / Dismissed fill in
+  without pressing Refresh; the loop is skipped while an action is in flight.
+- The action cell now uses the codebase-standard `class="actions"` (`display: flex`) so `Send now` and `Delete` are
+  equal height and line up.
+
+### Verification
+
+- ✓ `AdminBroadcastServiceTests` 32/32 (18 pre-existing + 2 new regression + others); Core.Server 780 passed / 0 failed
+- ✓ The two new regression tests use a context configured with `QueryTrackingBehavior.NoTracking` and read the row
+  back through a **fresh** context: both **fail** when `.AsTracking()` is reverted and pass with it
+- ✓ Deployed `sudo ./scripts/deploy.sh --force --verify` on production (cloud) — 15/15 targets succeeded (452 s),
+  0 pending migrations, all assembly hashes verified
+- ✓ `/health/ready` → **Healthy**, 14/14 modules Running, `database` Healthy; `_framework/blazor.web.js` 200
+- ✓ Shipped-artifact check: `StatusLabel` + `AutoRefreshAsync` present in the deployed
+  `wwwroot/_framework/DotNetCloud.UI.Web.Client.*.wasm`; `AsTracking` referenced in the deployed
+  `DotNetCloud.Core.Server.dll`
+- ✓ Re-delivery loop confirmed stopped (last delivery `16:42:04`, before the data repair) and absent after the
+  service restart
+- ✓ Live-verified by the user on the deployed build
+
+### Data repair
+
+One row (`Testin scheduled broadcast`) had been delivered — its dismissal rows proved it — but still had
+`SentAtUtc = NULL`. It was backfilled to its scheduled send time (21:22:00 UTC), which is the correct historical
+value and immediately stopped the in-flight 30-second re-delivery loop without waiting for the code deploy.

@@ -125,7 +125,12 @@ internal sealed class AdminBroadcastService : IAdminBroadcastService
     /// <inheritdoc />
     public async Task<bool> SendNowAsync(Guid broadcastId, CancellationToken cancellationToken = default)
     {
+        // AsTracking is required: CoreDbContext defaults to QueryTrackingBehavior.NoTracking,
+        // so without it the SentAtUtc assignment below would never be written to the
+        // database — the broadcast would stay "pending" and the history would keep showing
+        // an empty Sent column.
         var entity = await _db.AdminBroadcasts
+            .AsTracking()
             .FirstOrDefaultAsync(b => b.Id == broadcastId, cancellationToken);
 
         if (entity is null || entity.SentAtUtc.HasValue)
@@ -242,7 +247,12 @@ internal sealed class AdminBroadcastService : IAdminBroadcastService
     {
         var now = DateTime.UtcNow;
 
+        // AsTracking is required: CoreDbContext defaults to QueryTrackingBehavior.NoTracking,
+        // so without it the SentAtUtc stamp below would never be persisted. The row would
+        // stay pending and be re-delivered on EVERY scheduler tick, making the modal
+        // reappear for users who had already dismissed it.
         var due = await _db.AdminBroadcasts
+            .AsTracking()
             .Where(b => b.SentAtUtc == null)
             .Where(b => b.ScheduledForUtc == null || b.ScheduledForUtc <= now)
             .OrderBy(b => b.CreatedAtUtc)
