@@ -2,6 +2,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using System.Security.Claims
 @using DotNetCloud.UI.Web.Services
+@using DotNetCloud.UI.Web.Components.Home
 @implements IDisposable
 
 <PageTitle>DotNetCloud</PageTitle>
@@ -76,26 +77,44 @@
             </AuthorizeView>
         </div>
 
-        <section class="widgets-section">
+        <section class="widgets-section" data-widget-style="@LayoutService.StyleToken">
             <div class="widgets-section-header">
                 <h2>Your Widgets</h2>
-                <button type="button" class="widget-refresh-btn" title="Refresh widgets"
-                        aria-label="Refresh widgets" @onclick="RefreshWidgets">
-                    <MaterialIcon Icon="refresh" />
-                </button>
+                <div class="widgets-header-actions">
+                    <button type="button" class="widget-refresh-btn @(_customizing ? "is-active" : string.Empty)"
+                            title="Customize widgets" aria-label="Customize widgets"
+                            aria-expanded="@_customizing" @onclick="ToggleCustomize">
+                        <MaterialIcon Icon="tune" />
+                    </button>
+                    <button type="button" class="widget-refresh-btn" title="Refresh widgets"
+                            aria-label="Refresh widgets" @onclick="RefreshWidgets">
+                        <MaterialIcon Icon="refresh" />
+                    </button>
+                </div>
             </div>
+
+            @if (_customizing)
+            {
+                <HomeWidgetCustomizer OnClose="CloseCustomize" />
+            }
+
             @if (WidgetRegistry.Widgets.Count == 0)
             {
                 <p class="text-muted">No widgets are available yet.</p>
             }
+            else if (LayoutService.VisibleSlots.Count == 0)
+            {
+                <p class="text-muted">All widgets are hidden. Use Customize to bring them back.</p>
+            }
             else
             {
                 <div class="widget-grid">
-                    @foreach (var widget in WidgetRegistry.Widgets)
+                    @foreach (var slot in LayoutService.VisibleSlots)
                     {
-                        <WidgetCard Title="@widget.Title" Icon="@widget.Icon" Href="@widget.Href">
-                            <DynamicComponent @key="widget.ModuleId + ':' + _widgetRefreshToken"
-                                              Type="@widget.ComponentType" />
+                        <WidgetCard ModuleId="@slot.Descriptor.ModuleId" Title="@slot.Descriptor.Title"
+                                    Icon="@slot.Descriptor.Icon" Href="@slot.Descriptor.Href">
+                            <DynamicComponent @key="slot.ModuleId + ':' + _widgetRefreshToken"
+                                              Type="@slot.Descriptor.ComponentType" />
                         </WidgetCard>
                     }
                 </div>
@@ -110,22 +129,46 @@
 @code {
     [Inject] private ModuleUiRegistry ModuleRegistry { get; set; } = default!;
     [Inject] private WidgetUiRegistry WidgetRegistry { get; set; } = default!;
+    [Inject] private HomeWidgetLayoutService LayoutService { get; set; } = default!;
+
+    private bool _customizing;
 
     /// <inheritdoc />
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         WidgetRegistry.OnChange += OnWidgetsChanged;
+        LayoutService.OnChange += OnLayoutChanged;
+        await LayoutService.EnsureLoadedAsync();
     }
 
     /// <inheritdoc />
     public void Dispose()
     {
         WidgetRegistry.OnChange -= OnWidgetsChanged;
+        LayoutService.OnChange -= OnLayoutChanged;
     }
 
     private void OnWidgetsChanged()
     {
+        // A module was installed or removed - re-resolve so new widgets appear in the user's order.
+        LayoutService.RefreshFromRegistry();
         _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void OnLayoutChanged()
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void ToggleCustomize()
+    {
+        _customizing = !_customizing;
+    }
+
+    private void CloseCustomize()
+    {
+        LayoutService.ClearError();
+        _customizing = false;
     }
 
     private int _widgetRefreshToken;

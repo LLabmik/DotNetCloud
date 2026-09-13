@@ -1,0 +1,274 @@
+/* Home-page widget customizer panel.
+   Uses the app design tokens so it reads correctly in light and dark mode and does not
+   depend on which widget style is active. */
+
+.widget-customizer {
+  margin-bottom: 18px;
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.widget-customizer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.widget-customizer-head h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.widget-customizer-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  cursor: pointer;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--color-text-secondary);
+  transition:
+    border-color var(--transition),
+    color var(--transition);
+}
+
+.widget-customizer-close:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+/* --- Style chooser ------------------------------------------ */
+.widget-style-group {
+  margin: 0 0 20px;
+  padding: 0;
+  border: 0;
+}
+
+.widget-style-group legend,
+.widget-manage-head h4 {
+  padding: 0;
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--color-text-secondary);
+}
+
+.widget-style-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.widget-style-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  transition:
+    border-color var(--transition),
+    background var(--transition);
+}
+
+.widget-style-option + .widget-style-option {
+  margin-top: 8px;
+}
+
+.widget-style-option:hover {
+  border-color: var(--color-primary);
+}
+
+.widget-style-option.is-active {
+  border-color: var(--color-primary);
+  background: var(--color-selected-bg);
+}
+
+.widget-style-option input {
+  margin-top: 2px;
+  accent-color: var(--color-primary);
+}
+
+.widget-style-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.widget-style-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.widget-style-desc {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+/* --- Manage list -------------------------------------------- */
+.widget-manage-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.widget-reset-btn {
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--color-text-secondary);
+  transition:
+    border-color var(--transition),
+    color var(--transition),
+    background var(--transition);
+}
+
+.widget-reset-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.widget-reset-btn.is-confirming {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+.widget-manage-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.widget-manage-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.widget-manage-row + .widget-manage-row {
+  margin-top: 6px;
+}
+
+.widget-manage-row:hover {
+  border-color: var(--color-primary);
+}
+
+.widget-manage-row.is-dragging {
+  opacity: 0.45;
+}
+
+.widget-manage-handle {
+  display: inline-flex;
+  color: var(--color-muted);
+  cursor: grab;
+}
+
+.widget-manage-row input[type="checkbox"] {
+  flex-shrink: 0;
+  accent-color: var(--color-primary);
+}
+
+.widget-manage-title {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.widget-manage-moves {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.widget-manage-move {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  cursor: pointer;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--color-text-secondary);
+  transition:
+    border-color var(--transition),
+    color var(--transition);
+}
+
+.widget-manage-move:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.widget-manage-move:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+
+.widget-manage-position {
+  width: 18px;
+  text-align: right;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+}
+
+/* --- Status ------------------------------------------------- */
+.widget-customizer-status {
+  margin: 12px 0 0;
+  min-height: 16px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.widget-customizer-error {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+@media (min-width: 720px) {
+  .widget-style-group {
+    flex-direction: row;
+  }
+
+  .widget-style-option {
+    flex: 1;
+  }
+
+  .widget-style-option + .widget-style-option {
+    margin-top: 0;
+    margin-left: 8px;
+  }
+}

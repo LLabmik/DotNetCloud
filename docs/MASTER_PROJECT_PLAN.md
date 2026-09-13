@@ -5750,7 +5750,7 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 
 **Status:** completed ✅ (implemented, built clean, tests pass, deployed + live-verified on mint22; committed + pushed on `feature/module-widgets`)
 **Canonical plan:** `docs/MODULE_WIDGETS_PLAN.md`
-**Goal:** Add a "widget" card to the Home page (`/`) for each first-party module showing recent/informative data for the signed-in user. Replaces the "Your Apps" section. Widget items are clickable deep links into the module views; icons match the sidebar; a refresh button force-reloads widget data. Per-user show/hide + drag-and-drop reorder is deferred to a follow-up.
+**Goal:** Add a "widget" card to the Home page (`/`) for each first-party module showing recent/informative data for the signed-in user. Replaces the "Your Apps" section. Widget items are clickable deep links into the module views; icons match the sidebar; a refresh button force-reloads widget data. Per-user show/hide, drag-and-drop reorder and three selectable widget styles were delivered as a follow-up — see `docs/HOME_WIDGET_CUSTOMIZATION_PLAN.md`.
 
 ### Deliverables
 
@@ -5764,12 +5764,13 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 - ✓ Email gRPC `ListAccounts` scoped by `user_id`
 - ✓ Tests: 43 new unit tests incl. cross-user exclusion + calendar recurrence; Calendar 184, all suites green; `dotnet build DotNetCloud.CI.slnf -c Release` clean
 - ✓ Deployed + live-verified on mint22 (deep links, icons, calendar event discovery, refresh button, empty states)
+- ✓ Per-user widget customization (2026-09-12, branch `feature/crazy-widgets`) — three user-selectable styles (**Strictly Business** / **Art Department** _(default)_ / **Hard Copy**), per-user order + visibility, persisted server-side per user in `UserSettings` (so it follows the user across browsers); `HomeWidgetLayoutService` + `HomeWidgetCustomizer`; variant CSS in `widgets.variants.css`; canonical plan `docs/HOME_WIDGET_CUSTOMIZATION_PLAN.md`
 
 ### Notes
 
-- Widget order = module nav sort order (Files 10 → Email 120). Widgets load once on initial render; each widget handles its own loading/empty/error state so one failure cannot break the page; the Home refresh button remounts all widgets to reload data.
+- Default widget order = module nav sort order (Files 10 → Email 120); a user's saved order overrides it, and a newly installed module's widget appends to the end rather than interleaving. Widgets load once on initial render; each widget handles its own loading/empty/error state so one failure cannot break the page; the Home refresh button remounts all widgets to reload data.
 - In-process widgets build a `CallerContext` from auth claims; process-isolated widgets call gRPC `I*ApiClient` methods (server derives the user from `request.UserId`).
-- Deferred (follow-up): per-user show/hide + drag-and-drop reorder of widgets.
+- Per-user show/hide + drag-and-drop reorder **implemented 2026-09-12** (see the deliverable above and `docs/HOME_WIDGET_CUSTOMIZATION_PLAN.md`).
 - Committed + pushed on `feature/module-widgets`; no PR created (the user handles the PR).
 
 ## Side Navbar Improvements: Open-in-New-Tab Icons + Desktop Sync Client (2026-09-07)

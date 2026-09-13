@@ -6890,6 +6890,41 @@ A module page throwing (unhandled exception during render/lifecycle) left the en
 - ✓ Deployed to mint22 (server + module hosts, hash-verified) and live-verified: widget icons match sidebar; Files `Test2.txt` deep link opens its containing folder; Calendar widget shows the 9/10 9:00 AM event (and recurring events); empty states correct; Email "No account configured"; refresh button reloads widget data; per-widget error isolation holds
 - ✓ Committed + pushed on `feature/module-widgets` (no PR created — the user handles the PR)
 
+## Home Widget Customization: Three Styles + Per-User Layout (2026-09-12)
+
+> Work on branch `feature/crazy-widgets`. Canonical plan: `docs/HOME_WIDGET_CUSTOMIZATION_PLAN.md`.
+> Implements the follow-up deferred in `docs/MODULE_WIDGETS_PLAN.md` §2.7.
+
+### Model & Persistence (Core)
+
+- ✓ `HomeWidgetPreferences` + `HomeWidgetPreferenceItem` — versioned JSON blob (`src/Core/DotNetCloud.Core/DTOs/Home/`)
+- ✓ `HomeWidgetStyles` — tokens `strictly-business` / `art-department` / `hard-copy`; default = **art-department**; unknown tokens normalize to the default
+- ✓ `HomeWidgetPreferencesSettings` — `LoadAsync` / `SaveAsync` / `Serialize` / `Deserialize` under `home-widgets`/`preferences`; malformed JSON, unknown styles and newer schema versions all fall back to defaults instead of throwing
+- ✓ `HomeWidgetLayoutResolver` — pure `Resolve` (order + visibility, hidden widgets retained so they keep their slot) and `BuildPreferences` (retains slots for uninstalled modules so a reinstall restores position)
+
+### Style Variants (CSS)
+
+- ✓ `widgets.variants.css` — Art Department + Hard Copy, every selector prefixed `[data-widget-style="<token>"]`; `@property` / `@keyframes` stay global (CSS cannot attribute-scope at-rules)
+- ✓ `.dark-mode` kept **outermost** — it lives on `html`/`body`, above `.widgets-section`; naive prefixing silently killed all 29 dark-mode rules
+- ✓ Art Department block moved out of `app.css`; Strictly Business base shell restored from the former scoped `WidgetCard.razor.css` (the base must be global, or scoped CSS would permanently outrank the variants)
+- ✓ `App.razor` — links `widgets.variants.css?v=20260912-01`, `app.css?v=20260912-02`
+- ✓ Widget-card icons migrated from raw emoji to `MaterialIcon` (Material Icons mandate); `ModuleIconProvider` now accepts fully-qualified `dotnetcloud.<id>` module IDs
+
+### Home Page UI
+
+- ✓ `HomeWidgetLayoutService` (UI.Web, scoped) — loads once per circuit, optimistic mutations, serialised writes
+- ✓ `HomeWidgetCustomizer.razor` — style radio group, drag **and** arrow-key reorder, visibility checkboxes, two-step reset, `aria-live` status
+- ✓ `Home.razor` — stamps `data-widget-style`, renders only visible widgets in the user's order
+- ✓ `MaterialSvgIcons` — added `tune` + `drag_indicator` (both were missing and would have rendered as text)
+
+### Tests
+
+- ✓ 31 new `Core.Tests` (preferences round-trips / malformed payloads / resolver ordering + visibility)
+- ✓ 13 `HomeWidgetLayoutServiceTests` (registry order, persistence round-trips, reorder boundaries, optimistic state on failed write, registry churn)
+- ✓ 20 new icon allow-list data rows, incl. resolving every widget icon through `ModuleIconProvider` so a missing SVG path fails the test instead of rendering as text
+- ☐ Deployed + live-verified on mint22
+- ☐ Committed + pushed (no PR created — the user handles the PR)
+
 ## Side Navbar Improvements: Open-in-New-Tab Icons + Desktop Sync Client (2026-09-07)
 
 > Work on branch `fix/side-navbar-improvements`.

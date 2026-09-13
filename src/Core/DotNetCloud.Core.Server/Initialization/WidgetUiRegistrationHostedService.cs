@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Data.Context;
+using DotNetCloud.UI.Shared.Services;
 using DotNetCloud.UI.Web.Services;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,19 +16,26 @@ internal sealed class WidgetUiRegistrationHostedService : BackgroundService
 
     private static readonly WidgetDescriptor[] KnownWidgetDescriptors =
     [
-        new("dotnetcloud.files", "Files", "📁", "/apps/files", typeof(DotNetCloud.Modules.Files.Widget.FilesWidget), 10),
-        new("dotnetcloud.chat", "Chat", "💬", "/apps/chat", typeof(DotNetCloud.Modules.Chat.Widget.ChatWidget), 20),
-        new("dotnetcloud.contacts", "Contacts", "👤", "/apps/contacts", typeof(DotNetCloud.Modules.Contacts.Widget.ContactsWidget), 30),
-        new("dotnetcloud.calendar", "Calendar", "📅", "/apps/calendar", typeof(DotNetCloud.Modules.Calendar.Widget.CalendarWidget), 40),
-        new("dotnetcloud.notes", "Notes", "📝", "/apps/notes", typeof(DotNetCloud.Modules.Notes.Widget.NotesWidget), 50),
-        new("dotnetcloud.tracks", "Tracks", "📊", "/apps/tracks", typeof(DotNetCloud.Modules.Tracks.Widget.TracksWidget), 60),
-        new("dotnetcloud.photos", "Photos", "🖼️", "/apps/photos", typeof(DotNetCloud.Modules.Photos.Widget.PhotosWidget), 70),
-        new("dotnetcloud.music", "Music", "🎵", "/apps/music", typeof(DotNetCloud.Modules.Music.Widget.MusicWidget), 80),
-        new("dotnetcloud.video", "Video", "🎬", "/apps/video", typeof(DotNetCloud.Modules.Video.Widget.VideoWidget), 90),
-        new("dotnetcloud.ai", "AI Assistant", "🤖", "/apps/ai", typeof(DotNetCloud.Modules.AI.Widget.AiWidget), 100),
-        new("dotnetcloud.bookmarks", "Bookmarks", "🔖", "/apps/bookmarks", typeof(DotNetCloud.Modules.Bookmarks.Widget.BookmarksWidget), 110),
-        new("dotnetcloud.email", "Email", "✉️", "/apps/email", typeof(DotNetCloud.Modules.Email.Widget.EmailWidget), 120),
+        Widget("dotnetcloud.files", "Files", "/apps/files", typeof(DotNetCloud.Modules.Files.Widget.FilesWidget), 10),
+        Widget("dotnetcloud.chat", "Chat", "/apps/chat", typeof(DotNetCloud.Modules.Chat.Widget.ChatWidget), 20),
+        Widget("dotnetcloud.contacts", "Contacts", "/apps/contacts", typeof(DotNetCloud.Modules.Contacts.Widget.ContactsWidget), 30),
+        Widget("dotnetcloud.calendar", "Calendar", "/apps/calendar", typeof(DotNetCloud.Modules.Calendar.Widget.CalendarWidget), 40),
+        Widget("dotnetcloud.notes", "Notes", "/apps/notes", typeof(DotNetCloud.Modules.Notes.Widget.NotesWidget), 50),
+        Widget("dotnetcloud.tracks", "Tracks", "/apps/tracks", typeof(DotNetCloud.Modules.Tracks.Widget.TracksWidget), 60),
+        Widget("dotnetcloud.photos", "Photos", "/apps/photos", typeof(DotNetCloud.Modules.Photos.Widget.PhotosWidget), 70),
+        Widget("dotnetcloud.music", "Music", "/apps/music", typeof(DotNetCloud.Modules.Music.Widget.MusicWidget), 80),
+        Widget("dotnetcloud.video", "Video", "/apps/video", typeof(DotNetCloud.Modules.Video.Widget.VideoWidget), 90),
+        Widget("dotnetcloud.ai", "AI Assistant", "/apps/ai", typeof(DotNetCloud.Modules.AI.Widget.AiWidget), 100),
+        Widget("dotnetcloud.bookmarks", "Bookmarks", "/apps/bookmarks", typeof(DotNetCloud.Modules.Bookmarks.Widget.BookmarksWidget), 110),
+        Widget("dotnetcloud.email", "Email", "/apps/email", typeof(DotNetCloud.Modules.Email.Widget.EmailWidget), 120),
     ];
+
+    /// <summary>
+    /// Builds a descriptor, resolving the Material icon from <see cref="ModuleIconProvider"/> so the
+    /// module-to-icon mapping stays in a single place.
+    /// </summary>
+    private static WidgetDescriptor Widget(string moduleId, string title, string href, Type componentType, int sortOrder)
+        => new(moduleId, title, ModuleIconProvider.GetIcon(moduleId, "widgets"), href, componentType, sortOrder);
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly WidgetUiRegistry _widgetUiRegistry;

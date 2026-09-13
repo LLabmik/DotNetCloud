@@ -1,4 +1,5 @@
 using DotNetCloud.UI.Shared.Components.DataDisplay;
+using DotNetCloud.UI.Shared.Services;
 
 namespace DotNetCloud.UI.Shared.Tests;
 
@@ -75,6 +76,55 @@ public class MaterialSvgIconsTests
         var path = MaterialSvgIcons.GetPath(icon);
         Assert.IsNotNull(path, $"Icon '{icon}' returned a null path.");
         Assert.IsTrue(path!.Length > 10, $"Icon '{icon}' path data is unexpectedly short.");
+    }
+
+    /// <summary>
+    /// Icons referenced by the Home-page widget customizer: the toolbar toggle, the drag
+    /// handle, the panel dismiss control, and the keyboard reorder arrows. A missing path
+    /// would render the raw icon name as text over the control.
+    /// </summary>
+    [TestMethod]
+    [DataRow("tune")]
+    [DataRow("drag_indicator")]
+    [DataRow("close")]
+    [DataRow("expand_less")]
+    [DataRow("expand_more")]
+    public void GetPath_IconUsedByHomeWidgetCustomizer_ReturnsPathData(string icon)
+    {
+        Assert.IsTrue(MaterialSvgIcons.HasPath(icon), $"Icon '{icon}' has no SVG path and would render as text.");
+        var path = MaterialSvgIcons.GetPath(icon);
+        Assert.IsNotNull(path, $"Icon '{icon}' returned a null path.");
+        Assert.IsTrue(path!.Length > 10, $"Icon '{icon}' path data is unexpectedly short.");
+    }
+
+    /// <summary>
+    /// Every icon the Home-page widget cards render, resolved through the module-to-icon
+    /// mapping rather than a hand-copied list, so adding a module mapping without adding its
+    /// icon path fails here instead of silently rendering as text.
+    /// </summary>
+    [TestMethod]
+    [DataRow("dotnetcloud.files")]
+    [DataRow("dotnetcloud.chat")]
+    [DataRow("dotnetcloud.contacts")]
+    [DataRow("dotnetcloud.calendar")]
+    [DataRow("dotnetcloud.notes")]
+    [DataRow("dotnetcloud.tracks")]
+    [DataRow("dotnetcloud.photos")]
+    [DataRow("dotnetcloud.music")]
+    [DataRow("dotnetcloud.video")]
+    [DataRow("dotnetcloud.ai")]
+    [DataRow("dotnetcloud.bookmarks")]
+    [DataRow("dotnetcloud.email")]
+    [DataRow("dotnetcloud.about")]
+    [DataRow("files")]
+    [DataRow("dotnetcloud.not-a-real-module")]
+    public void GetPath_IconReturnedByModuleIconProvider_ReturnsPathData(string moduleId)
+    {
+        var icon = ModuleIconProvider.GetIcon(moduleId, "widgets");
+
+        Assert.IsTrue(
+            MaterialSvgIcons.HasPath(icon),
+            $"Module '{moduleId}' maps to icon '{icon}', which has no SVG path and would render as text.");
     }
 
     [TestMethod]
