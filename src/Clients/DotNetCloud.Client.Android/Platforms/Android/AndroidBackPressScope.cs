@@ -28,6 +28,7 @@ internal sealed class AndroidBackPressScope : IDisposable
     private readonly Func<bool> _canHandle;
     private readonly Action _handle;
     private BackPressedCallback? _callback;
+    private bool? _enabled;
     private bool _disposed;
 
     /// <summary>Initializes a new <see cref="AndroidBackPressScope"/>.</summary>
@@ -54,26 +55,38 @@ internal sealed class AndroidBackPressScope : IDisposable
 
         _callback = new BackPressedCallback(this);
         activity.OnBackPressedDispatcher.AddCallback(activity, _callback);
-        _callback.Enabled = _canHandle();
+        Apply();
     });
 
     /// <summary>
     /// Re-evaluates whether the page can consume the next back press. Call this whenever the page's
-    /// navigation state changes so a predictive-back gesture sees the up-to-date state.
+    /// navigation state changes so a predictive-back gesture sees the up-to-date state. Cheap to
+    /// call often: the enabled state is only written when it actually changed.
     /// </summary>
-    public void Refresh() => RunOnMainThread(() =>
-    {
-        if (_callback is not null)
-            _callback.Enabled = _canHandle();
-    });
+    public void Refresh() => RunOnMainThread(Apply);
 
     /// <inheritdoc />
     public void Dispose() => RunOnMainThread(() =>
     {
         _disposed = true;
+        _enabled = null;
         _callback?.Remove();
         _callback = null;
     });
+
+    /// <summary>Pushes the current decision to the platform callback (main thread only).</summary>
+    private void Apply()
+    {
+        if (_callback is null)
+            return;
+
+        var enabled = _canHandle();
+        if (_enabled == enabled)
+            return;
+
+        _enabled = enabled;
+        _callback.Enabled = enabled;
+    }
 
     /// <summary>
     /// Runs <paramref name="action"/> inline when already on the main thread (the common case for

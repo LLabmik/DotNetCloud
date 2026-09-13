@@ -1,4 +1,3 @@
-using DotNetCloud.Client.Android.Platforms;
 using DotNetCloud.Client.Android.ViewModels;
 
 namespace DotNetCloud.Client.Android.Views;
@@ -12,10 +11,7 @@ public partial class MusicPage : ContentPage
     private readonly MusicViewModel _vm;
 
     /// <summary>Consumes the Android system back press while this tab has something to go back to.</summary>
-    private readonly AndroidBackPressScope _backScope;
-
-    /// <summary>True between <see cref="OnAppearing"/> and <see cref="OnDisappearing"/>.</summary>
-    private bool _isVisible;
+    private readonly SystemBackNavigation _back;
 
     /// <summary>Initializes a new <see cref="MusicPage"/>.</summary>
     public MusicPage(MusicViewModel vm)
@@ -29,23 +25,10 @@ public partial class MusicPage : ContentPage
         // Route the Android system back press through the same in-page back affordances the
         // ViewModel exposes — the back arrow, the search panel's ✕, the EQ screen, and the
         // save-preset dialog — instead of letting it drop the user out of the app.
-        _backScope = new AndroidBackPressScope(
-            canHandle: () => ShouldHandleSystemBack,
-            handle: () => _ = _vm.HandleSystemBackAsync());
-
-        // "Enabled" is read before the predictive-back gesture commits, so it has to track the
-        // ViewModel's back state as it changes. Only the back-state properties matter here — the
-        // ViewModel raises many more (playback position ticks once a second).
-        _vm.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName is nameof(MusicViewModel.ShowSavePresetDialog)
-                or nameof(MusicViewModel.IsSearchOpen)
-                or nameof(MusicViewModel.CurrentView)
-                or nameof(MusicViewModel.CanGoBack))
-            {
-                _backScope.Refresh();
-            }
-        };
+        _back = new SystemBackNavigation(
+            stateNotifier: _vm,
+            canHandle: () => _vm.CanHandleSystemBack,
+            handle: () => _vm.HandleSystemBackAsync());
 
         // Auto-focus the search Entry when the search panel opens
         _vm.PropertyChanged += (_, e) =>
@@ -61,25 +44,12 @@ public partial class MusicPage : ContentPage
         };
     }
 
-    /// <summary>
-    /// True when a back press belongs to this tab: the tab is showing, nothing is stacked on top
-    /// of it (flyout drawer or a modal page), and there is an in-page back affordance to run.
-    /// </summary>
-    private bool ShouldHandleSystemBack =>
-        _isVisible
-        && _vm.CanHandleSystemBack
-        && Shell.Current is { } shell
-        && shell.Navigation.ModalStack.Count == 0
-        && !(shell.FlyoutBehavior == FlyoutBehavior.Flyout && shell.FlyoutIsPresented);
-
     /// <inheritdoc />
     protected override async void OnAppearing()
     {
         base.OnAppearing();
 
-        _isVisible = true;
-        _backScope.Attach();
-        _backScope.Refresh();
+        _back.Attach();
 
         if (_vm.Artists.Count == 0)
         {
@@ -108,9 +78,8 @@ public partial class MusicPage : ContentPage
     {
         base.OnDisappearing();
 
-        // Stop consuming back presses while another tab is showing.
-        _isVisible = false;
-        _backScope.Refresh();
+        // Stop consuming back presses while another tab (or a pushed page) is showing.
+        _back.Detach();
     }
 
     /// <summary>

@@ -72,6 +72,27 @@ public sealed partial class NotesViewModel : ObservableObject
     [ObservableProperty]
     private string _previewHtml = string.Empty;
 
+    /// <summary>
+    /// True when the Android back button has somewhere to go inside the Notes tab — the preview
+    /// panel is open.
+    /// </summary>
+    public bool CanHandleSystemBack => IsPreviewVisible;
+
+    /// <summary>
+    /// Consumes a system back press (Android back button or predictive-back gesture) the same way
+    /// the preview's close button does: back to the note list. Returns <c>true</c> when the press
+    /// was consumed; <c>false</c> when no preview is open, so the platform runs its default back
+    /// action (leaving the app).
+    /// </summary>
+    public Task<bool> HandleSystemBackAsync()
+    {
+        if (!IsPreviewVisible)
+            return Task.FromResult(false);
+
+        ClosePreview();
+        return Task.FromResult(true);
+    }
+
     /// <summary>Whether the preview panel is visible.</summary>
     [ObservableProperty]
     private bool _isPreviewVisible;

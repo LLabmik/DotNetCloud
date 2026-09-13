@@ -8,11 +8,21 @@ public partial class NotesPage : ContentPage
 {
     private readonly NotesViewModel _vm;
 
+    /// <summary>Consumes the Android system back press while the note preview is open.</summary>
+    private readonly SystemBackNavigation _back;
+
     /// <summary>Initializes a new <see cref="NotesPage"/>.</summary>
     public NotesPage(NotesViewModel vm)
     {
         InitializeComponent();
         BindingContext = _vm = vm;
+
+        // The system back button closes the preview like the preview's own close button does;
+        // Page.OnBackButtonPressed is never called for a Shell drawer page on MAUI 10.0.90.
+        _back = new SystemBackNavigation(
+            stateNotifier: _vm,
+            canHandle: () => _vm.CanHandleSystemBack,
+            handle: () => _vm.HandleSystemBackAsync());
 
         _vm.PropertyChanged += (_, e) =>
         {
@@ -24,20 +34,12 @@ public partial class NotesPage : ContentPage
     }
 
     /// <inheritdoc />
-    protected override bool OnBackButtonPressed()
-    {
-        if (_vm.IsPreviewVisible)
-        {
-            _vm.ClosePreviewCommand.Execute(null);
-            return true; // Back was handled, prevent minimize
-        }
-        return base.OnBackButtonPressed();
-    }
-
-    /// <inheritdoc />
     protected override void OnAppearing()
     {
         base.OnAppearing();
+
+        _back.Attach();
+
         _vm.IsActive = true;
         _vm.ErrorMessage = null;
         if (_vm.Folders.Count == 0 && _vm.LoadFoldersCommand.CanExecute(null))
@@ -51,6 +53,10 @@ public partial class NotesPage : ContentPage
     protected override void OnDisappearing()
     {
         base.OnDisappearing();
+
+        // Stop consuming back presses while another tab (or a pushed page) is showing.
+        _back.Detach();
+
         _vm.IsActive = false;
         _vm.ErrorMessage = null;
     }

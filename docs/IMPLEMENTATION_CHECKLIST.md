@@ -3647,7 +3647,26 @@ Zero-tap sign-in (Apr 2027) and the API 36 target bump are tracked separately (d
 - ✓ Implement search: toggle search icon in title bar, debounced server-side search by current tab (artists/albums/tracks), results replace collection, restore on close
 - ✓ Implement search guards: infinite scroll disabled during search, tab-switch closes search, back navigates away from search first
 - ✓ Add 16 unit tests for search toggle, close/restore, endpoint routing, error handling, tab-switch closure
-- ✓ Wire the Android system back button (physical button + predictive-back gesture) to the in-page back affordances: `MusicViewModel.HandleSystemBackAsync` closes the save-preset dialog / search panel, leaves the EQ screen, and steps back out of artist/album/playlist-scoped views; at the tab root the default "leave the app" action is unchanged. MAUI 10.0.90 never routes back to `Page.OnBackButtonPressed` for a drawer page with no framework nav stack, so the press is captured by `Platforms/Android/AndroidBackPressScope` (AndroidX `OnBackPressedCallback`, enabled only while the tab has somewhere to go). Verified on-device (R5CWC356B2K, 2026-09-13): albums→artists, tracks→albums, EQ exit, search close, drawer close, root exit, no regressions on other tabs.
+- ✓ Android back button mirrors the in-page back affordances (contextual ◀/← arrow, search panel, EQ screen, save-preset dialog) instead of leaving the app — see "System Back Navigation" below
+
+#### System Back Navigation (Android Back Button)
+
+MAUI 10.0.90 never routes a back press to `Page.OnBackButtonPressed` for a Shell drawer page: the framework
+only enables its own back callback when it has a navigation stack of its own to unwind, and a drawer page is the
+root of its Shell section. Each tab therefore registers its own AndroidX `OnBackPressedCallback` via
+`Platforms/Android/AndroidBackPressScope` + `Views/SystemBackNavigation`, kept disabled whenever the tab has
+nothing to go back to — so the system still plays its back-to-home animation from a tab root and the Shell keeps
+ownership of the drawer and of pushed pages. The decision lives in the ViewModel
+(`CanHandleSystemBack` / `HandleSystemBackAsync`) so it stays unit-testable.
+
+- ✓ Shared mechanism: one scope per tab, enabled only while the tab is visible and the ViewModel reports in-page back state
+- ✓ Chat — back dismisses the "Begin Chatting" welcome overlay, then leaves the app
+- ✓ Files — back goes up one folder (the in-page ← button); a pushed page (image viewer) still owns its own back press
+- ✓ Music — back closes the save-preset dialog, then the search panel, then leaves the EQ screen, then steps back out of artist/album/playlist-scoped views
+- ✓ Notes — back closes the note preview (the pre-existing, never-invoked `OnBackButtonPressed` override was removed)
+- ✓ AI — back returns from an open conversation to the conversation list
+- ✓ Calendar / Settings — no in-page back state, deliberately unchanged (back leaves the app)
+- ✓ 17 unit tests (Music 9, Notes 4, AI 4) covering the priority order and each back target; every tab verified on-device (R5CWC356B2K, 2026-09-13)
 
 ---
 

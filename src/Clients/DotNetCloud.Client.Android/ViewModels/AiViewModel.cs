@@ -170,6 +170,28 @@ public sealed partial class AiViewModel : ObservableObject
     [ObservableProperty]
     private bool _showConversationList = true;
 
+    /// <summary>
+    /// True when the Android back button has somewhere to go inside the AI tab — a conversation is
+    /// open rather than the conversation list, i.e. the same state that shows the in-page back
+    /// button.
+    /// </summary>
+    public bool CanHandleSystemBack => !ShowConversationList;
+
+    /// <summary>
+    /// Consumes a system back press (Android back button or predictive-back gesture) the same way
+    /// the in-page back button does: back to the conversation list. Returns <c>true</c> when the
+    /// press was consumed; <c>false</c> when the list is already showing, so the platform runs its
+    /// default back action (leaving the app).
+    /// </summary>
+    public Task<bool> HandleSystemBackAsync()
+    {
+        if (ShowConversationList)
+            return Task.FromResult(false);
+
+        BackToList();
+        return Task.FromResult(true);
+    }
+
     [ObservableProperty]
     private string? _errorMessage;
 
