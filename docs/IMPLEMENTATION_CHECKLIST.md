@@ -7010,6 +7010,10 @@ Blazor-only by design — Android/desktop clients never join the broadcast group
 - ✓ `AdminBroadcastModal` (modal host) rendered `InteractiveServer` in `MainLayout` inside `AuthorizeView`
 - ✓ `/admin/broadcast` admin page: compose card, `Send now` / `Schedule`, history table, `Send now` + `Delete`
   (delete behind a confirmation dialog)
+- ✓ Message body is Markdown: `MarkdownEditor` in the admin composer; preview-only `MarkdownEditor`
+  (`IMarkdownRenderer`, sanitized) in the user modal, exactly like the Notes read-only view (2026-09-13)
+- ✓ Viewer message region is height-capped (`55vh`) and scrolls vertically on overflow; severity banner shows a
+  text label with an `alert-info` variant for Info
 - ✓ `DotNetCloudApiClient`: 6 broadcast methods
 - ✓ Admin nav entry with `<MaterialIcon Icon="campaign" />`; `campaign` SVG path added to `MaterialSvgIcons.cs`
 
@@ -7024,3 +7028,5 @@ Blazor-only by design — Android/desktop clients never join the broadcast group
 - ✓ `/health/ready` HTTP 200 · both endpoints HTTP 401 unauthenticated · new tables present · scheduler started
 - ✓ Browser E2E (confirmed by the user on the deployed build): modal appears on Send; dismissal persists across
   reload; Delete closes an open modal; scheduled delivery within 30 s; expiry hides the message
+- ✓ Markdown message browsing E2E (mint22, 2026-09-13): composer preview + user modal render H2 / bold / list /
+  link; the modal message region scrolls vertically on overflow

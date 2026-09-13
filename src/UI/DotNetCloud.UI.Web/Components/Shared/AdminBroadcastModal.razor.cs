@@ -1,4 +1,5 @@
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.UI.Shared.Services;
 using DotNetCloud.UI.Web.Client.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Logging;
@@ -23,6 +24,9 @@ public partial class AdminBroadcastModal : ComponentBase, IAsyncDisposable
 
     [Inject]
     private IRealtimeNotificationClient RealtimeClient { get; set; } = default!;
+
+    [Inject]
+    private IMarkdownRenderer MarkdownRenderer { get; set; } = default!;
 
     [Inject]
     private ILogger<AdminBroadcastModal> Logger { get; set; } = default!;
@@ -134,7 +138,14 @@ public partial class AdminBroadcastModal : ComponentBase, IAsyncDisposable
     {
         AdminBroadcastSeverity.Critical => "alert-danger",
         AdminBroadcastSeverity.Warning => "alert-warning",
-        _ => string.Empty,
+        _ => "alert-info",
+    };
+
+    private static string SeverityLabel(AdminBroadcastSeverity severity) => severity switch
+    {
+        AdminBroadcastSeverity.Critical => "Critical",
+        AdminBroadcastSeverity.Warning => "Warning",
+        _ => "Information",
     };
 
     private static string SeverityIcon(AdminBroadcastSeverity severity) => severity switch

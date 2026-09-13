@@ -5838,3 +5838,29 @@ across short outages and is deliberately out of scope.
   new endpoints return 401 unauthenticated, both tables present, `Admin Broadcast Scheduler started.` logged.
 - ✓ Browser E2E confirmed by the user on the deployed build: modal on Send, dismissal survives reload/re-login,
   Delete closes an open modal, scheduled delivery within 30 s, expiry hides the message.
+
+### Follow-up — Markdown message body (2026-09-13)
+
+**Status:** completed ✅
+**Branch:** `fix/markdown-in-admin-broadcast`
+**Goal:** Let admins format broadcasts with Markdown and render them in the user modal, following the Notes
+module's implementation, with the viewer scrolling when the message overflows.
+
+- ✓ Composer: the `/admin/broadcast` message field now uses the shared `MarkdownEditor` (toolbar + live preview,
+  2,000-char cap) instead of a plain `InputTextArea`; the stored value is still raw Markdown (no schema change)
+- ✓ Viewer: `AdminBroadcastModal` renders the message as sanitized Markdown via a preview-only `MarkdownEditor`
+  (`IMarkdownRenderer`) — identical to the Notes read-only view
+- ✓ Overflow: the message region is height-capped (`55vh`) and scrolls vertically, keeping the title, severity
+  banner and Dismiss button visible; scoped `AdminBroadcastModal.razor.css` strips the editor chrome
+- ✓ Severity banner now shows a text label (`Information` / `Warning` / `Critical`) and Info uses a new
+  `.alert-info` style (app.css only defines danger/warning/success)
+- ✓ DI: registered `IMarkdownRenderer` in the WASM client because the admin page is `InteractiveAuto`; the
+  server path already resolves it via `AddNotesUiServices`
+
+### Notes
+
+- The message stays plain text at rest (≤ 2,000 chars); Markdown is rendered at display time, so there is no
+  migration and no risk to existing broadcasts.
+- Sanitization is unchanged from the Notes/Chat/AI paths — Markdig + HtmlSanitizer, links allowed, scripts stripped.
+- ✓ Live-verified on mint22 (2026-09-13): composer preview + rendered user modal (H2, bold, list, link) and the
+  message region scrolls on overflow (`55vh` cap; `scrollHeight 641 > clientHeight 466`).

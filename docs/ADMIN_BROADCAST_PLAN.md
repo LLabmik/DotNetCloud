@@ -21,7 +21,7 @@ never join the broadcast group, so they receive nothing.
 | Admin actions     | **Delete only** (hard delete) — no retract/soft-delete                             |
 | Cleanup on delete | Dismissal rows are deleted with the broadcast (FK cascade + explicit cleanup)      |
 | Scheduling        | Optional send time; a 30-second background poller delivers it                      |
-| Fields            | Severity (Info / Warning / Critical) + title + message + optional expiry           |
+| Fields            | Severity (Info / Warning / Critical) + title + Markdown message + optional expiry  |
 | Delivery scope    | Blazor only, via a dedicated SignalR group                                         |
 | Dismissability    | Always dismissible (a warning, not an enforcement)                                 |
 | Sender visibility | The admin who sends it sees the modal too                                          |
@@ -100,6 +100,11 @@ user who logs in after the message was sent — or reconnects after the reboot i
 - ✓ `Pages/Admin/Broadcast.razor` — `/admin/broadcast`, `RequireAdmin`: compose card (title/message/severity/schedule/expiry),
   `Send now` / `Schedule`, history table (created, severity, status, sent, expires, dismissed count) with
   `Send now` for scheduled rows and `Delete` behind `DncConfirmDialog`
+- ✓ Message body is **Markdown** (2026-09-13): the composer uses the shared `MarkdownEditor` (toolbar + live
+  preview, 2,000-char cap) and the user modal renders the message with a preview-only `MarkdownEditor`,
+  sanitized through `IMarkdownRenderer` — the same approach as the Notes module's read-only view
+- ✓ The viewer's message region is height-capped (`55vh`) and scrolls vertically on overflow, so long
+  broadcasts keep the title, severity banner and Dismiss button visible
 - ✓ `DotNetCloudApiClient` — 6 new methods (active/dismiss + 4 admin)
 - ✓ `NavMenu.razor` — admin "Broadcast" entry using `<MaterialIcon Icon="campaign" />`
 - ✓ `campaign` SVG path added to `MaterialSvgIcons.cs` (the icon did not exist; a missing icon silently renders as text)
@@ -144,4 +149,43 @@ user who logs in after the message was sent — or reconnects after the reboot i
 - Per-organization or per-user targeting
 - Acknowledgement tracking / reporting ("who has seen it") — the dismissal table is the natural place to build this
 - Android/desktop UI presentation
-- Rich text, links, or attachments in the message body
+- Attachments or embedded media in the message body (Markdown text — including links — is supported as of 2026-09-13)
+
+## Enhancement — Markdown message body (2026-09-13)
+
+**Branch:** `fix/markdown-in-admin-broadcast`
+
+The message body is now Markdown instead of plain text, following the Notes module's implementation.
+
+- Compose (`/admin/broadcast`): the plain `InputTextArea` was replaced by the shared `MarkdownEditor`
+  (`Content`/`ContentChanged`, `Renderer="MarkdownRenderer"`, `MaxLength=2000`) — toolbar buttons plus a live
+  split preview. The stored value is still the raw Markdown string; no schema change.
+- View (`AdminBroadcastModal`): the message is rendered through `IMarkdownRenderer` using a preview-only
+  `MarkdownEditor`, matching the Notes read-only view. Content is sanitized by `MarkdownRenderer`
+  (Markdig + HtmlSanitizer), so links are allowed but scripts/iframes are stripped.
+- Overflow: `.broadcast-message` is capped at `55vh` with `overflow-y: auto` so a long broadcast scrolls instead
+  of pushing the dialog past the viewport; the severity banner, title and Dismiss button stay visible.
+  Scoped `AdminBroadcastModal.razor.css` removes the editor's border/background/min-height so the rendered
+  Markdown reads as dialog content.
+- Severity is now explicit: the banner shows a text label (`Information` / `Warning` / `Critical`), and Info
+  maps to a new `.alert-info` style (the shared `app.css` only defines danger/warning/success).
+- DI: `IMarkdownRenderer` is registered in the WASM client (`DotNetCloud.UI.Web.Client/Program.cs`) because
+  `/admin/broadcast` is `InteractiveAuto`; the Blazor Server path already resolved it via `AddNotesUiServices`.
+
+### Verification
+
+- ✓ `dotnet build src/UI/DotNetCloud.UI.Web/DotNetCloud.UI.Web.csproj -c Release` — 0 warnings / 0 errors
+- ✓ Scoped CSS bundle contains the new `.broadcast-*` selectors (`AdminBroadcastModal.razor.rz.scp.css`)
+- ✓ Core.Server broadcast tests 76/76 passed
+- ✓ Deployed `sudo ./scripts/deploy.sh --force --verify` on mint22 — 15/15 targets succeeded (168 s), all assembly
+  hashes verified, migrations applied, version 0.6.05, deploy commit `f10ac4bafbfc`
+- ✓ `/health/ready` → **Healthy** (14/14 modules Running; the first probe right after the restart is transiently
+  `503` while module hosts start)
+- ✓ Shipped markup confirmed: `broadcast-viewer` / `broadcast-severity` / `broadcast-message` in the deployed
+  `DotNetCloud.UI.Web.dll`; "Markdown is supported" in the deployed `DotNetCloud.UI.Web.Client.dll`; the scoped
+  CSS bundle (`DotNetCloud.UI.Web.rg0vnqw6uo.bundle.scp.css`) is present in `wwwroot/_content/` and imported by
+  `DotNetCloud.Core.Server.styles.css`
+- ✓ Browser E2E (mint22 dev, 2026-09-13): composed a Markdown broadcast (H2, bold, bulleted list, link, ordered
+  list) — the composer preview and the user modal both rendered it formatted, under the severity banner — and the
+  modal message region scrolled vertically on overflow (`max-height: 466px`, `scrollHeight 641 > clientHeight 466`),
+  with the editor chrome removed (0px border, transparent background)
