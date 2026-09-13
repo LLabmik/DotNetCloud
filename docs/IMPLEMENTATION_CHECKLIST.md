@@ -6924,8 +6924,8 @@ A module page throwing (unhandled exception during render/lifecycle) left the en
 - ✓ 18 `HomeWidgetLayoutServiceTests` (registry order, persistence round-trips, reorder boundaries by module id, `GetPosition`, optimistic state on failed write, registry churn)
 - ✓ Drag/drop reorder is addressed by module id, not index — `MoveToModuleAsync(fromModuleId, targetModuleId)` replaced `MoveToAsync(fromIndex, toIndex)`, so a re-render between drag start and drop can never move the wrong widget (unknown ids are a no-op, never a throw)
 - ✓ 20 new icon allow-list data rows, incl. resolving every widget icon through `ModuleIconProvider` so a missing SVG path fails the test instead of rendering as text
-- ☐ Deployed + live-verified on mint22
-- ☐ Committed + pushed (no PR created — the user handles the PR)
+- ✓ Deployed + live-verified on mint22 (2026-09-12)
+- ✓ Merged to `main` via PR #132 (`2873de89`, created by the user) — commits `61836982` + `6ebaf303`; the branch was deleted on merge
 
 ### Post-Release Bug Fix — Widget Reorder (2026-09-13)
 
@@ -6939,7 +6939,7 @@ A module page throwing (unhandled exception during render/lifecycle) left the en
 - ✓ Generated Razor source inspected (`EmitCompilerGeneratedFiles`) — every handler lambda now references `slot`, none reference the loop variable
 - ✓ Deployed 2026-09-13: `sudo ./scripts/deploy.sh --force --verify` — 15/15 targets, hashes verified, migrations OK, `/health/ready` HTTP 200, service active, v0.6.05 (`MoveToModuleAsync` + new status strings present in the deployed `DotNetCloud.UI.Web.dll`)
 - ✓ Live-verified by the user 2026-09-13 in the browser — drag **and** Move up/down both reorder, and the order sticks ("working good now")
-- ☐ Committed + pushed (no PR created — the user handles the PR)
+- ✓ Committed `a369baa5` and pushed `origin/feature/crazy-widgets` — re-created after PR #132 deleted it, so the branch is now `main` + this fix only (1 commit, 6 files). No PR created — the user handles the PR.
 
 ## Side Navbar Improvements: Open-in-New-Tab Icons + Desktop Sync Client (2026-09-07)
 

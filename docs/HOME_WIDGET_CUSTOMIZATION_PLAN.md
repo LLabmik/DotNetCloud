@@ -382,3 +382,5 @@ Note the render-time reads (`_draggingIndex == index`, `disabled="@(index == 0)"
 **Known gap:** the component itself has no automated test — the repo has no Blazor component-render test infrastructure (no bUnit), so the markup-level regression is guarded by code shape (no handler closes over a loop variable) plus this note, not by a test. Any future component-render test project should assert that clicking the _n_-th row's Move ↑ moves **that** row.
 
 **Verified:** deployed 2026-09-13 — `sudo ./scripts/deploy.sh --force --verify`, 15/15 targets, all hashes verified, migrations OK, `/health/ready` HTTP 200, service active, v0.6.05. The user then confirmed the fix in the browser ("working good now"): reorder by drag **and** by Move up/down both work and the order sticks.
+
+**Branch state:** PR #132 had already merged the base customization work to `main` (`2873de89`) and deleted `feature/crazy-widgets`; pushing the fix re-created the branch, which is now `main` + one commit (`a369baa5`, 6 files) — i.e. a clean follow-up PR containing only this fix.
