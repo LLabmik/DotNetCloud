@@ -16,6 +16,9 @@ public partial class ChannelListPage : ContentPage
 
     private readonly ChannelListViewModel _vm;
 
+    /// <summary>Consumes the Android system back press while the welcome overlay is showing.</summary>
+    private readonly SystemBackNavigation _back;
+
     /// <summary>Initializes a new <see cref="ChannelListPage"/>.</summary>
     public ChannelListPage(ChannelListViewModel vm, IServerConnectionStore serverStore)
     {
@@ -27,6 +30,18 @@ public partial class ChannelListPage : ContentPage
         // Show the connected server URL on the landing overlay
         var connection = serverStore.GetActive();
         ServerUrlLabel.Text = connection?.ServerBaseUrl ?? string.Empty;
+
+        // The welcome overlay is a full-screen in-page surface, so the system back button dismisses
+        // it (exactly what "Begin Chatting" does) rather than leaving the app. Its visibility lives
+        // in this page rather than the view model, hence no state notifier.
+        _back = new SystemBackNavigation(
+            stateNotifier: null,
+            canHandle: () => LandingOverlay.IsVisible,
+            handle: () =>
+            {
+                DismissLanding();
+                return Task.CompletedTask;
+            });
 
         // Already dismissed earlier in this run (e.g. the page was re-created by the drawer):
         // stay on the channel list instead of showing the welcome again.
@@ -51,6 +66,10 @@ public partial class ChannelListPage : ContentPage
     {
         LandingOverlay.IsVisible = false;
         LandingOverlay.InputTransparent = true;
+
+        // With the overlay gone there is nothing in-page left to go back to, so let the platform
+        // handle the next back press again.
+        _back.Refresh();
     }
 
     private void OnBeginChattingClicked(object? sender, EventArgs e)
@@ -62,6 +81,9 @@ public partial class ChannelListPage : ContentPage
     protected override void OnAppearing()
     {
         base.OnAppearing();
+
+        _back.Attach();
+
         _vm.IsActive = true;
         _vm.ErrorMessage = null;
         if (_vm.LoadChannelsCommand.CanExecute(null))
@@ -72,6 +94,10 @@ public partial class ChannelListPage : ContentPage
     protected override void OnDisappearing()
     {
         base.OnDisappearing();
+
+        // Stop consuming back presses while another tab (or a pushed page) is showing.
+        _back.Detach();
+
         _vm.IsActive = false;
         _vm.ErrorMessage = null;
 

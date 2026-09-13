@@ -1,10 +1,70 @@
+using DotNetCloud.Client.Android.Auth;
+using DotNetCloud.Client.Android.Notes;
+using DotNetCloud.Client.Android.Services;
 using DotNetCloud.Client.Android.ViewModels;
+using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 
 namespace DotNetCloud.Client.Android.Tests.Notes;
 
 [TestClass]
 public sealed class NotesViewModelTests
 {
+    private static NotesViewModel CreateViewModel()
+    {
+        return new NotesViewModel(
+            new Mock<INotesRestClient>(MockBehavior.Loose).Object,
+            new Mock<IOfflineOperationQueue>(MockBehavior.Loose).Object,
+            new Mock<IConnectivityMonitor>(MockBehavior.Loose).Object,
+            new Mock<IServerConnectionStore>(MockBehavior.Loose).Object,
+            new Mock<ISecureTokenStore>(MockBehavior.Loose).Object,
+            NullLogger<NotesViewModel>.Instance);
+    }
+
+    // ── System back (Android hardware button / predictive-back gesture) ─
+
+    [TestMethod]
+    public void CanHandleSystemBack_WithoutPreview_IsFalse()
+    {
+        var vm = CreateViewModel();
+
+        Assert.IsFalse(vm.CanHandleSystemBack);
+    }
+
+    [TestMethod]
+    public void CanHandleSystemBack_WithPreviewOpen_IsTrue()
+    {
+        var vm = CreateViewModel();
+        vm.IsPreviewVisible = true;
+
+        Assert.IsTrue(vm.CanHandleSystemBack);
+    }
+
+    [TestMethod]
+    public async Task HandleSystemBackAsync_WithPreviewOpen_ClosesPreview()
+    {
+        var vm = CreateViewModel();
+        vm.IsPreviewVisible = true;
+        vm.PreviewHtml = "<p>note</p>";
+
+        var handled = await vm.HandleSystemBackAsync();
+
+        Assert.IsTrue(handled);
+        Assert.IsFalse(vm.IsPreviewVisible);
+        Assert.IsNull(vm.SelectedNote);
+        Assert.AreEqual(string.Empty, vm.PreviewHtml);
+    }
+
+    [TestMethod]
+    public async Task HandleSystemBackAsync_WithoutPreview_ReturnsFalse()
+    {
+        var vm = CreateViewModel();
+
+        var handled = await vm.HandleSystemBackAsync();
+
+        Assert.IsFalse(handled);
+    }
+
     [TestMethod]
     public void WrapHtmlWithDarkTheme_WrapsInFullHtmlDocument()
     {

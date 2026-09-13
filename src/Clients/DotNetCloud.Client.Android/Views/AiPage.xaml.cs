@@ -11,6 +11,9 @@ public partial class AiPage : ContentPage
 {
     private readonly AiViewModel _vm;
 
+    /// <summary>Consumes the Android system back press while a conversation is open.</summary>
+    private readonly SystemBackNavigation _back;
+
     /// <summary>Initializes a new <see cref="AiPage"/>.</summary>
     public AiPage(AiViewModel vm)
     {
@@ -18,14 +21,33 @@ public partial class AiPage : ContentPage
         BindingContext = _vm = vm;
         _vm.ScrollRequested += OnScrollRequested;
         _vm.RenameRequested += OnRenameRequested;
+
+        // The system back button returns to the conversation list like the in-page back button
+        // does, instead of dropping the user out of the app mid-conversation.
+        _back = new SystemBackNavigation(
+            stateNotifier: _vm,
+            canHandle: () => _vm.CanHandleSystemBack,
+            handle: () => _vm.HandleSystemBackAsync());
     }
 
     /// <inheritdoc />
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+
+        _back.Attach();
+
         if (_vm.Conversations.Count == 0)
             await _vm.LoadAsync();
+    }
+
+    /// <inheritdoc />
+    protected override void OnDisappearing()
+    {
+        base.OnDisappearing();
+
+        // Stop consuming back presses while another tab (or a pushed page) is showing.
+        _back.Detach();
     }
 
     /// <summary>

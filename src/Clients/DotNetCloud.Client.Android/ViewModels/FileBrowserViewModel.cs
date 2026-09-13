@@ -68,6 +68,28 @@ public sealed partial class FileBrowserViewModel : ObservableObject
     [ObservableProperty]
     private bool _canGoBack;
 
+    /// <summary>
+    /// True when the Android back button has somewhere to go inside the Files tab — the user has
+    /// opened at least one folder, i.e. the same state that shows the in-page back button.
+    /// </summary>
+    public bool CanHandleSystemBack => CanGoBack;
+
+    /// <summary>
+    /// Consumes a system back press (Android back button or predictive-back gesture) the same way
+    /// the in-page back button does: up one folder. Returns <c>true</c> when the press was
+    /// consumed; <c>false</c> at the root of the tab, so the platform runs its default back action
+    /// (leaving the app).
+    /// </summary>
+    public async Task<bool> HandleSystemBackAsync()
+    {
+        if (!CanGoBack)
+            return false;
+
+        // Exactly what the in-page back button invokes.
+        await GoBackCommand.ExecuteAsync(null);
+        return true;
+    }
+
     [ObservableProperty]
     private bool _isUploading;
 

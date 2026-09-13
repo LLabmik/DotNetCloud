@@ -10,6 +10,9 @@ public partial class MusicPage : ContentPage
 {
     private readonly MusicViewModel _vm;
 
+    /// <summary>Consumes the Android system back press while this tab has something to go back to.</summary>
+    private readonly SystemBackNavigation _back;
+
     /// <summary>Initializes a new <see cref="MusicPage"/>.</summary>
     public MusicPage(MusicViewModel vm)
     {
@@ -18,6 +21,14 @@ public partial class MusicPage : ContentPage
 
         // Wire up the scroll-to-character delegate from the ViewModel
         _vm.ScrollToRequested += OnScrollToRequested;
+
+        // Route the Android system back press through the same in-page back affordances the
+        // ViewModel exposes — the back arrow, the search panel's ✕, the EQ screen, and the
+        // save-preset dialog — instead of letting it drop the user out of the app.
+        _back = new SystemBackNavigation(
+            stateNotifier: _vm,
+            canHandle: () => _vm.CanHandleSystemBack,
+            handle: () => _vm.HandleSystemBackAsync());
 
         // Auto-focus the search Entry when the search panel opens
         _vm.PropertyChanged += (_, e) =>
@@ -37,6 +48,9 @@ public partial class MusicPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+
+        _back.Attach();
+
         if (_vm.Artists.Count == 0)
         {
             await _vm.LoadArtistsCommand.ExecuteAsync(null);
@@ -57,6 +71,15 @@ public partial class MusicPage : ContentPage
                 OnScrollToRequested(firstA, MusicView.Artists);
             }
         }
+    }
+
+    /// <inheritdoc />
+    protected override void OnDisappearing()
+    {
+        base.OnDisappearing();
+
+        // Stop consuming back presses while another tab (or a pushed page) is showing.
+        _back.Detach();
     }
 
     /// <summary>

@@ -62,6 +62,45 @@ public sealed class AiViewModelTests
         Assert.IsNull(_vm.ErrorMessage);
     }
 
+    // ── System back (Android hardware button / predictive-back gesture) ─
+
+    [TestMethod]
+    public void CanHandleSystemBack_OnConversationList_IsFalse()
+    {
+        Assert.IsTrue(_vm.ShowConversationList);
+
+        // Nothing in-page to go back to - the platform's default back action should run.
+        Assert.IsFalse(_vm.CanHandleSystemBack);
+    }
+
+    [TestMethod]
+    public void CanHandleSystemBack_WithConversationOpen_IsTrue()
+    {
+        _vm.ShowConversationList = false;
+
+        Assert.IsTrue(_vm.CanHandleSystemBack);
+    }
+
+    [TestMethod]
+    public async Task HandleSystemBackAsync_WithConversationOpen_ReturnsToList()
+    {
+        _vm.ShowConversationList = false;
+
+        var handled = await _vm.HandleSystemBackAsync();
+
+        Assert.IsTrue(handled);
+        Assert.IsTrue(_vm.ShowConversationList);
+    }
+
+    [TestMethod]
+    public async Task HandleSystemBackAsync_OnConversationList_ReturnsFalse()
+    {
+        var handled = await _vm.HandleSystemBackAsync();
+
+        Assert.IsFalse(handled);
+        Assert.IsTrue(_vm.ShowConversationList);
+    }
+
     // ── LoadAsync ─────────────────────────────────────────────────────
 
     [TestMethod]

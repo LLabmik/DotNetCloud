@@ -14,6 +14,8 @@
 
 > **Recent feature work (2026-09-09):** Presence indicators are upgraded to **4-state** (Online / Idle / Do-Not-Disturb / Offline) — server + Blazor + Android code implemented and unit-tested on `fix/android-improvements` (`docs/PRESENCE_DOTS_4STATE_PLAN.md`); live cross-device E2E pending deploy to `cloud.kimball.home`. Share Dialog Unification + Team Shares (`docs/SHARE_DIALOG_UNIFICATION_AND_TEAM_SHARES_PLAN.md`, branch `fix/sharing`) Phases 0–6 implemented (build + tests green); Phase 7 live E2E pending.
 
+> **Recent feature work (2026-09-13):** Android — the phone's system back button (physical + predictive-back gesture) now mirrors the in-page back affordances on **every drawer tab** (Chat welcome overlay, Files folder-up, Music save-preset dialog → search → EQ → contextual views, Notes preview, AI conversation), instead of dropping the user out of the app; from a tab root the default "leave the app" action is unchanged, and pushed pages keep their own back behavior. Implemented as `Views/SystemBackNavigation` + `Platforms/Android/AndroidBackPressScope` (MAUI 10.0.90 never routes back presses to `Page.OnBackButtonPressed` for a Shell drawer page). Verified on-device (R5CWC356B2K) with 17 unit tests.
+
 ## Quick Status Summary
 
 | Phase                                | Steps   | Completed | In Progress | Pending |

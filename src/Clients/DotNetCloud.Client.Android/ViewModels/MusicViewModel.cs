@@ -330,6 +330,15 @@ public sealed partial class MusicViewModel : ObservableObject
     /// <summary>True when any contextual view is active (artist-scoped albums, album-scoped tracks, or playlist tracks).</summary>
     public bool CanGoBack => CanGoBackToArtist || CanGoBackToAlbum || CanGoBackToPlaylist;
 
+    /// <summary>
+    /// True when a system back press (Android hardware button or predictive-back gesture) has
+    /// something to do inside the Music tab: close the save-preset dialog, close the search
+    /// panel, leave the EQ screen, or step back out of a contextual view. Read on demand by the
+    /// page's back-press scope, so it is deliberately not a notification-raising property.
+    /// </summary>
+    public bool CanHandleSystemBack =>
+        ShowSavePresetDialog || IsSearchOpen || CurrentView == MusicView.Eq || CanGoBack;
+
     [ObservableProperty]
     private TrackDto? _currentTrack;
 
@@ -1655,6 +1664,40 @@ public sealed partial class MusicViewModel : ObservableObject
         {
             await LoadArtistsCommand.ExecuteAsync(null);
         }
+    }
+
+    /// <summary>
+    /// Consumes a system back press the same way the in-page back affordances do, innermost
+    /// surface first — the save-preset dialog, then the search panel, then the EQ screen and
+    /// the contextual back arrow. Returns <c>true</c> when the press was consumed; <c>false</c>
+    /// means there is nothing left to go back to, so the platform should run its default back
+    /// action (leaving the app).
+    /// </summary>
+    public async Task<bool> HandleSystemBackAsync()
+    {
+        // A dialog sits above everything else — back dismisses it, it does not navigate.
+        if (ShowSavePresetDialog)
+        {
+            CloseSavePresetDialog();
+            return true;
+        }
+
+        // Same for the search panel (its ✕ button), before any view navigation happens.
+        if (IsSearchOpen)
+        {
+            CloseSearch();
+            return true;
+        }
+
+        // The EQ screen has no back arrow of its own (its toolbar button toggles) and the
+        // contextual views carry the visible back arrow — both are BackAsync's job.
+        if (CurrentView == MusicView.Eq || CanGoBack)
+        {
+            await BackAsync();
+            return true;
+        }
+
+        return false;
     }
 
     /// <summary>Switches view to Artists without reloading data from server.</summary>
