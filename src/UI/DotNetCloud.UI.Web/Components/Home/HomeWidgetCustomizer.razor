@@ -40,9 +40,9 @@
         {
             var slot = LayoutService.Slots[index];
             var position = index + 1;
-            <li class="widget-manage-row @(_draggingIndex == index ? "is-dragging" : string.Empty)" draggable="true"
-                @ondragstart="() => _draggingIndex = index" @ondragover:preventDefault="true"
-                @ondrop="() => DropAsync(index)" @ondragend="() => _draggingIndex = null">
+            <li class="widget-manage-row @(IsDragging(slot) ? "is-dragging" : string.Empty)" draggable="true"
+                @ondragstart="() => _draggingModuleId = slot.ModuleId" @ondragover:preventDefault="true"
+                @ondrop="() => DropAsync(slot.ModuleId)" @ondragend="() => _draggingModuleId = null">
                 <span class="widget-manage-handle" aria-hidden="true">
                     <MaterialIcon Icon="drag_indicator" Size="MaterialIconSize.Sm" />
                 </span>
@@ -53,11 +53,11 @@
                 </label>
                 <span class="widget-manage-moves">
                     <button type="button" class="widget-manage-move" disabled="@(index == 0)"
-                            aria-label="@($"Move {@slot.Descriptor.Title} up")" @onclick="() => MoveAsync(index, -1)">
+                            aria-label="@($"Move {@slot.Descriptor.Title} up")" @onclick="() => MoveAsync(slot, -1)">
                         <MaterialIcon Icon="expand_less" Size="MaterialIconSize.Sm" />
                     </button>
                     <button type="button" class="widget-manage-move" disabled="@(index == LayoutService.Slots.Count - 1)"
-                            aria-label="@($"Move {@slot.Descriptor.Title} down")" @onclick="() => MoveAsync(index, 1)">
+                            aria-label="@($"Move {@slot.Descriptor.Title} down")" @onclick="() => MoveAsync(slot, 1)">
                         <MaterialIcon Icon="expand_more" Size="MaterialIconSize.Sm" />
                     </button>
                 </span>
@@ -87,7 +87,7 @@
     [Parameter]
     public EventCallback OnClose { get; set; }
 
-    private int? _draggingIndex;
+    private string? _draggingModuleId;
     private string _status = "Drag to reorder, or use the arrows.";
     private bool _confirmingReset;
 
@@ -102,6 +102,10 @@
     public void Dispose() => LayoutService.OnChange -= OnLayoutChanged;
 
     private void OnLayoutChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private bool IsDragging(HomeWidgetSlot slot)
+        => _draggingModuleId is not null
+            && string.Equals(_draggingModuleId, slot.ModuleId, StringComparison.OrdinalIgnoreCase);
 
     private Task CloseAsync() => OnClose.InvokeAsync();
 
@@ -119,31 +123,55 @@
             : $"{slot.Descriptor.Title} hidden.";
     }
 
-    private async Task MoveAsync(int index, int delta)
+    /// <summary>
+    /// Moves the widget one position up or down. The slot (not a loop index) identifies the widget:
+    /// a lambda that captured the <c>@for</c> index would close over the loop variable and see its
+    /// final value (the slot count) when the event finally fires.
+    /// </summary>
+    /// <param name="slot">The slot whose widget is being moved.</param>
+    /// <param name="delta">-1 to move up, +1 to move down.</param>
+    private async Task MoveAsync(HomeWidgetSlot slot, int delta)
     {
-        var target = index + delta;
-        if (target < 0 || target >= LayoutService.Slots.Count)
+        var currentIndex = LayoutService.GetPosition(slot.ModuleId);
+        var targetIndex = currentIndex + delta;
+
+        if (currentIndex < 0 || targetIndex < 0 || targetIndex >= LayoutService.Slots.Count)
         {
             return;
         }
 
-        var title = LayoutService.Slots[index].Descriptor.Title;
-        await LayoutService.MoveToAsync(index, target);
-        _status = $"{title} moved to position {target + 1}.";
+        await LayoutService.MoveAsync(slot.ModuleId, delta);
+        _status = $"{slot.Descriptor.Title} moved to position {targetIndex + 1}.";
     }
 
-    private async Task DropAsync(int toIndex)
+    /// <summary>
+    /// Moves the dragged widget into the dropped-on widget's slot. Both ends are module ids, so a
+    /// re-render between drag start and drop cannot leave a stale index behind.
+    /// </summary>
+    /// <param name="targetModuleId">The module whose row the drag ended on.</param>
+    private async Task DropAsync(string targetModuleId)
     {
-        if (_draggingIndex is not { } fromIndex || fromIndex == toIndex)
+        if (_draggingModuleId is not { } draggedModuleId
+            || string.Equals(draggedModuleId, targetModuleId, StringComparison.OrdinalIgnoreCase))
         {
-            _draggingIndex = null;
+            _draggingModuleId = null;
             return;
         }
 
-        var title = LayoutService.Slots[fromIndex].Descriptor.Title;
-        await LayoutService.MoveToAsync(fromIndex, toIndex);
-        _draggingIndex = null;
-        _status = $"{title} moved to position {toIndex + 1}.";
+        var title = LayoutService.Slots
+            .FirstOrDefault(candidate => string.Equals(
+                candidate.ModuleId,
+                draggedModuleId,
+                StringComparison.OrdinalIgnoreCase))
+            ?.Descriptor.Title ?? draggedModuleId;
+
+        await LayoutService.MoveToModuleAsync(draggedModuleId, targetModuleId);
+
+        var position = LayoutService.GetPosition(draggedModuleId);
+        _draggingModuleId = null;
+        _status = position >= 0
+            ? $"{title} moved to position {position + 1}."
+            : $"{title} reordered.";
     }
 
     private async Task ConfirmResetAsync()

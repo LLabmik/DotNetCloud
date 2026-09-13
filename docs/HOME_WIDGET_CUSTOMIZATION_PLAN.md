@@ -312,10 +312,10 @@ Rule #1 in `.github/copilot-instructions.md` blocks committing until testing is 
 
 1. ✓ `dotnet build` — 0 warnings, 0 errors (full solution).
 2. ⚠ `dotnet test` — the three suites this change touches are green: `Core.Tests` 532, `Core.Server.Tests` 773, `UI.Shared.Tests` 111. A **full-repo run was deferred at the user's request**; the remaining projects were assumed unaffected rather than re-run. Re-run before merging the PR.
-3. ⚠ Live instance, logged in as a real user — **user-verified 2026-09-12** on the deployed build (v0.6.05): "looks good". The granular checks below were *not* individually signed off, so treat them as the regression checklist for the PR review or a follow-up session:
+3. ⚠ Live instance, logged in as a real user — **user-verified 2026-09-12** on the deployed build (v0.6.05): "looks good". The granular checks below were _not_ individually signed off, so treat them as the regression checklist for the PR review or a follow-up session:
    - ☐ Default state on first ever visit = **Art Department**, registry order, all visible
    - ☐ Switch to each of the three styles → grid restyles immediately, correctly, in light and dark mode
-   - ☐ Reorder by drag **and** by Move up/down; order sticks
+   - ✓ Reorder by drag **and** by Move up/down; order sticks — **FAILED on the 2026-09-12 build (see §13); fixed and re-verified in the browser 2026-09-13**
    - ☐ Hide a widget → disappears; re-show → returns to its former position
    - ☐ **Reload the page** → style, order, and visibility all persist
    - ☐ **Load in a second browser** → same layout (proves it is server-side, not `localStorage`)
@@ -345,3 +345,42 @@ Determine the live environment from **runtime config**, not this repo (committed
 - Sharing layouts between users or by role/team
 - Admin/instance-level style overrides (D2)
 - Changing widget _content_ or adding new widgets
+
+---
+
+## 13. Post-release fix (2026-09-13) — widget reorder crashed the circuit
+
+**Symptom (user report):** "Moving widgets errors out." On the deployed v0.6.05 build, **Move up** killed the circuit (Blazor "an unhandled error has occurred" bar), **Move down** appeared to do nothing, and drag-and-drop appeared to do nothing.
+
+**Root cause:** every event handler inside the customizer's `@for` loop closed over the loop **variable** `index`:
+
+```razor
+@for (var index = 0; index < LayoutService.Slots.Count; index++)
+{
+    <li draggable="true" @ondragstart="() => _draggingIndex = index"
+        @ondrop="() => DropAsync(index)" …>
+        … @onclick="() => MoveAsync(index, -1)" …
+```
+
+Razor compiles the loop body verbatim (confirmed against the emitted `…HomeWidgetCustomizer_razor.g.cs`), so there is exactly **one** `index` variable for the whole render. The lambdas run later, when the loop has already finished and `index == LayoutService.Slots.Count`:
+
+- `Move up` → `MoveAsync(count, -1)` → `target = count - 1` passes the bounds guard → `Slots[count].Descriptor.Title` throws `ArgumentOutOfRangeException` → unhandled circuit error.
+- `Move down` → `MoveAsync(count, +1)` → guard trips → silent no-op.
+- Drag/drop → `_draggingIndex` and the drop index are the _same_ captured value → `from == to` → silent no-op.
+
+Note the render-time reads (`_draggingIndex == index`, `disabled="@(index == 0)"`) were unaffected — they are evaluated during the loop — which is why the list _looked_ right and only the handlers misbehaved.
+
+**Fix (no captured indices remain):**
+
+1. Handlers bind to the per-iteration `slot` local (a loop-body declaration, so each iteration gets its own variable): `MoveAsync(slot, -1)` / `MoveAsync(slot, 1)` / `DropAsync(slot.ModuleId)` / `_draggingModuleId = slot.ModuleId`.
+2. Reorder is expressed in **module ids**, never indices: `HomeWidgetLayoutService.MoveToModuleAsync(string moduleId, string targetModuleId)` replaces `MoveToAsync(int fromIndex, int toIndex)`. A stale index can no longer move the wrong widget, and an unknown id is a no-op instead of a throw.
+3. `HomeWidgetLayoutService.GetPosition(string moduleId)` added (0-based position, or `-1`) for the boundary check and the status message; the internal `IndexOf` helper is shared with `MoveAsync`.
+4. Moving with no effect (boundary, unknown id, dropped on itself) no longer claims a new position in the `aria-live` status.
+
+**Tests:** `HomeWidgetLayoutServiceTests` 13 → 18 — drag onto an earlier slot, drag onto a later slot, dropped on itself, unknown module id (both ends), `GetPosition` (incl. case-insensitive ids and `-1`), and a middle-widget `Move↓` swap.
+
+**Known gap:** the component itself has no automated test — the repo has no Blazor component-render test infrastructure (no bUnit), so the markup-level regression is guarded by code shape (no handler closes over a loop variable) plus this note, not by a test. Any future component-render test project should assert that clicking the _n_-th row's Move ↑ moves **that** row.
+
+**Verified:** deployed 2026-09-13 — `sudo ./scripts/deploy.sh --force --verify`, 15/15 targets, all hashes verified, migrations OK, `/health/ready` HTTP 200, service active, v0.6.05. The user then confirmed the fix in the browser ("working good now"): reorder by drag **and** by Move up/down both work and the order sticks.
+
+**Branch state:** PR #132 had already merged the base customization work to `main` (`2873de89`) and deleted `feature/crazy-widgets`; pushing the fix re-created the branch, which is now `main` + one commit (`a369baa5`, 6 files) — i.e. a clean follow-up PR containing only this fix.

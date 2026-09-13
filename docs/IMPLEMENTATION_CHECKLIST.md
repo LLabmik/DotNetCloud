@@ -6916,14 +6916,30 @@ A module page throwing (unhandled exception during render/lifecycle) left the en
 - ✓ `HomeWidgetCustomizer.razor` — style radio group, drag **and** arrow-key reorder, visibility checkboxes, two-step reset, `aria-live` status
 - ✓ `Home.razor` — stamps `data-widget-style`, renders only visible widgets in the user's order
 - ✓ `MaterialSvgIcons` — added `tune` + `drag_indicator` (both were missing and would have rendered as text)
+- ✓ **Bug fix (2026-09-13) — "moving widgets errors out"** — the reorder handlers captured the `@for` loop index. A lambda such as `() => MoveAsync(index, -1)` closes over the loop _variable_, so when the click finally fires `index` is already `Slots.Count`: **Move up** ran `Slots[Slots.Count]` → `ArgumentOutOfRangeException` → Blazor circuit error, while **Move down** and drag/drop silently did nothing (both ends resolved to the same captured value). Handlers now bind to the per-iteration `slot` (module id) — `MoveAsync(slot, delta)` / `DropAsync(targetModuleId)` — so no index is captured anywhere in the markup
 
 ### Tests
 
 - ✓ 31 new `Core.Tests` (preferences round-trips / malformed payloads / resolver ordering + visibility)
-- ✓ 13 `HomeWidgetLayoutServiceTests` (registry order, persistence round-trips, reorder boundaries, optimistic state on failed write, registry churn)
+- ✓ 18 `HomeWidgetLayoutServiceTests` (registry order, persistence round-trips, reorder boundaries by module id, `GetPosition`, optimistic state on failed write, registry churn)
+- ✓ Drag/drop reorder is addressed by module id, not index — `MoveToModuleAsync(fromModuleId, targetModuleId)` replaced `MoveToAsync(fromIndex, toIndex)`, so a re-render between drag start and drop can never move the wrong widget (unknown ids are a no-op, never a throw)
 - ✓ 20 new icon allow-list data rows, incl. resolving every widget icon through `ModuleIconProvider` so a missing SVG path fails the test instead of rendering as text
-- ☐ Deployed + live-verified on mint22
-- ☐ Committed + pushed (no PR created — the user handles the PR)
+- ✓ Deployed + live-verified on mint22 (2026-09-12)
+- ✓ Merged to `main` via PR #132 (`2873de89`, created by the user) — commits `61836982` + `6ebaf303`; the branch was deleted on merge
+
+### Post-Release Bug Fix — Widget Reorder (2026-09-13)
+
+> Follow-up to the section above; found when the user exercised the customization panel on the deployed v0.6.05 build.
+
+- ✓ Root cause: `HomeWidgetCustomizer.razor`'s `@for` loop handlers (`() => MoveAsync(index, -1)`, `() => DropAsync(index)`, `() => _draggingIndex = index`) captured the loop **variable**, so by the time an event fired `index == Slots.Count` → **Move up** evaluated `Slots[Slots.Count]` → `ArgumentOutOfRangeException` (unhandled Blazor circuit error), while **Move down** / drag-drop silently no-oped
+- ✓ Handlers now bind to the per-iteration `slot` local (`MoveAsync(slot, ±1)`, `DropAsync(slot.ModuleId)`, `_draggingModuleId = slot.ModuleId`) — no index is captured in markup
+- ✓ `MoveToModuleAsync(fromModuleId, targetModuleId)` replaced the index-based `MoveToAsync(fromIndex, toIndex)`; drag/drop is addressed by module id, so unknown/stale ids are a no-op instead of a throw
+- ✓ `GetPosition(moduleId)` added; a no-op move no longer announces a new position in the `aria-live` status
+- ✓ `HomeWidgetLayoutServiceTests` 13 → 18 (drag earlier/later, dropped on itself, unknown ids both ends, `GetPosition`, middle-widget Move↓); `Core.Server.Tests` 778 passed / 2 skipped, `Core.Tests` 532 passed
+- ✓ Generated Razor source inspected (`EmitCompilerGeneratedFiles`) — every handler lambda now references `slot`, none reference the loop variable
+- ✓ Deployed 2026-09-13: `sudo ./scripts/deploy.sh --force --verify` — 15/15 targets, hashes verified, migrations OK, `/health/ready` HTTP 200, service active, v0.6.05 (`MoveToModuleAsync` + new status strings present in the deployed `DotNetCloud.UI.Web.dll`)
+- ✓ Live-verified by the user 2026-09-13 in the browser — drag **and** Move up/down both reorder, and the order sticks ("working good now")
+- ✓ Committed `a369baa5` and pushed `origin/feature/crazy-widgets` — re-created after PR #132 deleted it, so the branch is now `main` + this fix only (1 commit, 6 files). No PR created — the user handles the PR.
 
 ## Side Navbar Improvements: Open-in-New-Tab Icons + Desktop Sync Client (2026-09-07)
 
