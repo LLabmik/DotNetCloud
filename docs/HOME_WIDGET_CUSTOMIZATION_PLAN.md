@@ -293,12 +293,16 @@ Save on every discrete change (style pick, checkbox, drop, move) via a fire-and-
 
 ### Phase 4 — Docs, verification, commit
 
-- ☐ Update `MODULE_WIDGETS_PLAN.md` §2.7 → implemented, link this plan
-- ☐ Update `IMPLEMENTATION_CHECKLIST.md` (`✓`/`☐`) — **targeted edits only**
-- ☐ Update `MASTER_PROJECT_PLAN.md` — Quick Status Summary table + step Status/Deliverables/Notes — **targeted edits only**
-- ☐ `dotnet build` clean (0 warnings) + `dotnet test` green
-- ☐ **End-to-end verification on a running instance** — see §10
-- ☐ `git status --short` clean; delete unexpected untracked files; then commit
+- ✓ Update `MODULE_WIDGETS_PLAN.md` §2.7 → implemented, link this plan
+- ✓ Update `IMPLEMENTATION_CHECKLIST.md` (`✓`/`☐`) — **targeted edits only**
+- ✓ Update `MASTER_PROJECT_PLAN.md` — Quick Status Summary table + step Status/Deliverables/Notes — **targeted edits only**
+- ✓ `dotnet build` clean — 0 warnings, 0 errors, full solution
+- ✓ Affected test suites green: `Core.Tests` 532, `Core.Server.Tests` 773, `UI.Shared.Tests` 111
+- ☐ **Full-repo `dotnet test` (every project) — OUTSTANDING.** Only the three suites touched by this change were run; the remaining projects were inferred unaffected rather than re-run, and a full run was deferred at the user's request. **Re-run before the PR is merged.**
+- ✓ **End-to-end verification on a running instance** — deployed and confirmed working by the user 2026-09-12
+- ✓ `git status --short` clean; temporary preview harness removed; committed `61836982` and pushed `origin/feature/crazy-widgets`
+
+**Deploy:** `sudo ./scripts/deploy.sh --force --verify` — 15/15 targets, all assembly hashes verified, migrations applied, `/health/ready` HTTP 200, version `0.6.05`. Confirmed `widgets.variants.css` is present in the deployed `wwwroot/_content/DotNetCloud.UI.Web/css/`; a 404 there would have silently downgraded every user to the base style with no error surface.
 
 ---
 
@@ -306,9 +310,9 @@ Save on every discrete change (style pick, checkbox, drop, move) via a fire-and-
 
 Rule #1 in `.github/copilot-instructions.md` blocks committing until testing is complete, and explicitly warns that "unit tests pass ≠ testing complete". Required before commit:
 
-1. `dotnet build` — 0 warnings, 0 errors.
-2. `dotnet test` — all green, including the new resolver/preference tests.
-3. Live instance, logged in as a real user:
+1. ✓ `dotnet build` — 0 warnings, 0 errors (full solution).
+2. ⚠ `dotnet test` — the three suites this change touches are green: `Core.Tests` 532, `Core.Server.Tests` 773, `UI.Shared.Tests` 111. A **full-repo run was deferred at the user's request**; the remaining projects were assumed unaffected rather than re-run. Re-run before merging the PR.
+3. ⚠ Live instance, logged in as a real user — **user-verified 2026-09-12** on the deployed build (v0.6.05): "looks good". The granular checks below were *not* individually signed off, so treat them as the regression checklist for the PR review or a follow-up session:
    - ☐ Default state on first ever visit = **Art Department**, registry order, all visible
    - ☐ Switch to each of the three styles → grid restyles immediately, correctly, in light and dark mode
    - ☐ Reorder by drag **and** by Move up/down; order sticks
@@ -318,7 +322,7 @@ Rule #1 in `.github/copilot-instructions.md` blocks committing until testing is 
    - ☐ Reset to default → back to registry order, all visible, default style
    - ☐ Keyboard-only pass: reach the customizer, change style, toggle a checkbox, reorder with Move up/down
    - ☐ Disable a module in admin → its widget disappears; re-enable → returns to its saved slot
-4. Confirm the working tree contains **only** intended changes.
+4. ✓ Confirm the working tree contains **only** intended changes.
 
 Determine the live environment from **runtime config**, not this repo (committed configs use generic `localhost` defaults by design).
 
