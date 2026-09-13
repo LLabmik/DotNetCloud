@@ -9,7 +9,9 @@
 - ⚠️ **If required verification cannot run in the current environment, STOP and tell the user before committing. Do not commit anyway.**
 - ⚠️ **Determine the live environment from RUNTIME config, not this repo.** Committed configs use generic `localhost` defaults by design (this is open-source; never document personal deployment topology such as private DB/server hosts here).
 
-**2. Session start ritual:** Before acting, read this file, `CLAUDE.md`, and repo memory (`/memories/repo/DotNetCloud.md`). Treat rule #1 as a hard gate.
+**2. Session start ritual:** Before acting, read this file, `CLAUDE.md`, and the repo-memory index
+(`/memories/repo/DotNetCloud.md`) — repo memory files are listed by name only and are never auto-loaded, so open
+the ones relevant to the task. Treat rule #1 as a hard gate.
 
 **3. Pre-commit checklist (before EVERY commit):**
 
