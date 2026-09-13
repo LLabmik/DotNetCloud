@@ -29,9 +29,11 @@
     </div>
 
     <div class="settings-field">
-        <label for="broadcast-message">Message</label>
-        <InputTextArea id="broadcast-message" class="form-control" @bind-Value="_message" rows="4" maxlength="2000"
-                       placeholder="The server will reboot at 22:00 UTC. Expect a short interruption to sync." />
+        <label>Message</label>
+        <MarkdownEditor Content="@_message" ContentChanged="@(value => _message = value)"
+                        Renderer="MarkdownRenderer" MaxLength="2000"
+                        Placeholder="The server will reboot at 22:00 UTC. **Expect a short interruption** to sync." />
+        <span class="settings-description">Markdown is supported — use the toolbar or type Markdown directly. Users see the rendered result.</span>
     </div>
 
     <div class="settings-field">
@@ -156,6 +158,7 @@
     private DncConfirmDialog _confirmDialog = default!;
 
     [Inject] private DotNetCloudApiClient ApiClient { get; set; } = default!;
+    [Inject] private IMarkdownRenderer MarkdownRenderer { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
 
     protected override Task OnInitializedAsync() => LoadAsync();

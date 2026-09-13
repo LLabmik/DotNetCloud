@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Microsoft.JSInterop;
 using DotNetCloud.Core.Localization;
+using DotNetCloud.UI.Shared.Services;
 using DotNetCloud.UI.Web.Client.Services;
 
 public static class Program
@@ -19,6 +20,11 @@ public static class Program
             new HttpClient { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) });
 
         builder.Services.AddScoped<DotNetCloudApiClient>();
+
+        // Markdown rendering for shared components/pages rendered in WebAssembly — e.g. the
+        // admin broadcast composer (InteractiveAuto). Server-interactive rendering resolves the
+        // same service from the module UI registrations in Core.Server.
+        builder.Services.AddSingleton<IMarkdownRenderer, MarkdownRenderer>();
 
         // Add localization services for i18n support
         builder.Services.AddLocalization();

@@ -1,0 +1,49 @@
+/* ────────────────────────────────────────────────────────────
+   AdminBroadcastModal — user-facing administrator broadcast.
+
+   The message body is rendered as sanitized Markdown via the shared
+   MarkdownEditor (preview-only). The area is height-capped so long
+   broadcasts scroll vertically instead of growing the dialog past the
+   viewport, keeping the title, severity banner and Dismiss button visible.
+   ──────────────────────────────────────────────────────────── */
+
+.broadcast-viewer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+
+.broadcast-severity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 0;
+  font-weight: 600;
+}
+
+/* Informational broadcasts: app.css defines danger/warning/success only. */
+.broadcast-severity.alert-info {
+  background: #dbeafe;
+  color: #1e40af;
+  border: 1px solid #93c5fd;
+}
+
+/* Height-capped, scrollable message region. */
+.broadcast-message {
+  max-height: 55vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+}
+
+/* Present the rendered Markdown as dialog content, not a bordered editor. */
+.broadcast-message ::deep .markdown-editor {
+  border: none;
+  background: transparent;
+  min-height: 0;
+}
+
+.broadcast-message ::deep .markdown-editor .preview-pane {
+  min-height: 0;
+}
