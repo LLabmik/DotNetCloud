@@ -91,6 +91,15 @@ public partial class VideoPage : IAsyncDisposable
     private DotNetObjectReference<VideoPage>? _dotNetRef;
     private string? _streamStrategy; // "direct", "remux", or "transcode" (badge display only)
 
+    // ── Player script loader (imported ES module — see video-loader.js) ──
+    // The player/layout scripts are classic scripts that must be injected at
+    // runtime. Blazor cannot inject executing <script> tags from a component and
+    // the app's hardened CSP forbids the `eval` workaround that was used before
+    // (CspPolicy.cs has 'wasm-unsafe-eval' but not 'unsafe-eval'), so an ES
+    // module is imported instead and it injects the tags itself.
+    private const string VideoLoaderModuleUrl = "/_content/DotNetCloud.Modules.Video/video-loader.js?v=1";
+    private IJSObjectReference? _videoLoaderModule;
+
     // ── Layout observer (fills the screen with as many fixed-size cards as fit) ──
     private bool _layoutObserverAttached;
     private string? _activeLayoutGridId;
@@ -209,7 +218,7 @@ public partial class VideoPage : IAsyncDisposable
             {
                 _dotNetRef ??= DotNetObjectReference.Create(this);
 
-                // Load hls.js → video-player.js (promise-chained onload), then init the player.
+                // Load hls.js → video-player.js (via the loader module), then init the player.
                 await LoadPlayerScriptsAsync();
 
                 await Js.InvokeVoidAsync("DotNetCloudVideoPlayer.init", BuildPlayerConfig());
@@ -225,11 +234,11 @@ public partial class VideoPage : IAsyncDisposable
     }
 
     /// <summary>
-    /// Loads hls.min.js then video-player.js via promise-chained onload handlers.
-    /// Script tags inside Blazor components don't execute; hls.js is loaded from the
-    /// module static asset path, and video-player.js is served via the
-    /// /api/v1/videos/video-player-js endpoint to work around the .NET 10
-    /// static-web-assets bug. The eval returns a Promise that Blazor awaits.
+    /// Loads hls.min.js then video-player.js. Script tags inside Blazor components
+    /// don't execute, so the loader module (<c>video-loader.js</c>) is imported and
+    /// it injects the &lt;script&gt; tags itself: hls.js from the module static asset
+    /// path, and video-player.js from the /api/v1/videos/video-player-js endpoint
+    /// that works around the .NET 10 static-web-assets bug.
     ///
     /// The load is guarded so the scripts are injected at most once per page
     /// session: re-executing video-player.js re-runs its IIFE, which resets the
@@ -241,10 +250,21 @@ public partial class VideoPage : IAsyncDisposable
     /// </summary>
     private async Task LoadPlayerScriptsAsync()
     {
-        // Timestamp cache-buster (Date.now) so a freshly deployed video-player.js is
-        // never served stale from the browser cache.
-        await Js.InvokeVoidAsync("eval",
-            "(function(){return new Promise(function(res){if(window.DotNetCloudVideoPlayer){res();return;}var h=document.createElement('script');h.src='/_content/DotNetCloud.Modules.Video/hls.min.js?v=1';h.onload=function(){var p=document.createElement('script');p.src='/api/v1/videos/video-player-js?_='+Date.now();p.onload=res;p.onerror=res;document.head.appendChild(p);};h.onerror=res;document.head.appendChild(h);});})()");
+        // The loader module injects hls.min.js then video-player.js (with a
+        // Date.now cache-buster) and rejects if either fails to define its global.
+        var loader = await GetVideoLoaderAsync();
+        await loader.InvokeVoidAsync("ensurePlayer");
+    }
+
+    /// <summary>
+    /// Imports <c>video-loader.js</c> once per circuit and returns the module
+    /// reference. Dynamic <c>import</c> is a same-origin fetch, which the app's
+    /// CSP allows (<c>script-src 'self'</c>) — unlike <c>eval</c>, which it blocks.
+    /// </summary>
+    private async Task<IJSObjectReference> GetVideoLoaderAsync()
+    {
+        _videoLoaderModule ??= await Js.InvokeAsync<IJSObjectReference>("import", VideoLoaderModuleUrl);
+        return _videoLoaderModule;
     }
 
     /// <summary>
@@ -256,8 +276,8 @@ public partial class VideoPage : IAsyncDisposable
     {
         try
         {
-            await Js.InvokeVoidAsync("eval",
-                "(function(){return new Promise(function(res){if(window.DotNetCloudVideoLayout){res();return;}var s=document.createElement('script');s.src='/_content/DotNetCloud.Modules.Video/video-layout.js?v=2';s.onload=res;s.onerror=res;document.head.appendChild(s);});})()");
+            var loader = await GetVideoLoaderAsync();
+            await loader.InvokeVoidAsync("ensureLayout");
         }
         catch (Exception ex)
         {
@@ -1616,18 +1636,27 @@ public partial class VideoPage : IAsyncDisposable
         if (_playerVideo is null)
             return;
 
-        // Pause playback only if the video is currently playing
-        // (no-op if already paused). This avoids competing bandwidth usage
-        // between the stream and the download, while preserving the
-        // playback position so the user can resume after download completes.
-        await Js.InvokeVoidAsync("DotNetCloudVideoPlayer.pauseIfPlaying");
+        try
+        {
+            // Both calls go through the loader module: the pause is a no-op when
+            // the player script didn't load, and the download works regardless of
+            // the player's state.
+            var loader = await GetVideoLoaderAsync();
 
-        // Trigger the download with the original filename so the saved file
-        // has a meaningful name, not just the video ID.
-        await Js.InvokeVoidAsync(
-            "DotNetCloudVideoPlayer.triggerDownload",
-            GetDownloadUrl(_playerVideo!.Id),
-            _playerVideo!.FileName);
+            // Pause playback only if the video is currently playing
+            // (no-op if already paused). This avoids competing bandwidth usage
+            // between the stream and the download, while preserving the
+            // playback position so the user can resume after download completes.
+            await loader.InvokeVoidAsync("pauseIfPlaying");
+
+            // Trigger the download with the original filename so the saved file
+            // has a meaningful name, not just the video ID.
+            await loader.InvokeVoidAsync("downloadUrl", GetDownloadUrl(_playerVideo!.Id), _playerVideo!.FileName);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error downloading video {VideoId}", _playerVideo!.Id);
+        }
     }
 
     private async Task<CallerContext> GetCallerAsync()
@@ -2568,6 +2597,14 @@ public partial class VideoPage : IAsyncDisposable
             await Js.InvokeVoidAsync("DotNetCloudVideoPlayer.destroy");
         }
         catch { /* circuit may be gone */ }
+
+        try
+        {
+            if (_videoLoaderModule is not null)
+                await _videoLoaderModule.DisposeAsync();
+        }
+        catch { /* circuit may be gone */ }
+        _videoLoaderModule = null;
 
         _pageLoadSemaphore.Dispose();
     }
