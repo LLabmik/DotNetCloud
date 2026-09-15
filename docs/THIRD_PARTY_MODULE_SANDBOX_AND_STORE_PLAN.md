@@ -1,8 +1,8 @@
 # Third-Party Module Sandbox & Module Store — Implementation Plan
 
-> **Status:** Approved — ready for implementation
+> **Status:** Approved — ready for implementation · **security review applied 2026-09-15 (§2.1)**
 > **Branch:** `feature/third-party-module-support`
-> **Last Updated:** 2026-09-15
+> **Last Updated:** 2026-09-15 (security review remediation — §2.1)
 > **Audience:** implementation agents (assumes knowledge of .NET 10 / EF Core / gRPC / Blazor, not of this repo's module history)
 
 ---
@@ -26,7 +26,7 @@ DotNetCloud's architecture promises that modules are safely isolated, that third
 
 ### Non-goals (out of scope for this program)
 
-- Per-module OS user isolation (Linux systemd per-module users). Documented as future hardening.
+- Per-module OS user isolation (Linux systemd per-module users). Out of implementation scope, but **re-evaluated as a public-store launch gate** — the sandbox is not an OS boundary while all modules share the core service account (§2.1, §4.1, §13).
 - Moving required modules out of the `core` schema or off their current access model.
 - Store features beyond the first pass: ratings/reviews, paid modules, publisher self-service portals, automated behavior analysis.
 - macOS client work (unrelated to this program).
@@ -52,6 +52,19 @@ These were explicitly decided with the project owner. **Do not revisit during im
 | 10  | Iframe home widgets ship **in the first pass**. Package hosting at launch = **GitHub Release assets**.                                                                                                                                                                                                             | Widget parity for non-required modules; stable, CDN-backed downloads.                                |
 | 11  | Execution is two **parallel tracks** (sandbox + store), converging at public launch.                                                                                                                                                                                                                               | Store distribution without the sandbox would expose users; sequential would stall momentum.          |
 
+### 2.1 Security review record (2026-09-15, applied)
+
+A security review (2026-09-15) verified this plan against the code and its corrections are incorporated throughout this document. Key changes:
+
+- **Enforcement is dead code today:** `CapabilityValidator` is registered in DI with **zero call sites**, and `CoreCapabilitiesServiceImpl` performs no grant checks — enforcement never happens, not even at startup. A new **Phase A0** ships an immediate stopgap.
+- **Claimed-identity spoofing is broader than `module-id`:** `CallerContextInterceptor` trusts caller-supplied `caller-user-id`, `caller-type` (including `System`) and `caller-roles`; A0/A2 now cover all claimed-identity metadata.
+- **Same-OS-user trust boundary made explicit (§4.1):** sockets/ACL/directory separation does **not** isolate modules from each other while they share the core service account; token identity (A2) is the guarantee; cross-module reachability tests corrected (A4); OS isolation re-evaluated as a public-store launch gate (§13).
+- **Token design hardened (§4.3):** audience binding (module tokens + injected user tokens), lifecycle/rotation, and secret-handling rules for provisioning DDL and `ModuleDataStore.LastError`.
+- **Consent plane completed (§4.4):** shared/team-data semantics, consent-filtered event delivery, core-rendered consent UI, cache/revocation rules.
+- **Event & audit authenticity (§4.3):** publish/broadcast restricted to manifest-declared event types with server-stamped origin; `LogAudit` attribution from the authenticated identity.
+- **Distribution hardening (§4.6, B1/B3):** archive (zip-slip) validation, package-id/install-dir matching, index anti-replay, revocation levels, provenance guidance.
+- **Docs truth pass pulled forward:** `docs/security/CROSS_MODULE_TRUST.md` documents controls that do not exist (sockets, 0600, mutual TLS); corrected in A0, full rewrite remains in Track D.
+
 ---
 
 ## 3. Current-state inventory (read this first)
@@ -62,7 +75,8 @@ These were explicitly decided with the project owner. **Do not revisit during im
   - `DOTNETCLOUD_MODULE_ID`, `DOTNETCLOUD_GRPC_ENDPOINT` (loopback TCP port), `DOTNETCLOUD_CORE_ENDPOINT`
   - forwarded `DOTNETCLOUD_CONFIG_DIR` and `DOTNETCLOUD_DATA_DIR`
 - Module hosts load `config.json` from `DOTNETCLOUD_CONFIG_DIR` and connect a module-owned `DbContext` to the **same database, with the same credentials** as core (see `src/Modules/Example/DotNetCloud.Modules.Example.Host/Program.cs` and the Files host).
-- Module→core capability calls go through gRPC (`CoreCapabilities` service defined in `src/Core/DotNetCloud.Core.Grpc/Protos/module_capabilities.proto`, implemented by `CoreCapabilitiesServiceImpl` in `src/Core/DotNetCloud.Core.Server/Grpc/Services/GrpcHealthServiceImpl.cs`).
+- Module→core capability calls go through gRPC (`CoreCapabilities` service defined in `src/Core/DotNetCloud.Core.Grpc/Protos/module_capabilities.proto`, implemented by `CoreCapabilitiesServiceImpl` in `src/Core/DotNetCloud.Core.Server/Grpc/Services/GrpcHealthServiceImpl.cs`). **Verified 2026-09-15: neither the interceptor chain nor the implementation enforces tokens or capability grants (§3.2).**
+- Caller identity consumed by the core (`module-id`, `caller-user-id`, `caller-type`, `caller-roles`) arrives as unauthenticated gRPC metadata — a caller can claim `System` and arbitrary roles (§3.2 additional findings).
 - Core→module REST calls are reverse-proxied by YARP (`MapModuleApiProxies` in `src/Core/DotNetCloud.Core.Server/Program.cs`), which forwards the **user's auth cookie** and relies on the shared DataProtection key ring.
 - Module UI is compiled into the core process: `ModuleUiRegistrationHostedService` (static `typeof(...)` page descriptors), `WidgetUiRegistrationHostedService` (home widgets), and `AddAdditionalAssemblies` in `Program.cs`. `DotNetCloud.Core.Server.csproj` holds `<ProjectReference>`s to every module's lib, Data, Data.SqlServer, and Widget projects.
 - `manifest.json` v1 fields: `id`, `name`, `version`, `description`, `author`, `requiredCapabilities`, `publishedEvents`, `subscribedEvents`, `minCoreVersion`, `restartPolicy`, `memoryLimitMb`, `schemaProvider`.
@@ -73,10 +87,17 @@ These were explicitly decided with the project owner. **Do not revisit during im
 | #   | Gap                                                                                                                                                                  | Evidence                                                                                       | Closed by                                      |
 | --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------- |
 | 1   | Every module process can read core DB credentials (`config.json` contains `connectionString`, admin identity, TLS paths) and read/write any schema in the database.  | `ProcessSupervisor.cs` env forwarding; `config.json` written by setup                          | A1 (scoped principals, config split)           |
-| 2   | Module identity is a spoofable `module-id` gRPC metadata header — any local process can impersonate any module.                                                      | `src/Core/DotNetCloud.Core.Server/Grpc/Interceptors/AuthenticationInterceptor.cs`              | A2 (per-module tokens)                         |
-| 3   | `ModuleCapabilityGrant` rows are validated only at startup; capability calls are not enforced per call.                                                              | `CapabilityValidator` vs `CoreCapabilitiesServiceImpl`                                         | A2 (`ModuleAccessEvaluator`)                   |
+| 2   | Module identity is a spoofable `module-id` gRPC metadata header — any local process can impersonate any module; `CallerContextInterceptor` additionally trusts caller-claimed `caller-user-id`, `caller-type` (including `System`) and `caller-roles` metadata headers.                                                      | `Grpc/Interceptors/AuthenticationInterceptor.cs`; `Grpc/Interceptors/CallerContextInterceptor.cs`              | A0 (stopgap) + A2 (tokens + claimed-identity hardening)                         |
+| 3   | **No capability enforcement exists at all** — not per call, not at startup: `CapabilityValidator` is registered in DI but has zero call sites (dead code), and `CoreCapabilitiesServiceImpl` performs no grant checks.                                                              | `CapabilityValidator` (dead code — no call sites) vs `CoreCapabilitiesServiceImpl`                                         | A0 (activate existing validator) + A2 (`ModuleAccessEvaluator`)                   |
 | 4   | Module processes share the core DataProtection key ring (cookie forgery risk), listen on loopback TCP (any local process can connect), and share one data directory. | Files host `AddDataProtection(...)`; `Listen(IPAddress.Loopback, ...)`; `DOTNETCLOUD_DATA_DIR` | A1 (key ring + dirs) + A4 (per-module sockets) |
 | 5   | Third-party module UI is impossible, and optional first-party UI/widgets run **in-process** in the core web app.                                                     | `ModuleUiRegistrationHostedService`, `WidgetUiRegistrationHostedService`, csproj references    | A5 (iframe plane) + Track C                    |
+
+**Additional findings from the 2026-09-15 security review (validated against code):**
+
+- **Claimed-identity spoofing extends beyond `module-id`** — `CallerContextInterceptor` trusts caller-supplied `caller-user-id`, `caller-type` (including `System`) and `caller-roles` metadata headers. Closed by A0 (stopgap) + A2 (tokens).
+- **Supervisor path-containment bug** — `SpawnModuleProcess` uses a `StartsWith(dir)` prefix test with a sibling-prefix bypass (`/data/modules-evil/…` passes for `/data/modules`). Fixed in A0 with a regression test.
+- **Core gRPC server sets `EnableDetailedErrors = true`** — disable outside Development (A0).
+- **Security documentation states controls that do not exist** — `docs/security/CROSS_MODULE_TRUST.md` claims Unix sockets, 0600 permissions, mutual TLS and per-module directories; deployed reality is cleartext HTTP/2 on loopback TCP with metadata-only identity. Truth pass ships in A0.
 
 ### 3.3 What stays unchanged
 
@@ -141,6 +162,12 @@ flowchart LR
 | **Bundled optional** (in-repo, dogfooded) | ai, bookmarks, email, music, photos, video, tracks, example | Own schema via scoped principal only            | Sanitized `module.json` only | Module-hosted iframe       |
 | **Store** (third-party)                   | any                                                         | Own schema via scoped principal only, or none   | Sanitized `module.json` only | Module-hosted iframe       |
 
+**Trust-boundary statement (security review, 2026-09-15).** While all module hosts run as the same OS user as the core process, the sandbox is an **API, configuration, and data-layer boundary — not an OS boundary**. Concretely:
+
+- Socket files (0600) and named-pipe ACLs do **not** prevent one module from connecting to another module's socket; per-module directories and the env-variable config split are isolation-by-configuration, and anything the core service user can read (e.g. files under the data directory) remains readable to module processes by path.
+- Per-module tokens (A2) are the identity guarantee, not the transport. Cross-module reachability is mitigated by tokens, deferral of stronger isolation (§13), and store review; it is **not prevented at the OS level** in this program.
+- These limitations must be stated honestly in user-facing/security documentation (see §2.1 and §11 R11). Before the public store launch, per-module OS isolation is re-evaluated as a launch gate (§13).
+
 ### 4.2 Data plane
 
 - A non-required module never sees the core connection string. It receives `DOTNETCLOUD_MODULE_DB_CONNECTION_STRING` (only when `dataStore: "isolated"`), valid **only** for its own schema and principal.
@@ -154,6 +181,12 @@ flowchart LR
 - Every call is authenticated by `dnc-module-id` + `dnc-module-token` metadata; the token is generated at install, stored as SHA-256, and rotatable/revocable.
 - Every RPC maps to a capability name; `ModuleAccessEvaluator` checks grants (cached, invalidated on grant/revoke), denies with `PERMISSION_DENIED`/403, and audit-logs denials.
 - REST/JSON facade on the same internal listener (`/internal/moduleapi/v1/...`) with identical auth + evaluation, per-module rate limits, and the standard error envelope.
+- **Token audience binding:** module tokens are usable only for the module→core API. Proxy-injected user bearer tokens (A5) are audience-restricted to the specific module (`aud=<moduleId>`), scope-restricted to the module's declared scopes ∩ the user's consent, short-lived, and are rejected by core user APIs and by other modules; replays are denied and audit-logged.
+- **Token lifecycle:** generated at install (32 CSPRNG bytes, base64url; SHA-256 at rest; constant-time comparison), rotated on credential rotation and on module update/reinstall; per-start rotation is recommended to limit the value of a token leaked to a sibling process (same-OS-user execution, §4.1); token material never appears in files, logs or the admin UI (only `TokenHint`).
+- **Claimed-identity hardening:** `caller-type`/`caller-roles` are **never** accepted from module metadata; `System` is derived server-side only; `caller-user-id` is a claim usable only after the A3 consent check passes for the (module, user, scope) tuple.
+- **Event & audit authenticity:** `PublishEvent` validates event types against the authenticated module's manifest `publishedEvents` (undeclared types rejected + audited); the core stamps `sourceModule`; consumers never trust sender fields. `BroadcastRealtimeEvent` is limited to declared realtime event names with payload/rate validation. `LogAudit` attributes entries to the authenticated module identity — never a request field.
+- **Legacy surface:** every legacy RPC (including `CleanupAdminSharedFolder` and `SubmitSearchIndex`) maps to an explicit capability, and `TokenIntrospectionServiceImpl` is protected by the same token scheme (it is a token-validity oracle otherwise).
+- The core gRPC server disables `EnableDetailedErrors` outside Development.
 
 ### 4.4 Consent plane
 
@@ -161,19 +194,31 @@ flowchart LR
 - Consent is modelled on OpenIddict: each installed module is registered as an OAuth2 client (`dnc-module-<short>`); user consent is an explicit authorization grant for the module's declared scopes.
 - A user-facing "Connected apps" page lists modules with access, scopes, and a revoke action; admins see consent stats on module detail pages.
 - When an update introduces new scopes, the module runs until it needs the new scope, then users are re-prompted.
+- **Shared/team data semantics (must be decided before Track C media migrations):** per-user consent alone does not define whose consent applies when a module processes data owned by user A but accessed via user B (shared folders, teams, admin shared folders). Decide and document the model (e.g. owner-of-record consent, or share-context consent) — otherwise consent is either bypassed or functionality breaks.
+- **Event delivery is consent-filtered:** events carrying user data are delivered to a subscriber module only where the (module, user, scope) consent exists (or payloads are minimized for admin-granted, consent-free event types). Without this, the event bus bypasses the consent plane.
+- **Consent UI is rendered by core chrome only** — never inside a module's sandboxed iframe (fake/clickjacked consent).
+- **Revocation semantics:** capability-grant caches and consent caches are invalidated on revoke; revocation stops future calls, not data already held by the module (store review + audit are the compensating controls).
+- `notifications:send` means "this module may notify me" (user consent); the admin capability grant still gates the code path. OIDC client secrets are **not** shipped into module processes if the modules never need them (consent flows are browser↔core).
 
 ### 4.5 UI plane
 
 - Non-required modules serve their UI from their own host process; the core proxies `/apps/{moduleId}/**` (YARP, per-module socket) and embeds it in `ModuleAppHost.razor` with `sandbox="allow-scripts allow-forms allow-popups"` (deliberately **no** `allow-same-origin`).
 - A `postMessage` handshake provides theme/locale/token and supports `navigate`, `resize`, `title`, `openExternal`, `requestConsent`, `notify` events. The SDK ships `dncModuleBridge.js`.
 - The proxy strips `Set-Cookie`, injects a short-lived user-scoped bearer token for module backend calls, and sets `frame-ancestors 'self'`.
-- Home widgets for non-required modules render as iframe widget cards using the same plane.
+- Proxy hardening details: strip inbound `Authorization` from browser requests (only the injected aud-scoped token reaches the module), strip `Server`/`X-Powered-By`, and set `frame-ancestors 'self'` plus `base-uri 'none'`, `object-src 'none'`, `form-action 'self'`, `nosniff` on module responses.
+- **`postMessage` validation:** sandboxed (opaque-origin) frames all report `event.origin === "null"`, so the host validates `event.source === iframe.contentWindow` from a per-module registry, validates the message schema, rejects unknown types, and rate-limits `dnc:notify`. The bridge validates `event.source === window.parent`.
+- `dnc:openExternal` accepts `https:` only (no `javascript:`/`data:`), opened with `noopener,noreferrer`; `dnc:navigate` targets pass a core allow-list (no open redirect).
+- Home widgets for non-required modules render as iframe widget cards using the same plane; widgets use the same source-bound message rules (a widget cannot spoof height/notify messages for another widget).
 
 ### 4.6 Distribution plane
 
 - `.dncpkg` package = deterministic zip (manifest v2, per-RID binaries, Ed25519 signature, LICENSE/README/CHANGELOG/icon).
 - Store index (v1 JSON) lists packages/versions with hashes, signatures, compatibility ranges, declared capabilities/scopes, and review status; index signed with the curated store key.
 - Core store client: fetch index (cache, offline fallback, mirrors) → verify → review capabilities/scopes with the admin → provision → install/update → health-check → rollback support.
+- **Package extraction is hardened independently of signatures:** `.dncpkg` extraction rejects absolute paths, `..` traversal, symlink entries, and case-collisions (zip-slip class); the embedded `manifest.id` must equal the store entry id and the install directory name. A valid signature over a malicious archive structure is still rejected.
+- **Index anti-replay:** the client rejects an index with a `generatedAt` older than its cached index, pins the accepted `keyId` set (current + previous), and re-verifies hash + signature on every offline/`--file` install (the local cache is written by the same OS user as module processes and is treated as untrusted).
+- **Revocation levels:** clear semantics — deprecation (block new installs/updates), security revocation (warn admins about installed copies; optionally stop critical-severity modules with explicit admin override) — with an operator runbook.
+- Provenance/attestations (e.g. GitHub Actions attestations/SLSA) are recommended for official packages; publisher signing-key requirements are codified in the publisher agreement.
 
 ### 4.7 Manifest v2 (non-required modules)
 
@@ -213,11 +258,12 @@ flowchart LR
 
 Validation rules (enforced by `ModuleManifestLoader`):
 
-- `manifestVersion` defaults to 1; v1 modules keep today's behavior (required-module compatibility).
+- `manifestVersion` defaults to 1. **Required modules keep today's behavior under v1 manifests; every non-required module — including already-installed ones — is migrated to the v2 sandboxed model per §9** (no v1 escape hatch for non-required modules beyond the transitional override in §9).
 - `dataStore` must be `"isolated"` or `"none"`; any other value fails validation. Default for v2 non-required modules without `dataStore`: `"none"` (safe default).
 - `ui.type` only supports `"iframe"` for non-required modules.
 - Required modules must NOT declare `dataStore`/`ui`; new fields are ignored for them.
-- IDs remain reverse-DNS, lowercase.
+- IDs remain reverse-DNS, lowercase, and are restricted to a strict character set with length caps; all derived schema/principal names inherit the same validation (PostgreSQL truncates identifiers at 63 bytes — generated-name collisions must be impossible by construction).
+- v2 manifests are parsed strictly: unknown top-level fields fail validation (v1 stays lenient for required-module compatibility).
 
 ### 4.8 New database objects (Core.Data, both providers)
 
@@ -292,6 +338,24 @@ EF migrations for PostgreSQL (`Core.Data/Migrations`) and SQL Server (`Core.Data
 
 ## 5. Track A — Module sandbox (this repo)
 
+### Phase A0 — Immediate stopgap hardening (ship first)
+
+**Status:** ☐ Not started
+**Effort:** Small (~2–3 days)
+**Blocks:** nothing. Closes the largest live exposure with code that already exists.
+
+**Deliverables**
+
+- ☐ Activate `CapabilityValidator` at module start and enforce **per-call** capability grants in `CoreCapabilitiesServiceImpl` (grant data and validator code already exist — add the missing call sites and tests).
+- ☐ Harden `CallerContextInterceptor`: never accept `caller-type`/`caller-roles` from metadata; `System` is derived server-side only; rejected claims are audit-logged.
+- ☐ Disable `EnableDetailedErrors` on the core gRPC server outside Development.
+- ☐ Fix the supervisor module-directory containment check (sibling-prefix bypass) + regression test.
+- ☐ Truth-pass `docs/security/CROSS_MODULE_TRUST.md` (and similar claims in `ARCHITECTURE.md`) to describe **deployed** reality; the full rewrite remains in Track D.
+
+**Notes:** A0 ships first because today any local process that can reach the core gRPC port can call every capability with any claimed identity (including `System`). A2 replaces metadata-only identity with tokens; A0 removes the immediate exposure in the meantime.
+
+---
+
 ### Phase A1 — Isolation foundation
 
 **Status:** ☐ Not started
@@ -308,7 +372,9 @@ EF migrations for PostgreSQL (`Core.Data/Migrations`) and SQL Server (`Core.Data
 - ☐ DataProtection key ring no longer shared with non-required modules.
 - ☐ Setup-wizard prerequisite checks (CREATEROLE / containment) with exact remediation output.
 - ☐ Admin + CLI plumbing: data-store status, provision, rotate credentials, destroy.
-- ☐ Tests: provisioning SQL generation, prereq detection, config split, supervisor launches with sandbox env (unit + integration on both providers).
+- ☐ Secret-handling rules for provisioning: generated passwords use 32 CSPRNG bytes; DDL/exception paths never write passwords to logs, audit entries, or `ModuleDataStore.LastError` (admin-visible); a test asserts no secret reaches stored errors/logs.
+- ☐ Identifier safety: schema/principal names derived from validated module IDs (strict regex + length cap, quoted identifiers, no raw concatenation); hostile-ID tests.
+- ☐ Tests: provisioning SQL generation, prereq detection, config split, supervisor launches with sandbox env (unit + integration on both providers); secret-scan assertions for `LastError`/logs.
 
 **Implementation notes**
 
@@ -318,7 +384,7 @@ EF migrations for PostgreSQL (`Core.Data/Migrations`) and SQL Server (`Core.Data
    - If a prerequisite cannot be met, provisioning fails with a clear admin-visible error (`ModuleDataStore.Status = Error`, `LastError` shown in the admin UI). Modules are **not started** until provisioned, unless the transitional override (§9) is explicitly enabled.
 2. **PostgreSQL provisioning sequence (per module):**
    - `CREATE ROLE dnc_mod_<x> LOGIN PASSWORD '<generated>' CONNECTION LIMIT 10;`
-   - `ALTER ROLE dnc_mod_<x> IN DATABASE <db> SET search_path = <schema>;`
+   - `ALTER ROLE dnc_mod_<x> IN DATABASE <db> SET search_path = <schema>;` — additionally pin `search_path` in the module's connection string (`Options=-csearch_path=<schema>,pg_catalog`) so pooled sessions cannot be steered to resolve unqualified names elsewhere.
    - `GRANT dnc_mod_<x> TO <approle>;` (so the app can create a schema owned by the role), then `CREATE SCHEMA <schema> AUTHORIZATION dnc_mod_<x>;`, then `REVOKE dnc_mod_<x> FROM <approle>;` (ownership persists; re-grant temporarily for future re-provision operations).
    - Rotation: `ALTER ROLE dnc_mod_<x> WITH PASSWORD '<new>';`
    - Drop: `DROP SCHEMA IF EXISTS <schema> CASCADE;` → `DROP OWNED BY dnc_mod_<x>;` → `DROP ROLE dnc_mod_<x>;`
@@ -327,7 +393,7 @@ EF migrations for PostgreSQL (`Core.Data/Migrations`) and SQL Server (`Core.Data
    - `EXEC('CREATE SCHEMA [<schema>] AUTHORIZATION [dnc_mod_<x>]');` (dynamic — schema names are identifiers)
    - `ALTER USER [dnc_mod_<x>] WITH DEFAULT_SCHEMA = [<schema>];`
    - Rotation: `ALTER USER [dnc_mod_<x>] WITH PASSWORD = '<new>';`
-   - Drop: enumerate `sys.tables` in the schema and drop them, `DROP SCHEMA [<schema>];`, `DROP USER [dnc_mod_<x>];`
+   - Drop: enumerate schema-owned objects (tables, views, procedures, functions, types — not just `sys.tables`) and drop them, `DROP SCHEMA [<schema>];`, `DROP USER [dnc_mod_<x>];` (or generate a full drop script; document any residual gaps).
    - Fallback mode (containment forbidden by policy): optional provisioning credential (server-level) that can `CREATE LOGIN` + `CREATE USER FOR LOGIN`; documented, off by default.
 4. **Connection strings** are derived from the core connection string with the principal swapped in (parse with `NpgsqlConnectionStringBuilder` / `SqlConnectionStringBuilder`; preserve host/port/database/TLS options; never log the password). Encrypted with `IDataProtectionProvider` purpose `"ModuleDataStore.v1"`; **`dotnet export/datastore reset-credentials` recovery path exists** because losing the DataProtection key ring would otherwise strand module credentials (§11, risk 1).
 5. **Modules with `dataStore: "none"`** skip provisioning entirely; they persist state through module settings (KV via `IModuleSettings`) and/or their own files in the per-module data directory.
@@ -346,7 +412,7 @@ EF migrations for PostgreSQL (`Core.Data/Migrations`) and SQL Server (`Core.Data
 | `DOTNETCLOUD_MODULE_TOKEN`                | —                      | —                            | new: per-module API token (A2)                             |
 | `DOTNETCLOUD_MODULE_DB_CONNECTION_STRING` | —                      | —                            | new: scoped connection string when `dataStore: "isolated"` |
 
-Per-module directories: `<dataDir>/modules/<moduleId>/{config,data,run}` created with 0700 permissions; `module.json` contains only non-secret topology (core endpoints, module ID, version, dataStore mode).
+Per-module directories: `<dataDir>/modules/<moduleId>/{config,data,run}` created with 0700 permissions; `module.json` contains only non-secret topology (core endpoints, module ID, version, dataStore mode). Note: 0700 limits *other OS users*; it does not isolate sibling modules from each other while they share the core service account (§4.1) — token identity (A2) is the enforcement there.
 
 ---
 
@@ -362,11 +428,13 @@ Per-module directories: `<dataDir>/modules/<moduleId>/{config,data,run}` created
 - ☐ `ModuleCredentialService`: generate (32 random bytes, base64url), hash (SHA-256), issue at install/registration, rotate, revoke; `dnc-module-id` + `dnc-module-token` metadata/headers are mandatory on every module→core call (required modules included).
 - ☐ Rewritten `AuthenticationInterceptor` + REST middleware: constant-time comparison, `UserState` population, clear `Unauthenticated` failures, audit on failures.
 - ☐ `ModuleAccessEvaluator` with per-RPC capability mapping sourced from a shared `CapabilityCatalog` (`DotNetCloud.Core`), grant cache with invalidation hooks on grant/revoke, audit on denials.
+- ☐ Audience-bound tokens + lifecycle per §4.3 (module tokens; aud/scope-bound injected user tokens; replay rejection; supervisor-coordinated rotation).
+- ☐ Event & identity authenticity per §4.3 (manifest-validated publish/broadcast with server-stamped origin; `LogAudit` attribution from the authenticated identity; `TokenIntrospectionServiceImpl` token-protected).
 - ☐ Internal REST facade `/internal/moduleapi/v1/*` (same auth/evaluation; standard envelope; per-module rate limits).
 - ☐ Per-module rate limits/quotas (`Modules:RateLimits` config; defaults applied).
 - ☐ `src/SDK/DotNetCloud.Modules.Sdk/` project with manifest v2 types, gRPC/REST clients, lifecycle base, JS bridge (A5), and an in-memory test harness; CI workflow publishing to GitHub Packages.
 - ☐ Example module rewritten against the SDK (reference implementation).
-- ☐ Tests: token issue/verify/rotate/revoke, spoofing rejection, enforcement allow/deny paths, rate limiting, SDK client round-trip against the test harness.
+- ☐ Tests: token issue/verify/rotate/revoke, spoofing rejection (including `caller-type: System` / role spoof), token audience-replay rejection, enforcement allow/deny paths (incl. write/create/drop denial on the `core` schema and read denial on another module's schema), undeclared-event-type rejection, rate limiting, SDK client round-trip against the test harness.
 
 **Implementation notes**
 
@@ -393,7 +461,8 @@ Per-module directories: `<dataDir>/modules/<moduleId>/{config,data,run}` created
 - ☐ Permission mapping table: capability → required scopes for user data (documented in `docs/modules/MODULE_SECURITY.md`).
 - ☐ User UI: "Connected apps" page (list, scopes in plain language, revoke); consent prompt; admin module detail shows consent overview + revoke-on-behalf ability.
 - ☐ Module-facing RPCs: `CheckUserConsent(userId, scopes)` / `GetGrantedScopes(userId)` so modules can degrade gracefully.
-- ☐ Tests: grant/revoke/expire paths, denial codes, OIDC consent round-trip, update-with-new-scopes re-prompt, revoke invalidates in-flight usage on next call.
+- ☐ Shared/team-data consent semantics decided + documented (§4.4) before Track C media migrations; consent-filtered event delivery implemented in the event path; consent prompts rendered by core chrome only (never a module frame).
+- ☐ Tests: grant/revoke/expire paths, denial codes, OIDC consent round-trip, update-with-new-scopes re-prompt, revoke invalidates in-flight usage on next call, consent-filtered event delivery, module frames cannot render a consent prompt.
 
 **Implementation notes**
 
@@ -417,13 +486,13 @@ Per-module directories: `<dataDir>/modules/<moduleId>/{config,data,run}` created
 - ☐ Core clients: `GrpcChannelManager` and the YARP proxy use `ConnectCallback`-based custom transports for Unix sockets and named pipes.
 - ☐ `Modules:Transport` setting (`Auto` default; `Sockets`; `Tcp` fallback documented for constrained hosts such as Docker without a shared socket volume).
 - ☐ Docs: transport matrix + Docker volume guidance.
-- ☐ Tests: socket creation/permissions, gRPC + REST round-trips over sockets, cross-module connect failure (a module cannot reach another module's socket), TCP fallback path.
+- ☐ Tests: socket creation/permissions, gRPC + REST round-trips over sockets, cross-module **token** forgery rejection (a same-OS-user module *can* connect to a sibling's socket — the identity guarantee is the token, not the ACL; see note 3), TCP fallback path.
 
 **Implementation notes**
 
 1. Kestrel supports both HTTP/1.1 and HTTP/2 over UDS on .NET 10; if a specific platform combination (e.g., named pipes) rejects HTTP/2, keep gRPC on HTTP/2-over-socket where supported and fall back to TCP+token for that platform — record the finding in the docs and keep the token layer as the identity guarantee regardless of transport.
 2. Socket files are removed by the supervisor on stop/restart to avoid stale-connection hangs; Windows pipes are inherently ephemeral.
-3. Symmetric hardening (core→module call authentication) is out of scope: modules' sockets are only reachable by the core process due to filesystem/ACL permissions, which covers the threat.
+3. **Corrected (security review):** sockets are reachable by *any process running as the core service account* — i.e. sibling modules — because 0600/ACL permissions key on the OS user, not the module. Filesystem permissions therefore mitigate *other OS users* only. If cross-module reachability must be eliminated, add connection-level core→module authentication (the core presents a credential the module verifies); otherwise document explicitly that token identity + store review are the compensating controls. Re-evaluate per-module OS user isolation as a public-store launch gate (§13).
 
 ---
 
@@ -440,7 +509,8 @@ Per-module directories: `<dataDir>/modules/<moduleId>/{config,data,run}` created
 - ☐ `ModuleAppHost.razor`: sandboxed iframe, message protocol (`dnc:init`, `dnc:ready`, `dnc:navigate`, `dnc:resize`, `dnc:title`, `dnc:openExternal`, `dnc:requestConsent`, `dnc:notify`), loading/error/stopped states, theme/locale propagation.
 - ☐ Nav integration via `ModuleUiRegistry`/`ModuleIconProvider`; widget plane: `WidgetUiRegistry` iframe-card descriptor + `WidgetCard` iframe rendering with postMessage height contract (**first pass**).
 - ☐ SDK: `dncModuleBridge.js` + typed JS wrapper + static-asset conventions (`wwwroot` served under the proxied path base).
-- ☐ Tests: proxy security (cookie stripping, frame-ancestors, 503 when stopped), handshake protocol, nav registration from manifests, widget card rendering, external-link handling.
+- ☐ Protocol hardening per §4.5: source-bound `postMessage` validation (`event.source === iframe.contentWindow`; origin is `"null"` for every sandboxed frame), schema validation + unknown-type rejection + `dnc:notify` rate limiting, `https:`-only `openExternal` with `noopener,noreferrer`, navigation allow-list, core-rendered consent prompts, proxy CSP additions + inbound `Authorization` stripping.
+- ☐ Tests: proxy security (cookie stripping, frame-ancestors, 503 when stopped, inbound `Authorization` stripped, CSP directives present), handshake protocol (source-validated messages; spoofed source/type rejected), nav registration from manifests, widget card rendering (cross-widget message spoofing rejected), external-link scheme handling (`javascript:`/`data:` rejected).
 
 **Implementation notes**
 
@@ -461,7 +531,7 @@ Per-module directories: `<dataDir>/modules/<moduleId>/{config,data,run}` created
 
 - ☐ Admin UI (`ModuleDetail.razor`, new sections): trust tier, publisher, sandbox status, data-store status + destroy action, token rotate/revoke, consent overview.
 - ☐ Uninstall flow: stop → admin chooses keep-or-destroy data → destroy drops schema/principal → files removed → DB records + audit entry. "Keep" marks `ModuleDataStore.Status = Orphaned` with an admin-visible cleanup list.
-- ☐ Audit coverage: `ModuleInstalled`, `ModuleUpdated`, `ModuleUninstalled`, `ModuleCredentialRotated`, `ModuleDataStoreProvisioned|Destroyed|Error`, `ModuleCapabilityDenied`, `ModuleConsentGranted|Revoked`, `ModuleRateLimited`.
+- ☐ Audit coverage: `ModuleInstalled`, `ModuleUpdated`, `ModuleUninstalled`, `ModuleCredentialRotated`, `ModuleDataStoreProvisioned|Destroyed|Error`, `ModuleCapabilityDenied`, `ModuleConsentGranted|Revoked|Denied`, `ModuleRateLimited`, `ModuleAuthFailed` (token/identity spoof attempts), `ModuleEventRejected` (undeclared event type), `ModulePackageVerificationFailed`, `ModuleLegacyAccessUsed` (override usage).
 - ☐ Health/supervision: `SandboxStatus` per module surfaced in admin dashboard and `/health/ready` module rows; supervisor refuses to start unprovisioned `isolated` modules with a clear log message.
 - ☐ Backup/restore verification: module schemas are in the same database and covered by existing dumps; document that module credentials depend on the DataProtection key ring (see §11 risk 1) and add the credential-reset recovery path.
 - ☐ Tests: admin API endpoints, uninstall matrix (keep/destroy), audit assertions, backup/restore smoke.
@@ -479,10 +549,11 @@ Per-module directories: `<dataDir>/modules/<moduleId>/{config,data,run}` created
 **Deliverables**
 
 - ☐ `.dncpkg` specification per §4.10 (`docs/modules/MODULE_PACKAGING.md`).
+- ☐ Extraction hardening in the specification + tooling: reject absolute paths, `..` traversal, symlink entries, and case collisions (zip-slip class) — signature verification does not cover archive structure.
 - ☐ `DotNetCloud.ModulePackaging` CLI tool (`tools/` in this repo or a new `src/Tools` project): `pack` (build + stage per-RID publishes + manifest validation + deterministic zip + sign), `verify`, `inspect`.
 - ☐ Local-feed format (an `index.json` + packages directory) usable for dev/testing and by integration tests.
 - ☐ Sample package fixture: the Example module, built as a `.dncpkg` in CI, stored as a test artifact for installer tests.
-- ☐ Tests: determinism (same inputs → byte-identical zip), hash/signature verification, tamper detection, manifest validation failures.
+- ☐ Tests: determinism (same inputs → byte-identical zip), hash/signature verification, tamper detection, manifest validation failures, malicious-archive rejection (zip-slip/symlink fixtures).
 
 ### Phase B2 — Store repo (`DotNetCloud.ModuleStore`)
 
@@ -513,9 +584,10 @@ Per-module directories: `<dataDir>/modules/<moduleId>/{config,data,run}` created
 - ☐ `ModulePackageInstaller` state machine: download → SHA-256 + Ed25519 verify → staging extraction → manifest validate → compatibility check (core version, `moduleApiVersion`) → **admin review of capabilities/scopes** → data-store provisioning → atomic install to `modules/<id>` → `InstalledModules` record → start → health check → rollback on failure (previous version retained).
 - ☐ Update checker (`UpdateAvailable` status per module) + `dotnetcloud module update` incl. rollback; revocation respected on updates.
 - ☐ CLI (`ModuleCommands.cs`): `search`, `info`, `install`, `update`, `update --all`, `uninstall`, `verify`, `keys`; `--file <x.dncpkg>` sideload requiring `--allow-unverified` (air-gapped installs).
+- ☐ Index anti-replay + cache-trust rules (§4.6): monotonic `generatedAt`, pinned keyIds, re-verification on offline/`--file` installs, zip-slip/symlink extraction validation, `manifest.id` = store entry id = install directory checks.
 - ☐ Admin UI: `Admin/Store.razor` (browse/search/install with capability + scope consent dialog), updates section, module detail additions.
-- ☐ Config: `Modules:Store:IndexUrl`, mirrors, `AllowUnverified`, per-module auto-update policy (**default off for third-party**, patch-only option for official).
-- ☐ Tests: index parsing/caching/offline, verification (tamper, bad signature, version mismatch), installer state machine + rollback, revocation handling, CLI command coverage.
+- ☐ Config: `Modules:Store:IndexUrl`, mirrors, `AllowUnverified` (server-side setting + interactive fingerprint confirmation + audit; never default), per-module auto-update policy (**default off for third-party**, patch-only option for official).
+- ☐ Tests: index parsing/caching/offline, index replay/rollback rejection, verification (tamper, bad signature, version mismatch, malicious archive), installer state machine + rollback, revocation handling (per level), `--allow-unverified` refusal path, CLI command coverage.
 
 ### Phase B4 — Websites (`www` + `modules`) on Cloudflare Pages
 
@@ -544,6 +616,7 @@ Per-module directories: `<dataDir>/modules/<moduleId>/{config,data,run}` created
 - ☐ Trust tiers: Official (DotNetCloud-signed), Verified publisher (registered Ed25519 keys), Community (curated-signed after review), Unverified (sideload only, `--allow-unverified` + admin warning).
 - ☐ Signing key management: key generation, storage in Actions secrets, offline backup, rotation procedure, key pinning list in the core (accepts current + previous key ids).
 - ☐ Security review checklist (manifest, capabilities/scopes least-privilege, network behavior, telemetry declaration, license).
+- ☐ Provenance: recommend build attestations (e.g. GitHub Actions attestations/SLSA) for official packages; codify publisher signing-key requirements in the publisher agreement.
 - ☐ Takedown/revocation runbook coordinated with `docs/security/VULNERABILITY_DISCLOSURE.md`.
 
 ---
@@ -595,11 +668,12 @@ A module completes the checklist only when: no ProjectReference remains, it runs
 
 ## 9. Upgrade path for existing installs
 
-1. On first start after upgrade, a `ModuleSandboxMigrationHostedService` provisions credentials + data stores for already-installed non-required modules (adopting their existing schemas — no data movement), registers their OIDC clients, and marks `SandboxStatus = Active`.
+1. On first start after upgrade, a `ModuleSandboxMigrationHostedService` provisions credentials + data stores for already-installed non-required modules (adopting their existing schemas — no data movement), registers their OIDC clients, and marks `SandboxStatus = Active`. Adoption transfers schema/object ownership to the module principal (PostgreSQL: `ALTER SCHEMA … OWNER` + per-object owner changes; SQL Server: `ALTER AUTHORIZATION ON SCHEMA …`) — this privilege surgery is part of A1's implementation, not implied.
 2. Required modules are untouched.
-3. If provisioning prerequisites are missing, non-required modules are held with `SandboxStatus = Error` + admin guidance, **unless** the transitional `Modules:AllowLegacyAccess=true` override is set. The override is admin-only, audit-logged, marked deprecated in the admin UI, and documented for removal after 1.0.
+3. If provisioning prerequisites are missing, non-required modules are held with `SandboxStatus = Error` + admin guidance, **unless** the transitional `Modules:AllowLegacyAccess=true` override is set. The override is admin-only, audit-logged (`ModuleLegacyAccessUsed`), marked deprecated in the admin UI, and self-expiring by policy: removal is a documented 1.0 release criterion (no release ships with the override enabled by default).
 4. Schema additions are additive; rolling back binaries leaves harmless extra tables. Module data stores remain intact across rollback.
 5. Docker deployments require a shared volume for module sockets; otherwise use `Modules:Transport=Tcp` (token auth still enforced) — documented.
+6. Preflight: before the upgrade proceeds, an admin/CLI report lists which installed modules will be provisioned, which will fail, and why (prerequisite checks re-run), so gaps are fixed before any module is held with `SandboxStatus = Error`.
 
 ---
 
@@ -607,11 +681,11 @@ A module completes the checklist only when: no ProjectReference remains, it runs
 
 **Unit** — manifest v2 validation (all rules §4.7); token generation/rotation/revocation + constant-time compare; evaluator allow/deny/audit + cache invalidation; consent grant/revoke/expire; provisioning SQL generation (both providers incl. prereq detection + remediation strings); connection-string derivation (no secret leakage in logs); package verification (hash, signature, tamper, wrong key, wrong version); index parsing/caching/offline/mirror fallback; installer state machine + rollback; CLI commands; proxy security (cookie stripping, frame-ancestors, token injection, 503 when module stopped); `ModuleAppHost` handshake; widget card rendering.
 
-**Integration** (`tests/DotNetCloud.Integration.Tests.PostgreSQL` + `.SqlServer`) — provision a module store → **negative test: the module principal is denied any read of the `core` schema** → grant enforcement (denied until granted) → consent grant/revoke/expire → uninstall drop (schema + principal gone) → socket-only transport round-trip → TCP fallback with token enforcement.
+**Integration** (`tests/DotNetCloud.Integration.Tests.PostgreSQL` + `.SqlServer`) — provision a module store → **negative tests: the module principal is denied read *and* write/create/drop on the `core` schema and on any other module's schema** → grant enforcement (denied until granted) → consent grant/revoke/expire (incl. consent-filtered event delivery) → uninstall drop (schema + principal gone) → socket-only transport round-trip → TCP fallback with token enforcement.
 
 **End-to-end (test server)** — build Example as `.dncpkg` (B1 fixture) → install from local feed via CLI and via admin UI → confirm the module host has no core `config.json`, no DataProtection keys, no core DB reachability → capability call denied → admin grant → call allowed → consent flow → iframe UI loads and calls back through the proxy → update → rollback → uninstall (keep + destroy variants).
 
-**Security** — spoofed module ID without token rejected; forged token rejected; a module cannot connect to another module's socket; scope-escalation attempts rejected; `permission denied` on core schema objects; secrets absent from module env/files/logs (scan).
+**Security** — spoofed module ID without token rejected; forged token rejected; token audience replay rejected (module→module; injected user token→core/other modules); scope-escalation attempts rejected; `permission denied` on core/other-module schema objects; `caller-type: System` / role spoof rejected; undeclared event type rejected and audit attribution unforgeable; `postMessage` source/type spoof rejected; malicious `.dncpkg` archive rejected; index replay rejected; secrets absent from module env/files/logs **and from `ModuleDataStore.LastError`/audit entries** (scan); path-containment regression (sibling-prefix).
 
 **Process** — `dotnet build`, full `dotnet test`, `dotnet format` green before any commit; repo pre-commit ritual (git status clean, unexpected untracked files removed, never deleting untracked `.cs` files); documentation checklist above satisfied per phase.
 
@@ -631,6 +705,14 @@ A module completes the checklist only when: no ProjectReference remains, it runs
 | 8   | Consent fatigue reduces module adoption                                        | Prompt once per scope, human-readable scope names, "Connected apps" self-service, admin pre-approval feature candidate (§12)                                  |
 | 9   | Store/index unavailability blocks installs                                     | Index caching + mirrors + offline `.dncpkg` install path                                                                                                      |
 | 10  | Signing key compromise                                                         | Key rotation with overlap window (core pins current + previous), revocation list, runbook; offline backup of keys                                             |
+
+**Security review additions (2026-09-15) — risks R11–R15:**
+
+- **R11 — Same-OS-user execution.** Socket/directory permissions and the env config split do not isolate sibling modules (any same-user process can connect to another module's socket; core-readable files remain readable). Mitigations: token identity (A2) + consent (A3) + store review; explicit trust-boundary statement (§4.1); honest documentation; re-evaluate per-module OS isolation as a public-store launch gate (§13).
+- **R12 — Consent bypass via event bus or shared/team data.** Consent-filtered event delivery; shared-data consent semantics decided before Track C media migrations (§4.4).
+- **R13 — Malicious *signed* package (zip-slip/symlink structure).** Extraction validation independent of signatures + malicious-archive fixtures (B1/B3).
+- **R14 — Store index replay/rollback or poisoned local cache.** Monotonic freshness check, pinned keyIds, re-verification on every offline install (B3).
+- **R15 — False security documentation.** `CROSS_MODULE_TRUST.md` asserted controls that do not exist; truth pass ships in A0, full rewrite stays in Track D.
 
 ---
 
@@ -653,9 +735,11 @@ A module completes the checklist only when: no ProjectReference remains, it runs
 | 2026-09-15 | Package hosting at launch         | GitHub Release assets                                                                                                                  |
 | 2026-09-15 | Execution order                   | Parallel tracks (sandbox + store), converging at public launch                                                                         |
 
+**Security review decisions recorded (2026-09-15):** findings applied per §2.1 — A0 stopgap phase added; enforcement + claimed-identity corrections; trust-boundary statement (§4.1); token audience binding (§4.3); consent shared-data/event semantics (§4.4); postMessage + proxy hardening (§4.5); package extraction, index anti-replay, revocation levels (§4.6, B1/B3); risks R11–R15 (§11); docs truth pass in A0.
+
 ## 13. Future considerations (explicitly out of scope)
 
-- Per-module OS user isolation (systemd units, Windows service accounts).
+- Per-module OS user isolation (systemd units, Windows service accounts) — **re-evaluate as a public-store launch gate** (§11 R11): until implemented, the sandbox is not an OS boundary and cross-module reachability is mitigated by tokens + store review only.
 - Dedicated `apps.<host>` subdomain mode for browser-level origin separation.
 - Publisher self-service portal, paid modules, ratings/reviews.
 - Admin pre-consent on behalf of managed fleets (consent policy).
