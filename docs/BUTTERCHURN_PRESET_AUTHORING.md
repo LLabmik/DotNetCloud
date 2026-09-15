@@ -9,6 +9,7 @@ Butterchurn is a WebGL 2 port of MilkDrop 2, the classic Winamp music visualizer
 - **Core library**: `butterchurn.min.js` (v2.6.7, UMD)
 - **Preset bundles**: `butterchurn-presets.min.js`, `butterchurnPresetsExtra.min.js`, `butterchurnPresetsExtra2.min.js`
 - **DotNetCloud integration**: `butterchurn-visualizer.js` (360-line IIFE at `window.dotnetcloudVisualizer`)
+- **Compiled presets (generated)**: `butterchurn-presets-compiled.js` — every preset equation pre-compiled into a real function (the app CSP forbids `eval`). Regenerate with `node tools/butterchurn-presets/precompile-presets.cjs` after changing any preset.
 
 ## Preset Object Structure
 
@@ -296,29 +297,67 @@ a.mv_a = 0.5*a.bass;
 
 ## Integration Into DotNetCloud
 
-To add custom presets to DotNetCloud:
+Custom presets live in `src/UI/DotNetCloud.UI.Web/wwwroot/js/butterchurn-visualizer.js` (the
+`dotnetcloudPresets` map, exposed to the page as `window.dotnetcloudPresets`) and are merged into the
+runtime preset map by `loadAllPresetsFromLibs()`.
 
-1. Create a new JS file (e.g., `dotnetcloud-presets.js`) following the UMD pattern:
+To add a custom preset:
+
+1. Add an entry to the `dotnetcloudPresets` map in `butterchurn-visualizer.js`:
 ```js
-window.dotnetcloudPresets = (function() {
-  function getPresets() {
-    return {
-      "My Custom Preset": {
-        baseVals: { /* ... */ },
-        init_eqs_str: "...",
-        frame_eqs_str: "...",
-        pixel_eqs_str: "...",
-        shapes: [ /* 4 disabled shapes */ ],
-        waves: [ /* 4 disabled waves */ ]
-      }
-    };
-  }
-  return { getPresets: getPresets };
-})();
+dotnetcloudPresets["My Custom Preset"] = {
+    baseVals: { /* ... */ },
+    init_eqs_str: "...",
+    frame_eqs_str: "...",
+    pixel_eqs_str: "...",
+    shapes: [ /* 4 disabled shapes */ ],
+    waves: [ /* 4 disabled waves */ ]
+};
 ```
 
-2. Add a `<script>` tag to `App.razor`
-3. Register in `butterchurn-visualizer.js`'s `loadAllPresetsFromLibs()` function
+2. ⚠️ **Regenerate the precompiled equations — mandatory:**
+```bash
+node tools/butterchurn-presets/precompile-presets.cjs
+```
+
+3. Bump the `?v=` cache-buster for `butterchurn-visualizer.js` and `butterchurn-presets-compiled.js` in `App.razor`.
+
+### ⚠️ Why step 2 is mandatory (strict CSP)
+
+Butterchurn compiles preset equations with the `Function` constructor:
+
+```js
+preset.init_eqs = new Function("a", preset.init_eqs_str + " return a;");
+```
+
+The DotNetCloud CSP (`CspPolicy.cs`) allows `'wasm-unsafe-eval'` but deliberately **not**
+`'unsafe-eval'`, so that call throws and the visualizer fails to start with:
+
+> EvalError: Evaluating a string as JavaScript violates the following Content Security Policy
+> directive because 'unsafe-eval' is not an allowed source of script …
+
+`tools/butterchurn-presets/precompile-presets.cjs` therefore compiles every equation into a real
+function ahead of time and writes
+`wwwroot/lib/butterchurn/butterchurn-presets-compiled.js`, which `App.razor` loads after the preset
+bundles. Butterchurn's `typeof preset.init_eqs !== "function"` guard then skips its own compilation
+entirely, so the strict CSP stays intact.
+
+Details worth knowing:
+
+- The generated file is deliberately **not** strict-mode — `new Function` bodies are sloppy-mode, so the
+  functions must keep identical semantics (implicit globals etc.).
+- Shape/wave equations are precompiled only when the merged `baseVals.enabled !== 0` — exactly the set
+  butterchurn itself would have compiled.
+- Editing a preset without re-running the precompiler leaves that preset unloadable: the visualizer logs
+  `has no precompiled equations …` instead of throwing a CSP `EvalError`.
+- Verify the committed file is current (non-zero exit when stale):
+```bash
+node tools/butterchurn-presets/precompile-presets.cjs --check
+```
+- Strongest check — every equation must produce identical results to `new Function`:
+```bash
+node tools/butterchurn-presets/precompile-presets.cjs --check --runtime
+```
 
 ## Preset Design Categories
 

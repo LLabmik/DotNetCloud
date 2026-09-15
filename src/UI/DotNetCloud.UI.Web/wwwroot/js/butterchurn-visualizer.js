@@ -292,6 +292,13 @@ window.dotnetcloudVisualizer = window.dotnetcloudVisualizer || (function () {
         comp: ""
     };
 
+    // Exposed so the build-time precompiler can attach CSP-safe compiled equations to these
+    // preset objects and so they can be inspected in DevTools:
+    //     node tools/butterchurn-presets/precompile-presets.cjs
+    // The visualizer itself never evaluates preset equations (the app CSP forbids eval) — the
+    // compiled functions arrive from butterchurn-presets-compiled.js.
+    window.dotnetcloudPresets = dotnetcloudPresets;
+
     // ── Helpers ──
 
     function getButterchurn() {
@@ -336,7 +343,20 @@ window.dotnetcloudVisualizer = window.dotnetcloudVisualizer || (function () {
         }
         presetNames = Object.keys(presets).sort();
         allPresetsLoaded = true;
-        console.log("[Visualizer] Loaded " + presetNames.length + " presets from all libraries");
+
+        // Every preset must carry precompiled equations (butterchurn-presets-compiled.js).
+        // Butterchurn would otherwise compile `*_eqs_str` itself with new Function(), which the
+        // app CSP forbids — so those presets cannot be loaded at all.
+        var uncompiled = presetNames.filter(function (name) {
+            return !isPrecompiled(name);
+        }).length;
+        if (uncompiled > 0) {
+            console.error("[Visualizer] " + uncompiled + " of " + presetNames.length + " presets have no " +
+                "precompiled equations and cannot be loaded (the app CSP forbids eval). Regenerate " +
+                "butterchurn-presets-compiled.js: node tools/butterchurn-presets/precompile-presets.cjs");
+        }
+        console.log("[Visualizer] Loaded " + (presetNames.length - uncompiled) + " of " +
+            presetNames.length + " presets");
     }
 
     // ── Public API ──
@@ -416,8 +436,16 @@ window.dotnetcloudVisualizer = window.dotnetcloudVisualizer || (function () {
                 var defaultPreset = currentPresetName && presets[currentPresetName]
                     ? currentPresetName
                     : presetNames[Math.floor(Math.random() * presetNames.length)];
-                visualizer.loadPreset(presets[defaultPreset], 0);
-                currentPresetName = defaultPreset;
+                if (!ensurePrecompiled(defaultPreset)) {
+                    defaultPreset = firstPrecompiledPreset();
+                    if (!defaultPreset) {
+                        console.error("[Visualizer] No preset has precompiled equations — cannot start. " +
+                            "Regenerate butterchurn-presets-compiled.js: " +
+                            "node tools/butterchurn-presets/precompile-presets.cjs");
+                        return false;
+                    }
+                }
+                loadPreset(defaultPreset, 0);
             }
 
             running = true;
@@ -449,28 +477,64 @@ window.dotnetcloudVisualizer = window.dotnetcloudVisualizer || (function () {
     // ── Presets ──
 
     function getPresetNames() {
-        return presetNames.slice();
+        // Only presets whose equations were pre-compiled can be loaded (the app CSP forbids eval).
+        return presetNames.filter(isPrecompiled);
     }
 
     function getCurrentPresetName() {
         return currentPresetName;
     }
 
+    /**
+     * True when the preset carries build-time compiled equations. Butterchurn would otherwise
+     * compile `*_eqs_str` with new Function(), which the app CSP forbids ('wasm-unsafe-eval' only)
+     * — that throws an EvalError and kills the visualizer. Equations come from
+     * butterchurn-presets-compiled.js.
+     */
+    function isPrecompiled(presetName) {
+        return typeof presets[presetName].init_eqs === "function";
+    }
+
+    /** Logs the CSP-safe regeneration hint and returns false for a preset that is not precompiled. */
+    function ensurePrecompiled(presetName) {
+        var preset = presets[presetName];
+        if (!preset) return false;
+        if (isPrecompiled(presetName)) return true;
+        console.error("[Visualizer] Preset \"" + presetName + "\" has no precompiled equations. The app " +
+            "CSP forbids eval, so butterchurn cannot compile it at runtime. Regenerate " +
+            "butterchurn-presets-compiled.js: node tools/butterchurn-presets/precompile-presets.cjs");
+        return false;
+    }
+
+    /** First preset that has precompiled equations, or null when none do. */
+    function firstPrecompiledPreset() {
+        for (var i = 0; i < presetNames.length; i++) {
+            if (isPrecompiled(presetNames[i])) return presetNames[i];
+        }
+        return null;
+    }
+
     function loadPreset(presetName, blendSeconds) {
         if (!visualizer || !presets[presetName]) return false;
+        if (!ensurePrecompiled(presetName)) return false;
         visualizer.loadPreset(presets[presetName], blendSeconds || 0);
         currentPresetName = presetName;
         return true;
     }
 
     function randomPreset(blendSeconds) {
-        if (presetNames.length === 0) return null;
-        var idx = Math.floor(Math.random() * presetNames.length);
-        // Avoid repeating the same preset
-        if (presetNames.length > 1 && presetNames[idx] === currentPresetName) {
-            idx = (idx + 1) % presetNames.length;
+        var candidates = presetNames.filter(isPrecompiled);
+        if (candidates.length === 0) {
+            console.error("[Visualizer] No preset has precompiled equations — regenerate " +
+                "butterchurn-presets-compiled.js: node tools/butterchurn-presets/precompile-presets.cjs");
+            return null;
         }
-        var name = presetNames[idx];
+        var idx = Math.floor(Math.random() * candidates.length);
+        // Avoid repeating the same preset
+        if (candidates.length > 1 && candidates[idx] === currentPresetName) {
+            idx = (idx + 1) % candidates.length;
+        }
+        var name = candidates[idx];
         loadPreset(name, blendSeconds || 2.0);
         return name;
     }
@@ -479,7 +543,7 @@ window.dotnetcloudVisualizer = window.dotnetcloudVisualizer || (function () {
         return new Promise(function (resolve) {
             // All preset libs are eagerly loaded via script tags — just re-merge
             loadAllPresetsFromLibs();
-            resolve(presetNames.slice());
+            resolve(getPresetNames());
         });
     }
 

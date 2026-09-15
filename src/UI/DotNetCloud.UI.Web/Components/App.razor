@@ -49,7 +49,13 @@
     <script src="_content/DotNetCloud.UI.Web/lib/butterchurn/butterchurn-presets.min.js"></script>
     <script src="_content/DotNetCloud.UI.Web/lib/butterchurn/butterchurnPresetsExtra.min.js"></script>
     <script src="_content/DotNetCloud.UI.Web/lib/butterchurn/butterchurnPresetsExtra2.min.js"></script>
-    <script src="_content/DotNetCloud.UI.Web/js/butterchurn-visualizer.js?v=20260512-01"></script>
+    <script src="_content/DotNetCloud.UI.Web/js/butterchurn-visualizer.js?v=20260915-01"></script>
+    @* Precompiled preset equations. Must load AFTER the preset libraries and AFTER
+       butterchurn-visualizer.js (which exposes window.dotnetcloudPresets). Butterchurn compiles
+       preset equations with new Function(), which the app CSP forbids (no 'unsafe-eval'), so the
+       equations ship pre-compiled as real functions — see
+       tools/butterchurn-presets/precompile-presets.cjs. *@
+    <script src="_content/DotNetCloud.UI.Web/lib/butterchurn/butterchurn-presets-compiled.js?v=20260915-01"></script>
     <script src="_content/DotNetCloud.UI.Web/js/ai-clipboard.js?v=20260409-01"></script>
     <script src="_content/DotNetCloud.UI.Web/js/global-search.js?v=20260412-01"></script>
     <script src="_content/DotNetCloud.UI.Web/js/ringtone.js?v=20260418-01"></script>
