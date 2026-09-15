@@ -1056,6 +1056,21 @@ public sealed class SettingsViewModel : ViewModelBase
             }
 
             var vm = new FolderBrowserViewModel(_syncManager, contextId, _selectiveSync);
+
+            // Ignoring a folder removes the local copies of that folder only — the server copy
+            // is left untouched. Wire the sync root so the view-model can clean up the local
+            // subtree, plus a confirmation prompt so nothing is deleted without the user's OK.
+            var registration = (await _syncManager.GetContextsAsync())
+                .FirstOrDefault(r => r.Id == contextId);
+            if (registration is not null)
+            {
+                vm.LocalSyncRoot = registration.LocalFolderPath;
+                vm.ConfirmDeletionAsync = relativePath => ConfirmAsync(
+                    "Ignore folder",
+                    $"\"{relativePath}\" will be removed from this computer's sync folder. " +
+                    "The copy on the server is kept and can be synced again later. Continue?");
+            }
+
             var dialog = new FolderBrowserDialog(vm);
             dialog.Show();
 
@@ -1342,6 +1357,31 @@ public sealed class SettingsViewModel : ViewModelBase
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to persist virtual file settings.");
+        }
+    }
+
+    /// <summary>
+    /// Shows a Yes/No confirmation dialog and returns whether the user confirmed.
+    /// Returns <c>false</c> when the dialog cannot be shown, so destructive actions
+    /// (e.g. deleting the local copies of an ignored folder) are never applied unconfirmed.
+    /// </summary>
+    private async Task<bool> ConfirmAsync(string title, string message)
+    {
+        try
+        {
+            return await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(async () =>
+            {
+                var dialog = new MessageBoxDialog(title, message, MessageBoxButtons.YesNo);
+                var tcs = new TaskCompletionSource<bool>();
+                dialog.Closed += (_, _) => tcs.TrySetResult(dialog.DialogResult == MessageBoxResult.Yes);
+                dialog.Show();
+                return await tcs.Task;
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Confirmation dialog '{Title}' failed — treating as declined.", title);
+            return false;
         }
     }
 

@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-09-09 (Presence indicators → **4-state** Online/Away/Do-Not-Disturb/Offline — full-stack code committed on `fix/android-improvements` at `c17c7fa3`; server + Blazor + Admin changes are ready to deploy to `cloud.kimball.home` and require the live E2E in the Active Handoff. Plan `docs/PRESENCE_DOTS_4STATE_PLAN.md`; see Active Handoff.)
+Last updated: 2026-09-15 (**NEW server-side Active Handoff — trash restore must preserve the original directory path** — a cascade-deleted folder currently restores flat into the root; client-side "ignore a synced folder" deletion bug fixed + live-verified on SyncTray `0.6.7` (`7632722c`). Earlier: 2026-09-09 Presence indicators → **4-state** Online/Away/Do-Not-Disturb/Offline — full-stack code committed on `fix/android-improvements` at `c17c7fa3`; server + Blazor + Admin changes are ready to deploy to `cloud.kimball.home` and require the live E2E in the Active Handoff. Plan `docs/PRESENCE_DOTS_4STATE_PLAN.md`; see Active Handoff.)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -16,7 +16,9 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
-- **Current active branch:** `fix/android-improvements` (Presence 4-state — server deploy to `cloud.kimball.home`; plan `docs/PRESENCE_DOTS_4STATE_PLAN.md`)
+- **Current active branch:** `fix/synctray-ignore-folder` (SyncTray **0.6.7** — "ignore a synced folder" can no longer delete the folder server-side; pushed `7632722c`, installed and live-verified on `mint-OptiPlex-7010`)
+- **New server-side handoff (above):** trash restore loses the original directory path — server agent (`cloud`) to fix + live-verify
+- **Pending deploy:** `fix/android-improvements` (Presence 4-state — server deploy to `cloud.kimball.home`; plan `docs/PRESENCE_DOTS_4STATE_PLAN.md`)
 - **Still pending (mint22, dev):** `feature/module-widgets` — Module Home Widgets (plan `docs/MODULE_WIDGETS_PLAN.md`); kept below as a deferred handoff
 
 ## Archived Handoff — SyncTray test machine: DB Outage SyncTray Simulation (plan §11.4) ✅ PASS
@@ -239,6 +241,61 @@ User requirement: "Default for forms (login, TOTP, file create name, etc.) shoul
 - Process-isolated widgets do NOT build a `CallerContext` — the gRPC `I*ApiClient` resolves the user internally; in-process widgets DO build one (plan §6.3).
 - Verify two flagged spots while implementing: Tracks `WorkItemAssignment.UserId` navigation property (plan §9.4) and the Email thread query location behind `ListThreadsAsync` (plan §10.4).
 - Module ids in `KnownWidgetDescriptors` must match `InstalledModules.ModuleId` exactly (plan §11.4 table).
+
+## Active Handoff — Server: trash restore must preserve the original directory path (2026-09-15)
+
+**Target machine:** server agent (`cloud` / `cloud.dotnetcloud.net`). Client-side work is complete and shipped — this is **server-only**.
+
+**Status:** ☐ **NOT STARTED** — awaiting server agent.
+
+### Why this is actionable now
+
+The client-side "ignore a synced folder" bug is **fixed and live** (SyncTray **0.6.7**, branch `fix/synctray-ignore-folder`, commit `7632722c`). That bug had deleted two folders from `cloud.dotnetcloud.net` via `DELETE /api/v1/files/{id}`:
+
+- `AutoUpload` — `019f73be-9788-7f8f-a44a-82e138d4637d` (2026-09-15 04:34:46)
+- `Gretchen Goes to Nebraska` — `01a02d90-2db1-7255-97a7-065f681c5776` (2026-09-15 04:34:54)
+
+Both went to trash (soft delete). The operator restored `AutoUpload` from the trash UI and **it restored flat into the root directory instead of recreating the directory structure** — every descendant landed at the root, and the original tree could not be reassembled. `GET /api/v1/files/trash` now returns `{"success":true,"data":[]}`, so that restore consumed the trash: **treat the `AutoUpload` tree as unrecoverable.** This handoff is about making restore correct for the future, not about recovering the two folders.
+
+### Root cause (verified by code reading, `DotNetCloud.Modules.Files`)
+
+1. `src/Modules/Files/DotNetCloud.Modules.Files.Data/Configuration/FileNodeConfiguration.cs:54` — global soft-delete filter: `builder.HasQueryFilter(n => !n.IsDeleted);`
+2. `src/Modules/Files/DotNetCloud.Modules.Files.Data/Services/TrashService.cs` (`RestoreAsync`, ~line 71) resolves the original parent **without `IgnoreQueryFilters()`**:
+
+   ```csharp
+   if (node.OriginalParentId.HasValue)
+   {
+       var originalParent = await _db.FileNodes          // ← query filter applies: deleted parents are invisible
+           .FirstOrDefaultAsync(n => n.Id == node.OriginalParentId.Value, cancellationToken);
+       restoreParentId = originalParent?.Id;
+   }
+   ```
+
+   For a child of a cascade-deleted folder its parent is *itself still trashed*, so this returns `null` → `restoreParentId = null` → execution falls into the "If original parent is gone, restore to root" branch (`node.ParentId = null; node.MaterializedPath = $"/{node.Id}"; node.Depth = 0;`). **Every such node is therefore restored into the root.**
+3. `TrashService.RestoreAllAsync` (~line 145) then makes it systemic: it selects `Where(n => n.IsDeleted && ... && n.OriginalParentId != null)`. A folder deleted *at the root* has `OriginalParentId == null` and is **skipped**, while its descendants (whose `OriginalParentId` *is* set) are each restored individually — every one of them hits the null-parent path above. Result: "restore all" recreates nothing and dumps the entire subtree flat into the root. This is exactly the observed `AutoUpload` outcome.
+4. `TrashService.RestoreDescendantsAsync` (~line 294) clears `IsDeleted`/`DeletedAt`/`DeletedByUserId` for descendants but never recomputes `MaterializedPath`/`Depth`, and it only runs when the restored node is itself a `Folder`. So descendants restored under a relocated parent keep stale paths.
+
+### Required fix
+
+1. **`RestoreAsync`** — look up `OriginalParentId` with `.IgnoreQueryFilters()`. If that parent is *also* deleted, restore the ancestor chain first (recreate each missing directory level, in order) and then attach the node to the deepest level, instead of silently falling back to the root. Only fall back to the root when no ancestor can be restored (e.g. permanently purged) — and if so, log it, don't do it silently.
+2. **`RestoreAllAsync`** — select top-level trashed nodes (folders/files deleted from the root, i.e. `OriginalParentId == null` / `ParentId == null` at delete time) and restore them, letting descendants follow. Do **not** select descendants and restore them individually.
+3. **`RestoreDescendantsAsync`** — after the restored root's final location is known, recompute `ParentId`, `MaterializedPath` and `Depth` for every descendant so the subtree is internally consistent.
+4. **Original-path exposure** — `TrashItemDto.OriginalPath` is currently `FileNode.MaterializedPath`, which is an **ID path** (`/id/id/...`), not a directory path a user or the trash UI can act on. If the UI is meant to show where an item will be restored to, expose a name-based path (walk `OriginalParentId` up to the root) so the user can see the directory structure is remembered.
+5. **Name conflicts** — keep the existing `GetRestoreNameAsync` auto-rename, but apply it per recreated directory level too, so recreating an ancestor chain cannot collide with an existing folder of the same name.
+
+### Acceptance criteria (must be live-verified on the server)
+
+1. Create `A/B/file.txt`; delete folder `A`. `GET /api/v1/files/trash` lists `A`. `POST /api/v1/files/trash/{A}/restore` → `A/B/file.txt` exists **at the original path**.
+2. Trash a single file that lives inside a *live* folder → restore returns it to that folder (regression guard for the existing good path).
+3. Trash a folder whose parent folder is *also* trashed, then restore the child individually → the ancestor chain is recreated (or the API explicitly reports that the ancestor must be restored first — pick one behaviour and document it).
+4. "Restore all" (Blazor trash UI + `RestoreAllAsync`) → the original directory structure is recreated and **nothing** is dumped flat into the root.
+5. No regressions: permanent delete, empty trash, 30-day retention cleanup, and quota accounting all still behave.
+6. Add regression tests covering the cascade-delete → restore round-trip (the current suite passes while this bug is live, so it has no coverage of it).
+
+### Do NOT (this pass)
+
+- Do not change the client. `IDotNetCloudApiClient` has **no** trash list/restore methods and SyncTray has **no** trash UI — if the client should offer restore, that is a separate client task; raise it instead of adding it here.
+- Do not touch the client-side deletion/ignore logic — that path is fixed, unit-tested (312 + 149 tests) and live-verified.
 
 ## Active Handoff — Presence indicators 4-state: deploy `c17c7fa3` to `cloud.kimball.home` + live E2E (2026-09-09)
 

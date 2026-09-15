@@ -554,6 +554,41 @@ public class LocalStateDbTests
         Assert.AreEqual(1, remaining.Count);
     }
 
+    // ── RemovePendingOperationsUnderPathAsync ───────────────────────────────
+
+    [TestMethod]
+    public async Task RemovePendingOperationsUnderPathAsync_RemovesOnlyMatchingSubtree()
+    {
+        // Operations inside the excluded folder (any type) must be discarded …
+        await _db.QueueOperationAsync(_dbPath, new PendingUpload { LocalPath = "/sync/ignored/a.txt" });
+        await _db.QueueOperationAsync(_dbPath, new PendingDelete { NodeId = Guid.CreateVersion7(), LocalPath = "/sync/ignored/sub/b.txt" });
+        await _db.QueueOperationAsync(_dbPath, new PendingDownload { NodeId = Guid.CreateVersion7(), LocalPath = "/sync/ignored/c.txt" });
+
+        // … while unrelated paths (including prefix-sharing siblings) are kept.
+        await _db.QueueOperationAsync(_dbPath, new PendingUpload { LocalPath = "/sync/kept/d.txt" });
+        await _db.QueueOperationAsync(_dbPath, new PendingUpload { LocalPath = "/sync/ignored-other/e.txt" });
+
+        await _db.RemovePendingOperationsUnderPathAsync(_dbPath, "/sync/ignored");
+
+        var remaining = await _db.GetPendingOperationsAsync(_dbPath);
+        Assert.AreEqual(2, remaining.Count);
+
+        var remainingPaths = remaining
+            .Select(o => o switch
+            {
+                PendingUpload u => u.LocalPath,
+                PendingDownload d => d.LocalPath,
+                PendingDelete del => del.LocalPath,
+                _ => null,
+            })
+            .ToList();
+
+        CollectionAssert.Contains(remainingPaths, "/sync/kept/d.txt");
+        CollectionAssert.Contains(
+            remainingPaths, "/sync/ignored-other/e.txt",
+            "Sibling paths that merely share a prefix must not be removed.");
+    }
+
     // ── Sync Folder Rules ───────────────────────────────────────────────────
 
     [TestMethod]

@@ -1599,6 +1599,8 @@ This phase implements the core Files module, which is the primary public-facing 
 - [ ] Collabora CODE integration enables browser-based document editing via WOPI
 - ✓ File browser Blazor UI supports grid/list view, drag-drop, preview, and sharing
 - [ ] Desktop sync client (SyncTray) syncs files bidirectionally
+- ✓ Ignoring a synced folder (selective-sync uncheck) is client-only: local copies are removed, the server copy is never deleted, and re-including re-downloads it (0.6.7 — live-verified)
+- ☐ Trash restore preserves the original directory path — a cascade-deleted folder's children are currently restored flat into the root (`TrashService.RestoreAsync`/`RestoreAllAsync`); server-side fix handed off
 - ✓ Bulk operations (move, copy, delete) work via REST API
 - [ ] All unit and integration tests pass against PostgreSQL and SQL Server
 - [ ] gRPC communication with the Files module host works correctly

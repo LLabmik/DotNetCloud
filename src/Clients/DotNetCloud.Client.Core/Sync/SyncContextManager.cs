@@ -620,6 +620,13 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
         if (running is null || running.SelectiveSync is null || running.StateDb is null)
             return;
 
+        // Snapshot the previously excluded paths so we can detect newly excluded folders.
+        var previouslyExcluded = new HashSet<string>(
+            running.SelectiveSync.GetRules(contextId)
+                .Where(r => !r.IsInclude)
+                .Select(r => NormalizeRulePath(r.FolderPath)),
+            StringComparer.OrdinalIgnoreCase);
+
         running.SelectiveSync.ClearRules(contextId);
         foreach (var rule in rules)
         {
@@ -630,7 +637,37 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
         }
 
         await running.SelectiveSync.SaveAsync(running.StateDb, running.SyncContext.StateDatabasePath, contextId, cancellationToken);
+
+        // Newly excluded folders: discard any queued work for that subtree. A queued server
+        // deletion here would be the destructive result of the client-side cleanup that
+        // removes the local copies of an ignored folder — it must never reach the server.
+        var newlyExcluded = running.SelectiveSync.GetRules(contextId)
+            .Where(r => !r.IsInclude)
+            .Select(r => r.FolderPath)
+            .Where(p => !previouslyExcluded.Contains(NormalizeRulePath(p)))
+            .ToList();
+
+        if (newlyExcluded.Count == 0)
+            return;
+
+        foreach (var rulePath in newlyExcluded)
+        {
+            var relative = rulePath.Replace('/', Path.DirectorySeparatorChar).Trim(Path.DirectorySeparatorChar);
+            var localPath = relative.Length == 0
+                ? running.SyncContext.LocalFolderPath
+                : Path.Combine(running.SyncContext.LocalFolderPath, relative);
+
+            await running.StateDb.RemovePendingOperationsUnderPathAsync(
+                running.SyncContext.StateDatabasePath, localPath, cancellationToken);
+        }
+
+        _logger.LogInformation(
+            "Excluded {Count} folder(s) from sync for context {ContextId}; discarded queued operations for those subtrees.",
+            newlyExcluded.Count, contextId);
     }
+
+    private static string NormalizeRulePath(string path) =>
+        "/" + path.Replace('\\', '/').Trim('/');
 
     /// <inheritdoc/>
     public async Task<IReadOnlyList<SelectiveSyncRule>> GetSelectiveSyncRulesAsync(

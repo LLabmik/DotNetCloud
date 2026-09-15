@@ -972,6 +972,13 @@ public sealed class SyncEngine : ISyncEngine
 
         // Phase 1: Collect all missing tracked files.
         var missingFiles = new List<LocalFileRecord>();
+
+        // Records whose local copy is gone because the enclosing folder is excluded from sync
+        // (selective sync uncheck, or a folder dropped by the size limit). Their absence is
+        // intentional client-side cleanup and must NEVER be propagated as a server deletion.
+        // The stale records are dropped so that re-including the folder later re-downloads it.
+        var excludedRecords = new List<LocalFileRecord>();
+
         foreach (var record in allRecords)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -990,7 +997,42 @@ public sealed class SyncEngine : ISyncEngine
             if (IsUnderExcludedScopedFolder(relPath))
                 continue;
 
+            if (!_selectiveSync.IsIncluded(context.Id, relPath))
+            {
+                _logger.LogInformation(
+                    "Local copy of {RelPath} is missing but the folder is excluded from sync — " +
+                    "not propagating to the server (context {ContextId}).",
+                    relPath, context.Id);
+                excludedRecords.Add(record);
+                continue;
+            }
+
+            if (IsUnderSizeLimitExclusion(relPath))
+            {
+                _logger.LogDebug(
+                    "Local copy of {RelPath} is missing but the folder is over the size limit — " +
+                    "not propagating to the server (context {ContextId}).",
+                    relPath, context.Id);
+                excludedRecords.Add(record);
+                continue;
+            }
+
             missingFiles.Add(record);
+        }
+
+        // Forget tracking state for excluded paths so it cannot be mistaken for a local
+        // deletion on a later pass, and so re-including the folder re-downloads from server.
+        if (excludedRecords.Count > 0)
+        {
+            await _stateDb.RemoveFileRecordsBatchAsync(
+                context.StateDatabasePath,
+                excludedRecords.Select(r => r.LocalPath).ToList(),
+                cancellationToken);
+
+            _logger.LogInformation(
+                "Dropped {Count} tracking record(s) for locally-absent files under folders excluded " +
+                "from sync (context {ContextId}).",
+                excludedRecords.Count, context.Id);
         }
 
         // ── Local rename detection ──────────────────────────────────────────
@@ -1223,6 +1265,17 @@ public sealed class SyncEngine : ISyncEngine
             {
                 if (pathMap.TryGetValue(change.NodeId, out var relPath))
                 {
+                    // Never materialise folders that are excluded from sync. Without this,
+                    // ignoring a folder would immediately recreate it locally as empty
+                    // directories, undoing the client-side cleanup of the ignored subtree.
+                    if (!_selectiveSync.IsIncluded(context.Id, relPath)
+                        || IsUnderExcludedScopedFolder(relPath)
+                        || IsUnderSizeLimitExclusion(relPath)
+                        || _syncIgnore.IsIgnored(relPath))
+                    {
+                        continue;
+                    }
+
                     var dirPath = Path.Combine(context.LocalFolderPath, relPath);
                     Directory.CreateDirectory(dirPath);
                     _logger.LogDebug("Ensured directory {Path} for folder node {NodeId}.", dirPath, change.NodeId);
@@ -2416,6 +2469,25 @@ public sealed class SyncEngine : ISyncEngine
         else if (op is PendingDelete delete)
         {
             var delRelPath = Path.GetRelativePath(context.LocalFolderPath, delete.LocalPath);
+
+            // Safety net: a deletion that was queued before the folder was excluded from sync
+            // (selective sync uncheck / size-limit exclusion / .syncignore rule) must never be
+            // sent to the server — the local removal was intentional client-side cleanup.
+            if (!_selectiveSync.IsIncluded(context.Id, delRelPath)
+                || IsUnderSizeLimitExclusion(delRelPath)
+                || _syncIgnore.IsIgnored(delRelPath))
+            {
+                _logger.LogInformation(
+                    "Discarding queued server deletion for {RelPath} (NodeId={NodeId}) — the path is excluded " +
+                    "from sync, so the local removal must not be propagated (context {ContextId}).",
+                    delRelPath, delete.NodeId, context.Id);
+
+                // Forget the records so the path is re-downloaded if it is re-included later.
+                await _stateDb.RemoveFileRecordAsync(context.StateDatabasePath, delete.LocalPath, cancellationToken);
+                await _stateDb.RemoveFileRecordsUnderPathAsync(context.StateDatabasePath, delete.LocalPath, cancellationToken);
+                return;
+            }
+
             _logger.LogInformation(
                 "Deleting server node {NodeId} for locally deleted file/folder: {RelPath}.",
                 delete.NodeId, delRelPath);

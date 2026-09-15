@@ -112,6 +112,13 @@ public interface ILocalStateDb
     /// <summary>Removes all pending upload operations for the given local path.</summary>
     Task RemovePendingOperationByPathAsync(string dbPath, string localPath, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Removes all pending operations (uploads, downloads and deletes) whose local path is the
+    /// given folder or lies underneath it. Used when a folder is excluded from sync — any queued
+    /// work for that subtree must be discarded so it cannot be propagated to the server.
+    /// </summary>
+    Task RemovePendingOperationsUnderPathAsync(string dbPath, string folderPath, CancellationToken cancellationToken = default);
+
     /// <summary>Clears all pending operations (uploads, downloads, deletes) — used on engine startup to prevent stale operations from blocking file detection after a crash.</summary>
     Task ClearPendingOperationsAsync(string dbPath, CancellationToken cancellationToken = default);
 

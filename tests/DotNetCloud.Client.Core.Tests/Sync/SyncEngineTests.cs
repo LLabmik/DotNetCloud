@@ -1385,14 +1385,16 @@ public class SyncEngineTests
 
     // ── Private helpers ─────────────────────────────────────────────────────
 
-    private SyncEngine BuildEngine(IChunkedTransferClient? transfer = null) =>
+    private SyncEngine BuildEngine(
+        IChunkedTransferClient? transfer = null,
+        ISelectiveSyncConfig? selectiveSync = null) =>
         new(
             _apiMock.Object,
             new Mock<ITokenStore>().Object,
             transfer ?? new Mock<IChunkedTransferClient>().Object,
             new Mock<IConflictResolver>().Object,
             _stateDbMock.Object,
-            new SelectiveSyncConfig(),
+            selectiveSync ?? new SelectiveSyncConfig(),
             new DotNetCloud.Client.Core.SyncIgnore.SyncIgnoreParser(),
             _lockedFileReaderMock.Object,
             NullLogger<SyncEngine>.Instance)
@@ -2227,6 +2229,173 @@ public class SyncEngineTests
             It.IsAny<string>(),
             It.Is<PendingDelete>(d => d.NodeId == fileNodeId1 || d.NodeId == fileNodeId2),
             It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // ── Excluded ("ignored") folders must never delete server content ─────
+
+    [TestMethod]
+    public async Task SyncAsync_LocalCleanupUnderSelectiveSyncExclusion_DoesNotQueueServerDelete()
+    {
+        // Reproduces the reported bug: unchecking a previously synced folder makes the client
+        // delete the local copies, and the engine must NOT turn that client-side cleanup into
+        // a server-side deletion of the folder.
+        var folderNodeId = Guid.CreateVersion7();
+        var fileNodeId = Guid.CreateVersion7();
+        var filePath = Path.Combine(_tempDir, "Ignored", "secret.txt");
+
+        var serverTree = new SyncTreeNodeResponse
+        {
+            NodeId = Guid.Empty,
+            Name = "/",
+            NodeType = "Folder",
+            Children =
+            [
+                new SyncTreeNodeResponse
+                {
+                    NodeId = folderNodeId, Name = "Ignored", NodeType = "Folder",
+                    Children =
+                    [
+                        new SyncTreeNodeResponse { NodeId = fileNodeId, Name = "secret.txt", NodeType = "File", ContentHash = "abc" },
+                    ],
+                },
+            ],
+        };
+
+        _apiMock.Setup(a => a.GetFolderTreeAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(serverTree);
+
+        // The folder and its file are gone locally (the client removed them when excluded),
+        // but the state DB still tracks the file.
+        var trackedRecord = new LocalFileRecord
+        {
+            LocalPath = filePath,
+            NodeId = fileNodeId,
+            ContentHash = "abc",
+            LastSyncedAt = DateTime.UtcNow.AddMinutes(-5),
+            LocalModifiedAt = DateTime.UtcNow.AddMinutes(-10),
+        };
+        _stateDbMock.Setup(db => db.GetAllFileRecordsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([trackedRecord]);
+        _stateDbMock.Setup(db => db.GetFileRecordByNodeIdAsync(It.IsAny<string>(), fileNodeId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(trackedRecord);
+
+        var selectiveSync = new SelectiveSyncConfig();
+        selectiveSync.Exclude(_context.Id, "/Ignored");
+
+        var engine = BuildEngine(selectiveSync: selectiveSync);
+        await using var _ = engine;
+
+        await engine.StartAsync(_context);
+        await engine.SyncAsync(_context);
+        await engine.StopAsync();
+
+        // Assert: nothing is deleted on the server, and no delete is even queued.
+        _apiMock.Verify(a => a.DeleteAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _stateDbMock.Verify(db => db.QueueOperationAsync(
+            It.IsAny<string>(),
+            It.Is<PendingDelete>(_ => true),
+            It.IsAny<CancellationToken>()), Times.Never);
+
+        // Assert: the stale tracking record was dropped, so re-including the folder re-downloads it.
+        _stateDbMock.Verify(db => db.RemoveFileRecordsBatchAsync(
+            It.IsAny<string>(),
+            It.Is<IReadOnlyList<string>>(paths => paths.Contains(filePath)),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [TestMethod]
+    public async Task SyncAsync_LocalCleanupUnderOverLimitFolder_DoesNotQueueServerDelete()
+    {
+        // An over-limit folder awaiting the user's decision is excluded from sync for this pass.
+        // Locally missing tracked files there must not be propagated to the server as deletions.
+        var folderNodeId = Guid.CreateVersion7();
+        var fileNodeId = Guid.CreateVersion7();
+        var filePath = Path.Combine(_tempDir, "BigFiles", "huge.bin");
+
+        var serverTree = new SyncTreeNodeResponse
+        {
+            NodeId = Guid.Empty,
+            Name = "/",
+            NodeType = "Folder",
+            Children =
+            [
+                new SyncTreeNodeResponse
+                {
+                    NodeId = folderNodeId, Name = "BigFiles", NodeType = "Folder",
+                    Children =
+                    [
+                        new SyncTreeNodeResponse { NodeId = fileNodeId, Name = "huge.bin", NodeType = "File", Size = 5_000_000 },
+                    ],
+                },
+            ],
+        };
+
+        _apiMock.Setup(a => a.GetFolderTreeAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(serverTree);
+
+        var trackedRecord = new LocalFileRecord
+        {
+            LocalPath = filePath,
+            NodeId = fileNodeId,
+            ContentHash = "abc",
+            LastSyncedAt = DateTime.UtcNow.AddMinutes(-5),
+            LocalModifiedAt = DateTime.UtcNow.AddMinutes(-10),
+        };
+        _stateDbMock.Setup(db => db.GetAllFileRecordsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([trackedRecord]);
+
+        string? promptedPath = null;
+        var engine = BuildEngine();
+        engine.SizeLimitEnabled = true;
+        engine.MaxFolderSizeBytes = 1024; // 1 KB — BigFiles is far over the limit.
+        engine.SizeLimitDecisionRequested += (_, e) => promptedPath = e.RelativePath;
+        await using var _ = engine;
+
+        await engine.StartAsync(_context);
+        await engine.SyncAsync(_context);
+        await engine.StopAsync();
+
+        // Sanity check: the size-limit exclusion really was active for this pass.
+        Assert.AreEqual("BigFiles", promptedPath, "The over-limit folder should have been excluded and prompted.");
+
+        // Assert: nothing is deleted on the server, and no delete is even queued.
+        _apiMock.Verify(a => a.DeleteAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _stateDbMock.Verify(db => db.QueueOperationAsync(
+            It.IsAny<string>(),
+            It.Is<PendingDelete>(_ => true),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [TestMethod]
+    public async Task SyncAsync_QueuedDeleteForExcludedFolder_IsDiscardedWithoutServerDelete()
+    {
+        // A deletion queued before the folder was excluded must be discarded at execution time —
+        // this is the last line of defence against deleting an ignored folder from the server.
+        var filePath = Path.Combine(_tempDir, "Ignored", "secret.txt");
+        var nodeId = Guid.CreateVersion7();
+
+        _stateDbMock
+            .Setup(db => db.GetPendingOperationsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new PendingDelete { Id = 42, LocalPath = filePath, NodeId = nodeId }]);
+
+        var selectiveSync = new SelectiveSyncConfig();
+        selectiveSync.Exclude(_context.Id, "/Ignored");
+
+        var engine = BuildEngine(selectiveSync: selectiveSync);
+        await using var _ = engine;
+
+        await engine.StartAsync(_context);
+        await engine.SyncAsync(_context);
+        await engine.StopAsync();
+
+        // Assert: the server delete was never issued and the operation was dropped.
+        _apiMock.Verify(a => a.DeleteAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _stateDbMock.Verify(db => db.RemoveOperationAsync(
+            It.IsAny<string>(), 42, It.IsAny<CancellationToken>()), Times.Once);
+
+        // Assert: the local tracking record was forgotten so re-including re-downloads the file.
+        _stateDbMock.Verify(db => db.RemoveFileRecordAsync(
+            It.IsAny<string>(), filePath, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [TestMethod]
