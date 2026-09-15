@@ -650,6 +650,144 @@ public class FilesRestIsolationIntegrationTests
         Assert.AreEqual(1, permanentDeleteData.GetProperty("successCount").GetInt32());
     }
 
+    [TestMethod]
+    public async Task TrashRestore_FileInsideLiveFolder_ReturnsToThatFolder()
+    {
+        var userId = Guid.CreateVersion7();
+        using var client = _factory.CreateAuthenticatedApiClient(userId);
+
+        var folderId = await CreateFolderAsync(client, "live-folder");
+        var fileId = await UploadFileAsync(client, "live-file.txt", "text/plain", Encoding.UTF8.GetBytes("live"), folderId);
+
+        var deleteResponse = await client.DeleteAsync($"/api/v1/files/{fileId}");
+        await ApiAssert.SuccessAsync(deleteResponse, HttpStatusCode.OK);
+
+        var trashResponse = await client.GetAsync($"/api/v1/files/trash?userId={userId}");
+        var trashRoot = await ApiAssert.SuccessAsync(trashResponse, HttpStatusCode.OK);
+        var trashedFile = DataOrRoot(trashRoot).EnumerateArray()
+            .Single(i => i.GetProperty("id").GetGuid() == fileId);
+        Assert.AreEqual("/live-folder", trashedFile.GetProperty("originalPath").GetString());
+
+        var restoreResponse = await client.PostAsync($"/api/v1/files/trash/{fileId}/restore?userId={userId}", content: null);
+        var restoreRoot = await ApiAssert.SuccessAsync(restoreResponse, HttpStatusCode.OK);
+        Assert.AreEqual(folderId, DataOrRoot(restoreRoot).GetProperty("parentId").GetGuid());
+
+        var treeResponse = await client.GetAsync("/api/v1/files/sync/tree");
+        var treeRoot = await ApiAssert.SuccessAsync(treeResponse, HttpStatusCode.OK);
+        var tree = DataOrRoot(treeRoot);
+        var liveFolder = tree.GetProperty("children").EnumerateArray()
+            .Single(c => c.GetProperty("name").GetString() == "live-folder");
+        CollectionAssert.AreEquivalent(
+            new[] { "live-file.txt" },
+            liveFolder.GetProperty("children").EnumerateArray().Select(c => c.GetProperty("name").GetString()).ToList());
+    }
+
+    [TestMethod]
+    public async Task TrashRestore_CascadeDeletedFolderEntry_RebuildsOriginalTree()
+    {
+        var userId = Guid.CreateVersion7();
+        using var client = _factory.CreateAuthenticatedApiClient(userId);
+
+        // A/B/nested.txt plus A/top.txt
+        var folderAId = await CreateFolderAsync(client, "cascade-a");
+        var folderBId = await CreateFolderAsync(client, "cascade-b", folderAId);
+        var nestedFileId = await UploadFileAsync(client, "cascade-nested.txt", "text/plain", Encoding.UTF8.GetBytes("nested"), folderBId);
+        await UploadFileAsync(client, "cascade-top.txt", "text/plain", Encoding.UTF8.GetBytes("top"), folderAId);
+
+        var deleteResponse = await client.DeleteAsync($"/api/v1/files/{folderAId}");
+        await ApiAssert.SuccessAsync(deleteResponse, HttpStatusCode.OK);
+
+        // Trash reports the name-based directory each item came from.
+        var trashResponse = await client.GetAsync($"/api/v1/files/trash?userId={userId}");
+        var trashRoot = await ApiAssert.SuccessAsync(trashResponse, HttpStatusCode.OK);
+        var trashItems = DataOrRoot(trashRoot).EnumerateArray().ToList();
+
+        Assert.AreEqual("/", trashItems.Single(i => i.GetProperty("id").GetGuid() == folderAId).GetProperty("originalPath").GetString());
+        Assert.AreEqual("/cascade-a", trashItems.Single(i => i.GetProperty("id").GetGuid() == folderBId).GetProperty("originalPath").GetString());
+        Assert.AreEqual("/cascade-a/cascade-b", trashItems.Single(i => i.GetProperty("id").GetGuid() == nestedFileId).GetProperty("originalPath").GetString());
+
+        // Restoring the nested folder must rebuild A and B instead of flattening the subtree into the root.
+        var restoreResponse = await client.PostAsync($"/api/v1/files/trash/{folderBId}/restore?userId={userId}", content: null);
+        await ApiAssert.SuccessAsync(restoreResponse, HttpStatusCode.OK);
+
+        var treeResponse = await client.GetAsync("/api/v1/files/sync/tree");
+        var treeRoot = await ApiAssert.SuccessAsync(treeResponse, HttpStatusCode.OK);
+        var tree = DataOrRoot(treeRoot);
+
+        var rootChildren = tree.GetProperty("children").EnumerateArray().ToList();
+        CollectionAssert.AreEquivalent(
+            new[] { "cascade-a" },
+            rootChildren.Select(c => c.GetProperty("name").GetString()).ToList());
+
+        var folderA = rootChildren.Single();
+        Assert.AreEqual(folderAId, folderA.GetProperty("nodeId").GetGuid());
+
+        var folderAChildren = folderA.GetProperty("children").EnumerateArray().ToList();
+        CollectionAssert.AreEquivalent(
+            new[] { "cascade-b", "cascade-top.txt" },
+            folderAChildren.Select(c => c.GetProperty("name").GetString()).ToList());
+
+        var folderB = folderAChildren.Single(c => c.GetProperty("name").GetString() == "cascade-b");
+        Assert.AreEqual(folderBId, folderB.GetProperty("nodeId").GetGuid());
+        CollectionAssert.AreEquivalent(
+            new[] { "cascade-nested.txt" },
+            folderB.GetProperty("children").EnumerateArray().Select(c => c.GetProperty("name").GetString()).ToList());
+
+        // The restore consumed the trashed subtree — no descendants are left behind.
+        var trashAfterResponse = await client.GetAsync($"/api/v1/files/trash?userId={userId}");
+        var trashAfterRoot = await ApiAssert.SuccessAsync(trashAfterResponse, HttpStatusCode.OK);
+        Assert.AreEqual(0, DataOrRoot(trashAfterRoot).GetArrayLength());
+    }
+
+    [TestMethod]
+    public async Task TrashRestoreAll_CascadeDeletedFolders_RebuildStructureWithoutFlatteningIntoRoot()
+    {
+        var userId = Guid.CreateVersion7();
+        using var client = _factory.CreateAuthenticatedApiClient(userId);
+
+        var folderAId = await CreateFolderAsync(client, "restore-all-a");
+        var folderBId = await CreateFolderAsync(client, "restore-all-b", folderAId);
+        await UploadFileAsync(client, "restore-all-nested.txt", "text/plain", Encoding.UTF8.GetBytes("nested"), folderBId);
+
+        var standaloneId = await CreateFolderAsync(client, "restore-all-standalone");
+        await UploadFileAsync(client, "restore-all-standalone.txt", "text/plain", Encoding.UTF8.GetBytes("standalone"), standaloneId);
+
+        var deleteAResponse = await client.DeleteAsync($"/api/v1/files/{folderAId}");
+        await ApiAssert.SuccessAsync(deleteAResponse, HttpStatusCode.OK);
+        var deleteStandaloneResponse = await client.DeleteAsync($"/api/v1/files/{standaloneId}");
+        await ApiAssert.SuccessAsync(deleteStandaloneResponse, HttpStatusCode.OK);
+
+        var restoreAllResponse = await client.PostAsync($"/api/v1/files/trash/restore-all?userId={userId}", content: null);
+        await ApiAssert.SuccessAsync(restoreAllResponse, HttpStatusCode.OK);
+
+        var treeResponse = await client.GetAsync("/api/v1/files/sync/tree");
+        var treeRoot = await ApiAssert.SuccessAsync(treeResponse, HttpStatusCode.OK);
+        var tree = DataOrRoot(treeRoot);
+
+        // Nothing may be dumped flat into the root: only the two deleted top-level folders come back.
+        var rootChildren = tree.GetProperty("children").EnumerateArray().ToList();
+        CollectionAssert.AreEquivalent(
+            new[] { "restore-all-a", "restore-all-standalone" },
+            rootChildren.Select(c => c.GetProperty("name").GetString()).ToList());
+
+        var folderA = rootChildren.Single(c => c.GetProperty("name").GetString() == "restore-all-a");
+        var folderB = folderA.GetProperty("children").EnumerateArray().Single();
+        Assert.AreEqual("restore-all-b", folderB.GetProperty("name").GetString());
+        Assert.AreEqual(folderBId, folderB.GetProperty("nodeId").GetGuid());
+        CollectionAssert.AreEquivalent(
+            new[] { "restore-all-nested.txt" },
+            folderB.GetProperty("children").EnumerateArray().Select(c => c.GetProperty("name").GetString()).ToList());
+
+        var standalone = rootChildren.Single(c => c.GetProperty("name").GetString() == "restore-all-standalone");
+        CollectionAssert.AreEquivalent(
+            new[] { "restore-all-standalone.txt" },
+            standalone.GetProperty("children").EnumerateArray().Select(c => c.GetProperty("name").GetString()).ToList());
+
+        var trashAfterResponse = await client.GetAsync($"/api/v1/files/trash?userId={userId}");
+        var trashAfterRoot = await ApiAssert.SuccessAsync(trashAfterResponse, HttpStatusCode.OK);
+        Assert.AreEqual(0, DataOrRoot(trashAfterRoot).GetArrayLength());
+    }
+
     private static async Task<Guid> UploadFileAsync(HttpClient client, string fileName, string mimeType, byte[] payload, Guid? parentId = null)
     {
         var chunkHash = DotNetCloud.Modules.Files.Services.ContentHasher.ComputeHash(payload);

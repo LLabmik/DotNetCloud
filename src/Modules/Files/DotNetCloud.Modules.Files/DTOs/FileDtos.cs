@@ -400,7 +400,10 @@ public sealed record TrashItemDto
     /// <summary>User who deleted the item.</summary>
     public Guid? DeletedByUserId { get; init; }
 
-    /// <summary>Original parent folder path.</summary>
+    /// <summary>
+    /// Name-based path of the folder the item will be restored into (e.g. <c>/Photos/2024</c>),
+    /// or <c>"/"</c> when it restores to the root level.
+    /// </summary>
     public string? OriginalPath { get; init; }
 }
 

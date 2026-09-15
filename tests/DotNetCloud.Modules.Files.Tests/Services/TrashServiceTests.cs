@@ -397,4 +397,320 @@ public class TrashServiceTests
         Assert.AreEqual(2, restored.Count);
         Assert.IsTrue(restored.All(n => !n.IsDeleted));
     }
+
+    // ---------------------------------------------------------------------------------------------
+    // Cascade delete -> restore round trip (regression coverage for trash restore losing the
+    // original directory path).
+    // ---------------------------------------------------------------------------------------------
+
+    private static FileNode CreateFolder(Guid ownerId, string name, FileNode? parent)
+    {
+        var folder = new FileNode
+        {
+            Name = name,
+            NodeType = FileNodeType.Folder,
+            OwnerId = ownerId,
+            ParentId = parent?.Id,
+            Depth = parent is null ? 0 : parent.Depth + 1
+        };
+        folder.MaterializedPath = parent is null
+            ? $"/{folder.Id}"
+            : $"{parent.MaterializedPath}/{folder.Id}";
+        return folder;
+    }
+
+    private static FileNode CreateFile(Guid ownerId, string name, FileNode parent)
+    {
+        var file = new FileNode
+        {
+            Name = name,
+            NodeType = FileNodeType.File,
+            OwnerId = ownerId,
+            ParentId = parent.Id,
+            Depth = parent.Depth + 1
+        };
+        file.MaterializedPath = $"{parent.MaterializedPath}/{file.Id}";
+        return file;
+    }
+
+    /// <summary>
+    /// Soft-deletes a node the way <c>FileService.DeleteAsync</c> does: the node records its parent in
+    /// <see cref="FileNode.OriginalParentId"/> and detaches itself, while the whole subtree is marked
+    /// deleted in one cascade and keeps its materialized paths.
+    /// </summary>
+    private static void SimulateCascadeDelete(FilesDbContext db, FileNode node)
+    {
+        node.IsDeleted = true;
+        node.DeletedAt = DateTime.UtcNow;
+        node.DeletedByUserId = node.OwnerId;
+        node.OriginalParentId = node.ParentId;
+        node.ParentId = null;
+
+        var descendants = db.FileNodes.Local
+            .Where(n => n.MaterializedPath.StartsWith(node.MaterializedPath + "/"))
+            .ToList();
+
+        foreach (var descendant in descendants)
+        {
+            descendant.IsDeleted = true;
+            descendant.DeletedAt = DateTime.UtcNow;
+            descendant.DeletedByUserId = descendant.OwnerId;
+            descendant.OriginalParentId = descendant.ParentId;
+        }
+    }
+
+    [TestMethod]
+    public async Task ListTrashAsync_ReturnsNameBasedOriginalPath()
+    {
+        using var db = CreateContext();
+        var userId = Guid.CreateVersion7();
+        var photos = CreateFolder(userId, "Photos", null);
+        var file = CreateFile(userId, "cat.jpg", photos);
+        db.FileNodes.AddRange(photos, file);
+        await db.SaveChangesAsync();
+
+        SimulateCascadeDelete(db, file);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var trash = await service.ListTrashAsync(UserCaller(userId));
+
+        var item = trash.Single(t => t.Id == file.Id);
+        Assert.AreEqual("/Photos", item.OriginalPath);
+    }
+
+    [TestMethod]
+    public async Task ListTrashAsync_ItemDeletedFromRoot_ReturnsRootPath()
+    {
+        using var db = CreateContext();
+        var userId = Guid.CreateVersion7();
+        var folder = CreateFolder(userId, "A", null);
+        db.FileNodes.Add(folder);
+        await db.SaveChangesAsync();
+
+        SimulateCascadeDelete(db, folder);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var trash = await service.ListTrashAsync(UserCaller(userId));
+
+        Assert.AreEqual("/", trash.Single(t => t.Id == folder.Id).OriginalPath);
+    }
+
+    [TestMethod]
+    public async Task RestoreAsync_CascadeDeletedItem_RestoresAncestorChainAndOriginalPath()
+    {
+        using var db = CreateContext();
+        var userId = Guid.CreateVersion7();
+        var a = CreateFolder(userId, "A", null);
+        var b = CreateFolder(userId, "B", a);
+        var file = CreateFile(userId, "file.txt", b);
+        db.FileNodes.AddRange(a, b, file);
+        await db.SaveChangesAsync();
+
+        SimulateCascadeDelete(db, a);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+
+        // Restoring the deep child must rebuild A and B instead of dumping file.txt into the root.
+        var result = await service.RestoreAsync(file.Id, UserCaller(userId));
+
+        Assert.AreEqual(b.Id, result.ParentId);
+
+        var restoredA = await db.FileNodes.IgnoreQueryFilters().SingleAsync(n => n.Id == a.Id);
+        var restoredB = await db.FileNodes.IgnoreQueryFilters().SingleAsync(n => n.Id == b.Id);
+        var restoredFile = await db.FileNodes.IgnoreQueryFilters().SingleAsync(n => n.Id == file.Id);
+
+        Assert.IsFalse(restoredA.IsDeleted);
+        Assert.IsFalse(restoredB.IsDeleted);
+        Assert.IsFalse(restoredFile.IsDeleted);
+
+        Assert.IsNull(restoredA.ParentId);
+        Assert.AreEqual(a.Id, restoredB.ParentId);
+        Assert.AreEqual(b.Id, restoredFile.ParentId);
+
+        Assert.AreEqual($"/{a.Id}", restoredA.MaterializedPath);
+        Assert.AreEqual($"/{a.Id}/{b.Id}", restoredB.MaterializedPath);
+        Assert.AreEqual($"/{a.Id}/{b.Id}/{file.Id}", restoredFile.MaterializedPath);
+
+        Assert.AreEqual(0, restoredA.Depth);
+        Assert.AreEqual(1, restoredB.Depth);
+        Assert.AreEqual(2, restoredFile.Depth);
+
+        Assert.IsNull(restoredA.OriginalParentId);
+        Assert.IsNull(restoredB.OriginalParentId);
+        Assert.IsNull(restoredFile.OriginalParentId);
+
+        // The trash is consumed by the restore — no orphaned descendants left behind.
+        Assert.AreEqual(0, (await service.ListTrashAsync(UserCaller(userId))).Count);
+    }
+
+    [TestMethod]
+    public async Task RestoreAsync_CascadeDeletedFolder_RestoresDescendantsAtOriginalPaths()
+    {
+        using var db = CreateContext();
+        var userId = Guid.CreateVersion7();
+        var a = CreateFolder(userId, "A", null);
+        var b = CreateFolder(userId, "B", a);
+        var file = CreateFile(userId, "file.txt", b);
+        var other = CreateFile(userId, "other.txt", a);
+        db.FileNodes.AddRange(a, b, file, other);
+        await db.SaveChangesAsync();
+
+        SimulateCascadeDelete(db, a);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var result = await service.RestoreAsync(a.Id, UserCaller(userId));
+
+        Assert.IsNull(result.ParentId); // restored to the root level
+
+        var restored = await db.FileNodes.IgnoreQueryFilters().ToListAsync();
+        var restoredB = restored.Single(n => n.Id == b.Id);
+        var restoredFile = restored.Single(n => n.Id == file.Id);
+        var restoredOther = restored.Single(n => n.Id == other.Id);
+
+        Assert.AreEqual($"/{a.Id}/{b.Id}", restoredB.MaterializedPath);
+        Assert.AreEqual($"/{a.Id}/{b.Id}/{file.Id}", restoredFile.MaterializedPath);
+        Assert.AreEqual($"/{a.Id}/{other.Id}", restoredOther.MaterializedPath);
+
+        Assert.AreEqual(1, restoredB.Depth);
+        Assert.AreEqual(2, restoredFile.Depth);
+        Assert.AreEqual(1, restoredOther.Depth);
+
+        Assert.IsTrue(restored.All(n => !n.IsDeleted));
+        Assert.IsTrue(restored.All(n => n.OriginalParentId is null));
+        Assert.AreEqual(1, restored.Count(n => n.ParentId == null));
+    }
+
+    [TestMethod]
+    public async Task RestoreAsync_CascadeDeletedItem_RestoresIntoLiveAncestor()
+    {
+        using var db = CreateContext();
+        var userId = Guid.CreateVersion7();
+        var root = CreateFolder(userId, "Root", null);
+        var child = CreateFolder(userId, "Child", root);
+        var file = CreateFile(userId, "file.txt", child);
+        db.FileNodes.AddRange(root, child, file);
+        await db.SaveChangesAsync();
+
+        // Only "Child" is trashed (with its subtree); "Root" stays live.
+        SimulateCascadeDelete(db, child);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        await service.RestoreAsync(file.Id, UserCaller(userId));
+
+        var restoredChild = await db.FileNodes.IgnoreQueryFilters().SingleAsync(n => n.Id == child.Id);
+        var restoredFile = await db.FileNodes.IgnoreQueryFilters().SingleAsync(n => n.Id == file.Id);
+
+        Assert.AreEqual(root.Id, restoredChild.ParentId);
+        Assert.AreEqual($"/{root.Id}/{child.Id}", restoredChild.MaterializedPath);
+        Assert.AreEqual(child.Id, restoredFile.ParentId);
+        Assert.AreEqual($"/{root.Id}/{child.Id}/{file.Id}", restoredFile.MaterializedPath);
+        Assert.AreEqual(1, restoredChild.Depth);
+        Assert.AreEqual(2, restoredFile.Depth);
+    }
+
+    [TestMethod]
+    public async Task RestoreAsync_CascadeDeletedItem_WhenNameTaken_RenamesRestoredRootOnly()
+    {
+        using var db = CreateContext();
+        var userId = Guid.CreateVersion7();
+        var a = CreateFolder(userId, "A", null);
+        var file = CreateFile(userId, "file.txt", a);
+        db.FileNodes.AddRange(a, file);
+        await db.SaveChangesAsync();
+
+        SimulateCascadeDelete(db, a);
+        await db.SaveChangesAsync();
+
+        // A live folder named "A" now occupies the root level.
+        var liveA = CreateFolder(userId, "A", null);
+        db.FileNodes.Add(liveA);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        await service.RestoreAsync(file.Id, UserCaller(userId));
+
+        var restoredA = await db.FileNodes.IgnoreQueryFilters().SingleAsync(n => n.Id == a.Id);
+        var restoredFile = await db.FileNodes.IgnoreQueryFilters().SingleAsync(n => n.Id == file.Id);
+
+        Assert.AreEqual("A (1)", restoredA.Name);
+        Assert.IsNull(restoredA.ParentId);
+        Assert.AreEqual($"/{a.Id}", restoredA.MaterializedPath);
+
+        // The file inside the renamed folder keeps its own name and follows the new path.
+        Assert.AreEqual("file.txt", restoredFile.Name);
+        Assert.AreEqual(a.Id, restoredFile.ParentId);
+        Assert.AreEqual($"/{a.Id}/{file.Id}", restoredFile.MaterializedPath);
+    }
+
+    [TestMethod]
+    public async Task RestoreAllAsync_CascadeDeletedFolder_RebuildsStructureWithoutFlatteningIntoRoot()
+    {
+        using var db = CreateContext();
+        var userId = Guid.CreateVersion7();
+        var a = CreateFolder(userId, "A", null);
+        var b = CreateFolder(userId, "B", a);
+        var file = CreateFile(userId, "file.txt", b);
+        var other = CreateFile(userId, "other.txt", a);
+        var rootFile = CreateFile(userId, "root.txt", a);
+        db.FileNodes.AddRange(a, b, file, other, rootFile);
+        await db.SaveChangesAsync();
+
+        SimulateCascadeDelete(db, a);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        await service.RestoreAllAsync(UserCaller(userId));
+
+        var restored = await db.FileNodes.IgnoreQueryFilters().ToListAsync();
+
+        Assert.AreEqual(5, restored.Count);
+        Assert.IsTrue(restored.All(n => !n.IsDeleted));
+
+        // Exactly one node is back at the root level, and the whole tree hangs off it.
+        Assert.AreEqual(1, restored.Count(n => n.ParentId == null));
+        Assert.AreEqual(a.Id, restored.Single(n => n.ParentId == null).Id);
+
+        var restoredFile = restored.Single(n => n.Id == file.Id);
+        var restoredB = restored.Single(n => n.Id == b.Id);
+
+        Assert.AreEqual($"/{a.Id}/{b.Id}", restoredB.MaterializedPath);
+        Assert.AreEqual($"/{a.Id}/{b.Id}/{file.Id}", restoredFile.MaterializedPath);
+        Assert.AreEqual($"/{a.Id}/{rootFile.Id}", restored.Single(n => n.Id == rootFile.Id).MaterializedPath);
+        Assert.AreEqual(2, restoredFile.Depth);
+
+        Assert.AreEqual(0, (await service.ListTrashAsync(UserCaller(userId))).Count);
+    }
+
+    [TestMethod]
+    public async Task RestoreAllAsync_MultipleDeletedRootLevelFolders_RestoresEachStructure()
+    {
+        using var db = CreateContext();
+        var userId = Guid.CreateVersion7();
+        var one = CreateFolder(userId, "One", null);
+        var oneChild = CreateFile(userId, "one.txt", one);
+        var two = CreateFolder(userId, "Two", null);
+        var twoChild = CreateFile(userId, "two.txt", two);
+        db.FileNodes.AddRange(one, oneChild, two, twoChild);
+        await db.SaveChangesAsync();
+
+        SimulateCascadeDelete(db, one);
+        SimulateCascadeDelete(db, two);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        await service.RestoreAllAsync(UserCaller(userId));
+
+        var restored = await db.FileNodes.IgnoreQueryFilters().ToListAsync();
+
+        Assert.AreEqual(4, restored.Count);
+        Assert.IsTrue(restored.All(n => !n.IsDeleted));
+        Assert.AreEqual(2, restored.Count(n => n.ParentId == null));
+        Assert.AreEqual($"/{one.Id}/{oneChild.Id}", restored.Single(n => n.Id == oneChild.Id).MaterializedPath);
+        Assert.AreEqual($"/{two.Id}/{twoChild.Id}", restored.Single(n => n.Id == twoChild.Id).MaterializedPath);
+    }
 }

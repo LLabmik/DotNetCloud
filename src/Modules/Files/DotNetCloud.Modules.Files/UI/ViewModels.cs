@@ -135,6 +135,9 @@ public sealed class TrashItemViewModel
 
     /// <summary>When the item was deleted.</summary>
     public DateTime? DeletedAt { get; init; }
+
+    /// <summary>Name-based path of the folder the item will be restored into ("/" = root level).</summary>
+    public string OriginalPath { get; init; } = "/";
 }
 
 /// <summary>

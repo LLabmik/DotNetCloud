@@ -27,6 +27,8 @@ public partial class TrashBin : ComponentBase
     private bool _isLoading;
     private bool _showEmptyConfirm;
     private bool _isEmptying;
+    private bool _isRestoring;
+    private string _restoreStatus = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
@@ -66,6 +68,15 @@ public partial class TrashBin : ComponentBase
     /// <summary>Whether the empty-trash operation is currently in progress.</summary>
     protected bool IsEmptying => _isEmptying;
 
+    /// <summary>Whether a restore operation is currently in progress.</summary>
+    protected bool IsRestoring => _isRestoring;
+
+    /// <summary>Progress text shown next to the restore spinner (e.g. "Restoring 2 of 5: Photos…").</summary>
+    protected string RestoreStatus => _restoreStatus;
+
+    /// <summary>Whether any long-running trash operation is in progress.</summary>
+    protected bool IsBusy => _isEmptying || _isRestoring;
+
     /// <summary>Returns whether the given item is currently selected.</summary>
     protected bool IsSelected(Guid id) => _selectedItems.Contains(id);
 
@@ -86,16 +97,38 @@ public partial class TrashBin : ComponentBase
                 _selectedItems.Add(item.Id);
     }
 
-    /// <summary>Restores selected items back to their original location.</summary>
+    /// <summary>Restores selected items back to their original location, showing progress while it runs.</summary>
     protected async Task RestoreSelected()
     {
-        var caller = await GetCallerContextAsync();
-        foreach (var id in _selectedItems.ToList())
+        if (_isRestoring)
+            return;
+
+        var items = _trashedItems.Where(i => _selectedItems.Contains(i.Id)).ToList();
+        if (items.Count == 0)
+            return;
+
+        _isRestoring = true;
+        try
         {
-            await TrashService.RestoreAsync(id, caller);
+            var caller = await GetCallerContextAsync();
+
+            for (var index = 0; index < items.Count; index++)
+            {
+                _restoreStatus = items.Count == 1
+                    ? $"Restoring {items[index].Name}…"
+                    : $"Restoring {index + 1} of {items.Count}: {items[index].Name}…";
+                StateHasChanged();
+
+                await TrashService.RestoreAsync(items[index].Id, caller);
+                _selectedItems.Remove(items[index].Id);
+            }
+        }
+        finally
+        {
+            _isRestoring = false;
+            _restoreStatus = string.Empty;
         }
 
-        _selectedItems.Clear();
         await LoadTrashAsync();
         await OnTrashChanged.InvokeAsync();
     }
@@ -103,6 +136,9 @@ public partial class TrashBin : ComponentBase
     /// <summary>Permanently deletes all selected items.</summary>
     protected async Task DeleteSelected()
     {
+        if (IsBusy)
+            return;
+
         var caller = await GetCallerContextAsync();
         foreach (var id in _selectedItems.ToList())
         {
@@ -114,12 +150,28 @@ public partial class TrashBin : ComponentBase
         await OnTrashChanged.InvokeAsync();
     }
 
-    /// <summary>Restores a single item.</summary>
+    /// <summary>Restores a single item, showing a spinner while it runs.</summary>
     protected async Task RestoreItem(Guid itemId)
     {
-        var caller = await GetCallerContextAsync();
-        await TrashService.RestoreAsync(itemId, caller);
-        _selectedItems.Remove(itemId);
+        if (_isRestoring)
+            return;
+
+        _isRestoring = true;
+        _restoreStatus = "Restoring…";
+        StateHasChanged();
+
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            await TrashService.RestoreAsync(itemId, caller);
+            _selectedItems.Remove(itemId);
+        }
+        finally
+        {
+            _isRestoring = false;
+            _restoreStatus = string.Empty;
+        }
+
         await LoadTrashAsync();
         await OnTrashChanged.InvokeAsync();
     }
@@ -127,6 +179,9 @@ public partial class TrashBin : ComponentBase
     /// <summary>Permanently deletes a single item.</summary>
     protected async Task PurgeItem(Guid itemId)
     {
+        if (IsBusy)
+            return;
+
         var caller = await GetCallerContextAsync();
         await TrashService.PermanentDeleteAsync(itemId, caller);
         _selectedItems.Remove(itemId);
@@ -143,7 +198,7 @@ public partial class TrashBin : ComponentBase
     /// <summary>Permanently deletes all items in the trash, showing a spinner while in progress.</summary>
     protected async Task EmptyTrash()
     {
-        if (_isEmptying)
+        if (IsBusy)
             return;
 
         _isEmptying = true;
@@ -211,7 +266,8 @@ public partial class TrashBin : ComponentBase
                 Name = dto.Name,
                 NodeType = dto.NodeType,
                 Size = dto.Size,
-                DeletedAt = dto.DeletedAt
+                DeletedAt = dto.DeletedAt,
+                OriginalPath = string.IsNullOrWhiteSpace(dto.OriginalPath) ? "/" : dto.OriginalPath
             }).ToList();
         }
         catch
