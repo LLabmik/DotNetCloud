@@ -408,6 +408,27 @@ public sealed class LocalStateDb : ILocalStateDb
     }
 
     /// <inheritdoc/>
+    public async Task RemovePendingOperationsUnderPathAsync(string dbPath, string folderPath, CancellationToken cancellationToken = default)
+    {
+        await using var ctx = CreateContext(dbPath);
+        var normalized = folderPath.TrimEnd('/', '\\');
+        // Infer the separator from the path itself so callers using either convention work correctly.
+        var sep = normalized.Contains('/') ? '/' : Path.DirectorySeparatorChar;
+        var prefix = normalized + sep;
+        var rows = await ctx.PendingOperations
+            .Where(r => r.LocalPath == normalized || (r.LocalPath != null && r.LocalPath.StartsWith(prefix)))
+            .ToListAsync(cancellationToken);
+        if (rows.Count > 0)
+        {
+            ctx.PendingOperations.RemoveRange(rows);
+            await ctx.SaveChangesAsync(cancellationToken);
+            _logger.LogDebug(
+                "Removed {Count} pending operation(s) under {Folder} in {DbPath}.",
+                rows.Count, normalized, dbPath);
+        }
+    }
+
+    /// <inheritdoc/>
     public async Task UpdateOperationRetryAsync(
         string dbPath,
         int operationId,
