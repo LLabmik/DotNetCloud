@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-09-15 (**NEW server-side Active Handoff — trash restore must preserve the original directory path** — a cascade-deleted folder currently restores flat into the root; client-side "ignore a synced folder" deletion bug fixed + live-verified on SyncTray `0.6.7` (`7632722c`). Earlier: 2026-09-09 Presence indicators → **4-state** Online/Away/Do-Not-Disturb/Offline — full-stack code committed on `fix/android-improvements` at `c17c7fa3`; server + Blazor + Admin changes are ready to deploy to `cloud.kimball.home` and require the live E2E in the Active Handoff. Plan `docs/PRESENCE_DOTS_4STATE_PLAN.md`; see Active Handoff.)
+Last updated: 2026-09-15 (**Trash restore now preserves the original directory path** — server-side fix implemented, tested and deployed to `cloud.dotnetcloud.net` (branch `fix/trash-restore-original-path`); earlier, the client-side "ignore a synced folder" deletion bug was fixed + live-verified on SyncTray `0.6.7` (`7632722c`). Earlier: 2026-09-09 Presence indicators → **4-state** Online/Away/Do-Not-Disturb/Offline — full-stack code committed on `fix/android-improvements` at `c17c7fa3`; server + Blazor + Admin changes are ready to deploy to `cloud.kimball.home` and require the live E2E in the Active Handoff. Plan `docs/PRESENCE_DOTS_4STATE_PLAN.md`; see Active Handoff.)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -16,8 +16,8 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
-- **Current active branch:** `fix/synctray-ignore-folder` (SyncTray **0.6.7** — "ignore a synced folder" can no longer delete the folder server-side; pushed `7632722c`, installed and live-verified on `mint-OptiPlex-7010`)
-- **New server-side handoff (above):** trash restore loses the original directory path — server agent (`cloud`) to fix + live-verify
+- **Current active branch:** `fix/trash-restore-original-path` — server agent (`cloud`): trash restore now preserves the original directory path (implemented, tested, deployed to `cloud.dotnetcloud.net` 2026-09-15; archived below)
+- **Completed (awaiting moderator PR):** `fix/synctray-ignore-folder` — SyncTray **0.6.7**, "ignore a synced folder" can no longer delete the folder server-side; pushed `7632722c`, installed and live-verified on `mint-OptiPlex-7010`
 - **Pending deploy:** `fix/android-improvements` (Presence 4-state — server deploy to `cloud.kimball.home`; plan `docs/PRESENCE_DOTS_4STATE_PLAN.md`)
 - **Still pending (mint22, dev):** `feature/module-widgets` — Module Home Widgets (plan `docs/MODULE_WIDGETS_PLAN.md`); kept below as a deferred handoff
 
@@ -242,7 +242,19 @@ User requirement: "Default for forms (login, TOTP, file create name, etc.) shoul
 - Verify two flagged spots while implementing: Tracks `WorkItemAssignment.UserId` navigation property (plan §9.4) and the Email thread query location behind `ListThreadsAsync` (plan §10.4).
 - Module ids in `KnownWidgetDescriptors` must match `InstalledModules.ModuleId` exactly (plan §11.4 table).
 
-## Active Handoff — Server: trash restore must preserve the original directory path (2026-09-15)
+## Archived Handoff — Server: trash restore preserves the original directory path (2026-09-15) ✅ COMPLETED
+
+**Status:** completed ✅ — implemented, unit/integration tested and **deployed to `cloud.dotnetcloud.net`** (server agent — `cloud`).
+**Branch:** `fix/trash-restore-original-path`
+**Client-side counterpart (unchanged):** SyncTray `0.6.7` "ignore a synced folder" fix (`fix/synctray-ignore-folder`, `7632722c`) — this pass was server-only, no client changes were needed.
+
+`TrashService` now resolves the original parent with `IgnoreQueryFilters()` and restores the deleted ancestor chain, so a cascade-deleted subtree returns to its **original path** instead of being flattened into the root; `RestoreSubtreeAsync` recomputes `ParentId`/`MaterializedPath`/`Depth` (and assigns sync sequences) for every descendant; `RestoreAllAsync` restores only top-level trashed nodes (plus orphans of purged parents), never the descendants individually; and `TrashItemDto.OriginalPath` now exposes a **name-based** location (`/Photos/2024`, `/` at root), surfaced as a **Location** column in the Blazor trash UI, which also gained a restore spinner. New endpoint: `POST /api/v1/files/trash/restore-all`.
+
+**Operator note:** the `AutoUpload` / `Gretchen Goes to Nebraska` trees stay unrecoverable (the original flat restore consumed their trash entries). This work makes every *future* restore correct — that is its whole purpose.
+
+Full implementation detail, acceptance-criteria mapping, test counts and deploy evidence: `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
+
+<details><summary>Original handoff text (superseded — kept for the root-cause record)</summary>
 
 **Target machine:** server agent (`cloud` / `cloud.dotnetcloud.net`). Client-side work is complete and shipped — this is **server-only**.
 
@@ -296,6 +308,8 @@ Both went to trash (soft delete). The operator restored `AutoUpload` from the tr
 
 - Do not change the client. `IDotNetCloudApiClient` has **no** trash list/restore methods and SyncTray has **no** trash UI — if the client should offer restore, that is a separate client task; raise it instead of adding it here.
 - Do not touch the client-side deletion/ignore logic — that path is fixed, unit-tested (312 + 149 tests) and live-verified.
+
+</details>
 
 ## Active Handoff — Presence indicators 4-state: deploy `c17c7fa3` to `cloud.kimball.home` + live E2E (2026-09-09)
 

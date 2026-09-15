@@ -1,3 +1,65 @@
+## Archived: Server — trash restore preserves the original directory path (2026-09-15)
+
+**Status:** completed ✅ — implemented, unit + REST-integration tested, **deployed to `cloud.dotnetcloud.net`** (was `active — server agent`).
+**Branch:** `fix/trash-restore-original-path` (branched from `fix/synctray-ignore-folder` @ `50d11ef9`, which carries the client-side fix and this handoff)
+**From:** client agent (`mint-OptiPlex-7010`) → server agent (`cloud`), 2026-09-15
+**Target:** Files module (`DotNetCloud.Modules.Files*`) — server-only; no client changes.
+
+### Why
+
+The client-side "ignore a synced folder" bug (fixed in SyncTray `0.6.7`, `7632722c`) had deleted `AutoUpload` and `Gretchen Goes to Nebraska` from `cloud.dotnetcloud.net` via `DELETE /api/v1/files/{id}`. When the operator restored `AutoUpload` from the trash UI, **every descendant landed flat in the root** instead of the original tree. Root cause (confirmed by code reading, then reproduced in tests):
+
+1. `RestoreAsync` resolved `OriginalParentId` **without `IgnoreQueryFilters()`** — a parent that is itself still trashed is invisible to the query, so the lookup returned `null` and the node fell into the "original parent is gone → restore to root" branch.
+2. `RestoreAllAsync` selected `OriginalParentId != null` — i.e. exactly the *descendants* — and skipped the folder deleted at the root, restoring each child individually into the root.
+3. `RestoreDescendantsAsync` cleared the trash markers but never recomputed `ParentId`/`MaterializedPath`/`Depth`.
+4. `TrashItemDto.OriginalPath` was `FileNode.MaterializedPath` — an **ID path** (`/id/id/…`), unusable as a user-facing location.
+
+### What changed (implementation)
+
+**`src/Modules/Files/DotNetCloud.Modules.Files.Data/Services/TrashService.cs`**
+
+- `RestoreAsync` → `ResolveRestoreTargetAsync` walks `OriginalParentId` up with `IgnoreQueryFilters()` while the ancestor is itself trashed, and returns the **topmost deleted ancestor** (the subtree to restore) plus the live parent it belongs in. Root fallback now happens **only** when the original parent row no longer exists (permanently purged) — and it is logged as a warning, not silent (cycle guard included).
+- `RestoreSubtreeAsync` restores that subtree root, auto-renames it on conflict (`GetRestoreNameAsync`, unchanged logic), recomputes `MaterializedPath`/`Depth` for the root **and every descendant** (each descendant keeps its old path *relative* to the restored root, re-anchored under the root's new location) and assigns a fresh `SyncSequence` to every touched node so delta-sync clients learn the rebuilt paths.
+- `RestoreAllAsync` restores only the **top-level** trashed nodes — `OriginalParentId == null` *or* an original parent that is not itself in the trash (orphans of purged parents fall back to the root, logged). Descendants are never restored individually.
+- `ListTrashAsync` → `BuildOriginalDirectoryPathsAsync` resolves a **name-based** location by walking `OriginalParentId` up to the root (following `ParentId` through live ancestors), returning `/` for root-level items.
+
+**Contract / API**
+
+- `TrashItemDto.OriginalPath` is now documented as the name-based folder path the item restores into (`/Photos/2024`, `/` at root).
+- New endpoint **`POST /api/v1/files/trash/restore-all`** (plus `ITrashService` XML docs describing the ancestor-chain semantics).
+- **Blazor trash UI** (`TrashBin.razor`/`.razor.cs`, `ViewModels.cs`, `app.css`): new **Location** column showing `OriginalPath`; a **restore spinner** with progress text ("Restoring 2 of 5: X…") that also disables the trash actions while running; raw emoji replaced with the mandated `MaterialIcon` component.
+
+### Deliberate non-changes
+
+- **No client changes.** `IDotNetCloudApiClient` has no trash list/restore methods and SyncTray has no trash UI (unchanged scope).
+- **gRPC trash surface left alone.** `FilesGrpcService.RestoreNode`/`PurgeNode`/`EmptyTrash`/`ListTrash` still contain the old naive logic, but the path is dead: `FilesUploadStreamService` in Core.Server overrides all four with `ThrowUnavailable`, and no client calls them. Worth deleting wholesale in a future cleanup rather than fixing twice.
+- **Historical damage is not repaired.** The original flat restore consumed the trash entries (`GET /api/v1/files/trash` → `[]`), so the `AutoUpload` / `Gretchen Goes to Nebraska` trees remain unrecoverable.
+
+### Behaviour decisions (documented, per acceptance criterion 3)
+
+- Restoring an item whose parent folder is *also* trashed **restores the ancestor chain with it, siblings included** (Nextcloud-style) — chosen over returning "restore the ancestor first". Verified by test.
+- Name-conflict auto-rename applies to the restored subtree root, which *is* the topmost recreated level; because no new rows are created, descendants cannot newly collide inside their (unchanged) parents.
+
+### Verification
+
+**Automated (all green):**
+
+- `dotnet test tests/DotNetCloud.Modules.Files.Tests/` → **788 passed, 0 failed** (7 new: name-based `OriginalPath` at root and nested, cascade-deleted item restores its ancestor chain at the original path, cascade-deleted folder restores descendants' paths/depths, restore into a live ancestor, rename-on-conflict of the restored root with descendants following, `RestoreAllAsync` rebuilding structure without flattening, multiple deleted root folders restoring independently).
+- `dotnet test tests/DotNetCloud.Integration.Tests/ ... --filter FullyQualifiedName~FilesRestIsolation` → **19 passed, 0 failed** (3 new REST E2E: file in a live folder returns to it; cascade-deleted folder's *nested* entry restores the full `A/B/file.txt` tree with `sync/tree` + `originalPath` assertions and an empty trash afterwards; `POST /trash/restore-all` restores only top-level folders and puts **nothing** in the root).
+- Full `tests/DotNetCloud.Integration.Tests` → 183 passed / 13 skipped (skips are pre-existing live-DB tests); `tests/DotNetCloud.Core.Server.Tests` → 780 passed / 2 skipped.
+
+**Deploy (cloud.kimball.home / `cloud.dotnetcloud.net`):**
+
+- `sudo ./scripts/deploy.sh --force --verify` — full rebuild + publish + service restart, completed without error.
+- `systemctl is-active dotnetcloud` → `active`; `/health/ready` → **Healthy**, `database` Healthy, **14/14 modules Running** (incl. `dotnetcloud.files`).
+- Deployed artifacts hash-verified against the Release build: `DotNetCloud.Modules.Files.Data.dll` md5 `6764772fffe870ba862c21387fa510d4` and `DotNetCloud.Modules.Files.dll` md5 `10abe25684a806be43fe8a55157b8a7b` — identical in `/opt/dotnetcloud/server/modules/dotnetcloud.files/` and `src/…/bin/Release/net10.0/`.
+- Deployed `wwwroot/_content/DotNetCloud.UI.Web/css/app.css` md5 matches the source (`e9c83687833cfcb64c007c60540665c0`) and contains the new `trash-restoring` and `col-location` rules.
+- `strings -e l` on the deployed `DotNetCloud.Modules.Files.Data.dll` shows the new restore log strings (`…(subtree root {RestoreRootId})`, `…no longer exists; restoring to the root level.`).
+
+**UI acceptance:** the server agent has no credentials for `cloud.dotnetcloud.net`, so the browser pass over the Blazor trash UI (Location column, restore spinner, restore round-trip) is the operator's sign-off; the moderator closed the handoff with "we're good" after the deploy.
+
+---
+
 ## Archived: DM presence-dots relay delay — root-caused; intentionally NOT fixed (2026-09-09)
 
 **Status:** archived — root cause identified; **operator decision: not fixing now** (4-state presence's yellow/Away state represents the ~2–3 min relay retention window; see Active Handoff in `CLIENT_SERVER_MEDIATION_HANDOFF.md`).

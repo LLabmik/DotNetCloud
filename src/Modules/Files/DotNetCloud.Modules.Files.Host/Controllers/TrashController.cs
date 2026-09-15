@@ -44,11 +44,25 @@ public class TrashController : FilesControllerBase
     /// <summary>
     /// Restores a trashed item to its original location.
     /// </summary>
+    /// <remarks>
+    /// When the item's original parent folder is still in the trash, the deleted ancestor chain is
+    /// restored with it so the subtree returns to its original path.
+    /// </remarks>
     [HttpPost("{nodeId:guid}/restore")]
     public Task<IActionResult> RestoreAsync(Guid nodeId) => ExecuteAsync(async () =>
     {
         var node = await _trashService.RestoreAsync(nodeId, GetAuthenticatedCaller());
         return Ok(Envelope(node));
+    });
+
+    /// <summary>
+    /// Restores every item in the trash bin, recreating the original directory structure.
+    /// </summary>
+    [HttpPost("restore-all")]
+    public Task<IActionResult> RestoreAllAsync() => ExecuteAsync(async () =>
+    {
+        await _trashService.RestoreAllAsync(GetAuthenticatedCaller());
+        return Ok(Envelope(new { restored = true }));
     });
 
     /// <summary>
