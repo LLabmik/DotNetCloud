@@ -112,6 +112,7 @@
   - ✓ Phase 8 — Logging/Error Handling: Error disclosure locked down, log masking verified; 3 sensitive data leak locations fixed (FCM, Gmail OAuth, API body preview); CLI Console.WriteLine audit completed (no findings)
   - ✓ Phase 9 — Cross-Module Trust: gRPC boundaries verified, event bus audited; cross-module trust docs created
   - ✓ Phase 10 — Consolidation: Complete findings in `docs/SECURITY_REVIEW_FINDINGS.md`, remediation roadmap defined, security docs created; key rotation automation implemented; CSP documentation added to deployment guide
+  - ✓ Strict-CSP follow-up (H-4): eval-dependent libraries were made CSP-safe instead of re-allowing `'unsafe-eval'` — Butterchurn preset equations are pre-compiled at build time (`tools/butterchurn-presets/precompile-presets.cjs` → `butterchurn-presets-compiled.js`; 371 presets / 2513 equations, diffed against `new Function` and exercised through the real `loadPreset` under a simulated strict CSP), the music playbar scroll helper became a named JS function, and the Video player bundle loads via an ES module
 
 ---
 

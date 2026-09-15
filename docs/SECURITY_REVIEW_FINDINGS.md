@@ -136,6 +136,14 @@ Same 6 endpoints — content type determined by extension only, not file signatu
   "Detect") so `unsafe-hashes` is not required.
 - Added `object-src 'none'`, `base-uri 'self'`, `form-action 'self'`, and `upgrade-insecure-requests`.
 - Antiforgery cookie now uses `CookieSecurePolicy.Always` (was being emitted without the `Secure` flag).
+- Eval-dependent client libraries were made CSP-safe instead of re-adding `unsafe-eval`:
+  - Butterchurn (music visualizer) compiles preset equations with `new Function()`; every equation is now
+    pre-compiled into a real function at build time
+    (`tools/butterchurn-presets/precompile-presets.cjs` → `butterchurn-presets-compiled.js`), so the
+    library's `typeof preset.init_eqs !== "function"` guard skips its own compilation.
+  - Blazor JS interop previously used `eval` for a music playbar scroll helper — replaced by a named
+    function in `music-player.js`.
+  - The Video module loads its player bundle through an ES module instead of `eval`-typing script text.
 
 **Remaining risk:** `style-src 'unsafe-inline'` remains for Blazor's runtime inline style attributes (scoped CSS,
 `Virtualize` spacers).

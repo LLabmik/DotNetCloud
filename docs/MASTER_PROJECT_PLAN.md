@@ -368,6 +368,7 @@ Create a sample appsettings.Development.json for local configuration.
   - ✓ Supply chain scanning added to CI pipeline — `dotnet list package --vulnerable` and `--deprecated` fail the build on critical findings
   - ✓ Logging audit — 3 sensitive data leak locations fixed (FCM response body, Gmail OAuth error body, API response body preview); CLI Console.WriteLine audit clean
   - ✓ 41 security regression tests — FileValidationService tests covering extensions, magic bytes, file sizes, path traversal, null bytes, dangerous characters, and AllowedFileTypes integrity
+  - ✓ Strict-CSP regression fixes (2026-09) — no `'unsafe-eval'` needed anywhere: Butterchurn preset equations are pre-compiled at build time (`tools/butterchurn-presets/precompile-presets.cjs` → `butterchurn-presets-compiled.js`), the music playbar scroll helper converted to a named JS function, and the Video player bundle loads via an ES module
 - ✓ All existing tests pass (569+ passed, 0 failed)
 - ✓ Build succeeds (0 errors, 0 warnings)
 

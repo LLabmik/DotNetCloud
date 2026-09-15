@@ -6,6 +6,13 @@ Integrate [Butterchurn](https://github.com/jberg/butterchurn) (WebGL MilkDrop vi
 
 **Zero server-side changes** — this is entirely client-side (JS + Blazor components). No new API endpoints, database changes, or module host changes.
 
+> ⚠️ **CSP constraint (2026-09).** Butterchurn compiles preset equations with `new Function()`. The app CSP
+> allows `'wasm-unsafe-eval'` but not `'unsafe-eval'`, so every equation is pre-compiled into a real
+> function by `tools/butterchurn-presets/precompile-presets.cjs`, which writes
+> `wwwroot/lib/butterchurn/butterchurn-presets-compiled.js` (loaded from `App.razor`). Any preset change
+> must be followed by a regeneration run — see
+> [BUTTERCHURN_PRESET_AUTHORING.md](BUTTERCHURN_PRESET_AUTHORING.md#-why-step-2-is-mandatory-strict-csp).
+
 ## Key Architecture Insight
 
 The existing `music-player.js` already creates an `AudioContext` and `MediaElementAudioSourceNode` for the 10-band EQ. Butterchurn's `connectAudio(audioNode)` internally creates an `AnalyserNode` and connects to the provided node. Web Audio API supports fan-out — a single `sourceNode` can connect to both the EQ chain AND butterchurn's analyser simultaneously. No audio routing changes needed.
