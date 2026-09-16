@@ -242,7 +242,8 @@
                                         <Label.Text>
                                             <MultiBinding Converter="{StaticResource NoteFolderTag}">
                                                 <Binding Path="FolderId"/>
-                                                <Binding Path="BindingContext.FolderSnapshot" Source="{RelativeSource AncestorType={x:Type ContentPage}}"/>
+                                                <Binding Path="BindingContext.FolderSnapshot"
+                                                        Source="{RelativeSource AncestorType={x:Type ContentPage}}"/>
                                             </MultiBinding>
                                         </Label.Text>
                                     </Label>
