@@ -183,10 +183,12 @@
                                  BackgroundColor="#0F172A"/>
                 </Grid>
 
-                <!-- Row 3: Folder picker -->
+                <!-- Row 3: Folder picker — "None (unfiled)" plus the caller's own folders.
+                     Hidden for a note shared with the caller: folders belong to the note's owner. -->
                 <Grid Grid.Row="3"
                       ColumnDefinitions="Auto,*"
-                      Padding="12,8,12,12">
+                      Padding="12,8,12,12"
+                      IsVisible="{Binding CanEditFolder}">
                         <Label Grid.Column="0"
                                Text="Folder:"
                                TextColor="#94A3B8"
@@ -195,7 +197,10 @@
                                Margin="0,0,8,0"/>
                         <Picker Grid.Column="1"
                                 x:Name="FolderPicker"
-                                Title="None"
+                                Title="None (unfiled)"
+                                ItemsSource="{Binding FolderOptions}"
+                                SelectedItem="{Binding SelectedFolderOption}"
+                                ItemDisplayBinding="{Binding Name}"
                                 TextColor="#F1F5F9"
                                 TitleColor="#64748B"
                                 VerticalOptions="Center"/>

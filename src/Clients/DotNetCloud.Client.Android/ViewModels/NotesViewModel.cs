@@ -111,6 +111,14 @@ public sealed partial class NotesViewModel : ObservableObject
     /// <summary>User's note folders.</summary>
     public ObservableCollection<NoteFolderDto> Folders { get; } = [];
 
+    /// <summary>
+    /// Immutable snapshot of <see cref="Folders"/>, republished whenever the folder list changes.
+    /// Note cards resolve their folder tag from it — a snapshot property raises change
+    /// notifications for multi-binding tags, which a mutated collection would not.
+    /// </summary>
+    [ObservableProperty]
+    private IReadOnlyList<NoteFolderDto> _folderSnapshot = [];
+
     // ── Computed ───────────────────────────────────────────────────
 
     /// <summary>Currently selected folder name for display, or "All Notes".</summary>
@@ -177,6 +185,8 @@ public sealed partial class NotesViewModel : ObservableObject
             Folders.Clear();
             foreach (var f in folders)
                 Folders.Add(f);
+
+            FolderSnapshot = Folders.ToList();
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
         catch (Exception ex)
@@ -190,7 +200,12 @@ public sealed partial class NotesViewModel : ObservableObject
     [RelayCommand]
     private async Task CreateNoteAsync()
     {
-        await Shell.Current.GoToAsync("NoteEdit");
+        // A note created from a folder chip starts in that folder, matching the Blazor notes page.
+        var route = SelectedFolderId is { } folderId
+            ? $"NoteEdit?FolderId={folderId}"
+            : "NoteEdit";
+
+        await Shell.Current.GoToAsync(route);
     }
 
     /// <summary>Navigates to NoteEditPage to edit an existing note.</summary>
@@ -437,6 +452,7 @@ public sealed partial class NotesViewModel : ObservableObject
             var (serverUrl, token) = await GetCredentialsAsync(CancellationToken.None);
             await _notesApi.DeleteFolderAsync(serverUrl, token, folder.Id);
             Folders.Remove(folder);
+            FolderSnapshot = Folders.ToList();
 
             if (SelectedFolderId == folder.Id)
                 await SelectFolderCommand.ExecuteAsync(null);

@@ -81,7 +81,9 @@
     <!-- Notes -->
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Notes\INotesRestClient.cs" Link="AndroidApp\Notes\INotesRestClient.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Notes\HttpNotesRestClient.cs" Link="AndroidApp\Notes\HttpNotesRestClient.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Notes\NoteFolderLabels.cs" Link="AndroidApp\Notes\NoteFolderLabels.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\ViewModels\NotesViewModel.cs" Link="AndroidApp\ViewModels\NotesViewModel.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\ViewModels\NoteEditViewModel.cs" Link="AndroidApp\ViewModels\NoteEditViewModel.cs" />
 
     <!-- Messages -->
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Messages\NoteSavedMessage.cs" Link="AndroidApp\Messages\NoteSavedMessage.cs" />
