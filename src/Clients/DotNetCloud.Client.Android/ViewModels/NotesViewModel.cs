@@ -44,6 +44,10 @@ public sealed partial class NotesViewModel : ObservableObject
             if (LoadNotesCommand.CanExecute(null))
                 LoadNotesCommand.Execute(null);
         });
+
+        // The filter chips mirror the folder list, so keep them in step with it.
+        Folders.CollectionChanged += (_, _) => RebuildFolderChips();
+        RebuildFolderChips();
     }
 
     // ── View State ─────────────────────────────────────────────────
@@ -105,11 +109,22 @@ public sealed partial class NotesViewModel : ObservableObject
 
     // ── Data Collections ───────────────────────────────────────────
 
+    /// <summary>Label of the chip that clears the folder filter and shows every note.</summary>
+    public const string AllNotesLabel = "All Notes";
+
     /// <summary>All notes for the current filter.</summary>
     public ObservableCollection<NoteDto> Notes { get; } = [];
 
     /// <summary>User's note folders.</summary>
     public ObservableCollection<NoteFolderDto> Folders { get; } = [];
+
+    /// <summary>
+    /// Folder filter chips: <see cref="AllNotesLabel"/> first, then one chip per folder in
+    /// <see cref="Folders"/>. The chips carry a display label rather than the folder DTO — a layout
+    /// bound straight to <see cref="Folders"/> would render each item as the DTO's
+    /// <c>ToString()</c> whenever its item template is missing.
+    /// </summary>
+    public ObservableCollection<NoteFolderOption> FolderChips { get; } = [];
 
     /// <summary>
     /// Immutable snapshot of <see cref="Folders"/>, republished whenever the folder list changes.
@@ -194,6 +209,20 @@ public sealed partial class NotesViewModel : ObservableObject
             _logger.LogError(ex, "Failed to load folders.");
             System.Console.Error.WriteLine($"[NotesVM] Folder error: {ex.GetType().Name}: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Rebuilds <see cref="FolderChips"/> from <see cref="Folders"/>, keeping
+    /// <see cref="AllNotesLabel"/> (chip folder id <c>null</c>) in front so the "All Notes" filter is
+    /// always reachable, even before — or without — a successful folder load.
+    /// </summary>
+    private void RebuildFolderChips()
+    {
+        FolderChips.Clear();
+        FolderChips.Add(new NoteFolderOption(null, AllNotesLabel));
+
+        foreach (var folder in Folders)
+            FolderChips.Add(new NoteFolderOption(folder.Id, folder.Name));
     }
 
     /// <summary>Navigates to NoteEditPage to create a new note.</summary>

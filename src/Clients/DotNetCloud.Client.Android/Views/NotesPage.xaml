@@ -38,45 +38,38 @@
                    CancelButtonColor="#0EA5E9"
                    Margin="8,8,8,0"/>
 
-        <!-- Row 1: Folder chips row -->
+        <!-- Row 1: Folder chips row ("All Notes" first, then one chip per folder) -->
         <ScrollView Grid.Row="1"
                     Orientation="Horizontal"
                     HorizontalScrollBarVisibility="Never"
                     Margin="8,4,8,0">
             <HorizontalStackLayout Spacing="6"
-                                   BindableLayout.ItemsSource="{Binding Folders}">
-                <!-- "All Notes" chip (always first, before the bound items) -->
-                <Border StrokeShape="RoundRectangle 16"
-                        BackgroundColor="{Binding SelectedFolderId, Converter={StaticResource IsNull}}"
-                        Stroke="#334155"
-                        Padding="12,4"
-                        HeightRequest="32">
-                    <Border.GestureRecognizers>
-                        <TapGestureRecognizer Command="{Binding SelectFolderCommand}"/>
-                    </Border.GestureRecognizers>
-                    <Label Text="All Notes"
-                           FontSize="13"
-                           TextColor="#F1F5F9"
-                           VerticalOptions="Center"/>
-                </Border>
-
-                <!-- Folder chips -->
-                <Border x:DataType="core:NoteFolderDto"
-                        StrokeShape="RoundRectangle 16"
-                        BackgroundColor="#1E293B"
-                        Stroke="#334155"
-                        Padding="12,4"
-                        HeightRequest="32">
-                    <Border.GestureRecognizers>
-                        <TapGestureRecognizer
-                            Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.SelectFolderCommand}"
-                            CommandParameter="{Binding Id}"/>
-                    </Border.GestureRecognizers>
-                    <Label Text="{Binding Name}"
-                           FontSize="13"
-                           TextColor="#F1F5F9"
-                           VerticalOptions="Center"/>
-                </Border>
+                                   BindableLayout.ItemsSource="{Binding FolderChips}">
+                <BindableLayout.ItemTemplate>
+                    <DataTemplate x:DataType="vm:NoteFolderOption">
+                        <Border StrokeShape="RoundRectangle 16"
+                                Stroke="#334155"
+                                Padding="12,4"
+                                HeightRequest="32">
+                            <Border.BackgroundColor>
+                                <MultiBinding Converter="{StaticResource FolderChipBackground}">
+                                    <Binding Path="Id"/>
+                                    <Binding Path="BindingContext.SelectedFolderId"
+                                             Source="{RelativeSource AncestorType={x:Type ContentPage}}"/>
+                                </MultiBinding>
+                            </Border.BackgroundColor>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer
+                                    Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.SelectFolderCommand}"
+                                    CommandParameter="{Binding Id}"/>
+                            </Border.GestureRecognizers>
+                            <Label Text="{Binding Name}"
+                                   FontSize="13"
+                                   TextColor="#F1F5F9"
+                                   VerticalOptions="Center"/>
+                        </Border>
+                    </DataTemplate>
+                </BindableLayout.ItemTemplate>
             </HorizontalStackLayout>
         </ScrollView>
 

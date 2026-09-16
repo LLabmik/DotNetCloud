@@ -2,6 +2,7 @@ using DotNetCloud.Client.Android.Auth;
 using DotNetCloud.Client.Android.Notes;
 using DotNetCloud.Client.Android.Services;
 using DotNetCloud.Client.Android.ViewModels;
+using DotNetCloud.Core.DTOs;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
@@ -160,4 +161,68 @@ public sealed class NotesViewModelTests
         Assert.IsTrue(result.Contains("p {"), "Should have paragraph style");
         Assert.IsTrue(result.Contains("#E2E8F0"), "Should have light paragraph text");
     }
+
+    // ── Folder filter chips ─────────────────────────────────────────
+
+    [TestMethod]
+    public void FolderChips_WithoutFolders_ContainOnlyTheAllNotesChip()
+    {
+        var vm = CreateViewModel();
+
+        Assert.AreEqual(1, vm.FolderChips.Count);
+        Assert.IsNull(vm.FolderChips[0].Id);
+        Assert.AreEqual(NotesViewModel.AllNotesLabel, vm.FolderChips[0].Name);
+    }
+
+    [TestMethod]
+    public void FolderChips_WhenFoldersAppear_MirrorThemAfterAllNotes()
+    {
+        var vm = CreateViewModel();
+        var finance = Guid.NewGuid();
+        var work = Guid.NewGuid();
+
+        vm.Folders.Add(CreateFolder(finance, "Finance"));
+        vm.Folders.Add(CreateFolder(work, "Work"));
+
+        Assert.AreEqual(3, vm.FolderChips.Count);
+        Assert.IsNull(vm.FolderChips[0].Id, "All Notes must stay first so the filter can always be cleared");
+        Assert.AreEqual(finance, vm.FolderChips[1].Id);
+        Assert.AreEqual("Finance", vm.FolderChips[1].Name);
+        Assert.AreEqual(work, vm.FolderChips[2].Id);
+        Assert.AreEqual("Work", vm.FolderChips[2].Name);
+    }
+
+    [TestMethod]
+    public void FolderChips_WhenFolderRemoved_DropIt()
+    {
+        var vm = CreateViewModel();
+        var finance = Guid.NewGuid();
+        vm.Folders.Add(CreateFolder(finance, "Finance"));
+
+        vm.Folders.RemoveAt(0);
+
+        Assert.AreEqual(1, vm.FolderChips.Count);
+        Assert.IsNull(vm.FolderChips[0].Id);
+    }
+
+    [TestMethod]
+    public void FolderChips_RenamedFolder_ShowsTheNewLabel()
+    {
+        var vm = CreateViewModel();
+        var finance = Guid.NewGuid();
+        vm.Folders.Add(CreateFolder(finance, "Finance"));
+
+        vm.Folders[0] = vm.Folders[0] with { Name = "Money" };
+
+        Assert.AreEqual("Money", vm.FolderChips[1].Name);
+    }
+
+    private static NoteFolderDto CreateFolder(Guid id, string name) => new()
+    {
+        Id = id,
+        OwnerId = Guid.NewGuid(),
+        Name = name,
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow
+    };
 }
