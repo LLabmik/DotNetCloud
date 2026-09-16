@@ -288,6 +288,100 @@ public class NoteServiceTests
             Times.Once);
     }
 
+    // ─── Update: folder moves ─────────────────────────────────────────
+
+    [TestMethod]
+    public async Task UpdateNote_MoveToFolder_SetsFolder()
+    {
+        var folder = new Models.NoteFolder { OwnerId = _caller.UserId, Name = "Work" };
+        _db.NoteFolders.Add(folder);
+        await _db.SaveChangesAsync();
+
+        var created = await _service.CreateNoteAsync(new CreateNoteDto { Title = "Unfiled" }, _caller);
+        Assert.IsNull(created.FolderId);
+
+        var result = await _service.UpdateNoteAsync(
+            created.Id, new UpdateNoteDto { FolderId = folder.Id }, _caller);
+
+        Assert.AreEqual(folder.Id, result.FolderId);
+    }
+
+    [TestMethod]
+    public async Task UpdateNote_ClearFolder_UnfilesNote()
+    {
+        var folder = new Models.NoteFolder { OwnerId = _caller.UserId, Name = "Work" };
+        _db.NoteFolders.Add(folder);
+        await _db.SaveChangesAsync();
+
+        var created = await _service.CreateNoteAsync(
+            new CreateNoteDto { Title = "Filed", FolderId = folder.Id }, _caller);
+        Assert.AreEqual(folder.Id, created.FolderId);
+
+        var result = await _service.UpdateNoteAsync(
+            created.Id, new UpdateNoteDto { ClearFolder = true }, _caller);
+
+        Assert.IsNull(result.FolderId);
+    }
+
+    [TestMethod]
+    public async Task UpdateNote_WithoutFolderOrClear_KeepsExistingFolder()
+    {
+        var folder = new Models.NoteFolder { OwnerId = _caller.UserId, Name = "Work" };
+        _db.NoteFolders.Add(folder);
+        await _db.SaveChangesAsync();
+
+        var created = await _service.CreateNoteAsync(
+            new CreateNoteDto { Title = "Filed", FolderId = folder.Id }, _caller);
+
+        var result = await _service.UpdateNoteAsync(
+            created.Id, new UpdateNoteDto { Title = "Renamed" }, _caller);
+
+        Assert.AreEqual(folder.Id, result.FolderId);
+        Assert.AreEqual("Renamed", result.Title);
+    }
+
+    [TestMethod]
+    public async Task UpdateNote_FolderWinsOverClearFolder()
+    {
+        var folder = new Models.NoteFolder { OwnerId = _caller.UserId, Name = "Work" };
+        _db.NoteFolders.Add(folder);
+        await _db.SaveChangesAsync();
+
+        var created = await _service.CreateNoteAsync(new CreateNoteDto { Title = "Unfiled" }, _caller);
+
+        var result = await _service.UpdateNoteAsync(
+            created.Id, new UpdateNoteDto { FolderId = folder.Id, ClearFolder = true }, _caller);
+
+        Assert.AreEqual(folder.Id, result.FolderId);
+    }
+
+    [TestMethod]
+    public async Task UpdateNote_MoveToAnotherUsersFolder_Throws()
+    {
+        var otherCaller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
+        var foreignFolder = new Models.NoteFolder { OwnerId = otherCaller.UserId, Name = "Theirs" };
+        _db.NoteFolders.Add(foreignFolder);
+        await _db.SaveChangesAsync();
+
+        var created = await _service.CreateNoteAsync(new CreateNoteDto { Title = "Mine" }, _caller);
+
+        var ex = await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
+            () => _service.UpdateNoteAsync(
+                created.Id, new UpdateNoteDto { FolderId = foreignFolder.Id }, _caller));
+
+        Assert.IsTrue(ex.Message.Contains("folder", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
+    public async Task UpdateNote_MoveToUnknownFolder_Throws()
+    {
+        var created = await _service.CreateNoteAsync(new CreateNoteDto { Title = "Mine" }, _caller);
+
+        await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
+            () => _service.UpdateNoteAsync(
+                created.Id, new UpdateNoteDto { FolderId = Guid.CreateVersion7() }, _caller));
+    }
+
     // ─── Delete ───────────────────────────────────────────────────────
 
     [TestMethod]

@@ -312,6 +312,16 @@
   color: var(--color-muted);
 }
 
+/* Folder tag at the bottom of a sidebar note card */
+.notes-list-item-folder {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-danger);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .notes-form-actions {
   display: flex;
   gap: 6px;
@@ -365,6 +375,36 @@
   margin: 0 0 6px 0;
   font-size: 13px;
   color: var(--color-text-secondary);
+}
+
+/* Folder assignment / move control */
+.notes-detail-folder {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px 0;
+  color: var(--color-text-secondary);
+}
+
+.notes-field-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.notes-move-select {
+  max-width: 260px;
+  padding: 4px 8px;
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 13px;
+}
+
+.notes-detail-folder-name {
+  font-size: 13px;
 }
 
 .notes-detail-actions {

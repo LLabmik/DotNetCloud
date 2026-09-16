@@ -162,6 +162,10 @@
                                     </span>
                                 }
                             </div>
+                            @if (GetFolderLabel(note.FolderId) is string folderLabel)
+                            {
+                                <span class="notes-list-item-folder" title="Folder: @folderLabel">@folderLabel</span>
+                            }
                         </button>
                     }
                 }
@@ -188,6 +192,17 @@
                     <InputText class="form-control" @bind-Value="_editingNote.Title" placeholder="Note title" />
                     <InputText class="form-control" @bind-Value="_editingNote.TagCsv"
                                placeholder="Tags (comma separated)" />
+                    @if (CanChangeFolder)
+                    {
+                        <label class="notes-field-label" for="note-folder-select">Folder</label>
+                        <select id="note-folder-select" class="form-control" @bind="_editingNote.FolderSelection">
+                            <option value="">No folder (unfiled)</option>
+                            @foreach (var folder in _folders)
+                            {
+                                <option value="@folder.Id">@folder.Name</option>
+                            }
+                        </select>
+                    }
                 </div>
                 <MarkdownEditor Content="@_editingNote.Content" ContentChanged="HandleEditorChanged"
                                 Renderer="MarkdownRenderer" />
@@ -198,6 +213,27 @@
             <div class="notes-detail">
                 <h2>@_selectedNote.Title</h2>
                 <p><strong>Tags:</strong> @string.Join(", ", _selectedNote.Tags)</p>
+                <div class="notes-detail-folder">
+                    <MaterialIcon Icon="folder" Size="MaterialIconSize.Sm" />
+                    @if (IsOwner(_selectedNote))
+                    {
+                        <label class="notes-field-label" for="note-move-folder">Folder</label>
+                        <select id="note-move-folder" class="form-control form-control-sm notes-move-select"
+                                value="@(_selectedNote.FolderId?.ToString() ?? string.Empty)"
+                                @onchange="MoveSelectedNoteAsync"
+                                title="Move this note to a folder">
+                            <option value="">No folder (unfiled)</option>
+                            @foreach (var folder in _folders)
+                            {
+                                <option value="@folder.Id">@folder.Name</option>
+                            }
+                        </select>
+                    }
+                    else
+                    {
+                        <span class="notes-detail-folder-name">@GetFolderName(_selectedNote.FolderId)</span>
+                    }
+                </div>
                 @if (!IsOwner(_selectedNote))
                 {
                     <div
@@ -315,7 +351,12 @@
     /// via a user/team share.
     /// </summary>
     private bool CanEdit(NoteDto note) => IsOwner(note) || note.ViewerPermission == NoteSharePermission.ReadWrite;
-
+    /// <summary>
+    /// Whether the folder selector should be shown in the editor. Folders belong to a single
+    /// owner, and the server rejects filing a note into a folder that isn't the note owner's,
+    /// so only the owner (or a brand-new note, which the caller will own) may pick a folder.
+    /// </summary>
+    private bool CanChangeFolder => _editingNote?.Id is null || (_selectedNote is not null && IsOwner(_selectedNote));
     /// <summary>Resolves the current user ID from the authentication state.</summary>
     private async Task<Guid> GetCurrentUserIdAsync()
     {
@@ -489,7 +530,12 @@ _sidebarCollapsed.ToString().ToLowerInvariant() });
     private void BeginCreateNote()
     {
         _selectedNote = null;
-        _editingNote = new NoteEditorModel { Title = "New note" };
+        _editingNote = new NoteEditorModel
+        {
+            Title = "New note",
+            // A note created while a folder filter is active starts in that folder.
+            FolderSelection = _selectedFolderId?.ToString() ?? string.Empty
+        };
     }
 
     private void BeginEditSelected()
@@ -582,6 +628,62 @@ _sidebarCollapsed.ToString().ToLowerInvariant() });
     {
         _selectedFolderId = null;
         await ReloadAsync();
+    }
+
+    /// <summary>
+    /// Resolves a note's folder to a display label, or <c>null</c> when the note is unfiled.
+    /// Folders belong to their owner, so a folder that is not in the caller's own folder list
+    /// belongs to whoever shared the note with them.
+    /// </summary>
+    private string? GetFolderLabel(Guid? folderId)
+    {
+        if (!folderId.HasValue)
+        {
+            return null;
+        }
+
+        return _folders.FirstOrDefault(f => f.Id == folderId.Value)?.Name ?? "Shared folder";
+    }
+
+    /// <summary>Display name of a note's folder, or "Unfiled" when it has none.</summary>
+    private string GetFolderName(Guid? folderId) => GetFolderLabel(folderId) ?? "Unfiled";
+
+    /// <summary>
+    /// Moves the selected note to the folder chosen in the detail-view picker
+    /// (empty selection = unfiled). Folder changes are owner-only, matching the server rule
+    /// that a note's folder must belong to the note owner.
+    /// </summary>
+    private async Task MoveSelectedNoteAsync(ChangeEventArgs args)
+    {
+        if (_selectedNote is null || !IsOwner(_selectedNote))
+        {
+            return;
+        }
+
+        var raw = args.Value?.ToString();
+        Guid? targetFolderId = Guid.TryParse(raw, out var parsed) ? parsed : null;
+        if (targetFolderId == _selectedNote.FolderId)
+        {
+            return;
+        }
+
+        _isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            _selectedNote = await ApiClient.UpdateNoteAsync(_selectedNote.Id, new UpdateNoteDto
+            {
+                FolderId = targetFolderId,
+                ClearFolder = targetFolderId is null
+            });
+
+            await ReloadAsync();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private async Task ToggleFavoriteAsync()
@@ -823,7 +925,16 @@ _sidebarCollapsed.ToString().ToLowerInvariant() });
     private sealed class NoteEditorModel
     {
         public Guid? Id { get; set; }
-        public Guid? FolderId { get; set; }
+
+        /// <summary>
+        /// Selected folder as a string so the folder &lt;select&gt; binds directly;
+        /// empty string means "no folder (unfiled)".
+        /// </summary>
+        public string FolderSelection { get; set; } = string.Empty;
+
+        /// <summary>The selected folder ID, or <c>null</c> when the note is unfiled.</summary>
+        public Guid? FolderId => Guid.TryParse(FolderSelection, out var folderId) ? folderId : null;
+
         public string Title { get; set; } = string.Empty;
         public string Content { get; set; } = string.Empty;
         public string TagCsv { get; set; } = string.Empty;
@@ -831,7 +942,7 @@ _sidebarCollapsed.ToString().ToLowerInvariant() });
         public static NoteEditorModel From(NoteDto dto) => new()
         {
             Id = dto.Id,
-            FolderId = dto.FolderId,
+            FolderSelection = dto.FolderId?.ToString() ?? string.Empty,
             Title = dto.Title,
             Content = dto.Content,
             TagCsv = string.Join(",", dto.Tags)
@@ -848,6 +959,8 @@ _sidebarCollapsed.ToString().ToLowerInvariant() });
         public UpdateNoteDto ToUpdateDto() => new()
         {
             FolderId = FolderId,
+            // An empty selection means the user moved the note out of its folder.
+            ClearFolder = FolderId is null,
             Title = Title,
             Content = Content,
             Tags = ParseTags()

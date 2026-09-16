@@ -284,9 +284,17 @@ public sealed record CreateNoteDto
 public sealed record UpdateNoteDto
 {
     /// <summary>
-    /// Updated folder assignment. Null means no change.
+    /// Updated folder assignment. Null means no change, unless
+    /// <see cref="ClearFolder"/> is <c>true</c> — in which case the note is unfiled.
     /// </summary>
     public Guid? FolderId { get; init; }
+
+    /// <summary>
+    /// When <c>true</c> and <see cref="FolderId"/> is null, removes the note from its
+    /// current folder so it becomes unfiled. Distinguishes "leave the folder alone"
+    /// (both unset) from "move to no folder". Ignored when <see cref="FolderId"/> has a value.
+    /// </summary>
+    public bool ClearFolder { get; init; }
 
     /// <summary>
     /// Updated title.

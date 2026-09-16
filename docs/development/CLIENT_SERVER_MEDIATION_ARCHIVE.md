@@ -1,4 +1,61 @@
-## Archived: Server — trash restore preserves the original directory path (2026-09-15)
+## Archived: Server + Blazor — Notes folder assignment (create + move/unfile); Android picker wiring deferred (2026-09-15)
+
+**Status:** server + Blazor completed ✅ — implemented, unit + full-CI tested, **deployed to `cloud.dotnetcloud.net` and operator-verified in the browser** (was `active — server agent`). **Android picker wiring still pending** (client agent — `monolith`); re-queue via a relay when the Android agent next runs on monolith.
+**Branch:** `fix/notes-folder-assignment` (from `main` @ `59f72989`)
+**From:** operator report → server agent (`cloud`), 2026-09-15
+**Target:** Notes module (`DotNetCloud.Modules.Notes*`), core DTOs (`DotNetCloud.Core`) and the Blazor Notes UI. Server-side only — no Android changes in this pass.
+
+### Why
+
+Notes folders existed only as a sidebar **filter**: a note could not be filed at creation time, and a note could never be moved out of a folder. Two distinct defects:
+
+1. `NoteService.UpdateNoteAsync` applied `folderId` only via `if (dto.FolderId.HasValue)` — `null` meant "no change", so **"move to unfiled" was unexpressible**.
+2. The core gRPC client (`NotesGrpcApiClient.UpdateNoteAsync`) never mapped `folderId` onto `UpdateNoteRequest` at all (the module's REST path worked, the gRPC path silently dropped every folder change).
+
+The Blazor notes page had no folder control in the create/edit form and no move affordance in the detail view.
+
+### What changed (implementation)
+
+- **`DotNetCloud.Core/DTOs/NoteDtos.cs`** — `UpdateNoteDto.FolderId`/`ClearFolder`: documented `FolderId` as "no change" unless `ClearFolder` is `true`, which unfiles the note. Distinguishes "leave the folder alone" from "move to no folder".
+- **`NoteService.UpdateNoteAsync`** — an explicit `FolderId` wins; otherwise `ClearFolder` clears it. Moves now validate the target folder **belongs to the note owner** (previously unvalidated, so a note could be filed into another user's folder). Blocks a shared ReadWrite editor from filing a note into their own folder.
+- **`notes_service.proto`** — `UpdateNoteRequest.clear_folder = 14`.
+- **`NotesGrpcService.UpdateNote`** — maps `clear_folder` onto the DTO.
+- **`NotesGrpcApiClient.UpdateNoteAsync`** — now maps **both** `folder_id` (previously dropped) and `clear_folder`.
+- **Blazor `NotesPage.razor` (+ `.razor.css`)** — folder `<select>` in the create/edit form (empty = unfiled); new notes inherit the active sidebar folder filter; owner-only folder picker in the note detail view that applies the move **immediately** (no edit mode / save needed); shared notes show the folder name read-only. The editor's folder control is hidden for non-owners (see Validation below). `NoteEditorModel` now carries `FolderSelection` (string, so `<select>` binds cleanly) and maps `ClearFolder = FolderId is null` on update.
+- **Blazor sidebar folder tag** — every filed note in the sidebar list now shows its folder name as **small red text** at the bottom of the card (`.notes-list-item-folder`: 10px, weight 600, `color: var(--color-danger)`, ellipsised overflow, with a `title` tooltip). Unfiled notes render no tag.
+- **Folder-label resolution** — new `GetFolderLabel()` helper: folders belong to their owner, so a folder that is not in the caller's own list belongs to whoever shared the note. Such a folder now renders as **"Shared folder"** instead of the previously misleading **"Unfiled"** (applies to both the sidebar card tag and the detail view); `GetFolderName()` (detail view) is `GetFolderLabel() ?? "Unfiled"`.
+- **Owner-only folder control (validation follow-up)** — the editor's folder `<select>` is only rendered when the caller owns the note (or is creating it), because the server now rejects filing a note into a folder that isn't the note owner's. Without this, a ReadWrite sharee would have seen a dropdown of *their own* folders and hit a `400` on save.
+- **Docs** — `docs/api/NOTES.md` (folder-move patch-semantics table + `NOTE_FOLDER_NOT_FOUND`), `docs/user/NOTES.md` (move/unfile workflow + sidebar folder tag), both tracking docs, and the Android handoff entry.
+
+### Contract
+
+- REST: `PUT /api/v1/notes/{noteId}` — `folderId` wins when present; `{"clearFolder": true}` unfiles; unknown or foreign folder ⇒ `400 NOTE_FOLDER_NOT_FOUND`.
+- gRPC: `UpdateNoteRequest.folder_id` + `UpdateNoteRequest.clear_folder`.
+
+### Verification
+
+- **Unit tests:** 8 new `NoteServiceTests` folder cases (move, unfile, no-change, folder-wins-over-clear, foreign folder rejected, unknown folder rejected) + new `NotesGrpcServiceUpdateNoteFolderTests` (3 tests asserting the proto→DTO mapping for `folder_id` / `clear_folder` / neither).
+- **Full CI suite:** all 22–23 projects green, **0 failures** (`dotnet test DotNetCloud.CI.slnf`, run twice); `DotNetCloud.Modules.Notes.Tests` 157/157.
+- **Build:** `DotNetCloud.Core.Server` + Notes chain build with **0 warnings / 0 errors**.
+- **Deploy:** `sudo ./scripts/deploy.sh --force --verify` → `cloud.dotnetcloud.net`, **three full passes** (initial feature → owner-only folder control → sidebar folder tag). Every pass: 15/15 deploy targets succeeded, module-host assembly hashes verified, `DotNetCloud.Modules.Notes.dll` (Blazor RCL) md5 matched the build output, `/health/ready` Healthy with 14/14 modules, `_framework/blazor.web.js` 200, no pending migrations.
+- **Operator verification (2026-09-15):** confirmed working in the browser — file a note at creation time, move it between folders in place, unfile it, move it from the editor, and see the folder tag on the sidebar cards.
+
+### Deliberate non-changes
+
+- **No schema change, no migration** — `Note.FolderId` already existed; this is purely semantics + UI.
+- Folder moves remain **owner-only**; a ReadWrite sharee can still edit title/content/tags (and sees the note's folder name as read-only text).
+- Android not touched in this pass (see below) — the server box has no JDK/Android SDK to build MAUI.
+- The folder tag uses the app's `--color-danger` variable rather than a hard-coded red, so it follows the theme/dark mode.
+
+### Pending (Android agent — `monolith`) — NOT yet done
+
+`NoteEditPage.xaml` already ships a `Picker x:Name="FolderPicker"` but it is **wired to nothing** — no `ItemsSource`, no selection handler, no `.cs` reference. Needed: populate it from `INotesRestClient.ListFoldersAsync` (with a "None (unfiled)" option) **before** `NoteEditViewModel.LoadAsync`'s `!IsEditing` early return; send `FolderId = null, ClearFolder = true` when "None" is picked on update (without the flag the server treats null as "no change"); carry `ClearFolder` through both offline-queue payloads; optionally seed a new note from the active folder chip. Then build + verify on-device (create with folder, move between folders, move to None).
+
+Full actionable detail is kept in the **Active Handoff** of `CLIENT_SERVER_MEDIATION_HANDOFF.md`.
+
+---
+
+
 
 **Status:** completed ✅ — implemented, unit + REST-integration tested, **deployed to `cloud.dotnetcloud.net`** (was `active — server agent`).
 **Branch:** `fix/trash-restore-original-path` (branched from `fix/synctray-ignore-folder` @ `50d11ef9`, which carries the client-side fix and this handoff)

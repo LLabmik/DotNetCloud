@@ -87,11 +87,27 @@ PUT /api/v1/notes/{noteId}
 }
 ```
 
+**Folder moves (patch semantics):**
+
+| Body | Effect |
+|---|---|
+| `folderId` omitted and `clearFolder` omitted/false | Folder is left unchanged |
+| `"folderId": "<guid>"` | Note is moved into that folder (folder must belong to the note owner) |
+| `"folderId": null` / omitted with `"clearFolder": true` | Note is moved out of its folder and becomes **unfiled** |
+
+When both are supplied, `folderId` wins. An unknown folder, or one owned by another user, returns `400` NOTE_FOLDER_NOT_FOUND.
+
+```json
+{
+  "clearFolder": true
+}
+```
+
 **Optimistic Concurrency:** Set `expectedVersion` to the note's current version number. If the note has been modified since (version mismatch), the server returns `409` NOTE_VERSION_CONFLICT. Set to `0` to skip version checking.
 
 **Response:** Updated `NoteDto`
 
-**Errors:** `404` NOTE_NOT_FOUND, `409` NOTE_VERSION_CONFLICT, `403` insufficient permissions
+**Errors:** `400` NOTE_FOLDER_NOT_FOUND, `404` NOTE_NOT_FOUND, `409` NOTE_VERSION_CONFLICT, `403` insufficient permissions
 
 ---
 

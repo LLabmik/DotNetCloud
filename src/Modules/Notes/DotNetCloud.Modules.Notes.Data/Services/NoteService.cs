@@ -228,9 +228,31 @@ public sealed class NoteService : INoteService
             EditedByUserId = caller.UserId
         });
 
-        // Apply partial updates
+        // Apply partial updates.
+        // Folder moves: an explicit folder wins; otherwise ClearFolder unfiles the note.
+        // The target folder must belong to the note owner (folders are per-user), which
+        // stops a shared editor from filing the note into somebody else's folder.
         if (dto.FolderId.HasValue)
+        {
+            if (dto.FolderId.Value != note.FolderId)
+            {
+                var folderExists = await _db.NoteFolders
+                    .AnyAsync(f => f.Id == dto.FolderId.Value && f.OwnerId == note.OwnerId, cancellationToken);
+
+                if (!folderExists)
+                {
+                    throw new Core.Errors.ValidationException(
+                        Core.Errors.ErrorCodes.NoteFolderNotFound, "Note folder not found.");
+                }
+            }
+
             note.FolderId = dto.FolderId;
+        }
+        else if (dto.ClearFolder)
+        {
+            note.FolderId = null;
+        }
+
         if (dto.Title is not null)
             note.Title = dto.Title;
         if (dto.Content is not null)

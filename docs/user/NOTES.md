@@ -83,11 +83,21 @@ Folders can be nested to any depth.
 
 ### Moving Notes Between Folders
 
-1. Open a note
-2. Change the **Folder** selection
-3. Save the note
+1. Open the note
+2. Use the **Folder** picker at the top of the note (next to the folder icon)
+3. The move is applied immediately — no need to enter edit mode or save
 
-Or use the **Move** action from the context menu.
+Choosing **No folder (unfiled)** takes the note out of its current folder without deleting it.
+
+You can also change the folder while editing a note: pick a different value in the **Folder** dropdown in the editor and click **Save**.
+
+> Notes created while a folder is selected in the sidebar start out in that folder.
+
+### Seeing Which Folder a Note Is In
+
+The sidebar note list tags every filed note with its **folder name in small red text** at the bottom of the card, so you can see where a note lives without opening it. Notes that aren't in a folder show no tag.
+
+If a note was shared with you and it lives in the owner's folder, the tag reads **Shared folder** — folders belong to their owner, so another user's folder names aren't visible to you.
 
 ### Deleting a Folder
 

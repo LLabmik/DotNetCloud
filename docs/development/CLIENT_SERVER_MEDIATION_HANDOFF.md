@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-09-15 (**Trash restore now preserves the original directory path** — server-side fix implemented, tested and deployed to `cloud.dotnetcloud.net` (branch `fix/trash-restore-original-path`); earlier, the client-side "ignore a synced folder" deletion bug was fixed + live-verified on SyncTray `0.6.7` (`7632722c`). Earlier: 2026-09-09 Presence indicators → **4-state** Online/Away/Do-Not-Disturb/Offline — full-stack code committed on `fix/android-improvements` at `c17c7fa3`; server + Blazor + Admin changes are ready to deploy to `cloud.kimball.home` and require the live E2E in the Active Handoff. Plan `docs/PRESENCE_DOTS_4STATE_PLAN.md`; see Active Handoff.)
+Last updated: 2026-09-15 (**Notes: note folder assignment** — a note can now be filed at creation time, moved/unfiled afterwards, and is tagged with its folder on the sidebar card; server + Blazor done, deployed and operator-verified from branch `fix/notes-folder-assignment`, Android picker wiring handed to monolith — see the deferred handoff below. Earlier same day: **Trash restore now preserves the original directory path** — server-side fix implemented, tested and deployed to `cloud.dotnetcloud.net` (branch `fix/trash-restore-original-path`); earlier, the client-side "ignore a synced folder" deletion bug was fixed + live-verified on SyncTray `0.6.7` (`7632722c`). Earlier: 2026-09-09 Presence indicators → **4-state** Online/Away/Do-Not-Disturb/Offline — full-stack code committed on `fix/android-improvements` at `c17c7fa3`; server + Blazor + Admin changes are ready to deploy to `cloud.kimball.home` and require the live E2E in the Active Handoff. Plan `docs/PRESENCE_DOTS_4STATE_PLAN.md`; see Active Handoff.)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -16,7 +16,8 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
-- **Current active branch:** `fix/trash-restore-original-path` — server agent (`cloud`): trash restore now preserves the original directory path (implemented, tested, deployed to `cloud.dotnetcloud.net` 2026-09-15; archived below)
+- **Latest (server agent — `cloud`):** `fix/notes-folder-assignment` — Notes folder assignment at create time + move/unfile; server + Blazor done and deployed, **Android picker wiring still pending** (client agent — `monolith`; deferred handoff below, detail in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`)
+- **Archived (server agent — `cloud`):** `fix/trash-restore-original-path` — trash restore now preserves the original directory path (implemented, tested, deployed to `cloud.dotnetcloud.net` 2026-09-15; archived below)
 - **Completed (awaiting moderator PR):** `fix/synctray-ignore-folder` — SyncTray **0.6.7**, "ignore a synced folder" can no longer delete the folder server-side; pushed `7632722c`, installed and live-verified on `mint-OptiPlex-7010`
 - **Pending deploy:** `fix/android-improvements` (Presence 4-state — server deploy to `cloud.kimball.home`; plan `docs/PRESENCE_DOTS_4STATE_PLAN.md`)
 - **Still pending (mint22, dev):** `feature/module-widgets` — Module Home Widgets (plan `docs/MODULE_WIDGETS_PLAN.md`); kept below as a deferred handoff
@@ -310,6 +311,41 @@ Both went to trash (soft delete). The operator restored `AutoUpload` from the tr
 - Do not touch the client-side deletion/ignore logic — that path is fixed, unit-tested (312 + 149 tests) and live-verified.
 
 </details>
+
+## Archived (deferred) Handoff — Android Notes: wire the note folder picker (create + move) — STILL PENDING (2026-09-15)
+
+**Status:** archived — the **server + Blazor half is complete, tested and deployed** (`fix/notes-folder-assignment`; full implementation detail + verification in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`). **The Android half below is NOT done** (client agent — `monolith`); re-queue via a relay when the Android agent next runs on monolith.
+**Target agent:** monolith (client, Windows 11)
+**Branch:** `fix/notes-folder-assignment` (server agent — `cloud`)
+**Why the split:** the Android MAUI project cannot be built on the Linux server box (no JDK / Android SDK — that is why `DotNetCloud.Client.Android*` is excluded from `DotNetCloud.CI.slnf`), so the Android wiring is handed off rather than written blind.
+
+### Context (server agent — `cloud`)
+
+Notes folders existed as a sidebar filter only: a note could not be filed at creation time and could never be moved out of a folder. The server + Blazor halves are now fixed:
+
+- `UpdateNoteDto.ClearFolder` (`DotNetCloud.Core/DTOs/NoteDtos.cs`) distinguishes "leave the folder alone" from "move to unfiled". `folderId` wins when both are supplied.
+- `NoteService.UpdateNoteAsync` applies the move/unfile and validates the target folder belongs to the **note owner** (`NOTE_FOLDER_NOT_FOUND` otherwise).
+- `UpdateNoteRequest.clear_folder = 14` (proto) is mapped by `NotesGrpcService`, and `NotesGrpcApiClient.UpdateNoteAsync` now maps `folder_id` **and** `clear_folder` (it previously dropped `folder_id` entirely).
+- Blazor `NotesPage.razor`: folder `<select>` in the create/edit form (new notes inherit the active sidebar folder) + an owner-only move/unfile picker in the detail view; sidebar note cards show the folder name as a small red tag (folder labels fall back to "Shared folder" when the folder belongs to the note's owner rather than the caller).
+- REST contract: `PUT /api/v1/notes/{noteId}` with `{"clearFolder": true}` unfiles; documented in `docs/api/NOTES.md`.
+
+### The Android gap
+
+`src/Clients/DotNetCloud.Client.Android/Views/NoteEditPage.xaml` already contains a `Picker x:Name="FolderPicker"` (Row 3, "Folder picker"), but it is **wired to nothing** — there is no `FolderPicker` reference in any `.cs` file, no `ItemsSource`, and no selection handler, so it renders empty and does nothing. `NoteEditViewModel.SelectedFolderId` is only ever set from the loaded note.
+
+### What to do (client agent — monolith)
+
+1. **Populate the picker:** expose the user's folders on `NoteEditViewModel` (`ObservableCollection<NoteFolderDto> Folders` + a first "None (unfiled)" option, loaded via `INotesRestClient.ListFoldersAsync`) and bind `FolderPicker.ItemsSource` / `SelectedIndex` (or bind `ItemsSource` + `SelectedItem` to a small option record with `ItemDisplayBinding="{Binding Name}"`).
+2. **Create:** ensure folders load in create mode too — `NoteEditViewModel.LoadAsync` currently returns early when `!IsEditing`, so folder loading must happen before that early return.
+3. **Update/unfile:** when the user selects "None", send `new UpdateNoteDto { FolderId = null, ClearFolder = true, ... }` — without the flag the server treats `FolderId == null` as "no change", so the note would stay filed.
+4. **Offline queue parity:** the two offline payloads in `NoteEditViewModel.SaveAsync` (`OfflineNoteUpdatePayload` / `OfflineNoteCreatePayload`) must carry `ClearFolder` as well, otherwise a queued move-to-unfiled silently no-ops on replay.
+5. **Optional parity with Blazor:** pass the currently filtered folder into `NoteEdit` (`Shell.Current.GoToAsync($"NoteEdit?FolderId={...}")` + `[QueryProperty]`) so a note created from a folder chip starts in that folder.
+6. **Optional parity — folder tag on the note card:** the Blazor sidebar shows each note's folder name as a small red tag at the card's bottom (`--color-danger`, 10px). To mirror it on the Android notes list, resolve the label from the already-loaded `Folders` collection and fall back to "Shared folder" when the note's folder isn't in the caller's own list (folders belong to their owner — a shared note's folder will not be in the sharee's list).
+7. **Verify on device:** create a note with a folder selected; move it between folders; move it to "None" and confirm in the web UI that it becomes unfiled. Add/extend `NotesViewModelTests`-style unit coverage if the VM surface changes.
+
+**Deploy note:** nothing else is required server-side — the REST/gRPC contract above is already live.
+
+---
 
 ## Active Handoff — Presence indicators 4-state: deploy `c17c7fa3` to `cloud.kimball.home` + live E2E (2026-09-09)
 
