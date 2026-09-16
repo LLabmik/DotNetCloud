@@ -118,6 +118,7 @@ message UpdateNoteRequest {
   repeated NoteLinkMessage links = 11;
   bool update_links = 12;     // if true, replace links with above list
   int32 expected_version = 13; // 0 means no check
+  bool clear_folder = 14;     // if true (and folder_id empty), unfile the note
 }
 
 // --- DeleteNote ---

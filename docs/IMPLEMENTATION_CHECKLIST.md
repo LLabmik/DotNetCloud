@@ -3938,6 +3938,8 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Note sharing model (ReadOnly/ReadWrite per-user)
 - ✓ Version history with restore
 - ✓ Optimistic concurrency via ExpectedVersion
+- ✓ Note folder assignment: choose a folder while creating/editing a note, and move/unfile an existing note (patch semantics via `UpdateNoteDto.ClearFolder`, folder must belong to the note owner); sidebar note cards tag the folder name in small red text
+- ☐ Android note folder picker wired to the same contract (folder list in create **and** edit mode, move between folders, "None (unfiled)" → `ClearFolder`) — implemented + committed on `fix/notes-folder-assignment`, 325 Android tests + arm64/emulator builds green; **on-device E2E still owed** (committed at the operator's explicit instruction)
 - ✓ 50 passing tests (module lifecycle, CRUD, search, versioning, folders, sharing)
 
 ### Phase 3.5: Cross-Module Integration

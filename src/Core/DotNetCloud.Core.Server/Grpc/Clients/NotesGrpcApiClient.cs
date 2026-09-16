@@ -146,6 +146,8 @@ public sealed class NotesGrpcApiClient : INotesApiClient, IDisposable
         {
             NoteId = noteId.ToString(),
             UserId = GetUserId(),
+            FolderId = dto.FolderId?.ToString() ?? string.Empty,
+            ClearFolder = dto.ClearFolder,
             Title = dto.Title ?? string.Empty,
             Content = dto.Content ?? string.Empty,
             Format = dto.Format?.ToString() ?? string.Empty,

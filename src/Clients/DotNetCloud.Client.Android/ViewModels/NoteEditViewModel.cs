@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -11,8 +12,21 @@ using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Client.Android.ViewModels;
 
+/// <summary>
+/// One entry in the note editor's folder picker. <see cref="Id"/> is <c>null</c> for the
+/// "None (unfiled)" entry.
+/// </summary>
+/// <param name="Id">Target folder, or <c>null</c> to leave the note unfiled.</param>
+/// <param name="Name">Display name shown in the picker.</param>
+public sealed record NoteFolderOption(Guid? Id, string Name)
+{
+    /// <inheritdoc />
+    public override string ToString() => Name;
+}
+
 /// <summary>ViewModel for creating and editing a note.</summary>
 [QueryProperty(nameof(NoteId), "NoteId")]
+[QueryProperty(nameof(FolderId), "FolderId")]
 public sealed partial class NoteEditViewModel : ObservableObject
 {
     private readonly INotesRestClient _notesApi;
@@ -24,6 +38,8 @@ public sealed partial class NoteEditViewModel : ObservableObject
 
     private int _currentVersion;
     private bool _loaded;
+    private Guid? _queryFolderId;
+    private bool _syncingFolderSelection;
 
     /// <summary>Initializes a new <see cref="NoteEditViewModel"/>.</summary>
     public NoteEditViewModel(
@@ -40,7 +56,12 @@ public sealed partial class NoteEditViewModel : ObservableObject
         _serverStore = serverStore;
         _tokenStore = tokenStore;
         _logger = logger;
+
+        FolderOptions.Add(new NoteFolderOption(null, NoFolderLabel));
     }
+
+    /// <summary>Display label of the picker entry that leaves a note unfiled.</summary>
+    public const string NoFolderLabel = "None (unfiled)";
 
     // ── Query Properties ───────────────────────────────────────────
 
@@ -54,6 +75,16 @@ public sealed partial class NoteEditViewModel : ObservableObject
             _noteId = value;
             IsEditing = !string.IsNullOrEmpty(value);
         }
+    }
+
+    /// <summary>
+    /// Folder the new note should start in (query parameter supplied by the notes list when a
+    /// folder chip is active). Ignored in edit mode — the note's own folder wins there.
+    /// </summary>
+    public string? FolderId
+    {
+        get => _queryFolderId?.ToString();
+        set => _queryFolderId = Guid.TryParse(value, out var id) ? id : null;
     }
 
     // ── View State ─────────────────────────────────────────────────
@@ -90,11 +121,38 @@ public sealed partial class NoteEditViewModel : ObservableObject
     [ObservableProperty]
     private Guid? _selectedFolderId;
 
+    /// <summary>
+    /// Whether the caller may change this note's folder. Folders belong to the note's owner, so a
+    /// note shared with the caller keeps the owner's folder and the picker is hidden.
+    /// </summary>
+    [ObservableProperty]
+    private bool _canEditFolder = true;
+
+    /// <summary>Entries for the folder picker — "None (unfiled)" first, then the caller's folders.</summary>
+    public ObservableCollection<NoteFolderOption> FolderOptions { get; } = [];
+
+    /// <summary>Currently selected folder picker entry.</summary>
+    [ObservableProperty]
+    private NoteFolderOption? _selectedFolderOption;
+
+    /// <summary>Mirrors the picker selection onto <see cref="SelectedFolderId"/>.</summary>
+    partial void OnSelectedFolderOptionChanged(NoteFolderOption? value)
+    {
+        if (_syncingFolderSelection)
+            return;
+
+        SelectedFolderId = value?.Id;
+    }
+
+    /// <summary>Mirrors <see cref="SelectedFolderId"/> back onto the picker selection.</summary>
+    partial void OnSelectedFolderIdChanged(Guid? value) => SyncSelectedFolderOption();
+
     // ── Commands ───────────────────────────────────────────────────
 
     /// <summary>
-    /// Loads the note for editing. Called when the page appears.
-    /// In create mode (no NoteId), this is a no-op.
+    /// Loads the note for editing, and the folder list for the picker. Called when the page
+    /// appears. In create mode (no NoteId) the note itself is not fetched — only the folders are,
+    /// so a brand-new note can still be filed straight away.
     /// </summary>
     [RelayCommand]
     private async Task LoadAsync(CancellationToken ct)
@@ -103,20 +161,43 @@ public sealed partial class NoteEditViewModel : ObservableObject
             return;
         _loaded = true;
 
-        if (!IsEditing || string.IsNullOrEmpty(NoteId))
-            return;
-        if (!Guid.TryParse(NoteId, out var noteId))
-            return;
-
         IsLoading = true;
         ErrorMessage = null;
 
         try
         {
+            await LoadFolderOptionsAsync(ct);
+
+            if (!IsEditing || string.IsNullOrEmpty(NoteId))
+            {
+                // Create mode: inherit the folder the caller was browsing, when one was supplied.
+                if (_queryFolderId is { } startFolderId)
+                {
+                    AddMissingFolderOption(startFolderId);
+                    SelectedFolderId = startFolderId;
+                }
+
+                return;
+            }
+
+            if (!Guid.TryParse(NoteId, out var noteId))
+                return;
+
             var (serverUrl, token) = await GetCredentialsAsync(ct);
             var note = await _notesApi.GetNoteAsync(serverUrl, token, noteId, ct);
             Title = note.Title;
             Content = note.Content;
+
+            // Folders are per-user, so only the note's owner can move it between them.
+            CanEditFolder = note.ViewerPermission is null;
+
+            if (note.FolderId is { } folderId)
+            {
+                // A note shared with the caller keeps the owner's folder, which is not in the
+                // caller's folder list — show it so saving never silently unfiles the note.
+                AddMissingFolderOption(folderId);
+            }
+
             SelectedFolderId = note.FolderId;
             _currentVersion = note.Version;
         }
@@ -154,24 +235,12 @@ public sealed partial class NoteEditViewModel : ObservableObject
                 if (IsEditing && Guid.TryParse(NoteId, out var offlineNoteId))
                 {
                     await _offlineQueue.EnqueueAsync(OfflineOperationType.NoteUpdate,
-                        JsonSerializer.Serialize(new OfflineNoteUpdatePayload(offlineNoteId, new UpdateNoteDto
-                        {
-                            Title = Title,
-                            Content = Content,
-                            FolderId = SelectedFolderId,
-                            ExpectedVersion = _currentVersion
-                        })), ct).ConfigureAwait(false);
+                        JsonSerializer.Serialize(new OfflineNoteUpdatePayload(offlineNoteId, BuildUpdateDto())), ct).ConfigureAwait(false);
                 }
                 else
                 {
                     await _offlineQueue.EnqueueAsync(OfflineOperationType.NoteCreate,
-                        JsonSerializer.Serialize(new OfflineNoteCreatePayload(new CreateNoteDto
-                        {
-                            Title = Title,
-                            Content = Content,
-                            FolderId = SelectedFolderId,
-                            Format = NoteContentFormat.Markdown
-                        })), ct).ConfigureAwait(false);
+                        JsonSerializer.Serialize(new OfflineNoteCreatePayload(BuildCreateDto())), ct).ConfigureAwait(false);
                 }
 
                 var isNewOffline = !IsEditing;
@@ -184,25 +253,11 @@ public sealed partial class NoteEditViewModel : ObservableObject
 
             if (IsEditing && Guid.TryParse(NoteId, out var noteId))
             {
-                await _notesApi.UpdateNoteAsync(serverUrl, token, noteId,
-                    new UpdateNoteDto
-                    {
-                        Title = Title,
-                        Content = Content,
-                        FolderId = SelectedFolderId,
-                        ExpectedVersion = _currentVersion
-                    }, ct);
+                await _notesApi.UpdateNoteAsync(serverUrl, token, noteId, BuildUpdateDto(), ct);
             }
             else
             {
-                await _notesApi.CreateNoteAsync(serverUrl, token,
-                    new CreateNoteDto
-                    {
-                        Title = Title,
-                        Content = Content,
-                        FolderId = SelectedFolderId,
-                        Format = NoteContentFormat.Markdown
-                    }, ct);
+                await _notesApi.CreateNoteAsync(serverUrl, token, BuildCreateDto(), ct);
             }
 
             bool isNew = !IsEditing;
@@ -271,6 +326,89 @@ public sealed partial class NoteEditViewModel : ObservableObject
     }
 
     // ── Private Helpers ────────────────────────────────────────────
+
+    /// <summary>
+    /// Builds the update payload for the current editor state. Selecting "None (unfiled)" sends
+    /// <see cref="UpdateNoteDto.ClearFolder"/> because a bare <c>null</c> folder means "no change"
+    /// to the server. Folder fields are omitted for a note shared with the caller — folders belong
+    /// to the note's owner, so the server would reject a folder the caller owns anyway.
+    /// </summary>
+    internal UpdateNoteDto BuildUpdateDto() => new()
+    {
+        Title = Title,
+        Content = Content,
+        FolderId = CanEditFolder ? SelectedFolderId : null,
+        ClearFolder = CanEditFolder && SelectedFolderId is null,
+        ExpectedVersion = _currentVersion
+    };
+
+    /// <summary>Builds the create payload for a new note, filing it in the selected folder.</summary>
+    internal CreateNoteDto BuildCreateDto() => new()
+    {
+        Title = Title,
+        Content = Content,
+        FolderId = SelectedFolderId,
+        Format = NoteContentFormat.Markdown
+    };
+
+    /// <summary>
+    /// Loads the caller's folders into the picker. A failure here is not fatal — the picker simply
+    /// stays at "None (unfiled)" and the note can still be saved.
+    /// </summary>
+    private async Task LoadFolderOptionsAsync(CancellationToken ct)
+    {
+        try
+        {
+            var (serverUrl, token) = await GetCredentialsAsync(ct);
+            var folders = await _notesApi.ListFoldersAsync(serverUrl, token, ct: ct);
+
+            FolderOptions.Clear();
+            FolderOptions.Add(new NoteFolderOption(null, NoFolderLabel));
+            foreach (var folder in folders)
+                FolderOptions.Add(new NoteFolderOption(folder.Id, folder.Name));
+
+            if (SelectedFolderId is { } selectedId)
+                AddMissingFolderOption(selectedId);
+
+            SyncSelectedFolderOption();
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to load note folders for the editor picker.");
+        }
+    }
+
+    /// <summary>
+    /// Adds a picker entry for a folder that is not in the caller's folder list — a shared note
+    /// keeps its owner's folder, and showing it keeps the note filed when the note is saved.
+    /// </summary>
+    private void AddMissingFolderOption(Guid folderId)
+    {
+        if (FolderOptions.All(o => o.Id != folderId))
+            FolderOptions.Add(new NoteFolderOption(folderId, NoteFolderLabels.SharedFolderFallback));
+    }
+
+    /// <summary>Points the picker at the entry matching <see cref="SelectedFolderId"/>.</summary>
+    private void SyncSelectedFolderOption()
+    {
+        if (_syncingFolderSelection)
+            return;
+
+        _syncingFolderSelection = true;
+        try
+        {
+            var match = FolderOptions.FirstOrDefault(o => o.Id == SelectedFolderId);
+
+            // Leave the selection alone when the folder is not listed (yet); never infer "unfiled".
+            if (match is not null || SelectedFolderId is null)
+                SelectedFolderOption = match;
+        }
+        finally
+        {
+            _syncingFolderSelection = false;
+        }
+    }
 
     private async Task<(string ServerUrl, string Token)> GetCredentialsAsync(CancellationToken ct)
     {

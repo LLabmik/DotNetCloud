@@ -237,6 +237,39 @@ public sealed class HttpNotesRestClientTests
     }
 
     [TestMethod]
+    public async Task UpdateNoteAsync_ClearFolder_SerializesTheFlagOnTheWire()
+    {
+        // "Move to unfiled" only works because ClearFolder reaches the server; a bare null folder
+        // means "no change" to the API.
+        var noteId = Guid.NewGuid();
+        var dto = new UpdateNoteDto
+        {
+            ExpectedVersion = 1,
+            ClearFolder = true
+        };
+        string? body = null;
+
+        _handler.Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.Is<HttpRequestMessage>(m =>
+                    m.Method == HttpMethod.Put && GetUrl(m).Contains($"/api/v1/notes/{noteId}")),
+                ItExpr.IsAny<CancellationToken>())
+            .Callback<HttpRequestMessage, CancellationToken>((m, _) =>
+                body = m.Content!.ReadAsStringAsync().GetAwaiter().GetResult())
+            .ReturnsAsync(new HttpResponseMessage
+            {
+                StatusCode = HttpStatusCode.OK,
+                Content = new StringContent(SerializeEnvelope(CreateNoteDto(noteId, "Unfiled Note")))
+            });
+
+        await _client.UpdateNoteAsync(ServerUrl, AccessToken, noteId, dto);
+
+        Assert.IsNotNull(body, "Expected the PUT body to be captured.");
+        StringAssert.Contains(body, "\"clearFolder\":true");
+    }
+
+    [TestMethod]
     public async Task DeleteNoteAsync_CallsDeleteEndpoint()
     {
         var noteId = Guid.NewGuid();

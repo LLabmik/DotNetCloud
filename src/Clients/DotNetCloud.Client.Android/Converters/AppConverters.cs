@@ -1,4 +1,5 @@
 using System.Globalization;
+using DotNetCloud.Client.Android.Notes;
 using DotNetCloud.Client.Android.ViewModels;
 using DotNetCloud.Core.DTOs;
 
@@ -391,6 +392,27 @@ public sealed class TrackIsCurrentConverter : IMultiValueConverter
         if (values is [TrackDto item, TrackDto current] && current is not null && item.Id == current.Id)
             return Color.FromArgb("#1E293B");
         return Colors.Transparent;
+    }
+
+    /// <inheritdoc />
+    public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>
+/// Resolves the folder tag shown on a note card. Expects values = [note.FolderId, the caller's
+/// folders]; returns the folder name, the shared-folder fallback for a folder outside the caller's
+/// own list, or an empty string when the note is unfiled.
+/// </summary>
+public sealed class NoteFolderTagConverter : IMultiValueConverter
+{
+    /// <inheritdoc />
+    public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+    {
+        Guid? folderId = values.Length > 0 && values[0] is Guid id ? id : null;
+        var folders = values.Length > 1 ? values[1] as IReadOnlyList<NoteFolderDto> : null;
+
+        return NoteFolderLabels.Resolve(folderId, folders) ?? string.Empty;
     }
 
     /// <inheritdoc />

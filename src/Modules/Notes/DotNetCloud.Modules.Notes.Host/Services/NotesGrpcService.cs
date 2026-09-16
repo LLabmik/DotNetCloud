@@ -122,6 +122,7 @@ public sealed class NotesGrpcService : Protos.NotesGrpcService.NotesGrpcServiceB
         var dto = new UpdateNoteDto
         {
             FolderId = Guid.TryParse(request.FolderId, out var fid) ? fid : null,
+            ClearFolder = request.ClearFolder,
             Title = NullIfEmpty(request.Title),
             Content = NullIfEmpty(request.Content),
             Format = Enum.TryParse<NoteContentFormat>(request.Format, true, out var fmt)

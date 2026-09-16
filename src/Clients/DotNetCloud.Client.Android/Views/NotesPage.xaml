@@ -196,7 +196,7 @@
                                     StrokeShape="RoundRectangle 8"
                                     Stroke="#334155">
                                 <Grid ColumnDefinitions="*,Auto"
-                                      RowDefinitions="Auto,Auto,Auto"
+                                      RowDefinitions="Auto,Auto,Auto,Auto"
                                       RowSpacing="2">
 
                                     <!-- Title row -->
@@ -238,8 +238,24 @@
                                            LineBreakMode="TailTruncation"
                                            MaxLines="2"/>
 
+                                    <!-- Folder tag (mirrors the Blazor sidebar card) -->
+                                    <Label Grid.Row="2"
+                                           Grid.Column="0"
+                                           Grid.ColumnSpan="2"
+                                           IsVisible="{Binding FolderId, Converter={StaticResource IsNotNull}}"
+                                           TextColor="#EF4444"
+                                           FontSize="10"
+                                           Margin="0,2,0,0">
+                                        <Label.Text>
+                                            <MultiBinding Converter="{StaticResource NoteFolderTag}">
+                                                <Binding Path="FolderId"/>
+                                                <Binding Path="BindingContext.FolderSnapshot" Source="{RelativeSource AncestorType={x:Type ContentPage}}"/>
+                                            </MultiBinding>
+                                        </Label.Text>
+                                    </Label>
+
                                     <!-- Action icons row -->
-                                    <HorizontalStackLayout Grid.Row="2"
+                                    <HorizontalStackLayout Grid.Row="3"
                                                            Grid.Column="0"
                                                            Grid.ColumnSpan="2"
                                                            Spacing="16"

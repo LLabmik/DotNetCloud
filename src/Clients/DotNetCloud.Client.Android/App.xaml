@@ -29,6 +29,7 @@
             <converters:BoolToStringConverter x:Key="BoolToString"/>
             <converters:FirstCharConverter x:Key="FirstChar"/>
             <converters:ChannelTypeToIconConverter x:Key="ChannelTypeToIcon"/>
+            <converters:NoteFolderTagConverter x:Key="NoteFolderTag"/>
 
             <!-- Calendar FAB shadow -->
             <Shadow x:Key="FabShadow"
