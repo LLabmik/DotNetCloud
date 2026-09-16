@@ -12,18 +12,6 @@ using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Client.Android.ViewModels;
 
-/// <summary>
-/// One entry in the note editor's folder picker. <see cref="Id"/> is <c>null</c> for the
-/// "None (unfiled)" entry.
-/// </summary>
-/// <param name="Id">Target folder, or <c>null</c> to leave the note unfiled.</param>
-/// <param name="Name">Display name shown in the picker.</param>
-public sealed record NoteFolderOption(Guid? Id, string Name)
-{
-    /// <inheritdoc />
-    public override string ToString() => Name;
-}
-
 /// <summary>ViewModel for creating and editing a note.</summary>
 [QueryProperty(nameof(NoteId), "NoteId")]
 [QueryProperty(nameof(FolderId), "FolderId")]

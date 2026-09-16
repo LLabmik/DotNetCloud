@@ -84,6 +84,8 @@
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Notes\NoteFolderLabels.cs" Link="AndroidApp\Notes\NoteFolderLabels.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\ViewModels\NotesViewModel.cs" Link="AndroidApp\ViewModels\NotesViewModel.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\ViewModels\NoteEditViewModel.cs" Link="AndroidApp\ViewModels\NoteEditViewModel.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\ViewModels\NoteFolderOption.cs" Link="AndroidApp\ViewModels\NoteFolderOption.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Converters\FolderChipBackgroundConverter.cs" Link="AndroidApp\Converters\FolderChipBackgroundConverter.cs" />
 
     <!-- Messages -->
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Messages\NoteSavedMessage.cs" Link="AndroidApp\Messages\NoteSavedMessage.cs" />

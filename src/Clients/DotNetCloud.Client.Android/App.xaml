@@ -30,6 +30,7 @@
             <converters:FirstCharConverter x:Key="FirstChar"/>
             <converters:ChannelTypeToIconConverter x:Key="ChannelTypeToIcon"/>
             <converters:NoteFolderTagConverter x:Key="NoteFolderTag"/>
+            <converters:FolderChipBackgroundConverter x:Key="FolderChipBackground"/>
 
             <!-- Calendar FAB shadow -->
             <Shadow x:Key="FabShadow"
