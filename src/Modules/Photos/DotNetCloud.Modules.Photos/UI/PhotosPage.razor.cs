@@ -53,7 +53,15 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
     private string _searchQuery = string.Empty;
     private int _page;
     private int _totalPhotos;
-    private const int _pageSize = 60;
+
+    /// <summary>
+    /// Photos per page. Starts at <see cref="PhotosPaging.DefaultPageSize"/> (or the
+    /// last size measured in this browser) and is replaced by the viewport-derived
+    /// value reported by the JS layout observer, so a page fills the screen and still
+    /// leaves the pager visible at the bottom.
+    /// </summary>
+    private int _pageSize = PhotosPaging.DefaultPageSize;
+
     private HashSet<Guid> _selectedPhotoIds = [];
 
     // Albums
@@ -131,6 +139,19 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
     private List<(Guid Id, string Name)> _dirBrowserBreadcrumbs = [];
     private string? _dirBrowserError;
 
+    // ── Viewport-driven page sizing (photos that fit the screen, pager kept visible) ──
+    // The page size is reported by photos-layout.js, which measures the rendered
+    // grid and reserves room for the pager row. Without it (script blocked/absent)
+    // paging falls back to PhotosPaging.DefaultPageSize.
+    private const string PhotosGridElementId = "photos-grid";
+    private const string PhotosLayoutModuleUrl = "/_content/DotNetCloud.Modules.Photos/photos-layout.js?v=1";
+    private const string PhotosPageSizeStorageKey = "dotnetcloud.photos:pagesize";
+    private DotNetObjectReference<PhotosPage>? _layoutDotNetRef;
+    private IJSObjectReference? _layoutModule;
+    private bool _layoutObserverAttached;
+    private string? _activeLayoutGridId;
+    private bool _layoutFailureLogged;
+
     // ── Lifecycle ────────────────────────────────────────────
 
     protected override async Task OnInitializedAsync()
@@ -142,6 +163,8 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
             {
                 _sidebarCollapsed = parsed;
             }
+
+            _pageSize = await ReadCachedPageSizeAsync();
 
             _caller = await GetCallerContextAsync();
             await LoadLibraryPathAsync();
@@ -162,6 +185,14 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
         // Handle photoId/albumId changes when already on the page (same-page navigation).
         await HandlePhotoDeepLinkAsync();
         await HandleAlbumDeepLinkAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // The visible grid decides the page size, so this runs after every render:
+        // it attaches the observer once the grid is mounted and re-measures after a
+        // page load changed the rendered cards.
+        await EnsureLayoutObserverAsync();
     }
 
     /// <summary>
@@ -276,10 +307,11 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
             switch (_section)
             {
                 case Section.Gallery:
-                    var photos = await PhotoService.ListPhotosAsync(_caller, _page * _pageSize, _pageSize);
-                    _currentPhotos = [.. photos];
-                    // Estimate total (if we have full page, there might be more)
-                    _totalPhotos = photos.Count == _pageSize ? (_page + 2) * _pageSize : _page * _pageSize + photos.Count;
+                    // Exact total first, so the pager can show the real page count and
+                    // the requested page can be clamped before the page is fetched.
+                    _totalPhotos = await PhotoService.CountPhotosAsync(_caller);
+                    ClampCurrentPage();
+                    _currentPhotos = [.. await PhotoService.ListPhotosAsync(_caller, _page * _pageSize, _pageSize)];
                     break;
 
                 case Section.Albums:
@@ -288,7 +320,13 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
                     {
                         _selectedAlbum = await AlbumService.GetAlbumAsync(_selectedAlbumId.Value, _caller);
                         _currentPhotos = [.. await AlbumService.GetAlbumPhotosAsync(_selectedAlbumId.Value, _caller)];
+                        _totalPhotos = _currentPhotos.Count;
                     }
+                    else
+                    {
+                        _totalPhotos = 0;
+                    }
+                    ClampCurrentPage();
                     break;
 
                 case Section.Timeline:
@@ -303,14 +341,21 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
                             _timelineGroups[key] = [];
                         _timelineGroups[key].Add(p);
                     }
+                    _totalPhotos = 0;
                     break;
 
                 case Section.Favorites:
+                    // The favorites list is loaded in full (it is a filtered slice of the
+                    // library), so the total comes from the list itself and the grid is
+                    // sliced client-side.
                     _currentPhotos = [.. await PhotoService.GetFavoritesAsync(_caller)];
+                    _totalPhotos = _currentPhotos.Count;
+                    ClampCurrentPage();
                     break;
 
                 case Section.Map:
                     _geoClusters = [.. await GeoService.GetGeoClustersAsync(_caller.UserId)];
+                    _totalPhotos = 0;
                     break;
 
                 case Section.Shared:
@@ -323,6 +368,12 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
                         if (photo is not null)
                             _currentPhotos.Add(photo);
                     }
+                    _totalPhotos = _currentPhotos.Count;
+                    ClampCurrentPage();
+                    break;
+
+                default:
+                    _totalPhotos = 0;
                     break;
             }
         }
@@ -344,13 +395,21 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
     {
         if (string.IsNullOrWhiteSpace(_searchQuery))
         {
-            _searchResults = null;
+            // Clearing the box returns to the section listing. The page index belonged
+            // to the search results, so reset it.
+            if (_searchResults is not null)
+            {
+                _searchResults = null;
+                _page = 0;
+                StateHasChanged();
+            }
             return;
         }
 
         if (e.Key == "Enter" && _caller is not null)
         {
             _searchResults = [.. await PhotoService.SearchAsync(_caller, _searchQuery)];
+            _page = 0;
             StateHasChanged();
         }
     }
@@ -402,6 +461,13 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
         {
             await PhotoService.DeletePhotoAsync(photo.Id, _caller);
             _currentPhotos.RemoveAll(p => p.Id == photo.Id);
+            _searchResults?.RemoveAll(p => p.Id == photo.Id);
+            // Keep the pager honest: the gallery total lives in the database, the other
+            // grid sections count the list they hold.
+            _totalPhotos = _section == Section.Gallery && _searchResults is null
+                ? Math.Max(0, _totalPhotos - 1)
+                : _currentPhotos.Count;
+            ClampCurrentPage();
             if (_lightboxPhoto?.Id == photo.Id)
                 CloseLightbox();
             StateHasChanged();
@@ -418,6 +484,7 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
     {
         _selectedAlbumId = albumId;
         _selectedAlbum = null;
+        _page = 0;
         await LoadCurrentSectionAsync();
     }
 
@@ -891,19 +958,216 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
     }
 
     // ── Pagination ───────────────────────────────────────────
+    // The page size is viewport-driven (see OnPhotosLayoutChanged). Totals are exact:
+    // the gallery reads the real row count from the database, the other grid sections
+    // derive it from the list they already hold.
 
-    private int TotalPages => Math.Max(1, (int)Math.Ceiling((double)_totalPhotos / _pageSize));
+    /// <summary>Items the pager counts — search results override the current section total.</summary>
+    private int TotalItemCount => _searchResults?.Count ?? _totalPhotos;
 
-    private async Task PrevPage()
+    /// <summary>Number of pages needed to display every photo of the current view.</summary>
+    private int TotalPages => PhotosPaging.ComputeTotalPages(TotalItemCount, _pageSize);
+
+    /// <summary>Whether the paginated photo grid currently owns the main area.</summary>
+    private bool IsPhotoGridVisible =>
+        !_loading && _errorMessage is null &&
+        (_section is Section.Gallery or Section.Favorites or Section.Shared ||
+         (_section == Section.Albums && _selectedAlbum is not null) ||
+         _searchResults is not null);
+
+    /// <summary>
+    /// The photos the grid renders for the current page. The gallery already arrives one
+    /// page at a time from the service; every other grid section loads its list up front
+    /// and is sliced here.
+    /// </summary>
+    private IReadOnlyList<PhotoDto> DisplayPhotos
     {
-        if (_page > 0)
-        { _page--; await LoadCurrentSectionAsync(); }
+        get
+        {
+            if (_searchResults is not null)
+                return PhotosPaging.SlicePage(_searchResults, _page, _pageSize);
+
+            return _section == Section.Gallery
+                ? _currentPhotos
+                : PhotosPaging.SlicePage(_currentPhotos, _page, _pageSize);
+        }
     }
 
-    private async Task NextPage()
+    /// <summary>Pulls the current page back into range (the total can shrink after a delete).</summary>
+    private void ClampCurrentPage() => _page = PhotosPaging.ClampPage(_page, TotalItemCount, _pageSize);
+
+    private async Task GoToPageAsync(int page)
     {
-        if (_page < TotalPages - 1)
-        { _page++; await LoadCurrentSectionAsync(); }
+        var target = PhotosPaging.ClampPage(page, TotalItemCount, _pageSize);
+        if (target == _page)
+            return;
+
+        _page = target;
+
+        // Only the gallery pages on the server; search results and the other grid
+        // sections already hold their full list, so a page turn is just a re-render.
+        if (_section == Section.Gallery && _searchResults is null)
+        {
+            await LoadCurrentSectionAsync();
+            return;
+        }
+
+        StateHasChanged();
+    }
+
+    private Task FirstPage() => GoToPageAsync(0);
+
+    private Task LastPage() => GoToPageAsync(TotalPages - 1);
+
+    private Task PrevPage() => GoToPageAsync(_page - 1);
+
+    private Task NextPage() => GoToPageAsync(_page + 1);
+
+    // ── Viewport-driven page size (photos-layout.js) ─────────
+
+    /// <summary>
+    /// Called from JS when the available grid area changes (window resize, sidebar
+    /// collapse or a different screen). Recomputes the page so the first visible photo
+    /// stays roughly in place instead of jumping back to the first page.
+    /// </summary>
+    [JSInvokable]
+    public async Task OnPhotosLayoutChanged(int pageSize)
+    {
+        if (pageSize < 1)
+            return;
+
+        var newSize = PhotosPaging.NormalizePageSize(pageSize);
+        if (newSize == _pageSize)
+            return;
+
+        var firstOffset = _page * _pageSize;
+        _pageSize = newSize;
+        _page = PhotosPaging.ComputePageForResize(firstOffset, newSize, TotalItemCount);
+
+        _ = PersistPageSizeAsync(newSize);
+
+        // Only the server-paged gallery needs the rows re-fetched; the sections that
+        // hold their list in memory are re-sliced by the render below.
+        if (IsPhotoGridVisible && _searchResults is null && _section == Section.Gallery)
+        {
+            await LoadCurrentSectionAsync();
+        }
+
+        // [JSInvokable] handlers don't get the automatic re-render an @onclick handler
+        // does, so make the new page (and page size) visible explicitly.
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Attaches (or detaches/re-attaches) the JS grid observer so the visible photo grid
+    /// reports how many cards fit the viewport, then re-measures so a freshly loaded page
+    /// is accounted for.
+    /// </summary>
+    private async Task EnsureLayoutObserverAsync()
+    {
+        var gridId = GetActiveLayoutGridId();
+        if (gridId is null)
+        {
+            await RemoveLayoutObserverAsync();
+            return;
+        }
+
+        if (!_layoutObserverAttached)
+        {
+            await AttachLayoutObserverAsync(gridId);
+        }
+        else if (_activeLayoutGridId != gridId)
+        {
+            await RemoveLayoutObserverAsync();
+            await AttachLayoutObserverAsync(gridId);
+        }
+
+        if (_layoutObserverAttached && _layoutModule is not null)
+        {
+            try
+            {
+                await _layoutModule.InvokeVoidAsync("refresh");
+            }
+            catch { /* circuit may be gone */ }
+        }
+    }
+
+    /// <summary>The id of the visible paginated photo grid, or null when it isn't rendered.</summary>
+    private string? GetActiveLayoutGridId()
+        => IsPhotoGridVisible && DisplayPhotos.Count > 0 ? PhotosGridElementId : null;
+
+    private async Task AttachLayoutObserverAsync(string gridId)
+    {
+        try
+        {
+            _layoutModule ??= await Js.InvokeAsync<IJSObjectReference>("import", PhotosLayoutModuleUrl);
+            _layoutDotNetRef ??= DotNetObjectReference.Create(this);
+
+            // Returns false while the grid isn't mounted (the loading spinner replaces it
+            // during a section load). The flag stays false so the next render retries.
+            var attached = await _layoutModule.InvokeAsync<bool>("attach", _layoutDotNetRef, gridId);
+            _layoutObserverAttached = attached;
+            _activeLayoutGridId = attached ? gridId : null;
+        }
+        catch (Exception ex)
+        {
+            if (!_layoutFailureLogged)
+            {
+                _layoutFailureLogged = true;
+                Logger.LogWarning(
+                    ex,
+                    "Photos layout observer unavailable — paging falls back to {PageSize} photos per page",
+                    PhotosPaging.DefaultPageSize);
+            }
+
+            _layoutObserverAttached = false;
+            _activeLayoutGridId = null;
+        }
+    }
+
+    private async Task RemoveLayoutObserverAsync()
+    {
+        if (!_layoutObserverAttached)
+            return;
+
+        try
+        {
+            if (_layoutModule is not null)
+                await _layoutModule.InvokeVoidAsync("detach");
+        }
+        catch { /* circuit may be gone */ }
+
+        _layoutObserverAttached = false;
+        _activeLayoutGridId = null;
+    }
+
+    /// <summary>
+    /// Reads the page size measured on the previous visit so the first render already
+    /// requests roughly the right number of photos. The observer still corrects it when
+    /// the window (or screen) has changed.
+    /// </summary>
+    private async Task<int> ReadCachedPageSizeAsync()
+    {
+        try
+        {
+            var cached = await Js.InvokeAsync<string>("localStorage.getItem", new object?[] { PhotosPageSizeStorageKey });
+            return int.TryParse(cached, out var parsed)
+                ? PhotosPaging.NormalizePageSize(parsed)
+                : PhotosPaging.DefaultPageSize;
+        }
+        catch
+        {
+            return PhotosPaging.DefaultPageSize;
+        }
+    }
+
+    private async Task PersistPageSizeAsync(int pageSize)
+    {
+        try
+        {
+            await Js.InvokeAsync<object?>("localStorage.setItem", new object?[] { PhotosPageSizeStorageKey, pageSize.ToString() });
+        }
+        catch { /* localStorage unavailable */ }
     }
 
     // ── Helpers ──────────────────────────────────────────────
@@ -1407,7 +1671,20 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
     {
         _slideshowTimer?.Dispose();
         _slideshowTimer = null;
+
+        await RemoveLayoutObserverAsync();
+
+        _layoutDotNetRef?.Dispose();
+        _layoutDotNetRef = null;
+
+        try
+        {
+            if (_layoutModule is not null)
+                await _layoutModule.DisposeAsync();
+        }
+        catch { /* circuit may be gone */ }
+        _layoutModule = null;
+
         GC.SuppressFinalize(this);
-        await ValueTask.CompletedTask;
     }
 }

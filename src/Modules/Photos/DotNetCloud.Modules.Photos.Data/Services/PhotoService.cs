@@ -175,6 +175,17 @@ public sealed class PhotoService : IPhotoService
     }
 
     /// <summary>
+    /// Counts all photos owned by the caller. The exact total lets the UI compute the
+    /// number of pages instead of guessing from whether a full page came back.
+    /// </summary>
+    public async Task<int> CountPhotosAsync(CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        return await _db.Photos
+            .Where(p => p.OwnerId == caller.UserId)
+            .CountAsync(cancellationToken);
+    }
+
+    /// <summary>
     /// Gets the most recently added photos for the caller.
     /// </summary>
     public async Task<IReadOnlyList<PhotoDto>> GetRecentPhotosAsync(CallerContext caller, int count = 5, CancellationToken cancellationToken = default)

@@ -690,12 +690,21 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 16px;
+    gap: 12px;
     padding: 16px 20px 24px;
+    /* Pushed to the bottom of the scroll area so the pager stays at the bottom of
+       the screen even when the last page has fewer photos than fit. The page size
+       itself is viewport-driven (photos-layout.js), which reserves this row's
+       height so a full page never pushes the pager below the fold. */
+    margin-top: auto;
+    flex-wrap: wrap;
 }
 
 .photos-pagination button {
-    padding: 7px 16px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
     border: 1px solid var(--color-border, #e2e8f0);
     background: var(--color-surface, #ffffff);
     color: var(--color-text, #1e293b);
@@ -703,6 +712,7 @@
     cursor: pointer;
     font-size: 13px;
     font-weight: 500;
+    line-height: 1.2;
     transition: border-color 150ms ease, background 150ms ease;
 }
 
@@ -716,9 +726,14 @@
     cursor: default;
 }
 
+.photos-pagination .material-icon {
+    flex-shrink: 0;
+}
+
 .page-info {
     font-size: 13px;
     color: var(--color-text-secondary, #64748b);
+    white-space: nowrap;
 }
 
 /* ─────────── Lightbox ─────────── */
@@ -1210,6 +1225,20 @@
 @media (max-width: 768px) {
     .photos-sidebar {
         display: none;
+    }
+
+    /* Icon-only pager buttons on narrow screens; the aria-label/title keep them usable. */
+    .photos-pagination {
+        gap: 8px;
+        padding: 12px 12px 16px;
+    }
+
+    .photos-pagination .page-btn-label {
+        display: none;
+    }
+
+    .photos-pagination button {
+        padding: 7px 10px;
     }
 
     .photos-toolbar {

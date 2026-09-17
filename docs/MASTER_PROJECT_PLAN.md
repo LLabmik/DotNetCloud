@@ -6011,3 +6011,62 @@ bar still frozen until a page reload.
   gap at the service boundary (upload flow → real quota service) and around the long-lived-context scenario.
 - Production (`cloud.dotnetcloud.net`) does **not** have this change yet — it ships with the next deploy of
   this branch to that host.
+
+## Photos Module — Viewport-Driven Gallery Paging (2026-09-17)
+
+**Status:** completed ✅
+**Branch:** `fix/more-blazor-improvements`
+**Goal:** The gallery loaded a fixed 60 photos per page and *estimated* the total, so on a typical screen the
+grid overflowed and pushed the pager below the fold, and `Page X of Y` was a guess. A page must now hold
+exactly what fits the screen (pager included), report the real page count, and offer first/last jumps.
+
+### Deliverables
+
+- ✓ `wwwroot/photos-layout.js` — ES module (`attach` / `refresh` / `detach`) imported from Blazor via dynamic
+  `import` of `/_content/DotNetCloud.Modules.Photos/photos-layout.js` (CSP allows `script-src 'self'`, not
+  `eval`). It measures the rendered grid: columns from the live card width + CSS `auto-fill`, rows from
+  `mainRect.bottom - gridRect.top` minus the grid padding **and the pager row**, so a page always fits with
+  the pager still on screen
+- ✓ `ResizeObserver` on `.photos-main` (window resize, sidebar toggle, screen change) with a 200 ms debounce
+  and a window-`resize` fallback; reports only when the computed page size changed (no feedback loop), capped
+  at `PhotosPaging.MaxPageSize` (500)
+- ✓ Grid and list view share the same math — the 203 px card and the 59 px list row are both measured from
+  the DOM, so no CSS breakpoints are duplicated in JS
+- ✓ Page size cached in `localStorage` (`dotnetcloud.photos:pagesize`) for a close first request; the
+  observer corrects it when the screen changed
+- ✓ `PhotosPage.OnAfterRenderAsync` attaches/detaches the observer as the grid enters and leaves the DOM
+  (section switch, loading spinner) and retries on the next render when the grid isn't mounted yet
+- ✓ `[JSInvokable] OnPhotosLayoutChanged` preserves the first visible photo across a page-size change
+  (`PhotosPaging.ComputePageForResize`) instead of returning to page 1
+- ✓ `IPhotoService.CountPhotosAsync` + `PhotoService.CountPhotosAsync` — exact total for the caller, replacing
+  the "a full page came back, there might be more" estimate
+- ✓ `PhotosPaging` (`internal static`, viewport-independent and unit-tested): `NormalizePageSize`,
+  `ComputeTotalPages`, `ClampPage`, `ComputePageForResize`, `SlicePage`
+- ✓ Pager markup: `First · Previous · Page X of Y · Next · Last`; First/Last disabled on the first/last page;
+  `MaterialIcon` `first_page`/`last_page` paths added to `MaterialSvgIcons` (+ `MaterialSvgIconsTests` rows)
+- ✓ Applied to every paginated grid: Gallery (server-paged, re-fetched per page), Favorites / album contents /
+  Shared with me / search results (in-memory, sliced client-side); the page index is clamped when a delete
+  shrinks the total and reset when the search box is cleared
+- ✓ Pager styling: `inline-flex` icon+label buttons, `margin-top: auto` pins it to the bottom of the main
+  area, labels collapse to icons under 768 px (aria-label/title retained)
+- ✓ Safe degradation: if the script can't load, paging falls back to `PhotosPaging.DefaultPageSize` (60) and
+  logs a single warning
+- ✓ Tests: `PhotosPagingTests` + `PhotoServiceCountPhotosTests` (21 new) — `DotNetCloud.Modules.Photos.Tests`
+  280/280; `MaterialSvgIconsTests` rows — `DotNetCloud.UI.Shared.Tests` 115/115
+- ✓ Build clean (0 warnings / 0 errors) for Photos, Photos.Data, Photos.Host and Core.Server
+- ✓ Deployed to mint22 dev (`sudo ./scripts/deploy.sh --force --verify`): 15/15 targets, hashes verified,
+  migrations applied, v0.6.09, `/health/ready` HTTP 200; `photos-layout.js` shipped to
+  `wwwroot/_content/DotNetCloud.Modules.Photos/` and served (200, 6650 bytes)
+- ✓ Browser E2E (mint22 dev, assistant-verified): 1755×921 → 18 photos/page (6 pages), 1000×700 → 6
+  photos/page (17 pages), list view → 11 rows/page (10 pages); in each case the pager's bottom edge equals the
+  viewport bottom and `.photos-main` does not overflow, so the pager is visible without scrolling. First/
+  Last/Next/Previous all navigate, resizing on page 3 of 6 preserved the first photo (page 7 of 17), and
+  collapsing the sidebar re-measured (18 → 21 cards)
+
+### Notes
+
+- No schema change — no new EF migration.
+- The double fetch on a cold first visit (default size, then the measured size) is avoided on repeat visits by
+  the cached page size; the observer still corrects a genuine mismatch.
+- `DotNetCloud.Modules.Photos.dll` is what ships to `/opt/dotnetcloud/server/` for the Blazor UI (the module
+  host also gets a copy) — check the server copy when verifying shipped symbols.

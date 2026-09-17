@@ -7192,3 +7192,58 @@ reload (new circuit → new `DbContext`) showed the true usage.
   `/opt/dotnetcloud/modules/dotnetcloud.files/DotNetCloud.Modules.Files.Data.dll`
 - ✓ Browser E2E (mint22 dev, 2026-09-17, verified by the user): after uploading 39 files the quota bar rose
   immediately, and emptying the trash dropped it immediately — no page reload needed
+
+## Photos Module — Viewport-Driven Gallery Paging (2026-09-17)
+
+**Branch:** `fix/more-blazor-improvements`
+
+The gallery used a fixed page size of 60 photos and *guessed* the total ("if a full page came back there
+might be more"), so on a normal screen the grid overflowed, the pager sat below the fold, and the page
+count was wrong. The gallery now sizes a page to the screen and reports the real number of pages.
+
+### Page size follows the viewport (`photos-layout.js`)
+
+- ✓ New `wwwroot/photos-layout.js` (ES module, loaded via dynamic `import` from
+  `/_content/DotNetCloud.Modules.Photos/photos-layout.js` — allowed by `script-src 'self'`, unlike `eval`)
+  with `attach(dotNetRef, gridId)` / `refresh()` / `detach()`
+- ✓ Measures the rendered grid after every render: columns from `auto-fill` + the real card rect, rows from
+  the available height (`mainRect.bottom - gridRect.top` minus the grid's own padding) **minus the pager
+  row**, so a full page fits the screen and the pager stays visible without scrolling
+- ✓ A `ResizeObserver` on `.photos-main` re-measures on window resize, sidebar collapse/expand and
+  screen change (falling back to a `resize` listener where ResizeObserver is missing), debounced 200 ms,
+  and only calls back when the computed page size actually changed (no feedback loop)
+- ✓ Grid **and** list view are handled by the same math (the 203 px grid card and the 59 px list row are
+  both measured from the live DOM), and the computed size is capped (`PhotosPaging.MaxPageSize`, 500)
+- ✓ The set size is cached in `localStorage` (`dotnetcloud.photos:pagesize`) so the first request after a
+  reload is already close; the observer corrects it if the screen changed
+- ✓ `PhotosPage.OnAfterRenderAsync` attaches/detaches the observer as the grid appears and disappears
+  (section switches, the loading spinner), retrying on the next render when the grid isn't mounted yet
+- ✓ `[JSInvokable] OnPhotosLayoutChanged` keeps the first visible photo in place across a page-size change
+  (`PhotosPaging.ComputePageForResize`) instead of jumping back to page 1
+- ✓ Degrades safely: if the script can't load, paging falls back to `PhotosPaging.DefaultPageSize` (60) and
+  logs one warning (never one per render)
+
+### Accurate totals + first/last page buttons
+
+- ✓ `IPhotoService.CountPhotosAsync` / `PhotoService.CountPhotosAsync` — the real row count for the caller, so
+  the pager no longer estimates the total from whether a full page came back
+- ✓ `PhotosPaging` (`internal static`, unit-tested) — `NormalizePageSize`, `ComputeTotalPages`, `ClampPage`,
+  `ComputePageForResize`, `SlicePage`
+- ✓ The pager reads `Page X of Y` from the real total and walks **First · Previous · Next · Last**, with
+  First/Last disabled on the first/last page
+- ✓ Page size is applied everywhere the grid is paginated: Gallery (server-paged, re-fetched per page),
+  Favorites / album contents / Shared with me / search results (loaded in full, sliced client-side)
+- ✓ The page index is clamped whenever the total shrinks (delete, section switch) and reset when the search
+  box is cleared, so "Page 7 of 6" can no longer be shown
+- ✓ `MaterialIcon` `first_page` / `last_page` SVG paths added to `MaterialSvgIcons` + `MaterialSvgIconsTests`
+  rows (a missing path renders the icon name as text) — `DotNetCloud.UI.Shared.Tests` 115/115
+- ✓ Pager restyled (`display: inline-flex` buttons with icon + label, `margin-top: auto` so it sits at the
+  bottom of the main area); labels collapse to icons under 768 px (aria-label/title retained)
+- ✓ `DotNetCloud.Modules.Photos.Tests` 280/280 (21 new: `PhotosPagingTests`, `PhotoServiceCountPhotosTests`)
+- ✓ `dotnet build` — Photos module, Photos.Data, Photos.Host and Core.Server all 0 warnings / 0 errors
+- ✓ Browser E2E (mint22 dev, 2026-09-17, assistant-verified): 1755×921 → 18 photos/page, 6 pages;
+  1000×700 → 6 photos/page, 17 pages; list view → 11 rows/page, 10 pages — the pager bottom edge equals the
+  viewport bottom and `.photos-main` never overflows in any of them. First/Last/Next/Previous all navigate,
+  First+Last disabled on page 1, Next+Last disabled on the last page, and shrinking the window on page 3 of 6
+  landed on page 7 of 17 with the *same* first photo. Collapsing the sidebar re-measured (18 → 21 cards).
+  Favorites (empty) correctly shows its empty state with no pager, and the lightbox still opens/closes.

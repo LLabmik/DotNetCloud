@@ -127,6 +127,23 @@ public class MaterialSvgIconsTests
             $"Module '{moduleId}' maps to icon '{icon}', which has no SVG path and would render as text.");
     }
 
+    /// <summary>
+    /// Icons referenced by the Photos gallery pager (first / previous / next / last page).
+    /// A missing path renders the raw icon name as text inside the button.
+    /// </summary>
+    [TestMethod]
+    [DataRow("first_page")]
+    [DataRow("last_page")]
+    [DataRow("chevron_left")]
+    [DataRow("chevron_right")]
+    public void GetPath_IconUsedByPhotosPager_ReturnsPathData(string icon)
+    {
+        Assert.IsTrue(MaterialSvgIcons.HasPath(icon), $"Icon '{icon}' has no SVG path and would render as text.");
+        var path = MaterialSvgIcons.GetPath(icon);
+        Assert.IsNotNull(path, $"Icon '{icon}' returned a null path.");
+        Assert.IsTrue(path!.Length > 10, $"Icon '{icon}' path data is unexpectedly short.");
+    }
+
     [TestMethod]
     public void GetPath_UnknownIcon_ReturnsNull()
     {

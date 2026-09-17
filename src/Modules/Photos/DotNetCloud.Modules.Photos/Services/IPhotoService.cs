@@ -17,6 +17,12 @@ public interface IPhotoService
     /// <summary>Lists photos with paging.</summary>
     Task<IReadOnlyList<PhotoDto>> ListPhotosAsync(CallerContext caller, int skip = 0, int take = 50, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Counts all photos owned by the caller. Used for paging so the UI knows the
+    /// exact number of pages without having to probe for more rows.
+    /// </summary>
+    Task<int> CountPhotosAsync(CallerContext caller, CancellationToken cancellationToken = default);
+
     /// <summary>Gets the most recently added photos for the caller.</summary>
     Task<IReadOnlyList<PhotoDto>> GetRecentPhotosAsync(CallerContext caller, int count = 5, CancellationToken cancellationToken = default);
 

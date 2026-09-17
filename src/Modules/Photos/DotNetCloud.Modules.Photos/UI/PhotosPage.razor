@@ -177,7 +177,7 @@
                  (_section == Section.Albums && _selectedAlbum is not null) ||
                  _searchResults is not null)
             {
-                var photos = _searchResults ?? _currentPhotos;
+                var photos = DisplayPhotos;
                 @if (photos.Count == 0)
                 {
                     <div class="photos-empty">
@@ -188,7 +188,7 @@
                 }
                 else
                 {
-                    <div class="photos-grid @(_viewMode == ViewMode.List ? "list-view" : "")">
+                    <div class="photos-grid @(_viewMode == ViewMode.List ? "list-view" : "")" id="photos-grid">
                         @foreach (var photo in photos)
                         {
                             <div class="photo-card @(_selectedPhotoIds.Contains(photo.Id) ? "selected" : "")"
@@ -218,13 +218,32 @@
                         }
                     </div>
 
-                    @* Pagination *@
-                    @if (_totalPhotos > _pageSize)
+                    @* Pagination — page size follows the viewport, so a full page
+                       always fits on screen with the pager visible below it. *@
+                    @if (TotalPages > 1)
                     {
                         <div class="photos-pagination">
-                            <button disabled="@(_page == 0)" @onclick="PrevPage">← Previous</button>
+                            <button class="page-btn" disabled="@(_page == 0)" @onclick="FirstPage"
+                                    title="First page" aria-label="First page">
+                                <MaterialIcon Icon="first_page" Size="MaterialIconSize.Sm" />
+                                <span class="page-btn-label">First</span>
+                            </button>
+                            <button class="page-btn" disabled="@(_page == 0)" @onclick="PrevPage"
+                                    title="Previous page" aria-label="Previous page">
+                                <MaterialIcon Icon="chevron_left" Size="MaterialIconSize.Sm" />
+                                <span class="page-btn-label">Previous</span>
+                            </button>
                             <span class="page-info">Page @(_page + 1) of @TotalPages</span>
-                            <button disabled="@(_page >= TotalPages - 1)" @onclick="NextPage">Next →</button>
+                            <button class="page-btn" disabled="@(_page >= TotalPages - 1)" @onclick="NextPage"
+                                    title="Next page" aria-label="Next page">
+                                <span class="page-btn-label">Next</span>
+                                <MaterialIcon Icon="chevron_right" Size="MaterialIconSize.Sm" />
+                            </button>
+                            <button class="page-btn" disabled="@(_page >= TotalPages - 1)" @onclick="LastPage"
+                                    title="Last page" aria-label="Last page">
+                                <span class="page-btn-label">Last</span>
+                                <MaterialIcon Icon="last_page" Size="MaterialIconSize.Sm" />
+                            </button>
                         </div>
                     }
                 }
