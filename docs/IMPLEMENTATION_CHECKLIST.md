@@ -2316,6 +2316,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Preserve public origin headers when proxying Collabora (`Host`, `X-Forwarded-Host`, `X-Forwarded-Proto`, `X-Forwarded-Port`) and emit a single effective CSP on proxied responses so `cool.html` uses `wss://mint22:15443` instead of `wss://localhost:9980`
 - ✓ Show "download to edit locally" for E2EE files
 - ✓ Display co-editing indicators (who is editing)
+- ✓ Add a fullscreen toggle to the document editor header (Fullscreen API on the editor container, with Esc/browser-exit state sync)
 
 ---
 
@@ -7207,7 +7208,7 @@ reload (new circuit → new `DbContext`) showed the true usage.
 
 **Branch:** `fix/more-blazor-improvements`
 
-The gallery used a fixed page size of 60 photos and *guessed* the total ("if a full page came back there
+The gallery used a fixed page size of 60 photos and _guessed_ the total ("if a full page came back there
 might be more"), so on a normal screen the grid overflowed, the pager sat below the fold, and the page
 count was wrong. The gallery now sizes a page to the screen and reports the real number of pages.
 
@@ -7255,5 +7256,74 @@ count was wrong. The gallery now sizes a page to the screen and reports the real
   1000×700 → 6 photos/page, 17 pages; list view → 11 rows/page, 10 pages — the pager bottom edge equals the
   viewport bottom and `.photos-main` never overflows in any of them. First/Last/Next/Previous all navigate,
   First+Last disabled on page 1, Next+Last disabled on the last page, and shrinking the window on page 3 of 6
-  landed on page 7 of 17 with the *same* first photo. Collapsing the sidebar re-measured (18 → 21 cards).
+  landed on page 7 of 17 with the _same_ first photo. Collapsing the sidebar re-measured (18 → 21 cards).
   Favorites (empty) correctly shows its empty state with no pager, and the lightbox still opens/closes.
+
+## Files Module — Collabora Editor Fullscreen Toggle (2026-09-17)
+
+**Branch:** `fix/more-blazor-improvements`
+
+The Collabora editor opened in a modal that was already close to viewport-sized (`min(1400px, 100%)`
+wide, `calc(100vh - 2rem)` tall), but on a large monitor the 1400 px cap left the document boxed in and
+there was no way to give it the whole screen. The editor header now carries a **fullscreen button**
+that puts the editor container into the browser's Fullscreen API.
+
+### Editor header button (`DocumentEditor.razor`)
+
+- ✓ Fullscreen toggle rendered before the existing **Close** button, using `MaterialIcon`
+  (`fullscreen` / `fullscreen_exit`) — no emoji, no raw SVG (project UI rule)
+- ✓ `title` and `aria-label` follow the state (`Fullscreen` / `Exit fullscreen`) via
+  `DocumentEditorFullscreen.GetTooltip`
+- ✓ The container (`.document-editor-container`) — not the Collabora iframe — is the fullscreen
+  element, so the header with the exit control stays on screen
+- ✓ `@ref` added to the container so the element is handed to JS once after the first render
+- ✓ `:fullscreen` CSS drops the 1400 px cap, the `calc(100vh - 2rem)` height and the corner radius so
+  the editor fills the screen edge to edge
+- ✓ The Collabora iframe gained `allow="…; fullscreen"` + `allowfullscreen`, so fullscreen requested
+  _inside_ the editor (for example slide-show mode) is permitted too
+
+### JS interop (`wwwroot/js/document-editor.js`)
+
+- ✓ New `window.dotnetcloudDocumentEditor` helper (`register` / `enter` / `exit` / `toggle` /
+  `isFullscreen` / `dispose`), loaded from `App.razor` with a `?v=20260917-01` cache-buster
+- ✓ `fullscreenchange` (plus the `webkit` / `MS` prefixed events) is bridged to the component so the
+  button icon and tooltip stay correct after **Esc**, F11 or any browser-initiated exit
+- ✓ Fullscreen is reported only when _this_ editor holds it, so a fullscreen request originating in the
+  Collabora iframe cannot flip the header button's state
+- ✓ `enter`/`exit` tolerate both the promise-based and the legacy callback-style browser APIs, and a
+  denied request is swallowed (state is driven by the change event, never by the call's return value)
+- ✓ `register`/`dispose` are paired: closing the editor releases the listener and the
+  `DotNetObjectReference`, and leaves fullscreen only when this editor holds it
+
+### Code-behind (`DocumentEditor.razor.cs`)
+
+- ✓ `IAsyncDisposable` + `IJSRuntime` injection; interop is best-effort and tolerates `JSException`,
+  `JSDisconnectedException`, `InvalidOperationException` and `ObjectDisposedException` (a dead circuit
+  must never break editor teardown)
+- ✓ `[JSInvokable] OnFullscreenChanged(bool)` keeps the button state in sync; **Close Editor** exits
+  fullscreen first, so the browser never stays fullscreen over the page behind the overlay
+- ✓ `DocumentEditorFullscreen` (`internal static`, unit-tested) — icon names, tooltip text and JS
+  identifiers live in one place
+
+### Icons & tests
+
+- ✓ `MaterialSvgIcons` rows `fullscreen` / `fullscreen_exit` added, plus `MaterialSvgIconsTests` rows —
+  `DotNetCloud.UI.Shared.Tests` 117/117
+- ✓ `DocumentEditorFullscreenTests` (10 new): both icon/tooltip states, both icons resolve to real SVG
+  path data, the JS global is a valid identifier segment, and `DocumentEditor` really exposes a public
+  `[JSInvokable] OnFullscreenChanged(bool)` returning `Task` (a rename on either side of the JS bridge
+  fails the test instead of silently breaking the button) —
+  `DotNetCloud.Modules.Files.Tests` 815/815
+- ✓ Build clean (0 warnings / 0 errors) — Files module, UI.Web and both test projects
+- ✓ Deployed to mint22 dev (`sudo ./scripts/deploy.sh --force --verify`): 15/15 targets, hashes verified,
+  migrations applied, v0.6.09, `/health/ready` HTTP 200; `document-editor.js` served from
+  `/_content/DotNetCloud.UI.Web/js/document-editor.js` (200, 5292 bytes)
+- ✓ Browser E2E (mint22 dev, assistant-verified, 1755×969 viewport): the toggle renders in the editor
+  header before **Close**, and clicking it makes `.document-editor-container` the
+  `document.fullscreenElement` at rect `0,0 → 1755×969` — the whole viewport, with the Collabora iframe
+  at 1755×927 below the still-visible header, i.e. the 1400 px cap is gone. The button flips to
+  `Exit fullscreen` / `fullscreen_exit` (proving the `fullscreenchange` bridge fires into .NET), a
+  second click restores the 1400 px wide / 12 px radius modal, and a browser-initiated
+  `document.exitFullscreen()` (the same path the **Esc** key takes) flips the button back on its own.
+  **Close** while fullscreen releases fullscreen and removes the overlay.
+- ☐ Production E2E — open, left to the user on production (`cloud.dotnetcloud.net`)

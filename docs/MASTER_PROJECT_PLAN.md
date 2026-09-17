@@ -6036,7 +6036,7 @@ bar still frozen until a page reload.
 
 **Status:** completed ✅
 **Branch:** `fix/more-blazor-improvements`
-**Goal:** The gallery loaded a fixed 60 photos per page and *estimated* the total, so on a typical screen the
+**Goal:** The gallery loaded a fixed 60 photos per page and _estimated_ the total, so on a typical screen the
 grid overflowed and pushed the pager below the fold, and `Page X of Y` was a guess. A page must now hold
 exactly what fits the screen (pager included), report the real page count, and offer first/last jumps.
 
@@ -6090,3 +6090,78 @@ exactly what fits the screen (pager included), report the real page count, and o
   the cached page size; the observer still corrects a genuine mismatch.
 - `DotNetCloud.Modules.Photos.dll` is what ships to `/opt/dotnetcloud/server/` for the Blazor UI (the module
   host also gets a copy) — check the server copy when verifying shipped symbols.
+
+---
+
+## Files Module — Collabora Editor Fullscreen Toggle (2026-09-17)
+
+**Status:** completed ✅
+
+**Problem:** the Collabora editor opened in a modal capped at `min(1400px, 100%)` — close to the
+viewport, but on a large display the cap left the document in a box with no way to hand it the whole
+screen. There was no fullscreen affordance at all.
+
+**Solution:** a fullscreen button in the editor header that puts the **editor container** (not the
+Collabora iframe) into the browser's Fullscreen API, with the button state kept in sync with the
+browser through a `fullscreenchange` bridge.
+
+**Deliverables:**
+
+- ✓ `DocumentEditor.razor` — fullscreen toggle in `.editor-header` before **Close**, rendering
+  `MaterialIcon` `fullscreen` / `fullscreen_exit` (never emoji or inline SVG, per the project UI rule)
+  with a state-dependent `title` / `aria-label`
+- ✓ Container `@ref` handed to JS after the first render; the container is the fullscreen element so
+  the header (and its exit control) stays visible
+- ✓ `:fullscreen` styling drops the 1400 px cap, the `calc(100vh - 2rem)` height and the corner radius
+  so the editor fills the screen edge to edge
+- ✓ Collabora iframe gets `allow="…; fullscreen"` + `allowfullscreen` so fullscreen requested inside
+  the editor (slide-show mode) also works
+- ✓ New `wwwroot/js/document-editor.js` (`window.dotnetcloudDocumentEditor`, v`20260917-01`) with
+  `register` / `enter` / `exit` / `toggle` / `isFullscreen` / `dispose`, tolerant of both the
+  promise-based and legacy callback-style Fullscreen APIs
+- ✓ `fullscreenchange` (+ `webkit` / `MS` prefixes) bridged to the component, so **Esc** or a browser
+  exit still flips the button back; fullscreen is reported only when this editor holds it, so a
+  request originating inside the iframe cannot desync the header
+- ✓ `register` / `dispose` paired: closing the editor detaches the listener, disposes the
+  `DotNetObjectReference`, and leaves fullscreen only if this editor holds it
+- ✓ `DocumentEditor.razor.cs` — `IAsyncDisposable`, `IJSRuntime`, `[JSInvokable] OnFullscreenChanged`,
+  best-effort interop (tolerates a dead circuit) and **Close Editor** exits fullscreen first
+- ✓ `DocumentEditorFullscreen` (`internal static` helper) — icon names, tooltip text and JS
+  identifiers in one place, so a typo cannot silently render an icon as text
+- ✓ `MaterialSvgIcons` `fullscreen` / `fullscreen_exit` paths + `MaterialSvgIconsTests` rows —
+  `DotNetCloud.UI.Shared.Tests` 117/117
+- ✓ `DocumentEditorFullscreenTests` — 10 tests including the JS↔C# callback contract
+  (`[JSInvokable]` + name + `bool` → `Task` signature) — `DotNetCloud.Modules.Files.Tests` 815/815
+- ✓ `docs/user/DOCUMENT_EDITING.md` — new **Fullscreen** section
+- ✓ Build clean (0 warnings / 0 errors) for the Files module, UI.Web and both test projects
+- ✓ Deployed to mint22 dev (`sudo ./scripts/deploy.sh --force --verify`): 15/15 targets, hashes verified,
+  v0.6.09, `/health/ready` HTTP 200, `/_content/DotNetCloud.UI.Web/js/document-editor.js` served (200)
+- ✓ Browser E2E (mint22 dev, assistant-verified, 1755×969): clicking the header toggle makes
+  `.document-editor-container` the `document.fullscreenElement` at `0,0 → 1755×969` (the entire
+  viewport) with the iframe at 1755×927 under the still-visible header, and the button flips to
+  `Exit fullscreen` / `fullscreen_exit`; a second click and a browser-initiated `exitFullscreen()`
+  (the **Esc** path) both restore the 1400 px modal and flip the button back; **Close** while
+  fullscreen releases fullscreen and removes the overlay
+- ☐ Production E2E — the user validates on production (`cloud.dotnetcloud.net`)
+
+**Notes:**
+
+- No server-side, API, WOPI or schema change — the toggle is entirely client-side, so nothing in the
+  WOPI token flow or CSP changed. The existing `frame-src` allowance for the Collabora origin is
+  unaffected (this is the browser's Fullscreen API, not an extra frame).
+- Fullscreen state comes from the browser event, not from `requestFullscreen()`'s return value, which
+  is why a denied request leaves the button exactly as it was.
+- `document-editor.js` is served from `DotNetCloud.UI.Web/wwwroot/js/` like the other Files interop
+  scripts (`file-preview.js`, `file-drag-move.js`) and is registered in `App.razor` with a dated
+  `?v=` cache-buster.
+- The ICON contract is covered by tests; the button's visual behaviour has no component-test
+  infrastructure (no bUnit in this repo), so it is verified in the browser on mint22 dev.
+- **Known mint22-only obstacle hit while verifying (not caused by this change):** on mint22's built-in
+  Collabora the _first_ open of a document loads normally, but reopening a document after the editor
+  was closed answers `Unauthorized WOPI host`. That is a coolwsd WOPI-host/alias-group configuration
+  matter in the mint22 deployment — this change touches no WOPI, token, CSP or server code, and the
+  fullscreen behaviour above was verified on the editor that does load. Production validation is left
+  to the user, as the same editor is not reproducible here.
+- Chrome logs `Allow attribute will take precedence over 'allowfullscreen'` because the iframe now
+  carries both; the `allow="…; fullscreen"` entry is the effective permission and is what makes
+  fullscreen work for the iframe's own controls.

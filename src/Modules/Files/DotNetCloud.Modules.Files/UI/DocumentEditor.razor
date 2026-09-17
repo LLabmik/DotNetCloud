@@ -4,10 +4,12 @@
     Document editor component — embeds Collabora Online editor in an iframe via WOPI.
     Shows loading state while token is being generated, error state if Collabora is unavailable,
     and co-editing indicators when multiple users are editing.
+    The header carries a fullscreen toggle that puts the editor container (not the iframe) into
+    the browser's Fullscreen API.
     Code-behind: DocumentEditor.razor.cs
 *@
 
-<div class="document-editor-container">
+<div class="document-editor-container" @ref="_containerRef">
     @if (IsLoading)
     {
         <div class="editor-loading">
@@ -41,17 +43,19 @@
                 </span>
             }
             <div class="editor-actions">
+                <button class="btn-icon" @onclick="ToggleFullscreenAsync" title="@FullscreenTooltip"
+                        aria-label="@FullscreenTooltip">
+                    <MaterialIcon Icon="@FullscreenIcon" Size="MaterialIconSize.Sm" />
+                </button>
                 @if (OnClose.HasDelegate)
                 {
                     <button class="btn btn-sm" @onclick="CloseEditorAsync" title="Close editor">Close</button>
                 }
             </div>
         </div>
-        <iframe class="collabora-frame"
-                src="@EditorUrl"
+        <iframe class="collabora-frame" src="@EditorUrl"
                 sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
-                allow="clipboard-read; clipboard-write"
-                title="Document Editor - @FileName">
+                allow="clipboard-read; clipboard-write; fullscreen" allowfullscreen title="Document Editor - @FileName">
         </iframe>
     }
     else
@@ -104,6 +108,13 @@
         text-overflow: ellipsis;
     }
 
+    .editor-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-shrink: 0;
+    }
+
     .co-editing-indicator {
         font-size: 0.875rem;
         color: #334155;
@@ -132,6 +143,19 @@
         height: 100%;
         border: 0;
         background: #fff;
+    }
+
+    /* Browser fullscreen: drop the 1400px cap and the rounded corners so the editor fills the
+       screen edge to edge (the header with the exit button stays visible). */
+    .document-editor-container:fullscreen {
+        width: 100%;
+        height: 100%;
+        max-width: none;
+        border-radius: 0;
+    }
+
+    .document-editor-container:fullscreen .editor-header {
+        padding: 0.5rem 1rem;
     }
 
     @@media (max-width: 800px) {

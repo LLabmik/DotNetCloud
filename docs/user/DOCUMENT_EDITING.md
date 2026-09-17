@@ -88,6 +88,18 @@ The editor shows indicators for other users currently editing the document. Look
 
 ---
 
+## Fullscreen
+
+Need more room for a long document or a wide spreadsheet? Click the **fullscreen** button in the
+editor header (next to **Close**) to expand the editor to the whole screen.
+
+- Click the **exit fullscreen** button (the icon changes) or press **Esc** to return to the normal view
+- Closing the editor while fullscreen also leaves fullscreen
+- The document title stays visible in the header, so you can always see which file you are editing
+- For presentations, the editor's own fullscreen or slide-show control works as well
+
+---
+
 ## Closing the Editor
 
 Simply navigate away from the page or close the browser tab. Your changes are auto-saved before the session closes.

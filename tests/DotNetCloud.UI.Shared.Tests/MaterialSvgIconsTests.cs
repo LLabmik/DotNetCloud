@@ -144,6 +144,21 @@ public class MaterialSvgIconsTests
         Assert.IsTrue(path!.Length > 10, $"Icon '{icon}' path data is unexpectedly short.");
     }
 
+    /// <summary>
+    /// Icons referenced by the Collabora document editor header (fullscreen toggle, in both its
+    /// enter and exit states). A missing path renders the raw icon name as text in the button.
+    /// </summary>
+    [TestMethod]
+    [DataRow("fullscreen")]
+    [DataRow("fullscreen_exit")]
+    public void GetPath_IconUsedByDocumentEditorFullscreen_ReturnsPathData(string icon)
+    {
+        Assert.IsTrue(MaterialSvgIcons.HasPath(icon), $"Icon '{icon}' has no SVG path and would render as text.");
+        var path = MaterialSvgIcons.GetPath(icon);
+        Assert.IsNotNull(path, $"Icon '{icon}' returned a null path.");
+        Assert.IsTrue(path!.Length > 10, $"Icon '{icon}' path data is unexpectedly short.");
+    }
+
     [TestMethod]
     public void GetPath_UnknownIcon_ReturnsNull()
     {
