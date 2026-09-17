@@ -355,6 +355,26 @@
   overflow-y: auto;
 }
 
+/* Edit mode fills the pane instead of growing past it: the header fields keep their
+   height and the Markdown editor takes what is left and scrolls internally, so the
+   formatting toolbar stays on screen. The height (not a minimum) is what makes the
+   editor shrink for a long note instead of stretching the page with it.
+   ::deep is required because the element is the <form> rendered by <EditForm>, which
+   does not carry this component's CSS-isolation scope attribute. */
+.notes-main ::deep .notes-editor-form {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
+  padding: 0 4px 4px;
+}
+
+.notes-main ::deep .notes-editor-form > .notes-form-actions,
+.notes-main ::deep .notes-editor-form > .notes-form-grid {
+  flex-shrink: 0;
+}
+
 .notes-detail {
   padding: 24px 24px 24px 12px;
   min-height: 100%;

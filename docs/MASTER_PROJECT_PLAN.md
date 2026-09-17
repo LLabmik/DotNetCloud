@@ -6165,3 +6165,108 @@ browser through a `fullscreenchange` bridge.
 - Chrome logs `Allow attribute will take precedence over 'allowfullscreen'` because the iframe now
   carries both; the `allow="…; fullscreen"` entry is the effective permission and is what makes
   fullscreen work for the iframe's own controls.
+
+---
+
+## Notes Module — Screen-Fitted Editor & Selection-Safe Toolbar (2026-09-17)
+
+**Status:** completed ✅
+
+**Branch:** `fix/more-blazor-improvements`
+
+**Problem:** the note editor had no height contract with the page. A note of any length stretched the
+page vertically, the Markdown toolbar scrolled away with it, and the whole pane had to be scrolled to
+reach the formatting buttons. Worse, each toolbar button read the textarea through the component's
+binding rather than the DOM: with text highlighted, the list, heading, blockquote and block buttons
+replaced the highlighted block with a canned template (`- Item 1 / - Item 2 / - Item 3`) instead of
+formatting it.
+
+**Solution:** the notes edit form fills its pane so the editor — not the page — is the scroll region,
+the toolbar is scroll-locked, and the toolbar's text edits moved into a unit-tested C# formatter that
+formats the highlighted text (surrounds it, prefixes its lines, or inserts after it).
+
+**Deliverables:**
+
+- ✓ `NotesPage.razor` — the edit form carries `class="notes-editor-form"` and the editor is rendered with
+  `FillHeight="true"`
+- ✓ `NotesPage.razor.css` — the form is a full-height flex column (`height: 100%`, not `min-height`, so a
+  long note _shrinks_ the editor instead of stretching the page) with `flex-shrink: 0` on the fixed
+  header rows (Save/Cancel, title/tags/folder); selected as `.notes-main ::deep .notes-editor-form`
+  because the element is the `<form>` that `<EditForm>` renders and so carries no CSS-isolation scope
+  attribute of its own (verified in the browser: the plain class selector did **not** apply, and with a
+  60-line note the page grew to 1352 px)
+- ✓ **Delete** is offered in view mode only: the edit form's action row is **Save** + **Cancel** (the
+  confirm-dialog delete stays on the note detail view), so an open editor can no longer destroy the note
+  being edited; the now-unused `DeleteSelectedAsync` handler went with the button
+- ✓ `MarkdownEditor.razor` — new `FillHeight` parameter (additive; existing usages unchanged) adds a
+  `fill-height` class
+- ✓ `MarkdownEditor.razor.css` — `fill-height` makes the editor `flex: 1 1 auto` / `min-height: 220px` and
+  zeroes the 300 px pane and textarea minimums plus the textarea's own minimum, so a long note scrolls
+  inside the editor and the rendered preview scrolls in its own pane
+- ✓ Toolbar is `position: sticky; top: 0` (z-index above the body) and `.markdown-editor` now uses
+  `overflow: clip` with `overflow: hidden` kept as the fallback — `hidden` creates a scroll container,
+  which would make sticky resolve against the editor box instead of the page/dialog scroll box; compact
+  editors already declare `position: relative` and keep their behaviour
+- ✓ `MarkdownTextFormatter` (new, public static, pure) holds every toolbar edit: `ToggleWrap` (adds
+  the markers around the highlight, or removes them again when it is already wrapped — so
+  Bold → Italic → Bold → Italic walks back to plain text instead of stacking `*******text*******`;
+  marker runs are read as "which formats are on" so Italic on `**bold**` adds emphasis rather than
+  eating a bold marker, and a pair wrapped around a nested pair such as `~~**text**~~` is still found —
+  all without mistaking prose asterisks for markers), `ToggleLinePrefix`
+  (bullet list / task list / blockquote — prefixes every highlighted line, toggles off when every line
+  already has it, skips blank lines, and does not pull in the line after a trailing line break),
+  `NumberLines` (ordered list — numbers, renumbers or removes), `SetHeading` (headings every highlighted
+  line, toggles off at the same level) and `InsertBlock` (table, rule — inserted _after_ the highlight,
+  which is preserved); ranges are clamped so a stale browser selection cannot throw
+- ✓ `MarkdownEditorInterop` (new) — the JS global plus the two method names (`readState` / `writeState`)
+  and the wire DTO `MarkdownEditorState`, so a rename cannot silently break the toolbar
+- ✓ `wwwroot/js/markdown-editor.js` — shrunk to `readState` (textarea text + selection, falling back to
+  the selection captured on blur for browsers that drop it when the button takes focus) and `writeState`
+  (writes the formatted text and restores the selection now and again after Blazor re-renders the bound
+  `value`, which would otherwise collapse the caret to the end); the old `applyFormat` / `insertAtCursor`
+  helpers are gone
+- ✓ `App.razor` — `markdown-editor.js?v=20260917-01` cache-buster bumped
+- ✓ `MarkdownTextFormatterTests` (46 cases) + `MarkdownEditorInteropTests` (6) — `DotNetCloud.UI.Shared.Tests`
+  169/169, `DotNetCloud.Modules.Notes.Tests` 157/157, build clean (0 warnings / 0 errors)
+- ✓ Deployed to mint22 dev (`sudo ./scripts/deploy.sh --force --verify`): 15/15 targets, hashes verified,
+  `/health/ready` HTTP 200, the new script served at `/_content/DotNetCloud.UI.Web/js/markdown-editor.js`
+- ✓ Browser E2E (mint22 dev, assistant-verified, 1755×921): the edit form fills the pane, the editor is
+  554 px tall ending 28 px above the viewport bottom, `.notes-main` does not scroll and the document
+  height equals the viewport; with 60 lines typed the editor rect is unchanged while the textarea scrolls
+  internally (1208 px of content in 481 px) and the toolbar stays at y=340 with the caret at the bottom of
+  the note; formatting verified through the real buttons — `**apple**` (highlight kept on the text at
+  `[2,7]`),
+  `- banana` / `- cherry` over a two-line highlight, the same button toggling the prefixes off,
+  `## cherry` over a highlighted word, `1. banana` / `2. ## cherry`, and Table inserted after the
+  highlight instead of over it; the shared editor was also smoke-tested on `/admin/broadcast`
+  (non-fill-height usage) and the unsaved edits were discarded with **Cancel**
+- ✓ Browser E2E, toggling (the reported bug): highlighting "Hi there!" and pressing **Bold**,
+  **Italic**, **Bold**, **Italic** gives `**Hi there!**` → `***Hi there!***` → `*Hi there!*` →
+  `Hi there!`, with the selection carried on the text each time; **Strikethrough** twice returns to
+  plain text; and after **Strikethrough** then **Bold**, the outer `~~` around `~~**Hi there!**~~` is
+  still found by **Strikethrough** and removed, leaving `**Hi there!**`
+- ✓ Browser E2E, buttons: view mode shows Edit / Favorite / Share / History / **Delete**, edit mode
+  shows only **Save** + **Cancel** (no Delete anywhere on the page), and **Cancel** returns to view
+  mode with Delete back — the editor still ended 28 px above the viewport bottom
+- ☐ Production E2E — left to the user on production (`cloud.dotnetcloud.net`)
+
+**Notes:**
+
+- The form layout was verified in the browser _after_ the first attempt failed: the plain
+  `.notes-editor-form` rule never applied (the `<form>` element has no scope attribute) and the first
+  flex fix used `min-height: 100%`, which let a 60-line note push the editor to 1013 px and off the
+  screen. Both were caught with real measurements (`getBoundingClientRect`, `scrollHeight`) rather than
+  by eye — a definite `height: 100%` on the flex container is what makes the items shrink.
+- `FillHeight` is opt-in so the other editors on the shared component (Files comments, Chat
+  announcements, Calendar/Tracks descriptions, Admin broadcast, the Files markdown preview) keep their
+  current auto-height behaviour.
+- The formatter is C# rather than JS on purpose: this repo has no JS test infrastructure, and moving the
+  rules out of `markdown-editor.js` is what makes "format the highlight, do not replace it" testable.
+- No server, API, gRPC or schema change — client-side Blazor/CSS/JS only.
+- The **toggle** is what the reporter caught in review: the first version only ever wrapped, so
+  highlighting text and pressing Bold, Italic, Bold, Italic produced `*******text*******` (and the same
+  with `~~` for strikethrough). Two decisions make unwrapping predictable: the highlight _excludes_ the
+  markers after each action (so the next action sees the text and not the syntax), and only
+  marker-only gaps count as a wrapping pair (so `2 * 3` in prose is never mistaken for italic). Marker
+  runs are read as "which formats are on" — one `*` is italic, `**` bold, `***` both — which is what
+  separates "remove the bold pair" from "add emphasis to bold text".

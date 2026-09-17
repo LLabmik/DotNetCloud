@@ -3936,6 +3936,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 
 - ✓ Markdown rendering pipeline with XSS sanitization
 - ✓ Rich-editor integration (MarkdownEditor Blazor component)
+- ✓ Editor sizing + toolbar behaviour: the editing area is height-constrained to the viewport (the form fills the pane and the editor scrolls internally), the formatting toolbar is scroll-locked, and toolbar buttons format the highlighted text instead of replacing it (wrap actions surround the selection, line actions prefix every highlighted line, block inserts land after the selection)
 - ✓ Cross-entity link references (Files, Calendar, Contact, Note)
 - ✓ Note sharing model (ReadOnly/ReadWrite per-user)
 - ✓ Version history with restore
@@ -7318,7 +7319,7 @@ that puts the editor container into the browser's Fullscreen API.
 - ✓ Deployed to mint22 dev (`sudo ./scripts/deploy.sh --force --verify`): 15/15 targets, hashes verified,
   migrations applied, v0.6.09, `/health/ready` HTTP 200; `document-editor.js` served from
   `/_content/DotNetCloud.UI.Web/js/document-editor.js` (200, 5292 bytes)
-- ✓ Browser E2E (mint22 dev, assistant-verified, 1755×969 viewport): the toggle renders in the editor
+- ✓ Browser E2E (mint22 dev, assistant-verified, 1755×921 viewport): the toggle renders in the editor
   header before **Close**, and clicking it makes `.document-editor-container` the
   `document.fullscreenElement` at rect `0,0 → 1755×969` — the whole viewport, with the Collabora iframe
   at 1755×927 below the still-visible header, i.e. the 1400 px cap is gone. The button flips to
@@ -7327,3 +7328,89 @@ that puts the editor container into the browser's Fullscreen API.
   `document.exitFullscreen()` (the same path the **Esc** key takes) flips the button back on its own.
   **Close** while fullscreen releases fullscreen and removes the overlay.
 - ☐ Production E2E — open, left to the user on production (`cloud.dotnetcloud.net`)
+
+---
+
+## Notes Module — Screen-Fitted Editor & Selection-Safe Toolbar (2026-09-17)
+
+**Branch:** `fix/more-blazor-improvements`
+
+Editing a note stretched the page vertically and pushed the Markdown toolbar off screen, and every
+toolbar button measured the textarea from a stale binding: with text highlighted the list, heading and
+block buttons replaced the highlighted block with a canned template.
+
+### Notes editor layout (`NotesPage.razor` / `NotesPage.razor.css`)
+
+- ✓ The edit form is a full-height flex column (`height: 100%`, so a long note shrinks the editor
+  instead of stretching the page) whose fixed-height header rows (Save/Delete/Cancel, title/tags/
+  folder) keep their size (`flex-shrink: 0`)
+- ✓ The Markdown editor takes the remaining height (`FillHeight="true"`) and scrolls internally:
+  `.editor-textarea` and `.preview-content` scroll, so the page never grows past the viewport
+- ✓ Scoped through `.notes-main ::deep .notes-editor-form` because the element is the `<form>`
+  rendered by `<EditForm>` — it carries no CSS-isolation scope attribute of its own (verified in the
+  browser: the plain class selector did **not** apply, the page grew to 1352 px with a 60-line note)
+- ✓ **Delete** lives in view mode only: edit mode's action row is **Save** + **Cancel** (the
+  confirm-dialog delete stays on the note detail view), and the unused handler went with the button
+
+### Editor component (`MarkdownEditor.razor` / `.razor.css`)
+
+- ✓ New `FillHeight` parameter (additive; existing usages are unaffected) adds a `fill-height` class
+  that turns the editor into `flex: 1 1 auto` with `min-height: 220px` and zeroes the 300 px
+  pane/textarea minimums so the panes scroll instead of stretching
+- ✓ The toolbar is `position: sticky; top: 0` and `.markdown-editor` switched from `overflow: hidden`
+  to `overflow: clip` (with `hidden` kept as the fallback), because `hidden` creates a scroll
+  container that would break sticky positioning; compact editors keep `position: relative`
+
+### Selection-safe toolbar
+
+- ✓ The text edits moved out of JS into `MarkdownTextFormatter` (public static, `MarkdownEditorInterop`
+  holds the two JS names), so the rules are unit-testable instead of untestable browser code
+- ✓ `ToggleWrap` adds the markers around the highlighted text (or the placeholder between them for a
+  collapsed caret) and removes them again when the text is already wrapped, so Bold → Italic → Bold →
+  Italic returns to plain text instead of stacking `*******text*******` (strikethrough included);
+  marker runs are read as "which formats are on" (one `*` italic, `**` bold, `***` both), a pair
+  wrapping a nested pair (`~~**text**~~`) is still found, and asterisks in prose are never treated as
+  markers because only marker-only gaps count as a wrapping pair
+- ✓ `ToggleLinePrefix` prefixes **every highlighted line** (bullet list, task list, blockquote) and
+  toggles the prefix off when every line already has it; blank lines are left blank and a selection
+  ending on a line break does not pull in the next line
+- ✓ `NumberLines` numbers the highlighted block (`1. `, `2. `, …), renumbers existing numbering and
+  removes it when every line is already numbered
+- ✓ `SetHeading(level)` headings every highlighted line and toggles off at the same level instead of
+  inserting `# Heading` over the selection
+- ✓ `InsertBlock` (table, horizontal rule) inserts **after** the selection and keeps the highlight,
+  instead of overwriting it; a stale browser range is clamped rather than throwing
+- ✓ `markdown-editor.js` reduced to `readState` / `writeState`: it reports the textarea text +
+  selection (falling back to the selection captured on blur, for browsers that drop it when the button
+  takes focus) and restores the selection after Blazor re-renders the bound value
+- ✓ `App.razor` cache-buster bumped to `markdown-editor.js?v=20260917-01`
+
+### Tests & verification
+
+- ✓ `MarkdownTextFormatterTests` (46) + `MarkdownEditorInteropTests` (6) — `DotNetCloud.UI.Shared.Tests`
+  169/169; `DotNetCloud.Modules.Notes.Tests` 157/157; build clean (0 warnings / 0 errors)
+- ✓ Deployed to mint22 dev (`sudo ./scripts/deploy.sh --force --verify`): 15/15 targets, hashes
+  verified, `/health/ready` HTTP 200, new `markdown-editor.js` served (200)
+- ✓ Browser E2E (mint22 dev, assistant-verified, 1755×921): with a note open in edit mode the form
+  fills the pane and the editor is 554 px tall ending 28 px above the viewport bottom, `.notes-main`
+  does not scroll, and the page height equals the viewport
+- ✓ Browser E2E, long note: with 60 lines typed the editor rect is unchanged, the textarea's scroll
+  height is 1208 px against a 481 px client height (it scrolls internally), the rendered preview
+  scrolls in its own pane (969 px in 509 px), and the toolbar stays at y=340 while the textarea is
+  scrolled to the bottom — i.e. the toolbar is scroll-locked and the page never grows
+- ✓ Browser E2E, formatting: `**apple**` from Bold with "apple" highlighted (selection kept on the
+  text at `[2,7]`), `- banana` / `- cherry` from the list button over a two-line highlight (previously
+  replaced by `- Item 1` / `- Item 2` / `- Item 3`), the same button again toggles the prefixes off,
+  `## cherry` from Heading 2 over a highlighted word, `1. banana` / `2. ## cherry` from the ordered
+  list, and the Table button inserts after the highlighted text with the highlight preserved
+- ✓ Browser E2E, toggling (the reported bug): highlighting "Hi there!" and pressing **Bold**, **Italic**,
+  **Bold**, **Italic** gives `**Hi there!**` → `***Hi there!***` → `*Hi there!*` → `Hi there!`, with the
+  selection carried on the text each time; **Strikethrough** twice returns to plain text; and after
+  **Strikethrough** then **Bold**, the outer `~~` around `~~**Hi there!**~~` is still found by
+  **Strikethrough** and removed, leaving `**Hi there!**`
+- ✓ Browser E2E, buttons: view mode shows Edit / Favorite / Share / History / **Delete**, edit mode shows
+  only **Save** + **Cancel** (no Delete on the page), and **Cancel** returns to view mode with Delete back
+- ✓ Smoke-tested the shared component outside Notes (`/admin/broadcast`): the editor still renders,
+  `overflow: clip`, toolbar sticky, no regression for non-fill-height usages
+- ✓ Cancel discarded the unsaved test edits (the note still reads "Hi there!")
+- ☐ Production E2E — left to the user on production (`cloud.dotnetcloud.net`)
