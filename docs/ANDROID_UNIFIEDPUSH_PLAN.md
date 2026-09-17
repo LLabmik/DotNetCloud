@@ -9,7 +9,7 @@
 
 ## 1. Requirements (operator decisions, 2026-09-17)
 
-1. **Google must be out of the loop entirely.** No message content *and* no metadata through
+1. **Google must be out of the loop entirely.** No message content _and_ no metadata through
    Google infrastructure. FCM is therefore **not** an acceptable transport, even with encrypted or
    content-free payloads.
 2. **Notifications are completely generic.** No sender names, no channel names, no message text
@@ -34,25 +34,25 @@
 
 ### 3.1 Client blockers (verified 2026-09-17)
 
-| # | Blocker | Evidence |
-|---|---------|----------|
-| B1 | **The flavour does not compile.** `<PackageReference Include="UnifiedPush.NET" />` (pinned `2.0.2` in `Directory.Packages.props`) does not exist on nuget.org, and `NuGet.config` only lists nuget.org. | `dotnet build -p:BuildFlavor=fdroid` → `NU1101: Unable to find package UnifiedPush.NET`; probing `unifiedpush`, `unifiedpush.net`, `xamarin.unifiedpush`, `unifiedpush.android` on the flat container API → none exist |
-| B2 | `UnifiedPushReceiver` derives from `UnifiedPush.MessagingReceiver` — a type that only exists in the missing package. | `Platforms/Android/UnifiedPushReceiver.cs:28` |
-| B3 | **Nothing ever asks a distributor to register.** `UnifiedPush.Connector.Register` appears only in a doc comment; there is no call site anywhere in the repo. So `OnNewEndpoint` can never fire. | `UnifiedPushReceiver.cs:34`; repo-wide grep |
-| B4 | Receiver declares only `MESSAGE` / `NEW_ENDPOINT` / `UNREGISTERED`; the spec's `REGISTRATION_FAILED` and `TEMP_UNAVAILABLE` are missing, and there is no `MESSAGE_ACK`. | `AndroidManifest.xml:41-51`; `IntentFilter` attribute |
-| B5 | No service exposing `org.unifiedpush.android.connector.RAISE_TO_FOREGROUND` (the sanctioned way for a distributor to raise the app to foreground importance when delivering). | repo-wide grep → no hits |
-| B6 | Registration would throw before reaching the network: `UnifiedPushService.RegisterAsync` derives `userId` with `AccessTokenUserIdExtractor.ExtractUserId(accessToken)`, but the access token is JWE-encrypted and cannot be decoded client-side. | `Services/UnifiedPushService.cs:38` |
-| B7 | `AndroidTargetSdkVersion` is **35**, so registration must use the SDK ≥ 34 shape (`FLAG_SHARE_IDENTITY`); the pending-intent form only applies to targetSdk < 34. | `DotNetCloud.Client.Android.csproj:37` |
+| #   | Blocker                                                                                                                                                                                                                                          | Evidence                                                                                                                                                                                                               |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B1  | **The flavour does not compile.** `<PackageReference Include="UnifiedPush.NET" />` (pinned `2.0.2` in `Directory.Packages.props`) does not exist on nuget.org, and `NuGet.config` only lists nuget.org.                                          | `dotnet build -p:BuildFlavor=fdroid` → `NU1101: Unable to find package UnifiedPush.NET`; probing `unifiedpush`, `unifiedpush.net`, `xamarin.unifiedpush`, `unifiedpush.android` on the flat container API → none exist |
+| B2  | `UnifiedPushReceiver` derives from `UnifiedPush.MessagingReceiver` — a type that only exists in the missing package.                                                                                                                             | `Platforms/Android/UnifiedPushReceiver.cs:28`                                                                                                                                                                          |
+| B3  | **Nothing ever asks a distributor to register.** `UnifiedPush.Connector.Register` appears only in a doc comment; there is no call site anywhere in the repo. So `OnNewEndpoint` can never fire.                                                  | `UnifiedPushReceiver.cs:34`; repo-wide grep                                                                                                                                                                            |
+| B4  | Receiver declares only `MESSAGE` / `NEW_ENDPOINT` / `UNREGISTERED`; the spec's `REGISTRATION_FAILED` and `TEMP_UNAVAILABLE` are missing, and there is no `MESSAGE_ACK`.                                                                          | `AndroidManifest.xml:41-51`; `IntentFilter` attribute                                                                                                                                                                  |
+| B5  | No service exposing `org.unifiedpush.android.connector.RAISE_TO_FOREGROUND` (the sanctioned way for a distributor to raise the app to foreground importance when delivering).                                                                    | repo-wide grep → no hits                                                                                                                                                                                               |
+| B6  | Registration would throw before reaching the network: `UnifiedPushService.RegisterAsync` derives `userId` with `AccessTokenUserIdExtractor.ExtractUserId(accessToken)`, but the access token is JWE-encrypted and cannot be decoded client-side. | `Services/UnifiedPushService.cs:38`                                                                                                                                                                                    |
+| B7  | `AndroidTargetSdkVersion` is **35**, so registration must use the SDK ≥ 34 shape (`FLAG_SHARE_IDENTITY`); the pending-intent form only applies to targetSdk < 34.                                                                                | `DotNetCloud.Client.Android.csproj:37`                                                                                                                                                                                 |
 
 ### 3.2 Server blockers
 
-| # | Blocker | Evidence |
-|---|---------|----------|
-| S1 | `IUnifiedPushTransport` resolves to `UnifiedPushLoggingTransport`, whose `SendAsync` logs `"UnifiedPush to endpoint …"` and returns `Success` — **nothing is ever sent**. | `ChatServiceRegistration.cs:59`, `UnifiedPushLoggingTransport.cs` |
-| S2 | Push device registrations are in memory (`NotificationRouter._deviceMap`, `FcmPushProvider._registrations`) → lost on every module-host restart. | `NotificationRouter.cs` |
-| S3 | `NotificationRouter.CanSendPushAsync` suppresses push when `IsPresenceTracker.IsOnlineAsync(userId)` — the phone's own hub connection counts, so a frozen-but-connected phone gets neither SignalR handling nor push. | `NotificationRouter.cs:~180` |
-| S4 | Payloads carry human-readable text (mention title `"{sender} mentioned you in #{channel}"`, DM `"{initiator} started a chat with you"`, call bodies). Under requirement §1.2 these must be stripped. | `MentionNotificationService.cs:66`, `DmChannelCreatedEventHandler.cs:85`, `CallNotificationEventHandler.cs:59-62` |
-| S5 | No ordinary chat-message push is constructed at all (chat relies on SignalR), so "new message while closed" needs a new builder as well as the transport. | grep for `NotificationCategory.ChatMessage` → only the mute check in `NotificationRouter` |
+| #   | Blocker                                                                                                                                                                                                               | Evidence                                                                                                          |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| S1  | `IUnifiedPushTransport` resolves to `UnifiedPushLoggingTransport`, whose `SendAsync` logs `"UnifiedPush to endpoint …"` and returns `Success` — **nothing is ever sent**.                                             | `ChatServiceRegistration.cs:59`, `UnifiedPushLoggingTransport.cs`                                                 |
+| S2  | Push device registrations are in memory (`NotificationRouter._deviceMap`, `FcmPushProvider._registrations`) → lost on every module-host restart.                                                                      | `NotificationRouter.cs`                                                                                           |
+| S3  | `NotificationRouter.CanSendPushAsync` suppresses push when `IsPresenceTracker.IsOnlineAsync(userId)` — the phone's own hub connection counts, so a frozen-but-connected phone gets neither SignalR handling nor push. | `NotificationRouter.cs:~180`                                                                                      |
+| S4  | Payloads carry human-readable text (mention title `"{sender} mentioned you in #{channel}"`, DM `"{initiator} started a chat with you"`, call bodies). Under requirement §1.2 these must be stripped.                  | `MentionNotificationService.cs:66`, `DmChannelCreatedEventHandler.cs:85`, `CallNotificationEventHandler.cs:59-62` |
+| S5  | No ordinary chat-message push is constructed at all (chat relies on SignalR), so "new message while closed" needs a new builder as well as the transport.                                                             | grep for `NotificationCategory.ChatMessage` → only the mute check in `NotificationRouter`                         |
 
 ## 4. Design
 
@@ -103,13 +103,13 @@ Rules:
 
 ### 4.3 Generic notification rendering
 
-| `type` | Title | Body | Tap action |
-|--------|-------|------|-----------|
-| `message` | "New message" | "" (channel name only if it can be resolved from local cache without a network call) | open channel (`channelId` extra) |
-| `mention` | "You were mentioned" | "" | open channel |
-| `announcement` | "New announcement" | "" | open channel |
-| `dm_channel_created` | "New direct message" | "" | open channel, keep the existing Accept/Ignore/DND actions |
-| `calendar_reminder` | "Calendar reminder" | "" | open the event (`eventId` extra) — event title is fetched locally/server-side after open |
+| `type`               | Title                | Body                                                                                 | Tap action                                                                               |
+| -------------------- | -------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| `message`            | "New message"        | "" (channel name only if it can be resolved from local cache without a network call) | open channel (`channelId` extra)                                                         |
+| `mention`            | "You were mentioned" | ""                                                                                   | open channel                                                                             |
+| `announcement`       | "New announcement"   | ""                                                                                   | open channel                                                                             |
+| `dm_channel_created` | "New direct message" | ""                                                                                   | open channel, keep the existing Accept/Ignore/DND actions                                |
+| `calendar_reminder`  | "Calendar reminder"  | ""                                                                                   | open the event (`eventId` extra) — event title is fetched locally/server-side after open |
 
 Local (on-device) notifications are unaffected by the stripping rule where nothing leaves the
 device — in particular `CalendarAlarmReceiver`'s AlarmManager reminders keep showing the event
@@ -152,7 +152,7 @@ Also required:
 
 - A service exposing `org.unifiedpush.android.connector.RAISE_TO_FOREGROUND` (bindable; the
   distributor binds with foreground importance for 5 s so a backgrounded app can process the
-  message). Note: this is *not* a foreground service declaration and does not consume the
+  message). Note: this is _not_ a foreground service declaration and does not consume the
   `dataSync` budget — it is the spec-sanctioned wake-up path.
 - Distributor selection: `unifiedpush://link` deep link started for result; the result carries a
   `pi` pending intent whose sender identifies the chosen distributor. Apps must not rely on the
@@ -162,30 +162,30 @@ Also required:
 
 ### Phase 1 — make the fdroid flavour build and register (client)
 
-| Step | Change | Files |
-|------|--------|-------|
-| 1.1 | Remove the non-existent dependency; delete its uses so the project is dependency-free for UP. | `DotNetCloud.Client.Android.csproj` (fdroid `ItemGroup`), `Directory.Packages.props` (drop `UnifiedPush.NET`), `Directory.Build.targets` if referenced |
-| 1.2 | Add a pure, testable protocol helper: action/extras constants, `BuildRegisterIntent`, `BuildUnregisterIntent`, `BuildAckIntent`, `ParsePayload`, `TokenStoreKey`, `MapPayloadToNotificationText`. | new `Services/UnifiedPushProtocol.cs` |
-| 1.3 | Managed connector: token store (per server), `RegisterAsync`, `UnregisterAsync`, `SelectDistributorAsync`, endpoint cache, ACK send, retry/backoff for `REGISTRATION_FAILED`. | new `Platforms/Android/UnifiedPushConnector.cs`, `Services/IUnifiedPushConnector.cs`, `Services/UnifiedPushRegistration.cs` (state model) |
-| 1.4 | Rewrite the receiver as a plain `BroadcastReceiver` implementing the five distributor→app actions and ACKs. | `Platforms/Android/UnifiedPushReceiver.cs` |
-| 1.5 | Add the `RAISE_TO_FOREGROUND` bindable service. | new `Platforms/Android/UnifiedPushForegroundService.cs` |
-| 1.6 | Manifest: add the two missing intent actions + the service (explicit `Name` on every component — the crc-package trap). | `Platforms/Android/AndroidManifest.xml` |
-| 1.7 | Fix the JWE userId bug (B6): read `sub` from the id_token (pattern already used in `MessageListViewModel`/`SignalRChatClient`) or drop the vestigial `?userId=` parameter. | `Services/UnifiedPushService.cs` |
-| 1.8 | Register on startup and after login (reuse `App.RegisterPushDeviceAsync`), plus re-register on every app start per spec. | `App.xaml.cs`, `Views/LoginPage.xaml.cs` |
-| 1.9 | Unit tests for the helper + registration state machine; add new files to the test csproj `Compile` list. | `tests/DotNetCloud.Client.Android.Tests/UnifiedPush*Tests.cs` |
+| Step | Change                                                                                                                                                                                            | Files                                                                                                                                                  |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1.1  | Remove the non-existent dependency; delete its uses so the project is dependency-free for UP.                                                                                                     | `DotNetCloud.Client.Android.csproj` (fdroid `ItemGroup`), `Directory.Packages.props` (drop `UnifiedPush.NET`), `Directory.Build.targets` if referenced |
+| 1.2  | Add a pure, testable protocol helper: action/extras constants, `BuildRegisterIntent`, `BuildUnregisterIntent`, `BuildAckIntent`, `ParsePayload`, `TokenStoreKey`, `MapPayloadToNotificationText`. | new `Services/UnifiedPushProtocol.cs`                                                                                                                  |
+| 1.3  | Managed connector: token store (per server), `RegisterAsync`, `UnregisterAsync`, `SelectDistributorAsync`, endpoint cache, ACK send, retry/backoff for `REGISTRATION_FAILED`.                     | new `Platforms/Android/UnifiedPushConnector.cs`, `Services/IUnifiedPushConnector.cs`, `Services/UnifiedPushRegistration.cs` (state model)              |
+| 1.4  | Rewrite the receiver as a plain `BroadcastReceiver` implementing the five distributor→app actions and ACKs.                                                                                       | `Platforms/Android/UnifiedPushReceiver.cs`                                                                                                             |
+| 1.5  | Add the `RAISE_TO_FOREGROUND` bindable service.                                                                                                                                                   | new `Platforms/Android/UnifiedPushForegroundService.cs`                                                                                                |
+| 1.6  | Manifest: add the two missing intent actions + the service (explicit `Name` on every component — the crc-package trap).                                                                           | `Platforms/Android/AndroidManifest.xml`                                                                                                                |
+| 1.7  | Fix the JWE userId bug (B6): read `sub` from the id_token (pattern already used in `MessageListViewModel`/`SignalRChatClient`) or drop the vestigial `?userId=` parameter.                        | `Services/UnifiedPushService.cs`                                                                                                                       |
+| 1.8  | Register on startup and after login (reuse `App.RegisterPushDeviceAsync`), plus re-register on every app start per spec.                                                                          | `App.xaml.cs`, `Views/LoginPage.xaml.cs`                                                                                                               |
+| 1.9  | Unit tests for the helper + registration state machine; add new files to the test csproj `Compile` list.                                                                                          | `tests/DotNetCloud.Client.Android.Tests/UnifiedPush*Tests.cs`                                                                                          |
 
 **Acceptance:** `dotnet build -p:BuildFlavor=fdroid` succeeds with 0 warnings; tests green; on a
 device with a distributor installed, logcat shows REGISTER → NEW_ENDPOINT → server registration 200.
 
 ### Phase 2 — generic notifications everywhere (client)
 
-| Step | Change | Files |
-|------|--------|-------|
-| 2.1 | Render UP notifications from the ID-only payload, ignoring any text fields. | `Platforms/Android/UnifiedPushReceiver.cs` |
-| 2.2 | Same rule for the local SignalR path (in-process notification when the app is backgrounded). | `Chat/SignalRChatClient.cs` (`PostSignalRNotification`) |
-| 2.3 | Keep the FCM handler generic too (it stays in the tree until Phase 5 decides its fate). | `Platforms/Android/FcmMessagingService.cs` |
-| 2.4 | Settings: show push status (distributor name, endpoint registered?, last error reason) + "Choose distributor" action; keep the existing "Message Sound" switch. | `ViewModels/SettingsViewModel.cs`, `Views/SettingsPage.xaml` |
-| 2.5 | Tests for the payload→notification mapping (assert text is generic for every type, incl. hostile payloads carrying `title`/`body`). | test project |
+| Step | Change                                                                                                                                                          | Files                                                        |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| 2.1  | Render UP notifications from the ID-only payload, ignoring any text fields.                                                                                     | `Platforms/Android/UnifiedPushReceiver.cs`                   |
+| 2.2  | Same rule for the local SignalR path (in-process notification when the app is backgrounded).                                                                    | `Chat/SignalRChatClient.cs` (`PostSignalRNotification`)      |
+| 2.3  | Keep the FCM handler generic too (it stays in the tree until Phase 5 decides its fate).                                                                         | `Platforms/Android/FcmMessagingService.cs`                   |
+| 2.4  | Settings: show push status (distributor name, endpoint registered?, last error reason) + "Choose distributor" action; keep the existing "Message Sound" switch. | `ViewModels/SettingsViewModel.cs`, `Views/SettingsPage.xaml` |
+| 2.5  | Tests for the payload→notification mapping (assert text is generic for every type, incl. hostile payloads carrying `title`/`body`).                             | test project                                                 |
 
 **Acceptance:** every notification path renders generic text; a payload containing names/text still
 renders generically.
@@ -262,7 +262,7 @@ comparable effort owned by the server agent.
    text.
 4. **New message push.** Build the missing `NotificationCategory.ChatMessage` push (currently only
    mentions/DM/calls exist) so a message received while the app is closed produces a notification.
-5. **Presence suppression.** `CanSendPushAsync` must not be blocked by *delivery-only* mobile
+5. **Presence suppression.** `CanSendPushAsync` must not be blocked by _delivery-only_ mobile
    connections: either exclude mobile/bridge connections from the online check used for push
    suppression (mark the connection via a hub header at connect time), or apply a grace window so a
    connection that has not sent a heartbeat within the client keepalive interval does not count as

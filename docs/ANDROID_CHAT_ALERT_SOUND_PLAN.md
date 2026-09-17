@@ -27,13 +27,13 @@ SignalR notification: foreground=True, channelId=019fd4f0-…        ← old cod
 
 Three independent problems, in order of impact:
 
-| # | Problem | Evidence |
-|---|---------|----------|
-| 2a | **The googleplay build has no Firebase configuration.** There is no `google-services.json` anywhere in the repo, so the APK carries no `google_app_id`/`gcm_defaultSenderId` resources and `FirebaseApp` never initialises → `GetToken()` can never return a token. | `Push registration failed: Default FirebaseApp is not initialized in this process net.dotnetcloud.client…`; resource names absent from the built APK's `resources.arsc` |
-| 2b | **Push device registrations live in memory on the server** (`NotificationRouter._deviceMap`, `FcmPushProvider._registrations`) and are lost on every module-host restart, while the client only re-registered when Firebase rotated a token (i.e. essentially never — no self-healing). | code inspection of `src/Modules/Chat/.../NotificationRouter.cs` |
-| 2c | **The server suppresses push whenever the user appears online** (`NotificationRouter.CanSendPushAsync` → `IsPresenceTracker.IsOnlineAsync`), and the phone's own hub connection counts. While that connection is alive-but-frozen the message is delivered to nobody. | `NotificationRouter.cs` lines ~180-185 |
+| #   | Problem                                                                                                                                                                                                                                                                                 | Evidence                                                                                                                                                                |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2a  | **The googleplay build has no Firebase configuration.** There is no `google-services.json` anywhere in the repo, so the APK carries no `google_app_id`/`gcm_defaultSenderId` resources and `FirebaseApp` never initialises → `GetToken()` can never return a token.                     | `Push registration failed: Default FirebaseApp is not initialized in this process net.dotnetcloud.client…`; resource names absent from the built APK's `resources.arsc` |
+| 2b  | **Push device registrations live in memory on the server** (`NotificationRouter._deviceMap`, `FcmPushProvider._registrations`) and are lost on every module-host restart, while the client only re-registered when Firebase rotated a token (i.e. essentially never — no self-healing). | code inspection of `src/Modules/Chat/.../NotificationRouter.cs`                                                                                                         |
+| 2c  | **The server suppresses push whenever the user appears online** (`NotificationRouter.CanSendPushAsync` → `IsPresenceTracker.IsOnlineAsync`), and the phone's own hub connection counts. While that connection is alive-but-frozen the message is delivered to nobody.                   | `NotificationRouter.cs` lines ~180-185                                                                                                                                  |
 
-Background delivery *does* work while the app process is alive and unfrozen — SignalR posts a
+Background delivery _does_ work while the app process is alive and unfrozen — SignalR posts a
 notification on the sounding `chat_messages` channel (verified live, see below). It stops working
 once Android freezes/reclaims the cached process: the sticky `ChatConnectionService` is no longer a
 foreground service (removed 2026-09-12, `faae32c9`, because Android 15/16 caps `dataSync` to a
@@ -67,14 +67,14 @@ On-device channel configuration is healthy — `chat_messages` has `mImportance=
 
 ## Verification (device R5CWC356B2K, 2026-09-17)
 
-| Case | Result |
-|------|--------|
-| Sound resource loads | `[AndroidChatSoundPlayer] Chat alert sound loaded (soundId=1)` |
-| Ding actually plays | `dumpsys audio`: `piid:8471 … package:net.dotnetcloud.client type:android.media.SoundPool attr:usage=USAGE_NOTIFICATION` + `event:started` at the moment of the alert |
-| **Foreground, live remote message** | `SignalR chat alert: decision=InAppSound, foreground=True` → `playing ding…` → audio `event:started` (operator's own test message) |
-| **Background, live remote message** | `SignalR chat alert: decision=SystemNotification, foreground=False` → notification posted on `channel=chat_messages` (sounding channel) |
-| Own message echo | policy returns `None` (no self-ding) |
-| Build / tests | Android arm64 Debug: 0 warnings, 0 errors; Android tests 357 passed / 1 skipped |
+| Case                                | Result                                                                                                                                                                |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Sound resource loads                | `[AndroidChatSoundPlayer] Chat alert sound loaded (soundId=1)`                                                                                                        |
+| Ding actually plays                 | `dumpsys audio`: `piid:8471 … package:net.dotnetcloud.client type:android.media.SoundPool attr:usage=USAGE_NOTIFICATION` + `event:started` at the moment of the alert |
+| **Foreground, live remote message** | `SignalR chat alert: decision=InAppSound, foreground=True` → `playing ding…` → audio `event:started` (operator's own test message)                                    |
+| **Background, live remote message** | `SignalR chat alert: decision=SystemNotification, foreground=False` → notification posted on `channel=chat_messages` (sounding channel)                               |
+| Own message echo                    | policy returns `None` (no self-ding)                                                                                                                                  |
+| Build / tests                       | Android arm64 Debug: 0 warnings, 0 errors; Android tests 357 passed / 1 skipped                                                                                       |
 
 ## Remaining work (background alerts while the app is closed)
 
@@ -82,7 +82,7 @@ On-device channel configuration is healthy — `chat_messages` has `mImportance=
    needs the config file whose `google_app_id` matches the Firebase project the server signs FCM
    sends with. Add it to `src/Clients/DotNetCloud.Client.Android/` (or supply
    `-p:GoogleServicesJson=<path>`); the client half is already self-healing once a token exists.
-   *(The F-Droid flavour + a UnifiedPush distributor is the alternative.)*
+   _(The F-Droid flavour + a UnifiedPush distributor is the alternative.)_
 2. **Server: FCM credentials** (`Chat:Push:Fcm` → `ProjectId`, `CredentialsPath`) for the same
    Firebase project, otherwise sends fail at the transport.
 3. **Server: persist push device registrations** instead of an in-memory dictionary, so a module-host
