@@ -362,10 +362,29 @@ function validateGenerated(generatedCode, sources) {
     return { problems, checked };
 }
 
+/**
+ * Builds butterchurn's reference compiler *inside* the sandbox.
+ *
+ * The compiler must be created in the sandbox realm so the equations it compiles resolve their
+ * globals (butterchurn's EEL helpers) against the sandbox — not against Node's global scope.
+ *
+ * The source string is deliberately passed as an *argument* at call time; it must never be
+ * serialised into the evaluated code text. `JSON.stringify` (and HTML escaping) are not code
+ * sanitizers: interpolating an escaped value into code construction is exactly
+ * `js/bad-code-sanitization` / CWE-94 (CodeQL alert #489), even when the value is trustworthy.
+ */
+function createReferenceCompiler(sandbox) {
+    return vm.runInContext(
+        '(function (equationSource) { return new Function("a", equationSource + " return a;"); })',
+        sandbox
+    );
+}
+
 /** Executes precompiled vs. `new Function` equations and diffs the resulting params. */
 function runtimeDiff(sources, generatedCode) {
     const sandbox = createRuntimeSandbox();
     vm.runInContext(generatedCode, sandbox, { filename: OUT_FILE });
+    const compileReference = createReferenceCompiler(sandbox);
 
     // Presets call rand()/rand_start which hit Math.random(). Seed it identically for both runs
     // (the sandbox shares this Math object), otherwise every preset looks different.
@@ -401,9 +420,11 @@ function runtimeDiff(sources, generatedCode) {
                     if (typeof str !== 'string') { failures.push(`${entry.label}.${prop}: no source string`); continue; }
 
                     // Reference implementation: exactly what butterchurn would have built.
+                    // The equation source is handed to the sandbox compiler as data (never
+                    // interpolated into the code text — see createReferenceCompiler).
                     let refFn;
                     try {
-                        refFn = vm.runInContext(`(function (src) { return new Function("a", src + " return a;"); })(${JSON.stringify(str)})`, sandbox);
+                        refFn = compileReference(str);
                     } catch (err) {
                         failures.push(`${entry.label}.${prop}: reference compile failed: ${err.message}`);
                         continue;
@@ -510,4 +531,17 @@ function main() {
     }
 }
 
-main();
+if (require.main === module) {
+    main();
+}
+
+module.exports = {
+    createSandbox,
+    createRuntimeSandbox,
+    createReferenceCompiler,
+    loadPresetSources,
+    buildFile,
+    validateGenerated,
+    runtimeDiff,
+    SOURCES,
+};
