@@ -5907,3 +5907,46 @@ line up.
 - No schema change — the existing migration set is unchanged, so no new EF migration was required.
 - The broadcast service tests now use a second context that models production; sharing a tracking context with the
   service is what let this bug ship unnoticed, so new tests should follow the NoTracking pattern.
+
+## Files Module — Delete Progress Spinner (2026-09-17)
+
+**Status:** in progress (build, tests and deploy verified; browser E2E pending)
+**Branch:** `fix/more-blazor-improvements`
+**Goal:** Give the user visible progress while the Files module deletes several files. Deletes run
+sequentially (one request per node), and the confirmation dialog used to close instantly with the listing
+unchanged until the last request returned — so a multi-file delete looked like nothing was happening.
+
+### Deliverables
+
+- ✓ File-browser "Move to trash?" dialog stays open with a `.delete-progress` spinner and a
+  "Deleting 2 of 5: name…" status while the delete runs; the X / Delete / Cancel buttons are hidden and
+  overlay clicks are ignored
+- ✓ `ConfirmDeleteAsync` guards re-entry (`_isDeleting`), closes the dialog in `finally` so a failed delete
+  can never strand the spinner, logs failures and still refreshes the listing
+- ✓ Applies to every delete entry point: bulk selection Trash, item context menu, gallery tile, preview
+- ✓ Trash bin "Delete selected" (permanent) reports the same kind of progress through a `trash-deleting`
+  banner and locks the toolbar/row actions while it runs (`IsBusy`)
+- ✓ `FilesDeleteProgress` shared helper (`internal static`) — `BuildStatus(index, count, name)` and
+  `GetHoldTimeMs(elapsedMs)` (1000 ms floor) + 12 unit tests
+- ✓ Progress state is forced to render before the work starts (`StateHasChanged()` + `await Task.Delay(1)`),
+  and a delete can never close the dialog before 1000 ms have elapsed
+- ✓ Select-mode action row — `🗑️ Trash` moved to the right end of the row (`margin-left: auto`)
+- ✓ `app.css` `.delete-progress` / `.trash-deleting` styles; `App.razor` cache-buster `app.css?v=20260917-01`
+
+### Notes
+
+- No server-side change: the delete API and EF behaviour are untouched, so nothing was re-migrated.
+- Because the dialog closes in `finally`, a failed or denied delete still dismisses and refreshes; the listing
+  then shows whatever state the server actually ended up in.
+- Verified: full solution build 0 warnings / 0 errors, 800/800 Files tests, deploy 15/15 targets with hashes
+  verified on mint22, `/health/ready` 200, new classes/helper confirmed in the deployed assemblies.
+- Reported by the user after the first deploy: a 39-file delete showed no spinner. Root cause — the delete
+  loop never yielded the dispatcher, so the only render batch that got dispatched was the final one; the
+  600 ms floor did not apply because that delete had taken longer than the floor already.
+- ✓ Browser E2E verified by the user on mint22 dev (2026-09-17): the 39-file delete now holds the dialog
+  with the spinner + progress text, and `🗑️ Trash` sits at the right end of the select-mode row.
+- The first two "still no spinner" reports were made against **production** (`cloud.dotnetcloud.net`), which
+  does not run this build — the stale button order in the screenshot was the tell. Confirm the environment
+  (dev `https://mint22:5443/` vs production `https://cloud.dotnetcloud.net/`) before debugging a UI report.
+- Production (`cloud.dotnetcloud.net`) does **not** have this change yet — it goes out with the next deploy
+  of this branch to that host.

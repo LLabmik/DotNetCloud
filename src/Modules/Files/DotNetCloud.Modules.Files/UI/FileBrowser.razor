@@ -46,7 +46,7 @@
                         </span>
                     </div>
                     <span class="files-header-subtitle">@TaggedNodes.Count @(TaggedNodes.Count == 1 ? "file" :
-                                                                                     "files")</span>
+                                                                                                             "files")</span>
                     </div>
 
                     @if (IsLoading)
@@ -176,11 +176,11 @@ else
                                     Move</button>
                                     <button class="btn btn-sm" @onclick="ShowCopyDialog" title="Copy selected items to another folder">📋
                                         Copy</button>
-                                        <button class="btn btn-sm btn-danger" @onclick="BulkTrashSelected"
-                                                title="Move selected items to trash">🗑️ Trash</button>
                                         <button class="btn btn-sm" @onclick="BulkDownloadZip" title="Download selected items as ZIP">📥 Download
                                             ZIP</button>
                                             <button class="btn btn-sm" @onclick="ShowBulkTagAdd" title="Add tag to selected">🏷️ Tag</button>
+                                            <button class="btn btn-sm btn-danger bulk-actions-bar-delete" @onclick="BulkTrashSelected"
+                                                    title="Move selected items to trash">🗑️ Trash</button>
                                         }
                                     </div>
 
@@ -286,8 +286,7 @@ else
                                                     @GalleryImages.Count @(GalleryImages.Count == 1 ? "image" : "images") in this folder
                                                 </span>
                                                 <button class="btn btn-sm @(IsGallerySlideshow ? "btn-active" : "")"
-                                                        @onclick="ToggleGallerySlideshow"
-                                                        disabled="@(GalleryImages.Count < 2)"
+                                                        @onclick="ToggleGallerySlideshow" disabled="@(GalleryImages.Count < 2)"
                                                         title="@(IsGallerySlideshow ? "Disable slideshow when opening an image" : "Start a slideshow when opening an image")">
                                                     <MaterialIcon Icon="slideshow" Size="MaterialIconSize.Sm" />
                                                     Slideshow @(IsGallerySlideshow ? "On" : "Off")
@@ -298,365 +297,374 @@ else
                                             {
                                                 <div class="empty-state" role="status">
                                                     <p class="empty-state-title">No images in this folder</p>
-                                                    <p class="text-muted empty-state-hint">Switch to Grid or List view to see all files, or upload an image.</p>
-                                                </div>
-                                            }
-                                            else
-                                            {
-                                                <div class="gallery-grid">
-                                                    @foreach (var image in GalleryImages)
-                                                    {
-                                                        <div class="gallery-tile" data-node-id="@image.Id">
-                                                            <button class="gallery-tile-open" @onclick="() => OpenGalleryImage(image)"
-                                                                    title="Open @image.Name in the image viewer">
-                                                                <span class="gallery-thumb-wrap">
-                                                                    <MaterialIcon Icon="image" Size="MaterialIconSize.Xl" CssClass="gallery-thumb-placeholder" />
-                                                                    <img src="@GetGalleryImageUrl(image)" alt="@image.Name" class="gallery-thumb"
-                                                                         loading="lazy" @onerror="() => HandleGalleryThumbError(image)" />
-                                                                </span>
-                                                                <span class="gallery-tile-overlay">
-                                                                    <span class="gallery-tile-name">@image.Name</span>
-                                                                    <span class="gallery-tile-meta">@FormatSize(image.Size)</span>
-                                                                </span>
-                                                            </button>
-                                                            @if (!image.IsReadOnly)
-                                                            {
-                                                                <button class="btn-icon gallery-tile-delete" @onclick="() => HandleGalleryDelete(image)"
-                                                                        title="Delete @image.Name" aria-label="Delete @image.Name">
-                                                                    <MaterialIcon Icon="delete" Size="MaterialIconSize.Sm" />
-                                                                </button>
-                                                            }
-                                                        </div>
-                                                    }
-                                                </div>
-                                            }
-                                        </div>
-                                    }
-                                    else
-                                    {
-                                        @if (_viewMode == ViewMode.List)
-                                        {
-                                            <div class="files-list-header">
-                                                <div class="col-check"></div>
-                                                <div class="col-icon"></div>
-                                                <button class="col-name sort-header @SortHeaderClass("Name")" @onclick='() => SetSort("Name")'>
-                                                    Name @SortIndicator("Name")
-                                                </button>
-                                                <button class="col-type sort-header @SortHeaderClass("Type")" @onclick='() => SetSort("Type")'>
-                                                    Type @SortIndicator("Type")
-                                                </button>
-                                                <button class="col-size sort-header @SortHeaderClass("Size")" @onclick='() => SetSort("Size")'>
-                                                    Size @SortIndicator("Size")
-                                                </button>
-                                                <button class="col-date sort-header @SortHeaderClass("Date")" @onclick='() => SetSort("Date")'>
-                                                    Modified @SortIndicator("Date")
-                                                </button>
-                                                <div class="col-actions"></div>
-                                            </div>
-                                        }
-
-                                        <div class="@GetFilesContainerClass()">
-                                            @foreach (var node in SortedNodes)
-                                            {
-                                                <div class="file-item @(IsSelected(node.Id) ? "selected" : "") @(_selectionMode ? "selection-mode" : "")"
-                                                     data-node-id="@node.Id" data-node-type="@node.NodeType" @onclick="() => HandleNodeClick(node)">
-
-                                                    @if (_selectionMode)
-                                                    {
-                                                        <div class="col-check">
-                                                            <input type="checkbox" checked="@IsSelected(node.Id)" @onclick:stopPropagation
-                                                                   @onchange="() => ToggleSelect(node.Id)" aria-label="Select @node.Name" />
-                                                        </div>
-                                                    }
-
-                                                    <div class="file-icon">
-                                                        @if (_viewMode == ViewMode.Grid && node.ThumbnailUrl is not null)
-                                                        {
-                                                            <img src="@node.ThumbnailUrl" alt="" class="file-thumbnail" loading="lazy" />
-                                                        }
-                                                        else
-                                                        {
-                                                            <MaterialIcon Icon="@GetNodeIcon(node)" />
-                                                        }
+                                                    <p class="text-muted empty-state-hint">Switch to Grid or List view to see all files, or upload an
+                                                        image.</p>
                                                     </div>
-
-                                                    <div class="file-info">
-                                                        @if (node.NodeType == "Folder")
+                                                }
+                                            else
+                                                {
+                                                    <div class="gallery-grid">
+                                                        @foreach (var image in GalleryImages)
                                                         {
-                                                            <button class="file-name file-name-link" title="Open @node.Name" @onclick:stopPropagation
-                                                                    @onclick="() => OpenFolder(node)">
-                                                                @node.Name
-                                                            </button>
-                                                        }
-                                                        else
-                                                        {
-                                                            <button class="file-name file-name-link" title="Open @node.Name" @onclick:stopPropagation
-                                                                    @onclick="() => OpenNodeAsync(node)">
-                                                                @node.Name
-                                                            </button>
-                                                        }
-                                                        @if (node.Tags.Count > 0)
-                                                        {
-                                                            <div class="file-tags" aria-label="Tags">
-                                                                @foreach (var tag in node.Tags)
+                                                            <div class="gallery-tile" data-node-id="@image.Id">
+                                                                <button class="gallery-tile-open" @onclick="() => OpenGalleryImage(image)"
+                                                                        title="Open @image.Name in the image viewer">
+                                                                    <span class="gallery-thumb-wrap">
+                                                                        <MaterialIcon Icon="image" Size="MaterialIconSize.Xl"
+                                                                                      CssClass="gallery-thumb-placeholder" />
+                                                                        <img src="@GetGalleryImageUrl(image)" alt="@image.Name" class="gallery-thumb"
+                                                                             loading="lazy" @onerror="() => HandleGalleryThumbError(image)" />
+                                                                    </span>
+                                                                    <span class="gallery-tile-overlay">
+                                                                        <span class="gallery-tile-name">@image.Name</span>
+                                                                        <span class="gallery-tile-meta">@FormatSize(image.Size)</span>
+                                                                    </span>
+                                                                </button>
+                                                                @if (!image.IsReadOnly)
                                                                 {
-                                                                    <TagBadge Tag="tag" OnRemove="() => HandleInlineTagRemove(node.Id, tag)" />
+                                                                    <button class="btn-icon gallery-tile-delete" @onclick="() => HandleGalleryDelete(image)"
+                                                                            title="Delete @image.Name" aria-label="Delete @image.Name">
+                                                                        <MaterialIcon Icon="delete" Size="MaterialIconSize.Sm" />
+                                                                    </button>
                                                                 }
                                                             </div>
                                                         }
-                                                        <span class="file-meta">
-                                                            @if (node.NodeType == "File")
-                                                            {
-                                                                @FormatSize(node.Size)
-                                                                <span class="meta-sep">·</span>
-                                                            }
-                                                            else if (node.NodeType == "Folder")
-                                                            {
-                                                                @FormatSize(node.TotalSize)
-                                                                <span class="meta-sep">·</span>
-                                                            }
-                                                            @node.UpdatedAt.ToString("MMM d, yyyy")
-                                                            @if (node.CommentCount > 0)
-                                                            {
-                                                                <button class="comment-indicator" title="@node.CommentCount comment(s)"
-                                                                        @onclick:stopPropagation @onclick="() => HandleContextComments(node.Id)">💬</button>
-                                                            }
-                                                        </span>
                                                     </div>
-
-                                                    @if (!_selectionMode)
-                                                    {
-                                                        <div class="file-actions">
-                                                            @if (!node.IsVirtual)
-                                                            {
-                                                                <button class="btn-icon" @onclick:stopPropagation @onclick="() => ToggleFavorite(node.Id)"
-                                                                        title="@(node.IsFavorite ? "Unfavorite" : "Favorite")">
-                                                                    @(node.IsFavorite ? "★" : "☆")
-                                                                </button>
-                                                                <button class="btn-icon" @onclick:stopPropagation @onclick="() => ShowShareDialogAsync(node)"
-                                                                        title="Share" aria-label="Share">🔗</button>
-                                                            }
-                                                        </div>
-                                                    }
-                                                </div>
-                                            }
-                                        </div>
-
-                                        @if (TotalCount > PageSize)
-                                        {
-                                            <div class="files-pagination">
-                                                <button class="btn btn-sm" disabled="@(CurrentPage <= 1)" @onclick="PreviousPage">Previous</button>
-                                                <span>Page @CurrentPage of @TotalPages</span>
-                                                <button class="btn btn-sm" disabled="@(CurrentPage >= TotalPages)" @onclick="NextPage">Next</button>
+                                                }
                                             </div>
                                         }
-                                    }
+                                    else
+                                        {
+                                            @if (_viewMode == ViewMode.List)
+                                            {
+                                                <div class="files-list-header">
+                                                    <div class="col-check"></div>
+                                                    <div class="col-icon"></div>
+                                                    <button class="col-name sort-header @SortHeaderClass("Name")" @onclick='() => SetSort("Name")'>
+                                                        Name @SortIndicator("Name")
+                                                    </button>
+                                                    <button class="col-type sort-header @SortHeaderClass("Type")" @onclick='() => SetSort("Type")'>
+                                                        Type @SortIndicator("Type")
+                                                    </button>
+                                                    <button class="col-size sort-header @SortHeaderClass("Size")" @onclick='() => SetSort("Size")'>
+                                                        Size @SortIndicator("Size")
+                                                    </button>
+                                                    <button class="col-date sort-header @SortHeaderClass("Date")" @onclick='() => SetSort("Date")'>
+                                                        Modified @SortIndicator("Date")
+                                                    </button>
+                                                    <div class="col-actions"></div>
+                                                </div>
+                                            }
 
-                                    @if (IsShowShareDialog && ShareTargetNode is not null)
-                                    {
-                                        <DncShareDialog ItemName="@ShareTargetNode.Name"
-                                                        ItemCount="1"
-                                                        EnablePublicLink="true"
-                                                        ShowNewShareExtras="true"
-                                                        ExistingShares="_shareDialogShares"
-                                                        IsLoadingShares="_isLoadingShareDialogShares"
-                                                        OnClose="HideShareDialog"
-                                                        OnShareCreated="HandleShareCreatedAsync"
-                                                        OnShareUpdated="HandleShareUpdatedAsync"
-                                                        OnShareRemoved="HandleShareRemovedAsync"
-                                                        OnPublicLinkToggled="HandlePublicLinkToggledAsync" />
-                                    }
+                                            <div class="@GetFilesContainerClass()">
+                                                @foreach (var node in SortedNodes)
+                                                {
+                                                    <div class="file-item @(IsSelected(node.Id) ? "selected" : "") @(_selectionMode ? "selection-mode" : "")"
+                                                         data-node-id="@node.Id" data-node-type="@node.NodeType" @onclick="() => HandleNodeClick(node)">
 
-                                    @if (_showBulkShareDialog && _bulkShareTargetIds.Count > 1)
-                                    {
-                                        <DncShareDialog ItemName="@(BulkShareTargetNodes.FirstOrDefault()?.Name ?? string.Empty)"
-                                                        ItemCount="@_bulkShareTargetIds.Count"
-                                                        ExistingShares="@(Array.Empty<DncShareEntry>())"
-                                                        OnClose="HideBulkShareDialog"
-                                                        OnShareCreated="HandleBulkShareCreatedAsync" />
-                                    }
-
-                                    <FileContextMenu IsVisible="_showContextMenu" X="_contextMenuX" Y="_contextMenuY"
-                                                     NodeId="_contextMenuNodeId" NodeType="_contextMenuNodeType" IsReadOnly="_contextMenuNodeIsReadOnly"
-                                                     OnOpen="HandleContextOpen" OnRename="HandleContextRename" OnMove="HandleContextMove"
-                                                     OnCopy="HandleContextCopy" OnShare="HandleContextShare" OnDownload="HandleContextDownload"
-                                                     OnVersionHistory="HandleContextVersionHistory" OnComments="HandleContextComments"
-                                                     OnDelete="HandleContextDelete" OnTag="HandleContextTag" OnDismiss="DismissContextMenu" />
-
-                                    @if (_showSingleTagDialog && _tagTargetNodeIds.Count > 0)
-                                    {
-                                        <div class="dialog-overlay" @onclick="HideSingleTagDialog">
-                                            <div class="dialog" @onclick:stopPropagation>
-                                                <div class="dialog-header">
-                                                    <h3>
-                                                        @if (_tagTargetNodeIds.Count == 1)
+                                                        @if (_selectionMode)
                                                         {
-                                                            <text>Tag: @(_nodes.FirstOrDefault(n => n.Id == _tagTargetNodeIds[0])?.Name ??
-                                                                                                                                                                                                                                "file")</text>
-                                                            }
-                        else
+                                                            <div class="col-check">
+                                                                <input type="checkbox" checked="@IsSelected(node.Id)" @onclick:stopPropagation
+                                                                       @onchange="() => ToggleSelect(node.Id)" aria-label="Select @node.Name" />
+                                                            </div>
+                                                        }
+
+                                                        <div class="file-icon">
+                                                            @if (_viewMode == ViewMode.Grid && node.ThumbnailUrl is not null)
                                                             {
-                                                                <text>Tag @_tagTargetNodeIds.Count files</text>
+                                                                <img src="@node.ThumbnailUrl" alt="" class="file-thumbnail" loading="lazy" />
                                                             }
-                                                        </h3>
-                                                        <button class="btn-icon" @onclick="HideSingleTagDialog" aria-label="Close"
-                                                                title="Close">X</button>
-                                                    </div>
-                                                    <div class="dialog-body">
-                                                        <TagInput ExistingTags="UserTags" OnTagAdded="HandleSingleTagAdd" />
-                                                        @if (_tagTargetNodeIds.Count == 1)
-                                                        {
-                                                            var taggedNode = _nodes.FirstOrDefault(n => n.Id == _tagTargetNodeIds[0]);
-                                                            @if (taggedNode is not null && taggedNode.Tags.Count > 0)
+                                                            else
                                                             {
-                                                                <div class="tag-dialog-existing">
-                                                                    <span class="tag-dialog-existing-label">Current tags</span>
-                                                                    <div class="tag-dialog-existing-list">
-                                                                        @foreach (var tag in taggedNode.Tags)
-                                                                        {
-                                                                            <TagBadge Tag="tag" OnRemove="HandleSingleTagRemove" />
-                                                                        }
-                                                                    </div>
+                                                                <MaterialIcon Icon="@GetNodeIcon(node)" />
+                                                            }
+                                                        </div>
+
+                                                        <div class="file-info">
+                                                            @if (node.NodeType == "Folder")
+                                                            {
+                                                                <button class="file-name file-name-link" title="Open @node.Name" @onclick:stopPropagation
+                                                                        @onclick="() => OpenFolder(node)">
+                                                                    @node.Name
+                                                                </button>
+                                                            }
+                                                            else
+                                                            {
+                                                                <button class="file-name file-name-link" title="Open @node.Name" @onclick:stopPropagation
+                                                                        @onclick="() => OpenNodeAsync(node)">
+                                                                    @node.Name
+                                                                </button>
+                                                            }
+                                                            @if (node.Tags.Count > 0)
+                                                            {
+                                                                <div class="file-tags" aria-label="Tags">
+                                                                    @foreach (var tag in node.Tags)
+                                                                    {
+                                                                        <TagBadge Tag="tag" OnRemove="() => HandleInlineTagRemove(node.Id, tag)" />
+                                                                    }
                                                                 </div>
                                                             }
+                                                            <span class="file-meta">
+                                                                @if (node.NodeType == "File")
+                                                                {
+                                                                    @FormatSize(node.Size)
+                                                                    <span class="meta-sep">·</span>
+                                                                }
+                                                                else if (node.NodeType == "Folder")
+                                                                {
+                                                                    @FormatSize(node.TotalSize)
+                                                                    <span class="meta-sep">·</span>
+                                                                }
+                                                                @node.UpdatedAt.ToString("MMM d, yyyy")
+                                                                @if (node.CommentCount > 0)
+                                                                {
+                                                                    <button class="comment-indicator" title="@node.CommentCount comment(s)"
+                                                                            @onclick:stopPropagation @onclick="() => HandleContextComments(node.Id)">💬</button>
+                                                                }
+                                                            </span>
+                                                        </div>
+
+                                                        @if (!_selectionMode)
+                                                        {
+                                                            <div class="file-actions">
+                                                                @if (!node.IsVirtual)
+                                                                {
+                                                                    <button class="btn-icon" @onclick:stopPropagation @onclick="() => ToggleFavorite(node.Id)"
+                                                                            title="@(node.IsFavorite ? "Unfavorite" : "Favorite")">
+                                                                        @(node.IsFavorite ? "★" : "☆")
+                                                                    </button>
+                                                                    <button class="btn-icon" @onclick:stopPropagation @onclick="() => ShowShareDialogAsync(node)"
+                                                                            title="Share" aria-label="Share">🔗</button>
+                                                                }
+                                                            </div>
                                                         }
                                                     </div>
-                                                    <div class="dialog-footer">
-                                                        <button class="btn btn-sm" @onclick="HideSingleTagDialog">Close</button>
+                                                }
+                                            </div>
+
+                                            @if (TotalCount > PageSize)
+                                            {
+                                                <div class="files-pagination">
+                                                    <button class="btn btn-sm" disabled="@(CurrentPage <= 1)" @onclick="PreviousPage">Previous</button>
+                                                    <span>Page @CurrentPage of @TotalPages</span>
+                                                    <button class="btn btn-sm" disabled="@(CurrentPage >= TotalPages)" @onclick="NextPage">Next</button>
+                                                </div>
+                                            }
+                                        }
+
+                                        @if (IsShowShareDialog && ShareTargetNode is not null)
+                                        {
+                                            <DncShareDialog ItemName="@ShareTargetNode.Name" ItemCount="1" EnablePublicLink="true"
+                                                            ShowNewShareExtras="true" ExistingShares="_shareDialogShares"
+                                                            IsLoadingShares="_isLoadingShareDialogShares" OnClose="HideShareDialog"
+                                                            OnShareCreated="HandleShareCreatedAsync" OnShareUpdated="HandleShareUpdatedAsync"
+                                                            OnShareRemoved="HandleShareRemovedAsync" OnPublicLinkToggled="HandlePublicLinkToggledAsync" />
+                                        }
+
+                                        @if (_showBulkShareDialog && _bulkShareTargetIds.Count > 1)
+                                        {
+                                            <DncShareDialog ItemName="@(BulkShareTargetNodes.FirstOrDefault()?.Name ?? string.Empty)"
+                                                            ItemCount="@_bulkShareTargetIds.Count" ExistingShares="@(Array.Empty<DncShareEntry>())"
+                                                            OnClose="HideBulkShareDialog" OnShareCreated="HandleBulkShareCreatedAsync" />
+                                        }
+
+                                        <FileContextMenu IsVisible="_showContextMenu" X="_contextMenuX" Y="_contextMenuY"
+                                                         NodeId="_contextMenuNodeId" NodeType="_contextMenuNodeType" IsReadOnly="_contextMenuNodeIsReadOnly"
+                                                         OnOpen="HandleContextOpen" OnRename="HandleContextRename" OnMove="HandleContextMove"
+                                                         OnCopy="HandleContextCopy" OnShare="HandleContextShare" OnDownload="HandleContextDownload"
+                                                         OnVersionHistory="HandleContextVersionHistory" OnComments="HandleContextComments"
+                                                         OnDelete="HandleContextDelete" OnTag="HandleContextTag" OnDismiss="DismissContextMenu" />
+
+                                        @if (_showSingleTagDialog && _tagTargetNodeIds.Count > 0)
+                                        {
+                                            <div class="dialog-overlay" @onclick="HideSingleTagDialog">
+                                                <div class="dialog" @onclick:stopPropagation>
+                                                    <div class="dialog-header">
+                                                        <h3>
+                                                            @if (_tagTargetNodeIds.Count == 1)
+                                                            {
+                                                                <text>Tag: @(_nodes.FirstOrDefault(n => n.Id == _tagTargetNodeIds[0])?.Name ??
+                                                                                                                                                                                                                                                                                                    "file")</text>
+                                                                }
+                        else
+                                                                {
+                                                                    <text>Tag @_tagTargetNodeIds.Count files</text>
+                                                                }
+                                                            </h3>
+                                                            <button class="btn-icon" @onclick="HideSingleTagDialog" aria-label="Close"
+                                                                    title="Close">X</button>
+                                                        </div>
+                                                        <div class="dialog-body">
+                                                            <TagInput ExistingTags="UserTags" OnTagAdded="HandleSingleTagAdd" />
+                                                            @if (_tagTargetNodeIds.Count == 1)
+                                                            {
+                                                                var taggedNode = _nodes.FirstOrDefault(n => n.Id == _tagTargetNodeIds[0]);
+                                                                @if (taggedNode is not null && taggedNode.Tags.Count > 0)
+                                                                {
+                                                                    <div class="tag-dialog-existing">
+                                                                        <span class="tag-dialog-existing-label">Current tags</span>
+                                                                        <div class="tag-dialog-existing-list">
+                                                                            @foreach (var tag in taggedNode.Tags)
+                                                                            {
+                                                                                <TagBadge Tag="tag" OnRemove="HandleSingleTagRemove" />
+                                                                            }
+                                                                        </div>
+                                                                    </div>
+                                                                }
+                                                            }
+                                                        </div>
+                                                        <div class="dialog-footer">
+                                                            <button class="btn btn-sm" @onclick="HideSingleTagDialog">Close</button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            }
+
+                                            @if (_showDeleteConfirm)
+                                            {
+                                                <div class="dialog-overlay dialog-overlay--above-preview" @onclick="CancelDelete">
+                                                    <div class="dialog" @onclick:stopPropagation>
+                                                        <div class="dialog-header">
+                                                            <h3>Move to trash?</h3>
+                                                            @if (!_isDeleting)
+                                                            {
+                                                                <button class="btn-icon" @onclick="CancelDelete" aria-label="Close" title="Close">X</button>
+                                                            }
+                                                        </div>
+                                                        <div class="dialog-body">
+                                                            @if (_isDeleting)
+                                                            {
+                                                                <div class="delete-progress" role="status" aria-live="polite">
+                                                                    <div class="spinner"></div>
+                                                                    <span>@_deleteStatus</span>
+                                                                </div>
+                                                            }
+                                                            else
+                                                            {
+                                                                <p>Move @_deleteTargetNodeIds.Count @(_deleteTargetNodeIds.Count == 1 ? "item" : "items") to the
+                                                                    trash? You can restore them from the Trash view.</p>
+                                                                }
+                                                            </div>
+                                                            @if (!_isDeleting)
+                                                            {
+                                                                <div class="dialog-footer">
+                                                                    <button class="btn btn-danger btn-sm" @onclick="ConfirmDeleteAsync">Delete</button>
+                                                                    <button class="btn btn-sm" @onclick="CancelDelete">Cancel</button>
+                                                                </div>
+                                                            }
+                                                        </div>
+                                                    </div>
+                                                }
+
+                                                @if (_showRenameDialog && _renameNode is not null)
+                                                {
+                                                    <div class="create-folder-dialog" data-enter-submit data-autofocus-first>
+                                                        <input type="text" @bind="_renameNewName" @bind:event="oninput" placeholder="New name"
+                                                               @onkeydown="HandleRenameKeyDown" />
+                                                        <button class="btn btn-primary btn-sm" @onclick="ConfirmRename">Rename</button>
+                                                        <button class="btn btn-sm" @onclick="CancelRename">Cancel</button>
+                                                    </div>
+                                                }
+
+                                            </div>
+                                        }
+
+                                        @if (IsShowPreview && PreviewNode is not null)
+                                        {
+                                            <FilePreview Node="@PreviewNode" AllNodes="PreviewAllNodes" ApiBaseUrl="@ApiBaseUrl"
+                                                         ShowCommentsButton="@(!PreviewNode.IsReadOnly)" ShowShareButton="@(!PreviewNode.IsVirtual)"
+                                                         StartSlideshow="@IsGallerySlideshow" ShowDeleteButton="true" ModalOpen="@_showDeleteConfirm"
+                                                         OnClose="HidePreview" OnShare="HandlePreviewShare" OnDownload="HandlePreviewDownload"
+                                                         OnComments="HandlePreviewComments" OnDelete="HandlePreviewDelete" />
+                                        }
+
+                                        @if (IsShowDocumentEditor && EditorNode is not null)
+                                        {
+                                            <div class="document-editor-overlay">
+                                                <DocumentEditor FileId="@EditorNode.Id" FileName="@EditorNode.Name" ApiBaseUrl="@ApiBaseUrl"
+                                                                OnClose="HideDocumentEditor" OnDownload="HandleEditorDownload" />
+                                            </div>
+                                        }
+
+                                        @if (_showVersionHistory && _versionHistoryFileName is not null)
+                                        {
+                                            <VersionHistoryPanel FileName="@_versionHistoryFileName" InitialVersions="_versionHistoryItems"
+                                                                 OnClose="HideVersionHistory" OnDownloadVersion="HandleDownloadVersion"
+                                                                 OnRestoreVersion="HandleRestoreVersion" OnDeleteVersion="HandleDeleteVersion"
+                                                                 OnLabelSaved="HandleVersionLabelSaved" />
+                                        }
+
+                                        @if (_showComments && _commentsFileName is not null)
+                                        {
+                                            <CommentsPanel FileName="@_commentsFileName" CurrentUserId="_currentUserId" InitialComments="_commentItems"
+                                                           OnClose="HideComments" OnAddComment="HandleAddComment" OnReplyComment="HandleReplyComment"
+                                                           OnEditComment="HandleEditComment" OnDeleteComment="HandleDeleteComment" />
+                                        }
+
+                                        @if (_showFolderPicker)
+                                        {
+                                            <div class="folder-picker-overlay" @onclick="HideFolderPicker">
+                                                <div class="folder-picker-dialog" @onclick:stopPropagation>
+                                                    <div class="folder-picker-header">
+                                                        <h3>@(_folderPickerMode == FolderPickerMode.Move ? "Move to…" : "Copy to…")</h3>
+                                                        <button class="btn-icon" @onclick="HideFolderPicker" title="Close">✕</button>
+                                                    </div>
+
+                                                    <nav class="folder-picker-breadcrumbs">
+                                                        <button class="btn btn-sm" @onclick="() => PickerNavigate(null)">Home</button>
+                                                        @foreach (var crumb in _pickerBreadcrumbs)
+                                                        {
+                                                            <span class="separator">/</span>
+                                                            <button class="btn btn-sm" @onclick="() => PickerNavigate(crumb.Id)">@crumb.Name</button>
+                                                        }
+                                                    </nav>
+
+                                                    <div class="folder-picker-list">
+                                                        @if (_pickerFolders.Count == 0)
+                                                        {
+                                                            <p class="text-muted folder-picker-empty">No subfolders</p>
+                                                        }
+                                                        else
+                                                        {
+                                                            @foreach (var folder in _pickerFolders)
+                                                            {
+                                                                <button class="folder-picker-item" @onclick="() => PickerNavigate(folder.Id)">
+                                                                    📁 @folder.Name
+                                                                </button>
+                                                            }
+                                                        }
+                                                    </div>
+
+                                                    <div class="folder-picker-actions">
+                                                        <button class="btn btn-primary btn-sm" @onclick="ConfirmFolderPicker">
+                                                            @(_folderPickerMode == FolderPickerMode.Move ? "Move here" : "Copy here")
+                                                        </button>
+                                                        <button class="btn btn-sm" @onclick="HideFolderPicker">Cancel</button>
                                                     </div>
                                                 </div>
                                             </div>
                                         }
 
-                                        @if (_showDeleteConfirm)
+                                        @if (_showZipErrorModal)
                                         {
-                                            <div class="dialog-overlay dialog-overlay--above-preview" @onclick="CancelDelete">
+                                            <div class="dialog-overlay" @onclick="HideZipErrorModal">
                                                 <div class="dialog" @onclick:stopPropagation>
                                                     <div class="dialog-header">
-                                                        <h3>Move to trash?</h3>
-                                                        <button class="btn-icon" @onclick="CancelDelete" aria-label="Close" title="Close">X</button>
+                                                        <h3>Download too large</h3>
+                                                        <button class="btn-icon" @onclick="HideZipErrorModal" aria-label="Close" title="Close">X</button>
                                                     </div>
                                                     <div class="dialog-body">
-                                                        <p>Move @_deleteTargetNodeIds.Count @(_deleteTargetNodeIds.Count == 1 ? "item" : "items") to the
-                                                            trash? You can restore them from the Trash view.</p>
-                                                        </div>
-                                                        <div class="dialog-footer">
-                                                            <button class="btn btn-danger btn-sm" @onclick="ConfirmDeleteAsync">Delete</button>
-                                                            <button class="btn btn-sm" @onclick="CancelDelete">Cancel</button>
-                                                        </div>
+                                                        <p>@_zipErrorMessage</p>
+                                                        <p class="text-muted">Tip: select fewer or smaller files and folders, then try downloading again.
+                                                        </p>
+                                                    </div>
+                                                    <div class="dialog-footer">
+                                                        <button class="btn btn-sm" @onclick="HideZipErrorModal">OK</button>
                                                     </div>
                                                 </div>
-                                            }
-
-                                            @if (_showRenameDialog && _renameNode is not null)
-                                            {
-                                                <div class="create-folder-dialog" data-enter-submit data-autofocus-first>
-                                                    <input type="text" @bind="_renameNewName" @bind:event="oninput" placeholder="New name"
-                                                           @onkeydown="HandleRenameKeyDown" />
-                                                    <button class="btn btn-primary btn-sm" @onclick="ConfirmRename">Rename</button>
-                                                    <button class="btn btn-sm" @onclick="CancelRename">Cancel</button>
-                                                </div>
-                                            }
-
-                                        </div>
-                                    }
-
-                                    @if (IsShowPreview && PreviewNode is not null)
-                                    {
-                                        <FilePreview Node="@PreviewNode" AllNodes="PreviewAllNodes" ApiBaseUrl="@ApiBaseUrl"
-                                                     ShowCommentsButton="@(!PreviewNode.IsReadOnly)" ShowShareButton="@(!PreviewNode.IsVirtual)"
-                                                     StartSlideshow="@IsGallerySlideshow" ShowDeleteButton="true"
-                                                     ModalOpen="@_showDeleteConfirm"
-                                                     OnClose="HidePreview" OnShare="HandlePreviewShare" OnDownload="HandlePreviewDownload"
-                                                     OnComments="HandlePreviewComments" OnDelete="HandlePreviewDelete" />
-                                    }
-
-                                    @if (IsShowDocumentEditor && EditorNode is not null)
-                                    {
-                                        <div class="document-editor-overlay">
-                                            <DocumentEditor FileId="@EditorNode.Id" FileName="@EditorNode.Name" ApiBaseUrl="@ApiBaseUrl"
-                                                            OnClose="HideDocumentEditor" OnDownload="HandleEditorDownload" />
-                                        </div>
-                                    }
-
-                                    @if (_showVersionHistory && _versionHistoryFileName is not null)
-                                    {
-                                        <VersionHistoryPanel FileName="@_versionHistoryFileName" InitialVersions="_versionHistoryItems"
-                                                             OnClose="HideVersionHistory" OnDownloadVersion="HandleDownloadVersion"
-                                                             OnRestoreVersion="HandleRestoreVersion" OnDeleteVersion="HandleDeleteVersion"
-                                                             OnLabelSaved="HandleVersionLabelSaved" />
-                                    }
-
-                                    @if (_showComments && _commentsFileName is not null)
-                                    {
-                                        <CommentsPanel FileName="@_commentsFileName" CurrentUserId="_currentUserId" InitialComments="_commentItems"
-                                                       OnClose="HideComments" OnAddComment="HandleAddComment" OnReplyComment="HandleReplyComment"
-                                                       OnEditComment="HandleEditComment" OnDeleteComment="HandleDeleteComment" />
-                                    }
-
-                                    @if (_showFolderPicker)
-                                    {
-                                        <div class="folder-picker-overlay" @onclick="HideFolderPicker">
-                                            <div class="folder-picker-dialog" @onclick:stopPropagation>
-                                                <div class="folder-picker-header">
-                                                    <h3>@(_folderPickerMode == FolderPickerMode.Move ? "Move to…" : "Copy to…")</h3>
-                                                    <button class="btn-icon" @onclick="HideFolderPicker" title="Close">✕</button>
-                                                </div>
-
-                                                <nav class="folder-picker-breadcrumbs">
-                                                    <button class="btn btn-sm" @onclick="() => PickerNavigate(null)">Home</button>
-                                                    @foreach (var crumb in _pickerBreadcrumbs)
-                                                    {
-                                                        <span class="separator">/</span>
-                                                        <button class="btn btn-sm" @onclick="() => PickerNavigate(crumb.Id)">@crumb.Name</button>
-                                                    }
-                                                </nav>
-
-                                                <div class="folder-picker-list">
-                                                    @if (_pickerFolders.Count == 0)
-                                                    {
-                                                        <p class="text-muted folder-picker-empty">No subfolders</p>
-                                                    }
-                                                    else
-                                                    {
-                                                        @foreach (var folder in _pickerFolders)
-                                                        {
-                                                            <button class="folder-picker-item" @onclick="() => PickerNavigate(folder.Id)">
-                                                                📁 @folder.Name
-                                                            </button>
-                                                        }
-                                                    }
-                                                </div>
-
-                                                <div class="folder-picker-actions">
-                                                    <button class="btn btn-primary btn-sm" @onclick="ConfirmFolderPicker">
-                                                        @(_folderPickerMode == FolderPickerMode.Move ? "Move here" : "Copy here")
-                                                    </button>
-                                                    <button class="btn btn-sm" @onclick="HideFolderPicker">Cancel</button>
-                                                </div>
                                             </div>
-                                        </div>
-                                    }
+                                        }
 
-                                    @if (_showZipErrorModal)
-                                    {
-                                        <div class="dialog-overlay" @onclick="HideZipErrorModal">
-                                            <div class="dialog" @onclick:stopPropagation>
-                                                <div class="dialog-header">
-                                                    <h3>Download too large</h3>
-                                                    <button class="btn-icon" @onclick="HideZipErrorModal" aria-label="Close" title="Close">X</button>
-                                                </div>
-                                                <div class="dialog-body">
-                                                    <p>@_zipErrorMessage</p>
-                                                    <p class="text-muted">Tip: select fewer or smaller files and folders, then try downloading again.
-                                                    </p>
-                                                </div>
-                                                <div class="dialog-footer">
-                                                    <button class="btn btn-sm" @onclick="HideZipErrorModal">OK</button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    }
-
-                                </div> @* .files-page-main *@
-                            </div> @* .files-page-layout *@
+                                    </div> @* .files-page-main *@
+                                </div> @* .files-page-layout *@

@@ -7078,3 +7078,58 @@ Blazor-only by design — Android/desktop clients never join the broadcast group
 - ✓ Deployed to production (cloud): 15/15 targets, 0 pending migrations, hashes verified, `/health/ready` 200,
   14/14 modules Healthy, `_framework/blazor.web.js` 200
 - ✓ Live-verified by the user on the deployed build
+
+## Files Module — Delete Progress Spinner (2026-09-17)
+
+**Branch:** `fix/more-blazor-improvements`
+
+Moving several files to the trash runs one request per node, so a multi-file delete can take a noticeable
+amount of time. The confirmation dialog used to close instantly and the listing stayed untouched until the
+last request returned, leaving the user with no feedback at all. Both Files-module delete paths now show a
+spinner plus progress text while they work.
+
+### File browser — "Move to trash?" dialog
+
+- ✓ `FileBrowser.razor` — the confirmation dialog stays open while the delete runs: its body switches to a
+  `.delete-progress` spinner + status text, the close (X) and Delete/Cancel buttons are hidden, and overlay
+  clicks are ignored (`CancelDelete` returns early while `_isDeleting`)
+- ✓ `FileBrowser.razor.cs` — `ConfirmDeleteAsync` sets `_isDeleting`/`_deleteStatus`, updates the progress
+  text per node, and closes the dialog in `finally` (a failed delete can never strand it); a failed delete is
+  logged and still falls through to the refresh so the listing matches server state
+- ✓ Covers every entry point: bulk "🗑️ Trash" on a multi-selection, the item context menu, the gallery tile
+  delete and the preview delete button
+- ✓ `FindNodeName` resolves the current file's name (browser listing or tag view) for the status text
+
+### Trash bin — permanently deleting the selection
+
+- ✓ `TrashBin.razor.cs` — `DeleteSelected` reports per-item progress via `_isDeletingSelected`/`_deleteStatus`
+  and deletes one node at a time; `IsBusy` now includes it, so the toolbar and row actions (including
+  `Restore`) are locked while it runs
+- ✓ `TrashBin.razor` — the existing progress banner is reused for deletes through a new `trash-deleting`
+  variant
+
+### Shared helper, styles & tests
+
+- ✓ `UI/FilesDeleteProgress.cs` — `internal static BuildStatus(index, count, name)` → "Deleting report.pdf…"
+  (single item) / "Deleting 2 of 5: report.pdf…" (multi-item), falling back to a name-less count
+- ✓ `FilesDeleteProgress.GetHoldTimeMs(elapsedMs)` — a delete can never close the dialog before **1000 ms**
+  have passed since the progress state appeared, so the spinner is always seen; deletes that genuinely take
+  longer are never delayed
+- ✓ Forced first render — `StateHasChanged()` followed by `await Task.Delay(1)` before the work starts.
+  Without it, a delete that runs without yielding (39 files did exactly that during testing) only ever
+  dispatched its final "dialog closed" render, so no spinner reached the browser however long it took
+- ✓ Select-mode action row — `🗑️ Trash` moved to the right end of `.bulk-actions-bar` (after Move / Copy /
+  Download ZIP / Tag) and pinned there with `.bulk-actions-bar-delete { margin-left: auto }`
+- ✓ `app.css` — new `.delete-progress` rules (spinner sized for a dialog) and `.trash-deleting` sharing the
+  `.trash-restoring` banner rules; `App.razor` cache-buster bumped to `app.css?v=20260917-01`
+- ✓ `FilesDeleteProgressTests` — 12 unit tests; `DotNetCloud.Modules.Files.Tests` 800/800 pass
+- ✓ `dotnet build DotNetCloud.sln` — 0 warnings / 0 errors
+- ✓ Deployed to mint22 (repeatedly while iterating): 15/15 targets, hashes verified, migrations up to date,
+  version 0.6.09, `/health/ready` HTTP 200 · `delete-progress` + `trash-deleting` + `FilesDeleteProgress`
+  confirmed in the deployed `DotNetCloud.Modules.Files.dll` and `app.css`
+- ✓ Browser E2E (mint22 dev, 2026-09-17) — the 39-file delete (Select all → 🗑️ Trash → Delete) shows the
+  spinner with progress text, and the row now has `Move · Copy · Download ZIP · Tag` with `🗑️ Trash` pinned
+  at the right. **Note:** the first two test attempts were against **production** (`cloud.dotnetcloud.net`),
+  which does not run this build — hence the old button order in the screenshot. Always confirm which
+  environment is being tested (dev `https://mint22:5443/` vs production `https://cloud.dotnetcloud.net/`)
+  before debugging a UI report.

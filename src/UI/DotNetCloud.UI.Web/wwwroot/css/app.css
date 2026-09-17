@@ -1891,7 +1891,8 @@ textarea.input {
   opacity: 0.8;
 }
 
-.trash-restoring {
+.trash-restoring,
+.trash-deleting {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1904,7 +1905,8 @@ textarea.input {
   font-size: 14px;
 }
 
-.trash-restoring .spinner {
+.trash-restoring .spinner,
+.trash-deleting .spinner {
   width: 18px;
   height: 18px;
   border-width: 2px;
@@ -2503,6 +2505,11 @@ textarea.input {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 8px;
+}
+
+/* Delete stays at the right end of the select-mode action row */
+.bulk-actions-bar-delete {
+  margin-left: auto;
 }
 
 .selection-info {
@@ -5844,6 +5851,23 @@ textarea.form-control {
   border: 1px solid var(--color-border);
   border-radius: 8px;
   background: var(--color-bg);
+}
+
+/* Delete confirmation dialog — progress shown while moving files to trash */
+.delete-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 32px;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+
+.delete-progress .spinner {
+  width: 22px;
+  height: 22px;
+  border-width: 2px;
+  flex: 0 0 auto;
 }
 
 /* Tag dialog (modal) extras */
