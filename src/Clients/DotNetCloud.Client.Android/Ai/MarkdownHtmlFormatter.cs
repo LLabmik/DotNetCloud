@@ -39,10 +39,20 @@ public static class MarkdownHtmlFormatter
     ];
 
     /// <summary>Renders <paramref name="markdown"/> as a full HTML document. Never returns <c>null</c>.</summary>
-    public static string ToHtmlDocument(string? markdown)
+    /// <param name="markdown">The Markdown to render.</param>
+    /// <param name="documentToken">
+    /// Optional marker written onto the &lt;body&gt; element so a host can tell this document apart
+    /// from the blank bootstrap page the WebView starts with (and from a previously rendered
+    /// document). Must be attribute-safe; a hex GUID is typical.
+    /// </param>
+    public static string ToHtmlDocument(string? markdown, string? documentToken = null)
     {
         var body = string.IsNullOrEmpty(markdown) ? string.Empty : Markdown.ToHtml(markdown, Pipeline);
-        return HtmlTemplate.Replace("{content}", body, StringComparison.Ordinal);
+        var html = HtmlTemplate.Replace("{content}", body, StringComparison.Ordinal);
+
+        return string.IsNullOrEmpty(documentToken)
+            ? html
+            : html.Replace("<body>", $"<body data-dnc-render=\"{documentToken}\">", StringComparison.Ordinal);
     }
 
     /// <summary>

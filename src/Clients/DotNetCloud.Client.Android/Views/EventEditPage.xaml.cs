@@ -1,4 +1,3 @@
-using DotNetCloud.Client.Android.Ai;
 using DotNetCloud.Client.Android.ViewModels;
 
 namespace DotNetCloud.Client.Android.Views;
@@ -43,12 +42,9 @@ public partial class EventEditPage : ContentPage
         DescriptionPreview.IsVisible = _showingDescriptionPreview;
         if (_showingDescriptionPreview)
         {
-            // Re-render now that the WebView is visible so it re-measures its
-            // content height (the initial render happened while hidden).
-            DescriptionPreview.Source = new HtmlWebViewSource
-            {
-                Html = MarkdownHtmlFormatter.ToHtmlDocument(_vm.Description)
-            };
+            // Re-render now that the preview is visible: a render that happened while the control
+            // was hidden can neither paint nor be measured.
+            DescriptionPreview.Refresh();
         }
         if (sender is Button button)
         {

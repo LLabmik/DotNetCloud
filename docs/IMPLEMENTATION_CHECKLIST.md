@@ -4741,6 +4741,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `Ai/MarkdownHtmlFormatter.cs` — pure Markdig → themed HTML document renderer (CommonMark + tables + lists; raw HTML escaped; CSP `default-src 'none'`)
 - ✓ `Converters/MarkdownHtmlConverters.cs` — `MarkdownHtmlConverter` + `IsRichMarkdownConverter`
 - ✓ `Controls/MarkdownWebView.cs` — auto-height WebView; http/https links open in the system browser; all other navigation blocked
+- ✓ `Controls/MarkdownWebView.cs` — built-in conversion spinner + working auto-height: the render is probed (document token → painted via `requestAnimationFrame`, then measured) instead of relying on `Navigated`, which MAUI suppresses for inline HTML, so a finished answer no longer appears as a short/clipped or blank bubble (2026-09-17)
 - ✓ `AiPage.xaml` — completed assistant messages render as HTML (WebView) when they contain block Markdown; inline-only messages stay on the lightweight `Label`/`FormattedString` path; streaming bubble unchanged
 - ✓ `MarkdownHtmlFormatterTests` — headings, lists, tables, fenced code, raw-HTML escaping, `NeedsHtmlRendering`
 - ✓ Stream-silence watchdog only arms after the first content/thinking chunk — a slow cold Ollama model load (gemma4:12b can take >60s to the first token) no longer cancels the request (mirrors Blazor `AiChatPage`; Android `AiViewModel`, 2026-09-01)
