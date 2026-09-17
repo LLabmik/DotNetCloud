@@ -12,7 +12,24 @@ namespace DotNetCloud.Client.Android.Tests.Ai;
 public sealed class MarkdownWebViewRenderingStateTests
 {
     private static ActivityIndicator SpinnerOf(MarkdownWebView control) =>
-        ((Grid)control.Content).Children.OfType<ActivityIndicator>().Single();
+        VisualTree(control).OfType<ActivityIndicator>().Single();
+
+    private static Label RawTextOf(MarkdownWebView control) =>
+        VisualTree(control).OfType<Label>().Single(l => l.FormattedText is not null);
+
+    private static IEnumerable<Element> VisualTree(Element root)
+    {
+        foreach (var child in ((IVisualTreeElement)root).GetVisualChildren())
+        {
+            if (child is not Element element)
+                continue;
+
+            yield return element;
+
+            foreach (var descendant in VisualTree(element))
+                yield return descendant;
+        }
+    }
 
     [TestMethod]
     public void IsRendering_FreshControl_IsFalse()
@@ -52,30 +69,34 @@ public sealed class MarkdownWebViewRenderingStateTests
     }
 
     [TestMethod]
-    public void Markdown_BlockContent_ShowsAndSpinsTheBuiltInSpinner()
+    public void Markdown_BlockContent_ShowsRawTextAndRenderingHintInsteadOfAnEmptyBubble()
     {
         var control = new MarkdownWebView();
         var spinner = SpinnerOf(control);
+        var rawText = RawTextOf(control);
 
-        Assert.IsFalse(spinner.IsVisible, "The spinner must start hidden.");
-        Assert.IsFalse(spinner.IsRunning);
+        Assert.IsFalse(spinner.IsVisible, "The rendering hint must start hidden.");
+        Assert.IsFalse(rawText.IsVisible, "The raw-text fallback must start hidden.");
 
         control.Markdown = "- item";
 
-        Assert.IsTrue(spinner.IsVisible, "The spinner must cover the WebView conversion.");
+        Assert.IsTrue(spinner.IsVisible, "The rendering hint must cover the WebView conversion.");
         Assert.IsTrue(spinner.IsRunning);
+        Assert.IsTrue(rawText.IsVisible, "The bubble must show the raw text while the HTML is converted.");
+        Assert.IsTrue(
+            rawText.FormattedText!.Spans.Any(s => (s.Text ?? string.Empty).Contains("item", StringComparison.Ordinal)),
+            "The fallback must contain the answer text, so the bubble is never blank.");
     }
 
     [TestMethod]
-    public void Markdown_ContentRenderedByTheLightweightPath_LeavesTheSpinnerHidden()
+    public void Markdown_ContentRenderedByTheLightweightPath_LeavesTheHintHidden()
     {
         var control = new MarkdownWebView();
 
         control.Markdown = "plain text";
 
-        var spinner = SpinnerOf(control);
-        Assert.IsFalse(spinner.IsVisible);
-        Assert.IsFalse(spinner.IsRunning);
+        Assert.IsFalse(SpinnerOf(control).IsVisible);
+        Assert.IsFalse(RawTextOf(control).IsVisible);
     }
 
     [TestMethod]
