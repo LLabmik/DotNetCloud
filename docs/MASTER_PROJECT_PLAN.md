@@ -2805,6 +2805,26 @@ Also fixed Android music play order (2026-09-04, `fix/android-music-play-order`)
 
 ---
 
+### Section: Media Library Auto-Discovery Prompt (Photos)
+
+#### Step: fix/more-blazor-improvements — Photos first-visit new-media detection & import prompt
+
+**Status:** completed ✅
+
+**Deliverables:**
+
+- ✓ `PhotosScanProgressState` — per-user scan progress tracker for the Photos module (`src/Modules/Photos/DotNetCloud.Modules.Photos/Services/PhotosScanProgressState.cs`), mirroring `VideoScanProgressState` (Video) and `ScanProgressState` (Music); registered as a singleton in `AddPhotosServices` + `AddPhotosUiServices`
+- ✓ Photos page (`PhotosPage`): first-visit check fires from `OnAfterRenderAsync(firstRender)` and `OnParametersSetAsync` (fire-and-forget), reloading sources when the async load has not completed yet
+- ✓ "New Photos Available" modal (`DncModal`): Scan Now / Not Now, in-modal live progress with Stop while importing, gallery refresh + green summary notice after import
+- ✓ Detection has both Video/Music branches: (a) image files in the configured sources that are not indexed yet → import prompt (checked on every open), (b) photos indexed since the last visit → "View New Photos" prompt; first-ever open records the baseline
+- ✓ Session semantics identical to Video/Music: `dnc.media-hint.photos` (setup hint, once per tab), `dnc.media-prompt.photos` (3-minute import cooldown), and the `media-library` user setting `photos-last-seen` for the last-visit baseline
+- ✓ Library Settings: import core extracted into `RunLibraryImportAsync()` (shared by Settings "Scan Now" and the modal), live scan progress panel + Stop Scan button, progress classes added to `PhotosPage.razor.css`
+- ✓ 12 new `PhotosScanProgressStateTests` in `tests/DotNetCloud.Modules.Photos.Tests`
+
+**Notes:** Mirrors the `feature/auto-media-scanning` Video + Music implementation exactly (same session keys pattern, same detect-first/import-on-click semantics, same `IMediaLibraryScanner.DiscoverNewMediaFilesAsync` call with media type `"Photos"`). Build clean (0 warnings/0 errors); Core.Server.Tests 780 pass, Photos.Tests 292 pass (12 new). Deployed to mint22 with `sudo ./scripts/deploy.sh --force --verify` (15/15 targets, hashes verified, migrations up to date, `/health/ready` Healthy) and the check was confirmed live in the logs (`Photos new-media check: sources=1` → `nothing new (unindexed=0, added-since-last-visit=0)`); no unindexed photos existed at deploy time, so the import-prompt UI itself is pending a user E2E check when new photos land in a source folder.
+
+---
+
 ## Phase 5: MusicBrainz Metadata Enrichment (Sub-Phase C.1)
 
 ### Section: Phase A - Data Model Changes (Migration)

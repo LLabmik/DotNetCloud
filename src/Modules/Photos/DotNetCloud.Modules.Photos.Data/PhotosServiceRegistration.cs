@@ -47,6 +47,9 @@ public static class PhotosServiceRegistration
         // Indexing callback (bridges Module → Data for FileUploadedEvent handling)
         services.AddScoped<IPhotoIndexingCallback, PhotoIndexingCallback>();
 
+        // Shared per-user scan progress (drives the gallery scan progress panel / import prompt)
+        services.AddSingleton<PhotosScanProgressState>();
+
         // Event handlers
         services.AddScoped<IEventHandler<FileUploadedEvent>, FileUploadedPhotoHandler>();
         services.AddScoped<IEventHandler<AlbumSharedEvent>, AlbumSharedNotificationHandler>();
@@ -91,6 +94,9 @@ public static class PhotosServiceRegistration
 
         // Indexing callback
         services.AddScoped<IPhotoIndexingCallback, PhotoIndexingCallback>();
+
+        // Shared per-user scan progress (singleton so Blazor circuits share it across renders)
+        services.AddSingleton<PhotosScanProgressState>();
 
         // NOTE: PhotoIndexingBackgroundService (hosted) and event handlers
         // are NOT registered here — they run only in the module host process.

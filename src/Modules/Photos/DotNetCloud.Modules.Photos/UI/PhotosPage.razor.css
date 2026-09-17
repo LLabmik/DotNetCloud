@@ -1288,3 +1288,107 @@
         margin: 16px;
     }
 }
+
+/* ═══════════════════════════════════════════════════════════
+   Scan Progress Panel (library scan / first-visit import prompt)
+   ═══════════════════════════════════════════════════════════ */
+
+.scan-progress-panel {
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--color-bg, #f5f7fa);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius, 8px);
+}
+
+.scan-progress-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.scan-phase {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-primary, #3b82f6);
+}
+
+.scan-elapsed {
+  font-size: 0.75rem;
+  color: var(--color-muted, #94a3b8);
+  font-variant-numeric: tabular-nums;
+}
+
+.scan-progress-bar {
+  width: 100%;
+  height: 6px;
+  background: var(--color-border, #e2e8f0);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.scan-progress-fill {
+  height: 100%;
+  background: var(--color-primary, #3b82f6);
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.scan-progress-fill.indeterminate {
+  width: 30%;
+  animation: progress-indeterminate 1.5s ease-in-out infinite;
+}
+
+@keyframes progress-indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(333%);
+  }
+}
+
+.scan-progress-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.scan-current-file {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary, #64748b);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: "SF Mono", "Cascadia Code", "Consolas", monospace;
+}
+
+.scan-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.scan-count {
+  font-size: 0.75rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.scan-count.added {
+  color: #22c55e;
+}
+.scan-count.updated {
+  color: var(--color-primary, #3b82f6);
+}
+.scan-count.skipped {
+  color: var(--color-muted, #94a3b8);
+}
+.scan-count.failed {
+  color: #ef4444;
+}
+.scan-count.discovered {
+  color: var(--color-primary, #3b82f6);
+}

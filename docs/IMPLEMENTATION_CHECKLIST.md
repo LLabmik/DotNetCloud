@@ -4362,6 +4362,16 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ 3 new `MediaFolderImportServiceTests` cases (detection counts without mutation; empty sources; Files module unavailable)
 - ☐ Live E2E verification (new files → modal → Scan Now → page refresh) — pending before commit (repo rule #1)
 
+### Media Library Auto-Discovery Prompt (Photos) — fix/more-blazor-improvements
+
+- ✓ `PhotosScanProgressState` — per-user scan progress tracker for the Photos module (`src/Modules/Photos/DotNetCloud.Modules.Photos/Services/PhotosScanProgressState.cs`), mirroring `VideoScanProgressState` / Music `ScanProgressState`
+- ✓ Registered as a singleton in both `AddPhotosServices` (module host) and `AddPhotosUiServices` (Blazor UI)
+- ✓ Photos module (`PhotosPage`): first-visit-per-browser-session detection over the configured photo library sources, "New Photos Available" modal (Scan Now / Not Now), in-modal live progress + Stop, gallery refresh + summary notice after import, one-time no-sources setup hint, and a "New Photos" view prompt for photos indexed since the last visit
+- ✓ Session semantics identical to Video/Music: `sessionStorage` keys `dnc.media-hint.photos` (setup hint, once per tab) and `dnc.media-prompt.photos` (3-minute import cooldown); last-visit baseline persisted via the `media-library` user setting `photos-last-seen`
+- ✓ Library Settings: shared `RunLibraryImportAsync` import core (Settings "Scan Now" + prompt both use it), live scan progress panel and Stop Scan button
+- ✓ 12 new `PhotosScanProgressStateTests` (start/complete/cancel, per-user isolation, progress routing)
+- ☐ Live E2E with new photos present (no unindexed photos existed at deploy time) — user to confirm
+
 ### Sub-Phase C.1: MusicBrainz Metadata Enrichment
 
 #### Phase A — Data Model Changes (Migration)

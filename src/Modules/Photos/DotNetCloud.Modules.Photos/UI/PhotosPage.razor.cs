@@ -126,6 +126,20 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
     private string? _settingsError;
     private string? _settingsSuccess;
     private MediaScanResult? _scanResult;
+    private CancellationTokenSource? _scanCts;
+
+    // First-visit new-media notification (runs each time the module is opened)
+    private const string SetupHintSessionKey = "dnc.media-hint.photos";
+    private const string ImportPromptAtKey = "dnc.media-prompt.photos";
+    private const string PhotosLastSeenKey = "photos-last-seen";
+    private static readonly TimeSpan ImportPromptCooldown = TimeSpan.FromMinutes(3);
+    private bool _mediaCheckStarted;
+    private bool _showNewMediaModal;
+    private bool _newMediaNeedsImport;
+    private int _newMediaCount;
+    private List<string> _newMediaSampleNames = [];
+    private bool _showLibrarySetupHint;
+    private string? _importNotice;
 
     // Source removal (confirmation + library prune)
     private MediaLibrarySource? _sourceRemovePending;
@@ -167,6 +181,7 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
             _pageSize = await ReadCachedPageSizeAsync();
 
             _caller = await GetCallerContextAsync();
+            ScanProgress.OnProgressChanged += OnScanProgressChanged;
             await LoadLibraryPathAsync();
             await LoadCurrentSectionAsync();
             await HandlePhotoDeepLinkAsync();
@@ -182,6 +197,10 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
 
     protected override async Task OnParametersSetAsync()
     {
+        // Re-run the new-media check whenever the module is (re)selected — some shells keep
+        // module pages alive, so this can fire even without a fresh component mount.
+        _ = RunFirstVisitMediaCheckAsync();
+
         // Handle photoId/albumId changes when already on the page (same-page navigation).
         await HandlePhotoDeepLinkAsync();
         await HandleAlbumDeepLinkAsync();
@@ -189,6 +208,12 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (firstRender)
+        {
+            // Once per browser-tab session: background check for new, unimported photos.
+            _ = RunFirstVisitMediaCheckAsync();
+        }
+
         // The visible grid decides the page size, so this runs after every render:
         // it attaches the observer once the grid is mounted and re-measures after a
         // page load changed the rendered cards.
@@ -282,7 +307,7 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
 
     // ── Navigation ───────────────────────────────────────────
 
-    private async void SwitchSection(Section section)
+    private async Task SwitchSection(Section section)
     {
         _section = section;
         _searchResults = null;
@@ -290,6 +315,8 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
         _selectedAlbumId = null;
         _selectedAlbum = null;
         _page = 0;
+        _importNotice = null;
+        _showLibrarySetupHint = false;
         await LoadCurrentSectionAsync();
         StateHasChanged();
     }
@@ -1278,6 +1305,32 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
         }
     }
 
+    // ── Scan progress ────────────────────────────────────────
+
+    /// <summary>Whether a photo library scan is currently running for the signed-in user.</summary>
+    private bool IsScanActive => _caller is not null && ScanProgress.IsScanning(_caller.UserId);
+
+    /// <summary>Latest scan progress snapshot for the signed-in user, if a scan is running.</summary>
+    private LibraryScanProgress? CurrentScanProgress => _caller is null ? null : ScanProgress.GetCurrentProgress(_caller.UserId);
+
+    private void OnScanProgressChanged() => InvokeAsync(StateHasChanged);
+
+    private static string TruncateFileName(string fileName, int maxLength)
+    {
+        if (string.IsNullOrEmpty(fileName) || fileName.Length <= maxLength)
+            return fileName ?? string.Empty;
+
+        var half = (maxLength - 3) / 2;
+        return $"{fileName[..half]}...{fileName[^half..]}";
+    }
+
+    private static string FormatDuration(TimeSpan duration)
+    {
+        return duration.TotalHours >= 1
+            ? $"{(int)duration.TotalHours}:{duration.Minutes:D2}:{duration.Seconds:D2}"
+            : $"{duration.Minutes}:{duration.Seconds:D2}";
+    }
+
     private async Task ScanLibraryAsync()
     {
         if (_caller is null || _librarySources.Count == 0)
@@ -1291,19 +1344,311 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
         _settingsSuccess = null;
         _scanResult = null;
         StateHasChanged();
+
         try
         {
-            _scanResult = await MediaLibraryScanner.ScanSourcesAsync(_librarySources, _caller.UserId, "Photos");
-            _settingsSuccess = $"Scan complete: {_scanResult.Imported} imported, {_scanResult.Skipped} already up to date.";
-        }
-        catch (Exception ex)
-        {
-            _settingsError = $"Scan failed: {ex.Message}";
+            await RunLibraryImportAsync();
         }
         finally
         {
             _settingsScanning = false;
         }
+    }
+
+    /// <summary>
+    /// Runs the actual photo library import (scan) over the configured sources, bridging progress
+    /// into the shared per-user scan state so the UI can render live progress. Shared by the
+    /// Settings "Scan Now" button and the first-visit import prompt.
+    /// </summary>
+    private async Task RunLibraryImportAsync()
+    {
+        if (_caller is null)
+            return;
+
+        var userId = _caller.UserId;
+        _scanCts?.Cancel();
+        _scanCts?.Dispose();
+        _scanCts = ScanProgress.StartScan(userId);
+        var scanCts = _scanCts;
+
+        // Bridge MediaScanProgress → LibraryScanProgress
+        var elapsedStopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var progressBridge = new Progress<MediaScanProgress>(msp =>
+        {
+            ScanProgress.UpdateProgress(userId, new LibraryScanProgress
+            {
+                Phase = msp.Phase,
+                CurrentFile = msp.CurrentFile,
+                FilesDiscovered = msp.FilesDiscovered,
+                FilesProcessed = msp.FilesProcessed,
+                TotalFiles = msp.TotalFiles,
+                TracksAdded = msp.Imported,
+                TracksFailed = msp.Failed,
+                TracksRemoved = msp.Removed,
+                PercentComplete = msp.PercentComplete,
+                ElapsedTime = elapsedStopwatch.Elapsed
+            });
+        });
+
+        try
+        {
+            _scanResult = await MediaLibraryScanner.ScanSourcesAsync(_librarySources, userId, "Photos", progressBridge, scanCts.Token);
+            ScanProgress.CompleteScan(userId);
+
+            var successMsg = $"Scan complete: {_scanResult.Imported} imported, {_scanResult.Skipped} already up to date";
+            if (_scanResult.Removed > 0)
+                successMsg += $", {_scanResult.Removed} removed (files deleted)";
+            _settingsSuccess = successMsg + ".";
+        }
+        catch (OperationCanceledException)
+        {
+            ScanProgress.CompleteScan(userId);
+            _settingsSuccess = "Scan cancelled.";
+        }
+        catch (Exception ex)
+        {
+            ScanProgress.CompleteScan(userId);
+            _settingsError = $"Scan failed: {ex.Message}";
+        }
+        finally
+        {
+            _scanCts?.Dispose();
+            _scanCts = null;
+        }
+    }
+
+    /// <summary>
+    /// Fired each time the module page is opened. Looks for anything new since the user's last
+    /// visit: (a) image files in library sources that aren't indexed yet → offers an import
+    /// (Scan Now); (b) photos already added to the library since the last visit → offers to view
+    /// them. If no sources are configured a one-time setup hint is shown instead.
+    /// </summary>
+    private async Task RunFirstVisitMediaCheckAsync()
+    {
+        if (_mediaCheckStarted || _caller is null)
+            return;
+        _mediaCheckStarted = true;
+        try
+        {
+            Logger.LogInformation("Photos new-media check: user {UserId}, sources={SourceCount}",
+                _caller.UserId, _librarySources.Count);
+
+            // A configured source means the "no sources" hint no longer applies.
+            if (_librarySources.Count > 0)
+            {
+                _showLibrarySetupHint = false;
+            }
+
+            // The check can fire before OnInitializedAsync's async source load completes
+            // (e.g. via OnParametersSetAsync), so (re)load sources here rather than assuming
+            // "no sources" and skipping detection.
+            if (_librarySources.Count == 0)
+            {
+                await LoadLibraryPathAsync();
+            }
+
+            if (_librarySources.Count == 0)
+            {
+                // One-time setup hint per tab session (auto-suppressed after first show).
+                var hint = await Js.InvokeAsync<string>("sessionStorage.getItem", new object?[] { SetupHintSessionKey });
+                if (string.IsNullOrEmpty(hint))
+                {
+                    await Js.InvokeAsync<object?>("sessionStorage.setItem", new object?[] { SetupHintSessionKey, "1" });
+                    _showLibrarySetupHint = true;
+                    await InvokeAsync(StateHasChanged);
+                }
+                return;
+            }
+
+            // (a) Unindexed image files in the configured sources (need importing). This is checked
+            // on EVERY open — including the very first — so photos uploaded out-of-band (e.g. via
+            // the Files module) are always offered for import rather than baseline-skipped.
+            var discovery = await MediaLibraryScanner.DiscoverNewMediaFilesAsync(_librarySources, _caller.UserId, "Photos");
+            var unindexedCount = discovery is { Success: true } ? discovery.NewFileCount : 0;
+
+            if (unindexedCount > 0)
+            {
+                // Avoid nagging: only re-offer an import once per cooldown within this tab.
+                var lastPromptRaw = await Js.InvokeAsync<string>("sessionStorage.getItem", new object?[] { ImportPromptAtKey });
+                var suppress = long.TryParse(lastPromptRaw, out var lastPromptMs)
+                    && (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - lastPromptMs) < (long)ImportPromptCooldown.TotalMilliseconds;
+                if (suppress)
+                    return;
+
+                Logger.LogInformation("Photos new-media check: showing import prompt ({Unindexed} unindexed files)", unindexedCount);
+                await Js.InvokeAsync<object?>("sessionStorage.setItem",
+                    new object?[] { ImportPromptAtKey, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString() });
+                _newMediaNeedsImport = true;
+                _newMediaCount = unindexedCount;
+                _newMediaSampleNames = discovery.SampleFileNames;
+                _showNewMediaModal = true;
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
+
+            // (b) Photos added to the library since the user last visited. On the first ever
+            // open (no baseline yet) record the baseline so only future additions are reported.
+            var lastSeen = await LoadLastSeenAsync();
+            if (lastSeen is null)
+            {
+                await SaveLastSeenAsync(DateTime.UtcNow);
+                return;
+            }
+
+            var indexedNewCount = await CountNewIndexedSinceAsync(lastSeen.Value);
+            if (indexedNewCount > 0)
+            {
+                Logger.LogInformation("Photos new-media check: showing view prompt ({IndexedNew} added since last visit)", indexedNewCount);
+                _newMediaNeedsImport = false;
+                _newMediaCount = indexedNewCount;
+                _newMediaSampleNames = [];
+                _showNewMediaModal = true;
+                await InvokeAsync(StateHasChanged);
+            }
+            else
+            {
+                Logger.LogInformation("Photos new-media check: nothing new (unindexed={Unindexed}, added-since-last-visit={IndexedNew})",
+                    unindexedCount, indexedNewCount);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Photos library 'new media' check failed");
+        }
+    }
+
+    /// <summary>
+    /// Starts the real import from the "new photos available" prompt. The modal stays open and shows
+    /// live scan progress; when the import finishes the modal closes, the gallery reloads so the
+    /// newly added photos appear, and a summary notice is shown.
+    /// </summary>
+    private async Task ImportNewMediaFromPromptAsync()
+    {
+        if (_caller is null || _librarySources.Count == 0)
+        {
+            _showNewMediaModal = false;
+            return;
+        }
+
+        _settingsError = null;
+        _settingsSuccess = null;
+        _scanResult = null;
+        await RunLibraryImportAsync();
+
+        _showNewMediaModal = false;
+
+        if (!string.IsNullOrEmpty(_settingsError) && !string.Equals(_settingsError, "Scan cancelled.", StringComparison.Ordinal))
+        {
+            _importNotice = $"Photo import failed: {_settingsError}";
+        }
+        else if (string.Equals(_settingsSuccess, "Scan cancelled.", StringComparison.Ordinal))
+        {
+            _importNotice = "Photo import cancelled.";
+        }
+        else
+        {
+            _importNotice = _scanResult is { Imported: > 0 }
+                ? $"{_scanResult.Imported} new photo(s) imported."
+                : "Photo import complete — no new files found.";
+        }
+
+        await LoadCurrentSectionAsync();
+        await SaveLastSeenAsync(DateTime.UtcNow);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>Navigates to the gallery when the user acknowledges new library content.</summary>
+    private async Task ViewNewMediaAsync()
+    {
+        _showNewMediaModal = false;
+        _newMediaCount = 0;
+        _newMediaSampleNames = [];
+        _newMediaNeedsImport = false;
+        await SaveLastSeenAsync(DateTime.UtcNow);
+        await SwitchSection(Section.Gallery);
+    }
+
+    /// <summary>Closes the "new media" prompt without importing/viewing.</summary>
+    private void DismissNewMediaPrompt()
+    {
+        var wasImport = _newMediaNeedsImport;
+        _showNewMediaModal = false;
+        _newMediaCount = 0;
+        _newMediaSampleNames = [];
+        _newMediaNeedsImport = false;
+        // For the "view new" prompt, mark the content seen so it isn't re-offered every open.
+        if (!wasImport)
+            _ = SaveLastSeenAsync(DateTime.UtcNow);
+    }
+
+    /// <summary>Navigates to Library Settings from the no-sources setup hint.</summary>
+    private async Task GoToLibrarySettingsFromHintAsync()
+    {
+        _showLibrarySetupHint = false;
+        await SwitchSection(Section.Settings);
+    }
+
+    /// <summary>Hides the no-sources setup hint.</summary>
+    private void DismissLibrarySetupHint() => _showLibrarySetupHint = false;
+
+    /// <summary>Hides the post-import summary notice.</summary>
+    private void DismissImportNotice() => _importNotice = null;
+
+    /// <summary>Loads the UTC timestamp of the user's last visit (null on first use).</summary>
+    private async Task<DateTime?> LoadLastSeenAsync()
+    {
+        if (_caller is null)
+            return null;
+        var setting = await UserSettingsService.GetSettingAsync(_caller.UserId, MediaLibrarySourceSettings.SettingsModule, PhotosLastSeenKey);
+        return DateTime.TryParse(setting?.Value, out var parsed) ? AsUtc(parsed) : null;
+    }
+
+    /// <summary>Persists the UTC timestamp of the user's last visit for new-media notifications.</summary>
+    private async Task SaveLastSeenAsync(DateTime utc)
+    {
+        if (_caller is null)
+            return;
+        await UserSettingsService.UpsertSettingAsync(
+            _caller.UserId,
+            MediaLibrarySourceSettings.SettingsModule,
+            PhotosLastSeenKey,
+            new UpsertUserSettingDto
+            {
+                Value = utc.ToUniversalTime().ToString("O"),
+                Description = "Photos library last visited (new-media notifications)",
+            });
+    }
+
+    /// <summary>Counts photos added to the library after <paramref name="sinceUtc"/>.</summary>
+    private async Task<int> CountNewIndexedSinceAsync(DateTime sinceUtc)
+    {
+        try
+        {
+            if (_caller is null)
+                return 0;
+            var recent = await PhotoService.GetRecentPhotosAsync(_caller, 300);
+            return recent.Count(photo => AsUtc(photo.CreatedAt) > sinceUtc);
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    /// <summary>Interprets a stored DateTime as UTC regardless of its <see cref="DateTime.Kind"/>.</summary>
+    private static DateTime AsUtc(DateTime value) => value.Kind switch
+    {
+        DateTimeKind.Utc => value,
+        DateTimeKind.Local => value.ToUniversalTime(),
+        _ => DateTime.SpecifyKind(value, DateTimeKind.Utc),
+    };
+
+    /// <summary>Cancels a running photo library scan.</summary>
+    private void StopScan()
+    {
+        _scanCts?.Cancel();
+        if (_caller is not null)
+            ScanProgress.Cancel(_caller.UserId);
     }
 
     private async Task ResetCollectionAsync()
@@ -1669,6 +2014,11 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        ScanProgress.OnProgressChanged -= OnScanProgressChanged;
+
+        _scanCts?.Dispose();
+        _scanCts = null;
+
         _slideshowTimer?.Dispose();
         _slideshowTimer = null;
 
