@@ -7133,3 +7133,62 @@ spinner plus progress text while they work.
   which does not run this build — hence the old button order in the screenshot. Always confirm which
   environment is being tested (dev `https://mint22:5443/` vs production `https://cloud.dotnetcloud.net/`)
   before debugging a UI report.
+
+## Files Module — Quota Refresh After Upload / Empty Trash (2026-09-17)
+
+**Branch:** `fix/more-blazor-improvements`
+
+The Files sidebar quota bar showed the pre-action usage after an upload or after emptying the trash until the
+page was reloaded, even though the server had already updated the stored usage.
+
+**Root cause (found on the first round of live testing):** the sidebar re-read was missing, but adding it
+was not enough — `QuotaService.GetOrCreateQuotaAsync` read the quota row **with EF change tracking**. The
+Files UI services are registered in-process in Core.Server with a scoped `QuotaService`, so in a Blazor
+Server circuit that context lives as long as the session: EF returned the copy tracked on the first read
+(page load) for every later query, ignoring the values the Files module host had written. Only a page
+reload (new circuit → new `DbContext`) showed the true usage.
+
+### File browser — quota re-read after usage-changing operations
+
+- ✓ `FileBrowser.HandleUploadComplete` — re-reads the quota once the upload dialog reports completion
+  (covers the chunked upload dialog, drag-and-drop, clipboard paste and the new-document dialogs)
+- ✓ `FileBrowser.HandleTrashChanged` — re-reads the quota alongside the trash count, so empty trash and
+  permanent deletes (which free storage server-side via `TrashService` → `DecrementQuotaAsync`) update the
+  sidebar bar immediately; also applies when the trash view is reloaded from the Trash sidebar section
+- ✓ `ConfirmFolderPicker` — a **copy** duplicates bytes into the user's storage
+  (`FileService.CopyAsync` → `AdjustUsedBytesAsync`), so the quota is re-read there too; a move leaves usage
+  unchanged and is deliberately not refreshed
+- ✓ `LoadQuotaAsync` split into `LoadQuotaAsync()` (initial load, clears to null on failure) and
+  `RefreshQuotaAsync()` (post-operation, keeps the last known values on a transient failure) over a shared
+  `LoadQuotaCoreAsync`, so a failed refresh can never blank the bar to “— used · Unlimited”
+- ✓ `ChunkedUploadServiceTests.UploadFlow_CompletedUpload_QuotaReflectsUploadedSize` — the real
+  `QuotaService` wired in: initiate (reserve) → upload chunk → complete, asserting `FileQuotas.UsedBytes`
+  already equals the uploaded size when `CompleteUploadAsync` returns (the exact contract the sidebar
+  refresh depends on)
+
+### Stale quota reads — root cause fix
+
+- ✓ New `Data/QuotaRowHelper.cs` — one documented home for reading the quota row safely:
+  `GetCurrentAsync` (`AsNoTracking`, always database values) and `GetForUpdateAsync` (detaches any stale
+  tracked copy before the read, so a delta is applied to stored usage)
+- ✓ `QuotaService.GetOrCreateQuotaAsync` / `GetQuotaAsync` read through `GetCurrentAsync` — this is the
+  call the file-browser sidebar and the Files home widget make
+- ✓ `QuotaService.AdjustUsedBytesAsync`, `TryReserveQuotaAsync`, `SetQuotaAsync`, `RecalculateAsync` and
+  `TrashService.DecrementQuotaAsync` read through `GetForUpdateAsync` — without it a stale snapshot would be
+  the base for `UsedBytes += delta` and the write would **overwrite** the stored usage (a silently wrong
+  quota, not just a stale display)
+- ✓ `QuotaServiceTests.GetOrCreateQuotaAsync_QuotaChangedByAnotherContext_ReturnsFreshValues` — reproduces
+  the reported bug exactly (failed with `expected 1500, actual 500` before the fix)
+- ✓ `QuotaServiceTests.AdjustUsedBytesAsync_StaleTrackedCopy_AppliesDeltaToStoredValue`,
+  `QuotaServiceTests.TryReserveQuotaAsync_StaleTrackedCopy_ReservesAgainstStoredValue`,
+  `TrashServiceTests.PermanentDeleteAsync_StaleTrackedQuotaCopy_DecrementsStoredValue`
+- ✓ `DotNetCloud.Modules.Files.Tests` — 805/805 pass
+- ✓ `dotnet build DotNetCloud.Modules.Files` — 0 warnings / 0 errors
+- ✓ Deployed to mint22 (twice: refresh wiring, then the root-cause fix): 15/15 targets, hashes verified,
+  migrations up to date, version 0.6.09, `/health/ready` HTTP 200 · `RefreshQuotaAsync` +
+  `LoadQuotaCoreAsync` confirmed in the deployed `/opt/dotnetcloud/server/DotNetCloud.Modules.Files.dll`, and
+  `QuotaRowHelper` + `GetForUpdateAsync` + `GetCurrentAsync` in **both**
+  `/opt/dotnetcloud/server/DotNetCloud.Modules.Files.Data.dll` and
+  `/opt/dotnetcloud/modules/dotnetcloud.files/DotNetCloud.Modules.Files.Data.dll`
+- ✓ Browser E2E (mint22 dev, 2026-09-17, verified by the user): after uploading 39 files the quota bar rose
+  immediately, and emptying the trash dropped it immediately — no page reload needed

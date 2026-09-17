@@ -494,7 +494,9 @@ internal sealed class TrashService : ITrashService
         if (bytes <= 0)
             return;
 
-        var quota = await _db.FileQuotas.FirstOrDefaultAsync(q => q.UserId == userId, cancellationToken);
+        // Detaches any stale copy this scoped context tracked earlier, so the decrement is based
+        // on the stored usage rather than a snapshot taken at page load (see QuotaRowHelper).
+        var quota = await QuotaRowHelper.GetForUpdateAsync(_db, userId, cancellationToken);
         if (quota is not null)
         {
             quota.UsedBytes = Math.Max(0, quota.UsedBytes - bytes);

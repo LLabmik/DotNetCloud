@@ -346,6 +346,11 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     protected async Task HandleTrashChanged()
     {
         await LoadTrashCountAsync();
+
+        // Permanently removed items (purge / empty trash) free storage server-side, so the
+        // sidebar quota bar has to be re-read as well — otherwise it keeps showing the old usage.
+        await RefreshQuotaAsync();
+
         StateHasChanged();
     }
 
@@ -399,7 +404,16 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         }
     }
 
-    private async Task LoadQuotaAsync()
+    private Task LoadQuotaAsync() => LoadQuotaCoreAsync(clearOnFailure: true);
+
+    /// <summary>
+    /// Re-reads the quota after an operation that changed storage usage (upload, copy, purge).
+    /// Unlike the initial load, a transient failure keeps the last known values instead of
+    /// blanking the sidebar bar to "Unlimited".
+    /// </summary>
+    private Task RefreshQuotaAsync() => LoadQuotaCoreAsync(clearOnFailure: false);
+
+    private async Task LoadQuotaCoreAsync(bool clearOnFailure)
     {
         try
         {
@@ -414,7 +428,8 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         }
         catch
         {
-            _quota = null;
+            if (clearOnFailure)
+                _quota = null;
         }
     }
 
@@ -963,6 +978,11 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         _hasDroppedFiles = false;
         await ClearPendingUploadsAsync();
         await LoadCurrentFolderAsync();
+
+        // Uploaded bytes are added to the user's quota as the upload completes, so re-read it
+        // here to keep the sidebar quota bar in sync with what was just uploaded.
+        await RefreshQuotaAsync();
+        StateHasChanged();
     }
 
     // ── Drag-and-drop zone (browser-level) ─────────────────────────────────────
@@ -1665,8 +1685,9 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
 
         var caller = await GetCallerContextAsync();
         var targetId = _pickerCurrentFolderId;
+        var isCopy = _folderPickerMode == FolderPickerMode.Copy;
 
-        if (_folderPickerMode == FolderPickerMode.Move)
+        if (!isCopy)
         {
             foreach (var nodeId in _selectedNodes.ToList())
             {
@@ -1690,6 +1711,11 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         _breadcrumbs.Clear();
 
         await LoadCurrentFolderAsync();
+
+        // A copy duplicates bytes into the user's storage (a move does not), so re-read the quota
+        // to keep the sidebar bar accurate.
+        if (isCopy)
+            await RefreshQuotaAsync();
     }
 
     private async Task OpenFolderPicker()

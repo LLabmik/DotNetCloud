@@ -317,6 +317,43 @@ public class TrashServiceTests
     }
 
     [TestMethod]
+    public async Task PermanentDeleteAsync_StaleTrackedQuotaCopy_DecrementsStoredValue()
+    {
+        // A long-lived scoped context (Blazor circuit) can hold a quota snapshot from page load;
+        // another process may have changed the stored usage since. The decrement has to be based on
+        // the stored value, otherwise the purge silently overwrites it.
+        var dbName = Guid.CreateVersion7().ToString();
+        var userId = Guid.CreateVersion7();
+        var node = CreateDeletedNode(userId);
+        node.Size = 2048;
+        node.NodeType = FileNodeType.File;
+
+        using (var seed = CreateContext(dbName))
+        {
+            seed.FileNodes.Add(node);
+            seed.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 1_000_000, UsedBytes = 5000 });
+            await seed.SaveChangesAsync();
+        }
+
+        using var db = CreateContext(dbName);
+        _ = await db.FileQuotas.FirstAsync(q => q.UserId == userId); // tracked snapshot: 5000
+
+        using (var other = CreateContext(dbName))
+        {
+            var row = await other.FileQuotas.FirstAsync(q => q.UserId == userId);
+            row.UsedBytes = 9000;
+            await other.SaveChangesAsync();
+        }
+
+        var service = CreateService(db);
+        await service.PermanentDeleteAsync(node.Id, UserCaller(userId));
+
+        using var verify = CreateContext(dbName);
+        var stored = await verify.FileQuotas.AsNoTracking().FirstAsync(q => q.UserId == userId);
+        Assert.AreEqual(6952L, stored.UsedBytes); // 9000 - 2048 = 6952
+    }
+
+    [TestMethod]
     public async Task PermanentDeleteAsync_QuotaNotDecremented_BelowZero()
     {
         using var db = CreateContext();

@@ -5950,3 +5950,64 @@ unchanged until the last request returned — so a multi-file delete looked like
   (dev `https://mint22:5443/` vs production `https://cloud.dotnetcloud.net/`) before debugging a UI report.
 - Production (`cloud.dotnetcloud.net`) does **not** have this change yet — it goes out with the next deploy
   of this branch to that host.
+
+## Files Module — Quota Refresh After Upload / Empty Trash (2026-09-17)
+
+**Status:** completed ✅ (build, tests, deploy and browser E2E verified 2026-09-17)
+**Branch:** `fix/more-blazor-improvements`
+**Goal:** Keep the Files sidebar quota bar accurate. The quota was only fetched on load, so uploading a file
+or emptying the trash left the bar showing the old usage until the page was reloaded — even though the server
+had already updated the stored usage.
+
+### Deliverables
+
+- ✓ `HandleUploadComplete` re-reads the quota once the upload dialog reports completion (chunked uploads,
+  drag-and-drop, clipboard paste, new-document dialogs)
+- ✓ `HandleTrashChanged` re-reads the quota alongside the trash count — empty trash and permanent deletes
+  free storage server-side (`TrashService.EmptyTrashAsync` → `DecrementQuotaAsync`)
+- ✓ `ConfirmFolderPicker` re-reads the quota after a **copy** (`FileService.CopyAsync` →
+  `AdjustUsedBytesAsync`); a move does not change usage, so it is not refreshed
+- ✓ `RefreshQuotaAsync` keeps the last known quota when the re-read fails (the initial load still clears to
+  null), so a transient error cannot blank the sidebar bar to “Unlimited”
+- ✓ `ChunkedUploadServiceTests.UploadFlow_CompletedUpload_QuotaReflectsUploadedSize` — locks in the
+  server-side contract the UI refresh relies on (reserve at initiate, reconcile at complete) using the real
+  `QuotaService` rather than a mock
+- ✓ Verified: `DotNetCloud.Modules.Files.Tests` 805/805 pass; Files module builds 0 warnings / 0 errors
+- ✓ Deployed to mint22 (2026-09-17, twice — refresh wiring, then the root-cause fix): 15/15 targets, hashes
+  verified, migrations up to date, v0.6.09, `/health/ready` 200; `RefreshQuotaAsync` + `LoadQuotaCoreAsync`
+  confirmed in the deployed `DotNetCloud.Modules.Files.dll` and `QuotaRowHelper` in **both** copies of
+  `DotNetCloud.Modules.Files.Data.dll` (core server + Files module host)
+- ✓ Browser E2E on mint22 dev, verified by the user: uploading 39 files raised the bar immediately and
+  emptying the trash dropped it immediately, with no page reload in either case
+
+### Root cause (second iteration)
+
+The first fix (refresh after upload / trash change) was necessary but not sufficient: live testing showed the
+bar still frozen until a page reload.
+
+- The Files UI services are registered **in-process** in Core.Server (`AddFilesUiServices`) with a scoped
+  `QuotaService`, so in a Blazor Server circuit that instance — and its `Transient` `FilesDbContext` — lives
+  as long as the session.
+- `QuotaService.GetOrCreateQuotaAsync` read the row **with tracking**, and EF Core returns the instance it
+  already tracks instead of the stored values, so the value read at page load was handed out for the whole
+  session. Writes made by the Files module host (uploads, trash purge) were never seen; a page reload created
+  a new circuit/context and read fresh, which is exactly what the user observed.
+- Same trap on the write side: `UsedBytes += delta` applied to a stale snapshot **overwrites** the stored
+  usage instead of adjusting it, so a copy or purge could leave a permanently wrong quota.
+- Fix: new `Data/QuotaRowHelper.cs` — `GetCurrentAsync` (`AsNoTracking`) for reads and
+  `GetForUpdateAsync` (detach the stale tracked copy, then read) for every delta write in `QuotaService` and
+  `TrashService`.
+- Regression tests: `GetOrCreateQuotaAsync_QuotaChangedByAnotherContext_ReturnsFreshValues` reproduced the
+  report exactly (`expected 1500, actual 500` before the fix), plus stale-copy tests for
+  `AdjustUsedBytesAsync`, `TryReserveQuotaAsync` and `PermanentDeleteAsync`.
+- **Broader lesson:** any scoped service holding a `DbContext` for a Blazor circuit must not rely on tracked
+  reads for data other processes write. `ChunkReferenceHelper` solved the same class of problem for chunk
+  refcounts with `ExecuteUpdateAsync`.
+
+### Notes
+
+- Server-side behaviour was already covered by `QuotaServiceTests.TryReserveQuotaAsync_*` /
+  `AdjustUsedBytesAsync_*` and `TrashServiceTests.EmptyTrashAsync_UpdatesUserQuota`; the new tests close the
+  gap at the service boundary (upload flow → real quota service) and around the long-lived-context scenario.
+- Production (`cloud.dotnetcloud.net`) does **not** have this change yet — it ships with the next deploy of
+  this branch to that host.
