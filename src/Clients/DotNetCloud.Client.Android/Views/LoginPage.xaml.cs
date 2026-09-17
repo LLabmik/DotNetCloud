@@ -67,6 +67,19 @@ public partial class LoginPage : ContentPage
         global::Android.App.Application.Context.StartService(intent);
         Log.Info("DotNetCloud", "LoginPage.OnLoginSucceeded: chat service started");
 
+        // Register this device for push notifications with the freshly authenticated server so
+        // background messages can be delivered (the server's registrations are in-memory only).
+        try
+        {
+            var serverUrl = _vm.ServerUrl?.TrimEnd('/');
+            if (!string.IsNullOrWhiteSpace(serverUrl))
+                await App.RegisterPushDeviceAsync(serverUrl!);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("DotNetCloud", $"LoginPage.OnLoginSucceeded: push registration failed: {ex.Message}");
+        }
+
         // Start the calendar SignalR connection for real-time event notifications
         try
         {

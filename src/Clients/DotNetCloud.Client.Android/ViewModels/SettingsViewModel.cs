@@ -32,6 +32,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly IAndroidUpdateService _updateService;
     private readonly IChatRestClient? _chatApi;
     private readonly IBackgroundMediaSync? _backgroundMediaSync;
+    private readonly IChatSoundPlayer? _chatSound;
     private readonly ILogger<SettingsViewModel> _logger;
 
     /// <summary>Raised when the user logs out and the app should return to login.</summary>
@@ -50,7 +51,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         IAndroidUpdateService updateService,
         ILogger<SettingsViewModel> logger,
         IChatRestClient? chatApi = null,
-        IBackgroundMediaSync? backgroundMediaSync = null)
+        IBackgroundMediaSync? backgroundMediaSync = null,
+        IChatSoundPlayer? chatSound = null)
     {
         _serverStore = serverStore;
         _tokenStore = tokenStore;
@@ -63,6 +65,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _updateService = updateService;
         _chatApi = chatApi;
         _backgroundMediaSync = backgroundMediaSync;
+        _chatSound = chatSound;
         _logger = logger;
 
         var active = serverStore.GetActive();
@@ -77,6 +80,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _uploadFolderName = _preferences.Get(PrefUploadFolderName, DefaultUploadFolderName);
         _chargingOnly = _preferences.Get(PrefChargingOnly, false);
         _batteryThreshold = _preferences.Get(PrefBatteryThreshold, 20);
+        _isChatSoundEnabled = _preferences.Get(ChatSoundSettings.PreferenceKey, ChatSoundSettings.DefaultEnabled);
 
         RefreshBatteryStatus();
         RefreshMediaPermission();
@@ -161,6 +165,13 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private bool _isDndLoading;
 
+    /// <summary>
+    /// Whether the in-app ding plays for new chat messages. Applies while the app is on screen,
+    /// where no system notification (and therefore no notification sound) is produced.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isChatSoundEnabled;
+
     [ObservableProperty]
     private string _batteryStatusText = "Checking…";
 
@@ -226,6 +237,18 @@ public sealed partial class SettingsViewModel : ObservableObject
             BatteryThreshold = clamped;
         _preferences.Set(PrefBatteryThreshold, clamped);
         _logger.LogInformation("Battery upload threshold set to {Value}%.", clamped);
+    }
+
+    // ── Chat sound toggle ───────────────────────────────────────────
+
+    partial void OnIsChatSoundEnabledChanged(bool value)
+    {
+        _preferences.Set(ChatSoundSettings.PreferenceKey, value);
+        _logger.LogInformation("In-app chat sound {State}.", value ? "enabled" : "disabled");
+
+        // Turning the sound on plays it once so the user can hear what they just enabled.
+        if (value)
+            _chatSound?.PlayMessageAlert();
     }
 
     // ── DND toggle ──────────────────────────────────────────────────

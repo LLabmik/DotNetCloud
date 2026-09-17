@@ -3534,12 +3534,13 @@ This phase implements real-time chat, announcements, push notifications, and the
 
 - ✓ Implement SignalR client connection
 - ✓ Handle connection lifecycle (connect, reconnect, disconnect)
-- ✓ Background connection management (Android foreground service)
+- ✓ Background connection management — `ChatConnectionService` is a sticky but **unpromoted** service: the `dataSync` foreground service was removed outright on 2026-09-12 because Android 15/16 caps `dataSync` to a rolling 24-hour budget and the resulting kill loop was structural, not tunable. Background message delivery is expected to come from push, not from this service.
 - ✓ Handle Doze mode and battery optimization
 
 #### Push Notifications
 
 - ✓ Integrate Firebase Cloud Messaging (FCM) for `googleplay` flavor
+  - ☐ **Not functional on the googleplay APK as built:** the repo contains no `google-services.json`, so the APK has no `google_app_id`/`gcm_defaultSenderId` resources, `FirebaseApp` never initialises and no FCM token can be issued (`Push registration failed: Default FirebaseApp is not initialized in this process…` — confirmed on-device 2026-09-17). The device registration is now re-attempted on every launch and after every login, so push starts working as soon as a Firebase project's config is added to the build.
 - ✓ Integrate UnifiedPush for `fdroid` flavor
 - ✓ Create notification channels (Chat, Mentions, Announcements)
 - ✓ Implement notification tap handlers (open specific chat)
@@ -3653,6 +3654,20 @@ Zero-tap sign-in (Apr 2027) and the API 36 target bump are tracked separately (d
 - ✓ Implement search guards: infinite scroll disabled during search, tab-switch closes search, back navigates away from search first
 - ✓ Add 16 unit tests for search toggle, close/restore, endpoint routing, error handling, tab-switch closure
 - ✓ Android back button mirrors the in-page back affordances (contextual ◀/← arrow, search panel, EQ screen, save-preset dialog) instead of leaving the app — see "System Back Navigation" below
+
+#### Chat Alert Sound (Android)
+
+The Android client produced **no audible alert at all** for an incoming chat message: system notifications
+are deliberately suppressed while the app is visible, and the in-app ding the web client has was never
+ported — so a message arriving on screen was completely silent, and a backgrounded process could be
+frozen while the server still considered the device online (which suppresses its push).
+
+- ✓ `IChatSoundPlayer` / `AndroidChatSoundPlayer` — plays the web client's own `chat-ding.mp3` (packaged as `Platforms/Android/Resources/raw/chat_ding.mp3`) through `SoundPool` tagged `USAGE_NOTIFICATION`, so the ding follows the same silent/DND and volume rules as a notification instead of the media stream
+- ✓ `ChatAlertPolicy` produces **exactly one** alert per message: in-app ding while the app is visible, system notification while it is not; muted channels never alert, and a user's own message echo never dings
+- ✓ Wired into `SignalRChatClient`'s `NewMessage` handler; the sound is loaded at connect so the first message of a process is not swallowed while it decodes, and the current user is resolved from the id_token so own messages stay silent
+- ✓ "Message Sound" switch in Settings → Chat Notifications (preference `chat_message_sound_enabled`, default on) which previews the ding when switched on
+- ✓ 10 unit tests (`ChatAlertPolicyTests`); on-device verified (R5CWC356B2K, 2026-09-17): a live remote message logged `decision=InAppSound` and the audio device recorded the SoundPool player `event:started`
+- ☐ **Background alerts still need a working push transport.** Push device registration is now self-healing (re-sent on every launch and after login, because the server holds registrations in memory only), but nothing can wake a frozen/reclaimed process until FCM (or UnifiedPush) is actually configured — see the Push Notifications item above.
 
 #### System Back Navigation (Android Back Button)
 
@@ -4741,9 +4756,11 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `Ai/MarkdownHtmlFormatter.cs` — pure Markdig → themed HTML document renderer (CommonMark + tables + lists; raw HTML escaped; CSP `default-src 'none'`)
 - ✓ `Converters/MarkdownHtmlConverters.cs` — `MarkdownHtmlConverter` + `IsRichMarkdownConverter`
 - ✓ `Controls/MarkdownWebView.cs` — auto-height WebView; http/https links open in the system browser; all other navigation blocked
+- ✓ `Controls/MarkdownWebView.cs` — built-in conversion hint + working auto-height: the render is probed (document token → painted via `requestAnimationFrame`, then measured) instead of relying on `Navigated`, which MAUI suppresses for inline HTML. While the WebView converts the document, the control keeps the **raw text** (same lightweight formatter the streaming bubble uses) on top of it with a "Rendering…" spinner hint, so the answer never appears as a blank or clipped bubble (2026-09-17)
 - ✓ `AiPage.xaml` — completed assistant messages render as HTML (WebView) when they contain block Markdown; inline-only messages stay on the lightweight `Label`/`FormattedString` path; streaming bubble unchanged
 - ✓ `MarkdownHtmlFormatterTests` — headings, lists, tables, fenced code, raw-HTML escaping, `NeedsHtmlRendering`
 - ✓ Stream-silence watchdog only arms after the first content/thinking chunk — a slow cold Ollama model load (gemma4:12b can take >60s to the first token) no longer cancels the request (mirrors Blazor `AiChatPage`; Android `AiViewModel`, 2026-09-01)
+- ✓ "Generating…" indicator now keyed on the **answer** text, not on thinking: with a reasoning model the thought-process block fills in within seconds, and the old `string.IsNullOrEmpty(StreamingThinking)` guard suppressed the indicator for the whole reasoning phase — the answer area sat blank for minutes with no sign of progress (2026-09-17)
 
 ---
 
