@@ -8,7 +8,8 @@
     and a split-pane view with live-rendered preview.
 *@
 
-<div class="markdown-editor @(PreviewOnly ? "preview-only" : "") @(Compact ? "compact" : "")">
+<div
+    class="markdown-editor @(PreviewOnly ? "preview-only" : "") @(Compact ? "compact" : "") @(FillHeight ? "fill-height" : "")">
     <div class="markdown-editor-toolbar">
         <div class="toolbar-group">
             <button type="button" class="toolbar-btn" title="Bold (Ctrl+B)" @onclick="InsertBold">
@@ -224,6 +225,13 @@
     public bool Compact { get; set; }
 
     /// <summary>
+    /// When true, the editor fills the height its parent gives it and scrolls internally, so the
+    /// formatting toolbar stays on screen and the page behind it does not grow.
+    /// </summary>
+    [Parameter]
+    public bool FillHeight { get; set; }
+
+    /// <summary>
     /// Custom placeholder text for the editor textarea.
     /// </summary>
     [Parameter]
@@ -312,63 +320,106 @@
     }
 
     // ─── Toolbar actions ─────────────────────────────────────────────
-    // These use JS interop to wrap selected text or insert at cursor.
+    // Each action reads the textarea's live text + selection from the browser, applies a pure text
+    // edit from MarkdownTextFormatter, and writes the result back with the new selection. Text the
+    // user has highlighted is always formatted, never replaced.
 
-    private Task InsertBold() => ApplyWrapFormat("**", "**", "bold text");
-    private Task InsertItalic() => ApplyWrapFormat("*", "*", "italic text");
-    private Task InsertStrikethrough() => ApplyWrapFormat("~~", "~~", "strikethrough");
+    private Task InsertBold() =>
+        ApplyWrapFormat("**", "**", "bold text");
+
+    private Task InsertItalic() =>
+        ApplyWrapFormat("*", "*", "italic text");
+
+    private Task InsertStrikethrough() =>
+        ApplyWrapFormat("~~", "~~", "strikethrough");
 
     private Task InsertHeading(int level) =>
-        InsertAtCursor($"\n{new string('#', level)} Heading\n");
+        ApplyEditAsync(state => MarkdownTextFormatter.SetHeading(state.Value, state.Selection, level));
 
     private Task InsertUnorderedList() =>
-        InsertAtCursor("\n- Item 1\n- Item 2\n- Item 3\n");
+        ApplyEditAsync(state => MarkdownTextFormatter.ToggleLinePrefix(state.Value, state.Selection, "- "));
 
     private Task InsertOrderedList() =>
-        InsertAtCursor("\n1. Item 1\n2. Item 2\n3. Item 3\n");
+        ApplyEditAsync(state => MarkdownTextFormatter.NumberLines(state.Value, state.Selection));
 
     private Task InsertTaskList() =>
-        InsertAtCursor("\n- [ ] Task 1\n- [ ] Task 2\n- [x] Completed task\n");
+        ApplyEditAsync(state => MarkdownTextFormatter.ToggleLinePrefix(state.Value, state.Selection, "- [ ] "));
 
-    private Task InsertLink() => ApplyWrapFormat("[", "](https://example.com)", "link text");
-    private Task InsertImage() => InsertAtCursor("![alt text](image-url)");
+    private Task InsertLink() =>
+        ApplyWrapFormat("[", "](https://example.com)", "link text");
+
+    private Task InsertImage() =>
+        ApplyWrapFormat("![", "](image-url)", "alt text");
 
     private Task InsertCodeBlock() =>
         ApplyWrapFormat("\n```\n", "\n```\n", "code here");
 
     private Task InsertBlockquote() =>
-        InsertAtCursor("\n> Quoted text\n");
+        ApplyEditAsync(state => MarkdownTextFormatter.ToggleLinePrefix(state.Value, state.Selection, "> "));
 
     private Task InsertHorizontalRule() =>
-        InsertAtCursor("\n---\n");
+        InsertBlock("\n---\n");
 
     private Task InsertTable() =>
-        InsertAtCursor("\n| Header 1 | Header 2 | Header 3 |\n|----------|----------|----------|\n| Cell 1   | Cell 2   | Cell 3   |\n");
+        InsertBlock("\n| Header 1 | Header 2 | Header 3 |\n|----------|----------|----------|\n| Cell 1   | Cell 2   | Cell 3   |\n");
 
-    private async Task ApplyWrapFormat(string prefix, string suffix, string fallbackText)
+    private Task InsertBlock(string block) =>
+        ApplyEditAsync(state => MarkdownTextFormatter.InsertBlock(state.Value, state.Selection, block));
+
+    private Task ApplyWrapFormat(string prefix, string suffix, string placeholder) =>
+        ApplyEditAsync(state => MarkdownTextFormatter.ToggleWrap(state.Value, state.Selection, prefix, suffix, placeholder));
+
+    /// <summary>
+    /// Reads the textarea state, applies <paramref name="edit"/>, writes the result back and
+    /// notifies the parent component.
+    /// </summary>
+    private async Task ApplyEditAsync(Func<MarkdownEditorState, MarkdownEditorEdit> edit)
     {
-        var fallback = prefix + fallbackText + suffix;
-        var newValue = await JS.InvokeAsync<string?>("dotnetcloudMarkdownEditor.applyFormat",
-            _textareaRef, prefix, suffix, fallback);
-        if (newValue is not null)
+        var state = await ReadStateAsync();
+        if (state is null)
         {
-            Content = newValue;
-            EnforceMaxLength();
-            RenderPreview();
-            await ContentChanged.InvokeAsync(Content);
+            return;
         }
+
+        var result = edit(state);
+
+        try
+        {
+            await JS.InvokeVoidAsync(MarkdownEditorInterop.WriteState, _textareaRef,
+                result.Value, result.Selection.Start, result.Selection.End);
+        }
+        catch (JSDisconnectedException)
+        {
+            // Circuit gone — the edit still has to reach the parent below.
+        }
+        catch (JSException)
+        {
+            // Interop failed; keep the text edit rather than losing it.
+        }
+
+        Content = result.Value;
+        EnforceMaxLength();
+        RenderPreview();
+        await ContentChanged.InvokeAsync(Content);
     }
 
-    private async Task InsertAtCursor(string text)
+    /// <summary>
+    /// Reads the editor textarea's text and selection, or <see langword="null"/> when the element
+    /// is no longer available (for example a stale reference after a re-render).
+    /// </summary>
+    private async Task<MarkdownEditorState?> ReadStateAsync()
     {
-        var newValue = await JS.InvokeAsync<string?>("dotnetcloudMarkdownEditor.insertAtCursor",
-            _textareaRef, text);
-        if (newValue is not null)
+        try
         {
-            Content = newValue;
-            EnforceMaxLength();
-            RenderPreview();
-            await ContentChanged.InvokeAsync(Content);
+            return await JS.InvokeAsync<MarkdownEditorState?>(MarkdownEditorInterop.ReadState, _textareaRef);
+        }
+        catch (JSDisconnectedException)
+        {
+            return null;
+        }
+        catch (JSException)
+        {
+            return null;
         }
     }
 

@@ -56,6 +56,38 @@ public class QuotaServiceTests
     }
 
     [TestMethod]
+    public async Task GetOrCreateQuotaAsync_QuotaChangedByAnotherContext_ReturnsFreshValues()
+    {
+        // Blazor Server keeps the scoped QuotaService (and its DbContext) alive for the whole
+        // circuit, so this is the exact scenario after an upload or a trash purge: another process
+        // or context (the Files module host) changed the usage, then the UI re-reads the quota.
+        var dbName = Guid.CreateVersion7().ToString();
+        var userId = Guid.CreateVersion7();
+
+        using (var seed = CreateContext(dbName))
+        {
+            seed.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 10_000, UsedBytes = 500 });
+            await seed.SaveChangesAsync();
+        }
+
+        using var db = CreateContext(dbName);
+        var service = CreateService(db);
+
+        var first = await service.GetOrCreateQuotaAsync(userId, UserCaller(userId));
+        Assert.AreEqual(500, first.UsedBytes);
+
+        using (var other = CreateContext(dbName))
+        {
+            var row = await other.FileQuotas.FirstAsync(q => q.UserId == userId);
+            row.UsedBytes = 1_500;
+            await other.SaveChangesAsync();
+        }
+
+        var second = await service.GetOrCreateQuotaAsync(userId, UserCaller(userId));
+        Assert.AreEqual(1_500, second.UsedBytes, "the quota read must not return a stale tracked snapshot");
+    }
+
+    [TestMethod]
     public async Task GetQuotaAsync_NonExistentQuota_ThrowsNotFoundException()
     {
         using var db = CreateContext();
@@ -194,6 +226,72 @@ public class QuotaServiceTests
     }
 
     // ─── AdjustUsedBytesAsync ──────────────────────────────────────────────────
+
+    [TestMethod]
+    public async Task AdjustUsedBytesAsync_StaleTrackedCopy_AppliesDeltaToStoredValue()
+    {
+        // Same long-lived-context scenario as the upload/trash refresh: a copy was tracked earlier
+        // in this context, another process has since changed the stored usage, and the delta must
+        // be applied to what is stored — not to the stale snapshot, which would overwrite it.
+        var dbName = Guid.CreateVersion7().ToString();
+        var userId = Guid.CreateVersion7();
+
+        using (var seed = CreateContext(dbName))
+        {
+            seed.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 10_000, UsedBytes = 500 });
+            await seed.SaveChangesAsync();
+        }
+
+        using var db = CreateContext(dbName);
+        var service = CreateService(db);
+
+        _ = await db.FileQuotas.FirstAsync(q => q.UserId == userId); // tracked snapshot: 500
+
+        using (var other = CreateContext(dbName))
+        {
+            var row = await other.FileQuotas.FirstAsync(q => q.UserId == userId);
+            row.UsedBytes = 1_500;
+            await other.SaveChangesAsync();
+        }
+
+        await service.AdjustUsedBytesAsync(userId, 200);
+
+        using var verify = CreateContext(dbName);
+        var stored = await verify.FileQuotas.AsNoTracking().FirstAsync(q => q.UserId == userId);
+        Assert.AreEqual(1_700, stored.UsedBytes);
+    }
+
+    [TestMethod]
+    public async Task TryReserveQuotaAsync_StaleTrackedCopy_ReservesAgainstStoredValue()
+    {
+        var dbName = Guid.CreateVersion7().ToString();
+        var userId = Guid.CreateVersion7();
+
+        using (var seed = CreateContext(dbName))
+        {
+            seed.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 2_000, UsedBytes = 500 });
+            await seed.SaveChangesAsync();
+        }
+
+        using var db = CreateContext(dbName);
+        var service = CreateService(db);
+
+        _ = await db.FileQuotas.FirstAsync(q => q.UserId == userId); // tracked snapshot: 500
+
+        using (var other = CreateContext(dbName))
+        {
+            var row = await other.FileQuotas.FirstAsync(q => q.UserId == userId);
+            row.UsedBytes = 1_900;
+            await other.SaveChangesAsync();
+        }
+
+        // Only 100 bytes are left against the stored value — the stale snapshot would have allowed this.
+        Assert.IsFalse(await service.TryReserveQuotaAsync(userId, 200));
+
+        using var verify = CreateContext(dbName);
+        var stored = await verify.FileQuotas.AsNoTracking().FirstAsync(q => q.UserId == userId);
+        Assert.AreEqual(1_900, stored.UsedBytes);
+    }
 
     [TestMethod]
     public async Task AdjustUsedBytesAsync_PositiveDelta_IncrementsUsedBytes()

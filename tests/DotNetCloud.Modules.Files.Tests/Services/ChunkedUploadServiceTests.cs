@@ -52,6 +52,13 @@ public class ChunkedUploadServiceTests
         return mock.Object;
     }
 
+    private static IQuotaService CreateQuotaService(FilesDbContext db) =>
+        new QuotaService(
+            db,
+            Mock.Of<IEventBus>(),
+            Microsoft.Extensions.Options.Options.Create(new QuotaOptions()),
+            NullLogger<QuotaService>.Instance);
+
     private static CallerContext UserCaller(Guid userId) => new(userId, Array.Empty<string>(), CallerType.User);
 
     private static Guid RegisterMountedFolder(Guid sharedFolderId)
@@ -236,6 +243,39 @@ public class ChunkedUploadServiceTests
         // Verify chunk refcount incremented
         var chunk = await db.FileChunks.FirstAsync(c => c.ChunkHash == chunkHash);
         Assert.AreEqual(2, chunk.ReferenceCount); // Was 1, now incremented
+    }
+
+    [TestMethod]
+    public async Task UploadFlow_CompletedUpload_QuotaReflectsUploadedSize()
+    {
+        using var db = CreateContext();
+        var userId = Guid.CreateVersion7();
+        var data = Encoding.UTF8.GetBytes("quota-check");
+        var hash = ContentHasher.ComputeHash(data);
+
+        db.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 10_000_000, UsedBytes = 0 });
+        await db.SaveChangesAsync();
+
+        // Real quota service: the browser sidebar re-reads the quota as soon as the upload dialog
+        // reports completion, so UsedBytes must already reflect the upload by the time
+        // CompleteUploadAsync returns — not only after the background recalculation runs.
+        var service = CreateService(db, quotaService: CreateQuotaService(db));
+
+        var session = await service.InitiateUploadAsync(new InitiateUploadDto
+        {
+            FileName = "quota.txt",
+            TotalSize = data.Length,
+            MimeType = "text/plain",
+            ChunkHashes = [hash]
+        }, UserCaller(userId));
+
+        await service.UploadChunkAsync(session.SessionId, hash, data, UserCaller(userId));
+        var file = await service.CompleteUploadAsync(session.SessionId, UserCaller(userId));
+
+        Assert.AreEqual(data.Length, file.Size);
+
+        var quota = await db.FileQuotas.AsNoTracking().FirstAsync(q => q.UserId == userId);
+        Assert.AreEqual((long)data.Length, quota.UsedBytes);
     }
 
     [TestMethod]

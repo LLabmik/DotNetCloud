@@ -1,60 +1,117 @@
-window.dotnetcloudMarkdownEditor = {
+// Markdown editor interop (window.dotnetcloudMarkdownEditor).
+//
+// The component (DotNetCloud.UI.Shared/Components/Editors/MarkdownEditor.razor) owns the
+// formatting rules; this file only reads the textarea's text + selection and writes the
+// formatted result back, so the text edits themselves stay unit-testable in C#.
+window.dotnetcloudMarkdownEditor = (function () {
+  "use strict";
+
+  // Selection snapshot taken when the textarea loses focus. Clicking a toolbar button blurs the
+  // textarea, and some browsers drop the live selection at that point — without the snapshot a
+  // highlighted block would look unselected and the toolbar would insert its placeholder instead
+  // of formatting the text the user highlighted.
+  var SAVED_SELECTION = "__dncMarkdownSelection";
+  var EDITOR_TEXTAREA_CLASS = "editor-textarea";
+
+  function isEditorTextarea(element) {
+    return (
+      !!element &&
+      element.tagName === "TEXTAREA" &&
+      typeof element.classList !== "undefined" &&
+      element.classList.contains(EDITOR_TEXTAREA_CLASS)
+    );
+  }
+
+  // Capture phase: blur does not bubble, so listen on the document with capture enabled.
+  document.addEventListener(
+    "blur",
+    function (event) {
+      var element = event.target;
+      if (!isEditorTextarea(element)) {
+        return;
+      }
+
+      element[SAVED_SELECTION] = {
+        start: element.selectionStart,
+        end: element.selectionEnd,
+      };
+    },
+    true,
+  );
+
+  function setSelection(textareaElement, start, end) {
+    if (!textareaElement || !document.contains(textareaElement)) {
+      return;
+    }
+
+    try {
+      textareaElement.focus();
+      textareaElement.setSelectionRange(start, end);
+    } catch (error) {
+      // Detached or unfocusable element — the text was still updated, so ignore.
+    }
+  }
+
+  return {
     /**
-     * Wraps selected text with prefix/suffix, or inserts fallback if nothing selected.
-     * Returns the new full value of the textarea so Blazor can update its binding.
+     * Current text and selection of the editor textarea.
+     * Uses the selection remembered on blur when the live one has collapsed, so a
+     * highlighted block survives the toolbar button's focus change.
+     * Returns null when the element is gone (stale Blazor element reference).
      */
-    applyFormat: function (textareaElement, prefix, suffix, fallback) {
-        if (!textareaElement) return null;
+    readState: function (textareaElement) {
+      if (!isEditorTextarea(textareaElement)) {
+        return null;
+      }
 
-        var start = textareaElement.selectionStart;
-        var end = textareaElement.selectionEnd;
-        var value = textareaElement.value;
-        var selected = value.substring(start, end);
-        var replacement;
-        var cursorPos;
+      var value =
+        typeof textareaElement.value === "string" ? textareaElement.value : "";
+      var start = textareaElement.selectionStart;
+      var end = textareaElement.selectionEnd;
 
-        if (selected.length > 0) {
-            // Wrap selected text
-            replacement = prefix + selected + suffix;
-            cursorPos = start + replacement.length;
-        } else {
-            // No selection — insert fallback text
-            replacement = fallback;
-            // Place cursor inside the markers (after prefix, before suffix)
-            cursorPos = start + prefix.length + fallback.length - prefix.length - suffix.length;
-            if (cursorPos < start) cursorPos = start + replacement.length;
-        }
+      if (typeof start !== "number" || typeof end !== "number") {
+        start = value.length;
+        end = value.length;
+      }
 
-        var newValue = value.substring(0, start) + replacement + value.substring(end);
-        textareaElement.value = newValue;
+      var saved = textareaElement[SAVED_SELECTION];
+      if (
+        start === end &&
+        saved &&
+        saved.end > saved.start &&
+        saved.end <= value.length
+      ) {
+        start = saved.start;
+        end = saved.end;
+      }
 
-        // Restore focus and cursor position
-        textareaElement.focus();
-        textareaElement.selectionStart = cursorPos;
-        textareaElement.selectionEnd = cursorPos;
-
-        return newValue;
+      return { value: value, selectionStart: start, selectionEnd: end };
     },
 
     /**
-     * Inserts a block of text at the cursor position (for blocks like lists, tables).
-     * Returns the new full value.
+     * Writes the formatted text back into the textarea and restores the selection.
+     * Blazor re-renders the bound `value` right after this returns (which collapses the caret
+     * to the end of the text), so the selection is applied twice: now, and once the render
+     * batch has been flushed.
      */
-    insertAtCursor: function (textareaElement, text) {
-        if (!textareaElement) return null;
+    writeState: function (
+      textareaElement,
+      value,
+      selectionStart,
+      selectionEnd,
+    ) {
+      if (!isEditorTextarea(textareaElement)) {
+        return;
+      }
 
-        var start = textareaElement.selectionStart;
-        var end = textareaElement.selectionEnd;
-        var value = textareaElement.value;
+      textareaElement.value =
+        value === undefined || value === null ? "" : value;
+      textareaElement[SAVED_SELECTION] = null;
 
-        var newValue = value.substring(0, start) + text + value.substring(end);
-        textareaElement.value = newValue;
-
-        var cursorPos = start + text.length;
-        textareaElement.focus();
-        textareaElement.selectionStart = cursorPos;
-        textareaElement.selectionEnd = cursorPos;
-
-        return newValue;
-    }
-};
+      setSelection(textareaElement, selectionStart, selectionEnd);
+      setTimeout(function () {
+        setSelection(textareaElement, selectionStart, selectionEnd);
+      }, 0);
+    },
+  };
+})();

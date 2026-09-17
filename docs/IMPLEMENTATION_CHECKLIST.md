@@ -2316,6 +2316,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Preserve public origin headers when proxying Collabora (`Host`, `X-Forwarded-Host`, `X-Forwarded-Proto`, `X-Forwarded-Port`) and emit a single effective CSP on proxied responses so `cool.html` uses `wss://mint22:15443` instead of `wss://localhost:9980`
 - ✓ Show "download to edit locally" for E2EE files
 - ✓ Display co-editing indicators (who is editing)
+- ✓ Add a fullscreen toggle to the document editor header (Fullscreen API on the editor container, with Esc/browser-exit state sync)
 
 ---
 
@@ -3935,6 +3936,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 
 - ✓ Markdown rendering pipeline with XSS sanitization
 - ✓ Rich-editor integration (MarkdownEditor Blazor component)
+- ✓ Editor sizing + toolbar behaviour: the editing area is height-constrained to the viewport (the form fills the pane and the editor scrolls internally), the formatting toolbar is scroll-locked, and toolbar buttons format the highlighted text instead of replacing it (wrap actions surround the selection, line actions prefix every highlighted line, block inserts land after the selection)
 - ✓ Cross-entity link references (Files, Calendar, Contact, Note)
 - ✓ Note sharing model (ReadOnly/ReadWrite per-user)
 - ✓ Version history with restore
@@ -4361,6 +4363,16 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Music module (`MusicPage`): mirrored "New Music Available" flow, including MusicBrainz enrichment after import
 - ✓ 3 new `MediaFolderImportServiceTests` cases (detection counts without mutation; empty sources; Files module unavailable)
 - ☐ Live E2E verification (new files → modal → Scan Now → page refresh) — pending before commit (repo rule #1)
+
+### Media Library Auto-Discovery Prompt (Photos) — fix/more-blazor-improvements
+
+- ✓ `PhotosScanProgressState` — per-user scan progress tracker for the Photos module (`src/Modules/Photos/DotNetCloud.Modules.Photos/Services/PhotosScanProgressState.cs`), mirroring `VideoScanProgressState` / Music `ScanProgressState`
+- ✓ Registered as a singleton in both `AddPhotosServices` (module host) and `AddPhotosUiServices` (Blazor UI)
+- ✓ Photos module (`PhotosPage`): first-visit-per-browser-session detection over the configured photo library sources, "New Photos Available" modal (Scan Now / Not Now), in-modal live progress + Stop, gallery refresh + summary notice after import, one-time no-sources setup hint, and a "New Photos" view prompt for photos indexed since the last visit
+- ✓ Session semantics identical to Video/Music: `sessionStorage` keys `dnc.media-hint.photos` (setup hint, once per tab) and `dnc.media-prompt.photos` (3-minute import cooldown); last-visit baseline persisted via the `media-library` user setting `photos-last-seen`
+- ✓ Library Settings: shared `RunLibraryImportAsync` import core (Settings "Scan Now" + prompt both use it), live scan progress panel and Stop Scan button
+- ✓ 12 new `PhotosScanProgressStateTests` (start/complete/cancel, per-user isolation, progress routing)
+- ☐ Live E2E with new photos present (no unindexed photos existed at deploy time) — user to confirm
 
 ### Sub-Phase C.1: MusicBrainz Metadata Enrichment
 
@@ -7078,3 +7090,327 @@ Blazor-only by design — Android/desktop clients never join the broadcast group
 - ✓ Deployed to production (cloud): 15/15 targets, 0 pending migrations, hashes verified, `/health/ready` 200,
   14/14 modules Healthy, `_framework/blazor.web.js` 200
 - ✓ Live-verified by the user on the deployed build
+
+## Files Module — Delete Progress Spinner (2026-09-17)
+
+**Branch:** `fix/more-blazor-improvements`
+
+Moving several files to the trash runs one request per node, so a multi-file delete can take a noticeable
+amount of time. The confirmation dialog used to close instantly and the listing stayed untouched until the
+last request returned, leaving the user with no feedback at all. Both Files-module delete paths now show a
+spinner plus progress text while they work.
+
+### File browser — "Move to trash?" dialog
+
+- ✓ `FileBrowser.razor` — the confirmation dialog stays open while the delete runs: its body switches to a
+  `.delete-progress` spinner + status text, the close (X) and Delete/Cancel buttons are hidden, and overlay
+  clicks are ignored (`CancelDelete` returns early while `_isDeleting`)
+- ✓ `FileBrowser.razor.cs` — `ConfirmDeleteAsync` sets `_isDeleting`/`_deleteStatus`, updates the progress
+  text per node, and closes the dialog in `finally` (a failed delete can never strand it); a failed delete is
+  logged and still falls through to the refresh so the listing matches server state
+- ✓ Covers every entry point: bulk "🗑️ Trash" on a multi-selection, the item context menu, the gallery tile
+  delete and the preview delete button
+- ✓ `FindNodeName` resolves the current file's name (browser listing or tag view) for the status text
+
+### Trash bin — permanently deleting the selection
+
+- ✓ `TrashBin.razor.cs` — `DeleteSelected` reports per-item progress via `_isDeletingSelected`/`_deleteStatus`
+  and deletes one node at a time; `IsBusy` now includes it, so the toolbar and row actions (including
+  `Restore`) are locked while it runs
+- ✓ `TrashBin.razor` — the existing progress banner is reused for deletes through a new `trash-deleting`
+  variant
+
+### Shared helper, styles & tests
+
+- ✓ `UI/FilesDeleteProgress.cs` — `internal static BuildStatus(index, count, name)` → "Deleting report.pdf…"
+  (single item) / "Deleting 2 of 5: report.pdf…" (multi-item), falling back to a name-less count
+- ✓ `FilesDeleteProgress.GetHoldTimeMs(elapsedMs)` — a delete can never close the dialog before **1000 ms**
+  have passed since the progress state appeared, so the spinner is always seen; deletes that genuinely take
+  longer are never delayed
+- ✓ Forced first render — `StateHasChanged()` followed by `await Task.Delay(1)` before the work starts.
+  Without it, a delete that runs without yielding (39 files did exactly that during testing) only ever
+  dispatched its final "dialog closed" render, so no spinner reached the browser however long it took
+- ✓ Select-mode action row — `🗑️ Trash` moved to the right end of `.bulk-actions-bar` (after Move / Copy /
+  Download ZIP / Tag) and pinned there with `.bulk-actions-bar-delete { margin-left: auto }`
+- ✓ `app.css` — new `.delete-progress` rules (spinner sized for a dialog) and `.trash-deleting` sharing the
+  `.trash-restoring` banner rules; `App.razor` cache-buster bumped to `app.css?v=20260917-01`
+- ✓ `FilesDeleteProgressTests` — 12 unit tests; `DotNetCloud.Modules.Files.Tests` 800/800 pass
+- ✓ `dotnet build DotNetCloud.sln` — 0 warnings / 0 errors
+- ✓ Deployed to mint22 (repeatedly while iterating): 15/15 targets, hashes verified, migrations up to date,
+  version 0.6.09, `/health/ready` HTTP 200 · `delete-progress` + `trash-deleting` + `FilesDeleteProgress`
+  confirmed in the deployed `DotNetCloud.Modules.Files.dll` and `app.css`
+- ✓ Browser E2E (mint22 dev, 2026-09-17) — the 39-file delete (Select all → 🗑️ Trash → Delete) shows the
+  spinner with progress text, and the row now has `Move · Copy · Download ZIP · Tag` with `🗑️ Trash` pinned
+  at the right. **Note:** the first two test attempts were against **production** (`cloud.dotnetcloud.net`),
+  which does not run this build — hence the old button order in the screenshot. Always confirm which
+  environment is being tested (dev `https://mint22:5443/` vs production `https://cloud.dotnetcloud.net/`)
+  before debugging a UI report.
+
+## Files Module — Quota Refresh After Upload / Empty Trash (2026-09-17)
+
+**Branch:** `fix/more-blazor-improvements`
+
+The Files sidebar quota bar showed the pre-action usage after an upload or after emptying the trash until the
+page was reloaded, even though the server had already updated the stored usage.
+
+**Root cause (found on the first round of live testing):** the sidebar re-read was missing, but adding it
+was not enough — `QuotaService.GetOrCreateQuotaAsync` read the quota row **with EF change tracking**. The
+Files UI services are registered in-process in Core.Server with a scoped `QuotaService`, so in a Blazor
+Server circuit that context lives as long as the session: EF returned the copy tracked on the first read
+(page load) for every later query, ignoring the values the Files module host had written. Only a page
+reload (new circuit → new `DbContext`) showed the true usage.
+
+### File browser — quota re-read after usage-changing operations
+
+- ✓ `FileBrowser.HandleUploadComplete` — re-reads the quota once the upload dialog reports completion
+  (covers the chunked upload dialog, drag-and-drop, clipboard paste and the new-document dialogs)
+- ✓ `FileBrowser.HandleTrashChanged` — re-reads the quota alongside the trash count, so empty trash and
+  permanent deletes (which free storage server-side via `TrashService` → `DecrementQuotaAsync`) update the
+  sidebar bar immediately; also applies when the trash view is reloaded from the Trash sidebar section
+- ✓ `ConfirmFolderPicker` — a **copy** duplicates bytes into the user's storage
+  (`FileService.CopyAsync` → `AdjustUsedBytesAsync`), so the quota is re-read there too; a move leaves usage
+  unchanged and is deliberately not refreshed
+- ✓ `LoadQuotaAsync` split into `LoadQuotaAsync()` (initial load, clears to null on failure) and
+  `RefreshQuotaAsync()` (post-operation, keeps the last known values on a transient failure) over a shared
+  `LoadQuotaCoreAsync`, so a failed refresh can never blank the bar to “— used · Unlimited”
+- ✓ `ChunkedUploadServiceTests.UploadFlow_CompletedUpload_QuotaReflectsUploadedSize` — the real
+  `QuotaService` wired in: initiate (reserve) → upload chunk → complete, asserting `FileQuotas.UsedBytes`
+  already equals the uploaded size when `CompleteUploadAsync` returns (the exact contract the sidebar
+  refresh depends on)
+
+### Stale quota reads — root cause fix
+
+- ✓ New `Data/QuotaRowHelper.cs` — one documented home for reading the quota row safely:
+  `GetCurrentAsync` (`AsNoTracking`, always database values) and `GetForUpdateAsync` (detaches any stale
+  tracked copy before the read, so a delta is applied to stored usage)
+- ✓ `QuotaService.GetOrCreateQuotaAsync` / `GetQuotaAsync` read through `GetCurrentAsync` — this is the
+  call the file-browser sidebar and the Files home widget make
+- ✓ `QuotaService.AdjustUsedBytesAsync`, `TryReserveQuotaAsync`, `SetQuotaAsync`, `RecalculateAsync` and
+  `TrashService.DecrementQuotaAsync` read through `GetForUpdateAsync` — without it a stale snapshot would be
+  the base for `UsedBytes += delta` and the write would **overwrite** the stored usage (a silently wrong
+  quota, not just a stale display)
+- ✓ `QuotaServiceTests.GetOrCreateQuotaAsync_QuotaChangedByAnotherContext_ReturnsFreshValues` — reproduces
+  the reported bug exactly (failed with `expected 1500, actual 500` before the fix)
+- ✓ `QuotaServiceTests.AdjustUsedBytesAsync_StaleTrackedCopy_AppliesDeltaToStoredValue`,
+  `QuotaServiceTests.TryReserveQuotaAsync_StaleTrackedCopy_ReservesAgainstStoredValue`,
+  `TrashServiceTests.PermanentDeleteAsync_StaleTrackedQuotaCopy_DecrementsStoredValue`
+- ✓ `DotNetCloud.Modules.Files.Tests` — 805/805 pass
+- ✓ `dotnet build DotNetCloud.Modules.Files` — 0 warnings / 0 errors
+- ✓ Deployed to mint22 (twice: refresh wiring, then the root-cause fix): 15/15 targets, hashes verified,
+  migrations up to date, version 0.6.09, `/health/ready` HTTP 200 · `RefreshQuotaAsync` +
+  `LoadQuotaCoreAsync` confirmed in the deployed `/opt/dotnetcloud/server/DotNetCloud.Modules.Files.dll`, and
+  `QuotaRowHelper` + `GetForUpdateAsync` + `GetCurrentAsync` in **both**
+  `/opt/dotnetcloud/server/DotNetCloud.Modules.Files.Data.dll` and
+  `/opt/dotnetcloud/modules/dotnetcloud.files/DotNetCloud.Modules.Files.Data.dll`
+- ✓ Browser E2E (mint22 dev, 2026-09-17, verified by the user): after uploading 39 files the quota bar rose
+  immediately, and emptying the trash dropped it immediately — no page reload needed
+
+## Photos Module — Viewport-Driven Gallery Paging (2026-09-17)
+
+**Branch:** `fix/more-blazor-improvements`
+
+The gallery used a fixed page size of 60 photos and _guessed_ the total ("if a full page came back there
+might be more"), so on a normal screen the grid overflowed, the pager sat below the fold, and the page
+count was wrong. The gallery now sizes a page to the screen and reports the real number of pages.
+
+### Page size follows the viewport (`photos-layout.js`)
+
+- ✓ New `wwwroot/photos-layout.js` (ES module, loaded via dynamic `import` from
+  `/_content/DotNetCloud.Modules.Photos/photos-layout.js` — allowed by `script-src 'self'`, unlike `eval`)
+  with `attach(dotNetRef, gridId)` / `refresh()` / `detach()`
+- ✓ Measures the rendered grid after every render: columns from `auto-fill` + the real card rect, rows from
+  the available height (`mainRect.bottom - gridRect.top` minus the grid's own padding) **minus the pager
+  row**, so a full page fits the screen and the pager stays visible without scrolling
+- ✓ A `ResizeObserver` on `.photos-main` re-measures on window resize, sidebar collapse/expand and
+  screen change (falling back to a `resize` listener where ResizeObserver is missing), debounced 200 ms,
+  and only calls back when the computed page size actually changed (no feedback loop)
+- ✓ Grid **and** list view are handled by the same math (the 203 px grid card and the 59 px list row are
+  both measured from the live DOM), and the computed size is capped (`PhotosPaging.MaxPageSize`, 500)
+- ✓ The set size is cached in `localStorage` (`dotnetcloud.photos:pagesize`) so the first request after a
+  reload is already close; the observer corrects it if the screen changed
+- ✓ `PhotosPage.OnAfterRenderAsync` attaches/detaches the observer as the grid appears and disappears
+  (section switches, the loading spinner), retrying on the next render when the grid isn't mounted yet
+- ✓ `[JSInvokable] OnPhotosLayoutChanged` keeps the first visible photo in place across a page-size change
+  (`PhotosPaging.ComputePageForResize`) instead of jumping back to page 1
+- ✓ Degrades safely: if the script can't load, paging falls back to `PhotosPaging.DefaultPageSize` (60) and
+  logs one warning (never one per render)
+
+### Accurate totals + first/last page buttons
+
+- ✓ `IPhotoService.CountPhotosAsync` / `PhotoService.CountPhotosAsync` — the real row count for the caller, so
+  the pager no longer estimates the total from whether a full page came back
+- ✓ `PhotosPaging` (`internal static`, unit-tested) — `NormalizePageSize`, `ComputeTotalPages`, `ClampPage`,
+  `ComputePageForResize`, `SlicePage`
+- ✓ The pager reads `Page X of Y` from the real total and walks **First · Previous · Next · Last**, with
+  First/Last disabled on the first/last page
+- ✓ Page size is applied everywhere the grid is paginated: Gallery (server-paged, re-fetched per page),
+  Favorites / album contents / Shared with me / search results (loaded in full, sliced client-side)
+- ✓ The page index is clamped whenever the total shrinks (delete, section switch) and reset when the search
+  box is cleared, so "Page 7 of 6" can no longer be shown
+- ✓ `MaterialIcon` `first_page` / `last_page` SVG paths added to `MaterialSvgIcons` + `MaterialSvgIconsTests`
+  rows (a missing path renders the icon name as text) — `DotNetCloud.UI.Shared.Tests` 115/115
+- ✓ Pager restyled (`display: inline-flex` buttons with icon + label, `margin-top: auto` so it sits at the
+  bottom of the main area); labels collapse to icons under 768 px (aria-label/title retained)
+- ✓ `DotNetCloud.Modules.Photos.Tests` 280/280 (21 new: `PhotosPagingTests`, `PhotoServiceCountPhotosTests`)
+- ✓ `dotnet build` — Photos module, Photos.Data, Photos.Host and Core.Server all 0 warnings / 0 errors
+- ✓ Browser E2E (mint22 dev, 2026-09-17, assistant-verified): 1755×921 → 18 photos/page, 6 pages;
+  1000×700 → 6 photos/page, 17 pages; list view → 11 rows/page, 10 pages — the pager bottom edge equals the
+  viewport bottom and `.photos-main` never overflows in any of them. First/Last/Next/Previous all navigate,
+  First+Last disabled on page 1, Next+Last disabled on the last page, and shrinking the window on page 3 of 6
+  landed on page 7 of 17 with the _same_ first photo. Collapsing the sidebar re-measured (18 → 21 cards).
+  Favorites (empty) correctly shows its empty state with no pager, and the lightbox still opens/closes.
+
+## Files Module — Collabora Editor Fullscreen Toggle (2026-09-17)
+
+**Branch:** `fix/more-blazor-improvements`
+
+The Collabora editor opened in a modal that was already close to viewport-sized (`min(1400px, 100%)`
+wide, `calc(100vh - 2rem)` tall), but on a large monitor the 1400 px cap left the document boxed in and
+there was no way to give it the whole screen. The editor header now carries a **fullscreen button**
+that puts the editor container into the browser's Fullscreen API.
+
+### Editor header button (`DocumentEditor.razor`)
+
+- ✓ Fullscreen toggle rendered before the existing **Close** button, using `MaterialIcon`
+  (`fullscreen` / `fullscreen_exit`) — no emoji, no raw SVG (project UI rule)
+- ✓ `title` and `aria-label` follow the state (`Fullscreen` / `Exit fullscreen`) via
+  `DocumentEditorFullscreen.GetTooltip`
+- ✓ The container (`.document-editor-container`) — not the Collabora iframe — is the fullscreen
+  element, so the header with the exit control stays on screen
+- ✓ `@ref` added to the container so the element is handed to JS once after the first render
+- ✓ `:fullscreen` CSS drops the 1400 px cap, the `calc(100vh - 2rem)` height and the corner radius so
+  the editor fills the screen edge to edge
+- ✓ The Collabora iframe gained `allow="…; fullscreen"` + `allowfullscreen`, so fullscreen requested
+  _inside_ the editor (for example slide-show mode) is permitted too
+
+### JS interop (`wwwroot/js/document-editor.js`)
+
+- ✓ New `window.dotnetcloudDocumentEditor` helper (`register` / `enter` / `exit` / `toggle` /
+  `isFullscreen` / `dispose`), loaded from `App.razor` with a `?v=20260917-01` cache-buster
+- ✓ `fullscreenchange` (plus the `webkit` / `MS` prefixed events) is bridged to the component so the
+  button icon and tooltip stay correct after **Esc**, F11 or any browser-initiated exit
+- ✓ Fullscreen is reported only when _this_ editor holds it, so a fullscreen request originating in the
+  Collabora iframe cannot flip the header button's state
+- ✓ `enter`/`exit` tolerate both the promise-based and the legacy callback-style browser APIs, and a
+  denied request is swallowed (state is driven by the change event, never by the call's return value)
+- ✓ `register`/`dispose` are paired: closing the editor releases the listener and the
+  `DotNetObjectReference`, and leaves fullscreen only when this editor holds it
+
+### Code-behind (`DocumentEditor.razor.cs`)
+
+- ✓ `IAsyncDisposable` + `IJSRuntime` injection; interop is best-effort and tolerates `JSException`,
+  `JSDisconnectedException`, `InvalidOperationException` and `ObjectDisposedException` (a dead circuit
+  must never break editor teardown)
+- ✓ `[JSInvokable] OnFullscreenChanged(bool)` keeps the button state in sync; **Close Editor** exits
+  fullscreen first, so the browser never stays fullscreen over the page behind the overlay
+- ✓ `DocumentEditorFullscreen` (`internal static`, unit-tested) — icon names, tooltip text and JS
+  identifiers live in one place
+
+### Icons & tests
+
+- ✓ `MaterialSvgIcons` rows `fullscreen` / `fullscreen_exit` added, plus `MaterialSvgIconsTests` rows —
+  `DotNetCloud.UI.Shared.Tests` 117/117
+- ✓ `DocumentEditorFullscreenTests` (10 new): both icon/tooltip states, both icons resolve to real SVG
+  path data, the JS global is a valid identifier segment, and `DocumentEditor` really exposes a public
+  `[JSInvokable] OnFullscreenChanged(bool)` returning `Task` (a rename on either side of the JS bridge
+  fails the test instead of silently breaking the button) —
+  `DotNetCloud.Modules.Files.Tests` 815/815
+- ✓ Build clean (0 warnings / 0 errors) — Files module, UI.Web and both test projects
+- ✓ Deployed to mint22 dev (`sudo ./scripts/deploy.sh --force --verify`): 15/15 targets, hashes verified,
+  migrations applied, v0.6.09, `/health/ready` HTTP 200; `document-editor.js` served from
+  `/_content/DotNetCloud.UI.Web/js/document-editor.js` (200, 5292 bytes)
+- ✓ Browser E2E (mint22 dev, assistant-verified, 1755×921 viewport): the toggle renders in the editor
+  header before **Close**, and clicking it makes `.document-editor-container` the
+  `document.fullscreenElement` at rect `0,0 → 1755×969` — the whole viewport, with the Collabora iframe
+  at 1755×927 below the still-visible header, i.e. the 1400 px cap is gone. The button flips to
+  `Exit fullscreen` / `fullscreen_exit` (proving the `fullscreenchange` bridge fires into .NET), a
+  second click restores the 1400 px wide / 12 px radius modal, and a browser-initiated
+  `document.exitFullscreen()` (the same path the **Esc** key takes) flips the button back on its own.
+  **Close** while fullscreen releases fullscreen and removes the overlay.
+- ☐ Production E2E — open, left to the user on production (`cloud.dotnetcloud.net`)
+
+---
+
+## Notes Module — Screen-Fitted Editor & Selection-Safe Toolbar (2026-09-17)
+
+**Branch:** `fix/more-blazor-improvements`
+
+Editing a note stretched the page vertically and pushed the Markdown toolbar off screen, and every
+toolbar button measured the textarea from a stale binding: with text highlighted the list, heading and
+block buttons replaced the highlighted block with a canned template.
+
+### Notes editor layout (`NotesPage.razor` / `NotesPage.razor.css`)
+
+- ✓ The edit form is a full-height flex column (`height: 100%`, so a long note shrinks the editor
+  instead of stretching the page) whose fixed-height header rows (Save/Delete/Cancel, title/tags/
+  folder) keep their size (`flex-shrink: 0`)
+- ✓ The Markdown editor takes the remaining height (`FillHeight="true"`) and scrolls internally:
+  `.editor-textarea` and `.preview-content` scroll, so the page never grows past the viewport
+- ✓ Scoped through `.notes-main ::deep .notes-editor-form` because the element is the `<form>`
+  rendered by `<EditForm>` — it carries no CSS-isolation scope attribute of its own (verified in the
+  browser: the plain class selector did **not** apply, the page grew to 1352 px with a 60-line note)
+- ✓ **Delete** lives in view mode only: edit mode's action row is **Save** + **Cancel** (the
+  confirm-dialog delete stays on the note detail view), and the unused handler went with the button
+
+### Editor component (`MarkdownEditor.razor` / `.razor.css`)
+
+- ✓ New `FillHeight` parameter (additive; existing usages are unaffected) adds a `fill-height` class
+  that turns the editor into `flex: 1 1 auto` with `min-height: 220px` and zeroes the 300 px
+  pane/textarea minimums so the panes scroll instead of stretching
+- ✓ The toolbar is `position: sticky; top: 0` and `.markdown-editor` switched from `overflow: hidden`
+  to `overflow: clip` (with `hidden` kept as the fallback), because `hidden` creates a scroll
+  container that would break sticky positioning; compact editors keep `position: relative`
+
+### Selection-safe toolbar
+
+- ✓ The text edits moved out of JS into `MarkdownTextFormatter` (public static, `MarkdownEditorInterop`
+  holds the two JS names), so the rules are unit-testable instead of untestable browser code
+- ✓ `ToggleWrap` adds the markers around the highlighted text (or the placeholder between them for a
+  collapsed caret) and removes them again when the text is already wrapped, so Bold → Italic → Bold →
+  Italic returns to plain text instead of stacking `*******text*******` (strikethrough included);
+  marker runs are read as "which formats are on" (one `*` italic, `**` bold, `***` both), a pair
+  wrapping a nested pair (`~~**text**~~`) is still found, and asterisks in prose are never treated as
+  markers because only marker-only gaps count as a wrapping pair
+- ✓ `ToggleLinePrefix` prefixes **every highlighted line** (bullet list, task list, blockquote) and
+  toggles the prefix off when every line already has it; blank lines are left blank and a selection
+  ending on a line break does not pull in the next line
+- ✓ `NumberLines` numbers the highlighted block (`1. `, `2. `, …), renumbers existing numbering and
+  removes it when every line is already numbered
+- ✓ `SetHeading(level)` headings every highlighted line and toggles off at the same level instead of
+  inserting `# Heading` over the selection
+- ✓ `InsertBlock` (table, horizontal rule) inserts **after** the selection and keeps the highlight,
+  instead of overwriting it; a stale browser range is clamped rather than throwing
+- ✓ `markdown-editor.js` reduced to `readState` / `writeState`: it reports the textarea text +
+  selection (falling back to the selection captured on blur, for browsers that drop it when the button
+  takes focus) and restores the selection after Blazor re-renders the bound value
+- ✓ `App.razor` cache-buster bumped to `markdown-editor.js?v=20260917-01`
+
+### Tests & verification
+
+- ✓ `MarkdownTextFormatterTests` (46) + `MarkdownEditorInteropTests` (6) — `DotNetCloud.UI.Shared.Tests`
+  169/169; `DotNetCloud.Modules.Notes.Tests` 157/157; build clean (0 warnings / 0 errors)
+- ✓ Deployed to mint22 dev (`sudo ./scripts/deploy.sh --force --verify`): 15/15 targets, hashes
+  verified, `/health/ready` HTTP 200, new `markdown-editor.js` served (200)
+- ✓ Browser E2E (mint22 dev, assistant-verified, 1755×921): with a note open in edit mode the form
+  fills the pane and the editor is 554 px tall ending 28 px above the viewport bottom, `.notes-main`
+  does not scroll, and the page height equals the viewport
+- ✓ Browser E2E, long note: with 60 lines typed the editor rect is unchanged, the textarea's scroll
+  height is 1208 px against a 481 px client height (it scrolls internally), the rendered preview
+  scrolls in its own pane (969 px in 509 px), and the toolbar stays at y=340 while the textarea is
+  scrolled to the bottom — i.e. the toolbar is scroll-locked and the page never grows
+- ✓ Browser E2E, formatting: `**apple**` from Bold with "apple" highlighted (selection kept on the
+  text at `[2,7]`), `- banana` / `- cherry` from the list button over a two-line highlight (previously
+  replaced by `- Item 1` / `- Item 2` / `- Item 3`), the same button again toggles the prefixes off,
+  `## cherry` from Heading 2 over a highlighted word, `1. banana` / `2. ## cherry` from the ordered
+  list, and the Table button inserts after the highlighted text with the highlight preserved
+- ✓ Browser E2E, toggling (the reported bug): highlighting "Hi there!" and pressing **Bold**, **Italic**,
+  **Bold**, **Italic** gives `**Hi there!**` → `***Hi there!***` → `*Hi there!*` → `Hi there!`, with the
+  selection carried on the text each time; **Strikethrough** twice returns to plain text; and after
+  **Strikethrough** then **Bold**, the outer `~~` around `~~**Hi there!**~~` is still found by
+  **Strikethrough** and removed, leaving `**Hi there!**`
+- ✓ Browser E2E, buttons: view mode shows Edit / Favorite / Share / History / **Delete**, edit mode shows
+  only **Save** + **Cancel** (no Delete on the page), and **Cancel** returns to view mode with Delete back
+- ✓ Smoke-tested the shared component outside Notes (`/admin/broadcast`): the editor still renders,
+  `overflow: clip`, toolbar sticky, no regression for non-fill-height usages
+- ✓ Cancel discarded the unsaved test edits (the note still reads "Hi there!")
+- ☐ Production E2E — left to the user on production (`cloud.dotnetcloud.net`)

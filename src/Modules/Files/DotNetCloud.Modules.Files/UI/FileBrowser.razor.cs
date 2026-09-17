@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Net.Http.Json;
+using System.Diagnostics;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
@@ -136,6 +137,8 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     // Delete confirmation dialog
     private bool _showDeleteConfirm;
     private List<Guid> _deleteTargetNodeIds = [];
+    private bool _isDeleting;
+    private string _deleteStatus = string.Empty;
     private string _newFolderName = string.Empty;
     private string _newDocumentName = "Untitled";
     private string _selectedDocumentExtension = "docx";
@@ -343,6 +346,11 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     protected async Task HandleTrashChanged()
     {
         await LoadTrashCountAsync();
+
+        // Permanently removed items (purge / empty trash) free storage server-side, so the
+        // sidebar quota bar has to be re-read as well — otherwise it keeps showing the old usage.
+        await RefreshQuotaAsync();
+
         StateHasChanged();
     }
 
@@ -396,7 +404,16 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         }
     }
 
-    private async Task LoadQuotaAsync()
+    private Task LoadQuotaAsync() => LoadQuotaCoreAsync(clearOnFailure: true);
+
+    /// <summary>
+    /// Re-reads the quota after an operation that changed storage usage (upload, copy, purge).
+    /// Unlike the initial load, a transient failure keeps the last known values instead of
+    /// blanking the sidebar bar to "Unlimited".
+    /// </summary>
+    private Task RefreshQuotaAsync() => LoadQuotaCoreAsync(clearOnFailure: false);
+
+    private async Task LoadQuotaCoreAsync(bool clearOnFailure)
     {
         try
         {
@@ -411,7 +428,8 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         }
         catch
         {
-            _quota = null;
+            if (clearOnFailure)
+                _quota = null;
         }
     }
 
@@ -960,6 +978,11 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         _hasDroppedFiles = false;
         await ClearPendingUploadsAsync();
         await LoadCurrentFolderAsync();
+
+        // Uploaded bytes are added to the user's quota as the upload completes, so re-read it
+        // here to keep the sidebar quota bar in sync with what was just uploaded.
+        await RefreshQuotaAsync();
+        StateHasChanged();
     }
 
     // ── Drag-and-drop zone (browser-level) ─────────────────────────────────────
@@ -1443,16 +1466,35 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         StateHasChanged();
     }
 
-    /// <summary>Cancels the delete confirmation dialog.</summary>
-    protected void CancelDelete() => _showDeleteConfirm = false;
+    /// <summary>Cancels the delete confirmation dialog. Ignored while a delete is in progress.</summary>
+    protected void CancelDelete()
+    {
+        if (_isDeleting)
+            return;
 
-    /// <summary>Moves the confirmed target nodes to trash.</summary>
+        _showDeleteConfirm = false;
+    }
+
+    /// <summary>
+    /// Moves the confirmed target nodes to trash, showing progress while it runs.
+    /// The dialog stays open with a spinner until every node has been processed, so deleting
+    /// several files sequentially never leaves the user without feedback.
+    /// </summary>
     protected async Task ConfirmDeleteAsync()
     {
-        _showDeleteConfirm = false;
-
-        if (_deleteTargetNodeIds.Count == 0)
+        if (_isDeleting || _deleteTargetNodeIds.Count == 0)
             return;
+
+        _isDeleting = true;
+        _deleteStatus = "Deleting…";
+        StateHasChanged();
+
+        var deleteProgress = Stopwatch.StartNew();
+
+        // Hand the renderer a real async gap before the work starts. Deletes can complete without
+        // ever yielding, in which case the only render that gets dispatched is the final one
+        // (dialog closed) — the spinner would then never reach the browser at all.
+        await Task.Delay(1);
 
         var deletedIds = _deleteTargetNodeIds.ToList();
 
@@ -1467,14 +1509,41 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
             previewedDeletedIndex = currentList.FindIndex(n => n.Id == previewedDeletedId.Value);
         }
 
-        var caller = await GetCallerContextAsync();
-
-        foreach (var nodeId in deletedIds)
+        try
         {
-            await FileService.DeleteAsync(nodeId, caller);
+            var caller = await GetCallerContextAsync();
+
+            for (var index = 0; index < deletedIds.Count; index++)
+            {
+                _deleteStatus = FilesDeleteProgress.BuildStatus(index, deletedIds.Count, FindNodeName(deletedIds[index]));
+                StateHasChanged();
+
+                await FileService.DeleteAsync(deletedIds[index], caller);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Abort the remaining deletes and fall through to the refresh below so the listing
+            // always reflects the state the server actually ended up in.
+            Logger.LogWarning(ex, "Failed to delete {Count} node(s), starting at {NodeId}",
+                deletedIds.Count, deletedIds[0]);
+        }
+        finally
+        {
+            // Blazor coalesces renders, so a delete that finishes in a few milliseconds would never
+            // reach the browser — the dialog would appear to close with no spinner at all. Keep the
+            // progress state on screen for a minimum time so it is always actually seen.
+            var holdMs = FilesDeleteProgress.GetHoldTimeMs((int)deleteProgress.ElapsedMilliseconds);
+            if (holdMs > 0)
+                await Task.Delay(holdMs);
+
+            _isDeleting = false;
+            _deleteStatus = string.Empty;
+            _showDeleteConfirm = false;
+            _deleteTargetNodeIds = [];
+            StateHasChanged();
         }
 
-        _deleteTargetNodeIds = [];
         _selectedNodes.Clear();
         _selectionMode = false;
 
@@ -1487,6 +1556,11 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
 
         StateHasChanged();
     }
+
+    /// <summary>Resolves a node's display name from the loaded listings (best effort).</summary>
+    private string? FindNodeName(Guid nodeId) =>
+        _nodes.FirstOrDefault(n => n.Id == nodeId)?.Name
+        ?? _taggedNodes.FirstOrDefault(n => n.Id == nodeId)?.Name;
 
     /// <summary>
     /// Keeps the image viewer open after deleting the displayed image by moving to the next
@@ -1611,8 +1685,9 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
 
         var caller = await GetCallerContextAsync();
         var targetId = _pickerCurrentFolderId;
+        var isCopy = _folderPickerMode == FolderPickerMode.Copy;
 
-        if (_folderPickerMode == FolderPickerMode.Move)
+        if (!isCopy)
         {
             foreach (var nodeId in _selectedNodes.ToList())
             {
@@ -1636,6 +1711,11 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         _breadcrumbs.Clear();
 
         await LoadCurrentFolderAsync();
+
+        // A copy duplicates bytes into the user's storage (a move does not), so re-read the quota
+        // to keep the sidebar bar accurate.
+        if (isCopy)
+            await RefreshQuotaAsync();
     }
 
     private async Task OpenFolderPicker()

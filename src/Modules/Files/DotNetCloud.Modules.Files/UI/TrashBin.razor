@@ -23,11 +23,11 @@
         }
     </div>
 
-    @if (IsRestoring)
+    @if (IsRestoring || IsDeletingSelected)
     {
-        <div class="trash-restoring" role="status" aria-live="polite">
+        <div class="@(IsDeletingSelected ? "trash-deleting" : "trash-restoring")" role="status" aria-live="polite">
             <div class="spinner"></div>
-            <span>@RestoreStatus</span>
+            <span>@(IsRestoring ? RestoreStatus : DeleteStatus)</span>
         </div>
     }
 

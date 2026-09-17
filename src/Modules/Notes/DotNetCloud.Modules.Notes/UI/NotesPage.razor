@@ -179,13 +179,9 @@
 
         @if (!_isLoading && _editingNote is not null)
         {
-            <EditForm Model="_editingNote" OnValidSubmit="SaveNoteAsync">
+            <EditForm Model="_editingNote" OnValidSubmit="SaveNoteAsync" class="notes-editor-form">
                 <div class="notes-form-actions">
                     <button type="submit" class="btn btn-outline-primary">Save</button>
-                    @if (_editingNote.Id.HasValue)
-                    {
-                        <button type="button" class="btn btn-outline-danger" @onclick="DeleteSelectedAsync">Delete</button>
-                    }
                     <button type="button" class="btn btn-secondary" @onclick="CancelEdit">Cancel</button>
                 </div>
                 <div class="notes-form-grid">
@@ -205,7 +201,7 @@
                     }
                 </div>
                 <MarkdownEditor Content="@_editingNote.Content" ContentChanged="HandleEditorChanged"
-                                Renderer="MarkdownRenderer" />
+                                Renderer="MarkdownRenderer" FillHeight="true" />
             </EditForm>
         }
         else if (_selectedNote is not null)
@@ -565,24 +561,6 @@ _sidebarCollapsed.ToString().ToLowerInvariant() });
         }
 
         _editingNote = null;
-        await ReloadAsync();
-    }
-
-    private async Task DeleteSelectedAsync()
-    {
-        if (_editingNote?.Id is not Guid noteId)
-        {
-            return;
-        }
-
-        if (!await _confirmDialog.ShowAsync("Delete this note? This action cannot be undone.", "Delete Note"))
-        {
-            return;
-        }
-
-        await ApiClient.DeleteNoteAsync(noteId);
-        _editingNote = null;
-        _selectedNote = null;
         await ReloadAsync();
     }
 

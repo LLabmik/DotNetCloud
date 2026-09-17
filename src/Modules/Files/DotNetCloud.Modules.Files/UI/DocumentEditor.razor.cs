@@ -2,14 +2,16 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Http;
+using Microsoft.JSInterop;
 
 namespace DotNetCloud.Modules.Files.UI;
 
 /// <summary>
 /// Code-behind for the Collabora document editor component.
-/// Manages WOPI token generation, editor iframe URL, and co-editing indicators.
+/// Manages WOPI token generation, editor iframe URL, co-editing indicators, and the
+/// fullscreen toggle for the editor container.
 /// </summary>
-public partial class DocumentEditor : ComponentBase
+public partial class DocumentEditor : ComponentBase, IAsyncDisposable
 {
     /// <summary>The file node ID to open in the editor.</summary>
     [Parameter] public Guid FileId { get; set; }
@@ -35,6 +37,18 @@ public partial class DocumentEditor : ComponentBase
     /// <summary>Accessor for capturing auth cookie during initialization.</summary>
     [Inject] private IHttpContextAccessor HttpContextAccessor { get; set; } = default!;
 
+    /// <summary>Injected for the fullscreen toggle (see <c>wwwroot/js/document-editor.js</c>).</summary>
+    [Inject] private IJSRuntime Js { get; set; } = default!;
+
+    /// <summary>Reference to the editor container element that goes fullscreen.</summary>
+    private ElementReference _containerRef;
+
+    /// <summary>Callback handle passed to the JS helper so it can report fullscreen changes.</summary>
+    private DotNetObjectReference<DocumentEditor>? _dotNetRef;
+
+    /// <summary>Whether the fullscreen interop helper has been registered with the browser.</summary>
+    private bool _fullscreenRegistered;
+
     /// <summary>Captured auth cookie from the initial HTTP request.</summary>
     private string? _capturedCookie;
 
@@ -50,11 +64,106 @@ public partial class DocumentEditor : ComponentBase
     /// <summary>List of other users currently co-editing this document.</summary>
     protected List<string> CoEditingUsers { get; set; } = [];
 
+    /// <summary>Whether the editor container currently holds browser fullscreen.</summary>
+    protected bool IsFullscreen { get; private set; }
+
+    /// <summary>Icon for the fullscreen toggle — swaps between the enter and exit states.</summary>
+    protected string FullscreenIcon => DocumentEditorFullscreen.GetIcon(IsFullscreen);
+
+    /// <summary>Tooltip / aria-label for the fullscreen toggle.</summary>
+    protected string FullscreenTooltip => DocumentEditorFullscreen.GetTooltip(IsFullscreen);
+
     /// <inheritdoc />
     protected override void OnInitialized()
     {
         _capturedCookie = HttpContextAccessor.HttpContext?.Request.Headers.Cookie.ToString();
     }
+
+    /// <inheritdoc />
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await RegisterFullscreenAsync();
+        }
+    }
+
+    /// <summary>
+    /// Hands the editor container to the JS fullscreen helper. Best-effort: a missing script
+    /// only disables the fullscreen toggle, it never breaks the editor.
+    /// </summary>
+    private async Task RegisterFullscreenAsync()
+    {
+        _dotNetRef ??= DotNetObjectReference.Create(this);
+
+        try
+        {
+            await Js.InvokeVoidAsync($"{DocumentEditorFullscreen.JsObject}.register", _containerRef, _dotNetRef);
+            _fullscreenRegistered = true;
+        }
+        catch (Exception ex) when (IsJsInteropFailure(ex))
+        {
+            _fullscreenRegistered = false;
+        }
+    }
+
+    /// <summary>
+    /// Toggles browser fullscreen for the editor container. The resulting state arrives
+    /// asynchronously through <see cref="OnFullscreenChanged"/> from the browser's
+    /// <c>fullscreenchange</c> event, which also covers Esc and browser-initiated exits.
+    /// </summary>
+    protected async Task ToggleFullscreenAsync()
+    {
+        try
+        {
+            await Js.InvokeVoidAsync($"{DocumentEditorFullscreen.JsObject}.toggle");
+        }
+        catch (Exception ex) when (IsJsInteropFailure(ex))
+        {
+            // Best-effort: leave the button state untouched when the browser refuses or the
+            // helper is unavailable.
+        }
+    }
+
+    /// <summary>
+    /// Called from the browser when the fullscreen state of the editor container changes.
+    /// </summary>
+    /// <param name="isFullscreen">Whether the editor container now holds fullscreen.</param>
+    [JSInvokable(DocumentEditorFullscreen.ChangedCallback)]
+    public Task OnFullscreenChanged(bool isFullscreen)
+    {
+        if (IsFullscreen == isFullscreen)
+        {
+            return Task.CompletedTask;
+        }
+
+        IsFullscreen = isFullscreen;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>
+    /// Drops the editor out of fullscreen. Used when the editor is closing, so the browser
+    /// never stays fullscreen over the page behind it.
+    /// </summary>
+    private async Task ExitFullscreenAsync()
+    {
+        if (!_fullscreenRegistered || !IsFullscreen)
+        {
+            return;
+        }
+
+        try
+        {
+            await Js.InvokeVoidAsync($"{DocumentEditorFullscreen.JsObject}.exit");
+        }
+        catch (Exception ex) when (IsJsInteropFailure(ex))
+        {
+            // Best-effort: the circuit may already be gone.
+        }
+    }
+
+    private static bool IsJsInteropFailure(Exception ex)
+        => ex is JSException or JSDisconnectedException or InvalidOperationException or ObjectDisposedException;
 
     /// <inheritdoc />
     protected override async Task OnParametersSetAsync()
@@ -138,6 +247,8 @@ public partial class DocumentEditor : ComponentBase
     /// </summary>
     protected async Task CloseEditorAsync()
     {
+        await ExitFullscreenAsync();
+
         if (!string.IsNullOrEmpty(ApiBaseUrl) && FileId != Guid.Empty)
         {
             try
@@ -154,6 +265,29 @@ public partial class DocumentEditor : ComponentBase
         {
             await OnClose.InvokeAsync();
         }
+    }
+
+    /// <summary>
+    /// Releases the fullscreen helper registration and the JS callback handle.
+    /// </summary>
+    public async ValueTask DisposeAsync()
+    {
+        if (_fullscreenRegistered)
+        {
+            _fullscreenRegistered = false;
+
+            try
+            {
+                await Js.InvokeVoidAsync($"{DocumentEditorFullscreen.JsObject}.dispose");
+            }
+            catch (Exception ex) when (IsJsInteropFailure(ex))
+            {
+                // Best-effort: the circuit or the script may already be gone.
+            }
+        }
+
+        _dotNetRef?.Dispose();
+        _dotNetRef = null;
     }
 
     /// <summary>

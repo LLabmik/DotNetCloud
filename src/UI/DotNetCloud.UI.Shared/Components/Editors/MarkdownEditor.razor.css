@@ -8,7 +8,10 @@
   flex-direction: column;
   border: 1px solid var(--color-border, #e2e8f0);
   border-radius: 8px;
+  /* `clip` clips the rounded corners like `hidden`, but does not create a scroll container, so
+     the toolbar's `position: sticky` still resolves against the page/dialog scroll box. */
   overflow: hidden;
+  overflow: clip;
   background: var(--color-surface, #fff);
   min-height: 400px;
 }
@@ -23,6 +26,10 @@
   border-bottom: 1px solid var(--color-border, #e2e8f0);
   background: var(--color-bg, #f5f7fa);
   flex-wrap: wrap;
+  /* Scroll-locked: the formatting buttons stay visible while the editor (or the page) scrolls. */
+  position: sticky;
+  top: 0;
+  z-index: 5;
 }
 
 .toolbar-group {
@@ -171,6 +178,31 @@
 
 .markdown-editor.preview-only .markdown-editor-toolbar {
   display: none;
+}
+
+/* ── Fill-height mode ────────────────────────────────────── */
+/* The editor takes the height its parent hands it and scrolls internally, so a page
+   like the Notes editor fits the screen instead of growing past it. */
+
+.markdown-editor.fill-height {
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 220px;
+}
+
+.markdown-editor.fill-height .markdown-editor-body {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.markdown-editor.fill-height .editor-pane,
+.markdown-editor.fill-height .preview-pane {
+  min-height: 0;
+}
+
+.markdown-editor.fill-height .editor-textarea {
+  min-height: 0;
+  overflow-y: auto;
 }
 
 /* ── Compact mode ────────────────────────────────────────── */

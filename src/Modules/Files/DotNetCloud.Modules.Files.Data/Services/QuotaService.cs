@@ -42,9 +42,7 @@ internal sealed class QuotaService : IQuotaService
     {
         ArgumentNullException.ThrowIfNull(caller);
 
-        var quota = await _db.FileQuotas
-            .AsNoTracking()
-            .FirstOrDefaultAsync(q => q.UserId == userId, cancellationToken);
+        var quota = await QuotaRowHelper.GetCurrentAsync(_db, userId, cancellationToken);
 
         if (quota is null)
             throw new NotFoundException("FileQuota", userId);
@@ -57,8 +55,11 @@ internal sealed class QuotaService : IQuotaService
     {
         ArgumentNullException.ThrowIfNull(caller);
 
-        var quota = await _db.FileQuotas
-            .FirstOrDefaultAsync(q => q.UserId == userId, cancellationToken);
+        // Reads the stored values rather than whatever this context tracked when the page loaded:
+        // the scoped service lives as long as the Blazor circuit, so a stale copy would otherwise
+        // be returned for the rest of the session — leaving the sidebar quota bar frozen after an
+        // upload or a trash purge performed by the Files module host.
+        var quota = await QuotaRowHelper.GetCurrentAsync(_db, userId, cancellationToken);
 
         if (quota is null)
         {
@@ -95,8 +96,7 @@ internal sealed class QuotaService : IQuotaService
     {
         ArgumentNullException.ThrowIfNull(caller);
 
-        var quota = await _db.FileQuotas
-            .FirstOrDefaultAsync(q => q.UserId == userId, cancellationToken);
+        var quota = await QuotaRowHelper.GetForUpdateAsync(_db, userId, cancellationToken);
 
         if (quota is null)
         {
@@ -149,8 +149,7 @@ internal sealed class QuotaService : IQuotaService
         const int maxRetries = 3;
         for (var attempt = 0; attempt < maxRetries; attempt++)
         {
-            var quota = await _db.FileQuotas
-                .FirstOrDefaultAsync(q => q.UserId == userId, cancellationToken);
+            var quota = await QuotaRowHelper.GetForUpdateAsync(_db, userId, cancellationToken);
 
             if (quota is null)
                 return false;
@@ -200,8 +199,7 @@ internal sealed class QuotaService : IQuotaService
         const int maxRetries = 3;
         for (var attempt = 0; attempt < maxRetries; attempt++)
         {
-            var quota = await _db.FileQuotas
-                .FirstOrDefaultAsync(q => q.UserId == userId, cancellationToken);
+            var quota = await QuotaRowHelper.GetForUpdateAsync(_db, userId, cancellationToken);
 
             if (quota is null)
                 return;
@@ -234,8 +232,7 @@ internal sealed class QuotaService : IQuotaService
     /// <inheritdoc />
     public async Task RecalculateAsync(Guid userId, CancellationToken cancellationToken = default)
     {
-        var quota = await _db.FileQuotas
-            .FirstOrDefaultAsync(q => q.UserId == userId, cancellationToken);
+        var quota = await QuotaRowHelper.GetForUpdateAsync(_db, userId, cancellationToken);
 
         if (quota is null)
             return;

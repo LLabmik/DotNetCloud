@@ -2,6 +2,7 @@ using DotNetCloud.Core.Authorization;
 using DotNetCloud.Modules.Files.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using System.Diagnostics;
 using System.Security.Claims;
 
 namespace DotNetCloud.Modules.Files.UI;
@@ -29,6 +30,8 @@ public partial class TrashBin : ComponentBase
     private bool _isEmptying;
     private bool _isRestoring;
     private string _restoreStatus = string.Empty;
+    private bool _isDeletingSelected;
+    private string _deleteStatus = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
@@ -74,8 +77,14 @@ public partial class TrashBin : ComponentBase
     /// <summary>Progress text shown next to the restore spinner (e.g. "Restoring 2 of 5: Photos…").</summary>
     protected string RestoreStatus => _restoreStatus;
 
+    /// <summary>Whether a permanent delete of the selected items is currently in progress.</summary>
+    protected bool IsDeletingSelected => _isDeletingSelected;
+
+    /// <summary>Progress text shown next to the delete spinner (e.g. "Deleting 2 of 5: Photos…").</summary>
+    protected string DeleteStatus => _deleteStatus;
+
     /// <summary>Whether any long-running trash operation is in progress.</summary>
-    protected bool IsBusy => _isEmptying || _isRestoring;
+    protected bool IsBusy => _isEmptying || _isRestoring || _isDeletingSelected;
 
     /// <summary>Returns whether the given item is currently selected.</summary>
     protected bool IsSelected(Guid id) => _selectedItems.Contains(id);
@@ -133,19 +142,48 @@ public partial class TrashBin : ComponentBase
         await OnTrashChanged.InvokeAsync();
     }
 
-    /// <summary>Permanently deletes all selected items.</summary>
+    /// <summary>Permanently deletes all selected items, showing progress while it runs.</summary>
     protected async Task DeleteSelected()
     {
         if (IsBusy)
             return;
 
-        var caller = await GetCallerContextAsync();
-        foreach (var id in _selectedItems.ToList())
+        var items = _trashedItems.Where(i => _selectedItems.Contains(i.Id)).ToList();
+        if (items.Count == 0)
+            return;
+
+        _isDeletingSelected = true;
+        StateHasChanged();
+        var deleteProgress = Stopwatch.StartNew();
+
+        // Hand the renderer a real async gap — see FileBrowser.ConfirmDeleteAsync.
+        await Task.Delay(1);
+
+        try
         {
-            await TrashService.PermanentDeleteAsync(id, caller);
+            var caller = await GetCallerContextAsync();
+
+            for (var index = 0; index < items.Count; index++)
+            {
+                _deleteStatus = FilesDeleteProgress.BuildStatus(index, items.Count, items[index].Name);
+                StateHasChanged();
+
+                await TrashService.PermanentDeleteAsync(items[index].Id, caller);
+                _selectedItems.Remove(items[index].Id);
+            }
+        }
+        finally
+        {
+            // See FilesDeleteProgress.GetHoldTimeMs — fast deletes are otherwise swallowed by
+            // Blazor's render batching and the user never sees the progress banner.
+            var holdMs = FilesDeleteProgress.GetHoldTimeMs((int)deleteProgress.ElapsedMilliseconds);
+            if (holdMs > 0)
+                await Task.Delay(holdMs);
+
+            _isDeletingSelected = false;
+            _deleteStatus = string.Empty;
         }
 
-        _selectedItems.Clear();
         await LoadTrashAsync();
         await OnTrashChanged.InvokeAsync();
     }

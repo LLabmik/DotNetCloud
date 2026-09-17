@@ -690,12 +690,21 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 16px;
+    gap: 12px;
     padding: 16px 20px 24px;
+    /* Pushed to the bottom of the scroll area so the pager stays at the bottom of
+       the screen even when the last page has fewer photos than fit. The page size
+       itself is viewport-driven (photos-layout.js), which reserves this row's
+       height so a full page never pushes the pager below the fold. */
+    margin-top: auto;
+    flex-wrap: wrap;
 }
 
 .photos-pagination button {
-    padding: 7px 16px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
     border: 1px solid var(--color-border, #e2e8f0);
     background: var(--color-surface, #ffffff);
     color: var(--color-text, #1e293b);
@@ -703,6 +712,7 @@
     cursor: pointer;
     font-size: 13px;
     font-weight: 500;
+    line-height: 1.2;
     transition: border-color 150ms ease, background 150ms ease;
 }
 
@@ -716,9 +726,14 @@
     cursor: default;
 }
 
+.photos-pagination .material-icon {
+    flex-shrink: 0;
+}
+
 .page-info {
     font-size: 13px;
     color: var(--color-text-secondary, #64748b);
+    white-space: nowrap;
 }
 
 /* ─────────── Lightbox ─────────── */
@@ -1212,6 +1227,20 @@
         display: none;
     }
 
+    /* Icon-only pager buttons on narrow screens; the aria-label/title keep them usable. */
+    .photos-pagination {
+        gap: 8px;
+        padding: 12px 12px 16px;
+    }
+
+    .photos-pagination .page-btn-label {
+        display: none;
+    }
+
+    .photos-pagination button {
+        padding: 7px 10px;
+    }
+
     .photos-toolbar {
         flex-wrap: wrap;
         padding: 10px 12px;
@@ -1258,4 +1287,108 @@
     .dialog-panel {
         margin: 16px;
     }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Scan Progress Panel (library scan / first-visit import prompt)
+   ═══════════════════════════════════════════════════════════ */
+
+.scan-progress-panel {
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--color-bg, #f5f7fa);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius, 8px);
+}
+
+.scan-progress-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.scan-phase {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-primary, #3b82f6);
+}
+
+.scan-elapsed {
+  font-size: 0.75rem;
+  color: var(--color-muted, #94a3b8);
+  font-variant-numeric: tabular-nums;
+}
+
+.scan-progress-bar {
+  width: 100%;
+  height: 6px;
+  background: var(--color-border, #e2e8f0);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.scan-progress-fill {
+  height: 100%;
+  background: var(--color-primary, #3b82f6);
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.scan-progress-fill.indeterminate {
+  width: 30%;
+  animation: progress-indeterminate 1.5s ease-in-out infinite;
+}
+
+@keyframes progress-indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(333%);
+  }
+}
+
+.scan-progress-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.scan-current-file {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary, #64748b);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: "SF Mono", "Cascadia Code", "Consolas", monospace;
+}
+
+.scan-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.scan-count {
+  font-size: 0.75rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.scan-count.added {
+  color: #22c55e;
+}
+.scan-count.updated {
+  color: var(--color-primary, #3b82f6);
+}
+.scan-count.skipped {
+  color: var(--color-muted, #94a3b8);
+}
+.scan-count.failed {
+  color: #ef4444;
+}
+.scan-count.discovered {
+  color: var(--color-primary, #3b82f6);
 }
