@@ -100,6 +100,10 @@ public static class MauiProgram
         builder.Services.AddSingleton<IAppForegroundService, AppForegroundService>();
         builder.Services.AddSingleton<IChannelMuteStateService, ChannelMuteStateService>();
 
+        // In-app chat alert sound. System notifications are suppressed while the app is visible,
+        // so this ding is the only audible alert for a message that arrives on screen.
+        builder.Services.AddSingleton<IChatSoundPlayer, AndroidChatSoundPlayer>();
+
         // ── Update services ───────────────────────────────────────────
         builder.Services.AddHttpClient<IClientUpdateService, ClientUpdateService>()
             .AddHttpMessageHandler<TimeoutHandler>()

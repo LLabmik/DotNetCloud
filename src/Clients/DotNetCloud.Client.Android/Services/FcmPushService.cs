@@ -1,5 +1,6 @@
 #if GOOGLEPLAY
 using System.Net.Http.Json;
+using Android.Util;
 using Microsoft.Extensions.Logging;
 using GmsIOnCompleteListener = Android.Gms.Tasks.IOnCompleteListener;
 using GmsTask = Android.Gms.Tasks.Task;
@@ -31,7 +32,17 @@ internal sealed class FcmPushService : IPushNotificationService
         var fcmToken = await GetFcmTokenAsync(ct).ConfigureAwait(false);
         if (fcmToken is null)
         {
-            _logger.LogWarning("FCM token not available, skipping push registration.");
+            // Without a token there is no push transport at all: while the app process is alive
+            // messages still arrive over SignalR, but once Android reclaims/freezes the process
+            // nothing can wake the device. The usual cause is a build with no Firebase
+            // configuration — the googleplay flavour needs a google-services.json whose
+            // google_app_id/gcm_defaultSenderId resources match the Firebase project the server
+            // signs its sends with.
+            _logger.LogWarning(
+                "FCM token not available — this device cannot receive push notifications. "
+                + "Background chat alerts require a google-services.json (Firebase project) in the googleplay build.");
+
+            Log.Warn("DotNetCloud", "FCM token unavailable: push notifications are disabled on this device (no Firebase configuration in the build).");
             return;
         }
 

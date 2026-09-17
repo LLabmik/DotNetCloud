@@ -78,6 +78,8 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
     private readonly IChannelMuteStateService _muteState;
     private readonly ICalendarReminderScheduler _reminderScheduler;
     private readonly IServerReachabilityService _reachability;
+    private readonly IChatSoundPlayer _chatSound;
+    private readonly ISecureTokenStore _tokenStore;
 
     // Tracks channel groups joined so they can be re-joined after reconnection.
     private readonly ConcurrentDictionary<Guid, byte> _joinedChannels = new();
@@ -86,6 +88,10 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
     // reconnect attempts are exhausted.
     private string? _serverBaseUrl;
     private bool _reconnecting;
+
+    // Signed-in user, resolved from the id_token at connect time. Used to keep a user's own
+    // message echo (sent from this phone or any other client) from dinging.
+    private Guid _currentUserId;
 
     /// <inheritdoc />
     public event EventHandler<ChatUnreadCountUpdatedEventArgs>? OnUnreadCountUpdated;
@@ -113,7 +119,9 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
         IAppForegroundService foregroundService,
         IChannelMuteStateService muteState,
         ICalendarReminderScheduler reminderScheduler,
-        IServerReachabilityService reachability)
+        IServerReachabilityService reachability,
+        IChatSoundPlayer chatSound,
+        ISecureTokenStore tokenStore)
     {
         _logger = logger;
         _offlineSync = offlineSync;
@@ -122,6 +130,8 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
         _muteState = muteState;
         _reminderScheduler = reminderScheduler;
         _reachability = reachability;
+        _chatSound = chatSound;
+        _tokenStore = tokenStore;
     }
 
     /// <summary>
@@ -134,6 +144,15 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
     public async Task ConnectAsync(string serverBaseUrl, string? accessToken = null, CancellationToken cancellationToken = default)
     {
         _serverBaseUrl = serverBaseUrl;
+
+        // Load the in-app alert sound up front so the first message of this process is not
+        // swallowed while the platform decodes the resource.
+        _chatSound.Prepare();
+
+        // Resolve the signed-in user so a user's own message echo never dings. Resolution reads
+        // the signed id_token (the access token is JWE-encrypted and cannot be decoded locally);
+        // a failure here is non-fatal and only disables the own-message check.
+        _currentUserId = await ResolveCurrentUserIdAsync(serverBaseUrl, cancellationToken).ConfigureAwait(false);
 
         if (_hub is not null)
             await _hub.DisposeAsync().ConfigureAwait(false);
@@ -212,22 +231,36 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
                 linkPreviewJson));
 
 #if ANDROID
-            Log.Info("DotNetCloud", $"SignalR notification: foreground={_foregroundService.IsInForeground}, channelId={payload.ChannelId}");
+            // Exactly one alert per message: a system notification while the app is not visible
+            // (it carries its own sound), and the in-app ding while it is — notifications are
+            // suppressed in the foreground, so without the ding an incoming message is silent.
+            var alert = ChatAlertPolicy.Decide(
+                _foregroundService.IsInForeground,
+                _chatSound.IsEnabled,
+                Guid.TryParse(payload.ChannelId, out var alertChannelId) && _muteState.IsMuted(alertChannelId),
+                payload.Message.SenderUserId,
+                _currentUserId);
 
-            // Post an Android notification if the app is backgrounded and the channel isn't muted.
+            Log.Info("DotNetCloud", $"SignalR chat alert: decision={alert}, foreground={_foregroundService.IsInForeground}, channelId={payload.ChannelId}");
+
             try
             {
-                if (!_foregroundService.IsInForeground &&
-                    Guid.TryParse(payload.ChannelId, out var chId) &&
-                    !_muteState.IsMuted(chId))
+                switch (alert)
                 {
-                    Log.Info("DotNetCloud", $"SignalR notification: posting for channel {payload.ChannelId}");
-                    PostSignalRNotification(payload.ChannelId, senderName, payload.Message.Content);
+                    case ChatAlertKind.InAppSound:
+                        Log.Info("DotNetCloud", $"SignalR chat alert: playing ding for channel {payload.ChannelId}");
+                        _chatSound.PlayMessageAlert();
+                        break;
+
+                    case ChatAlertKind.SystemNotification:
+                        Log.Info("DotNetCloud", $"SignalR chat alert: posting notification for channel {payload.ChannelId}");
+                        PostSignalRNotification(payload.ChannelId, senderName, payload.Message.Content);
+                        break;
                 }
             }
             catch (Exception ex)
             {
-                Log.Warn("DotNetCloud", $"SignalR notification failed: {ex.Message}");
+                Log.Warn("DotNetCloud", $"SignalR chat alert failed: {ex.Message}");
             }
 #endif
         });
@@ -588,6 +621,36 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
             "DoNotDisturb" => "DoNotDisturb",
             _ => "Offline"
         };
+    }
+
+    /// <summary>
+    /// Resolves the signed-in user's ID from the stored <c>id_token</c>.
+    /// </summary>
+    /// <remarks>
+    /// The access token is JWE-encrypted and cannot be decoded client-side, so the <c>sub</c>
+    /// claim is only readable from the signed id_token. Returns <see cref="Guid.Empty"/> when the
+    /// token is missing or unreadable — callers must treat that as "unknown", never as "no alert".
+    /// </remarks>
+    private async Task<Guid> ResolveCurrentUserIdAsync(string serverBaseUrl, CancellationToken ct)
+    {
+        try
+        {
+            var idToken = await _tokenStore.GetIdTokenAsync(serverBaseUrl, ct).ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(idToken))
+            {
+                _logger.LogDebug("No id_token available; own-message detection is disabled.");
+                return Guid.Empty;
+            }
+
+            var userId = AccessTokenUserIdExtractor.ExtractUserId(idToken);
+            _logger.LogInformation("Resolved current user id from id_token: {UserId}", userId);
+            return userId;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Could not resolve the current user id; own-message detection is disabled.");
+            return Guid.Empty;
+        }
     }
 
     /// <inheritdoc />
