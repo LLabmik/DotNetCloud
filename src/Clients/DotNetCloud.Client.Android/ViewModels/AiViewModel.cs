@@ -147,8 +147,10 @@ public sealed partial class AiViewModel : ObservableObject
     private bool _isStreaming;
 
     /// <summary>
-    /// True while streaming when no reply content has arrived yet and the 3-second
-    /// generation window has elapsed — shows "Generating…" (mirrors Blazor).
+    /// True while streaming when no answer text has arrived yet and the generation window has
+    /// elapsed — shows "Generating…" (mirrors Blazor). Reasoning/thinking output does not count:
+    /// it is surfaced in its own block, and a thinking model can reason for minutes, leaving the
+    /// answer area blank for that whole time with no sign of progress.
     /// </summary>
     [ObservableProperty]
     private bool _isModelLoading;
@@ -475,9 +477,13 @@ public sealed partial class AiViewModel : ObservableObject
                 if (!string.IsNullOrEmpty(chunk.Content))
                 {
                     accumulated.Append(chunk.Content);
-                    // First real content means the model is loaded — hide the loading message.
-                    if (IsModelLoading)
-                        Dispatch(() => IsModelLoading = false);
+                    // First real content means the model is loaded — the answer area takes over from
+                    // the generating indicator.
+                    Dispatch(() =>
+                    {
+                        if (IsModelLoading)
+                            IsModelLoading = false;
+                    });
                 }
 
                 Dispatch(() =>
@@ -572,8 +578,9 @@ public sealed partial class AiViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Starts the 3-second window after which "Generating…" is shown if no
-    /// reply content has arrived yet (mirrors the Blazor module's generating indicator).
+    /// Starts the window after which "Generating…" is shown while the answer text has not
+    /// arrived yet (mirrors the Blazor module's generating indicator). Thinking output is ignored
+    /// on purpose — the answer area would otherwise stay blank while a reasoning model thinks.
     /// </summary>
     private void StartModelLoadTimer()
     {
@@ -587,8 +594,13 @@ public sealed partial class AiViewModel : ObservableObject
             try
             {
                 await Task.Delay(ModelLoadDelay, ct);
-                if (!ct.IsCancellationRequested && IsStreaming && string.IsNullOrEmpty(StreamingContent) && string.IsNullOrEmpty(StreamingThinking))
-                    Dispatch(() => IsModelLoading = true);
+                Dispatch(() =>
+                {
+                    // Re-check on the UI thread: an answer chunk may have landed while this timer
+                    // was waiting to be dispatched.
+                    if (IsStreaming && string.IsNullOrEmpty(StreamingContent))
+                        IsModelLoading = true;
+                });
             }
             catch (OperationCanceledException)
             {

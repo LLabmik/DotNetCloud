@@ -4745,6 +4745,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `AiPage.xaml` — completed assistant messages render as HTML (WebView) when they contain block Markdown; inline-only messages stay on the lightweight `Label`/`FormattedString` path; streaming bubble unchanged
 - ✓ `MarkdownHtmlFormatterTests` — headings, lists, tables, fenced code, raw-HTML escaping, `NeedsHtmlRendering`
 - ✓ Stream-silence watchdog only arms after the first content/thinking chunk — a slow cold Ollama model load (gemma4:12b can take >60s to the first token) no longer cancels the request (mirrors Blazor `AiChatPage`; Android `AiViewModel`, 2026-09-01)
+- ✓ "Generating…" indicator now keyed on the **answer** text, not on thinking: with a reasoning model the thought-process block fills in within seconds, and the old `string.IsNullOrEmpty(StreamingThinking)` guard suppressed the indicator for the whole reasoning phase — the answer area sat blank for minutes with no sign of progress (2026-09-17)
 
 ---
 

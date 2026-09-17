@@ -295,7 +295,9 @@ public sealed class AiViewModelTests
             await Task.Delay(TimeSpan.FromMilliseconds(150));
             Assert.IsTrue(_vm.HasThinking, "Thinking block should be visible while reasoning.");
             Assert.AreEqual("The user asks about blue silver. I should think about this carefully.", _vm.StreamingThinking);
-            Assert.IsFalse(_vm.IsModelLoading, "Model-load indicator must not show while thinking is visible.");
+            Assert.IsTrue(
+                _vm.IsModelLoading,
+                "The generating indicator must show while no answer text has arrived, even when thinking is visible — the answer area would otherwise sit blank.");
 
             await sendTask;
 
