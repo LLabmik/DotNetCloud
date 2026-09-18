@@ -7,7 +7,8 @@
     <IsTestProject>true</IsTestProject>
     <IsPackable>false</IsPackable>
     <Nullable>enable</Nullable>
-    <NoWarn>$(NoWarn);CS8618</NoWarn>
+    <!-- 1574: Android-only crefs (e.g. Android.App.AlarmManager) cannot resolve on plain net10.0. -->
+    <NoWarn>$(NoWarn);CS8618;1574</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -93,6 +94,14 @@
 
     <!-- Messages -->
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Messages\NoteSavedMessage.cs" Link="AndroidApp\Messages\NoteSavedMessage.cs" />
+
+    <!-- Calendar -->
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Calendar\ICalendarRestClient.cs" Link="AndroidApp\Calendar\ICalendarRestClient.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Calendar\ICalendarSignalRClient.cs" Link="AndroidApp\Calendar\ICalendarSignalRClient.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\ICalendarReminderScheduler.cs" Link="AndroidApp\Services\ICalendarReminderScheduler.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Messages\CalendarEventChangedMessage.cs" Link="AndroidApp\Messages\CalendarEventChangedMessage.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\ViewModels\CalendarViewModel.cs" Link="AndroidApp\ViewModels\CalendarViewModel.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Converters\LocalTimeConverter.cs" Link="AndroidApp\Converters\LocalTimeConverter.cs" />
   </ItemGroup>
 
 </Project>

@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -16,6 +17,7 @@ namespace DotNetCloud.Client.Android.ViewModels;
 [QueryProperty(nameof(EventIdString), "EventId")]
 [QueryProperty(nameof(EditScopeString), "EditScope")]
 [QueryProperty(nameof(OriginalStartUtcString), "OriginalStartUtc")]
+[QueryProperty(nameof(NewEventDateString), "Date")]
 public sealed partial class EventEditViewModel : ObservableObject
 {
     private readonly ICalendarRestClient _calendarApi;
@@ -39,6 +41,13 @@ public sealed partial class EventEditViewModel : ObservableObject
     /// <summary>Original start UTC as string from navigation query (for recurrence exceptions).</summary>
     [ObservableProperty]
     private string? _originalStartUtcString;
+
+    /// <summary>
+    /// Local calendar date ("yyyy-MM-dd") a new event should start on — supplied when the event is
+    /// created from the calendar's day list, so the editor opens on that day instead of today.
+    /// </summary>
+    [ObservableProperty]
+    private string? _newEventDateString;
 
     private Guid? _eventId;
     private EditScope _editScope = EditScope.AllEvents;
@@ -96,6 +105,16 @@ public sealed partial class EventEditViewModel : ObservableObject
     {
         if (DateTime.TryParse(value, out var dt))
             _originalStartUtc = dt;
+    }
+
+    partial void OnNewEventDateStringChanged(string? value)
+    {
+        if (DateTime.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture,
+                DateTimeStyles.None, out var date))
+        {
+            // Also moves the end date/time: the start date change sets end = start + 1 hour.
+            StartDate = date.Date;
+        }
     }
 
     // ── Mode ───────────────────────────────────────────────────────
