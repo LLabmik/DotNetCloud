@@ -9,7 +9,17 @@ namespace DotNetCloud.Client.Android.Services;
 /// </summary>
 public interface IMusicPlayerService
 {
-    /// <summary>Plays the specified track, streaming from the server.</summary>
+    /// <summary>
+    /// Plays the specified track, streaming from the server.
+    /// </summary>
+    /// <param name="track">The track to play.</param>
+    /// <param name="serverBaseUrl">Base URL of the server the track is streamed from.</param>
+    /// <param name="accessToken">
+    /// Initial bearer token for the audio stream. It is only a seed: the player re-resolves a fresh
+    /// token (see <c>ResolveStreamTokenAsync</c>) before every track, because Android's
+    /// <c>MediaPlayer</c> fetches the stream outside the authenticated HTTP pipeline and a token
+    /// captured once goes stale while a long album plays.
+    /// </param>
     Task PlayAsync(TrackDto track, string serverBaseUrl, string accessToken);
 
     /// <summary>Pauses playback.</summary>
@@ -109,4 +119,35 @@ public interface IMusicPlayerService
 
     /// <summary>Raised when the repeat mode changes.</summary>
     event EventHandler? RepeatModeChanged;
+
+    /// <summary>
+    /// Raised when playback of a track has permanently failed and the queue has been dropped — for
+    /// example when the server rejects the audio stream request so the player cannot prepare or
+    /// start the track.
+    /// </summary>
+    /// <remarks>
+    /// Transient stream failures are recovered by the player itself (it refreshes the access token
+    /// and retries the same track once). This event is only raised when that recovery also failed,
+    /// so hosts can tell the user why the music stopped instead of leaving the UI silently idle.
+    /// </remarks>
+    event EventHandler<PlaybackFailedEventArgs>? PlaybackFailed;
+}
+
+/// <summary>Describes a permanent playback failure for a single track.</summary>
+public sealed class PlaybackFailedEventArgs : EventArgs
+{
+    /// <summary>Initializes a new instance of the <see cref="PlaybackFailedEventArgs"/> class.</summary>
+    /// <param name="track">The track that could not be played, if it is still known.</param>
+    /// <param name="message">A user-facing description of what went wrong.</param>
+    public PlaybackFailedEventArgs(TrackDto? track, string message)
+    {
+        Track = track;
+        Message = message;
+    }
+
+    /// <summary>The track that could not be played, or null when the track was already cleared.</summary>
+    public TrackDto? Track { get; }
+
+    /// <summary>A user-facing description of the failure.</summary>
+    public string Message { get; }
 }
