@@ -190,12 +190,12 @@
                                                                                FontAttributes="{Binding DayNumberFont}"
                                                                                TextColor="{Binding DayNumberColor}"
                                                                                HorizontalOptions="Center"/>
-                                                                        <!-- Event dots: max 3 per cell -->
-                                                                        <Label Text="{Binding Events.Count, StringFormat='{0} events'}"
+                                                                        <!-- Event count; tapping the day opens the day list when there is more than one -->
+                                                                        <Label Text="{Binding EventsLabel}"
                                                                                FontSize="9"
                                                                                TextColor="#0EA5E9"
                                                                                HorizontalOptions="Center"
-                                                                               IsVisible="{Binding Events.Count, Converter={StaticResource IntToBoolConverter}}"/>
+                                                                               IsVisible="{Binding HasEvents}"/>
                                                                 </VerticalStackLayout>
                                                         </Border>
                                                 </DataTemplate>
@@ -224,9 +224,10 @@
                                                                        FontSize="12"
                                                                        FontAttributes="{Binding DayNumberFont}"
                                                                        TextColor="{Binding DayNumberColor}"/>
-                                                                <Label Text="{Binding Events.Count, StringFormat='{0} events'}"
+                                                                <Label Text="{Binding EventsLabel}"
                                                                        FontSize="10"
-                                                                       TextColor="#0EA5E9"/>
+                                                                       TextColor="#0EA5E9"
+                                                                       IsVisible="{Binding HasEvents}"/>
                                                                 <CollectionView ItemsSource="{Binding Events}">
                                                                         <CollectionView.ItemTemplate>
                                                                                 <DataTemplate x:DataType="core:CalendarEventDto">
@@ -257,7 +258,7 @@
                                                         BackgroundColor="#1E293B">
                                                         <Grid ColumnDefinitions="Auto,*,Auto">
                                                                 <Label Grid.Column="0"
-                                                                       Text="{Binding StartUtc, StringFormat='{0:HH:mm}'}"
+                                                                       Text="{Binding StartUtc, Converter={StaticResource LocalTime}}"
                                                                        FontSize="12"
                                                                        TextColor="#64748B"
                                                                        VerticalOptions="Start"
@@ -274,7 +275,7 @@
                                                                                IsVisible="{Binding Location, Converter={StaticResource IsNotNull}}"/>
                                                                 </VerticalStackLayout>
                                                                 <Label Grid.Column="2"
-                                                                       Text="{Binding EndUtc, StringFormat='{0:HH:mm}'}"
+                                                                       Text="{Binding EndUtc, Converter={StaticResource LocalTime}}"
                                                                        FontSize="12"
                                                                        TextColor="#64748B"
                                                                        VerticalOptions="Start"/>
@@ -354,6 +355,130 @@
                         VerticalOptions="End"
                         Margin="0,0,16,8"
                         Shadow="{StaticResource FabShadow}"/>
+
+                <!-- Overlay (rows 0-4): the events on a day that holds more than one event -->
+                <Grid Grid.Row="0"
+                      Grid.RowSpan="5"
+                      IsVisible="{Binding IsDayListVisible}">
+
+                        <!-- Scrim: tapping outside the sheet closes the list -->
+                        <BoxView BackgroundColor="#B30F172A">
+                                <BoxView.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding CloseDayListCommand}"/>
+                                </BoxView.GestureRecognizers>
+                        </BoxView>
+
+                        <Border BackgroundColor="#1E293B"
+                                Stroke="#334155"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 16"
+                                Margin="12"
+                                HeightRequest="460"
+                                VerticalOptions="End">
+                                <Grid RowDefinitions="Auto,Auto,*,Auto">
+
+                                        <!-- Header: back to the calendar grid, day and event count -->
+                                        <Grid Grid.Row="0"
+                                              ColumnDefinitions="Auto,*"
+                                              Padding="4,8,12,6">
+                                                <!-- Amber chip (not the blue used for event times) so the way back out of the sheet stands out -->
+                                                <Button Grid.Column="0"
+                                                        Text="&lt; Back"
+                                                        Command="{Binding CloseDayListCommand}"
+                                                        BackgroundColor="#422006"
+                                                        TextColor="#FBBF24"
+                                                        FontSize="14"
+                                                        FontAttributes="Bold"
+                                                        BorderColor="#F59E0B"
+                                                        BorderWidth="1"
+                                                        CornerRadius="8"
+                                                        Padding="10,4"
+                                                        HeightRequest="34"
+                                                        VerticalOptions="Center"/>
+                                                <VerticalStackLayout Grid.Column="1"
+                                                                     Spacing="1"
+                                                                     VerticalOptions="Center">
+                                                        <Label Text="{Binding SelectedDayLabel}"
+                                                               FontSize="15"
+                                                               FontAttributes="Bold"
+                                                               TextColor="#F1F5F9"
+                                                               LineBreakMode="TailTruncation"/>
+                                                        <Label Text="{Binding SelectedDayCountLabel}"
+                                                               FontSize="11"
+                                                               TextColor="#94A3B8"/>
+                                                </VerticalStackLayout>
+                                        </Grid>
+
+                                        <BoxView Grid.Row="1"
+                                                 HeightRequest="1"
+                                                 Color="#334155"/>
+
+                                        <!-- The day's events, ordered by start time; tap one for its details -->
+                                        <CollectionView Grid.Row="2"
+                                                        ItemsSource="{Binding SelectedDayEvents}"
+                                                        SelectionMode="Single"
+                                                        SelectionChanged="OnEventSelected"
+                                                        Margin="8,8,8,0">
+                                                <CollectionView.ItemTemplate>
+                                                        <DataTemplate x:DataType="core:CalendarEventDto">
+                                                                <Border StrokeThickness="1"
+                                                                        Stroke="#334155"
+                                                                        BackgroundColor="#0F172A"
+                                                                        StrokeShape="RoundRectangle 8"
+                                                                        Padding="10,8"
+                                                                        Margin="0,0,0,6">
+                                                                        <Grid ColumnDefinitions="Auto,*">
+                                                                                <VerticalStackLayout Grid.Column="0"
+                                                                                                     Spacing="1"
+                                                                                                     WidthRequest="52">
+                                                                                        <Label Text="{Binding StartUtc, Converter={StaticResource LocalTime}}"
+                                                                                               FontSize="13"
+                                                                                               FontAttributes="Bold"
+                                                                                               TextColor="#0EA5E9"/>
+                                                                                        <Label Text="{Binding EndUtc, Converter={StaticResource LocalTime}}"
+                                                                                               FontSize="11"
+                                                                                               TextColor="#64748B"/>
+                                                                                </VerticalStackLayout>
+                                                                                <VerticalStackLayout Grid.Column="1"
+                                                                                                     Spacing="2">
+                                                                                        <Label Text="{Binding Title}"
+                                                                                               FontSize="14"
+                                                                                               FontAttributes="Bold"
+                                                                                               TextColor="#F1F5F9"
+                                                                                               LineBreakMode="TailTruncation"/>
+                                                                                        <Label Text="{Binding Location}"
+                                                                                               FontSize="11"
+                                                                                               TextColor="#94A3B8"
+                                                                                               LineBreakMode="TailTruncation"
+                                                                                               IsVisible="{Binding Location, Converter={StaticResource IsNotNull}}"/>
+                                                                                </VerticalStackLayout>
+                                                                        </Grid>
+                                                                </Border>
+                                                        </DataTemplate>
+                                                </CollectionView.ItemTemplate>
+                                                <CollectionView.EmptyView>
+                                                        <Label Text="No events on this day."
+                                                               FontSize="13"
+                                                               TextColor="#64748B"
+                                                               HorizontalOptions="Center"
+                                                               Padding="16"/>
+                                                </CollectionView.EmptyView>
+                                        </CollectionView>
+
+                                        <!-- Create another event on this day -->
+                                        <Button Grid.Row="3"
+                                                Text="+ New Event"
+                                                Command="{Binding CreateEventForDayCommand}"
+                                                BackgroundColor="#0EA5E9"
+                                                TextColor="#FFFFFF"
+                                                FontSize="14"
+                                                FontAttributes="Bold"
+                                                CornerRadius="8"
+                                                HeightRequest="44"
+                                                Margin="12,8,12,12"/>
+                                </Grid>
+                        </Border>
+                </Grid>
         </Grid>
 
 </ContentPage>

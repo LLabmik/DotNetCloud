@@ -3669,6 +3669,23 @@ frozen while the server still considered the device online (which suppresses its
 - ✓ 10 unit tests (`ChatAlertPolicyTests`); on-device verified (R5CWC356B2K, 2026-09-17): a live remote message logged `decision=InAppSound` and the audio device recorded the SoundPool player `event:started`
 - ☐ **Background alerts still need a working push transport.** Push device registration is now self-healing (re-sent on every launch and after login, because the server holds registrations in memory only), but nothing can wake a frozen/reclaimed process until FCM (or UnifiedPush) is actually configured — see the Push Notifications item above.
 
+#### Calendar Tab — Multi-Event Day List
+
+Tapping a day cell in the Calendar tab's month/week grid opened an event only when that day held **exactly
+one** event (the cell showed just an "N events" count). A day with several events did nothing at all, so those
+events could not be opened, and there was no way to add another event to a day you had tapped.
+
+- ✓ Day cell taps are routed by event count (`CalendarViewModel.SelectDayCommand`): one event opens its detail page as before, several open the day list, none does nothing
+- ✓ Day list (bottom sheet) shows that day's events ordered by start time — time range, title and location per row — with the day header (e.g. "Sunday, September 20, 2026") and an event count, plus a "No events on this day" empty state
+- ✓ Tapping a row opens the event's detail page; the detail page's existing **Back** button returns to the day list, which stays open behind it and re-syncs from the server on return
+- ✓ **"+ New Event"** button in the day list opens the event editor with the start date preset to that day (`Date=yyyy-MM-dd` navigation parameter added to `EventEditViewModel`, so the editor no longer always starts on today)
+- ✓ Dismissed three ways: the sheet's own Back button, tapping the dimmed calendar behind it (scrim), or the Android system back press — `SystemBackNavigation` is now attached to the Calendar page (`CanHandleSystemBack` / `HandleSystemBackAsync`). The Back button is rendered as an amber chip (`#422006` fill, `#F59E0B` border, bold `#FBBF24` text) so it stands out from the blue event times rather than blending in with them
+- ✓ List scrolls vertically when a day holds more events than fit: the `CollectionView` occupies the `*` row of the fixed-height (460 dp) sheet, leaving a ~305 dp viewport — proven on device with 6 events on one day (RecyclerView reported `scrollable=true`, swipe revealed the last row)
+- ✓ Event times in the day list **and the day view** now render in the device's local time zone via the new `LocalTimeConverter` (previously the day view printed raw UTC values, so events showed the wrong clock time); the Day view list is also ordered by start time
+- ✓ Day cells now read "1 event" / "N events" (was "1 events") and hide the count label entirely for empty days
+- ✓ 18 unit tests: `CalendarViewModelTests` (tap routing by count, start-time ordering, multi-day events listed on each day they cover, day-list refresh from the server, back-press handling, `OccursOn` UTC handling) and `LocalTimeConverterTests`
+- ✓ Verified on device (R5CWC356B2K, 2026-09-18): day list opens from the month **and** week grids, a single-event day still opens its details directly, event → Back returns to the list, Back button / scrim / system back all dismiss it, "+ New Event" opens the editor on 20 Sep, a 6-event day scrolls; zero crashes, Android tests 378 passed / 1 skipped. Temporary test events were removed afterwards and the day counts restored
+
 #### System Back Navigation (Android Back Button)
 
 MAUI 10.0.90 never routes a back press to `Page.OnBackButtonPressed` for a Shell drawer page: the framework
@@ -3685,8 +3702,8 @@ ownership of the drawer and of pushed pages. The decision lives in the ViewModel
 - ✓ Music — back closes the save-preset dialog, then the search panel, then leaves the EQ screen, then steps back out of artist/album/playlist-scoped views
 - ✓ Notes — back closes the note preview (the pre-existing, never-invoked `OnBackButtonPressed` override was removed)
 - ✓ AI — back returns from an open conversation to the conversation list
-- ✓ Calendar / Settings — no in-page back state, deliberately unchanged (back leaves the app)
-- ✓ 17 unit tests (Music 9, Notes 4, AI 4) covering the priority order and each back target; every tab verified on-device (R5CWC356B2K, 2026-09-13)
+- ✓ Calendar — back closes the open day list (the multi-event day sheet), then leaves the app; Settings has no in-page back state and is deliberately unchanged (back leaves the app)
+- ✓ 19 unit tests (Music 9, Notes 4, AI 4, Calendar 2) covering the priority order and each back target; every tab verified on-device (R5CWC356B2K, 2026-09-13; Calendar 2026-09-18)
 
 ---
 
