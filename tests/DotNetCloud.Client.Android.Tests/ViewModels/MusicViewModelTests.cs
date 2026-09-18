@@ -20,6 +20,7 @@ public sealed class MusicViewModelTests
     private Mock<IAlbumArtCache> _artCache = null!;
     private Mock<IServerConnectionStore> _serverStore = null!;
     private Mock<ISecureTokenStore> _tokenStore = null!;
+    private Mock<ITokenRefreshService> _tokenRefresh = null!;
 
     private MusicViewModel _vm = null!;
 
@@ -32,6 +33,7 @@ public sealed class MusicViewModelTests
         _artCache = new Mock<IAlbumArtCache>(MockBehavior.Loose);
         _serverStore = new Mock<IServerConnectionStore>(MockBehavior.Strict);
         _tokenStore = new Mock<ISecureTokenStore>(MockBehavior.Strict);
+        _tokenRefresh = new Mock<ITokenRefreshService>(MockBehavior.Strict);
 
         // Default auth setup: active server connection with token
         var connection = new ServerConnection(ServerUrl, "Test Server", "test@test.com");
@@ -39,9 +41,14 @@ public sealed class MusicViewModelTests
         _tokenStore.Setup(x => x.GetAccessTokenAsync(ServerUrl))
             .ReturnsAsync("test-access-token");
 
+        // The music paths refresh proactively; the default returns the same token the tests expect.
+        _tokenRefresh.Setup(x => x.EnsureFreshAccessTokenAsync(
+                ServerUrl, It.IsAny<CancellationToken>(), It.IsAny<bool>()))
+            .ReturnsAsync("test-access-token");
+
         _vm = new MusicViewModel(
             _music.Object, _player.Object, _eq.Object,
-            _artCache.Object, _serverStore.Object, _tokenStore.Object);
+            _artCache.Object, _serverStore.Object, _tokenStore.Object, _tokenRefresh.Object);
     }
 
     // ── Initial state ──────────────────────────────────────────────────
@@ -1416,5 +1423,79 @@ public sealed class MusicViewModelTests
     public void SearchPlaceholderText_StartsWithDefault()
     {
         Assert.AreEqual("Search…", _vm.SearchPlaceholderText);
+    }
+
+    // ── Access-token refresh + playback failure surfacing ───────────────
+
+    [TestMethod]
+    public async Task LoadTracksCommand_UsesRefreshedAccessToken()
+    {
+        // Regression: the music paths used to hand the raw stored token to the REST client and the
+        // player. A token that expired mid-album then made the next audio-stream request fail with
+        // HTTP 401 and playback stopped — the refresh must happen first.
+        _tokenRefresh.Setup(x => x.EnsureFreshAccessTokenAsync(
+                ServerUrl, It.IsAny<CancellationToken>(), It.IsAny<bool>()))
+            .ReturnsAsync("refreshed-token");
+        _music.Setup(x => x.ListTracksAsync(ServerUrl, "refreshed-token", 0, 50, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        await _vm.LoadTracksCommand.ExecuteAsync(null);
+
+        _music.Verify(
+            x => x.ListTracksAsync(ServerUrl, "refreshed-token", 0, 50, It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [TestMethod]
+    public async Task LoadTracksCommand_FallsBackToStoredToken_WhenRefreshReturnsNull()
+    {
+        // The refresh service returns null instead of throwing when it cannot refresh; Music must
+        // still try with whatever token is stored rather than failing outright.
+        _tokenRefresh.Setup(x => x.EnsureFreshAccessTokenAsync(
+                ServerUrl, It.IsAny<CancellationToken>(), It.IsAny<bool>()))
+            .ReturnsAsync((string?)null);
+        _music.Setup(x => x.ListTracksAsync(ServerUrl, "test-access-token", 0, 50, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        await _vm.LoadTracksCommand.ExecuteAsync(null);
+
+        _music.Verify(
+            x => x.ListTracksAsync(ServerUrl, "test-access-token", 0, 50, It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [TestMethod]
+    public void PlaybackFailed_SurfacesErrorMessage()
+    {
+        var track = new TrackDto
+        {
+            Id = Guid.NewGuid(),
+            Title = "Track 4",
+            OwnerId = Guid.NewGuid(),
+            FileNodeId = Guid.NewGuid(),
+            MimeType = "audio/mpeg",
+            ArtistId = Guid.NewGuid(),
+            ArtistName = "Artist",
+            CreatedAt = DateTime.UtcNow,
+        };
+
+        _player.Raise(
+            x => x.PlaybackFailed += null,
+            new PlaybackFailedEventArgs(track, "Couldn't play \"Track 4\": the server refused the audio stream. Playback stopped."));
+
+        Assert.AreEqual(
+            "Couldn't play \"Track 4\": the server refused the audio stream. Playback stopped.",
+            _vm.ErrorMessage);
+    }
+
+    [TestMethod]
+    public void TrackStarted_ClearsPreviousPlaybackError()
+    {
+        _player.Raise(x => x.PlaybackFailed += null, new PlaybackFailedEventArgs(null, "boom"));
+        Assert.AreEqual("boom", _vm.ErrorMessage);
+
+        _player.Raise(x => x.TrackStarted += null, EventArgs.Empty);
+
+        Assert.IsNull(_vm.ErrorMessage);
     }
 }
