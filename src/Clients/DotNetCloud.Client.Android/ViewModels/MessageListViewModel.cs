@@ -213,6 +213,11 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
             // Load members first so we can resolve sender names
             await LoadMemberNamesAsync(ct);
 
+            // A notification tap only carries the channel id, so the title would be blank: fill it
+            // in from the server in the background rather than delaying the navigation.
+            if (string.IsNullOrWhiteSpace(ChannelName))
+                _ = ResolveChannelNameAsync(channelId, ct);
+
             await LoadMessagesAsync(ct);
 
             // Ensure SignalR is connected before joining channel groups.
@@ -240,6 +245,36 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
         {
             _logger.LogError(ex, "Failed to initialize message list for channel {ChannelId}.", channelId);
             ErrorMessage = ApiExceptionHelper.GetUserFriendlyMessage(ex);
+        }
+    }
+
+    /// <summary>
+    /// Best-effort lookup of a channel's display name for callers that only know its id — a
+    /// notification tap passes the channel id alone.
+    /// </summary>
+    /// <remarks>
+    /// Runs in the background: it never delays navigation, never throws, and leaves the title
+    /// empty if the name cannot be resolved (offline, deleted channel).
+    /// </remarks>
+    /// <param name="channelId">Channel to resolve.</param>
+    /// <param name="ct">Cancellation token.</param>
+    private async Task ResolveChannelNameAsync(Guid channelId, CancellationToken ct)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(_serverUrl) || string.IsNullOrWhiteSpace(_accessToken))
+                return;
+
+            var channels = await _chatApi.GetChannelsAsync(_serverUrl, _accessToken, ct).ConfigureAwait(false);
+            var match = channels.FirstOrDefault(channel => channel.Id == channelId);
+            if (match is null || string.IsNullOrWhiteSpace(match.Name))
+                return;
+
+            await MainThread.InvokeOnMainThreadAsync(() => ChannelName = match.Name).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Could not resolve the channel name for {ChannelId}.", channelId);
         }
     }
 

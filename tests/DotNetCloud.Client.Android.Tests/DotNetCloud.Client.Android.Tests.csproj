@@ -93,6 +93,19 @@
 
     <!-- Messages -->
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Messages\NoteSavedMessage.cs" Link="AndroidApp\Messages\NoteSavedMessage.cs" />
+
+    <!-- Push notifications (UnifiedPush). The Android-dependent half (broadcast intents,
+         notification rendering, distributor discovery) lives under Platforms\Android and is not
+         compiled here — the protocol, the registration state machine and the endpoint registrar
+         are Android-free by design so they can be tested on plain net10.0. -->
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\UnifiedPushProtocol.cs" Link="AndroidApp\Services\UnifiedPushProtocol.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\UnifiedPushRegistration.cs" Link="AndroidApp\Services\UnifiedPushRegistration.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\UnifiedPushRegistrationPolicy.cs" Link="AndroidApp\Services\UnifiedPushRegistrationPolicy.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\IUnifiedPushRegistrationStore.cs" Link="AndroidApp\Services\IUnifiedPushRegistrationStore.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\UnifiedPushRegistrationStore.cs" Link="AndroidApp\Services\UnifiedPushRegistrationStore.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\IUnifiedPushConnector.cs" Link="AndroidApp\Services\IUnifiedPushConnector.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\IPushEndpointRegistrar.cs" Link="AndroidApp\Services\IPushEndpointRegistrar.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\PushEndpointRegistrar.cs" Link="AndroidApp\Services\PushEndpointRegistrar.cs" />
   </ItemGroup>
 
 </Project>

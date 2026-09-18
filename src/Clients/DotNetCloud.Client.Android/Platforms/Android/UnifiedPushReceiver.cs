@@ -1,349 +1,226 @@
-#if FDROID
 using Android.App;
 using Android.Content;
-using CommunityToolkit.Mvvm.DependencyInjection;
+using CommunityToolkit.Mvvm.Messaging;
+using DotNetCloud.Client.Android.Messages;
 using DotNetCloud.Client.Android.Services;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using UnifiedPush;
-using static DotNetCloud.Client.Android.Services.AppBadgeManager;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace DotNetCloud.Client.Android;
 
 /// <summary>
-/// Broadcast receiver that handles UnifiedPush distributor callbacks for the F-Droid flavor.
+/// Receives everything a UnifiedPush distributor sends this app and drives the connector.
 /// </summary>
 /// <remarks>
-/// UnifiedPush distributes notifications through a user-chosen distributor app (e.g. ntfy, Gotify).
-/// This receiver handles three intents:
-/// <list type="bullet">
-///   <item><c>UP_ENDPOINT</c> — a new push endpoint URL is available; register with the server.</item>
-///   <item><c>UP_UNREGISTERED</c> — the distributor has unregistered this app.</item>
-///   <item><c>UP_MESSAGE</c> — an incoming push notification payload.</item>
-/// </list>
+/// <para>
+/// This is a plain <see cref="BroadcastReceiver"/> implementing the end-user-application half of
+/// the UnifiedPush Android specification (AND_3.1.0) directly — no UnifiedPush library exists for
+/// .NET, so the protocol itself lives in <see cref="UnifiedPushProtocol"/>.
+/// </para>
+/// <para>
+/// The process may be cold-started just for this broadcast, so <see cref="OnReceive"/> stays fast:
+/// the notification and the acknowledgement broadcast are handled synchronously, while state
+/// changes that need the network run fire-and-forget (they are idempotent and repeated on every
+/// app start).
+/// </para>
 /// </remarks>
 [BroadcastReceiver(Name = "net.dotnetcloud.client.UnifiedPushReceiver", Exported = true)]
-[IntentFilter(["org.unifiedpush.android.connector.MESSAGE",
-               "org.unifiedpush.android.connector.NEW_ENDPOINT",
-               "org.unifiedpush.android.connector.UNREGISTERED"])]
-public sealed class UnifiedPushReceiver : UnifiedPush.MessagingReceiver
+[IntentFilter([UnifiedPushProtocol.ActionNewEndpoint,
+               UnifiedPushProtocol.ActionRegistrationFailed,
+               UnifiedPushProtocol.ActionMessage,
+               UnifiedPushProtocol.ActionUnregistered,
+               UnifiedPushProtocol.ActionTempUnavailable])]
+public sealed class UnifiedPushReceiver : BroadcastReceiver
 {
-    private static TaskCompletionSource<string?>? _endpointTcs;
-
-    /// <summary>
-    /// Waits for the distributor to supply a push endpoint URL.
-    /// Called once during app start-up after <see cref="UnifiedPush.Connector.Register"/> is invoked.
-    /// </summary>
-    public static Task<string?> GetEndpointAsync(CancellationToken ct = default)
-    {
-        _endpointTcs = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
-        ct.Register(() => _endpointTcs.TrySetResult(null));
-        // Return immediately if an endpoint was already cached in preferences.
-        var cached = CachedEndpoint;
-        if (!string.IsNullOrWhiteSpace(cached))
-            _endpointTcs.TrySetResult(cached);
-        return _endpointTcs.Task;
-    }
-
-    // Cached endpoint persisted across process restarts (read on demand).
-    private static string? CachedEndpoint =>
-        Preferences.Default.Get("up_endpoint", (string?)null);
+    private const string LogTag = "DotNetCloud";
 
     /// <inheritdoc />
-    public override void OnNewEndpoint(Context? context, string endpoint, string instance)
+    public override void OnReceive(Context? context, Intent? intent)
     {
-        Preferences.Default.Set("up_endpoint", endpoint);
-        _endpointTcs?.TrySetResult(endpoint);
+        if (context is null || intent is null)
+            return;
 
-        // Re-register with the server in the background.
-        _ = RegisterWithServerAsync(context, endpoint);
-    }
+        var token = intent.GetStringExtra(UnifiedPushProtocol.ExtraToken);
 
-    /// <inheritdoc />
-    public override void OnRegistrationRefused(Context? context, string instance, string reason)
-    {
-        var logger = Ioc.Default.GetService<ILogger<UnifiedPushReceiver>>();
-        logger?.LogWarning("UnifiedPush registration refused: {Reason}.", reason);
-        _endpointTcs?.TrySetResult(null);
-    }
-
-    /// <inheritdoc />
-    public override void OnUnregistered(Context? context, string instance)
-    {
-        Preferences.Default.Remove("up_endpoint");
-        var logger = Ioc.Default.GetService<ILogger<UnifiedPushReceiver>>();
-        logger?.LogInformation("UnifiedPush distributor unregistered the app.");
-    }
-
-    /// <inheritdoc />
-    public override void OnMessage(Context? context, byte[] message, string instance)
-    {
-        if (context is null) return;
-
-        var logger = Ioc.Default.GetService<ILogger<UnifiedPushReceiver>>();
         try
         {
-            var json = System.Text.Encoding.UTF8.GetString(message);
-            var payload = System.Text.Json.JsonSerializer.Deserialize<PushPayload>(json,
-                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            switch (intent.Action)
+            {
+                case UnifiedPushProtocol.ActionNewEndpoint:
+                    OnNewEndpoint(intent, token);
+                    break;
 
-            if (payload is null) return;
+                case UnifiedPushProtocol.ActionMessage:
+                    OnPushMessage(context, intent, token);
+                    break;
 
-            logger?.LogInformation(
-                "UnifiedPush message: type={Type}, channelId={ChannelId}.",
-                payload.Type, payload.ChannelId);
+                case UnifiedPushProtocol.ActionRegistrationFailed:
+                    RunConnector(c => c.HandleRegistrationFailedAsync(
+                        token ?? string.Empty, intent.GetStringExtra(UnifiedPushProtocol.ExtraReason)));
+                    break;
 
-            ShowNotification(context, payload);
+                case UnifiedPushProtocol.ActionUnregistered:
+                    RunConnector(c => c.HandleUnregisteredAsync(
+                        token ?? string.Empty, intent.GetStringExtra(UnifiedPushProtocol.ExtraUseDistributor)));
+                    break;
+
+                case UnifiedPushProtocol.ActionTempUnavailable:
+                    RunConnector(c => c.HandleTempUnavailableAsync(
+                        token ?? string.Empty, intent.GetStringExtra(UnifiedPushProtocol.ExtraUseDistributor)));
+                    break;
+
+                default:
+                    global::Android.Util.Log.Debug(
+                        LogTag, $"UnifiedPushReceiver: ignoring unhandled action '{intent.Action}'.");
+                    break;
+            }
         }
         catch (Exception ex)
         {
-            logger?.LogWarning(ex, "Failed to process UnifiedPush message.");
+            Logger.LogWarning(ex, "UnifiedPush broadcast handling failed for action {Action}.", intent.Action);
         }
     }
 
-    // ── Helpers ──────────────────────────────────────────────────────────────
+    private static void OnNewEndpoint(Intent intent, string? token)
+    {
+        var endpoint = intent.GetStringExtra(UnifiedPushProtocol.ExtraEndpoint);
+        var id = intent.GetStringExtra(UnifiedPushProtocol.ExtraId);
 
-    private static async Task RegisterWithServerAsync(Context? context, string endpoint)
+        if (string.IsNullOrWhiteSpace(token) || string.IsNullOrWhiteSpace(endpoint))
+        {
+            Logger.LogWarning("Ignoring a malformed NEW_ENDPOINT broadcast.");
+            return;
+        }
+
+        global::Android.Util.Log.Info(
+            LogTag, $"UnifiedPush NEW_ENDPOINT for host {UnifiedPushProtocol.SafeEndpointHost(endpoint)}.");
+
+        RunConnector(c => c.HandleNewEndpointAsync(token, endpoint, id));
+    }
+
+    private static void OnPushMessage(Context context, Intent intent, string? token)
+    {
+        var id = intent.GetStringExtra(UnifiedPushProtocol.ExtraId);
+
+        // The specification requires broadcasts for an unknown connection token to be ignored —
+        // that includes not acknowledging them, so a stale or misrouted push cannot be mistaken
+        // for a delivered one. A fresh install with no registration therefore stays quiet.
+        var registration = string.IsNullOrWhiteSpace(token)
+            ? null
+            : TryResolve<IUnifiedPushRegistrationStore>()?.FindByToken(token);
+
+        if (registration is null)
+        {
+            Logger.LogWarning("Ignoring a UnifiedPush message for an unknown connection token.");
+            return;
+        }
+
+        var payload = UnifiedPushProtocol.ParsePayload(
+            intent.GetByteArrayExtra(UnifiedPushProtocol.ExtraBytesMessage));
+
+        if (payload is null)
+        {
+            // Acknowledge anyway: the distributor delivered it, and a redelivery would be identical.
+            Logger.LogWarning("Discarding an unreadable UnifiedPush message.");
+            Acknowledge(token, id);
+            return;
+        }
+
+        var plan = UnifiedPushProtocol.MapToNotification(payload);
+        var serverBaseUrl = registration.ServerBaseUrl;
+
+        global::Android.Util.Log.Info(
+            LogTag, $"UnifiedPush message: kind={plan.Kind}, target={plan.TargetId}, server={serverBaseUrl}.");
+
+        if (plan.IsSilent)
+        {
+            // A calendar change: refresh the calendar instead of notifying.
+            WeakReferenceMessenger.Default.Send<CalendarEventChangedMessage>(new());
+            Acknowledge(token, id);
+            return;
+        }
+
+        if (ShouldSuppress(payload))
+        {
+            Acknowledge(token, id);
+            return;
+        }
+
+        UnifiedPushNotificationRenderer.Render(context, plan, serverBaseUrl);
+        Acknowledge(token, id);
+    }
+
+    /// <summary>Whether an in-app path already covers this message.</summary>
+    private static bool ShouldSuppress(UnifiedPushPayload payload)
     {
         try
         {
-            var serverStore = Ioc.Default.GetService<IServerConnectionStore>();
-            var tokenStore  = Ioc.Default.GetService<ISecureTokenStore>();
-            var pushService = Ioc.Default.GetService<IPushNotificationService>();
+            if (TryResolve<IAppForegroundService>()?.IsInForeground == true)
+            {
+                Logger.LogDebug("App is in the foreground; its own alert covers this message.");
+                return true;
+            }
 
-            if (serverStore is null || tokenStore is null || pushService is null) return;
-
-            var connection = serverStore.GetActive();
-            if (connection is null) return;
-
-            var accessToken = await tokenStore.GetAccessTokenAsync(connection.ServerBaseUrl).ConfigureAwait(false);
-            if (accessToken is null) return;
-
-            await pushService.RegisterAsync(connection.ServerBaseUrl, accessToken).ConfigureAwait(false);
+            if (Guid.TryParse(payload.ChannelId, out var channelId)
+                && TryResolve<IChannelMuteStateService>()?.IsMuted(channelId) == true)
+            {
+                Logger.LogDebug("Channel is muted; suppressing the notification.");
+                return true;
+            }
         }
         catch (Exception ex)
         {
-            var logger = Ioc.Default.GetService<ILogger<UnifiedPushReceiver>>();
-            logger?.LogWarning(ex, "Failed to register UnifiedPush endpoint with server.");
+            // Best effort — notifying is safer than dropping a message.
+            Logger.LogDebug(ex, "Suppression checks failed.");
         }
+
+        return false;
     }
 
-    private static void ShowNotification(Context context, PushPayload payload)
+    private static void Acknowledge(string? token, string? id)
     {
-        // Calendar reminders use a dedicated notification channel and deep-link
-        if (string.Equals(payload.Type, "calendar_reminder", StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrWhiteSpace(token))
+            return;
+
+        RunConnector(connector => connector.AcknowledgeAsync(token, id));
+    }
+
+    private static void RunConnector(Func<IUnifiedPushConnector, Task> work)
+    {
+        var connector = TryResolve<IUnifiedPushConnector>();
+        if (connector is null)
         {
-            ShowCalendarReminderNotification(context, payload);
+            Logger.LogWarning("The UnifiedPush connector is unavailable; the broadcast was ignored.");
             return;
         }
 
-        // Calendar event changes (created/updated/deleted from Blazor UI) trigger a refresh
-        if (string.Equals(payload.Type, "calendar_event", StringComparison.OrdinalIgnoreCase))
+        _ = Task.Run(async () =>
         {
-            var logger = Ioc.Default.GetService<ILogger<UnifiedPushReceiver>>();
-            logger?.LogInformation("UnifiedPush calendar_event received — signaling calendar to refresh.");
-            global::CommunityToolkit.Mvvm.Messaging.WeakReferenceMessenger.Default
-                .Send(new global::DotNetCloud.Client.Android.Messages.CalendarEventChangedMessage());
-            return;
-        }
+            try
+            {
+                await work(connector).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "UnifiedPush connector work failed.");
+            }
+        });
+    }
 
-        // DM channel created — high-priority notification with action buttons
-        if (string.Equals(payload.Type, "dm_channel_created", StringComparison.OrdinalIgnoreCase))
-        {
-            ShowDmChannelNotification(context, payload);
-            return;
-        }
-
-        // ── Foreground check: suppress if app is visible ──
+    private static T? TryResolve<T>() where T : class
+    {
         try
         {
-            var foreground = Ioc.Default.GetService<IAppForegroundService>();
-            if (foreground?.IsInForeground == true)
-            {
-                var logger = Ioc.Default.GetService<ILogger<UnifiedPushReceiver>>();
-                logger?.LogDebug("App in foreground; suppressing notification for channel {ChannelId}.", payload.ChannelId);
-                return;
-            }
+            return CommunityToolkit.Mvvm.DependencyInjection.Ioc.Default.GetService<T>();
         }
-        catch { /* Best effort — post notification if we can't check */ }
-
-        // ── Mute check: suppress if channel is muted ──
-        try
+        catch
         {
-            if (Guid.TryParse(payload.ChannelId, out var chId) && chId != Guid.Empty)
-            {
-                var muteState = Ioc.Default.GetService<IChannelMuteStateService>();
-                if (muteState?.IsMuted(chId) == true)
-                {
-                    var logger = Ioc.Default.GetService<ILogger<UnifiedPushReceiver>>();
-                    logger?.LogDebug("Channel {ChannelId} is muted; suppressing notification.", payload.ChannelId);
-                    return;
-                }
-            }
+            // The container is not ready yet (or was disposed); treat it as absent.
+            return null;
         }
-        catch { /* Best effort */ }
-
-        var channelGuid = Guid.TryParse(payload.ChannelId, out var g) ? g : Guid.Empty;
-
-        var openIntent = new Intent(context, typeof(MainActivity));
-        openIntent.SetAction(Intent.ActionMain);
-        openIntent.AddCategory(Intent.CategoryLauncher);
-        if (channelGuid != Guid.Empty)
-            openIntent.PutExtra("channelId", channelGuid.ToString());
-
-        var pendingIntent = PendingIntent.GetActivity(
-            context,
-            channelGuid.GetHashCode(),
-            openIntent,
-            PendingIntentFlags.Immutable | PendingIntentFlags.UpdateCurrent);
-
-        var notificationChannelId = payload.Type switch
-        {
-            "mention"      => MainApplication.ChannelIdMentions,
-            "announcement" => MainApplication.ChannelIdAnnouncements,
-            _              => MainApplication.ChannelIdMessages
-        };
-
-        var iconRes = context.Resources!
-            .GetIdentifier("ic_notification", "drawable", context.PackageName);
-        if (iconRes == 0)
-            iconRes = global::Android.Resource.Drawable.IcDialogInfo;
-
-        var notification = new Notification.Builder(context, notificationChannelId)
-            .SetContentTitle(payload.Title ?? "DotNetCloud")
-            .SetContentText(payload.Body ?? string.Empty)
-            .SetSmallIcon(iconRes)
-            .SetContentIntent(pendingIntent)
-            .SetAutoCancel(true)
-            .WithBadgeCount(context)
-            .Build();
-
-        var nm = (NotificationManager?)context.GetSystemService(Context.NotificationService);
-        var notificationId = 2000 + (channelGuid.GetHashCode() & 0x0FFF);
-        nm?.Notify(notificationId, notification);
     }
 
-    private sealed class PushPayload
-    {
-        public string? Type { get; init; }
-        public string? ChannelId { get; init; }
-        public string? Title { get; init; }
-        public string? Body { get; init; }
-        public string? EventId { get; init; }
-    }
-
-    private static void ShowCalendarReminderNotification(Context context, PushPayload payload)
-    {
-        var eventId = payload.EventId ?? payload.ChannelId ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(eventId))
-            return;
-
-        var openIntent = new Intent(context, typeof(MainActivity));
-        openIntent.SetAction(Intent.ActionMain);
-        openIntent.AddCategory(Intent.CategoryLauncher);
-        openIntent.PutExtra("eventId", eventId);
-
-        var pendingIntent = PendingIntent.GetActivity(
-            context,
-            eventId.GetHashCode(),
-            openIntent,
-            PendingIntentFlags.Immutable | PendingIntentFlags.UpdateCurrent);
-
-        var iconRes = context.Resources!
-            .GetIdentifier("ic_notification", "drawable", context.PackageName);
-        if (iconRes == 0)
-            iconRes = global::Android.Resource.Drawable.IcDialogInfo;
-
-        var notification = new Notification.Builder(context, MainApplication.ChannelIdCalendarReminders)
-            .SetContentTitle(payload.Title ?? "Calendar reminder")
-            .SetContentText(payload.Body ?? string.Empty)
-            .SetSmallIcon(iconRes)
-            .SetContentIntent(pendingIntent)
-            .SetAutoCancel(true)
-            .SetCategory(Notification.CategoryAlarm)
-            .Build();
-
-        var nm = (NotificationManager?)context.GetSystemService(Context.NotificationService);
-        var notificationId = 5000 + (eventId.GetHashCode() & 0x0FFF);
-        nm?.Notify(notificationId, notification);
-
-        // Cancel any local alarm for the same event to avoid duplicates
-        try
-        {
-            if (Guid.TryParse(eventId, out var evtId))
-            {
-                var scheduler = Ioc.Default.GetService<ICalendarReminderScheduler>();
-                scheduler?.CancelReminders(evtId);
-            }
-        }
-        catch { /* Best effort */ }
-    }
-
-    private static void ShowDmChannelNotification(Context context, PushPayload payload)
-    {
-        var channelId = payload.ChannelId ?? string.Empty;
-        var channelGuid = Guid.TryParse(channelId, out var g) ? g : Guid.Empty;
-        var title = payload.Title ?? "DotNetCloud";
-        var body = payload.Body ?? string.Empty;
-
-        // Deep-link intent: open MainActivity and route to the DM channel.
-        var openIntent = new Intent(context, typeof(MainActivity));
-        openIntent.SetAction(Intent.ActionMain);
-        openIntent.AddCategory(Intent.CategoryLauncher);
-        if (channelGuid != Guid.Empty)
-            openIntent.PutExtra("channelId", channelGuid.ToString());
-
-        var pendingIntent = PendingIntent.GetActivity(
-            context,
-            channelGuid.GetHashCode(),
-            openIntent,
-            PendingIntentFlags.Immutable | PendingIntentFlags.UpdateCurrent);
-
-        // Accept action
-        var acceptIntent = new Intent(context, typeof(DmNotificationActionReceiver));
-        acceptIntent.SetAction("DOTNETCLOUD_DM_ACCEPT");
-        acceptIntent.PutExtra("channelId", channelId);
-        var acceptPending = PendingIntent.GetBroadcast(
-            context, channelGuid.GetHashCode() ^ 1, acceptIntent,
-            PendingIntentFlags.Immutable | PendingIntentFlags.UpdateCurrent);
-
-        // Ignore action
-        var ignoreIntent = new Intent(context, typeof(DmNotificationActionReceiver));
-        ignoreIntent.SetAction("DOTNETCLOUD_DM_IGNORE");
-        ignoreIntent.PutExtra("channelId", channelId);
-        var ignorePending = PendingIntent.GetBroadcast(
-            context, channelGuid.GetHashCode() ^ 2, ignoreIntent,
-            PendingIntentFlags.Immutable | PendingIntentFlags.UpdateCurrent);
-
-        // DND action
-        var dndIntent = new Intent(context, typeof(DmNotificationActionReceiver));
-        dndIntent.SetAction("DOTNETCLOUD_DM_DND");
-        dndIntent.PutExtra("channelId", channelId);
-        var dndPending = PendingIntent.GetBroadcast(
-            context, channelGuid.GetHashCode() ^ 3, dndIntent,
-            PendingIntentFlags.Immutable | PendingIntentFlags.UpdateCurrent);
-
-        var iconRes = context.Resources!
-            .GetIdentifier("ic_notification", "drawable", context.PackageName);
-        if (iconRes == 0)
-            iconRes = global::Android.Resource.Drawable.IcDialogInfo;
-
-        var notification = new Notification.Builder(context, MainApplication.ChannelIdDmNotifications)
-            .SetContentTitle(title)
-            .SetContentText(body)
-            .SetSmallIcon(iconRes)
-            .SetContentIntent(pendingIntent)
-            .SetAutoCancel(true)
-            .AddAction(new Notification.Action.Builder(
-                null, "Reply & Join", acceptPending).Build())
-            .AddAction(new Notification.Action.Builder(
-                null, "Ignore", ignorePending).Build())
-            .AddAction(new Notification.Action.Builder(
-                null, "DND", dndPending).Build())
-            .Build();
-
-        var nm = (NotificationManager?)context.GetSystemService(Context.NotificationService);
-        var notificationId = 6000 + (channelGuid.GetHashCode() & 0x0FFF);
-        nm?.Notify(notificationId, notification);
-    }
+    private static ILogger Logger =>
+        TryResolve<ILogger<UnifiedPushReceiver>>() ?? NullLogger<UnifiedPushReceiver>.Instance;
 }
-#endif

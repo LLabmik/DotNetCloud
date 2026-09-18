@@ -1,22 +1,27 @@
 namespace DotNetCloud.Client.Android.Services;
 
 /// <summary>
-/// Registers the device for push notifications and routes incoming push payloads.
+/// Registers this device for push notifications with a DotNetCloud server connection.
 /// </summary>
+/// <remarks>
+/// The implementation is UnifiedPush-based (a user-installed distributor plus a self-hosted push
+/// server); there is no Google/Firebase path. The abstraction stays because the transport is
+/// provider-specific while the call sites (app start, login) are not.
+/// </remarks>
 public interface IPushNotificationService
 {
     /// <summary>
-    /// Registers the device with the push notification provider and sends the token
-    /// to the DotNetCloud server.
+    /// Ensures this device is registered for push with the given server connection. Safe to call
+    /// on every app start: it re-registers with the distributor and re-reports the endpoint.
     /// </summary>
-    /// <param name="serverBaseUrl">Server URL to register the push token with.</param>
-    /// <param name="accessToken">OAuth2 access token for the server API.</param>
+    /// <param name="serverBaseUrl">Saved server connection URL.</param>
     /// <param name="ct">Cancellation token.</param>
-    Task RegisterAsync(string serverBaseUrl, string accessToken, CancellationToken ct = default);
+    /// <returns>True when a registration is in place or a request was sent.</returns>
+    Task<bool> RegisterAsync(string serverBaseUrl, CancellationToken ct = default);
 
-    /// <summary>Unregisters the device from push notifications on the server.</summary>
-    /// <param name="serverBaseUrl">Server URL.</param>
-    /// <param name="accessToken">OAuth2 access token.</param>
+    /// <summary>Unregisters this device from push for the given server connection.</summary>
+    /// <param name="serverBaseUrl">Saved server connection URL.</param>
     /// <param name="ct">Cancellation token.</param>
-    Task UnregisterAsync(string serverBaseUrl, string accessToken, CancellationToken ct = default);
+    /// <returns>True when the unregistration request was handled.</returns>
+    Task<bool> UnregisterAsync(string serverBaseUrl, CancellationToken ct = default);
 }

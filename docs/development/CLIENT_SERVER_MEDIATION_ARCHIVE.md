@@ -1,6 +1,28 @@
+## Archived: Android Notes folder picker — closed out on-device (2026-09-18)
+
+**Status:** completed ✅ — the Android half of `fix/notes-folder-assignment` is implemented, committed and **verified on device** (client agent — `monolith`); the server + Blazor half was already deployed and operator-verified (entry below). **Nothing is outstanding for this feature.**
+**Branches:** `fix/notes-folder-assignment` (server + first Android commit `3df31674`), `fix/android-notes` (on-device fixes `482f91c8`; PR #142 merged, `main` = `1188017d`, tag `v0.6.08`).
+**From:** the deferred on-device pass that was left open when the Android commit went in with the no-commit-until-verified gate knowingly waived (2026-09-15).
+
+### What the on-device pass found and fixed
+
+- **Folder picker wired** — the `Picker` in `NoteEditPage.xaml` was bound to nothing. `NoteEditViewModel.FolderOptions` is now loaded in **both** create and edit mode ("None (unfiled)" first); `[QueryProperty] FolderId` seeds a new note from the active folder chip; `BuildUpdateDto()` sets **`ClearFolder = true`** whenever the note is unfiled — a bare `folderId: null` means "no change" server-side, so without the flag "move to None" silently no-opped.
+- **Owner-only picker** — `CanEditFolder` hides the control for a non-owner, matching the server's owner-only folder rule (folders belong to the note owner).
+- **Card folder tags** — `NotesViewModel.FolderSnapshot` + `NoteFolderLabels.Resolve` ("Shared folder" fallback) + the `NoteFolderTag` `IMultiValueConverter` tag each note card.
+- **`BindableLayout.ItemsSource` defect (user-visible)** — with `ItemsSource` set but **no `ItemTemplate`**, MAUI renders every item as a `Label` of `item.ToString()`, so the raw `NoteFolderDto` record dump appeared as a full-width chip **and** the hand-written "All Notes" chip disappeared (BindableLayout clears the layout's children). Fixed with an explicit `<DataTemplate>`.
+- **Highlight that never applied** — the old chip bound a **`bool`** converter to `BackgroundColor`; MAUI has no bool→Color conversion and logs nothing, so the selected-folder chip was silently never highlighted. Replaced with a `Color`-returning `IMultiValueConverter`.
+
+### Verification
+
+- **Android tests:** 325 pass / 1 skip at that pass — +15 `NoteEditViewModelTests`, +5 `NoteFolderLabelsTests`, and +1 wire-format test asserting `clearFolder` reaches the server.
+- **On-device (R5CWC356B2K):** create-with-folder from a folder chip, moving between folders, moving to None, owner-only visibility, and the card tags all verified. Screenshots used `screencap -p /data/local/tmp` + `pull` (never `/sdcard`) so MediaStore side effects could not trip the auto-upload observer.
+- Both tracking docs and the handoff entry were updated in the same commits.
+
+---
+
 ## Archived: Server + Blazor — Notes folder assignment (create + move/unfile); Android picker wiring deferred (2026-09-15)
 
-**Status:** server + Blazor completed ✅ — implemented, unit + full-CI tested, **deployed to `cloud.dotnetcloud.net` and operator-verified in the browser** (was `active — server agent`). **Android picker wiring still pending** (client agent — `monolith`); re-queue via a relay when the Android agent next runs on monolith.
+**Status:** server + Blazor completed ✅ — implemented, unit + full-CI tested, **deployed to `cloud.dotnetcloud.net` and operator-verified in the browser** (was `active — server agent`). ~~**Android picker wiring still pending**~~ → **the Android half landed and is on-device verified — see the entry above; nothing outstanding.**
 **Branch:** `fix/notes-folder-assignment` (from `main` @ `59f72989`)
 **From:** operator report → server agent (`cloud`), 2026-09-15
 **Target:** Notes module (`DotNetCloud.Modules.Notes*`), core DTOs (`DotNetCloud.Core`) and the Blazor Notes UI. Server-side only — no Android changes in this pass.

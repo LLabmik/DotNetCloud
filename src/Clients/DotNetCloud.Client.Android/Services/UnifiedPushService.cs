@@ -1,66 +1,36 @@
-#if FDROID
-using System.Net.Http.Json;
-using Microsoft.Extensions.Logging;
-
 namespace DotNetCloud.Client.Android.Services;
 
 /// <summary>
-/// Push notification service backed by UnifiedPush (F-Droid flavor).
-/// Supports any UnifiedPush-compatible distributor (e.g. ntfy, Gotify UP).
+/// Push notification service backed by UnifiedPush.
 /// </summary>
+/// <remarks>
+/// <para>
+/// This is the only push transport in either flavour: Firebase was removed outright rather than
+/// kept behind a flag, so no message metadata can reach Google infrastructure. The distributor
+/// (for example the ntfy app) is chosen by the user and the push server is self-hosted.
+/// </para>
+/// <para>
+/// The work lives in <see cref="IUnifiedPushConnector"/>; this type exists so that call sites
+/// depend on the transport-agnostic <see cref="IPushNotificationService"/> rather than on the
+/// Android connector.
+/// </para>
+/// </remarks>
 internal sealed class UnifiedPushService : IPushNotificationService
 {
-    private readonly HttpClient _http;
-    private readonly ILogger<UnifiedPushService> _logger;
+    private readonly IUnifiedPushConnector _connector;
 
     /// <summary>Initializes a new <see cref="UnifiedPushService"/>.</summary>
-    public UnifiedPushService(HttpClient http, ILogger<UnifiedPushService> logger)
+    /// <param name="connector">The UnifiedPush connector.</param>
+    public UnifiedPushService(IUnifiedPushConnector connector)
     {
-        _http = http;
-        _logger = logger;
+        _connector = connector;
     }
 
     /// <inheritdoc />
-    public async Task RegisterAsync(string serverBaseUrl, string accessToken, CancellationToken ct = default)
-    {
-        // UnifiedPush registration is handled in UnifiedPushReceiver (Android broadcast receiver).
-        // The endpoint URL (provided by the distributor) is passed here once available.
-        var endpoint = await UnifiedPushReceiver.GetEndpointAsync(ct).ConfigureAwait(false);
-        if (endpoint is null)
-        {
-            _logger.LogWarning("No UnifiedPush distributor available.");
-            return;
-        }
-
-        _http.DefaultRequestHeaders.Authorization =
-            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
-        var userId = AccessTokenUserIdExtractor.ExtractUserId(accessToken);
-
-        var apiEndpoint = $"{serverBaseUrl.TrimEnd('/')}/api/v1/notifications/devices/register?userId={userId}";
-        var body = new { DeviceToken = endpoint, Provider = "UnifiedPush", Endpoint = endpoint };
-
-        using var response = await _http.PostAsJsonAsync(apiEndpoint, body, ct).ConfigureAwait(false);
-        if (!response.IsSuccessStatusCode)
-            _logger.LogWarning("Push registration returned {StatusCode}.", response.StatusCode);
-        else
-            _logger.LogInformation("UnifiedPush endpoint registered with {ServerBaseUrl}.", serverBaseUrl);
-    }
+    public Task<bool> RegisterAsync(string serverBaseUrl, CancellationToken ct = default) =>
+        _connector.RegisterAsync(serverBaseUrl, ct);
 
     /// <inheritdoc />
-    public async Task UnregisterAsync(string serverBaseUrl, string accessToken, CancellationToken ct = default)
-    {
-        _http.DefaultRequestHeaders.Authorization =
-            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
-        var userId = AccessTokenUserIdExtractor.ExtractUserId(accessToken);
-
-        var endpointToken = await UnifiedPushReceiver.GetEndpointAsync(ct).ConfigureAwait(false);
-        if (string.IsNullOrWhiteSpace(endpointToken))
-            return;
-
-        var endpoint = $"{serverBaseUrl.TrimEnd('/')}/api/v1/notifications/devices/{Uri.EscapeDataString(endpointToken)}?userId={userId}";
-        using var response = await _http.DeleteAsync(endpoint, ct).ConfigureAwait(false);
-        if (!response.IsSuccessStatusCode)
-            _logger.LogWarning("Push unregister returned {StatusCode}.", response.StatusCode);
-    }
+    public Task<bool> UnregisterAsync(string serverBaseUrl, CancellationToken ct = default) =>
+        _connector.UnregisterAsync(serverBaseUrl, ct);
 }
-#endif

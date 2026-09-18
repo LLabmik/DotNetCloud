@@ -3342,22 +3342,23 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Create `PushProvider` enum (FCM, UnifiedPush)
 - ✓ Create `NotificationCategory` enum (ChatMessage, ChatMention, Announcement, FileShared, System)
 
-#### UnifiedPush — privacy-first push with no Google (SPEC READY, DEFERRED 2026-09-18)
+#### UnifiedPush — privacy-first push with no Google (ANDROID HALF ✓ IMPLEMENTED + ON-DEVICE VERIFIED 2026-09-18; SERVER HALF ☐ DEFERRED)
 
 Spec: **`docs/ANDROID_UNIFIEDPUSH_PLAN.md`** (source of truth; per-phase breakdown + acceptance).
-Deferred at the operator's request — **not authorised to start yet**; tracked as a deferred handoff in
+The **Android half is done** (phases 1, 2 + the client-side of phase 5) — see the plan's "Implementation notes — Android half, as built". The **server half is still deferred** at the operator's request and tracked as a deferred handoff in
 `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`.
+⚠️ **Topology changed by a device test (2026-09-18): the distributor rejects a push server URL containing a path**, so the server half must route by **Host** (`push.<domain>`) on the same 443 rather than use a `/push` path route. That needs a DNS record + certificate entry and therefore an **operator decision (plan §9.10)** before the server half starts.
 
-- ☐ Android: make the `fdroid` flavour build again (drop the non-existent `UnifiedPush.NET` package) and implement the UnifiedPush connector (§5 Phase 1)
-- ☐ Android: render generic notifications on every path — UP + SignalR (§5 Phase 2; FCM path is deleted, not ported)
-- ☐ Android: Settings push status (distributor, endpoint registered, last error) + "Choose distributor" (§5 Phase 2.4)
+- ✓ Android: `fdroid` flavour builds again — the non-existent `UnifiedPush.NET` package is dropped and the connector is written against spec AND_3.1.0 (§5 Phase 1)
+- ✓ Android: generic notifications on every path — UP receiver + SignalR (§5 Phase 2; the FCM path is deleted, not ported)
+- ✓ Android: Settings push status (distributor, endpoint registered, last error) + "Choose distributor" (§5 Phase 2.4)
+- ✓ Android: FCM **deleted** from both flavours (service classes, `Xamarin.Firebase.Messaging` reference, manifest entries, DI registration) and the manifest declares a `<queries>` entry so the distributor is visible to the package manager
 - ☐ Server: `UnifiedPushHttpTransport` — real HTTP POST of the ID-only payload + endpoint rewrite (§8.1)
 - ☐ Server: persist device registrations (Chat module table + migrations for both providers) (§8.2)
 - ☐ Server: strip names/text from mention, DM-created and call payloads; add the missing `ChatMessage` push (§8.3–§8.4)
 - ☐ Server: stop suppressing push for delivery-only mobile connections (§8.5)
-- ☐ ntfy on loopback + in-app `/push` proxy route, topic ACL and server token (§7.1, §8.6–§8.7)
-- ☐ Live E2E: with the app force-stopped, a remote message produces a generic, sounding notification (§7)
-- ☐ Packaging + docs: installer/compose coverage, **FCM removed outright** (no fallback, no flag — §9.1 resolved), `SETUP`/`DISTRIBUTION`/F-Droid metadata (§5 Phase 5)
+- ☐ ntfy on loopback + **Host-routed** `push.<domain>` proxy route (not a path route), topic ACL and server token (§7.1, §8.6–§8.7)
+- ☐ Live E2E: with the app force-stopped, a remote message produces a generic, sounding notification (§7) — the client half of this is verified with a locally published payload; the **server→push leg needs Phase 3**
 
 #### FCM Provider — superseded: FCM is being removed entirely (2026-09-18)
 
@@ -3649,7 +3650,7 @@ Zero-tap sign-in (Apr 2027) and the API 36 target bump are tracked separately (d
 - ✓ Pause SignalR reconnect attempts while the app is backgrounded
 - ✓ Update `docs/clients/android/DISTRIBUTION.md` Release build + F-Droid recipe (MAUI workload, restore prebuild)
 - ✓ On-device Release E2E passed 2026-09-07 (Samsung R5CWC356B2K): startup/AOT clean, session restore + SignalR, Files/Calendar/Notes/AI/Settings load data, Rescan Modules reflection path runs, background FGS gating verified (`dumpsys activity services` shows no idle chat FGS), memory reclaimed when backgrounded (`dumpsys meminfo`)
-- ☐ F-Droid flavor build + UnifiedPush smoke test — DEFERRED: `UnifiedPush.NET` is not on nuget.org and not cached, so the `fdroid` flavor cannot restore in this environment (pre-existing; unrelated to these changes). Needs the package from a configured feed before this build can run.
+- ✓ F-Droid flavor build + UnifiedPush smoke test — **RESOLVED 2026-09-18**: the `fdroid` flavour builds (0 warnings) and is verified on device. The old blocker was real but misdiagnosed — `UnifiedPush.NET` does not exist on nuget.org at all, so the package was dropped and the connector written against the spec directly.
 - ☐ Play Console Android Vitals / pre-launch report confirmation — DEFERRED: requires uploading a release-signed AAB to Play Console; set `KEYSTORE_FILE`/`KEYSTORE_ALIAS`/`KEYSTORE_PASS` env vars and build with signing enabled (`-p:AndroidKeyStore=true`) first.
 
 #### Music Tab

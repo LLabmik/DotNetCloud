@@ -1,11 +1,19 @@
 # Android Push — UnifiedPush Implementation Plan (privacy-first)
 
-**Status:** **deferred by the operator (2026-09-18)** — the design below is complete and
-implementation-ready, but **nothing is authorised to start yet** and **no code has been written**.
+**Status — Android half: IMPLEMENTED & verified on device (2026-09-18).** Phases 1, 2 and the
+client-side of Phase 5 are **done** on `feature/android-unifiedpush`: the `fdroid` flavour builds
+again, register → endpoint → delivery → notification all work end-to-end against a self-hosted ntfy,
+and FCM is deleted from both flavours. See "Implementation notes — Android half" at the end of §5
+for the as-built file list and the exact verification evidence.
+**Status — server half: still DEFERRED by the operator.** Phase 3 belongs to the server agent
+(`cloud.kimball.home`) and **nothing there is authorised to start**.
 This document is the **source of truth** for the work: read it end-to-end before starting.
 **Plan finalized:** 2026-09-18 — the design is frozen apart from the §9 items; implementation can
-start from this document alone (no further discovery needed, only the §7.1 step-1 test and the
-operator's §9 answers).
+start from this document alone.
+**§9 decisions resolved 2026-09-18** (see §9). **§7.1 step 1 is answered: the distributor refuses a
+push server URL containing a path** — so the Host-based `push.<domain>` topology, not the path-based
+`/push` route, is the required one on the server half. That overturns part of requirement §1.5 and
+needs the operator's decision (§9.10).
 **Owner:** client agent (monolith) for the Android half; server agent (`cloud.kimball.home`) for the
 server half + ntfy deployment (§7.1, §8). Tracked as a deferred handoff in
 `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`.
@@ -32,6 +40,13 @@ path?). §9.1 is **already resolved**: FCM is removed outright (requirement §1.
    hostname or firewall rule. ntfy runs on **loopback** and is proxied through the instance's own URL
    by an in-app route (§7.1, §8.7) — the same pattern already used for Collabora. Anything a
    self-hoster has to open in a firewall is a non-starter.
+   - ⚠️ **Measured 2026-09-18 — this requirement is not satisfiable exactly as written.** The ntfy
+     distributor rejects any push server URL containing a path (§7.1 step 1), so the proxy can
+     **not** live at `https://<instance>/push`. The fallback this plan anticipated is therefore the
+     **required** topology: **`push.<domain>` on the same 443, routed by Host inside Kestrel**. That
+     keeps "no new port, no new firewall rule" but **costs a DNS record and a certificate entry for
+     that name** — i.e. it does add a hostname. ✅ **The operator approved this trade-off on
+     2026-09-18 (§9.10).**
 6. **FCM is removed, not disabled** (operator decision, 2026-09-18). Neither flavour ships Firebase
    code — no fallback, no behind-a-flag build (§5 Phase 5 lists what gets deleted). A flag would keep
    the Google dependency in the tree and the Firebase config story alive; and the Play channel does
@@ -191,7 +206,7 @@ all three pieces (client + server + ntfy) and is the only true join point. Phase
 
 ### Phase 1 — make the fdroid flavour build and register (client)
 
-**Status:** ☐ not started (deferred 2026-09-18) · owner: client agent (monolith)
+**Status:** ✓ completed & verified on device (2026-09-18) · owner: client agent (monolith)
 
 | Step | Change                                                                                                                                                                                            | Files                                                                                                                                                  |
 | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -206,11 +221,16 @@ all three pieces (client + server + ntfy) and is the only true join point. Phase
 | 1.9  | Unit tests for the helper + registration state machine; add new files to the test csproj `Compile` list.                                                                                          | `tests/DotNetCloud.Client.Android.Tests/UnifiedPush*Tests.cs`                                                                                          |
 
 **Acceptance:** `dotnet build -p:BuildFlavor=fdroid` succeeds with 0 warnings; tests green; on a
-device with a distributor installed, logcat shows REGISTER → NEW_ENDPOINT → server registration 200.
+device with a distributor installed, logcat shows REGISTER → NEW_ENDPOINT → server registration.
+
+- ✓ `fdroid` builds with 0 warnings and installs (it did not build at all before — blocker B1).
+- ✓ `REGISTER` → `NEW_ENDPOINT` → endpoint sent to the server, observed in logcat.
+- ☐ The server leg of that chain answered **404** on the deployed instance — expected to be wired by
+  Phase 3; confirm server-side (see "Implementation notes", "Not verified here").
 
 ### Phase 2 — generic notifications everywhere (client)
 
-**Status:** ☐ not started (deferred 2026-09-18) · owner: client agent (monolith)
+**Status:** ✓ completed & verified on device (2026-09-18) · owner: client agent (monolith)
 
 | Step | Change                                                                                                                                                          | Files                                                        |
 | ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
@@ -243,9 +263,9 @@ authorised yet** (2026-09-18).
    registration survives and a send still attempts delivery.
 4. **Payload (S4):** capture the bytes the server POSTs and show they contain IDs only — no sender,
    channel or message text, and no name fields hiding inside `Data`.
-5. **Proxy route + ntfy:** `https://<instance>/push/v1/health` returns healthy **through the app's own
-   port**; ntfy listens on loopback only (nothing on a public interface); a distributor subscription
-   held open through the route survives several minutes without being buffered or cut.
+5. **Proxy route + ntfy:** `https://push.<domain>/v1/health` returns healthy **through the app's own
+   443** (Host-routed); ntfy listens on loopback only (nothing on a public interface); a distributor
+   subscription held open through the route survives several minutes without being buffered or cut.
 6. **Negative cases:** `Enabled=false` → previous behaviour unchanged; a dead endpoint (404/410)
    prunes the registration; 429/5xx retries up to `MaxSendAttempts` and then gives up cleanly.
 7. **Evidence recorded** in the handoff entry before hand-back: branch + commit, migration name(s),
@@ -257,9 +277,15 @@ authorised yet** (2026-09-18).
 
 See §7. Requires ntfy deployed and a distributor installed on the test phone.
 
+**Partially exercised 2026-09-18 with a local ntfy** (see "Implementation notes"): registration,
+endpoint hand-off, delivery with the app backgrounded and force-stopped, generic rendering, the
+raise-to-foreground bind, Settings status, and the no-Google check all passed. What still needs the
+server half is the real server→push leg (§7 step 5) and the negatives that depend on it (muted
+channel, DND, dead-endpoint pruning).
+
 ### Phase 5 — packaging + FCM removal
 
-**Status:** ☐ not started (deferred 2026-09-18) · blocked on the remaining §9 items
+**Status:** ◐ client half completed & verified (2026-09-18) · server half pending (§9.10) · owner: client agent (monolith) for the deletions listed as client-side
 
 - **Remove FCM outright** (requirement §1.6 — no fallback, no flag). Delete these and verify nothing
   still references them:
@@ -301,6 +327,69 @@ See §7. Requires ntfy deployed and a distributor installed on the test phone.
   unit/compose environment. **Not** a module `appsettings.json`: `scripts/deploy.sh` republishes
   `modules/dotnetcloud.chat` and rsyncs `*.json` over it.
 
+### Implementation notes — Android half, as built (2026-09-18)
+
+**Files added** (under `src/Clients/DotNetCloud.Client.Android/`):
+
+| File                                                             | Role                                                                                                                                                               |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Services/UnifiedPushProtocol.cs`                                | AND_3.1.0 action/extra constants, the §4.2 payload DTO + parser, and payload → generic notification mapping. Android-free, so the whole protocol is unit-testable. |
+| `Services/UnifiedPushRegistration.cs`                            | The per-connection state model (`Unregistered`/`Pending`/`Registered`/`TempUnavailable`/`Failed`).                                                                 |
+| `Services/UnifiedPushRegistrationPolicy.cs`                      | The state machine: token rotation on failure, backoff, when to report to the server, when to drop.                                                                 |
+| `Services/UnifiedPushRegistrationStore.cs` (+ `I…`)              | Persists registrations **outside** the DI container, so the receiver works with no app process warmed up.                                                          |
+| `Services/IUnifiedPushConnector.cs`                              | Connector surface used by the app (`RegisterAsync`, `UnregisterAsync`, `SelectDistributorAsync`, status).                                                          |
+| `Services/PushEndpointRegistrar.cs` (+ `IPushEndpointRegistrar`) | `POST /api/v1/notifications/devices/register` for one server connection, resolving the user id from the **id_token** (blocker B6).                                 |
+| `Platforms/Android/UnifiedPushIntents.cs`                        | Builds the `REGISTER` / `UNREGISTER` / `MESSAGE_ACK` intents, including the targetSdk ≥ 34 `FLAG_SHARE_IDENTITY` form.                                             |
+| `Platforms/Android/UnifiedPushConnector.cs`                      | The Android adapter over the policy: token storage, distributor selection, endpoint cache, ACKs, retry.                                                            |
+| `Platforms/Android/UnifiedPushNotificationRenderer.cs`           | Renders the generic notification per type and builds the tap deep link.                                                                                            |
+| `Platforms/Android/UnifiedPushForegroundService.cs`              | The spec's bindable `RAISE_TO_FOREGROUND` service (not a foreground service — no FGS budget involved).                                                             |
+| `Platforms/Android/DistributorLinkActivity.cs`                   | `unifiedpush://link` selection as an activity result (the spec forbids relying on a default handler).                                                              |
+| `Platforms/Android/UnifiedPushReceiver.cs` (rewritten)           | A plain `BroadcastReceiver` implementing all five distributor→app actions plus ACKs, instead of deriving from a third-party base class.                            |
+
+**Deviations from the plan as written:**
+
+- `UnifiedPush.NET` does not exist on nuget.org (blocker B1), so nothing is taken from it: the
+  connector is written against the spec directly and the dependency is dropped entirely.
+- Step 1.2's intent helpers are **split**: the pure half (`UnifiedPushProtocol`, plus
+  `Platforms/Android/UnifiedPushIntents.cs` for the actual `Intent` objects). The test project
+  compiles on plain `net10.0` with no Android assembly, so a file touching `Android.Content.Intent`
+  cannot be compiled into it — this split is what keeps the protocol unit-testable.
+- **Android package visibility**: the manifest declares a `<queries>` entry for the distributor
+  actions. Without it `PackageManager` cannot see an installed distributor at all — found on device,
+  where it made distributor selection fail silently.
+- **Notification ids are deterministic**, not derived from `string.GetHashCode()`: .NET randomises
+  string hashes per process, so the previous ids changed on every cold start.
+- Pushes carrying an **unknown connection token are ignored** (as the spec requires), not rendered.
+
+**Verified on device (R5CWC356B2K, arm64 Debug, `adb install -r --no-incremental`):**
+
+- The `fdroid` flavour builds with **0 warnings** (before this work it did not build at all), and the
+  `googleplay` flavour still builds with FCM removed.
+- Registration chain observed in logcat: `REGISTER` sent → `NEW_ENDPOINT` received → endpoint handed
+  to the server.
+- Delivery with the app **backgrounded, then force-stopped**: the distributor cold-started the app via
+  the `RAISE_TO_FOREGROUND` service and posted a **generic** notification on the correct channel, with
+  no sender, channel name or text.
+- Tapping a notification while the app was backgrounded opened the correct channel.
+- The Settings card shows the distributor, the registration state and the last error reason.
+- No `com.google.firebase` provider/service remains in the package; neither csproj references
+  `Xamarin.Firebase.Messaging`.
+- `tests/DotNetCloud.Client.Android.Tests`: **425 passed**, including the new `Push/` tests — generic
+  text for every payload type _including hostile payloads that carry `title`/`body`_, the registration
+  policy/state machine, the registration store, the endpoint registrar, and the Settings status text.
+
+**Not verified here, and why:**
+
+- The real "message from another user → push" leg needs **Phase 3**: `IUnifiedPushTransport` is still
+  the logging stub, so delivery was proven by POSTing an ID-only payload straight to the registered
+  ntfy topic instead.
+- The registration POST returned **404** against the deployed cloud instance. That path is expected to
+  arrive with Phase 3, but **if the route already exists this is a separate bug** worth confirming
+  server-side before the hand-back.
+- `MESSAGE_ACK` was never observed on the wire because **ntfy does not send the `id` extra at all**, so
+  the ACK path is covered by unit tests rather than by ntfy. A distributor that does send `id` will
+  exercise it.
+
 ## 6. Estimate
 
 Rough order of magnitude for the Android half: **1 focused day** for Phases 1–2 (the connector is
@@ -317,18 +406,30 @@ comparable effort owned by the server agent.
    `Files:Collabora:ProxyUpstreamUrl`, precisely so that "only one firewall port is needed".
    - **Install ntfy bound to loopback** — the Debian/Ubuntu archive (`archive.ntfy.sh/apt`) or the
      static binary + supplied `ntfy.service`, with `listen-http: 127.0.0.1:2586` and
-     `base-url: "https://<instance>/push"`. Docker users add a sibling `ntfy` service behind a compose
-     `push` profile (mirroring `--profile sqlserver`), provisioned via `NTFY_*` env — no `server.yml`.
-   - **Add the proxy route in Core.Server** (a `/push/{**catch-all}` map beside the Collabora one):
-     WebSocket upgrade allowed, **response buffering off**, an activity timeout well above ntfy's
-     keepalive (Collabora uses 15 minutes), and `X-Forwarded-For` preserved.
+     `base-url: "https://push.<domain>"` (Host-based — see the step-1 result below). Docker users add a
+     sibling `ntfy` service behind a compose `push` profile (mirroring `--profile sqlserver`),
+     provisioned via `NTFY_*` env — no `server.yml`.
+   - **Add the proxy route in Core.Server — Host-based, NOT path-based** (beside the Collabora one):
+     Kestrel sends the configured push host (`push.<domain>`) to the loopback ntfy, with WebSocket
+     upgrade allowed, **response buffering off**, an activity timeout well above ntfy's keepalive
+     (Collabora uses 15 minutes), and `X-Forwarded-For` preserved. The push host must be configurable
+     (the same deploy-safe `Chat:Push:UnifiedPush` section), with the path-based variant kept only as
+     a documented dead end.
    - ⚠️ **ntfy must run with `behind-proxy: true`** once it sits behind that route — otherwise every
      visitor appears as `127.0.0.1` and they all share one rate-limit bucket.
-   - ⚠️ **Verify before writing code (first task):** does the distributor app accept a push server URL
-     that contains a **path**? Every UP endpoint is `<server-url>/<topic>`, and ntfy normally expects
-     to own the root. If a path is not accepted, fall back to a **second hostname on the same 443**
-     (`push.<domain>`, routed by Host inside Kestrel) — still no firewall rule, but it needs a DNS
-     record and a certificate for that name.
+   - ✅ **ANSWERED 2026-09-18 — a path is NOT accepted; use the `push.<domain>` hostname on the same 443.** Tested on the ntfy distributor (ntfy Android app against a self-hosted ntfy at
+     `http://192.168.0.154:2586` as the control):
+     - control root URL `http://192.168.0.154:2586` → **accepted**, the dialog closes and the value
+       persists;
+     - `http://192.168.0.154:2586/push` → inline error **"Enter a valid service URL, e.g.
+       https://ntfy.example.com"**, and SAVE is **refused** (the dialog stays open, nothing stored);
+     - `https://ntfy.example.com/push` → the **same** error, so the rejection is
+       **scheme-independent**, not an http-only quirk.
+       The ntfy app validates the server URL as scheme + host + optional port only. Therefore the
+       `/push/{**catch-all}` **path** route (§8.7) must **not** be built — route by **Host** instead.
+       Everywhere else in this document that reads `https://<instance>/push`, read
+       **`https://push.<domain>`**, and note it needs a DNS record + a certificate entry (see the §1.5
+       deviation note and §9.10).
    - **Fallback topology** for instances that already run their own reverse proxy (and anyone who
      prefers it): ntfy gets its own port + certificate + one NAT/firewall rule.
      Protect the topics: `auth-file` + `auth-default-access: deny-all`, then a **dedicated** `dotnetcloud`
@@ -385,10 +486,10 @@ comparable effort owned by the server agent.
      text cannot leak by accident.
    - Support an optional **endpoint base-URL rewrite** (`EndpointRewriteFrom` → `EndpointRewriteTo`)
      applied before the POST. Required, not a nicety: the stored endpoint is the _public_ URL that this
-     same server serves, so the internal hop must bypass it — `https://<instance>/push` →
-     `http://localhost:5080/push` (back into its own Kestrel, which then proxies to loopback ntfy) on
-     the default topology; in Docker `http://localhost:8080/push`, or straight to the sibling
-     `http://ntfy:80` on the bridge network.
+     same server serves, so the internal hop must bypass it — `https://push.<domain>` →
+     `http://localhost:2586` (straight to loopback ntfy; no need to re-enter its own Kestrel) on the
+     default topology; in Docker `http://ntfy:80` on the bridge network, or `http://localhost:8080`
+     if the rewrite is pointed at the container's own proxy host.
 2. **Persist device registrations.** Move `NotificationRouter._deviceMap` +
    `FcmPushProvider._registrations` into a table **owned by the Chat module** (the module owns this
    data — do not reach into `Core.Data`'s `UserDevice` from a module), keyed by
@@ -409,9 +510,9 @@ comparable effort owned by the server agent.
    suppression (mark the connection via a hub header at connect time), or apply a grace window so a
    connection that has not sent a heartbeat within the client keepalive interval does not count as
    online.
-6. **ntfy deployment** (operator + installer) — **default = loopback ntfy proxied through the app's
-   own port** (see §7.1): one public host, one certificate, no extra firewall rule, and a loopback
-   app→ntfy hop. The installer mirrors `install_collabora()` (external APT repo + signing key,
+6. **ntfy deployment** (operator + installer) — **default = loopback ntfy proxied through a
+   Host-routed `push.<domain>` on the app's own 443** (see §7.1 and its step-1 result): one public
+   port, no extra firewall rule, one extra DNS record + certificate name, and a loopback ntfy hop. The installer mirrors `install_collabora()` (external APT repo + signing key,
    idempotent install, `systemctl enable/start`) — the same "only one firewall port is needed" story —
    and derives the public URL with `resolve_public_origin_from_config()` rather than hardcoding it.
    Docker adds the `push`-profile `ntfy` service; Helm needs its own ingress host. Keep the standalone
@@ -419,7 +520,8 @@ comparable effort owned by the server agent.
    their own reverse proxy. Document the topic privacy model (the endpoint is a capability URL; keep
    topics unguessable and/or authenticated). Users who decline run their own ntfy (or bring their own
    distributor).
-7. **In-app push proxy route** (Core.Server) — map `/push/{**catch-all}` to the loopback ntfy endpoint,
+7. **In-app push proxy route** (Core.Server) — route the configured **push host** to the loopback ntfy
+   endpoint (Host-based, per the §7.1 step-1 result; a `/push` path route cannot work),
    mirroring `MapCollaboraReverseProxy()` (`Program.cs:1097`) and its `ProxyUpstreamUrl` self-proxy-loop
    guard: WebSocket upgrades allowed, response buffering disabled, activity timeout ≫ ntfy's keepalive
    (Collabora uses 15 min), `X-Forwarded-For` preserved, and excluded from response compression. Its
@@ -433,41 +535,40 @@ comparable effort owned by the server agent.
 > implementation time, before any code is written. Each is a localised change rather than a redesign.
 > (Implementation itself is also deferred — see the status at the top of this document.)
 
-**Resolved:**
+**Resolved (operator decisions, 2026-09-18):**
 
-1. **FCM is removed entirely** (2026-09-18) — deleted from both flavours with no fallback and no
-   behind-a-flag build; see requirement §1.6 and the Phase 5 deletion inventory. The `PushProvider`
-   abstraction survives for APNs.
+1. **FCM is removed entirely** — deleted from both flavours with no fallback and no behind-a-flag
+   build; see requirement §1.6 and the Phase 5 deletion inventory. The `PushProvider` abstraction
+   survives for APNs. Shipped on the Android side in the **same** commit as the transport work (§9.9).
+2. **Lock-screen detail** — **no** `LockscreenVisibility.Secret`: the notifications are already
+   generic, so the chat channels keep their current visibility.
+3. **Channel name in the body** — **fully generic**: title only, empty body. No local-cache
+   resolution of channel names.
+4. **Calendar reminders** — the asymmetry is **confirmed**: pushed reminders are generic and resolve
+   on open; on-device AlarmManager reminders keep full detail (nothing leaves the device).
+5. **Distributor UX** — **Settings card only** (distributor name, registered?, last error reason,
+   "Choose distributor").
+6. **Public push URL shape** — **answered by the §7.1 step-1 test: the distributor rejects a URL
+   containing a path**, so the shape is the **`push.<domain>` hostname variant** on the same 443. The
+   path-based `https://<instance>/push` is a dead end.
+7. **Multi-server accounts** — **one UP token + endpoint per saved server connection**
+   (`IServerConnectionStore` supports several: `GetAll`/`Save`/`SetActive`/`Remove`). No server id is
+   added to the §4.2 payload; the app maps endpoint → server URL, so a tap can never open a channel on
+   the wrong instance, and a notification from a non-active server still routes correctly.
+8. **Tap when the session is gone** — **fall through to Login**, reusing the existing session-loss
+   behaviour. Not a silent no-op.
+9. **Installer/Docker/Helm scope + FCM deletion timing** — the Android-side FCM deletion **ships in
+   the same pass** as the transport work; installer/Docker/Helm provisioning stays part of the
+   deferred server/ops half.
 
 **Open:**
 
-2. **Lock-screen detail** — set `LockscreenVisibility.Secret` on chat channels so even generic
-   notifications stay off the lock screen?
-3. **Channel name in the body** — resolve the channel name from the local cache for the notification
-   body ("New message in #general") or stay fully generic? Names never leave the device either way.
-4. **Calendar reminders** — pushed reminders must be generic + fetch-on-open; on-device
-   AlarmManager reminders keep full detail (nothing leaves the device). Confirm that asymmetry is
-   acceptable.
-5. **Distributor UX** — prompt in Settings only, or also a first-run card (like the notification
-   permission card)?
-6. **Public push URL shape** (added 2026-09-18) — path-based `https://<instance>/push`, or the
-   `push.<domain>` hostname variant? Decided by the §7.1 step-1 test, not by preference: it depends on
-   whether the distributor app accepts a push server URL that contains a path.
-7. **Multi-server accounts** (raised 2026-09-18 — **decide before the server half ships**) — the app
-   stores several server connections (`IServerConnectionStore.GetAll()` / `GetActive()`), but the
-   §4.2 payload carries no server identity, and §1.3 only says the token store is "per server".
-   Decide: **one UP token + endpoint per server** (each server POSTs to its own endpoint; the app maps
-   endpoint → server URL for tap routing and channel resolution) or **one shared endpoint** (which
-   requires adding a server id to the §4.2 payload — a contract change). Also decide what a
-   notification from a **non-active** server does on tap.
-8. **Tap when the session is gone** (raised 2026-09-18) — a notification can be tapped while the app
-   is force-stopped and the access/refresh token is expired or revoked. Decide whether the deep link
-   falls through to Login (the existing session-loss behaviour) or the tap is a deliberate no-op.
-9. **Scope of the installer/Docker/Helm work, and FCM deletion timing** (raised 2026-09-18) — is ntfy
-   provisioning in `tools/install.sh` / `docker-compose.yml` / Helm **required for the first
-   release**, or best-effort (with docs telling self-hosters to run their own ntfy)? And does the
-   Phase 5 FCM deletion ship in the same pass as the transport work or as a follow-up? (The handoff
-   currently asks for a separate commit if taken together.)
+10. **Requirement §1.5 deviation — the push hostname** — ✅ **RESOLVED (operator, 2026-09-18): the
+    Host-routed `push.<domain>` on the same 443 is APPROVED.** A DNS record + a certificate entry for
+    that name are accepted; there is still no new port and no new firewall rule. The alternative
+    (keep exactly one public name and give ntfy its own port + certificate + one firewall rule) was
+    **declined**. The push hostname must be **configurable** in the deploy-safe config channel, not
+    hard-coded.
 
 ## 10. References
 

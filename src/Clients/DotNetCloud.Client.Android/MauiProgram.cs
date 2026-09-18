@@ -75,12 +75,14 @@ public static class MauiProgram
             .AddHttpMessageHandler<AuthenticatedHttpClientHandler>()
             .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
 
-        // ── Push notifications ────────────────────────────────────────
-#if GOOGLEPLAY
-        builder.Services.AddSingleton<IPushNotificationService, FcmPushService>();
-#elif FDROID
+        // ── Push notifications (UnifiedPush; Firebase is gone from both flavours) ──
+        builder.Services.AddSingleton<IUnifiedPushRegistrationStore, UnifiedPushRegistrationStore>();
+        builder.Services.AddHttpClient<IPushEndpointRegistrar, PushEndpointRegistrar>()
+            .AddHttpMessageHandler<TimeoutHandler>()
+            .AddHttpMessageHandler<AuthenticatedHttpClientHandler>()
+            .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
+        builder.Services.AddSingleton<IUnifiedPushConnector, UnifiedPushConnector>();
         builder.Services.AddSingleton<IPushNotificationService, UnifiedPushService>();
-#endif
 
         // ── Files / media upload ────────────────────────────────────
         builder.Services.AddHttpClient<IFileRestClient, HttpFileRestClient>()
