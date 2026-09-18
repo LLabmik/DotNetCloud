@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-09-15 (**Notes: note folder assignment** — a note can now be filed at creation time, moved/unfiled afterwards, and is tagged with its folder on the sidebar card; server + Blazor done, deployed and operator-verified from branch `fix/notes-folder-assignment`, Android picker wiring handed to monolith — see the deferred handoff below. Earlier same day: **Trash restore now preserves the original directory path** — server-side fix implemented, tested and deployed to `cloud.dotnetcloud.net` (branch `fix/trash-restore-original-path`); earlier, the client-side "ignore a synced folder" deletion bug was fixed + live-verified on SyncTray `0.6.7` (`7632722c`). Earlier: 2026-09-09 Presence indicators → **4-state** Online/Away/Do-Not-Disturb/Offline — full-stack code committed on `fix/android-improvements` at `c17c7fa3`; server + Blazor + Admin changes are ready to deploy to `cloud.kimball.home` and require the live E2E in the Active Handoff. Plan `docs/PRESENCE_DOTS_4STATE_PLAN.md`; see Active Handoff.)
+Last updated: 2026-09-18 (**UnifiedPush push transport (privacy-first)** — the design is **complete and spec'd but DEFERRED** at the operator's request: self-hosted ntfy on loopback + an in-app `/push` proxy route, real UnifiedPush transport, persisted device registrations, ID-only payloads, a chat-message push builder and the presence-suppression fix. **Not authorised to start** — see the deferred handoff below; canonical spec `docs/ANDROID_UNIFIEDPUSH_PLAN.md`. Earlier: **Notes: note folder assignment** — a note can now be filed at creation time, moved/unfiled afterwards, and is tagged with its folder on the sidebar card; server + Blazor done, deployed and operator-verified from branch `fix/notes-folder-assignment`, Android picker wiring handed to monolith — see the deferred handoff below. Earlier same day: **Trash restore now preserves the original directory path** — server-side fix implemented, tested and deployed to `cloud.dotnetcloud.net` (branch `fix/trash-restore-original-path`); earlier, the client-side "ignore a synced folder" deletion bug was fixed + live-verified on SyncTray `0.6.7` (`7632722c`). Earlier: 2026-09-09 Presence indicators → **4-state** Online/Away/Do-Not-Disturb/Offline — full-stack code on `fix/android-improvements` at `c17c7fa3`, deployed and live-verified on `cloud.kimball.home` (archived below). Plan `docs/PRESENCE_DOTS_4STATE_PLAN.md`.)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -16,10 +16,11 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
-- **Latest (server agent — `cloud`):** `fix/notes-folder-assignment` — Notes folder assignment at create time + move/unfile; server + Blazor done and deployed, **Android half implemented and committed but with the on-device E2E still outstanding** (client agent — `monolith`; committed at the operator's explicit instruction — detail in the deferred handoff below)
+- **Deferred (server agent — `cloud.kimball.home`):** `feature/android-unifiedpush` — **UnifiedPush push transport (privacy-first)**: ntfy on **loopback, proxied through the app's own port** (no new port, certificate, hostname or firewall rule — the Collabora proxy pattern) + the server-side transport/registration/payload work. **SPEC READY — NOT AUTHORISED, DO NOT START** (operator deferred it 2026-09-18). Canonical spec `docs/ANDROID_UNIFIEDPUSH_PLAN.md`; deferred handoff below. The Android half (plan Phases 1–2) is a separate monolith task and does **not** block this work.
+- **Latest (server agent — `cloud`):** `fix/notes-folder-assignment` — Notes folder assignment at create time + move/unfile; server + Blazor done and deployed, Android half implemented + on-device verified (client agent — `monolith`; detail in the deferred handoff below)
 - **Archived (server agent — `cloud`):** `fix/trash-restore-original-path` — trash restore now preserves the original directory path (implemented, tested, deployed to `cloud.dotnetcloud.net` 2026-09-15; archived below)
 - **Completed (awaiting moderator PR):** `fix/synctray-ignore-folder` — SyncTray **0.6.7**, "ignore a synced folder" can no longer delete the folder server-side; pushed `7632722c`, installed and live-verified on `mint-OptiPlex-7010`
-- **Pending deploy:** `fix/android-improvements` (Presence 4-state — server deploy to `cloud.kimball.home`; plan `docs/PRESENCE_DOTS_4STATE_PLAN.md`)
+- **Archived (server agent — `cloud.kimball.home`):** `fix/android-improvements` — Presence 4-state, deployed + live-verified on cloud 2026-09-09 (plan `docs/PRESENCE_DOTS_4STATE_PLAN.md`; archived below)
 - **Still pending (mint22, dev):** `feature/module-widgets` — Module Home Widgets (plan `docs/MODULE_WIDGETS_PLAN.md`); kept below as a deferred handoff
 
 ## Archived Handoff — SyncTray test machine: DB Outage SyncTray Simulation (plan §11.4) ✅ PASS
@@ -356,7 +357,126 @@ Notes folders existed as a sidebar filter only: a note could not be filed at cre
 
 ---
 
-## Active Handoff — Presence indicators 4-state: deploy `c17c7fa3` to `cloud.kimball.home` + live E2E (2026-09-09)
+## Archived (deferred) Handoff — Server: UnifiedPush push transport (privacy-first) → `cloud.kimball.home` — SPEC READY, IMPLEMENTATION DEFERRED (2026-09-18)
+
+> ☐ **DEFERRED BY THE OPERATOR (2026-09-18) — do NOT start this work.** The design is complete and the instructions below are ready to execute, but implementation is deliberately scheduled for later. When the operator authorises it, this section becomes the Active Handoff.
+> **Source of truth:** `docs/ANDROID_UNIFIEDPUSH_PLAN.md` (if this section and the plan ever disagree, **the plan wins** — update this section from it). The plan holds the full design, the per-phase work breakdown and the acceptance criteria; the section below is the go-time task list.
+> **At go-time the operator must first answer:** the remaining §9 open items and which public push URL shape to use (§7.1 step 1). (§9.1 — FCM's fate — is **already resolved**: FCM is removed outright, requirement §1.6, Phase 5.)
+
+**Target machine:** server agent — `cloud.kimball.home` (production, `https://cloud.dotnetcloud.net/`; **real install, not Docker**: systemd unit `dotnetcloud`, layout from `tools/install.sh` (`/opt/dotnetcloud`, `/etc/dotnetcloud`), source deploys via `scripts/deploy.sh`; direct Kestrel on 5443 with the router forwarding 443→5443 and a Let's Encrypt cert; **no reverse proxy in front** — which is why the push server is proxied **through the app's own port** (Part 1) rather than given its own port, certificate and NAT rule).
+**Branch:** `feature/android-unifiedpush` (docs-only today: `366fac6f` plan, `0bd6a6dd` markdown formatting).
+**Canonical plan:** `docs/ANDROID_UNIFIEDPUSH_PLAN.md` — read §3.2 (server blockers S1–S5), §4.2 (payload contract), §7 (verification), §8 (this handoff's spec) **before starting any code**.
+**Status:** ☐ **DEFERRED** — not authorised to start; the operator will schedule it. Design complete, spec written, nothing implemented.
+**Android half:** not implemented (plan Phases 1–2 are monolith work). It is **not** a prerequisite for your work — only the §7.5 live E2E needs both halves, and that one is handed back to the client agent when you finish.
+
+### Why this exists
+
+The Android app cannot receive background chat alerts, and Google may not be part of the fix:
+
+- The googleplay build ships **no `google-services.json`** → Firebase never initialises → no FCM token can ever be issued (confirmed on-device 2026-09-17).
+- **Operator decision (2026-09-17):** Google is out of the push path entirely — **no message content *and* no metadata** through Google. FCM is therefore not acceptable even with encrypted or content-free payloads.
+- Transport of record = **UnifiedPush (UP) with a self-hosted ntfy**, with **completely generic notifications** ("New message" — no sender/channel names, no text, nothing that a push server or observer could interpret).
+- Foreground alerts already work (`docs/ANDROID_CHAT_ALERT_SOUND_PLAN.md`); this handoff is the background half.
+- Do **not** re-introduce a foreground service: the `dataSync` FGS was removed permanently (`faae32c9`, Android 15/16 rolling daily budget) and `remoteMessaging` is not a valid replacement type.
+
+### Scope — do it in this order
+
+1. **Stand up ntfy on loopback and proxy it through the app's own port** (§7.1, Part 1 below) — nothing else can be live-verified until it exists.
+2. **Server code** (§8.1–§8.5).
+
+⚠️ Items 2–5 of the server code are **transport-neutral** — they also repair the existing FCM path and are required for *any* push to work at all. Only §8.1 (the real UP transport) and the ntfy deployment are UP-specific. Do not skip them as "FCM-only later".
+
+---
+
+#### Part 1 — ntfy on loopback, proxied through the app's own port
+
+**Design (decided 2026-09-18): push must not add a port, a certificate, a hostname or a firewall rule.** The public surface stays exactly `https://cloud.dotnetcloud.net` on 443. ntfy runs **loopback-only** and Core.Server proxies it through its own Kestrel port — the pattern already shipped for Collabora (`MapCollaboraReverseProxy()` in `Core.Server/Program.cs:1097` maps `/hosting`, `/browser`, `/cool`, `/lool` to a loopback `coolwsd` via `Files:Collabora:ProxyUpstreamUrl`, precisely so "only one firewall port is needed").
+
+**Do not use Docker on this host** and do not add a `docker-compose.yml` service for it — `docker-compose.yml` in the repo is for other users' installs. This box is a real install (apt + systemd + `/opt/dotnetcloud`).
+
+1. **⚠️ First task — settle the public shape (no code needed, but everything else depends on it).** Every UnifiedPush endpoint is `<server-url>/<topic>`, and ntfy normally expects to own the root. **Verify whether the distributor app accepts a push server URL containing a path.** Cheapest test: install ntfy on loopback (step 2), add a temporary route (step 3), then point the ntfy Android app (F-Droid/GitHub build, not the Play build — the Play build delivers via FCM) at `https://cloud.dotnetcloud.net/push` and confirm it produces an endpoint containing that path.
+   - ✅ If yes: `base-url: "https://cloud.dotnetcloud.net/push"` and you are done with the topology.
+   - ❌ If no: fall back to a **second hostname on the same 443** — `push.dotnetcloud.net`, routed by the `Host` header inside Kestrel (still no firewall rule; needs a DNS A record for the subdomain and a certificate for that name, i.e. a SAN entry on the existing Let's Encrypt cert or a second cert). Report which one you used.
+   - A separately-ported ntfy (`listen-https` + key/cert + a new NAT rule) is the **last-resort fallback** only; it is not the plan.
+2. **Install ntfy, bound to loopback** — the Debian/Ubuntu archive (`archive.ntfy.sh/apt`, keyring + `sources.list.d`, `sudo apt install ntfy`) or the static binary plus the shipped `ntfy.service` into `/etc/systemd/system/` (`daemon-reload`, `systemctl enable --now ntfy`). Config in `/etc/ntfy/server.yml`:
+   - `listen-http: 127.0.0.1:2586` — **loopback only**; nothing else should ever reach it.
+   - `base-url` = the public push URL from step 1 (`https://cloud.dotnetcloud.net/push`, or `https://push.dotnetcloud.net`).
+   - ⚠️ **`behind-proxy: true`** — mandatory once it sits behind our route, otherwise every visitor is seen as `127.0.0.1` and all clients share one rate-limit bucket (one abuser starves everyone).
+   - `cache-file: /var/cache/ntfy/cache.db` so a queued message survives an ntfy restart (default cache is in-memory, 12 h).
+3. **Add the proxy route in Core.Server** — a `/push/{**catch-all}` map alongside the Collabora one, same `IHttpForwarder` machinery:
+   - destination = `http://127.0.0.1:2586`; WebSocket upgrade allowed; **response buffering disabled**; `X-Forwarded-For` preserved; an activity timeout well above ntfy's keepalive (Collabora uses `TimeSpan.FromMinutes(15)`; ntfy's own keepalive default is 45 s and the Android app times out at 77 s).
+   - keep response compression / any short-timeout middleware off these paths, and check that our security-header middleware does not interfere (Collabora's route already normalises frame headers in `OnStarting` — use the same hook if needed).
+   - config keys belong in the deploy-safe config channel (see "Config" below), not in `appsettings.json` — `scripts/deploy.sh` republishes Core.Server into `/opt/dotnetcloud/server` too.
+4. **Lock the topic down** — `auth-file: /var/lib/ntfy/user.db`, `auth-default-access: deny-all`, then a **dedicated** user for the server rather than anonymous publish:
+   - `ntfy user add --role=user dotnetcloud`
+   - `ntfy access dotnetcloud "up*" write-only` (all UP topics start with `up`)
+   - `ntfy token add dotnetcloud` → that token goes into the server config (runtime only).
+   - ⚠️ **Never use the admin user's token**: ntfy tokens grant full access to the *account* (everything except changing the password/deleting it), so a leaked config would be a full account compromise.
+   - Fallback if the operator prefers no token: `ntfy access '*' 'up*' write-only` (anonymous publish to unguessable `up*` topics) — record the trade-off in your report.
+5. ⚠️ **Do NOT set `firebase-key-file`** — that is ntfy's own FCM option and would put Google straight back into the path. Add a short comment in `server.yml` saying so, so a future admin does not "helpfully" enable it.
+6. ⚠️ **Do NOT insert an external reverse proxy in front of Kestrel's 5443.** That port carries **gRPC** (module traffic + desktop clients) and an external proxy misconfiguration breaks currently-working clients. The supported way to share the port is the in-app route in step 3.
+7. **Reaching our own endpoint (the old hairpin problem, now nearly free).** The endpoint the phone registers is the *public* URL — which this server also serves — so the DotNetCloud→ntfy POST must not hairpin through the router. With the in-app route the rewrite in Part 2 / plan §8.1 sends it back into our own Kestrel (`https://cloud.dotnetcloud.net/push` → `http://localhost:5080/push`), which is loopback and needs no DNS or `/etc/hosts` workaround. (On the last-resort standalone topology you *would* need NAT loopback or an `/etc/hosts` entry — hostname preserved so the certificate still validates, never a bare IP.)
+8. **Verify:** `curl -s http://127.0.0.1:2586/v1/health` → `{"healthy":true}` **and** `curl -s https://cloud.dotnetcloud.net/push/v1/health` → `{"healthy":true` (proves the public route works end-to-end); `systemctl is-enabled ntfy` → `enabled` (survives reboot).
+
+---
+
+#### Part 2 — Server code (plan §8.1–§8.5)
+
+1. **Real transport** — `UnifiedPushHttpTransport : IUnifiedPushTransport` in `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/`: `POST {endpoint}` with `Content-Type: application/json`, optional `Authorization: Bearer <token>` for the protected topic; `404`/`410` = dead registration (remove it, log/audit, do not retry), `429`/5xx = transient (the provider already retries up to `UnifiedPushOptions.MaxSendAttempts` with backoff). Register it in place of `UnifiedPushLoggingTransport` (`ChatServiceRegistration.cs:59`) when `Chat:Push:UnifiedPush:Enabled`. Verify the deployed ntfy version's publish semantics (plain body vs JSON envelope) — UP only requires that a POST to the capability URL delivers the bytes.
+   - **The transport must serialize the ID-only payload only** (plan §4.2: `v`, `type`, `channelId`, `messageId`, `eventId`). It must never send `PushNotification.Title`/`Body`; change its signature to take the payload/`Data` rather than the whole notification so text cannot leak by accident.
+   - **Add an endpoint base-URL rewrite** (`EndpointRewriteFrom` → `EndpointRewriteTo`) applied before the POST. Required, not a nicety: the stored endpoint is the *public* URL that this server itself serves, so the hop must go back into our own Kestrel — `https://cloud.dotnetcloud.net/push` → `http://localhost:5080/push` (which then proxies to loopback ntfy via the Part 1 route). In Docker: `http://localhost:8080/push`, or straight to the sibling `http://ntfy:80` on the bridge network. No `/etc/hosts` workaround is needed on the default topology.
+2. **Persist device registrations** (§3.2 S2) — `NotificationRouter._deviceMap` and `FcmPushProvider._registrations` are in-memory, so **every module-host restart forgets every device** (self-healing registration only covers devices that come back online). Add an entity to the **Chat module's own** data layer (it owns this data — do not reach into `Core.Data`'s `UserDevice` from a module), keyed `(UserId, Provider, Token)` with `Endpoint`, `CreatedAt`, `LastSeenAt`; load on startup; prune on unregister/404/410. **Migration needed in both provider layouts**: `DotNetCloud.Modules.Chat.Data/Migrations` (PostgreSQL) **and** `DotNetCloud.Modules.Chat.Data.SqlServer/Migrations` — `dotnetcloud migrate` runs before the service starts, and a failure leaves the service stopped.
+3. **ID-only payloads** (§3.2 S4) — the existing builders send human-readable text: `MentionNotificationService.cs:66` (`"{sender} mentioned you in #{channel}"`), `DmChannelCreatedEventHandler.cs:85-90` (`"{initiator} started a chat with you"` **plus** `channelName`/`initiatorName` in `Data`), `CallNotificationEventHandler.cs:59-62` (caller + channel names). Strip all of it down to the §4.2 IDs — including the name fields inside `Data`, which are just as visible to the push server as the title. Add a log/assert guard so a future builder cannot silently reintroduce text.
+4. **New chat-message push** (§3.2 S5) — `NotificationCategory.ChatMessage` exists but **no builder produces it**: chat relies on SignalR, so a message sent while the app is closed produces nothing at all. Build it for channel members, honouring mute/DND/preferences and skipping the sender.
+5. **Presence suppression** (§3.2 S3) — `NotificationRouter.CanSendPushAsync` suppresses push when `IsOnlineAsync(userId)` is true, and the phone's own hub connection counts — even when the process is frozen and can receive nothing. Either stop counting delivery-only connections (mark the connection via a hub header at connect time) or apply a grace window (a connection that has not sent a heartbeat within the client keepalive interval does not count as online). Android's client keepalive is 2 min; `SignalR:ClientTimeoutSeconds` is now 300.
+
+---
+
+#### Config — put it where a deploy cannot overwrite it
+
+The consumer is the **Chat module host** (separate process at `/opt/dotnetcloud/modules/dotnetcloud.chat`).
+
+- ⛔ **Do not use the module's `appsettings.json`.** `scripts/deploy.sh` republishes that directory and then rsyncs `--include="*.json"` over it, so anything you write there is silently overwritten on the next Chat deploy.
+- ✅ Use **`/etc/dotnetcloud/config.json`** — every module host loads it explicitly via `DOTNETCLOUD_CONFIG_DIR` (`AddJsonFile(configDir/config.json)`), and neither `deploy.sh` nor `install.sh` touches `/etc/dotnetcloud`. Add a `Chat:Push:UnifiedPush` section there.
+- Alternative: `Environment=` in the `dotnetcloud` unit / `/etc/dotnetcloud/env` (module hosts inherit the parent process environment — that is how `docker-compose.yml` documents it for Docker users), or add the keys to `ProcessSupervisor.ForwardEnvVar` to make it explicit.
+- Keys: `Enabled`, `EndpointRewriteFrom`, `EndpointRewriteTo`, `AuthToken` (the dedicated ntfy token), plus the Part 1 proxy-route keys (`ProxyUpstreamUrl`, `PublicBaseUrl`). **Runtime config only — never commit the real hostname or token**; the repo is open source and committed configs must stay generic.
+- **Report which channel you used and prove the Chat module host actually sees it** (module hosts read config at startup, so a restart is required; `UnifiedPushProvider` logs "UnifiedPush provider disabled" when it is off).
+
+---
+
+#### Other install paths you must not break (same code serves them)
+
+- **Docker** (`docker-compose.yml`, `Dockerfile`, `deploy/docker/entrypoint.sh`): Core.Server + module hosts run in **one container** (`/app/modules/<id>` via `ProcessSupervisor`, inheriting the container env — the compose file says so explicitly), TLS is terminated by an upstream proxy/ingress, and 8080/5443 are published. There, `ntfy` is a **sibling compose service**: provision it declaratively with `NTFY_*` env (`base-url`, `cache-file`, `auth-file`, `auth-default-access`, `auth-tokens`) so no `server.yml` is needed, and let it sit behind a compose **profile** (mirroring the existing `--profile sqlserver` pattern). The internal hop is `http://ntfy:80` — the endpoint rewrite above.
+- **Kubernetes / Helm** (`deploy/helm/dotnetcloud/`): one ingress per host; ntfy needs its own ingress host. No code difference.
+
+---
+
+#### Do NOT (this pass)
+
+- Do not touch the Android client (Phases 1–2 are monolith work) — only keep the server-side contract they will code against.
+- Do not *add* anything FCM-specific (FCM is being **deleted** — requirement §1.6, plan Phase 5). If you take the deletion with this pass, do it as a **separate commit** so the transport work stays reviewable.
+- Do not add a foreground service, and do not enable ntfy's `firebase-key-file`.
+- Do not insert an **external** reverse proxy in front of Kestrel's 5443 on this box (that port carries gRPC). The supported way to share the port is the **in-app** push proxy route — see Part 1.
+- Do not commit or push until the verification below passes, and **do not create a PR** (PRs are the moderator's).
+
+---
+
+#### Acceptance / verification (must be done — not deferred)
+
+1. **Build + tests clean:** `dotnet build`; `dotnet test tests/DotNetCloud.Modules.Chat.Tests/` and `tests/DotNetCloud.Core.Server.Tests/`; 0 warnings (warnings are errors in this repo). ⚠️ `DotNetCloud.Core.Server.Tests` has **one known, pre-existing, unrelated failure** (`ProgramRootCaTests.GetRootCaPath_AbsolutePath_ReturnsSiblingRootCa` — verified on a clean base) plus 1 skip; do not chase it, and do not report it as a regression.
+2. **Deploy:** `sudo ./scripts/deploy.sh --force --verify`; then `/health/ready` **Healthy**, **14/14** modules, `.last-deploy-commit` = your HEAD.
+3. **Persistence proof (S2):** register a device (app or `curl POST /api/v1/notifications/devices/register` with `{"deviceToken":"…","provider":"UnifiedPush","endpoint":"…"}`), restart the module host (`systemctl restart dotnetcloud`), then confirm the registration is still there and a send still attempts delivery. This is the whole point of the persistence work.
+4. **Payload proof (S4):** capture the exact bytes the server POSTs (ntfy `log-level: trace` prints message contents — use it briefly, or log the outbound body) and show they contain **only** IDs: no names, no channel names, no message text.
+5. **Transport proof:** `curl` the endpoint the way the transport does and confirm ntfy accepts it; `curl -s <ntfy-base>/v1/health` → healthy; with a distributor on the phone the message should arrive (§7.5 — needs the client half).
+6. **Proxy-route proof (Part 1):** `curl -s https://cloud.dotnetcloud.net/push/v1/health` → `{"healthy":true}` **through the app's own port**; ntfy reachable on `127.0.0.1:2586` and **not** exposed anywhere else (no listening socket on a public interface); and a distributor subscription held open through the route survives several minutes of idling — no buffering cut-off, WebSocket upgrade intact, nothing dropped mid-view.
+7. **Negative cases:** `Chat:Push:UnifiedPush:Enabled=false` → previous behaviour unchanged; a dead endpoint (404/410) prunes the registration; 429/5xx retries up to `MaxSendAttempts` and then gives up cleanly.
+8. **Report back** with: branch + commit hash, migration name(s) applied, the config channel used and where it lives, the captured payload, the **public push URL shape you settled on** (path-based `/push`, or the `push.<domain>` hostname fallback — say whether the distributor app accepted a path), the ntfy token's ACL, and anything you could not verify. If background delivery cannot be proven without the client half, say exactly what remains.
+
+> Once 1–7 pass, hand the **§7.5 live E2E** back to the client agent (monolith) — it needs the Android connector + a distributor app on the phone, and is the only remaining step to call the feature verified.
+
+---
+
+## Archived Handoff — Presence indicators 4-state: deployed to `cloud.kimball.home` + live E2E verified (2026-09-09) ✅
 
 **Status:** ✅ **4-state presence LIVE-VERIFIED (both clients)** — server deployed + verified on `cloud.kimball.home` (server agent); operator browser run ✓ green / ✓ red / ✓ gray / ✓ yellow; Android on-device run ✓ green (live event + cold-start snapshot) / ✓ yellow / ✓ gray / ✓ red (DND both directions). Full-stack 4-state presence (Online / Away / Do-Not-Disturb / Offline) implemented on the monolith at the operator's request (server + Blazor + Android), unit-tested, pushed at `c17c7fa3` (+ `f1d45f07` cold-start fix).
 

@@ -3342,7 +3342,28 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Create `PushProvider` enum (FCM, UnifiedPush)
 - ✓ Create `NotificationCategory` enum (ChatMessage, ChatMention, Announcement, FileShared, System)
 
-#### FCM Provider
+#### UnifiedPush — privacy-first push with no Google (SPEC READY, DEFERRED 2026-09-18)
+
+Spec: **`docs/ANDROID_UNIFIEDPUSH_PLAN.md`** (source of truth; per-phase breakdown + acceptance).
+Deferred at the operator's request — **not authorised to start yet**; tracked as a deferred handoff in
+`docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`.
+
+- ☐ Android: make the `fdroid` flavour build again (drop the non-existent `UnifiedPush.NET` package) and implement the UnifiedPush connector (§5 Phase 1)
+- ☐ Android: render generic notifications on every path — UP + SignalR (§5 Phase 2; FCM path is deleted, not ported)
+- ☐ Android: Settings push status (distributor, endpoint registered, last error) + "Choose distributor" (§5 Phase 2.4)
+- ☐ Server: `UnifiedPushHttpTransport` — real HTTP POST of the ID-only payload + endpoint rewrite (§8.1)
+- ☐ Server: persist device registrations (Chat module table + migrations for both providers) (§8.2)
+- ☐ Server: strip names/text from mention, DM-created and call payloads; add the missing `ChatMessage` push (§8.3–§8.4)
+- ☐ Server: stop suppressing push for delivery-only mobile connections (§8.5)
+- ☐ ntfy on loopback + in-app `/push` proxy route, topic ACL and server token (§7.1, §8.6–§8.7)
+- ☐ Live E2E: with the app force-stopped, a remote message produces a generic, sounding notification (§7)
+- ☐ Packaging + docs: installer/compose coverage, **FCM removed outright** (no fallback, no flag — §9.1 resolved), `SETUP`/`DISTRIBUTION`/F-Droid metadata (§5 Phase 5)
+
+#### FCM Provider — superseded: FCM is being removed entirely (2026-09-18)
+
+> Historical record only. **FCM is not a live or planned transport** — decision §9.1 in
+> `docs/ANDROID_UNIFIEDPUSH_PLAN.md`, deletion inventory in that plan's Phase 5. Do not add
+> FCM work, do not add a `google-services.json`, and do not configure `Chat:Push:Fcm`.
 
 - ✓ Create `FcmPushProvider` implementing `IPushNotificationService`:
   - ✓ Configure Firebase Admin SDK credentials (FcmPushOptions: ProjectId, CredentialsPath, bound from config)
@@ -3540,7 +3561,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 #### Push Notifications
 
 - ✓ Integrate Firebase Cloud Messaging (FCM) for `googleplay` flavor
-  - ☐ **Not functional on the googleplay APK as built:** the repo contains no `google-services.json`, so the APK has no `google_app_id`/`gcm_defaultSenderId` resources, `FirebaseApp` never initialises and no FCM token can be issued (`Push registration failed: Default FirebaseApp is not initialized in this process…` — confirmed on-device 2026-09-17). The device registration is now re-attempted on every launch and after every login, so push starts working as soon as a Firebase project's config is added to the build.
+  - **Superseded (2026-09-18):** this is **no longer a pending task**. FCM never worked in this build (no `google-services.json` → `FirebaseApp` never initialises → no token), and the operator has decided FCM is **removed outright** rather than configured — no fallback, no behind-a-flag build (requirement §1.6, plan §5 Phase 5). Do not create a Firebase project; the transport of record is UnifiedPush + self-hosted ntfy.
 - ✓ Integrate UnifiedPush for `fdroid` flavor
 - ✓ Create notification channels (Chat, Mentions, Announcements)
 - ✓ Implement notification tap handlers (open specific chat)
@@ -3667,7 +3688,7 @@ frozen while the server still considered the device online (which suppresses its
 - ✓ Wired into `SignalRChatClient`'s `NewMessage` handler; the sound is loaded at connect so the first message of a process is not swallowed while it decodes, and the current user is resolved from the id_token so own messages stay silent
 - ✓ "Message Sound" switch in Settings → Chat Notifications (preference `chat_message_sound_enabled`, default on) which previews the ding when switched on
 - ✓ 10 unit tests (`ChatAlertPolicyTests`); on-device verified (R5CWC356B2K, 2026-09-17): a live remote message logged `decision=InAppSound` and the audio device recorded the SoundPool player `event:started`
-- ☐ **Background alerts still need a working push transport.** Push device registration is now self-healing (re-sent on every launch and after login, because the server holds registrations in memory only), but nothing can wake a frozen/reclaimed process until FCM (or UnifiedPush) is actually configured — see the Push Notifications item above.
+- ☐ **Background alerts still need a working push transport.** Push device registration is now self-healing (re-sent on every launch and after login, because the server holds registrations in memory only), but nothing can wake a frozen/reclaimed process until **UnifiedPush** is actually configured — see the Push Notifications item above and the deferred `UnifiedPush — privacy-first push` block. (FCM is **not** the answer: it is being removed outright, requirement §1.6.)
 
 #### System Back Navigation (Android Back Button)
 
