@@ -1,25 +1,35 @@
 # Android Push — UnifiedPush Implementation Plan (privacy-first)
 
-**Status — Android half: IMPLEMENTED & verified on device (2026-09-18).** Phases 1, 2 and the
-client-side of Phase 5 are **done** on `feature/android-unifiedpush`: the `fdroid` flavour builds
-again, register → endpoint → delivery → notification all work end-to-end against a self-hosted ntfy,
-and FCM is deleted from both flavours. See "Implementation notes — Android half" at the end of §5
-for the as-built file list and the exact verification evidence.
-**Status — server half: still DEFERRED by the operator.** Phase 3 belongs to the server agent
-(`cloud.kimball.home`) and **nothing there is authorised to start**.
-This document is the **source of truth** for the work: read it end-to-end before starting.
+**Status: 🅿️ PARKED BY THE OPERATOR (2026-09-18).** The **Android half is built and on-device
+verified** (phases 1, 2 + the client-side of phase 5 — see "Implementation notes — Android half" at the
+end of §5), but the feature is **parked** and **nothing further should be started**: not the server half
+(phase 3), not the ntfy deployment, not the remaining packaging/docs work. The promotion of this work to
+the server agent's Active Handoff was **reverted the same day**.
+
+**Why it was parked (operator, 2026-09-18):** the design asks too much for what it delivers —
+
+1. **every user** would have to install a separate distributor app and point it at the instance, which
+   is unavoidable in _any_ UnifiedPush design, and
+2. the no-setup alternative (polling from a background job — the mechanism this app already uses for
+   media upload) is **not responsive enough for chat**.
+
+See **§11** for the full decision record, the transport trade-offs and what to reconsider if this is
+ever revisited.
+
+This document remains the **source of truth** for the design: read it end-to-end before restarting.
 **Plan finalized:** 2026-09-18 — the design is frozen apart from the §9 items; implementation can
 start from this document alone.
 **§9 decisions resolved 2026-09-18** (see §9). **§7.1 step 1 is answered: the distributor refuses a
 push server URL containing a path** — so the Host-based `push.<domain>` topology, not the path-based
-`/push` route, is the required one on the server half. That overturns part of requirement §1.5 and
-needs the operator's decision (§9.10).
+`/push` route, is the required one on the server half (approved as §9.10). The two measured facts are
+recorded in §11 so they never need re-deriving.
 **Owner:** client agent (monolith) for the Android half; server agent (`cloud.kimball.home`) for the
 server half + ntfy deployment (§7.1, §8). Tracked as a deferred handoff in
 `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`.
-**Before any code is written, resolve:** the remaining **§9 open items** (deliberately deferred by the
-operator — do not guess) and §7.1 step 1 (does the distributor app accept a push server URL with a
-path?). §9.1 is **already resolved**: FCM is removed outright (requirement §1.6).
+**Before restarting:** §9 is fully resolved and §7.1 step 1 is answered, so nothing has to be
+re-derived — but **re-read §11 first** (why it was parked, and the transport trade-offs) and settle the
+transport decision before writing any more code. §9.1 is **already resolved**: FCM is removed outright
+(requirement §1.6).
 **Related:** `docs/ANDROID_CHAT_ALERT_SOUND_PLAN.md` (the alert-sound fix this builds on),
 `docs/architecture/ARCHITECTURE.md` (§push), `docs/clients/android/{SETUP,DISTRIBUTION}.md`
 
@@ -588,3 +598,48 @@ comparable effort owned by the server agent.
   (`UnifiedPushProvider`, `IUnifiedPushTransport`, `UnifiedPushLoggingTransport`,
   `NotificationRouter`, `PushProviderOptions`)
 - Prior art in this repo: `docs/ANDROID_CHAT_ALERT_SOUND_PLAN.md`
+
+## 11. Parked — decision record and revisit options (2026-09-18)
+
+**Decision:** parked by the operator on 2026-09-18, with the Android half already built and verified.
+
+**Why:**
+
+1. **The user-facing cost is unavoidable in any UnifiedPush design.** The app cannot hold the push
+   connection itself on modern Android, so a **separate distributor app** must — and the user has to
+   point it at the instance once. That is the price of keeping Google out of the path, and it is asked
+   of **every user**, which was judged too much for the benefit delivered.
+2. **The no-setup alternative is not good enough for chat.** Polling from a `JobScheduler` job (the
+   mechanism this app already runs for media upload — job `3107`, verified with the process dead and
+   surviving reboot) needs **no** third-party app, no Google, no foreground service and **no server
+   change**: `GET /api/v1/chat/channels` already returns per-channel `UnreadCount` / `HasMention` /
+   `IsMuted`, and because notifications are generic the job never fetches message content. But it is
+   **best-effort latency** (minutes; Doze defers jobs to a maintenance window), which was rejected for
+   chat responsiveness.
+3. The self-hoster side (a DNS record + certificate SAN for the push hostname, then a Host-routed
+   proxy to loopback ntfy) is a **one-time operator task**, not a user task — but it is still setup
+   work, and on its own it did not rescue the design.
+
+**Transport trade-offs, for whoever revisits this:**
+
+| Transport           | Google | User setup                                           | Cost / caveat                                                      |
+| ------------------- | ------ | ---------------------------------------------------- | ------------------------------------------------------------------ |
+| UnifiedPush + ntfy  | No     | Install a distributor app + point it at the instance | The friction that parked this; instant once set up                 |
+| FCM                 | **Yes** | None                                                 | Ruled out by requirement §1.6 (no content _and_ no metadata)       |
+| Foreground service  | No     | None                                                 | Removed deliberately (`dataSync` 24 h budget, battery, Play policy) |
+| Background-job poll | No     | None                                                 | Best-effort latency + battery; judged too slow for chat            |
+
+**What is already banked (reusable in any future attempt):**
+
+- The **ID-only payload contract** (§4.2) and fully generic notification rendering, including the rule
+  that text fields arriving from a server are ignored.
+- **Deep-link tap routing** (channel/event extras, cold-start handling) and the notification channels.
+- The **transport-agnostic `PushProvider` / `IPushNotificationService` shape** — an iOS client (APNs)
+  would need the same seam.
+- The **Android UnifiedPush connector itself** (`feature/android-unifiedpush`, `9b80be85`): protocol
+  helper, registration state machine, receiver, the `RAISE_TO_FOREGROUND` service and the distributor
+  picker — committed, unit-tested and device-verified. Restarting the UnifiedPush route therefore means
+  building the **server half only** (phase 3) plus the operator's DNS/cert step.
+- Two measured facts worth never re-deriving: **`UnifiedPush.NET` does not exist on nuget.org** (the
+  old dependency was a phantom, which is why the `fdroid` flavour never compiled), and **the ntfy
+  distributor rejects any push server URL containing a path** (§7.1).
