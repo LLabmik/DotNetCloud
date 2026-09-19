@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-09-19 (**Android chat alerts — ✅ SERVER HALF DEPLOYED + VERIFIED; the client E2E is COMPLETE (on-device verified); the handoff is now the CORE-PROXY HEADER-DUPLICATION FIX + `304` RE-VERIFY → server agent `cloud`.** The parked UnifiedPush route is replaced by the app's own **conditional poll** of a new `GET /api/v1/chat/alerts` aggregate — no distributor app, no ntfy, no Google, no foreground service. Server + Android code is written, built and unit-tested here (Chat module 1431 pass; Android 478 pass / 1 skip; arm64 Debug 0 warnings); the server half is **DEPLOYED AND VERIFIED** on `cloud.kimball.home` (build 0 warnings, Chat tests 1432 pass, 15/15 deploy targets, `/health/ready` Healthy 14/14, route proven `401` vs control `404`), so the **Active Handoff is: the core-proxy header fix + the `304` re-verify.** See the `## Active Handoff` section below and plan §12/§12.10. Earlier (2026-09-18): **UnifiedPush push transport (privacy-first) — 🅿️ PARKED BY THE OPERATOR.** The **Android half is built, committed and on-device verified**, but the feature was **parked** the same day: it asks **every user** to install a separate distributor app and point it at the instance, and the zero-setup alternative (background-job polling) is **too slow for chat**. **Nothing is authorised to start — the earlier promotion to the Active Handoff was reverted.** Canonical spec `docs/ANDROID_UNIFIEDPUSH_PLAN.md` (§11 = decision record + revisit options). Earlier: **Notes: note folder assignment** — a note can now be filed at creation time, moved/unfiled afterwards, and is tagged with its folder on the sidebar card; server + Blazor deployed and operator-verified, **Android picker wiring implemented and on-device verified** — **complete, archived**. Earlier: **Notes: note folder assignment** — a note can now be filed at creation time, moved/unfiled afterwards, and is tagged with its folder on the sidebar card; server + Blazor done, deployed and operator-verified from branch `fix/notes-folder-assignment`, Android picker wiring handed to monolith — see the deferred handoff below. Earlier same day: **Trash restore now preserves the original directory path** — server-side fix implemented, tested and deployed to `cloud.dotnetcloud.net` (branch `fix/trash-restore-original-path`); earlier, the client-side "ignore a synced folder" deletion bug was fixed + live-verified on SyncTray `0.6.7` (`7632722c`). Earlier: 2026-09-09 Presence indicators → **4-state** Online/Away/Do-Not-Disturb/Offline — full-stack code on `fix/android-improvements` at `c17c7fa3`, deployed and live-verified on `cloud.kimball.home` (archived below). Plan `docs/PRESENCE_DOTS_4STATE_PLAN.md`.)
+Last updated: 2026-09-19 (**Android chat alerts — ✅ SERVER HALF DEPLOYED + VERIFIED; the client E2E is COMPLETE (on-device verified); the last open item — the core-proxy header-duplication fix — is now DEPLOYED AND VERIFIED too (leg 1 `200` + `ETag`, leg 2 `304` with an empty body, live through the gateway).** The parked UnifiedPush route is replaced by the app's own **conditional poll** of a new `GET /api/v1/chat/alerts` aggregate — no distributor app, no ntfy, no Google, no foreground service. Server + Android code is written, built and unit-tested here (Chat module 1431 pass; Android 478 pass / 1 skip; arm64 Debug 0 warnings); the server half is **DEPLOYED AND VERIFIED** on `cloud.kimball.home` (build 0 warnings, Chat tests 1432 pass, 15/15 deploy targets, `/health/ready` Healthy 14/14, route proven `401` vs control `404`), so this item is now **archived — server side fully done, with only a phone-side `304` re-check deferred to `monolith`** (see `CLIENT_SERVER_MEDIATION_ARCHIVE.md` and plan §12/§12.10). Earlier (2026-09-18): **UnifiedPush push transport (privacy-first) — 🅿️ PARKED BY THE OPERATOR.** The **Android half is built, committed and on-device verified**, but the feature was **parked** the same day: it asks **every user** to install a separate distributor app and point it at the instance, and the zero-setup alternative (background-job polling) is **too slow for chat**. **Nothing is authorised to start — the earlier promotion to the Active Handoff was reverted.** Canonical spec `docs/ANDROID_UNIFIEDPUSH_PLAN.md` (§11 = decision record + revisit options). Earlier: **Notes: note folder assignment** — a note can now be filed at creation time, moved/unfiled afterwards, and is tagged with its folder on the sidebar card; server + Blazor deployed and operator-verified, **Android picker wiring implemented and on-device verified** — **complete, archived**. Earlier: **Notes: note folder assignment** — a note can now be filed at creation time, moved/unfiled afterwards, and is tagged with its folder on the sidebar card; server + Blazor done, deployed and operator-verified from branch `fix/notes-folder-assignment`, Android picker wiring handed to monolith — see the deferred handoff below. Earlier same day: **Trash restore now preserves the original directory path** — server-side fix implemented, tested and deployed to `cloud.dotnetcloud.net` (branch `fix/trash-restore-original-path`); earlier, the client-side "ignore a synced folder" deletion bug was fixed + live-verified on SyncTray `0.6.7` (`7632722c`). Earlier: 2026-09-09 Presence indicators → **4-state** Online/Away/Do-Not-Disturb/Offline — full-stack code on `fix/android-improvements` at `c17c7fa3`, deployed and live-verified on `cloud.kimball.home` (archived below). Plan `docs/PRESENCE_DOTS_4STATE_PLAN.md`.)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -17,7 +17,8 @@ Archived context:
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
 - **🅿️ Parked (server agent — `cloud.kimball.home`):** `feature/android-unifiedpush` — **UnifiedPush push transport (privacy-first)**. **PARKED BY THE OPERATOR 2026-09-18 — do NOT start.** Reason: every user would have to install a separate distributor app and point it at the instance, and the zero-setup alternative (polling from a background job) is too slow for chat. The **Android half is built, committed (`9b80be85`) and on-device verified**; the **server half is untouched**. Canonical spec `docs/ANDROID_UNIFIEDPUSH_PLAN.md` (§11 = decision record + revisit options).
-- **✅ ACTIVE (server agent — `cloud`): deploy the core-proxy `If-None-Match` fix.** The Android on-device E2E of the chat-alerts poll is **complete and passing** (client agent — `monolith`, 2026-09-19; see the Active Handoff below and plan §12.10): the poll posts a **generic** notification while the app is closed, taps deep-link into the channel, reads clear it, muted channels are silent, and there is no second alert and no foreground service. **One defect blocks the `304` half of the contract:** `ModuleApiProxyTransformer` (Core.Server) forwards every request header **twice**, so `If-None-Match` reaches module hosts as two values and can never match — conditional GETs always answer `200`. Fixed + unit-tested on `monolith`; **`cloud` deploys and re-verifies.**
+- **✅ Completed (server agent — `cloud`):** core-proxy `If-None-Match` fix — **deployed + `304` re-verified 2026-09-19**; nothing outstanding server-side.
+- **⏳ Deferred (client agent — `monolith`):** phone-side `304` confirmation for the chat-alerts poll — `cloud` has no ADB/phone attached, so the on-device check goes back to `monolith` (a confirmation of an already-verified server contract, **not** a blocker). Keep the actionable steps in the deferred handoff below. The Android on-device E2E of the chat-alerts poll is **complete and passing** (client agent — `monolith`, 2026-09-19; see the Active Handoff below and plan §12.10): the poll posts a **generic** notification while the app is closed, taps deep-link into the channel, reads clear it, muted channels are silent, and there is no second alert and no foreground service. **The one defect in the `304` half of the contract is now fixed and verified:** `ModuleApiProxyTransformer` (Core.Server) forwards every request header **twice**, so `If-None-Match` reaches module hosts as two values and can never match — conditional GETs always answer `200`. Fixed + unit-tested on `monolith`, then **deployed to `cloud` and re-verified live through the gateway — see the results block below. Nothing outstanding on either side.**
 - **Archived (server agent — `cloud`):** `chat-alerts` server half — `GET /api/v1/chat/alerts` + `IChannelMemberService.GetAlertsAsync` **deployed and verified** on `cloud.kimball.home` 2026-09-19 (build 0 warnings; Chat module tests 1432 pass / 0 fail; `deploy.sh --force --verify` 15/15 targets; `/health/ready` Healthy 14/14 modules; route proof `401` vs control `404`). The **Android on-device E2E is now complete too** (client agent — `monolith`); the only open item is the core-proxy header fix above. Full detail in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
 - **Archived (server agent — `cloud`):** `fix/notes-folder-assignment` — Notes folder assignment at create time + move/unfile; server + Blazor deployed and operator-verified, Android half implemented + on-device verified (client agent — `monolith`). **Complete — nothing outstanding**; recorded in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
 - **Archived (server agent — `cloud`):** `fix/trash-restore-original-path` — trash restore now preserves the original directory path (implemented, tested, deployed to `cloud.dotnetcloud.net` 2026-09-15; archived below)
@@ -25,9 +26,9 @@ Archived context:
 - **Archived (server agent — `cloud.kimball.home`):** `fix/android-improvements` — Presence 4-state, deployed + live-verified on cloud 2026-09-09 (plan `docs/PRESENCE_DOTS_4STATE_PLAN.md`; archived below)
 - **Still pending (mint22, dev):** `feature/module-widgets` — Module Home Widgets (plan `docs/MODULE_WIDGETS_PLAN.md`); kept below as a deferred handoff
 
-## Active Handoff — Server (`cloud`): deploy the core-proxy header-duplication fix, then re-verify the `304` leg
+## Archived (deferred) Handoff — Server (`cloud`): core-proxy header-duplication fix — deployed + `304` verified; phone `304` confirmation STILL PENDING (client agent — `monolith`) (2026-09-19)
 
-**Status:** ✅ **client-side E2E COMPLETE — on-device verified 2026-09-19** (client agent — `monolith`). ⏳ **One server item outstanding:** `ModuleApiProxyTransformer` forwards every request header twice, so `If-None-Match` never matches and `GET /api/v1/chat/alerts` always answers `200` instead of `304` (server agent — `cloud`: deploy + re-verify).
+**Status:** ✅ **server side completed** (2026-09-19, server agent — `cloud`) — the header-duplication fix is deployed and the `304` leg is proven live. The client E2E was already complete (on-device verified 2026-09-19, client agent — `monolith`). ⏳ **One deferred item for `monolith`:** re-confirm the `304` from the phone (no ADB on `cloud`) — steps at the end of this section. Full detail in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`; the original root-cause analysis is kept below for the record.
 **Branch:** `feature/android-unifiedpush` (server + client halves both on this branch).
 **Canonical spec:** `docs/ANDROID_UNIFIEDPUSH_PLAN.md` **§12** (design, adopted) and **§12.10 ("As built" — file list + findings)**. Read §12.10 first; it supersedes the older drafts throughout the document.
 
@@ -74,9 +75,35 @@ Run with the branch's own arm64 Debug build (`adb install -r --no-incremental`; 
 | No double alert | when the in-app SignalR path had already notified, the following poll logged `Suppressed` — exactly one alert per message |
 | No foreground service | `dumpsys activity services net.dotnetcloud.client` → **empty** (log shows `ChatConnectionService destroyed`); no `startForegroundCount` |
 
-### ⏳ OUTSTANDING (server agent — `cloud`): the core proxy forwards every header twice, so `304` can never happen
+### ✅ FIXED + VERIFIED (server agent — `cloud`, 2026-09-19): the core proxy no longer forwards headers twice, so `304` now happens
 
-**Found while running the E2E above; fixed and unit-tested on `monolith` (see the commit), needs a deploy + re-verify.**
+**Found while running the E2E above; fixed and unit-tested on `monolith` (see the commit), then deployed and re-verified on `cloud`.**
+
+#### Deploy + `304` re-verify results (server agent — `cloud`, 2026-09-19)
+
+| Check | Result |
+| --- | --- |
+| `dotnet build` (solution filter + CLI) | **0 warnings / 0 errors** |
+| `ModuleApiProxyTransformerTests` | **4/4 pass** (written failing-first against the old code) |
+| `sudo ./scripts/deploy.sh --force --verify` | **15/15 targets**, all core + module-host hashes verified |
+| Deployed core DLL ↔ build output | **md5 identical** — `afae9c503c2c98a44bd27c69601218dd` |
+| Deploy marker | `/opt/dotnetcloud/server/.last-deploy-commit` = `f019f027a6d6` = branch HEAD; version `0.6.10` |
+| Migrations | **none pending** (core up to date; module schemas initialized) |
+| `/health/ready` | **Healthy — 14 module(s), all healthy**; `database` Healthy |
+| `_framework/blazor.web.js` | **200** |
+| Route proof | `GET /api/v1/chat/alerts` → **`401`** vs control `/api/v1/chat/zzz-not-a-route` → **`404`** |
+| **Leg 1** — authenticated GET | **`200`**, 189 bytes, `ETag: "DB6D6150AA2670C1D275EEFF8E5D2DFB"` |
+| **Leg 2** — same GET + `If-None-Match` | **`304`**, **0 bytes** ✅ |
+
+Leg 1 → leg 2 is the direct evidence: with the old duplication the module host saw `"…","…"`, could never equal the ETag, and always answered `200` with the full aggregate body.
+
+Reproduce with the new reusable script (it authenticates through `/auth/session/login` + PKCE, so the account must have **no MFA**; note the login binds the credential as `[FromForm] username`, **not** an email field):
+
+```bash
+DNC_EMAIL=<username> DNC_TARGET=/api/v1/chat/alerts ./scripts/verify-module-proxy-if-none-match.sh
+# → leg 1 200 + ETag, leg 2 304 empty body, "PASS: conditional GET honoured"
+```
+
 
 - **Symptom:** the client sends `If-None-Match: "EA7D5405675524624C3DFFCA9617CCE8"` and the server answers **`200`** carrying **the same** `ETag` — the token matches, yet the conditional still misses, so every poll re-computes and re-sends the aggregate.
 - **Root cause:** `ModuleApiProxyTransformer.TransformRequestAsync` (`src/Core/DotNetCloud.Core.Server/Program.cs`) calls `base.TransformRequestAsync` — which **already copies every request header** except the hop-by-hop ones — and then adds **every** header a second time. `TryAddWithoutValidation` appends instead of replacing, so the module host receives two `If-None-Match` values and `Request.Headers.IfNoneMatch.ToString()` becomes `"…","…"`, which can never equal the token. The old code special-cased only `Authorization` / `X-Device-*`, which is why the duplication went unnoticed.
@@ -84,7 +111,7 @@ Run with the branch's own arm64 Debug build (`adb install -r --no-incremental`; 
 - **Fix:** skip any header already present on the proxy request (`proxyRequest.Headers.Contains(header.Key)`); headers the base skips (hop-by-hop) are still forwarded. The class was made `internal` so it is unit-testable.
 - **Tests:** `tests/DotNetCloud.Core.Server.Tests/Proxy/ModuleApiProxyTransformerTests.cs` (4 tests) — **written first and failing** against the old code (`If-None-Match` count `expected 1, actual 2`), green after the fix. Core.Server suite **784 pass / 1 skipped**; the single failure is the pre-existing `ProgramRootCaTests.GetRootCaPath_AbsolutePath_ReturnsSiblingRootCa`.
 
-**Do on `cloud`:** deploy the branch (`sudo ./scripts/deploy.sh --force --verify`), then re-run the two-leg check this E2E started with:
+**Done on `cloud`:** deployed the branch (`sudo ./scripts/deploy.sh --force --verify`) and re-ran the two-leg check:
 
 ```bash
 curl -sS -D- -o- -H "Authorization: Bearer $TOKEN" https://cloud.dotnetcloud.net/api/v1/chat/alerts
@@ -95,7 +122,19 @@ curl -sS -D- -o- -H "Authorization: Bearer $TOKEN" \
 # → 304, empty body
 ```
 
-Then confirm it from the phone: a forced `adb shell cmd jobscheduler run -f net.dotnetcloud.client 3108` with **no** chat change should log `Chat alert poll: aggregate unchanged` (`UpToDate`, i.e. a `304`) instead of reading the whole aggregate again.
+**⏳ PENDING (client agent — `monolith`): confirm the `304` from the phone.** `cloud` has no ADB / no phone attached, so this goes back to `monolith`. It is a **confirmation** of an already-verified server contract, not a blocker.
+
+The server now honours `If-None-Match` (proven on `cloud`: `200` + `ETag` → `304` + empty body). To confirm end-to-end from the device:
+
+1. Confirm the persisted job is still armed (use `am kill`, **never** `am force-stop` — it cancels the job):
+   `adb shell dumpsys jobscheduler | grep -A11 '/3108:'` → job **3108** `PERSISTED`
+2. With **no** chat activity since the last poll, force one run:
+   `adb shell cmd jobscheduler run -f net.dotnetcloud.client 3108`
+3. Watch the poll output:
+   `adb logcat -s DotNetCloud`
+   - ✅ Expected: `Chat alert poll: aggregate unchanged` (`ChatAlertPollOutcome.UpToDate`) — a `304`, and the aggregate body was **not** read.
+   - ❌ Regression: the poll takes the full-read path for unchanged state, or the request is answered `200` with a body.
+4. Regression-check the other leg: send one message to a **non-muted** channel while the app is closed and confirm the alert still arrives (the `200` path must keep working).
 
 ### Notes / gotchas
 
@@ -108,7 +147,7 @@ Then confirm it from the phone: a forced `adb shell cmd jobscheduler run -f net.
 
 ## Archived Handoff — Server: deploy the chat-alerts aggregate to `cloud.kimball.home` (2026-09-19) ✅ COMPLETED
 
-**Status:** completed ✅ (2026-09-19, server agent — `cloud`) — deployed and verified. **The Android on-device E2E remains open and is the Active Handoff above.**
+**Status:** completed ✅ (2026-09-19, server agent — `cloud`) — deployed and verified. **The Android on-device E2E was completed by the client agent (`monolith`), and the follow-up core-proxy `304` fix is archived above — nothing outstanding.**
 **Branch:** `feature/android-unifiedpush` · **Target:** core server + the Chat module host on `cloud.kimball.home`. **No operator DNS record, certificate entry, ntfy service or proxy rule was involved.**
 
 `GET /api/v1/chat/alerts` (`ChatController.GetAlertsAsync` → `IChannelMemberService.GetAlertsAsync`) is live: build **0 warnings**, Chat module tests **1432 pass / 0 fail**, `deploy.sh --force --verify` **15/15 targets** with module-host assembly hashes verified, `/health/ready` **Healthy 14/14 modules**, `blazor.web.js` **200**, **no migrations**. Purely additive — `GET /api/v1/chat/unread` and `GetUnreadCountsAsync` are untouched. Full implementation detail + verification in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.

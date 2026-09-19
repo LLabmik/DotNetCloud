@@ -972,9 +972,10 @@ matches. `ModuleApiProxyTransformer.TransformRequestAsync`
 it. **Blast radius:** every conditional-header endpoint reaching a module — chat alerts, **Files chunk
 `If-None-Match` dedup**, Bookmarks ETag; silent degradation only. **Fixed + unit-tested on `monolith`**
 (`tests/DotNetCloud.Core.Server.Tests/Proxy/ModuleApiProxyTransformerTests.cs`, written failing-first with
-`If-None-Match expected 1, actual 2`); **`cloud` owns the deploy + the `304` re-verify** (handoff doc, Active
-Handoff). Until that ships, the poll still works — it just recomputes the aggregate on every run instead of
+`If-None-Match expected 1, actual 2`); **`cloud` deployed the fix and re-verified the `304` leg live on 2026-09-19** (handoff doc, now archived). Until that fix shipped, the poll still recomputed the aggregate on every run instead of
 being answered `304`.
+
+**✅ Finding 4 is CLOSED — deployed + verified (2026-09-19, server agent — `cloud`).** `deploy.sh --force --verify` → **15/15 targets** with core + module-host hashes verified; the deployed `DotNetCloud.Core.Server.dll` is **md5-identical** to the build output (`afae9c503c2c98a44bd27c69601218dd`); `/health/ready` **Healthy 14/14**; `blazor.web.js` `200`; no pending migrations. The two-leg check now passes end-to-end through the gateway: **leg 1 `200` + `ETag: "DB6D6150AA2670C1D275EEFF8E5D2DFB"` (189 bytes) → leg 2 `304` with an empty body (0 bytes)**. Reproduce with `DNC_EMAIL=<username> ./scripts/verify-module-proxy-if-none-match.sh` (new script; the account must have **no MFA**, and the login binds the credential as `[FromForm] username`, not an email field).
 
 **Finding 5 (testing):** three producers can post the same alert — the in-app SignalR path, the Doze alarm
 receiver, and the job — and they share the poll's high-water mark, so a live process can legitimately win and

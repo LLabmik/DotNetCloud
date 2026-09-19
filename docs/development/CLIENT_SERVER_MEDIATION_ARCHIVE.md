@@ -1,3 +1,71 @@
+## Archived: Server agent (`cloud`) — core-proxy header-duplication fix deployed + `304` leg verified (2026-09-19)
+
+**Status:** completed ✅ — deployed to `cloud.kimball.home` and verified end-to-end; the conditional-GET contract now holds.
+**Branch:** `feature/android-unifiedpush` · **Commit:** `f019f027` · **Deployed version:** `0.6.10`
+**From:** client agent (`monolith`) — the fix and its failing-first unit tests were written there (found while running the on-device E2E).
+**Target:** core server (`src/Core/DotNetCloud.Core.Server/Program.cs`) on `cloud.kimball.home`. No schema change, so no module migrations were involved.
+
+### Why
+
+The chat-alerts poll could never be answered `304`. `ModuleApiProxyTransformer.TransformRequestAsync` called `base.TransformRequestAsync` — which **already copies every request header** except the hop-by-hop ones — and then re-added **every** header. `TryAddWithoutValidation` **appends** rather than replaces, so module hosts received each header **twice**; `Request.Headers.IfNoneMatch.ToString()` became `"…","…"`, which can never equal the ETag. Every conditional GET through the gateway silently answered `200` with a full body: chat alerts, **Files chunk `If-None-Match` dedup**, Bookmarks ETag. Degradation only (extra bandwidth/CPU on both sides), no data loss. Only `Authorization` / `X-Device-*` had been special-cased, which is why the duplication went unnoticed.
+
+### What changed (implementation)
+
+- `ModuleApiProxyTransformer` now forwards a header **only when the proxy request does not already contain it** (`proxyRequest.Headers.Contains(header.Key)`), so headers the base transformer skips (hop-by-hop) are still added and nothing is duplicated.
+- The class was made `internal` so the header-forwarding behaviour is unit-testable.
+- `tests/DotNetCloud.Core.Server.Tests/Proxy/ModuleApiProxyTransformerTests.cs` — 4 tests, **written failing-first** (`If-None-Match` count `expected 1, actual 2`) and green after the fix.
+- New reusable verification script `scripts/verify-module-proxy-if-none-match.sh` (session login + PKCE, then asserts leg 1 `200`+`ETag` → leg 2 `304`+empty body). It never echoes the password or the token.
+
+### Contract
+
+| Leg | Request | Response |
+| --- | --- | --- |
+| 1 | authenticated `GET /api/v1/chat/alerts` | `200` + `{ success, data }` envelope + `ETag` |
+| 2 | same + `If-None-Match: "<etag>"` | **`304`, empty body** |
+
+### Verification
+
+| Check | Result |
+| --- | --- |
+| Build (`DotNetCloud.CI.slnf` + CLI, Release) | **0 warnings / 0 errors** |
+| `ModuleApiProxyTransformerTests` | **4/4 pass** |
+| `sudo ./scripts/deploy.sh --force --verify` | **15/15 targets**, all core + module-host assembly hashes verified |
+| Deployed core DLL ↔ build output | **md5 identical** — `afae9c503c2c98a44bd27c69601218dd` |
+| Deploy marker | `/opt/dotnetcloud/server/.last-deploy-commit` = `f019f027a6d6` = branch HEAD; version `0.6.10` |
+| Migrations | **none pending** (core up to date; module schemas initialized) |
+| `/health/ready` | **Healthy — 14 module(s), all healthy**; `startup`, `database`, `linux-resources` Healthy |
+| `_framework/blazor.web.js` | **`200`** |
+| Route proof | `GET /api/v1/chat/alerts` → **`401`** vs control `/api/v1/chat/zzz-not-a-route` → **`404`** |
+| **Leg 1** — authenticated GET | **`200`**, 189 bytes, `ETag: "DB6D6150AA2670C1D275EEFF8E5D2DFB"` |
+| **Leg 2** — same GET + `If-None-Match` | **`304`**, **0 bytes** ✅ |
+
+Leg 1 → leg 2 is the direct evidence that the module host now receives the conditional header exactly once. The script run authenticates as a **non-MFA** account, because `/auth/session/login` cannot complete a scripted login for an MFA-enabled account (`enableAdminMfa` is `true` in `/etc/dotnetcloud/config.json`, and the seeded admin has MFA on) — and it binds the credential as `[FromForm] username`, not an email field.
+
+> ⚠️ **Operational note:** the first deploy attempt was interrupted when the editor session closed mid-run at step 8/9, which left the service **stopped** (publish had completed; migrations and the service start had not). The deploy is idempotent — re-running `deploy.sh --force --verify` from scratch completed all 9 steps plus the hash verify (535 s).
+
+### Deliberate non-changes
+
+- No change to the chat-aggregate endpoint itself, to `GET /api/v1/chat/unread`, or to any DTO — the defect was purely in the core proxy.
+- No new migrations.
+- Hop-by-hop header handling is unchanged (the base transformer's skips are still added by the fallback loop).
+
+### Pending (client agent — `monolith`) — deferred, NOT a blocker
+
+The server contract is verified on `cloud`, but the on-device confirmation goes back to `monolith` because `cloud` has no ADB/phone attached. Steps:
+
+```bash
+# 1. job still armed (never use `am force-stop` — it cancels the persisted job)
+adb shell dumpsys jobscheduler | grep -A11 '/3108:'      # -> job 3108 PERSISTED
+
+# 2. force one poll with no chat activity since the last run
+adb shell cmd jobscheduler run -f net.dotnetcloud.client 3108
+
+# 3. expect a 304 (UpToDate), i.e. the aggregate body is NOT read
+adb logcat -s DotNetCloud       # -> "Chat alert poll: aggregate unchanged"
+```
+
+Also regression-check the `200` path: send one message to a non-muted channel while the app is closed and confirm the generic alert still arrives.
+
 ## Archived: Client agent (`monolith`) — Android chat-alerts on-device E2E (2026-09-19)
 
 **Status:** completed ✅ — the "our code only" poll transport posts the alert **while the app is closed**, verified on the phone (R5CWC356B2K) against the deployed `cloud.dotnetcloud.net`.
