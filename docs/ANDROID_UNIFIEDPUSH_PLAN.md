@@ -982,3 +982,17 @@ receiver, and the job — and they share the poll's high-water mark, so a live p
 the poll then logs `Suppressed`. Only a **dead** process proves the poll posted it. Use
 `adb shell am kill net.dotnetcloud.client` (which leaves job 3108 armed and `dumpsys jobscheduler | grep -A11
 '/3108:'` still shows `PERSISTED`); **`am force-stop` cancels the persisted job**.
+
+**✅ Phone-side `304` confirmation — DONE (2026-09-19, client agent — `monolith`, phone R5CWC356B2K).** The
+conditional-GET contract is now proven **from the device**, not just from the server box. With no chat activity
+since the last poll, a forced job-3108 run logged `[ClientHandler] Received HTTP response headers … - 304` and
+`finished (UpToDate, pending: True)` — the aggregate body was **not** read. The changed path was
+regression-checked in the same session: a message into a non-muted channel while the app process was **dead**
+produced `- 200` → `finished (Alerted, pending: True)` and one generic notification (`chat_messages`, title
+"New message", empty body, `id=5932`) whose tap deep-linked to exactly its channel
+(`MessageListViewModel … STARTED for channel 019fd4f0-5170-7ee4-9307-a4a4b8772f99`); opening the channel
+cleared the notification (0 records for the package), the next forced poll returned `304` with no second
+notification, and `dumpsys activity services net.dotnetcloud.client` stayed empty (no foreground service).
+⚠️ The `200` leg requires a message from **another user** (moderator action from the web client) — a same-user
+message cannot create unread and therefore cannot exercise the alert path. **The chat-alerts poll contract is
+verified end-to-end in both directions; nothing outstanding on either side.**

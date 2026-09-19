@@ -1,3 +1,33 @@
+## Archived: Client agent (`monolith`) — phone-side `304` confirmation for the chat-alerts poll + `200`/alert regression (2026-09-19)
+
+**Status:** completed ✅ — the chat-alerts poll contract is now verified end-to-end **from the device** in both directions; nothing outstanding on either side.
+**Branch:** `feature/android-unifiedpush` · **Phone:** `R5CWC356B2K` · **Target:** `cloud.dotnetcloud.net` (core proxy + Chat module host, already deployed by `cloud`).
+
+### Why
+
+`cloud` proved the conditional-GET contract from the server box (authenticated `200` + `ETag` → `304` with an empty body) but has no ADB, so the last outstanding item was a device-side confirmation that the phone's own poll actually receives the `304` — plus the regression check that the changed path still alerts after the proxy fix.
+
+### Result
+
+| Check | Evidence |
+| --- | --- |
+| Job armed before/after | job **3108** `PERSISTED`, **any** network (`NOT_BANDWIDTH_CONSTRAINED`, not the media job's unmetered `3107`), min latency 60 s / max delay 120 s while unread |
+| **Unchanged state → `304`** | forced run → `[ClientHandler] Received HTTP response headers … - 304` + `finished (UpToDate, pending: True)` — the aggregate body was **not** read |
+| **Changed state → `200`** | a message into a non-muted channel while the app process was **dead** → `- 200` → `finished (Alerted, pending: True)` |
+| Alert posted | `NotificationRecord … pkg=net.dotnetcloud.client id=5932 channel=chat_messages groupKey=dnc_chat_019fd4f0-…`, `android.title=String (New message)`, `android.text=String ()` — generic, **empty body**, timestamped at the poll |
+| Tap deep-link | `Deferring the notification deep link … MessageList?channelId=019fd4f0-…` → `[MessageListViewModel] InitializeAsync STARTED for channel 019fd4f0-5170-7ee4-9307-a4a4b8772f99` |
+| Read clears it | **0** notification records for the package afterwards; next forced poll `304` (`UpToDate`) — **no second notification** |
+| No foreground service | `dumpsys activity services net.dotnetcloud.client` → `(nothing)` |
+
+### Method (reusable)
+
+1. `adb shell input keyevent KEYCODE_HOME` → `adb shell am kill net.dotnetcloud.client` (⚠️ **never** `am force-stop` — it cancels the persisted job) → assert `pidof` is empty.
+2. `adb shell dumpsys jobscheduler | Select-String -Pattern '/3108:' -Context 0,14` → confirm `PERSISTED` (match the precise `'/3108:'` pattern; a bare `3108` also matches unrelated timestamps).
+3. `adb shell cmd jobscheduler run -f net.dotnetcloud.client 3108`, then read `adb logcat -d -s DotNetCloud` for `Received HTTP response headers … - 304|200` and the `Chat alert poll finished (…)` outcome.
+4. The `200` leg needs a message from **another user** (moderator action from the web client) — a same-user message cannot create unread, so it cannot exercise the alert path.
+
+---
+
 ## Archived: Server agent (`cloud`) — core-proxy header-duplication fix deployed + `304` leg verified (2026-09-19)
 
 **Status:** completed ✅ — deployed to `cloud.kimball.home` and verified end-to-end; the conditional-GET contract now holds.
