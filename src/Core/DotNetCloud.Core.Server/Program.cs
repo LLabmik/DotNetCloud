@@ -1319,10 +1319,15 @@ public class Program
     }
 
     /// <summary>
-    /// Copies request headers (including auth cookies) and sets X-Forwarded-Proto: https
-    /// so module hosts can authenticate the original user.
+    /// Transformer applied to every module REST API proxy request. Copies request headers (including
+    /// auth cookies) and sets <c>X-Forwarded-Proto: https</c> so module hosts can authenticate the
+    /// original user.
     /// </summary>
-    private sealed class ModuleApiProxyTransformer : HttpTransformer
+    /// <remarks>
+    /// Internal rather than private so the header-forwarding behavior can be unit-tested: the base
+    /// transformer already copies the standard request headers, and re-adding one sends it twice.
+    /// </remarks>
+    internal sealed class ModuleApiProxyTransformer : HttpTransformer
     {
         public static readonly ModuleApiProxyTransformer Instance = new();
 
@@ -1334,25 +1339,19 @@ public class Program
         {
             await base.TransformRequestAsync(httpContext, proxyRequest, destinationPrefix, cancellationToken);
 
-            // Copy request headers NOT already handled by base.TransformRequestAsync.
-            // HttpTransformer copies standard request headers by default. Our loop using
-            // TryAddWithoutValidation appends (doesn't replace) — so any header the base
-            // transformer already copied gets a SECOND value. Skip Authorization to prevent
-            // "Bearer <token>, Bearer <token>" doubling that breaks JWT parsing in modules.
+            // Copy only the request headers the base transformer did NOT already copy (it copies every
+            // header except the hop-by-hop ones). TryAddWithoutValidation APPENDS instead of replacing,
+            // so re-adding a header that is already present sends it twice: a duplicated Authorization
+            // breaks JWT parsing, and a duplicated conditional header (If-None-Match) can never match on
+            // the module side, which silently turns every 304 Not Modified into a full 200 response.
             foreach (var header in httpContext.Request.Headers)
             {
                 if (string.Equals(header.Key, "Host", StringComparison.OrdinalIgnoreCase))
                     continue;
-                if (string.Equals(header.Key, "Authorization", StringComparison.OrdinalIgnoreCase))
-                    continue; // base transformer already copied this
-                if (string.Equals(header.Key, "X-Device-Id", StringComparison.OrdinalIgnoreCase))
-                    continue; // base transformer already copied this
-                if (string.Equals(header.Key, "X-Device-Name", StringComparison.OrdinalIgnoreCase))
-                    continue;
-                if (string.Equals(header.Key, "X-Device-Platform", StringComparison.OrdinalIgnoreCase))
-                    continue;
-                if (string.Equals(header.Key, "X-Client-Version", StringComparison.OrdinalIgnoreCase))
-                    continue;
+
+                if (proxyRequest.Headers.Contains(header.Key))
+                    continue; // already copied by the base transformer
+
                 proxyRequest.Headers.TryAddWithoutValidation(header.Key, header.Value.ToArray());
             }
 

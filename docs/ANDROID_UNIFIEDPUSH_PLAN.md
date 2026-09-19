@@ -949,3 +949,35 @@ has no non-interactive token path (the seeded OIDC clients are `authorization_co
 **Still outstanding:** the live E2E in §7 — now the client agent's (`monolith`) Active Handoff. Force-stop the
 app, send a chat message from the web client, and confirm a generic notification plus `logcat -s DotNetCloud`
 evidence of the poll, `304` handling and re-arm.
+
+**✅ LIVE E2E COMPLETE — on-device verified (2026-09-19, client agent — `monolith`, phone R5CWC356B2K).** Branch
+arm64 Debug build **0 warnings / 0 errors**; Android tests **433 pass / 1 skip**. Job **3108** is `PERSISTED`
+with an any-network constraint (`NOT_BANDWIDTH_CONSTRAINED`, not the media job's unmetered `3107`); the poll
+answers **`200`** (the pre-deploy `404` is gone) with the app's own bearer token; and a message sent while the
+app process was **dead** produced `finished (Alerted, pending: True)` with `posted=True`,
+`foreground=False` — one **generic** notification (`channel=chat_messages`, title "New message", empty body —
+no sender or channel name) that **opened exactly its channel on tap**. Reading the channel cleared the pending
+alert (`Suppressed, pending: False`, back to the idle `300s` cadence) with **no second notification**; a message
+in a **muted** DM produced `Suppressed, pending: False` and **nothing at all**; and no foreground service was
+running (`dumpsys activity services` empty). Exactly one alert per message — when the in-app SignalR path had
+already notified, the following poll logged `Suppressed`.
+
+**❗Finding 4 — the `304` leg does not work, and the cause is in core, not in this endpoint.** The client sends
+`If-None-Match: "EA7D…"` and the server answers **`200` with the same `ETag`**, so the conditional never
+matches. `ModuleApiProxyTransformer.TransformRequestAsync`
+(`src/Core/DotNetCloud.Core.Server/Program.cs`) calls `base.TransformRequestAsync` — which already copies
+**every** request header except the hop-by-hop ones — and then re-adds every header; `TryAddWithoutValidation`
+**appends**, so module hosts receive each header **twice** and `Request.Headers.IfNoneMatch.ToString()` becomes
+`"…","…"`, which can never equal the token. Only `Authorization` / `X-Device-*` were special-cased, which hid
+it. **Blast radius:** every conditional-header endpoint reaching a module — chat alerts, **Files chunk
+`If-None-Match` dedup**, Bookmarks ETag; silent degradation only. **Fixed + unit-tested on `monolith`**
+(`tests/DotNetCloud.Core.Server.Tests/Proxy/ModuleApiProxyTransformerTests.cs`, written failing-first with
+`If-None-Match expected 1, actual 2`); **`cloud` owns the deploy + the `304` re-verify** (handoff doc, Active
+Handoff). Until that ships, the poll still works — it just recomputes the aggregate on every run instead of
+being answered `304`.
+
+**Finding 5 (testing):** three producers can post the same alert — the in-app SignalR path, the Doze alarm
+receiver, and the job — and they share the poll's high-water mark, so a live process can legitimately win and
+the poll then logs `Suppressed`. Only a **dead** process proves the poll posted it. Use
+`adb shell am kill net.dotnetcloud.client` (which leaves job 3108 armed and `dumpsys jobscheduler | grep -A11
+'/3108:'` still shows `PERSISTED`); **`am force-stop` cancels the persisted job**.

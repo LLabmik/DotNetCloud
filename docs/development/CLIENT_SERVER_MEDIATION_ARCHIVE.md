@@ -1,3 +1,39 @@
+## Archived: Client agent (`monolith`) — Android chat-alerts on-device E2E (2026-09-19)
+
+**Status:** completed ✅ — the "our code only" poll transport posts the alert **while the app is closed**, verified on the phone (R5CWC356B2K) against the deployed `cloud.dotnetcloud.net`.
+**Branch:** `feature/android-unifiedpush` · **Build:** arm64 Debug **0 warnings / 0 errors** · **Tests:** Android **433 pass / 1 skip**; Core.Server **784 pass / 1 skipped** (pre-existing `ProgramRootCaTests` failure).
+**Canonical spec:** `docs/ANDROID_UNIFIEDPUSH_PLAN.md` §12 (design, adopted) + §12.10 ("As built").
+
+### What was verified on the device
+
+| Check | Result |
+| --- | --- |
+| Job **3108** | `PERSISTED`, `Minimum latency +5m0s` / `Max execution delay +6m0s`, **any** network (`NOT_BANDWIDTH_CONSTRAINED`) — **not** the media job's unmetered `3107` |
+| Authenticated poll | `GET /api/v1/chat/alerts` → **`200`** using the app's own bearer token (the pre-deploy `404` is gone); persists the `ETag` it receives |
+| Headless wake, app not running | the job starts the process (`Background chat alert poll started (headless)`), polls, and re-arms itself (`scheduled in 60s` while unread, `300s` when idle) |
+| **The alert** | a message sent while the process was **dead** produced `finished (Alerted, pending: True)` with `posted=True`, `foreground=False` and **one generic notification**: `channel=chat_messages`, `android.title=String (New message)`, `android.text=String ()` — no body, sender or channel name |
+| Tap → channel | opened exactly the alert's channel (`groupKey=dnc_chat_019fd4f0-…` → `MessageListViewModel … STARTED for channel 019fd4f0-…`) |
+| Read clears the alert | the next poll logged `Suppressed, pending: False` and reverted to the idle `300s` cadence, posting no second notification |
+| Muted channel | message into a muted DM → `Suppressed, pending: False`, **no notification** (the server's `unmutedUnread` stays 0 even though `unread` counts it) |
+| No double alert | when the in-app SignalR path had already notified, the following poll logged `Suppressed` — exactly one alert per message |
+| No foreground service | `dumpsys activity services net.dotnetcloud.client` → empty (`ChatConnectionService destroyed` in the log) |
+
+### Defect found and fixed in the same pass — core proxy duplicated every request header
+
+- **Symptom:** the client sent `If-None-Match: "EA7D…"` and the server answered `200` carrying **the same** `ETag`; the conditional never matched, so every poll recomputed the aggregate.
+- **Root cause:** `ModuleApiProxyTransformer.TransformRequestAsync` (`src/Core/DotNetCloud.Core.Server/Program.cs`) calls `base.TransformRequestAsync` — which already copies **every** request header except the hop-by-hop ones — and then re-adds every header. `TryAddWithoutValidation` appends, so each header reached module hosts **twice**; `Request.Headers.IfNoneMatch.ToString()` became `"…","…"` and could never equal the token. Only `Authorization` / `X-Device-*` were special-cased, which hid the duplication.
+- **Blast radius:** every conditional-header endpoint proxied to a module — chat alerts, **Files chunk `If-None-Match` dedup**, Bookmarks ETag. Silent degradation (extra bandwidth/CPU), no data loss.
+- **Fix:** forward a header only when `proxyRequest.Headers` does not already contain it; the hop-by-hop headers the base skips are still added. Class made `internal` for testability.
+- **Evidence:** `tests/DotNetCloud.Core.Server.Tests/Proxy/ModuleApiProxyTransformerTests.cs` (4 tests) written **first** and failing (`If-None-Match` count `expected 1, actual 2`), green after the fix.
+- **Follow-up (server agent — `cloud`):** deploy the branch and re-verify `200` + `If-None-Match` → **`304`** (Active Handoff in `CLIENT_SERVER_MEDIATION_HANDOFF.md`).
+
+### Testing notes worth keeping
+
+- `am kill` leaves the persisted job armed and *did* kill the app; **`am force-stop` cancels the persisted job**. Use `am kill` for "app closed" and re-launch first if the job is missing.
+- The in-app SignalR path, the Doze alarm receiver and the job all post through the same notifier and share the poll's high-water mark, so a live process can legitimately "win" — the poll then logs `Suppressed`. Only a **dead** process proves the poll posted the alert itself.
+
+---
+
 ## Archived: Server agent (`cloud`) — chat-alerts aggregate deployed to `cloud.kimball.home` (2026-09-19)
 
 **Status:** completed ✅ — server half implemented, tested, **deployed and verified**; the **Android on-device E2E is the only open item** and is the client agent's (`monolith`) Active Handoff.
