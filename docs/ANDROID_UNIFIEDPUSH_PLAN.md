@@ -712,7 +712,7 @@ flowchart TD
 - **One purpose-built server endpoint** — `GET /api/v1/chat/alerts` (§12.5, now delivered): a tiny
   aggregate of counts plus a `topChannelId` tap target and an `ETag`/`304` path, so a poll does not cost
   2 × N queries the way reusing `GET /api/v1/chat/unread` would have.
-- A `ChatAlertJobService`, sibling of `MediaUploadJobService` — **job id `3108`**, deliberately *not*
+- A `ChatAlertJobService`, sibling of `MediaUploadJobService` — **job id `3108`**, deliberately _not_
   3107 (that is the media job). It copies the two hard-won `AndroidBackgroundMediaSync.ScheduleNext`
   details: **`SetPersisted(true)`** and **`SetOverrideDeadline(latency + slack)`** — a minimum-latency-only
   one-shot was measured being deferred **indefinitely** on this device. One deliberate difference:
@@ -726,7 +726,7 @@ flowchart TD
   broadcasts, and `CONNECTIVITY_ACTION` stopped reaching manifest receivers in Android 7). A dynamic
   receiver only exists while the process is alive — which is exactly the case where the live SignalR
   connection already delivers instantly, so it would add nothing. **The consequence is that the cadence
-  below *is* the delivery latency while the app is closed.** The persisted job surviving a reboot is
+  below _is_ the delivery latency while the app is closed.** The persisted job surviving a reboot is
   handled by `SetPersisted(true)` alone, so no boot receiver was added either.
 - **No-double-alert is a single high-water mark, not a per-channel watermark.** The server's
   `changedAt` (newest message time) only moves when a message is created, so comparing it against the
@@ -805,7 +805,7 @@ purpose-built endpoint instead, **`GET /api/v1/chat/alerts`**:
 - **`unmutedMentions` exists so mute is absolute.** `mentions` still counts every mention (consistent with
   `UnreadCountDto.MentionCount`), but only the `unmuted*` values can trigger an alert or change its wording,
   so a mention inside a muted channel can never surface as "You were mentioned".
-- **Tap targeting added to the contract:** `topChannelId` is the *unmuted* channel holding the most recent
+- **Tap targeting added to the contract:** `topChannelId` is the _unmuted_ channel holding the most recent
   unread message, so a notification never deep-links into a channel the user silenced. That removes the
   draft's "fetch `/unread` when the aggregate changes" caveat entirely — one request, no follow-up.
 - **ETag stability:** the token is a SHA-256 of a canonical state string, never
@@ -894,7 +894,7 @@ single JSON blob in MAUI `Preferences`. `Preferences` is simpler and consistent 
 
 ### 12.10 As built (2026-09-19)
 
-**Server (`src/Modules/Chat/**`)**
+**Server — `src/Modules/Chat/…`**
 
 - `ChatAlertsDto` + `ChatAlertsCheckResult` in `DTOs/ChatDtos.cs`; `IChannelMemberService.GetAlertsAsync`
   implemented in `ChannelMemberService.cs` (aggregate query + `BuildAlertsToken`).
@@ -902,13 +902,15 @@ single JSON blob in MAUI `Preferences`. `Preferences` is simpler and consistent 
 - Tests: `tests/DotNetCloud.Modules.Chat.Tests/ChannelMemberAlertsTests.cs` (16) + 4 controller tests.
   Chat module suite **1431 pass / 0 fail**; Chat host builds with 0 warnings.
 
-**Android (`src/Clients/DotNetCloud.Client.Android/**`)** — Android-free half, unit-testable on `net10.0`:
-`ChatAlertsSummary`, `ChatAlertPollDecision` (+ `ChatAlertPollOutcome`/`ChatAlertDecision`),
-`ChatAlertCadence`, `ChatAlertStateStore`, `IChatAlertPoller`, `IChatAlertNotifier`, `IChatAlertScheduler`,
-`ChatAlertPoller`. Android half under `Platforms/Android`: `ChatAlertJobService` (job id **3108**),
-`ChatAlertAlarmReceiver`, `AndroidChatAlertScheduler`, `ChatAlertNotifier` (reuses the banked UnifiedPush
-renderer verbatim). Wired in `MauiProgram` (typed client + `AuthenticatedHttpClientHandler`),
-`MainApplication.OnCreate` (idempotent re-arm) and `AndroidManifest.xml`.
+**Android — `src/Clients/DotNetCloud.Client.Android/…`**
+The Android-free half is unit-testable on `net10.0`: `ChatAlertsSummary`, `ChatAlertPollDecision`
+with `ChatAlertPollOutcome` and `ChatAlertDecision`, `ChatAlertCadence`, `ChatAlertStateStore`,
+`IChatAlertPoller`, `IChatAlertNotifier`, `IChatAlertScheduler` and `ChatAlertPoller`. The Android half
+lives under `Platforms/Android`: `ChatAlertJobService` — job id **3108** — plus
+`ChatAlertAlarmReceiver`, `AndroidChatAlertScheduler` and `ChatAlertNotifier`, which reuses the banked
+UnifiedPush renderer verbatim. All of it is wired in `MauiProgram` — typed client plus
+`AuthenticatedHttpClientHandler` — in `MainApplication.OnCreate` for the idempotent re-arm, and in
+`AndroidManifest.xml`.
 - ✅ **The declined UnifiedPush connector half was deleted in the same change** (operator decision
   2026-09-19): receiver, registration state machine, endpoint registrar, distributor picker, Settings
   card, `UnifiedPushIntents`, `UnifiedPushForegroundService`, `DistributorLinkActivity` and their tests
@@ -918,18 +920,18 @@ renderer verbatim). Wired in `MauiProgram` (typed client + `AuthenticatedHttpCli
   was left out of this change to keep the diff reviewable.
 - Tests: `ChatAlertCadenceTests`, `ChatAlertPollDecisionTests`, `ChatAlertStateStoreTests`,
   `ChatAlertPollerTests` (stubbed `HttpMessageHandler`, wire JSON built by hand so a contract mismatch
-  fails the test). Android suite **478 pass / 1 skip**; arm64 Debug build 0 warnings / 0 errors.
+  fails the test). Android suite **433 pass / 1 skip** after the prune; arm64 Debug build 0 warnings / 0 errors.
 
 **New findings worth not re-deriving:**
 
 1. **Screen-on / unlock / connectivity broadcasts cannot be manifest-registered** — see the Tier 1
-   correction above. While the app is closed, the cadence *is* the latency; do not plan around a
+   correction above. While the app is closed, the cadence _is_ the latency; do not plan around a
    screen-state trigger.
 2. ⚠️ **The Android manifest merger rejects a hand-written manifest entry that is not
    attribute-identical to its `[Service]` / `[BroadcastReceiver]` counterpart.** Adding
    `Enabled = true` to the receiver attribute emitted `android:enabled="true"` in the generated
    manifest; the source-manifest copy lacked it, and the build failed with **`AMM0000 … duplicated`**
-   — reporting *every* duplicated component in the app, which makes the real culprit easy to miss.
+   — reporting _every_ duplicated component in the app, which makes the real culprit easy to miss.
    Keep the two copies identical (that is why the attribute has no `Enabled`).
 3. **Do not reuse job id `3107`** — it is the media sync job. Chat alerts are **3108**.
 
