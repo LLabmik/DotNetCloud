@@ -487,6 +487,35 @@ public class ChatController : ChatControllerBase
         });
     }
 
+    /// <summary>
+    /// Gets the aggregate chat alert summary used by the mobile background poll.
+    /// </summary>
+    /// <remarks>
+    /// Supports <b>conditional</b> polling: echo the previous <c>ETag</c> in <c>If-None-Match</c> and the
+    /// server answers <c>304 Not Modified</c> with an empty body — and without computing the aggregate —
+    /// when nothing has changed. Carries no message content, sender name or channel name.
+    /// </remarks>
+    [HttpGet("alerts")]
+    public async Task<IActionResult> GetAlertsAsync()
+    {
+        return await ExecuteAsync(async () =>
+        {
+            var knownToken = Request.Headers.IfNoneMatch.Count > 0
+                ? Request.Headers.IfNoneMatch.ToString().Trim()
+                : null;
+
+            var result = await _memberService.GetAlertsAsync(GetAuthenticatedCaller(), knownToken);
+
+            Response.Headers["ETag"] = result.ETag;
+            Response.Headers["Cache-Control"] = "no-cache, no-store";
+
+            if (result.NotModified)
+                return StatusCode(StatusCodes.Status304NotModified);
+
+            return Ok(Envelope(result.Alerts!));
+        });
+    }
+
     // ── Message Endpoints ───────────────────────────────────────────
 
     /// <summary>Sends a message to a channel.</summary>

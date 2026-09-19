@@ -22,7 +22,6 @@ public partial class SettingsPage : ContentPage
         base.OnAppearing();
         _vm.RefreshBatteryStatus();
         _vm.RefreshMediaPermission();
-        _ = _vm.RefreshPushStatusAsync();
 
         // Fire-and-forget: check for updates on page load (once-per-day throttled).
         _ = _vm.CheckForUpdateOnLaunchAsync();

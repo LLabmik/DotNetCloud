@@ -1,10 +1,20 @@
 # Android Push — UnifiedPush Implementation Plan (privacy-first)
 
-**Status: 🅿️ PARKED BY THE OPERATOR (2026-09-18).** The **Android half is built and on-device
+**Status of the UnifiedPush route: 🅿️ PARKED BY THE OPERATOR (2026-09-18).** The **Android half is built and on-device
 verified** (phases 1, 2 + the client-side of phase 5 — see "Implementation notes — Android half" at the
 end of §5), but the feature is **parked** and **nothing further should be started**: not the server half
 (phase 3), not the ntfy deployment, not the remaining packaging/docs work. The promotion of this work to
 the server agent's Active Handoff was **reverted the same day**.
+
+> **✅ DECIDED 2026-09-19 — §12 adopted: "our code only" poll tiers; UnifiedPush stays parked.** The
+> operator accepted the §12.6.1 latency budget (seconds while the phone is in use, ~1–5 min with the
+> screen off, ~9 min in deep Doze), so **Tiers 1–2 (background-job poll + exact-alarm Doze path) are the
+> transport of record** and **Tier 3 (a `specialUse` foreground service) is declined** — no distributor
+> app, no ntfy, no Google, no persistent notification and **no new foreground service**, which keeps the
+> 2026-09-12 "no chat FGS" rule intact. **§12.9 is the implementation contract.** The UnifiedPush server
+> half (§8) and the ntfy deployment are **not** to be resumed; only §12.5's aggregate endpoint is needed
+> server-side. ✅ **Both halves are implemented (2026-09-19)** — see **§12.10 "As built"**. ⚠️ The server
+> endpoint is **not deployed yet**, so the live E2E is the outstanding step (§7).
 
 **Why it was parked (operator, 2026-09-18):** the design asks too much for what it delivers —
 
@@ -13,23 +23,24 @@ the server agent's Active Handoff was **reverted the same day**.
 2. the no-setup alternative (polling from a background job — the mechanism this app already uses for
    media upload) is **not responsive enough for chat**.
 
-See **§11** for the full decision record, the transport trade-offs and what to reconsider if this is
-ever revisited.
+See **§11** for the UP decision record and the transport trade-offs, and **§12** for the adopted
+replacement design (the poll tiers) plus what to reconsider if UP is ever revisited.
 
-This document remains the **source of truth** for the design: read it end-to-end before restarting.
-**Plan finalized:** 2026-09-18 — the design is frozen apart from the §9 items; implementation can
-start from this document alone.
+This document remains the **source of truth** for push: read it end-to-end before starting any push work.
+**Plan finalized:** 2026-09-18 — the UP design is frozen apart from the §9 items and can be built from
+this document alone if it is ever revived; **§12 (2026-09-19) supersedes it as the route to build.**
 **§9 decisions resolved 2026-09-18** (see §9). **§7.1 step 1 is answered: the distributor refuses a
 push server URL containing a path** — so the Host-based `push.<domain>` topology, not the path-based
 `/push` route, is the required one on the server half (approved as §9.10). The two measured facts are
 recorded in §11 so they never need re-deriving.
-**Owner:** client agent (monolith) for the Android half; server agent (`cloud.kimball.home`) for the
-server half + ntfy deployment (§7.1, §8). Tracked as a deferred handoff in
-`docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`.
-**Before restarting:** §9 is fully resolved and §7.1 step 1 is answered, so nothing has to be
-re-derived — but **re-read §11 first** (why it was parked, and the transport trade-offs) and settle the
-transport decision before writing any more code. §9.1 is **already resolved**: FCM is removed outright
-(requirement §1.6).
+**Owner:** client agent (monolith). For §12 Tiers 1–2 the only server work is the aggregate
+`chat/alerts` endpoint (§12.5), owned by the server agent (`cloud.kimball.home`) and recorded in
+`docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md` as **approved in principle, not yet promoted**.
+The UnifiedPush server half (§8) and the ntfy deployment have **no** owner — they are not being built.
+**Before starting push work:** ✅ **the transport decision is made** — §12 Tiers 1–2, Tier 3 declined.
+Re-read §11 (why UP was parked) and §12 (the adopted design, especially the §12.9 implementation
+contract) first. §9.1 is **already resolved**: FCM is removed outright (requirement §1.6). ⚠️ Only
+reviving the UnifiedPush route needs a fresh operator decision; implementing §12 does not.
 **Related:** `docs/ANDROID_CHAT_ALERT_SOUND_PLAN.md` (the alert-sound fix this builds on),
 `docs/architecture/ARCHITECTURE.md` (§push), `docs/clients/android/{SETUP,DISTRIBUTION}.md`
 
@@ -43,7 +54,12 @@ transport decision before writing any more code. §9.1 is **already resolved**: 
 2. **Notifications are completely generic.** No sender names, no channel names, no message text
    anywhere outside the DotNetCloud server. A notification says "New message" (or "You were
    mentioned", "Calendar reminder"), and the user opens the app to read it.
-3. The transport is **UnifiedPush (UP) with a self-hosted ntfy** as the push server.
+3. ~~The transport is **UnifiedPush (UP) with a self-hosted ntfy** as the push server.~~
+   ⚠️ **SUPERSEDED 2026-09-19 by §12** — the transport of record is now the **"our code only" poll
+   tiers** (background-job poll + exact-alarm Doze path): no ntfy, no distributor app and **no push
+   server at all**, which also satisfies §1.5 trivially (nothing new is exposed). §1.1 (no Google),
+   §1.2 (generic notifications) and §1.4 (**no foreground service**) all still bind — §12 satisfies all
+   three (Tier 3, the only FGS option, is declined).
 4. This must not reintroduce a foreground service: the `dataSync` FGS was removed permanently
    (`faae32c9`) because Android 15/16 caps it to a rolling 24-hour budget.
 5. **Push must add no new public surface** (operator, 2026-09-18): no extra port, certificate,
@@ -622,12 +638,12 @@ comparable effort owned by the server agent.
 
 **Transport trade-offs, for whoever revisits this:**
 
-| Transport           | Google | User setup                                           | Cost / caveat                                                      |
-| ------------------- | ------ | ---------------------------------------------------- | ------------------------------------------------------------------ |
-| UnifiedPush + ntfy  | No     | Install a distributor app + point it at the instance | The friction that parked this; instant once set up                 |
-| FCM                 | **Yes** | None                                                 | Ruled out by requirement §1.6 (no content _and_ no metadata)       |
-| Foreground service  | No     | None                                                 | Removed deliberately (`dataSync` 24 h budget, battery, Play policy) |
-| Background-job poll | No     | None                                                 | Best-effort latency + battery; judged too slow for chat            |
+| Transport           | Google  | User setup                                           | Cost / caveat                                                       |
+| ------------------- | ------- | ---------------------------------------------------- | ------------------------------------------------------------------- |
+| UnifiedPush + ntfy  | No      | Install a distributor app + point it at the instance | The friction that parked this; instant once set up                  |
+| FCM                 | **Yes** | None                                                 | Ruled out by requirement §1.6 (no content _and_ no metadata)        |
+| Foreground service  | No      | None                                                 | Removed deliberately (`dataSync` 24 h budget, battery, Play policy) |
+| Background-job poll | No      | None                                                 | Best-effort latency + battery; judged too slow for chat             |
 
 **What is already banked (reusable in any future attempt):**
 
@@ -640,6 +656,284 @@ comparable effort owned by the server agent.
   helper, registration state machine, receiver, the `RAISE_TO_FOREGROUND` service and the distributor
   picker — committed, unit-tested and device-verified. Restarting the UnifiedPush route therefore means
   building the **server half only** (phase 3) plus the operator's DNS/cert step.
+  ⚠️ **SUPERSEDED 2026-09-19:** the connector half was **deleted** when §12 was implemented (receiver,
+  registration state machine, endpoint registrar, distributor picker, Settings card, `UnifiedPushIntents`,
+  `UnifiedPushForegroundService`, `DistributorLinkActivity` + their tests and manifest entries). Only the
+  **payload contract and the generic notification renderer** were kept, because they are live: both the
+  SignalR path and the poll path use them. Reviving UP now means restoring that half from `9b80be85` **and**
+  building the server half.
 - Two measured facts worth never re-deriving: **`UnifiedPush.NET` does not exist on nuget.org** (the
   old dependency was a phantom, which is why the `fdroid` flavour never compiled), and **the ntfy
   distributor rejects any push server URL containing a path** (§7.1).
+
+## 12. Revisit option — "our code only" transports (✅ ADOPTED 2026-09-19)
+
+> **Status: ADOPTED AND IMPLEMENTED (2026-09-19) — Tiers 1–2 are the transport of record; Tier 3
+> declined. Only the server deploy + live E2E remain (§12.10).** This section exists
+> because the operator asked (2026-09-19) for a Google-free,
+> **distributor-free** way to alert on new chat messages — "what can we do to keep something running on
+> the phone as a simple push message receiver?". The operator accepted the §12.6.1 latency budget later
+> the same day (see §12.6), which is what makes the poll tiers sufficient. §11's UnifiedPush route stays
+> **parked**, and §8 (its server half) must **not** be resumed.
+
+### 12.1 The platform constraint (why UnifiedPush needed a distributor)
+
+| Lever                                    | Reality                                                                                                                                                                                                                                                                       | Consequence for this plan                                                                                                                                                                                     |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Cached-process freezer** (Android 12+) | A backgrounded app is frozen within seconds–minutes of becoming cached, and a frozen process does not receive socket data. This is why FCM delivery arrives as a **binder** hop (which thaws the process) rather than a socket wake.                                          | The existing sticky but **unpromoted** `ChatConnectionService` SignalR socket stops delivering once the app is cached — consistent with the measured `curProcState=15, cached=true` observation (2026-09-17). |
+| **Battery-optimization exemption**       | Affects Doze / App Standby, **not** the cached-app freezer. `IBatteryOptimizationService` already exists and is still worth requesting.                                                                                                                                       | Do **not** treat "the user exempted us" as "we can hold a socket". Worth one cheap measurement (§12.6.4), not a design assumption.                                                                            |
+| **Foreground service**                   | The only sanctioned way to hold a connection indefinitely. On API 34+ it needs a type: `dataSync` carries a rolling 24 h budget (the crash loop removed in `faae32c9`), `remoteMessaging` is device-to-device, so **`specialUse`** is the only honest fit (Play review risk). | "Instant delivery" is achievable — but only as an **opt-in** FGS with a persistent notification.                                                                                                              |
+| **`JobScheduler` / `AlarmManager`**      | Run the app while it is frozen or dead, but are **self**-scheduled: no server can trigger them, and Doze clamps them (`setExactAndAllowWhileIdle` ≈ once per 9 min per app).                                                                                                  | The alert can only be "phone asks", never "server tells" — unless an FGS holds the connection.                                                                                                                |
+
+**The unavoidable conclusion:** no OS mechanism is simultaneously Google-free _and_ connection-free.
+The design space is a **tiering** of how fast the phone asks.
+
+### 12.2 The reframe
+
+UnifiedPush requires a **separate distributor app** only because the specification splits "who holds the
+connection" from "who displays the notification", so some _other_ app must hold it. DotNetCloud owns
+both sides, so it can be **its own connection holder** — a distributor-equivalent inside our own
+process. That answers _"do we need a small separate service?"_: **a service, yes — a new APK, no.**
+
+### 12.3 The three tiers
+
+```mermaid
+flowchart TD
+    A[New message on server] --> B{Phone state}
+    B -->|app open / process alive| C[Tier 0: live SignalR<br/>instant — already built]
+    B -->|frozen, screen on / just unlocked| D[Tier 1: JobScheduler poll<br/>seconds]
+    B -->|frozen, screen off, device active| E[Tier 1: self-rearmed poll<br/>1-5 min]
+    B -->|dozing| F[Tier 2: exact-alarm poll<br/>~9 min floor]
+    B -->|user opts in| G[Tier 3: specialUse FGS<br/>instant, persistent notification]
+```
+
+**Tier 1 — background poll (baseline: no new permission, no notification)**
+
+- **One purpose-built server endpoint** — `GET /api/v1/chat/alerts` (§12.5, now delivered): a tiny
+  aggregate of counts plus a `topChannelId` tap target and an `ETag`/`304` path, so a poll does not cost
+  2 × N queries the way reusing `GET /api/v1/chat/unread` would have.
+- A `ChatAlertJobService`, sibling of `MediaUploadJobService` — **job id `3108`**, deliberately *not*
+  3107 (that is the media job). It copies the two hard-won `AndroidBackgroundMediaSync.ScheduleNext`
+  details: **`SetPersisted(true)`** and **`SetOverrideDeadline(latency + slack)`** — a minimum-latency-only
+  one-shot was measured being deferred **indefinitely** on this device. One deliberate difference:
+  **`NetworkType.Any`**, not the media job's `Unmetered` — chat alerts must work on cellular.
+- Adaptive cadence with self-rearm: 60 s while unmuted messages are waiting, 5 min when nothing is, and a
+  9-minute allow-while-idle alarm while the device dozes (Tier 2).
+- ⚠️ **CORRECTED 2026-09-19 — "poll immediately on unlock" is not implementable.** The early draft of
+  this tier promised immediate polls on `ACTION_SCREEN_ON` / `ACTION_USER_PRESENT` /
+  `CONNECTIVITY_CHANGE`, so that "the user picks the phone up" would be instant. None of those can be
+  registered in the manifest on modern Android (`_ACTION_SCREEN_ON_`/`_USER_PRESENT_` are runtime-only
+  broadcasts, and `CONNECTIVITY_ACTION` stopped reaching manifest receivers in Android 7). A dynamic
+  receiver only exists while the process is alive — which is exactly the case where the live SignalR
+  connection already delivers instantly, so it would add nothing. **The consequence is that the cadence
+  below *is* the delivery latency while the app is closed.** The persisted job surviving a reboot is
+  handled by `SetPersisted(true)` alone, so no boot receiver was added either.
+- **No-double-alert is a single high-water mark, not a per-channel watermark.** The server's
+  `changedAt` (newest message time) only moves when a message is created, so comparing it against the
+  value the app last accounted for is enough: reading a channel can never re-alert, and the same message
+  can never alert twice. The plain high-water mark also survives the case a per-channel unread watermark
+  would have mishandled — an alert acknowledged while the app was on screen (the in-app ding already
+  covered it) must not reappear as a notification when the user leaves the app.
+
+**Tier 2 — exact-alarm fast path (plumbing already exists)**
+
+- `IExactAlarmPermissionService` / `AndroidExactAlarmPermissionService` exist, and
+  `CalendarReminderScheduler` already calls `SetExactAndAllowWhileIdle()`, so both the special-access
+  prompt and the API usage are established patterns in this app.
+- Gives the Doze path a hard ~9 min floor instead of "whenever the platform decides to dispatch".
+- ⚠️ Play review: `USE_EXACT_ALARM` is restricted to alarm/calendar-class apps. The app already
+  qualifies via calendar reminders, but requesting it _for chat polling_ is a review conversation — the
+  inexact `JobScheduler` path must stay as the graceful fallback when the user declines.
+
+**Tier 3 — opt-in "Instant delivery" — ❌ DECLINED 2026-09-19 (kept only so it need not be re-derived)**
+
+- **Declined:** the operator accepted the §12.6.1 latency budget, so a persistent notification plus the
+  `specialUse` Play-policy risk buy nothing that is actually needed. **Do not build it.**
+- Our own persistent connection (the existing `CoreHub` SignalR session, or a dedicated long-poll) held
+  by a **foreground service we own**: `foregroundServiceType="specialUse"` plus
+  `PROPERTY_SPECIAL_USE_FGS_SUBTYPE`, with a persistent **low-importance** "Connected" notification.
+- **Not** `dataSync` (24 h budget → `ForegroundServiceDidNotStopInTimeException`) and **not**
+  `remoteMessaging` (device-to-device). Both already settled on 2026-09-12 — do not re-litigate.
+- Behind a Settings switch, so a default install never shows a permanent notification; that
+  notification is the user-visible price of instant delivery.
+- ⚠️ **FGS start restrictions to verify on-device before committing to a reboot story:** Android 12+
+  forbids starting an FGS from the background, with exemptions for a running `JobService` (a job may
+  call `startForeground()` itself) and for a limited type list from `BOOT_COMPLETED`. Verify on
+  R5CWC356B2K (Android 16) rather than assuming; the safe fallback is "re-promote on next app launch".
+- ⚠️ Play policy risk is real: `specialUse` needs a justification, and Google's stated preference for
+  messaging apps is FCM. This maps onto the existing flavour split — Play flavour = poll-only,
+  F-Droid / direct APK = instant available.
+
+### 12.4 What each tier removes from the server half
+
+| §8 server item                                         | Tier 1               | Tier 2     | Tier 3                               |
+| ------------------------------------------------------ | -------------------- | ---------- | ------------------------------------ |
+| Real `IUnifiedPushTransport`                           | not needed           | not needed | not needed (existing hub)            |
+| Persist device registrations (S2)                      | **not needed**       | not needed | not needed                           |
+| ID-only payload builders (S4/S5)                       | rendering rules only | same       | same                                 |
+| Presence suppression (S3)                              | **not needed**       | not needed | needed (frozen-but-connected device) |
+| ntfy + `push.<domain>` DNS/cert/proxy (§7.1, §8.6–8.7) | **not needed**       | not needed | **not needed**                       |
+
+Every item that required an **operator** (DNS record, certificate SAN, ntfy service) and every item that
+required a **Chat EF migration** disappears. Server work reduces to §12.5.
+
+### 12.5 The one server-side item — ✅ DELIVERED 2026-09-19
+
+⚠️ `ChannelMemberService.GetUnreadCountsAsync` executes **2 queries per channel membership**
+(`CountAsync` for unread + `CountAsync` for mentions, inside a loop over memberships). That is fine for
+one interactive call and **not** fine for a 1–2 min poll from every device — which is why the poll uses a
+purpose-built endpoint instead, **`GET /api/v1/chat/alerts`**:
+
+```json
+{
+  "v": 1,
+  "unread": 7,
+  "mentions": 1,
+  "unmutedUnread": 4,
+  "unmutedMentions": 0,
+  "topChannelId": "<guid>",
+  "changedAt": "<utc>"
+}
+```
+
+- **Constant cost, whatever the membership count**: `GetAlertsAsync` reads the memberships, then computes
+  unread counts, unread mentions (both grouped, joined to the caller's memberships) and the newest-message
+  value. Nothing in it scales per channel.
+- **`ETag` / `If-None-Match` → `304` with an empty body.** ⚠️ **Measured cost, stated honestly:** the idle
+  path is **three cheap constant queries** (memberships, message count, max `SentAt`) and **zero aggregate
+  queries** — not literally zero queries. The aggregate itself is only computed when the token differs.
+- **`unmutedMentions` exists so mute is absolute.** `mentions` still counts every mention (consistent with
+  `UnreadCountDto.MentionCount`), but only the `unmuted*` values can trigger an alert or change its wording,
+  so a mention inside a muted channel can never surface as "You were mentioned".
+- **Tap targeting added to the contract:** `topChannelId` is the *unmuted* channel holding the most recent
+  unread message, so a notification never deep-links into a channel the user silenced. That removes the
+  draft's "fetch `/unread` when the aggregate changes" caveat entirely — one request, no follow-up.
+- **ETag stability:** the token is a SHA-256 of a canonical state string, never
+  `string.GetHashCode()` — .NET randomizes string hashing **per process**, so a hash-code token would
+  change on every module-host restart and silently break conditional polling.
+- **The endpoint is additive**: `GetUnreadCountsAsync` and `GET /api/v1/chat/unread` are untouched, so
+  nothing that already depends on them changes behaviour.
+
+### 12.6 Operator decisions — ✅ ALL RESOLVED 2026-09-19
+
+1. **Latency budget — ✅ ACCEPTED as the deciding answer.** "Seconds while the phone is in use, ~1–5 min
+   with the screen off, ~9 min in deep Doze" **is acceptable for chat**. Consequence: **Tier 3 is
+   unnecessary**, nothing user-visible changes, and no persistent notification is ever added.
+2. **Persistent notification — ✅ moot.** Tier 3 is declined (§12.3), so no ongoing notification exists
+   to object to.
+3. **Play flavour — ✅ no longer a decision.** With Tier 3 gone the flavours have **no** push-behaviour
+   divergence at all (poll-only everywhere), so the flavour split stays purely an application-id /
+   distribution concern.
+4. **Cheap experiment — still worth running as the first implementation step (§12.9).** Battery-exempt
+   the app, screen off 30 min, and check whether `logcat -s DotNetCloud` shows an inbound SignalR
+   message. Not needed to validate the design any more (Tier 3 is off the table), but it calibrates the
+   real cadence Tier 1 has to deliver and gives a before/after baseline.
+
+### 12.7 What is already banked works here too
+
+- **Generic notification rendering** and the "ignore text fields arriving from a server" rule (§4.3) —
+  transport-agnostic, reused unchanged.
+- **Deep-link tap routing + notification channels** (§4.3) — unchanged; Tier 1 supplies `channelId`
+  from `/unread` (or from `/alerts` + `/unread` per §12.5).
+- **The ID-only payload contract** (§4.2) — still the contract for Tier 3, and still worth keeping if a
+  concrete push transport (UnifiedPush or APNs) is ever revisited.
+- **The Android UnifiedPush connector** (`feature/android-unifiedpush`, `9b80be85`) — keep the branch;
+  it remains the correct route if the operator ever accepts the distributor install.
+- **`MediaUploadJobService` / `AndroidBackgroundMediaSync`** — the proven headless wake recipe
+  (`SetPersisted` + `SetOverrideDeadline` + self-rearm) that Tier 1 copies.
+  ⚠️ Reuse note: the media job's `NetworkType.Unmetered` requirement must **not** be copied.
+
+### 12.8 Recommendation (✅ adopted)
+
+**Adopt Tiers 1–2** — self-contained, zero user-visible cost, no server change beyond §12.5, and it
+reuses a proven pattern. **Do not** resume the UnifiedPush server half (§8) or the ntfy deployment, and
+**do not** build Tier 3: neither is needed at the accepted latency budget.
+
+### 12.9 Implementation contract for Tiers 1–2 (adopted 2026-09-19)
+
+**Cadence** — a self-rearmed one-shot job, `SetPersisted(true)` + `SetOverrideDeadline(latency + slack)`,
+using a **new job id — do NOT reuse `3107`,** which is the media sync job:
+
+| Phone state                                  | Target cadence                                                                                                    |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| App in the foreground                        | no polling — live SignalR + the in-app ding (`ChatAlertPolicy` owns this case)                                    |
+| Screen on, or the app was used within ~5 min | ~30–60 s                                                                                                          |
+| Screen off, device active (not dozing)       | ~2–5 min                                                                                                          |
+| Dozing                                       | exact-alarm chain, ~9 min floor (Tier 2); if the user declines the alarm permission, fall back to the inexact job |
+| Server unreachable                           | back off (reuse the `ServerReachabilityService` / offline-banner state) — never spin                              |
+
+**Alert correctness — the poll must never double-alert.** The poller and the SignalR path share **one**
+dedup source of truth: a persisted **per-channel notified watermark** (the highest position already
+alerted). Rules:
+
+- Never alert while `IAppForegroundService.IsInForeground` — the in-app ding owns the foreground case.
+- Never alert for a muted channel: consult **both** the server's `IsMuted` (from `UnreadCountDto`) and the
+  local `ChannelMuteStateService`, so a mute performed while offline is still honoured.
+- Honour Do Not Disturb and the existing chat notification preferences before posting.
+- Route through `ChatAlertPolicy` so "exactly one alert per message" stays a single tested rule instead
+  of gaining a second, parallel path.
+- Generic copy only (§4.3): "New message" / "You were mentioned", empty body, no sender or channel name.
+- Tap routing reuses the banked deep-link extras (§4.3); a stale session falls through to Login (§9.8).
+- The watermark must advance on read as well as on alert, so opening a channel clears its pending alert.
+
+**Storage:** the watermark goes in a small SQLite table (mirroring `SqliteOfflineOperationQueue`) or as a
+single JSON blob in MAUI `Preferences`. `Preferences` is simpler and consistent with existing chat prefs
+(`chat_message_sound_enabled`); the values are non-sensitive.
+
+**Constraints that must not regress:**
+
+- ❌ **No foreground service of any type for chat** — the 2026-09-12 rule stands, Tier 3 is declined.
+- ❌ Do **not** copy `MediaUploadJobService`'s `NetworkType.Unmetered` — chat alerts must work on cellular
+  (`NetworkType.Any`).
+- ✅ `SetPersisted(true)` **and** `SetOverrideDeadline(...)`: without the deadline a min-latency-only job
+  was measured being deferred **indefinitely** on this device.
+- ✅ Both flavours behave identically; there is no Play/F-Droid push divergence any more.
+- ⚠️ Keep the pure half platform-free so the plain-`net10.0` test project can compile it, and add any new
+  app file referenced by a compiled ViewModel to the `Android.Tests` csproj `<Compile Include>` list —
+  mirror the banked UnifiedPush split (`UnifiedPushProtocol.cs` / `UnifiedPushRegistrationPolicy.cs`).
+
+### 12.10 As built (2026-09-19)
+
+**Server (`src/Modules/Chat/**`)**
+
+- `ChatAlertsDto` + `ChatAlertsCheckResult` in `DTOs/ChatDtos.cs`; `IChannelMemberService.GetAlertsAsync`
+  implemented in `ChannelMemberService.cs` (aggregate query + `BuildAlertsToken`).
+- `ChatController` — `[HttpGet("alerts")]`, `If-None-Match` in, `ETag` out, `304` on a match.
+- Tests: `tests/DotNetCloud.Modules.Chat.Tests/ChannelMemberAlertsTests.cs` (16) + 4 controller tests.
+  Chat module suite **1431 pass / 0 fail**; Chat host builds with 0 warnings.
+
+**Android (`src/Clients/DotNetCloud.Client.Android/**`)** — Android-free half, unit-testable on `net10.0`:
+`ChatAlertsSummary`, `ChatAlertPollDecision` (+ `ChatAlertPollOutcome`/`ChatAlertDecision`),
+`ChatAlertCadence`, `ChatAlertStateStore`, `IChatAlertPoller`, `IChatAlertNotifier`, `IChatAlertScheduler`,
+`ChatAlertPoller`. Android half under `Platforms/Android`: `ChatAlertJobService` (job id **3108**),
+`ChatAlertAlarmReceiver`, `AndroidChatAlertScheduler`, `ChatAlertNotifier` (reuses the banked UnifiedPush
+renderer verbatim). Wired in `MauiProgram` (typed client + `AuthenticatedHttpClientHandler`),
+`MainApplication.OnCreate` (idempotent re-arm) and `AndroidManifest.xml`.
+- ✅ **The declined UnifiedPush connector half was deleted in the same change** (operator decision
+  2026-09-19): receiver, registration state machine, endpoint registrar, distributor picker, Settings
+  card, `UnifiedPushIntents`, `UnifiedPushForegroundService`, `DistributorLinkActivity` and their tests
+  and manifest entries are gone. Only `UnifiedPushProtocol` (payload contract + mapping) and
+  `UnifiedPushNotificationRenderer` remain, because **both live paths use them** — the SignalR in-process
+  notification and the poll. ⚠️ Their `UnifiedPush*` names are now historical; a transport-neutral rename
+  was left out of this change to keep the diff reviewable.
+- Tests: `ChatAlertCadenceTests`, `ChatAlertPollDecisionTests`, `ChatAlertStateStoreTests`,
+  `ChatAlertPollerTests` (stubbed `HttpMessageHandler`, wire JSON built by hand so a contract mismatch
+  fails the test). Android suite **478 pass / 1 skip**; arm64 Debug build 0 warnings / 0 errors.
+
+**New findings worth not re-deriving:**
+
+1. **Screen-on / unlock / connectivity broadcasts cannot be manifest-registered** — see the Tier 1
+   correction above. While the app is closed, the cadence *is* the latency; do not plan around a
+   screen-state trigger.
+2. ⚠️ **The Android manifest merger rejects a hand-written manifest entry that is not
+   attribute-identical to its `[Service]` / `[BroadcastReceiver]` counterpart.** Adding
+   `Enabled = true` to the receiver attribute emitted `android:enabled="true"` in the generated
+   manifest; the source-manifest copy lacked it, and the build failed with **`AMM0000 … duplicated`**
+   — reporting *every* duplicated component in the app, which makes the real culprit easy to miss.
+   Keep the two copies identical (that is why the attribute has no `Enabled`).
+3. **Do not reuse job id `3107`** — it is the media sync job. Chat alerts are **3108**.
+
+**Still outstanding:** the server half must be **deployed** (the endpoint does not exist on the running
+instance yet), then the live E2E in §7 runs for real: force-stop the app, send a chat message from the
+web client, and confirm a generic notification plus `logcat -s DotNetCloud` evidence of the poll,
+`304` handling and re-arm.

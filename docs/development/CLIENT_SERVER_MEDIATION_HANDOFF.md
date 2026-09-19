@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-09-18 (**UnifiedPush push transport (privacy-first) — 🅿️ PARKED BY THE OPERATOR.** The **Android half is built, committed and on-device verified**, but the feature was **parked** the same day: it asks **every user** to install a separate distributor app and point it at the instance, and the zero-setup alternative (background-job polling) is **too slow for chat**. **Nothing is authorised to start — the earlier promotion to the Active Handoff was reverted.** Canonical spec `docs/ANDROID_UNIFIEDPUSH_PLAN.md` (§11 = decision record + revisit options). Earlier: **Notes: note folder assignment** — a note can now be filed at creation time, moved/unfiled afterwards, and is tagged with its folder on the sidebar card; server + Blazor deployed and operator-verified, **Android picker wiring implemented and on-device verified** — **complete, archived**. Earlier: **Notes: note folder assignment** — a note can now be filed at creation time, moved/unfiled afterwards, and is tagged with its folder on the sidebar card; server + Blazor done, deployed and operator-verified from branch `fix/notes-folder-assignment`, Android picker wiring handed to monolith — see the deferred handoff below. Earlier same day: **Trash restore now preserves the original directory path** — server-side fix implemented, tested and deployed to `cloud.dotnetcloud.net` (branch `fix/trash-restore-original-path`); earlier, the client-side "ignore a synced folder" deletion bug was fixed + live-verified on SyncTray `0.6.7` (`7632722c`). Earlier: 2026-09-09 Presence indicators → **4-state** Online/Away/Do-Not-Disturb/Offline — full-stack code on `fix/android-improvements` at `c17c7fa3`, deployed and live-verified on `cloud.kimball.home` (archived below). Plan `docs/PRESENCE_DOTS_4STATE_PLAN.md`.)
+Last updated: 2026-09-19 (**Android chat alerts — ✅ IMPLEMENTED BOTH HALVES; the handoff is now DEPLOY ONLY.** The parked UnifiedPush route is replaced by the app's own **conditional poll** of a new `GET /api/v1/chat/alerts` aggregate — no distributor app, no ntfy, no Google, no foreground service. Server + Android code is written, built and unit-tested here (Chat module 1431 pass; Android 478 pass / 1 skip; arm64 Debug 0 warnings); the server half is **not deployed yet**, so the **Active Handoff is: deploy Core.Server + the Chat module host, then run the live E2E.** See the `## Active Handoff` section below and plan §12/§12.10. Earlier (2026-09-18): **UnifiedPush push transport (privacy-first) — 🅿️ PARKED BY THE OPERATOR.** The **Android half is built, committed and on-device verified**, but the feature was **parked** the same day: it asks **every user** to install a separate distributor app and point it at the instance, and the zero-setup alternative (background-job polling) is **too slow for chat**. **Nothing is authorised to start — the earlier promotion to the Active Handoff was reverted.** Canonical spec `docs/ANDROID_UNIFIEDPUSH_PLAN.md` (§11 = decision record + revisit options). Earlier: **Notes: note folder assignment** — a note can now be filed at creation time, moved/unfiled afterwards, and is tagged with its folder on the sidebar card; server + Blazor deployed and operator-verified, **Android picker wiring implemented and on-device verified** — **complete, archived**. Earlier: **Notes: note folder assignment** — a note can now be filed at creation time, moved/unfiled afterwards, and is tagged with its folder on the sidebar card; server + Blazor done, deployed and operator-verified from branch `fix/notes-folder-assignment`, Android picker wiring handed to monolith — see the deferred handoff below. Earlier same day: **Trash restore now preserves the original directory path** — server-side fix implemented, tested and deployed to `cloud.dotnetcloud.net` (branch `fix/trash-restore-original-path`); earlier, the client-side "ignore a synced folder" deletion bug was fixed + live-verified on SyncTray `0.6.7` (`7632722c`). Earlier: 2026-09-09 Presence indicators → **4-state** Online/Away/Do-Not-Disturb/Offline — full-stack code on `fix/android-improvements` at `c17c7fa3`, deployed and live-verified on `cloud.kimball.home` (archived below). Plan `docs/PRESENCE_DOTS_4STATE_PLAN.md`.)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -17,11 +17,59 @@ Archived context:
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
 - **🅿️ Parked (server agent — `cloud.kimball.home`):** `feature/android-unifiedpush` — **UnifiedPush push transport (privacy-first)**. **PARKED BY THE OPERATOR 2026-09-18 — do NOT start.** Reason: every user would have to install a separate distributor app and point it at the instance, and the zero-setup alternative (polling from a background job) is too slow for chat. The **Android half is built, committed (`9b80be85`) and on-device verified**; the **server half is untouched**. Canonical spec `docs/ANDROID_UNIFIEDPUSH_PLAN.md` (§11 = decision record + revisit options).
+- **✅ ACTIVE (server agent — `cloud.kimball.home`): `chat-alerts` — DEPLOY ONLY, code is already written.** The new `GET /api/v1/chat/alerts` aggregate (plan §12.5/§12.10) is implemented in this branch — see the **Active Handoff** section below. **No operator DNS record, certificate entry, ntfy service or firewall rule is involved.**
 - **Archived (server agent — `cloud`):** `fix/notes-folder-assignment` — Notes folder assignment at create time + move/unfile; server + Blazor deployed and operator-verified, Android half implemented + on-device verified (client agent — `monolith`). **Complete — nothing outstanding**; recorded in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
 - **Archived (server agent — `cloud`):** `fix/trash-restore-original-path` — trash restore now preserves the original directory path (implemented, tested, deployed to `cloud.dotnetcloud.net` 2026-09-15; archived below)
 - **Completed (awaiting moderator PR):** `fix/synctray-ignore-folder` — SyncTray **0.6.7**, "ignore a synced folder" can no longer delete the folder server-side; pushed `7632722c`, installed and live-verified on `mint-OptiPlex-7010`
 - **Archived (server agent — `cloud.kimball.home`):** `fix/android-improvements` — Presence 4-state, deployed + live-verified on cloud 2026-09-09 (plan `docs/PRESENCE_DOTS_4STATE_PLAN.md`; archived below)
 - **Still pending (mint22, dev):** `feature/module-widgets` — Module Home Widgets (plan `docs/MODULE_WIDGETS_PLAN.md`); kept below as a deferred handoff
+
+## Active Handoff — Server: deploy the chat-alerts aggregate, then run the live E2E → `cloud.kimball.home`
+
+**Status:** ✅ client + server **code complete** (2026-09-19, client agent — `monolith`). ⚠️ **Deploy only** — nothing left to write or decide.
+**Browser:** `feature/android-unifiedpush` (the parked UnifiedPush branch; the poll transport reuses its generic notification renderer and payload mapping, so it builds on top rather than replacing the tree).
+**Canonical spec:** `docs/ANDROID_UNIFIEDPUSH_PLAN.md` **§12** (design, adopted) and **§12.10 ("As built" — file list + the three new findings)**. Read §12.10 first; it supersedes the older drafts throughout the document.
+
+### What is being deployed
+
+- `GET /api/v1/chat/alerts` (`ChatController.GetAlertsAsync`) → `{ v, unread, mentions, unmutedUnread, unmutedMentions, topChannelId, changedAt }`, with `ETag` / `If-None-Match` → `304`.
+- `IChannelMemberService.GetAlertsAsync` (`ChannelMemberService`) — constant query cost regardless of the caller's channel count, with a deterministic SHA-256 entity tag (**never** `string.GetHashCode()`: .NET randomizes string hashing per process, which would break conditional polling on every module-host restart).
+- **Additive:** `GET /api/v1/chat/unread` and `GetUnreadCountsAsync` are untouched, so nothing else changes behaviour. **No migrations** — no schema change at all.
+- **No gateway change is needed:** `Core.Server/Program.cs` routes by *prefix* (`["api/v1/chat"] = "dotnetcloud.chat"`), so `/api/v1/chat/alerts` is matched without any edge configuration.
+- ⚠️ **Nothing from the parked UnifiedPush server spec (§8) is needed**: no `UnifiedPushHttpTransport`, no device-registration persistence, no ntfy, no `push.<domain>` DNS record or certificate, no proxy route. Do not build any of it.
+
+### Deploy
+
+1. Pull the branch (head of `feature/android-unifiedpush`).
+2. `dotnet build -c Release` (expect 0 warnings) and `dotnet test` for the Chat module if you want your own evidence.
+3. `sudo ./scripts/deploy.sh --force --verify` on `cloud.kimball.home`.
+4. Confirm `/health/ready` Healthy and the usual module count.
+
+### Verify — server side (do this before touching the phone)
+
+Probe the new route through the gateway with a real bearer token:
+
+```bash
+curl -sS -D- -o- -H "Authorization: Bearer $TOKEN" https://<instance>/api/v1/chat/alerts
+```
+
+Expect `200` with the `{ "success": true, "data": { … } }` envelope, correctly spelled camelCase keys, and an `ETag` response header. Then send the same request again with `-H "If-None-Match: <that etag>"` and expect **`304` with an empty body** — this is the whole point of the endpoint, so confirm it before the client test. A `404` means the deploy did not pick up the Chat module host.
+
+### Verify — Android side (client agent, `monolith`, needs the phone)
+
+1. Install the arm64 Debug build with `adb install -r --no-incremental` **and launch once** while signed in (the poll registers a persisted job, id **3108**, on process start).
+2. `adb shell dumpsys jobscheduler | grep -A12 3108` → expect the chat-alert job, `PERSISTED`, with **any** network requirement (not unmetered — that is the media job, 3107).
+3. Force-stop the app, then `adb shell cmd jobscheduler run -f net.dotnetcloud.client 3108` and read `adb logcat -s DotNetCloud` → expect the poll to run and re-arm. With the server deployed the run should report an alert (or a `304` when nothing changed).
+4. **The real E2E:** force-stop the app, send a chat message from the web client as another user, and within the cadence (60 s while unread) expect a **generic** notification — title "New message" (or "You were mentioned"), **empty body, no sender or channel name** — which opens the channel on tap. Confirm with `dumpsys notification` (channel `chat_messages` / `chat_mentions`) and `dumpsys audio` (a `USAGE_NOTIFICATION` player for the package).
+5. Confirm the negative cases: a muted channel produces nothing; reading the channel clears its pending alert without a second notification; **no foreground service** (`dumpsys activity services net.dotnetcloud.client` → expect empty).
+
+### Notes / gotchas for whoever deploys
+
+- The client is already on the branch and unit-tested (433 pass / 1 skip after the prune); the arm64 Debug build is 0 warnings / 0 errors.
+- **The client wake path is already verified on-device** (2026-09-19, R5CWC356B2K): job **3108** is `PERSISTED` with an any-network constraint, a forced headless run hit `https://cloud.dotnetcloud.net/api/v1/chat/alerts` (expected pre-deploy `404`, handled gracefully, no crash) and re-armed itself. **Only the 200-response leg is unverified, and it needs this deploy.**
+- The declined UnifiedPush connector was **deleted** in this branch: do not be surprised that the app no longer contains a receiver/registration state machine. The payload contract + generic renderer remain and are used by both the live SignalR path and the poll.
+- The idle poll is **three cheap constant queries** and **zero aggregate queries** (not literally zero queries) — stated accurately in §12.5 so nobody is surprised by the DB cost.
+- The Doze path uses `setExactAndAllowWhileIdle`, which the app already requests for calendar reminders; when the user has not granted it the inexact variant is used and only the latency stretches.
 
 ## Archived Handoff — SyncTray test machine: DB Outage SyncTray Simulation (plan §11.4) ✅ PASS
 

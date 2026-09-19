@@ -337,6 +337,70 @@ public sealed record UnreadCountDto
 }
 
 /// <summary>
+/// Aggregate chat alert summary for one user, used by the mobile background poll
+/// (<c>GET /api/v1/chat/alerts</c>).
+/// </summary>
+/// <remarks>
+/// Deliberately an <b>aggregate</b>: the poll runs every 30-60 s per device, so the cost must not be
+/// proportional to how many channels the user belongs to. It also carries <b>no message content, no
+/// sender name and no channel name</b> — the client renders generic text and opens the app to read.
+/// </remarks>
+public sealed record ChatAlertsDto
+{
+    /// <summary>Contract version emitted by this server.</summary>
+    public const int CurrentVersion = 1;
+
+    /// <summary>Payload contract version.</summary>
+    public int V { get; init; } = CurrentVersion;
+
+    /// <summary>Total unread messages across every channel the caller belongs to.</summary>
+    public int Unread { get; init; }
+
+    /// <summary>
+    /// Unread messages that mention the caller — directly, or via an <c>@all</c> / <c>@channel</c> mention.
+    /// </summary>
+    public int Mentions { get; init; }
+
+    /// <summary>Unread messages in channels the caller has <b>not</b> muted.</summary>
+    public int UnmutedUnread { get; init; }
+
+    /// <summary>
+    /// Unread mentions in channels the caller has <b>not</b> muted. Kept separate from
+    /// <see cref="Mentions"/> because a mention in a muted channel must not change what the device
+    /// notifies about — the client picks "You were mentioned" from this value only.
+    /// </summary>
+    public int UnmutedMentions { get; init; }
+
+    /// <summary>
+    /// Unmuted channel holding the most recent unread message, when there is one. This is the client's
+    /// deep-link tap target; <c>null</c> means "nothing to open".
+    /// </summary>
+    public Guid? TopChannelId { get; init; }
+
+    /// <summary>Sent time (UTC) of the most recent message in any of the caller's channels.</summary>
+    public DateTime? ChangedAt { get; init; }
+}
+
+/// <summary>
+/// Result of a conditional aggregate-alert read, carrying the entity-tag the caller should echo back
+/// on its next poll.
+/// </summary>
+public sealed record ChatAlertsCheckResult
+{
+    /// <summary>Entity-tag describing the state the aggregate was computed from.</summary>
+    public required string ETag { get; init; }
+
+    /// <summary>
+    /// <c>true</c> when the caller's <c>If-None-Match</c> token already described the current state, in
+    /// which case the aggregate was <b>not</b> recomputed and <see cref="Alerts"/> is <c>null</c>.
+    /// </summary>
+    public bool NotModified { get; init; }
+
+    /// <summary>The aggregate, or <c>null</c> when <see cref="NotModified"/> is <c>true</c>.</summary>
+    public ChatAlertsDto? Alerts { get; init; }
+}
+
+/// <summary>
 /// Request DTO for registering a device for push notifications.
 /// </summary>
 public sealed record RegisterDeviceDto

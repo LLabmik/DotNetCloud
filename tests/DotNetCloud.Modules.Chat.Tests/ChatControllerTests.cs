@@ -6,6 +6,7 @@ using DotNetCloud.Modules.Chat.Models;
 using DotNetCloud.Modules.Chat.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using System.Security.Claims;
@@ -238,6 +239,69 @@ public class ChatControllerTests
         using var doc = JsonDocument.Parse(JsonSerializer.Serialize(ok.Value));
         Assert.IsTrue(doc.RootElement.GetProperty("success").GetBoolean());
         Assert.AreEqual(1, doc.RootElement.GetProperty("data").GetArrayLength());
+    }
+
+    [TestMethod]
+    public async Task GetAlertsAsync_WhenSuccessful_ThenReturnsEnvelopeAndETag()
+    {
+        _memberService
+            .Setup(s => s.GetAlertsAsync(It.IsAny<CallerContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ChatAlertsCheckResult
+            {
+                ETag = "\"abc123\"",
+                Alerts = new ChatAlertsDto
+                {
+                    Unread = 2,
+                    Mentions = 1,
+                    UnmutedUnread = 2,
+                    TopChannelId = Guid.CreateVersion7(),
+                    ChangedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+                }
+            });
+
+        var result = await _controller.GetAlertsAsync();
+
+        var ok = result as OkObjectResult;
+        Assert.IsNotNull(ok);
+        Assert.AreEqual("\"abc123\"", _controller.Response.Headers["ETag"].ToString());
+
+        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(ok.Value));
+        Assert.IsTrue(doc.RootElement.GetProperty("success").GetBoolean());
+        Assert.AreEqual(2, doc.RootElement.GetProperty("data").GetProperty("Unread").GetInt32());
+        Assert.AreEqual(1, doc.RootElement.GetProperty("data").GetProperty("Mentions").GetInt32());
+    }
+
+    [TestMethod]
+    public async Task GetAlertsAsync_WhenNotModified_ThenReturns304WithETag()
+    {
+        _memberService
+            .Setup(s => s.GetAlertsAsync(It.IsAny<CallerContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ChatAlertsCheckResult { ETag = "\"abc123\"", NotModified = true });
+
+        var result = await _controller.GetAlertsAsync();
+
+        // Both ObjectResult and StatusCodeResult satisfy IStatusCodeActionResult, so this assertion does
+        // not depend on which one the framework returns (a 304 never carries a body either way).
+        var status = result as IStatusCodeActionResult;
+        Assert.IsNotNull(status);
+        Assert.AreEqual(StatusCodes.Status304NotModified, status.StatusCode);
+        Assert.AreEqual("\"abc123\"", _controller.Response.Headers["ETag"].ToString());
+    }
+
+    [TestMethod]
+    public async Task GetAlertsAsync_WhenIfNoneMatchSupplied_ThenTokenIsForwardedToService()
+    {
+        _controller.Request.Headers["If-None-Match"] = "\"abc123\"";
+        string? forwarded = null;
+
+        _memberService
+            .Setup(s => s.GetAlertsAsync(It.IsAny<CallerContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Callback<CallerContext, string?, CancellationToken>((_, token, _) => forwarded = token)
+            .ReturnsAsync(new ChatAlertsCheckResult { ETag = "\"abc123\"", NotModified = true });
+
+        await _controller.GetAlertsAsync();
+
+        Assert.AreEqual("\"abc123\"", forwarded);
     }
 
     [TestMethod]

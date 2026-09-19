@@ -33,7 +33,6 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly IChatRestClient? _chatApi;
     private readonly IBackgroundMediaSync? _backgroundMediaSync;
     private readonly IChatSoundPlayer? _chatSound;
-    private readonly IUnifiedPushConnector? _pushConnector;
     private readonly ILogger<SettingsViewModel> _logger;
 
     /// <summary>Raised when the user logs out and the app should return to login.</summary>
@@ -53,8 +52,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         ILogger<SettingsViewModel> logger,
         IChatRestClient? chatApi = null,
         IBackgroundMediaSync? backgroundMediaSync = null,
-        IChatSoundPlayer? chatSound = null,
-        IUnifiedPushConnector? pushConnector = null)
+        IChatSoundPlayer? chatSound = null)
     {
         _serverStore = serverStore;
         _tokenStore = tokenStore;
@@ -68,7 +66,6 @@ public sealed partial class SettingsViewModel : ObservableObject
         _chatApi = chatApi;
         _backgroundMediaSync = backgroundMediaSync;
         _chatSound = chatSound;
-        _pushConnector = pushConnector;
         _logger = logger;
 
         var active = serverStore.GetActive();
@@ -177,24 +174,6 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     [ObservableProperty]
     private string _batteryStatusText = "Checking…";
-
-    // ── Push notifications (UnifiedPush) ────────────────────────────
-
-    /// <summary>Whether push delivery is currently believed to be working.</summary>
-    [ObservableProperty]
-    private bool _isPushRegistered;
-
-    /// <summary>One-line push status shown on the Settings card.</summary>
-    [ObservableProperty]
-    private string _pushStatusText = "Checking…";
-
-    /// <summary>Whether the "Choose distributor" action should be offered.</summary>
-    [ObservableProperty]
-    private bool _isDistributorChoiceAvailable;
-
-    /// <summary>Colour for the push status line (green when working, amber otherwise).</summary>
-    [ObservableProperty]
-    private Color _pushStatusColor = Colors.Gray;
 
     [ObservableProperty]
     private Color _batteryStatusColor = Colors.Gray;
@@ -564,111 +543,6 @@ public sealed partial class SettingsViewModel : ObservableObject
         // Also refresh DND from server
         _ = LoadDndFromServerAsync();
     }
-
-    // ── Push notifications (UnifiedPush) ─────────────────────────────
-
-    /// <summary>
-    /// Refreshes the UnifiedPush status shown on the Settings card — call when the page appears.
-    /// </summary>
-    public async Task RefreshPushStatusAsync()
-    {
-        try
-        {
-            if (_pushConnector is null || string.IsNullOrWhiteSpace(ServerBaseUrl))
-            {
-                ApplyPushStatus(null);
-                return;
-            }
-
-            ApplyPushStatus(await _pushConnector.GetStatusAsync(ServerBaseUrl));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Refreshing the push status failed.");
-        }
-    }
-
-    /// <summary>
-    /// Lets the user pick the distributor with the system UI, then reports the new status.
-    /// </summary>
-    [RelayCommand]
-    private async Task ChooseDistributorAsync()
-    {
-        try
-        {
-            if (_pushConnector is null)
-                return;
-
-            IsBusy = true;
-            var selected = await _pushConnector.SelectDistributorAsync();
-            _logger.LogInformation("Distributor selection finished (selected: {Selected}).", selected);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Choosing a distributor failed.");
-        }
-        finally
-        {
-            IsBusy = false;
-        }
-
-        await RefreshPushStatusAsync();
-    }
-
-    private void ApplyPushStatus(UnifiedPushStatus? status)
-    {
-        IsPushRegistered = status?.IsRegistered == true;
-        IsDistributorChoiceAvailable = status is not null;
-        PushStatusText = DescribePushStatus(status);
-        PushStatusColor = IsPushRegistered ? Color.FromArgb("#22C55E") : Color.FromArgb("#F59E0B");
-    }
-
-    /// <summary>
-    /// Renders a push status as the one line shown on the Settings card.
-    /// </summary>
-    /// <param name="status">Status snapshot, or null when push is unavailable.</param>
-    /// <returns>The status line.</returns>
-    internal static string DescribePushStatus(UnifiedPushStatus? status)
-    {
-        if (status is null)
-            return "Push is not available on this build.";
-
-        if (status.HasNoDistributorInstalled)
-        {
-            return "No distributor app installed. Install ntfy (or another UnifiedPush distributor) "
-                + "to get notifications while DotNetCloud is closed.";
-        }
-
-        if (status.IsRegistered)
-            return string.IsNullOrWhiteSpace(status.DistributorLabel)
-                ? "On — notifications are delivered in the background."
-                : $"On — delivered by {status.DistributorLabel}.";
-
-        if (status.NeedsDistributorChoice)
-            return "Choose which distributor app should deliver notifications.";
-
-        return status.State switch
-        {
-            UnifiedPushRegistrationState.Pending => "Setting up — waiting for the distributor.",
-            UnifiedPushRegistrationState.TempUnavailable =>
-                "The push server is temporarily unavailable; delivery resumes automatically.",
-            UnifiedPushRegistrationState.Failed => DescribePushFailure(status.LastReason),
-            _ => "Not set up yet — open the app again after installing a distributor.",
-        };
-    }
-
-    private static string DescribePushFailure(string? reason) => reason switch
-    {
-        UnifiedPushProtocol.ReasonActionRequired =>
-            "The distributor needs your attention — open it and sign in.",
-        UnifiedPushProtocol.ReasonVapidRequired =>
-            "This distributor requires a key type DotNetCloud does not support — choose another distributor.",
-        UnifiedPushProtocol.ReasonNetwork => "Waiting for a network connection.",
-        UnifiedPushProtocol.ReasonInternalError => "The distributor reported an error; DotNetCloud will retry.",
-        _ => "Push is not set up.",
-    };
-
-    // ── Update notification ──────────────────────────────────────────
 
     /// <summary>App version display string (e.g. "DotNetCloud for Android v0.1.7").</summary>
     public string AppVersionText { get; } = $"DotNetCloud for Android v{GetAppVersion()}";

@@ -223,50 +223,8 @@ public partial class App : Application
             Log.Warn("DotNetCloud", $"Token warm-up failed: {ex.Message}");
         }
 
-        // Re-register this device for push notifications on every launch. The server keeps its
-        // device registrations in memory (they are lost whenever the module host restarts) and the
-        // distributor may have rotated the endpoint, so registering per launch makes background
-        // delivery self-healing. Fire-and-forget: startup must not wait on it, and it never throws.
-        var activeConnection = _serverStore.GetActive();
-        if (activeConnection is not null)
-            _ = RegisterPushDeviceAsync(activeConnection.ServerBaseUrl);
-
         await CheckAvailableModulesAsync();
         await NavigateToStartPageAsync();
-    }
-
-    /// <summary>
-    /// Registers this device for push notifications with the given server.
-    /// </summary>
-    /// <param name="serverBaseUrl">Root URL of the active server connection.</param>
-    /// <remarks>
-    /// Called on every app start and after every successful login so the registration survives
-    /// server restarts and distributor endpoint changes (the server holds registrations in memory
-    /// only). Failures are logged and ignored — a device that cannot register still works while
-    /// the app process is alive.
-    /// </remarks>
-    public static async Task RegisterPushDeviceAsync(string serverBaseUrl)
-    {
-        try
-        {
-            if (string.IsNullOrWhiteSpace(serverBaseUrl))
-                return;
-
-            var push = Ioc.Default.GetService<IPushNotificationService>();
-            if (push is null)
-                return;
-
-            // No token handling here: the endpoint is reported through the authenticated HTTP
-            // handler, which attaches and proactively refreshes the bearer token itself.
-            var registered = await push.RegisterAsync(serverBaseUrl);
-            Log.Info("DotNetCloud", registered
-                ? "UnifiedPush registration is in place."
-                : "UnifiedPush registration not established (no distributor selected, or awaiting one).");
-        }
-        catch (Exception ex)
-        {
-            Log.Warn("DotNetCloud", $"Push registration failed: {ex.Message}");
-        }
     }
 
     /// <summary>

@@ -4,15 +4,18 @@ using System.Text.Json.Serialization;
 namespace DotNetCloud.Client.Android.Services;
 
 /// <summary>
-/// Android UnifiedPush specification (AND_3.1.0) constants, the DotNetCloud push payload
-/// contract (version 1) and the mapping from a payload to generic notification text.
+/// Android push payload contract constants and the mapping from a payload to generic notification text.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Deliberately free of Android dependencies so the whole protocol is unit-testable on plain
-/// <c>net10.0</c>. Anything that needs an <c>Android.Content.Intent</c> lives in
-/// <c>Platforms/Android/UnifiedPushIntents.cs</c>.
+/// ⚠️ <b>The UnifiedPush connector was removed on 2026-09-19</b> (the route was declined): there is no
+/// receiver, registration state machine or distributor picker any more. This file survives because the
+/// <b>payload contract</b> and the mapping did: the background poll transport reuses them verbatim, so
+/// both the live SignalR path and the poll path produce identical, generic notifications.
 /// </para>
+/// <para>
+/// Deliberately free of Android dependencies so the contract is unit-testable on plain
+/// <c>net10.0</c>.</para>
 /// <para>
 /// <b>Payload privacy rule.</b> The server sends identifiers only — never a title, body, sender
 /// name or channel name. The client ignores any such fields it receives and always renders the

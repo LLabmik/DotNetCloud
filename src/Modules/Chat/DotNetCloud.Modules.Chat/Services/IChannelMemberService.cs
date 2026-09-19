@@ -38,4 +38,18 @@ public interface IChannelMemberService
 
     /// <summary>Sets whether the caller has accepted a direct message channel invitation.</summary>
     Task SetDmAcceptedAsync(Guid channelId, bool accepted, CallerContext caller, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the aggregate chat alert summary for the caller, in a number of queries that does not
+    /// depend on how many channels the caller belongs to.
+    /// </summary>
+    /// <param name="caller">The calling user.</param>
+    /// <param name="knownToken">
+    /// The entity-tag the caller received from its previous call (typically echoed from
+    /// <c>If-None-Match</c>), or <c>null</c>/empty for an unconditional read. When it matches the current
+    /// state the aggregate is not recomputed and the result is flagged
+    /// <see cref="ChatAlertsCheckResult.NotModified"/>.
+    /// </param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task<ChatAlertsCheckResult> GetAlertsAsync(CallerContext caller, string? knownToken = null, CancellationToken cancellationToken = default);
 }

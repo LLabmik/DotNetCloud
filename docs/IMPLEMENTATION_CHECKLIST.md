@@ -18,6 +18,18 @@
 - ✓ Team-share bell notifications fan out to every team member except the sharer; Photos album shares now produce bell notifications.
 - ☐ Live end-to-end verification per module (share by display name for users/teams, team-member view + notification, revoke; Files single/bulk/public-link regression) — required before commit.
 
+## Recent Work — Android Chat Alerts, "our code only" poll transport (2026-09-19)
+
+> Tracked in `docs/ANDROID_UNIFIEDPUSH_PLAN.md` **§12** (adopted) and **§12.10** (as built). Replaces the parked UnifiedPush route: no distributor app, no ntfy, no Google, no foreground service.
+
+- ✓ **Server** — `GET /api/v1/chat/alerts` in `ChatController`: a constant-cost aggregate (`unread`, `mentions`, `unmutedUnread`, `unmutedMentions`, `topChannelId`, `changedAt`) with `ETag` / `If-None-Match` → `304`; `IChannelMemberService.GetAlertsAsync` implemented with a deterministic SHA-256 token (never `string.GetHashCode()`, which is per-process randomized). Additive — existing `GET /chat/unread` untouched.
+- ✓ **Server tests** — 16 `ChannelMemberAlertsTests` + 4 controller tests (aggregate, mute split, top-channel selection, token stability, `304` round trip). Chat module 1431 pass / 0 fail; Chat host 0 warnings.
+- ✓ **Android** — `ChatAlertPoller` (conditional GET), pure `ChatAlertPollDecision` (high-water-mark dedup, mute-absolute wording, UTC-kind guard), `ChatAlertCadence` (60 s unread / 5 min idle / 9 min Doze), `ChatAlertStateStore`, `ChatAlertJobService` (job id **3108**, `SetPersisted` + `SetOverrideDeadline`, `NetworkType.Any`), `ChatAlertAlarmReceiver` (allow-while-idle Doze path), `AndroidChatAlertScheduler`, `ChatAlertNotifier` reusing the banked generic UnifiedPush renderer.
+- ✓ **Android tests** — 52 new tests across cadence / decision / state store / poller (stubbed HTTP, hand-built wire JSON). Android suite 433 pass / 1 skip after the prune; arm64 Debug build 0 warnings / 0 errors.
+- ✓ **Declined UnifiedPush connector pruned** (operator decision) — receiver, registration state machine, endpoint registrar, distributor picker, Settings card, `UnifiedPushIntents`, `UnifiedPushForegroundService`, `DistributorLinkActivity` and their tests/manifest entries removed. Kept only the payload contract + generic renderer, which both live notification paths use.
+- ✓ **On-device wake-path check (R5CWC356B2K)** — job **3108** registered `PERSISTED` with min latency 5m / max delay 6m and an **any-network** constraint (not unmetered); a forced headless run polled `https://cloud.dotnetcloud.net/api/v1/chat/alerts`, degraded gracefully to `Failed` on the expected pre-deploy 404 (no crash) and re-armed to the 300 s idle cadence. **No foreground service** (`dumpsys activity services` empty).
+- ☐ **Live E2E** — deploy the server first, then force-stop the app, send a message from the web client and confirm a generic notification plus `logcat -s DotNetCloud` evidence (poll → alert → re-arm). Required before the feature is called complete.
+
 ## Table of Contents
 
 1. [Pre-Implementation Setup](#pre-implementation-setup)
