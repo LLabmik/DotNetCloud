@@ -1,3 +1,48 @@
+## Archived: Server agent (`cloud`) — chat-alerts aggregate deployed to `cloud.kimball.home` (2026-09-19)
+
+**Status:** completed ✅ — server half implemented, tested, **deployed and verified**; the **Android on-device E2E is the only open item** and is the client agent's (`monolith`) Active Handoff.
+**Branch:** `feature/android-unifiedpush` (server + client halves both on this branch; not yet merged to `main`)
+**From:** the 2026-09-19 "our code only" poll decision (plan §12) — the client agent wrote both halves on `monolith`, and the server half was handed to `cloud` as **deploy only**.
+**Target:** core server + the Chat module host on `cloud.kimball.home`; **no operator DNS record, certificate entry, ntfy service or proxy rule involved.**
+
+### Why
+
+Chat push had no zero-setup transport: the UnifiedPush route (parked 2026-09-18) required every user to install a distributor app, and plain background polling was judged too slow for chat. Plan §12 replaced it with the app's own **conditional poll** — which needs exactly one server-side item: a cheap aggregate the client can poll with `If-None-Match`. Everything else in the parked UP server spec (§8) is unnecessary.
+
+### What changed (implementation)
+
+- **`GET /api/v1/chat/alerts`** (`ChatController.GetAlertsAsync`) → `{ v, unread, mentions, unmutedUnread, unmutedMentions, topChannelId, changedAt }`, emitting `ETag` and honouring `If-None-Match` → `304` with an empty body.
+- **`IChannelMemberService.GetAlertsAsync`** (`ChannelMemberService`) — **constant query cost regardless of the caller's channel count**, with a **deterministic SHA-256** entity tag. Deliberately **not** `string.GetHashCode()`: .NET randomizes string hashing per process, so the tag would change on every module-host restart and defeat conditional polling.
+- **Additive only** — `GET /api/v1/chat/unread` and `GetUnreadCountsAsync` are untouched.
+- **No gateway change** — `Core.Server/Program.cs` already routes the `api/v1/chat` **prefix** to `dotnetcloud.chat`, so the new path needed no edge configuration.
+
+### Contract
+
+- `GET /api/v1/chat/alerts` → `200` + `{ "success": true, "data": { v, unread, mentions, unmutedUnread, unmutedMentions, topChannelId, changedAt } }` + `ETag`; replayed with `If-None-Match` → **`304`**, empty body.
+
+### Verification
+
+- **Build:** `dotnet build -c Release` → **0 warnings / 0 errors**.
+- **Tests:** Chat module **1432 pass / 0 fail** (re-run on `cloud`, 2026-09-19).
+- **Deploy:** `sudo ./scripts/deploy.sh --force --verify` → **15/15 deploy targets**, module-host assembly hashes verified against the build output. The deployed `/opt/dotnetcloud/modules/dotnetcloud.chat/dotnetcloud.chat.dll` was rebuilt **2026-09-19 03:43** and contains `GetAlertsAsync`; the service restarted **03:55:42**.
+- **Deploy evidence re-verified independently (2026-09-19):** md5 of the deployed Chat host DLL equals the Release build output (`fc675c009cd853a52bbb0665a0b5c403`), and `/opt/dotnetcloud/server/.last-deploy-commit` = `99474bc3` = the branch HEAD — proving the running module is exactly this build.
+- **Health:** `/health/ready` → `200`, **Healthy**, `modules-aggregate` = **14 module(s) — all healthy**; `_framework/blazor.web.js` → `200`; **no pending migrations**.
+- **Routing proof (live, `https://localhost:5443` on `cloud`):** `GET /api/v1/chat/alerts` → **`401`** (endpoint exists, authentication required) while the control `GET /api/v1/chat/zzz-not-a-route` → **`404`**. This is what rules out a stale or unpublished Chat module host: a missing endpoint answers `404` exactly like the control.
+- **⚠️ Not verified server-side:** the authenticated `200` / `If-None-Match` → `304` leg. `cloud` has **no non-interactive token path** — the seeded OIDC clients are `authorization_code` + `refresh_token` plus one `device_code`, there is no CLI token command, and no token was cached. The check moved to the client agent with the phone in hand.
+
+### Deliberate non-changes
+
+- **No schema change, no migration** — the endpoint is a pure read aggregate over existing tables.
+- **`GET /api/v1/chat/unread` left alone** — so no existing client behaviour changes.
+- **Nothing from the parked UnifiedPush server spec (§8) was built** — no `UnifiedPushHttpTransport`, no device-registration persistence, no ntfy, no `push.<domain>` DNS record or certificate, no proxy route. The parked item was not resumed.
+- **Client code untouched by the server agent** — the Android half was already written and on-device verified by `monolith`.
+
+### Pending (`monolith`) — NOT yet done
+
+- The **live E2E** (Active Handoff in `CLIENT_SERVER_MEDIATION_HANDOFF.md`): authenticated `200`, then `If-None-Match` → `304`; then on the phone — job **3108** `PERSISTED` with an any-network constraint, a forced headless run reporting an alert instead of the old `404`, and the real end-to-end **generic** notification (title only — no sender or channel name) with the muted-channel and read-clears-alert negatives, plus **no foreground service**.
+
+---
+
 ## Archived: Android Notes folder picker — closed out on-device (2026-09-18)
 
 **Status:** completed ✅ — the Android half of `fix/notes-folder-assignment` is implemented, committed and **verified on device** (client agent — `monolith`); the server + Blazor half was already deployed and operator-verified (entry below). **Nothing is outstanding for this feature.**

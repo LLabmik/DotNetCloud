@@ -13,8 +13,10 @@ the server agent's Active Handoff was **reverted the same day**.
 > app, no ntfy, no Google, no persistent notification and **no new foreground service**, which keeps the
 > 2026-09-12 "no chat FGS" rule intact. **§12.9 is the implementation contract.** The UnifiedPush server
 > half (§8) and the ntfy deployment are **not** to be resumed; only §12.5's aggregate endpoint is needed
-> server-side. ✅ **Both halves are implemented (2026-09-19)** — see **§12.10 "As built"**. ⚠️ The server
-> endpoint is **not deployed yet**, so the live E2E is the outstanding step (§7).
+> server-side. ✅ **Both halves are implemented (2026-09-19)** — see **§12.10 "As built"**. ✅ **The server
+> endpoint is DEPLOYED and verified on `cloud.kimball.home` (2026-09-19)** — 15/15 deploy targets, `/health/ready`
+> Healthy 14/14 modules, and the route proven live (`401` vs control `404`) — so the **live E2E in §7 is the one
+> outstanding step**, handed to the client agent (`monolith`), who has the phone.
 
 **Why it was parked (operator, 2026-09-18):** the design asks too much for what it delivers —
 
@@ -935,7 +937,15 @@ UnifiedPush renderer verbatim. All of it is wired in `MauiProgram` — typed cli
    Keep the two copies identical (that is why the attribute has no `Enabled`).
 3. **Do not reuse job id `3107`** — it is the media sync job. Chat alerts are **3108**.
 
-**Still outstanding:** the server half must be **deployed** (the endpoint does not exist on the running
-instance yet), then the live E2E in §7 runs for real: force-stop the app, send a chat message from the
-web client, and confirm a generic notification plus `logcat -s DotNetCloud` evidence of the poll,
-`304` handling and re-arm.
+**✅ Server half DEPLOYED (2026-09-19, server agent — `cloud`).** `sudo ./scripts/deploy.sh --force --verify` →
+**15/15 targets**, module-host assembly hashes verified; `/health/ready` **Healthy, 14/14 modules**;
+`_framework/blazor.web.js` **200**; **no migrations**. Routing proven through the gateway on
+`https://localhost:5443`: `GET /api/v1/chat/alerts` → **`401`** (route exists, auth required) while the control
+`GET /api/v1/chat/zzz-not-a-route` → **`404`** — so the prefix route *and* the Chat module host both picked up
+the new endpoint. The authenticated `200` / `If-None-Match` → `304` leg was **not** run on the server: `cloud`
+has no non-interactive token path (the seeded OIDC clients are `authorization_code` + `refresh_token`, plus one
+`device_code`; there is no CLI token command and no cached token).
+
+**Still outstanding:** the live E2E in §7 — now the client agent's (`monolith`) Active Handoff. Force-stop the
+app, send a chat message from the web client, and confirm a generic notification plus `logcat -s DotNetCloud`
+evidence of the poll, `304` handling and re-arm.
