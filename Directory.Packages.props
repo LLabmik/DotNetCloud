@@ -138,9 +138,9 @@
     <PackageVersion Include="TagLibSharp" Version="2.3.0" />
     <!-- Linux D-Bus -->
     <PackageVersion Include="Tmds.DBus.Protocol" Version="0.94.2" />
-    <!-- Push notifications: UnifiedPush has no .NET library — the Android protocol is
-         implemented in the client (see UnifiedPushProtocol.cs). No Firebase package: FCM was
-         removed outright so no message metadata reaches Google infrastructure. -->
+    <!-- Push notifications: no transport library and no Firebase package. FCM was removed
+         outright so no message metadata reaches Google infrastructure; background chat alerts
+         use the app's own conditional poll (see docs/ANDROID_UNIFIEDPUSH_PLAN.md §12). -->
     <!-- Reverse proxy -->
     <PackageVersion Include="Yarp.ReverseProxy" Version="2.3.0" />
     <!-- Certes (ACME / Let's Encrypt) -->

@@ -46,41 +46,6 @@
 			android:name=".ChatAlertAlarmReceiver"
 			android:exported="false" />
 
-		<!-- UnifiedPush messaging receiver: the five distributor→app actions of the
-		     UnifiedPush Android specification (AND_3.1.0). Exported because the distributor is a
-		     separate app. -->
-		<receiver
-			android:name=".UnifiedPushReceiver"
-			android:exported="true">
-			<intent-filter>
-				<action android:name="org.unifiedpush.android.connector.NEW_ENDPOINT" />
-				<action android:name="org.unifiedpush.android.connector.REGISTRATION_FAILED" />
-				<action android:name="org.unifiedpush.android.connector.MESSAGE" />
-				<action android:name="org.unifiedpush.android.connector.UNREGISTERED" />
-				<action android:name="org.unifiedpush.android.connector.TEMP_UNAVAILABLE" />
-			</intent-filter>
-		</receiver>
-
-		<!-- Service the distributor may bind to in order to raise this app to foreground importance
-		     for a few seconds while it delivers a message. This is the specification's sanctioned
-		     wake-up path: it is NOT a foreground service, shows no notification and spends none of
-		     the dataSync budget. -->
-		<service
-			android:name=".UnifiedPushForegroundService"
-			android:exported="true">
-			<intent-filter>
-				<action android:name="org.unifiedpush.android.connector.RAISE_TO_FOREGROUND" />
-			</intent-filter>
-		</service>
-
-		<!-- Distributor picker: starts the distributor's unifiedpush://link activity for a result
-		     so the chosen distributor's package can be recorded. -->
-		<activity
-			android:name=".DistributorLinkActivity"
-			android:exported="false"
-			android:noHistory="true"
-			android:theme="@android:style/Theme.Translucent.NoTitleBar" />
-
 		<!-- Calendar reminder alarm receiver (internal only) -->
 		<receiver
 			android:name=".CalendarAlarmReceiver"
@@ -96,16 +61,6 @@
 		</receiver>
 
 	</application>
-
-	<!-- Package visibility (Android 11+): without this declaration an app cannot see the
-	     UnifiedPush distributor apps installed on the device, so discovery returns an empty list
-	     and the app reports "no distributor installed" even when one is present. Scoped to the
-	     UnifiedPush registration action rather than QUERY_ALL_PACKAGES. -->
-	<queries>
-		<intent>
-			<action android:name="org.unifiedpush.android.distributor.REGISTER" />
-		</intent>
-	</queries>
 
 	<!-- Network -->
 	<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />

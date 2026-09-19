@@ -43,7 +43,8 @@ public class MainActivity : MauiAppCompatActivity
         base.OnStart();
         // The chat foreground service is intentionally held only while the app is visible
         // (see OnStop). Restart it whenever the app returns to the foreground so SignalR
-        // reconnects; message notifications while backgrounded are handled by FCM / UnifiedPush.
+        // reconnects; message notifications while backgrounded are handled by the persisted
+        // chat-alert poll (see ChatAlertJobService).
         TrySetChatServiceRunning(running: true);
 
         // Returning to the app is itself activity.
