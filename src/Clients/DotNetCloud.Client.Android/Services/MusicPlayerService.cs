@@ -1,5 +1,6 @@
 using Android.Content;
 using Android.Media;
+using DotNetCloud.Client.Android.Auth;
 using DotNetCloud.Client.Core;
 using DotNetCloud.Core.DTOs;
 using Microsoft.Extensions.Logging;
@@ -68,9 +69,34 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
     /// <summary>Some Samsung builds report <c>MEDIA_ERROR_SERVER_DIED</c> as -38 rather than 100.</summary>
     private const int MediaErrorServerDiedSamsung = -38;
 
-    public MusicPlayerService(ILogger<MusicPlayerService> logger)
+    /// <summary>Consecutive stream/HTTP failures retried with a refreshed token for the current track.</summary>
+    private int _mediaErrorRetries;
+
+    /// <summary>Maximum stream/HTTP retries for the same track before playback is abandoned.</summary>
+    private const int MaxMediaErrorRetries = 1;
+
+    /// <summary>Delay before re-preparing after <c>MEDIA_ERROR_SERVER_DIED</c>, so the mediaserver can settle.</summary>
+    private const int ServerDiedRetryDelayMs = 250;
+
+    /// <summary>Shown when playback cannot start because no usable access token is available.</summary>
+    private const string PlaybackTokenMissingMessage =
+        "Playback stopped: no valid sign-in token for the audio stream. Sign in again and retry.";
+
+    private readonly ITokenRefreshService _tokenRefresh;
+    private readonly ISecureTokenStore _tokenStore;
+
+    /// <summary>Initializes a new instance of the <see cref="MusicPlayerService"/> class.</summary>
+    /// <param name="logger">Logger.</param>
+    /// <param name="tokenRefresh">Proactive access-token refresh, used to keep the audio stream token valid.</param>
+    /// <param name="tokenStore">Token store, read to check the remaining token lifetime before a track starts.</param>
+    public MusicPlayerService(
+        ILogger<MusicPlayerService> logger,
+        ITokenRefreshService tokenRefresh,
+        ISecureTokenStore tokenStore)
     {
         _logger = logger;
+        _tokenRefresh = tokenRefresh;
+        _tokenStore = tokenStore;
     }
 
     /// <inheritdoc />
@@ -145,6 +171,9 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
     public event EventHandler? RepeatModeChanged;
 
     /// <inheritdoc />
+    public event EventHandler<PlaybackFailedEventArgs>? PlaybackFailed;
+
+    /// <inheritdoc />
     public async Task PlayAsync(TrackDto track, string serverBaseUrl, string accessToken)
     {
         _serverBaseUrl = serverBaseUrl;
@@ -176,7 +205,7 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
         await PrepareAndStartAsync().ConfigureAwait(false);
     }
 
-    private async Task PrepareAndStartAsync()
+    private async Task PrepareAndStartAsync(bool forceTokenRefresh = false)
     {
         if (CurrentTrack is null || _serverBaseUrl is null || _accessToken is null)
         {
@@ -199,9 +228,33 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
             StartForegroundService();
 
             var audioUrl = $"{_serverBaseUrl.TrimEnd('/')}/api/v1/files/{CurrentTrack.FileNodeId}/content";
+
+            // Android's MediaPlayer fetches the stream itself, so it never passes through
+            // AuthenticatedHttpClientHandler. Re-resolve a fresh token for every track: the one
+            // captured when the album started used to be reused for the whole queue, so a token
+            // that expired mid-album made the next stream request fail with HTTP 401 and playback
+            // stopped in the middle of the album.
+            var streamToken = await ResolveStreamTokenAsync(forceTokenRefresh).ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(streamToken))
+            {
+                // Defensive: without a token the stream request can only 401. Abandon the track
+                // cleanly (and take the notification down with it) instead of leaving a foreground
+                // service running with nothing playing.
+                _logger.LogError("No access token available for track {TrackId}; cannot stream.", CurrentTrack.Id);
+                System.Diagnostics.Debug.WriteLine("[Music] PrepareAndStartAsync: no access token available — abandoning playback");
+                NotifyPlaybackFailed(CurrentTrack, PlaybackTokenMissingMessage);
+                CurrentTrack = null;
+                _mediaPlayer = null;
+                IsPlaying = false;
+                StopPositionTimer();
+                StopForegroundService();
+                PlaybackStateChanged?.Invoke(this, EventArgs.Empty);
+                return;
+            }
+
             var headers = new Dictionary<string, string>
             {
-                ["Authorization"] = $"Bearer {_accessToken}"
+                ["Authorization"] = $"Bearer {streamToken}"
             };
 
             // Always use a fresh MediaPlayer per track. Reusing the same player via
@@ -255,7 +308,7 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to prepare audio for track {TrackId}", CurrentTrack.Id);
+            _logger.LogError(ex, "Failed to prepare audio for track {TrackId}", CurrentTrack?.Id);
             System.Diagnostics.Debug.WriteLine($"[Music] PrepareAndStartAsync: EXCEPTION t={sw.ElapsedMilliseconds}ms {ex}");
         }
         finally
@@ -272,6 +325,9 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
 
         // A successful prepare resets the server-died retry counter.
         _serverDiedRetries = 0;
+        // …and the stream-failure retry counter: this track is now streaming, and the next track
+        // gets its own retry budget.
+        _mediaErrorRetries = 0;
 
         // Capture the audio session id while the player is guaranteed to be in a valid state, so
         // the AudioSessionId property never has to touch the player itself.
@@ -355,11 +411,25 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
             // playback always jumps past the very next song.
             _serverDiedRetries++;
             System.Diagnostics.Debug.WriteLine($"[Music] OnPlayerError: SERVER_DIED — retry {_serverDiedRetries}/{MaxServerDiedRetries} for same track");
-            _ = RetryPrepareAsync();
+            _ = RetryPrepareAsync(forceTokenRefresh: false, delayMs: ServerDiedRetryDelayMs);
+            return;
+        }
+
+        // A stream failure is recoverable: the usual cause is the server rejecting the request
+        // because the bearer token expired while the queue was playing (MediaPlayer fetches the
+        // stream outside our authenticated HTTP pipeline). Refresh the token and retry the SAME
+        // track once before giving up — abandoning it here is what stopped playback mid-album.
+        if (!isServerDied && failedTrack is not null && _mediaErrorRetries < MaxMediaErrorRetries)
+        {
+            _mediaErrorRetries++;
+            System.Diagnostics.Debug.WriteLine($"[Music] OnPlayerError: stream error {e.What}/{e.Extra} — retry {_mediaErrorRetries}/{MaxMediaErrorRetries} with a refreshed access token");
+            _ = RetryPrepareAsync(forceTokenRefresh: true, delayMs: 0);
             return;
         }
 
         _serverDiedRetries = 0;
+        _mediaErrorRetries = 0;
+        var failureMessage = BuildPlaybackFailureMessage(failedTrack);
         CurrentTrack = null;
         _playingAlbumId = null;
         _playingPlaylistId = null;
@@ -371,19 +441,116 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
             // Retries exhausted — skip past the broken track so the queue continues.
             System.Diagnostics.Debug.WriteLine("[Music] OnPlayerError: SERVER_DIED — retries exhausted, skipping track");
             PlayNext();
+            return;
+        }
+
+        // Nothing to advance to: the queue context is gone and the track could not be streamed.
+        // Tell the host so the user sees why playback stopped rather than the UI going silently
+        // idle behind a notification stuck on "Loading...".
+        NotifyPlaybackFailed(failedTrack, failureMessage);
+    }
+
+    /// <summary>
+    /// Builds the user-facing message for a permanent playback failure.
+    /// </summary>
+    /// <param name="failedTrack">The track that could not be played, if known.</param>
+    /// <returns>A message suitable for display in the Music UI.</returns>
+    private static string BuildPlaybackFailureMessage(TrackDto? failedTrack)
+    {
+        var title = failedTrack?.Title;
+        return string.IsNullOrWhiteSpace(title)
+            ? "Playback stopped: the server refused the audio stream. Try playing the track again."
+            : $"Couldn't play \"{title}\": the server refused the audio stream. Playback stopped.";
+    }
+
+    /// <summary>
+    /// Raises <see cref="PlaybackFailed"/> without letting a subscriber exception escape.
+    /// </summary>
+    /// <param name="track">The track that could not be played.</param>
+    /// <param name="message">The user-facing failure message.</param>
+    /// <remarks>
+    /// Raised from the <c>MediaPlayer</c> error callback, so an escaping exception would have no
+    /// caller to catch it (the .NET runtime aborts the process in that case).
+    /// </remarks>
+    private void NotifyPlaybackFailed(TrackDto? track, string message)
+    {
+        _logger.LogError("Playback failed for track {TrackId}: {Message}", track?.Id, message);
+        try
+        {
+            PlaybackFailed?.Invoke(this, new PlaybackFailedEventArgs(track, message));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "A PlaybackFailed subscriber threw; ignoring so the player stays usable.");
         }
     }
 
     /// <summary>
-    /// Retries preparing the current track with a fresh MediaPlayer after a
-    /// <c>MEDIA_ERROR_SERVER_DIED</c>. Gives the mediaserver a brief moment to
-    /// settle before the retry.
+    /// Retries preparing the current track with a fresh <see cref="MediaPlayer"/>.
     /// </summary>
-    private async Task RetryPrepareAsync()
+    /// <param name="forceTokenRefresh">
+    /// When true the access token is refreshed regardless of its remaining lifetime — used for
+    /// stream/HTTP failures, where a stale token is the usual cause.
+    /// </param>
+    /// <param name="delayMs">Delay before re-preparing; gives the mediaserver a moment to settle.</param>
+    private async Task RetryPrepareAsync(bool forceTokenRefresh, int delayMs)
     {
-        await Task.Delay(250).ConfigureAwait(false);
+        if (delayMs > 0)
+            await Task.Delay(delayMs).ConfigureAwait(false);
+
         if (CurrentTrack is not null && _mediaPlayer is null)
-            await PrepareAndStartAsync().ConfigureAwait(false);
+            await PrepareAndStartAsync(forceTokenRefresh).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Resolves the bearer token used for the audio stream request of the current track.
+    /// </summary>
+    /// <param name="forceRefresh">Refresh even if the current token still looks valid.</param>
+    /// <returns>The token to send, or null when no token is available.</returns>
+    /// <remarks>
+    /// The stream is fetched by Android's <c>MediaPlayer</c>, not by
+    /// <c>AuthenticatedHttpClientHandler</c>, so the proactive refresh every other call gets for
+    /// free has to be done explicitly here — per track. A refresh is also forced when the token's
+    /// remaining lifetime is shorter than the track itself, so a long track cannot start on a token
+    /// that dies while it plays.
+    /// </remarks>
+    private async Task<string?> ResolveStreamTokenAsync(bool forceRefresh)
+    {
+        if (_serverBaseUrl is null)
+            return _accessToken;
+
+        try
+        {
+            var requiredValidity = TimeSpan.FromMinutes(1);
+            if (CurrentTrack is not null && CurrentTrack.Duration > requiredValidity)
+                requiredValidity = CurrentTrack.Duration + TimeSpan.FromSeconds(30);
+
+            if (!forceRefresh)
+            {
+                var expiry = await _tokenStore.GetAccessTokenExpiryAsync(_serverBaseUrl).ConfigureAwait(false);
+                forceRefresh = expiry is not null && expiry.Value - DateTimeOffset.UtcNow < requiredValidity;
+            }
+
+            var token = await _tokenRefresh
+                .EnsureFreshAccessTokenAsync(_serverBaseUrl, forceRefresh: forceRefresh)
+                .ConfigureAwait(false);
+
+            if (!string.IsNullOrWhiteSpace(token))
+            {
+                var refreshed = !string.Equals(token, _accessToken, StringComparison.Ordinal);
+                _accessToken = token;
+                System.Diagnostics.Debug.WriteLine($"[Music] ResolveStreamTokenAsync: token resolved (forceRefresh={forceRefresh}, refreshed={refreshed}, length={token.Length})");
+                return token;
+            }
+
+            _logger.LogWarning("Token refresh returned no token for the audio stream; using the cached token.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Access-token refresh for the audio stream failed; using the cached token.");
+        }
+
+        return _accessToken;
     }
 
     /// <inheritdoc />

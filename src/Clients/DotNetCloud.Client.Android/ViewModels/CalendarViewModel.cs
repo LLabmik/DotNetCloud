@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
@@ -51,6 +52,12 @@ public sealed class CalendarDayItem
 
     /// <summary>Events occurring on this day.</summary>
     public IReadOnlyList<CalendarEventDto> Events { get; init; } = [];
+
+    /// <summary>Whether this day has at least one event.</summary>
+    public bool HasEvents => Events.Count > 0;
+
+    /// <summary>Event count label for the day cell (e.g. "1 event", "3 events").</summary>
+    public string EventsLabel => Events.Count == 1 ? "1 event" : $"{Events.Count} events";
 
     /// <summary>Text color for the day number — accent color when today, active text when current month, dimmed otherwise.</summary>
     public Color DayNumberColor => IsToday
@@ -197,6 +204,23 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private CalendarEventDto? _selectedEvent;
 
+    /// <summary>The day whose events the day list is showing (local date).</summary>
+    [ObservableProperty]
+    private DateTime _selectedDay = DateTime.Today;
+
+    /// <summary>
+    /// Whether the day list ("events on this day") is showing. It is opened by tapping a day cell
+    /// that holds more than one event, and closed with the list's own back button or a system back press.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isDayListVisible;
+
+    /// <summary>
+    /// True when the Android back button has somewhere to go inside the Calendar tab — the day
+    /// list is open.
+    /// </summary>
+    public bool CanHandleSystemBack => IsDayListVisible;
+
     /// <summary>Whether the page is currently visible. Prevents background load errors from showing after navigating away.</summary>
     internal bool IsActive { get; set; }
 
@@ -215,6 +239,9 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     /// <summary>All events loaded for the current view range.</summary>
     public ObservableCollection<CalendarEventDto> Events { get; } = [];
 
+    /// <summary>Events on <see cref="SelectedDay"/> shown by the day list, ordered by start time.</summary>
+    public ObservableCollection<CalendarEventDto> SelectedDayEvents { get; } = [];
+
     /// <summary>Month grid cells (42 cells: 6 weeks × 7 days).</summary>
     public ObservableCollection<CalendarDayItem> MonthDays { get; } = [];
 
@@ -232,11 +259,24 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         _ => ""
     };
 
+    /// <summary>Header label for the day list (e.g. "Friday, September 18, 2026").</summary>
+    public string SelectedDayLabel => SelectedDay.ToString("dddd, MMMM d, yyyy");
+
+    /// <summary>Event count label for the day list header (e.g. "3 events", "No events").</summary>
+    public string SelectedDayCountLabel => SelectedDayEvents.Count switch
+    {
+        0 => "No events",
+        1 => "1 event",
+        var count => $"{count} events"
+    };
+
     /// <summary>Raised when the date label changes.</summary>
     public event Action? DateLabelChanged;
 
     partial void OnCurrentDateChanged(DateTime value) => RaiseDateLabelChanged();
     partial void OnCurrentViewChanged(CalendarViewType value) => RaiseDateLabelChanged();
+
+    partial void OnSelectedDayChanged(DateTime value) => OnPropertyChanged(nameof(SelectedDayLabel));
 
     private void RaiseDateLabelChanged()
     {
@@ -298,6 +338,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             {
                 Events.Clear();
                 RebuildGrids([]);
+                RefreshDayList([]);
                 return;
             }
 
@@ -312,10 +353,11 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             }
 
             Events.Clear();
-            foreach (var evt in allEvents)
+            foreach (var evt in allEvents.OrderBy(e => e.StartUtc))
                 Events.Add(evt);
 
             RebuildGrids(allEvents);
+            RefreshDayList(allEvents);
 
             // Schedule alarms for all future reminders across all calendars
             try
@@ -340,6 +382,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void PreviousPeriod()
     {
+        CloseDayList();
         CurrentDate = CurrentView switch
         {
             CalendarViewType.Month => CurrentDate.AddMonths(-1),
@@ -354,6 +397,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void NextPeriod()
     {
+        CloseDayList();
         CurrentDate = CurrentView switch
         {
             CalendarViewType.Month => CurrentDate.AddMonths(1),
@@ -368,6 +412,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void Today()
     {
+        CloseDayList();
         CurrentDate = DateTime.Today;
         LoadEventsCommand.Execute(null);
     }
@@ -376,6 +421,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void SetView(string viewName)
     {
+        CloseDayList();
         CurrentView = viewName switch
         {
             "Week" => CalendarViewType.Week,
@@ -419,6 +465,102 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
     private async Task CreateEventAsync()
     {
         await Shell.Current.GoToAsync("EventEdit");
+    }
+
+    // ── Day List (multi-event day) ─────────────────────────────────
+
+    /// <summary>
+    /// Handles a tap on a calendar day cell: a day holding exactly one event goes straight to that
+    /// event's detail page, a day holding several opens the day list so the user can pick one, and
+    /// a day holding none does nothing.
+    /// </summary>
+    /// <param name="day">The tapped day cell.</param>
+    [RelayCommand]
+    private void SelectDay(CalendarDayItem? day)
+    {
+        if (day is null || day.Events.Count == 0)
+            return;
+
+        if (day.Events.Count == 1)
+        {
+            SelectEventCommand.Execute(day.Events[0]);
+            return;
+        }
+
+        OpenDayList(day.Date.Date, day.Events);
+    }
+
+    /// <summary>Closes the day list and returns to the calendar grid.</summary>
+    [RelayCommand]
+    private void CloseDayList()
+    {
+        SelectedDayEvents.Clear();
+        IsDayListVisible = false;
+        OnPropertyChanged(nameof(SelectedDayCountLabel));
+    }
+
+    /// <summary>
+    /// Consumes a system back press (Android back button or predictive-back gesture) the same way
+    /// the day list's own back button does: back to the calendar grid. Returns <c>true</c> when the
+    /// press was consumed; <c>false</c> when no day list is open, so the platform runs its default
+    /// back action (leaving the app).
+    /// </summary>
+    public Task<bool> HandleSystemBackAsync()
+    {
+        if (!IsDayListVisible)
+            return Task.FromResult(false);
+
+        CloseDayList();
+        return Task.FromResult(true);
+    }
+
+    /// <summary>Opens the event editor to create a new event on the day the list is showing.</summary>
+    [RelayCommand]
+    private async Task CreateEventForDayAsync()
+    {
+        try
+        {
+            await Shell.Current.GoToAsync("EventEdit", new Dictionary<string, object>
+            {
+                // Local calendar date; the editor starts the new event on this day.
+                ["Date"] = SelectedDay.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to navigate to the event editor for {Date}.", SelectedDay);
+            if (IsActive)
+                ErrorMessage = ApiExceptionHelper.GetUserFriendlyMessage(ex);
+        }
+    }
+
+    /// <summary>Shows the day list for <paramref name="day"/> filled with <paramref name="events"/>.</summary>
+    private void OpenDayList(DateTime day, IEnumerable<CalendarEventDto> events)
+    {
+        SelectedDay = day;
+        FillDayList(events);
+        IsDayListVisible = true;
+    }
+
+    /// <summary>
+    /// Keeps the open day list in step with the freshly loaded events: a day cell tapped earlier can
+    /// lose or gain events (created, edited or deleted on this or another client) while the list is up.
+    /// </summary>
+    private void RefreshDayList(IReadOnlyList<CalendarEventDto> allEvents)
+    {
+        if (!IsDayListVisible)
+            return;
+
+        FillDayList(allEvents);
+    }
+
+    private void FillDayList(IEnumerable<CalendarEventDto> events)
+    {
+        SelectedDayEvents.Clear();
+        foreach (var evt in events.Where(e => OccursOn(e, SelectedDay)).OrderBy(e => e.StartUtc))
+            SelectedDayEvents.Add(evt);
+
+        OnPropertyChanged(nameof(SelectedDayCountLabel));
     }
 
     // ── Private Helpers ────────────────────────────────────────────
@@ -476,8 +618,8 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             {
                 var day = startDate.AddDays(i);
                 var dayEvents = allEvents
-                    .Where(e => e.StartUtc.ToLocalTime().Date <= day.Date && e.EndUtc.ToLocalTime().Date >= day.Date)
-                    .OrderBy(e => e.StartUtc.ToLocalTime())
+                    .Where(e => OccursOn(e, day))
+                    .OrderBy(e => e.StartUtc)
                     .ToList();
 
                 var item = new CalendarDayItem
@@ -503,6 +645,26 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         var saturday = sunday.AddDays(6);
         return $"{sunday:MMM d} – {saturday:MMM d, yyyy}";
     }
+
+    /// <summary>
+    /// Returns whether <paramref name="evt"/> is happening on <paramref name="day"/> in the device's
+    /// local time zone (its local start date is on or before the day, and its local end date is on or
+    /// after it — so multi-day events appear on every day they span).
+    /// </summary>
+    /// <param name="evt">The event to test.</param>
+    /// <param name="day">The local calendar day.</param>
+    internal static bool OccursOn(CalendarEventDto evt, DateTime day)
+    {
+        var localDay = day.Date;
+        return EnsureLocal(evt.StartUtc).Date <= localDay && EnsureLocal(evt.EndUtc).Date >= localDay;
+    }
+
+    /// <summary>
+    /// Converts a stored UTC timestamp to local time, treating an unspecified <see cref="DateTime.Kind"/>
+    /// (as produced by JSON deserialization) as UTC rather than as already-local time.
+    /// </summary>
+    private static DateTime EnsureLocal(DateTime utc) =>
+        (utc.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(utc, DateTimeKind.Utc) : utc).ToLocalTime();
 
     /// <inheritdoc />
     public void Dispose()

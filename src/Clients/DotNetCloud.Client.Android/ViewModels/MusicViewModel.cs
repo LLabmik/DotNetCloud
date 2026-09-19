@@ -24,14 +24,24 @@ public sealed partial class MusicViewModel : ObservableObject
     private readonly IAlbumArtCache _artCache;
     private readonly IServerConnectionStore _serverStore;
     private readonly ISecureTokenStore _tokenStore;
+    private readonly ITokenRefreshService _tokenRefresh;
 
+    /// <summary>Initializes a new instance of the <see cref="MusicViewModel"/> class.</summary>
+    /// <param name="music">Music REST client.</param>
+    /// <param name="player">Audio player.</param>
+    /// <param name="eq">Equalizer service.</param>
+    /// <param name="artCache">Album art cache.</param>
+    /// <param name="serverStore">Active server connection store.</param>
+    /// <param name="tokenStore">Secure token store.</param>
+    /// <param name="tokenRefresh">Proactive access-token refresh for the REST calls and the audio stream.</param>
     public MusicViewModel(
         IMusicRestClient music,
         IMusicPlayerService player,
         IEqualizerService eq,
         IAlbumArtCache artCache,
         IServerConnectionStore serverStore,
-        ISecureTokenStore tokenStore)
+        ISecureTokenStore tokenStore,
+        ITokenRefreshService tokenRefresh)
     {
         _music = music;
         _player = player;
@@ -39,10 +49,12 @@ public sealed partial class MusicViewModel : ObservableObject
         _artCache = artCache;
         _serverStore = serverStore;
         _tokenStore = tokenStore;
+        _tokenRefresh = tokenRefresh;
         _player.PlaybackStateChanged += OnPlaybackStateChanged;
         _player.TrackStarted += OnPlayerTrackStarted;
         _player.TrackEnded += OnPlayerTrackEnded;
         _player.RepeatModeChanged += OnRepeatModeChanged;
+        _player.PlaybackFailed += OnPlayerPlaybackFailed;
         _eq.AvailabilityChanged += OnEqAvailabilityChanged;
     }
 
@@ -68,11 +80,20 @@ public sealed partial class MusicViewModel : ObservableObject
 
     private void OnPlayerTrackStarted(object? sender, EventArgs e)
     {
+        // A track is streaming — any previous playback error no longer applies.
+        Dispatch(() => ErrorMessage = null);
         RecordPlayFireAndForget();
         // When the whole-library queue is near its loaded end, prefetch the next page
         // so playback keeps advancing through the rest of the list in display order.
         Dispatch(MaybePrefetchQueue);
     }
+
+    /// <summary>
+    /// Shows the player's failure message when a track could not be played at all, so
+    /// playback stopping mid-album is visible instead of silent.
+    /// </summary>
+    private void OnPlayerPlaybackFailed(object? sender, PlaybackFailedEventArgs e) =>
+        Dispatch(() => ErrorMessage = e.Message);
 
     private void OnPlayerTrackEnded(object? sender, EventArgs e) =>
         Dispatch(() => _player.PlayNextAfterEnd());
@@ -86,7 +107,13 @@ public sealed partial class MusicViewModel : ObservableObject
         var conn = _serverStore.GetActive();
         if (conn is null)
             return (null, null);
-        var tok = await _tokenStore.GetAccessTokenAsync(conn.ServerBaseUrl);
+
+        // Refresh proactively rather than handing out whatever is stored: the same token is used for
+        // the REST calls AND for the audio stream, which Android's MediaPlayer fetches outside
+        // AuthenticatedHttpClientHandler — a stale token there fails the stream request with HTTP 401
+        // and playback stops mid-album.
+        var tok = await _tokenRefresh.EnsureFreshAccessTokenAsync(conn.ServerBaseUrl)
+            ?? await _tokenStore.GetAccessTokenAsync(conn.ServerBaseUrl);
         return (conn.ServerBaseUrl, tok);
     }
 
