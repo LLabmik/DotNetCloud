@@ -26,9 +26,9 @@ namespace DotNetCloud.Client.Android;
 /// for this component, so the failure cannot recur.
 /// </para>
 /// <para>
-/// Background message delivery does not depend on this service: FCM (googleplay flavour) and
-/// UnifiedPush (fdroid flavour) already deliver notifications while the app is not running, so
-/// losing the connection when the process is reclaimed is not a functional regression.
+/// Background message delivery does not depend on this service: the persisted chat-alert poll
+/// (see ChatAlertJobService) delivers notifications while the app is not running, so losing the
+/// connection when the process is reclaimed is not a functional regression.
 /// </para>
 /// <para>Started via <see cref="ActionStart"/>; stopped via <see cref="ActionStop"/>.</para>
 /// </remarks>

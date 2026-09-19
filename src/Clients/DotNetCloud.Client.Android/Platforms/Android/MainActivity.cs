@@ -26,13 +26,25 @@ public class MainActivity : MauiAppCompatActivity
     // the user is actually looking at the app (a backgrounded phone must go idle/yellow).
     private bool _foreground;
 
+    // Set on create and consumed by the first deep-link evaluation, so a notification tap that
+    // cold-starts the app is deferred to App start-up while a warm tap navigates immediately.
+    private bool _createdThisLaunch;
+
+    /// <inheritdoc />
+    protected override void OnCreate(Bundle? savedInstanceState)
+    {
+        _createdThisLaunch = true;
+        base.OnCreate(savedInstanceState);
+    }
+
     /// <inheritdoc />
     protected override void OnStart()
     {
         base.OnStart();
         // The chat foreground service is intentionally held only while the app is visible
         // (see OnStop). Restart it whenever the app returns to the foreground so SignalR
-        // reconnects; message notifications while backgrounded are handled by FCM / UnifiedPush.
+        // reconnects; message notifications while backgrounded are handled by the persisted
+        // chat-alert poll (see ChatAlertJobService).
         TrySetChatServiceRunning(running: true);
 
         // Returning to the app is itself activity.
@@ -45,8 +57,7 @@ public class MainActivity : MauiAppCompatActivity
     {
         base.OnStop();
         // Stop the chat foreground service when the app is truly backgrounded (home,
-        // recents, another app) so we never run an indefinite dataSync foreground service
-        // (Android 15+ caps these at 6h/day; Play efficiency rules target them). A
+        // recents, another app) so we never run an indefinite dataSync foreground service        // (Android 15+ caps these at 6h/day; Play efficiency rules target them). A
         // backgrounded app has no UI needing real-time refresh — push delivers notifications.
         TrySetChatServiceRunning(running: false);
     }
@@ -90,8 +101,11 @@ public class MainActivity : MauiAppCompatActivity
         }
         catch { /* Best effort */ }
 
-        // Handle deep-link from notification tap (both cold start and resume)
-        HandleCalendarDeepLink();
+        // Handle deep-link from notification tap (both cold start and resume). A cold start is
+        // passed through because the Shell does not exist yet at this point.
+        var coldStart = _createdThisLaunch;
+        _createdThisLaunch = false;
+        HandleNotificationDeepLink(coldStart);
     }
 
     /// <inheritdoc />
@@ -173,17 +187,83 @@ public class MainActivity : MauiAppCompatActivity
         }
     }
 
-    // ── Calendar notification deep-link ─────────────────────────────────────
+    // ── Notification deep links ──────────────────────────────────────────────
 
-    private void HandleCalendarDeepLink()
+    /// <summary>
+    /// Routes a notification tap to the channel or event it refers to, on the server connection
+    /// that sent it.
+    /// </summary>
+    /// <remarks>
+    /// Notifications are generic by design, so the tap carries only identifiers plus the server
+    /// the notification belongs to. When that server is not the active connection the active
+    /// connection is switched first, so a tap can never open a channel on the wrong instance
+    /// (plan §9.7). Extras are cleared before navigating so a later OnResume cannot repeat it.
+    /// </remarks>
+    /// <param name="coldStart">Whether this activity was created for the current launch.</param>
+    private void HandleNotificationDeepLink(bool coldStart)
     {
-        var eventId = Intent?.GetStringExtra("eventId");
-        if (string.IsNullOrWhiteSpace(eventId))
+        var channelId = Intent?.GetStringExtra(UnifiedPushNotificationRenderer.ExtraChannelId);
+        var eventId = Intent?.GetStringExtra(UnifiedPushNotificationRenderer.ExtraEventId);
+        var serverUrl = Intent?.GetStringExtra(UnifiedPushNotificationRenderer.ExtraServerUrl);
+
+        if (string.IsNullOrWhiteSpace(channelId) && string.IsNullOrWhiteSpace(eventId))
             return;
 
-        // Clear the extra so we don't re-navigate on subsequent OnResume calls
-        Intent?.RemoveExtra("eventId");
+        Intent?.RemoveExtra(UnifiedPushNotificationRenderer.ExtraChannelId);
+        Intent?.RemoveExtra(UnifiedPushNotificationRenderer.ExtraEventId);
+        Intent?.RemoveExtra(UnifiedPushNotificationRenderer.ExtraServerUrl);
 
-        _ = Shell.Current?.GoToAsync($"EventDetail?EventId={eventId}");
+        ActivateServerForNotification(serverUrl);
+
+        var route = !string.IsNullOrWhiteSpace(channelId)
+            // The channel name is resolved by the message list when only the id is known.
+            ? $"MessageList?channelId={Uri.EscapeDataString(channelId)}&channelName="
+            : $"EventDetail?EventId={Uri.EscapeDataString(eventId!)}";
+
+        // A tap can cold-start the app, in which case the Shell does not exist yet and the
+        // start-page navigation would land on top of our route: hand it to the app instead.
+        if (coldStart)
+        {
+            App.PendingDeepLinkRoute = route;
+            Log.Info("DotNetCloud", $"Deferring the notification deep link until start-up finishes ({route}).");
+            return;
+        }
+
+        _ = Shell.Current?.GoToAsync(route);
+    }
+
+    /// <summary>Switches the active server connection when a notification came from another one.</summary>
+    /// <param name="serverUrl">Server the notification belongs to, when the notification carried one.</param>
+    private static void ActivateServerForNotification(string? serverUrl)
+    {
+        if (string.IsNullOrWhiteSpace(serverUrl))
+            return;
+
+        try
+        {
+            var store = Ioc.Default.GetService<IServerConnectionStore>();
+            var active = store?.GetActive();
+            if (store is null || active is null)
+                return;
+
+            if (string.Equals(active.ServerBaseUrl.TrimEnd('/'), serverUrl.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
+                return;
+
+            var saved = store.GetAll().FirstOrDefault(connection => string.Equals(
+                connection.ServerBaseUrl.TrimEnd('/'), serverUrl.TrimEnd('/'), StringComparison.OrdinalIgnoreCase));
+
+            if (saved is null)
+            {
+                Log.Warn("DotNetCloud", $"Notification belongs to an unknown server connection ({serverUrl}).");
+                return;
+            }
+
+            store.SetActive(saved.ServerBaseUrl);
+            Log.Info("DotNetCloud", $"Switched the active connection to {saved.ServerBaseUrl} for a notification tap.");
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("DotNetCloud", $"Switching the active connection for a notification failed: {ex.Message}");
+        }
     }
 }

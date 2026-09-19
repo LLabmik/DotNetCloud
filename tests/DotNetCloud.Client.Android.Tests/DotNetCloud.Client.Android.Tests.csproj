@@ -75,6 +75,20 @@
     <!-- Chat -->
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\ViewModels\MessageListViewModel.cs" Link="AndroidApp\ViewModels\MessageListViewModel.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\ChatAlertPolicy.cs" Link="AndroidApp\Services\ChatAlertPolicy.cs" />
+
+    <!-- Background chat alerts (poll transport, plan §12). The Android-dependent half (job service,
+         alarm receiver, notification rendering, scheduling) lives under Platforms\Android and is not
+         compiled here — the payload contract, the decision, the cadence policy and the poll state are
+         Android-free by design so they can be tested on plain net10.0. -->
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\ChatAlertsSummary.cs" Link="AndroidApp\Services\ChatAlertsSummary.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\ChatAlertPollDecision.cs" Link="AndroidApp\Services\ChatAlertPollDecision.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\ChatAlertCadence.cs" Link="AndroidApp\Services\ChatAlertCadence.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\ChatAlertStateStore.cs" Link="AndroidApp\Services\ChatAlertStateStore.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\IChatAlertPoller.cs" Link="AndroidApp\Services\IChatAlertPoller.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\IChatAlertNotifier.cs" Link="AndroidApp\Services\IChatAlertNotifier.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\IChatAlertScheduler.cs" Link="AndroidApp\Services\IChatAlertScheduler.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\ChatAlertPoller.cs" Link="AndroidApp\Services\ChatAlertPoller.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\IAppForegroundService.cs" Link="AndroidApp\Services\IAppForegroundService.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\ChatSoundSettings.cs" Link="AndroidApp\Services\ChatSoundSettings.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\IChatSoundPlayer.cs" Link="AndroidApp\Services\IChatSoundPlayer.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\ICoreHubClient.cs" Link="AndroidApp\Services\ICoreHubClient.cs" />
@@ -102,6 +116,11 @@
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Messages\CalendarEventChangedMessage.cs" Link="AndroidApp\Messages\CalendarEventChangedMessage.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\ViewModels\CalendarViewModel.cs" Link="AndroidApp\ViewModels\CalendarViewModel.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Converters\LocalTimeConverter.cs" Link="AndroidApp\Converters\LocalTimeConverter.cs" />
+
+    <!-- Push notification payload contract. The connector half was removed on 2026-09-19 with the
+         declined UnifiedPush route; the payload contract + mapping survive because the background
+         poll transport reuses them (see docs/ANDROID_UNIFIEDPUSH_PLAN.md §12). -->
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\UnifiedPushProtocol.cs" Link="AndroidApp\Services\UnifiedPushProtocol.cs" />
   </ItemGroup>
 
 </Project>

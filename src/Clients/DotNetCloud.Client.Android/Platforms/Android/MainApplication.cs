@@ -40,6 +40,7 @@ public class MainApplication : MauiApplication
         CreateNotificationChannels();
         StartMediaAutoUploadWatcher();
         ScheduleBackgroundMediaSync();
+        ScheduleBackgroundChatAlerts();
     }
 
     /// <summary>
@@ -92,6 +93,28 @@ public class MainApplication : MauiApplication
             sync.Schedule();
         else
             sync.Cancel();
+    }
+
+    /// <summary>
+    /// Queues (or cancels) the background chat-alert poll that delivers chat notifications while the
+    /// app is closed.
+    /// </summary>
+    /// <remarks>
+    /// The poll runs as a persisted <c>JobScheduler</c> job (plus an allow-while-idle alarm while the
+    /// device dozes) and uses <b>no</b> foreground service, so it consumes none of the Android 15/16
+    /// <c>dataSync</c> budget. Scheduling is idempotent, so doing it on every process start is what
+    /// re-arms the chain if a previous run was killed before it could reschedule itself.
+    /// </remarks>
+    private void ScheduleBackgroundChatAlerts()
+    {
+        try
+        {
+            Ioc.Default.GetService<IChatAlertScheduler>()?.Schedule();
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("DotNetCloud", $"Background chat alert scheduling failed: {ex.Message}");
+        }
     }
 
     /// <inheritdoc />

@@ -223,54 +223,8 @@ public partial class App : Application
             Log.Warn("DotNetCloud", $"Token warm-up failed: {ex.Message}");
         }
 
-        // Re-register this device for push notifications on every launch. The server keeps its
-        // device registrations in memory (they are lost whenever the module host restarts), and
-        // the client used to register only when Firebase first issued or rotated a token — so a
-        // forgotten device stayed forgotten and background messages arrived silently. Registering
-        // per launch makes background delivery self-healing. Fire-and-forget: startup must not
-        // wait on it, and it never throws.
-        var activeConnection = _serverStore.GetActive();
-        if (activeConnection is not null)
-            _ = RegisterPushDeviceAsync(activeConnection.ServerBaseUrl);
-
         await CheckAvailableModulesAsync();
         await NavigateToStartPageAsync();
-    }
-
-    /// <summary>
-    /// Registers this device for push notifications with the given server.
-    /// </summary>
-    /// <param name="serverBaseUrl">Root URL of the active server connection.</param>
-    /// <remarks>
-    /// Called on every app start and after every successful login so the registration survives
-    /// server restarts (the server holds registrations in memory only). Failures are logged and
-    /// ignored — a device that cannot register still works while the app process is alive.
-    /// </remarks>
-    public static async Task RegisterPushDeviceAsync(string serverBaseUrl)
-    {
-        try
-        {
-            if (string.IsNullOrWhiteSpace(serverBaseUrl))
-                return;
-
-            var push = Ioc.Default.GetService<IPushNotificationService>();
-            var tokenRefresh = Ioc.Default.GetService<ITokenRefreshService>();
-            if (push is null || tokenRefresh is null)
-                return;
-
-            var accessToken = await tokenRefresh.EnsureFreshAccessTokenAsync(serverBaseUrl);
-            if (string.IsNullOrWhiteSpace(accessToken))
-            {
-                Log.Warn("DotNetCloud", "Push registration skipped: no usable access token.");
-                return;
-            }
-
-            await push.RegisterAsync(serverBaseUrl, accessToken);
-        }
-        catch (Exception ex)
-        {
-            Log.Warn("DotNetCloud", $"Push registration failed: {ex.Message}");
-        }
     }
 
     /// <summary>
@@ -607,6 +561,37 @@ public partial class App : Application
                     Log.Warn("DotNetCloud", $"Media auto-upload start failed: {ex.Message}");
                 }
             }
+        }
+
+        await ApplyPendingDeepLinkAsync();
+    }
+
+    /// <summary>
+    /// Route of a notification the user tapped that still has to be opened.
+    /// </summary>
+    /// <remarks>
+    /// A tap can cold-start the app: the activity resumes and reads the notification extras before
+    /// the Shell exists, and the start-page navigation above would then land on top of any route
+    /// navigated to earlier. Holding the route here and applying it afterwards keeps the tap
+    /// reliable in both the cold and warm cases.
+    /// </remarks>
+    public static string? PendingDeepLinkRoute { get; set; }
+
+    private static async Task ApplyPendingDeepLinkAsync()
+    {
+        var route = PendingDeepLinkRoute;
+        if (string.IsNullOrWhiteSpace(route))
+            return;
+
+        PendingDeepLinkRoute = null;
+        try
+        {
+            await Shell.Current.GoToAsync(route);
+            Log.Info("DotNetCloud", $"Opened the pending notification deep link ({route}).");
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("DotNetCloud", $"Opening the pending notification deep link failed: {ex.Message}");
         }
     }
 }

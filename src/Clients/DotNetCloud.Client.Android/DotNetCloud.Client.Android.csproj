@@ -100,18 +100,12 @@
 	</ItemGroup>
 
 	<!-- ========================
-	     Google Play flavor: Firebase Cloud Messaging
+	     Push notifications: no transport library — background alerts use the app's own poll.
+	     No Firebase package and no Google Play Services messaging dependency: message metadata
+	     never reaches Google infrastructure. Both flavours ship the same code path and differ
+	     only by application id; the shared payload and generic-notification helpers live
+	     in Services\UnifiedPushProtocol.cs (see docs/ANDROID_UNIFIEDPUSH_PLAN.md).
 	     ======================== -->
-	<ItemGroup Condition="'$(BuildFlavor)' == 'googleplay'">
-		<PackageReference Include="Xamarin.Firebase.Messaging" />
-	</ItemGroup>
-
-	<!-- ========================
-	     F-Droid flavor: UnifiedPush
-	     ======================== -->
-	<ItemGroup Condition="'$(BuildFlavor)' == 'fdroid'">
-		<PackageReference Include="UnifiedPush.NET" />
-	</ItemGroup>
 
 	<!-- ========================
 	     Project references

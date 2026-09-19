@@ -75,13 +75,6 @@ public static class MauiProgram
             .AddHttpMessageHandler<AuthenticatedHttpClientHandler>()
             .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
 
-        // ── Push notifications ────────────────────────────────────────
-#if GOOGLEPLAY
-        builder.Services.AddSingleton<IPushNotificationService, FcmPushService>();
-#elif FDROID
-        builder.Services.AddSingleton<IPushNotificationService, UnifiedPushService>();
-#endif
-
         // ── Files / media upload ────────────────────────────────────
         builder.Services.AddHttpClient<IFileRestClient, HttpFileRestClient>()
             .AddHttpMessageHandler<TimeoutHandler>()
@@ -92,6 +85,18 @@ public static class MauiProgram
         // Periodic background media sync (JobScheduler; no foreground service, so it never
         // consumes the Android 15/16 dataSync 24-hour budget).
         builder.Services.AddSingleton<Services.IBackgroundMediaSync, AndroidBackgroundMediaSync>();
+
+        // ── Background chat alerts ("our code only" poll; plan §12) ───────
+        // One small conditional GET per cadence tick — no distributor app, no push server, no Google
+        // and no foreground service. Registered as a typed client so it inherits the authenticated
+        // handler (the bearer token is attached and refreshed for us).
+        builder.Services.AddSingleton<ChatAlertStateStore>();
+        builder.Services.AddSingleton<IChatAlertNotifier, ChatAlertNotifier>();
+        builder.Services.AddSingleton<IChatAlertScheduler, AndroidChatAlertScheduler>();
+        builder.Services.AddHttpClient<IChatAlertPoller, ChatAlertPoller>()
+            .AddHttpMessageHandler<TimeoutHandler>()
+            .AddHttpMessageHandler<AuthenticatedHttpClientHandler>()
+            .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
 
         // ── Platform services ─────────────────────────────────────────
         builder.Services.AddSingleton<IBatteryOptimizationService, AndroidBatteryOptimizationService>();

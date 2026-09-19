@@ -254,7 +254,7 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
 
                     case ChatAlertKind.SystemNotification:
                         Log.Info("DotNetCloud", $"SignalR chat alert: posting notification for channel {payload.ChannelId}");
-                        PostSignalRNotification(payload.ChannelId, senderName, payload.Message.Content);
+                        PostSignalRNotification(payload.ChannelId);
                         break;
                 }
             }
@@ -661,46 +661,33 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
     }
 
 #if ANDROID
-    private void PostSignalRNotification(string channelId, string senderName, string content)
+    /// <summary>
+    /// Posts the chat notification for the in-process (SignalR) path.
+    /// </summary>
+    /// <remarks>
+    /// The text is chosen by the client even here, where the sender and the message content are
+    /// known: notifications must stay completely generic ("New message"), because they are shown
+    /// on the lock screen and in the notification shade. The message itself is read in the app.
+    /// </remarks>
+    /// <param name="channelId">Channel the message arrived in.</param>
+    private void PostSignalRNotification(string channelId)
     {
-        var channelGuid = Guid.TryParse(channelId, out var g) ? g : Guid.Empty;
+        try
+        {
+            var plan = UnifiedPushProtocol.MapToNotification(new UnifiedPushPayload
+            {
+                V = UnifiedPushProtocol.PayloadVersion,
+                Type = UnifiedPushProtocol.PayloadTypeMessage,
+                ChannelId = channelId,
+            });
 
-        var intent = new global::Android.Content.Intent(
-            global::Android.App.Application.Context,
-            typeof(DotNetCloud.Client.Android.MainActivity));
-        intent.SetAction(global::Android.Content.Intent.ActionMain);
-        intent.AddCategory(global::Android.Content.Intent.CategoryLauncher);
-        if (channelGuid != Guid.Empty)
-            intent.PutExtra("channelId", channelGuid.ToString());
-
-        var pendingIntent = global::Android.App.PendingIntent.GetActivity(
-            global::Android.App.Application.Context,
-            channelGuid.GetHashCode(),
-            intent,
-            global::Android.App.PendingIntentFlags.Immutable | global::Android.App.PendingIntentFlags.UpdateCurrent);
-
-        var iconRes = global::Android.App.Application.Context.Resources!
-            .GetIdentifier("ic_notification", "drawable",
-                global::Android.App.Application.Context.PackageName);
-        if (iconRes == 0)
-            iconRes = global::Android.Resource.Drawable.IcDialogInfo;
-
-        var notification = new global::Android.App.Notification.Builder(
-                global::Android.App.Application.Context,
-                DotNetCloud.Client.Android.MainApplication.ChannelIdMessages)
-            .SetContentTitle(senderName)
-            .SetContentText(content)
-            .SetSmallIcon(iconRes)
-            .SetContentIntent(pendingIntent)
-            .SetAutoCancel(true)
-            .SetGroup($"dnc_chat_{channelId}")
-            .Build();
-
-        var nm = (global::Android.App.NotificationManager?)
-            global::Android.App.Application.Context.GetSystemService(
-                global::Android.Content.Context.NotificationService);
-        var notificationId = 2000 + (channelGuid.GetHashCode() & 0x0FFF);
-        nm?.Notify(notificationId, notification);
+            UnifiedPushNotificationRenderer.Render(
+                global::Android.App.Application.Context, plan, _serverBaseUrl);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("DotNetCloud", $"Posting the chat notification failed: {ex.Message}");
+        }
     }
 #endif
 }

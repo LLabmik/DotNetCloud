@@ -544,8 +544,6 @@ public sealed partial class SettingsViewModel : ObservableObject
         _ = LoadDndFromServerAsync();
     }
 
-    // ── Update notification ──────────────────────────────────────────
-
     /// <summary>App version display string (e.g. "DotNetCloud for Android v0.1.7").</summary>
     public string AppVersionText { get; } = $"DotNetCloud for Android v{GetAppVersion()}";
 

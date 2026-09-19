@@ -6,6 +6,8 @@ using DotNetCloud.Modules.Chat.Models;
 using DotNetCloud.Modules.Chat.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Security.Cryptography;
+using System.Text;
 using IUserDirectory = DotNetCloud.Core.Capabilities.IUserDirectory;
 
 namespace DotNetCloud.Modules.Chat.Data.Services;
@@ -333,6 +335,154 @@ internal sealed class ChannelMemberService : IChannelMemberService
         }
 
         return result;
+    }
+
+    /// <inheritdoc />
+    public async Task<ChatAlertsCheckResult> GetAlertsAsync(
+        CallerContext caller,
+        string? knownToken = null,
+        CancellationToken cancellationToken = default)
+    {
+        // This is the mobile poll path (every 30-60 s per device). Everything below is a CONSTANT number
+        // of queries: the existing GetUnreadCountsAsync runs 2 queries per channel membership, which is
+        // fine for an interactive call and not fine here.
+        var memberships = await _db.ChannelMembers
+            .AsNoTracking()
+            .Where(m => m.UserId == caller.UserId)
+            .Select(m => new { m.ChannelId, m.IsMuted, m.LastReadAt })
+            .ToListAsync(cancellationToken);
+
+        if (memberships.Count == 0)
+        {
+            // Deterministic empty state, so a user with no channels still gets a stable token — and can
+            // still be answered 304 when nothing has changed.
+            var emptyToken = BuildAlertsToken("no-memberships");
+
+            if (!string.IsNullOrEmpty(knownToken) && string.Equals(knownToken, emptyToken, StringComparison.Ordinal))
+                return new ChatAlertsCheckResult { ETag = emptyToken, NotModified = true };
+
+            return new ChatAlertsCheckResult { ETag = emptyToken, Alerts = new ChatAlertsDto() };
+        }
+
+        var channelIds = memberships.Select(m => m.ChannelId).ToList();
+
+        // Change detection. A new or removed message always moves the count and/or the maximum SentAt,
+        // so a matching token guarantees the aggregate below would be identical — which is what lets an
+        // idle poll stop here instead of computing it.
+        var messageTotal = await _db.Messages
+            .AsNoTracking()
+            .CountAsync(msg => channelIds.Contains(msg.ChannelId), cancellationToken);
+
+        var changedAt = await _db.Messages
+            .AsNoTracking()
+            .Where(msg => channelIds.Contains(msg.ChannelId))
+            .MaxAsync(msg => (DateTime?)msg.SentAt, cancellationToken);
+
+        // Read state and mute state both feed the aggregate, so they belong in the token too.
+        var roster = string.Join(';', memberships
+            .OrderBy(m => m.ChannelId)
+            .Select(m => $"{m.ChannelId:N}:{(m.IsMuted ? 1 : 0)}:{m.LastReadAt?.Ticks ?? 0}"));
+
+        var token = BuildAlertsToken($"{roster}|{messageTotal}|{changedAt?.Ticks ?? 0}");
+
+        if (!string.IsNullOrEmpty(knownToken) && string.Equals(knownToken, token, StringComparison.Ordinal))
+            return new ChatAlertsCheckResult { ETag = token, NotModified = true };
+
+        // Per-channel unread counts, grouped — one query regardless of the membership count.
+        var unreadRows = await _db.Messages
+            .AsNoTracking()
+            .Where(msg => channelIds.Contains(msg.ChannelId))
+            .Join(
+                _db.ChannelMembers.AsNoTracking().Where(m => m.UserId == caller.UserId),
+                msg => msg.ChannelId,
+                member => member.ChannelId,
+                (msg, member) => new { msg.ChannelId, msg.SentAt, member.LastReadAt })
+            .Where(row => row.LastReadAt == null || row.SentAt > row.LastReadAt)
+            .GroupBy(row => row.ChannelId)
+            .Select(g => new { ChannelId = g.Key, Unread = g.Count(), LastUnreadAt = g.Max(x => x.SentAt) })
+            .ToListAsync(cancellationToken);
+
+        // Unread mentions, mirroring the predicate used by GetUnreadCountsAsync (mention rows are counted,
+        // not distinct messages) so the two summaries can never disagree.
+        var mentionRows = await _db.MessageMentions
+            .AsNoTracking()
+            .Join(_db.Messages.AsNoTracking(), mention => mention.MessageId, msg => msg.Id,
+                (mention, msg) => new { mention, msg })
+            .Where(x => channelIds.Contains(x.msg.ChannelId)
+                     && (x.mention.MentionedUserId == caller.UserId
+                         || x.mention.Type == MentionType.All
+                         || x.mention.Type == MentionType.Channel))
+            .Join(
+                _db.ChannelMembers.AsNoTracking().Where(m => m.UserId == caller.UserId),
+                x => x.msg.ChannelId,
+                member => member.ChannelId,
+                (x, member) => new { x.msg.ChannelId, x.msg.SentAt, member.LastReadAt })
+            .Where(row => row.LastReadAt == null || row.SentAt > row.LastReadAt)
+            .GroupBy(row => row.ChannelId)
+            .Select(g => new { ChannelId = g.Key, Mentions = g.Count() })
+            .ToListAsync(cancellationToken);
+
+        var unreadByChannel = unreadRows.ToDictionary(row => row.ChannelId);
+        var mentionsByChannel = mentionRows.ToDictionary(row => row.ChannelId, row => row.Mentions);
+
+        var unreadTotal = 0;
+        var mentionTotal = 0;
+        var unmutedUnread = 0;
+        var unmutedMentions = 0;
+        Guid? topChannelId = null;
+        var topUnreadAt = DateTime.MinValue;
+
+        foreach (var membership in memberships)
+        {
+            unreadByChannel.TryGetValue(membership.ChannelId, out var row);
+            var unread = row?.Unread ?? 0;
+            var mentions = mentionsByChannel.GetValueOrDefault(membership.ChannelId);
+
+            unreadTotal += unread;
+            mentionTotal += mentions;
+
+            if (membership.IsMuted)
+                continue;
+
+            unmutedUnread += unread;
+            unmutedMentions += mentions;
+
+            // Tap target: the UNMUTED channel with the most recent unread message, so a notification
+            // never deep-links into a channel that was deliberately silenced.
+            if (unread > 0 && row is not null && row.LastUnreadAt > topUnreadAt)
+            {
+                topUnreadAt = row.LastUnreadAt;
+                topChannelId = membership.ChannelId;
+            }
+        }
+
+        return new ChatAlertsCheckResult
+        {
+            ETag = token,
+            Alerts = new ChatAlertsDto
+            {
+                Unread = unreadTotal,
+                Mentions = mentionTotal,
+                UnmutedUnread = unmutedUnread,
+                UnmutedMentions = unmutedMentions,
+                TopChannelId = topChannelId,
+                ChangedAt = changedAt
+            }
+        };
+    }
+
+    /// <summary>
+    /// Builds a deterministic entity-tag from the supplied canonical state string.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ <c>string.GetHashCode()</c> must never be used here: .NET randomizes string hashing per process,
+    /// so the token would change on every module-host restart and clients would lose conditional polling.
+    /// SHA-256 of a canonical string is stable across restarts and machines.
+    /// </remarks>
+    private static string BuildAlertsToken(string canonical)
+    {
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(canonical));
+        return $"\"{Convert.ToHexString(hash)[..32]}\"";
     }
 
     private async Task EnsureChannelExistsAsync(Guid channelId, CancellationToken cancellationToken)

@@ -108,7 +108,7 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
         // Listen for real-time calendar changes from other clients (e.g. Blazor UI)
         _calendarSignalR.CalendarsChanged += OnCalendarsChanged;
 
-        // Listen for calendar event push notifications (FCM/UnifiedPush) that wake the device
+        // Listen for calendar event changes (raised by an in-process notification or the SignalR client)
         WeakReferenceMessenger.Default.Register<CalendarEventChangedMessage>(this, (_, _) =>
         {
             if (IsActive && !IsLoading)
