@@ -38,7 +38,7 @@ plus the `CoreCapabilities.SendNotification` gRPC path used by process-isolated 
 | Bell source of truth                | `INotificationService` (Core capability) → `NotificationService` (EF Core, `Notifications` table). File: `src/Core/DotNetCloud.Core.Server/Services/NotificationService.cs`                                 |
 | Bell only receives 3 events today   | `InAppNotificationEventHandler` handles only `ResourceSharedEvent`, `UserMentionedEvent`, `ReminderTriggeredEvent`.                                                                                         |
 | Push handlers are no-ops            | 8 handlers in `src/Core/DotNetCloud.Core.Server/Services/` call `IPushNotificationService`, but `Program.cs` registers `NoOpPushNotificationService`.                                                       |
-| Real push lives in Chat             | `NotificationRouter` → `FcmPushProvider` / `UnifiedPushProvider`, gated by `INotificationPreferenceStore` (`DbNotificationPreferenceStore`), with presence dedup + delivery queue.                          |
+| Real push lives in Chat             | `NotificationRouter` → `FcmPushProvider`, gated by `INotificationPreferenceStore` (`DbNotificationPreferenceStore`), with presence dedup + delivery queue.                                                  |
 | No push RPC exists                  | `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Protos/chat_service.proto` has no push RPC.                                                                                                                 |
 | gRPC client exists                  | `ChatGrpcApiClient` (`src/Core/DotNetCloud.Core.Server/Grpc/Clients/ChatGrpcApiClient.cs`) implements `IChatApiClient` (`src/Core/DotNetCloud.Core/Services/ModuleApis/IChatApiClient.cs`).                 |
 | Real-time exists                    | `IRealtimeBroadcaster.SendToUserAsync(userId, eventName, message, ct)` (`src/Core/DotNetCloud.Core/Capabilities/IRealtimeBroadcaster.cs`), implemented by `RealtimeBroadcasterService` (SignalR `CoreHub`). |
@@ -489,7 +489,7 @@ using DotNetCloud.Core.Services.ModuleApis;
 namespace DotNetCloud.Core.Server.Services;
 
 /// <summary>
-/// Delivers a notification as a device push via the Chat module (FCM/UnifiedPush).
+/// Delivers a notification as a device push via the Chat module (FCM).
 /// Preference checks (push enabled, DND, muted channels, presence) happen inside
 /// the Chat module's NotificationRouter — they are NOT duplicated here.
 /// </summary>
@@ -576,7 +576,7 @@ internal sealed class NullEmailChannel : INotificationChannel
 Add this RPC to the `ChatService` service block (anywhere inside `service ChatService { ... }`):
 
 ```proto
-  // Sends a push notification to a user's registered devices (FCM/UnifiedPush).
+  // Sends a push notification to a user's registered devices (FCM).
   rpc SendPushNotification (SendPushNotificationRequest) returns (SendPushNotificationResponse);
 ```
 
@@ -898,7 +898,7 @@ Manual checks after deploy:
 
 1. Share a **file** with a user → the bell shows "File shared with you" (this is the fix).
 2. Trigger a **quota warning** → bell shows "Storage almost full".
-3. The same events also reach the device via push (FCM/UnifiedPush), unless the user is
+3. The same events also reach the device via push (FCM), unless the user is
    online (Chat router suppresses push for online users) or has push disabled.
 4. "Mark all read" in the bell still works.
 5. Chat messages/DMs still work exactly as before (no regression).

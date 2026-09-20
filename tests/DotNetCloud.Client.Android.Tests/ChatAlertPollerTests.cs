@@ -137,7 +137,7 @@ public class ChatAlertPollerTests
         Assert.AreEqual(ChatAlertPollOutcome.Alerted, result.Outcome);
         Assert.IsTrue(result.HasUnread);
         Assert.IsNotNull(captured);
-        Assert.AreEqual(UnifiedPushProtocol.PayloadTypeMessage, captured!.PayloadType);
+        Assert.AreEqual(NotificationPayloadContract.PayloadTypeMessage, captured!.PayloadType);
         Assert.AreEqual(channelId, captured.ChannelId);
         Assert.AreEqual(ServerUrl, capturedServer);
         Assert.AreEqual("\"e1\"", _state.GetETag());
@@ -158,7 +158,7 @@ public class ChatAlertPollerTests
         await _poller.PollAsync();
 
         Assert.IsNotNull(captured);
-        Assert.AreEqual(UnifiedPushProtocol.PayloadTypeMention, captured!.PayloadType);
+        Assert.AreEqual(NotificationPayloadContract.PayloadTypeMention, captured!.PayloadType);
     }
 
     [TestMethod]

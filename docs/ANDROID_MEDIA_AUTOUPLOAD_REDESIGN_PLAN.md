@@ -93,7 +93,7 @@ The cadence is driven by `IMediaAutoUploadService.HasPendingWork`, which is true
 
 ## Known issues / gotchas
 
-- **`dataSync` FGS 24-h budget (Android 15/16):** rolling per-24 h window, persisted across reboots (reboot does NOT reset). When exhausted the platform throws `ForegroundServiceDidNotStopInTimeException` and can crash-loop via Sticky restarts. **Fixed 2026-09-12 by removing the FGS from `ChatConnectionService` entirely** rather than changing its type. Deleted: the `ForegroundServiceType = DataSync` attribute, the `AndroidForegroundServicePolicy` promotion branch, the `OnTimeout(int)` override, `BuildNotification()`, the `MediaUploadForegroundService` class, and the `FOREGROUND_SERVICE_DATA_SYNC` manifest permission. The change is **behavior-preserving** — promotion was already disabled by the kill-switch, and FCM/UnifiedPush already own background delivery. Live check: `startForegroundCount=0`, no `foregroundServiceType`, SignalR connects, process stable.
+- **`dataSync` FGS 24-h budget (Android 15/16):** rolling per-24 h window, persisted across reboots (reboot does NOT reset). When exhausted the platform throws `ForegroundServiceDidNotStopInTimeException` and can crash-loop via Sticky restarts. **Fixed 2026-09-12 by removing the FGS from `ChatConnectionService` entirely** rather than changing its type. Deleted: the `ForegroundServiceType = DataSync` attribute, the `AndroidForegroundServicePolicy` promotion branch, the `OnTimeout(int)` override, `BuildNotification()`, the `MediaUploadForegroundService` class, and the `FOREGROUND_SERVICE_DATA_SYNC` manifest permission. The change is **behavior-preserving** — promotion was already disabled by the kill-switch, and FCM push plus the client's own background alert poll already own background delivery. Live check: `startForegroundCount=0`, no `foregroundServiceType`, SignalR connects, process stable.
   - ⚠️ **Do NOT re-add a foreground service to `ChatConnectionService`.** `remoteMessaging` (`FOREGROUND_SERVICE_TYPE_REMOTE_MESSAGING`) was evaluated and **rejected** — it is for _device-to-device_ transfer (phone↔watch apps), not server-push messaging, and does not describe a SignalR hub connection. `specialUse` would require a Play Store justification. A Sticky, non-promoted service is the intended end state.
 - **Background-sync experiment re-diagnosed (2026-09-12):** the earlier note claimed a native `JobScheduler` `JobService` "crashed on headless cold-start (MAUI startup assumes an Activity)". **That diagnosis was wrong.** The crash was `signal 11 (SIGSEGV)` in `libmonodroid.so` → `EmbeddedAssemblies::open_from_bundles()` on a `.NET TP Worker` thread, and it was an **incremental-install artifact** (the dropbox record literally says `Incremental: Yes`, with fast-deploy noise like `.__override__` and `open_from_update_dir: assembly file DOES NOT EXIST`). Reinstalling with `adb install -r --no-incremental` and repeating the identical headless start runs **cleanly** — no crash. MAUI has always started headlessly fine (proven by `FcmMessagingService` / `CalendarBootReceiver`). ⚠️ **Always install with `--no-incremental` when testing this app**, or you will chase phantom native crashes in the assembly loader.
 - C#/Android namespace gotcha: inside `namespace DotNetCloud.Client.Android.*`, bare `Android.Content.*`/`Android.Content.PM.Permission` binds to `DotNetCloud.Client.Android` → use `global::Android.*` or `using Android.Content;`.
@@ -119,9 +119,9 @@ This replaced a two-path design where the Files tab ran its own capture pipeline
 
 **Removed:** `CapturePhotoCommand`, `CaptureVideoCommand`, `UploadMediaFileAsync`, `SaveToPendingUploadsAsync`, `ReadMediaStreamAsync`, `RequestLocationPermissionAsync`, `BuildAndroidStyleFileName`, the `PendingUploads` spool (writer + `UploadPendingFilesAsync` flush), `IMediaAutoUploadService.ResolveUploadTargetFolderAsync` (no callers left), `FileItemViewModel.IsPending` + the Files-tab "Pending" badge, and the two camera toolbar buttons.
 
-**Permissions dropped:** `android.permission.CAMERA` and `android.permission.ACCESS_FINE_LOCATION` (the latter existed only so the camera app could embed GPS EXIF). Verified absent from the installed package. Dropping `CAMERA` also removes an Android quirk: if an app *declares* `CAMERA`, then `ACTION_IMAGE_CAPTURE` requires the runtime grant to be present.
+**Permissions dropped:** `android.permission.CAMERA` and `android.permission.ACCESS_FINE_LOCATION` (the latter existed only so the camera app could embed GPS EXIF). Verified absent from the installed package. Dropping `CAMERA` also removes an Android quirk: if an app _declares_ `CAMERA`, then `ACTION_IMAGE_CAPTURE` requires the runtime grant to be present.
 
-**Kept:** `MessageListViewModel.AttachFileAsync` still uses `MediaPicker.Default.PickPhotosAsync()` — that *picks* from the gallery to attach to a chat message; it does not drive the camera.
+**Kept:** `MessageListViewModel.AttachFileAsync` still uses `MediaPicker.Default.PickPhotosAsync()` — that _picks_ from the gallery to attach to a chat message; it does not drive the camera.
 
 **Verified on device (R5CWC356B2K, `--no-incremental`):** `dumpsys package` shows no `CAMERA`/`ACCESS_FINE_LOCATION`; the Files toolbar renders only New Folder + Upload; the watcher seeded 845 server files, skipped 17 oversized items and uploaded a video into `AutoUpload/YYYY/MM`; SignalR connected; zero foreground services; zero crashes.
 
@@ -166,7 +166,7 @@ FATAL UNHANDLED EXCEPTION: Java.Lang.IllegalStateException
 ### Fixes
 
 1. **Cache the audio session id** (`_audioSessionId`), captured in `OnTrackPrepared` while the player is guaranteed valid. `AudioSessionId` no longer touches the player at all — this is the real fix.
-2. **Publish `null` before releasing** in `PrepareAndStartAsync` (`_mediaPlayer = null` + `_audioSessionId = 0` *before* `previousPlayer.Release()`), narrowing the window for any reader that already observed the old instance.
+2. **Publish `null` before releasing** in `PrepareAndStartAsync` (`_mediaPlayer = null` + `_audioSessionId = 0` _before_ `previousPlayer.Release()`), narrowing the window for any reader that already observed the old instance.
 3. **`CurrentPosition`/`Duration` degrade instead of throwing** — they had the identical hazard (`getCurrentPosition()` on a released player throws too) and would have crashed eventually via the ViewModel.
 4. **Exceptions cannot escape the timer callback or the equalizer handler** — `RaisePlaybackStateChangedSafely()` and a try/catch around `AndroidEqualizerService.OnPlaybackStateChanged`. An exception thrown from a `Timer` callback is fatal by construction.
 
@@ -182,15 +182,15 @@ It created and acquired a **new** `PowerManager.WakeLock` on every `OnStartComma
 
 **Before:** 8 rapid track changes → `SIGABRT`, process dead.
 
-**After:** driven via UI automation across **two artists and two albums** (ABBA / *Voyage* 2021 → AC-DC / *Live* 1992), **26+ track changes** producing **39 distinct audio session ids** (`257`…`641`, plus `0`).
+**After:** driven via UI automation across **two artists and two albums** (ABBA / _Voyage_ 2021 → AC-DC / _Live_ 1992), **26+ track changes** producing **39 distinct audio session ids** (`257`…`641`, plus `0`).
 
-| Check | Result |
-| ----------------------------------- | ------------------------------------------------ |
-| Process | **pid 14219 unchanged throughout** (never restarted) |
-| Fatal signals / unhandled exceptions | **0** |
-| Wake lock | **exactly 1**, acquired once at 02:27:10, held 4m59s |
-| `wake lock acquired` / `released` | **1 / 0** — balanced, no leak |
-| Foreground services | 1 (`mediaPlayback`), as intended |
+| Check                                | Result                                               |
+| ------------------------------------ | ---------------------------------------------------- |
+| Process                              | **pid 14219 unchanged throughout** (never restarted) |
+| Fatal signals / unhandled exceptions | **0**                                                |
+| Wake lock                            | **exactly 1**, acquired once at 02:27:10, held 4m59s |
+| `wake lock acquired` / `released`    | **1 / 0** — balanced, no leak                        |
+| Foreground services                  | 1 (`mediaPlayback`), as intended                     |
 
 The `0` among the session ids is the significant one: it is the cached session cleared during a switch — the exact state that used to dereference a released player.
 

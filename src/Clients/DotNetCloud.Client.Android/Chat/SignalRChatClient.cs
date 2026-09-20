@@ -674,14 +674,14 @@ internal sealed class SignalRChatClient : ICoreHubClient, IAsyncDisposable
     {
         try
         {
-            var plan = UnifiedPushProtocol.MapToNotification(new UnifiedPushPayload
+            var plan = NotificationPayloadContract.MapToNotification(new NotificationPayload
             {
-                V = UnifiedPushProtocol.PayloadVersion,
-                Type = UnifiedPushProtocol.PayloadTypeMessage,
+                V = NotificationPayloadContract.PayloadVersion,
+                Type = NotificationPayloadContract.PayloadTypeMessage,
                 ChannelId = channelId,
             });
 
-            UnifiedPushNotificationRenderer.Render(
+            ChatNotificationRenderer.Render(
                 global::Android.App.Application.Context, plan, _serverBaseUrl);
         }
         catch (Exception ex)

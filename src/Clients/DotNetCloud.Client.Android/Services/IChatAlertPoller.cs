@@ -14,9 +14,9 @@ public sealed record ChatAlertPollResult(ChatAlertPollOutcome Outcome, bool HasU
 /// </summary>
 /// <remarks>
 /// <para>
-/// This is the client half of the adopted "our code only" transport
-/// (<c>docs/ANDROID_UNIFIEDPUSH_PLAN.md</c> §12): the phone asks the server for a tiny aggregate of
-/// counts, and no distributor app, push server, or Google service is involved at any point.
+/// This is the client half of the background alert transport
+/// (<c>docs/ANDROID_CHAT_BACKGROUND_ALERTS_PLAN.md</c>): the phone asks the server for a tiny aggregate of
+/// counts, and no companion app, push server, or Google service is involved at any point.
 /// </para>
 /// <para>
 /// The poll is conditional — it echoes the previous entity-tag in <c>If-None-Match</c>, so an unchanged

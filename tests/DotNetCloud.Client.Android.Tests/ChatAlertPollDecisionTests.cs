@@ -55,7 +55,7 @@ public class ChatAlertPollDecisionTests
             Summary(topChannelId: channelId), lastAcknowledgedChangedAtUtc: null);
 
         Assert.IsTrue(decision.ShouldAlert);
-        Assert.AreEqual(UnifiedPushProtocol.PayloadTypeMessage, decision.PayloadType);
+        Assert.AreEqual(NotificationPayloadContract.PayloadTypeMessage, decision.PayloadType);
         Assert.AreEqual(channelId, decision.ChannelId);
         Assert.AreEqual(Changed, decision.AcknowledgedChangedAtUtc);
     }
@@ -67,7 +67,7 @@ public class ChatAlertPollDecisionTests
             Summary(unmutedMentions: 1, mentions: 1), null);
 
         Assert.IsTrue(decision.ShouldAlert);
-        Assert.AreEqual(UnifiedPushProtocol.PayloadTypeMention, decision.PayloadType);
+        Assert.AreEqual(NotificationPayloadContract.PayloadTypeMention, decision.PayloadType);
     }
 
     [TestMethod]
@@ -79,7 +79,7 @@ public class ChatAlertPollDecisionTests
             Summary(unmutedUnread: 1, unmutedMentions: 0, unread: 2, mentions: 1), null);
 
         Assert.IsTrue(decision.ShouldAlert);
-        Assert.AreEqual(UnifiedPushProtocol.PayloadTypeMessage, decision.PayloadType);
+        Assert.AreEqual(NotificationPayloadContract.PayloadTypeMessage, decision.PayloadType);
     }
 
     [TestMethod]

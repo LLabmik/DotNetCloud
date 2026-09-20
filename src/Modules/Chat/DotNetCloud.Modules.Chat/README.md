@@ -65,15 +65,15 @@ All entities inherit soft-delete and timestamp semantics from the core framework
 
 Each interface covers a focused domain area:
 
-| Interface | Responsibility |
-|-----------|---------------|
-| `IChannelService` | Channel CRUD, search |
-| `IMessageService` | Message send/edit/delete, history |
-| `IChannelMemberService` | Join/leave, role management |
-| `IReactionService` | Add/remove reactions |
-| `IPinService` | Pin/unpin messages |
-| `ITypingIndicatorService` | Start/stop typing indicators |
-| `IAnnouncementService` | Channel announcements |
+| Interface                 | Responsibility                    |
+| ------------------------- | --------------------------------- |
+| `IChannelService`         | Channel CRUD, search              |
+| `IMessageService`         | Message send/edit/delete, history |
+| `IChannelMemberService`   | Join/leave, role management       |
+| `IReactionService`        | Add/remove reactions              |
+| `IPinService`             | Pin/unpin messages                |
+| `ITypingIndicatorService` | Start/stop typing indicators      |
+| `IAnnouncementService`    | Channel announcements             |
 
 ### DTOs
 
@@ -85,16 +85,17 @@ All DTOs are C# `record` types defined in `ChatDtos.cs`. They mirror the domain 
 
 ## Related Projects
 
-| Project | Purpose |
-|---------|---------|
+| Project                         | Purpose                                       |
+| ------------------------------- | --------------------------------------------- |
 | `DotNetCloud.Modules.Chat.Data` | EF Core implementations of service interfaces |
-| `DotNetCloud.Modules.Chat.Host` | REST API, gRPC, and SignalR host |
+| `DotNetCloud.Modules.Chat.Host` | REST API, gRPC, and SignalR host              |
 
 ## Documentation
 
 See `docs/modules/chat/` for full documentation:
+
 - [README](../../../docs/modules/chat/README.md) — Module overview
 - [API Reference](../../../docs/modules/chat/API.md) — REST endpoint reference
 - [Architecture](../../../docs/modules/chat/ARCHITECTURE.md) — Data model and design
 - [Real-time Events](../../../docs/modules/chat/REALTIME.md) — SignalR event reference
-- [Push Notifications](../../../docs/modules/chat/PUSH.md) — FCM/UnifiedPush setup
+- [Push Notifications](../../../docs/modules/chat/PUSH.md) — FCM setup and the mobile background-alert poll

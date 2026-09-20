@@ -20,7 +20,6 @@ public static class ChatServiceRegistration
     public static IServiceCollection AddChatServices(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<FcmPushOptions>(configuration.GetSection(FcmPushOptions.SectionName));
-        services.Configure<UnifiedPushOptions>(configuration.GetSection(UnifiedPushOptions.SectionName));
 
         services.AddHttpClient("fcm");
 
@@ -56,13 +55,9 @@ public static class ChatServiceRegistration
 
             return new FcmLoggingTransport(sp.GetRequiredService<ILogger<FcmLoggingTransport>>());
         });
-        services.AddSingleton<IUnifiedPushTransport, UnifiedPushLoggingTransport>();
-
         // Push notification providers and router
         services.AddSingleton<FcmPushProvider>();
-        services.AddSingleton<UnifiedPushProvider>();
         services.AddSingleton<IPushProviderEndpoint>(sp => sp.GetRequiredService<FcmPushProvider>());
-        services.AddSingleton<IPushProviderEndpoint>(sp => sp.GetRequiredService<UnifiedPushProvider>());
         services.AddSingleton<NotificationRouter>();
         services.AddSingleton<IQueuedNotificationDispatcher>(sp => sp.GetRequiredService<NotificationRouter>());
         services.AddSingleton<IPushNotificationService>(sp => sp.GetRequiredService<NotificationRouter>());

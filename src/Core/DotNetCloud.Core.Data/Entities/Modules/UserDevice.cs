@@ -97,7 +97,7 @@ public class UserDevice
     public string DeviceType { get; set; } = string.Empty;
 
     /// <summary>
-    /// Push notification token for this device (FCM for Android, APNs for iOS, or UnifiedPush endpoint).
+    /// Push notification token for this device (FCM for Android, APNs for iOS).
     /// Null if device doesn't support push notifications.
     /// </summary>
     /// <remarks>
@@ -106,7 +106,6 @@ public class UserDevice
     /// <list type="bullet">
     ///   <item><description><strong>FCM (Firebase Cloud Messaging):</strong> For Android devices</description></item>
     ///   <item><description><strong>APNs (Apple Push Notification service):</strong> For iOS/macOS devices</description></item>
-    ///   <item><description><strong>UnifiedPush:</strong> Self-hosted push notification endpoint URL</description></item>
     ///   <item><description><strong>Web Push:</strong> Browser push notification subscription</description></item>
     /// </list>
     /// <para>Token is encrypted at rest for security. Null for desktop clients without push support.</para>

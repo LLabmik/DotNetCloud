@@ -4,13 +4,15 @@
 
 ## Build Flavors
 
-| Channel | App ID | Push | Proprietary Deps | Build Flag |
-|---|---|---|---|---|
-| **Google Play** | `net.dotnetcloud.client` | FCM | Yes (Firebase) | Default |
-| **F-Droid** | `net.dotnetcloud.client.fdroid` | UnifiedPush | None | `-p:BuildFlavor=fdroid` |
-| **Direct APK** | `net.dotnetcloud.client` | FCM | Yes (Firebase) | Default |
+| Channel         | App ID                          | Proprietary Deps | Build Flag              |
+| --------------- | ------------------------------- | ---------------- | ----------------------- |
+| **Google Play** | `net.dotnetcloud.client`        | None             | Default                 |
+| **F-Droid**     | `net.dotnetcloud.client.fdroid` | None             | `-p:BuildFlavor=fdroid` |
+| **Direct APK**  | `net.dotnetcloud.client`        | None             | Default                 |
 
-Both flavors can be installed side-by-side on the same device due to separate app IDs.
+Both flavors can be installed side-by-side on the same device due to separate app IDs. They are
+built from the same package set and the same code, and neither uses a push service: background
+alerts come from the app's own poll of `GET /api/v1/chat/alerts`.
 
 ---
 
@@ -124,10 +126,10 @@ dotnet publish src/Clients/DotNetCloud.Client.Android/DotNetCloud.Client.Android
 
 ### Version Numbering
 
-| Property | Format | Example |
-|---|---|---|
+| Property                    | Format                       | Example       |
+| --------------------------- | ---------------------------- | ------------- |
 | `ApplicationDisplayVersion` | `major.minor.patch[-suffix]` | `0.1.0-alpha` |
-| `ApplicationVersion` | Auto-incrementing integer | `1`, `2`, `3` |
+| `ApplicationVersion`        | Auto-incrementing integer    | `1`, `2`, `3` |
 
 Increment `ApplicationVersion` for every upload to Google Play.
 
@@ -137,7 +139,7 @@ Increment `ApplicationVersion` for every upload to Google Play.
 
 ### Why F-Droid?
 
-F-Droid is an open-source app store. DotNetCloud's F-Droid build contains **zero proprietary dependencies** — using UnifiedPush instead of FCM for push notifications.
+F-Droid is an open-source app store. DotNetCloud's F-Droid build contains **zero proprietary dependencies** — as does the Google Play build: no flavor bundles a push transport or a Google messaging dependency.
 
 ### F-Droid Metadata
 
@@ -162,7 +164,7 @@ Description: |
   * Real-time chat with channels, threads, and reactions
   * File synchronization across devices
   * Self-hosted — full data ownership
-  * UnifiedPush notifications (no Google dependencies)
+  * Background new-message alerts (no Google dependencies)
 
 RepoType: git
 Repo: https://github.com/LLabmik/DotNetCloud.git
@@ -180,9 +182,8 @@ Builds:
       # above); AOT output is deterministic only when the exact SDK/workload is used. The
       # SDK must match global.json (10.0.100, rollForward latestMinor); the workload install
       # runs during F-Droid's setup phase (network available). dotnet restore warms the
-      # NuGet cache so the offline publish step can complete. NOTE: the fdroid flavor
-      # depends on the UnifiedPush.NET package, which is NOT on nuget.org — the build needs
-      # that package available from a configured feed/source.
+      # NuGet cache so the offline publish step can complete. The fdroid flavor uses the
+      # same package set as every other flavor, all of it available on nuget.org.
       - dotnet workload install maui-android
       - dotnet restore
     build:
@@ -232,11 +233,11 @@ For users who prefer sideloading or organizations using MDM (Mobile Device Manag
 
 Each tagged release on [GitHub](https://github.com/LLabmik/DotNetCloud/releases) includes signed APK artifacts:
 
-| File | Description |
-|---|---|
-| `DotNetCloud-v{version}-googleplay.apk` | Google Play flavor (includes FCM) |
-| `DotNetCloud-v{version}-fdroid.apk` | F-Droid flavor (UnifiedPush, no proprietary deps) |
-| `checksums-sha256.txt` | SHA-256 checksums for verification |
+| File                                    | Description                                                           |
+| --------------------------------------- | --------------------------------------------------------------------- |
+| `DotNetCloud-v{version}-googleplay.apk` | Google Play flavor (`net.dotnetcloud.client`)                         |
+| `DotNetCloud-v{version}-fdroid.apk`     | F-Droid flavor (`net.dotnetcloud.client.fdroid`, no proprietary deps) |
+| `checksums-sha256.txt`                  | SHA-256 checksums for verification                                    |
 
 ### Installing a Direct APK
 
@@ -292,7 +293,7 @@ For organizations managing devices via MDM (Intune, Workspace ONE, etc.):
 name: Android Release
 on:
   push:
-    tags: ['v*']
+    tags: ["v*"]
 
 jobs:
   build:
@@ -301,7 +302,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: "10.0.x"
       - run: dotnet workload install android
 
       # Google Play build
@@ -344,13 +345,13 @@ Before each release:
 
 ### Google Play
 
-| Field | Value |
-|---|---|
-| **Title** | DotNetCloud |
+| Field                 | Value                                                     |
+| --------------------- | --------------------------------------------------------- |
+| **Title**             | DotNetCloud                                               |
 | **Short description** | Self-hosted cloud — chat, files, and sync. Own your data. |
-| **Category** | Communication |
-| **Content rating** | Everyone |
-| **Pricing** | Free |
+| **Category**          | Communication                                             |
+| **Content rating**    | Everyone                                                  |
+| **Pricing**           | Free                                                      |
 
 **Full description:**
 
@@ -372,8 +373,8 @@ Connect to more than one DotNetCloud instance and switch between them seamlessly
 ✦ Offline Support
 Read cached messages and queue outgoing messages while offline. Everything syncs automatically when you reconnect.
 
-✦ Push Notifications
-Stay up to date with instant push alerts for new messages, @mentions, and server announcements.
+✦ Alerts
+Get notified about new messages, @mentions, and server announcements while the app is closed. Notification text is composed on your device, and no alert data is sent to a third party.
 
 ✦ Open Source
 Licensed under AGPL-3.0. Inspect, modify, and contribute at https://github.com/LLabmik/DotNetCloud
@@ -383,4 +384,4 @@ Requires a DotNetCloud server (self-hosted). See the project README for server s
 
 ### F-Droid
 
-See the F-Droid metadata YAML in the **F-Droid Distribution** section above. The F-Droid listing description emphasizes the absence of proprietary dependencies and UnifiedPush support.
+See the F-Droid metadata YAML in the **F-Droid Distribution** section above. The F-Droid listing description emphasizes the absence of proprietary dependencies.

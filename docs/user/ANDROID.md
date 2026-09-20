@@ -1,12 +1,12 @@
 # Android App — User Guide
 
-> **Last Updated:** 2026-08-27
+> **Last Updated:** 2026-09-20
 
 ---
 
 ## Welcome
 
-The DotNetCloud Android app gives you mobile access to your DotNetCloud server — chat, files, and notifications from your phone or tablet. It supports OAuth2/OIDC secure sign-in, real-time messaging, push notifications, and offline message caching.
+The DotNetCloud Android app gives you mobile access to your DotNetCloud server — chat, files, and notifications from your phone or tablet. It supports OAuth2/OIDC secure sign-in, real-time messaging, background message alerts, and offline message caching.
 
 ---
 
@@ -14,12 +14,12 @@ The DotNetCloud Android app gives you mobile access to your DotNetCloud server �
 
 The Android app is available from:
 
-| Channel         | App ID                          | Push Notifications                   |
-| --------------- | ------------------------------- | ------------------------------------ |
-| **Google Play** | `net.dotnetcloud.client`        | Firebase Cloud Messaging (FCM)       |
-| **F-Droid**     | `net.dotnetcloud.client.fdroid` | UnifiedPush (no Google dependencies) |
+| Channel         | App ID                          |
+| --------------- | ------------------------------- |
+| **Google Play** | `net.dotnetcloud.client`        |
+| **F-Droid**     | `net.dotnetcloud.client.fdroid` |
 
-Both flavors can be installed side-by-side on the same device.
+Both flavors can be installed side-by-side on the same device. They differ only in app ID — neither uses a push service, and message alerts work the same way in both.
 
 ### Direct APK
 
@@ -48,14 +48,14 @@ Your login tokens are stored securely in the Android Keystore.
 
 ## Features
 
-| Feature                | Description                                                     |
-| ---------------------- | --------------------------------------------------------------- |
-| **Real-Time Chat**     | Instant message delivery via a persistent connection            |
-| **Files**              | Browse and access your files                                    |
-| **Photo Auto-Upload**  | Automatically back up photos from your device                   |
-| **Push Notifications** | Offline notifications via FCM (Play) or UnifiedPush (F-Droid)   |
-| **Offline Cache**      | Read previously loaded messages without a connection            |
-| **Multi-Server**       | Connect to multiple DotNetCloud servers and switch between them |
+| Feature               | Description                                                     |
+| --------------------- | --------------------------------------------------------------- |
+| **Real-Time Chat**    | Instant message delivery via a persistent connection            |
+| **Files**             | Browse and access your files                                    |
+| **Photo Auto-Upload** | Automatically back up photos from your device                   |
+| **Background Alerts** | New-message alert posted by the app's own background check      |
+| **Offline Cache**     | Read previously loaded messages without a connection            |
+| **Multi-Server**      | Connect to multiple DotNetCloud servers and switch between them |
 
 ---
 
@@ -71,23 +71,24 @@ Each server keeps its own login tokens and connection.
 
 ---
 
-## Push Notifications
+## Background Alerts
 
-- **Google Play build:** uses Firebase Cloud Messaging (FCM)
-- **F-Droid build:** uses UnifiedPush — install a distributor app (e.g., ntfy, Gotify UP) and the app registers with it on first launch
+There is nothing extra to install — the app contains no push service and nothing from Google.
 
-If notifications aren't arriving, check that push is enabled for the server and that your device allows notifications for the app.
+While the app is closed, Android periodically wakes DotNetCloud, which checks your server for new chat alerts and posts a generic notification, such as **New message** or **You were mentioned**. The notification never carries the message text or the sender name: turning the app on and opening the chat is what reads the message from your server.
+
+If alerts aren't arriving, check that your device allows notifications for the app and that the phone can reach your server. These checks are periodic, so an alert may take a few minutes.
 
 ---
 
 ## Troubleshooting
 
-| Issue                      | What to Do                                                                             |
-| -------------------------- | -------------------------------------------------------------------------------------- |
-| Can't sign in              | Verify the server URL includes `https://` (and the port if non-standard)               |
-| Messages not loading       | Check your connection; cached messages are available offline                           |
-| Notifications not arriving | Confirm push is enabled and the distributor (F-Droid) or Firebase (Play) is configured |
-| Update banner shown        | Update through your app store — the app never self-installs APKs                       |
+| Issue                      | What to Do                                                                |
+| -------------------------- | ------------------------------------------------------------------------- |
+| Can't sign in              | Verify the server URL includes `https://` (and the port if non-standard)  |
+| Messages not loading       | Check your connection; cached messages are available offline              |
+| Notifications not arriving | Allow notifications for the app and check the phone can reach your server |
+| Update banner shown        | Update through your app store — the app never self-installs APKs          |
 
 ---
 

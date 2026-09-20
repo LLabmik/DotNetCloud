@@ -27,31 +27,31 @@ src/Modules/Chat/
 
 ### Models
 
-| Entity | Purpose |
-|--------|---------|
-| `Channel` | Chat channel (public, private, DM, group) |
-| `ChannelMember` | User membership in a channel with role and preferences |
-| `Message` | Chat message with content, type, reply threading |
-| `MessageAttachment` | File attached to a message |
-| `MessageReaction` | Emoji reaction on a message |
-| `MessageMention` | @mention in a message |
-| `PinnedMessage` | Message pinned in a channel |
-| `Announcement` | Organization-wide announcement |
-| `AnnouncementAcknowledgement` | User acknowledgement of an announcement |
+| Entity                        | Purpose                                                |
+| ----------------------------- | ------------------------------------------------------ |
+| `Channel`                     | Chat channel (public, private, DM, group)              |
+| `ChannelMember`               | User membership in a channel with role and preferences |
+| `Message`                     | Chat message with content, type, reply threading       |
+| `MessageAttachment`           | File attached to a message                             |
+| `MessageReaction`             | Emoji reaction on a message                            |
+| `MessageMention`              | @mention in a message                                  |
+| `PinnedMessage`               | Message pinned in a channel                            |
+| `Announcement`                | Organization-wide announcement                         |
+| `AnnouncementAcknowledgement` | User acknowledgement of an announcement                |
 
 ### Service Layer
 
-| Service | Responsibility |
-|---------|---------------|
-| `IChannelService` | Channel CRUD, archive, DM creation |
-| `IChannelMemberService` | Member management, roles, notifications, read tracking |
-| `IMessageService` | Send, edit, delete, search, paginated retrieval |
-| `IReactionService` | Add/remove emoji reactions |
-| `IPinService` | Pin/unpin messages |
-| `ITypingIndicatorService` | Track who is typing |
-| `IAnnouncementService` | Announcement CRUD with acknowledgement |
-| `IChatRealtimeService` | SignalR broadcast wrapper |
-| `IPushNotificationService` | Push notifications via FCM/UnifiedPush |
+| Service                    | Responsibility                                         |
+| -------------------------- | ------------------------------------------------------ |
+| `IChannelService`          | Channel CRUD, archive, DM creation                     |
+| `IChannelMemberService`    | Member management, roles, notifications, read tracking |
+| `IMessageService`          | Send, edit, delete, search, paginated retrieval        |
+| `IReactionService`         | Add/remove emoji reactions                             |
+| `IPinService`              | Pin/unpin messages                                     |
+| `ITypingIndicatorService`  | Track who is typing                                    |
+| `IAnnouncementService`     | Announcement CRUD with acknowledgement                 |
+| `IChatRealtimeService`     | SignalR broadcast wrapper                              |
+| `IPushNotificationService` | Server-side push delivery via FCM                      |
 
 ### Real-Time Architecture
 
@@ -70,32 +70,35 @@ Chat Module (ChatRealtimeService)
 
 ```
 Chat Service → NotificationRouter
-                ├── FcmPushProvider (Firebase Cloud Messaging)
-                └── UnifiedPushProvider (open protocol)
+                └── FcmPushProvider (Firebase Cloud Messaging)
+
+Mobile background alerts do not go through a push transport: the Android app polls
+`GET /api/v1/chat/alerts` from a JobScheduler job and renders generic text on the device.
 ```
 
 ## Blazor UI Components
 
-| Component | Purpose |
-|-----------|---------|
-| `ChannelList` | Sidebar channel navigation with unread badges |
-| `ChannelHeader` | Channel name, topic, member count, actions |
-| `MessageList` | Scrollable message list with infinite scroll |
-| `MessageComposer` | Message input with reply, attach, emoji |
-| `TypingIndicator` | Animated typing dots with user names |
-| `MemberListPanel` | Channel members grouped by status |
+| Component               | Purpose                                              |
+| ----------------------- | ---------------------------------------------------- |
+| `ChannelList`           | Sidebar channel navigation with unread badges        |
+| `ChannelHeader`         | Channel name, topic, member count, actions           |
+| `MessageList`           | Scrollable message list with infinite scroll         |
+| `MessageComposer`       | Message input with reply, attach, emoji              |
+| `TypingIndicator`       | Animated typing dots with user names                 |
+| `MemberListPanel`       | Channel members grouped by status                    |
 | `ChannelSettingsDialog` | Edit channel metadata, notifications, archive/delete |
-| `DirectMessageView` | Streamlined 1:1 conversation view |
-| `ChatNotificationBadge` | Unread count badge for navigation |
-| `AnnouncementBanner` | Inline urgent/important announcement display |
-| `AnnouncementList` | Full announcement listing with filters |
-| `AnnouncementEditor` | Create/edit announcement dialog |
+| `DirectMessageView`     | Streamlined 1:1 conversation view                    |
+| `ChatNotificationBadge` | Unread count badge for navigation                    |
+| `AnnouncementBanner`    | Inline urgent/important announcement display         |
+| `AnnouncementList`      | Full announcement listing with filters               |
+| `AnnouncementEditor`    | Create/edit announcement dialog                      |
 
 ## REST API
 
 Base path: `/api/v1/chat`
 
 ### Channels
+
 - `POST /channels` — Create channel
 - `GET /channels` — List user's channels
 - `GET /channels/{id}` — Get channel
@@ -105,6 +108,7 @@ Base path: `/api/v1/chat`
 - `POST /channels/dm/{userId}` — Get or create DM
 
 ### Members
+
 - `POST /channels/{id}/members` — Add member
 - `DELETE /channels/{id}/members/{userId}` — Remove member
 - `GET /channels/{id}/members` — List members
@@ -114,6 +118,7 @@ Base path: `/api/v1/chat`
 - `GET /unread` — Get unread counts
 
 ### Messages
+
 - `POST /channels/{id}/messages` — Send message
 - `GET /channels/{id}/messages` — Get messages (paginated)
 - `GET /channels/{id}/messages/{msgId}` — Get single message
@@ -122,20 +127,24 @@ Base path: `/api/v1/chat`
 - `GET /channels/{id}/messages/search?q=` — Search messages
 
 ### Reactions
+
 - `POST /messages/{id}/reactions` — Add reaction
 - `DELETE /messages/{id}/reactions/{emoji}` — Remove reaction
 - `GET /messages/{id}/reactions` — Get reactions
 
 ### Pins
+
 - `POST /channels/{id}/pins/{msgId}` — Pin message
 - `DELETE /channels/{id}/pins/{msgId}` — Unpin message
 - `GET /channels/{id}/pins` — Get pinned messages
 
 ### Typing
+
 - `POST /channels/{id}/typing` — Notify typing
 - `GET /channels/{id}/typing` — Get typing users
 
 ### Announcements (`/api/v1/announcements`)
+
 - `POST /` — Create announcement
 - `GET /` — List announcements
 - `GET /{id}` — Get announcement
@@ -148,15 +157,16 @@ Base path: `/api/v1/chat`
 
 All service tests are in `tests/DotNetCloud.Modules.Chat.Tests/`:
 
-| Test Class | Coverage |
-|-----------|---------|
-| `ChannelServiceTests` | Channel CRUD, DM, archive, validation |
-| `MessageServiceTests` | Send, edit, delete, search, pagination, auth |
-| `ReactionServiceTests` | Add/remove, duplicates, grouping, validation |
-| `PinServiceTests` | Pin/unpin, duplicates, empty state |
-| `TypingIndicatorServiceTests` | Notify, cleanup, multi-user, isolation |
+| Test Class                    | Coverage                                     |
+| ----------------------------- | -------------------------------------------- |
+| `ChannelServiceTests`         | Channel CRUD, DM, archive, validation        |
+| `MessageServiceTests`         | Send, edit, delete, search, pagination, auth |
+| `ReactionServiceTests`        | Add/remove, duplicates, grouping, validation |
+| `PinServiceTests`             | Pin/unpin, duplicates, empty state           |
+| `TypingIndicatorServiceTests` | Notify, cleanup, multi-user, isolation       |
 
 Run tests:
+
 ```bash
 dotnet test tests/DotNetCloud.Modules.Chat.Tests/
 ```

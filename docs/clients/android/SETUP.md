@@ -4,13 +4,13 @@
 
 ## Prerequisites
 
-| Requirement | Version | Notes |
-|---|---|---|
-| .NET SDK | 10.0+ | [dot.net/download](https://dot.net/download) |
-| Android workload | Latest | Installed via .NET CLI |
-| Android SDK | API 35 | Installed via workload or Android Studio |
-| IDE | VS 2026 / Rider 2026+ | MAUI plugin required |
-| JDK | 17+ | Bundled with Android workload |
+| Requirement      | Version               | Notes                                        |
+| ---------------- | --------------------- | -------------------------------------------- |
+| .NET SDK         | 10.0+                 | [dot.net/download](https://dot.net/download) |
+| Android workload | Latest                | Installed via .NET CLI                       |
+| Android SDK      | API 35                | Installed via workload or Android Studio     |
+| IDE              | VS 2026 / Rider 2026+ | MAUI plugin required                         |
+| JDK              | 17+                   | Bundled with Android workload                |
 
 ## Step 1: Install .NET SDK
 
@@ -97,6 +97,7 @@ dotnet build src/Clients/DotNetCloud.Client.Android/DotNetCloud.Client.Android.c
 ### Emulator
 
 1. Create an emulator via Android Studio or `avdmanager`:
+
    ```powershell
    # List available system images
    & "$env:ANDROID_HOME\cmdline-tools\latest\bin\sdkmanager.bat" --list | Select-String "system-images"
@@ -142,33 +143,18 @@ dotnet build src/Clients/DotNetCloud.Client.Android/DotNetCloud.Client.Android.c
 3. Select the Android run configuration.
 4. Press Shift+F10 to run.
 
-## Firebase Configuration (Google Play Build Only)
+## Push Notifications
 
-For push notifications in the Google Play build, you need a Firebase project:
+**No configuration is required.** The Android client uses no Firebase project and no other push service: there is no `google-services.json`, no Firebase package, and no extra companion app to install.
 
-1. Go to [Firebase Console](https://console.firebase.google.com/).
-2. Create a project or use an existing one.
-3. Add an Android app with package name `net.dotnetcloud.client`.
-4. Download `google-services.json`.
-5. Place it in `src/Clients/DotNetCloud.Client.Android/Platforms/Android/`.
-6. Build with the default flavor (no `-p:BuildFlavor` flag needed).
-
-> The `google-services.json` file is **not** checked into source control. The F-Droid build does not require it.
-
-## UnifiedPush Configuration (F-Droid Build)
-
-For push notifications in the F-Droid build:
-
-1. Install a UnifiedPush distributor app on the device (e.g., ntfy, Gotify UP).
-2. Configure the distributor to point to your notification server.
-3. Build with `-p:BuildFlavor=fdroid`.
-4. The app will register with the distributor on first launch.
+New-message alerts come from the app's own background poll of the server's aggregate endpoint (`GET /api/v1/chat/alerts`), which posts a generic notification ("New message", "You were mentioned"). Both flavors behave identically.
 
 ## Troubleshooting
 
 ### `XA5300: Android SDK not found`
 
 Set the `AndroidSdkDirectory` MSBuild property:
+
 ```powershell
 dotnet build -p:AndroidSdkDirectory="<path-to-sdk>" src/Clients/DotNetCloud.Client.Android/DotNetCloud.Client.Android.csproj
 ```
@@ -176,6 +162,7 @@ dotnet build -p:AndroidSdkDirectory="<path-to-sdk>" src/Clients/DotNetCloud.Clie
 ### `JAVA_HOME is not set`
 
 The Android workload bundles a JDK. If it's not detected:
+
 ```powershell
 $env:JAVA_HOME = "$env:LOCALAPPDATA\Microsoft\Android\jdk\microsoft_dist_openjdk_17"
 ```
@@ -187,6 +174,7 @@ Ensure the `MauiVersion` in the project matches the installed workload version. 
 ### Build Fails on Linux
 
 Linux requires additional system packages:
+
 ```bash
 # Ubuntu/Debian
 sudo apt install -y libx11-dev libxrandr-dev

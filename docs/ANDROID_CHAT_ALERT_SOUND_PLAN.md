@@ -9,8 +9,8 @@ foreground or background."
 
 ### 1. Foreground: no alert existed at all (fixed)
 
-All three notification paths (`SignalRChatClient.PostSignalRNotification`, `FcmMessagingService`,
-`UnifiedPushReceiver`) deliberately suppress notifications while
+All notification paths (`SignalRChatClient.PostSignalRNotification`, `FcmMessagingService`,
+`ChatNotificationRenderer`) deliberately suppress notifications while
 `IAppForegroundService.IsInForeground` is true — correct, since the user is already looking at the
 app — but the Android client never had an in-app sound. The web client has had one since
 `4029ae5a` (Blazor `chat-sound.js` + `ShouldPlayMessageSound`); the port was simply never done, so a
@@ -82,7 +82,6 @@ On-device channel configuration is healthy — `chat_messages` has `mImportance=
    needs the config file whose `google_app_id` matches the Firebase project the server signs FCM
    sends with. Add it to `src/Clients/DotNetCloud.Client.Android/` (or supply
    `-p:GoogleServicesJson=<path>`); the client half is already self-healing once a token exists.
-   _(The F-Droid flavour + a UnifiedPush distributor is the alternative.)_
 2. **Server: FCM credentials** (`Chat:Push:Fcm` → `ProjectId`, `CredentialsPath`) for the same
    Firebase project, otherwise sends fail at the transport.
 3. **Server: persist push device registrations** instead of an in-memory dictionary, so a module-host

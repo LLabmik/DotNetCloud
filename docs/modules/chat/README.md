@@ -9,7 +9,7 @@
 
 ## Overview
 
-The Chat module provides real-time messaging for DotNetCloud organizations. It supports public and private channels, direct messages, group DMs, threaded replies, emoji reactions, message pinning, typing indicators, presence tracking, announcements, file attachments (integrated with the Files module), and push notifications via FCM or UnifiedPush.
+The Chat module provides real-time messaging for DotNetCloud organizations. It supports public and private channels, direct messages, group DMs, threaded replies, emoji reactions, message pinning, typing indicators, presence tracking, announcements, file attachments (integrated with the Files module), and push notifications via Firebase Cloud Messaging (FCM).
 
 ## Key Features
 
@@ -25,7 +25,7 @@ The Chat module provides real-time messaging for DotNetCloud organizations. It s
 | **@Mentions**           | User, channel, and @all mentions with notification dispatch                       |
 | **Announcements**       | Organization-wide announcements with priority levels and acknowledgement tracking |
 | **File Attachments**    | Attach files to messages, integrated with the Files module via `FileNodeId`       |
-| **Push Notifications**  | FCM (Google Play) and UnifiedPush (F-Droid/self-hosted) with retry queue          |
+| **Push Notifications**  | Firebase Cloud Messaging (FCM) with retry queue                                   |
 | **Unread Counts**       | Per-channel unread message and mention counts                                     |
 | **Message Search**      | Full-text search within channels                                                  |
 | **Video/Audio Calls**   | WebRTC-based 1:1 and group calls from any channel type                            |
@@ -58,7 +58,7 @@ The `ChatModuleManifest` declares:
 ```
 Client → REST API / gRPC → Service Layer → EF Core → Database
                                          → IChatRealtimeService → SignalR (IRealtimeBroadcaster)
-                                         → IPushNotificationService → FCM / UnifiedPush
+                                         → IPushNotificationService → FCM
                                          → IEventBus → Other Modules
 ```
 

@@ -2,8 +2,10 @@
 
 ## 🚨 CRITICAL: Read First — Non-Negotiable Rules (MANDATORY)
 
-**1. NEVER commit or push until testing is COMPLETE.**
+**1. NEVER commit or push until testing is COMPLETE — and NEVER without the user's explicit approval.**
 
+- ⚠️ **Approval gate (MANDATORY, added 2026-09-20):** even when every check is green, **STOP and ask** — report the branch, the file list and the evidence — and wait for an explicit "commit" / "push" instruction. **Never stage, commit or push on your own initiative.**
+- ⚠️ **An instruction to edit code, to "make the change", or to create a branch is NOT approval to commit.** Creating a branch is preparation, not permission.
 - A change may only be committed after it **builds cleanly**, **tests pass**, and (where applicable) is **installed and verified end-to-end**.
 - ⚠️ **"Unit tests pass" ≠ "testing complete."** If the task/plan requires live verification (outage simulations, integration tests against a real DB, manual end-to-end checks), those must be DONE before committing — not deferred.
 - ⚠️ **If required verification cannot run in the current environment, STOP and tell the user before committing. Do not commit anyway.**
@@ -15,6 +17,7 @@ the ones relevant to the task. Treat rule #1 as a hard gate.
 
 **3. Pre-commit checklist (before EVERY commit):**
 
+0. ⚠️ **Confirm the user's explicit approval is on record** (rule #1). If it is not, **stop and ask** — do not commit.
 1. Run `git status --short`.
 2. Delete ALL unexpected untracked files/directories (including gitignored runtime data like `storage/`, `bin/`, temp files) — only intentional tracked changes remain.
 3. ⚠️ **NEVER delete untracked `.cs` files** — they are work-in-progress code, not junk.
@@ -609,7 +612,7 @@ For commands that require elevation (e.g. `sudo ./scripts/deploy.sh --force --ve
 
 ### Git Push Responsibility
 
-- The assistant is responsible for pushing commits to remote by default.
+- ⚠️ **Push only after the user has explicitly approved it** (rule #1 — no commit or push without approval). If the approval covers "commit and push", push the working branch; if it covers only the commit, stop after committing and report the branch + hash.
 - Do not delegate routine push responsibility to the moderator/user unless explicitly requested.
 - **Always push the current working branch** (e.g. `fix/...`) to `origin` — never push `main` directly for routine feature work.
 - Do NOT fast-forward or merge the working branch into local `main`, and do NOT run `git push origin main` on the user's behalf — **EXCEPT for the release-tagging flow**. When the user asks to cut a release (a version-bump commit on `main` followed by an annotated release tag like `vX.Y.Z`), it is OK and expected to push `main` and the release tag directly to `origin`. Outside that flow, pushing `main` is reserved for the user's PR merge.

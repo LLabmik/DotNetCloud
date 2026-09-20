@@ -1183,8 +1183,7 @@ public class ChatController : ChatControllerBase
             await _pushNotificationService.RegisterDeviceAsync(caller.UserId, new DeviceRegistration
             {
                 Token = dto.DeviceToken,
-                Provider = provider,
-                Endpoint = dto.Endpoint
+                Provider = provider
             });
 
             return Ok(Envelope(new { registered = true }));
@@ -1640,11 +1639,8 @@ public sealed record RegisterDeviceRequestDto
     /// <summary>Push provider device token.</summary>
     public required string DeviceToken { get; init; }
 
-    /// <summary>Provider value: FCM or UnifiedPush.</summary>
+    /// <summary>Provider value: FCM.</summary>
     public required string Provider { get; init; }
-
-    /// <summary>UnifiedPush endpoint URL, when provider is UnifiedPush.</summary>
-    public string? Endpoint { get; init; }
 }
 
 /// <summary>Caller-level notification preferences for push delivery.</summary>

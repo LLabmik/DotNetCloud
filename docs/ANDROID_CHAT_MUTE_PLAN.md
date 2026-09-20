@@ -21,12 +21,12 @@ ChannelListViewModel ──toggle──→ IChatRestClient.MuteChannelAsync / Un
 ChannelMuteStateService (singleton cache: Guid → bool)
         │
         ├── consulted by ── FcmMessagingService.ShowChatNotification()
-        └── consulted by ── UnifiedPushReceiver.ShowNotification()
+        └── consulted by ── ChatNotificationRenderer.Render(...)
 
 AppForegroundService (singleton: bool IsInForeground)
         │
         ├── consulted by ── FcmMessagingService.ShowChatNotification()
-        └── consulted by ── UnifiedPushReceiver.ShowNotification()
+        └── consulted by ── ChatNotificationRenderer.Render(...)
 
 Notification decision tree:
   1. Is AppForegroundService.IsInForeground?  → YES: skip notification
@@ -57,7 +57,6 @@ Channel list loads → ChannelSummary.IsMuted (from server)
 | `src/Clients/DotNetCloud.Client.Android/Views/ChannelDetailsPage.xaml`            | Existing mute switch UI (template to match)                       |
 | `src/Clients/DotNetCloud.Client.Android/ViewModels/ChannelDetailsViewModel.cs`    | Existing IsMuted property, member load pattern                    |
 | `src/Clients/DotNetCloud.Client.Android/Platforms/Android/FcmMessagingService.cs` | Notification posting with foreground + mute checks to add         |
-| `src/Clients/DotNetCloud.Client.Android/Platforms/Android/UnifiedPushReceiver.cs` | F-Droid notification posting (same checks needed)                 |
 | `src/Clients/DotNetCloud.Client.Android/Platforms/Android/MainActivity.cs`        | Lifecycle hooks for foreground tracking                           |
 | `src/Clients/DotNetCloud.Client.Android/MauiProgram.cs`                           | DI registration pattern                                           |
 | `src/Clients/DotNetCloud.Client.Android/Services/IAppPreferences.cs`              | Key-value preferences pattern (reference only, not used directly) |
@@ -611,9 +610,9 @@ You also need to add the using directive at the top of the file:
 using DotNetCloud.Client.Android.Services;
 ```
 
-**File: `src/Clients/DotNetCloud.Client.Android/Platforms/Android/UnifiedPushReceiver.cs`**
+**File: `src/Clients/DotNetCloud.Client.Android/Platforms/Android/ChatNotificationRenderer.cs`**
 
-Add the same foreground + mute checks at the top of the `ShowNotification` method, before building the intent. Use the same `Ioc.Default.GetService<>` pattern.
+Add the same foreground + mute checks at the top of the render path, before building the intent. Use the same `Ioc.Default.GetService<>` pattern.
 
 Add the same using directive:
 
@@ -729,7 +728,6 @@ The Android client handles `404` and non-success status codes gracefully — it 
 | `Views/ChannelDetailsPage.xaml.cs`         | Subscribe to `MuteStateChanged` for cross-VM sync                                                                                                         |
 | `Platforms/Android/MainActivity.cs`        | Add `OnResume`/`OnPause` overrides to update `IAppForegroundService`                                                                                      |
 | `Platforms/Android/FcmMessagingService.cs` | Add foreground + mute checks before posting notifications                                                                                                 |
-| `Platforms/Android/UnifiedPushReceiver.cs` | Add foreground + mute checks before posting notifications                                                                                                 |
 | `MauiProgram.cs`                           | Register `IAppForegroundService` and `IChannelMuteStateService` as singletons                                                                             |
 
 ---
