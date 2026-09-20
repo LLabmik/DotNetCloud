@@ -134,49 +134,49 @@ Announcement ──1:N── AnnouncementAcknowledgement
 
 ### Channel
 
-| Column | Type | Description |
-|---|---|---|
-| `Id` | `Guid` | Primary key |
-| `Name` | `string` | Channel name (unique per type) |
-| `Description` | `string?` | Channel description |
-| `Type` | `ChannelType` | Public, Private, DirectMessage, Group |
-| `Topic` | `string?` | Current topic |
-| `AvatarUrl` | `string?` | Channel avatar |
-| `IsArchived` | `bool` | Archived state |
-| `OrganizationId` | `Guid?` | Organization scope |
-| `CreatedByUserId` | `Guid` | Creator |
-| `CreatedAt` | `DateTime` | Creation timestamp |
-| `LastActivityAt` | `DateTime?` | Last message timestamp |
+| Column            | Type          | Description                           |
+| ----------------- | ------------- | ------------------------------------- |
+| `Id`              | `Guid`        | Primary key                           |
+| `Name`            | `string`      | Channel name (unique per type)        |
+| `Description`     | `string?`     | Channel description                   |
+| `Type`            | `ChannelType` | Public, Private, DirectMessage, Group |
+| `Topic`           | `string?`     | Current topic                         |
+| `AvatarUrl`       | `string?`     | Channel avatar                        |
+| `IsArchived`      | `bool`        | Archived state                        |
+| `OrganizationId`  | `Guid?`       | Organization scope                    |
+| `CreatedByUserId` | `Guid`        | Creator                               |
+| `CreatedAt`       | `DateTime`    | Creation timestamp                    |
+| `LastActivityAt`  | `DateTime?`   | Last message timestamp                |
 
 ### Message
 
-| Column | Type | Description |
-|---|---|---|
-| `Id` | `Guid` | Primary key |
-| `ChannelId` | `Guid` | Foreign key to Channel |
-| `SenderUserId` | `Guid` | Author user ID |
-| `Content` | `string` | Markdown content |
-| `Type` | `MessageType` | Text, System, Notification |
-| `SentAt` | `DateTime` | Send timestamp |
-| `EditedAt` | `DateTime?` | Last edit timestamp |
-| `IsEdited` | `bool` | Edit flag |
-| `IsPinned` | `bool` | Pin flag |
-| `PinnedAt` | `DateTime?` | Pin timestamp |
-| `IsDeleted` | `bool` | Soft delete flag |
-| `ReplyToMessageId` | `Guid?` | Thread parent |
+| Column             | Type          | Description                |
+| ------------------ | ------------- | -------------------------- |
+| `Id`               | `Guid`        | Primary key                |
+| `ChannelId`        | `Guid`        | Foreign key to Channel     |
+| `SenderUserId`     | `Guid`        | Author user ID             |
+| `Content`          | `string`      | Markdown content           |
+| `Type`             | `MessageType` | Text, System, Notification |
+| `SentAt`           | `DateTime`    | Send timestamp             |
+| `EditedAt`         | `DateTime?`   | Last edit timestamp        |
+| `IsEdited`         | `bool`        | Edit flag                  |
+| `IsPinned`         | `bool`        | Pin flag                   |
+| `PinnedAt`         | `DateTime?`   | Pin timestamp              |
+| `IsDeleted`        | `bool`        | Soft delete flag           |
+| `ReplyToMessageId` | `Guid?`       | Thread parent              |
 
 ### ChannelMember
 
-| Column | Type | Description |
-|---|---|---|
-| `Id` | `Guid` | Primary key |
-| `ChannelId` | `Guid` | Foreign key to Channel |
-| `UserId` | `Guid` | User ID |
-| `Role` | `ChannelMemberRole` | Member, Admin, Owner |
-| `JoinedAt` | `DateTime` | Join timestamp |
-| `IsMuted` | `bool` | Muted flag |
-| `NotificationPreference` | `NotificationPreference` | All, Mentions, None |
-| `LastReadMessageId` | `Guid?` | Last read message (for unread counts) |
+| Column                   | Type                     | Description                           |
+| ------------------------ | ------------------------ | ------------------------------------- |
+| `Id`                     | `Guid`                   | Primary key                           |
+| `ChannelId`              | `Guid`                   | Foreign key to Channel                |
+| `UserId`                 | `Guid`                   | User ID                               |
+| `Role`                   | `ChannelMemberRole`      | Member, Admin, Owner                  |
+| `JoinedAt`               | `DateTime`               | Join timestamp                        |
+| `IsMuted`                | `bool`                   | Muted flag                            |
+| `NotificationPreference` | `NotificationPreference` | All, Mentions, None                   |
+| `LastReadMessageId`      | `Guid?`                  | Last read message (for unread counts) |
 
 ## Service Layer
 
@@ -184,30 +184,30 @@ Announcement ──1:N── AnnouncementAcknowledgement
 
 All service methods accept a `CallerContext` that identifies the caller (User, System, or Module). Authorization is enforced at the service layer:
 
-| Operation | Required Role |
-|---|---|
-| Create channel | Any authenticated user |
-| Update channel | Admin or Owner |
-| Delete channel | Owner only |
-| Archive channel | Admin or Owner |
-| Add member | Admin or Owner |
-| Remove member | Admin or Owner (cannot remove last owner) |
-| Update member role | Owner only |
-| Send message | Channel member |
-| Edit message | Message author only |
-| Delete message | Message author, Admin, or Owner |
-| Add/remove reaction | Channel member |
-| Pin/unpin message | Admin or Owner |
+| Operation           | Required Role                             |
+| ------------------- | ----------------------------------------- |
+| Create channel      | Any authenticated user                    |
+| Update channel      | Admin or Owner                            |
+| Delete channel      | Owner only                                |
+| Archive channel     | Admin or Owner                            |
+| Add member          | Admin or Owner                            |
+| Remove member       | Admin or Owner (cannot remove last owner) |
+| Update member role  | Owner only                                |
+| Send message        | Channel member                            |
+| Edit message        | Message author only                       |
+| Delete message      | Message author, Admin, or Owner           |
+| Add/remove reaction | Channel member                            |
+| Pin/unpin message   | Admin or Owner                            |
 
 ### Mention Processing
 
 When a message is sent, the `MessageService` parses @mentions from the content and creates `MessageMention` records. Types of mentions:
 
-| Type | Syntax | Behavior |
-|---|---|---|
-| User | `@username` | Notifies specific user |
-| Channel | `@channel` | Notifies all channel members |
-| All | `@all` | Notifies all channel members |
+| Type    | Syntax      | Behavior                     |
+| ------- | ----------- | ---------------------------- |
+| User    | `@username` | Notifies specific user       |
+| Channel | `@channel`  | Notifies all channel members |
+| All     | `@all`      | Notifies all channel members |
 
 The `MentionNotificationService` dispatches notifications via both SignalR (real-time) and push notifications, excluding the sender. Unread mention counts include `@all` and `@channel` mentions.
 
@@ -221,28 +221,28 @@ The Chat module's gRPC interface is used by the core supervisor for inter-proces
 
 ### ChatService (10 RPCs)
 
-| RPC | Description |
-|---|---|
-| `CreateChannel` | Create a new channel |
-| `GetChannel` | Get channel by ID |
-| `ListChannels` | List channels for a user |
-| `SendMessage` | Send a message to a channel |
-| `GetMessages` | Get paginated messages |
-| `EditMessage` | Edit an existing message |
-| `DeleteMessage` | Delete a message |
-| `AddReaction` | Add emoji reaction |
-| `RemoveReaction` | Remove emoji reaction |
-| `NotifyTyping` | Signal typing activity |
+| RPC              | Description                 |
+| ---------------- | --------------------------- |
+| `CreateChannel`  | Create a new channel        |
+| `GetChannel`     | Get channel by ID           |
+| `ListChannels`   | List channels for a user    |
+| `SendMessage`    | Send a message to a channel |
+| `GetMessages`    | Get paginated messages      |
+| `EditMessage`    | Edit an existing message    |
+| `DeleteMessage`  | Delete a message            |
+| `AddReaction`    | Add emoji reaction          |
+| `RemoveReaction` | Remove emoji reaction       |
+| `NotifyTyping`   | Signal typing activity      |
 
 ### ChatLifecycleService
 
-| RPC | Description |
-|---|---|
-| `Initialize` | Initialize module with context |
-| `Start` | Start module processing |
-| `Stop` | Gracefully stop module |
-| `GetHealth` | Health check status |
-| `GetManifest` | Module manifest information |
+| RPC           | Description                    |
+| ------------- | ------------------------------ |
+| `Initialize`  | Initialize module with context |
+| `Start`       | Start module processing        |
+| `Stop`        | Gracefully stop module         |
+| `GetHealth`   | Health check status            |
+| `GetManifest` | Module manifest information    |
 
 ## Real-Time Broadcasting
 

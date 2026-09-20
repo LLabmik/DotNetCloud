@@ -48,14 +48,14 @@ Your login tokens are stored securely in the Android Keystore.
 
 ## Features
 
-| Feature                | Description                                                     |
-| ---------------------- | --------------------------------------------------------------- |
-| **Real-Time Chat**     | Instant message delivery via a persistent connection            |
-| **Files**              | Browse and access your files                                    |
-| **Photo Auto-Upload**  | Automatically back up photos from your device                   |
-| **Background Alerts**  | New-message alert posted by the app's own background check       |
-| **Offline Cache**      | Read previously loaded messages without a connection            |
-| **Multi-Server**       | Connect to multiple DotNetCloud servers and switch between them |
+| Feature               | Description                                                     |
+| --------------------- | --------------------------------------------------------------- |
+| **Real-Time Chat**    | Instant message delivery via a persistent connection            |
+| **Files**             | Browse and access your files                                    |
+| **Photo Auto-Upload** | Automatically back up photos from your device                   |
+| **Background Alerts** | New-message alert posted by the app's own background check      |
+| **Offline Cache**     | Read previously loaded messages without a connection            |
+| **Multi-Server**      | Connect to multiple DotNetCloud servers and switch between them |
 
 ---
 
@@ -83,12 +83,12 @@ If alerts aren't arriving, check that your device allows notifications for the a
 
 ## Troubleshooting
 
-| Issue                      | What to Do                                                                             |
-| -------------------------- | -------------------------------------------------------------------------------------- |
-| Can't sign in              | Verify the server URL includes `https://` (and the port if non-standard)               |
-| Messages not loading       | Check your connection; cached messages are available offline                           |
-| Notifications not arriving | Allow notifications for the app and check the phone can reach your server               |
-| Update banner shown        | Update through your app store — the app never self-installs APKs                       |
+| Issue                      | What to Do                                                                |
+| -------------------------- | ------------------------------------------------------------------------- |
+| Can't sign in              | Verify the server URL includes `https://` (and the port if non-standard)  |
+| Messages not loading       | Check your connection; cached messages are available offline              |
+| Notifications not arriving | Allow notifications for the app and check the phone can reach your server |
+| Update banner shown        | Update through your app store — the app never self-installs APKs          |
 
 ---
 

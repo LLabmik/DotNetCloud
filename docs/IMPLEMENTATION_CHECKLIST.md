@@ -3378,6 +3378,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 > (`docs/ANDROID_CHAT_BACKGROUND_ALERTS_PLAN.md`). Do not start this work without a fresh operator decision.
 
 #### FCM Provider — superseded: FCM is being removed entirely (2026-09-18)
+
 > Historical record only. **FCM is not a live or planned transport** — the client ships no Google
 > messaging dependency. Do not add FCM work, do not add a `google-services.json`, and do not
 > configure `Chat:Push:Fcm`; mobile alerts come from the app's own poll.

@@ -4,13 +4,13 @@
 
 ## Prerequisites
 
-| Requirement | Version | Notes |
-|---|---|---|
-| .NET SDK | 10.0+ | [dot.net/download](https://dot.net/download) |
-| Android workload | Latest | Installed via .NET CLI |
-| Android SDK | API 35 | Installed via workload or Android Studio |
-| IDE | VS 2026 / Rider 2026+ | MAUI plugin required |
-| JDK | 17+ | Bundled with Android workload |
+| Requirement      | Version               | Notes                                        |
+| ---------------- | --------------------- | -------------------------------------------- |
+| .NET SDK         | 10.0+                 | [dot.net/download](https://dot.net/download) |
+| Android workload | Latest                | Installed via .NET CLI                       |
+| Android SDK      | API 35                | Installed via workload or Android Studio     |
+| IDE              | VS 2026 / Rider 2026+ | MAUI plugin required                         |
+| JDK              | 17+                   | Bundled with Android workload                |
 
 ## Step 1: Install .NET SDK
 
@@ -97,6 +97,7 @@ dotnet build src/Clients/DotNetCloud.Client.Android/DotNetCloud.Client.Android.c
 ### Emulator
 
 1. Create an emulator via Android Studio or `avdmanager`:
+
    ```powershell
    # List available system images
    & "$env:ANDROID_HOME\cmdline-tools\latest\bin\sdkmanager.bat" --list | Select-String "system-images"
@@ -153,6 +154,7 @@ New-message alerts come from the app's own background poll of the server's aggre
 ### `XA5300: Android SDK not found`
 
 Set the `AndroidSdkDirectory` MSBuild property:
+
 ```powershell
 dotnet build -p:AndroidSdkDirectory="<path-to-sdk>" src/Clients/DotNetCloud.Client.Android/DotNetCloud.Client.Android.csproj
 ```
@@ -160,6 +162,7 @@ dotnet build -p:AndroidSdkDirectory="<path-to-sdk>" src/Clients/DotNetCloud.Clie
 ### `JAVA_HOME is not set`
 
 The Android workload bundles a JDK. If it's not detected:
+
 ```powershell
 $env:JAVA_HOME = "$env:LOCALAPPDATA\Microsoft\Android\jdk\microsoft_dist_openjdk_17"
 ```
@@ -171,6 +174,7 @@ Ensure the `MauiVersion` in the project matches the installed workload version. 
 ### Build Fails on Linux
 
 Linux requires additional system packages:
+
 ```bash
 # Ubuntu/Debian
 sudo apt install -y libx11-dev libxrandr-dev

@@ -4,11 +4,11 @@
 
 ## Build Flavors
 
-| Channel | App ID | Proprietary Deps | Build Flag |
-|---|---|---|---|
-| **Google Play** | `net.dotnetcloud.client` | None | Default |
-| **F-Droid** | `net.dotnetcloud.client.fdroid` | None | `-p:BuildFlavor=fdroid` |
-| **Direct APK** | `net.dotnetcloud.client` | None | Default |
+| Channel         | App ID                          | Proprietary Deps | Build Flag              |
+| --------------- | ------------------------------- | ---------------- | ----------------------- |
+| **Google Play** | `net.dotnetcloud.client`        | None             | Default                 |
+| **F-Droid**     | `net.dotnetcloud.client.fdroid` | None             | `-p:BuildFlavor=fdroid` |
+| **Direct APK**  | `net.dotnetcloud.client`        | None             | Default                 |
 
 Both flavors can be installed side-by-side on the same device due to separate app IDs. They are
 built from the same package set and the same code, and neither uses a push service: background
@@ -126,10 +126,10 @@ dotnet publish src/Clients/DotNetCloud.Client.Android/DotNetCloud.Client.Android
 
 ### Version Numbering
 
-| Property | Format | Example |
-|---|---|---|
+| Property                    | Format                       | Example       |
+| --------------------------- | ---------------------------- | ------------- |
 | `ApplicationDisplayVersion` | `major.minor.patch[-suffix]` | `0.1.0-alpha` |
-| `ApplicationVersion` | Auto-incrementing integer | `1`, `2`, `3` |
+| `ApplicationVersion`        | Auto-incrementing integer    | `1`, `2`, `3` |
 
 Increment `ApplicationVersion` for every upload to Google Play.
 
@@ -233,11 +233,11 @@ For users who prefer sideloading or organizations using MDM (Mobile Device Manag
 
 Each tagged release on [GitHub](https://github.com/LLabmik/DotNetCloud/releases) includes signed APK artifacts:
 
-| File | Description |
-|---|---|
-| `DotNetCloud-v{version}-googleplay.apk` | Google Play flavor (`net.dotnetcloud.client`) |
-| `DotNetCloud-v{version}-fdroid.apk` | F-Droid flavor (`net.dotnetcloud.client.fdroid`, no proprietary deps) |
-| `checksums-sha256.txt` | SHA-256 checksums for verification |
+| File                                    | Description                                                           |
+| --------------------------------------- | --------------------------------------------------------------------- |
+| `DotNetCloud-v{version}-googleplay.apk` | Google Play flavor (`net.dotnetcloud.client`)                         |
+| `DotNetCloud-v{version}-fdroid.apk`     | F-Droid flavor (`net.dotnetcloud.client.fdroid`, no proprietary deps) |
+| `checksums-sha256.txt`                  | SHA-256 checksums for verification                                    |
 
 ### Installing a Direct APK
 
@@ -293,7 +293,7 @@ For organizations managing devices via MDM (Intune, Workspace ONE, etc.):
 name: Android Release
 on:
   push:
-    tags: ['v*']
+    tags: ["v*"]
 
 jobs:
   build:
@@ -302,7 +302,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: "10.0.x"
       - run: dotnet workload install android
 
       # Google Play build
@@ -345,13 +345,13 @@ Before each release:
 
 ### Google Play
 
-| Field | Value |
-|---|---|
-| **Title** | DotNetCloud |
+| Field                 | Value                                                     |
+| --------------------- | --------------------------------------------------------- |
+| **Title**             | DotNetCloud                                               |
 | **Short description** | Self-hosted cloud — chat, files, and sync. Own your data. |
-| **Category** | Communication |
-| **Content rating** | Everyone |
-| **Pricing** | Free |
+| **Category**          | Communication                                             |
+| **Content rating**    | Everyone                                                  |
+| **Pricing**           | Free                                                      |
 
 **Full description:**
 

@@ -32,20 +32,20 @@ delivered by the server agent (`cloud.kimball.home`) and is **deployed and verif
 
 | Option                                     | Why not                                                                                      |
 | ------------------------------------------ | -------------------------------------------------------------------------------------------- |
-| Google FCM                                 | Ruled out by invariant 1 (no content _and_ no metadata may leave the instance via Google).    |
-| A third-party push distributor app         | Requires **every user** to install and configure a separate app — too high a price per user.  |
-| A foreground service we own (instant push) | Permanent notification + a restricted FGS type; unnecessary at the accepted latency budget.   |
+| Google FCM                                 | Ruled out by invariant 1 (no content _and_ no metadata may leave the instance via Google).   |
+| A third-party push distributor app         | Requires **every user** to install and configure a separate app — too high a price per user. |
+| A foreground service we own (instant push) | Permanent notification + a restricted FGS type; unnecessary at the accepted latency budget.  |
 
 ---
 
 ## 2. Why the phone must ask, not be told
 
-| Lever                                      | Reality                                                                                                                                                       | Consequence for this design                                                                                     |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| **Cached-process freezer** (Android 12+)   | A backgrounded app is frozen within seconds–minutes of becoming cached, and a frozen process receives no socket data.                                           | The sticky but unpromoted `ChatConnectionService` socket stops delivering once the app is cached.               |
-| **Battery-optimization exemption**         | Affects Doze / App Standby, **not** the cached-app freezer.                                                                                                     | "The user exempted us" must never be treated as "we can hold a socket".                                         |
-| **Foreground service**                     | The only sanctioned way to hold a connection indefinitely, and every API 34+ type carries a cost (`dataSync` budget, `specialUse` review).                        | Declined — see "Rejected options".                                                                              |
-| **`JobScheduler` / `AlarmManager`**        | Run the app while it is frozen or dead, but are **self**-scheduled: no server can trigger them, and Doze clamps them (`setExactAndAllowWhileIdle` ≈ 9 min floor). | The alert is "phone asks". The cadence below **is** the delivery latency while the app is closed.                |
+| Lever                                    | Reality                                                                                                                                                           | Consequence for this design                                                                       |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| **Cached-process freezer** (Android 12+) | A backgrounded app is frozen within seconds–minutes of becoming cached, and a frozen process receives no socket data.                                             | The sticky but unpromoted `ChatConnectionService` socket stops delivering once the app is cached. |
+| **Battery-optimization exemption**       | Affects Doze / App Standby, **not** the cached-app freezer.                                                                                                       | "The user exempted us" must never be treated as "we can hold a socket".                           |
+| **Foreground service**                   | The only sanctioned way to hold a connection indefinitely, and every API 34+ type carries a cost (`dataSync` budget, `specialUse` review).                        | Declined — see "Rejected options".                                                                |
+| **`JobScheduler` / `AlarmManager`**      | Run the app while it is frozen or dead, but are **self**-scheduled: no server can trigger them, and Doze clamps them (`setExactAndAllowWhileIdle` ≈ 9 min floor). | The alert is "phone asks". The cadence below **is** the delivery latency while the app is closed. |
 
 **The unavoidable conclusion:** no OS mechanism is simultaneously Google-free _and_ connection-free, so
 the design is a **tiering of how fast the phone asks**.

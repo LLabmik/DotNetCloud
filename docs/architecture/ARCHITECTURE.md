@@ -312,10 +312,10 @@ User sends message → SignalR hub (core) → Chat module (gRPC) → validates, 
 
 ### Push Notifications (Android)
 
-| Method                         | For whom                                                              |
-| ------------------------------ | --------------------------------------------------------------------- |
-| FCM (Firebase Cloud Messaging) | Server-side push provider (device registration API stays available)    |
-| App's own background poll     | The shipped Android alert path: generic "New message" notifications, no third party and no Google in the path |
+| Method                         | For whom                                                                                                      |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| FCM (Firebase Cloud Messaging) | Server-side push provider (device registration API stays available)                                           |
+| App's own background poll      | The shipped Android alert path: generic "New message" notifications, no third party and no Google in the path |
 
 Build flavors: `googleplay` and `fdroid` — they differ by application id only and use the **same** alert code path.
 
@@ -724,14 +724,14 @@ On multi-user Linux systems the `SyncService` systemd unit runs as root (or a de
 
 ### Android Specifics
 
-| Concern            | Approach                                            |
-| ------------------ | --------------------------------------------------- |
-| Background sync    | Android WorkManager                                 |
-| Photo auto-upload  | MediaStore content observer                         |
-| Alerts             | App's own `JobScheduler` poll (generic notifications) |
-| Distribution       | Google Play Store + F-Droid + direct APK            |
-| Build flavors      | `googleplay` / `fdroid` (application-id difference only) |
-| Battery            | Respect Doze mode, batch uploads on WiFi + charging |
+| Concern           | Approach                                                 |
+| ----------------- | -------------------------------------------------------- |
+| Background sync   | Android WorkManager                                      |
+| Photo auto-upload | MediaStore content observer                              |
+| Alerts            | App's own `JobScheduler` poll (generic notifications)    |
+| Distribution      | Google Play Store + F-Droid + direct APK                 |
+| Build flavors     | `googleplay` / `fdroid` (application-id difference only) |
+| Battery           | Respect Doze mode, batch uploads on WiFi + charging      |
 
 ---
 

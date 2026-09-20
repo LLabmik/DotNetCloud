@@ -14,16 +14,16 @@ The DotNetCloud Android client is a .NET MAUI application providing mobile acces
 
 ## Features
 
-| Feature | Description |
-|---|---|
-| **OAuth2/OIDC with PKCE** | Secure authentication via system browser with authorization code flow |
-| **Real-Time Chat** | SignalR-based persistent connection for instant message delivery |
-| **Background Alerts** | The app polls the server for new messages and posts a generic notification |
-| **Offline Cache** | SQLite-backed local message cache for offline reading |
-| **Multi-Server** | Connect to multiple DotNetCloud instances; switch active server |
-| **Secure Token Storage** | Android Keystore-backed token persistence |
-| **Chat Connection Service** | Keeps the SignalR connection alive while the app process is running |
-| **Build Flavors** | Separate Google Play and F-Droid builds with conditional compilation |
+| Feature                     | Description                                                                |
+| --------------------------- | -------------------------------------------------------------------------- |
+| **OAuth2/OIDC with PKCE**   | Secure authentication via system browser with authorization code flow      |
+| **Real-Time Chat**          | SignalR-based persistent connection for instant message delivery           |
+| **Background Alerts**       | The app polls the server for new messages and posts a generic notification |
+| **Offline Cache**           | SQLite-backed local message cache for offline reading                      |
+| **Multi-Server**            | Connect to multiple DotNetCloud instances; switch active server            |
+| **Secure Token Storage**    | Android Keystore-backed token persistence                                  |
+| **Chat Connection Service** | Keeps the SignalR connection alive while the app process is running        |
+| **Build Flavors**           | Separate Google Play and F-Droid builds with conditional compilation       |
 
 ## Project Structure
 
@@ -100,11 +100,11 @@ dotnet publish src/Clients/DotNetCloud.Client.Android/DotNetCloud.Client.Android
 
 ### Build Flavors
 
-| Aspect | Google Play | F-Droid |
-|---|---|---|
-| **Build Command** | Default | `-p:BuildFlavor=fdroid` |
-| **Conditional Symbol** | `GOOGLEPLAY` | `FDROID` |
-| **App ID** | `net.dotnetcloud.client` | `net.dotnetcloud.client.fdroid` |
+| Aspect                 | Google Play              | F-Droid                         |
+| ---------------------- | ------------------------ | ------------------------------- |
+| **Build Command**      | Default                  | `-p:BuildFlavor=fdroid`         |
+| **Conditional Symbol** | `GOOGLEPLAY`             | `FDROID`                        |
+| **App ID**             | `net.dotnetcloud.client` | `net.dotnetcloud.client.fdroid` |
 
 Both flavors can be installed side-by-side on the same device (different app IDs). They share the
 same package set and the same alert code path — neither uses a push service, because background
@@ -115,6 +115,7 @@ alerts come from the app's own poll of `GET /api/v1/chat/alerts`.
 ### MVVM with CommunityToolkit.MVVM
 
 The app follows the MVVM pattern using `CommunityToolkit.Mvvm`:
+
 - **Observable properties** via `[ObservableProperty]` source generator
 - **Relay commands** via `[RelayCommand]` for async operations
 - **Global IoC** via `Ioc.Default` for service resolution in ViewModels
@@ -133,27 +134,27 @@ AppShell
 
 ### Service Lifetimes
 
-| Service | Lifetime | Notes |
-|---|---|---|
-| `IOAuth2Service` | Singleton | OAuth flow coordinator |
-| `ISecureTokenStore` | Singleton | Android Keystore wrapper |
-| `IServerConnectionStore` | Singleton | Preferences-backed |
-| `IChatSignalRClient` | Singleton | Long-lived hub connection |
-| `ILocalMessageCache` | Singleton | SQLite connection |
-| `IChatAlertPoller` | Transient | Typed HTTP client for the chat-alert endpoint |
-| `IChatAlertScheduler` | Singleton | Schedules the background alert poll |
-| ViewModels | Transient | Fresh per navigation |
+| Service                  | Lifetime  | Notes                                         |
+| ------------------------ | --------- | --------------------------------------------- |
+| `IOAuth2Service`         | Singleton | OAuth flow coordinator                        |
+| `ISecureTokenStore`      | Singleton | Android Keystore wrapper                      |
+| `IServerConnectionStore` | Singleton | Preferences-backed                            |
+| `IChatSignalRClient`     | Singleton | Long-lived hub connection                     |
+| `ILocalMessageCache`     | Singleton | SQLite connection                             |
+| `IChatAlertPoller`       | Transient | Typed HTTP client for the chat-alert endpoint |
+| `IChatAlertScheduler`    | Singleton | Schedules the background alert poll           |
+| ViewModels               | Transient | Fresh per navigation                          |
 
 ## Authentication
 
 ### OAuth2/OIDC with PKCE
 
-| Setting | Value |
-|---|---|
-| **Client ID** | `dotnetcloud-mobile` |
-| **Redirect URI** | `net.dotnetcloud.client://oauth2redirect` |
-| **Scopes** | `openid profile offline_access files:read files:write` |
-| **Flow** | Authorization Code with PKCE |
+| Setting          | Value                                                  |
+| ---------------- | ------------------------------------------------------ |
+| **Client ID**    | `dotnetcloud-mobile`                                   |
+| **Redirect URI** | `net.dotnetcloud.client://oauth2redirect`              |
+| **Scopes**       | `openid profile offline_access files:read files:write` |
+| **Flow**         | Authorization Code with PKCE                           |
 
 ### Login Flow
 
@@ -193,10 +194,10 @@ Tokens are refreshed transparently before expiration.
 
 ### Events
 
-| Event | Handler |
-|---|---|
-| `UnreadCountUpdated` | Updates channel badges |
-| `NewChatMessage` | Shows notification popup |
+| Event                | Handler                  |
+| -------------------- | ------------------------ |
+| `UnreadCountUpdated` | Updates channel badges   |
+| `NewChatMessage`     | Shows notification popup |
 
 ### Chat Connection Service
 
@@ -224,14 +225,14 @@ The client registers no push device and holds no push transport, so the server n
 
 ## Android Permissions
 
-| Permission | Purpose |
-|---|---|
-| `INTERNET` | Network access |
-| `ACCESS_NETWORK_STATE` | Connectivity detection |
-| `POST_NOTIFICATIONS` | Notification display (Android 13+) |
-| `FOREGROUND_SERVICE` | Music playback service (the only foreground service) |
-| `READ_MEDIA_IMAGES` | Photo auto-upload |
-| `READ_MEDIA_VIDEO` | Video auto-upload |
+| Permission             | Purpose                                              |
+| ---------------------- | ---------------------------------------------------- |
+| `INTERNET`             | Network access                                       |
+| `ACCESS_NETWORK_STATE` | Connectivity detection                               |
+| `POST_NOTIFICATIONS`   | Notification display (Android 13+)                   |
+| `FOREGROUND_SERVICE`   | Music playback service (the only foreground service) |
+| `READ_MEDIA_IMAGES`    | Photo auto-upload                                    |
+| `READ_MEDIA_VIDEO`     | Video auto-upload                                    |
 
 ## Distribution
 
@@ -242,6 +243,7 @@ Standard AAB/APK signed release via Google Play Console.
 ### F-Droid
 
 F-Droid-compatible build with no Google dependencies:
+
 - Separate app ID (`net.dotnetcloud.client.fdroid`) for co-installation
 - Same package set as the Google Play build — nothing Google-provided in either
 - No proprietary libraries
@@ -252,16 +254,16 @@ Release APK available for sideloading from the project's distribution page.
 
 ## Dependencies
 
-| Package | Version | Purpose |
-|---|---|---|
-| `Microsoft.Maui.Controls` | 10.0 | UI framework |
-| `CommunityToolkit.Mvvm` | 8.4.0 | MVVM source generators |
-| `Microsoft.AspNetCore.SignalR.Client` | 10.0.0 | Real-time messaging |
-| `Microsoft.Extensions.Http` | 10.0.0 | HTTP client factory |
-| `sqlite-net-pcl` | 1.9.172 | Local message cache |
+| Package                               | Version | Purpose                |
+| ------------------------------------- | ------- | ---------------------- |
+| `Microsoft.Maui.Controls`             | 10.0    | UI framework           |
+| `CommunityToolkit.Mvvm`               | 8.4.0   | MVVM source generators |
+| `Microsoft.AspNetCore.SignalR.Client` | 10.0.0  | Real-time messaging    |
+| `Microsoft.Extensions.Http`           | 10.0.0  | HTTP client factory    |
+| `sqlite-net-pcl`                      | 1.9.172 | Local message cache    |
 
 ## Test Coverage
 
-| Test Project | Tests | Description |
-|---|---|---|
+| Test Project                       | Tests            | Description                                         |
+| ---------------------------------- | ---------------- | --------------------------------------------------- |
 | `DotNetCloud.Client.Android.Tests` | See test project | Unit tests for ViewModels, services, and converters |

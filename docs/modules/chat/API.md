@@ -18,6 +18,7 @@ POST /api/v1/chat/channels?userId={userId}
 ```
 
 **Request Body:**
+
 ```json
 {
   "name": "general",
@@ -31,21 +32,22 @@ POST /api/v1/chat/channels?userId={userId}
 
 **Response:** `201 Created` → `ChannelDto`
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | `Guid` | Channel identifier |
-| `name` | `string` | Channel name |
-| `description` | `string?` | Channel description |
-| `type` | `string` | `Public`, `Private`, `DirectMessage`, `Group` |
-| `topic` | `string?` | Current topic |
-| `avatarUrl` | `string?` | Channel avatar URL |
-| `isArchived` | `bool` | Whether the channel is archived |
-| `memberCount` | `int` | Number of members |
-| `lastActivityAt` | `DateTime?` | Last message timestamp |
-| `createdAt` | `DateTime` | Creation timestamp |
-| `createdByUserId` | `Guid` | Creator user ID |
+| Field             | Type        | Description                                   |
+| ----------------- | ----------- | --------------------------------------------- |
+| `id`              | `Guid`      | Channel identifier                            |
+| `name`            | `string`    | Channel name                                  |
+| `description`     | `string?`   | Channel description                           |
+| `type`            | `string`    | `Public`, `Private`, `DirectMessage`, `Group` |
+| `topic`           | `string?`   | Current topic                                 |
+| `avatarUrl`       | `string?`   | Channel avatar URL                            |
+| `isArchived`      | `bool`      | Whether the channel is archived               |
+| `memberCount`     | `int`       | Number of members                             |
+| `lastActivityAt`  | `DateTime?` | Last message timestamp                        |
+| `createdAt`       | `DateTime`  | Creation timestamp                            |
+| `createdByUserId` | `Guid`      | Creator user ID                               |
 
 **Errors:**
+
 - `400` — Missing or invalid fields
 - `409` — Channel name already exists
 
@@ -70,6 +72,7 @@ GET /api/v1/chat/channels/{channelId}?userId={userId}
 **Response:** `200 OK` → `ChannelDto`
 
 **Errors:**
+
 - `404` — Channel not found
 
 ---
@@ -81,6 +84,7 @@ PUT /api/v1/chat/channels/{channelId}?userId={userId}
 ```
 
 **Request Body:**
+
 ```json
 {
   "name": "renamed-channel",
@@ -136,6 +140,7 @@ POST /api/v1/chat/channels/{channelId}/members?userId={userId}
 ```
 
 **Request Body:**
+
 ```json
 {
   "userId": "target-user-guid",
@@ -146,6 +151,7 @@ POST /api/v1/chat/channels/{channelId}/members?userId={userId}
 **Response:** `200 OK` → `{ "added": true }`
 
 **Errors:**
+
 - `403` — Caller lacks permission to add members
 
 ---
@@ -159,6 +165,7 @@ DELETE /api/v1/chat/channels/{channelId}/members/{targetUserId}?userId={userId}
 **Response:** `200 OK` → `{ "removed": true }`
 
 **Errors:**
+
 - `403` — Cannot remove last owner
 
 ---
@@ -171,13 +178,13 @@ GET /api/v1/chat/channels/{channelId}/members?userId={userId}
 
 **Response:** `200 OK` → `ChannelMemberDto[]`
 
-| Field | Type | Description |
-|---|---|---|
-| `userId` | `Guid` | Member user ID |
-| `role` | `string` | `Member`, `Admin`, `Owner` |
-| `joinedAt` | `DateTime` | When the user joined |
-| `isMuted` | `bool` | Whether channel is muted |
-| `notificationPref` | `string` | `All`, `Mentions`, `None` |
+| Field              | Type       | Description                |
+| ------------------ | ---------- | -------------------------- |
+| `userId`           | `Guid`     | Member user ID             |
+| `role`             | `string`   | `Member`, `Admin`, `Owner` |
+| `joinedAt`         | `DateTime` | When the user joined       |
+| `isMuted`          | `bool`     | Whether channel is muted   |
+| `notificationPref` | `string`   | `All`, `Mentions`, `None`  |
 
 ---
 
@@ -188,6 +195,7 @@ PUT /api/v1/chat/channels/{channelId}/members/{targetUserId}/role?userId={userId
 ```
 
 **Request Body:**
+
 ```json
 {
   "role": "Admin"
@@ -205,6 +213,7 @@ PUT /api/v1/chat/channels/{channelId}/notifications?userId={userId}
 ```
 
 **Request Body:**
+
 ```json
 {
   "preference": "Mentions"
@@ -222,6 +231,7 @@ POST /api/v1/chat/channels/{channelId}/read?userId={userId}
 ```
 
 **Request Body:**
+
 ```json
 {
   "messageId": "last-read-message-guid"
@@ -240,11 +250,11 @@ GET /api/v1/chat/unread?userId={userId}
 
 **Response:** `200 OK` → `UnreadCountDto[]`
 
-| Field | Type | Description |
-|---|---|---|
-| `channelId` | `Guid` | Channel identifier |
-| `unreadCount` | `int` | Number of unread messages |
-| `mentionCount` | `int` | Number of unread @mentions |
+| Field          | Type   | Description                |
+| -------------- | ------ | -------------------------- |
+| `channelId`    | `Guid` | Channel identifier         |
+| `unreadCount`  | `int`  | Number of unread messages  |
+| `mentionCount` | `int`  | Number of unread @mentions |
 
 ---
 
@@ -257,6 +267,7 @@ POST /api/v1/chat/channels/{channelId}/messages?userId={userId}
 ```
 
 **Request Body:**
+
 ```json
 {
   "content": "Hello, world! @alice check this out",
@@ -268,20 +279,20 @@ Content supports Markdown formatting. @mentions are parsed automatically.
 
 **Response:** `201 Created` → `MessageDto`
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | `Guid` | Message identifier |
-| `channelId` | `Guid` | Parent channel |
-| `senderUserId` | `Guid` | Author user ID |
-| `content` | `string` | Markdown content |
-| `type` | `string` | `Text`, `System`, `Notification` |
-| `sentAt` | `DateTime` | Send timestamp |
-| `editedAt` | `DateTime?` | Last edit timestamp |
-| `isEdited` | `bool` | Whether message was edited |
-| `replyToMessageId` | `Guid?` | Parent message for threads |
-| `attachments` | `MessageAttachmentDto[]` | File attachments |
-| `reactions` | `MessageReactionDto[]` | Emoji reactions |
-| `mentions` | `MessageMentionDto[]` | Parsed @mentions |
+| Field              | Type                     | Description                      |
+| ------------------ | ------------------------ | -------------------------------- |
+| `id`               | `Guid`                   | Message identifier               |
+| `channelId`        | `Guid`                   | Parent channel                   |
+| `senderUserId`     | `Guid`                   | Author user ID                   |
+| `content`          | `string`                 | Markdown content                 |
+| `type`             | `string`                 | `Text`, `System`, `Notification` |
+| `sentAt`           | `DateTime`               | Send timestamp                   |
+| `editedAt`         | `DateTime?`              | Last edit timestamp              |
+| `isEdited`         | `bool`                   | Whether message was edited       |
+| `replyToMessageId` | `Guid?`                  | Parent message for threads       |
+| `attachments`      | `MessageAttachmentDto[]` | File attachments                 |
+| `reactions`        | `MessageReactionDto[]`   | Emoji reactions                  |
+| `mentions`         | `MessageMentionDto[]`    | Parsed @mentions                 |
 
 ---
 
@@ -293,13 +304,13 @@ GET /api/v1/chat/channels/{channelId}/messages?userId={userId}&page=1&pageSize=5
 
 **Response:** `200 OK` → Paginated result
 
-| Field | Type | Description |
-|---|---|---|
-| `items` | `MessageDto[]` | Messages for current page |
-| `page` | `int` | Current page number |
-| `pageSize` | `int` | Items per page |
-| `totalItems` | `int` | Total message count |
-| `totalPages` | `int` | Total page count |
+| Field        | Type           | Description               |
+| ------------ | -------------- | ------------------------- |
+| `items`      | `MessageDto[]` | Messages for current page |
+| `page`       | `int`          | Current page number       |
+| `pageSize`   | `int`          | Items per page            |
+| `totalItems` | `int`          | Total message count       |
+| `totalPages` | `int`          | Total page count          |
 
 ---
 
@@ -320,6 +331,7 @@ PUT /api/v1/chat/channels/{channelId}/messages/{messageId}?userId={userId}
 ```
 
 **Request Body:**
+
 ```json
 {
   "content": "Updated message content"
@@ -339,6 +351,7 @@ DELETE /api/v1/chat/channels/{channelId}/messages/{messageId}?userId={userId}
 **Response:** `200 OK` → `{ "deleted": true }`
 
 **Errors:**
+
 - `404` — Message not found
 
 ---
@@ -351,15 +364,16 @@ GET /api/v1/chat/channels/{channelId}/messages/search?q=keyword&userId={userId}&
 
 **Query Parameters:**
 
-| Parameter | Required | Description |
-|---|---|---|
-| `q` | Yes | Search query (cannot be empty) |
-| `page` | No | Page number (default: 1) |
-| `pageSize` | No | Items per page (default: 50) |
+| Parameter  | Required | Description                    |
+| ---------- | -------- | ------------------------------ |
+| `q`        | Yes      | Search query (cannot be empty) |
+| `page`     | No       | Page number (default: 1)       |
+| `pageSize` | No       | Items per page (default: 50)   |
 
 **Response:** `200 OK` → Paginated `MessageDto[]`
 
 **Errors:**
+
 - `400` — Empty search query
 
 ---
@@ -383,6 +397,7 @@ POST /api/v1/chat/messages/{messageId}/reactions?userId={userId}
 ```
 
 **Request Body:**
+
 ```json
 {
   "emoji": "👍"
@@ -411,10 +426,10 @@ GET /api/v1/chat/messages/{messageId}/reactions
 
 **Response:** `200 OK` → `MessageReactionDto[]`
 
-| Field | Type | Description |
-|---|---|---|
-| `emoji` | `string` | Reaction emoji |
-| `count` | `int` | Number of users who reacted |
+| Field     | Type     | Description                   |
+| --------- | -------- | ----------------------------- |
+| `emoji`   | `string` | Reaction emoji                |
+| `count`   | `int`    | Number of users who reacted   |
 | `userIds` | `Guid[]` | Users who added this reaction |
 
 ---
@@ -471,11 +486,11 @@ GET /api/v1/chat/channels/{channelId}/typing
 
 **Response:** `200 OK` → `TypingIndicatorDto[]`
 
-| Field | Type | Description |
-|---|---|---|
-| `channelId` | `Guid` | Channel identifier |
-| `userId` | `Guid` | User who is typing |
-| `displayName` | `string?` | User display name |
+| Field         | Type      | Description        |
+| ------------- | --------- | ------------------ |
+| `channelId`   | `Guid`    | Channel identifier |
+| `userId`      | `Guid`    | User who is typing |
+| `displayName` | `string?` | User display name  |
 
 ---
 
@@ -488,6 +503,7 @@ POST /api/v1/chat/channels/{channelId}/messages/{messageId}/attachments?userId={
 ```
 
 **Request Body:**
+
 ```json
 {
   "fileName": "report.pdf",
@@ -500,14 +516,14 @@ POST /api/v1/chat/channels/{channelId}/messages/{messageId}/attachments?userId={
 
 **Response:** `201 Created` → `MessageAttachmentDto`
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | `Guid` | Attachment identifier |
-| `fileName` | `string` | Original file name |
-| `mimeType` | `string` | MIME type |
-| `fileSize` | `long` | Size in bytes |
-| `thumbnailUrl` | `string?` | Thumbnail URL (for images) |
-| `fileNodeId` | `Guid?` | Link to Files module `FileNode` |
+| Field          | Type      | Description                     |
+| -------------- | --------- | ------------------------------- |
+| `id`           | `Guid`    | Attachment identifier           |
+| `fileName`     | `string`  | Original file name              |
+| `mimeType`     | `string`  | MIME type                       |
+| `fileSize`     | `long`    | Size in bytes                   |
+| `thumbnailUrl` | `string?` | Thumbnail URL (for images)      |
+| `fileNodeId`   | `Guid?`   | Link to Files module `FileNode` |
 
 ---
 
@@ -520,6 +536,7 @@ POST /api/v1/announcements?userId={userId}
 ```
 
 **Request Body:**
+
 ```json
 {
   "organizationId": "org-guid",
@@ -533,19 +550,19 @@ POST /api/v1/announcements?userId={userId}
 
 **Response:** `201 Created` → `AnnouncementDto`
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | `Guid` | Announcement identifier |
-| `organizationId` | `Guid` | Organization scope |
-| `authorUserId` | `Guid` | Author user ID |
-| `title` | `string` | Announcement title |
-| `content` | `string` | Markdown content |
-| `priority` | `string` | `Normal`, `Important`, `Urgent` |
-| `publishedAt` | `DateTime` | Publication timestamp |
-| `expiresAt` | `DateTime?` | Expiration timestamp |
-| `isPinned` | `bool` | Whether pinned to top |
-| `requiresAcknowledgement` | `bool` | Whether users must acknowledge |
-| `acknowledgementCount` | `int` | Number of acknowledgements |
+| Field                     | Type        | Description                     |
+| ------------------------- | ----------- | ------------------------------- |
+| `id`                      | `Guid`      | Announcement identifier         |
+| `organizationId`          | `Guid`      | Organization scope              |
+| `authorUserId`            | `Guid`      | Author user ID                  |
+| `title`                   | `string`    | Announcement title              |
+| `content`                 | `string`    | Markdown content                |
+| `priority`                | `string`    | `Normal`, `Important`, `Urgent` |
+| `publishedAt`             | `DateTime`  | Publication timestamp           |
+| `expiresAt`               | `DateTime?` | Expiration timestamp            |
+| `isPinned`                | `bool`      | Whether pinned to top           |
+| `requiresAcknowledgement` | `bool`      | Whether users must acknowledge  |
+| `acknowledgementCount`    | `int`       | Number of acknowledgements      |
 
 ---
 
@@ -568,6 +585,7 @@ GET /api/v1/announcements/{id}?userId={userId}
 **Response:** `200 OK` → `AnnouncementDto`
 
 **Errors:**
+
 - `404` — Announcement not found
 
 ---
@@ -579,6 +597,7 @@ PUT /api/v1/announcements/{id}?userId={userId}
 ```
 
 **Request Body:**
+
 ```json
 {
   "title": "Updated Title",
@@ -623,9 +642,9 @@ GET /api/v1/announcements/{id}/acknowledgements?userId={userId}
 
 **Response:** `200 OK` → `AnnouncementAcknowledgementDto[]`
 
-| Field | Type | Description |
-|---|---|---|
-| `userId` | `Guid` | User who acknowledged |
+| Field            | Type       | Description               |
+| ---------------- | ---------- | ------------------------- |
+| `userId`         | `Guid`     | User who acknowledged     |
 | `acknowledgedAt` | `DateTime` | Acknowledgement timestamp |
 
 ---
@@ -639,6 +658,7 @@ POST /api/v1/notifications/devices/register?userId={userId}
 ```
 
 **Request Body:**
+
 ```json
 {
   "deviceToken": "fcm-registration-token",
@@ -646,14 +666,15 @@ POST /api/v1/notifications/devices/register?userId={userId}
 }
 ```
 
-| Field | Required | Description |
-|---|---|---|
-| `deviceToken` | Yes | FCM registration token |
-| `provider` | Yes | `FCM` (the only supported provider) |
+| Field         | Required | Description                         |
+| ------------- | -------- | ----------------------------------- |
+| `deviceToken` | Yes      | FCM registration token              |
+| `provider`    | Yes      | `FCM` (the only supported provider) |
 
 **Response:** `200 OK` → `{ "registered": true }`
 
 **Errors:**
+
 - `400` — Empty device token or invalid provider
 
 ---
@@ -676,10 +697,10 @@ GET /api/v1/notifications/preferences?userId={userId}
 
 **Response:** `200 OK` → `NotificationPreferencesDto`
 
-| Field | Type | Description |
-|---|---|---|
-| `pushEnabled` | `bool` | Whether push notifications are enabled |
-| `doNotDisturb` | `bool` | Whether DND mode is active |
+| Field             | Type     | Description                            |
+| ----------------- | -------- | -------------------------------------- |
+| `pushEnabled`     | `bool`   | Whether push notifications are enabled |
+| `doNotDisturb`    | `bool`   | Whether DND mode is active             |
 | `mutedChannelIds` | `Guid[]` | Channels with suppressed notifications |
 
 ---
@@ -691,6 +712,7 @@ PUT /api/v1/notifications/preferences?userId={userId}
 ```
 
 **Request Body:**
+
 ```json
 {
   "pushEnabled": true,
@@ -712,35 +734,37 @@ POST /api/v1/chat/channels/{channelId}/calls?userId={userId}
 ```
 
 **Request Body:**
+
 ```json
 {
   "mediaType": "Video"
 }
 ```
 
-| Field | Type | Description |
-|---|---|---|
+| Field       | Type     | Description                        |
+| ----------- | -------- | ---------------------------------- |
 | `mediaType` | `string` | `Audio`, `Video`, or `ScreenShare` |
 
 **Response:** `201 Created` → `VideoCallDto`
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | `Guid` | Call identifier |
-| `channelId` | `Guid` | Channel where the call was initiated |
-| `initiatorUserId` | `Guid` | User who started the call |
-| `state` | `string` | Current state (e.g., `Ringing`) |
-| `mediaType` | `string` | `Audio`, `Video`, or `ScreenShare` |
-| `isGroupCall` | `bool` | Whether the channel has 3+ members |
-| `maxParticipants` | `int` | Peak participant count |
-| `participants` | `CallParticipantDto[]` | Current participants |
-| `startedAtUtc` | `DateTime?` | When the call became active |
-| `endedAtUtc` | `DateTime?` | When the call ended |
-| `endReason` | `string?` | End reason (if ended) |
-| `liveKitRoomId` | `string?` | LiveKit room name (if SFU is active) |
-| `createdAtUtc` | `DateTime` | Creation timestamp |
+| Field             | Type                   | Description                          |
+| ----------------- | ---------------------- | ------------------------------------ |
+| `id`              | `Guid`                 | Call identifier                      |
+| `channelId`       | `Guid`                 | Channel where the call was initiated |
+| `initiatorUserId` | `Guid`                 | User who started the call            |
+| `state`           | `string`               | Current state (e.g., `Ringing`)      |
+| `mediaType`       | `string`               | `Audio`, `Video`, or `ScreenShare`   |
+| `isGroupCall`     | `bool`                 | Whether the channel has 3+ members   |
+| `maxParticipants` | `int`                  | Peak participant count               |
+| `participants`    | `CallParticipantDto[]` | Current participants                 |
+| `startedAtUtc`    | `DateTime?`            | When the call became active          |
+| `endedAtUtc`      | `DateTime?`            | When the call ended                  |
+| `endReason`       | `string?`              | End reason (if ended)                |
+| `liveKitRoomId`   | `string?`              | LiveKit room name (if SFU is active) |
+| `createdAtUtc`    | `DateTime`             | Creation timestamp                   |
 
 **Errors:**
+
 - `400` — Invalid media type
 - `403` — Not a channel member
 - `409` — A call is already active in this channel
@@ -756,6 +780,7 @@ POST /api/v1/chat/calls/{callId}/join?userId={userId}
 ```
 
 **Request Body:**
+
 ```json
 {
   "withAudio": true,
@@ -766,6 +791,7 @@ POST /api/v1/chat/calls/{callId}/join?userId={userId}
 **Response:** `200 OK` → `VideoCallDto` (updated state and participant list)
 
 **Errors:**
+
 - `400` — Invalid request
 - `403` — Not a channel member
 - `404` — Call not found or not joinable
@@ -781,6 +807,7 @@ POST /api/v1/chat/calls/{callId}/leave?userId={userId}
 **Response:** `200 OK` → `{ "left": true }`
 
 **Errors:**
+
 - `403` — Not authorized
 - `404` — Call not found
 
@@ -797,6 +824,7 @@ Ends the call for all participants.
 **Response:** `200 OK` → `{ "ended": true }`
 
 **Errors:**
+
 - `403` — Not authorized
 - `404` — Call not found
 
@@ -811,6 +839,7 @@ POST /api/v1/chat/calls/{callId}/reject?userId={userId}
 **Response:** `200 OK` → `{ "rejected": true }`
 
 **Errors:**
+
 - `403` — Not authorized
 - `404` — Call not found
 
@@ -822,27 +851,28 @@ POST /api/v1/chat/calls/{callId}/reject?userId={userId}
 GET /api/v1/chat/channels/{channelId}/calls?userId={userId}&skip=0&take=20
 ```
 
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `skip` | `int` | `0` | Number of records to skip |
-| `take` | `int` | `20` | Number of records to return (max 100) |
+| Parameter | Type  | Default | Description                           |
+| --------- | ----- | ------- | ------------------------------------- |
+| `skip`    | `int` | `0`     | Number of records to skip             |
+| `take`    | `int` | `20`    | Number of records to return (max 100) |
 
 **Response:** `200 OK` → `CallHistoryDto[]`
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | `Guid` | Call identifier |
-| `channelId` | `Guid` | Channel ID |
-| `initiatorUserId` | `Guid` | Who started the call |
-| `state` | `string` | Final state (`Ended`, `Missed`, `Rejected`, `Failed`) |
-| `mediaType` | `string` | Media type |
-| `startedAtUtc` | `DateTime?` | When the call started |
-| `endedAtUtc` | `DateTime?` | When the call ended |
-| `endReason` | `string?` | Why the call ended |
-| `maxParticipants` | `int` | Peak participant count |
-| `isGroupCall` | `bool` | Whether it was a group call |
+| Field             | Type        | Description                                           |
+| ----------------- | ----------- | ----------------------------------------------------- |
+| `id`              | `Guid`      | Call identifier                                       |
+| `channelId`       | `Guid`      | Channel ID                                            |
+| `initiatorUserId` | `Guid`      | Who started the call                                  |
+| `state`           | `string`    | Final state (`Ended`, `Missed`, `Rejected`, `Failed`) |
+| `mediaType`       | `string`    | Media type                                            |
+| `startedAtUtc`    | `DateTime?` | When the call started                                 |
+| `endedAtUtc`      | `DateTime?` | When the call ended                                   |
+| `endReason`       | `string?`   | Why the call ended                                    |
+| `maxParticipants` | `int`       | Peak participant count                                |
+| `isGroupCall`     | `bool`      | Whether it was a group call                           |
 
 **Errors:**
+
 - `403` — Not a channel member
 
 ---
@@ -856,6 +886,7 @@ GET /api/v1/chat/calls/{callId}?userId={userId}
 **Response:** `200 OK` → `VideoCallDto`
 
 **Errors:**
+
 - `403` — Not authorized
 - `404` — Call not found
 
@@ -872,6 +903,7 @@ Returns the currently active call in a channel, or `null` if no call is active.
 **Response:** `200 OK` → `VideoCallDto` or `{ "data": null }`
 
 **Errors:**
+
 - `403` — Not a channel member
 
 ---
@@ -885,23 +917,28 @@ GET /api/v1/chat/ice-servers?userId={userId}
 Returns ICE server configuration for WebRTC peer connections.
 
 **Response:** `200 OK`
+
 ```json
 {
   "success": true,
   "data": {
     "iceServers": [
       { "urls": ["stun:example.com:3478"] },
-      { "urls": ["turn:turn.example.com:3478"], "username": "...", "credential": "..." }
+      {
+        "urls": ["turn:turn.example.com:3478"],
+        "username": "...",
+        "credential": "..."
+      }
     ],
     "iceTransportPolicy": "all"
   }
 }
 ```
 
-| Field | Type | Description |
-|---|---|---|
-| `iceServers` | `IceServerDto[]` | STUN and TURN server configurations |
-| `iceTransportPolicy` | `string` | `all` or `relay` |
+| Field                | Type             | Description                         |
+| -------------------- | ---------------- | ----------------------------------- |
+| `iceServers`         | `IceServerDto[]` | STUN and TURN server configurations |
+| `iceTransportPolicy` | `string`         | `all` or `relay`                    |
 
 ---
 
@@ -909,15 +946,15 @@ Returns ICE server configuration for WebRTC peer connections.
 
 The Chat module also exposes video call operations via gRPC for inter-process communication:
 
-| RPC | Request | Response | Description |
-|---|---|---|---|
-| `InitiateVideoCall` | `InitiateVideoCallRequest` | `VideoCallResponse` | Start a call in a channel |
-| `JoinVideoCall` | `JoinVideoCallRequest` | `VideoCallResponse` | Join an active call |
-| `LeaveVideoCall` | `LeaveVideoCallRequest` | `VideoCallOperationResponse` | Leave a call |
-| `EndVideoCall` | `EndVideoCallRequest` | `VideoCallOperationResponse` | End a call for all |
-| `RejectVideoCall` | `RejectVideoCallRequest` | `VideoCallOperationResponse` | Reject an incoming call |
-| `GetCallHistory` | `GetCallHistoryRequest` | `GetCallHistoryResponse` | Paginated call history |
-| `GetActiveCall` | `GetActiveCallRequest` | `VideoCallResponse` | Get active call in channel |
+| RPC                 | Request                    | Response                     | Description                |
+| ------------------- | -------------------------- | ---------------------------- | -------------------------- |
+| `InitiateVideoCall` | `InitiateVideoCallRequest` | `VideoCallResponse`          | Start a call in a channel  |
+| `JoinVideoCall`     | `JoinVideoCallRequest`     | `VideoCallResponse`          | Join an active call        |
+| `LeaveVideoCall`    | `LeaveVideoCallRequest`    | `VideoCallOperationResponse` | Leave a call               |
+| `EndVideoCall`      | `EndVideoCallRequest`      | `VideoCallOperationResponse` | End a call for all         |
+| `RejectVideoCall`   | `RejectVideoCallRequest`   | `VideoCallOperationResponse` | Reject an incoming call    |
+| `GetCallHistory`    | `GetCallHistoryRequest`    | `GetCallHistoryResponse`     | Paginated call history     |
+| `GetActiveCall`     | `GetActiveCallRequest`     | `VideoCallResponse`          | Get active call in channel |
 
 ---
 

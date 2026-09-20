@@ -34,13 +34,13 @@ MentionNotificationService
 
 ## Notification Categories
 
-| Category | Trigger | Priority |
-|---|---|---|
-| `ChatMessage` | New message in channel | Normal |
-| `ChatMention` | User was @mentioned | High |
+| Category       | Trigger                    | Priority                                  |
+| -------------- | -------------------------- | ----------------------------------------- |
+| `ChatMessage`  | New message in channel     | Normal                                    |
+| `ChatMention`  | User was @mentioned        | High                                      |
 | `Announcement` | New announcement published | Normal (Important/Urgent raises priority) |
-| `FileShared` | File shared with user | Normal |
-| `System` | System notifications | Low |
+| `FileShared`   | File shared with user      | Normal                                    |
+| `System`       | System notifications       | Low                                       |
 
 ## Providers
 
@@ -64,13 +64,14 @@ The only server-side push provider. It delivers to any client that has registere
 }
 ```
 
-| Setting | Type | Description |
-|---|---|---|
-| `Enabled` | `bool` | Enable/disable FCM provider |
-| `ProjectId` | `string` | Firebase project identifier |
+| Setting           | Type     | Description                                     |
+| ----------------- | -------- | ----------------------------------------------- |
+| `Enabled`         | `bool`   | Enable/disable FCM provider                     |
+| `ProjectId`       | `string` | Firebase project identifier                     |
 | `CredentialsPath` | `string` | Path to Firebase Admin SDK service account JSON |
 
 **Behavior:**
+
 - Sends via Firebase HTTP v1 API.
 - Maintains per-user device token registry.
 - Auto-detects invalid/expired tokens and removes them.
@@ -86,11 +87,11 @@ GET /api/v1/chat/alerts
 
 The response is a constant-cost aggregate of counts only — `unread`, `mentions`, `unmutedUnread`, `unmutedMentions`, `topChannelId` and `changedAt` — returned with an `ETag`. The app sends `If-None-Match` on every poll, so a `304 Not Modified` means nothing changed. **No message text, sender name or channel name ever leaves the server.**
 
-| Poll state | Next poll |
-|---|---|
-| Unmuted unread messages outstanding | 60 s |
-| Nothing unread | 300 s |
-| Device dozing | ~9 min (exact-alarm path) |
+| Poll state                          | Next poll                 |
+| ----------------------------------- | ------------------------- |
+| Unmuted unread messages outstanding | 60 s                      |
+| Nothing unread                      | 300 s                     |
+| Device dozing                       | ~9 min (exact-alarm path) |
 
 The poll runs as a `JobScheduler` job (id `3108`, persisted, any network) that re-arms itself after each run. When the device is dozing and the user has granted exact-alarm access, an allow-while-idle alarm is used instead. There is no foreground service and no persistent notification.
 
@@ -113,10 +114,10 @@ POST /api/v1/notifications/devices/register?userId={userId}
 }
 ```
 
-| Field | Required | Description |
-|---|---|---|
-| `deviceToken` | Yes | FCM registration token |
-| `provider` | Yes | `FCM` (the only supported provider) |
+| Field         | Required | Description                         |
+| ------------- | -------- | ----------------------------------- |
+| `deviceToken` | Yes      | FCM registration token              |
+| `provider`    | Yes      | `FCM` (the only supported provider) |
 
 ### Unregister
 
@@ -152,11 +153,11 @@ PUT /api/v1/notifications/preferences?userId={userId}
 }
 ```
 
-| Setting | Type | Default | Description |
-|---|---|---|---|
-| `pushEnabled` | `bool` | `true` | Master push toggle |
-| `doNotDisturb` | `bool` | `false` | Suppress all push notifications when active |
-| `mutedChannelIds` | `Guid[]` | `[]` | Channels with suppressed notifications |
+| Setting           | Type     | Default | Description                                 |
+| ----------------- | -------- | ------- | ------------------------------------------- |
+| `pushEnabled`     | `bool`   | `true`  | Master push toggle                          |
+| `doNotDisturb`    | `bool`   | `false` | Suppress all push notifications when active |
+| `mutedChannelIds` | `Guid[]` | `[]`    | Channels with suppressed notifications      |
 
 ### Per-Channel Notification Preferences
 
@@ -172,11 +173,11 @@ PUT /api/v1/chat/channels/{channelId}/notifications?userId={userId}
 }
 ```
 
-| Value | Behavior |
-|---|---|
-| `All` | Receive notifications for all messages |
+| Value      | Behavior                                 |
+| ---------- | ---------------------------------------- |
+| `All`      | Receive notifications for all messages   |
 | `Mentions` | Only receive notifications for @mentions |
-| `None` | No notifications from this channel |
+| `None`     | No notifications from this channel       |
 
 ## Delivery Pipeline
 
@@ -207,12 +208,12 @@ public sealed record PushNotification
 
 Failed notifications are queued in an in-memory `System.Threading.Channels`-based queue and retried by the `NotificationDeliveryBackgroundService`:
 
-| Setting | Value | Description |
-|---|---|---|
-| Queue type | Single-reader, multi-writer | Lock-free async channel |
-| Retry strategy | Exponential backoff | Delay doubles with each attempt, capped at 30 s |
-| Max retries | 3 attempts | Fixed in `NotificationDeliveryBackgroundService` |
-| Permanent failure | Token invalid | Device registration auto-cleaned |
+| Setting           | Value                       | Description                                      |
+| ----------------- | --------------------------- | ------------------------------------------------ |
+| Queue type        | Single-reader, multi-writer | Lock-free async channel                          |
+| Retry strategy    | Exponential backoff         | Delay doubles with each attempt, capped at 30 s  |
+| Max retries       | 3 attempts                  | Fixed in `NotificationDeliveryBackgroundService` |
+| Permanent failure | Token invalid               | Device registration auto-cleaned                 |
 
 ### Deduplication
 
@@ -222,20 +223,20 @@ The `NotificationRouter` skips push delivery when a user is currently connected 
 
 The SyncTray desktop client also receives chat notifications via SignalR (not push). The tray icon shows:
 
-| State | Badge |
-|---|---|
-| No unreads | No overlay |
-| Unread messages | Amber overlay badge |
-| Unread @mentions | Red overlay badge |
+| State            | Badge               |
+| ---------------- | ------------------- |
+| No unreads       | No overlay          |
+| Unread messages  | Amber overlay badge |
+| Unread @mentions | Red overlay badge   |
 
 Notifications respect the `IsMuteChatNotifications` setting in `sync-tray-settings.json`.
 
 ## Troubleshooting
 
-| Issue | Cause | Fix |
-|---|---|---|
-| No push notifications | Push disabled in preferences | Check `GET /api/v1/notifications/preferences` |
-| No push despite enabled | DND mode active | Check `doNotDisturb` preference |
-| Channel notifications silent | Channel muted | Check `mutedChannelIds` or per-channel pref |
-| FCM token errors | Expired or invalid token | Re-register device; provider auto-cleans |
-| No Android background alert | Poll job not scheduled (no saved session, or battery optimisation) | Check job `3108` is registered and the app has a saved session |
+| Issue                        | Cause                                                              | Fix                                                            |
+| ---------------------------- | ------------------------------------------------------------------ | -------------------------------------------------------------- |
+| No push notifications        | Push disabled in preferences                                       | Check `GET /api/v1/notifications/preferences`                  |
+| No push despite enabled      | DND mode active                                                    | Check `doNotDisturb` preference                                |
+| Channel notifications silent | Channel muted                                                      | Check `mutedChannelIds` or per-channel pref                    |
+| FCM token errors             | Expired or invalid token                                           | Re-register device; provider auto-cleans                       |
+| No Android background alert  | Poll job not scheduled (no saved session, or battery optimisation) | Check job `3108` is registered and the app has a saved session |
