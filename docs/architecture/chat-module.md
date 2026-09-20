@@ -51,7 +51,7 @@ src/Modules/Chat/
 | `ITypingIndicatorService` | Track who is typing |
 | `IAnnouncementService` | Announcement CRUD with acknowledgement |
 | `IChatRealtimeService` | SignalR broadcast wrapper |
-| `IPushNotificationService` | Push notifications via FCM/UnifiedPush |
+| `IPushNotificationService` | Server-side push delivery via FCM |
 
 ### Real-Time Architecture
 
@@ -70,8 +70,10 @@ Chat Module (ChatRealtimeService)
 
 ```
 Chat Service → NotificationRouter
-                ├── FcmPushProvider (Firebase Cloud Messaging)
-                └── UnifiedPushProvider (open protocol)
+                └── FcmPushProvider (Firebase Cloud Messaging)
+
+Mobile background alerts do not go through a push transport: the Android app polls
+`GET /api/v1/chat/alerts` from a JobScheduler job and renders generic text on the device.
 ```
 
 ## Blazor UI Components

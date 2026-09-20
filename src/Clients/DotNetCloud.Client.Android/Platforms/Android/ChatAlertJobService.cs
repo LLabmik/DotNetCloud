@@ -12,8 +12,8 @@ namespace DotNetCloud.Client.Android;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This is the wake path of the adopted "our code only" transport
-/// (<c>docs/ANDROID_UNIFIEDPUSH_PLAN.md</c> §12): a <b>poll</b> of the server's tiny aggregate endpoint,
+/// This is the wake path of the background alert transport
+/// (<c>docs/ANDROID_CHAT_BACKGROUND_ALERTS_PLAN.md</c>): a <b>poll</b> of the server's tiny aggregate endpoint,
 /// using <b>no</b> foreground service, no push server, and nothing from Google. The trade-off accepted
 /// with the operator is best-effort latency (seconds while the phone is in use, minutes when it is idle).
 /// </para>

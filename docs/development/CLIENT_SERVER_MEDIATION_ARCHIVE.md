@@ -1,7 +1,7 @@
 ## Archived: Client agent (`monolith`) — phone-side `304` confirmation for the chat-alerts poll + `200`/alert regression (2026-09-19)
 
 **Status:** completed ✅ — the chat-alerts poll contract is now verified end-to-end **from the device** in both directions; nothing outstanding on either side.
-**Branch:** `feature/android-unifiedpush` · **Phone:** `R5CWC356B2K` · **Target:** `cloud.dotnetcloud.net` (core proxy + Chat module host, already deployed by `cloud`).
+**Branch:** the chat-alerts feature branch · **Phone:** `R5CWC356B2K` · **Target:** `cloud.dotnetcloud.net` (core proxy + Chat module host, already deployed by `cloud`).
 
 ### Why
 
@@ -31,7 +31,7 @@
 ## Archived: Server agent (`cloud`) — core-proxy header-duplication fix deployed + `304` leg verified (2026-09-19)
 
 **Status:** completed ✅ — deployed to `cloud.kimball.home` and verified end-to-end; the conditional-GET contract now holds.
-**Branch:** `feature/android-unifiedpush` · **Commit:** `f019f027` · **Deployed version:** `0.6.10`
+**Branch:** the chat-alerts feature branch · **Commit:** `f019f027` · **Deployed version:** `0.6.10`
 **From:** client agent (`monolith`) — the fix and its failing-first unit tests were written there (found while running the on-device E2E).
 **Target:** core server (`src/Core/DotNetCloud.Core.Server/Program.cs`) on `cloud.kimball.home`. No schema change, so no module migrations were involved.
 
@@ -99,8 +99,8 @@ Also regression-check the `200` path: send one message to a non-muted channel wh
 ## Archived: Client agent (`monolith`) — Android chat-alerts on-device E2E (2026-09-19)
 
 **Status:** completed ✅ — the "our code only" poll transport posts the alert **while the app is closed**, verified on the phone (R5CWC356B2K) against the deployed `cloud.dotnetcloud.net`.
-**Branch:** `feature/android-unifiedpush` · **Build:** arm64 Debug **0 warnings / 0 errors** · **Tests:** Android **433 pass / 1 skip**; Core.Server **784 pass / 1 skipped** (pre-existing `ProgramRootCaTests` failure).
-**Canonical spec:** `docs/ANDROID_UNIFIEDPUSH_PLAN.md` §12 (design, adopted) + §12.10 ("As built").
+**Branch:** the chat-alerts feature branch · **Build:** arm64 Debug **0 warnings / 0 errors** · **Tests:** Android **433 pass / 1 skip**; Core.Server **784 pass / 1 skipped** (pre-existing `ProgramRootCaTests` failure).
+**Canonical spec:** `docs/ANDROID_CHAT_BACKGROUND_ALERTS_PLAN.md` (design, adopted), including its "As built" section.
 
 ### What was verified on the device
 
@@ -135,13 +135,13 @@ Also regression-check the `200` path: send one message to a non-muted channel wh
 ## Archived: Server agent (`cloud`) — chat-alerts aggregate deployed to `cloud.kimball.home` (2026-09-19)
 
 **Status:** completed ✅ — server half implemented, tested, **deployed and verified**; the **Android on-device E2E is the only open item** and is the client agent's (`monolith`) Active Handoff.
-**Branch:** `feature/android-unifiedpush` (server + client halves both on this branch; not yet merged to `main`)
-**From:** the 2026-09-19 "our code only" poll decision (plan §12) — the client agent wrote both halves on `monolith`, and the server half was handed to `cloud` as **deploy only**.
-**Target:** core server + the Chat module host on `cloud.kimball.home`; **no operator DNS record, certificate entry, ntfy service or proxy rule involved.**
+**Branch:** the chat-alerts feature branch (server + client halves both on it; not yet merged to `main`)
+**From:** the 2026-09-19 "our code only" poll decision — the client agent wrote both halves on `monolith`, and the server half was handed to `cloud` as **deploy only**.
+**Target:** core server + the Chat module host on `cloud.kimball.home`; **no extra DNS record, certificate entry or proxy rule was involved.**
 
 ### Why
 
-Chat push had no zero-setup transport: the UnifiedPush route (parked 2026-09-18) required every user to install a distributor app, and plain background polling was judged too slow for chat. Plan §12 replaced it with the app's own **conditional poll** — which needs exactly one server-side item: a cheap aggregate the client can poll with `If-None-Match`. Everything else in the parked UP server spec (§8) is unnecessary.
+Chat push had no zero-setup transport: an earlier approach that required every user to install and configure a companion app was abandoned, and the app's own **conditional poll** was adopted instead. It needs exactly one server-side item: a cheap aggregate the client can poll with `If-None-Match`.
 
 ### What changed (implementation)
 
@@ -168,7 +168,7 @@ Chat push had no zero-setup transport: the UnifiedPush route (parked 2026-09-18)
 
 - **No schema change, no migration** — the endpoint is a pure read aggregate over existing tables.
 - **`GET /api/v1/chat/unread` left alone** — so no existing client behaviour changes.
-- **Nothing from the parked UnifiedPush server spec (§8) was built** — no `UnifiedPushHttpTransport`, no device-registration persistence, no ntfy, no `push.<domain>` DNS record or certificate, no proxy route. The parked item was not resumed.
+- **No separate push infrastructure was built** — no push transport implementation, no device-registration persistence, and no extra DNS record, certificate entry or proxy rule.
 - **Client code untouched by the server agent** — the Android half was already written and on-device verified by `monolith`.
 
 ### Pending (`monolith`) — NOT yet done
@@ -533,7 +533,7 @@ The client-side "ignore a synced folder" bug (fixed in SyncTray `0.6.7`, `763272
 - SignalR reconnected automatically (`JoinChannelGroupAsync` joined `chat-channel-…`).
 
 **Client fixes shipped (committed with this handoff):**
-1. Android receiver/service `Name` registration bug → cold-start `ClassNotFoundException`. `CalendarBootReceiver`, `CalendarAlarmReceiver`, `FcmMessagingService`, `UnifiedPushReceiver` were declared both manually in `AndroidManifest.xml` (`.X` → `net.dotnetcloud.client.X`) and via `[BroadcastReceiver]`/`[Service]` attributes without explicit `Name` (JCW landed in a `crc…` package). Fixed by adding `Name = "net.dotnetcloud.client.X"` to the attributes (mirrors `[Service(Name=…)]` pattern).
+1. Android receiver/service `Name` registration bug → cold-start `ClassNotFoundException`. `CalendarBootReceiver`, `CalendarAlarmReceiver`, `FcmMessagingService` were declared both manually in `AndroidManifest.xml` (`.X` → `net.dotnetcloud.client.X`) and via `[BroadcastReceiver]`/`[Service]` attributes without explicit `Name` (JCW landed in a `crc…` package). Fixed by adding `Name = "net.dotnetcloud.client.X"` to the attributes (mirrors `[Service(Name=…)]` pattern).
 2. Phase E banner overlay crashed launch. Wrapping the Shell in a Grid violates MAUI's "Parent of a Page must also be a Page". Replaced with a native Android platform overlay on `Android.Resource.Id.Content` driven by `ConnectivityViewModel`, offset below the status bar (`ResolveStatusBarHeight`). `ConnectivityBannerView.xaml` deleted.
 
 **Evidence:** `dnc-banner-visible.png`, `dnc-message-queued.png`, `dnc-recovered.png` (monolith), UI-dump text nodes, and logcat.
@@ -2258,7 +2258,7 @@ Server-side chat auth enforcement deployed on `mint22`; Android client code clea
 - Removed `?userId=` query params from 7 methods in `HttpChatRestClient` (GetChannels, GetMessages, SendMessage, MarkRead, NotifyTyping, GetChannelMembers, SendFileMessage)
 - Removed `AccessTokenUserIdExtractor` calls from those 7 methods
 - `LeaveChannelAsync` retains `AccessTokenUserIdExtractor` — server's `RemoveMemberAsync` route (`DELETE /channels/{channelId}/members/{targetUserId}`) still requires `targetUserId` as a path segment
-- `FcmPushService`/`UnifiedPushService` `?userId=` on `/api/v1/notifications/` endpoints left as-is (different controller, out of scope)
+- `FcmPushService` `?userId=` handling on `/api/v1/notifications/` endpoints left as-is (different controller, out of scope)
 - Bearer header via `SetAuth(accessToken)` is the sole auth mechanism
 - Build: 0 errors, 12 pre-existing warnings
 
@@ -3249,7 +3249,6 @@ Next prioritized implementation target is `phase-2.4` (Chat REST API Endpoints).
 - `src/Clients/DotNetCloud.Client.Android/Chat/HttpChatRestClient.cs`
 - `src/Clients/DotNetCloud.Client.Android/Services/AccessTokenUserIdExtractor.cs` (new)
 - `src/Clients/DotNetCloud.Client.Android/Services/FcmPushService.cs`
-- `src/Clients/DotNetCloud.Client.Android/Services/UnifiedPushService.cs`
 
 **Server-side follow-up needed (blockers for full end-to-end):**
 
@@ -4208,7 +4207,7 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 **Intentionally deferred items:**
 
 - FCM credential/config hardening and invalid-token cleanup.
-- UnifiedPush retry/error handling.
+- Push transport retry/error handling.
 - NotificationRouter dedup/preference enforcement and queueing.
 
 ### Phase 2.7 Update #2 - Router Preference + Online Dedup (Server, mint22)
@@ -4226,7 +4225,6 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/IPushProviderEndpoint.cs` (new)
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/NotificationRouter.cs`
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/FcmPushProvider.cs`
-- `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/UnifiedPushProvider.cs`
 - `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/ChatServiceRegistration.cs`
 - `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Controllers/ChatController.cs`
 - `tests/DotNetCloud.Modules.Chat.Tests/ChatControllerTests.cs`
@@ -4279,7 +4277,7 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 **Intentionally deferred items:**
 
 - FCM credentials/config model and invalid-token cleanup.
-- UnifiedPush retry/error handling.
+- Push transport retry/error handling.
 - Notification queue/reliability background processing.
 
 ### Phase 2.7 Update #3 - Provider Hardening (Server, mint22)
@@ -4294,13 +4292,9 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/IFcmTransport.cs` (new)
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/FcmLoggingTransport.cs` (new)
-- `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/IUnifiedPushTransport.cs` (new)
-- `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/UnifiedPushLoggingTransport.cs` (new)
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/FcmPushProvider.cs`
-- `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/UnifiedPushProvider.cs`
 - `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/ChatServiceRegistration.cs`
 - `tests/DotNetCloud.Modules.Chat.Tests/FcmPushProviderTests.cs` (new)
-- `tests/DotNetCloud.Modules.Chat.Tests/UnifiedPushProviderTests.cs` (new)
 - `docs/IMPLEMENTATION_CHECKLIST.md`
 - `docs/MASTER_PROJECT_PLAN.md`
 - `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`
@@ -4308,18 +4302,15 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 **Implemented in this update:**
 
 1. Added FCM transport abstraction (`IFcmTransport`) and default logging transport (`FcmLoggingTransport`).
-2. Added UnifiedPush transport abstraction (`IUnifiedPushTransport`) and default logging transport (`UnifiedPushLoggingTransport`).
+2. Added the non-FCM push transport abstraction and its default logging transport.
 3. Hardened `FcmPushProvider` with invalid-token cleanup: invalid tokens are removed from in-memory registrations after failed send results marked as invalid.
-4. Hardened `UnifiedPushProvider` with bounded retry handling for transient failures (max 3 attempts) and immediate stop for non-transient failures.
+4. Hardened the non-FCM push provider with bounded retry handling for transient failures (max 3 attempts) and immediate stop for non-transient failures.
 5. Wired new transports in `ChatServiceRegistration` so providers remain DI-constructed and testable.
 
 **Tests added/updated:**
 
 - `tests/DotNetCloud.Modules.Chat.Tests/FcmPushProviderTests.cs`
   - `SendAsync_WhenTransportMarksInvalidToken_ThenTokenIsCleanedUp`
-- `tests/DotNetCloud.Modules.Chat.Tests/UnifiedPushProviderTests.cs`
-  - `SendAsync_WhenTransientFailuresThenSuccess_ThenRetriesUntilDelivered`
-  - `SendAsync_WhenNonTransientFailure_ThenDoesNotRetry`
 
 **Verification commands and results:**
 
@@ -4339,7 +4330,7 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 **Intentionally deferred items:**
 
 - FCM configuration model / credential management UI.
-- UnifiedPush configuration model.
+- Non-FCM push provider configuration model.
 - Notification queue/reliability background processing.
 
 ### Phase 2.7 Update #4 - Queue/Reliability Background Processing (Server, mint22)
@@ -4395,7 +4386,7 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 **Intentionally deferred items:**
 
 - FCM configuration model / credential management UI.
-- UnifiedPush configuration model.
+- Non-FCM push provider configuration model.
 
 ### Phase 2.8 Update #1 - Channel List Presence Indicators (Server, mint22)
 
@@ -4606,30 +4597,26 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/PushProviderOptions.cs` (new)
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/FcmPushProvider.cs`
-- `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/UnifiedPushProvider.cs`
 - `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/ChatServiceRegistration.cs`
 - `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Program.cs`
 - `src/Core/DotNetCloud.Core.Server/Program.cs`
 - `tests/DotNetCloud.Modules.Chat.Tests/FcmPushProviderTests.cs`
-- `tests/DotNetCloud.Modules.Chat.Tests/UnifiedPushProviderTests.cs`
 - `docs/IMPLEMENTATION_CHECKLIST.md`
 - `docs/MASTER_PROJECT_PLAN.md`
 - `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`
 
 **Implemented in this update:**
 
-1. Added provider configuration models: `FcmPushOptions` and `UnifiedPushOptions`.
-2. Bound options from configuration (`Chat:Push:Fcm`, `Chat:Push:UnifiedPush`) in chat service registration.
+1. Added provider configuration models for both push providers.
+2. Bound provider options from configuration in chat service registration.
 3. Updated server bootstrap call sites to pass configuration into `AddChatServices(builder.Configuration)`.
 4. Updated `FcmPushProvider` to respect provider enable/disable option state.
-5. Updated `UnifiedPushProvider` to use configurable enable state, max attempts, and retry delay.
+5. Updated the non-FCM push provider to use configurable enable state, max attempts, and retry delay.
 
 **Tests added/updated:**
 
 - `tests/DotNetCloud.Modules.Chat.Tests/FcmPushProviderTests.cs`
   - `SendAsync_WhenProviderDisabled_ThenTransportIsNotCalled`
-- `tests/DotNetCloud.Modules.Chat.Tests/UnifiedPushProviderTests.cs`
-  - `SendAsync_WhenMaxAttemptsConfiguredToTwo_ThenOnlyTwoAttemptsAreMade`
   - Existing tests updated for options injection.
 
 **Verification commands and results:**
@@ -4650,7 +4637,7 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 **Intentionally deferred items:**
 
 - FCM admin credential management UI.
-- UnifiedPush admin configuration UI.
+- Non-FCM push provider admin configuration UI.
 
 ### Client Machine Handoff - Phase 2.8 UI Continuation
 
@@ -4707,7 +4694,7 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 
 **Client agent (Windows11-TestDNC):**
 
-1. Notification badges on app icon: Created `AppBadgeManager` static utility with `WithBadgeCount()` extension method. Wired into both `FcmMessagingService.ShowChatNotification()` (Google Play) and `UnifiedPushReceiver.ShowNotification()` (F-Droid). Uses `SetNumber()` on `Notification.Builder` for launcher numeric badge support.
+1. Notification badges on app icon: Created `AppBadgeManager` static utility with `WithBadgeCount()` extension method. Wired into both `FcmMessagingService.ShowChatNotification()` (Google Play) and the F-Droid build's background notification receiver. Uses `SetNumber()` on `Notification.Builder` for launcher numeric badge support.
 2. Direct APK download option: Expanded `docs/clients/android/DISTRIBUTION.md` with GitHub Releases download section, sideloading instructions, checksum verification, and enterprise MDM distribution guidance.
 3. App store listing description: Added full Google Play listing (title, short description, full description with feature bullets) and F-Droid metadata reference to DISTRIBUTION.md.
 4. All Phase 2.10 items now complete (8/8). Phase 2 fully closed.
@@ -6344,7 +6331,7 @@ Key confirmations:
 - `ReminderDispatchService` (already deployed, running on 30s interval) was modified to skip `Email`-type reminders.
 - New `CalendarReminderEventHandler` + `CalendarReminderEventSubscriber` subscribe to `CalendarReminderTriggeredEvent` on the in-process event bus.
 - On reminder fire, dispatches via `CoreCapabilities.SendNotification` (in-app notification) and `BroadcastRealtimeEvent` (SignalR real-time push to connected clients).
-- FCM/UnifiedPush not configured in production config; if credentials are added later, the existing Chat module push pipeline can be extended.
+- FCM not configured in production config; if credentials are added later, the existing Chat module push pipeline can be extended.
 - No DB migration needed — `ReminderLog` table already exists.
 
 ### Server Actions — `cloud.kimball.home` (2026-07-20)
@@ -6413,7 +6400,7 @@ Key confirmations:
 - Reminder picker in event editor
 - Auto-adjust end time to start+1h
 - `IExactAlarmPermissionService` + Settings card
-- `type=calendar_reminder` push handler in FCM + UnifiedPush
+- `type=calendar_reminder` push handler in the push providers
 - Foreground suppression removed (alarms sound always)
 - POST_NOTIFICATIONS runtime permission fix (verified working)
 - Timezone fix: `DateTime.SpecifyKind(triggerTimeUtc, DateTimeKind.Utc)`

@@ -4,7 +4,7 @@ using DotNetCloud.Core.Services.ModuleApis;
 namespace DotNetCloud.Core.Server.Services;
 
 /// <summary>
-/// Delivers a notification as a device push via the Chat module (FCM/UnifiedPush).
+/// Delivers a notification as a device push via the Chat module (FCM).
 /// Preference checks (push enabled, DND, muted channels, presence) happen inside
 /// the Chat module's NotificationRouter — they are NOT duplicated here.
 /// </summary>

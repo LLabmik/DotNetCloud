@@ -408,11 +408,8 @@ public sealed record RegisterDeviceDto
     /// <summary>Push provider device token.</summary>
     public required string DeviceToken { get; init; }
 
-    /// <summary>Provider value: FCM or UnifiedPush.</summary>
+    /// <summary>Provider value: FCM.</summary>
     public required string Provider { get; init; }
-
-    /// <summary>UnifiedPush endpoint URL, when provider is UnifiedPush.</summary>
-    public string? Endpoint { get; init; }
 }
 
 /// <summary>

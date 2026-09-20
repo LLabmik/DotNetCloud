@@ -202,16 +202,16 @@ public class MainActivity : MauiAppCompatActivity
     /// <param name="coldStart">Whether this activity was created for the current launch.</param>
     private void HandleNotificationDeepLink(bool coldStart)
     {
-        var channelId = Intent?.GetStringExtra(UnifiedPushNotificationRenderer.ExtraChannelId);
-        var eventId = Intent?.GetStringExtra(UnifiedPushNotificationRenderer.ExtraEventId);
-        var serverUrl = Intent?.GetStringExtra(UnifiedPushNotificationRenderer.ExtraServerUrl);
+        var channelId = Intent?.GetStringExtra(ChatNotificationRenderer.ExtraChannelId);
+        var eventId = Intent?.GetStringExtra(ChatNotificationRenderer.ExtraEventId);
+        var serverUrl = Intent?.GetStringExtra(ChatNotificationRenderer.ExtraServerUrl);
 
         if (string.IsNullOrWhiteSpace(channelId) && string.IsNullOrWhiteSpace(eventId))
             return;
 
-        Intent?.RemoveExtra(UnifiedPushNotificationRenderer.ExtraChannelId);
-        Intent?.RemoveExtra(UnifiedPushNotificationRenderer.ExtraEventId);
-        Intent?.RemoveExtra(UnifiedPushNotificationRenderer.ExtraServerUrl);
+        Intent?.RemoveExtra(ChatNotificationRenderer.ExtraChannelId);
+        Intent?.RemoveExtra(ChatNotificationRenderer.ExtraEventId);
+        Intent?.RemoveExtra(ChatNotificationRenderer.ExtraServerUrl);
 
         ActivateServerForNotification(serverUrl);
 

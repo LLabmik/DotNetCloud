@@ -92,7 +92,6 @@ DotNetCloud.Modules.Chat.Data/
 │   └── Push/
 │       ├── NotificationRouter.cs
 │       ├── FcmPushProvider.cs
-│       ├── UnifiedPushProvider.cs
 │       ├── InMemoryNotificationDeliveryQueue.cs
 │       └── NotificationDeliveryBackgroundService.cs
 ├── ChatDbInitializer.cs         # Seeds default public channels
@@ -265,9 +264,6 @@ Message Sent → MentionNotificationService
                             │
                             ├── FcmPushProvider (FCM devices)
                             │     └── Firebase HTTP v1 API
-                            │
-                            └── UnifiedPushProvider (UP devices)
-                                  └── HTTP POST to distributor endpoint
                             │
                             └── On failure → INotificationDeliveryQueue
                                               └── NotificationDeliveryBackgroundService

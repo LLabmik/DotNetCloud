@@ -13,8 +13,8 @@ namespace DotNetCloud.Client.Android;
 
 /// <summary>
 /// Android background service that maintains the SignalR chat connection while the app is
-/// alive. Does NOT hold a WakeLock — relies on FCM push notifications to wake the device for
-/// real-time message delivery during Doze.
+/// alive. Does NOT hold a WakeLock, and does <b>not</b> deliver alerts to a closed app —
+/// background alerts come from the app's own poll job (<see cref="ChatAlertJobService"/>).
 /// </summary>
 /// <remarks>
 /// <para>

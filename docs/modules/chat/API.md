@@ -641,17 +641,15 @@ POST /api/v1/notifications/devices/register?userId={userId}
 **Request Body:**
 ```json
 {
-  "deviceToken": "fcm-or-unified-push-token",
-  "provider": "FCM",
-  "endpoint": null
+  "deviceToken": "fcm-registration-token",
+  "provider": "FCM"
 }
 ```
 
 | Field | Required | Description |
 |---|---|---|
-| `deviceToken` | Yes | FCM token or UnifiedPush endpoint identifier |
-| `provider` | Yes | `FCM` or `UnifiedPush` |
-| `endpoint` | No | UnifiedPush distributor endpoint URL (required for UnifiedPush) |
+| `deviceToken` | Yes | FCM registration token |
+| `provider` | Yes | `FCM` (the only supported provider) |
 
 **Response:** `200 OK` → `{ "registered": true }`
 

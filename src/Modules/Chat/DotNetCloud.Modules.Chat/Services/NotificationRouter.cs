@@ -5,9 +5,9 @@ using Microsoft.Extensions.Logging;
 namespace DotNetCloud.Modules.Chat.Services;
 
 /// <summary>
-/// Routes push notifications to the appropriate provider (FCM or UnifiedPush) based on
-/// each user's registered device. Supports multiple devices per user, respects notification
-/// preferences, and deduplicates when the user is online.
+/// Routes push notifications to the provider registered for each user's device (FCM).
+/// Supports multiple devices per user, respects notification preferences, and deduplicates
+/// when the user is online.
 /// </summary>
 internal sealed class NotificationRouter : IPushNotificationService
     , IQueuedNotificationDispatcher

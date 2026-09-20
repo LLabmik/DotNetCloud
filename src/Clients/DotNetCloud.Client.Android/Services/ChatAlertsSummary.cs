@@ -9,12 +9,12 @@ namespace DotNetCloud.Client.Android.Services;
 /// <remarks>
 /// <para>
 /// Carries <b>no message content, no sender name and no channel name</b> by design — the notification
-/// text is always chosen on the device (see <see cref="UnifiedPushProtocol.MapToNotification"/>), so
-/// nothing readable ever leaves the server. The client reads only the counts and the tap target.
+/// text is always chosen on the device (see <see cref="NotificationPayloadContract.MapToNotification"/>),
+/// so nothing readable ever leaves the server. The client reads only the counts and the tap target.
 /// </para>
 /// <para>
-/// This is the poll transport's equivalent of the UnifiedPush ID-only payload
-/// (<c>docs/ANDROID_UNIFIEDPUSH_PLAN.md</c> §12): the phone asks, the server answers with numbers.
+/// This is the poll transport's equivalent of the ID-only payload contract
+/// (<c>docs/ANDROID_CHAT_BACKGROUND_ALERTS_PLAN.md</c>): the phone asks, the server answers with numbers.
 /// </para>
 /// </remarks>
 public sealed record ChatAlertsSummary

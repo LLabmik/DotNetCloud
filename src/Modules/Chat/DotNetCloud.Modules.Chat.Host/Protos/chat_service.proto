@@ -91,7 +91,7 @@ service ChatService {
   // Transfers the host role of an active call.
   rpc TransferCallHost (TransferCallHostRequest) returns (VideoCallOperationResponse);
 
-  // Sends a push notification to a user's registered devices (FCM/UnifiedPush).
+  // Sends a push notification to a user's registered devices (FCM).
   rpc SendPushNotification (SendPushNotificationRequest) returns (SendPushNotificationResponse);
 }
 

@@ -97,4 +97,4 @@ See `docs/modules/chat/` for full documentation:
 - [API Reference](../../../docs/modules/chat/API.md) — REST endpoint reference
 - [Architecture](../../../docs/modules/chat/ARCHITECTURE.md) — Data model and design
 - [Real-time Events](../../../docs/modules/chat/REALTIME.md) — SignalR event reference
-- [Push Notifications](../../../docs/modules/chat/PUSH.md) — FCM/UnifiedPush setup
+- [Push Notifications](../../../docs/modules/chat/PUSH.md) — FCM setup and the mobile background-alert poll

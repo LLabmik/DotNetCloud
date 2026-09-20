@@ -7,14 +7,14 @@ namespace DotNetCloud.Client.Android;
 
 /// <summary>
 /// Builds and posts the (always generic) chat and calendar notifications, from whichever path
-/// learned about the event: a UnifiedPush message or an in-process SignalR message.
+/// learned about the event: an in-process SignalR message or the background alert poll.
 /// </summary>
 /// <remarks>
-/// Text comes exclusively from <see cref="UnifiedPushNotificationPlan"/>, which the client
+/// Text comes exclusively from <see cref="NotificationPlan"/>, which the client
 /// derives from identifiers — never from message content. Notification ids are stable per target
 /// so an update replaces the previous notification instead of stacking up.
 /// </remarks>
-internal static class UnifiedPushNotificationRenderer
+internal static class ChatNotificationRenderer
 {
     /// <summary>Intent extra carrying the chat channel to open on tap.</summary>
     public const string ExtraChannelId = "channelId";
@@ -34,7 +34,7 @@ internal static class UnifiedPushNotificationRenderer
     /// <param name="plan">Plan to render; silent plans are ignored.</param>
     /// <param name="serverBaseUrl">Server connection the notification belongs to, when known.</param>
     /// <returns>True when a notification was posted.</returns>
-    public static bool Render(Context? context, UnifiedPushNotificationPlan plan, string? serverBaseUrl)
+    public static bool Render(Context? context, NotificationPlan plan, string? serverBaseUrl)
     {
         if (context is null || plan.IsSilent)
             return false;
@@ -61,20 +61,20 @@ internal static class UnifiedPushNotificationRenderer
 
             switch (plan.Target)
             {
-                case UnifiedPushNotificationTarget.CalendarEvent:
+                case NotificationTarget.CalendarEvent:
                     builder.SetCategory(Notification.CategoryAlarm);
                     break;
 
-                case UnifiedPushNotificationTarget.Channel when targetId is not null:
+                case NotificationTarget.Channel when targetId is not null:
                     builder.SetGroup($"dnc_chat_{targetId}");
                     break;
             }
 
-            if (plan.Kind == UnifiedPushNotificationKind.DirectMessageInvite && targetId is not null)
+            if (plan.Kind == NotificationKind.DirectMessageInvite && targetId is not null)
             {
                 AddDmActions(context, builder, targetId);
             }
-            else if (plan.Kind != UnifiedPushNotificationKind.CalendarReminder)
+            else if (plan.Kind != NotificationKind.CalendarReminder)
             {
                 builder.WithBadgeCount(context);
             }
@@ -82,7 +82,7 @@ internal static class UnifiedPushNotificationRenderer
             var manager = (NotificationManager?)context.GetSystemService(Context.NotificationService);
             manager?.Notify(notificationId, builder.Build());
 
-            if (plan.Kind == UnifiedPushNotificationKind.CalendarReminder)
+            if (plan.Kind == NotificationKind.CalendarReminder)
                 CancelLocalCalendarAlarm(context, targetId);
 
             return true;
@@ -96,7 +96,7 @@ internal static class UnifiedPushNotificationRenderer
 
     private static Intent BuildOpenIntent(
         Context context,
-        UnifiedPushNotificationPlan plan,
+        NotificationPlan plan,
         string? serverBaseUrl,
         string? targetId)
     {
@@ -104,9 +104,9 @@ internal static class UnifiedPushNotificationRenderer
         intent.SetAction(Intent.ActionMain);
         intent.AddCategory(Intent.CategoryLauncher);
 
-        if (plan.Target == UnifiedPushNotificationTarget.Channel && targetId is not null)
+        if (plan.Target == NotificationTarget.Channel && targetId is not null)
             intent.PutExtra(ExtraChannelId, targetId);
-        else if (plan.Target == UnifiedPushNotificationTarget.CalendarEvent && targetId is not null)
+        else if (plan.Target == NotificationTarget.CalendarEvent && targetId is not null)
             intent.PutExtra(ExtraEventId, targetId);
 
         // Multi-connection routing: a tap must resolve against the server that sent the
@@ -140,13 +140,13 @@ internal static class UnifiedPushNotificationRenderer
         return new Notification.Action.Builder(null, title, pending).Build();
     }
 
-    private static int BuildSeed(UnifiedPushNotificationPlan plan, string? targetId)
+    private static int BuildSeed(NotificationPlan plan, string? targetId)
     {
         var value = targetId is null ? plan.Kind.GetHashCode() : StableHash(targetId);
         return plan.Kind switch
         {
-            UnifiedPushNotificationKind.CalendarReminder => 5000 + (value & 0x0FFF),
-            UnifiedPushNotificationKind.DirectMessageInvite => 6000 + (value & 0x0FFF),
+            NotificationKind.CalendarReminder => 5000 + (value & 0x0FFF),
+            NotificationKind.DirectMessageInvite => 6000 + (value & 0x0FFF),
             _ => 2000 + (value & 0x0FFF),
         };
     }

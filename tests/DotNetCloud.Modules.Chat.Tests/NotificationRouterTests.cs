@@ -89,26 +89,24 @@ public class NotificationRouterTests
     }
 
     [TestMethod]
-    public async Task SendAsync_WhenEligible_ThenRoutesToRegisteredProviders()
+    public async Task SendAsync_WhenEligible_ThenRoutesToEveryRegisteredDevice()
     {
         var userId = Guid.CreateVersion7();
         var fcmProvider = new TestPushProvider(PushProvider.FCM);
-        var unifiedProvider = new TestPushProvider(PushProvider.UnifiedPush);
         var queue = new TestNotificationDeliveryQueue();
 
         var router = new NotificationRouter(
-            [fcmProvider, unifiedProvider],
+            [fcmProvider],
             new InMemoryNotificationPreferenceStore(),
             queue,
             NullLogger<NotificationRouter>.Instance);
 
-        await router.RegisterDeviceAsync(userId, new DeviceRegistration { Token = "fcm-token", Provider = PushProvider.FCM });
-        await router.RegisterDeviceAsync(userId, new DeviceRegistration { Token = "up-token", Provider = PushProvider.UnifiedPush, Endpoint = "https://example.com/up" });
+        await router.RegisterDeviceAsync(userId, new DeviceRegistration { Token = "fcm-token-1", Provider = PushProvider.FCM });
+        await router.RegisterDeviceAsync(userId, new DeviceRegistration { Token = "fcm-token-2", Provider = PushProvider.FCM });
 
         await router.SendAsync(userId, new PushNotification { Title = "title", Body = "body" });
 
-        Assert.AreEqual(1, fcmProvider.SendCount);
-        Assert.AreEqual(1, unifiedProvider.SendCount);
+        Assert.AreEqual(2, fcmProvider.SendCount);
         Assert.AreEqual(0, queue.Count);
     }
 

@@ -1,7 +1,7 @@
 namespace DotNetCloud.Modules.Chat.Services;
 
 /// <summary>
-/// Sends push notifications to user devices via FCM or UnifiedPush.
+/// Sends push notifications to a user's registered devices via the provider they registered with (FCM).
 /// </summary>
 public interface IPushNotificationService
 {
@@ -44,14 +44,11 @@ public sealed record PushNotification
 /// </summary>
 public sealed record DeviceRegistration
 {
-    /// <summary>Device token (FCM token or UnifiedPush endpoint).</summary>
+    /// <summary>Device token (FCM token or APNs token).</summary>
     public required string Token { get; init; }
 
     /// <summary>Push provider type.</summary>
     public PushProvider Provider { get; init; }
-
-    /// <summary>UnifiedPush distributor endpoint URL (only for UnifiedPush).</summary>
-    public string? Endpoint { get; init; }
 }
 
 /// <summary>
@@ -60,10 +57,7 @@ public sealed record DeviceRegistration
 public enum PushProvider
 {
     /// <summary>Firebase Cloud Messaging.</summary>
-    FCM,
-
-    /// <summary>UnifiedPush (open protocol).</summary>
-    UnifiedPush
+    FCM
 }
 
 /// <summary>

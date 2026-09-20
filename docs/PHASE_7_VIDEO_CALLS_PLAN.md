@@ -25,7 +25,7 @@ Extend the existing Chat module with WebRTC-based video calling and screen shari
 - 1:1 and group video/audio calls from any channel type (Public, Private, DM, Group)
 - Screen sharing (browser only)
 - Call history per channel
-- Push notifications for incoming/missed calls (FCM + UnifiedPush)
+- Push notifications for incoming/missed calls (FCM)
 - LiveKit integration for large group calls (optional)
 - STUN/TURN configuration with ephemeral TURN credentials
 
@@ -399,7 +399,7 @@ Extend the existing Chat module with WebRTC-based video calling and screen shari
 **Status:** completed ✅
 
 **Deliverables:**
-- ✓ Incoming call push notification (high-priority) via existing FCM/UnifiedPush infrastructure:
+- ✓ Incoming call push notification (high-priority) via the existing FCM infrastructure:
   - Android: heads-up notification with Accept/Reject actions
   - Desktop (SyncTray): system notification with call info
 - ✓ Missed call notification (normal priority)

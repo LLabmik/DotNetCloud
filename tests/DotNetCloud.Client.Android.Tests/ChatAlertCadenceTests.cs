@@ -4,7 +4,7 @@ namespace DotNetCloud.Client.Android.Tests;
 
 /// <summary>
 /// Tests for <see cref="ChatAlertCadence"/>, the poll cadence policy behind
-/// <c>docs/ANDROID_UNIFIEDPUSH_PLAN.md</c> §12.9.
+/// <c>docs/ANDROID_CHAT_BACKGROUND_ALERTS_PLAN.md</c>.
 /// </summary>
 [TestClass]
 public class ChatAlertCadenceTests

@@ -10,7 +10,7 @@
 
 ## Overview
 
-The DotNetCloud Android client is a .NET MAUI application providing mobile access to DotNetCloud chat and file services. It supports OAuth2/OIDC authentication with PKCE, real-time messaging via SignalR, push notifications (FCM or UnifiedPush), offline message caching, and multi-server accounts.
+The DotNetCloud Android client is a .NET MAUI application providing mobile access to DotNetCloud chat and file services. It supports OAuth2/OIDC authentication with PKCE, real-time messaging via SignalR, background message alerts, offline message caching, and multi-server accounts.
 
 ## Features
 
@@ -18,11 +18,11 @@ The DotNetCloud Android client is a .NET MAUI application providing mobile acces
 |---|---|
 | **OAuth2/OIDC with PKCE** | Secure authentication via system browser with authorization code flow |
 | **Real-Time Chat** | SignalR-based persistent connection for instant message delivery |
-| **Push Notifications** | FCM (Google Play) or UnifiedPush (F-Droid) for offline notifications |
+| **Background Alerts** | The app polls the server for new messages and posts a generic notification |
 | **Offline Cache** | SQLite-backed local message cache for offline reading |
 | **Multi-Server** | Connect to multiple DotNetCloud instances; switch active server |
 | **Secure Token Storage** | Android Keystore-backed token persistence |
-| **Foreground Service** | Maintains SignalR connection when app is backgrounded |
+| **Chat Connection Service** | Keeps the SignalR connection alive while the app process is running |
 | **Build Flavors** | Separate Google Play and F-Droid builds with conditional compilation |
 
 ## Project Structure
@@ -40,9 +40,9 @@ src/Clients/DotNetCloud.Client.Android/
 │   ├── IChatRestClient.cs
 │   └── HttpChatRestClient.cs
 ├── Services/                      # Core services
-│   ├── IPushNotificationService.cs
-│   ├── FcmPushService.cs          # GooglePlay only
-│   ├── UnifiedPushService.cs      # F-Droid only
+│   ├── IChatAlertPoller.cs
+│   ├── IChatAlertScheduler.cs
+│   ├── NotificationPayloadContract.cs
 │   ├── IServerConnectionStore.cs
 │   ├── PreferenceServerConnectionStore.cs
 │   ├── ILocalMessageCache.cs
@@ -105,11 +105,10 @@ dotnet publish src/Clients/DotNetCloud.Client.Android/DotNetCloud.Client.Android
 | **Build Command** | Default | `-p:BuildFlavor=fdroid` |
 | **Conditional Symbol** | `GOOGLEPLAY` | `FDROID` |
 | **App ID** | `net.dotnetcloud.client` | `net.dotnetcloud.client.fdroid` |
-| **Push Provider** | Firebase Cloud Messaging (FCM) | UnifiedPush |
-| **Push Service** | `FcmPushService` | `UnifiedPushService` |
-| **Extra Dependencies** | `Xamarin.Firebase.Messaging` | `UnifiedPush.NET` |
 
-Both flavors can be installed side-by-side on the same device (different app IDs).
+Both flavors can be installed side-by-side on the same device (different app IDs). They share the
+same package set and the same alert code path — neither uses a push service, because background
+alerts come from the app's own poll of `GET /api/v1/chat/alerts`.
 
 ## Architecture
 
@@ -141,7 +140,8 @@ AppShell
 | `IServerConnectionStore` | Singleton | Preferences-backed |
 | `IChatSignalRClient` | Singleton | Long-lived hub connection |
 | `ILocalMessageCache` | Singleton | SQLite connection |
-| `IPushNotificationService` | Singleton | FCM or UnifiedPush |
+| `IChatAlertPoller` | Transient | Typed HTTP client for the chat-alert endpoint |
+| `IChatAlertScheduler` | Singleton | Schedules the background alert poll |
 | ViewModels | Transient | Fresh per navigation |
 
 ## Authentication
@@ -189,7 +189,7 @@ Tokens are refreshed transparently before expiration.
 - **Hub:** `{serverBaseUrl}/hubs/core`
 - **Auth:** Bearer token in query string
 - **Reconnect:** Automatic with exponential backoff
-- **Background:** `ChatConnectionService` foreground service keeps connection alive
+- **Background:** `ChatConnectionService` keeps the connection alive while the app process is running (not a foreground service)
 
 ### Events
 
@@ -198,9 +198,9 @@ Tokens are refreshed transparently before expiration.
 | `UnreadCountUpdated` | Updates channel badges |
 | `NewChatMessage` | Shows notification popup |
 
-### Foreground Service
+### Chat Connection Service
 
-The `ChatConnectionService` is an Android foreground service (`dataSync` type) that keeps the SignalR connection alive when the app is backgrounded. This is required for Doze mode compatibility.
+`ChatConnectionService` keeps the SignalR connection alive while the app process is running. It is deliberately **not** a foreground service — a `dataSync` foreground service would spend the Android 15/16 rolling 24-hour budget. Background message delivery comes from the chat-alert poll instead, so losing the connection when the process is reclaimed is not a regression. The only foreground service in the app is music playback.
 
 ## Offline Support
 
@@ -214,27 +214,13 @@ The `ChatConnectionService` is an Android foreground service (`dataSync` type) t
   - `PruneAsync()` — Clean old cache entries
 - **Strategy:** Display cached messages immediately, sync with server when online
 
-## Push Notifications
+## Background Alerts
 
-### FCM (Google Play)
+The client registers no push device and holds no push transport, so the server never contacts a third party to reach the phone. New-message alerts come from the app's own poll of the server's aggregate endpoint (`GET /api/v1/chat/alerts`):
 
-```csharp
-// FcmPushService.RegisterAsync()
-var token = await FirebaseMessaging.Instance.GetTokenAsync();
-// Registers with server: POST /api/v1/notifications/devices/register
-```
-
-Requires Firebase project configuration in the build.
-
-### UnifiedPush (F-Droid)
-
-```csharp
-// UnifiedPushService.RegisterAsync()
-// Receives endpoint from UnifiedPush distributor broadcast receiver
-// Registers with server: POST /api/v1/notifications/devices/register
-```
-
-Compatible with ntfy, Gotify UP, and other UnifiedPush distributors.
+- `ChatAlertJobService` (JobScheduler, job id 3108) runs one poll and re-arms itself — a minute while unmuted messages are waiting, otherwise five. It uses no foreground service.
+- `ChatAlertAlarmReceiver` adds an allow-while-idle alarm path so one poll still runs while the device is dozing.
+- Notifications are always generic ("New message", "You were mentioned"): every string is chosen on the device by `NotificationPayloadContract`, so message text is never sent for an alert.
 
 ## Android Permissions
 
@@ -243,8 +229,7 @@ Compatible with ntfy, Gotify UP, and other UnifiedPush distributors.
 | `INTERNET` | Network access |
 | `ACCESS_NETWORK_STATE` | Connectivity detection |
 | `POST_NOTIFICATIONS` | Notification display (Android 13+) |
-| `FOREGROUND_SERVICE` | Background SignalR connection |
-| `FOREGROUND_SERVICE_DATA_SYNC` | Foreground service type |
+| `FOREGROUND_SERVICE` | Music playback service (the only foreground service) |
 | `READ_MEDIA_IMAGES` | Photo auto-upload |
 | `READ_MEDIA_VIDEO` | Video auto-upload |
 
@@ -257,8 +242,8 @@ Standard AAB/APK signed release via Google Play Console.
 ### F-Droid
 
 F-Droid-compatible build with no Google dependencies:
-- Uses `UnifiedPush` instead of FCM
 - Separate app ID (`net.dotnetcloud.client.fdroid`) for co-installation
+- Same package set as the Google Play build — nothing Google-provided in either
 - No proprietary libraries
 
 ### Direct APK
@@ -274,8 +259,6 @@ Release APK available for sideloading from the project's distribution page.
 | `Microsoft.AspNetCore.SignalR.Client` | 10.0.0 | Real-time messaging |
 | `Microsoft.Extensions.Http` | 10.0.0 | HTTP client factory |
 | `sqlite-net-pcl` | 1.9.172 | Local message cache |
-| `Xamarin.Firebase.Messaging` | 123.1.2.0 | Push notifications (GooglePlay only) |
-| `UnifiedPush.NET` | 2.0.2 | Push notifications (F-Droid only) |
 
 ## Test Coverage
 

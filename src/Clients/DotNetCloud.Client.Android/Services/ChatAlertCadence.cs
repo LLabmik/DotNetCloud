@@ -7,7 +7,8 @@ namespace DotNetCloud.Client.Android.Services;
 public readonly record struct ChatAlertPollState(bool HasSession, bool HasUnread, bool IsDozing);
 
 /// <summary>
-/// Cadence policy for the background chat-alert poll (<c>docs/ANDROID_UNIFIEDPUSH_PLAN.md</c> §12.9).
+/// Cadence policy for the background chat-alert poll
+/// (<c>docs/ANDROID_CHAT_BACKGROUND_ALERTS_PLAN.md</c>).
 /// </summary>
 /// <remarks>
 /// <para>

@@ -28,10 +28,10 @@ public sealed record ChatAlertDecision
     public bool ShouldAlert { get; init; }
 
     /// <summary>
-    /// Payload type to render — one of the <see cref="UnifiedPushProtocol"/> payload constants, reused so
-    /// the poll transport produces exactly the same generic text as the push transport would.
+    /// Payload type to render — one of the <see cref="NotificationPayloadContract"/> payload constants,
+    /// reused so the poll transport produces exactly the same generic text as the SignalR path does.
     /// </summary>
-    public string PayloadType { get; init; } = UnifiedPushProtocol.PayloadTypeMessage;
+    public string PayloadType { get; init; } = NotificationPayloadContract.PayloadTypeMessage;
 
     /// <summary>Channel to open when the notification is tapped, when known.</summary>
     public Guid? ChannelId { get; init; }
@@ -49,8 +49,8 @@ public sealed record ChatAlertDecision
 /// <remarks>
 /// <para>
 /// Deliberately pure and Android-free so it is unit-testable on plain <c>net10.0</c>, mirroring the
-/// banked split that keeps the notification payload contract free of Android types
-/// (<c>UnifiedPushProtocol</c>).
+/// split that keeps the notification payload contract free of Android types
+/// (<c>NotificationPayloadContract</c>).
 /// </para>
 /// <para>
 /// <b>No double alerts.</b> The poll transport and the SignalR/in-app path must not both fire for one
@@ -97,8 +97,8 @@ public static class ChatAlertPollDecision
         {
             ShouldAlert = true,
             PayloadType = summary.UnmutedMentions > 0
-                ? UnifiedPushProtocol.PayloadTypeMention
-                : UnifiedPushProtocol.PayloadTypeMessage,
+                ? NotificationPayloadContract.PayloadTypeMention
+                : NotificationPayloadContract.PayloadTypeMessage,
             ChannelId = summary.TopChannelId,
             AcknowledgedChangedAtUtc = changedAt,
         };

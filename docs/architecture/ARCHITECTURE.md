@@ -312,12 +312,12 @@ User sends message → SignalR hub (core) → Chat module (gRPC) → validates, 
 
 ### Push Notifications (Android)
 
-| Method                         | For whom                                              |
-| ------------------------------ | ----------------------------------------------------- |
-| FCM (Firebase Cloud Messaging) | Regular Android (free, Google Play Services required) |
-| UnifiedPush                    | De-Googled Android (open-source, self-hostable)       |
+| Method                         | For whom                                                              |
+| ------------------------------ | --------------------------------------------------------------------- |
+| FCM (Firebase Cloud Messaging) | Server-side push provider (device registration API stays available)    |
+| App's own background poll     | The shipped Android alert path: generic "New message" notifications, no third party and no Google in the path |
 
-App detects available push method at startup. Build flavors: `googleplay` (FCM) and `fdroid` (UnifiedPush only).
+Build flavors: `googleplay` and `fdroid` — they differ by application id only and use the **same** alert code path.
 
 ---
 
@@ -728,9 +728,9 @@ On multi-user Linux systems the `SyncService` systemd unit runs as root (or a de
 | ------------------ | --------------------------------------------------- |
 | Background sync    | Android WorkManager                                 |
 | Photo auto-upload  | MediaStore content observer                         |
-| Push notifications | FCM (default) + UnifiedPush (de-Googled)            |
+| Alerts             | App's own `JobScheduler` poll (generic notifications) |
 | Distribution       | Google Play Store + F-Droid + direct APK            |
-| Build flavors      | `googleplay` (FCM) / `fdroid` (UnifiedPush only)    |
+| Build flavors      | `googleplay` / `fdroid` (application-id difference only) |
 | Battery            | Respect Doze mode, batch uploads on WiFi + charging |
 
 ---
@@ -1096,7 +1096,7 @@ All dependencies are open source with permissive or compatible licenses. Zero co
 - Chat module (channels, DMs, typing, presence, file sharing in chat)
 - Announcements module
 - Chat UI (web, desktop, Android)
-- Android MAUI app (chat, push notifications via FCM/UnifiedPush)
+- Android MAUI app (chat, generic background alerts via the app's own poll)
 - SignalR real-time delivery
 
 **Milestone:** Real-time chat across web, desktop, and Android.

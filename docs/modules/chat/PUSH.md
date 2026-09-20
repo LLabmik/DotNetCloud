@@ -2,7 +2,9 @@
 
 ## Overview
 
-The Chat module supports push notifications for offline users via two providers: **Firebase Cloud Messaging (FCM)** for Google Play builds and **UnifiedPush** for F-Droid/self-hosted deployments. The notification pipeline includes user preference enforcement, deduplication for online users, and an automatic retry queue with exponential backoff.
+The Chat module delivers push notifications for offline users through a single server-side provider: **Firebase Cloud Messaging (FCM)**. The notification pipeline includes user preference enforcement, deduplication for online users, and an automatic retry queue with exponential backoff.
+
+Mobile clients do not depend on that pipeline for background alerts: the Android app polls `GET /api/v1/chat/alerts` itself and renders the notification locally. See [Mobile Background Chat Alerts](#mobile-background-chat-alerts).
 
 ## Architecture
 
@@ -24,8 +26,7 @@ MentionNotificationService
                 ├── Skip if user received via SignalR
                 │
                 ├── Route by device provider
-                │     ├── FcmPushProvider → Firebase HTTP v1 API
-                │     └── UnifiedPushProvider → HTTP POST to distributor
+                │     └── FcmPushProvider → Firebase HTTP v1 API
                 │
                 └── On failure → NotificationDeliveryQueue
                                     └── Background retry worker
@@ -45,7 +46,7 @@ MentionNotificationService
 
 ### Firebase Cloud Messaging (FCM)
 
-Used by the Google Play build flavor of the Android app.
+The only server-side push provider. It delivers to any client that has registered an FCM token; the Android client does not register one today (see [Mobile Background Chat Alerts](#mobile-background-chat-alerts)).
 
 **Configuration:**
 
@@ -75,37 +76,27 @@ Used by the Google Play build flavor of the Android app.
 - Auto-detects invalid/expired tokens and removes them.
 - Supports notification + data payloads.
 
-### UnifiedPush
+## Mobile Background Chat Alerts
 
-Used by the F-Droid build flavor and self-hosted deployments. No Google dependency.
+The Android client does not receive server-initiated push. While the app is not running it learns about new messages from its own background poll of:
 
-**Configuration:**
-
-```json
-{
-  "Chat": {
-    "Push": {
-      "UnifiedPush": {
-        "Enabled": true,
-        "MaxRetryAttempts": 3,
-        "RetryDelaySeconds": 30
-      }
-    }
-  }
-}
+```
+GET /api/v1/chat/alerts
 ```
 
-| Setting | Type | Default | Description |
-|---|---|---|---|
-| `Enabled` | `bool` | `true` | Enable/disable UnifiedPush provider |
-| `MaxRetryAttempts` | `int` | `3` | Maximum delivery retry attempts |
-| `RetryDelaySeconds` | `int` | `30` | Base delay between retries |
+The response is a constant-cost aggregate of counts only — `unread`, `mentions`, `unmutedUnread`, `unmutedMentions`, `topChannelId` and `changedAt` — returned with an `ETag`. The app sends `If-None-Match` on every poll, so a `304 Not Modified` means nothing changed. **No message text, sender name or channel name ever leaves the server.**
 
-**Behavior:**
-- Sends HTTP POST requests to the distributor endpoint registered by each device.
-- Compatible with ntfy, Gotify UP, and other UnifiedPush distributors.
-- Distinguishes transient failures (retry) from permanent failures (discard).
-- Per-device endpoint URLs stored in device registration.
+| Poll state | Next poll |
+|---|---|
+| Unmuted unread messages outstanding | 60 s |
+| Nothing unread | 300 s |
+| Device dozing | ~9 min (exact-alarm path) |
+
+The poll runs as a `JobScheduler` job (id `3108`, persisted, any network) that re-arms itself after each run. When the device is dozing and the user has granted exact-alarm access, an allow-while-idle alarm is used instead. There is no foreground service and no persistent notification.
+
+### Notification Text
+
+Notification wording is chosen on the device, never by the server: an unread message renders as **"New message"** and an unread mention as **"You were mentioned"**. Muted channels never raise an alert.
 
 ## Device Registration
 
@@ -117,17 +108,15 @@ POST /api/v1/notifications/devices/register?userId={userId}
 
 ```json
 {
-  "deviceToken": "fcm-token-or-unified-push-id",
-  "provider": "FCM",
-  "endpoint": null
+  "deviceToken": "fcm-registration-token",
+  "provider": "FCM"
 }
 ```
 
 | Field | Required | Description |
 |---|---|---|
-| `deviceToken` | Yes | FCM token or UnifiedPush identifier |
-| `provider` | Yes | `FCM` or `UnifiedPush` |
-| `endpoint` | For UP | UnifiedPush distributor endpoint URL |
+| `deviceToken` | Yes | FCM registration token |
+| `provider` | Yes | `FCM` (the only supported provider) |
 
 ### Unregister
 
@@ -137,21 +126,9 @@ DELETE /api/v1/notifications/devices/{deviceToken}?userId={userId}
 
 ### Client-Side Registration
 
-**Android (GooglePlay):**
+A client that holds a push token registers it with `provider: "FCM"` and removes it again with `DELETE /api/v1/notifications/devices/{deviceToken}` when the token is no longer valid.
 
-```csharp
-// FcmPushService.RegisterAsync()
-var token = await FirebaseMessaging.Instance.GetTokenAsync();
-// POST to /api/v1/notifications/devices/register with provider="FCM"
-```
-
-**Android (F-Droid):**
-
-```csharp
-// UnifiedPushService.RegisterAsync()
-// Receives endpoint URL from UnifiedPushReceiver broadcast
-// POST to /api/v1/notifications/devices/register with provider="UnifiedPush"
-```
+**Android:** the Android client currently registers **no** push device at all — it holds no push token, so no device entry exists for it on the server. Its background chat alerts are produced locally by the poll described in [Mobile Background Chat Alerts](#mobile-background-chat-alerts).
 
 ## User Preferences
 
@@ -222,7 +199,7 @@ public sealed record PushNotification
 2. **Mention dispatch** — `MentionNotificationService` identifies recipients (excluding sender).
 3. **Online check** — If user is connected via SignalR, skip push (real-time delivery).
 4. **Preference check** — Verify push enabled, not in DND, channel not muted.
-5. **Provider routing** — Route to FCM or UnifiedPush based on registered device provider.
+5. **Provider routing** — The registered device's provider selects the push endpoint; `FCM` is the only provider.
 6. **Send** — Attempt delivery via provider API.
 7. **On failure** — Enqueue to `INotificationDeliveryQueue` for retry.
 
@@ -233,9 +210,9 @@ Failed notifications are queued in an in-memory `System.Threading.Channels`-base
 | Setting | Value | Description |
 |---|---|---|
 | Queue type | Single-reader, multi-writer | Lock-free async channel |
-| Retry strategy | Exponential backoff | Delay doubles with each attempt |
-| Max retries | Provider-configurable | Default: 3 for UnifiedPush |
-| Permanent failure | Token invalid, endpoint gone | Device registration auto-cleaned |
+| Retry strategy | Exponential backoff | Delay doubles with each attempt, capped at 30 s |
+| Max retries | 3 attempts | Fixed in `NotificationDeliveryBackgroundService` |
+| Permanent failure | Token invalid | Device registration auto-cleaned |
 
 ### Deduplication
 
@@ -261,4 +238,4 @@ Notifications respect the `IsMuteChatNotifications` setting in `sync-tray-settin
 | No push despite enabled | DND mode active | Check `doNotDisturb` preference |
 | Channel notifications silent | Channel muted | Check `mutedChannelIds` or per-channel pref |
 | FCM token errors | Expired or invalid token | Re-register device; provider auto-cleans |
-| UnifiedPush not working | Distributor endpoint changed | Re-register with new endpoint |
+| No Android background alert | Poll job not scheduled (no saved session, or battery optimisation) | Check job `3108` is registered and the app has a saved session |

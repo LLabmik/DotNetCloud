@@ -18,16 +18,27 @@
 - ✓ Team-share bell notifications fan out to every team member except the sharer; Photos album shares now produce bell notifications.
 - ☐ Live end-to-end verification per module (share by display name for users/teams, team-member view + notification, revoke; Files single/bulk/public-link regression) — required before commit.
 
-## Recent Work — Android Chat Alerts, "our code only" poll transport (2026-09-19)
+## Recent Work — Android Chat Alerts, background poll transport (2026-09-19)
 
-> Tracked in `docs/ANDROID_UNIFIEDPUSH_PLAN.md` **§12** (adopted) and **§12.10** (as built). Replaces the parked UnifiedPush route: no distributor app, no ntfy, no Google, no foreground service.
+> Tracked in `docs/ANDROID_CHAT_BACKGROUND_ALERTS_PLAN.md`. The app's own poll of `GET /api/v1/chat/alerts` is the whole transport: no companion app, no third-party push service, no Google, no foreground service.
 
 - ✓ **Server** — `GET /api/v1/chat/alerts` in `ChatController`: a constant-cost aggregate (`unread`, `mentions`, `unmutedUnread`, `unmutedMentions`, `topChannelId`, `changedAt`) with `ETag` / `If-None-Match` → `304`; `IChannelMemberService.GetAlertsAsync` implemented with a deterministic SHA-256 token (never `string.GetHashCode()`, which is per-process randomized). Additive — existing `GET /chat/unread` untouched.
 - ✓ **Server tests** — 16 `ChannelMemberAlertsTests` + 4 controller tests (aggregate, mute split, top-channel selection, token stability, `304` round trip). Chat module 1431 pass / 0 fail; Chat host 0 warnings.
-- ✓ **Android** — `ChatAlertPoller` (conditional GET), pure `ChatAlertPollDecision` (high-water-mark dedup, mute-absolute wording, UTC-kind guard), `ChatAlertCadence` (60 s unread / 5 min idle / 9 min Doze), `ChatAlertStateStore`, `ChatAlertJobService` (job id **3108**, `SetPersisted` + `SetOverrideDeadline`, `NetworkType.Any`), `ChatAlertAlarmReceiver` (allow-while-idle Doze path), `AndroidChatAlertScheduler`, `ChatAlertNotifier` reusing the banked generic UnifiedPush renderer.
+- ✓ **Android** — `ChatAlertPoller` (conditional GET), pure `ChatAlertPollDecision` (high-water-mark dedup, mute-absolute wording, UTC-kind guard), `ChatAlertCadence` (60 s unread / 5 min idle / 9 min Doze), `ChatAlertStateStore`, `ChatAlertJobService` (job id **3108**, `SetPersisted` + `SetOverrideDeadline`, `NetworkType.Any`), `ChatAlertAlarmReceiver` (allow-while-idle Doze path), `AndroidChatAlertScheduler`, `ChatAlertNotifier` posting through the shared generic notification renderer.
 - ✓ **Android tests** — 52 new tests across cadence / decision / state store / poller (stubbed HTTP, hand-built wire JSON). Android suite 433 pass / 1 skip after the prune; arm64 Debug build 0 warnings / 0 errors.
-- ✓ **Declined UnifiedPush connector pruned** (operator decision) — receiver, registration state machine, endpoint registrar, distributor picker, Settings card, `UnifiedPushIntents`, `UnifiedPushForegroundService`, `DistributorLinkActivity` and their tests/manifest entries removed. Kept only the payload contract + generic renderer, which both live notification paths use.
+- ✓ **Abandoned push connector pruned** (operator decision) — receiver, registration state machine, endpoint registrar, distributor picker, Settings card, intent helpers, connector foreground service and link activity, plus their tests and manifest entries. Kept only the payload contract + generic renderer, which both live notification paths use.
 - ✓ **On-device wake-path check (R5CWC356B2K)** — job **3108** registered `PERSISTED` with min latency 5m / max delay 6m and an **any-network** constraint (not unmetered); a forced headless run polled `https://cloud.dotnetcloud.net/api/v1/chat/alerts`, degraded gracefully to `Failed` on the expected pre-deploy 404 (no crash) and re-armed to the 300 s idle cadence. **No foreground service** (`dumpsys activity services` empty).
+
+## Recent Work — Push-route removal & transport-neutral rename (2026-09-20, `chore/remove-abandoned-push-route`)
+
+> Completes the 2026-09-19 prune: the abandoned third-party push route is now gone from code, config, docs and the test phone — no vendor name remains anywhere in the repository.
+
+- ✓ **Chat module** — deleted the non-FCM push provider, its transport abstraction, its logging transport and its options class; `PushProvider` is now FCM-only; `DeviceRegistration.Endpoint` and the device-registration `endpoint` field removed from the Chat DTO, host controller and proto comment.
+- ✓ **Core / UI** — `PushNotificationChannel` doc comment and `UserDevice.PushToken` docs corrected; the stale third-party push licence entry removed; the vendor section removed from the admin `PushNotificationSettings` page together with its now-unused `GetInt` helper.
+- ✓ **Android** — payload contract renamed to `Services/NotificationPayloadContract.cs` (`NotificationPayloadContract`, `NotificationPayload`, `NotificationPlan`, `NotificationKind`, `NotificationTarget`) and the renderer to `Platforms/Android/ChatNotificationRenderer.cs`; the dead connector API (spec actions, intent builders, token/truncate helpers, `MaxMessageBytes`) was deleted with it. Callers updated: `ChatAlertNotifier`, `SignalRChatClient`, `MainActivity`, `ChatAlertPollDecision`, `ChatAlertsSummary`.
+- ✓ **Tests** — the protocol test file became `NotificationPayloadContractTests` (connector tests dropped; payload, generic-text and hostile-payload tests kept), the provider test file deleted, `NotificationRouterTests` re-based on FCM-only multi-device routing, cadence/poller/poll-decision assertions repointed.
+- ✓ **Docs** — design doc rewritten and renamed to `docs/ANDROID_CHAT_BACKGROUND_ALERTS_PLAN.md` (the previously superseded plan doc is deleted); the abandoned server spec removed from the mediation handoff and archive; chat-module, client, user and tracking docs purged of vendor names.
+- ✓ **Device + workbench** — the leftover third-party distributor app was uninstalled from `R5CWC356B2K` (verified: no distributor package remains) and the local test rig deleted from `%TEMP%`; chat alert job **3108** still `PERSISTED`, so alerts are unaffected.
 - ✓ **Server deployed + verified (2026-09-19, `cloud.kimball.home`)** — `deploy.sh --force --verify` → 15/15 targets with module-host hashes verified; the deployed Chat host was rebuilt 03:43 and contains `GetAlertsAsync`; `/health/ready` Healthy **14/14 modules**; `blazor.web.js` 200; no migrations. Route proven live through the gateway: `GET /api/v1/chat/alerts` → `401` (endpoint exists, auth required) vs control `/api/v1/chat/zzz-not-a-route` → `404`. The authenticated `200` / `If-None-Match` → `304` leg could **not** be run on the server box (no non-interactive token path) and was subsequently run on `cloud` and **PASSED** (see the `304` verification bullet below).
 - ✓ **Live E2E — PASSED on device (2026-09-19, client agent — `monolith`, phone R5CWC356B2K).** Authenticated poll now answers **`200`** (pre-deploy `404` gone). With the app process **dead**: a message produced `finished (Alerted, pending: True)` with `posted=True`, `foreground=False` and **one generic notification** (`channel=chat_messages`, title "New message", **empty body** — no sender/channel name) whose tap opened **exactly** its channel; reading it cleared the pending alert (`Suppressed, pending: False`, back to the 300 s idle cadence) with no second notification; a **muted** DM produced `Suppressed, pending: False` and nothing at all; no second alert when the in-app SignalR path had already notified; **no foreground service**. Job 3108 stayed `PERSISTED` / any-network throughout.
 - ✓ **Defect found during the E2E + fixed (2026-09-19)** — `If-None-Match` → `304` never worked because `ModuleApiProxyTransformer` (`Core.Server/Program.cs`) forwards **every request header twice** (the YARP base already copies them; `TryAddWithoutValidation` appends). Module hosts saw `"…","…"` and the token could never match. Affected **all** conditional-header endpoints reaching a module (chat alerts, Files chunk dedup, Bookmarks ETag) — silent degradation only. Fix + `tests/DotNetCloud.Core.Server.Tests/Proxy/ModuleApiProxyTransformerTests.cs` (written failing-first) on `monolith`; Core.Server 784 pass / 1 pre-existing skip. **Deployed + `304` re-verified (2026-09-19, server agent — `cloud`)** — see the next bullet. **Nothing outstanding.**
@@ -2798,8 +2809,8 @@ This phase implements real-time chat, announcements, push notifications, and the
 2. Announcements module (organization-wide broadcasts)
 3. Chat Web UI (Blazor)
 4. Desktop client chat integration
-5. Android MAUI app (chat, push notifications)
-6. Push notifications (FCM / UnifiedPush)
+5. Android MAUI app (chat, generic background alerts)
+6. Push notifications (FCM) and the app's own background alert poll
 7. SignalR real-time delivery integration
 8. Comprehensive testing and documentation
 
@@ -2810,7 +2821,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 - [ ] Typing indicators and presence (online/offline/away) display correctly
 - [ ] Files can be shared inline in chat messages
 - [ ] Announcements can be posted and viewed organization-wide
-- [ ] Push notifications reach Android devices (FCM and UnifiedPush)
+- [ ] Generic background alerts reach Android devices (app's own poll; no push transport involved)
 - [ ] Android MAUI app connects, authenticates, and displays chat
 - [ ] Desktop client shows chat notifications
 - [ ] All unit and integration tests pass
@@ -3338,7 +3349,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 
 ### Push Notification Service
 
-**FCM and UnifiedPush support for mobile clients**
+**FCM push support for mobile clients, plus the app's own generic background alerts**
 
 #### Notification Abstractions
 
@@ -3355,34 +3366,21 @@ This phase implements real-time chat, announcements, push notifications, and the
   - ✓ `NotificationCategory Category` property
 - ✓ Create `DeviceRegistration` model:
   - ✓ `string Token` property
-  - ✓ `PushProvider Provider` property (FCM, UnifiedPush)
-  - ✓ `string? Endpoint` property (UnifiedPush endpoint URL)
-- ✓ Create `PushProvider` enum (FCM, UnifiedPush)
+  - ✓ `PushProvider Provider` property (FCM)
+- ✓ Create `PushProvider` enum (FCM)
 - ✓ Create `NotificationCategory` enum (ChatMessage, ChatMention, Announcement, FileShared, System)
 
-#### UnifiedPush — privacy-first push with no Google (ANDROID HALF ✓ IMPLEMENTED + ON-DEVICE VERIFIED 2026-09-18; SERVER HALF ☐ DEFERRED)
+#### Abandoned third-party push route — ❌ REMOVED (declined 2026-09-18; fully removed from the repository 2026-09-20)
 
-Spec: **`docs/ANDROID_UNIFIEDPUSH_PLAN.md`** (source of truth; per-phase breakdown + acceptance).
-The **Android half is done** (phases 1, 2 + the client-side of phase 5) — see the plan's "Implementation notes — Android half, as built". The **server half is still deferred** at the operator's request and tracked as a deferred handoff in
-`docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`.
-⚠️ **Topology changed by a device test (2026-09-18): the distributor rejects a push server URL containing a path**, so the server half must route by **Host** (`push.<domain>`) on the same 443 rather than use a `/push` path route. That needs a DNS record + certificate entry and therefore an **operator decision (plan §9.10)** before the server half starts.
-
-- ✓ Android: `fdroid` flavour builds again — the non-existent `UnifiedPush.NET` package is dropped and the connector is written against spec AND_3.1.0 (§5 Phase 1)
-- ✓ Android: generic notifications on every path — UP receiver + SignalR (§5 Phase 2; the FCM path is deleted, not ported)
-- ✓ Android: Settings push status (distributor, endpoint registered, last error) + "Choose distributor" (§5 Phase 2.4)
-- ✓ Android: FCM **deleted** from both flavours (service classes, `Xamarin.Firebase.Messaging` reference, manifest entries, DI registration) and the manifest declares a `<queries>` entry so the distributor is visible to the package manager
-- ☐ Server: `UnifiedPushHttpTransport` — real HTTP POST of the ID-only payload + endpoint rewrite (§8.1)
-- ☐ Server: persist device registrations (Chat module table + migrations for both providers) (§8.2)
-- ☐ Server: strip names/text from mention, DM-created and call payloads; add the missing `ChatMessage` push (§8.3–§8.4)
-- ☐ Server: stop suppressing push for delivery-only mobile connections (§8.5)
-- ☐ ntfy on loopback + **Host-routed** `push.<domain>` proxy route (not a path route), topic ACL and server token (§7.1, §8.6–§8.7)
-- ☐ Live E2E: with the app force-stopped, a remote message produces a generic, sounding notification (§7) — the client half of this is verified with a locally published payload; the **server→push leg needs Phase 3**
+> **Nothing here is pending.** The route that required every user to install and configure a separate push
+> distributor app was declined by the operator, and has since been **deleted** — pipeline, provider, options,
+> admin settings UI, tests, docs and the phone-side app. Background alerts ship as the app's own poll
+> (`docs/ANDROID_CHAT_BACKGROUND_ALERTS_PLAN.md`). Do not start this work without a fresh operator decision.
 
 #### FCM Provider — superseded: FCM is being removed entirely (2026-09-18)
-
-> Historical record only. **FCM is not a live or planned transport** — decision §9.1 in
-> `docs/ANDROID_UNIFIEDPUSH_PLAN.md`, deletion inventory in that plan's Phase 5. Do not add
-> FCM work, do not add a `google-services.json`, and do not configure `Chat:Push:Fcm`.
+> Historical record only. **FCM is not a live or planned transport** — the client ships no Google
+> messaging dependency. Do not add FCM work, do not add a `google-services.json`, and do not
+> configure `Chat:Push:Fcm`; mobile alerts come from the app's own poll.
 
 - ✓ Create `FcmPushProvider` implementing `IPushNotificationService`:
   - ✓ Configure Firebase Admin SDK credentials (FcmPushOptions: ProjectId, CredentialsPath, bound from config)
@@ -3392,13 +3390,11 @@ The **Android half is done** (phases 1, 2 + the client-side of phase 5) — see 
 - ✓ Create FCM configuration model
 - ✓ Add admin UI for FCM credential management (PushNotificationSettings.razor admin page)
 
-#### UnifiedPush Provider
+#### Push Provider — ❌ REMOVED (2026-09-20)
 
-- ✓ Create `UnifiedPushProvider` implementing `IPushNotificationService`:
-  - ✓ Implement HTTP POST to UnifiedPush distributor endpoint
-  - ✓ Handle endpoint URL registration
-  - ✓ Implement error handling and retries
-- ✓ Create UnifiedPush configuration model
+> The second (non-FCM) push provider, its transport abstraction and its options class were deleted, together
+> with the `endpoint` field on the device-registration payload. `NotificationRouter` now routes by device to
+> the FCM provider only. Nothing is pending here; see the 2026-09-20 entry in "Recent Work".
 
 #### Notification Routing
 
@@ -3540,7 +3536,7 @@ The **Android half is done** (phases 1, 2 + the client-side of phase 5) — see 
 
 - ✓ Create `DotNetCloud.Clients.Android` .NET MAUI project
 - ✓ Configure Android-specific settings (minimum SDK, target SDK)
-- ✓ Set up build flavors: `googleplay` (FCM) and `fdroid` (UnifiedPush)
+- ✓ Set up build flavors: `googleplay` and `fdroid` — both share the same alert code path and differ by application id only
 - ✓ Add to solution file
 - ✓ Configure app icon and splash screen
 
@@ -3574,14 +3570,14 @@ The **Android half is done** (phases 1, 2 + the client-side of phase 5) — see 
 
 - ✓ Implement SignalR client connection
 - ✓ Handle connection lifecycle (connect, reconnect, disconnect)
-- ✓ Background connection management — `ChatConnectionService` is a sticky but **unpromoted** service: the `dataSync` foreground service was removed outright on 2026-09-12 because Android 15/16 caps `dataSync` to a rolling 24-hour budget and the resulting kill loop was structural, not tunable. Background message delivery is expected to come from push, not from this service.
+- ✓ Background connection management — `ChatConnectionService` is a sticky but **unpromoted** service: the `dataSync` foreground service was removed outright on 2026-09-12 because Android 15/16 caps `dataSync` to a rolling 24-hour budget and the resulting kill loop was structural, not tunable. Background alerts do not come from this service: `ChatAlertJobService` (job 3108) polls the server while the app is closed.
 - ✓ Handle Doze mode and battery optimization
 
 #### Push Notifications
 
 - ✓ Integrate Firebase Cloud Messaging (FCM) for `googleplay` flavor
-  - **Superseded (2026-09-18):** this is **no longer a pending task**. FCM never worked in this build (no `google-services.json` → `FirebaseApp` never initialises → no token), and the operator has decided FCM is **removed outright** rather than configured — no fallback, no behind-a-flag build (requirement §1.6, plan §5 Phase 5). Do not create a Firebase project; the transport of record is UnifiedPush + self-hosted ntfy.
-- ✓ Integrate UnifiedPush for `fdroid` flavor
+  - **Superseded (2026-09-18):** this is **no longer a pending task**. FCM never worked in this build (no `google-services.json` → `FirebaseApp` never initialises → no token), and the operator has decided FCM is **removed outright** rather than configured — no fallback, no behind-a-flag build. Do not create a Firebase project; alerts come from the app's own background poll.
+- ✓ Integrate the second (non-FCM) push transport for the `fdroid` flavour — ❌ **removed 2026-09-20** (see above).
 - ✓ Create notification channels (Chat, Mentions, Announcements)
 - ✓ Implement notification tap handlers (open specific chat)
 - ✓ Display notification badges on app icon
@@ -3669,7 +3665,7 @@ Zero-tap sign-in (Apr 2027) and the API 36 target bump are tracked separately (d
 - ✓ Pause SignalR reconnect attempts while the app is backgrounded
 - ✓ Update `docs/clients/android/DISTRIBUTION.md` Release build + F-Droid recipe (MAUI workload, restore prebuild)
 - ✓ On-device Release E2E passed 2026-09-07 (Samsung R5CWC356B2K): startup/AOT clean, session restore + SignalR, Files/Calendar/Notes/AI/Settings load data, Rescan Modules reflection path runs, background FGS gating verified (`dumpsys activity services` shows no idle chat FGS), memory reclaimed when backgrounded (`dumpsys meminfo`)
-- ✓ F-Droid flavor build + UnifiedPush smoke test — **RESOLVED 2026-09-18**: the `fdroid` flavour builds (0 warnings) and is verified on device. The old blocker was real but misdiagnosed — `UnifiedPush.NET` does not exist on nuget.org at all, so the package was dropped and the connector written against the spec directly.
+- ✓ F-Droid flavor build + background-alert smoke test — **RESOLVED 2026-09-18**: the `fdroid` flavour builds (0 warnings) and is verified on device; the abandoned push dependency was dropped (the pinned package never existed on nuget.org). **Superseded 2026-09-20:** both flavours now use the same poll-based alert path, so there is no per-flavour push difference to test.
 - ☐ Play Console Android Vitals / pre-launch report confirmation — DEFERRED: requires uploading a release-signed AAB to Play Console; set `KEYSTORE_FILE`/`KEYSTORE_ALIAS`/`KEYSTORE_PASS` env vars and build with signing enabled (`-p:AndroidKeyStore=true`) first.
 
 #### Music Tab
@@ -3708,7 +3704,7 @@ frozen while the server still considered the device online (which suppresses its
 - ✓ Wired into `SignalRChatClient`'s `NewMessage` handler; the sound is loaded at connect so the first message of a process is not swallowed while it decodes, and the current user is resolved from the id_token so own messages stay silent
 - ✓ "Message Sound" switch in Settings → Chat Notifications (preference `chat_message_sound_enabled`, default on) which previews the ding when switched on
 - ✓ 10 unit tests (`ChatAlertPolicyTests`); on-device verified (R5CWC356B2K, 2026-09-17): a live remote message logged `decision=InAppSound` and the audio device recorded the SoundPool player `event:started`
-- ☐ **Background alerts still need a working push transport.** Push device registration is now self-healing (re-sent on every launch and after login, because the server holds registrations in memory only), but nothing can wake a frozen/reclaimed process until **UnifiedPush** is actually configured — see the Push Notifications item above and the deferred `UnifiedPush — privacy-first push` block. (FCM is **not** the answer: it is being removed outright, requirement §1.6.)
+- ✓ **Background alerts have a working transport (2026-09-19):** `ChatAlertJobService` (job **3108**) polls `GET /api/v1/chat/alerts` while the app is closed, with `ChatAlertAlarmReceiver` covering Doze and the in-app SignalR path covering the foreground. Delivered, deployed and live-verified — see the Android Chat Alerts entry above. (FCM is **not** the answer: the client ships no Google messaging dependency.)
 
 #### Calendar Tab — Multi-Event Day List
 
@@ -6602,7 +6598,7 @@ Global search now updates in near-real-time when searchable content changes (cre
 ### Phase 3 — Channel Implementations
 
 - ✓ `RealtimeNotificationChannel` — SignalR `notification.created` to recipient (bell live refresh)
-- ✓ `PushNotificationChannel` — gRPC to Chat module `NotificationRouter` (FCM/UnifiedPush)
+- ✓ `PushNotificationChannel` — gRPC to Chat module `NotificationRouter` (FCM)
 - ✓ `NullEmailChannel` — stub (real email deferred)
 
 ### Phase 4 — gRPC Push RPC (Core.Server → Chat)

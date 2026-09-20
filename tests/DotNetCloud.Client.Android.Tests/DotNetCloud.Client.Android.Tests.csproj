@@ -117,10 +117,9 @@
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\ViewModels\CalendarViewModel.cs" Link="AndroidApp\ViewModels\CalendarViewModel.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Converters\LocalTimeConverter.cs" Link="AndroidApp\Converters\LocalTimeConverter.cs" />
 
-    <!-- Push notification payload contract. The connector half was removed on 2026-09-19 with the
-         declined UnifiedPush route; the payload contract + mapping survive because the background
-         poll transport reuses them (see docs/ANDROID_UNIFIEDPUSH_PLAN.md §12). -->
-    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\UnifiedPushProtocol.cs" Link="AndroidApp\Services\UnifiedPushProtocol.cs" />
+    <!-- Notification payload contract + generic-notification mapping, reused by the background
+         alert poll and the in-app SignalR path (see docs/ANDROID_CHAT_BACKGROUND_ALERTS_PLAN.md). -->
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\NotificationPayloadContract.cs" Link="AndroidApp\Services\NotificationPayloadContract.cs" />
   </ItemGroup>
 
 </Project>

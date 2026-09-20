@@ -12,7 +12,7 @@
 </div>
 
 <p class="text-muted">
-    Configure Firebase Cloud Messaging (FCM) and UnifiedPush for delivering push notifications to mobile and desktop clients.
+    Configure Firebase Cloud Messaging (FCM) for delivering push notifications to mobile and desktop clients.
 </p>
 
 @if (_loading)
@@ -70,29 +70,6 @@ else
                 <span class="hint">
                     When enabled, FCM messages are validated but not delivered. Useful for
                     testing the integration without sending real notifications.
-                </span>
-            </div>
-        </section>
-
-        <!-- UnifiedPush Configuration -->
-        <section class="settings-section">
-            <h2>UnifiedPush</h2>
-
-            <div class="form-group">
-                <label>Enabled</label>
-                <input type="checkbox" @bind="_upEnabled" />
-                <span class="hint">
-                    Enable UnifiedPush for privacy-preserving push notifications (no Google dependency).
-                    Requires clients to have a UnifiedPush distributor app installed.
-                </span>
-            </div>
-
-            <div class="form-group">
-                <label>Max Retry Attempts</label>
-                <input type="number" class="input input-sm" min="0" max="10"
-                       @bind="_upMaxRetries" />
-                <span class="hint">
-                    Number of retry attempts for transient delivery failures. Default: 3.
                 </span>
             </div>
         </section>
@@ -158,10 +135,6 @@ else
     private string _fcmCredentialsPath = string.Empty;
     private bool _fcmDryRun;
 
-    // UnifiedPush fields
-    private bool _upEnabled = true;
-    private int _upMaxRetries = 3;
-
     // Notification delivery toggles
     private bool _notifyFileShared = true;
     private bool _notifyPublicLinkAccessed = true;
@@ -198,8 +171,6 @@ else
         _fcmProjectId = GetString(settings, "Push:Fcm:ProjectId");
         _fcmCredentialsPath = GetString(settings, "Push:Fcm:CredentialsPath");
         _fcmDryRun = GetBool(settings, "Push:Fcm:DryRun");
-        _upEnabled = GetBool(settings, "Push:UnifiedPush:Enabled", defaultValue: true);
-        _upMaxRetries = GetInt(settings, "Push:UnifiedPush:MaxRetryAttempts", 3);
         _notifyFileShared = GetBool(settings, "Push:Delivery:FileShared", defaultValue: true);
         _notifyPublicLinkAccessed = GetBool(settings, "Push:Delivery:PublicLinkAccessed", defaultValue: true);
         _notifyQuotaWarning = GetBool(settings, "Push:Delivery:QuotaWarning", defaultValue: true);
@@ -219,8 +190,6 @@ else
                 Api.UpsertSettingAsync(Module, "Push:Fcm:CredentialsPath",
                     new UpsertSystemSettingDto { Value = _fcmCredentialsPath, IsSensitive = true }),
                 Api.UpsertSettingAsync(Module, "Push:Fcm:DryRun", Str(_fcmDryRun.ToString())),
-                Api.UpsertSettingAsync(Module, "Push:UnifiedPush:Enabled", Str(_upEnabled.ToString())),
-                Api.UpsertSettingAsync(Module, "Push:UnifiedPush:MaxRetryAttempts", Str(_upMaxRetries.ToString())),
                 Api.UpsertSettingAsync(Module, "Push:Delivery:FileShared", Str(_notifyFileShared.ToString())),
                 Api.UpsertSettingAsync(Module, "Push:Delivery:PublicLinkAccessed", Str(_notifyPublicLinkAccessed.ToString())),
                 Api.UpsertSettingAsync(Module, "Push:Delivery:QuotaWarning", Str(_notifyQuotaWarning.ToString())),
@@ -256,12 +225,6 @@ else
     {
         var val = GetString(settings, key);
         return string.IsNullOrEmpty(val) ? defaultValue : bool.TryParse(val, out var b) ? b : defaultValue;
-    }
-
-    private static int GetInt(IReadOnlyList<SystemSettingDto> settings, string key, int defaultValue = 0)
-    {
-        var val = GetString(settings, key);
-        return string.IsNullOrEmpty(val) ? defaultValue : int.TryParse(val, out var i) ? i : defaultValue;
     }
 
     private static UpsertSystemSettingDto Str(string value, string? description = null) =>
