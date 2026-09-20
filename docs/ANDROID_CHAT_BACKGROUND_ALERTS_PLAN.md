@@ -148,12 +148,19 @@ alert and the poll — render through it, so they produce identical, content-fre
 
 ### 4.1 Alert correctness — never two alerts for one message
 
-- **One shared high-water mark.** The SignalR path, the Doze alarm receiver and the job all post through
-  the same notifier and advance the poll's persisted watermark, so a message can only alert when the
-  server's `changedAt` (newest message time) is strictly newer than the value the app last accounted
-  for. Reading a channel does not move `changedAt`, so clearing messages can never re-alert them; the
-  watermark also advances when the in-app path handled the message, so a notification cannot appear
-  after the user already saw the ding.
+- **One shared high-water mark, owned by the poller.** `ChatAlertStateStore` persists the newest server
+  `changedAt` the app has accounted for (`chat_alert_last_acknowledged_utc`), and the **only** writer is
+  `ChatAlertPoller` — so the Doze alarm and the job, which both call the same `IChatAlertPoller.PollAsync`,
+  can never both alert for one change. A message alerts only when the server's `changedAt` (newest message
+  time) is strictly newer than that mark, and the poller advances the mark on any run where an alert was due
+  (even when it skipped the post), so a notification cannot appear after the poll already handled the
+  change. Reading a channel does not move `changedAt`, so clearing messages can never re-alert them.
+- **The in-app (SignalR) path is not a watermark writer** — it is kept in step by three other mechanisms:
+  `ChatAlertPolicy` posts no system notification while the app is visible (it dings instead), the poller
+  refuses to post while `IAppForegroundService.IsInForeground` (though it still advances the mark), and the
+  server's counts gate the decision — reading a channel calls `MarkReadAsync`, which zeroes `unmutedUnread`,
+  and the decision requires `unmutedUnread > 0`. ⚠️ Consequence to know: a message that dings in-app while the
+  user is on another screen and is left **unread** can still produce a notification on a later poll.
 - **Never alert while `IAppForegroundService.IsInForeground`** — the in-app ding owns the foreground case.
 - **Mute is absolute** — the poll consults the server's mute state (via the `unmuted*` counts and the
   local `ChannelMuteStateService`), so a mute performed while offline is still honoured.
@@ -207,10 +214,12 @@ alert and the poll — render through it, so they produce identical, content-fre
    (`ModuleApiProxyTransformerTests`). **Diagnostic trick:** if the client sends `If-None-Match: X` and
    the server answers `200` **with the same `ETag: X`**, the token matched and the comparison failed —
    the header is being mangled in transit.
-5. **Three producers share one high-water mark** (the in-app SignalR path, the Doze alarm receiver and
-   the job), so a live process can legitimately "win" and the poll then logs `Suppressed`. Only a **dead**
-   process proves the poll posted the alert. Use `adb shell am kill <pkg>` (leaves the persisted job
-   armed); **`am force-stop` cancels** the persisted job and clears notifications.
+5. **While the app process is alive the poll normally logs `Suppressed`, so only a _dead_ process proves it
+   posted the alert.** A live process alerts through the in-app path instead (and once the user reads the
+   channel, `unmutedUnread` drops to 0, which the poll's decision keys on); a poll that does run while the
+   app is in the foreground is skipped by the foreground guard and advances the mark. Use
+   `adb shell am kill <pkg>` (leaves the persisted job armed); **`am force-stop` cancels** the persisted job
+   and clears notifications.
 6. **`SetOverrideDeadline` is not optional** on a one-shot `JobScheduler` job: without it, a
    minimum-latency-only job was measured sitting `RUNNABLE` and over its latency while the screen was
    awake and never being dispatched.
