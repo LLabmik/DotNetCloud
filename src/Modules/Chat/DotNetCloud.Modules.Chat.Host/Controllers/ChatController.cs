@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Auth.Authorization;
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Modules.Chat.DTOs;
 using DotNetCloud.Modules.Chat.Models;
@@ -35,6 +36,8 @@ public class ChatController : ChatControllerBase
     private readonly IUserBlockService _userBlockService;
     private readonly IChatImageStore _chatImageStore;
     private readonly IUserDirectory _userDirectory;
+    private readonly IChatRetentionService? _retentionService;
+    private readonly IChatSettingsProvider? _settingsProvider;
     private readonly ILogger<ChatController> _logger;
 
     /// <summary>
@@ -59,7 +62,9 @@ public class ChatController : ChatControllerBase
         IUserBlockService userBlockService,
         IChatImageStore chatImageStore,
         IUserDirectory userDirectory,
-        ILogger<ChatController> logger)
+        ILogger<ChatController> logger,
+        IChatRetentionService? retentionService = null,
+        IChatSettingsProvider? settingsProvider = null)
     {
         _channelService = channelService;
         _memberService = memberService;
@@ -79,6 +84,8 @@ public class ChatController : ChatControllerBase
         _userBlockService = userBlockService;
         _chatImageStore = chatImageStore;
         _userDirectory = userDirectory;
+        _retentionService = retentionService;
+        _settingsProvider = settingsProvider;
         _logger = logger;
     }
 
@@ -1593,6 +1600,63 @@ public class ChatController : ChatControllerBase
 
         var preview = content.Replace('\r', ' ').Replace('\n', ' ').Trim();
         return preview.Length <= 120 ? preview : $"{preview[..120]}...";
+    }
+
+    // ── Admin Endpoints (limits & retention) ─────────────────────────
+
+    /// <summary>
+    /// Gets the effective chat message limits, attachment limits and retention policy that are
+    /// currently enforced, after clamping and defaulting.
+    /// </summary>
+    [HttpGet("~/api/v1/chat/admin/settings/effective")]
+    [Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
+    public async Task<IActionResult> GetEffectiveChatSettingsAsync(CancellationToken cancellationToken)
+    {
+        if (_settingsProvider is null)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                ErrorEnvelope("CHAT_SETTINGS_UNAVAILABLE", "Chat settings are not available in this host."));
+        }
+
+        var settings = await _settingsProvider.GetSettingsAsync(cancellationToken);
+
+        // Projected explicitly so the wire contract does not depend on how enums happen to be
+        // serialized and so "0 = unlimited" is unambiguous alongside the derived booleans.
+        return Ok(Envelope(new
+        {
+            maxMessageLength = settings.MaxMessageLength,
+            maxMessagesPerChannel = settings.MaxMessagesPerChannel,
+            maxAttachmentsPerMessage = settings.MaxAttachmentsPerMessage,
+            maxAttachmentsPerChannel = settings.MaxAttachmentsPerChannel,
+            maxAttachmentSizeMb = settings.MaxAttachmentSizeMb,
+            maxAttachmentStoragePerChannelMb = settings.MaxAttachmentStoragePerChannelMb,
+            retentionEnabled = settings.RetentionEnabled,
+            messageLifetimeDays = settings.MessageLifetimeDays,
+            retentionMode = settings.RetentionMode.ToString(),
+            archiveAttachments = settings.ArchiveAttachments,
+            sweepIntervalMinutes = settings.SweepIntervalMinutes,
+            messageCountLimitActive = settings.HasMessageCountLimit,
+            messageLifetimeActive = settings.HasMessageLifetime,
+            retentionPolicyActive = settings.HasRetentionPolicy
+        }));
+    }
+
+    /// <summary>
+    /// Runs the retention/archiving sweep immediately instead of waiting for the next scheduled
+    /// pass. Useful after changing the policy so the effect is visible straight away.
+    /// </summary>
+    [HttpPost("~/api/v1/chat/admin/retention/sweep")]
+    [Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
+    public async Task<IActionResult> RunRetentionSweepAsync(CancellationToken cancellationToken)
+    {
+        if (_retentionService is null)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                ErrorEnvelope("CHAT_RETENTION_UNAVAILABLE", "Chat retention is not available in this host."));
+        }
+
+        var result = await _retentionService.SweepAsync(cancellationToken);
+        return Ok(Envelope(result));
     }
 }
 

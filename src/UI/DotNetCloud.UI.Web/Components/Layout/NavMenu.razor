@@ -155,6 +155,16 @@
                             </NavLink>
                         </li>
                         <li class="nav-item">
+                            <NavLink href="/admin/chat" Match="NavLinkMatch.Prefix" class="nav-link"
+                                     title="Chat Settings" aria-label="Chat Settings">
+                                <MaterialIcon Icon="chat" CssClass="nav-icon" />
+                                @if (!Collapsed)
+                                {
+                                    <span class="nav-text">Chat</span>
+                                }
+                            </NavLink>
+                        </li>
+                        <li class="nav-item">
                             <NavLink href="/admin/updates" Match="NavLinkMatch.Prefix" class="nav-link" title="Updates"
                                      aria-label="Updates">
                                 <span class="nav-icon">⬆</span>

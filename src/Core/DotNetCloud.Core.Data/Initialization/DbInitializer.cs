@@ -643,6 +643,87 @@ public class DbInitializer
                 Key = "RequestTimeoutSeconds",
                 Value = "300",
                 Description = "Request timeout in seconds for LLM API calls"
+            },
+
+            // Chat module limits — enforced when a message or attachment is written.
+            new SystemSetting
+            {
+                Module = "dotnetcloud.chat",
+                Key = "Limits:MaxMessageLength",
+                Value = "10000",
+                Description = "Maximum number of characters in a chat message"
+            },
+            new SystemSetting
+            {
+                Module = "dotnetcloud.chat",
+                Key = "Limits:MaxMessagesPerChannel",
+                Value = "0",
+                Description = "Maximum live messages retained per channel (0 = unlimited); the oldest messages expire once exceeded"
+            },
+            new SystemSetting
+            {
+                Module = "dotnetcloud.chat",
+                Key = "Limits:MaxAttachmentsPerMessage",
+                Value = "10",
+                Description = "Maximum number of attachments on a single chat message"
+            },
+            new SystemSetting
+            {
+                Module = "dotnetcloud.chat",
+                Key = "Limits:MaxAttachmentsPerChannel",
+                Value = "0",
+                Description = "Maximum number of attachments per channel (0 = unlimited); new attachments are rejected once reached"
+            },
+            new SystemSetting
+            {
+                Module = "dotnetcloud.chat",
+                Key = "Limits:MaxAttachmentSizeMb",
+                Value = "10",
+                Description = "Maximum size of a single chat attachment in megabytes"
+            },
+            new SystemSetting
+            {
+                Module = "dotnetcloud.chat",
+                Key = "Limits:MaxAttachmentStoragePerChannelMb",
+                Value = "0",
+                Description = "Maximum total attachment storage per channel in megabytes (0 = unlimited)"
+            },
+
+            // Chat module retention/archiving — applied by the background sweep.
+            new SystemSetting
+            {
+                Module = "dotnetcloud.chat",
+                Key = "Retention:Enabled",
+                Value = "false",
+                Description = "When true, the background sweep archives or purges messages that pass the lifetime or per-channel message limit"
+            },
+            new SystemSetting
+            {
+                Module = "dotnetcloud.chat",
+                Key = "Retention:MessageLifetimeDays",
+                Value = "0",
+                Description = "Age in days after which chat messages expire (0 = keep forever)"
+            },
+            new SystemSetting
+            {
+                Module = "dotnetcloud.chat",
+                Key = "Retention:Mode",
+                Value = "Archive",
+                Description = "What happens to expired messages: 'Archive' (hide but keep) or 'Purge' (permanently delete)"
+            },
+            new SystemSetting
+            {
+                Module = "dotnetcloud.chat",
+                Key = "Retention:ArchiveAttachments",
+                Value = "true",
+                Description = "When true, attachments of archived messages are retained; when false their records are deleted"
+            },
+            new SystemSetting
+            {
+                Module = "dotnetcloud.chat",
+                Key = "Retention:SweepIntervalMinutes",
+                Value = "60",
+                Description = "How often the chat retention sweep runs, in minutes"
             }
         };
 

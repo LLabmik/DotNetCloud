@@ -27,8 +27,10 @@ public sealed class MessageConfiguration : IEntityTypeConfiguration<Message>
             .IsRequired()
             .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
-        // Soft-delete query filter
-        builder.HasQueryFilter(m => !m.IsDeleted);
+        // Soft-delete + retention-archive query filter. Archived messages are retained in the
+        // table (so an administrator can restore them) but are invisible to every normal read,
+        // including search. The retention sweep reaches them through IgnoreQueryFilters().
+        builder.HasQueryFilter(m => !m.IsDeleted && m.ArchivedAt == null);
 
         // FK to Channel
         builder.HasOne(m => m.Channel)
@@ -51,5 +53,9 @@ public sealed class MessageConfiguration : IEntityTypeConfiguration<Message>
 
         builder.HasIndex(m => m.IsDeleted)
             .HasDatabaseName("ix_chat_messages_is_deleted");
+
+        // Retention sweep looks up archived candidates by channel + age.
+        builder.HasIndex(m => new { m.ChannelId, m.ArchivedAt, m.SentAt })
+            .HasDatabaseName("ix_chat_messages_channel_archived_sent");
     }
 }

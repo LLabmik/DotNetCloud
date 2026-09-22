@@ -372,6 +372,9 @@ namespace DotNetCloud.Modules.Chat.Data.SqlServer.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
 
+                    b.Property<DateTime?>("ArchivedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<Guid>("ChannelId")
                         .HasColumnType("uniqueidentifier");
 
@@ -420,6 +423,9 @@ namespace DotNetCloud.Modules.Chat.Data.SqlServer.Migrations
 
                     b.HasIndex("ChannelId", "SentAt")
                         .HasDatabaseName("ix_chat_messages_channel_sent");
+
+                    b.HasIndex("ChannelId", "ArchivedAt", "SentAt")
+                        .HasDatabaseName("ix_chat_messages_channel_archived_sent");
 
                     b.ToTable("Messages", "core");
                 });

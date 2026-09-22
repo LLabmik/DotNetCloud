@@ -1,5 +1,6 @@
 using DotNetCloud.Modules.Chat.Services;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Modules.Chat.Data.Services;
@@ -10,6 +11,9 @@ namespace DotNetCloud.Modules.Chat.Data.Services;
 /// </summary>
 public sealed class LocalChatImageStore : IChatImageStore
 {
+    /// <summary>Limits used when no <see cref="IChatSettingsProvider"/> is available.</summary>
+    private static readonly ChatSettings FallbackSettings = new ChatSettings().Normalized();
+
     private static readonly HashSet<string> AllowedMimeTypes = new(StringComparer.OrdinalIgnoreCase)
     {
         "image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml",
@@ -29,17 +33,29 @@ public sealed class LocalChatImageStore : IChatImageStore
         ["image/heic"] = ".heic"
     };
 
-    private const long MaxFileSize = 10 * 1024 * 1024; // 10 MB
-
     private readonly string _uploadDir;
     private readonly ILogger<LocalChatImageStore> _logger;
+    private readonly IServiceScopeFactory? _scopeFactory;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="LocalChatImageStore"/> class.
     /// </summary>
-    public LocalChatImageStore(IConfiguration configuration, ILogger<LocalChatImageStore> logger)
+    /// <param name="configuration">Configuration source for the storage root path.</param>
+    /// <param name="logger">Logger instance.</param>
+    /// <param name="scopeFactory">
+    /// Optional scope factory used to resolve <see cref="IChatSettingsProvider"/> so the
+    /// administrator-configured attachment size limit applies without a restart. A scope is used
+    /// because this store is a singleton while the settings provider is scoped, so resolving it
+    /// from the root provider would trip DI scope validation. When absent the built-in default
+    /// limit is used.
+    /// </param>
+    public LocalChatImageStore(
+        IConfiguration configuration,
+        ILogger<LocalChatImageStore> logger,
+        IServiceScopeFactory? scopeFactory = null)
     {
         _logger = logger;
+        _scopeFactory = scopeFactory;
 
         var storagePath = configuration.GetValue<string>("Files:Storage:RootPath");
         if (string.IsNullOrWhiteSpace(storagePath))
@@ -57,8 +73,12 @@ public sealed class LocalChatImageStore : IChatImageStore
         if (data.Length == 0)
             throw new ArgumentException("Image data is empty.", nameof(data));
 
-        if (data.Length > MaxFileSize)
-            throw new ArgumentException($"Image exceeds maximum size of {MaxFileSize / (1024 * 1024)} MB.", nameof(data));
+        var settings = await ResolveSettingsAsync(cancellationToken);
+        if (data.Length > settings.MaxAttachmentSizeBytes)
+        {
+            throw new ArgumentException(
+                $"Image exceeds maximum size of {settings.MaxAttachmentSizeMb} MB.", nameof(data));
+        }
 
         var normalizedMime = NormalizeMimeType(contentType, fileName);
         if (!AllowedMimeTypes.Contains(normalizedMime))
@@ -81,6 +101,21 @@ public sealed class LocalChatImageStore : IChatImageStore
             ContentType = normalizedMime,
             FileSize = data.Length
         };
+    }
+
+    /// <summary>
+    /// Resolves the administrator-configured attachment limits, falling back to the built-in
+    /// defaults when no settings provider is available.
+    /// </summary>
+    private async Task<ChatSettings> ResolveSettingsAsync(CancellationToken cancellationToken)
+    {
+        if (_scopeFactory is null)
+            return FallbackSettings;
+
+        using var scope = _scopeFactory.CreateScope();
+        return scope.ServiceProvider.GetService(typeof(IChatSettingsProvider)) is IChatSettingsProvider provider
+            ? await provider.GetSettingsAsync(cancellationToken)
+            : FallbackSettings;
     }
 
     /// <inheritdoc />

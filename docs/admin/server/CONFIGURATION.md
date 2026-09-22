@@ -68,17 +68,17 @@ export Kestrel__HttpPort=8080
 }
 ```
 
-| Parameter | Default | Description |
-|---|---|---|
-| `Host` | `localhost` | Database server hostname |
-| `Port` | `5432` | PostgreSQL port |
-| `Database` | `dotnetcloud` | Database name |
-| `Username` | — | Database user |
-| `Password` | — | Database password |
-| `Include Error Detail` | `false` | Include query details in errors (dev only) |
-| `Pooling` | `true` | Enable connection pooling |
-| `Maximum Pool Size` | `100` | Max connections in pool |
-| `SSL Mode` | `Prefer` | TLS mode: `Disable`, `Prefer`, `Require`, `VerifyFull` |
+| Parameter              | Default       | Description                                            |
+| ---------------------- | ------------- | ------------------------------------------------------ |
+| `Host`                 | `localhost`   | Database server hostname                               |
+| `Port`                 | `5432`        | PostgreSQL port                                        |
+| `Database`             | `dotnetcloud` | Database name                                          |
+| `Username`             | —             | Database user                                          |
+| `Password`             | —             | Database password                                      |
+| `Include Error Detail` | `false`       | Include query details in errors (dev only)             |
+| `Pooling`              | `true`        | Enable connection pooling                              |
+| `Maximum Pool Size`    | `100`         | Max connections in pool                                |
+| `SSL Mode`             | `Prefer`      | TLS mode: `Disable`, `Prefer`, `Require`, `VerifyFull` |
 
 ### SQL Server
 
@@ -131,16 +131,16 @@ export Kestrel__HttpPort=8080
 }
 ```
 
-| Setting | Default | Description |
-|---|---|---|
-| `HttpPort` | `5080` | HTTP listening port |
-| `HttpsPort` | `5443` | HTTPS listening port |
-| `EnableHttps` | `true` | Enable HTTPS listener |
-| `EnableHttp2` | `true` | Enable HTTP/2 protocol |
-| `MaxRequestBodySize` | `52428800` (50 MB) | Max request body size. Set to `0` for unlimited (recommended when using chunked uploads). |
-| `RequestHeaderTimeoutSeconds` | `30` | Timeout for receiving request headers |
-| `KeepAliveTimeoutSeconds` | `120` | Keep-alive connection timeout |
-| `ListenAddresses` | `[]` (localhost only) | Additional listen addresses. Example: `["0.0.0.0"]` for all interfaces. |
+| Setting                       | Default               | Description                                                                               |
+| ----------------------------- | --------------------- | ----------------------------------------------------------------------------------------- |
+| `HttpPort`                    | `5080`                | HTTP listening port                                                                       |
+| `HttpsPort`                   | `5443`                | HTTPS listening port                                                                      |
+| `EnableHttps`                 | `true`                | Enable HTTPS listener                                                                     |
+| `EnableHttp2`                 | `true`                | Enable HTTP/2 protocol                                                                    |
+| `MaxRequestBodySize`          | `52428800` (50 MB)    | Max request body size. Set to `0` for unlimited (recommended when using chunked uploads). |
+| `RequestHeaderTimeoutSeconds` | `30`                  | Timeout for receiving request headers                                                     |
+| `KeepAliveTimeoutSeconds`     | `120`                 | Keep-alive connection timeout                                                             |
+| `ListenAddresses`             | `[]` (localhost only) | Additional listen addresses. Example: `["0.0.0.0"]` for all interfaces.                   |
 
 ### Listening on All Interfaces
 
@@ -229,9 +229,9 @@ Behavior:
 }
 ```
 
-| Setting | Default | Description |
-|---|---|---|
-| `AccessTokenLifetime` | `3600` (1 hour) | Access token validity in seconds |
+| Setting                | Default           | Description                       |
+| ---------------------- | ----------------- | --------------------------------- |
+| `AccessTokenLifetime`  | `3600` (1 hour)   | Access token validity in seconds  |
 | `RefreshTokenLifetime` | `604800` (7 days) | Refresh token validity in seconds |
 
 Token signing keys are managed by OpenIddict. In development, ephemeral keys are used. In production, keys are persisted in the database automatically.
@@ -260,15 +260,15 @@ To enable "Sign in with Google/GitHub/etc.", configure external providers in `ap
 On startup, DotNetCloud seeds required first-party OpenIddict applications if they do not already exist.
 This currently includes the desktop SyncTray public client used for OAuth2 Authorization Code + PKCE.
 
-| Property | Value |
-|---|---|
-| `client_id` | `dotnetcloud-desktop` |
-| `client_type` | `public` |
-| Redirect URI | `http://localhost:52701/oauth/callback` |
-| Grant types | `authorization_code`, `refresh_token` |
-| Response type | `code` |
-| Required feature | `PKCE` |
-| Default scopes | `openid`, `offline_access`, `profile`, `files:read`, `files:write` |
+| Property         | Value                                                              |
+| ---------------- | ------------------------------------------------------------------ |
+| `client_id`      | `dotnetcloud-desktop`                                              |
+| `client_type`    | `public`                                                           |
+| Redirect URI     | `http://localhost:52701/oauth/callback`                            |
+| Grant types      | `authorization_code`, `refresh_token`                              |
+| Response type    | `code`                                                             |
+| Required feature | `PKCE`                                                             |
+| Default scopes   | `openid`, `offline_access`, `profile`, `files:read`, `files:write` |
 
 Operational notes:
 
@@ -284,20 +284,41 @@ Operational notes:
 {
   "Cors": {
     "AllowedOrigins": [],
-    "AllowedMethods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
-    "AllowedHeaders": ["Authorization", "Content-Type", "Accept", "X-Requested-With", "X-Api-Version"],
-    "ExposedHeaders": ["X-Api-Version", "X-Api-Deprecated", "X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset", "Retry-After"],
+    "AllowedMethods": [
+      "GET",
+      "POST",
+      "PUT",
+      "PATCH",
+      "DELETE",
+      "OPTIONS",
+      "HEAD"
+    ],
+    "AllowedHeaders": [
+      "Authorization",
+      "Content-Type",
+      "Accept",
+      "X-Requested-With",
+      "X-Api-Version"
+    ],
+    "ExposedHeaders": [
+      "X-Api-Version",
+      "X-Api-Deprecated",
+      "X-RateLimit-Limit",
+      "X-RateLimit-Remaining",
+      "X-RateLimit-Reset",
+      "Retry-After"
+    ],
     "AllowCredentials": true,
     "PreflightMaxAgeSeconds": 600
   }
 }
 ```
 
-| Setting | Default | Description |
-|---|---|---|
-| `AllowedOrigins` | `[]` (all origins) | Restrict to specific origins. Example: `["https://cloud.example.com"]` |
-| `AllowCredentials` | `true` | Allow cookies and auth headers in cross-origin requests |
-| `PreflightMaxAgeSeconds` | `600` | Cache preflight responses for 10 minutes |
+| Setting                  | Default            | Description                                                            |
+| ------------------------ | ------------------ | ---------------------------------------------------------------------- |
+| `AllowedOrigins`         | `[]` (all origins) | Restrict to specific origins. Example: `["https://cloud.example.com"]` |
+| `AllowCredentials`       | `true`             | Allow cookies and auth headers in cross-origin requests                |
+| `PreflightMaxAgeSeconds` | `600`              | Cache preflight responses for 10 minutes                               |
 
 ### Production Recommendation
 
@@ -330,15 +351,15 @@ Lock down CORS to your domain:
 }
 ```
 
-| Setting | Default | Description |
-|---|---|---|
-| `Enabled` | `true` | Enable rate limiting |
-| `GlobalPermitLimit` | `100` | Max requests per window (anonymous) |
-| `GlobalWindowSeconds` | `60` | Window size in seconds |
-| `AuthenticatedPermitLimit` | `200` | Max requests per window (authenticated) |
-| `IncludeHeaders` | `true` | Include `X-RateLimit-*` headers in responses |
-| `QueueLimit` | `0` | Requests to queue when limit reached (0 = reject immediately) |
-| `ModuleLimits` | `{}` | Per-module overrides |
+| Setting                    | Default | Description                                                   |
+| -------------------------- | ------- | ------------------------------------------------------------- |
+| `Enabled`                  | `true`  | Enable rate limiting                                          |
+| `GlobalPermitLimit`        | `100`   | Max requests per window (anonymous)                           |
+| `GlobalWindowSeconds`      | `60`    | Window size in seconds                                        |
+| `AuthenticatedPermitLimit` | `200`   | Max requests per window (authenticated)                       |
+| `IncludeHeaders`           | `true`  | Include `X-RateLimit-*` headers in responses                  |
+| `QueueLimit`               | `0`     | Requests to queue when limit reached (0 = reject immediately) |
+| `ModuleLimits`             | `{}`    | Per-module overrides                                          |
 
 ### Per-Module Rate Limits
 
@@ -383,15 +404,15 @@ Lock down CORS to your domain:
 }
 ```
 
-| Setting | Default | Description |
-|---|---|---|
-| `HubPath` | `/hubs/core` | URL path for the SignalR hub |
-| `KeepAliveIntervalSeconds` | `15` | Server-side keep-alive ping interval |
-| `ClientTimeoutSeconds` | `30` | Disconnect client after this period of silence |
-| `MaximumReceiveMessageSize` | `32768` (32 KB) | Max message size from clients |
-| `MaxConnections` | `0` (unlimited) | Max concurrent WebSocket connections |
-| `EnableDetailedErrors` | `false` | Send detailed error messages to clients (dev only) |
-| `PresenceCleanupIntervalSeconds` | `60` | How often to clean up stale presence entries |
+| Setting                          | Default         | Description                                        |
+| -------------------------------- | --------------- | -------------------------------------------------- |
+| `HubPath`                        | `/hubs/core`    | URL path for the SignalR hub                       |
+| `KeepAliveIntervalSeconds`       | `15`            | Server-side keep-alive ping interval               |
+| `ClientTimeoutSeconds`           | `30`            | Disconnect client after this period of silence     |
+| `MaximumReceiveMessageSize`      | `32768` (32 KB) | Max message size from clients                      |
+| `MaxConnections`                 | `0` (unlimited) | Max concurrent WebSocket connections               |
+| `EnableDetailedErrors`           | `false`         | Send detailed error messages to clients (dev only) |
+| `PresenceCleanupIntervalSeconds` | `60`            | How often to clean up stale presence entries       |
 
 ---
 
@@ -413,17 +434,17 @@ Lock down CORS to your domain:
 }
 ```
 
-| Setting | Default | Description |
-|---|---|---|
-| `ConsoleMinimumLevel` | `Information` | Minimum level for console output |
-| `FileMinimumLevel` | `Warning` | Minimum level for file output |
-| `FilePath` | `logs/dotnetcloud-.log` | Log file path (date appended automatically) |
-| `RollingDaily` | `true` | Create a new log file each day |
-| `RetainedFileCountLimit` | `31` | Keep 31 days of log files |
-| `FileSizeLimitBytes` | `104857600` (100 MB) | Max log file size before rolling |
-| `UseStructuredFormat` | `true` | JSON structured logging |
-| `ExcludedModules` | `[]` | Module names to exclude from logging |
-| `ModuleLogLevels` | `{}` | Per-module minimum levels |
+| Setting                  | Default                 | Description                                 |
+| ------------------------ | ----------------------- | ------------------------------------------- |
+| `ConsoleMinimumLevel`    | `Information`           | Minimum level for console output            |
+| `FileMinimumLevel`       | `Warning`               | Minimum level for file output               |
+| `FilePath`               | `logs/dotnetcloud-.log` | Log file path (date appended automatically) |
+| `RollingDaily`           | `true`                  | Create a new log file each day              |
+| `RetainedFileCountLimit` | `31`                    | Keep 31 days of log files                   |
+| `FileSizeLimitBytes`     | `104857600` (100 MB)    | Max log file size before rolling            |
+| `UseStructuredFormat`    | `true`                  | JSON structured logging                     |
+| `ExcludedModules`        | `[]`                    | Module names to exclude from logging        |
+| `ModuleLogLevels`        | `{}`                    | Per-module minimum levels                   |
 
 ### Per-Module Log Levels
 
@@ -473,13 +494,13 @@ Lock down CORS to your domain:
 }
 ```
 
-| Setting | Default | Description |
-|---|---|---|
-| `EnableMetrics` | `true` | Collect and export metrics |
-| `EnableTracing` | `true` | Collect distributed traces |
-| `EnableConsoleExporter` | `false` | Export to console (dev only) |
-| `EnablePrometheusExporter` | `false` | Expose `/metrics` endpoint for Prometheus |
-| `OtlpEndpoint` | `""` | OTLP collector endpoint (e.g., `http://otel-collector:4317`) |
+| Setting                    | Default | Description                                                  |
+| -------------------------- | ------- | ------------------------------------------------------------ |
+| `EnableMetrics`            | `true`  | Collect and export metrics                                   |
+| `EnableTracing`            | `true`  | Collect distributed traces                                   |
+| `EnableConsoleExporter`    | `false` | Export to console (dev only)                                 |
+| `EnablePrometheusExporter` | `false` | Expose `/metrics` endpoint for Prometheus                    |
+| `OtlpEndpoint`             | `""`    | OTLP collector endpoint (e.g., `http://otel-collector:4317`) |
 
 ### Prometheus Setup
 
@@ -499,7 +520,7 @@ Add to `prometheus.yml`:
 scrape_configs:
   - job_name: dotnetcloud
     static_configs:
-      - targets: ['localhost:5080']
+      - targets: ["localhost:5080"]
     metrics_path: /metrics
 ```
 
@@ -567,10 +588,10 @@ All core system settings belong to the `dotnetcloud.core` module.
 
 When enabled, self-registration is disabled and only administrators can create user accounts. New admin-created accounts are forced to change their password on first login.
 
-| Value | Effect |
-|---|---|
-| `"false"` (default) | Open registration — anyone can sign up |
-| `"true"` | Closed registration — only admins can create accounts |
+| Value               | Effect                                                |
+| ------------------- | ----------------------------------------------------- |
+| `"false"` (default) | Open registration — anyone can sign up                |
+| `"true"`            | Closed registration — only admins can create accounts |
 
 **Mutual exclusion:** Closed System Mode cannot be enabled simultaneously with Demo Mode. Attempting to do so returns a validation error.
 
@@ -593,13 +614,13 @@ curl -X PUT "https://localhost:15443/api/v1/core/admin/settings/dotnetcloud.core
 
 When enabled, new self-registered accounts become **trial accounts** with the following restrictions:
 
-| Restriction | Detail |
-|---|---|
-| **Storage quota** | 750 MB (786,432,000 bytes) |
-| **Email sending** | Blocked — demo users cannot send emails |
-| **Account lifetime** | 5 days from creation |
-| **Auto-deletion** | Expired accounts are permanently deleted with all data |
-| **UI banner** | Non-dismissible banner on every page showing days remaining |
+| Restriction          | Detail                                                      |
+| -------------------- | ----------------------------------------------------------- |
+| **Storage quota**    | 750 MB (786,432,000 bytes)                                  |
+| **Email sending**    | Blocked — demo users cannot send emails                     |
+| **Account lifetime** | 5 days from creation                                        |
+| **Auto-deletion**    | Expired accounts are permanently deleted with all data      |
+| **UI banner**        | Non-dismissible banner on every page showing days remaining |
 
 **Key behaviors:**
 
@@ -609,12 +630,12 @@ When enabled, new self-registered accounts become **trial accounts** with the fo
 
 **Days-remaining banner styling:**
 
-| Days Left | Banner Style |
-|---|---|
-| 3–5 days | Informational (blue) — "⏳ Demo Account — X days remaining" |
-| 2 days | Warning (amber) — "🟡 Demo Account — 2 days remaining" |
-| 1 day | Danger (red) — "🔴 Demo Account — 1 day remaining" |
-| 0 days (expired) | Danger (red) — "⚠️ Your demo account has expired" |
+| Days Left        | Banner Style                                                |
+| ---------------- | ----------------------------------------------------------- |
+| 3–5 days         | Informational (blue) — "⏳ Demo Account — X days remaining" |
+| 2 days           | Warning (amber) — "🟡 Demo Account — 2 days remaining"      |
+| 1 day            | Danger (red) — "🔴 Demo Account — 1 day remaining"          |
+| 0 days (expired) | Danger (red) — "⚠️ Your demo account has expired"           |
 
 **Mutual exclusion:** Demo Mode cannot be enabled simultaneously with Closed System Mode. Attempting to do so returns a validation error.
 
@@ -673,18 +694,37 @@ See [Files Module Configuration](../CONFIGURATION.md) for the complete reference
 
 ## Chat Module
 
-Key settings for the chat module:
+Chat message limits, attachment limits and the retention/archiving policy are **system settings,
+not static configuration** — edit them at `/admin/chat` (see `docs/admin/CHAT.md`). They are stored
+per key under module `dotnetcloud.chat` in the core `SystemSettings` table.
+
+The `Chat` section in configuration is only a **fallback** for a standalone module host, and is
+consulted only for keys that have no database row:
 
 ```json
 {
   "Chat": {
-    "MaxMessageLength": 4000,
-    "MaxChannelNameLength": 80,
-    "TypingIndicatorTimeoutSeconds": 5,
-    "DefaultSystemChannels": ["general", "announcements"]
+    "Limits": {
+      "MaxMessageLength": 10000,
+      "MaxMessagesPerChannel": 0,
+      "MaxAttachmentsPerMessage": 10,
+      "MaxAttachmentsPerChannel": 0,
+      "MaxAttachmentSizeMb": 10,
+      "MaxAttachmentStoragePerChannelMb": 0
+    },
+    "Retention": {
+      "Enabled": false,
+      "MessageLifetimeDays": 0,
+      "Mode": "Archive",
+      "ArchiveAttachments": true,
+      "SweepIntervalMinutes": 60
+    }
   }
 }
 ```
+
+The remaining `Chat` sub-sections in this file (`Push`, `IceServers`, `LiveKit`) are static
+configuration and must be set here (or via environment variables), not in the admin UI.
 
 ---
 
@@ -702,8 +742,8 @@ Key settings for the Video module:
 }
 ```
 
-| Setting | Type | Default | Description |
-|---|---|---|---|
+| Setting                       | Type   | Default                          | Description                                                                                                                                                                                                 |
+| ----------------------------- | ------ | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Video:Enrichment:TmdbApiKey` | string | (enabled by default via env var) | TMDB API v3 key for movie metadata and poster art lookup. DotNetCloud ships with a default project key; set to empty to disable enrichment. To use your own, register at https://www.themoviedb.org/signup. |
 
 The Video module uses [TMDB](https://www.themoviedb.org/) (The Movie Database) to automatically fetch movie posters, descriptions, ratings, genres, and release dates. Enrichment runs in the background after library scans. A default API key is provided by the installer so no configuration is needed — TMDB enrichment works out of the box.
@@ -716,22 +756,22 @@ To disable TMDB enrichment, set `Video__Enrichment__TmdbApiKey` to an empty stri
 
 Quick reference for the most common settings configured via environment variables:
 
-| Variable | Example | Description |
-|---|---|---|
-| `ASPNETCORE_ENVIRONMENT` | `Production` | Set to `Production` in production |
-| `ASPNETCORE_URLS` | `http://0.0.0.0:5080` | Override listen URLs |
-| `ConnectionStrings__DefaultConnection` | `Host=...` | Database connection string |
-| `Kestrel__HttpPort` | `5080` | HTTP port |
-| `Kestrel__EnableHttps` | `false` | Disable HTTPS (when behind reverse proxy) |
-| `Files__StorageRoot` | `/data/files` | File storage directory |
-| `Serilog__FilePath` | `/var/log/dotnetcloud/dnc-.log` | Log file path |
-| `Serilog__FileMinimumLevel` | `Information` | File log level |
-| `Telemetry__EnablePrometheusExporter` | `true` | Enable Prometheus metrics |
-| `RateLimiting__Enabled` | `true` | Enable rate limiting |
-| `Cors__AllowedOrigins__0` | `https://cloud.example.com` | First allowed CORS origin |
-| `Files__Collabora__Enabled` | `true` | Enable Collabora |
-| `Files__Collabora__ServerUrl` | `https://collabora:9980` | Collabora server URL |
-| `Video__Enrichment__TmdbApiKey` | (auto-configured) | TMDB API key. Set to empty to disable movie metadata enrichment. |
+| Variable                               | Example                         | Description                                                      |
+| -------------------------------------- | ------------------------------- | ---------------------------------------------------------------- |
+| `ASPNETCORE_ENVIRONMENT`               | `Production`                    | Set to `Production` in production                                |
+| `ASPNETCORE_URLS`                      | `http://0.0.0.0:5080`           | Override listen URLs                                             |
+| `ConnectionStrings__DefaultConnection` | `Host=...`                      | Database connection string                                       |
+| `Kestrel__HttpPort`                    | `5080`                          | HTTP port                                                        |
+| `Kestrel__EnableHttps`                 | `false`                         | Disable HTTPS (when behind reverse proxy)                        |
+| `Files__StorageRoot`                   | `/data/files`                   | File storage directory                                           |
+| `Serilog__FilePath`                    | `/var/log/dotnetcloud/dnc-.log` | Log file path                                                    |
+| `Serilog__FileMinimumLevel`            | `Information`                   | File log level                                                   |
+| `Telemetry__EnablePrometheusExporter`  | `true`                          | Enable Prometheus metrics                                        |
+| `RateLimiting__Enabled`                | `true`                          | Enable rate limiting                                             |
+| `Cors__AllowedOrigins__0`              | `https://cloud.example.com`     | First allowed CORS origin                                        |
+| `Files__Collabora__Enabled`            | `true`                          | Enable Collabora                                                 |
+| `Files__Collabora__ServerUrl`          | `https://collabora:9980`        | Collabora server URL                                             |
+| `Video__Enrichment__TmdbApiKey`        | (auto-configured)               | TMDB API key. Set to empty to disable movie metadata enrichment. |
 
 ---
 

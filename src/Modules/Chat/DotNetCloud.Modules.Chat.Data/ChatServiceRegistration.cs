@@ -3,6 +3,7 @@ using DotNetCloud.Modules.Chat.Data.Services;
 using DotNetCloud.Modules.Chat.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.JSInterop;
@@ -29,6 +30,12 @@ public static class ChatServiceRegistration
         services.AddScoped<IReactionService, ReactionService>();
         services.AddScoped<IPinService, PinService>();
         services.AddSingleton<ITypingIndicatorService, TypingIndicatorService>();
+
+        // Administrator-configurable limits and retention policy (module "dotnetcloud.chat" in the
+        // core SystemSettings table). Scoped so each request/sweep observes freshly saved values;
+        // the provider itself caches for a short window to avoid a settings read per message.
+        services.AddScoped<IChatSettingsProvider, ChatSettingsProvider>();
+        services.AddScoped<IChatRetentionService, ChatRetentionService>();
 
         // SSRF-safe link previews for chat messages (registered alongside MessageService so both
         // the in-process web host and the process-isolated module host unfurl consistently).
@@ -110,6 +117,22 @@ public static class ChatServiceRegistration
         // The gRPC-based broadcaster (GrpcRealtimeBroadcaster) is registered in Chat.Host/Program.cs.
         services.AddSingleton<IRealtimeBroadcaster, NullRealtimeBroadcasterService>();
 
+        return services;
+    }
+
+    /// <summary>
+    /// Registers the background retention/archiving sweep.
+    /// </summary>
+    /// <remarks>
+    /// Call this from the process-isolated Chat module host only. Core.Server also builds an
+    /// in-process chat container for the Blazor UI, and registering the sweep there as well would
+    /// run the retention policy twice against the same database.
+    /// </remarks>
+    /// <param name="services">The service collection.</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection AddChatRetentionBackgroundService(this IServiceCollection services)
+    {
+        services.AddHostedService<ChatRetentionBackgroundService>();
         return services;
     }
 }

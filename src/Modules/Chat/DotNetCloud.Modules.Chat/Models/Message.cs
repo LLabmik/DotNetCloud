@@ -44,6 +44,12 @@ public sealed class Message
     /// <summary>When the message was soft-deleted (UTC).</summary>
     public DateTime? DeletedAt { get; set; }
 
+    /// <summary>
+    /// When the message was archived by the retention policy (UTC).
+    /// Archived messages are hidden from readers and search but retained so they can be restored.
+    /// </summary>
+    public DateTime? ArchivedAt { get; set; }
+
     /// <summary>Attachments on this message.</summary>
     public ICollection<MessageAttachment> Attachments { get; set; } = [];
 

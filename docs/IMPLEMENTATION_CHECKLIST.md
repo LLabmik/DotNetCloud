@@ -8,6 +8,22 @@
 
 ---
 
+## Recent Work — Chat module admin settings: limits, retention & archiving (2026-09-22, `feature/new-admin-settings`)
+
+> Tracked in `docs/CHAT_ADMIN_SETTINGS_PLAN.md`; admin-facing reference in `docs/admin/CHAT.md`. New page: `/admin/chat`.
+
+- ✓ **Settings store** — 11 keys under module `dotnetcloud.chat` in the core `SystemSettings` table (`Limits:MaxMessageLength`, `Limits:MaxMessagesPerChannel`, `Limits:MaxAttachmentsPerMessage`, `Limits:MaxAttachmentsPerChannel`, `Limits:MaxAttachmentSizeMb`, `Limits:MaxAttachmentStoragePerChannelMb`, `Retention:Enabled`, `Retention:MessageLifetimeDays`, `Retention:Mode`, `Retention:ArchiveAttachments`, `Retention:SweepIntervalMinutes`), seeded by `DbInitializer` (insert-only).
+- ✓ **Resolver** — `ChatSettings` + `IChatSettingsProvider`/`ChatSettingsProvider`: DB row wins, then `Chat:*` configuration, then built-in defaults; values clamped by `ChatSettings.Normalized()`; 30 s cache with `Invalidate()`.
+- ✓ **Write-time enforcement** — `MessageService` rejects over-long content (send + edit), too many attachments per message, oversized attachments, and writes that would breach the per-channel attachment count or storage cap; `LocalChatImageStore` uses the configured per-attachment size limit. Failures map to `400 VALIDATION_ERROR`.
+- ✓ **Archiving** — `Message.ArchivedAt` column + `ix_chat_messages_channel_archived_sent` index; query filter extended to `!IsDeleted && ArchivedAt == null` so archived messages drop out of reads and search while staying recoverable.
+- ✓ **Retention sweep** — `ChatRetentionService` (bulk `ExecuteUpdate`/`ExecuteDelete`, 5 000 messages/channel/sweep cap, pin removal, reply detach on purge, `SearchIndexRequestEvent` removal) driven by `ChatRetentionBackgroundService` in the Chat module host only (exactly one sweep per deployment).
+- ✓ **Module host wiring** — Chat.Host now registers `CoreDbContext` + `AddCoreDbContextFactory` + `IAdminSettingsService` so the provider reads the DB-backed values instead of falling back to `config.json`, mirroring `AI.Host`.
+- ✓ **Migrations** — `AddMessageArchiving` (PostgreSQL) and `AddMessageArchiving_SqlServer` (SQL Server).
+- ✓ **Admin API** — `GET /api/v1/chat/admin/settings/effective` (effective policy) and `POST /api/v1/chat/admin/retention/sweep` (run now), both `RequireAdmin`, reached through the module proxy.
+- ✓ **Admin UI** — `/admin/chat` (`ChatSettings.razor`): Message Limits, Attachment Limits and Retention & Archiving sections, range validation, "retention enabled but nothing expires" warning, "Currently Enforced" readout, "Run retention sweep now" button; nav entry added next to Video; `/admin/push-notifications` cross-linked.
+- ✓ **Tests** — `ChatSettingsProviderTests`, `ChatRetentionServiceTests` (SQLite-backed so the bulk statements really run) and `MessageServiceChatLimitTests`; Chat.Tests **1465 pass / 0 fail**, plus Core.Data 177, Core.Server 787 (2 skip), Core.Auth 179, UI.Shared 171 and 55 Chat integration tests green; Release solution build 0 errors.
+- ☐ **Live verification pending** — deploy and exercise `/admin/chat` (save settings, effective readout, run sweep, verify an expired message disappears/archives) before committing.
+
 ## Recent Work — Share Dialog Unification & Team Shares (2026-09-08)
 
 > Tracked in `docs/SHARE_DIALOG_UNIFICATION_AND_TEAM_SHARES_PLAN.md` (branch `fix/sharing`).

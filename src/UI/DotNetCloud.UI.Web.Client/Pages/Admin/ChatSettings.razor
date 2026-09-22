@@ -1,0 +1,462 @@
+@page "/admin/chat"
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveAutoRenderMode(prerender: false))
+@attribute [Authorize(Policy = "RequireAdmin")]
+
+<PageTitle>Chat Settings - DotNetCloud</PageTitle>
+
+<div class="page-header">
+    <h1>Chat Module Settings</h1>
+    <div class="page-header-actions">
+        <a href="/admin/push-notifications" class="btn btn-outline btn-sm">Push Notifications</a>
+        <a href="/admin/settings?module=dotnetcloud.chat" class="btn btn-outline btn-sm">All Chat Settings</a>
+    </div>
+</div>
+
+<p class="text-muted">
+    Control how much chat history and attachment data the server keeps. Limits are enforced as
+    messages and attachments are written; the retention policy is applied by a background sweep.
+</p>
+
+@if (_loading)
+{
+    <LoadingIndicator Message="Loading chat settings..." />
+}
+else
+{
+    @if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <div class="alert alert-danger" role="alert">@_errorMessage</div>
+    }
+
+    @if (!string.IsNullOrEmpty(_successMessage))
+    {
+        <div class="alert alert-success" role="alert">@_successMessage</div>
+    }
+
+    <div class="settings-grid">
+        <!-- Message limits -->
+        <section class="settings-section">
+            <h2>Message Limits</h2>
+
+            <div class="form-group">
+                <label for="chat-max-message-length">Maximum message length</label>
+                <input id="chat-max-message-length" type="number" class="input" min="1" max="10000"
+                       @bind="_maxMessageLength" />
+                <span class="hint">
+                    Maximum number of characters in a single message (1&ndash;10000). Longer messages
+                    are rejected.
+                </span>
+            </div>
+
+            <div class="form-group">
+                <label for="chat-max-messages">Maximum messages per channel</label>
+                <input id="chat-max-messages" type="number" class="input" min="0"
+                       @bind="_maxMessagesPerChannel" />
+                <span class="hint">
+                    How many messages a channel keeps. <strong>0 = unlimited.</strong> Once the limit is
+                    exceeded the oldest messages expire according to the policy below &mdash; the channel
+                    always stays writable.
+                </span>
+            </div>
+        </section>
+
+        <!-- Attachment limits -->
+        <section class="settings-section">
+            <h2>Attachment Limits</h2>
+
+            <div class="form-group">
+                <label for="chat-max-attachments-per-message">Maximum attachments per message</label>
+                <input id="chat-max-attachments-per-message" type="number" class="input" min="1" max="100"
+                       @bind="_maxAttachmentsPerMessage" />
+                <span class="hint">Maximum number of files attached to a single message (1&ndash;100).</span>
+            </div>
+
+            <div class="form-group">
+                <label for="chat-max-attachment-size">Maximum size of one attachment (MB)</label>
+                <input id="chat-max-attachment-size" type="number" class="input" min="1" max="64"
+                       @bind="_maxAttachmentSizeMb" />
+                <span class="hint">
+                    Largest single attachment a user may upload or share into chat (1&ndash;64 MB).
+                </span>
+            </div>
+
+            <div class="form-group">
+                <label for="chat-max-attachments-per-channel">Maximum attachments per channel</label>
+                <input id="chat-max-attachments-per-channel" type="number" class="input" min="0"
+                       @bind="_maxAttachmentsPerChannel" />
+                <span class="hint">
+                    How many attachments a channel holds. <strong>0 = unlimited.</strong> New attachments
+                    are rejected once the limit is reached. Attachments on archived messages no longer
+                    count.
+                </span>
+            </div>
+
+            <div class="form-group">
+                <label for="chat-max-attachment-storage">Maximum attachment storage per channel (MB)</label>
+                <input id="chat-max-attachment-storage" type="number" class="input" min="0"
+                       @bind="_maxAttachmentStoragePerChannelMb" />
+                <span class="hint">
+                    Total size of all attachments in a channel. <strong>0 = unlimited.</strong> Uploads
+                    that would exceed it are rejected. Attachments on archived messages no longer count.
+                </span>
+            </div>
+        </section>
+
+        <!-- Retention & archiving -->
+        <section class="settings-section">
+            <h2>Retention &amp; Archiving</h2>
+
+            <div class="form-group">
+                <label>Enable automatic retention</label>
+                <input type="checkbox" @bind="_retentionEnabled" />
+                <span class="hint">
+                    Master switch for automatic expiry. When off, the message lifetime and message-count
+                    limit below are not applied (the limits above are still enforced as you type them).
+                </span>
+            </div>
+
+            <div class="form-group">
+                <label for="chat-message-lifetime">Message lifetime (days)</label>
+                <input id="chat-message-lifetime" type="number" class="input" min="0"
+                       @bind="_messageLifetimeDays" />
+                <span class="hint">
+                    Messages older than this expire. <strong>0 = keep forever.</strong>
+                </span>
+            </div>
+
+            <div class="form-group">
+                <label for="chat-retention-mode">When a message expires</label>
+                <select id="chat-retention-mode" class="input" @bind="_retentionMode">
+                    <option value="Archive">Archive &mdash; hide it but keep the data</option>
+                    <option value="Purge">Purge &mdash; delete it permanently</option>
+                </select>
+                <span class="hint">
+                    Archiving keeps messages in the database but removes them from channels and search, so
+                    an administrator can still recover them. Purging is irreversible.
+                </span>
+            </div>
+
+            <div class="form-group">
+                <label>Keep attachments of archived messages</label>
+                <input type="checkbox" @bind="_archiveAttachments" disabled="@(_retentionMode != "Archive")" />
+                <span class="hint">
+                    When enabled, attachments on archived messages are retained with them. When disabled,
+                    only the message text is kept and the attachment records are removed.
+                </span>
+            </div>
+
+            <div class="form-group">
+                <label for="chat-sweep-interval">Run the sweep every (minutes)</label>
+                <input id="chat-sweep-interval" type="number" class="input" min="1" max="1440"
+                       @bind="_sweepIntervalMinutes" />
+                <span class="hint">How often the background retention sweep runs (1&ndash;1440 minutes).</span>
+            </div>
+        </section>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_validationMessage))
+    {
+        <div class="alert alert-warning" role="alert">@_validationMessage</div>
+    }
+
+    <div class="form-actions">
+        <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
+            @(_saving ? "Saving..." : "Save Settings")
+        </button>
+    </div>
+
+    <!-- Effective policy / manual sweep -->
+    <section class="settings-section" style="margin-top: 2rem;">
+        <h2>Currently Enforced</h2>
+
+        @if (_effective is null)
+        {
+            <p class="text-muted">
+                The Chat module is not reachable, so the effective policy cannot be shown.
+                Settings are still saved and take effect once the module is running.
+            </p>
+        }
+        else
+        {
+            <ul class="coverage-list">
+                <li>Messages: max <strong>@_effective.MaxMessageLength</strong> characters</li>
+                <li>
+                    Messages per channel:
+                    <strong>@(_effective.MaxMessagesPerChannel > 0 ? _effective.MaxMessagesPerChannel.ToString() : "unlimited")</strong>
+                </li>
+                <li>
+                    Attachments per message: <strong>@_effective.MaxAttachmentsPerMessage</strong>;
+                    per attachment: <strong>@_effective.MaxAttachmentSizeMb MB</strong>
+                </li>
+                <li>
+                    Attachments per channel:
+                    <strong>@(_effective.MaxAttachmentsPerChannel > 0 ? _effective.MaxAttachmentsPerChannel.ToString() : "unlimited")</strong>;
+                    storage per channel:
+                    <strong>@(_effective.MaxAttachmentStoragePerChannelMb > 0 ? $"{_effective.MaxAttachmentStoragePerChannelMb} MB" : "unlimited")</strong>
+                </li>
+                <li>
+                    Retention:
+                    @if (_effective.RetentionPolicyActive)
+                    {
+                        <strong>@_effective.RetentionMode</strong>
+                        <text> messages older than @_effective.MessageLifetimeDays day(s) / beyond the channel cap, checked every @_effective.SweepIntervalMinutes minute(s)</text>
+                    }
+                    else
+                    {
+                        <strong>inactive</strong>
+                        <text> &mdash; nothing expires automatically</text>
+                    }
+                </li>
+            </ul>
+        }
+
+        <div class="form-actions">
+            <button class="btn btn-outline" @onclick="RunSweepAsync" disabled="@_sweeping">
+                <MaterialIcon Icon="sync" Size="MaterialIconSize.Sm" />
+                @(_sweeping ? "Running sweep..." : "Run retention sweep now")
+            </button>
+        </div>
+
+        @if (_lastSweep is not null)
+        {
+            <p class="hint">
+                Last sweep: @_lastSweep.ChannelsScanned channel(s) scanned,
+                @_lastSweep.MessagesArchived archived, @_lastSweep.MessagesPurged purged,
+                @_lastSweep.AttachmentsRemoved attachment(s) and @_lastSweep.PinsRemoved pin(s) removed
+                @(_lastSweep.Skipped ? "(skipped &mdash; retention is disabled)." : $"(at {_lastSweep.CompletedAtUtc:u}).")
+            </p>
+        }
+    </section>
+}
+
+@code {
+    [Inject] private DotNetCloudApiClient Api { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+
+    private const string Module = "dotnetcloud.chat";
+
+    private bool _loading = true;
+    private bool _saving;
+    private bool _sweeping;
+    private string? _errorMessage;
+    private string? _successMessage;
+    private string? _validationMessage;
+
+    private ChatEffectiveSettingsDto? _effective;
+    private ChatRetentionSweepResultDto? _lastSweep;
+
+    // Message limits
+    private int _maxMessageLength = 10000;
+    private int _maxMessagesPerChannel;
+
+    // Attachment limits
+    private int _maxAttachmentsPerMessage = 10;
+    private int _maxAttachmentSizeMb = 10;
+    private int _maxAttachmentsPerChannel;
+    private int _maxAttachmentStoragePerChannelMb;
+
+    // Retention & archiving
+    private bool _retentionEnabled;
+    private int _messageLifetimeDays;
+    private string _retentionMode = "Archive";
+    private bool _archiveAttachments = true;
+    private int _sweepIntervalMinutes = 60;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _errorMessage = null;
+
+        try
+        {
+            var settings = await Api.ListSettingsAsync(Module);
+            PopulateFields(settings);
+            _effective = await Api.GetChatEffectiveSettingsAsync();
+        }
+        catch
+        {
+            _errorMessage = "Failed to load chat settings.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void PopulateFields(IReadOnlyList<SystemSettingDto> settings)
+    {
+        _maxMessageLength = GetInt(settings, "Limits:MaxMessageLength", 10000);
+        _maxMessagesPerChannel = GetInt(settings, "Limits:MaxMessagesPerChannel", 0);
+        _maxAttachmentsPerMessage = GetInt(settings, "Limits:MaxAttachmentsPerMessage", 10);
+        _maxAttachmentSizeMb = GetInt(settings, "Limits:MaxAttachmentSizeMb", 10);
+        _maxAttachmentsPerChannel = GetInt(settings, "Limits:MaxAttachmentsPerChannel", 0);
+        _maxAttachmentStoragePerChannelMb = GetInt(settings, "Limits:MaxAttachmentStoragePerChannelMb", 0);
+        _retentionEnabled = GetBool(settings, "Retention:Enabled");
+        _messageLifetimeDays = GetInt(settings, "Retention:MessageLifetimeDays", 0);
+        _retentionMode = NormalizeMode(GetString(settings, "Retention:Mode"));
+        _archiveAttachments = GetBool(settings, "Retention:ArchiveAttachments", defaultValue: true);
+        _sweepIntervalMinutes = GetInt(settings, "Retention:SweepIntervalMinutes", 60);
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        _successMessage = null;
+        _validationMessage = Validate();
+
+        if (_validationMessage is not null)
+        {
+            _saving = false;
+            return;
+        }
+
+        try
+        {
+            var tasks = new[]
+            {
+                Api.UpsertSettingAsync(Module, "Limits:MaxMessageLength",
+                    Str(_maxMessageLength.ToString(), "Maximum number of characters in a chat message")),
+                Api.UpsertSettingAsync(Module, "Limits:MaxMessagesPerChannel",
+                    Str(_maxMessagesPerChannel.ToString(), "Maximum live messages retained per channel (0 = unlimited)")),
+                Api.UpsertSettingAsync(Module, "Limits:MaxAttachmentsPerMessage",
+                    Str(_maxAttachmentsPerMessage.ToString(), "Maximum number of attachments on a single chat message")),
+                Api.UpsertSettingAsync(Module, "Limits:MaxAttachmentSizeMb",
+                    Str(_maxAttachmentSizeMb.ToString(), "Maximum size of a single chat attachment in megabytes")),
+                Api.UpsertSettingAsync(Module, "Limits:MaxAttachmentsPerChannel",
+                    Str(_maxAttachmentsPerChannel.ToString(), "Maximum number of attachments per channel (0 = unlimited)")),
+                Api.UpsertSettingAsync(Module, "Limits:MaxAttachmentStoragePerChannelMb",
+                    Str(_maxAttachmentStoragePerChannelMb.ToString(), "Maximum total attachment storage per channel in megabytes (0 = unlimited)")),
+                Api.UpsertSettingAsync(Module, "Retention:Enabled",
+                    Str(_retentionEnabled.ToString(), "When true, the background sweep archives or purges expired messages")),
+                Api.UpsertSettingAsync(Module, "Retention:MessageLifetimeDays",
+                    Str(_messageLifetimeDays.ToString(), "Age in days after which chat messages expire (0 = keep forever)")),
+                Api.UpsertSettingAsync(Module, "Retention:Mode",
+                    Str(_retentionMode, "What happens to expired messages: 'Archive' (hide but keep) or 'Purge' (permanently delete)")),
+                Api.UpsertSettingAsync(Module, "Retention:ArchiveAttachments",
+                    Str(_archiveAttachments.ToString(), "When true, attachments of archived messages are retained")),
+                Api.UpsertSettingAsync(Module, "Retention:SweepIntervalMinutes",
+                    Str(_sweepIntervalMinutes.ToString(), "How often the chat retention sweep runs, in minutes"))
+            };
+
+            var results = await Task.WhenAll(tasks);
+            if (results.All(r => r))
+            {
+                _successMessage = "Chat settings saved.";
+                Toast.ShowSuccess("Chat settings saved.");
+                _effective = await Api.GetChatEffectiveSettingsAsync();
+            }
+            else
+            {
+                _errorMessage = "Some settings could not be saved.";
+                Toast.ShowError(_errorMessage);
+            }
+        }
+        catch
+        {
+            _errorMessage = "Failed to save chat settings.";
+            Toast.ShowError(_errorMessage);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task RunSweepAsync()
+    {
+        _sweeping = true;
+        _errorMessage = null;
+
+        try
+        {
+            var result = await Api.RunChatRetentionSweepAsync();
+            if (result is null)
+            {
+                _errorMessage = "The Chat module is not reachable, so the sweep could not be run.";
+            }
+            else
+            {
+                _lastSweep = result;
+            }
+        }
+        catch
+        {
+            _errorMessage = "Failed to run the retention sweep.";
+        }
+        finally
+        {
+            _sweeping = false;
+        }
+    }
+
+    /// <summary>Validates the form, returning a message on the first problem found.</summary>
+    private string? Validate()
+    {
+        if (_maxMessageLength < 1 || _maxMessageLength > 10000)
+            return "Maximum message length must be between 1 and 10000 characters.";
+
+        if (_maxMessagesPerChannel < 0)
+            return "Maximum messages per channel cannot be negative (use 0 for unlimited).";
+
+        if (_maxAttachmentsPerMessage < 1 || _maxAttachmentsPerMessage > 100)
+            return "Maximum attachments per message must be between 1 and 100.";
+
+        if (_maxAttachmentSizeMb < 1 || _maxAttachmentSizeMb > 64)
+            return "Maximum attachment size must be between 1 and 64 MB.";
+
+        if (_maxAttachmentsPerChannel < 0)
+            return "Maximum attachments per channel cannot be negative (use 0 for unlimited).";
+
+        if (_maxAttachmentStoragePerChannelMb < 0)
+            return "Maximum attachment storage per channel cannot be negative (use 0 for unlimited).";
+
+        if (_maxAttachmentStoragePerChannelMb > 0
+            && _maxAttachmentsPerChannel == 1
+            && _maxAttachmentStoragePerChannelMb < _maxAttachmentSizeMb)
+        {
+            return "Attachment storage per channel is smaller than the maximum size of a single attachment.";
+        }
+
+        if (_messageLifetimeDays < 0)
+            return "Message lifetime cannot be negative (use 0 to keep messages forever).";
+
+        if (_sweepIntervalMinutes < 1 || _sweepIntervalMinutes > 1440)
+            return "The sweep interval must be between 1 and 1440 minutes.";
+
+        if (_retentionEnabled && _messageLifetimeDays == 0 && _maxMessagesPerChannel == 0)
+        {
+            return "Automatic retention is enabled but nothing will expire: set a message lifetime " +
+                   "or a maximum number of messages per channel.";
+        }
+
+        return null;
+    }
+
+    // ---- Setting helpers ----
+
+    private static string GetString(IReadOnlyList<SystemSettingDto> settings, string key, string defaultValue = "")
+    {
+        var s = settings.FirstOrDefault(x => x.Key == key);
+        return string.IsNullOrWhiteSpace(s?.Value) ? defaultValue : s!.Value;
+    }
+
+    private static int GetInt(IReadOnlyList<SystemSettingDto> settings, string key, int defaultValue)
+        => int.TryParse(GetString(settings, key), out var value) ? value : defaultValue;
+
+    private static bool GetBool(IReadOnlyList<SystemSettingDto> settings, string key, bool defaultValue = false)
+    {
+        var value = GetString(settings, key);
+        return string.IsNullOrEmpty(value) ? defaultValue : bool.TryParse(value, out var parsed) ? parsed : defaultValue;
+    }
+
+    private static string NormalizeMode(string value)
+        => string.Equals(value, "Purge", StringComparison.OrdinalIgnoreCase) ? "Purge" : "Archive";
+
+    private static UpsertSystemSettingDto Str(string value, string? description = null) =>
+        new() { Value = value, Description = description };
+}

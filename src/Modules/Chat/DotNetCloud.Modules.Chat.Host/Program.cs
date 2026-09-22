@@ -1,8 +1,12 @@
 using DotNetCloud.Core.Auth.Authorization;
 using DotNetCloud.Core.Auth.Introspection;
+using DotNetCloud.Core.Auth.Services;
+using DotNetCloud.Core.Data.Context;
+using DotNetCloud.Core.Data.Extensions;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Grpc;
+using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Chat;
 using DotNetCloud.Modules.Chat.Data;
 using DotNetCloud.Modules.Chat.Host.Services;
@@ -146,11 +150,27 @@ builder.Services.AddDbContext<ChatDbContext>(configureChatDb);
 // ChatDbContext's two constructors break the built-in AddDbContextFactory activator.
 builder.Services.AddSingleton<IDbContextFactory<ChatDbContext>, ChatDbContextFactory>();
 
+// Core DbContext + admin settings service so IChatSettingsProvider can read the DB-backed
+// limits/retention policy from core SystemSettings (module "dotnetcloud.chat") instead of
+// falling back to config.json values. The admin setting is the source of truth for message
+// length/count limits, attachment limits, and the archiving policy.
+var coreProvider = ResolveDatabaseProvider(dbProvider);
+builder.Services.AddDbContext<CoreDbContext>(options =>
+    DbResiliencePolicy.Configure(options, coreProvider, connectionString));
+builder.Services.AddCoreDbContextFactory(connectionString, coreProvider);
+builder.Services.AddScoped<IAdminSettingsService, AdminSettingsService>();
+
 // In-process event bus for standalone operation
 builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
 
 // Register all chat business-logic services (Channel, Message, Reaction, Pin, Typing)
 builder.Services.AddChatServices(builder.Configuration);
+
+// Applies the admin-configured retention policy (message lifetime / per-channel message cap)
+// and archives or purges expired messages plus their attachments. Registered here rather than
+// in AddChatServices so the sweep runs exactly once per deployment: Core.Server also builds an
+// in-process chat container for the Blazor UI and must not sweep in parallel.
+builder.Services.AddChatRetentionBackgroundService();
 
 // Register the gRPC-based IUserDirectory so MessageService can resolve SenderName
 // by calling Core.Server's CoreCapabilities gRPC service.
@@ -216,6 +236,12 @@ app.MapGet("/", () => Results.Ok(new
 }));
 
 app.Run();
+
+// Resolves the configured database provider string into the canonical enum.
+static DatabaseProvider ResolveDatabaseProvider(string? configured) =>
+    DatabaseProviderConfiguration.TryParseConfiguredProvider(configured ?? string.Empty, out var provider)
+        ? provider
+        : throw new InvalidOperationException($"Unsupported database provider '{configured}'.");
 
 /// <summary>Entry point marker for WebApplicationFactory in integration tests.</summary>
 public partial class Program;
