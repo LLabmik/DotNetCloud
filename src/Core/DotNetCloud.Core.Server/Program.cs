@@ -1349,13 +1349,42 @@ public class Program
                 if (string.Equals(header.Key, "Host", StringComparison.OrdinalIgnoreCase))
                     continue;
 
-                if (proxyRequest.Headers.Contains(header.Key))
+                if (HasRequestHeader(proxyRequest, header.Key))
                     continue; // already copied by the base transformer
 
+                // Content headers (Content-Type, Content-Length, ...) are already on
+                // proxyRequest.Content.Headers — the base transformer put them there — and are not valid
+                // on HttpRequestMessage.Headers. TryAddWithoutValidation reports that by returning false
+                // instead of throwing, which is exactly the "not valid here, skip it" behavior we want.
                 proxyRequest.Headers.TryAddWithoutValidation(header.Key, header.Value.ToArray());
             }
 
             proxyRequest.Headers.TryAddWithoutValidation("X-Forwarded-Proto", "https");
+        }
+
+        /// <summary>
+        /// Determines whether the proxy request already carries a request header with the given name.
+        /// </summary>
+        /// <param name="proxyRequest">The outgoing proxy request.</param>
+        /// <param name="name">The header name to look for.</param>
+        /// <returns><see langword="true"/> when the header is already present.</returns>
+        /// <remarks>
+        /// Must not be implemented with <c>HttpRequestHeaders.Contains</c>: that THROWS
+        /// <see cref="InvalidOperationException"/> ("Misused header name") for headers that are not valid
+        /// on a request message — every <c>Content-Type</c>/<c>Content-Length</c> carrying request — and
+        /// YARP turns the throw into <c>ForwarderError.RequestCreation</c>, i.e. a 502 Bad Gateway for
+        /// every proxied write (Notes save, WOPI token for Collabora, Files upload/initiate).
+        /// Enumerating the collection performs no name validation, so this cannot throw.
+        /// </remarks>
+        private static bool HasRequestHeader(HttpRequestMessage proxyRequest, string name)
+        {
+            foreach (var existing in proxyRequest.Headers)
+            {
+                if (string.Equals(existing.Key, name, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+
+            return false;
         }
     }
 
