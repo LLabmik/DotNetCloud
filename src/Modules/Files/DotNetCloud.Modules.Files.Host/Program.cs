@@ -156,6 +156,7 @@ builder.Services.AddDbContext<CoreDbContext>(options =>
 {
     DbResiliencePolicy.Configure(options, provider, connectionString);
 }, ServiceLifetime.Transient);
+builder.Services.AddCoreDbContextFactory(connectionString, provider);
 
 builder.Services.AddSingleton<ITableNamingStrategy>(string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase)
     ? new PostgreSqlNamingStrategy()

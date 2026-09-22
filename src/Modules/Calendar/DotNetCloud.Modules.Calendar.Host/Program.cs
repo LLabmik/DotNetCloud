@@ -178,6 +178,7 @@ builder.Services.AddDbContext<CoreDbContext>(o =>
     DbResiliencePolicy.Configure(o, provider, connStr,
         provider == DatabaseProvider.SqlServer ? "DotNetCloud.Core.Data.SqlServer" : null),
     ServiceLifetime.Transient);
+builder.Services.AddCoreDbContextFactory(connStr, provider);
 builder.Services.AddScoped<IOrganizationDirectory, OrganizationDirectoryService>();
 
 // Register all calendar business-logic services (Calendar, Event, Share, ICal)

@@ -9,18 +9,27 @@ namespace DotNetCloud.Core.Auth.Capabilities;
 /// <summary>
 /// Implements <see cref="IUserDirectory"/> providing read-only access to user data.
 /// </summary>
+/// <remarks>
+/// Each operation runs on its own short-lived <see cref="CoreDbContext"/> taken from
+/// <see cref="IDbContextFactory"/>. The service is scoped while the Blazor circuit holding it is
+/// long-lived, so a context captured in the constructor would receive overlapping queries from
+/// components whose initializers interleave (which throws "a second operation was started on this
+/// context instance"). See <c>UserSettingsService</c> for the same pattern.
+/// </remarks>
 public sealed class UserDirectoryService : IUserDirectory
 {
     private readonly UserManager<ApplicationUser> _userManager;
-    private readonly CoreDbContext _dbContext;
+    private readonly IDbContextFactory _dbContextFactory;
 
     /// <summary>
     /// Initializes a new instance of <see cref="UserDirectoryService"/>.
     /// </summary>
-    public UserDirectoryService(UserManager<ApplicationUser> userManager, CoreDbContext dbContext)
+    /// <param name="userManager">The Identity user manager.</param>
+    /// <param name="dbContextFactory">Factory used to create a short-lived context per operation.</param>
+    public UserDirectoryService(UserManager<ApplicationUser> userManager, IDbContextFactory dbContextFactory)
     {
         _userManager = userManager;
-        _dbContext = dbContext;
+        _dbContextFactory = dbContextFactory;
     }
 
     /// <inheritdoc />
@@ -43,7 +52,9 @@ public sealed class UserDirectoryService : IUserDirectory
         if (idList.Count == 0)
             return new Dictionary<Guid, string>();
 
-        var results = await _dbContext.Users
+        await using var dbContext = _dbContextFactory.CreateDbContext();
+
+        var results = await dbContext.Users
             .AsNoTracking()
             .Where(u => idList.Contains(u.Id))
             .Select(u => new { u.Id, u.DisplayName })
@@ -62,7 +73,9 @@ public sealed class UserDirectoryService : IUserDirectory
         if (idList.Count == 0)
             return new Dictionary<Guid, string>();
 
-        var results = await _dbContext.Users
+        await using var dbContext = _dbContextFactory.CreateDbContext();
+
+        var results = await dbContext.Users
             .AsNoTracking()
             .Where(u => idList.Contains(u.Id) && u.AvatarUrl != null)
             .Select(u => new { u.Id, u.AvatarUrl })
@@ -79,7 +92,9 @@ public sealed class UserDirectoryService : IUserDirectory
 
         var term = searchTerm.Trim().ToLower();
 
-        var results = await _dbContext.Users
+        await using var dbContext = _dbContextFactory.CreateDbContext();
+
+        var results = await dbContext.Users
             .AsNoTracking()
             .Where(u => u.IsActive && (u.DisplayName.ToLower().Contains(term) || u.Email!.ToLower().Contains(term)))
             .OrderBy(u => u.DisplayName)

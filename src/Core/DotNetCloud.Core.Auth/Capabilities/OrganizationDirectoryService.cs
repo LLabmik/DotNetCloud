@@ -11,22 +11,32 @@ namespace DotNetCloud.Core.Auth.Capabilities;
 /// Implements <see cref="IOrganizationDirectory"/> providing read-only access to
 /// organization membership data for module authorization checks.
 /// </summary>
+/// <remarks>
+/// Each operation runs on its own short-lived <see cref="CoreDbContext"/> taken from
+/// <see cref="IDbContextFactory"/>. The service is scoped while the Blazor circuit holding it is
+/// long-lived, so a context captured in the constructor would receive overlapping queries from
+/// components whose initializers interleave (which throws "a second operation was started on this
+/// context instance"). See <c>UserSettingsService</c> for the same pattern.
+/// </remarks>
 public sealed class OrganizationDirectoryService : IOrganizationDirectory
 {
-    private readonly CoreDbContext _dbContext;
+    private readonly IDbContextFactory _dbContextFactory;
 
     /// <summary>
     /// Initializes a new instance of <see cref="OrganizationDirectoryService"/>.
     /// </summary>
-    public OrganizationDirectoryService(CoreDbContext dbContext)
+    /// <param name="dbContextFactory">Factory used to create a short-lived context per operation.</param>
+    public OrganizationDirectoryService(IDbContextFactory dbContextFactory)
     {
-        _dbContext = dbContext;
+        _dbContextFactory = dbContextFactory;
     }
 
     /// <inheritdoc />
     public async Task<bool> IsOrganizationMemberAsync(Guid organizationId, Guid userId, CancellationToken cancellationToken = default)
     {
-        return await _dbContext.Set<OrganizationMember>()
+        await using var dbContext = _dbContextFactory.CreateDbContext();
+
+        return await dbContext.Set<OrganizationMember>()
             .AsNoTracking()
             .AnyAsync(m => m.OrganizationId == organizationId && m.UserId == userId && m.IsActive, cancellationToken);
     }
@@ -34,9 +44,9 @@ public sealed class OrganizationDirectoryService : IOrganizationDirectory
     /// <inheritdoc />
     public async Task<OrganizationMemberInfo?> GetMemberAsync(Guid organizationId, Guid userId, CancellationToken cancellationToken = default)
     {
-        var member = await _dbContext.Set<OrganizationMember>()
-            .AsNoTracking()
-            .FirstOrDefaultAsync(m => m.OrganizationId == organizationId && m.UserId == userId && m.IsActive, cancellationToken);
+        await using var dbContext = _dbContextFactory.CreateDbContext();
+
+        var member = await FindMemberAsync(dbContext, organizationId, userId, cancellationToken);
 
         if (member is null)
             return null;
@@ -53,10 +63,12 @@ public sealed class OrganizationDirectoryService : IOrganizationDirectory
     /// <inheritdoc />
     public async Task<IReadOnlyList<OrganizationDto>> GetUserOrganizationsAsync(Guid userId, CancellationToken cancellationToken = default)
     {
-        return await _dbContext.Set<OrganizationMember>()
+        await using var dbContext = _dbContextFactory.CreateDbContext();
+
+        return await dbContext.Set<OrganizationMember>()
             .AsNoTracking()
             .Where(m => m.UserId == userId && m.IsActive)
-            .Join(_dbContext.Organizations,
+            .Join(dbContext.Organizations,
                 m => m.OrganizationId,
                 o => o.Id,
                 (m, o) => new OrganizationDto
@@ -76,7 +88,9 @@ public sealed class OrganizationDirectoryService : IOrganizationDirectory
     /// <inheritdoc />
     public async Task<bool> HasOrgRoleAsync(Guid organizationId, Guid userId, Guid roleId, CancellationToken cancellationToken = default)
     {
-        return await _dbContext.Set<OrganizationMember>()
+        await using var dbContext = _dbContextFactory.CreateDbContext();
+
+        return await dbContext.Set<OrganizationMember>()
             .AsNoTracking()
             .AnyAsync(m => m.OrganizationId == organizationId
                            && m.UserId == userId
@@ -87,14 +101,37 @@ public sealed class OrganizationDirectoryService : IOrganizationDirectory
     /// <inheritdoc />
     public async Task<bool> HasManagerOrAboveRoleAsync(Guid organizationId, Guid userId, CancellationToken cancellationToken = default)
     {
-        var member = await GetMemberAsync(organizationId, userId, cancellationToken);
+        await using var dbContext = _dbContextFactory.CreateDbContext();
+
+        var member = await FindMemberAsync(dbContext, organizationId, userId, cancellationToken);
         return member is not null && OrgRoleChecker.HasManagerOrAboveRole(member.RoleIds);
     }
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<Guid>> GetUserRoleIdsAsync(Guid organizationId, Guid userId, CancellationToken cancellationToken = default)
     {
-        var member = await GetMemberAsync(organizationId, userId, cancellationToken);
-        return member?.RoleIds ?? Array.Empty<Guid>();
+        await using var dbContext = _dbContextFactory.CreateDbContext();
+
+        var member = await FindMemberAsync(dbContext, organizationId, userId, cancellationToken);
+        return member is null ? [] : member.RoleIds.ToList();
+    }
+
+    /// <summary>
+    /// Reads an active membership for the given organization and user on the supplied context.
+    /// </summary>
+    /// <param name="dbContext">The context owned by the calling operation.</param>
+    /// <param name="organizationId">The organization identifier.</param>
+    /// <param name="userId">The user identifier.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The membership entity, or <see langword="null"/>.</returns>
+    private static Task<OrganizationMember?> FindMemberAsync(
+        CoreDbContext dbContext,
+        Guid organizationId,
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        return dbContext.Set<OrganizationMember>()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(m => m.OrganizationId == organizationId && m.UserId == userId && m.IsActive, cancellationToken);
     }
 }

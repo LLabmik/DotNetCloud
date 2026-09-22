@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Auth.Capabilities;
+using DotNetCloud.Core.Auth.Tests.Helpers;
 using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Entities.Identity;
 using DotNetCloud.Core.Data.Entities.Organizations;
@@ -14,6 +15,7 @@ namespace DotNetCloud.Core.Auth.Tests.Capabilities;
 public class GroupDirectoryServiceTests
 {
     private CoreDbContext _dbContext = null!;
+    private InMemoryCoreDbContextFactory _factory = null!;
     private GroupDirectoryService _service = null!;
     private Organization _organization = null!;
     private ApplicationUser _alice = null!;
@@ -24,12 +26,14 @@ public class GroupDirectoryServiceTests
     [TestInitialize]
     public async Task SetupAsync()
     {
+        var databaseName = Guid.CreateVersion7().ToString();
         var options = new DbContextOptionsBuilder<CoreDbContext>()
-            .UseInMemoryDatabase(databaseName: Guid.CreateVersion7().ToString())
+            .UseInMemoryDatabase(databaseName: databaseName)
             .Options;
 
         _dbContext = new CoreDbContext(options, new PostgreSqlNamingStrategy());
-        _service = new GroupDirectoryService(_dbContext);
+        _factory = new InMemoryCoreDbContextFactory(databaseName);
+        _service = new GroupDirectoryService(_factory);
 
         _organization = new Organization
         {
