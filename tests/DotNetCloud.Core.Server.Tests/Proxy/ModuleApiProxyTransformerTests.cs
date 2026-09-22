@@ -1,3 +1,4 @@
+using System.Text;
 using Microsoft.AspNetCore.Http;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -88,6 +89,69 @@ public class ModuleApiProxyTransformerTests
                 proxyRequest.Headers.Count(h => string.Equals(h.Key, name, StringComparison.OrdinalIgnoreCase)),
                 $"{name} must be forwarded exactly once.");
         }
+    }
+
+    [TestMethod]
+    public async Task TransformRequestAsync_RequestCarryingContentType_DoesNotThrow()
+    {
+        // Regression (2026-09-21): probing presence with Headers.Contains("Content-Type") throws
+        // "Misused header name, 'Content-Type'" because a content header is not valid on
+        // HttpRequestMessage.Headers. YARP reports that as RequestCreation, so every proxied write —
+        // Notes save, WOPI token (Collabora), Files upload/initiate — answered 502 Bad Gateway.
+        var context = CreateContext();
+        context.Request.Method = HttpMethods.Post;
+        context.Request.Path = "/api/v1/notes";
+        context.Request.ContentType = "application/json";
+        context.Request.ContentLength = 42;
+        var proxyRequest = new HttpRequestMessage();
+
+        await Program.ModuleApiProxyTransformer.Instance.TransformRequestAsync(
+            context, proxyRequest, "http://localhost:50200/", CancellationToken.None);
+    }
+
+    [TestMethod]
+    public async Task TransformRequestAsync_RequestCarryingContentType_KeepsItOffTheRequestHeaders()
+    {
+        var context = CreateContext();
+        context.Request.Method = HttpMethods.Post;
+        context.Request.Path = "/api/v1/notes";
+        context.Request.ContentType = "application/json";
+        context.Request.ContentLength = 42;
+        var proxyRequest = new HttpRequestMessage(HttpMethod.Post, "http://localhost:50200/api/v1/notes")
+        {
+            Content = new StringContent("{\"title\":\"x\"}", Encoding.UTF8, "application/json"),
+        };
+
+        await Program.ModuleApiProxyTransformer.Instance.TransformRequestAsync(
+            context, proxyRequest, "http://localhost:50200/", CancellationToken.None);
+
+        Assert.AreEqual(
+            0,
+            proxyRequest.Headers.Count(h => string.Equals(h.Key, "Content-Type", StringComparison.OrdinalIgnoreCase)),
+            "Content-Type is a content header and must never be added to HttpRequestMessage.Headers.");
+        Assert.AreEqual(
+            1,
+            proxyRequest.Content.Headers.Count(h => string.Equals(h.Key, "Content-Type", StringComparison.OrdinalIgnoreCase)),
+            "Content-Type must reach the module host exactly once, on the request content.");
+    }
+
+    [TestMethod]
+    public async Task TransformRequestAsync_RequestCarryingContentLength_DoesNotThrow()
+    {
+        var context = CreateContext();
+        context.Request.Method = HttpMethods.Put;
+        context.Request.Path = "/api/v1/files/chunk";
+        context.Request.ContentLength = 1048576;
+        context.Request.Headers["X-Dnc-Custom"] = "custom-value";
+        var proxyRequest = new HttpRequestMessage();
+
+        await Program.ModuleApiProxyTransformer.Instance.TransformRequestAsync(
+            context, proxyRequest, "http://localhost:50194/", CancellationToken.None);
+
+        Assert.AreEqual(
+            "custom-value",
+            proxyRequest.Headers.GetValues("X-Dnc-Custom").SingleOrDefault(),
+            "Ordinary request headers must still be forwarded alongside content headers.");
     }
 
     /// <summary>
