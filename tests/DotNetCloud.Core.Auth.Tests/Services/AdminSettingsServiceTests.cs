@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Auth.Services;
+using DotNetCloud.Core.Auth.Tests.Helpers;
 using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Entities.Settings;
 using DotNetCloud.Core.Data.Naming;
@@ -17,6 +18,7 @@ public class AdminSettingsServiceTests
 {
     private string _databaseName = null!;
     private CoreDbContext _dbContext = null!;
+    private InMemoryCoreDbContextFactory _factory = null!;
     private Mock<ILogger<AdminSettingsService>> _loggerMock = null!;
     private AdminSettingsService _service = null!;
 
@@ -28,13 +30,29 @@ public class AdminSettingsServiceTests
 
         _loggerMock = new Mock<ILogger<AdminSettingsService>>();
 
-        _service = new AdminSettingsService(_dbContext, _loggerMock.Object);
+        _factory = new InMemoryCoreDbContextFactory(_databaseName);
+        _service = new AdminSettingsService(_factory, _loggerMock.Object);
     }
 
     [TestCleanup]
     public void Cleanup()
     {
         _dbContext.Dispose();
+    }
+
+    [TestMethod]
+    public async Task ListSettingsAsync_TwoCalls_EachUseTheirOwnContext()
+    {
+        // The admin settings page and the layout interleave on this scoped instance, so no context
+        // may be shared between operations.
+        var first = await _service.ListSettingsAsync();
+        var second = await _service.ListSettingsAsync();
+
+        Assert.AreEqual(0, first.Count);
+        Assert.AreEqual(0, second.Count);
+        Assert.AreEqual(2, _factory.CreatedContexts.Count);
+        Assert.AreEqual(2, _factory.CreatedContexts.Distinct().Count());
+        Assert.ThrowsExactly<ObjectDisposedException>(() => _factory.CreatedContexts[0].SystemSettings.ToList());
     }
 
     // ---------------------------------------------------------------------------

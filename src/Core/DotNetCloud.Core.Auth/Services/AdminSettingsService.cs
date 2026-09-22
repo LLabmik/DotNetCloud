@@ -11,24 +11,35 @@ namespace DotNetCloud.Core.Auth.Services;
 /// <summary>
 /// Implements <see cref="IAdminSettingsService"/> using EF Core and <see cref="CoreDbContext"/>.
 /// </summary>
+/// <remarks>
+/// Each operation runs on its own short-lived <see cref="CoreDbContext"/> taken from
+/// <see cref="IDbContextFactory"/>. The service is scoped while the Blazor circuit holding it is
+/// long-lived, so a context captured in the constructor would receive overlapping queries from
+/// components whose initializers interleave (which throws "a second operation was started on this
+/// context instance"). See <c>UserSettingsService</c> for the same pattern.
+/// </remarks>
 public sealed class AdminSettingsService : IAdminSettingsService
 {
-    private readonly CoreDbContext _dbContext;
+    private readonly IDbContextFactory _dbContextFactory;
     private readonly ILogger<AdminSettingsService> _logger;
 
     /// <summary>
     /// Initializes a new instance of <see cref="AdminSettingsService"/>.
     /// </summary>
-    public AdminSettingsService(CoreDbContext dbContext, ILogger<AdminSettingsService> logger)
+    /// <param name="dbContextFactory">Factory used to create a short-lived context per operation.</param>
+    /// <param name="logger">The logger.</param>
+    public AdminSettingsService(IDbContextFactory dbContextFactory, ILogger<AdminSettingsService> logger)
     {
-        _dbContext = dbContext;
+        _dbContextFactory = dbContextFactory;
         _logger = logger;
     }
 
     /// <inheritdoc/>
     public async Task<IReadOnlyList<SystemSettingDto>> ListSettingsAsync(string? module = null)
     {
-        var query = _dbContext.SystemSettings.AsNoTracking();
+        await using var dbContext = _dbContextFactory.CreateDbContext();
+
+        var query = dbContext.SystemSettings.AsNoTracking();
 
         if (!string.IsNullOrWhiteSpace(module))
         {
@@ -50,7 +61,9 @@ public sealed class AdminSettingsService : IAdminSettingsService
         ArgumentNullException.ThrowIfNull(module);
         ArgumentNullException.ThrowIfNull(key);
 
-        var setting = await _dbContext.SystemSettings
+        await using var dbContext = _dbContextFactory.CreateDbContext();
+
+        var setting = await dbContext.SystemSettings
             .AsNoTracking()
             .FirstOrDefaultAsync(s => s.Module == module && s.Key == key);
 
@@ -64,10 +77,12 @@ public sealed class AdminSettingsService : IAdminSettingsService
         ArgumentNullException.ThrowIfNull(key);
         ArgumentNullException.ThrowIfNull(dto);
 
-        // Mutual exclusion validation: Demo Mode and Closed System cannot both be enabled
-        await ValidateMutualExclusionAsync(module, key, dto.Value);
+        await using var dbContext = _dbContextFactory.CreateDbContext();
 
-        var existing = await _dbContext.SystemSettings
+        // Mutual exclusion validation: Demo Mode and Closed System cannot both be enabled
+        await ValidateMutualExclusionAsync(dbContext, module, key, dto.Value);
+
+        var existing = await dbContext.SystemSettings
             .AsTracking()
             .FirstOrDefaultAsync(s => s.Module == module && s.Key == key);
 
@@ -90,18 +105,22 @@ public sealed class AdminSettingsService : IAdminSettingsService
                 UpdatedAt = DateTime.UtcNow,
             };
 
-            _dbContext.SystemSettings.Add(existing);
+            dbContext.SystemSettings.Add(existing);
             _logger.LogInformation("Created system setting {Module}:{Key}", module, key);
         }
 
-        await _dbContext.SaveChangesAsync();
+        await dbContext.SaveChangesAsync();
         return MapToDto(existing);
     }
 
     /// <summary>
     /// Validates that Demo Mode and Closed System mode are not both enabled simultaneously.
     /// </summary>
-    private async Task ValidateMutualExclusionAsync(string module, string key, string newValue)
+    /// <param name="dbContext">The context owned by the calling operation.</param>
+    /// <param name="module">The setting module.</param>
+    /// <param name="key">The setting key.</param>
+    /// <param name="newValue">The value being written.</param>
+    private static async Task ValidateMutualExclusionAsync(CoreDbContext dbContext, string module, string key, string newValue)
     {
         // Only validate core module settings
         if (module != SystemSettingKeys.CoreModule)
@@ -114,7 +133,7 @@ public sealed class AdminSettingsService : IAdminSettingsService
         if (key == SystemSettingKeys.DemoModeEnabled)
         {
             // Check if ClosedSystemEnabled is already "true"
-            var closedSetting = await _dbContext.SystemSettings
+            var closedSetting = await dbContext.SystemSettings
                 .AsNoTracking()
                 .FirstOrDefaultAsync(s =>
                     s.Module == SystemSettingKeys.CoreModule &&
@@ -130,7 +149,7 @@ public sealed class AdminSettingsService : IAdminSettingsService
         else if (key == SystemSettingKeys.ClosedSystemEnabled)
         {
             // Check if DemoModeEnabled is already "true"
-            var demoSetting = await _dbContext.SystemSettings
+            var demoSetting = await dbContext.SystemSettings
                 .AsNoTracking()
                 .FirstOrDefaultAsync(s =>
                     s.Module == SystemSettingKeys.CoreModule &&
@@ -151,7 +170,9 @@ public sealed class AdminSettingsService : IAdminSettingsService
         ArgumentNullException.ThrowIfNull(module);
         ArgumentNullException.ThrowIfNull(key);
 
-        var setting = await _dbContext.SystemSettings
+        await using var dbContext = _dbContextFactory.CreateDbContext();
+
+        var setting = await dbContext.SystemSettings
             .AsTracking()
             .FirstOrDefaultAsync(s => s.Module == module && s.Key == key);
 
@@ -160,8 +181,8 @@ public sealed class AdminSettingsService : IAdminSettingsService
             return false;
         }
 
-        _dbContext.SystemSettings.Remove(setting);
-        await _dbContext.SaveChangesAsync();
+        dbContext.SystemSettings.Remove(setting);
+        await dbContext.SaveChangesAsync();
 
         _logger.LogInformation("Deleted system setting {Module}:{Key}", module, key);
         return true;

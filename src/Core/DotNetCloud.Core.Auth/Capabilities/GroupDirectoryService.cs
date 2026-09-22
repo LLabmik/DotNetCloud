@@ -7,22 +7,32 @@ namespace DotNetCloud.Core.Auth.Capabilities;
 /// <summary>
 /// Implements <see cref="IGroupDirectory"/> providing read-only access to group and membership data.
 /// </summary>
+/// <remarks>
+/// Each operation runs on its own short-lived <see cref="CoreDbContext"/> taken from
+/// <see cref="IDbContextFactory"/>. The service is scoped while the Blazor circuit holding it is
+/// long-lived, so a context captured in the constructor would receive overlapping queries from
+/// components whose initializers interleave (which throws "a second operation was started on this
+/// context instance"). See <c>UserSettingsService</c> for the same pattern.
+/// </remarks>
 public sealed class GroupDirectoryService : IGroupDirectory
 {
-    private readonly CoreDbContext _dbContext;
+    private readonly IDbContextFactory _dbContextFactory;
 
     /// <summary>
     /// Initializes a new instance of <see cref="GroupDirectoryService"/>.
     /// </summary>
-    public GroupDirectoryService(CoreDbContext dbContext)
+    /// <param name="dbContextFactory">Factory used to create a short-lived context per operation.</param>
+    public GroupDirectoryService(IDbContextFactory dbContextFactory)
     {
-        _dbContext = dbContext;
+        _dbContextFactory = dbContextFactory;
     }
 
     /// <inheritdoc />
     public async Task<GroupInfo?> GetGroupAsync(Guid groupId, CancellationToken cancellationToken = default)
     {
-        var group = await _dbContext.Groups
+        await using var dbContext = _dbContextFactory.CreateDbContext();
+
+        var group = await dbContext.Groups
             .AsNoTracking()
             .Include(g => g.Members)
             .FirstOrDefaultAsync(g => g.Id == groupId, cancellationToken);
@@ -31,7 +41,7 @@ public sealed class GroupDirectoryService : IGroupDirectory
             return null;
 
         var memberCount = group.IsAllUsersGroup
-            ? await GetActiveOrganizationMemberCountAsync(group.OrganizationId, cancellationToken)
+            ? await GetActiveOrganizationMemberCountAsync(dbContext, group.OrganizationId, cancellationToken)
             : group.Members.Count;
 
         return MapGroup(group, memberCount);
@@ -40,14 +50,16 @@ public sealed class GroupDirectoryService : IGroupDirectory
     /// <inheritdoc />
     public async Task<IReadOnlyList<GroupInfo>> GetGroupsForOrganizationAsync(Guid organizationId, CancellationToken cancellationToken = default)
     {
+        await using var dbContext = _dbContextFactory.CreateDbContext();
+
         if (organizationId == Guid.Empty)
         {
-            organizationId = await ResolveDefaultOrganizationIdAsync(cancellationToken);
+            organizationId = await ResolveDefaultOrganizationIdAsync(dbContext, cancellationToken);
             if (organizationId == Guid.Empty)
                 return [];
         }
 
-        var groups = await _dbContext.Groups
+        var groups = await dbContext.Groups
             .AsNoTracking()
             .Include(g => g.Members)
             .Where(g => g.OrganizationId == organizationId)
@@ -55,7 +67,7 @@ public sealed class GroupDirectoryService : IGroupDirectory
             .ToListAsync(cancellationToken);
 
         var allUsersMemberCount = groups.Any(g => g.IsAllUsersGroup)
-            ? await GetActiveOrganizationMemberCountAsync(organizationId, cancellationToken)
+            ? await GetActiveOrganizationMemberCountAsync(dbContext, organizationId, cancellationToken)
             : 0;
 
         return groups.Select(group => MapGroup(group, group.IsAllUsersGroup ? allUsersMemberCount : group.Members.Count)).ToList();
@@ -64,13 +76,15 @@ public sealed class GroupDirectoryService : IGroupDirectory
     /// <inheritdoc />
     public async Task<IReadOnlyList<GroupInfo>> GetGroupsForUserAsync(Guid userId, CancellationToken cancellationToken = default)
     {
-        var groupIds = await _dbContext.GroupMembers
+        await using var dbContext = _dbContextFactory.CreateDbContext();
+
+        var groupIds = await dbContext.GroupMembers
             .AsNoTracking()
             .Where(gm => gm.UserId == userId)
             .Select(gm => gm.GroupId)
             .ToListAsync(cancellationToken);
 
-        var organizationIds = await _dbContext.OrganizationMembers
+        var organizationIds = await dbContext.OrganizationMembers
             .AsNoTracking()
             .Where(om => om.UserId == userId && om.IsActive)
             .Select(om => om.OrganizationId)
@@ -79,7 +93,7 @@ public sealed class GroupDirectoryService : IGroupDirectory
         if (groupIds.Count == 0 && organizationIds.Count == 0)
             return [];
 
-        var groups = await _dbContext.Groups
+        var groups = await dbContext.Groups
             .AsNoTracking()
             .Include(g => g.Members)
             .Where(g => groupIds.Contains(g.Id) || (g.IsAllUsersGroup && organizationIds.Contains(g.OrganizationId)))
@@ -87,6 +101,7 @@ public sealed class GroupDirectoryService : IGroupDirectory
             .ToListAsync(cancellationToken);
 
         var organizationMemberCounts = await GetActiveOrganizationMemberCountsAsync(
+            dbContext,
             groups.Where(g => g.IsAllUsersGroup).Select(g => g.OrganizationId),
             cancellationToken);
 
@@ -100,7 +115,9 @@ public sealed class GroupDirectoryService : IGroupDirectory
     /// <inheritdoc />
     public async Task<bool> IsGroupMemberAsync(Guid groupId, Guid userId, CancellationToken cancellationToken = default)
     {
-        var group = await _dbContext.Groups
+        await using var dbContext = _dbContextFactory.CreateDbContext();
+
+        var group = await dbContext.Groups
             .AsNoTracking()
             .Where(g => g.Id == groupId)
             .Select(g => new { g.OrganizationId, g.IsAllUsersGroup })
@@ -111,12 +128,12 @@ public sealed class GroupDirectoryService : IGroupDirectory
 
         if (group.IsAllUsersGroup)
         {
-            return await _dbContext.OrganizationMembers
+            return await dbContext.OrganizationMembers
                 .AsNoTracking()
                 .AnyAsync(om => om.OrganizationId == group.OrganizationId && om.UserId == userId && om.IsActive, cancellationToken);
         }
 
-        return await _dbContext.GroupMembers
+        return await dbContext.GroupMembers
             .AsNoTracking()
             .AnyAsync(gm => gm.GroupId == groupId && gm.UserId == userId, cancellationToken);
     }
@@ -124,7 +141,9 @@ public sealed class GroupDirectoryService : IGroupDirectory
     /// <inheritdoc />
     public async Task<GroupMemberInfo?> GetGroupMemberAsync(Guid groupId, Guid userId, CancellationToken cancellationToken = default)
     {
-        var group = await _dbContext.Groups
+        await using var dbContext = _dbContextFactory.CreateDbContext();
+
+        var group = await dbContext.Groups
             .AsNoTracking()
             .Where(g => g.Id == groupId)
             .Select(g => new { g.OrganizationId, g.IsAllUsersGroup })
@@ -135,7 +154,7 @@ public sealed class GroupDirectoryService : IGroupDirectory
 
         if (group.IsAllUsersGroup)
         {
-            var organizationMember = await _dbContext.OrganizationMembers
+            var organizationMember = await dbContext.OrganizationMembers
                 .AsNoTracking()
                 .FirstOrDefaultAsync(om => om.OrganizationId == group.OrganizationId && om.UserId == userId && om.IsActive, cancellationToken);
 
@@ -151,7 +170,7 @@ public sealed class GroupDirectoryService : IGroupDirectory
             };
         }
 
-        var member = await _dbContext.GroupMembers
+        var member = await dbContext.GroupMembers
             .AsNoTracking()
             .FirstOrDefaultAsync(gm => gm.GroupId == groupId && gm.UserId == userId, cancellationToken);
 
@@ -161,7 +180,9 @@ public sealed class GroupDirectoryService : IGroupDirectory
     /// <inheritdoc />
     public async Task<IReadOnlyList<GroupMemberInfo>> GetGroupMembersAsync(Guid groupId, CancellationToken cancellationToken = default)
     {
-        var group = await _dbContext.Groups
+        await using var dbContext = _dbContextFactory.CreateDbContext();
+
+        var group = await dbContext.Groups
             .AsNoTracking()
             .Where(g => g.Id == groupId)
             .Select(g => new { g.OrganizationId, g.IsAllUsersGroup })
@@ -172,7 +193,7 @@ public sealed class GroupDirectoryService : IGroupDirectory
 
         if (group.IsAllUsersGroup)
         {
-            var organizationMembers = await _dbContext.OrganizationMembers
+            var organizationMembers = await dbContext.OrganizationMembers
                 .AsNoTracking()
                 .Where(om => om.OrganizationId == group.OrganizationId && om.IsActive)
                 .OrderBy(om => om.JoinedAt)
@@ -187,7 +208,7 @@ public sealed class GroupDirectoryService : IGroupDirectory
             }).ToList();
         }
 
-        var members = await _dbContext.GroupMembers
+        var members = await dbContext.GroupMembers
             .AsNoTracking()
             .Where(gm => gm.GroupId == groupId)
             .OrderBy(gm => gm.AddedAt)
@@ -196,9 +217,9 @@ public sealed class GroupDirectoryService : IGroupDirectory
         return members.Select(MapMember).ToList();
     }
 
-    private async Task<Guid> ResolveDefaultOrganizationIdAsync(CancellationToken cancellationToken)
+    private static async Task<Guid> ResolveDefaultOrganizationIdAsync(CoreDbContext dbContext, CancellationToken cancellationToken)
     {
-        return await _dbContext.Organizations
+        return await dbContext.Organizations
             .AsNoTracking()
             .Where(o => !o.IsDeleted)
             .OrderBy(o => o.CreatedAt)
@@ -206,15 +227,16 @@ public sealed class GroupDirectoryService : IGroupDirectory
             .FirstOrDefaultAsync(cancellationToken);
     }
 
-    private Task<int> GetActiveOrganizationMemberCountAsync(Guid organizationId, CancellationToken cancellationToken)
+    private static Task<int> GetActiveOrganizationMemberCountAsync(CoreDbContext dbContext, Guid organizationId, CancellationToken cancellationToken)
     {
-        return _dbContext.OrganizationMembers
+        return dbContext.OrganizationMembers
             .AsNoTracking()
             .Where(om => om.OrganizationId == organizationId && om.IsActive)
             .CountAsync(cancellationToken);
     }
 
-    private async Task<Dictionary<Guid, int>> GetActiveOrganizationMemberCountsAsync(
+    private static async Task<Dictionary<Guid, int>> GetActiveOrganizationMemberCountsAsync(
+        CoreDbContext dbContext,
         IEnumerable<Guid> organizationIds,
         CancellationToken cancellationToken)
     {
@@ -222,7 +244,7 @@ public sealed class GroupDirectoryService : IGroupDirectory
         if (organizationIdList.Count == 0)
             return [];
 
-        return await _dbContext.OrganizationMembers
+        return await dbContext.OrganizationMembers
             .AsNoTracking()
             .Where(om => organizationIdList.Contains(om.OrganizationId) && om.IsActive)
             .GroupBy(om => om.OrganizationId)

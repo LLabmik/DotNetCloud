@@ -147,6 +147,7 @@ builder.Services.AddDbContext<AiDbContext>(options =>
 // of truth for which model new conversations use.
 builder.Services.AddDbContext<CoreDbContext>(options =>
     DbResiliencePolicy.Configure(options, provider, connectionString));
+builder.Services.AddCoreDbContextFactory(connectionString, provider);
 builder.Services.AddScoped<IAdminSettingsService, AdminSettingsService>();
 
 // In-process event bus for standalone operation

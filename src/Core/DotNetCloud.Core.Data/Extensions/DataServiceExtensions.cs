@@ -32,7 +32,7 @@ public static class DataServiceExtensions
         services.AddSingleton(namingStrategy);
 
         // Register DbContext factory
-        services.AddSingleton<IDbContextFactory>(sp => new DefaultDbContextFactory(connectionString, provider));
+        services.AddCoreDbContextFactory(connectionString, provider);
 
         // Blazor Server uses Transient to prevent concurrent component render
         // errors ("second operation started on this context instance").
@@ -48,6 +48,33 @@ public static class DataServiceExtensions
         services.AddSingleton<IModuleSchemaProvider, SelfManagedSchemaProvider>();
         services.AddSingleton<ModuleSchemaService>();
 
+        return services;
+    }
+
+    /// <summary>
+    /// Registers the factory that hands out short-lived <see cref="CoreDbContext"/> instances.
+    /// </summary>
+    /// <param name="services">The service collection</param>
+    /// <param name="connectionString">The database connection string</param>
+    /// <param name="provider">The configured database provider</param>
+    /// <returns>The service collection for chaining</returns>
+    /// <remarks>
+    /// Any host that registers a <see cref="CoreDbContext"/> must also register this factory whenever it
+    /// activates a Core service that owns its own context per operation (for example
+    /// <c>UserSettingsService</c>, <c>AdminSettingsService</c> or the directory services in
+    /// <c>DotNetCloud.Core.Auth</c>). Those services deliberately do not capture a context, so without the
+    /// factory the host fails at runtime with "Unable to resolve service for type 'IDbContextFactory'" -
+    /// a whole module can go unhealthy for it. Process-isolated module hosts build their own container, so
+    /// this is not inherited from Core.Server: call it next to every raw AddDbContext&lt;CoreDbContext&gt;.
+    /// </remarks>
+    public static IServiceCollection AddCoreDbContextFactory(
+        this IServiceCollection services,
+        string connectionString,
+        DatabaseProvider provider)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+
+        services.AddSingleton<IDbContextFactory>(_ => new DefaultDbContextFactory(connectionString, provider));
         return services;
     }
 

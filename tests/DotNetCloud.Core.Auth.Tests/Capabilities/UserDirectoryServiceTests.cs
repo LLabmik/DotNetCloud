@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Auth.Capabilities;
+using DotNetCloud.Core.Auth.Tests.Helpers;
 using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Entities.Identity;
 using DotNetCloud.Core.Data.Naming;
@@ -16,6 +17,7 @@ public class UserDirectoryServiceTests
 {
     private Mock<UserManager<ApplicationUser>> _userManagerMock = null!;
     private CoreDbContext _dbContext = null!;
+    private InMemoryCoreDbContextFactory _factory = null!;
     private UserDirectoryService _service = null!;
 
     [TestInitialize]
@@ -25,18 +27,35 @@ public class UserDirectoryServiceTests
         _userManagerMock = new Mock<UserManager<ApplicationUser>>(
             storeMock.Object, null!, null!, null!, null!, null!, null!, null!, null!);
 
+        var databaseName = Guid.CreateVersion7().ToString();
         var options = new DbContextOptionsBuilder<CoreDbContext>()
-            .UseInMemoryDatabase(databaseName: Guid.CreateVersion7().ToString())
+            .UseInMemoryDatabase(databaseName: databaseName)
             .Options;
         _dbContext = new CoreDbContext(options, new PostgreSqlNamingStrategy());
+        _factory = new InMemoryCoreDbContextFactory(databaseName);
 
-        _service = new UserDirectoryService(_userManagerMock.Object, _dbContext);
+        _service = new UserDirectoryService(_userManagerMock.Object, _factory);
     }
 
     [TestCleanup]
     public void Cleanup()
     {
         _dbContext.Dispose();
+    }
+
+    [TestMethod]
+    public async Task SearchUsersAsync_TwoCalls_EachUseTheirOwnContext()
+    {
+        // Components on one Blazor circuit interleave their initializers on the same scoped instance,
+        // so no context may be shared between operations.
+        var first = await _service.SearchUsersAsync("alice");
+        var second = await _service.SearchUsersAsync("bob");
+
+        Assert.AreEqual(0, first.Count);
+        Assert.AreEqual(0, second.Count);
+        Assert.AreEqual(2, _factory.CreatedContexts.Count);
+        Assert.AreEqual(2, _factory.CreatedContexts.Distinct().Count());
+        Assert.ThrowsExactly<ObjectDisposedException>(() => _factory.CreatedContexts[0].Users.ToList());
     }
 
     // ---------------------------------------------------------------------------
