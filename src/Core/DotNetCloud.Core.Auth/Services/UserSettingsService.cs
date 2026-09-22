@@ -10,17 +10,30 @@ namespace DotNetCloud.Core.Auth.Services;
 /// <summary>
 /// Implements <see cref="IUserSettingsService"/> using EF Core and <see cref="CoreDbContext"/>.
 /// </summary>
+/// <remarks>
+/// Every operation runs on its own short-lived <see cref="CoreDbContext"/> taken from
+/// <see cref="IDbContextFactory"/>, rather than sharing one instance for the lifetime of the DI scope.
+/// This service is scoped, but the Blazor circuit that resolves it is long-lived and several components
+/// interleave their initializers on it — <c>MainLayout</c> restores the collapsed-sidebar preference
+/// while <c>Home</c> loads the widget layout, and the module pages read their own view settings. A shared
+/// context then receives overlapping queries and EF throws <c>InvalidOperationException</c> ("A second
+/// operation was started on this context instance"), which surfaced as "Failed to load home widget
+/// preferences" and silently fell back to the default widget layout. The transient <see cref="CoreDbContext"/>
+/// registration cannot prevent that: a scoped wrapper captures one instance for the whole scope.
+/// </remarks>
 public sealed class UserSettingsService : IUserSettingsService
 {
-    private readonly CoreDbContext _dbContext;
+    private readonly IDbContextFactory _dbContextFactory;
     private readonly ILogger<UserSettingsService> _logger;
 
     /// <summary>
     /// Initializes a new instance of <see cref="UserSettingsService"/>.
     /// </summary>
-    public UserSettingsService(CoreDbContext dbContext, ILogger<UserSettingsService> logger)
+    /// <param name="dbContextFactory">Factory used to create a short-lived context per operation.</param>
+    /// <param name="logger">The logger.</param>
+    public UserSettingsService(IDbContextFactory dbContextFactory, ILogger<UserSettingsService> logger)
     {
-        _dbContext = dbContext;
+        _dbContextFactory = dbContextFactory;
         _logger = logger;
     }
 
@@ -30,7 +43,9 @@ public sealed class UserSettingsService : IUserSettingsService
         ArgumentException.ThrowIfNullOrWhiteSpace(module);
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
 
-        var setting = await _dbContext.UserSettings
+        await using var dbContext = _dbContextFactory.CreateDbContext();
+
+        var setting = await dbContext.UserSettings
             .AsNoTracking()
             .FirstOrDefaultAsync(s => s.UserId == userId && s.Module == module && s.Key == key);
 
@@ -44,7 +59,9 @@ public sealed class UserSettingsService : IUserSettingsService
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
         ArgumentNullException.ThrowIfNull(dto);
 
-        var existing = await _dbContext.UserSettings
+        await using var dbContext = _dbContextFactory.CreateDbContext();
+
+        var existing = await dbContext.UserSettings
             .AsTracking()
             .FirstOrDefaultAsync(s => s.UserId == userId && s.Module == module && s.Key == key);
 
@@ -71,11 +88,11 @@ public sealed class UserSettingsService : IUserSettingsService
                 UpdatedAt = DateTime.UtcNow,
             };
 
-            _dbContext.UserSettings.Add(existing);
+            dbContext.UserSettings.Add(existing);
             _logger.LogInformation("Created user setting {Module}:{Key} for user {UserId}", module, key, userId);
         }
 
-        await _dbContext.SaveChangesAsync();
+        await dbContext.SaveChangesAsync();
         return MapToDto(existing);
     }
 
