@@ -405,6 +405,22 @@ public sealed class DotNetCloudApiClient
     // -----------------------------------------------------------------------
 
     /// <summary>
+    /// Gets the effective Collabora configuration: the server-configured <c>Files:Collabora:*</c>
+    /// values with the administrator's edits layered on top. Returns <see langword="null"/> when the
+    /// Files module is not reachable.
+    /// </summary>
+    public async Task<CollaboraEffectiveSettingsDto?> GetCollaboraEffectiveSettingsAsync(CancellationToken ct = default)
+    {
+        var response = await _http.GetAsync("api/v1/files/admin/collabora/effective", ct);
+        if (!response.IsSuccessStatusCode)
+            return null;
+
+        var envelope = await response.Content
+            .ReadFromJsonAsync<ApiEnvelope<CollaboraEffectiveSettingsDto>>(JsonOptions, ct);
+        return envelope?.Data;
+    }
+
+    /// <summary>
     /// Gets the effective chat limits and retention policy currently enforced by the Chat module.
     /// Returns <see langword="null"/> when the Chat module is not reachable.
     /// </summary>
@@ -431,6 +447,37 @@ public sealed class DotNetCloudApiClient
 
         var envelope = await response.Content
             .ReadFromJsonAsync<ApiEnvelope<ChatRetentionSweepResultDto>>(JsonOptions, ct);
+        return envelope?.Data;
+    }
+
+    /// <summary>
+    /// Gets the effective file versioning policy: the server-configured <c>Files:VersionRetention</c>
+    /// values with the administrator's <c>/admin/files</c> edits layered on top. Returns
+    /// <see langword="null"/> when the Files module is not reachable.
+    /// </summary>
+    public async Task<FileVersioningEffectiveSettingsDto?> GetFileVersioningEffectiveSettingsAsync(CancellationToken ct = default)
+    {
+        var response = await _http.GetAsync("api/v1/files/admin/versioning/effective", ct);
+        if (!response.IsSuccessStatusCode)
+            return null;
+
+        var envelope = await response.Content
+            .ReadFromJsonAsync<ApiEnvelope<FileVersioningEffectiveSettingsDto>>(JsonOptions, ct);
+        return envelope?.Data;
+    }
+
+    /// <summary>
+    /// Runs the file version retention pass immediately instead of waiting for the next scheduled
+    /// pass. Returns <see langword="null"/> when the Files module is not reachable.
+    /// </summary>
+    public async Task<FileVersionPruneResultDto?> RunFileVersionPruneAsync(CancellationToken ct = default)
+    {
+        var response = await _http.PostAsync("api/v1/files/admin/versioning/prune", null, ct);
+        if (!response.IsSuccessStatusCode)
+            return null;
+
+        var envelope = await response.Content
+            .ReadFromJsonAsync<ApiEnvelope<FileVersionPruneResultDto>>(JsonOptions, ct);
         return envelope?.Data;
     }
 

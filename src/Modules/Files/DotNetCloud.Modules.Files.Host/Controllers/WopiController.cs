@@ -33,7 +33,10 @@ public class WopiController : FilesControllerBase
     private readonly ICollaboraDiscoveryService _discoveryService;
     private readonly IWopiProofKeyValidator _proofKeyValidator;
     private readonly IWopiSessionTracker _sessionTracker;
-    private readonly CollaboraOptions _collaboraOptions;
+    private readonly ICollaboraSettingsProvider _collaboraSettings;
+
+    /// <summary>Effective options: administrator edits layered over configuration.</summary>
+    private CollaboraOptions _collaboraOptions => _collaboraSettings.Current;
     private readonly ILogger<WopiController> _logger;
 
     /// <summary>
@@ -45,7 +48,7 @@ public class WopiController : FilesControllerBase
         ICollaboraDiscoveryService discoveryService,
         IWopiProofKeyValidator proofKeyValidator,
         IWopiSessionTracker sessionTracker,
-        IOptions<CollaboraOptions> collaboraOptions,
+        ICollaboraSettingsProvider collaboraSettings,
         ILogger<WopiController> logger)
     {
         _wopiService = wopiService;
@@ -53,7 +56,7 @@ public class WopiController : FilesControllerBase
         _discoveryService = discoveryService;
         _proofKeyValidator = proofKeyValidator;
         _sessionTracker = sessionTracker;
-        _collaboraOptions = collaboraOptions.Value;
+        _collaboraSettings = collaboraSettings;
         _logger = logger;
     }
 

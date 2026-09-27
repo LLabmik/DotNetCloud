@@ -31,7 +31,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     [Inject] private IFileService FileService { get; set; } = default!;
     [Inject] private IChunkedUploadService UploadService { get; set; } = default!;
     [Inject] private ICollaboraDiscoveryService CollaboraDiscoveryService { get; set; } = default!;
-    [Inject] private IOptions<CollaboraOptions> CollaboraOptions { get; set; } = default!;
+    [Inject] private ICollaboraSettingsProvider CollaboraSettings { get; set; } = default!;
     [Inject] private ITrashService TrashService { get; set; } = default!;
     [Inject] private IQuotaService QuotaService { get; set; } = default!;
     [Inject] private IVersionService VersionService { get; set; } = default!;
@@ -2761,7 +2761,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
 
     private async Task LoadCollaboraCapabilitiesAsync()
     {
-        var options = CollaboraOptions.Value;
+        var options = CollaboraSettings.Current;
         _isCollaboraConfigured = options.Enabled &&
                                 (!string.IsNullOrWhiteSpace(options.ServerUrl) || options.UseBuiltInCollabora);
 

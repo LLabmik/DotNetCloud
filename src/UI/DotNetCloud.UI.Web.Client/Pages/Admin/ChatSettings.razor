@@ -4,230 +4,309 @@
 
 <PageTitle>Chat Settings - DotNetCloud</PageTitle>
 
-<div class="page-header">
-    <h1>Chat Module Settings</h1>
-    <div class="page-header-actions">
-        <a href="/admin/push-notifications" class="btn btn-outline btn-sm">Push Notifications</a>
-        <a href="/admin/settings?module=dotnetcloud.chat" class="btn btn-outline btn-sm">All Chat Settings</a>
-    </div>
-</div>
+<div class="admin-settings-page">
 
-<p class="text-muted">
-    Control how much chat history and attachment data the server keeps. Limits are enforced as
-    messages and attachments are written; the retention policy is applied by a background sweep.
-</p>
-
-@if (_loading)
-{
-    <LoadingIndicator Message="Loading chat settings..." />
-}
-else
-{
-    @if (!string.IsNullOrEmpty(_errorMessage))
-    {
-        <div class="alert alert-danger" role="alert">@_errorMessage</div>
-    }
-
-    @if (!string.IsNullOrEmpty(_successMessage))
-    {
-        <div class="alert alert-success" role="alert">@_successMessage</div>
-    }
-
-    <div class="settings-grid">
-        <!-- Message limits -->
-        <section class="settings-section">
-            <h2>Message Limits</h2>
-
-            <div class="form-group">
-                <label for="chat-max-message-length">Maximum message length</label>
-                <input id="chat-max-message-length" type="number" class="input" min="1" max="10000"
-                       @bind="_maxMessageLength" />
-                <span class="hint">
-                    Maximum number of characters in a single message (1&ndash;10000). Longer messages
-                    are rejected.
-                </span>
-            </div>
-
-            <div class="form-group">
-                <label for="chat-max-messages">Maximum messages per channel</label>
-                <input id="chat-max-messages" type="number" class="input" min="0"
-                       @bind="_maxMessagesPerChannel" />
-                <span class="hint">
-                    How many messages a channel keeps. <strong>0 = unlimited.</strong> Once the limit is
-                    exceeded the oldest messages expire according to the policy below &mdash; the channel
-                    always stays writable.
-                </span>
-            </div>
-        </section>
-
-        <!-- Attachment limits -->
-        <section class="settings-section">
-            <h2>Attachment Limits</h2>
-
-            <div class="form-group">
-                <label for="chat-max-attachments-per-message">Maximum attachments per message</label>
-                <input id="chat-max-attachments-per-message" type="number" class="input" min="1" max="100"
-                       @bind="_maxAttachmentsPerMessage" />
-                <span class="hint">Maximum number of files attached to a single message (1&ndash;100).</span>
-            </div>
-
-            <div class="form-group">
-                <label for="chat-max-attachment-size">Maximum size of one attachment (MB)</label>
-                <input id="chat-max-attachment-size" type="number" class="input" min="1" max="64"
-                       @bind="_maxAttachmentSizeMb" />
-                <span class="hint">
-                    Largest single attachment a user may upload or share into chat (1&ndash;64 MB).
-                </span>
-            </div>
-
-            <div class="form-group">
-                <label for="chat-max-attachments-per-channel">Maximum attachments per channel</label>
-                <input id="chat-max-attachments-per-channel" type="number" class="input" min="0"
-                       @bind="_maxAttachmentsPerChannel" />
-                <span class="hint">
-                    How many attachments a channel holds. <strong>0 = unlimited.</strong> New attachments
-                    are rejected once the limit is reached. Attachments on archived messages no longer
-                    count.
-                </span>
-            </div>
-
-            <div class="form-group">
-                <label for="chat-max-attachment-storage">Maximum attachment storage per channel (MB)</label>
-                <input id="chat-max-attachment-storage" type="number" class="input" min="0"
-                       @bind="_maxAttachmentStoragePerChannelMb" />
-                <span class="hint">
-                    Total size of all attachments in a channel. <strong>0 = unlimited.</strong> Uploads
-                    that would exceed it are rejected. Attachments on archived messages no longer count.
-                </span>
-            </div>
-        </section>
-
-        <!-- Retention & archiving -->
-        <section class="settings-section">
-            <h2>Retention &amp; Archiving</h2>
-
-            <div class="form-group">
-                <label>Enable automatic retention</label>
-                <input type="checkbox" @bind="_retentionEnabled" />
-                <span class="hint">
-                    Master switch for automatic expiry. When off, the message lifetime and message-count
-                    limit below are not applied (the limits above are still enforced as you type them).
-                </span>
-            </div>
-
-            <div class="form-group">
-                <label for="chat-message-lifetime">Message lifetime (days)</label>
-                <input id="chat-message-lifetime" type="number" class="input" min="0"
-                       @bind="_messageLifetimeDays" />
-                <span class="hint">
-                    Messages older than this expire. <strong>0 = keep forever.</strong>
-                </span>
-            </div>
-
-            <div class="form-group">
-                <label for="chat-retention-mode">When a message expires</label>
-                <select id="chat-retention-mode" class="input" @bind="_retentionMode">
-                    <option value="Archive">Archive &mdash; hide it but keep the data</option>
-                    <option value="Purge">Purge &mdash; delete it permanently</option>
-                </select>
-                <span class="hint">
-                    Archiving keeps messages in the database but removes them from channels and search, so
-                    an administrator can still recover them. Purging is irreversible.
-                </span>
-            </div>
-
-            <div class="form-group">
-                <label>Keep attachments of archived messages</label>
-                <input type="checkbox" @bind="_archiveAttachments" disabled="@(_retentionMode != "Archive")" />
-                <span class="hint">
-                    When enabled, attachments on archived messages are retained with them. When disabled,
-                    only the message text is kept and the attachment records are removed.
-                </span>
-            </div>
-
-            <div class="form-group">
-                <label for="chat-sweep-interval">Run the sweep every (minutes)</label>
-                <input id="chat-sweep-interval" type="number" class="input" min="1" max="1440"
-                       @bind="_sweepIntervalMinutes" />
-                <span class="hint">How often the background retention sweep runs (1&ndash;1440 minutes).</span>
-            </div>
-        </section>
+    <div class="page-header">
+        <h1>Chat Module Settings</h1>
+        <div class="page-header-actions">
+            <a href="/admin/push-notifications" class="btn btn-outline btn-sm">Push Notifications</a>
+            <a href="/admin/settings?module=dotnetcloud.chat" class="btn btn-outline btn-sm">All Chat Settings</a>
+        </div>
     </div>
 
-    @if (!string.IsNullOrEmpty(_validationMessage))
+    <p class="page-intro">
+        Control how much chat history and attachment data the server keeps. Limits are enforced as
+        messages and attachments are written; the retention policy is applied by a background sweep.
+    </p>
+
+    @if (_loading)
     {
-        <div class="alert alert-warning" role="alert">@_validationMessage</div>
+        <LoadingIndicator Message="Loading chat settings..." />
     }
-
-    <div class="form-actions">
-        <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
-            @(_saving ? "Saving..." : "Save Settings")
-        </button>
-    </div>
-
-    <!-- Effective policy / manual sweep -->
-    <section class="settings-section" style="margin-top: 2rem;">
-        <h2>Currently Enforced</h2>
-
-        @if (_effective is null)
+    else
+    {
+        @if (!string.IsNullOrEmpty(_errorMessage))
         {
-            <p class="text-muted">
-                The Chat module is not reachable, so the effective policy cannot be shown.
-                Settings are still saved and take effect once the module is running.
-            </p>
+            <div class="alert alert-danger" role="alert">@_errorMessage</div>
         }
-        else
+
+        @if (!string.IsNullOrEmpty(_successMessage))
         {
-            <ul class="coverage-list">
-                <li>Messages: max <strong>@_effective.MaxMessageLength</strong> characters</li>
-                <li>
-                    Messages per channel:
-                    <strong>@(_effective.MaxMessagesPerChannel > 0 ? _effective.MaxMessagesPerChannel.ToString() : "unlimited")</strong>
-                </li>
-                <li>
-                    Attachments per message: <strong>@_effective.MaxAttachmentsPerMessage</strong>;
-                    per attachment: <strong>@_effective.MaxAttachmentSizeMb MB</strong>
-                </li>
-                <li>
-                    Attachments per channel:
-                    <strong>@(_effective.MaxAttachmentsPerChannel > 0 ? _effective.MaxAttachmentsPerChannel.ToString() : "unlimited")</strong>;
-                    storage per channel:
-                    <strong>@(_effective.MaxAttachmentStoragePerChannelMb > 0 ? $"{_effective.MaxAttachmentStoragePerChannelMb} MB" : "unlimited")</strong>
-                </li>
-                <li>
-                    Retention:
-                    @if (_effective.RetentionPolicyActive)
-                    {
-                        <strong>@_effective.RetentionMode</strong>
-                        <text> messages older than @_effective.MessageLifetimeDays day(s) / beyond the channel cap, checked every @_effective.SweepIntervalMinutes minute(s)</text>
-                    }
-                    else
-                    {
-                        <strong>inactive</strong>
-                        <text> &mdash; nothing expires automatically</text>
-                    }
-                </li>
-            </ul>
+            <div class="alert alert-success" role="alert">@_successMessage</div>
+        }
+
+        <div class="settings-grid">
+            <!-- Message limits -->
+            <section class="settings-section">
+                <h2>
+                    <span class="section-icon">
+                        <MaterialIcon Icon="chat" Size="MaterialIconSize.Sm" />
+                    </span>
+                    Message Limits
+                </h2>
+
+                <div class="form-group">
+                    <label for="chat-max-message-length">Maximum message length</label>
+                    <input id="chat-max-message-length" type="number" class="input" min="1" max="10000"
+                           @bind="_maxMessageLength" />
+                    <span class="hint">
+                        Maximum number of characters in a single message (1&ndash;10000). The chat composers stop
+                        accepting input at this length; the server rejects anything longer as a safety net.
+                    </span>
+                </div>
+
+                <div class="form-group">
+                    <label for="chat-max-messages">Maximum messages per channel</label>
+                    <input id="chat-max-messages" type="number" class="input" min="0" @bind="_maxMessagesPerChannel" />
+                    <span class="hint">
+                        How many messages a channel keeps. <strong>0 = unlimited.</strong> Once the limit is
+                        exceeded the oldest messages expire according to the Retention &amp; Archiving settings
+                        below &mdash; the channel always stays writable.
+                    </span>
+                </div>
+            </section>
+
+            <!-- Attachment limits -->
+            <section class="settings-section">
+                <h2>
+                    <span class="section-icon">
+                        <MaterialIcon Icon="attach_file" Size="MaterialIconSize.Sm" />
+                    </span>
+                    Attachment Limits
+                </h2>
+
+                <div class="form-group">
+                    <label for="chat-max-attachments-per-message">Maximum attachments per message</label>
+                    <input id="chat-max-attachments-per-message" type="number" class="input" min="1" max="100"
+                           @bind="_maxAttachmentsPerMessage" />
+                    <span class="hint">Maximum number of files attached to a single message (1&ndash;100).</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="chat-max-attachment-size">Maximum size of one attachment (MB)</label>
+                    <input id="chat-max-attachment-size" type="number" class="input" min="1" max="64"
+                           @bind="_maxAttachmentSizeMb" />
+                    <span class="hint">
+                        Largest single attachment a user may upload or share into chat (1&ndash;64 MB).
+                    </span>
+                </div>
+
+                <div class="form-group">
+                    <label for="chat-max-attachments-per-channel">Maximum attachments per channel</label>
+                    <input id="chat-max-attachments-per-channel" type="number" class="input" min="0"
+                           @bind="_maxAttachmentsPerChannel" />
+                    <span class="hint">
+                        How many attachments a channel holds. <strong>0 = unlimited.</strong> Uploads are never
+                        rejected: once the limit is reached the oldest messages with attachments expire
+                        according to the Retention &amp; Archiving settings below.
+                    </span>
+                </div>
+
+                <div class="form-group">
+                    <label for="chat-max-attachment-storage">Maximum attachment storage per channel (MB)</label>
+                    <input id="chat-max-attachment-storage" type="number" class="input" min="0"
+                           @bind="_maxAttachmentStoragePerChannelMb" />
+                    <span class="hint">
+                        Total size of all attachments in a channel. <strong>0 = unlimited.</strong> Uploads are
+                        never rejected: once the ceiling is reached the oldest messages with attachments expire
+                        according to the Retention &amp; Archiving settings below.
+                    </span>
+                </div>
+            </section>
+
+            <!-- Retention & archiving -->
+            <section class="settings-section">
+                <h2>
+                    <span class="section-icon">
+                        <MaterialIcon Icon="schedule" Size="MaterialIconSize.Sm" />
+                    </span>
+                    Retention &amp; Archiving
+                </h2>
+
+                <label class="toggle-row">
+                    <span class="toggle-text">
+                        <span class="toggle-title">Enable automatic retention</span>
+                        <span class="hint">
+                            Master switch for automatic expiry: message lifetime, the per-channel message cap,
+                            and expiring the oldest attachments when a channel attachment ceiling is reached.
+                            When off, nothing expires automatically (the per-message limits above are still
+                            enforced as you type them).
+                        </span>
+                    </span>
+                    <input type="checkbox" class="toggle-input" @bind="_retentionEnabled" />
+                </label>
+
+                <div class="form-group">
+                    <label for="chat-message-lifetime">Message lifetime (days)</label>
+                    <input id="chat-message-lifetime" type="number" class="input" min="0" @bind="_messageLifetimeDays" />
+                    <span class="hint">
+                        Messages older than this expire. <strong>0 = keep forever.</strong>
+                    </span>
+                </div>
+
+                <div class="form-group">
+                    <label for="chat-retention-mode">When a message expires</label>
+                    <select id="chat-retention-mode" class="input" @bind="_retentionMode">
+                        <option value="Archive">Archive &mdash; export it to disk, then remove it</option>
+                        <option value="Purge">Purge &mdash; delete it permanently</option>
+                    </select>
+                    <span class="hint">
+                        <strong>Archive</strong> writes each expired message (and, optionally, its attachment
+                        files) to the archive location below and then removes its database rows, so the disk
+                        copy is the archive of record. <strong>Purge</strong> deletes the rows outright and is
+                        irreversible.
+                    </span>
+                </div>
+
+                <div class="form-group">
+                    <label for="chat-archive-path">Archive location</label>
+                    <input id="chat-archive-path" type="text" class="input"
+                           placeholder="(default under the server data directory)" @bind="_archivePath" />
+                    <span class="hint">
+                        Filesystem folder archived messages are written to (Archive mode only). Messages are
+                        grouped into <strong>year</strong> then <strong>month</strong> folders inside it. Leave
+                        blank to use the default location on the server's data directory.
+                    </span>
+                </div>
+
+                <label class="toggle-row">
+                    <span class="toggle-text">
+                        <span class="toggle-title">Keep attachments of archived messages</span>
+                        <span class="hint">
+                            When enabled, attachment files the Chat module stores are copied into the archive
+                            folder alongside the message. When disabled, only the message text is archived.
+                        </span>
+                    </span>
+                    <input type="checkbox" class="toggle-input" @bind="_archiveAttachments"
+                           disabled="@(_retentionMode != "Archive")" />
+                </label>
+
+                <div class="form-group">
+                    <label for="chat-sweep-interval">Run the sweep every (minutes)</label>
+                    <input id="chat-sweep-interval" type="number" class="input" min="1" max="1440"
+                           @bind="_sweepIntervalMinutes" />
+                    <span class="hint">How often the background retention sweep runs (1&ndash;1440 minutes).</span>
+                </div>
+            </section>
+        </div>
+
+        @if (!string.IsNullOrEmpty(_validationMessage))
+        {
+            <div class="alert alert-warning" role="alert">@_validationMessage</div>
         }
 
         <div class="form-actions">
-            <button class="btn btn-outline" @onclick="RunSweepAsync" disabled="@_sweeping">
-                <MaterialIcon Icon="sync" Size="MaterialIconSize.Sm" />
-                @(_sweeping ? "Running sweep..." : "Run retention sweep now")
+            <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
+                <MaterialIcon Icon="save" Size="MaterialIconSize.Sm" />
+                @(_saving ? "Saving..." : "Save Settings")
             </button>
         </div>
 
-        @if (_lastSweep is not null)
-        {
-            <p class="hint">
-                Last sweep: @_lastSweep.ChannelsScanned channel(s) scanned,
-                @_lastSweep.MessagesArchived archived, @_lastSweep.MessagesPurged purged,
-                @_lastSweep.AttachmentsRemoved attachment(s) and @_lastSweep.PinsRemoved pin(s) removed
-                @(_lastSweep.Skipped ? "(skipped &mdash; retention is disabled)." : $"(at {_lastSweep.CompletedAtUtc:u}).")
-            </p>
-        }
-    </section>
-}
+        <!-- Effective policy / manual sweep -->
+        <section class="settings-section settings-section--wide">
+            <h2>
+                <span class="section-icon">
+                    <MaterialIcon Icon="check_circle" Size="MaterialIconSize.Sm" />
+                </span>
+                Currently Enforced
+            </h2>
+
+            @if (_effective is null)
+            {
+                <p class="text-muted">
+                    The Chat module is not reachable, so the effective policy cannot be shown.
+                    Settings are still saved and take effect once the module is running.
+                </p>
+            }
+            else
+            {
+                <ul class="coverage-list">
+                    <li>
+                        <MaterialIcon Icon="check" Size="MaterialIconSize.Sm" CssClass="coverage-check" />
+                        <span>Messages: max <strong>@_effective.MaxMessageLength</strong> characters</span>
+                    </li>
+                    <li>
+                        <MaterialIcon Icon="check" Size="MaterialIconSize.Sm" CssClass="coverage-check" />
+                        <span>
+                            Messages per channel:
+                            <strong>@(_effective.MaxMessagesPerChannel > 0 ? _effective.MaxMessagesPerChannel.ToString() :
+                                                      "unlimited")</strong>
+                            </span>
+                        </li>
+                        <li>
+                            <MaterialIcon Icon="check" Size="MaterialIconSize.Sm" CssClass="coverage-check" />
+                            <span>
+                                Attachments per message: <strong>@_effective.MaxAttachmentsPerMessage</strong>;
+                                per attachment: <strong>@_effective.MaxAttachmentSizeMb MB</strong>
+                            </span>
+                        </li>
+                        <li>
+                            <MaterialIcon Icon="check" Size="MaterialIconSize.Sm" CssClass="coverage-check" />
+                            <span>
+                                Attachments per channel:
+                                <strong>@(_effective.MaxAttachmentsPerChannel > 0 ? _effective.MaxAttachmentsPerChannel.ToString() :
+                                          "unlimited")</strong>;
+                                    storage per channel:
+                                    <strong>@(_effective.MaxAttachmentStoragePerChannelMb > 0 ?
+                                                                $"{_effective.MaxAttachmentStoragePerChannelMb} MB" : "unlimited")</strong>
+                                    </span>
+                                </li>
+                                <li>
+                                    <MaterialIcon Icon="check" Size="MaterialIconSize.Sm" CssClass="coverage-check" />
+                                    <span>
+                                        Retention:
+                                        @if (_effective.RetentionPolicyActive)
+                                        {
+                                            <strong>@_effective.RetentionMode</strong>
+                                            <text> messages older than @_effective.MessageLifetimeDays day(s) / beyond the channel cap, checked
+                                                every @_effective.SweepIntervalMinutes minute(s)</text>
+                                            }
+                        else
+                                            {
+                                                <strong>inactive</strong>
+                                                <text> &mdash; nothing expires automatically</text>
+                                            }
+                                        </span>
+                                    </li>
+                                    @if (_effective.RetentionPolicyActive && _effective.RetentionMode == "Archive")
+                                    {
+                                        <li>
+                                            <MaterialIcon Icon="check" Size="MaterialIconSize.Sm" CssClass="coverage-check" />
+                                            <span>
+                                                Archive location: <strong>@(_effective.ArchivePath ?? "(default)")</strong>
+                                            </span>
+                                        </li>
+                                    }
+                                </ul>
+                            }
+
+                            <div class="form-actions">
+                                <button class="btn btn-outline" @onclick="RunSweepAsync" disabled="@_sweeping">
+                                    <MaterialIcon Icon="sync" Size="MaterialIconSize.Sm" />
+                                    @(_sweeping ? "Running sweep..." : "Run retention sweep now")
+                                </button>
+                            </div>
+
+                            @if (_lastSweep is not null)
+                            {
+                                <p class="hint">
+                                    Last sweep: @_lastSweep.ChannelsScanned channel(s) scanned,
+                                    @_lastSweep.MessagesArchived archived, @_lastSweep.MessagesPurged purged,
+                                    @_lastSweep.AttachmentsRemoved attachment row(s) removed,
+                                    @_lastSweep.AttachmentsArchived attachment file(s) written to the archive and
+                                    @_lastSweep.PinsRemoved pin(s) removed
+                                    @(_lastSweep.Skipped ? "(skipped &mdash; retention is disabled)." : $"(at {_lastSweep.CompletedAtUtc:u}).")
+                                    @if (_lastSweep.MessagesSkipped > 0)
+                                    {
+                                        <text> @_lastSweep.MessagesSkipped message(s) could not be archived and were kept; the next sweep retries
+                                            them.</text>
+                                        }
+                                    </p>
+                                }
+                            </section>
+                        }
+
+                    </div>
 
 @code {
     [Inject] private DotNetCloudApiClient Api { get; set; } = default!;
@@ -259,6 +338,7 @@ else
     private bool _retentionEnabled;
     private int _messageLifetimeDays;
     private string _retentionMode = "Archive";
+    private string _archivePath = string.Empty;
     private bool _archiveAttachments = true;
     private int _sweepIntervalMinutes = 60;
 
@@ -299,6 +379,7 @@ else
         _retentionEnabled = GetBool(settings, "Retention:Enabled");
         _messageLifetimeDays = GetInt(settings, "Retention:MessageLifetimeDays", 0);
         _retentionMode = NormalizeMode(GetString(settings, "Retention:Mode"));
+        _archivePath = GetString(settings, "Retention:ArchivePath");
         _archiveAttachments = GetBool(settings, "Retention:ArchiveAttachments", defaultValue: true);
         _sweepIntervalMinutes = GetInt(settings, "Retention:SweepIntervalMinutes", 60);
     }
@@ -339,6 +420,8 @@ else
                     Str(_retentionMode, "What happens to expired messages: 'Archive' (hide but keep) or 'Purge' (permanently delete)")),
                 Api.UpsertSettingAsync(Module, "Retention:ArchiveAttachments",
                     Str(_archiveAttachments.ToString(), "When true, attachments of archived messages are retained")),
+                Api.UpsertSettingAsync(Module, "Retention:ArchivePath",
+                    Str(_archivePath.Trim(), "Filesystem folder archived messages are exported to before their rows are deleted (blank = default under the server data directory)")),
                 Api.UpsertSettingAsync(Module, "Retention:SweepIntervalMinutes",
                     Str(_sweepIntervalMinutes.ToString(), "How often the chat retention sweep runs, in minutes"))
             };
@@ -428,10 +511,18 @@ else
         if (_sweepIntervalMinutes < 1 || _sweepIntervalMinutes > 1440)
             return "The sweep interval must be between 1 and 1440 minutes.";
 
-        if (_retentionEnabled && _messageLifetimeDays == 0 && _maxMessagesPerChannel == 0)
+        if (_retentionEnabled && _messageLifetimeDays == 0 && _maxMessagesPerChannel == 0
+            && _maxAttachmentsPerChannel == 0 && _maxAttachmentStoragePerChannelMb == 0)
         {
-            return "Automatic retention is enabled but nothing will expire: set a message lifetime " +
-                   "or a maximum number of messages per channel.";
+            return "Automatic retention is enabled but nothing will expire: set a message lifetime, " +
+                   "a maximum number of messages per channel, or a per-channel attachment ceiling.";
+        }
+
+        var archivePath = _archivePath.Trim();
+        if (_retentionMode == "Archive" && archivePath.Length > 0 && !Path.IsPathRooted(archivePath))
+        {
+            return "The archive location must be an absolute path (for example " +
+                   "/var/lib/dotnetcloud/storage/chat-archive).";
         }
 
         return null;

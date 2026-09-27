@@ -31,6 +31,7 @@ internal sealed class MessageService : IMessageService
     private readonly IUserBlockService? _userBlockService;
     private readonly ILinkPreviewService? _linkPreviewService;
     private readonly IChatSettingsProvider? _settingsProvider;
+    private readonly IChatMessageExpiryService? _expiryService;
     private readonly ILogger<MessageService> _logger;
 
     public MessageService(
@@ -42,7 +43,8 @@ internal sealed class MessageService : IMessageService
         IMentionNotificationService? mentionNotifier = null,
         IUserBlockService? userBlockService = null,
         ILinkPreviewService? linkPreviewService = null,
-        IChatSettingsProvider? settingsProvider = null)
+        IChatSettingsProvider? settingsProvider = null,
+        IChatMessageExpiryService? expiryService = null)
     {
         _db = db;
         _eventBus = eventBus;
@@ -53,6 +55,7 @@ internal sealed class MessageService : IMessageService
         _userBlockService = userBlockService;
         _linkPreviewService = linkPreviewService;
         _settingsProvider = settingsProvider;
+        _expiryService = expiryService;
     }
 
     /// <inheritdoc />
@@ -82,7 +85,8 @@ internal sealed class MessageService : IMessageService
                 pendingBytes += Math.Max(0, att.FileSize);
             }
 
-            await EnsureChannelAttachmentBudgetAsync(channelId, attachments.Count, pendingBytes, settings, cancellationToken);
+            await MakeRoomForAttachmentsAsync(
+                channelId, attachments.Count, pendingBytes, settings, cancellationToken);
         }
 
         var isMember = await _db.ChannelMembers
@@ -420,7 +424,7 @@ internal sealed class MessageService : IMessageService
         var settings = await ResolveSettingsAsync(cancellationToken);
         ValidateAttachmentCount(settings, message.Attachments.Count + 1);
         ValidateAttachmentSize(settings, dto.FileSize);
-        await EnsureChannelAttachmentBudgetAsync(channelId, 1, Math.Max(0, dto.FileSize), settings, cancellationToken);
+        await MakeRoomForAttachmentsAsync(channelId, 1, Math.Max(0, dto.FileSize), settings, cancellationToken);
 
         var nextSortOrder = message.Attachments.Count > 0
             ? message.Attachments.Max(a => a.SortOrder) + 1
@@ -510,16 +514,22 @@ internal sealed class MessageService : IMessageService
     }
 
     /// <summary>
-    /// Rejects a write that would push the channel past its attachment count or total
-    /// attachment-storage ceiling.
+    /// Keeps a channel inside its attachment count/storage budget by expiring the oldest messages
+    /// that carry attachments, instead of rejecting the write.
     /// </summary>
     /// <remarks>
-    /// Only attachments on live messages count, so archiving (or purging) old messages frees
-    /// the channel's attachment budget again.
+    /// Mirrors how the per-channel <i>message</i> cap behaves: the channel always stays writable and
+    /// its oldest content expires. This needs the retention master switch, because "expire the
+    /// oldest" is the retention policy's job — with retention off the attachment ceilings are inert.
+    /// In Archive mode the expired messages are written to the archive directory before their rows
+    /// are deleted, so a failed export keeps them and the write still succeeds.
     /// </remarks>
-    private async Task EnsureChannelAttachmentBudgetAsync(
+    private async Task MakeRoomForAttachmentsAsync(
         Guid channelId, int additionalCount, long additionalBytes, ChatSettings settings, CancellationToken cancellationToken)
     {
+        if (_expiryService is null || !settings.RetentionEnabled)
+            return;
+
         if (!settings.HasAttachmentCountLimit && !settings.HasAttachmentStorageLimit)
             return;
 
@@ -528,29 +538,54 @@ internal sealed class MessageService : IMessageService
             && a.Message.ArchivedAt == null
             && !a.Message.IsDeleted);
 
+        long overCount = 0;
         if (settings.HasAttachmentCountLimit)
         {
             var existingCount = await liveAttachments.CountAsync(cancellationToken);
-            if (existingCount + additionalCount > settings.MaxAttachmentsPerChannel)
-            {
-                throw new ArgumentException(
-                    $"Channel attachment limit of {settings.MaxAttachmentsPerChannel} reached. " +
-                    "Delete or archive older attachments, or raise the limit in admin settings.",
-                    nameof(additionalCount));
-            }
+            overCount = Math.Max(0, (long)existingCount + additionalCount - settings.MaxAttachmentsPerChannel);
         }
 
+        long overBytes = 0;
         if (settings.HasAttachmentStorageLimit)
         {
             var existingBytes = await liveAttachments.SumAsync(a => (long?)a.FileSize, cancellationToken) ?? 0;
-            if (existingBytes + additionalBytes > settings.MaxAttachmentStoragePerChannelBytes)
-            {
-                throw new ArgumentException(
-                    $"The channel attachment storage limit of {settings.MaxAttachmentStoragePerChannelMb} MB " +
-                    "would be exceeded. Delete or archive older attachments, or raise the limit in admin settings.",
-                    nameof(additionalBytes));
-            }
+            overBytes = Math.Max(0, existingBytes + additionalBytes - settings.MaxAttachmentStoragePerChannelBytes);
         }
+
+        if (overCount == 0 && overBytes == 0)
+            return;
+
+        var candidates = await _db.Messages
+            .Where(m => m.ChannelId == channelId && m.Attachments.Count > 0)
+            .OrderBy(m => m.SentAt)
+            .Select(m => new
+            {
+                m.Id,
+                Count = m.Attachments.Count,
+                Bytes = m.Attachments.Sum(a => (long)a.FileSize)
+            })
+            .ToListAsync(cancellationToken);
+
+        var toExpire = new List<Guid>();
+        foreach (var candidate in candidates)
+        {
+            if (overCount <= 0 && overBytes <= 0)
+                break;
+
+            toExpire.Add(candidate.Id);
+            overCount -= candidate.Count;
+            overBytes -= candidate.Bytes;
+        }
+
+        if (toExpire.Count == 0)
+            return;
+
+        var outcome = await _expiryService.ExpireAsync(_db, toExpire, settings, cancellationToken);
+
+        _logger.LogInformation(
+            "Channel {ChannelId} attachment budget reached; expired {Expired} of {Candidates} oldest " +
+            "message(s) with attachments ({Mode}) to make room.",
+            channelId, outcome.RemovedMessageIds.Count, toExpire.Count, settings.RetentionMode);
     }
 
     /// <summary>

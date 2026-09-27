@@ -4,120 +4,123 @@
 
 <PageTitle>Push Notifications - DotNetCloud</PageTitle>
 
-<div class="page-header">
-    <h1>Push Notification Settings</h1>
-    <div class="page-header-actions">
-        <a href="/admin/settings?module=dotnetcloud.chat" class="btn btn-outline btn-sm">All Chat Settings</a>
+<div class="admin-settings-page">
+
+    <div class="page-header">
+        <h1>Push Notification Settings</h1>
+        <div class="page-header-actions">
+            <a href="/admin/settings?module=dotnetcloud.chat" class="btn btn-outline btn-sm">All Chat Settings</a>
+        </div>
     </div>
+
+    <p class="text-muted">
+        Configure Firebase Cloud Messaging (FCM) for delivering push notifications to mobile and desktop clients.
+    </p>
+
+    @if (_loading)
+    {
+        <LoadingIndicator Message="Loading push notification settings..." />
+    }
+    else
+    {
+        <div class="settings-grid">
+            <!-- FCM Configuration -->
+            <section class="settings-section">
+                <h2>Firebase Cloud Messaging (FCM)</h2>
+
+                <div class="form-group">
+                    <label>Enabled</label>
+                    <input type="checkbox" @bind="_fcmEnabled" />
+                    <span class="hint">Enable push notifications via Google Firebase Cloud Messaging.</span>
+                </div>
+
+                <div class="form-group">
+                    <label>Project ID</label>
+                    <input type="text" class="input" @bind="_fcmProjectId" placeholder="my-project-123456" />
+                    <span class="hint">
+                        Firebase project identifier. Found in your Firebase Console → Project Settings → General.
+                    </span>
+                </div>
+
+                <div class="form-group">
+                    <label>Service Account Credentials Path</label>
+                    <input type="text" class="input" @bind="_fcmCredentialsPath"
+                           placeholder="/etc/dotnetcloud/firebase-credentials.json" />
+                    <span class="hint">
+                        Absolute path to the Google service account JSON key file on the server.
+                        Generate one in the Firebase Console → Project Settings → Service Accounts → Generate New Private
+                        Key.
+                        The file must be readable by the DotNetCloud service account.
+                    </span>
+                </div>
+
+                <div class="form-group">
+                    <label>Credentials Status</label>
+                    @if (string.IsNullOrWhiteSpace(_fcmCredentialsPath))
+                    {
+                        <span class="badge badge-muted">Not configured</span>
+                    }
+                    else
+                    {
+                        <span class="badge badge-info">Path set (server validates on startup)</span>
+                    }
+                </div>
+
+                <div class="form-group">
+                    <label>Dry-Run Mode</label>
+                    <input type="checkbox" @bind="_fcmDryRun" />
+                    <span class="hint">
+                        When enabled, FCM messages are validated but not delivered. Useful for
+                        testing the integration without sending real notifications.
+                    </span>
+                </div>
+            </section>
+
+            <!-- Notification Behavior -->
+            <section class="settings-section">
+                <h2>Delivery Settings</h2>
+
+                <div class="form-group">
+                    <label>File Share Notifications</label>
+                    <input type="checkbox" @bind="_notifyFileShared" />
+                    <span class="hint">Send push notification when a file is shared with a user.</span>
+                </div>
+
+                <div class="form-group">
+                    <label>Public Link Access Notifications</label>
+                    <input type="checkbox" @bind="_notifyPublicLinkAccessed" />
+                    <span class="hint">Notify the share creator when their public link is first accessed.</span>
+                </div>
+
+                <div class="form-group">
+                    <label>Quota Warning Notifications</label>
+                    <input type="checkbox" @bind="_notifyQuotaWarning" />
+                    <span class="hint">Send push notification when storage quota reaches 80% or 95%.</span>
+                </div>
+
+                <div class="form-group">
+                    <label>Share Expiry Notifications</label>
+                    <input type="checkbox" @bind="_notifyShareExpiring" />
+                    <span class="hint">Notify users when their shared links are about to expire.</span>
+                </div>
+
+                <div class="form-group">
+                    <label>Chat Mention Notifications</label>
+                    <input type="checkbox" @bind="_notifyChatMention" />
+                    <span class="hint">Send push notification when a user is mentioned in a chat message.</span>
+                </div>
+            </section>
+        </div>
+
+        <div class="form-actions">
+            <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
+                @(_saving ? "Saving..." : "Save Settings")
+            </button>
+        </div>
+    }
+
+    <ConfirmDialog @ref="_confirmDialog" />
 </div>
-
-<p class="text-muted">
-    Configure Firebase Cloud Messaging (FCM) for delivering push notifications to mobile and desktop clients.
-</p>
-
-@if (_loading)
-{
-    <LoadingIndicator Message="Loading push notification settings..." />
-}
-else
-{
-    <div class="settings-grid">
-        <!-- FCM Configuration -->
-        <section class="settings-section">
-            <h2>Firebase Cloud Messaging (FCM)</h2>
-
-            <div class="form-group">
-                <label>Enabled</label>
-                <input type="checkbox" @bind="_fcmEnabled" />
-                <span class="hint">Enable push notifications via Google Firebase Cloud Messaging.</span>
-            </div>
-
-            <div class="form-group">
-                <label>Project ID</label>
-                <input type="text" class="input" @bind="_fcmProjectId" placeholder="my-project-123456" />
-                <span class="hint">
-                    Firebase project identifier. Found in your Firebase Console → Project Settings → General.
-                </span>
-            </div>
-
-            <div class="form-group">
-                <label>Service Account Credentials Path</label>
-                <input type="text" class="input" @bind="_fcmCredentialsPath"
-                       placeholder="/etc/dotnetcloud/firebase-credentials.json" />
-                <span class="hint">
-                    Absolute path to the Google service account JSON key file on the server.
-                    Generate one in the Firebase Console → Project Settings → Service Accounts → Generate New Private Key.
-                    The file must be readable by the DotNetCloud service account.
-                </span>
-            </div>
-
-            <div class="form-group">
-                <label>Credentials Status</label>
-                @if (string.IsNullOrWhiteSpace(_fcmCredentialsPath))
-                {
-                    <span class="badge badge-muted">Not configured</span>
-                }
-                else
-                {
-                    <span class="badge badge-info">Path set (server validates on startup)</span>
-                }
-            </div>
-
-            <div class="form-group">
-                <label>Dry-Run Mode</label>
-                <input type="checkbox" @bind="_fcmDryRun" />
-                <span class="hint">
-                    When enabled, FCM messages are validated but not delivered. Useful for
-                    testing the integration without sending real notifications.
-                </span>
-            </div>
-        </section>
-
-        <!-- Notification Behavior -->
-        <section class="settings-section">
-            <h2>Delivery Settings</h2>
-
-            <div class="form-group">
-                <label>File Share Notifications</label>
-                <input type="checkbox" @bind="_notifyFileShared" />
-                <span class="hint">Send push notification when a file is shared with a user.</span>
-            </div>
-
-            <div class="form-group">
-                <label>Public Link Access Notifications</label>
-                <input type="checkbox" @bind="_notifyPublicLinkAccessed" />
-                <span class="hint">Notify the share creator when their public link is first accessed.</span>
-            </div>
-
-            <div class="form-group">
-                <label>Quota Warning Notifications</label>
-                <input type="checkbox" @bind="_notifyQuotaWarning" />
-                <span class="hint">Send push notification when storage quota reaches 80% or 95%.</span>
-            </div>
-
-            <div class="form-group">
-                <label>Share Expiry Notifications</label>
-                <input type="checkbox" @bind="_notifyShareExpiring" />
-                <span class="hint">Notify users when their shared links are about to expire.</span>
-            </div>
-
-            <div class="form-group">
-                <label>Chat Mention Notifications</label>
-                <input type="checkbox" @bind="_notifyChatMention" />
-                <span class="hint">Send push notification when a user is mentioned in a chat message.</span>
-            </div>
-        </section>
-    </div>
-
-    <div class="form-actions">
-        <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
-            @(_saving ? "Saving..." : "Save Settings")
-        </button>
-    </div>
-}
-
-<ConfirmDialog @ref="_confirmDialog" />
-
 @code {
     [Inject] private DotNetCloudApiClient Api { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;

@@ -75,6 +75,14 @@ public sealed record ChatSettings
     /// <summary>How often the retention sweep runs, in minutes.</summary>
     public int SweepIntervalMinutes { get; init; } = DefaultSweepIntervalMinutes;
 
+    /// <summary>
+    /// Filesystem directory that expired messages are exported to when
+    /// <see cref="RetentionMode"/> is <see cref="ChatRetentionMode.Archive"/>, before their rows
+    /// are deleted. <see langword="null"/> or blank means the default location
+    /// (<c>{DOTNETCLOUD_DATA_DIR}/storage/chat-archive</c>).
+    /// </summary>
+    public string? ArchivePath { get; init; }
+
     /// <summary>Maximum size in bytes of a single attachment.</summary>
     public long MaxAttachmentSizeBytes => MaxAttachmentSizeMb * 1024L * 1024L;
 
@@ -93,11 +101,14 @@ public sealed record ChatSettings
     /// <summary>Whether a per-channel message count ceiling is enforced.</summary>
     public bool HasMessageCountLimit => MaxMessagesPerChannel > 0;
 
+    /// <summary>Whether a per-channel attachment count or storage ceiling is enforced.</summary>
+    public bool HasAttachmentCap => HasAttachmentCountLimit || HasAttachmentStorageLimit;
+
     /// <summary>Whether an age-based message lifetime is enforced.</summary>
     public bool HasMessageLifetime => MessageLifetimeDays > 0;
 
     /// <summary>Whether the retention policy would expire anything at all.</summary>
-    public bool HasRetentionPolicy => RetentionEnabled && (HasMessageCountLimit || HasMessageLifetime);
+    public bool HasRetentionPolicy => RetentionEnabled && (HasMessageCountLimit || HasMessageLifetime || HasAttachmentCap);
 
     /// <summary>
     /// Clamps every value into its supported range, mapping out-of-range or malformed
@@ -117,7 +128,8 @@ public sealed record ChatSettings
         MaxAttachmentStoragePerChannelMb = Math.Max(0, MaxAttachmentStoragePerChannelMb),
         MessageLifetimeDays = Math.Max(0, MessageLifetimeDays),
         SweepIntervalMinutes = Math.Clamp(
-            SweepIntervalMinutes <= 0 ? DefaultSweepIntervalMinutes : SweepIntervalMinutes, 1, 1440)
+            SweepIntervalMinutes <= 0 ? DefaultSweepIntervalMinutes : SweepIntervalMinutes, 1, 1440),
+        ArchivePath = string.IsNullOrWhiteSpace(ArchivePath) ? null : ArchivePath.Trim()
     };
 
     /// <summary>

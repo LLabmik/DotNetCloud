@@ -34,6 +34,7 @@ public class ChatSettingsProviderTests
         Assert.AreEqual(ChatSettings.DefaultMaxAttachmentSizeMb, settings.MaxAttachmentSizeMb);
         Assert.AreEqual(0, settings.MaxAttachmentStoragePerChannelMb);
         Assert.IsFalse(settings.RetentionEnabled);
+        Assert.IsNull(settings.ArchivePath, "No configured archive path means the default location is used.");
         Assert.AreEqual(0, settings.MessageLifetimeDays);
         Assert.AreEqual(ChatRetentionMode.Archive, settings.RetentionMode);
         Assert.IsTrue(settings.ArchiveAttachments);
@@ -57,7 +58,8 @@ public class ChatSettingsProviderTests
             Row(ChatSettingKeys.MessageLifetimeDays, "90"),
             Row(ChatSettingKeys.RetentionMode, "Purge"),
             Row(ChatSettingKeys.ArchiveAttachments, "false"),
-            Row(ChatSettingKeys.SweepIntervalMinutes, "15")
+            Row(ChatSettingKeys.SweepIntervalMinutes, "15"),
+            Row(ChatSettingKeys.ArchivePath, "  /srv/chat-archive  ")
         };
 
         var provider = CreateProvider(out _, rows, new Dictionary<string, string?>
@@ -79,6 +81,7 @@ public class ChatSettingsProviderTests
         Assert.AreEqual(ChatRetentionMode.Purge, settings.RetentionMode);
         Assert.IsFalse(settings.ArchiveAttachments);
         Assert.AreEqual(15, settings.SweepIntervalMinutes);
+        Assert.AreEqual("/srv/chat-archive", settings.ArchivePath, "The archive path is trimmed.");
     }
 
     [TestMethod]

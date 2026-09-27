@@ -496,19 +496,30 @@ public class DbInitializer
                 Value = "104857600",
                 Description = "Maximum file upload size in bytes (default: 100 MB)"
             },
+            // File versioning policy — the admin-editable overlay for Files:VersionRetention, written by
+            // Admin → File Settings (/admin/files) and read by the Files module. The legacy
+            // EnableVersioning / MaxVersionsPerFile rows were never read by any code path, so they are
+            // replaced by these keys instead of leaving a second, dead copy of the same settings.
             new SystemSetting
             {
                 Module = "dotnetcloud.files",
-                Key = "EnableVersioning",
+                Key = "VersionRetention:Enabled",
                 Value = "true",
-                Description = "Enable file versioning"
+                Description = "Record file version history (false = keep only the current version of each file)"
             },
             new SystemSetting
             {
                 Module = "dotnetcloud.files",
-                Key = "MaxVersionsPerFile",
-                Value = "10",
-                Description = "Maximum number of versions to keep per file"
+                Key = "VersionRetention:MaxNumber",
+                Value = "50",
+                Description = "Maximum versions kept per file (0 = unlimited)"
+            },
+            new SystemSetting
+            {
+                Module = "dotnetcloud.files",
+                Key = "VersionRetention:MaxDays",
+                Value = "0",
+                Description = "Delete unlabeled file versions older than this many days (0 = keep indefinitely)"
             },
             new SystemSetting
             {

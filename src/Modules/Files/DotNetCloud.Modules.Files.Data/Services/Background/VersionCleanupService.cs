@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Files.Options;
-using Microsoft.EntityFrameworkCore;
+using DotNetCloud.Modules.Files.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -10,22 +10,18 @@ using Microsoft.Extensions.Options;
 namespace DotNetCloud.Modules.Files.Data.Services.Background;
 
 /// <summary>
-/// Background service that enforces file version retention policies.
-/// Runs periodically to prune oldest unlabeled versions exceeding the configured limits.
+/// Background service that schedules the file version retention pass.
 /// </summary>
 /// <remarks>
-/// <para>Two policies are applied independently:</para>
-/// <list type="bullet">
-///   <item><description>
-///     <b>Max count</b> — when a file has more versions than <see cref="VersionRetentionOptions.MaxVersionCount"/>,
-///     the oldest unlabeled versions are deleted until the count is within the limit.
-///   </description></item>
-///   <item><description>
-///     <b>Time-based</b> — unlabeled versions older than <see cref="VersionRetentionOptions.RetentionDays"/>
-///     are deleted, provided at least one version always remains.
-///   </description></item>
-/// </list>
-/// <para>Labeled versions are never auto-deleted by either policy.</para>
+/// <para>The policy itself lives in <see cref="IVersionRetentionService"/>: the newest version of a
+/// file is always kept, unlabeled versions beyond
+/// <see cref="VersionRetentionOptions.MaxVersionCount"/> are pruned, unlabeled versions older than
+/// <see cref="VersionRetentionOptions.RetentionDays"/> are pruned, and labeled versions are never
+/// auto-deleted. Those values are resolved from the administrator settings on <c>/admin/files</c>
+/// (falling back to the <c>Files:VersionRetention</c> configuration section), so an administrator can
+/// change them without a restart.</para>
+/// <para>The write paths (upload completion, WOPI save, restore) apply the policy immediately as
+/// well, so this scheduled pass mainly reclaims versions that aged out since the last run.</para>
 /// </remarks>
 internal sealed class VersionCleanupService : BackgroundService
 {
@@ -86,101 +82,18 @@ internal sealed class VersionCleanupService : BackgroundService
     }
 
     /// <summary>
-    /// Applies retention policies to all files. Exposed internally for testing.
+    /// Runs one retention pass. Exposed internally for testing.
     /// </summary>
     internal async Task CleanupAsync(CancellationToken cancellationToken)
     {
-        var opts = _options.Value;
-
-        if (opts.MaxVersionCount <= 0 && opts.RetentionDays <= 0)
-            return; // Nothing configured — skip
-
         using var scope = _scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<FilesDbContext>();
+        var retention = scope.ServiceProvider.GetRequiredService<IVersionRetentionService>();
 
-        // Get distinct file node IDs that have at least one version
-        var fileNodeIds = await db.FileVersions
-            .AsNoTracking()
-            .Select(v => v.FileNodeId)
-            .Distinct()
-            .ToListAsync(cancellationToken);
+        var result = await retention.RunAsync(cancellationToken);
 
-        var totalDeleted = 0;
-
-        foreach (var nodeId in fileNodeIds)
+        if (result.VersionsDeleted > 0)
         {
-            totalDeleted += await CleanupFileVersionsAsync(db, nodeId, opts, cancellationToken);
+            _logger.LogInformation("{Service}: removed {Count} versions", ServiceName, result.VersionsDeleted);
         }
-
-        if (totalDeleted > 0)
-        {
-            await db.SaveChangesAsync(cancellationToken);
-            _logger.LogInformation("Version cleanup: pruned {Count} excess/expired versions across {Files} files",
-                totalDeleted, fileNodeIds.Count);
-        }
-    }
-
-    private static async Task<int> CleanupFileVersionsAsync(
-        FilesDbContext db,
-        Guid fileNodeId,
-        VersionRetentionOptions opts,
-        CancellationToken cancellationToken)
-    {
-        // Load all versions for this file, oldest first
-        var versions = await db.FileVersions
-            .Where(v => v.FileNodeId == fileNodeId)
-            .OrderBy(v => v.VersionNumber)
-            .ToListAsync(cancellationToken);
-
-        // Always keep at least one version
-        if (versions.Count <= 1)
-            return 0;
-
-        var toDeleteIds = new HashSet<Guid>();
-
-        // Policy 1: Max version count — delete oldest unlabeled versions
-        if (opts.MaxVersionCount > 0 && versions.Count > opts.MaxVersionCount)
-        {
-            var excess = versions.Count - opts.MaxVersionCount;
-            var candidates = versions.Where(v => v.Label is null).Take(excess);
-            foreach (var v in candidates)
-                toDeleteIds.Add(v.Id);
-        }
-
-        // Policy 2: Time-based retention — delete unlabeled versions older than RetentionDays
-        if (opts.RetentionDays > 0)
-        {
-            var cutoff = DateTime.UtcNow.AddDays(-opts.RetentionDays);
-            foreach (var v in versions.Where(v => v.CreatedAt < cutoff && v.Label is null))
-                toDeleteIds.Add(v.Id);
-        }
-
-        if (toDeleteIds.Count == 0)
-            return 0;
-
-        // Safety: ensure at least one version always remains by protecting the newest version
-        var newestVersionId = versions[^1].Id;
-        if (versions.Count - toDeleteIds.Count < 1)
-            toDeleteIds.Remove(newestVersionId);
-
-        var versionsToDelete = versions.Where(v => toDeleteIds.Contains(v.Id)).ToList();
-
-        foreach (var version in versionsToDelete)
-        {
-            // Decrement chunk reference counts
-            var versionChunks = await db.FileVersionChunks
-                .Where(vc => vc.FileVersionId == version.Id)
-                .ToListAsync(cancellationToken);
-
-            foreach (var vc in versionChunks)
-            {
-                await ChunkReferenceHelper.DecrementAsync(db, vc.FileChunkId, cancellationToken);
-            }
-
-            db.FileVersionChunks.RemoveRange(versionChunks);
-            db.FileVersions.Remove(version);
-        }
-
-        return versionsToDelete.Count;
     }
 }

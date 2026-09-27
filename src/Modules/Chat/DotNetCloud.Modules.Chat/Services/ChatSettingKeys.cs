@@ -23,13 +23,13 @@ public static class ChatSettingKeys
     /// <summary>Maximum number of attachments allowed on a single message (int, 1-100).</summary>
     public const string MaxAttachmentsPerMessage = "Limits:MaxAttachmentsPerMessage";
 
-    /// <summary>Maximum number of attachments allowed in a channel; new uploads are rejected beyond it (int, 0 = unlimited).</summary>
+    /// <summary>Maximum number of attachments allowed in a channel; the oldest messages with attachments expire beyond it (int, 0 = unlimited).</summary>
     public const string MaxAttachmentsPerChannel = "Limits:MaxAttachmentsPerChannel";
 
     /// <summary>Maximum size in megabytes of a single attachment (int, 1-1024).</summary>
     public const string MaxAttachmentSizeMb = "Limits:MaxAttachmentSizeMb";
 
-    /// <summary>Maximum total attachment storage in megabytes per channel; new uploads are rejected beyond it (int, 0 = unlimited).</summary>
+    /// <summary>Maximum total attachment storage in megabytes per channel; the oldest messages with attachments expire beyond it (int, 0 = unlimited).</summary>
     public const string MaxAttachmentStoragePerChannelMb = "Limits:MaxAttachmentStoragePerChannelMb";
 
     /// <summary>Master switch for the automatic retention/archiving sweep (bool).</summary>
@@ -46,4 +46,11 @@ public static class ChatSettingKeys
 
     /// <summary>How often the retention sweep runs, in minutes (int, 1-1440).</summary>
     public const string SweepIntervalMinutes = "Retention:SweepIntervalMinutes";
+
+    /// <summary>
+    /// Filesystem directory that expired messages (and, when <see cref="ArchiveAttachments"/> is on,
+    /// their attachment payloads) are exported to before their rows are deleted
+    /// (string; blank = <c>{DOTNETCLOUD_DATA_DIR}/storage/chat-archive</c>).
+    /// </summary>
+    public const string ArchivePath = "Retention:ArchivePath";
 }

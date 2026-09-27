@@ -33,6 +33,23 @@ public class MaterialSvgIconsTests
     }
 
     /// <summary>
+    /// Icons referenced by the admin navigation menu entries that render through
+    /// <see cref="MaterialIcon"/>. A missing path falls back to plain text, which shows the raw
+    /// icon name in the sidebar instead of a glyph.
+    /// </summary>
+    [TestMethod]
+    [DataRow("chat")]
+    [DataRow("edit_note")]
+    [DataRow("history")]
+    public void GetPath_IconUsedByAdminNav_ReturnsPathData(string icon)
+    {
+        Assert.IsTrue(MaterialSvgIcons.HasPath(icon), $"Icon '{icon}' has no SVG path and would render as text.");
+        var path = MaterialSvgIcons.GetPath(icon);
+        Assert.IsNotNull(path, $"Icon '{icon}' returned a null path.");
+        Assert.IsTrue(path!.Length > 10, $"Icon '{icon}' path data is unexpectedly short.");
+    }
+
+    /// <summary>
     /// Icons referenced by the Files module browser, image gallery view, and
     /// full-screen preview (including slideshow and delete controls). Missing
     /// paths fall back to plain text, which overlaps the button label.

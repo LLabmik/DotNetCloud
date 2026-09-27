@@ -1,5 +1,6 @@
 using DotNetCloud.Core.Auth.Authorization;
 using DotNetCloud.Core.Capabilities;
+using DotNetCloud.Modules.Chat.Data.Services;
 using DotNetCloud.Modules.Chat.DTOs;
 using DotNetCloud.Modules.Chat.Models;
 using DotNetCloud.Modules.Chat.Services;
@@ -38,6 +39,7 @@ public class ChatController : ChatControllerBase
     private readonly IUserDirectory _userDirectory;
     private readonly IChatRetentionService? _retentionService;
     private readonly IChatSettingsProvider? _settingsProvider;
+    private readonly IChatArchiveExporter? _archiveExporter;
     private readonly ILogger<ChatController> _logger;
 
     /// <summary>
@@ -64,7 +66,8 @@ public class ChatController : ChatControllerBase
         IUserDirectory userDirectory,
         ILogger<ChatController> logger,
         IChatRetentionService? retentionService = null,
-        IChatSettingsProvider? settingsProvider = null)
+        IChatSettingsProvider? settingsProvider = null,
+        IChatArchiveExporter? archiveExporter = null)
     {
         _channelService = channelService;
         _memberService = memberService;
@@ -86,6 +89,7 @@ public class ChatController : ChatControllerBase
         _userDirectory = userDirectory;
         _retentionService = retentionService;
         _settingsProvider = settingsProvider;
+        _archiveExporter = archiveExporter;
         _logger = logger;
     }
 
@@ -1605,6 +1609,30 @@ public class ChatController : ChatControllerBase
     // ── Admin Endpoints (limits & retention) ─────────────────────────
 
     /// <summary>
+    /// Gets the message and attachment limits that apply to the caller, so clients can enforce them
+    /// in their composers instead of letting a send fail. Unlike the admin readout below this is
+    /// available to every authenticated user.
+    /// </summary>
+    [HttpGet("limits")]
+    public async Task<IActionResult> GetChatLimitsAsync(CancellationToken cancellationToken)
+    {
+        if (_settingsProvider is null)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                ErrorEnvelope("CHAT_SETTINGS_UNAVAILABLE", "Chat settings are not available in this host."));
+        }
+
+        var settings = await _settingsProvider.GetSettingsAsync(cancellationToken);
+
+        return Ok(Envelope(new
+        {
+            maxMessageLength = settings.MaxMessageLength,
+            maxAttachmentsPerMessage = settings.MaxAttachmentsPerMessage,
+            maxAttachmentSizeMb = settings.MaxAttachmentSizeMb
+        }));
+    }
+
+    /// <summary>
     /// Gets the effective chat message limits, attachment limits and retention policy that are
     /// currently enforced, after clamping and defaulting.
     /// </summary>
@@ -1635,8 +1663,10 @@ public class ChatController : ChatControllerBase
             retentionMode = settings.RetentionMode.ToString(),
             archiveAttachments = settings.ArchiveAttachments,
             sweepIntervalMinutes = settings.SweepIntervalMinutes,
+            archivePath = _archiveExporter?.ResolveArchiveRoot(settings),
             messageCountLimitActive = settings.HasMessageCountLimit,
             messageLifetimeActive = settings.HasMessageLifetime,
+            attachmentCapActive = settings.HasAttachmentCap,
             retentionPolicyActive = settings.HasRetentionPolicy
         }));
     }

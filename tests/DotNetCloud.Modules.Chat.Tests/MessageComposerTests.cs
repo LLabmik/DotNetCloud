@@ -211,7 +211,7 @@ public class MessageComposerTests
 
         public void SetPlainText(string value)
         {
-            HandleContentChanged(value, string.IsNullOrWhiteSpace(value));
+            HandleContentChanged(value, string.IsNullOrWhiteSpace(value), value.Length);
         }
 
         public Task ChooseMentionAsync(MemberViewModel member)

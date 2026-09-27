@@ -14,8 +14,10 @@ namespace DotNetCloud.Modules.Chat.Data.Services;
 /// <para>
 /// A message expires when it is older than <see cref="ChatSettings.MessageLifetimeDays"/> or when
 /// it falls outside the newest <see cref="ChatSettings.MaxMessagesPerChannel"/> messages of its
-/// channel. Expired messages are then either archived (hidden but retained) or purged
-/// (permanently deleted) according to <see cref="ChatSettings.RetentionMode"/>.
+/// channel. Expiry itself is delegated to <see cref="IChatMessageExpiryService"/>: in
+/// <see cref="ChatRetentionMode.Archive"/> mode the message is written to the configured archive
+/// directory first and its rows are deleted only afterwards; in <see cref="ChatRetentionMode.Purge"/> mode the rows
+/// are deleted outright.
 /// </para>
 /// <para>
 /// This service is a singleton and therefore takes its <see cref="ChatDbContext"/> from
@@ -37,6 +39,7 @@ public sealed class ChatRetentionService : IChatRetentionService
 
     private readonly IDbContextFactory<ChatDbContext> _dbContextFactory;
     private readonly IChatSettingsProvider _settingsProvider;
+    private readonly IChatMessageExpiryService _expiryService;
     private readonly IEventBus? _eventBus;
     private readonly ILogger<ChatRetentionService> _logger;
 
@@ -45,16 +48,19 @@ public sealed class ChatRetentionService : IChatRetentionService
     /// </summary>
     /// <param name="dbContextFactory">Factory for short-lived chat contexts.</param>
     /// <param name="settingsProvider">Resolves the admin-configured retention policy.</param>
+    /// <param name="expiryService">Applies the archive-or-purge action to the expired messages.</param>
     /// <param name="logger">Logger instance.</param>
     /// <param name="eventBus">Optional event bus used to retire expired messages from the search index.</param>
     public ChatRetentionService(
         IDbContextFactory<ChatDbContext> dbContextFactory,
         IChatSettingsProvider settingsProvider,
+        IChatMessageExpiryService expiryService,
         ILogger<ChatRetentionService> logger,
         IEventBus? eventBus = null)
     {
         _dbContextFactory = dbContextFactory;
         _settingsProvider = settingsProvider;
+        _expiryService = expiryService;
         _logger = logger;
         _eventBus = eventBus;
     }
@@ -78,7 +84,7 @@ public sealed class ChatRetentionService : IChatRetentionService
         }
 
         var result = new ChatRetentionSweepResult { ChannelsScanned = affectedChannelIds.Count };
-        var expiredMessageIds = new List<Guid>();
+        var removedMessageIds = new List<Guid>();
 
         foreach (var channelId in affectedChannelIds)
         {
@@ -87,46 +93,37 @@ public sealed class ChatRetentionService : IChatRetentionService
             if (ids.Count == 0)
                 continue;
 
-            expiredMessageIds.AddRange(ids);
+            var outcome = await _expiryService.ExpireAsync(db, ids, settings, cancellationToken)
+                .ConfigureAwait(false);
 
-            // Pins reference messages with a RESTRICT foreign key, and a pin pointing at a
-            // hidden message would surface as a broken entry, so they are always cleared.
+            // Only messages that were actually removed may leave the search index: in Archive mode
+            // a failed export keeps the message, so it must stay searchable.
+            removedMessageIds.AddRange(outcome.RemovedMessageIds);
+
             result = result with
             {
-                PinsRemoved = result.PinsRemoved
-                    + await db.PinnedMessages
-                        .Where(p => ids.Contains(p.MessageId))
-                        .ExecuteDeleteAsync(cancellationToken)
-                        .ConfigureAwait(false)
+                MessagesArchived = settings.RetentionMode == ChatRetentionMode.Archive
+                    ? result.MessagesArchived + outcome.RemovedMessageIds.Count
+                    : result.MessagesArchived,
+                MessagesPurged = settings.RetentionMode == ChatRetentionMode.Purge
+                    ? result.MessagesPurged + outcome.RemovedMessageIds.Count
+                    : result.MessagesPurged,
+                AttachmentsRemoved = result.AttachmentsRemoved + outcome.AttachmentsRemoved,
+                AttachmentsArchived = result.AttachmentsArchived + outcome.AttachmentsArchived,
+                MessagesSkipped = result.MessagesSkipped + outcome.MessagesSkipped,
+                PinsRemoved = result.PinsRemoved + outcome.PinsRemoved
             };
-
-            if (settings.RetentionMode == ChatRetentionMode.Purge)
-            {
-                var purgeOutcome = await PurgeAsync(db, ids, cancellationToken).ConfigureAwait(false);
-                result = result with
-                {
-                    MessagesPurged = result.MessagesPurged + purgeOutcome.MessagesPurged,
-                    AttachmentsRemoved = result.AttachmentsRemoved + purgeOutcome.AttachmentsRemoved
-                };
-            }
-            else
-            {
-                var archiveOutcome = await ArchiveAsync(db, ids, settings, cancellationToken).ConfigureAwait(false);
-                result = result with
-                {
-                    MessagesArchived = result.MessagesArchived + archiveOutcome.MessagesArchived,
-                    AttachmentsRemoved = result.AttachmentsRemoved + archiveOutcome.AttachmentsRemoved
-                };
-            }
         }
 
-        await RetireFromSearchIndexAsync(expiredMessageIds, cancellationToken).ConfigureAwait(false);
+        await RetireFromSearchIndexAsync(removedMessageIds, cancellationToken).ConfigureAwait(false);
 
         _logger.LogInformation(
             "Chat retention sweep finished: {Channels} channel(s), {Archived} archived, {Purged} purged, " +
-            "{Attachments} attachment(s) removed, {Pins} pin(s) removed (mode: {Mode}).",
+            "{Attachments} attachment row(s) removed, {ArchivedAttachments} attachment payload(s) archived, " +
+            "{Skipped} message(s) kept, {Pins} pin(s) removed (mode: {Mode}).",
             result.ChannelsScanned, result.MessagesArchived, result.MessagesPurged,
-            result.AttachmentsRemoved, result.PinsRemoved, settings.RetentionMode);
+            result.AttachmentsRemoved, result.AttachmentsArchived, result.MessagesSkipped,
+            result.PinsRemoved, settings.RetentionMode);
 
         return result with { CompletedAtUtc = DateTime.UtcNow };
     }
@@ -163,6 +160,48 @@ public sealed class ChatRetentionService : IChatRetentionService
                 .ConfigureAwait(false);
 
             channelIds.UnionWith(overCap);
+        }
+
+        if (settings.HasAttachmentCap)
+        {
+            channelIds.UnionWith(await FindChannelsOverAttachmentCapAsync(db, settings, cancellationToken)
+                .ConfigureAwait(false));
+        }
+
+        return [.. channelIds];
+    }
+
+    /// <summary>
+    /// Finds the channels whose live attachments exceed the configured per-channel count or total
+    /// storage ceiling.
+    /// </summary>
+    private static async Task<List<Guid>> FindChannelsOverAttachmentCapAsync(
+        ChatDbContext db, ChatSettings settings, CancellationToken cancellationToken)
+    {
+        var channelIds = new HashSet<Guid>();
+
+        if (settings.HasAttachmentCountLimit)
+        {
+            var overCount = await db.MessageAttachments
+                .GroupBy(a => a.Message!.ChannelId)
+                .Where(g => g.Count() > settings.MaxAttachmentsPerChannel)
+                .Select(g => g.Key)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            channelIds.UnionWith(overCount);
+        }
+
+        if (settings.HasAttachmentStorageLimit)
+        {
+            var overStorage = await db.MessageAttachments
+                .GroupBy(a => a.Message!.ChannelId)
+                .Where(g => g.Sum(a => (long)a.FileSize) > settings.MaxAttachmentStoragePerChannelBytes)
+                .Select(g => g.Key)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            channelIds.UnionWith(overStorage);
         }
 
         return [.. channelIds];
@@ -204,60 +243,78 @@ public sealed class ChatRetentionService : IChatRetentionService
             ids.UnionWith(overCap);
         }
 
+        if (settings.HasAttachmentCap && ids.Count < MaxMessagesPerChannelPerSweep)
+        {
+            var overAttachments = await CollectAttachmentCapOverflowAsync(db, channelId, settings, ids, cancellationToken)
+                .ConfigureAwait(false);
+
+            ids.UnionWith(overAttachments);
+        }
+
         return [.. ids];
     }
 
-    /// <summary>Marks the given messages as archived, optionally removing their attachments.</summary>
-    private static async Task<(int MessagesArchived, int AttachmentsRemoved)> ArchiveAsync(
-        ChatDbContext db, List<Guid> ids, ChatSettings settings, CancellationToken cancellationToken)
+    /// <summary>
+    /// Selects the oldest messages that carry attachments until removing them would bring the
+    /// channel back under its attachment count/storage ceiling. Mirrors the message-count cap: the
+    /// channel stays writable and its oldest content expires instead of new uploads being rejected.
+    /// </summary>
+    private static async Task<List<Guid>> CollectAttachmentCapOverflowAsync(
+        ChatDbContext db,
+        Guid channelId,
+        ChatSettings settings,
+        IReadOnlyCollection<Guid> alreadyExpired,
+        CancellationToken cancellationToken)
     {
-        var attachmentsRemoved = 0;
-        if (!settings.ArchiveAttachments)
+        var liveAttachments = db.MessageAttachments.Where(a => a.Message!.ChannelId == channelId);
+
+        var totalCount = await liveAttachments.CountAsync(cancellationToken).ConfigureAwait(false);
+        var totalBytes = await liveAttachments.SumAsync(a => (long?)a.FileSize, cancellationToken).ConfigureAwait(false) ?? 0;
+
+        // Messages already selected by the lifetime/message-count rules are about to go anyway, so
+        // their attachments must not count towards the overflow.
+        if (alreadyExpired.Count > 0)
         {
-            attachmentsRemoved = await db.MessageAttachments
-                .Where(a => ids.Contains(a.MessageId))
-                .ExecuteDeleteAsync(cancellationToken)
-                .ConfigureAwait(false);
+            var expiring = db.MessageAttachments.Where(a => alreadyExpired.Contains(a.MessageId));
+            totalCount -= await expiring.CountAsync(cancellationToken).ConfigureAwait(false);
+            totalBytes -= await expiring.SumAsync(a => (long?)a.FileSize, cancellationToken).ConfigureAwait(false) ?? 0;
         }
 
-        var archivedAt = DateTime.UtcNow;
-        var archived = await db.Messages
-            .IgnoreQueryFilters()
-            .Where(m => ids.Contains(m.Id) && m.ArchivedAt == null)
-            .ExecuteUpdateAsync(
-                setters => setters.SetProperty(m => m.ArchivedAt, archivedAt),
-                cancellationToken)
+        var overCount = settings.HasAttachmentCountLimit
+            ? Math.Max(0, totalCount - settings.MaxAttachmentsPerChannel)
+            : 0;
+        var overBytes = settings.HasAttachmentStorageLimit
+            ? Math.Max(0, totalBytes - settings.MaxAttachmentStoragePerChannelBytes)
+            : 0;
+
+        if (overCount == 0 && overBytes == 0)
+            return [];
+
+        var candidates = await db.Messages
+            .Where(m => m.ChannelId == channelId && !alreadyExpired.Contains(m.Id) && m.Attachments.Count > 0)
+            .OrderBy(m => m.SentAt)
+            .Select(m => new
+            {
+                m.Id,
+                Count = m.Attachments.Count,
+                Bytes = m.Attachments.Sum(a => (long)a.FileSize)
+            })
+            .Take(MaxMessagesPerChannelPerSweep)
+            .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        return (archived, attachmentsRemoved);
-    }
+        var selected = new List<Guid>();
+        foreach (var candidate in candidates)
+        {
+            if (overCount <= 0 && overBytes <= 0)
+                break;
 
-    /// <summary>Permanently deletes the given messages and the rows that depend on them.</summary>
-    private static async Task<(int MessagesPurged, int AttachmentsRemoved)> PurgeAsync(
-        ChatDbContext db, List<Guid> ids, CancellationToken cancellationToken)
-    {
-        // Replies point at their parent with a RESTRICT foreign key; detach them first so the
-        // parent can be deleted without losing the replies.
-        await db.Messages
-            .IgnoreQueryFilters()
-            .Where(m => m.ReplyToMessageId != null && ids.Contains(m.ReplyToMessageId.Value))
-            .ExecuteUpdateAsync(
-                setters => setters.SetProperty(m => m.ReplyToMessageId, (Guid?)null),
-                cancellationToken)
-            .ConfigureAwait(false);
+            selected.Add(candidate.Id);
+            overCount -= candidate.Count;
+            overBytes -= candidate.Bytes;
+        }
 
-        var attachmentsRemoved = await db.MessageAttachments
-            .Where(a => ids.Contains(a.MessageId))
-            .ExecuteDeleteAsync(cancellationToken)
-            .ConfigureAwait(false);
-
-        var purged = await db.Messages
-            .IgnoreQueryFilters()
-            .Where(m => ids.Contains(m.Id))
-            .ExecuteDeleteAsync(cancellationToken)
-            .ConfigureAwait(false);
-
-        return (purged, attachmentsRemoved);
+        return selected;
     }
 
     /// <summary>

@@ -4,146 +4,149 @@
 
 <PageTitle>Settings - DotNetCloud</PageTitle>
 
-<div class="page-header">
-    <h1>System Settings</h1>
-</div>
+<div class="admin-settings-page">
 
-<div class="toolbar">
-    <input type="text" class="input" placeholder="Filter by module..." @bind="_moduleFilter" @bind:event="oninput"
-           @bind:after="LoadSettingsAsync" />
-    <button class="btn btn-outline" @onclick="RotateOidcKeysAsync" disabled="@_actionInProgress"
-            title="Backs up and regenerates OpenIddict signing + encryption keys (SOC 2). New keys activate on restart.">
-        Rotate OIDC Keys
-    </button>
-</div>
+    <div class="page-header">
+        <h1>System Settings</h1>
+    </div>
 
-<div class="settings-grid">
-    <section class="settings-section">
-        <h2>Online indicators</h2>
-        <div class="form-group">
-            <label for="presence-idle-minutes">Idle threshold (minutes)</label>
-            <input id="presence-idle-minutes" type="number" min="1" max="60" class="input input-sm"
-                   @bind="_presenceIdleMinutes" @bind:event="oninput" style="width: 120px;" />
-            <span class="hint">
-                How long a connected user can go without real interaction (clicks, keys, scroll)
-                before their presence dot turns yellow ("Idle") for other users in chat. Range 1–60;
-                default 3. Changes apply within about 30 seconds — no server restart needed.
-            </span>
-        </div>
-        <button class="btn btn-primary btn-sm" @onclick="SavePresenceIdleAsync"
-                disabled="@_actionInProgress">Save</button>
-    </section>
-</div>
+    <div class="toolbar">
+        <input type="text" class="input" placeholder="Filter by module..." @bind="_moduleFilter" @bind:event="oninput"
+               @bind:after="LoadSettingsAsync" />
+        <button class="btn btn-outline" @onclick="RotateOidcKeysAsync" disabled="@_actionInProgress"
+                title="Backs up and regenerates OpenIddict signing + encryption keys (SOC 2). New keys activate on restart.">
+            Rotate OIDC Keys
+        </button>
+    </div>
 
-@if (_rotationStatus?.RestartPending == true && !_restartBannerDismissed)
-{
-    <div class="alert alert-warning alert-dismissible">
-        <div>
-            <strong>OpenIddict keys were rotated</strong>
-            @if (_rotationStatus.RotatedAtUtc is not null)
-            {
-                <span> at <code>@_rotationStatus.RotatedAtUtc.Value.ToLocalTime().ToString("g")</code>.</span>
+    <div class="settings-grid">
+        <section class="settings-section">
+            <h2>Online indicators</h2>
+            <div class="form-group">
+                <label for="presence-idle-minutes">Idle threshold (minutes)</label>
+                <input id="presence-idle-minutes" type="number" min="1" max="60" class="input input-sm"
+                       @bind="_presenceIdleMinutes" @bind:event="oninput" style="width: 120px;" />
+                <span class="hint">
+                    How long a connected user can go without real interaction (clicks, keys, scroll)
+                    before their presence dot turns yellow ("Idle") for other users in chat. Range 1–60;
+                    default 3. Changes apply within about 30 seconds — no server restart needed.
+                </span>
+            </div>
+            <button class="btn btn-primary btn-sm" @onclick="SavePresenceIdleAsync"
+                    disabled="@_actionInProgress">Save</button>
+        </section>
+    </div>
+
+    @if (_rotationStatus?.RestartPending == true && !_restartBannerDismissed)
+    {
+        <div class="alert alert-warning alert-dismissible">
+            <div>
+                <strong>OpenIddict keys were rotated</strong>
+                @if (_rotationStatus.RotatedAtUtc is not null)
+                {
+                    <span> at <code>@_rotationStatus.RotatedAtUtc.Value.ToLocalTime().ToString("g")</code>.</span>
+                }
+                <span> Restart the server to activate the new keys. The service restarts in a few seconds — connected
+                    clients
+                    will briefly disconnect.</span>
+                </div>
+                <div style="display:flex; gap:8px; align-items:center; flex-shrink:0;">
+                    <button class="btn btn-primary btn-sm" @onclick="RestartServerAsync" disabled="@_actionInProgress">Activate
+                        now</button>
+                        <button class="btn btn-outline btn-sm" @onclick="DismissRestartBanner"
+                                title="Dismiss for this session (banner returns until the server is restarted)">Dismiss</button>
+                    </div>
+                </div>
             }
-            <span> Restart the server to activate the new keys. The service restarts in a few seconds — connected clients
-                will briefly disconnect.</span>
-            </div>
-            <div style="display:flex; gap:8px; align-items:center; flex-shrink:0;">
-                <button class="btn btn-primary btn-sm" @onclick="RestartServerAsync" disabled="@_actionInProgress">Activate
-                    now</button>
-                    <button class="btn btn-outline btn-sm" @onclick="DismissRestartBanner"
-                            title="Dismiss for this session (banner returns until the server is restarted)">Dismiss</button>
+
+            @if (_loading)
+            {
+                <LoadingIndicator Message="Loading settings..." />
+            }
+            else
+            {
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Module</th>
+                                <th>Key</th>
+                                <th>Value</th>
+                                <th>Description</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (_settings.Count == 0)
+                            {
+                                <tr>
+                                    <td colspan="5" class="text-center">No settings found.</td>
+                                </tr>
+                            }
+                            @foreach (var setting in _settings)
+                            {
+                                <tr>
+                                    <td><code>@setting.Module</code></td>
+                                    <td><code>@setting.Key</code></td>
+                                    <td>
+                                        @if (setting.IsSensitive)
+                                        {
+                                            <span class="text-muted">••••••••</span>
+                                        }
+                                        else
+                                        {
+                                            <span>@Truncate(setting.Value, 60)</span>
+                                        }
+                                    </td>
+                                    <td>@(setting.Description ?? "—")</td>
+                                    <td class="actions">
+                                        <button class="btn btn-sm btn-outline" @onclick="() => EditSetting(setting)">Edit</button>
+                                        <button class="btn btn-sm btn-danger" @onclick="() => DeleteSettingAsync(setting)"
+                                                disabled="@_actionInProgress">Delete</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
                 </div>
-            </div>
-        }
+            }
 
-        @if (_loading)
-        {
-            <LoadingIndicator Message="Loading settings..." />
-        }
-        else
-        {
-            <div class="table-container">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Module</th>
-                            <th>Key</th>
-                            <th>Value</th>
-                            <th>Description</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @if (_settings.Count == 0)
-                        {
-                            <tr>
-                                <td colspan="5" class="text-center">No settings found.</td>
-                            </tr>
-                        }
-                        @foreach (var setting in _settings)
-                        {
-                            <tr>
-                                <td><code>@setting.Module</code></td>
-                                <td><code>@setting.Key</code></td>
-                                <td>
-                                    @if (setting.IsSensitive)
-                                    {
-                                        <span class="text-muted">••••••••</span>
-                                    }
-                                    else
-                                    {
-                                        <span>@Truncate(setting.Value, 60)</span>
-                                    }
-                                </td>
-                                <td>@(setting.Description ?? "—")</td>
-                                <td class="actions">
-                                    <button class="btn btn-sm btn-outline" @onclick="() => EditSetting(setting)">Edit</button>
-                                    <button class="btn btn-sm btn-danger" @onclick="() => DeleteSettingAsync(setting)"
-                                            disabled="@_actionInProgress">Delete</button>
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-        }
-
-        @if (_editing is not null)
-        {
-            <div class="dialog-overlay" @onclick="CancelEdit">
-                <div class="dialog dialog-wide" @onclick:stopPropagation="true">
-                    <div class="dialog-header">
-                        <h3>Edit Setting</h3>
-                        <button class="btn-icon" @onclick="CancelEdit" aria-label="Close" title="Close">X</button>
-                    </div>
-                    <div class="dialog-body">
-                        <div class="form-group">
-                            <label>Module</label>
-                            <input type="text" class="input" value="@_editing.Module" disabled />
+            @if (_editing is not null)
+            {
+                <div class="dialog-overlay" @onclick="CancelEdit">
+                    <div class="dialog dialog-wide" @onclick:stopPropagation="true">
+                        <div class="dialog-header">
+                            <h3>Edit Setting</h3>
+                            <button class="btn-icon" @onclick="CancelEdit" aria-label="Close" title="Close">X</button>
                         </div>
-                        <div class="form-group">
-                            <label>Key</label>
-                            <input type="text" class="input" value="@_editing.Key" disabled />
+                        <div class="dialog-body">
+                            <div class="form-group">
+                                <label>Module</label>
+                                <input type="text" class="input" value="@_editing.Module" disabled />
+                            </div>
+                            <div class="form-group">
+                                <label>Key</label>
+                                <input type="text" class="input" value="@_editing.Key" disabled />
+                            </div>
+                            <div class="form-group">
+                                <label>Value</label>
+                                <textarea class="input" rows="3" @bind="_editValue"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label>Description</label>
+                                <input type="text" class="input" @bind="_editDescription" />
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label>Value</label>
-                            <textarea class="input" rows="3" @bind="_editValue"></textarea>
+                        <div class="dialog-footer">
+                            <button class="btn btn-primary" @onclick="SaveSettingAsync" disabled="@_actionInProgress">Save</button>
+                            <button class="btn btn-outline" @onclick="CancelEdit">Cancel</button>
                         </div>
-                        <div class="form-group">
-                            <label>Description</label>
-                            <input type="text" class="input" @bind="_editDescription" />
-                        </div>
-                    </div>
-                    <div class="dialog-footer">
-                        <button class="btn btn-primary" @onclick="SaveSettingAsync" disabled="@_actionInProgress">Save</button>
-                        <button class="btn btn-outline" @onclick="CancelEdit">Cancel</button>
                     </div>
                 </div>
-            </div>
-        }
+            }
 
-<ConfirmDialog @ref="_confirmDialog" />
-
+            <ConfirmDialog @ref="_confirmDialog" />
+        </div>
 @code {
     [Inject] private DotNetCloudApiClient Api { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;

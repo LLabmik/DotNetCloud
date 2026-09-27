@@ -25,6 +25,46 @@ Archived context:
 - **Archived (server agent — `cloud.kimball.home`):** `fix/android-improvements` — Presence 4-state, deployed + live-verified on cloud 2026-09-09 (plan `docs/PRESENCE_DOTS_4STATE_PLAN.md`; archived below)
 - **Still pending (mint22, dev):** `feature/module-widgets` — Module Home Widgets (plan `docs/MODULE_WIDGETS_PLAN.md`); kept below as a deferred handoff
 
+## Handoff — Android: enforce the configured chat message length in the composer (2026-09-27, server agent — mint22)
+
+**Status:** ⏳ client-side work requested. The server half is done and deployed (see below).
+**Branch:** `feature/new-admin-settings` (server side; deployed to mint22 dev).
+**Target machine:** `monolith` (Windows 11 — Android MAUI client only).
+**Canonical spec:** `docs/CHAT_ADMIN_SETTINGS_PLAN.md`; admin reference `docs/admin/CHAT.md`.
+
+### Why
+
+The Chat module admin now configures a **maximum message length** (`Limits:MaxMessageLength`, default `10000`, hard ceiling `10000`). Until now the server simply rejected an over-long send with `400 VALIDATION_ERROR`, which the client surfaced as a failed send. The requirement is that the **message entry control itself** stops accepting input at the limit — the same change has been made in the Blazor composer, which now blocks input past the limit, shows a `used / max` counter and disables Send.
+
+### New endpoint the client needs
+
+`GET /api/v1/chat/limits` — **authenticated (any user, not admin)**, served by the Chat module host and reachable through the core proxy exactly like the other `/api/v1/chat/*` routes.
+
+```json
+{ "success": true, "data": { "maxMessageLength": 10000, "maxAttachmentsPerMessage": 10, "maxAttachmentSizeMb": 10 } }
+```
+
+- Read it once per session (or cache it briefly) — the values change only when an administrator edits them.
+- A `503` with `CHAT_SETTINGS_UNAVAILABLE` means the host has no settings provider: fall back to the built-in defaults (`10000`, `10`, `10`) and leave the composer unrestricted rather than blocking the user.
+
+### Work requested
+
+1. Apply `maxMessageLength` to the Android chat message entry control so input beyond it is rejected, with a subtle `used / max` counter (red at the limit) mirroring the web composer.
+2. Keep Send consistent with the limit — an over-limit message must not be submittable.
+3. Keep the existing `400 VALIDATION_ERROR` handling as the safety net.
+
+### Verification expected
+
+- At the default `10000`: typing or pasting past the limit is impossible.
+- Set the limit to e.g. `50` on `/admin/chat`, then confirm the entry control stops at 50 and the counter reflects it.
+- A message at exactly the limit still sends.
+
+### Server-side state (done, for reference)
+
+- `GET /api/v1/chat/limits` added to `ChatController.GetChatLimitsAsync` (class-level `[Authorize]`, module proxy route `api/v1/chat`).
+- Blazor enforcement: `MessageComposer.razor(.cs)` + `wysiwyg-editor.js` (`setMaxLength`, length-aware `HandleContentChanged`), limit resolved from `IChatSettingsProvider` in `ChatPageLayout`.
+- Chat module tests **1488 pass / 0 fail**.
+
 ## Archived Handoff — core-proxy header-duplication fix + chat-alerts poll `304`: deployed + verified end-to-end (server `cloud` + client `monolith`) (2026-09-19)
 
 **Status:** ✅ **completed on both sides** (2026-09-19) — the header-duplication fix is deployed to `cloud` and the `304` leg is proven live there; the **phone-side `304` confirmation is now done as well** (client agent — `monolith`, on-device, wire evidence in this section). **No open items.** Full detail in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`; the original root-cause analysis is kept below for the record.

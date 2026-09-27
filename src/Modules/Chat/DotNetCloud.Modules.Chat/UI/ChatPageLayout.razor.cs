@@ -48,6 +48,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
     [Inject] private GlobalChatNotificationState GlobalNotificationState { get; set; } = default!;
     [Inject] private IChatImageStore ChatImageStore { get; set; } = default!;
+    [Inject] private IChatSettingsProvider ChatSettings { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
     [Inject] private BrowserTimeProvider TimeProvider { get; set; } = default!;
     [Inject] private ILogger<ChatPageLayout> Logger { get; set; } = default!;
@@ -73,6 +74,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     private string? _messageErrorMessage;
     private bool _hasMoreMessages;
     private int _currentMessagePage = 1;
+    private int _maxMessageLength;
     private MessageViewModel? _replyToMessage;
     private MessageViewModel? _editingMessage;
 
@@ -322,6 +324,17 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         var caller = await GetCallerContextAsync();
         _currentUserId = caller.UserId;
         _dotNetRef = DotNetObjectReference.Create(this);
+
+        // Administrator-configured message length limit, enforced in the composer editor.
+        try
+        {
+            var chatSettings = await ChatSettings.GetSettingsAsync();
+            _maxMessageLength = chatSettings.MaxMessageLength;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not resolve the chat message length limit; the composer stays unlimited.");
+        }
 
         // Resolve the current user's display name for the video call solo view
         var selfNames = await UserDirectory.GetDisplayNamesAsync([_currentUserId]);

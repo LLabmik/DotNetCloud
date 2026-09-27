@@ -27,6 +27,10 @@ public partial class DirectMessageView : ComponentBase
     [Parameter]
     public MemberViewModel? OtherUser { get; set; }
 
+    /// <summary>Maximum characters the composer accepts (0 = unlimited).</summary>
+    [Parameter]
+    public int MaxMessageLength { get; set; }
+
     /// <summary>Messages in the conversation.</summary>
     [Parameter]
     public List<MessageViewModel> Messages { get; set; } = [];

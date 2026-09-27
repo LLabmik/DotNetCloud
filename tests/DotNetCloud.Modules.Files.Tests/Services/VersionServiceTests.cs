@@ -5,6 +5,7 @@ using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Files.Data.Services;
 using DotNetCloud.Modules.Files.Events;
 using DotNetCloud.Modules.Files.Models;
+using DotNetCloud.Modules.Files.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -23,8 +24,16 @@ public class VersionServiceTests
         return new FilesDbContext(options);
     }
 
-    private static VersionService CreateService(FilesDbContext db, IEventBus? eventBus = null) =>
-        new(db, eventBus ?? Mock.Of<IEventBus>(), NullLoggerFactory.Instance.CreateLogger<VersionService>(), new PermissionService(db));
+    private static VersionService CreateService(
+        FilesDbContext db,
+        IEventBus? eventBus = null,
+        VersionRetentionOptions? retention = null) =>
+        new(
+            db,
+            eventBus ?? Mock.Of<IEventBus>(),
+            NullLoggerFactory.Instance.CreateLogger<VersionService>(),
+            new PermissionService(db),
+            TestFileVersioningSettings.From(retention ?? new VersionRetentionOptions { MaxVersionCount = 0 }));
 
     private static CallerContext UserCaller(Guid userId) => new(userId, Array.Empty<string>(), CallerType.User);
 

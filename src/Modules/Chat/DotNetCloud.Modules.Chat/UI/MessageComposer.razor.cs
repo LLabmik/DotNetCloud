@@ -15,12 +15,14 @@ public partial class MessageComposer : ComponentBase, IAsyncDisposable
 
     private string _plainText = string.Empty;
     private bool _isEmpty = true;
+    private int _contentLength;
     private bool _isShowEmojiPicker;
     private int _activeMentionStartIndex = -1;
     private int _activeMentionQueryLength = -1;
     private List<MemberViewModel> _visibleMentionSuggestions = [];
     private DotNetObjectReference<MessageComposer>? _dotNetRef;
     private bool _isInitialized;
+    private int _appliedMaxLength = -1;
     private Guid _lastEditingMessageId;
 
     [Inject]
@@ -33,6 +35,14 @@ public partial class MessageComposer : ComponentBase, IAsyncDisposable
     /// <summary>The channel type (Public, Private, DirectMessage, Group).</summary>
     [Parameter]
     public string? ChannelType { get; set; }
+
+    /// <summary>
+    /// Maximum characters the composer accepts. Input beyond it is rejected in the editor, which
+    /// is how the administrator-configured message length limit is enforced for the user rather
+    /// than surfacing as a failed send. <c>0</c> means unlimited.
+    /// </summary>
+    [Parameter]
+    public int MaxMessageLength { get; set; }
 
     /// <summary>Message being replied to (null if not replying).</summary>
     [Parameter]
@@ -100,7 +110,21 @@ public partial class MessageComposer : ComponentBase, IAsyncDisposable
     protected string EditorElementId => _editorElementId;
 
     /// <summary>Whether the send button should be disabled.</summary>
-    protected bool IsSendDisabled => _isEmpty && !HasPendingAttachments;
+    protected bool IsSendDisabled => (_isEmpty && !HasPendingAttachments) || IsOverMessageLength;
+
+    /// <summary>Whether the current content is longer than the configured limit.</summary>
+    protected bool IsOverMessageLength => MaxMessageLength > 0 && _contentLength > MaxMessageLength;
+
+    /// <summary>Whether a character counter should be shown.</summary>
+    protected bool ShowCharacterCounter => MaxMessageLength > 0;
+
+    /// <summary>Characters currently in the composer, counted as stored (Markdown).</summary>
+    protected int ContentLength => _contentLength;
+
+    /// <summary>Tooltip for the character counter.</summary>
+    protected string CharacterCounterTitle => IsOverMessageLength
+        ? $"Maximum {MaxMessageLength} characters — shorten the message to send"
+        : $"Maximum {MaxMessageLength} characters";
 
     /// <summary>Whether the composer is in edit mode.</summary>
     protected bool IsEditMode => EditingMessage is not null;
@@ -142,6 +166,21 @@ public partial class MessageComposer : ComponentBase, IAsyncDisposable
                 // Browser disconnected; safe to ignore.
             }
         }
+
+        // The limit can change after initialisation (an administrator edit, or the component being
+        // reused for another channel), so re-apply it.
+        if (_isInitialized && MaxMessageLength != _appliedMaxLength)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("wysiwygEditor.setMaxLength", _editorElementId, MaxMessageLength);
+                _appliedMaxLength = MaxMessageLength;
+            }
+            catch (JSDisconnectedException)
+            {
+                // Browser disconnected; safe to ignore.
+            }
+        }
     }
 
     /// <inheritdoc />
@@ -154,6 +193,12 @@ public partial class MessageComposer : ComponentBase, IAsyncDisposable
 
         _dotNetRef = DotNetObjectReference.Create(this);
         await JS.InvokeVoidAsync("wysiwygEditor.init", _editorElementId, _dotNetRef, ChannelId);
+        if (MaxMessageLength > 0)
+        {
+            await JS.InvokeVoidAsync("wysiwygEditor.setMaxLength", _editorElementId, MaxMessageLength);
+        }
+
+        _appliedMaxLength = MaxMessageLength;
         _isInitialized = true;
 
         // If edit mode was set before initialisation completed
@@ -164,11 +209,15 @@ public partial class MessageComposer : ComponentBase, IAsyncDisposable
     }
 
     /// <summary>Called from JS when the editor content changes.</summary>
+    /// <param name="plainText">Visible text of the editor.</param>
+    /// <param name="isEmpty">Whether the editor holds only whitespace.</param>
+    /// <param name="markdownLength">Length of the content as it will be stored (Markdown).</param>
     [JSInvokable]
-    public void HandleContentChanged(string plainText, bool isEmpty)
+    public void HandleContentChanged(string plainText, bool isEmpty, int markdownLength)
     {
         _plainText = plainText;
         _isEmpty = isEmpty;
+        _contentLength = markdownLength;
         UpdateMentionAutocomplete();
 
         try
@@ -256,6 +305,16 @@ public partial class MessageComposer : ComponentBase, IAsyncDisposable
     protected async Task SendMessage()
     {
         var content = await JS.InvokeAsync<string>("wysiwygEditor.getMarkdown", _editorElementId);
+
+        if (MaxMessageLength > 0 && content.Length > MaxMessageLength)
+        {
+            // Input is blocked in the editor above the limit; this is only a safety net for
+            // content that arrived another way (pasted rich text, an edited long message).
+            _contentLength = content.Length;
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(content) && !HasPendingAttachments)
         {
             return;

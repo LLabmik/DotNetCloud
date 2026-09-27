@@ -5,230 +5,230 @@
 
 <PageTitle>Backup &amp; Restore - DotNetCloud</PageTitle>
 
-<div class="page-header">
-    <h1>Backup &amp; Restore Settings</h1>
-    <div class="page-header-actions">
-        <a href="/admin/settings?module=dotnetcloud.core" class="btn btn-outline btn-sm">All Core Settings</a>
+<div class="admin-settings-page">
+
+    <div class="page-header">
+        <h1>Backup &amp; Restore Settings</h1>
+        <div class="page-header-actions">
+            <a href="/admin/settings?module=dotnetcloud.core" class="btn btn-outline btn-sm">All Core Settings</a>
+        </div>
     </div>
-</div>
 
-<p class="text-muted">
-    Configure automated backups, retention policies, and restore options for your DotNetCloud instance.
-</p>
+    <p class="text-muted">
+        Configure automated backups, retention policies, and restore options for your DotNetCloud instance.
+    </p>
 
-@if (_loading)
-{
-    <LoadingIndicator Message="Loading backup settings..." />
-}
-else
-{
-    <div class="settings-grid">
-        <!-- Backup Schedule -->
-        <section class="settings-section">
-            <h2>Backup Schedule</h2>
+    @if (_loading)
+    {
+        <LoadingIndicator Message="Loading backup settings..." />
+    }
+    else
+    {
+        <div class="settings-grid">
+            <!-- Backup Schedule -->
+            <section class="settings-section">
+                <h2>Backup Schedule</h2>
 
-            <div class="form-group">
-                <label>Automated Backups</label>
-                <input type="checkbox" @bind="_enabled" />
-                <span class="hint">Enable scheduled automatic backups.</span>
-            </div>
-
-            <div class="form-group">
-                <label>Schedule</label>
-                <select class="input input-sm" @bind="_schedule">
-                    <option value="daily">Daily</option>
-                    <option value="weekly">Weekly</option>
-                    <option value="manual">Manual Only</option>
-                </select>
-                <span class="hint">
-                    How often automated backups run. "Manual Only" disables the schedule
-                    but still allows on-demand backups.
-                </span>
-            </div>
-
-            <div class="form-group">
-                <label>Backup Time (UTC)</label>
-                <input type="time" class="input input-sm" @bind="_backupTimeUtc" />
-                <span class="hint">Time of day (UTC) to start the backup. Default: 02:00.</span>
-            </div>
-
-            @if (_schedule == "weekly")
-            {
                 <div class="form-group">
-                    <label>Day of Week</label>
-                    <select class="input input-sm" @bind="_backupDayOfWeek">
-                        <option value="Sunday">Sunday</option>
-                        <option value="Monday">Monday</option>
-                        <option value="Tuesday">Tuesday</option>
-                        <option value="Wednesday">Wednesday</option>
-                        <option value="Thursday">Thursday</option>
-                        <option value="Friday">Friday</option>
-                        <option value="Saturday">Saturday</option>
-                    </select>
-                    <span class="hint">Day of the week to run the backup.</span>
+                    <label>Automated Backups</label>
+                    <input type="checkbox" @bind="_enabled" />
+                    <span class="hint">Enable scheduled automatic backups.</span>
                 </div>
-            }
-        </section>
 
-        <!-- Storage -->
-        <section class="settings-section">
-            <h2>Storage</h2>
-
-            <div class="form-group">
-                <label>Backup Directory</label>
-                <input type="text" class="input" @bind="_backupDirectory"
-                       placeholder="/var/lib/dotnetcloud/backups" />
-                <span class="hint">
-                    Local directory where backup archives are stored.
-                    Ensure the DotNetCloud service account has write permissions.
-                </span>
-            </div>
-
-            <div class="form-group">
-                <label>Retention Count</label>
-                <input type="number" class="input input-sm" min="1" max="365"
-                       @bind="_retentionCount" />
-                <span class="hint">
-                    Number of backup archives to keep. Oldest backups are automatically
-                    deleted when this limit is exceeded. Default: 7.
-                </span>
-            </div>
-        </section>
-
-        <!-- Backup Scope -->
-        <section class="settings-section">
-            <h2>Backup Scope</h2>
-
-            <div class="form-group">
-                <label>Include Database</label>
-                <input type="checkbox" @bind="_includeDatabase" />
-                <span class="hint">
-                    Back up the PostgreSQL / SQL Server database (users, settings, metadata).
-                </span>
-            </div>
-
-            <div class="form-group">
-                <label>Include File Storage</label>
-                <input type="checkbox" @bind="_includeFileStorage" />
-                <span class="hint">
-                    Back up uploaded files and chunks. This can significantly increase backup size
-                    and duration.
-                </span>
-            </div>
-
-            <div class="form-group">
-                <label>Include Module Data</label>
-                <input type="checkbox" @bind="_includeModuleData" />
-                <span class="hint">
-                    Back up per-module data directories (Chat attachments, Calendar exports, etc.).
-                </span>
-            </div>
-        </section>
-
-        <!-- Security -->
-        <section class="settings-section">
-            <h2>Security</h2>
-
-            <div class="form-group">
-                <label>Encrypt Backups</label>
-                <input type="checkbox" @bind="_encryptBackups" />
-                <span class="hint">
-                    Encrypt backup archives using AES-256. Store the encryption passphrase securely —
-                    without it, backups cannot be restored.
-                </span>
-            </div>
-
-            @if (_encryptBackups)
-            {
                 <div class="form-group">
-                    <label>Encryption Passphrase</label>
-                    <input type="password" class="input" @bind="_encryptionPassphrase"
-                           placeholder="Enter encryption passphrase" />
+                    <label>Schedule</label>
+                    <select class="input input-sm" @bind="_schedule">
+                        <option value="daily">Daily</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="manual">Manual Only</option>
+                    </select>
                     <span class="hint">
-                        Passphrase used to encrypt and decrypt backup archives.
-                        Minimum 12 characters. Store this passphrase in a safe location.
+                        How often automated backups run. "Manual Only" disables the schedule
+                        but still allows on-demand backups.
                     </span>
                 </div>
-            }
-        </section>
 
-        <!-- Notifications -->
-        <section class="settings-section">
-            <h2>Notifications</h2>
+                <div class="form-group">
+                    <label>Backup Time (UTC)</label>
+                    <input type="time" class="input input-sm" @bind="_backupTimeUtc" />
+                    <span class="hint">Time of day (UTC) to start the backup. Default: 02:00.</span>
+                </div>
 
-            <div class="form-group">
-                <label>Notify on Success</label>
-                <input type="checkbox" @bind="_notifyOnSuccess" />
-                <span class="hint">Send a notification to admins when a backup completes successfully.</span>
-            </div>
-
-            <div class="form-group">
-                <label>Notify on Failure</label>
-                <input type="checkbox" @bind="_notifyOnFailure" />
-                <span class="hint">Send a notification to admins when a backup fails.</span>
-            </div>
-        </section>
-    </div>
-
-    <!-- Run Backup Now -->
-    <section class="settings-section">
-        <h2>Manual Backup</h2>
-        <p class="text-muted">
-            Trigger an immediate backup using the current settings.
-            @if (_backupStatus?.IsRunning == true)
-            {
-                <span class="badge badge-warning">A backup is currently running...</span>
-            }
-        </p>
-        <div class="form-actions">
-            <button class="btn btn-primary" @onclick="RunBackupNowAsync" disabled="@_runningBackup">
-                @if (_runningBackup)
+                @if (_schedule == "weekly")
                 {
-                    <span>Running backup...</span>
+                    <div class="form-group">
+                        <label>Day of Week</label>
+                        <select class="input input-sm" @bind="_backupDayOfWeek">
+                            <option value="Sunday">Sunday</option>
+                            <option value="Monday">Monday</option>
+                            <option value="Tuesday">Tuesday</option>
+                            <option value="Wednesday">Wednesday</option>
+                            <option value="Thursday">Thursday</option>
+                            <option value="Friday">Friday</option>
+                            <option value="Saturday">Saturday</option>
+                        </select>
+                        <span class="hint">Day of the week to run the backup.</span>
+                    </div>
                 }
-                else
+            </section>
+
+            <!-- Storage -->
+            <section class="settings-section">
+                <h2>Storage</h2>
+
+                <div class="form-group">
+                    <label>Backup Directory</label>
+                    <input type="text" class="input" @bind="_backupDirectory" placeholder="/var/lib/dotnetcloud/backups" />
+                    <span class="hint">
+                        Local directory where backup archives are stored.
+                        Ensure the DotNetCloud service account has write permissions.
+                    </span>
+                </div>
+
+                <div class="form-group">
+                    <label>Retention Count</label>
+                    <input type="number" class="input input-sm" min="1" max="365" @bind="_retentionCount" />
+                    <span class="hint">
+                        Number of backup archives to keep. Oldest backups are automatically
+                        deleted when this limit is exceeded. Default: 7.
+                    </span>
+                </div>
+            </section>
+
+            <!-- Backup Scope -->
+            <section class="settings-section">
+                <h2>Backup Scope</h2>
+
+                <div class="form-group">
+                    <label>Include Database</label>
+                    <input type="checkbox" @bind="_includeDatabase" />
+                    <span class="hint">
+                        Back up the PostgreSQL / SQL Server database (users, settings, metadata).
+                    </span>
+                </div>
+
+                <div class="form-group">
+                    <label>Include File Storage</label>
+                    <input type="checkbox" @bind="_includeFileStorage" />
+                    <span class="hint">
+                        Back up uploaded files and chunks. This can significantly increase backup size
+                        and duration.
+                    </span>
+                </div>
+
+                <div class="form-group">
+                    <label>Include Module Data</label>
+                    <input type="checkbox" @bind="_includeModuleData" />
+                    <span class="hint">
+                        Back up per-module data directories (Chat attachments, Calendar exports, etc.).
+                    </span>
+                </div>
+            </section>
+
+            <!-- Security -->
+            <section class="settings-section">
+                <h2>Security</h2>
+
+                <div class="form-group">
+                    <label>Encrypt Backups</label>
+                    <input type="checkbox" @bind="_encryptBackups" />
+                    <span class="hint">
+                        Encrypt backup archives using AES-256. Store the encryption passphrase securely —
+                        without it, backups cannot be restored.
+                    </span>
+                </div>
+
+                @if (_encryptBackups)
                 {
-                    <span>Run Backup Now</span>
+                    <div class="form-group">
+                        <label>Encryption Passphrase</label>
+                        <input type="password" class="input" @bind="_encryptionPassphrase"
+                               placeholder="Enter encryption passphrase" />
+                        <span class="hint">
+                            Passphrase used to encrypt and decrypt backup archives.
+                            Minimum 12 characters. Store this passphrase in a safe location.
+                        </span>
+                    </div>
                 }
-            </button>
+            </section>
+
+            <!-- Notifications -->
+            <section class="settings-section">
+                <h2>Notifications</h2>
+
+                <div class="form-group">
+                    <label>Notify on Success</label>
+                    <input type="checkbox" @bind="_notifyOnSuccess" />
+                    <span class="hint">Send a notification to admins when a backup completes successfully.</span>
+                </div>
+
+                <div class="form-group">
+                    <label>Notify on Failure</label>
+                    <input type="checkbox" @bind="_notifyOnFailure" />
+                    <span class="hint">Send a notification to admins when a backup fails.</span>
+                </div>
+            </section>
         </div>
-        @if (_lastBackupResult is not null)
-        {
-            <div class="backup-result @(_lastBackupResult.Success ? "backup-result-success" : "backup-result-failure")">
-                <p>
-                    <strong>Last backup:</strong>
-                    @if (_lastBackupResult.Success)
+
+        <!-- Run Backup Now -->
+        <section class="settings-section">
+            <h2>Manual Backup</h2>
+            <p class="text-muted">
+                Trigger an immediate backup using the current settings.
+                @if (_backupStatus?.IsRunning == true)
+                {
+                    <span class="badge badge-warning">A backup is currently running...</span>
+                }
+            </p>
+            <div class="form-actions">
+                <button class="btn btn-primary" @onclick="RunBackupNowAsync" disabled="@_runningBackup">
+                    @if (_runningBackup)
                     {
-                        <span>Completed ✅</span>
+                        <span>Running backup...</span>
                     }
                     else
                     {
-                        <span>Failed ❌</span>
+                        <span>Run Backup Now</span>
                     }
-                </p>
-                @if (_lastBackupResult.Success)
-                {
-                    <p>File: <code>@_lastBackupResult.FilePath</code></p>
-                    <p>Files archived: @_lastBackupResult.FileCount</p>
-                    <p>Size: @FormatSize(_lastBackupResult.SizeBytes)</p>
-                }
-                else
-                {
-                    <p>Error: @_lastBackupResult.ErrorMessage</p>
-                }
+                </button>
             </div>
-        }
-    </section>
+            @if (_lastBackupResult is not null)
+            {
+                <div class="backup-result @(_lastBackupResult.Success ? "backup-result-success" : "backup-result-failure")">
+                    <p>
+                        <strong>Last backup:</strong>
+                        @if (_lastBackupResult.Success)
+                        {
+                            <span>Completed ✅</span>
+                        }
+                        else
+                        {
+                            <span>Failed ❌</span>
+                        }
+                    </p>
+                    @if (_lastBackupResult.Success)
+                    {
+                        <p>File: <code>@_lastBackupResult.FilePath</code></p>
+                        <p>Files archived: @_lastBackupResult.FileCount</p>
+                        <p>Size: @FormatSize(_lastBackupResult.SizeBytes)</p>
+                    }
+                    else
+                    {
+                        <p>Error: @_lastBackupResult.ErrorMessage</p>
+                    }
+                </div>
+            }
+        </section>
 
-    <div class="form-actions">
-        <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
-            @(_saving ? "Saving..." : "Save Settings")
-        </button>
-    </div>
-}
+        <div class="form-actions">
+            <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
+                @(_saving ? "Saving..." : "Save Settings")
+            </button>
+        </div>
+    }
 
-<ConfirmDialog @ref="_confirmDialog" />
-
+    <ConfirmDialog @ref="_confirmDialog" />
+</div>
 @code {
     [Inject] private DotNetCloudApiClient Api { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;

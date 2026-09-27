@@ -123,7 +123,8 @@ public sealed class ChatSettingsProvider : IChatSettingsProvider
             RetentionMode = ChatSettings.ParseMode(
                 Get(ChatSettingKeys.RetentionMode) ?? _configuration.GetValue<string>("Chat:Retention:Mode")),
             ArchiveAttachments = GetBool(Get(ChatSettingKeys.ArchiveAttachments), "Chat:Retention:ArchiveAttachments", true),
-            SweepIntervalMinutes = GetInt(Get(ChatSettingKeys.SweepIntervalMinutes), "Chat:Retention:SweepIntervalMinutes", ChatSettings.DefaultSweepIntervalMinutes)
+            SweepIntervalMinutes = GetInt(Get(ChatSettingKeys.SweepIntervalMinutes), "Chat:Retention:SweepIntervalMinutes", ChatSettings.DefaultSweepIntervalMinutes),
+            ArchivePath = Get(ChatSettingKeys.ArchivePath) ?? _configuration.GetValue<string>("Chat:Retention:ArchivePath")
         };
 
         return settings.Normalized();

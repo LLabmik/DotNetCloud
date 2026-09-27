@@ -14,14 +14,14 @@ DotNetCloud integrates with [Collabora Online](https://www.collaboraonline.com/)
 
 Collabora offers two editions:
 
-| | **Collabora CODE** | **Collabora Online** |
-|---|---|---|
-| **Cost** | Free / open source | Paid subscription |
-| **Concurrent editors** | ~10–20 users | Unlimited (per license) |
-| **Support** | Community only | Commercial support |
-| **Docker image** | `collabora/code` | `collabora/online` (requires license key) |
-| **APT package** | `coolwsd` + `code-brand` (CODE repo) | `coolwsd` + enterprise packages (partner repo) |
-| **Use case** | Small teams, home labs, development | Business, education, large deployments |
+|                        | **Collabora CODE**                   | **Collabora Online**                           |
+| ---------------------- | ------------------------------------ | ---------------------------------------------- |
+| **Cost**               | Free / open source                   | Paid subscription                              |
+| **Concurrent editors** | ~10–20 users                         | Unlimited (per license)                        |
+| **Support**            | Community only                       | Commercial support                             |
+| **Docker image**       | `collabora/code`                     | `collabora/online` (requires license key)      |
+| **APT package**        | `coolwsd` + `code-brand` (CODE repo) | `coolwsd` + enterprise packages (partner repo) |
+| **Use case**           | Small teams, home labs, development  | Business, education, large deployments         |
 
 Both editions use the same WOPI protocol and integrate identically with DotNetCloud. The only differences are user limits and support.
 
@@ -51,6 +51,7 @@ DotNetCloud can manage a local Collabora CODE instance automatically. The CLI in
 > If you need more, see [Option 2: External Collabora Server](#option-2-external-collabora-server-paid-or-self-hosted) below.
 
 **Advantages:**
+
 - Zero external dependencies
 - Single port exposure (no need to open port 9980)
 - Automatic reverse proxy via YARP (`/hosting`, `/browser`, `/cool`, `/lool`)
@@ -59,6 +60,7 @@ DotNetCloud can manage a local Collabora CODE instance automatically. The CLI in
 **How it works:**
 
 The CLI (`dotnetcloud start`) reads `config.json` and sets environment variables:
+
 - `ServerUrl` = public origin (e.g., `https://mint22:5443`) — discovery URLs rewrite to this
 - `ProxyUpstreamUrl` = `https://localhost:9980` — internal coolwsd target for the YARP proxy
 - `WopiBaseUrl` = same public origin — Collabora uses this for WOPI callbacks
@@ -154,23 +156,36 @@ Set `collaboraUrl` to `https://<collabora-host>:9980` (or whatever port your ins
 
 ## Configuration Reference
 
-| Setting | Default | Description |
-|---|---|---|
-| `Enabled` | `false` | Enable Collabora integration |
-| `ServerUrl` | `""` | Public-facing URL for Collabora (iframe src origin) |
-| `WopiBaseUrl` | `""` | Public URL of this DotNetCloud instance |
-| `ProxyUpstreamUrl` | `""` | Internal Collabora endpoint for YARP proxy (e.g., `https://localhost:9980`) |
-| `TokenSigningKey` | `""` | HMAC-SHA256 signing key for WOPI tokens (≥32 chars) |
-| `TokenLifetimeMinutes` | `480` | Token validity (8 hours) |
-| `AutoSaveIntervalSeconds` | `300` | Collabora auto-save interval (5 minutes) |
-| `MaxConcurrentSessions` | `20` | Max simultaneous editing sessions (0 = unlimited) |
-| `EnableProofKeyValidation` | `true` | Validate Collabora proof key signatures |
-| `SupportedMimeTypes` | `[]` | Filter allowed MIME types (empty = all) |
-| `UseBuiltInCollabora` | `false` | Manage local CODE process |
-| `CollaboraInstallDirectory` | `""` | Path to CODE installation |
-| `CollaboraExecutablePath` | `""` | Path to `coolwsd` executable |
-| `CollaboraMaxRestartAttempts` | `5` | Max restart attempts before giving up |
-| `CollaboraRestartBackoffSeconds` | `5` | Base delay for exponential restart backoff |
+| Setting                          | Default | Description                                                                 |
+| -------------------------------- | ------- | --------------------------------------------------------------------------- |
+| `Enabled`                        | `false` | Enable Collabora integration                                                |
+| `ServerUrl`                      | `""`    | Public-facing URL for Collabora (iframe src origin)                         |
+| `WopiBaseUrl`                    | `""`    | Public URL of this DotNetCloud instance                                     |
+| `ProxyUpstreamUrl`               | `""`    | Internal Collabora endpoint for YARP proxy (e.g., `https://localhost:9980`) |
+| `TokenSigningKey`                | `""`    | HMAC-SHA256 signing key for WOPI tokens (≥32 chars)                         |
+| `TokenLifetimeMinutes`           | `480`   | Token validity (8 hours)                                                    |
+| `AutoSaveIntervalSeconds`        | `300`   | Collabora auto-save interval (5 minutes)                                    |
+| `MaxConcurrentSessions`          | `20`    | Max simultaneous editing sessions (0 = unlimited)                           |
+| `EnableProofKeyValidation`       | `true`  | Validate Collabora proof key signatures                                     |
+| `SupportedMimeTypes`             | `[]`    | Filter allowed MIME types (empty = all)                                     |
+| `UseBuiltInCollabora`            | `false` | Manage local CODE process                                                   |
+| `CollaboraInstallDirectory`      | `""`    | Path to CODE installation                                                   |
+| `CollaboraExecutablePath`        | `""`    | Path to `coolwsd` executable                                                |
+| `CollaboraMaxRestartAttempts`    | `5`     | Max restart attempts before giving up                                       |
+| `CollaboraRestartBackoffSeconds` | `5`     | Base delay for exponential restart backoff                                  |
+
+### Precedence: the admin page wins
+
+Configuration above (`Files:Collabora:*`, normally `/etc/dotnetcloud/env` or `config.json`) is the
+baseline. Values saved on **`/admin/collabora`** are stored as core system settings (module
+`dotnetcloud.files`, keys `Collabora:*`) and are **layered on top of it**, so the page shows and
+controls what is actually in force — no server restart is needed, and every assembly in every host
+picks the change up within about 30 seconds. Clear a row (or leave a field blank and save) to fall
+back to the configured value.
+
+The token signing key is the one exception: it is never sent back to the browser. `/admin/collabora`
+only reports whether one is in force, and an empty box means "keep the current key" rather than
+clearing it.
 
 ---
 
@@ -179,6 +194,7 @@ Set `collaboraUrl` to `https://<collabora-host>:9980` (or whatever port your ins
 The `WopiBaseUrl` must be the public-facing URL of your DotNetCloud instance. Collabora uses this URL to call back to DotNetCloud for file operations.
 
 **Requirements:**
+
 - Must be HTTPS in production
 - Must be accessible from the Collabora server
 - Must not include a trailing slash
@@ -229,20 +245,20 @@ DotNetCloud includes a built-in YARP reverse proxy that routes Collabora traffic
 
 The proxy maps these URL spaces from the DotNetCloud port to coolwsd on `localhost:9980`:
 
-| Path | Purpose |
-|---|---|
-| `/hosting/**` | WOPI discovery |
+| Path          | Purpose                                      |
+| ------------- | -------------------------------------------- |
+| `/hosting/**` | WOPI discovery                               |
 | `/browser/**` | Collabora editor static assets + `cool.html` |
-| `/cool/**` | WebSocket real-time editing sessions |
-| `/lool/**` | Legacy editing sessions |
+| `/cool/**`    | WebSocket real-time editing sessions         |
+| `/lool/**`    | Legacy editing sessions                      |
 
 **Key settings that control this:**
 
-| Setting | Value | Purpose |
-|---|---|---|
-| `ServerUrl` | Public origin (e.g., `https://mint22:5443`) | Discovery URLs rewrite to this |
-| `ProxyUpstreamUrl` | `https://localhost:9980` | Internal proxy target |
-| `AllowInsecureTls` | `true` | Accept coolwsd's self-signed cert |
+| Setting            | Value                                       | Purpose                           |
+| ------------------ | ------------------------------------------- | --------------------------------- |
+| `ServerUrl`        | Public origin (e.g., `https://mint22:5443`) | Discovery URLs rewrite to this    |
+| `ProxyUpstreamUrl` | `https://localhost:9980`                    | Internal proxy target             |
+| `AllowInsecureTls` | `true`                                      | Accept coolwsd's self-signed cert |
 
 When `ServerUrl` and `WopiBaseUrl` share the same origin, `ProxyUpstreamUrl` **must** be set to avoid self-proxy loops.
 
@@ -343,13 +359,13 @@ When `UseBuiltInCollabora` is `true`, the `CollaboraProcessManager` (a `Backgrou
 
 ### Restart Backoff
 
-| Attempt | Delay |
-|---|---|
-| 1 | 5 seconds |
-| 2 | 10 seconds |
-| 3 | 20 seconds |
-| 4 | 40 seconds |
-| 5 | 80 seconds |
+| Attempt | Delay      |
+| ------- | ---------- |
+| 1       | 5 seconds  |
+| 2       | 10 seconds |
+| 3       | 20 seconds |
+| 4       | 40 seconds |
+| 5       | 80 seconds |
 
 After `CollaboraMaxRestartAttempts` failures, the process manager stops attempting restarts and logs an error. Manual intervention is required.
 
@@ -359,10 +375,10 @@ After `CollaboraMaxRestartAttempts` failures, the process manager stops attempti
 
 The `CollaboraHealthCheck` reports:
 
-| Status | Condition |
-|---|---|
-| **Healthy** | Collabora responds within 5 seconds |
-| **Degraded** | Collabora responds but slowly (>5s) |
+| Status        | Condition                                    |
+| ------------- | -------------------------------------------- |
+| **Healthy**   | Collabora responds within 5 seconds          |
+| **Degraded**  | Collabora responds but slowly (>5s)          |
 | **Unhealthy** | Collabora is unreachable or returns an error |
 
 Check via:

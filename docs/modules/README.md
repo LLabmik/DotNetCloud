@@ -101,13 +101,13 @@ Client → REST API / gRPC → Service Layer → EF Core → Database
 
 Configuration is managed via `appsettings.json` sections:
 
-| Section                  | Options Class             | Purpose                                                      |
-| ------------------------ | ------------------------- | ------------------------------------------------------------ |
-| `Files:Quota`            | `QuotaOptions`            | Default quota, warning/critical thresholds                   |
-| `Files:TrashRetention`   | `TrashRetentionOptions`   | Trash auto-cleanup interval and retention period             |
-| `Files:VersionRetention` | `VersionRetentionOptions` | Max versions per file, time-based retention                  |
-| `Files:Collabora`        | `CollaboraOptions`        | Collabora CODE server URL, token settings, session limits    |
-| `FileUpload`             | `FileUploadOptions`       | Maximum upload file size (`MaxFileSizeBytes`, default 15 GB) |
+| Section                  | Options Class             | Purpose                                                                                |
+| ------------------------ | ------------------------- | -------------------------------------------------------------------------------------- |
+| `Files:Quota`            | `QuotaOptions`            | Default quota, warning/critical thresholds                                             |
+| `Files:TrashRetention`   | `TrashRetentionOptions`   | Trash auto-cleanup interval and retention period                                       |
+| `Files:VersionRetention` | `VersionRetentionOptions` | Max versions per file, time-based retention (baseline for the `/admin/files` settings) |
+| `Files:Collabora`        | `CollaboraOptions`        | Collabora CODE server URL, token settings, session limits                              |
+| `FileUpload`             | `FileUploadOptions`       | Maximum upload file size (`MaxFileSizeBytes`, default 15 GB)                           |
 
 ## Related Documentation
 

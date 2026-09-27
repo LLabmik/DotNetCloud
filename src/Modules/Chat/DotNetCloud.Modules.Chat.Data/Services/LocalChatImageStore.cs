@@ -57,11 +57,11 @@ public sealed class LocalChatImageStore : IChatImageStore
         _logger = logger;
         _scopeFactory = scopeFactory;
 
-        var storagePath = configuration.GetValue<string>("Files:Storage:RootPath");
-        if (string.IsNullOrWhiteSpace(storagePath))
-        {
-            storagePath = Path.Combine(Directory.GetCurrentDirectory(), "storage");
-        }
+        // Never write under the deploy directory: hosts run with ProtectSystem=strict, so a
+        // "current directory" fallback is read-only and throws while the controller is built.
+        var storagePath = ChatUploadPathResolver.Resolve(
+            configuration,
+            Environment.GetEnvironmentVariable(ChatUploadPathResolver.DataDirEnvironmentVariable));
 
         _uploadDir = Path.Combine(storagePath, "chat-uploads");
         Directory.CreateDirectory(_uploadDir);

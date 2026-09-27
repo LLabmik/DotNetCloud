@@ -28,19 +28,20 @@ All values live in the core `SystemSettings` table under module `dotnetcloud.cha
 the **`/admin/chat`** page, and are read by `ChatSettingsProvider`. Row values are strings; the
 provider parses, clamps and defaults them.
 
-| Key                                       | Type | Default   | Meaning                                                          |
-| ----------------------------------------- | ---- | --------- | ---------------------------------------------------------------- |
-| `Limits:MaxMessageLength`                 | int  | `10000`   | Characters per message (1–10000).                                |
-| `Limits:MaxMessagesPerChannel`            | int  | `0`       | Live messages kept per channel. `0` = unlimited.                 |
-| `Limits:MaxAttachmentsPerMessage`         | int  | `10`      | Attachments on one message (1–100).                              |
-| `Limits:MaxAttachmentsPerChannel`         | int  | `0`       | Attachments in a channel. `0` = unlimited.                       |
-| `Limits:MaxAttachmentSizeMb`              | int  | `10`      | Size of one attachment (1–64 MB).                                |
-| `Limits:MaxAttachmentStoragePerChannelMb` | int  | `0`       | Total attachment bytes per channel. `0` = unlimited.             |
-| `Retention:Enabled`                       | bool | `false`   | Master switch for the automatic sweep.                           |
-| `Retention:MessageLifetimeDays`           | int  | `0`       | Age at which messages expire. `0` = keep forever.                |
-| `Retention:Mode`                          | enum | `Archive` | `Archive` (hide, keep) or `Purge` (delete permanently).          |
-| `Retention:ArchiveAttachments`            | bool | `true`    | Keep attachments of archived messages; when false their rows go. |
-| `Retention:SweepIntervalMinutes`          | int  | `60`      | How often the sweep runs (1–1440).                               |
+| Key                                       | Type | Default   | Meaning                                                                                          |
+| ----------------------------------------- | ---- | --------- | ------------------------------------------------------------------------------------------------ |
+| `Limits:MaxMessageLength`                 | int  | `10000`   | Characters per message (1–10000).                                                                |
+| `Limits:MaxMessagesPerChannel`            | int  | `0`       | Live messages kept per channel. `0` = unlimited.                                                 |
+| `Limits:MaxAttachmentsPerMessage`         | int  | `10`      | Attachments on one message (1–100).                                                              |
+| `Limits:MaxAttachmentsPerChannel`         | int  | `0`       | Attachments in a channel. `0` = unlimited.                                                       |
+| `Limits:MaxAttachmentSizeMb`              | int  | `10`      | Size of one attachment (1–64 MB).                                                                |
+| `Limits:MaxAttachmentStoragePerChannelMb` | int  | `0`       | Total attachment bytes per channel. `0` = unlimited.                                             |
+| `Retention:Enabled`                       | bool | `false`   | Master switch for the automatic sweep.                                                           |
+| `Retention:MessageLifetimeDays`           | int  | `0`       | Age at which messages expire. `0` = keep forever.                                                |
+| `Retention:Mode`                          | enum | `Archive` | `Archive` (hide, keep) or `Purge` (delete permanently).                                          |
+| `Retention:ArchiveAttachments`            | bool | `true`    | Keep attachments of archived messages; when false their rows go.                                 |
+| `Retention:SweepIntervalMinutes`          | int  | `60`      | How often the sweep runs (1–1440).                                                               |
+| `Retention:ArchivePath`                   | path | _(blank)_ | Folder archived messages are exported to. Blank = `{DOTNETCLOUD_DATA_DIR}/storage/chat-archive`. |
 
 Defaults are seeded by `DbInitializer.SeedSystemSettingsAsync` (insert-only, so existing
 installs keep their current values).
@@ -56,14 +57,19 @@ _effective_ policy (post-clamp) via `GET /api/v1/chat/admin/settings/effective`.
 
 ## Enforcement
 
-### Write time (`MessageService`, `LocalChatImageStore`)
+### Write time (`MessageService`, `LocalChatImageStore`, composers)
 
-- Content longer than `MaxMessageLength` → rejected (send **and** edit).
+- Content longer than `MaxMessageLength` → rejected as a safety net. The **entry controls enforce
+  it first**: the Blazor composer blocks input past the limit (with a `used / max` counter) and the
+  Android composer is handed the same limit through `GET /api/v1/chat/limits`.
 - More than `MaxAttachmentsPerMessage` → rejected.
 - A single attachment larger than `MaxAttachmentSizeMb` → rejected (both inline attachments and
   image uploads, which resolve the same limit).
 - Writes that would push the channel past `MaxAttachmentsPerChannel` or
-  `MaxAttachmentStoragePerChannelMb` → rejected.
+  `MaxAttachmentStoragePerChannelMb` are **never rejected**: the oldest messages carrying
+  attachments expire to make room (`MessageService.MakeRoomForAttachmentsAsync`), using the same
+  archive-or-purge action as the sweep. Both ceilings therefore need `Retention:Enabled` — with the
+  master switch off they are inert.
 
 Failures surface as `400 VALIDATION_ERROR` through the existing controller mapping
 (`ArgumentException`). The per-channel **message** cap is deliberately _not_ enforced at write
@@ -86,11 +92,13 @@ chat container for the Blazor UI. The sweep:
    beyond the newest `MaxMessagesPerChannel`, bounded to 5 000 messages per channel per sweep.
 4. Removes pins for expired messages (the pin FK is `RESTRICT` and a pin pointing at a hidden
    message would render as a broken entry).
-5. Applies the mode:
-   - **Archive** — sets `Message.ArchivedAt`; the message stays in the table but drops out of
-     every normal read and search (global query filter), so it can be recovered. When
-     `Retention:ArchiveAttachments` is false, the attachment rows are deleted and only the text
-     is kept.
+5. Applies the mode (through the shared `ChatMessageExpiryService`):
+   - **Archive** — `ChatArchiveExporter` writes one JSON record per message plus a copy of the
+     attachment payloads the Chat module owns, laid out `{ArchivePath}/{yyyy}/{MM}/{messageId}.json`
+     with payloads under `/{messageId}/{fileName}` (Files-module references stay in Files), and only
+     then are the messages, attachments and pins deleted. A record that fails to export leaves its
+     message in place for the next sweep; if the archive root cannot be created at all nothing is
+     deleted and the sweep reports `MessagesSkipped`.
    - **Purge** — deletes pin rows, detaches replies (`ReplyToMessageId` → `null`, because the
      self-FK is `RESTRICT`), deletes attachment rows and then the messages. Irreversible.
 6. Publishes `SearchIndexRequestEvent` (`Remove`) per expired message so the search index follows.
@@ -112,10 +120,11 @@ Migrations: `AddMessageArchiving` (PostgreSQL, `Chat.Data/Migrations`) and
 
 ## API surface
 
-| Method | Route                                   | Policy         | Purpose                             |
-| ------ | --------------------------------------- | -------------- | ----------------------------------- |
-| GET    | `/api/v1/chat/admin/settings/effective` | `RequireAdmin` | Effective (clamped) policy readout. |
-| POST   | `/api/v1/chat/admin/retention/sweep`    | `RequireAdmin` | Run the sweep now.                  |
+| Method | Route                                   | Policy         | Purpose                                  |
+| ------ | --------------------------------------- | -------------- | ---------------------------------------- |
+| GET    | `/api/v1/chat/limits`                   | Authenticated  | Per-message limits, for client composers |
+| GET    | `/api/v1/chat/admin/settings/effective` | `RequireAdmin` | Effective (clamped) policy readout.      |
+| POST   | `/api/v1/chat/admin/retention/sweep`    | `RequireAdmin` | Run the sweep now.                       |
 
 Both are proxied to the Chat module by Core.Server's module proxy. The rest of the settings
 surface is the existing generic core admin API (`/api/v1/core/admin/settings/...`).

@@ -15,9 +15,20 @@ internal sealed class WopiSessionTracker : IWopiSessionTracker
     /// <summary>A session expires if no WOPI activity is seen within this window.</summary>
     private static readonly TimeSpan DefaultSessionTimeout = TimeSpan.FromHours(9);
 
-    private readonly CollaboraOptions _options;
+    private readonly ICollaboraSettingsProvider _collaboraSettings;
+
+    /// <summary>Effective options: administrator edits layered over configuration.</summary>
+    private CollaboraOptions _options => _collaboraSettings.Current;
+
+    /// <summary>
+    /// Session timeout is slightly longer than the token lifetime so tokens expire before sessions.
+    /// Derived per use so a changed token lifetime applies without restarting the module host.
+    /// </summary>
+    private TimeSpan SessionTimeout => _options.TokenLifetimeMinutes > 0
+        ? TimeSpan.FromMinutes(_options.TokenLifetimeMinutes + 30)
+        : DefaultSessionTimeout;
+
     private readonly ILogger<WopiSessionTracker> _logger;
-    private readonly TimeSpan _sessionTimeout;
 
     // Key: (fileId, userId) → last-activity UTC
     private readonly ConcurrentDictionary<(Guid FileId, Guid UserId), DateTime> _sessions = new();
@@ -25,15 +36,10 @@ internal sealed class WopiSessionTracker : IWopiSessionTracker
     /// <summary>
     /// Initializes a new instance of <see cref="WopiSessionTracker"/>.
     /// </summary>
-    public WopiSessionTracker(IOptions<CollaboraOptions> options, ILogger<WopiSessionTracker> logger)
+    public WopiSessionTracker(ICollaboraSettingsProvider collaboraSettings, ILogger<WopiSessionTracker> logger)
     {
-        _options = options.Value;
+        _collaboraSettings = collaboraSettings;
         _logger = logger;
-
-        // Session timeout is slightly longer than the token lifetime so tokens expire before sessions
-        _sessionTimeout = _options.TokenLifetimeMinutes > 0
-            ? TimeSpan.FromMinutes(_options.TokenLifetimeMinutes + 30)
-            : DefaultSessionTimeout;
     }
 
     /// <inheritdoc />
@@ -96,7 +102,7 @@ internal sealed class WopiSessionTracker : IWopiSessionTracker
 
     private void PruneExpiredSessions()
     {
-        var cutoff = DateTime.UtcNow - _sessionTimeout;
+        var cutoff = DateTime.UtcNow - SessionTimeout;
         foreach (var (key, lastActivity) in _sessions)
         {
             if (lastActivity < cutoff)

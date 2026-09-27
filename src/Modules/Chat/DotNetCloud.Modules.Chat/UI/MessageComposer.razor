@@ -10,38 +10,50 @@
 <div class="chat-message-composer">
     <div class="composer-toolbar" role="toolbar" aria-label="Formatting toolbar">
         @* ── Text formatting ── *@
-        <button class="btn btn-sm composer-fmt fmt-bold" @onclick='() => FormatAsync("bold")' title="Bold (Ctrl+B)" aria-label="Bold"><strong>B</strong></button>
-        <button class="btn btn-sm composer-fmt fmt-italic" @onclick='() => FormatAsync("italic")' title="Italic (Ctrl+I)" aria-label="Italic"><em>I</em></button>
-        <button class="btn btn-sm composer-fmt fmt-strike" @onclick='() => FormatAsync("strikethrough")' title="Strikethrough" aria-label="Strikethrough"><s>S</s></button>
+        <button class="btn btn-sm composer-fmt fmt-bold" @onclick='() => FormatAsync("bold")' title="Bold (Ctrl+B)"
+                aria-label="Bold"><strong>B</strong></button>
+        <button class="btn btn-sm composer-fmt fmt-italic" @onclick='() => FormatAsync("italic")'
+                title="Italic (Ctrl+I)" aria-label="Italic"><em>I</em></button>
+        <button class="btn btn-sm composer-fmt fmt-strike" @onclick='() => FormatAsync("strikethrough")'
+                title="Strikethrough" aria-label="Strikethrough"><s>S</s></button>
         <span class="toolbar-sep" aria-hidden="true"></span>
 
         @* ── Code ── *@
-        <button class="btn btn-sm composer-fmt fmt-code" @onclick='() => FormatAsync("inlineCode")' title="Inline code" aria-label="Inline code">&lt;/&gt;</button>
-        <button class="btn btn-sm composer-fmt fmt-codeblock" @onclick='() => FormatAsync("codeBlock")' title="Code block" aria-label="Code block">{ }</button>
+        <button class="btn btn-sm composer-fmt fmt-code" @onclick='() => FormatAsync("inlineCode")' title="Inline code"
+                aria-label="Inline code">&lt;/&gt;</button>
+        <button class="btn btn-sm composer-fmt fmt-codeblock" @onclick='() => FormatAsync("codeBlock")'
+                title="Code block" aria-label="Code block">{ }</button>
         <span class="toolbar-sep" aria-hidden="true"></span>
 
         @* ── Link ── *@
-        <button class="btn btn-sm composer-fmt fmt-link" @onclick='() => FormatAsync("link")' title="Link (Ctrl+K)" aria-label="Insert link">
+        <button class="btn btn-sm composer-fmt fmt-link" @onclick='() => FormatAsync("link")' title="Link (Ctrl+K)"
+                aria-label="Insert link">
             <MaterialIcon Icon="link" />
         </button>
         <span class="toolbar-sep" aria-hidden="true"></span>
 
         @* ── Lists ── *@
-        <button class="btn btn-sm composer-fmt fmt-ul" @onclick='() => FormatAsync("bulletList")' title="Bullet list" aria-label="Bullet list">• —</button>
-        <button class="btn btn-sm composer-fmt fmt-ol" @onclick='() => FormatAsync("numberedList")' title="Numbered list" aria-label="Numbered list">1.</button>
+        <button class="btn btn-sm composer-fmt fmt-ul" @onclick='() => FormatAsync("bulletList")' title="Bullet list"
+                aria-label="Bullet list">• —</button>
+        <button class="btn btn-sm composer-fmt fmt-ol" @onclick='() => FormatAsync("numberedList")'
+                title="Numbered list" aria-label="Numbered list">1.</button>
         <span class="toolbar-sep" aria-hidden="true"></span>
 
         @* ── Block ── *@
-        <button class="btn btn-sm composer-fmt fmt-quote" @onclick='() => FormatAsync("blockquote")' title="Quote" aria-label="Blockquote">
+        <button class="btn btn-sm composer-fmt fmt-quote" @onclick='() => FormatAsync("blockquote")' title="Quote"
+                aria-label="Blockquote">
             <MaterialIcon Icon="format_quote" />
         </button>
-        <button class="btn btn-sm composer-fmt fmt-heading" @onclick='() => FormatAsync("heading")' title="Heading" aria-label="Heading"><strong>H</strong></button>
+        <button class="btn btn-sm composer-fmt fmt-heading" @onclick='() => FormatAsync("heading")' title="Heading"
+                aria-label="Heading"><strong>H</strong></button>
     </div>
 
     @if (EditingMessage is not null)
     {
         <div class="edit-preview">
-            <span class="edit-label"><MaterialIcon Icon="edit" /> Editing message</span>
+            <span class="edit-label">
+                <MaterialIcon Icon="edit" /> Editing message
+            </span>
             <span class="edit-content">@TruncateContent(EditingMessage.Content)</span>
             <button class="btn-close" @onclick="CancelEdit" title="Cancel edit">
                 <MaterialIcon Icon="close" />
@@ -65,13 +77,8 @@
         </button>
 
         <div class="composer-input-wrapper">
-            <div id="@EditorElementId"
-                 class="composer-editor"
-                 contenteditable="true"
-                 role="textbox"
-                 aria-multiline="true"
-                 aria-label="@GetPlaceholder()"
-                 data-placeholder="@GetPlaceholder()">
+            <div id="@EditorElementId" class="composer-editor" contenteditable="true" role="textbox"
+                 aria-multiline="true" aria-label="@GetPlaceholder()" data-placeholder="@GetPlaceholder()">
             </div>
 
             @if (IsMentionDropdownVisible)
@@ -79,10 +86,8 @@
                 <div class="mention-suggestions list-group" role="listbox" aria-label="Mention suggestions">
                     @foreach (var member in VisibleMentionSuggestions)
                     {
-                        <button type="button"
-                                class="list-group-item list-group-item-action mention-suggestion"
-                                title="Mention @member.DisplayName"
-                                @onclick="() => SelectMentionAsync(member)">
+                        <button type="button" class="list-group-item list-group-item-action mention-suggestion"
+                                title="Mention @member.DisplayName" @onclick="() => SelectMentionAsync(member)">
                             <span class="mention-suggestion-name">@GetMentionLabel(member)</span>
                             @if (!string.IsNullOrWhiteSpace(member.Username))
                             {
@@ -98,9 +103,15 @@
             <MaterialIcon Icon="emoji_emotions" />
         </button>
 
-        <button class="btn btn-sm btn-primary composer-send"
-                @onclick="SendMessage"
-                disabled="@IsSendDisabled"
+        @if (ShowCharacterCounter)
+        {
+            <span class="composer-counter @(IsOverMessageLength ? "composer-counter--over" : null)"
+                  title="@CharacterCounterTitle">
+                @ContentLength / @MaxMessageLength
+            </span>
+        }
+
+        <button class="btn btn-sm btn-primary composer-send" @onclick="SendMessage" disabled="@IsSendDisabled"
                 title="Send message">
             <MaterialIcon Icon="send" />
         </button>

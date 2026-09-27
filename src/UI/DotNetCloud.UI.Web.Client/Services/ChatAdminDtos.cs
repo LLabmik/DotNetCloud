@@ -39,11 +39,20 @@ public sealed record ChatEffectiveSettingsDto
     /// <summary>How often the retention sweep runs, in minutes.</summary>
     public int SweepIntervalMinutes { get; init; }
 
+    /// <summary>
+    /// Resolved filesystem directory that archived messages are exported to before their rows are
+    /// deleted when <see cref="RetentionMode"/> is <c>Archive</c>.
+    /// </summary>
+    public string? ArchivePath { get; init; }
+
     /// <summary>Whether a per-channel message cap is in force.</summary>
     public bool MessageCountLimitActive { get; init; }
 
     /// <summary>Whether an age-based message lifetime is in force.</summary>
     public bool MessageLifetimeActive { get; init; }
+
+    /// <summary>Whether a per-channel attachment count or storage ceiling is in force.</summary>
+    public bool AttachmentCapActive { get; init; }
 
     /// <summary>Whether the retention policy will expire anything at all.</summary>
     public bool RetentionPolicyActive { get; init; }
@@ -58,7 +67,7 @@ public sealed record ChatRetentionSweepResultDto
     /// <summary>Number of channels examined.</summary>
     public int ChannelsScanned { get; init; }
 
-    /// <summary>Number of messages archived.</summary>
+    /// <summary>Number of messages written to the archive directory and then removed from the database.</summary>
     public int MessagesArchived { get; init; }
 
     /// <summary>Number of messages permanently deleted.</summary>
@@ -66,6 +75,14 @@ public sealed record ChatRetentionSweepResultDto
 
     /// <summary>Number of attachment rows removed.</summary>
     public int AttachmentsRemoved { get; init; }
+
+    /// <summary>Number of attachment payloads copied into the archive directory.</summary>
+    public int AttachmentsArchived { get; init; }
+
+    /// <summary>
+    /// Messages kept because their archive export failed. They are retried on the next sweep.
+    /// </summary>
+    public int MessagesSkipped { get; init; }
 
     /// <summary>Number of pins removed because their message expired.</summary>
     public int PinsRemoved { get; init; }

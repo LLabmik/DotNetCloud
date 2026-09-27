@@ -108,6 +108,12 @@ public static class ChatServiceRegistration
         // Chat image upload storage
         services.AddSingleton<IChatImageStore, LocalChatImageStore>();
 
+        // Retention: archiving writes each expired message to the configured directory and only
+        // then deletes its rows; the same service expires the oldest attachments when a channel
+        // exceeds its attachment budget, so uploads are never rejected.
+        services.AddSingleton<IChatArchiveExporter, ChatArchiveExporter>();
+        services.AddSingleton<IChatMessageExpiryService, ChatMessageExpiryService>();
+
         // Cross-module Tracks activity display (null-object when Tracks not installed)
         services.AddSingleton<ITracksActivitySignalRService, NullTracksActivitySignalRService>();
 

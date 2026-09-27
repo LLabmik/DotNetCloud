@@ -328,7 +328,7 @@ public class ControllerSecurityAuditTests
             Mock.Of<ICollaboraDiscoveryService>(),
             Mock.Of<IWopiProofKeyValidator>(),
             sessionTrackerMock?.Object ?? Mock.Of<IWopiSessionTracker>(),
-            Microsoft.Extensions.Options.Options.Create(new CollaboraOptions()),
+            TestCollaboraSettings.From(Microsoft.Extensions.Options.Options.Create(new CollaboraOptions())),
             NullLogger<WopiController>.Instance);
     }
 

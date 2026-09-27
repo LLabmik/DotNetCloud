@@ -30,6 +30,7 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
     private readonly IFileStorageEngine _storageEngine;
     private readonly IAuditLogger _auditLogger;
     private readonly ILogger<FilesGrpcService> _logger;
+    private readonly IFileVersioningSettingsProvider _versioningSettings;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FilesGrpcService"/> class.
@@ -39,13 +40,15 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
         IEventBus eventBus,
         IFileStorageEngine storageEngine,
         IAuditLogger auditLogger,
-        ILogger<FilesGrpcService> logger)
+        ILogger<FilesGrpcService> logger,
+        IFileVersioningSettingsProvider versioningSettings)
     {
         _db = db;
         _eventBus = eventBus;
         _storageEngine = storageEngine;
         _auditLogger = auditLogger;
         _logger = logger;
+        _versioningSettings = versioningSettings;
     }
 
     /// <inheritdoc />
@@ -879,6 +882,13 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
 
         await _db.SaveChangesAsync(context.CancellationToken);
 
+        // Apply the version retention policy right after the new version is written.
+        var retentionOptions = await _versioningSettings.GetAsync(context.CancellationToken);
+        if (await VersionRetentionEnforcer.ApplyAsync(_db, fileNode.Id, retentionOptions, context.CancellationToken) > 0)
+        {
+            await _db.SaveChangesAsync(context.CancellationToken);
+        }
+
         _logger.LogInformation(
             "Upload completed: {FileName} ({Size} bytes) -> node {NodeId}",
             session.FileName, session.TotalSize, fileNode.Id);
@@ -1065,6 +1075,13 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
         node.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(context.CancellationToken);
+
+        // A restore records a new version, so the retention policy applies here too.
+        var restoreRetentionOptions = await _versioningSettings.GetAsync(context.CancellationToken);
+        if (await VersionRetentionEnforcer.ApplyAsync(_db, nodeId, restoreRetentionOptions, context.CancellationToken) > 0)
+        {
+            await _db.SaveChangesAsync(context.CancellationToken);
+        }
 
         _logger.LogInformation("File {NodeId} restored to version {Version}", nodeId, request.VersionNumber);
 

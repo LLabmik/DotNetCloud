@@ -4,7 +4,9 @@ using DotNetCloud.Modules.Chat.Data.Services;
 using DotNetCloud.Modules.Chat.DTOs;
 using DotNetCloud.Modules.Chat.Models;
 using DotNetCloud.Modules.Chat.Services;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace DotNetCloud.Modules.Chat.Tests;
@@ -17,17 +19,24 @@ namespace DotNetCloud.Modules.Chat.Tests;
 public class MessageServiceChatLimitTests
 {
     private ChatDbContext _db = null!;
+    private SqliteConnection _connection = null!;
     private Guid _channelId;
     private CallerContext _caller = null!;
 
     [TestInitialize]
     public void Setup()
     {
+        // SQLite (not the in-memory provider): expiring the oldest attachments uses bulk
+        // ExecuteDelete statements, which the in-memory provider cannot translate.
+        _connection = new SqliteConnection("DataSource=:memory:");
+        _connection.Open();
+
         var options = new DbContextOptionsBuilder<ChatDbContext>()
-            .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
+            .UseSqlite(_connection)
             .Options;
 
         _db = new ChatDbContext(options);
+        _db.Database.EnsureCreated();
         _caller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
 
         var channel = new Channel
@@ -49,7 +58,11 @@ public class MessageServiceChatLimitTests
     }
 
     [TestCleanup]
-    public void Cleanup() => _db.Dispose();
+    public void Cleanup()
+    {
+        _db.Dispose();
+        _connection.Dispose();
+    }
 
     // ── Message length ──────────────────────────────────────────────
 
@@ -186,9 +199,15 @@ public class MessageServiceChatLimitTests
     // ── Per-channel attachment budget ───────────────────────────────
 
     [TestMethod]
-    public async Task SendMessageAsync_WhenChannelAttachmentCountLimitWouldBeExceeded_Throws()
+    public async Task SendMessageAsync_WhenChannelAttachmentCountLimitWouldBeExceeded_ExpiresTheOldestAttachments()
     {
-        var service = CreateService(new ChatSettings { MaxAttachmentsPerChannel = 2, MaxAttachmentsPerMessage = 10 });
+        var service = CreateService(new ChatSettings
+        {
+            RetentionEnabled = true,
+            RetentionMode = ChatRetentionMode.Purge,
+            MaxAttachmentsPerChannel = 2,
+            MaxAttachmentsPerMessage = 10
+        });
 
         await service.SendMessageAsync(_channelId, new SendMessageDto
         {
@@ -196,21 +215,53 @@ public class MessageServiceChatLimitTests
             Attachments = [Attachment("a.png"), Attachment("b.png")]
         }, _caller);
 
-        var ex = await Assert.ThrowsExactlyAsync<ArgumentException>(() =>
-            service.SendMessageAsync(_channelId, new SendMessageDto
-            {
-                Content = "second",
-                Attachments = [Attachment("c.png")]
-            }, _caller));
+        // A channel attachment ceiling is never a rejection: the oldest message with attachments
+        // expires so the write can proceed.
+        var result = await service.SendMessageAsync(_channelId, new SendMessageDto
+        {
+            Content = "second",
+            Attachments = [Attachment("c.png")]
+        }, _caller);
 
-        StringAssert.Contains(ex.Message, "Channel attachment limit");
+        Assert.AreEqual("second", result.Content);
+        Assert.AreEqual(1, await _db.MessageAttachments.CountAsync());
+        Assert.IsFalse(await _db.Messages.AnyAsync(m => m.Content == "first"),
+            "The oldest message must have expired to make room.");
     }
 
     [TestMethod]
-    public async Task SendMessageAsync_WhenChannelStorageLimitWouldBeExceeded_Throws()
+    public async Task SendMessageAsync_WhenRetentionIsDisabled_KeepsAttachmentsAndAllowsTheWrite()
     {
         var service = CreateService(new ChatSettings
         {
+            MaxAttachmentsPerChannel = 2,
+            MaxAttachmentsPerMessage = 10
+        });
+
+        await service.SendMessageAsync(_channelId, new SendMessageDto
+        {
+            Content = "first",
+            Attachments = [Attachment("a.png"), Attachment("b.png")]
+        }, _caller);
+
+        await service.SendMessageAsync(_channelId, new SendMessageDto
+        {
+            Content = "second",
+            Attachments = [Attachment("c.png")]
+        }, _caller);
+
+        // With the retention master switch off nothing is expired, and nothing is rejected either.
+        Assert.AreEqual(3, await _db.MessageAttachments.CountAsync());
+        Assert.AreEqual(2, await _db.Messages.CountAsync());
+    }
+
+    [TestMethod]
+    public async Task SendMessageAsync_WhenChannelStorageLimitWouldBeExceeded_ExpiresTheOldestAttachments()
+    {
+        var service = CreateService(new ChatSettings
+        {
+            RetentionEnabled = true,
+            RetentionMode = ChatRetentionMode.Purge,
             MaxAttachmentStoragePerChannelMb = 2,
             MaxAttachmentSizeMb = 2,
             MaxAttachmentsPerMessage = 10
@@ -222,14 +273,15 @@ public class MessageServiceChatLimitTests
             Attachments = [Attachment("a.png", fileSize: 1_500_000)]
         }, _caller);
 
-        var ex = await Assert.ThrowsExactlyAsync<ArgumentException>(() =>
-            service.SendMessageAsync(_channelId, new SendMessageDto
-            {
-                Content = "second",
-                Attachments = [Attachment("b.png", fileSize: 1_000_000)]
-            }, _caller));
+        var result = await service.SendMessageAsync(_channelId, new SendMessageDto
+        {
+            Content = "second",
+            Attachments = [Attachment("b.png", fileSize: 1_000_000)]
+        }, _caller);
 
-        StringAssert.Contains(ex.Message, "storage limit");
+        Assert.AreEqual("second", result.Content);
+        Assert.IsFalse(await _db.Messages.AnyAsync(m => m.Content == "first"),
+            "The oldest message must have expired to make room for the new attachment.");
     }
 
     [TestMethod]
@@ -305,7 +357,12 @@ public class MessageServiceChatLimitTests
         mentionNotifier: null,
         userBlockService: null,
         linkPreviewService: null,
-        settingsProvider: settingsProvider);
+        settingsProvider: settingsProvider,
+        expiryService: new ChatMessageExpiryService(
+            new ChatArchiveExporter(
+                new ConfigurationBuilder().Build(),
+                NullLogger<ChatArchiveExporter>.Instance),
+            NullLogger<ChatMessageExpiryService>.Instance));
 
     private static CreateAttachmentDto Attachment(string fileName, long fileSize = 1024) => new()
     {

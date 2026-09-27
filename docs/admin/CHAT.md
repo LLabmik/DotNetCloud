@@ -12,26 +12,37 @@
 enforced as messages and attachments are written; the retention policy is applied in the
 background.
 
-| Section                   | Setting                                     | Default | Notes                                                |
-| ------------------------- | ------------------------------------------- | ------- | ---------------------------------------------------- |
-| **Message Limits**        | Maximum message length                      | 10 000  | Characters. Longer messages are rejected.            |
-|                           | Maximum messages per channel                | 0       | `0` = unlimited. Oldest messages expire once passed. |
-| **Attachment Limits**     | Maximum attachments per message             | 10      | Applies to inline attachments and image uploads.     |
-|                           | Maximum size of one attachment (MB)         | 10      | 1–64 MB.                                             |
-|                           | Maximum attachments per channel             | 0       | `0` = unlimited. New attachments are rejected.       |
-|                           | Maximum attachment storage per channel (MB) | 0       | `0` = unlimited. Uploads over the cap are rejected.  |
-| **Retention & Archiving** | Enable automatic retention                  | off     | Master switch for expiry.                            |
-|                           | Message lifetime (days)                     | 0       | `0` = keep forever.                                  |
-|                           | When a message expires                      | Archive | `Archive` hides and keeps; `Purge` deletes for good. |
-|                           | Keep attachments of archived messages       | on      | Off = only the message text is kept.                 |
-|                           | Run the sweep every (minutes)               | 60      | 1–1440.                                              |
+| Section                   | Setting                                     | Default | Notes                                                                                   |
+| ------------------------- | ------------------------------------------- | ------- | --------------------------------------------------------------------------------------- |
+| **Message Limits**        | Maximum message length                      | 10 000  | Characters. The chat composers stop at this length; the server rejects anything longer. |
+|                           | Maximum messages per channel                | 0       | `0` = unlimited. Oldest messages expire once passed.                                    |
+| **Attachment Limits**     | Maximum attachments per message             | 10      | Applies to inline attachments and image uploads.                                        |
+|                           | Maximum size of one attachment (MB)         | 10      | 1–64 MB.                                                                                |
+|                           | Maximum attachments per channel             | 0       | `0` = unlimited. Never rejects uploads — the oldest messages with attachments expire.   |
+|                           | Maximum attachment storage per channel (MB) | 0       | `0` = unlimited. Never rejects uploads — the oldest messages with attachments expire.   |
+| **Retention & Archiving** | Enable automatic retention                  | off     | Master switch for expiry (includes the attachment ceilings above).                      |
+|                           | Message lifetime (days)                     | 0       | `0` = keep forever.                                                                     |
+|                           | When a message expires                      | Archive | `Archive` exports to disk then removes; `Purge` deletes for good.                       |
+|                           | Archive location                            | (blank) | Blank = `{data dir}/storage/chat-archive`. Grouped by year, then month.                 |
+|                           | Keep attachments of archived messages       | on      | Off = only the message text is archived.                                                |
+|                           | Run the sweep every (minutes)               | 60      | 1–1440.                                                                                 |
 
 ## Archive vs purge
 
-- **Archive** (default) sets an `ArchivedAt` stamp. The message disappears from channels and from
-  search but stays in the database, so an MSA/administrator can still recover it with database
-  access or a future restore tool. Attachments are kept unless you turn off
-  _Keep attachments of archived messages_.
+- **Archive** (default) writes the message to the **archive location** first — one JSON record per
+  message plus a copy of any attachment file the Chat module stores — and only then removes its
+  database rows. Records are grouped `year/month`:
+
+  ```text
+  <archive location>/2026/09/<messageId>.json
+  <archive location>/2026/09/<messageId>/photo.png
+  ```
+
+  Attachments that reference the Files module are **not** copied: their bytes stay in Files and the
+  record keeps the reference. If a message cannot be written, it is kept and retried on the next
+  sweep, and if the archive location is unusable nothing is deleted. Turn off
+  _Keep attachments of archived messages_ to archive the text only.
+
 - **Purge** permanently deletes the messages, their attachments, their pins, and their reactions,
   mentions and link previews. Replies to a purged message survive with their link detached.
 

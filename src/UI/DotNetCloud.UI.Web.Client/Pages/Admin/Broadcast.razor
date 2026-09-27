@@ -5,143 +5,148 @@
 
 <PageTitle>Broadcast - DotNetCloud</PageTitle>
 
-<div class="page-header">
-    <h1>Broadcast Message</h1>
-    <div class="page-header-actions">
-        <button type="button" class="btn btn-outline btn-sm" @onclick="() => LoadAsync()" disabled="@_loading">
-            <MaterialIcon Icon="refresh" Size="MaterialIconSize.Sm" />
-            Refresh
-        </button>
-    </div>
-</div>
+<div class="admin-settings-page">
 
-<p class="text-muted">
-    Send a message to every logged-in user. It appears as a dismissible dialog on their screen —
-    use it to warn about upcoming events such as a server reboot.
-</p>
-
-<div class="settings-section">
-    <h3>New Broadcast</h3>
-
-    <div class="settings-field">
-        <label for="broadcast-title">Title</label>
-        <InputText id="broadcast-title" class="form-control" @bind-Value="_title" maxlength="200"
-                   placeholder="Planned server reboot" />
+    <div class="page-header">
+        <h1>Broadcast Message</h1>
+        <div class="page-header-actions">
+            <button type="button" class="btn btn-outline btn-sm" @onclick="() => LoadAsync()" disabled="@_loading">
+                <MaterialIcon Icon="refresh" Size="MaterialIconSize.Sm" />
+                Refresh
+            </button>
+        </div>
     </div>
 
-    <div class="settings-field">
-        <label>Message</label>
-        <MarkdownEditor Content="@_message" ContentChanged="@(value => _message = value)"
-                        Renderer="MarkdownRenderer" MaxLength="2000"
-                        Placeholder="The server will reboot at 22:00 UTC. **Expect a short interruption** to sync." />
-        <span class="settings-description">Markdown is supported — use the toolbar or type Markdown directly. Users see the rendered result.</span>
-    </div>
+    <p class="text-muted">
+        Send a message to every logged-in user. It appears as a dismissible dialog on their screen —
+        use it to warn about upcoming events such as a server reboot.
+    </p>
 
-    <div class="settings-field">
-        <label for="broadcast-severity">Severity</label>
-        <InputSelect id="broadcast-severity" class="form-control" @bind-Value="_severity">
-            <option value="@AdminBroadcastSeverity.Info">Info</option>
-            <option value="@AdminBroadcastSeverity.Warning">Warning</option>
-            <option value="@AdminBroadcastSeverity.Critical">Critical</option>
-        </InputSelect>
-    </div>
+    <div class="settings-section">
+        <h3>New Broadcast</h3>
 
-    <div class="settings-field">
-        <label for="broadcast-schedule">Send at (optional)</label>
-        <InputDate id="broadcast-schedule" class="form-control" Type="InputDateType.DateTimeLocal"
-                   @bind-Value="_scheduledLocal" />
-        <span class="settings-description">Leave empty to send immediately. Scheduled messages are delivered within 30 seconds of their time.</span>
-    </div>
+        <div class="settings-field">
+            <label for="broadcast-title">Title</label>
+            <InputText id="broadcast-title" class="form-control" @bind-Value="_title" maxlength="200"
+                       placeholder="Planned server reboot" />
+        </div>
 
-    <div class="settings-field">
-        <label for="broadcast-expires">Stop showing at (optional)</label>
-        <InputDate id="broadcast-expires" class="form-control" Type="InputDateType.DateTimeLocal"
-                   @bind-Value="_expiresLocal" />
-        <span class="settings-description">Leave empty for no expiry. The message stays visible until deleted or expired.</span>
-    </div>
+        <div class="settings-field">
+            <label>Message</label>
+            <MarkdownEditor Content="@_message" ContentChanged="@(value => _message = value)"
+                            Renderer="MarkdownRenderer" MaxLength="2000"
+                            Placeholder="The server will reboot at 22:00 UTC. **Expect a short interruption** to sync." />
+            <span class="settings-description">Markdown is supported — use the toolbar or type Markdown directly. Users
+                see the rendered result.</span>
+            </div>
 
-    @if (_error is not null)
-    {
-        <div class="alert alert-danger" role="alert">@_error</div>
-    }
+            <div class="settings-field">
+                <label for="broadcast-severity">Severity</label>
+                <InputSelect id="broadcast-severity" class="form-control" @bind-Value="_severity">
+                    <option value="@AdminBroadcastSeverity.Info">Info</option>
+                    <option value="@AdminBroadcastSeverity.Warning">Warning</option>
+                    <option value="@AdminBroadcastSeverity.Critical">Critical</option>
+                </InputSelect>
+            </div>
 
-    <div class="settings-actions">
-        <button type="button" class="btn btn-primary" @onclick="SendNowAsync" disabled="@_busy">
-            <MaterialIcon Icon="send" Size="MaterialIconSize.Sm" />
-            Send now
-        </button>
-        <button type="button" class="btn btn-outline" @onclick="ScheduleAsync" disabled="@_busy">
-            <MaterialIcon Icon="schedule" Size="MaterialIconSize.Sm" />
-            Schedule
-        </button>
-    </div>
-</div>
+            <div class="settings-field">
+                <label for="broadcast-schedule">Send at (optional)</label>
+                <InputDate id="broadcast-schedule" class="form-control" Type="InputDateType.DateTimeLocal"
+                           @bind-Value="_scheduledLocal" />
+                <span class="settings-description">Leave empty to send immediately. Scheduled messages are delivered within
+                    30 seconds of their time.</span>
+                </div>
 
-<div class="settings-section">
-    <h3>History</h3>
+                <div class="settings-field">
+                    <label for="broadcast-expires">Stop showing at (optional)</label>
+                    <InputDate id="broadcast-expires" class="form-control" Type="InputDateType.DateTimeLocal"
+                               @bind-Value="_expiresLocal" />
+                    <span class="settings-description">Leave empty for no expiry. The message stays visible until deleted or
+                        expired.</span>
+                    </div>
 
-    @if (_loading && _broadcasts.Count == 0)
-    {
-        <LoadingIndicator Message="Loading broadcasts..." />
-    }
-    else if (_broadcasts.Count == 0)
-    {
-        <p class="text-muted">No broadcasts have been sent yet.</p>
-    }
-    else
-    {
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Created</th>
-                    <th>Title</th>
-                    <th>Severity</th>
-                    <th>Status</th>
-                    <th>Sent</th>
-                    <th>Expires</th>
-                    <th>Dismissed</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var broadcast in _broadcasts)
-                {
-                    <tr>
-                        <td>@broadcast.CreatedAtUtc.ToLocalTime().ToString("g")</td>
-                        <td>@broadcast.Title</td>
-                        <td>
-                            <MaterialIcon Icon="@SeverityIcon(broadcast.Severity)" Size="MaterialIconSize.Sm" />
-                            @broadcast.Severity
-                        </td>
-                        <td>
-                            <span class="badge">@StatusLabel(broadcast)</span>
-                        </td>
-                        <td>@(broadcast.SentAtUtc?.ToLocalTime().ToString("g") ?? "—")</td>
-                        <td>@(broadcast.ExpiresAtUtc?.ToLocalTime().ToString("g") ?? "—")</td>
-                        <td>@broadcast.DismissedCount</td>
-                        <td class="actions">
-                            @if (broadcast.Status == AdminBroadcastStatus.Scheduled)
-                            {
-                                <button type="button" class="btn btn-outline btn-sm"
-                                        @onclick="() => SendExistingNowAsync(broadcast)" disabled="@_busy">
-                                    Send now
-                                </button>
-                            }
-                            <button type="button" class="btn btn-danger btn-sm"
-                                    @onclick="() => DeleteAsync(broadcast)" disabled="@_busy">
-                                <MaterialIcon Icon="delete" Size="MaterialIconSize.Sm" />
-                                Delete
-                            </button>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    }
-</div>
+                    @if (_error is not null)
+                    {
+                        <div class="alert alert-danger" role="alert">@_error</div>
+                    }
 
-<DncConfirmDialog @ref="_confirmDialog" />
+                    <div class="settings-actions">
+                        <button type="button" class="btn btn-primary" @onclick="SendNowAsync" disabled="@_busy">
+                            <MaterialIcon Icon="send" Size="MaterialIconSize.Sm" />
+                            Send now
+                        </button>
+                        <button type="button" class="btn btn-outline" @onclick="ScheduleAsync" disabled="@_busy">
+                            <MaterialIcon Icon="schedule" Size="MaterialIconSize.Sm" />
+                            Schedule
+                        </button>
+                    </div>
+                </div>
 
+                <div class="settings-section">
+                    <h3>History</h3>
+
+                    @if (_loading && _broadcasts.Count == 0)
+                    {
+                        <LoadingIndicator Message="Loading broadcasts..." />
+                    }
+                    else if (_broadcasts.Count == 0)
+                    {
+                        <p class="text-muted">No broadcasts have been sent yet.</p>
+                    }
+                    else
+                    {
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Created</th>
+                                    <th>Title</th>
+                                    <th>Severity</th>
+                                    <th>Status</th>
+                                    <th>Sent</th>
+                                    <th>Expires</th>
+                                    <th>Dismissed</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var broadcast in _broadcasts)
+                                {
+                                    <tr>
+                                        <td>@broadcast.CreatedAtUtc.ToLocalTime().ToString("g")</td>
+                                        <td>@broadcast.Title</td>
+                                        <td>
+                                            <MaterialIcon Icon="@SeverityIcon(broadcast.Severity)" Size="MaterialIconSize.Sm" />
+                                            @broadcast.Severity
+                                        </td>
+                                        <td>
+                                            <span class="badge">@StatusLabel(broadcast)</span>
+                                        </td>
+                                        <td>@(broadcast.SentAtUtc?.ToLocalTime().ToString("g") ?? "—")</td>
+                                        <td>@(broadcast.ExpiresAtUtc?.ToLocalTime().ToString("g") ?? "—")</td>
+                                        <td>@broadcast.DismissedCount</td>
+                                        <td class="actions">
+                                            @if (broadcast.Status == AdminBroadcastStatus.Scheduled)
+                                            {
+                                                <button type="button" class="btn btn-outline btn-sm"
+                                                        @onclick="() => SendExistingNowAsync(broadcast)" disabled="@_busy">
+                                                    Send now
+                                                </button>
+                                            }
+                                            <button type="button" class="btn btn-danger btn-sm" @onclick="() => DeleteAsync(broadcast)"
+                                                    disabled="@_busy">
+                                                <MaterialIcon Icon="delete" Size="MaterialIconSize.Sm" />
+                                                Delete
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </div>
+
+                <DncConfirmDialog @ref="_confirmDialog" />
+            </div>
 @code {
     private const int MaxHistory = 100;
 

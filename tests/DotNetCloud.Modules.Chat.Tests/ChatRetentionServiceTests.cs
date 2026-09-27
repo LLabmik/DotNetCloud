@@ -5,6 +5,7 @@ using DotNetCloud.Modules.Chat.Models;
 using DotNetCloud.Modules.Chat.Services;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace DotNetCloud.Modules.Chat.Tests;
@@ -19,6 +20,7 @@ public class ChatRetentionServiceTests
     private SqliteConnection _connection = null!;
     private DbContextOptions<ChatDbContext> _options = null!;
     private RecordingEventBus _eventBus = null!;
+    private string _archiveDir = null!;
 
     [TestInitialize]
     public void Setup()
@@ -34,12 +36,16 @@ public class ChatRetentionServiceTests
         db.Database.EnsureCreated();
 
         _eventBus = new RecordingEventBus();
+        _archiveDir = Path.Combine(Path.GetTempPath(), "chat-archive-tests", Guid.CreateVersion7().ToString("N"));
     }
 
     [TestCleanup]
     public void Cleanup()
     {
         _connection.Dispose();
+
+        if (Directory.Exists(_archiveDir))
+            Directory.Delete(_archiveDir, recursive: true);
     }
 
     // ── Guard rails ─────────────────────────────────────────────────
@@ -72,7 +78,7 @@ public class ChatRetentionServiceTests
     // ── Lifetime-based expiry ───────────────────────────────────────
 
     [TestMethod]
-    public async Task SweepAsync_LifetimeArchive_HidesOnlyExpiredMessages()
+    public async Task SweepAsync_LifetimeArchive_ExportsThenRemovesExpiredMessages()
     {
         var channelId = await SeedChannelAsync(messageCount: 6, messageAgeDays: 160, spacingDays: 30);
         var service = CreateService(new ChatSettings
@@ -87,8 +93,12 @@ public class ChatRetentionServiceTests
         // Ages are 160, 130, 100, 70, 40 and 10 days: the first three predate the 90-day cutoff.
         Assert.AreEqual(3, result.MessagesArchived);
         Assert.AreEqual(0, result.MessagesPurged);
+        Assert.AreEqual(0, result.MessagesSkipped);
         Assert.AreEqual(3, await CountLiveMessagesAsync(channelId));
-        Assert.AreEqual(3, await CountArchivedMessagesAsync(channelId));
+
+        // Archive mode deletes the rows: the disk copy is the archive of record.
+        Assert.AreEqual(3, await CountAllMessagesAsync(channelId));
+        Assert.AreEqual(3, CountArchiveJsonFiles());
     }
 
     [TestMethod]
@@ -179,7 +189,7 @@ public class ChatRetentionServiceTests
     // ── Attachments ─────────────────────────────────────────────────
 
     [TestMethod]
-    public async Task SweepAsync_ArchiveKeepingAttachments_PreservesAttachmentRows()
+    public async Task SweepAsync_ArchiveKeepingAttachments_RemovesRowsAndArchivesAttachmentFiles()
     {
         var channelId = await SeedChannelAsync(messageCount: 3, messageAgeDays: 100, spacingDays: 5, attachmentsPerMessage: 2);
         var service = CreateService(new ChatSettings
@@ -193,12 +203,13 @@ public class ChatRetentionServiceTests
         var result = await service.SweepAsync();
 
         Assert.AreEqual(3, result.MessagesArchived);
-        Assert.AreEqual(0, result.AttachmentsRemoved);
-        Assert.AreEqual(6, await CountAttachmentRowsAsync(channelId));
+        Assert.AreEqual(6, result.AttachmentsRemoved);
+        Assert.AreEqual(0, await CountAttachmentRowsAsync(channelId));
+        Assert.AreEqual(3, CountArchiveJsonFiles());
     }
 
     [TestMethod]
-    public async Task SweepAsync_ArchiveDroppingAttachments_RemovesOnlyArchivedAttachmentRows()
+    public async Task SweepAsync_ArchiveDroppingAttachments_RemovesAttachmentRowsWithoutCopyingPayloads()
     {
         var channelId = await SeedChannelAsync(messageCount: 4, messageAgeDays: 160, spacingDays: 30, attachmentsPerMessage: 1);
         var service = CreateService(new ChatSettings
@@ -214,7 +225,42 @@ public class ChatRetentionServiceTests
         // Three of the four messages (160/130/100 days old) expire; the 70-day-old one survives.
         Assert.AreEqual(3, result.MessagesArchived);
         Assert.AreEqual(3, result.AttachmentsRemoved);
+        Assert.AreEqual(0, result.AttachmentsArchived, "Attachments are dropped from the archive when the toggle is off.");
         Assert.AreEqual(1, await CountAttachmentRowsAsync(channelId));
+        Assert.AreEqual(3, CountArchiveJsonFiles());
+    }
+
+    [TestMethod]
+    public async Task SweepAsync_ArchiveDirectoryUnavailable_KeepsMessagesAndReportsSkipped()
+    {
+        var channelId = await SeedChannelAsync(messageCount: 3, messageAgeDays: 100, spacingDays: 5);
+
+        // A file where the archive directory should be makes Directory.CreateDirectory fail.
+        var blocker = Path.Combine(Path.GetTempPath(), $"chat-archive-blocker-{Guid.CreateVersion7():N}");
+        await File.WriteAllTextAsync(blocker, "not a directory");
+
+        try
+        {
+            var service = CreateService(new ChatSettings
+            {
+                RetentionEnabled = true,
+                MessageLifetimeDays = 30,
+                RetentionMode = ChatRetentionMode.Archive,
+                ArchivePath = Path.Combine(blocker, "archive")
+            });
+
+            var result = await service.SweepAsync();
+
+            // Nothing may be deleted before it has been written: the messages are kept and retried.
+            Assert.AreEqual(0, result.MessagesArchived);
+            Assert.AreEqual(3, result.MessagesSkipped);
+            Assert.AreEqual(3, await CountAllMessagesAsync(channelId));
+            Assert.AreEqual(0, CountArchiveJsonFiles());
+        }
+        finally
+        {
+            File.Delete(blocker);
+        }
     }
 
     [TestMethod]
@@ -312,9 +358,16 @@ public class ChatRetentionServiceTests
 
     private ChatRetentionService CreateService(ChatSettings settings) => new(
         new TestChatDbContextFactory(_options),
-        new FixedChatSettingsProvider(settings),
+        new FixedChatSettingsProvider(settings.ArchivePath is null ? settings with { ArchivePath = _archiveDir } : settings),
+        CreateExpiryService(),
         NullLogger<ChatRetentionService>.Instance,
         _eventBus);
+
+    private static IChatMessageExpiryService CreateExpiryService() => new ChatMessageExpiryService(
+        new ChatArchiveExporter(
+            new ConfigurationBuilder().Build(),
+            NullLogger<ChatArchiveExporter>.Instance),
+        NullLogger<ChatMessageExpiryService>.Instance);
 
     private static Message NewMessage(Guid channelId, string content, DateTime sentAt) => new()
     {
@@ -378,18 +431,17 @@ public class ChatRetentionServiceTests
         return await db.Messages.CountAsync(m => m.ChannelId == channelId);
     }
 
-    private async Task<int> CountArchivedMessagesAsync(Guid channelId)
-    {
-        await using var db = CreateDb();
-        return await db.Messages.IgnoreQueryFilters()
-            .CountAsync(m => m.ChannelId == channelId && m.ArchivedAt != null);
-    }
-
     private async Task<int> CountAllMessagesAsync(Guid channelId)
     {
         await using var db = CreateDb();
         return await db.Messages.IgnoreQueryFilters().CountAsync(m => m.ChannelId == channelId);
     }
+
+    /// <summary>Counts the message records written to the archive directory (year/month folders).</summary>
+    private int CountArchiveJsonFiles()
+        => Directory.Exists(_archiveDir)
+            ? Directory.GetFiles(_archiveDir, "*.json", SearchOption.AllDirectories).Length
+            : 0;
 
     private async Task<int> CountAttachmentRowsAsync(Guid channelId)
     {

@@ -28,7 +28,13 @@ internal sealed class CollaboraProcessManager : BackgroundService, ICollaboraPro
     private static readonly TimeSpan HealthPollInterval = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan StartupWaitTimeout = TimeSpan.FromSeconds(60);
 
-    private readonly CollaboraOptions _options;
+    private readonly ICollaboraSettingsProvider _collaboraSettings;
+
+    /// <summary>
+    /// Effective options: administrator edits layered over configuration. Read on each use so a
+    /// change made on /admin/collabora takes effect without restarting the module host.
+    /// </summary>
+    private CollaboraOptions _options => _collaboraSettings.Current;
     private readonly ICollaboraDiscoveryService _discoveryService;
     private readonly ILogger<CollaboraProcessManager> _logger;
 
@@ -63,11 +69,11 @@ internal sealed class CollaboraProcessManager : BackgroundService, ICollaboraPro
     /// Initializes a new instance of <see cref="CollaboraProcessManager"/>.
     /// </summary>
     public CollaboraProcessManager(
-        IOptions<CollaboraOptions> options,
+        ICollaboraSettingsProvider collaboraSettings,
         ICollaboraDiscoveryService discoveryService,
         ILogger<CollaboraProcessManager> logger)
     {
-        _options = options.Value;
+        _collaboraSettings = collaboraSettings;
         _discoveryService = discoveryService;
         _logger = logger;
     }

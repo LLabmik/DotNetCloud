@@ -23,9 +23,14 @@ window.wysiwygEditor = {
       dotNetRef,
       handlers: {},
       channelId: channelId || null,
+      maxLength: 0,
+      lastAcceptedHtml: null,
     };
 
-    editor.handlers.input = () => this._notifyContentChanged(elementId);
+    editor.handlers.input = () => {
+      this._enforceMaxLength(elementId);
+      this._notifyContentChanged(elementId);
+    };
     element.addEventListener("input", editor.handlers.input);
 
     editor.handlers.keydown = (e) => this._handleKeyDown(elementId, e);
@@ -35,6 +40,58 @@ window.wysiwygEditor = {
     element.addEventListener("paste", editor.handlers.paste);
 
     this._editors[elementId] = editor;
+  },
+
+  /**
+   * Sets the maximum stored message length (Markdown characters) for the editor.
+   * Input beyond the limit is rejected and the caret stays at the end. 0 = unlimited.
+   * @param {string} elementId
+   * @param {number} maxLength
+   */
+  setMaxLength: function (elementId, maxLength) {
+    const editor = this._editors[elementId];
+    if (!editor) return;
+
+    editor.maxLength = maxLength > 0 ? maxLength : 0;
+    editor.lastAcceptedHtml = null;
+
+    if (editor.maxLength > 0) {
+      this._enforceMaxLength(elementId);
+    }
+  },
+
+  /**
+   * Rejects edits that would push the stored content past the configured limit, restoring the
+   * last accepted content so the caret simply stops advancing.
+   * @param {string} elementId
+   */
+  _enforceMaxLength: function (elementId) {
+    const editor = this._editors[elementId];
+    if (!editor || !editor.maxLength) return;
+
+    const markdown = this._htmlToMarkdown(editor.element).trim();
+    if (markdown.length <= editor.maxLength) {
+      editor.lastAcceptedHtml = editor.element.innerHTML;
+      return;
+    }
+
+    if (editor.lastAcceptedHtml === null) {
+      // Content was set programmatically (for example an edit of a pre-existing long message and
+      // the limit was lowered). Leave it so the user can shorten it deliberately.
+      return;
+    }
+
+    editor.element.innerHTML = editor.lastAcceptedHtml;
+
+    const range = document.createRange();
+    range.selectNodeContents(editor.element);
+    range.collapse(false);
+
+    const selection = window.getSelection();
+    if (selection) {
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
   },
 
   /**
@@ -375,7 +432,13 @@ window.wysiwygEditor = {
 
     const text = editor.element.innerText || "";
     const empty = !text.trim();
-    editor.dotNetRef.invokeMethodAsync("HandleContentChanged", text, empty);
+    const markdownLength = this._htmlToMarkdown(editor.element).trim().length;
+    editor.dotNetRef.invokeMethodAsync(
+      "HandleContentChanged",
+      text,
+      empty,
+      markdownLength,
+    );
   },
 
   /* ── Format Helpers ────────────────────────────────────── */
