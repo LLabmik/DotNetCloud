@@ -86,6 +86,7 @@
 | Phase 2.9                            | 3       | 3         | 0           | 0       |
 | Phase 2.10                           | 10      | 10        | 0           | 0       |
 | Phase 2.10.1                         | 1       | 1         | 0           | 0       |
+| Phase 2.10.3                         | 1       | 0         | 1           | 0       |
 | Phase 2.11                           | 3       | 3         | 0           | 0       |
 | Phase 2.12                           | 2       | 2         | 0           | 0       |
 | Phase 2.13                           | 3       | 3         | 0           | 0       |
@@ -1640,6 +1641,29 @@ Also fixed Android music play order (2026-09-04, `fix/android-music-play-order`)
 **Blocking Issues:** None
 **Notes:** The day list is an in-page overlay rather than a pushed page, so the calendar grid stays visible and the list survives the trip to an event's details and back — matching the Notes/AI in-tab navigation patterns. It was verified with temporary events on a real day; those events were deleted afterwards and the day counts returned to their original values. Known nuance (unchanged from the day view): every list shows an event's own start/end, so a multi-day event appears on each day it covers with its overall times (e.g. 09:00–01:00) rather than day-relative ones.
 
+### Step: phase-2.10.3 - Android Calendar Reminder Alerts (duplicates + wording)
+
+**Status:** in-progress 🔄
+**Duration:** ~2 hours
+**Description:** A reminder configured a long way before an event (e.g. one week) produced a burst of identical notifications, each of which had to be dismissed. Alarm identity was derived from `string.GetHashCode()` / `HashCode.Combine`, both of which .NET seeds randomly per process, so a re-scheduled reminder could never replace or cancel the alarm armed by an earlier process — the alarms accumulated across app starts, boots and SignalR reconnects and all fired at their shared trigger time. Cancellation was also incomplete (a fixed offset list, and `CancelAllReminders` cancelled nothing at all), and an occurrence that had already been delivered was re-armed on every resync. The notification text repeated the configured offset instead of the time actually remaining ("Starts in 168 hours").
+
+**Deliverables:**
+
+- ✓ `Services/CalendarAlarmIdentity.cs` — process-stable FNV-1a identity (request code + notification id) for a reminder occurrence, replacing `string.GetHashCode()` / `HashCode.Combine`
+- ✓ `Services/CalendarReminderPlanner.cs` — pure planning: a due-while-off reminder is delivered once as a catch-up alarm, an already-delivered occurrence is never re-planned, and previously armed alarms that are no longer wanted are returned for cancellation
+- ✓ `Services/CalendarReminderAlarmStore.cs` — persists the armed alarms and the delivered occurrences (2-day retention)
+- ✓ `Services/CalendarReminderText.cs` — notification body from the real time remaining (minutes / hours / days) instead of the configured offset
+- ✓ `CalendarReminderScheduler` — stable request codes, exact cancellation of every armed alarm (any offset, not a fixed list), `CancelAllReminders` now actually cancels, and `eventStartUtc` is carried on the alarm intent
+- ✓ `CalendarAlarmReceiver` — stable notification id (a redelivery updates instead of stacking), true-remaining-time body, and the occurrence is recorded as delivered
+- ✓ `EventEditViewModel` — reminder picker labels/values realigned (they were off by one, so "1 day before" stored 2 hours and the 1-day entry was unreachable) and a custom offset (e.g. one week) is no longer silently cleared by the two-way sync, with a hint explaining that it is being preserved
+- ✓ 33 new unit tests in `CalendarReminderAlarmTests` (pinned FNV-1a values, identity stability and range, catch-up-once, delivered-never-again, stale-alarm cancellation, record round-trip/prune, notification wording); Android suite 479 pass / 1 skip; arm64 Debug build 0 warnings / 0 errors
+- ☐ On-device verification (R5CWC356B2K): a one-week reminder alerts once at its trigger time, a resync/boot/reconnect adds no further alert, the body shows the real remaining time, and the picker's "1 day before" stores 1440
+- ⏳ Not yet pushed — these Android changes commit after the phone E2E; the server half of the same investigation is on this branch already (see the Phase-3.3 sub-section below)
+
+**Dependencies:** phase-2.10, phase-2.10.2
+**Blocking Issues:** None
+**Notes:** Alarms armed by the previous build use the old per-process request codes and cannot be cancelled by the new code; they stay armed until they fire or the device is restarted — a single reboot (or clearing app data) purges them. The one-week offset itself can only be set in the web calendar's free-form minutes field (10080 = one week): the Android picker tops out at "1 day before". The server-side counterparts from the same investigation are fixed on this branch and handed to `cloud` for deploy — the 24-hour `ReminderDispatchService` window and the ignored notification `Category` (see `#### Calendar Reminder Dispatch Fix` under Phase 3.3). ⚠️ **Correction:** the earlier claim here that `DispatchReminderAsync`'s two publishes each create a bell notification was **wrong** — module hosts run their own `InProcessEventBus` and the `PublishEvent` capability is a no-op, so the cross-module publish is inert and exactly **one** notification is produced.
+
 ---
 
 ## Phase 3: Contacts, Calendar & Notes
@@ -1697,6 +1721,19 @@ Also fixed Android music play order (2026-09-04, `fix/android-music-play-order`)
 **Notes:** Calendar module fully complete. RecurrenceEngine (RFC 5545 RRULE), OccurrenceExpansionService, ReminderDispatchService (BackgroundService, 30s scan).
 
 **Process Isolation (2026-06-02):** CalendarGrpcService extended with UpdateCalendar, DeleteCalendar, SearchEvents, Shares, ExportCalendarICal RPCs (18 total). Calendar.Host removed from Core.Server ProjectReferences. CalendarGrpcApiClient implements ICalendarApiClient using gRPC instead of HTTP. Core.Server uses gRPC client for all Calendar operations. Publish script: `scripts/publish-module-hosts.ps1`.
+
+#### Calendar Reminder Dispatch Fix — Long-Lead Window + Notification Type (2026-09-27)
+
+**STATUS:** in-progress 🔄 (deploy pending on `cloud.kimball.home`)
+**DELIVERABLES:**
+
+- ✓ `ReminderDispatchService` scan window derived from the largest configured `MinutesBefore` (`ResolveLookAheadWindowAsync`, `MinimumLookAheadWindow` 24 h, `MaximumLookAheadWindow` 366 days) — a fixed 24-hour window meant a long-lead reminder could only fire once its event came within a day (a one-week reminder fired ~6 days late)
+- ✓ `CoreCapabilitiesServiceImpl.SendNotification` honours the caller's `Category`: `"Reminder"` → `NotificationType.Reminder` + `NotificationPriority.High` (was always `Info`/`Normal`); all other categories keep the previous defaults
+- ✓ Corrected an incorrect earlier finding in code + docs: the per-reminder cross-module publish is inert (module hosts use a process-local `InProcessEventBus`; `PublishEvent` is a no-op), so there is exactly one calendar reminder notification, not two
+- ✓ 5 new `ReminderDispatchServiceTests` (window resolution + the long-lead fire/no-fire regression pair) and 9 `CoreCapabilitiesNotificationCategoryTests` cases — Calendar 205 pass / 0 fail, Core.Server 796 pass (1 pre-existing `ProgramRootCaTests` failure), CI Release build 0 warnings
+- ☐ Deploy + verify on `cloud.kimball.home` (Active Handoff raised; expect a one-off catch-up burst of never-logged, still-due long-lead reminders)
+
+**Notes:** Server half of the `fix/android-alerts` work that followed the operator's repeated 08:00 _“Rush Concert … in 168 hours”_ phone alerts. The repeats themselves were client-side (per-process alarm identity — see phase-2.10.3); these two defects were found while confirming the server could not have produced them.
 
 #### Calendar Recurrence UI + Organization Enhancement (2026-04-27)
 

@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-09-19 (**Android chat alerts — ✅ SERVER HALF DEPLOYED + VERIFIED; the client E2E is COMPLETE (on-device verified); the last open item — the core-proxy header-duplication fix — is now DEPLOYED AND VERIFIED too (leg 1 `200` + `ETag`, leg 2 `304` with an empty body, live through the gateway).** The app's own **conditional poll** of a new `GET /api/v1/chat/alerts` aggregate is the whole transport — no companion app, no third-party push service, no Google, no foreground service. Server + Android code is written, built and unit-tested here (Chat module 1431 pass; Android 478 pass / 1 skip; arm64 Debug 0 warnings); the server half is **DEPLOYED AND VERIFIED** on `cloud.kimball.home` (build 0 warnings, Chat tests 1432 pass, 15/15 deploy targets, `/health/ready` Healthy 14/14, route proven `401` vs control `404`), so this item is now **archived — both sides fully done and verified, including the phone-side `304` re-check** (see `CLIENT_SERVER_MEDIATION_ARCHIVE.md` and `docs/ANDROID_CHAT_BACKGROUND_ALERTS_PLAN.md`). Earlier: **Notes: note folder assignment** — a note can now be filed at creation time, moved/unfiled afterwards, and is tagged with its folder on the sidebar card; server + Blazor deployed and operator-verified, **Android picker wiring implemented and on-device verified** — **complete, archived**. Earlier: **Notes: note folder assignment** — a note can now be filed at creation time, moved/unfiled afterwards, and is tagged with its folder on the sidebar card; server + Blazor done, deployed and operator-verified from branch `fix/notes-folder-assignment`, Android picker wiring handed to monolith — see the deferred handoff below. Earlier same day: **Trash restore now preserves the original directory path** — server-side fix implemented, tested and deployed to `cloud.dotnetcloud.net` (branch `fix/trash-restore-original-path`); earlier, the client-side "ignore a synced folder" deletion bug was fixed + live-verified on SyncTray `0.6.7` (`7632722c`). Earlier: 2026-09-09 Presence indicators → **4-state** Online/Away/Do-Not-Disturb/Offline — full-stack code on `fix/android-improvements` at `c17c7fa3`, deployed and live-verified on `cloud.kimball.home` (archived below). Plan `docs/PRESENCE_DOTS_4STATE_PLAN.md`.)
+Last updated: 2026-09-27 (**Calendar reminder dispatch — two server-side fixes await deploy on `fix/android-alerts`: the reminder scan window is now derived from the largest configured offset (a long-lead reminder used to fire ~6 days late), and a module-supplied notification `Category` is honoured so calendar reminders are stored as `Reminder`/`High` instead of generic `Info`/`Normal`. Deploy + verify only — see the Active Handoff below.** Earlier: **Android chat alerts — ✅ SERVER HALF DEPLOYED + VERIFIED; the client E2E is COMPLETE (on-device verified); the last open item — the core-proxy header-duplication fix — is now DEPLOYED AND VERIFIED too (leg 1 `200` + `ETag`, leg 2 `304` with an empty body, live through the gateway).** The app's own **conditional poll** of a new `GET /api/v1/chat/alerts` aggregate is the whole transport — no companion app, no third-party push service, no Google, no foreground service. Server + Android code is written, built and unit-tested here (Chat module 1431 pass; Android 478 pass / 1 skip; arm64 Debug 0 warnings); the server half is **DEPLOYED AND VERIFIED** on `cloud.kimball.home` (build 0 warnings, Chat tests 1432 pass, 15/15 deploy targets, `/health/ready` Healthy 14/14, route proven `401` vs control `404`), so this item is now **archived — both sides fully done and verified, including the phone-side `304` re-check** (see `CLIENT_SERVER_MEDIATION_ARCHIVE.md` and `docs/ANDROID_CHAT_BACKGROUND_ALERTS_PLAN.md`). Earlier: **Notes: note folder assignment** — a note can now be filed at creation time, moved/unfiled afterwards, and is tagged with its folder on the sidebar card; server + Blazor deployed and operator-verified, **Android picker wiring implemented and on-device verified** — **complete, archived**. Earlier: **Notes: note folder assignment** — a note can now be filed at creation time, moved/unfiled afterwards, and is tagged with its folder on the sidebar card; server + Blazor done, deployed and operator-verified from branch `fix/notes-folder-assignment`, Android picker wiring handed to monolith — see the deferred handoff below. Earlier same day: **Trash restore now preserves the original directory path** — server-side fix implemented, tested and deployed to `cloud.dotnetcloud.net` (branch `fix/trash-restore-original-path`); earlier, the client-side "ignore a synced folder" deletion bug was fixed + live-verified on SyncTray `0.6.7` (`7632722c`). Earlier: 2026-09-09 Presence indicators → **4-state** Online/Away/Do-Not-Disturb/Offline — full-stack code on `fix/android-improvements` at `c17c7fa3`, deployed and live-verified on `cloud.kimball.home` (archived below). Plan `docs/PRESENCE_DOTS_4STATE_PLAN.md`.)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -16,14 +16,81 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
-- **✅ Completed (server agent — `cloud`):** core-proxy `If-None-Match` fix — **deployed + `304` re-verified 2026-09-19**; nothing outstanding server-side.
-- **✅ Completed (client agent — `monolith`, 2026-09-19):** phone-side `304` confirmation for the chat-alerts poll — **confirmed on R5CWC356B2K** (wire evidence `[ClientHandler] Received HTTP response headers … - 304`, poll `finished (UpToDate, pending: True)`) and the changed path regression-checked (`200` → `finished (Alerted, pending: True)` → one generic notification → deep link → cleared on read; no foreground service). **Nothing outstanding on either side.** The Android on-device E2E of the chat-alerts poll is **complete and passing** (client agent — `monolith`, 2026-09-19; see `docs/ANDROID_CHAT_BACKGROUND_ALERTS_PLAN.md` and the archived handoff below): the poll posts a **generic** notification while the app is closed, taps deep-link into the channel, reads clear it, muted channels are silent, and there is no second alert and no foreground service. **The one defect in the `304` half of the contract is now fixed and verified:** `ModuleApiProxyTransformer` (Core.Server) forwards every request header **twice**, so `If-None-Match` reaches module hosts as two values and can never match — conditional GETs always answer `200`. Fixed + unit-tested on `monolith`, then **deployed to `cloud` and re-verified live through the gateway — see the results block below. Nothing outstanding on either side.**
+- **🔄 Active (server agent — `cloud.kimball.home`):** deploy the **calendar reminder dispatch fixes** from `fix/android-alerts` — long-lead scan window + notification category (`Reminder`/`High`). **Deploy + verify only**; see the `## Active Handoff` section below.
+- **Archived (server agent — `cloud`):** core-proxy `If-None-Match` fix — deployed + `304` re-verified 2026-09-19; nothing outstanding server-side. Full detail: `CLIENT_SERVER_MEDIATION_ARCHIVE.md` → *Server agent (`cloud`) — core-proxy header-duplication fix deployed + `304` leg verified (2026-09-19)*.
+- **Archived (client agent — `monolith`, 2026-09-19):** phone-side `304` confirmation for the chat-alerts poll — **confirmed on R5CWC356B2K** (wire evidence `[ClientHandler] Received HTTP response headers … - 304`, poll `finished (UpToDate, pending: True)`) and the changed path regression-checked (`200` → `finished (Alerted, pending: True)` → one generic notification → deep link → cleared on read; no foreground service). **Nothing outstanding on either side.** The Android on-device E2E of the chat-alerts poll is **complete and passing** (client agent — `monolith`, 2026-09-19; see `docs/ANDROID_CHAT_BACKGROUND_ALERTS_PLAN.md` and the archived handoff below): the poll posts a **generic** notification while the app is closed, taps deep-link into the channel, reads clear it, muted channels are silent, and there is no second alert and no foreground service. **The one defect in the `304` half of the contract is now fixed and verified:** `ModuleApiProxyTransformer` (Core.Server) forwards every request header **twice**, so `If-None-Match` reaches module hosts as two values and can never match — conditional GETs always answer `200`. Fixed + unit-tested on `monolith`, then **deployed to `cloud` and re-verified live through the gateway — see the results block below. Nothing outstanding on either side.**
 - **Archived (server agent — `cloud`):** `chat-alerts` server half — `GET /api/v1/chat/alerts` + `IChannelMemberService.GetAlertsAsync` **deployed and verified** on `cloud.kimball.home` 2026-09-19 (build 0 warnings; Chat module tests 1432 pass / 0 fail; `deploy.sh --force --verify` 15/15 targets; `/health/ready` Healthy 14/14 modules; route proof `401` vs control `404`). The **Android on-device E2E is complete too** (client agent — `monolith`), as is the follow-up core-proxy `304` fix and its phone-side confirmation — **no open items**. Full detail in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
 - **Archived (server agent — `cloud`):** `fix/notes-folder-assignment` — Notes folder assignment at create time + move/unfile; server + Blazor deployed and operator-verified, Android half implemented + on-device verified (client agent — `monolith`). **Complete — nothing outstanding**; recorded in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
 - **Archived (server agent — `cloud`):** `fix/trash-restore-original-path` — trash restore now preserves the original directory path (implemented, tested, deployed to `cloud.dotnetcloud.net` 2026-09-15; archived below)
 - **Completed (awaiting moderator PR):** `fix/synctray-ignore-folder` — SyncTray **0.6.7**, "ignore a synced folder" can no longer delete the folder server-side; pushed `7632722c`, installed and live-verified on `mint-OptiPlex-7010`
 - **Archived (server agent — `cloud.kimball.home`):** `fix/android-improvements` — Presence 4-state, deployed + live-verified on cloud 2026-09-09 (plan `docs/PRESENCE_DOTS_4STATE_PLAN.md`; archived below)
 - **Still pending (mint22, dev):** `feature/module-widgets` — Module Home Widgets (plan `docs/MODULE_WIDGETS_PLAN.md`); kept below as a deferred handoff
+
+## Active Handoff — Server: deploy the calendar reminder dispatch fixes to `cloud.kimball.home` (2026-09-27)
+
+**Status:** 🔄 **AWAITING DEPLOY + VERIFY** — raised by the client agent (`monolith`) from branch `fix/android-alerts`.
+**Scope:** **deploy and verify only.** The code is written, Release-built (0 warnings) and unit-tested here; no server-side design work is required or expected.
+
+### What changed (server)
+
+1. **`ReminderDispatchService` — Calendar module** (`src/Modules/Calendar/DotNetCloud.Modules.Calendar.Data/Services/ReminderDispatchService.cs`).
+   The scan window is now derived from the largest configured reminder offset instead of a fixed 24 hours. A reminder is due when `StartUtc - MinutesBefore <= now`, so the candidate events must be loaded from at least that far ahead; with the fixed window an event further away was never even loaded and a long-lead reminder could only fire once the event came within 24 hours (a one-week reminder therefore fired roughly six days late). New members: `MinimumLookAheadWindow` (24 h), `MaximumLookAheadWindow` (366 days) and `ResolveLookAheadWindowAsync` (a single `MAX(MinutesBefore)` query per 30 s scan).
+2. **`CoreCapabilitiesServiceImpl.SendNotification` — Core.Server** (`src/Core/DotNetCloud.Core.Server/Grpc/Services/GrpcHealthServiceImpl.cs`).
+   The `Category` a calling module supplies is now honoured instead of accepted-and-ignored. `Category = "Reminder"` (sent by the calendar's reminder handler) is stored as `NotificationType.Reminder` + `NotificationPriority.High` rather than a generic `Info`/`Normal`; absent or unknown categories keep the previous defaults, so no other module's notifications change (Chat's `ChatMention` / `IncomingCall` / etc. are unaffected).
+
+### Why (context — the operator's bug report)
+
+The operator received repeated *"Rush Concert … in 168 hours"* alerts on the phone at 08:00. The repeats were **client-side** (per-process alarm identity) and are fixed in the Android half of `fix/android-alerts`. Two genuine **server** defects surfaced while confirming that the server could not have produced them:
+
+- the fixed 24-hour window above — the server would have fired that reminder about six days late, at ~36 hours before the event, not at 08:00 seven days out;
+- ⚠️ **correction for the record:** an earlier assessment claimed each reminder produced **two** bell notifications. That is **wrong**, and the handoff deliberately records it so nobody "fixes" a non-existent duplicate. Module hosts run their own `InProcessEventBus`, the `PublishEvent` capability is a documented no-op, and nothing in the Calendar host subscribes to `ReminderTriggeredEvent` — so that publish is inert. Exactly **one** notification is produced, by `CalendarReminderEventHandler` through the `SendNotification` capability; the publish is now documented as inert on the code itself and becomes live only if module→core event forwarding is ever implemented.
+
+### Deploy
+
+```bash
+git fetch origin && git checkout fix/android-alerts && git pull
+sudo ./scripts/deploy.sh --force --verify
+```
+
+Expected: **15/15 targets**, `/health/ready` Healthy **14/14**, no pending migrations, release build 0 warnings.
+
+### Verify (server side)
+
+1. **Hosts rebuilt** — the deployed `dotnetcloud.calendar.dll` contains `ResolveLookAheadWindowAsync` and the deployed `DotNetCloud.Core.Server.dll` contains `MapNotificationCategory` (grep the deployed assemblies, or compare md5 against the build output as with previous handoffs).
+2. **Window** — optional end-to-end proof: create a temporary event **8 days out** owned by a known user with a **7-day (10080 min)** `Notification` reminder. Within one scan (≤30 s) the reminder must be **dispatched now**, and an in-app notification must appear in that user's bell — previously nothing happened until the event came within 24 hours. **Delete the temporary event afterwards.**
+3. **Notification type** — the notification created in step 2 must be `Type = Reminder` and `Priority = High` (previously `Info`/`Normal`).
+4. ⚠️ **Expect a one-off catch-up burst.** The first scan after this deploy dispatches every *never-logged, still-due* reminder inside the new window — long-lead reminders that were previously unreachable included. This is intended (`ReminderLog` still guarantees once-only delivery) and must not be mistaken for a regression.
+5. **Tests here** — Calendar module **205 pass / 0 fail**; Core.Server **796 pass**, 1 **pre-existing** `ProgramRootCaTests` failure (Windows path separator, unrelated — recorded in `/memories/repo/DotNetCloud.md`), 1 skip; full `DotNetCloud.CI.slnf` Release build 0 warnings / 0 errors.
+
+### Out of scope (do NOT start)
+
+- **Module→core event forwarding** (`PublishEvent` needs an event-type registry). The inert `ReminderTriggeredEvent` publish stays as-is for the day that lands.
+- `NotificationProducer` / `NotificationEventSubscriber` in Core.Server — they only handle events published **inside** Core.Server, so they need no change.
+
+### On completion — archive step (MANDATORY, both agents)
+
+A finished item must not be left standing as an Active Handoff. When the work in this section is verified:
+
+1. **Retitle this section** to `## Archived Handoff — Server: calendar reminder dispatch fixes deployed + verified on cloud.kimball.home (YYYY-MM-DD)` and rewrite the status line as ✅ completed with the deploy evidence (deploy targets, `/health/ready`, assembly md5 vs build output, the `Type = Reminder` / `Priority = High` check, and the catch-up burst actually observed).
+2. **Move this item's bullet in Process Rules** from `🔄 Active (server agent — …)` to `**Archived (server agent — cloud.kimball.home):** …` with a one-line outcome.
+3. **Append the full record to the top of `CLIENT_SERVER_MEDIATION_ARCHIVE.md`** as `## Archived: Server agent (cloud) — calendar reminder dispatch fixes (long-lead window + notification category) deployed + verified (YYYY-MM-DD)`.
+4. The client half (`monolith`) performs the same three steps for the Android side once its on-device E2E passes: bullet → `**Archived (client agent — monolith):** …`, and an archive entry `## Archived: Client agent (monolith) — Android calendar reminder alerts (duplicate-alert fix) on-device verified (YYYY-MM-DD)`.
+
+### Client half — NOT in this push (follows after the on-device E2E)
+
+The Android fixes for the duplicate phone alerts (stable alarm identity, delivery-once, real remaining time in the body, reminder-picker alignment) are complete and unit-tested but are **not part of the pushed commit** — they land in a follow-up commit once their on-device E2E passes on `R5CWC356B2K`. They are **independent** of this deploy, so nothing here waits on them.
+
+### After verifying — hand back to `monolith`
+
+When the deploy is verified, do the archive step above **and** emit the hand-back relay so the phone E2E can proceed:
+
+```
+<commit-hash> — Server deploy verified. Handing back to monolith: pull fix/android-alerts and continue from the Active Handoff in docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md.
+```
+
+The phone E2E (client agent — `monolith`) is: one alert per reminder at its trigger time, no repeat after a resync / boot / SignalR reconnect, the body showing the real remaining time, and "1 day before" storing 1440.
+
+⚠️ The E2E creates a temporary calendar event, and with the window fixed the server will now legitimately dispatch its reminder too — delete the test event afterwards and ignore/clear any bell entry it produced.
 
 ## Archived Handoff — core-proxy header-duplication fix + chat-alerts poll `304`: deployed + verified end-to-end (server `cloud` + client `monolith`) (2026-09-19)
 

@@ -80,6 +80,30 @@
 - ✓ **Deployed + verified live (2026-09-22, server agent — `cloud`)** — `deploy.sh --force --verify` → **15/15 targets**; `/health/ready` **Healthy 14/14**; `blazor.web.js` **200**; no pending migrations; deployed `Core.Auth.dll` and the calendar/AI host DLLs **md5-identical** to the build output; Release build 0 warnings / 0 errors with Core.Auth 179, Core 532, Core.Server 787, Integration 183 passing. The buggy first sweep deploy logged the 4 DI errors; the corrected boot logs **0** `Unable to resolve service for type` / `InvalidOperationException` / `second operation was started` across 22k lines. Operator exercised Home, admin login, a file share and an admin setting write — `Updated system setting dotnetcloud.ai:RequestTimeoutSeconds` confirms the converted `AdminSettingsService` wrote successfully.
 - ☐ **Test-coverage gap noted:** the integration suite builds the real Core.Server host, so it cannot catch a module-host DI gap — only a deploy plus log check does. A per-module-host startup smoke test (build each host's service collection and resolve its registered services) would guard this class of regression; deliberately not attempted here.
 
+## Recent Work — Android calendar reminder alerts: duplicate alerts + wording (2026-09-27, `fix/android-alerts`)
+
+> No plan doc — from an operator bug report: _"several alerts about the Rush Concert being in 168 hours … I had to keep dismissing them"_. The `168 hours` was the Android local alarm printing the configured offset (10080 minutes = one week) instead of the time remaining.
+
+- ⏳ **Not yet pushed** — the Android changes are complete and unit-tested, but they land in a **follow-up commit after the on-device E2E**; the first push of this branch carries the server half only so `cloud.kimball.home` can start the deploy.
+- ✓ **Root cause** — alarm identity came from `string.GetHashCode()` / `HashCode.Combine`, both of which .NET seeds **randomly per process**, so a re-scheduled reminder never matched the `PendingIntent` armed by an earlier process: `AlarmManager` treated it as a new alarm. Alarms accumulated across app starts, boots and SignalR reconnects and all fired at their shared trigger time. `CancelReminders` could only cancel a fixed offset list (1440 minutes or less, so a one-week reminder was uncancellable) and `CancelAllReminders` cancelled **nothing at all** — it only deleted a preferences key.
+- ✓ **Delivery-once** — new `CalendarReminderPlanner` (pure) + `CalendarReminderAlarmStore` (preferences, 2-day retention): a reminder that became due while the app was closed is delivered **once** as a catch-up alarm, an already-delivered occurrence is never planned again, and alarms that are no longer wanted (event edited/deleted, reminder removed, offset changed, already delivered) are actively cancelled.
+- ✓ **Identity** — new `CalendarAlarmIdentity` (process-stable FNV-1a, pinned by tests) supplies the request code and the notification id, so re-scheduling _replaces_ the pending alarm and a redelivery _updates_ the notification instead of stacking a second one.
+- ✓ **Wording** — `CalendarReminderText` builds the body from the real time remaining ("Starts in 15 minutes" / "Starts in 2h 30m" / "Starts in 7 days"), so a late or catch-up delivery no longer announces the whole offset.
+- ✓ **Reminder picker** — `EventEditViewModel`'s labels and values were mismatched (7 labels to 8 values, so _every_ choice was one step off: "1 day before" stored 2 hours, and the 1-day slot was unreachable); they are now paired, and a custom offset typed in the web UI (e.g. one week) is **preserved** instead of being silently cleared by the two-way sync, with a hint on the editor explaining it.
+- ✓ **Tests** — 33 new tests in `CalendarReminderAlarmTests` (pinned FNV-1a values, identity stability/range, catch-up-once, delivered-never-again, stale-alarm cancellation, record round-trip + prune, wording). Android suite **479 pass / 1 skip**; arm64 Debug build **0 warnings / 0 errors**.
+- ☐ **On-device verification (R5CWC356B2K) — PENDING.** Required before commit: a one-week reminder alerts exactly once at its trigger time, a resync / boot / SignalR reconnect adds no further alert, the body shows the real remaining time, and picking "1 day before" stores 1440.
+- ⚠️ **Legacy alarms** — alarms armed by the previous build carry the old per-process request codes and cannot be cancelled by the new code; they stay armed until they fire or the device is restarted. A single reboot (or clearing app data) purges them.
+
+## Recent Work — Calendar reminder dispatch: long-lead window + notification type (2026-09-27, `fix/android-alerts`, server half)
+
+> Server-side defects found while confirming that the phone's repeated _“in 168 hours”_ alerts could not have come from the server. Deploy handoff raised for `cloud.kimball.home`.
+
+- ✓ **Long-lead reminders fired ~6 days late** — `ReminderDispatchService` looked only a fixed **24 hours** ahead, so an event further away was never even loaded and its reminder could only fire once the event came within a day (a one-week reminder fired at ~36 h before the event). The window is now derived from the largest configured `MinutesBefore` (`ResolveLookAheadWindowAsync`, one `MAX(MinutesBefore)` query per scan), floored at 24 h and capped at 366 days
+- ✓ **Notification category was ignored** — `CoreCapabilitiesServiceImpl.SendNotification` accepted `Category` and then hard-coded `Info`/`Normal`, so calendar reminders were filed as generic information. `Category = "Reminder"` now stores `NotificationType.Reminder` + `Priority.High`; every other category keeps the previous defaults, so no other module's notifications change
+- ✓ **Correction recorded** — the earlier claim that each reminder produced **two** bell notifications was **wrong**: module hosts use a process-local `InProcessEventBus`, the `PublishEvent` capability is a documented no-op, and nothing subscribes to `ReminderTriggeredEvent` in the Calendar host, so that publish is inert. Exactly one notification is produced (by `CalendarReminderEventHandler` through `SendNotification`); the code now documents this and no duplicate was "fixed"
+- ✓ **Tests** — 5 new `ReminderDispatchServiceTests` (window resolution: minimum / derived from the largest offset / clamped; and the regression cases: a 7-day reminder on an event 7 days out now fires, while one 10 days out does not) plus 9 `CoreCapabilitiesNotificationCategoryTests` cases. Calendar module **205 pass / 0 fail**; Core.Server **796 pass** (1 pre-existing `ProgramRootCaTests` failure, 1 skip); `DotNetCloud.CI.slnf` Release build 0 warnings / 0 errors
+- ☐ **Deploy + verify on `cloud.kimball.home`** — Active Handoff raised (deploy only; expect a one-off catch-up burst of never-logged, still-due long-lead reminders on the first scan)
+
 ## Table of Contents
 
 1. [Pre-Implementation Setup](#pre-implementation-setup)
@@ -3756,6 +3780,19 @@ events could not be opened, and there was no way to add another event to a day y
 - ✓ Day cells now read "1 event" / "N events" (was "1 events") and hide the count label entirely for empty days
 - ✓ 18 unit tests: `CalendarViewModelTests` (tap routing by count, start-time ordering, multi-day events listed on each day they cover, day-list refresh from the server, back-press handling, `OccursOn` UTC handling) and `LocalTimeConverterTests`
 - ✓ Verified on device (R5CWC356B2K, 2026-09-18): day list opens from the month **and** week grids, a single-event day still opens its details directly, event → Back returns to the list, Back button / scrim / system back all dismiss it, "+ New Event" opens the editor on 20 Sep, a 6-event day scrolls; zero crashes, Android tests 378 passed / 1 skipped. Temporary test events were removed afterwards and the day counts restored
+
+#### Calendar Reminder Alerts — Duplicates & Wording
+
+A reminder configured a long way before an event produced a burst of identical notifications that each had to be dismissed, and the notification text repeated the configured offset rather than the time remaining (a one-week reminder read "Starts in 168 hours").
+
+- ✓ Alarm identity (`PendingIntent` request code + notification id) is now derived from a process-stable hash (`CalendarAlarmIdentity`, FNV-1a) — the previous `string.GetHashCode()` / `HashCode.Combine` values changed on every app start, so old alarms could never be replaced or cancelled and accumulated until they all fired together
+- ✓ The set of armed alarms is persisted (`CalendarReminderAlarmStore`), so cancellation is exact for **any** offset and `CancelAllReminders` actually cancels (it previously only cleared a preferences key)
+- ✓ A reminder that became due while the app was not running is delivered **once** (`CalendarReminderPlanner` catch-up) and never re-planned; previously a long-lead reminder re-fired on every calendar load, boot and SignalR reconnect
+- ✓ Notification text comes from the real time remaining (`CalendarReminderText`), not the configured offset
+- ✓ The editor's reminder picker no longer shifts every label by one ("1 day before" stored 2 hours and the 1-day slot was unreachable), and a custom offset set in the web UI is preserved instead of silently cleared
+- ✓ 33 new unit tests (`CalendarReminderAlarmTests`); Android suite 479 pass / 1 skip; arm64 Debug build 0 warnings / 0 errors
+- ☐ On-device E2E (R5CWC356B2K) — pending
+- ⏳ Not yet pushed — these commit with the phone-E2E follow-up; the server half of the same investigation went first so `cloud.kimball.home` could deploy
 
 #### System Back Navigation (Android Back Button)
 
