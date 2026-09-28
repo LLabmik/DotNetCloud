@@ -269,4 +269,86 @@ public class ReminderDispatchServiceTests
                 It.IsAny<CancellationToken>()),
             Times.Never);
     }
+
+    // ─── LONG-LEAD REMINDER WINDOW ─────────────────────────
+
+    [TestMethod]
+    public async Task ResolveLookAheadWindow_NoReminders_FallsBackToTheMinimumWindow()
+    {
+        var cal = CreateCalendar();
+        CreateEvent(cal, "No Reminders", DateTime.UtcNow.AddMinutes(5), TimeSpan.FromHours(1));
+        await _db.SaveChangesAsync();
+
+        var window = await ReminderDispatchService.ResolveLookAheadWindowAsync(_db, CancellationToken.None);
+
+        Assert.AreEqual(ReminderDispatchService.MinimumLookAheadWindow, window);
+    }
+
+    [TestMethod]
+    public async Task ResolveLookAheadWindow_LongLeadReminder_ExtendsToTheLargestOffset()
+    {
+        var cal = CreateCalendar();
+        var evt = CreateEvent(cal, "Rush Concert", DateTime.UtcNow.AddDays(7), TimeSpan.FromHours(2));
+        evt.Reminders.Add(new EventReminder { MinutesBefore = 10080, Method = ReminderMethod.Notification });
+        await _db.SaveChangesAsync();
+
+        var window = await ReminderDispatchService.ResolveLookAheadWindowAsync(_db, CancellationToken.None);
+
+        Assert.AreEqual(TimeSpan.FromDays(7), window);
+    }
+
+    [TestMethod]
+    public async Task ResolveLookAheadWindow_ExtremeOffset_IsClamped()
+    {
+        var cal = CreateCalendar();
+        var evt = CreateEvent(cal, "Absurd", DateTime.UtcNow.AddDays(1), TimeSpan.FromHours(1));
+        evt.Reminders.Add(new EventReminder { MinutesBefore = 400 * 24 * 60, Method = ReminderMethod.Notification });
+        await _db.SaveChangesAsync();
+
+        var window = await ReminderDispatchService.ResolveLookAheadWindowAsync(_db, CancellationToken.None);
+
+        Assert.AreEqual(ReminderDispatchService.MaximumLookAheadWindow, window);
+    }
+
+    /// <summary>
+    /// Regression: a reminder one week before an event one week away is due now, but the event sat
+    /// outside the old fixed 24-hour window, so it was never even loaded and the reminder fired about
+    /// six days late (when the event came within 24 hours).
+    /// </summary>
+    [TestMethod]
+    public async Task ScanAndDispatch_LongLeadReminder_FiresWhenDue()
+    {
+        var cal = CreateCalendar();
+        var evt = CreateEvent(cal, "Rush Concert", DateTime.UtcNow.AddDays(7).AddMinutes(-1), TimeSpan.FromHours(2));
+        evt.Reminders.Add(new EventReminder { MinutesBefore = 10080, Method = ReminderMethod.Notification });
+        await _db.SaveChangesAsync();
+
+        await _service.ScanAndDispatchAsync(CancellationToken.None);
+
+        _eventBusMock.Verify(
+            eb => eb.PublishAsync(
+                It.Is<CalendarReminderTriggeredEvent>(e => e.CalendarEventId == evt.Id),
+                It.IsAny<CallerContext>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [TestMethod]
+    public async Task ScanAndDispatch_LongLeadReminder_NotYetDue_DoesNotFire()
+    {
+        var cal = CreateCalendar();
+        // 10 days out with a 7-day reminder: the trigger is still 3 days away.
+        var evt = CreateEvent(cal, "Rush Concert", DateTime.UtcNow.AddDays(10), TimeSpan.FromHours(2));
+        evt.Reminders.Add(new EventReminder { MinutesBefore = 10080, Method = ReminderMethod.Notification });
+        await _db.SaveChangesAsync();
+
+        await _service.ScanAndDispatchAsync(CancellationToken.None);
+
+        _eventBusMock.Verify(
+            eb => eb.PublishAsync(
+                It.IsAny<CalendarReminderTriggeredEvent>(),
+                It.IsAny<CallerContext>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
 }

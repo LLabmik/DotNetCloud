@@ -1,3 +1,4 @@
+using System.Globalization;
 using Android.App;
 using Android.Content;
 using Android.Media;
@@ -21,6 +22,7 @@ namespace DotNetCloud.Client.Android;
 ///   <item><c>title</c> (string) — Event title for the notification.</item>
 ///   <item><c>calendarId</c> (string) — GUID of the parent calendar.</item>
 ///   <item><c>reminderMinutesBefore</c> (int) — How many minutes before the event this reminder fires.</item>
+///   <item><c>eventStartUtc</c> (string) — ISO-8601 UTC start of the occurrence, used to report the real time remaining.</item>
 /// </list>
 /// </remarks>
 [BroadcastReceiver(Name = "net.dotnetcloud.client.CalendarAlarmReceiver", Exported = false)]
@@ -31,6 +33,7 @@ public sealed class CalendarAlarmReceiver : BroadcastReceiver
     internal const string ExtraTitle = "title";
     internal const string ExtraCalendarId = "calendarId";
     internal const string ExtraReminderMinutesBefore = "reminderMinutesBefore";
+    internal const string ExtraEventStartUtc = "eventStartUtc";
 
     /// <inheritdoc />
     public override void OnReceive(Context? context, Intent? intent)
@@ -44,6 +47,7 @@ public sealed class CalendarAlarmReceiver : BroadcastReceiver
         var title = intent.GetStringExtra(ExtraTitle);
         var calendarId = intent.GetStringExtra(ExtraCalendarId);
         var minutesBefore = intent.GetIntExtra(ExtraReminderMinutesBefore, 0);
+        var eventStartUtc = ParseEventStartUtc(intent.GetStringExtra(ExtraEventStartUtc));
 
         if (string.IsNullOrWhiteSpace(eventId) || string.IsNullOrWhiteSpace(title))
         {
@@ -52,11 +56,16 @@ public sealed class CalendarAlarmReceiver : BroadcastReceiver
         }
 
         logger?.LogInformation(
-            "Calendar reminder firing: event={EventId}, title={Title}, minutesBefore={Minutes}.",
-            eventId, title, minutesBefore);
+            "Calendar reminder firing: event={EventId}, title={Title}, minutesBefore={Minutes}, startUtc={StartUtc}.",
+            eventId, title, minutesBefore, eventStartUtc);
 
         // ── Build the notification ──
-        ShowReminderNotification(context, eventId, calendarId, title, minutesBefore);
+        ShowReminderNotification(context, eventId, calendarId, title, minutesBefore, eventStartUtc);
+
+        // ── Record the occurrence as delivered ──
+        // The scheduler skips occurrences that are already delivered, so a reminder that became due
+        // while the app was not running is delivered exactly once instead of on every resync.
+        MarkDelivered(eventId, eventStartUtc, minutesBefore);
 
         // ── Auto-reschedule next occurrence for recurring events ──
         // The CalendarReminderScheduler.RescheduleAllAsync will pick up expanded
@@ -68,13 +77,19 @@ public sealed class CalendarAlarmReceiver : BroadcastReceiver
     // ── Notification building ────────────────────────────────────────────────
 
     private static void ShowReminderNotification(
-        Context context, string eventId, string? calendarId, string title, int minutesBefore)
+        Context context, string eventId, string? calendarId, string title, int minutesBefore,
+        DateTime? eventStartUtc)
     {
         Log.Info("DotNetCloud", $"ShowReminderNotification ENTERED: event={eventId}, title={title}, minutesBefore={minutesBefore}");
 
-        var body = minutesBefore > 0
-            ? $"Starts in {FormatMinutes(minutesBefore)}"
-            : "Event is starting now";
+        // Report the time actually remaining, not the configured offset: a catch-up delivery would
+        // otherwise announce the full offset again (a "one week before" reminder said
+        // "Starts in 168 hours" even when it fired late).
+        var body = eventStartUtc is { } startUtc
+            ? CalendarReminderText.FormatBody(startUtc, DateTime.UtcNow)
+            : minutesBefore > 0
+                ? $"Starts in {FormatMinutes(minutesBefore)}"
+                : "Event is starting now";
 
         // ── Check POST_NOTIFICATIONS permission (Android 13+) ──
         var hasNotificationPermission = CheckNotificationPermission(context);
@@ -92,9 +107,25 @@ public sealed class CalendarAlarmReceiver : BroadcastReceiver
         if (!string.IsNullOrWhiteSpace(calendarId))
             openIntent.PutExtra("calendarId", calendarId);
 
+        int requestCode;
+        int notificationId;
+
+        if (Guid.TryParse(eventId, out var parsedEventId) && eventStartUtc is { } occurrenceStart)
+        {
+            requestCode = CalendarAlarmIdentity.RequestCode(parsedEventId, occurrenceStart, minutesBefore);
+            notificationId = CalendarAlarmIdentity.NotificationId(parsedEventId, occurrenceStart, minutesBefore);
+        }
+        else
+        {
+            // Fired by an alarm armed before the occurrence-start extra existed.
+            var fallbackHash = CalendarAlarmIdentity.StableHash(eventId);
+            requestCode = fallbackHash;
+            notificationId = CalendarAlarmIdentity.NotificationIdBase + (fallbackHash & 0x0FFF);
+        }
+
         var pendingIntent = PendingIntent.GetActivity(
             context,
-            eventId.GetHashCode(), // deterministic — replaces existing pending intent for same event
+            requestCode, // process-stable — updates the existing pending intent instead of adding one
             openIntent,
             PendingIntentFlags.Immutable | PendingIntentFlags.UpdateCurrent);
 
@@ -122,8 +153,6 @@ public sealed class CalendarAlarmReceiver : BroadcastReceiver
             return;
         }
 
-        // Use a deterministic notification ID so duplicate alarms for the same event replace each other
-        var notificationId = 3000 + (eventId.GetHashCode() & 0x0FFF);
         Log.Info("DotNetCloud", $"  Calling nm.Notify(id={notificationId})...");
         nm.Notify(notificationId, notification);
         Log.Info("DotNetCloud", $"  nm.Notify completed successfully");
@@ -159,6 +188,41 @@ public sealed class CalendarAlarmReceiver : BroadcastReceiver
         return mins > 0
             ? $"{hours}h {mins}m"
             : $"{hours} hour{(hours == 1 ? "" : "s")}";
+    }
+
+    /// <summary>
+    /// Parses the occurrence-start extra, normalizing the kind to <see cref="DateTimeKind.Utc"/>
+    /// (JSON/round-trip parsing of a value without a suffix would otherwise yield a local or
+    /// unspecified kind and shift the computed time remaining).
+    /// </summary>
+    private static DateTime? ParseEventStartUtc(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return null;
+
+        return DateTime.TryParse(
+            raw, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var parsed)
+            ? DateTime.SpecifyKind(parsed, DateTimeKind.Utc)
+            : null;
+    }
+
+    /// <summary>Records the occurrence as delivered so it is never delivered again.</summary>
+    private static void MarkDelivered(string eventId, DateTime? eventStartUtc, int minutesBefore)
+    {
+        if (eventStartUtc is not { } startUtc || !Guid.TryParse(eventId, out var parsedEventId))
+            return;
+
+        try
+        {
+            CalendarReminderAlarmStore.MarkDelivered(
+                new CalendarReminderRecord(parsedEventId, startUtc, minutesBefore));
+        }
+        catch (Exception ex)
+        {
+            // Best effort — a failed write may allow a catch-up re-delivery, which beats crashing
+            // the broadcast.
+            Log.Warn("DotNetCloud", $"  Failed to record the delivered reminder: {ex.Message}");
+        }
     }
 
     private static bool CheckNotificationPermission(Context context)

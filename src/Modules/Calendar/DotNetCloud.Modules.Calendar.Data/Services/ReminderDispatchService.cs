@@ -21,10 +21,15 @@ public sealed class ReminderDispatchService : BackgroundService
     internal static readonly TimeSpan ScanInterval = TimeSpan.FromSeconds(30);
 
     /// <summary>
-    /// How far ahead of the current time to look for upcoming reminders.
-    /// This should cover the largest typical reminder window (24 hours).
+    /// Lower bound of the look-ahead window, covering the common short-lead reminders.
     /// </summary>
-    internal static readonly TimeSpan LookAheadWindow = TimeSpan.FromHours(24);
+    internal static readonly TimeSpan MinimumLookAheadWindow = TimeSpan.FromHours(24);
+
+    /// <summary>
+    /// Upper bound of the look-ahead window. A single extreme offset must not make every scan load
+    /// the whole calendar.
+    /// </summary>
+    internal static readonly TimeSpan MaximumLookAheadWindow = TimeSpan.FromDays(366);
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<ReminderDispatchService> _logger;
@@ -81,13 +86,39 @@ public sealed class ReminderDispatchService : BackgroundService
         var recurrenceEngine = scope.ServiceProvider.GetRequiredService<IRecurrenceEngine>();
 
         var now = DateTime.UtcNow;
-        var lookAhead = now.Add(LookAheadWindow);
+        var lookAhead = now.Add(await ResolveLookAheadWindowAsync(db, cancellationToken));
 
         // 1. Process non-recurring events with upcoming reminders.
         await DispatchSingleEventRemindersAsync(db, eventBus, now, lookAhead, cancellationToken);
 
         // 2. Process recurring events with upcoming reminders.
         await DispatchRecurringEventRemindersAsync(db, eventBus, recurrenceEngine, now, lookAhead, cancellationToken);
+    }
+
+    /// <summary>
+    /// Resolves how far ahead to look for events with reminders that may now be due: the largest
+    /// configured minutes-before offset, floored at <see cref="MinimumLookAheadWindow"/> and capped at
+    /// <see cref="MaximumLookAheadWindow"/>.
+    /// </summary>
+    /// <remarks>
+    /// A reminder is due when <c>StartUtc - MinutesBefore &lt;= now</c>, so the candidate events must be
+    /// loaded from at least that far ahead. With a fixed 24-hour window an event further away than the
+    /// window was never even considered, so a long-lead reminder could only fire once the event came
+    /// within 24 hours — a one-week reminder therefore fired roughly six days late. Deriving the window
+    /// from the data keeps every offset correct without hard-coding a maximum lead time. Widening the
+    /// window is safe: <see cref="ReminderLog"/> still guarantees each reminder fires only once.
+    /// </remarks>
+    internal static async Task<TimeSpan> ResolveLookAheadWindowAsync(
+        CalendarDbContext db,
+        CancellationToken cancellationToken)
+    {
+        var maxMinutesBefore = await db.EventReminders
+            .MaxAsync(r => (int?)r.MinutesBefore, cancellationToken)
+            .ConfigureAwait(false);
+
+        var window = TimeSpan.FromMinutes(
+            Math.Max(maxMinutesBefore ?? 0, MinimumLookAheadWindow.TotalMinutes));
+        return window > MaximumLookAheadWindow ? MaximumLookAheadWindow : window;
     }
 
     private async Task DispatchSingleEventRemindersAsync(
@@ -233,7 +264,9 @@ public sealed class ReminderDispatchService : BackgroundService
 
         try
         {
-            // Publish calendar-specific reminder event
+            // Publish the calendar-specific reminder event. This is the one that notifies the user:
+            // CalendarReminderEventHandler (in this process) turns it into an in-app notification via
+            // the SendNotification capability, plus a real-time broadcast.
             await eventBus.PublishAsync(new CalendarReminderTriggeredEvent
             {
                 EventId = Guid.CreateVersion7(),
@@ -244,7 +277,11 @@ public sealed class ReminderDispatchService : BackgroundService
                 EventStartUtc = occurrenceStart
             }, systemCaller, cancellationToken);
 
-            // Publish cross-module reminder event (core handler sends push notification)
+            // Publish the cross-module reminder event for the platform's generic reminder pipeline.
+            // NOTE: module hosts run their own in-process event bus and the PublishEvent capability is a
+            // no-op, so nothing consumes this yet — Core.Server's NotificationProducer is the intended
+            // handler once module-to-core event forwarding exists. Do not rely on it to notify users:
+            // the calendar notification is raised by CalendarReminderEventHandler above.
             await eventBus.PublishAsync(new ReminderTriggeredEvent
             {
                 EventId = Guid.CreateVersion7(),

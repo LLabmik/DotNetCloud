@@ -1,3 +1,95 @@
+## Archived: Client agent (`monolith`) — Android calendar reminder alerts (duplicate-alert fixes) on-device verified (2026-09-27)
+
+**Status:** completed ✅ — implemented, unit-tested and **verified on-device** (Samsung R5CWC356B2K). The client complement of the server record below (same operator bug report, same branch `fix/android-alerts`).
+**Branch:** `fix/android-alerts` — the branch's **first push carried the server half only**; the Android half (5 modified + 4 new files) is **uncommitted, pending the operator's approval** · **From:** client agent (`monolith`) · **Target:** Android phone `R5CWC356B2K` against `cloud.dotnetcloud.net`
+
+### Why
+
+The operator saw repeated *"Rush Concert … in 168 hours"* alerts on the phone and had to keep dismissing them. The `168 hours` was the Android local alarm printing the **configured offset** (10080 min = one week) instead of the time actually remaining.
+
+### Root cause
+
+`CalendarReminderScheduler` derived the `PendingIntent` request code from `string.GetHashCode()` / `HashCode.Combine` — both **seeded randomly per process** by .NET. A re-scheduled reminder therefore could never match the `PendingIntent` armed by an earlier process, so `AlarmManager` treated every pass as a new alarm: alarms accumulated across app starts, boots and SignalR reconnects and all fired at their shared trigger time. The notification id had the same per-process randomness, so the duplicates **stacked** instead of replacing each other. Cancellation was also incomplete — `CancelReminders` could only cancel a fixed offset list (1440 min or less, so a one-week reminder was uncancellable) and `CancelAllReminders` cancelled **nothing at all** (it deleted a preferences key only). Separately, `EventEditViewModel`'s reminder labels/values were mismatched (7 labels vs 8 values), so **every** picker choice was one step off: "1 day before" stored 2 hours and the 1-day slot was unreachable.
+
+### What changed
+
+- **`Services/CalendarAlarmIdentity.cs`** — process-stable FNV-1a identity (request code + notification id) per reminder occurrence, so re-scheduling **replaces** the pending alarm and a redelivery **updates** the notification.
+- **`Services/CalendarReminderPlanner.cs`** (pure, no Android types) + **`Services/CalendarReminderAlarmStore.cs`** — a reminder that became due while the app was closed is delivered **once** as a catch-up alarm; an already-delivered occurrence is never planned again; and alarms that are no longer wanted (event deleted/edited, reminder removed, offset changed, already delivered) are actively cancelled. The armed set is persisted, which is what makes cancellation exact for **any** offset.
+- **`Services/CalendarReminderText.cs`** — the body is built from the real time remaining ("Starts in 15 minutes" / "2h 30m" / "7 days").
+- **`CalendarReminderScheduler` / `CalendarAlarmReceiver`** — stable request code + notification id, `eventStartUtc` carried on the alarm intent, delivery recorded on the receiver side, `CancelAllReminders` actually cancels.
+- **`EventEditViewModel` / `EventEditPage.xaml`** — picker labels/values realigned (7 ↔ 7) and a custom offset set in the web UI (e.g. one week) is **preserved** instead of silently cleared, with a hint saying so.
+- ⚠️ Alarms armed by the previous build carry the old per-process request codes and **cannot** be cancelled by the new code; they stay armed until they fire or the device is restarted. A single reboot (or clearing app data) purges them.
+
+### Verification
+
+| Check | Result |
+| --- | --- |
+| Unit tests | `DotNetCloud.Client.Android.Tests` **479 pass / 1 skip** — 33 new in `CalendarReminderAlarmTests` (pinned FNV-1a values, identity stability/range, catch-up-once, delivered-never-again, stale-alarm cancellation, record round-trip + prune, wording) |
+| Build + install | arm64 Debug **0 warnings / 0 errors**; installed with `adb install -r --no-incremental` (the default incremental install corrupts headless cold starts — see repo memory) |
+| **One alert per reminder, at its trigger time** | the operator's own **one-week** reminder (_Rush Concert!_, `10080` min, 6.7 days out) fired **exactly once** — as a catch-up on the first post-boot scan after a reboot purged the legacy arms (`Scheduled 1 calendar reminder alarm(s), cancelled 0 stale` → `(1 catch-up)`) → notification **id 4314** on `channel=calendar_reminders` |
+| **No repeat after resync / boot / reconnect** | app restart + calendar load, a second calendar load, a real `SignalR reconnected (connId=4gE284V6KIGnxl07lcTBrw)`, and a **second reboot** each logged `Scheduled 0 calendar reminder alarm(s)`; exactly **one** `nm.Notify` in the whole run and one record in `dumpsys notification` |
+| **Body = real remaining time** | `android.text = String (Starts in 6 days)` — not the configured "in 168 hours" |
+| **"1 day before" stores 1440** | three separate events (starting 9/30, 10/1 and 10/20): the armed alarm's pending-list `OW` was exactly 24 h before the event start (9/29, 9/30, 10/19 09:00), the editor re-opened showing "1 day before" with no custom-offset hint, and the picker lists 7 correctly paired options |
+| **Delete cancels the armed alarm** | after deleting the event its alarm was gone from `dumpsys alarm`'s **pending** list (the `NNN pending alarms:` block) |
+| Test data | every temporary event was deleted afterwards (each confirmed by a `CalendarEventDeleted` realtime event) |
+
+### Notes / gotchas worth keeping
+
+- ⚠️ **`dumpsys alarm`'s "Addition history" section retains fired *and* cancelled alarms.** Reading that section as the pending list makes a perfectly working cancellation look broken (it cost a false "cancel is broken" conclusion and a probe build here). The pending list is the `NNN pending alarms:` block; a `PendingIntentFlags.NoCreate` lookup was then **measured** to find the armed `PendingIntent` (`noCreate=True`), i.e. the cancel path was already correct.
+- The Android **reminder picker cannot express a one-week offset** (it tops out at "1 day before"); such an offset can only be set in the web calendar's free-form minutes field (10080). The app now preserves it instead of clearing it.
+- **Observation for the server agent (not part of this work):** editing an existing event on the phone (`PUT /api/v1/calendars/events/{id}`) returned **HTTP 500** ("The server is temporarily unavailable. Please try again later.") during this session, so "change an existing reminder and confirm the old alarm is cancelled" could not be exercised on-device (the stale-arm sweep is unit-tested instead). Worth a look server-side.
+- Also still open from the server record below: `Modules/Files.Data/Services/CoreCapabilitiesClient.cs` sends no `module-id` header, so Files capability calls would be rejected the same way the Calendar host's were.
+
+## Archived: Server agent (`cloud`) — calendar reminder dispatch fixes (long-lead window + notification category) deployed + verified; Calendar host `module-id` gap found + fixed (2026-09-27)
+
+**Status:** completed ✅ — the server half is deployed and verified live on `cloud.kimball.home`; the **Android half has since been verified on-device too** (see the entry above), so this handoff is fully archived and has no open items.
+**Branch:** `fix/android-alerts` — deploy 1 @ `23876408`, deploy 2 @ `71d3cc6a` (the `module-id` fix commit) · **From:** client agent (`monolith`) · **Target:** `cloud.kimball.home` (`cloud`; SQL Server on `hyperdrive.kimball.home`)
+
+### Why
+
+The operator's phone showed repeated *"Rush Concert … in 168 hours"* alerts. The repeats were client-side (per-process alarm identity, fixed in the Android half), but confirming that the server could not have produced them surfaced two genuine server defects, and verifying the fix then exposed a third that made the notification half inert.
+
+### What changed (implementation)
+
+1. **`ReminderDispatchService` (Calendar module)** — the scan window is derived from the largest configured reminder offset instead of a fixed 24 h (`MinimumLookAheadWindow` 24 h, `MaximumLookAheadWindow` 366 days, `ResolveLookAheadWindowAsync` = one `MAX(MinutesBefore)` query per 30 s scan). A reminder is due when `StartUtc - MinutesBefore <= now`, so candidates must be loaded from at least that far ahead; with the fixed window a long-lead reminder could only fire once the event came within 24 h (a one-week reminder fired ~6 days late).
+2. **`CoreCapabilitiesServiceImpl.SendNotification` (Core.Server)** — the module-supplied `Category` is honoured: `Category = "Reminder"` stores `NotificationType.Reminder` + `NotificationPriority.High` instead of `Info`/`Normal`; absent/unknown categories keep the previous defaults.
+3. **NEW — `Calendar.Host` capability calls were unauthenticated (fixed here).** `CalendarReminderEventHandler` and `CalendarEventBroadcastHandler` invoked a bare `CoreCapabilitiesClient` with no `module-id` metadata header, so Core.Server's `AuthenticationInterceptor` rejected **every** call as `Unauthenticated: "Missing module-id metadata header"`. All three call sites now pass `new Metadata { { "module-id", _moduleId } }` (the pattern already used by the Chat/Tracks hosts, `GrpcTeamDirectory` and `SearchIndexEventBridgeHandler`), with `_moduleId` from the supervisor-provided `DOTNETCLOUD_MODULE_ID`. 3 regression tests in `CalendarReminderEventHandlerTests` (header on notify, header on broadcast, broadcast still attempted when the notify leg is rejected) plus `<InternalsVisibleTo Include="DotNetCloud.Modules.Calendar.Tests" />`.
+
+### Contract
+
+- A reminder is dispatched when `StartUtc - MinutesBefore <= now`; candidates are loaded from `now` to `now + max(24 h, MAX(MinutesBefore), capped at 366 days)`. `ReminderLog` still guarantees once-only delivery per `(ReminderId, OccurrenceStartUtc)`.
+- `SendNotification` maps `Category = "Reminder"` → `Type = Reminder`, `Priority = High` (case-insensitive); everything else stays `Info`/`Normal`.
+- **Every module → core capability call must carry the `module-id` gRPC metadata header**, or the core answers `401 Unauthenticated`.
+- The calendar notification comes from `CalendarReminderEventHandler` via `SendNotification`; the `ReminderTriggeredEvent` publish is inert (module hosts use a process-local `InProcessEventBus`, `PublishEvent` is a documented no-op) — exactly one notification per reminder, and that claim is now documented on the code.
+
+### Verification
+
+| Check | Result |
+| --- | --- |
+| Deploy 1 (`23876408`) | `deploy.sh --force --verify` **15/15 targets**; `.last-deploy-commit` = `238764083a10`; version **0.6.12**; no pending migrations |
+| Hashes / symbols | `Core.Server.dll` `652e2aeb…`, `dotnetcloud.calendar.dll` `9609058f…`, `Calendar.Data.dll` `5f331d88…` — md5-identical to build output; `ResolveLookAheadWindowAsync` / `MinimumLookAheadWindow` / `MaximumLookAheadWindow` and `MapNotificationCategory` present |
+| Health | `/health/ready` **Healthy — 14 module(s), all healthy**; `database` Healthy; `blazor.web.js` **200** |
+| **Window fix, live on real data** | operator's own `Rush Concert!` event `01a05609-…9ed7d` (**6.7 days out**, start `2026-10-04 14:00Z`) dispatched its 10080-min reminder on the **first scan after the restart** (`23:46:53Z`, ~1.8 min after start) → `core.ReminderLogs`, `Success = 1`. Under the old window the event was not even loaded; it would have fired ~5.7 days late |
+| ⚠️ Deploy 1 — notification leg | `Failed to send in-app notification … Unauthenticated: Missing module-id metadata header` (also on `BroadcastRealtimeEvent`); **0** notification rows created; the table had **no `Reminder` row at all** — only 5 `dotnetcloud.files` Share rows |
+| Deploy 2 (`module-id` fix) | **15/15 targets**, Healthy **14/14**, `blazor.web.js` 200, calendar host md5-identical, `module-id` + `DOTNETCLOUD_MODULE_ID` literals in the deployed host |
+| **Notification leg, live** | reminder re-armed (stale `ReminderLogs` row deleted — dispatched but never delivered); next scan: `SendNotification: 'Rush Concert!' to 1 recipients from module dotnetcloud.calendar` + `gRPC call completed …/SendNotification`, `Reminder dispatched … (Notification, 10080min before)`, fresh `ReminderLogs` row `Success = 1`, and bell row `Type = Reminder`, `Priority = High`, `Message = Starts in 9464 minutes`, `ActionUrl = /apps/calendar/events/01a05609-…`; **0** rejections after the fix |
+| Tests | Calendar module **208 pass / 0 fail** (205 + 3 new); `DotNetCloud.CI.slnf` Release build **0 warnings / 0 errors** |
+
+⚠️ The catch-up burst (previously unreachable long-lead reminders) fired exactly once, as predicted.
+
+### Deliberate non-changes
+
+- **Module → core event forwarding** (`PublishEvent` needs an event-type registry) — the inert `ReminderTriggeredEvent` publish stays as-is for the day that lands.
+- `NotificationProducer` / `NotificationEventSubscriber` in Core.Server — they only handle events published **inside** Core.Server, so they needed no change.
+- No duplicate-notification "fix": the earlier claim of two bell notifications per reminder was wrong (recorded on the code and in the handoff).
+
+### Pending (client agent — `monolith`) — NOT yet done
+
+- Android half of `fix/android-alerts` (stable alarm identity, delivery-once, real remaining time in the body, reminder-picker alignment) — complete and unit-tested, lands in a follow-up commit **after** its on-device E2E on `R5CWC356B2K`: one alert per reminder at its trigger time, no repeat after a resync/boot/SignalR reconnect, the body showing the real remaining time, and "1 day before" storing 1440.
+- ☐ **Recorded but not fixed (out of scope):** Files' own `CoreCapabilitiesClient` (`Modules/Files.Data/Services/CoreCapabilitiesClient.cs`) attaches no `module-id` header either, so any Files capability call would be rejected the same way. A shared client interceptor in `Core.Grpc` would prevent the whole class.
+
+---
+
 ## Archived: Client agent (`monolith`) — phone-side `304` confirmation for the chat-alerts poll + `200`/alert regression (2026-09-19)
 
 **Status:** completed ✅ — the chat-alerts poll contract is now verified end-to-end **from the device** in both directions; nothing outstanding on either side.

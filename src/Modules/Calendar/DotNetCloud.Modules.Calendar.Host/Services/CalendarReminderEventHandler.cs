@@ -1,6 +1,7 @@
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Grpc.Capabilities;
 using Google.Protobuf;
+using Grpc.Core;
 using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Modules.Calendar.Host.Services;
@@ -12,6 +13,10 @@ namespace DotNetCloud.Modules.Calendar.Host.Services;
 /// </summary>
 internal sealed class CalendarReminderEventHandler : IEventHandler<CalendarReminderTriggeredEvent>
 {
+    /// <summary>Module id sent as the <c>module-id</c> gRPC metadata header (required by Core.Server).</summary>
+    private readonly string _moduleId =
+        Environment.GetEnvironmentVariable("DOTNETCLOUD_MODULE_ID") ?? "dotnetcloud.calendar";
+
     private readonly CoreCapabilities.CoreCapabilitiesClient _coreClient;
     private readonly ILogger _logger;
 
@@ -38,23 +43,27 @@ internal sealed class CalendarReminderEventHandler : IEventHandler<CalendarRemin
             ? "Starting now"
             : $"Starts in {minutesFromNow} minute{(minutesFromNow == 1 ? "" : "s")}";
 
-        // 1. Send in-app notification via Core.Server's INotificationService
+        // 1. Send in-app notification via Core.Server's INotificationService.
+        // Core.Server's AuthenticationInterceptor rejects capability calls that do not carry the
+        // module-id metadata header (Unauthenticated: "Missing module-id metadata header").
         try
         {
+            var metadata = new Metadata { { "module-id", _moduleId } };
+
             var notifyResponse = await _coreClient.SendNotificationAsync(new SendNotificationRequest
             {
                 Caller = new CallerContextMessage
                 {
                     UserId = @event.UserId.ToString(),
                     CallerType = "System",
-                    ModuleId = "dotnetcloud.calendar"
+                    ModuleId = _moduleId
                 },
                 RecipientUserIds = { @event.UserId.ToString() },
                 Title = @event.EventTitle,
                 Body = body,
                 Category = "Reminder",
                 Link = $"/apps/calendar/events/{@event.CalendarEventId}"
-            }, cancellationToken: cancellationToken);
+            }, metadata, cancellationToken: cancellationToken);
 
             _logger.LogDebug(
                 "SendNotification response: Success={Success}, Delivered={Count}",
@@ -78,6 +87,7 @@ internal sealed class CalendarReminderEventHandler : IEventHandler<CalendarRemin
             };
 
             var json = System.Text.Json.JsonSerializer.Serialize(realtimePayload);
+            var metadata = new Metadata { { "module-id", _moduleId } };
 
             var broadcastResponse = await _coreClient.BroadcastRealtimeEventAsync(new BroadcastRealtimeEventRequest
             {
@@ -85,12 +95,12 @@ internal sealed class CalendarReminderEventHandler : IEventHandler<CalendarRemin
                 {
                     UserId = @event.UserId.ToString(),
                     CallerType = "System",
-                    ModuleId = "dotnetcloud.calendar"
+                    ModuleId = _moduleId
                 },
                 EventName = "CalendarReminder",
                 PayloadJson = json,
                 TargetUserId = @event.UserId.ToString()
-            }, cancellationToken: cancellationToken);
+            }, metadata, cancellationToken: cancellationToken);
 
             _logger.LogDebug(
                 "BroadcastRealtimeEvent response: Success={Success}",
