@@ -1,7 +1,7 @@
 ## Archived: Server agent (`cloud`) — calendar reminder dispatch fixes (long-lead window + notification category) deployed + verified; Calendar host `module-id` gap found + fixed (2026-09-27)
 
 **Status:** completed ✅ — the server half is deployed and verified live on `cloud.kimball.home`; the **Android half is still pending** on `monolith`, so it stays as a deferred handoff in `CLIENT_SERVER_MEDIATION_HANDOFF.md`.
-**Branch:** `fix/android-alerts` — deploy 1 @ `23876408`, deploy 2 @ `c6fca019` (the `module-id` fix commit) · **From:** client agent (`monolith`) · **Target:** `cloud.kimball.home` (`cloud`; SQL Server on `hyperdrive.kimball.home`)
+**Branch:** `fix/android-alerts` — deploy 1 @ `23876408`, deploy 2 @ `71d3cc6a` (the `module-id` fix commit) · **From:** client agent (`monolith`) · **Target:** `cloud.kimball.home` (`cloud`; SQL Server on `hyperdrive.kimball.home`)
 
 ### Why
 
