@@ -33,7 +33,7 @@ public sealed class CalendarViewModelTests
             .ReturnsAsync("access-token");
 
         var scheduler = new Mock<ICalendarReminderScheduler>();
-        scheduler.Setup(s => s.ScheduleRemindersAsync(It.IsAny<IReadOnlyList<CalendarEventDto>>(), It.IsAny<CancellationToken>()))
+        scheduler.Setup(s => s.RescheduleAllAsync(It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         _calendarApi.Setup(c => c.ListEventsAsync(

@@ -30,6 +30,26 @@ namespace DotNetCloud.Client.Android.Services;
 /// </remarks>
 internal sealed class CalendarReminderScheduler : ICalendarReminderScheduler
 {
+    /// <summary>
+    /// How far ahead a resync looks for events. Generous on purpose: the Android reminder picker tops
+    /// out at one day, but a reminder created on another client (web, desktop) can be a week or more
+    /// ahead of its event, and such a reminder must be armed even though the user never opened the
+    /// month the event lives in.
+    /// </summary>
+    private static readonly TimeSpan ResyncHorizon = TimeSpan.FromDays(90);
+
+    /// <summary>
+    /// How far back a resync looks, so a reminder for an event that has just started can still catch up.
+    /// </summary>
+    private static readonly TimeSpan ResyncLookBack = TimeSpan.FromDays(1);
+
+    /// <summary>
+    /// Serializes the passes that touch the persisted alarm bookkeeping. Without it a boot reschedule,
+    /// a SignalR reconnect and a calendar load can interleave and re-arm an occurrence that was
+    /// recorded as delivered in between.
+    /// </summary>
+    private readonly SemaphoreSlim _passLock = new(1, 1);
+
     private readonly ICalendarRestClient _calendarApi;
     private readonly IServerConnectionStore _serverStore;
     private readonly ISecureTokenStore _tokenStore;
@@ -51,18 +71,41 @@ internal sealed class CalendarReminderScheduler : ICalendarReminderScheduler
     /// <inheritdoc />
     public async Task ScheduleRemindersAsync(
         IReadOnlyList<CalendarEventDto> events,
+        CalendarReminderCoverage coverage,
         CancellationToken ct = default)
     {
+        // Passes are serialized: a boot reschedule, a SignalR connect/reconnect and a calendar load all
+        // arrive within seconds of each other, and an interleaved pass could re-arm an occurrence that
+        // the delivery broadcast had just recorded as delivered — a duplicate notification.
+        await _passLock.WaitAsync(ct).ConfigureAwait(false);
+
+        try
+        {
+            ScheduleCore(events, coverage, ct);
+        }
+        finally
+        {
+            _passLock.Release();
+        }
+    }
+
+    /// <summary>Applies a single scheduling pass. The caller must hold <see cref="_passLock"/>.</summary>
+    private void ScheduleCore(
+        IReadOnlyList<CalendarEventDto> events,
+        CalendarReminderCoverage coverage,
+        CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+
         var context = global::Android.App.Application.Context;
-        var alarmManager = GetAlarmManager(context);
+        var alarmManager = CalendarAlarmScheduling.GetAlarmManager(context);
         if (alarmManager is null)
         {
             _logger.LogWarning("AlarmManager not available, cannot schedule reminders.");
             return;
         }
 
-        var canScheduleExact = CanScheduleExactAlarms(context);
-        if (!canScheduleExact)
+        if (!CalendarAlarmScheduling.CanScheduleExactAlarms(context))
         {
             _logger.LogWarning("SCHEDULE_EXACT_ALARM permission not granted; using inexact scheduling.");
         }
@@ -90,6 +133,9 @@ internal sealed class CalendarReminderScheduler : ICalendarReminderScheduler
                 continue;
             }
 
+            Log.Info("DotNetCloud", $"  Event {evt.Id}: '{evt.Title}' at {startUtc:O}, " +
+                $"{evt.Reminders.Count} reminder(s)");
+
             foreach (var reminder in evt.Reminders)
             {
                 // Skip email reminders — those are handled server-side.
@@ -104,37 +150,74 @@ internal sealed class CalendarReminderScheduler : ICalendarReminderScheduler
             }
         }
 
-        var planned = CalendarReminderPlanner.Plan(
-            desired, CalendarReminderAlarmStore.GetDeliveredKeys(), now);
+        var deliveredKeys = CalendarReminderAlarmStore.GetDeliveredKeys();
+        var planned = CalendarReminderPlanner.Plan(desired, deliveredKeys, now);
+
+        Log.Info("DotNetCloud", $"  Reminders: desired={desired.Count}, alreadyDelivered={deliveredKeys.Count}, " +
+            $"planned={planned.Count}, coverage={coverage.FromUtc:O}..{coverage.ToUtc:O}");
 
         // Cancel anything armed by an earlier pass that is no longer wanted — the event was deleted or
         // edited, the reminder was removed, or the occurrence has already been delivered. Without this
-        // the stale alarm stays armed and fires as a duplicate.
-        var stale = CalendarReminderPlanner.ToCancel(CalendarReminderAlarmStore.GetScheduled(), planned);
+        // the stale alarm stays armed and fires as a duplicate. Only occurrences this pass fetched are
+        // governed, so it can never disarm a reminder that belongs to another slice of the calendar.
+        var stale = CalendarReminderPlanner.ToCancel(
+            CalendarReminderAlarmStore.GetScheduled(), planned, coverage);
         foreach (var record in stale)
         {
             CancelAlarm(context, alarmManager, record);
             _logger.LogDebug("Cancelled stale calendar reminder alarm for event {EventId}.", record.EventId);
         }
 
+        // Re-read the delivered set: an alarm that fired while this pass was planning has recorded its
+        // delivery in between, and arming that occurrence again would post a second notification.
+        var deliveredSincePlanning = CalendarReminderAlarmStore.GetDeliveredKeys();
+        var armed = new List<CalendarReminderRecord>(planned.Count);
+        var skipped = 0;
+
         foreach (var alarm in planned)
         {
-            ScheduleSingleAlarm(context, alarmManager, sources[alarm.Reminder.Key], alarm, canScheduleExact);
+            if (!CalendarReminderPlanner.ShouldDeliver(deliveredSincePlanning, alarm.Reminder))
+            {
+                skipped++;
+                _logger.LogDebug(
+                    "Skipped reminder while it was being armed: event {EventId} was delivered by a running alarm.",
+                    alarm.Reminder.EventId);
+                continue;
+            }
+
+            ScheduleSingleAlarm(context, alarmManager, sources[alarm.Reminder.Key], alarm);
+            armed.Add(alarm.Reminder);
         }
 
-        CalendarReminderAlarmStore.SetScheduled(planned.Select(alarm => alarm.Reminder));
+        CalendarReminderAlarmStore.SetScheduled(armed);
 
-        Log.Info("DotNetCloud", $"Scheduled {planned.Count} calendar reminder alarm(s), cancelled {stale.Count} stale.");
+        Log.Info("DotNetCloud", $"Scheduled {armed.Count} calendar reminder alarm(s), cancelled {stale.Count} stale, " +
+            $"skipped {skipped} already delivered.");
         _logger.LogInformation(
             "Scheduled {Count} calendar reminder alarms ({CatchUp} catch-up).",
-            planned.Count, planned.Count(alarm => alarm.IsCatchUp));
+            armed.Count, armed.Count(record => record.TriggerUtc <= now));
     }
 
     /// <inheritdoc />
     public void CancelReminders(Guid eventId)
     {
+        _passLock.Wait();
+
+        try
+        {
+            CancelRemindersCore(eventId);
+        }
+        finally
+        {
+            _passLock.Release();
+        }
+    }
+
+    /// <summary>Cancels every alarm armed for one event. The caller must hold <see cref="_passLock"/>.</summary>
+    private void CancelRemindersCore(Guid eventId)
+    {
         var context = global::Android.App.Application.Context;
-        var alarmManager = GetAlarmManager(context);
+        var alarmManager = CalendarAlarmScheduling.GetAlarmManager(context);
         if (alarmManager is null)
             return;
 
@@ -165,8 +248,23 @@ internal sealed class CalendarReminderScheduler : ICalendarReminderScheduler
     /// <inheritdoc />
     public void CancelAllReminders()
     {
+        _passLock.Wait();
+
+        try
+        {
+            CancelAllRemindersCore();
+        }
+        finally
+        {
+            _passLock.Release();
+        }
+    }
+
+    /// <summary>Cancels every armed alarm. The caller must hold <see cref="_passLock"/>.</summary>
+    private void CancelAllRemindersCore()
+    {
         var context = global::Android.App.Application.Context;
-        var alarmManager = GetAlarmManager(context);
+        var alarmManager = CalendarAlarmScheduling.GetAlarmManager(context);
         if (alarmManager is null)
             return;
 
@@ -208,7 +306,12 @@ internal sealed class CalendarReminderScheduler : ICalendarReminderScheduler
                 return;
             }
 
-            // Fetch events from all calendars
+            // Fetch from all calendars. The window is deliberately wider than the visible month: a
+            // reminder with a long lead (created on another client) belongs to an event that can be
+            // further out than any month the user has opened.
+            var from = DateTime.UtcNow - ResyncLookBack;
+            var to = DateTime.UtcNow + ResyncHorizon;
+
             var calendars = await _calendarApi
                 .ListCalendarsAsync(connection.ServerBaseUrl, accessToken, ct)
                 .ConfigureAwait(false);
@@ -220,8 +323,8 @@ internal sealed class CalendarReminderScheduler : ICalendarReminderScheduler
                     .ListEventsAsync(
                         connection.ServerBaseUrl, accessToken,
                         calendar.Id,
-                        from: DateTime.UtcNow,
-                        to: DateTime.UtcNow.AddDays(30),
+                        from: from,
+                        to: to,
                         ct: ct)
                     .ConfigureAwait(false);
                 allEvents.AddRange(events);
@@ -231,11 +334,19 @@ internal sealed class CalendarReminderScheduler : ICalendarReminderScheduler
                 "RescheduleAllAsync: fetched {EventCount} upcoming events across {CalendarCount} calendars.",
                 allEvents.Count, calendars.Count);
 
-            // Cancel all existing alarms first
-            CancelAllReminders();
+            // Cancelling and re-arming are one step under the pass lock, so a concurrent pass can never
+            // interleave with them. The fetch stays outside the lock — it is the slow part.
+            await _passLock.WaitAsync(ct).ConfigureAwait(false);
 
-            // Schedule new alarms
-            await ScheduleRemindersAsync(allEvents, ct).ConfigureAwait(false);
+            try
+            {
+                CancelAllRemindersCore();
+                ScheduleCore(allEvents, CalendarReminderCoverage.Around(from, to), ct);
+            }
+            finally
+            {
+                _passLock.Release();
+            }
         }
         catch (Exception ex)
         {
@@ -245,29 +356,11 @@ internal sealed class CalendarReminderScheduler : ICalendarReminderScheduler
 
     // ── Private helpers ──────────────────────────────────────────────────────
 
-    private static AlarmManager? GetAlarmManager(Context context)
-    {
-        var svc = context.GetSystemService(Context.AlarmService);
-        return svc as AlarmManager;
-    }
-
-    private static bool CanScheduleExactAlarms(Context context)
-    {
-        if (global::Android.OS.Build.VERSION.SdkInt < global::Android.OS.BuildVersionCodes.S)
-            return true; // API 30 and below: exact alarms don't need a separate permission
-
-        var alarmManager = GetAlarmManager(context);
-#pragma warning disable CA1416 // guarded by the SDK check above (API < S returns true early)
-        return alarmManager?.CanScheduleExactAlarms() == true;
-#pragma warning restore CA1416
-    }
-
     private void ScheduleSingleAlarm(
         Context context,
         AlarmManager alarmManager,
         CalendarEventDto evt,
-        PlannedCalendarAlarm alarm,
-        bool hasExactAlarmPermission)
+        PlannedCalendarAlarm alarm)
     {
         var triggerTimeUtc = alarm.FireAtUtc;
         var minutesBefore = alarm.Reminder.MinutesBefore;
@@ -279,28 +372,12 @@ internal sealed class CalendarReminderScheduler : ICalendarReminderScheduler
         Log.Info("DotNetCloud", $"    triggerMillis={triggerMillis} for local-time {triggerTimeUtc:O} " +
             $"(device local={DateTime.Now:O}, catchUp={alarm.IsCatchUp})");
 
-        if (hasExactAlarmPermission && CanScheduleExactAlarms(context))
-        {
-            alarmManager.SetExactAndAllowWhileIdle(
-                AlarmType.RtcWakeup,
-                triggerMillis,
-                pendingIntent);
+        var exact = CalendarAlarmScheduling.Arm(context, alarmManager, triggerMillis, pendingIntent);
 
-            _logger.LogDebug(
-                "Scheduled exact alarm for event {EventId} at {TriggerTime} (T-{MinutesBefore}min, catchUp={CatchUp}).",
-                evt.Id, triggerTimeUtc.ToString("O"), minutesBefore, alarm.IsCatchUp);
-        }
-        else
-        {
-            alarmManager.Set(
-                AlarmType.RtcWakeup,
-                triggerMillis,
-                pendingIntent);
-
-            _logger.LogDebug(
-                "Scheduled inexact alarm for event {EventId} at {TriggerTime} (T-{MinutesBefore}min, catchUp={CatchUp}).",
-                evt.Id, triggerTimeUtc.ToString("O"), minutesBefore, alarm.IsCatchUp);
-        }
+        _logger.LogDebug(
+            "Scheduled {Precision} alarm for event {EventId} at {TriggerTime} (T-{MinutesBefore}min, catchUp={CatchUp}).",
+            exact ? "exact" : "inexact",
+            evt.Id, triggerTimeUtc.ToString("O"), minutesBefore, alarm.IsCatchUp);
     }
 
     /// <summary>
@@ -332,7 +409,10 @@ internal sealed class CalendarReminderScheduler : ICalendarReminderScheduler
     private static PendingIntent CreateAlarmPendingIntent(
         Context context, CalendarEventDto evt, CalendarReminderRecord reminder)
     {
-        var intent = CreateAlarmIntent(context, evt, reminder);
+        // The receiver owns the intent contract, so a snooze armed from the notification produces the
+        // same pending intent this alarm used and can replace or cancel it.
+        var intent = CalendarAlarmReceiver.CreateAlarmIntent(
+            context, reminder, evt.Title, evt.CalendarId.ToString());
 
         // The request code is derived from the reminder's stable identity, so re-scheduling the same
         // reminder in a later process updates the existing alarm rather than adding another one.
@@ -344,22 +424,5 @@ internal sealed class CalendarReminderScheduler : ICalendarReminderScheduler
         // GetBroadcast is annotated nullable, but Android returns a valid PendingIntent
         // for a well-formed request; it never yields null here.
         return PendingIntent.GetBroadcast(context, requestCode, intent, flags)!;
-    }
-
-    private static Intent CreateAlarmIntent(Context context, CalendarEventDto evt, CalendarReminderRecord reminder)
-    {
-        var intent = new Intent(context, typeof(CalendarAlarmReceiver));
-        intent.SetAction(CalendarAlarmReceiver.ActionCalendarReminder);
-        intent.PutExtra(CalendarAlarmReceiver.ExtraEventId, evt.Id.ToString());
-        intent.PutExtra(CalendarAlarmReceiver.ExtraTitle, evt.Title);
-        intent.PutExtra(CalendarAlarmReceiver.ExtraCalendarId, evt.CalendarId.ToString());
-        intent.PutExtra(CalendarAlarmReceiver.ExtraReminderMinutesBefore, reminder.MinutesBefore);
-
-        // Carried so the notification can report the real time remaining at the moment it fires.
-        intent.PutExtra(
-            CalendarAlarmReceiver.ExtraEventStartUtc,
-            reminder.OccurrenceStartUtc.ToString("O", CultureInfo.InvariantCulture));
-
-        return intent;
     }
 }

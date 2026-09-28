@@ -359,10 +359,12 @@ public sealed partial class CalendarViewModel : ObservableObject, IDisposable
             RebuildGrids(allEvents);
             RefreshDayList(allEvents);
 
-            // Schedule alarms for all future reminders across all calendars
+            // Reminder alarms are armed by the scheduler's own pass over its whole horizon, never from the
+            // slice of the calendar that happens to be on screen: a view-driven pass would cancel the
+            // reminders of every day or month it did not fetch — in Day view, all of them.
             try
             {
-                await _reminderScheduler.ScheduleRemindersAsync(allEvents, ct);
+                await _reminderScheduler.RescheduleAllAsync(ct);
             }
             catch (Exception ex)
             {

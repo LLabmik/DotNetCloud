@@ -73,6 +73,33 @@ public sealed class CalendarReminderAlarmTests
         Assert.IsLessThanOrEqualTo(CalendarAlarmIdentity.NotificationIdBase + 0x0FFF, first);
     }
 
+    /// <summary>
+    /// Found on device while the notification offered two snooze choices: tapping "Snooze 10 min"
+    /// snoozed for an hour, because both buttons shared one action string and <c>PendingIntent</c>
+    /// identity ignores extras — the second one re-pointed the first at its own delay. The request code
+    /// must therefore carry the action's argument, not just the action.
+    /// </summary>
+    [TestMethod]
+    public void ActionRequestCode_DiffersForActionsThatShareAnActionString()
+    {
+        var tenMinutes = CalendarAlarmIdentity.ActionRequestCode(
+            EventId, OccurrenceStart, OneWeekBefore, "snooze|10");
+        var anHour = CalendarAlarmIdentity.ActionRequestCode(
+            EventId, OccurrenceStart, OneWeekBefore, "snooze|60");
+
+        Assert.AreNotEqual(tenMinutes, anHour);
+    }
+
+    [TestMethod]
+    public void ActionRequestCode_DiffersFromTheAlarmRequestCode()
+    {
+        var alarm = CalendarAlarmIdentity.RequestCode(EventId, OccurrenceStart, OneWeekBefore);
+        var dismiss = CalendarAlarmIdentity.ActionRequestCode(
+            EventId, OccurrenceStart, OneWeekBefore, "dismiss|0");
+
+        Assert.AreNotEqual(alarm, dismiss);
+    }
+
     [TestMethod]
     public void TriggerUtc_IsTheOffsetBeforeTheOccurrence()
         => Assert.AreEqual(
@@ -160,7 +187,7 @@ public sealed class CalendarReminderAlarmTests
         var planned = CalendarReminderPlanner.Plan(
             [new CalendarReminderRecord(EventId, OccurrenceStart.AddDays(3), 15)], NothingDelivered, now);
 
-        var toCancel = CalendarReminderPlanner.ToCancel([stale], planned);
+        var toCancel = CalendarReminderPlanner.ToCancel([stale], planned, CalendarReminderCoverage.Unbounded);
 
         Assert.HasCount(1, toCancel);
         Assert.AreEqual(stale.Key, toCancel[0].Key);
@@ -173,7 +200,7 @@ public sealed class CalendarReminderAlarmTests
         var record = Reminder(OneWeekBefore);
         var planned = CalendarReminderPlanner.Plan([record], NothingDelivered, now);
 
-        Assert.IsEmpty(CalendarReminderPlanner.ToCancel([record], planned));
+        Assert.IsEmpty(CalendarReminderPlanner.ToCancel([record], planned, CalendarReminderCoverage.Unbounded));
     }
 
     [TestMethod]
@@ -185,7 +212,86 @@ public sealed class CalendarReminderAlarmTests
         var planned = CalendarReminderPlanner.Plan([record], delivered, OccurrenceStart.AddDays(-6));
 
         Assert.IsEmpty(planned);
-        Assert.HasCount(1, CalendarReminderPlanner.ToCancel([record], planned));
+        Assert.HasCount(1, CalendarReminderPlanner.ToCancel([record], planned, CalendarReminderCoverage.Unbounded));
+    }
+
+    /// <summary>
+    /// A pass only knows about the slice of the calendar it fetched. Treating that slice as the whole
+    /// picture is how browsing to an empty month used to cancel every future reminder, and how a resync
+    /// used to cancel the alarm of an event further out than its own horizon.
+    /// </summary>
+    [TestMethod]
+    public void ToCancel_OutsideCoverage_LeavesTheAlarmArmed()
+    {
+        var record = Reminder(OneWeekBefore);
+        var coverage = CalendarReminderCoverage.Around(
+            record.OccurrenceStartUtc.AddDays(30), record.OccurrenceStartUtc.AddDays(60));
+
+        Assert.IsEmpty(CalendarReminderPlanner.ToCancel([record], [], coverage));
+    }
+
+    [TestMethod]
+    public void ToCancel_InsideCoverage_StillCancelsAnUnplannedAlarm()
+    {
+        var record = Reminder(OneWeekBefore);
+        var coverage = CalendarReminderCoverage.Around(
+            record.OccurrenceStartUtc, record.OccurrenceStartUtc.AddDays(1));
+
+        Assert.HasCount(1, CalendarReminderPlanner.ToCancel([record], [], coverage));
+    }
+
+    [TestMethod]
+    public void Coverage_Around_WidensTheWindowByOneDayEachWay()
+    {
+        // Query windows are expressed in the viewer's local time while occurrence starts are UTC, so an
+        // occurrence can sit just outside the window it was fetched for. The widened coverage keeps it
+        // governed (and therefore cancellable when the event changes).
+        var from = new DateTime(2026, 10, 1, 0, 0, 0, DateTimeKind.Utc);
+        var to = new DateTime(2026, 10, 31, 0, 0, 0, DateTimeKind.Utc);
+
+        var coverage = CalendarReminderCoverage.Around(from, to);
+
+        Assert.IsTrue(coverage.Contains(from.AddHours(-23)));
+        Assert.IsTrue(coverage.Contains(to.AddHours(23)));
+        Assert.IsFalse(coverage.Contains(from.AddDays(-2)));
+        Assert.IsFalse(coverage.Contains(to.AddDays(2)));
+    }
+
+    [TestMethod]
+    public void Coverage_Unbounded_ContainsEveryOccurrence()
+    {
+        Assert.IsTrue(CalendarReminderCoverage.Unbounded.Contains(DateTime.MinValue.AddYears(1)));
+        Assert.IsTrue(CalendarReminderCoverage.Unbounded.Contains(DateTime.MaxValue.AddYears(-1)));
+    }
+
+    // ── Delivery ──────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The delivery point asks the same question as the scheduler. An alarm that was armed by an older
+    /// build (random per-process request codes — it could be neither replaced nor cancelled) must not
+    /// post a second notification for an occurrence that has already been delivered.
+    /// </summary>
+    [TestMethod]
+    public void ShouldDeliver_AlreadyDeliveredOccurrence_IsFalse()
+    {
+        var record = Reminder(OneWeekBefore);
+        var delivered = new HashSet<string>(StringComparer.Ordinal) { record.Key };
+
+        Assert.IsFalse(CalendarReminderPlanner.ShouldDeliver(delivered, record));
+    }
+
+    [TestMethod]
+    public void ShouldDeliver_UndeliveredOccurrence_IsTrue()
+        => Assert.IsTrue(CalendarReminderPlanner.ShouldDeliver(NothingDelivered, Reminder(OneWeekBefore)));
+
+    [TestMethod]
+    public void ShouldDeliver_AnotherOffsetOfTheSameOccurrence_IsStillDelivered()
+    {
+        // Each reminder on an event is its own occurrence: delivering the "1 week before" reminder must
+        // not swallow the "15 minutes before" one.
+        var delivered = new HashSet<string>(StringComparer.Ordinal) { Reminder(OneWeekBefore).Key };
+
+        Assert.IsTrue(CalendarReminderPlanner.ShouldDeliver(delivered, Reminder(15)));
     }
 
     // ── Persistence ───────────────────────────────────────────────────────────
@@ -212,6 +318,31 @@ public sealed class CalendarReminderAlarmTests
     [DataRow("{}")]
     public void Records_Deserialize_InvalidPayload_ReturnsEmpty(string payload)
         => Assert.IsEmpty(CalendarReminderRecords.Deserialize(payload));
+
+    /// <summary>
+    /// A snooze re-arms an already-delivered occurrence, which no pass plans again — so if the pass that
+    /// follows could still see the record it would cancel the snooze the user just asked for. Dropping the
+    /// record is what makes the snooze survive it.
+    /// </summary>
+    [TestMethod]
+    public void Records_Except_DropsOnlyThatOccurrence()
+    {
+        var snoozed = Reminder(OneWeekBefore);
+        var other = new CalendarReminderRecord(EventId, OccurrenceStart.AddDays(1), 15);
+
+        var remaining = CalendarReminderRecords.Except([snoozed, other], snoozed);
+
+        Assert.HasCount(1, remaining);
+        Assert.AreEqual(other.Key, remaining[0].Key);
+    }
+
+    [TestMethod]
+    public void Records_Except_UnknownOccurrence_KeepsEverything()
+    {
+        var snoozed = Reminder(OneWeekBefore);
+
+        Assert.HasCount(1, CalendarReminderRecords.Except([snoozed], Reminder(15)));
+    }
 
     [TestMethod]
     public void Records_Prune_DropsOccurrencesOlderThanRetention()
