@@ -1645,7 +1645,7 @@ Also fixed Android music play order (2026-09-04, `fix/android-music-play-order`)
 
 ### Step: phase-2.10.3 - Android Calendar Reminder Alerts (duplicates + wording)
 
-**Status:** in-progress 🔄
+**Status:** completed ✅
 **Duration:** ~2 hours
 **Description:** A reminder configured a long way before an event (e.g. one week) produced a burst of identical notifications, each of which had to be dismissed. Alarm identity was derived from `string.GetHashCode()` / `HashCode.Combine`, both of which .NET seeds randomly per process, so a re-scheduled reminder could never replace or cancel the alarm armed by an earlier process — the alarms accumulated across app starts, boots and SignalR reconnects and all fired at their shared trigger time. Cancellation was also incomplete (a fixed offset list, and `CancelAllReminders` cancelled nothing at all), and an occurrence that had already been delivered was re-armed on every resync. The notification text repeated the configured offset instead of the time actually remaining ("Starts in 168 hours").
 
@@ -1659,8 +1659,8 @@ Also fixed Android music play order (2026-09-04, `fix/android-music-play-order`)
 - ✓ `CalendarAlarmReceiver` — stable notification id (a redelivery updates instead of stacking), true-remaining-time body, and the occurrence is recorded as delivered
 - ✓ `EventEditViewModel` — reminder picker labels/values realigned (they were off by one, so "1 day before" stored 2 hours and the 1-day entry was unreachable) and a custom offset (e.g. one week) is no longer silently cleared by the two-way sync, with a hint explaining that it is being preserved
 - ✓ 33 new unit tests in `CalendarReminderAlarmTests` (pinned FNV-1a values, identity stability and range, catch-up-once, delivered-never-again, stale-alarm cancellation, record round-trip/prune, notification wording); Android suite 479 pass / 1 skip; arm64 Debug build 0 warnings / 0 errors
-- ☐ On-device verification (R5CWC356B2K): a one-week reminder alerts once at its trigger time, a resync/boot/reconnect adds no further alert, the body shows the real remaining time, and the picker's "1 day before" stores 1440
-- ⏳ Not yet pushed — these Android changes commit after the phone E2E; the server half of the same investigation is on this branch already (see the Phase-3.3 sub-section below)
+- ✓ On-device verification (R5CWC356B2K, 2026-09-27): a one-week reminder (the operator's _Rush Concert!_ event, 10080 min) alerted **once** (notification id 4314) on the first post-boot scan after a reboot purged the legacy arms, with the body reading the real time remaining ("Starts in 6 days"); an app restart, a calendar load, a SignalR reconnect and a second reboot each scheduled **0** alarms (one notification overall); "1 day before" armed the alarm exactly 24 h before the event start (verified for three events) and survived an editor round trip; deleting an event cancelled its armed alarm
+- ✓ Ready to commit on `fix/android-alerts` (unit tests 479 pass / 1 skip, arm64 Debug build 0 warnings / 0 errors); the branch's earlier push carried the server half only
 
 **Dependencies:** phase-2.10, phase-2.10.2
 **Blocking Issues:** None

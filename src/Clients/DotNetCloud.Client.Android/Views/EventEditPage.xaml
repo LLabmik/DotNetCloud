@@ -98,6 +98,10 @@
                                            TextColor="#F1F5F9"
                                            BackgroundColor="#1E293B"
                                            Title="No reminder"/>
+                                   <Label Text="{Binding CustomReminderHint}"
+                                          IsVisible="{Binding CustomReminderHint, Converter={StaticResource IsNotNull}}"
+                                          FontSize="10"
+                                          TextColor="#64748B"/>
                             </VerticalStackLayout>
                      </Border>
 

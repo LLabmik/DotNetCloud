@@ -227,36 +227,76 @@ public sealed partial class EventEditViewModel : ObservableObject
 
     partial void OnReminderMinutesBeforeChanged(int value)
     {
-        // Sync the picker index to match the minutes value
-        if (value <= 0)
+        // Sync the picker index to match the minutes value. The two properties write to each other,
+        // so the guard stops the round trip from clobbering a value the picker cannot represent
+        // (a reminder set in the web UI to an offset outside the list, e.g. one week before).
+        _syncingReminder = true;
+        try
         {
-            ReminderSelectedIndex = -1; // "No reminder"
-            return;
+            ReminderSelectedIndex = Array.IndexOf(ReminderMinutesValues, value);
         }
-        for (var i = 0; i < ReminderMinutesValues.Length; i++)
+        finally
         {
-            if (ReminderMinutesValues[i] == value)
-            {
-                ReminderSelectedIndex = i;
-                return;
-            }
+            _syncingReminder = false;
         }
-        ReminderSelectedIndex = -1; // fallback
+
+        UpdateCustomReminderHint(value);
     }
 
     partial void OnReminderSelectedIndexChanged(int value)
     {
-        if (value >= 0 && value < ReminderMinutesValues.Length)
-            ReminderMinutesBefore = ReminderMinutesValues[value];
-        else
-            ReminderMinutesBefore = 0;
+        if (_syncingReminder)
+            return;
+
+        ReminderMinutesBefore = value >= 0 && value < ReminderMinutesValues.Length
+            ? ReminderMinutesValues[value]
+            : 0;
     }
+
+    /// <summary>
+    /// Explains that an offset the picker cannot represent is being preserved as-is, rather than
+    /// silently dropped when the event is saved from this screen. <c>null</c> when not applicable.
+    /// </summary>
+    [ObservableProperty]
+    private string? _customReminderHint;
+
+    private void UpdateCustomReminderHint(int minutes)
+    {
+        var isCustom = minutes > 0 && Array.IndexOf(ReminderMinutesValues, minutes) < 0;
+        CustomReminderHint = isCustom
+            ? $"Keeping the existing {FormatReminderOffset(minutes)} reminder — pick a value above to change it."
+            : null;
+    }
+
+    private static string FormatReminderOffset(int minutes)
+    {
+        if (minutes > 0 && minutes % 1440 == 0)
+        {
+            var days = minutes / 1440;
+            return days == 1 ? "1 day before" : $"{days} days before";
+        }
+
+        if (minutes > 0 && minutes % 60 == 0)
+        {
+            var hours = minutes / 60;
+            return hours == 1 ? "1 hour before" : $"{hours} hours before";
+        }
+
+        return $"{minutes} minutes before";
+    }
+
+    /// <summary>Guards the two-way sync between <see cref="ReminderMinutesBefore"/> and <see cref="ReminderSelectedIndex"/>.</summary>
+    private bool _syncingReminder;
 
     /// <summary>Display labels for the reminder picker, indexed same as <see cref="ReminderMinutesValues"/>.</summary>
     public ObservableCollection<string> ReminderLabels { get; } = [];
 
-    /// <summary>Minutes-before values corresponding to <see cref="ReminderLabels"/> by index.</summary>
-    private static int[] ReminderMinutesValues { get; } = [0, 5, 10, 15, 30, 60, 120, 1440];
+    /// <summary>
+    /// Minutes-before values corresponding to <see cref="ReminderLabels"/> by index. The two lists must
+    /// stay the same length: a mismatch shifted every label by one ("1 day before" set 2 hours) and
+    /// left the final entry unreachable.
+    /// </summary>
+    private static int[] ReminderMinutesValues { get; } = [5, 10, 15, 30, 60, 120, 1440];
 
     // ── Recurrence Editor ──────────────────────────────────────────
 

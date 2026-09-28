@@ -1,6 +1,48 @@
+## Archived: Client agent (`monolith`) — Android calendar reminder alerts (duplicate-alert fixes) on-device verified (2026-09-27)
+
+**Status:** completed ✅ — implemented, unit-tested and **verified on-device** (Samsung R5CWC356B2K). The client complement of the server record below (same operator bug report, same branch `fix/android-alerts`).
+**Branch:** `fix/android-alerts` — the branch's **first push carried the server half only**; the Android half (5 modified + 4 new files) is **uncommitted, pending the operator's approval** · **From:** client agent (`monolith`) · **Target:** Android phone `R5CWC356B2K` against `cloud.dotnetcloud.net`
+
+### Why
+
+The operator saw repeated *"Rush Concert … in 168 hours"* alerts on the phone and had to keep dismissing them. The `168 hours` was the Android local alarm printing the **configured offset** (10080 min = one week) instead of the time actually remaining.
+
+### Root cause
+
+`CalendarReminderScheduler` derived the `PendingIntent` request code from `string.GetHashCode()` / `HashCode.Combine` — both **seeded randomly per process** by .NET. A re-scheduled reminder therefore could never match the `PendingIntent` armed by an earlier process, so `AlarmManager` treated every pass as a new alarm: alarms accumulated across app starts, boots and SignalR reconnects and all fired at their shared trigger time. The notification id had the same per-process randomness, so the duplicates **stacked** instead of replacing each other. Cancellation was also incomplete — `CancelReminders` could only cancel a fixed offset list (1440 min or less, so a one-week reminder was uncancellable) and `CancelAllReminders` cancelled **nothing at all** (it deleted a preferences key only). Separately, `EventEditViewModel`'s reminder labels/values were mismatched (7 labels vs 8 values), so **every** picker choice was one step off: "1 day before" stored 2 hours and the 1-day slot was unreachable.
+
+### What changed
+
+- **`Services/CalendarAlarmIdentity.cs`** — process-stable FNV-1a identity (request code + notification id) per reminder occurrence, so re-scheduling **replaces** the pending alarm and a redelivery **updates** the notification.
+- **`Services/CalendarReminderPlanner.cs`** (pure, no Android types) + **`Services/CalendarReminderAlarmStore.cs`** — a reminder that became due while the app was closed is delivered **once** as a catch-up alarm; an already-delivered occurrence is never planned again; and alarms that are no longer wanted (event deleted/edited, reminder removed, offset changed, already delivered) are actively cancelled. The armed set is persisted, which is what makes cancellation exact for **any** offset.
+- **`Services/CalendarReminderText.cs`** — the body is built from the real time remaining ("Starts in 15 minutes" / "2h 30m" / "7 days").
+- **`CalendarReminderScheduler` / `CalendarAlarmReceiver`** — stable request code + notification id, `eventStartUtc` carried on the alarm intent, delivery recorded on the receiver side, `CancelAllReminders` actually cancels.
+- **`EventEditViewModel` / `EventEditPage.xaml`** — picker labels/values realigned (7 ↔ 7) and a custom offset set in the web UI (e.g. one week) is **preserved** instead of silently cleared, with a hint saying so.
+- ⚠️ Alarms armed by the previous build carry the old per-process request codes and **cannot** be cancelled by the new code; they stay armed until they fire or the device is restarted. A single reboot (or clearing app data) purges them.
+
+### Verification
+
+| Check | Result |
+| --- | --- |
+| Unit tests | `DotNetCloud.Client.Android.Tests` **479 pass / 1 skip** — 33 new in `CalendarReminderAlarmTests` (pinned FNV-1a values, identity stability/range, catch-up-once, delivered-never-again, stale-alarm cancellation, record round-trip + prune, wording) |
+| Build + install | arm64 Debug **0 warnings / 0 errors**; installed with `adb install -r --no-incremental` (the default incremental install corrupts headless cold starts — see repo memory) |
+| **One alert per reminder, at its trigger time** | the operator's own **one-week** reminder (_Rush Concert!_, `10080` min, 6.7 days out) fired **exactly once** — as a catch-up on the first post-boot scan after a reboot purged the legacy arms (`Scheduled 1 calendar reminder alarm(s), cancelled 0 stale` → `(1 catch-up)`) → notification **id 4314** on `channel=calendar_reminders` |
+| **No repeat after resync / boot / reconnect** | app restart + calendar load, a second calendar load, a real `SignalR reconnected (connId=4gE284V6KIGnxl07lcTBrw)`, and a **second reboot** each logged `Scheduled 0 calendar reminder alarm(s)`; exactly **one** `nm.Notify` in the whole run and one record in `dumpsys notification` |
+| **Body = real remaining time** | `android.text = String (Starts in 6 days)` — not the configured "in 168 hours" |
+| **"1 day before" stores 1440** | three separate events (starting 9/30, 10/1 and 10/20): the armed alarm's pending-list `OW` was exactly 24 h before the event start (9/29, 9/30, 10/19 09:00), the editor re-opened showing "1 day before" with no custom-offset hint, and the picker lists 7 correctly paired options |
+| **Delete cancels the armed alarm** | after deleting the event its alarm was gone from `dumpsys alarm`'s **pending** list (the `NNN pending alarms:` block) |
+| Test data | every temporary event was deleted afterwards (each confirmed by a `CalendarEventDeleted` realtime event) |
+
+### Notes / gotchas worth keeping
+
+- ⚠️ **`dumpsys alarm`'s "Addition history" section retains fired *and* cancelled alarms.** Reading that section as the pending list makes a perfectly working cancellation look broken (it cost a false "cancel is broken" conclusion and a probe build here). The pending list is the `NNN pending alarms:` block; a `PendingIntentFlags.NoCreate` lookup was then **measured** to find the armed `PendingIntent` (`noCreate=True`), i.e. the cancel path was already correct.
+- The Android **reminder picker cannot express a one-week offset** (it tops out at "1 day before"); such an offset can only be set in the web calendar's free-form minutes field (10080). The app now preserves it instead of clearing it.
+- **Observation for the server agent (not part of this work):** editing an existing event on the phone (`PUT /api/v1/calendars/events/{id}`) returned **HTTP 500** ("The server is temporarily unavailable. Please try again later.") during this session, so "change an existing reminder and confirm the old alarm is cancelled" could not be exercised on-device (the stale-arm sweep is unit-tested instead). Worth a look server-side.
+- Also still open from the server record below: `Modules/Files.Data/Services/CoreCapabilitiesClient.cs` sends no `module-id` header, so Files capability calls would be rejected the same way the Calendar host's were.
+
 ## Archived: Server agent (`cloud`) — calendar reminder dispatch fixes (long-lead window + notification category) deployed + verified; Calendar host `module-id` gap found + fixed (2026-09-27)
 
-**Status:** completed ✅ — the server half is deployed and verified live on `cloud.kimball.home`; the **Android half is still pending** on `monolith`, so it stays as a deferred handoff in `CLIENT_SERVER_MEDIATION_HANDOFF.md`.
+**Status:** completed ✅ — the server half is deployed and verified live on `cloud.kimball.home`; the **Android half has since been verified on-device too** (see the entry above), so this handoff is fully archived and has no open items.
 **Branch:** `fix/android-alerts` — deploy 1 @ `23876408`, deploy 2 @ `71d3cc6a` (the `module-id` fix commit) · **From:** client agent (`monolith`) · **Target:** `cloud.kimball.home` (`cloud`; SQL Server on `hyperdrive.kimball.home`)
 
 ### Why
