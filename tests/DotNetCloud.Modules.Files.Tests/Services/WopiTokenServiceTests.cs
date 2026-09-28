@@ -41,7 +41,7 @@ public class WopiTokenServiceTests
             db,
             new PermissionService(db),
             discovery ?? CreateMockDiscovery(),
-            options,
+            TestCollaboraSettings.From(options),
             NullLogger<WopiTokenService>.Instance);
     }
 

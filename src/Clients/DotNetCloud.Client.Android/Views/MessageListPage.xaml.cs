@@ -44,6 +44,45 @@ public partial class MessageListPage : ContentPage
         vm.ScrollToBottomRequested += OnScrollToBottomRequested;
         vm.ScrollToMessageRequested += OnScrollToMessageRequested;
         vm.NewMessageAdded += OnNewMessageAdded;
+        vm.PropertyChanged += OnViewModelPropertyChanged;
+
+        // The platform text view can be recreated (navigation, theme change), which drops the
+        // length filter with it, so re-apply whenever the handler is rebuilt.
+        if (ComposerEditor is not null)
+            ComposerEditor.HandlerChanged += OnComposerEditorHandlerChanged;
+    }
+
+    /// <summary>
+    /// Applies the administrator-configured message length to the Android entry control itself, so
+    /// typing or pasting past the limit is impossible — the same enforcement the web composer does
+    /// in its editor. The view model keeps a matching clamp for programmatic text changes.
+    /// </summary>
+    private void ApplyComposerInputFilter()
+    {
+        var maxLength = _vm.Limits.MaxMessageLength;
+        if (maxLength <= 0)
+            return;
+
+        if (ComposerEditor?.Handler?.PlatformView is not global::Android.Widget.EditText editText)
+            return;
+
+        try
+        {
+            editText.SetFilters(
+                [new global::Android.Text.InputFilterLengthFilter(maxLength)]);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[MessageListPage] Could not apply the composer length filter: {ex.Message}");
+        }
+    }
+
+    private void OnComposerEditorHandlerChanged(object? sender, EventArgs e) => ApplyComposerInputFilter();
+
+    private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MessageListViewModel.Limits))
+            MainThread.BeginInvokeOnMainThread(ApplyComposerInputFilter);
     }
 
     /// <inheritdoc />
@@ -72,6 +111,10 @@ public partial class MessageListPage : ContentPage
             {
                 _initialized = true;
                 await _vm.InitializeAsync(_channelId, _channelDisplayName);
+
+                // Limits arrive during initialisation; apply them to the entry control now that the
+                // page is on screen (the property-changed path covers a later admin change).
+                ApplyComposerInputFilter();
             }
         }
         catch (Exception ex)

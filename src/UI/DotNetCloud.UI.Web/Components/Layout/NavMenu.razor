@@ -75,6 +75,16 @@
                             </NavLink>
                         </li>
                         <li class="nav-item">
+                            <NavLink href="/admin/files" Match="NavLinkMatch.Prefix" class="nav-link"
+                                     title="File Settings" aria-label="File Settings">
+                                <MaterialIcon Icon="history" CssClass="nav-icon" />
+                                @if (!Collapsed)
+                                {
+                                    <span class="nav-text">File Settings</span>
+                                }
+                            </NavLink>
+                        </li>
+                        <li class="nav-item">
                             <NavLink href="/admin/files/shared-folders" Match="NavLinkMatch.Prefix" class="nav-link"
                                      title="Shared Folders" aria-label="Shared Folders">
                                 <span class="nav-icon">🗂</span>
@@ -151,6 +161,26 @@
                                 @if (!Collapsed)
                                 {
                                     <span class="nav-text">Video</span>
+                                }
+                            </NavLink>
+                        </li>
+                        <li class="nav-item">
+                            <NavLink href="/admin/chat" Match="NavLinkMatch.Prefix" class="nav-link"
+                                     title="Chat Settings" aria-label="Chat Settings">
+                                <MaterialIcon Icon="chat" CssClass="nav-icon" />
+                                @if (!Collapsed)
+                                {
+                                    <span class="nav-text">Chat</span>
+                                }
+                            </NavLink>
+                        </li>
+                        <li class="nav-item">
+                            <NavLink href="/admin/collabora" Match="NavLinkMatch.Prefix" class="nav-link"
+                                     title="Collabora Settings" aria-label="Collabora Settings">
+                                <MaterialIcon Icon="edit_note" CssClass="nav-icon" />
+                                @if (!Collapsed)
+                                {
+                                    <span class="nav-text">Collabora</span>
                                 }
                             </NavLink>
                         </li>

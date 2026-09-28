@@ -400,6 +400,87 @@ public sealed class DotNetCloudApiClient
         return response.IsSuccessStatusCode;
     }
 
+    // -----------------------------------------------------------------------
+    // Chat module admin (limits & retention)
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Gets the effective Collabora configuration: the server-configured <c>Files:Collabora:*</c>
+    /// values with the administrator's edits layered on top. Returns <see langword="null"/> when the
+    /// Files module is not reachable.
+    /// </summary>
+    public async Task<CollaboraEffectiveSettingsDto?> GetCollaboraEffectiveSettingsAsync(CancellationToken ct = default)
+    {
+        var response = await _http.GetAsync("api/v1/files/admin/collabora/effective", ct);
+        if (!response.IsSuccessStatusCode)
+            return null;
+
+        var envelope = await response.Content
+            .ReadFromJsonAsync<ApiEnvelope<CollaboraEffectiveSettingsDto>>(JsonOptions, ct);
+        return envelope?.Data;
+    }
+
+    /// <summary>
+    /// Gets the effective chat limits and retention policy currently enforced by the Chat module.
+    /// Returns <see langword="null"/> when the Chat module is not reachable.
+    /// </summary>
+    public async Task<ChatEffectiveSettingsDto?> GetChatEffectiveSettingsAsync(CancellationToken ct = default)
+    {
+        var response = await _http.GetAsync("api/v1/chat/admin/settings/effective", ct);
+        if (!response.IsSuccessStatusCode)
+            return null;
+
+        var envelope = await response.Content
+            .ReadFromJsonAsync<ApiEnvelope<ChatEffectiveSettingsDto>>(JsonOptions, ct);
+        return envelope?.Data;
+    }
+
+    /// <summary>
+    /// Runs the chat retention/archiving sweep immediately instead of waiting for the next
+    /// scheduled pass. Returns <see langword="null"/> when the Chat module is not reachable.
+    /// </summary>
+    public async Task<ChatRetentionSweepResultDto?> RunChatRetentionSweepAsync(CancellationToken ct = default)
+    {
+        var response = await _http.PostAsync("api/v1/chat/admin/retention/sweep", null, ct);
+        if (!response.IsSuccessStatusCode)
+            return null;
+
+        var envelope = await response.Content
+            .ReadFromJsonAsync<ApiEnvelope<ChatRetentionSweepResultDto>>(JsonOptions, ct);
+        return envelope?.Data;
+    }
+
+    /// <summary>
+    /// Gets the effective file versioning policy: the server-configured <c>Files:VersionRetention</c>
+    /// values with the administrator's <c>/admin/files</c> edits layered on top. Returns
+    /// <see langword="null"/> when the Files module is not reachable.
+    /// </summary>
+    public async Task<FileVersioningEffectiveSettingsDto?> GetFileVersioningEffectiveSettingsAsync(CancellationToken ct = default)
+    {
+        var response = await _http.GetAsync("api/v1/files/admin/versioning/effective", ct);
+        if (!response.IsSuccessStatusCode)
+            return null;
+
+        var envelope = await response.Content
+            .ReadFromJsonAsync<ApiEnvelope<FileVersioningEffectiveSettingsDto>>(JsonOptions, ct);
+        return envelope?.Data;
+    }
+
+    /// <summary>
+    /// Runs the file version retention pass immediately instead of waiting for the next scheduled
+    /// pass. Returns <see langword="null"/> when the Files module is not reachable.
+    /// </summary>
+    public async Task<FileVersionPruneResultDto?> RunFileVersionPruneAsync(CancellationToken ct = default)
+    {
+        var response = await _http.PostAsync("api/v1/files/admin/versioning/prune", null, ct);
+        if (!response.IsSuccessStatusCode)
+            return null;
+
+        var envelope = await response.Content
+            .ReadFromJsonAsync<ApiEnvelope<FileVersionPruneResultDto>>(JsonOptions, ct);
+        return envelope?.Data;
+    }
+
     /// <summary>
     /// Gets a specific setting for the current authenticated user.
     /// </summary>

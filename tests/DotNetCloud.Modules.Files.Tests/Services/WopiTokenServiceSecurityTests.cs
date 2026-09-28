@@ -112,7 +112,7 @@ public class WopiTokenServiceSecurityTests
             db,
             new PermissionService(db),
             discovery.Object,
-            options,
+            TestCollaboraSettings.From(options),
             NullLogger<WopiTokenService>.Instance,
             hostEnv);
     }

@@ -4,6 +4,7 @@ using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Files.Data.Services;
 using DotNetCloud.Modules.Files.Models;
+using DotNetCloud.Modules.Files.Options;
 using DotNetCloud.Modules.Files.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -27,7 +28,8 @@ public class WopiServiceTests
         FilesDbContext db,
         IFileStorageEngine? storage = null,
         IDownloadService? download = null,
-        IEventBus? eventBus = null)
+        IEventBus? eventBus = null,
+        VersionRetentionOptions? retention = null)
     {
         return new WopiService(
             db,
@@ -35,7 +37,8 @@ public class WopiServiceTests
             storage ?? Mock.Of<IFileStorageEngine>(),
             new PermissionService(db),
             eventBus ?? Mock.Of<IEventBus>(),
-            NullLogger<WopiService>.Instance);
+            NullLogger<WopiService>.Instance,
+            TestFileVersioningSettings.From(retention ?? new VersionRetentionOptions { MaxVersionCount = 0 }));
     }
 
     private static IDownloadService CreateMockDownloadService()

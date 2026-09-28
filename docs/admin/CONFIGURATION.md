@@ -148,12 +148,37 @@ Or wait for the next automatic recalculation cycle.
 
 ## Version Retention Configuration
 
+### Admin page (`/admin/files`)
+
+The primary way to control versioning is **Admin → File Settings** (`/admin/files`), which exposes:
+
+| Field                             | Stored key                   | Description                          |
+| --------------------------------- | ---------------------------- | ------------------------------------ |
+| Keep file versions                | `VersionRetention:Enabled`   | Turn version history on or off       |
+| Maximum versions per file         | `VersionRetention:MaxNumber` | `0` = no count limit (up to 1000)    |
+| Delete versions older than (days) | `VersionRetention:MaxDays`   | `0` = keep indefinitely (up to 3650) |
+
+The page shows the resulting policy in a "Currently Enforced" readout and can run the retention pass
+immediately (**Run retention now**) instead of waiting for the daily maintenance pass. Limits are
+also applied as files change — an upload or document save that creates a version prunes the older
+ones in the same operation.
+
+**Precedence:** the configuration below is the baseline; the values saved on `/admin/files` are
+layered on top of it, so the page is the effective policy. Clearing a row (or leaving the
+configuration sections out entirely) falls back to the baseline. Changes apply within about 30
+seconds and need no restart.
+
+When **Keep file versions** is off, only the current version of each file is retained: the content
+users open is never touched, and each new upload or editor save releases the older versions.
+Labeled versions are always kept.
+
 ### Default Settings
 
 ```json
 {
   "Files": {
     "VersionRetention": {
+      "Enabled": true,
       "MaxVersionCount": 50,
       "RetentionDays": 0,
       "CleanupInterval": "24:00:00"
@@ -164,11 +189,12 @@ Or wait for the next automatic recalculation cycle.
 
 ### Configuration Reference
 
-| Setting           | Default        | Description                                                       |
-| ----------------- | -------------- | ----------------------------------------------------------------- |
-| `MaxVersionCount` | `50`           | Maximum versions per file. Set to `0` for unlimited.              |
-| `RetentionDays`   | `0` (disabled) | Delete unlabeled versions older than this. Set to `0` to disable. |
-| `CleanupInterval` | `24:00:00`     | How often the `VersionCleanupService` runs.                       |
+| Setting           | Default        | Description                                                          |
+| ----------------- | -------------- | -------------------------------------------------------------------- |
+| `Enabled`         | `true`         | Record new versions. When `false`, only the current version is kept. |
+| `MaxVersionCount` | `50`           | Maximum versions per file. Set to `0` for unlimited.                 |
+| `RetentionDays`   | `0` (disabled) | Delete unlabeled versions older than this. Set to `0` to disable.    |
+| `CleanupInterval` | `24:00:00`     | How often the `VersionCleanupService` runs.                          |
 
 ### Labeled Version Protection
 
@@ -199,10 +225,10 @@ The maximum upload file size is configurable via the `FileUpload` section:
 }
 ```
 
-| Setting            | Default               | Description                                                                                                                                                                                             |
-| ------------------ | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Setting            | Default                | Description                                                                                                                                                                                             |
+| ------------------ | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `MaxFileSizeBytes` | `21474836480` (20 GiB) | Maximum file size allowed for upload. The web UI validates this client-side before uploading, showing a user-friendly error with the formatted size limit. The server also enforces this limit.         |
-| `MaxZipSizeBytes`  | `4294967296` (4 GiB)  | Maximum size of a generated multi-item ZIP download (multiple files/folders downloaded at once). Downloads that would exceed this limit fail with HTTP 413 and the web UI shows an informational modal. |
+| `MaxZipSizeBytes`  | `4294967296` (4 GiB)   | Maximum size of a generated multi-item ZIP download (multiple files/folders downloaded at once). Downloads that would exceed this limit fail with HTTP 413 and the web UI shows an informational modal. |
 
 The client retrieves these limits from `GET /api/v1/files/config` on page load and rejects oversized files immediately with a clear error message.
 

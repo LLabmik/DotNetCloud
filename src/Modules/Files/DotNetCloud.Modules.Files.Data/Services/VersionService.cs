@@ -20,13 +20,20 @@ internal sealed class VersionService : IVersionService
     private readonly IEventBus _eventBus;
     private readonly ILogger<VersionService> _logger;
     private readonly IPermissionService _permissions;
+    private readonly IFileVersioningSettingsProvider _versioningSettings;
 
-    public VersionService(FilesDbContext db, IEventBus eventBus, ILogger<VersionService> logger, IPermissionService permissions)
+    public VersionService(
+        FilesDbContext db,
+        IEventBus eventBus,
+        ILogger<VersionService> logger,
+        IPermissionService permissions,
+        IFileVersioningSettingsProvider versioningSettings)
     {
         _db = db;
         _eventBus = eventBus;
         _logger = logger;
         _permissions = permissions;
+        _versioningSettings = versioningSettings;
     }
 
     /// <inheritdoc />
@@ -124,6 +131,13 @@ internal sealed class VersionService : IVersionService
         }
 
         await _db.SaveChangesAsync(cancellationToken);
+
+        // A restore records a new version too, so the policy applies here as well.
+        var retentionOptions = await _versioningSettings.GetAsync(cancellationToken);
+        if (await VersionRetentionEnforcer.ApplyAsync(_db, fileNodeId, retentionOptions, cancellationToken) > 0)
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
 
         _logger.LogInformation("File {FileNodeId} restored to version {SourceVersion} as v{NewVersion} by {UserId}",
             fileNodeId, sourceVersion.VersionNumber, newVersion.VersionNumber, caller.UserId);

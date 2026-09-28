@@ -25,7 +25,10 @@ internal sealed class WopiProofKeyValidator : IWopiProofKeyValidator
     private static readonly TimeSpan MaxTimestampAge = TimeSpan.FromMinutes(20);
 
     private readonly ICollaboraDiscoveryService _discoveryService;
-    private readonly CollaboraOptions _options;
+    private readonly ICollaboraSettingsProvider _collaboraSettings;
+
+    /// <summary>Effective options: administrator edits layered over configuration.</summary>
+    private CollaboraOptions _options => _collaboraSettings.Current;
     private readonly ILogger<WopiProofKeyValidator> _logger;
 
     /// <summary>
@@ -33,11 +36,11 @@ internal sealed class WopiProofKeyValidator : IWopiProofKeyValidator
     /// </summary>
     public WopiProofKeyValidator(
         ICollaboraDiscoveryService discoveryService,
-        IOptions<CollaboraOptions> options,
+        ICollaboraSettingsProvider collaboraSettings,
         ILogger<WopiProofKeyValidator> logger)
     {
         _discoveryService = discoveryService;
-        _options = options.Value;
+        _collaboraSettings = collaboraSettings;
         _logger = logger;
     }
 

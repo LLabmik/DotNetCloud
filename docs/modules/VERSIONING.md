@@ -1,6 +1,6 @@
 # Files Module — Versioning Guide
 
-> **Last Updated:** 2026-03-03
+> **Last Updated:** 2026-09-27
 
 ---
 
@@ -65,12 +65,12 @@ Restore is non-destructive: it creates a **new** version with the same content a
 
 **Example:**
 
-| Version | Action |
-|---|---|
-| v1 | Original upload |
-| v2 | Edited by user |
-| v3 | Edited again |
-| v4 | *Restored from v1* (same content as v1, new version number) |
+| Version | Action                                                      |
+| ------- | ----------------------------------------------------------- |
+| v1      | Original upload                                             |
+| v2      | Edited by user                                              |
+| v3      | Edited again                                                |
+| v4      | _Restored from v1_ (same content as v1, new version number) |
 
 ### Label a Version
 
@@ -102,14 +102,47 @@ When a version is deleted:
 
 ## Version Retention
 
+### Administrator settings (`/admin/files`)
+
+Admins control versioning from **Admin → File Settings** (`/admin/files`). Three values are
+editable there:
+
+| Admin field                           | Stored key (`dotnetcloud.files`) | Meaning                                            |
+| ------------------------------------- | -------------------------------- | -------------------------------------------------- |
+| **Keep file versions**                | `VersionRetention:Enabled`       | Whether history is recorded at all                 |
+| **Maximum versions per file**         | `VersionRetention:MaxNumber`     | Versions kept per file (`0` = no count limit)      |
+| **Delete versions older than (days)** | `VersionRetention:MaxDays`       | Maximum age of a retained version (`0` = no limit) |
+
+**Precedence:** the `Files:VersionRetention` configuration below is the _baseline_; the rows saved on
+`/admin/files` are layered on top of it, so the page shows and controls what is actually enforced.
+The installer seeds `VersionRetention:Enabled` / `MaxNumber` / `MaxDays` with these defaults, so the
+keys are also visible and editable under **Admin → System Settings**. The same page shows the resulting
+policy in a "Currently Enforced" readout, and its **Run retention now** button applies the policy
+immediately instead of waiting for the next scheduled pass. An edit is picked up within about 30
+seconds and needs no restart.
+
+**When versioning is switched off**, only the current version of each file is kept. The version row
+for the new content is always written (the chunk mappings hang off it), so each upload or editor save
+also releases the older versions — including on the write path, not just during the sweep. Labeled
+versions are always kept, as is the newest version (it is the content the file serves).
+
+Admin API:
+
+```
+GET  /api/v1/files/admin/versioning/effective   # effective policy (RequireAdmin)
+POST /api/v1/files/admin/versioning/prune       # run the retention pass now
+```
+
 ### Configuration
 
-Version retention is configured via `appsettings.json`:
+Version retention is configured via `appsettings.json` (or `Files__VersionRetention__*` environment
+variables). These values are the baseline the admin page overrides:
 
 ```json
 {
   "Files": {
     "VersionRetention": {
+      "Enabled": true,
       "MaxVersionCount": 50,
       "RetentionDays": 0,
       "CleanupInterval": "24:00:00"
@@ -118,18 +151,20 @@ Version retention is configured via `appsettings.json`:
 }
 ```
 
-| Setting | Default | Description |
-|---|---|---|
-| `MaxVersionCount` | 50 | Maximum versions per file. Oldest unlabeled versions are pruned when exceeded. Set to 0 for unlimited. |
-| `RetentionDays` | 0 (disabled) | Days to keep versions. Unlabeled versions older than this are auto-deleted. At least one version always remains. |
-| `CleanupInterval` | 24 hours | How often the `VersionCleanupService` runs. |
+| Setting           | Default      | Description                                                                                                      |
+| ----------------- | ------------ | ---------------------------------------------------------------------------------------------------------------- |
+| `Enabled`         | true         | Record new versions. When false, only the current version of each file is kept.                                  |
+| `MaxVersionCount` | 50           | Maximum versions per file. Oldest unlabeled versions are pruned when exceeded. Set to 0 for unlimited.           |
+| `RetentionDays`   | 0 (disabled) | Days to keep versions. Unlabeled versions older than this are auto-deleted. At least one version always remains. |
+| `CleanupInterval` | 24 hours     | How often the `VersionCleanupService` runs.                                                                      |
 
 ### Retention Rules
 
 1. **Count-based:** When a file exceeds `MaxVersionCount` versions, the oldest unlabeled versions are deleted
 2. **Time-based:** Versions older than `RetentionDays` are deleted (if enabled)
-3. **Labeled versions are never auto-deleted:** Add a label to protect important versions
-4. **At least one version always remains:** The current version is never auto-deleted
+3. **Versioning off:** the count limit is forced to 1 — only the current version is kept
+4. **Labeled versions are never auto-deleted:** Add a label to protect important versions
+5. **The current version always remains:** It is the content the file serves, so it is never auto-deleted (even when labeled versions use up the whole budget)
 
 ### Background Cleanup
 
@@ -147,26 +182,26 @@ The `VersionCleanupService` runs at the configured interval and:
 
 ### FileVersion Entity
 
-| Property | Type | Description |
-|---|---|---|
-| `Id` | `Guid` | Primary key |
-| `FileNodeId` | `Guid` | FK to FileNode |
-| `VersionNumber` | `int` | 1-based ascending |
-| `Size` | `long` | Size in bytes |
-| `ContentHash` | `string` | SHA-256 hash |
-| `StoragePath` | `string` | Content-addressable path |
-| `MimeType` | `string?` | MIME type |
-| `CreatedByUserId` | `Guid` | Creator |
-| `CreatedAt` | `DateTime` | Timestamp (UTC) |
-| `Label` | `string?` | Optional label |
+| Property          | Type       | Description              |
+| ----------------- | ---------- | ------------------------ |
+| `Id`              | `Guid`     | Primary key              |
+| `FileNodeId`      | `Guid`     | FK to FileNode           |
+| `VersionNumber`   | `int`      | 1-based ascending        |
+| `Size`            | `long`     | Size in bytes            |
+| `ContentHash`     | `string`   | SHA-256 hash             |
+| `StoragePath`     | `string`   | Content-addressable path |
+| `MimeType`        | `string?`  | MIME type                |
+| `CreatedByUserId` | `Guid`     | Creator                  |
+| `CreatedAt`       | `DateTime` | Timestamp (UTC)          |
+| `Label`           | `string?`  | Optional label           |
 
 ### FileVersionChunk Entity
 
-| Property | Type | Description |
-|---|---|---|
-| `FileVersionId` | `Guid` | FK to FileVersion |
-| `FileChunkId` | `Guid` | FK to FileChunk |
-| `SequenceIndex` | `int` | Chunk order within the file |
+| Property        | Type   | Description                 |
+| --------------- | ------ | --------------------------- |
+| `FileVersionId` | `Guid` | FK to FileVersion           |
+| `FileChunkId`   | `Guid` | FK to FileChunk             |
+| `SequenceIndex` | `int`  | Chunk order within the file |
 
 ---
 

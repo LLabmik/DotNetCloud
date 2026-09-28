@@ -22,6 +22,7 @@ internal sealed class WopiService : IWopiService
     private readonly IPermissionService _permissionService;
     private readonly IEventBus _eventBus;
     private readonly ILogger<WopiService> _logger;
+    private readonly IFileVersioningSettingsProvider _versioningSettings;
 
     public WopiService(
         FilesDbContext db,
@@ -29,7 +30,8 @@ internal sealed class WopiService : IWopiService
         IFileStorageEngine storageEngine,
         IPermissionService permissionService,
         IEventBus eventBus,
-        ILogger<WopiService> logger)
+        ILogger<WopiService> logger,
+        IFileVersioningSettingsProvider versioningSettings)
     {
         _db = db;
         _downloadService = downloadService;
@@ -37,6 +39,7 @@ internal sealed class WopiService : IWopiService
         _permissionService = permissionService;
         _eventBus = eventBus;
         _logger = logger;
+        _versioningSettings = versioningSettings;
     }
 
     /// <inheritdoc />
@@ -183,6 +186,13 @@ internal sealed class WopiService : IWopiService
         node.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(cancellationToken);
+
+        // Apply the version policy immediately so a disabled or capped policy takes effect on save.
+        var retentionOptions = await _versioningSettings.GetAsync(cancellationToken);
+        if (await VersionRetentionEnforcer.ApplyAsync(_db, fileId, retentionOptions, cancellationToken) > 0)
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
 
         _logger.LogInformation("WOPI PutFile: {FileId} ({FileName}) → v{Version}, {Size} bytes, user {UserId}",
             fileId, node.Name, newVersionNumber, totalSize, caller.UserId);

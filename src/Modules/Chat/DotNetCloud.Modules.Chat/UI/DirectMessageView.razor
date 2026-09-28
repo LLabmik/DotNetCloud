@@ -38,17 +38,13 @@
             <div class="dm-header-actions">
                 @if (OtherUser is not null)
                 {
-                    <button class="dm-action-btn @(IsAddPeoplePickerVisible ? "active" : "")"
-                            @onclick="ToggleAddPeoplePicker"
-                            title="Add people to this conversation"
-                            aria-label="Add people">
+                    <button class="dm-action-btn @(IsAddPeoplePickerVisible ? "active" : "")" @onclick="ToggleAddPeoplePicker"
+                            title="Add people to this conversation" aria-label="Add people">
                         <MaterialIcon Icon="person_add" />
                     </button>
                 }
-                <button class="dm-action-btn @(IsDmSearchVisible ? "active" : "")"
-                        @onclick="ToggleDmSearch"
-                        title="New direct message"
-                        aria-label="New direct message">
+                <button class="dm-action-btn @(IsDmSearchVisible ? "active" : "")" @onclick="ToggleDmSearch"
+                        title="New direct message" aria-label="New direct message">
                     <MaterialIcon Icon="add_comment" />
                 </button>
             </div>
@@ -75,12 +71,8 @@
             </div>
             <div class="dm-search-input-wrapper">
                 <MaterialIcon Icon="search" CssClass="dm-search-icon" />
-                <input type="text"
-                       class="dm-search-input"
-                       placeholder="Search by name or username…"
-                       @bind="DmUserSearchQuery"
-                       @bind:event="oninput"
-                       aria-label="Search users for a direct message" />
+                <input type="text" class="dm-search-input" placeholder="Search by name or username…"
+                       @bind="DmUserSearchQuery" @bind:event="oninput" aria-label="Search users for a direct message" />
             </div>
 
             @if (!string.IsNullOrWhiteSpace(DmSearchError))
@@ -93,11 +85,8 @@
                 <div class="dm-search-results">
                     @foreach (var user in FilteredDmUserSuggestions)
                     {
-                        <button type="button"
-                                class="dm-search-result-item"
-                                disabled="@IsCreatingDm"
-                                title="Message @user.DisplayName"
-                                @onclick="() => SelectDmUserAsync(user)">
+                        <button type="button" class="dm-search-result-item" disabled="@IsCreatingDm"
+                                title="Message @user.DisplayName" @onclick="() => SelectDmUserAsync(user)">
                             <span class="dm-result-avatar">@GetInitials(user.DisplayName)</span>
                             <span class="dm-result-body">
                                 <span class="dm-result-name">@user.DisplayName</span>
@@ -130,11 +119,8 @@
             </div>
             <div class="dm-search-input-wrapper">
                 <MaterialIcon Icon="search" CssClass="dm-search-icon" />
-                <input type="text"
-                       class="dm-search-input"
-                       placeholder="Search by name or username…"
-                       @bind="AddPeopleSearchQuery"
-                       @bind:event="oninput"
+                <input type="text" class="dm-search-input" placeholder="Search by name or username…"
+                       @bind="AddPeopleSearchQuery" @bind:event="oninput"
                        aria-label="Search people to add to the direct message" />
             </div>
 
@@ -148,11 +134,8 @@
                 <div class="dm-search-results">
                     @foreach (var user in FilteredAddPeopleSuggestions)
                     {
-                        <button type="button"
-                                class="dm-search-result-item"
-                                disabled="@IsAddingMember"
-                                title="Add @user.DisplayName to this conversation"
-                                @onclick="() => AddGroupMemberAsync(user)">
+                        <button type="button" class="dm-search-result-item" disabled="@IsAddingMember"
+                                title="Add @user.DisplayName to this conversation" @onclick="() => AddGroupMemberAsync(user)">
                             <span class="dm-result-avatar">@GetInitials(user.DisplayName)</span>
                             <span class="dm-result-body">
                                 <span class="dm-result-name">@user.DisplayName</span>
@@ -177,24 +160,15 @@
     @if (OtherUser is not null)
     {
         <div class="dm-messages">
-            <MessageList Messages="@Messages"
-                         IsLoading="@IsLoading"
-                         ErrorMessage="@MessageError"
-                         HasMoreMessages="@HasMoreMessages"
-                         TypingUsers="@TypingUsers"
-                         OnLoadMore="@OnLoadMore"
+            <MessageList Messages="@Messages" IsLoading="@IsLoading" ErrorMessage="@MessageError"
+                         HasMoreMessages="@HasMoreMessages" TypingUsers="@TypingUsers" OnLoadMore="@OnLoadMore"
                          OnReactionToggle="@OnReactionToggle" />
         </div>
 
         <div class="dm-composer">
-            <MessageComposer ChannelName="@OtherUser.DisplayName"
-                             MentionSuggestions="@ComposerMentionSuggestions"
-                             ReplyToMessage="@ReplyToMessage"
-                             OnSend="@OnSend"
-                             OnCancelReply="@OnCancelReply"
-                             OnTyping="@OnTyping"
-                             OnAttach="@OnAttach"
-                             OnPasteImage="@OnPasteImage" />
+            <MessageComposer ChannelName="@OtherUser.DisplayName" MaxMessageLength="@MaxMessageLength"
+                             MentionSuggestions="@ComposerMentionSuggestions" ReplyToMessage="@ReplyToMessage" OnSend="@OnSend"
+                             OnCancelReply="@OnCancelReply" OnTyping="@OnTyping" OnAttach="@OnAttach" OnPasteImage="@OnPasteImage" />
         </div>
     }
     else

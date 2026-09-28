@@ -95,6 +95,18 @@ public static class FilesServiceRegistration
         // Collabora discovery service (Singleton — caches discovery results)
         services.AddSingleton<ICollaboraDiscoveryService, CollaboraDiscoveryService>();
 
+        // Effective Collabora options: administrator edits (SystemSettings, module
+        // dotnetcloud.files) layered over the configuration-bound values. Every Collabora consumer
+        // resolves its options through this provider — that is what makes /admin/collabora
+        // authoritative instead of writing to a store nothing reads.
+        services.AddSingleton<ICollaboraSettingsProvider, CollaboraSettingsProvider>();
+
+        // Effective file versioning policy: /admin/files settings (module dotnetcloud.files, keys
+        // VersionRetention:*) layered over Files:VersionRetention configuration. Version creation and
+        // the retention pass both resolve the policy here, so the admin page is authoritative.
+        services.AddSingleton<IFileVersioningSettingsProvider, FileVersioningSettingsProvider>();
+        services.AddScoped<IVersionRetentionService, VersionRetentionService>();
+
         // Session tracker (Singleton — in-memory concurrent session enforcement)
         services.AddSingleton<IWopiSessionTracker, WopiSessionTracker>();
 
@@ -102,7 +114,7 @@ public static class FilesServiceRegistration
         services.AddHttpClient("Collabora")
             .ConfigurePrimaryHttpMessageHandler(sp =>
             {
-                var options = sp.GetRequiredService<IOptions<CollaboraOptions>>().Value;
+                var options = sp.GetRequiredService<ICollaboraSettingsProvider>().Current;
                 var handler = new HttpClientHandler();
 
                 if (options.AllowInsecureTls)
@@ -196,11 +208,16 @@ public static class FilesServiceRegistration
         services.AddSingleton<ICollaboraDiscoveryService, CollaboraDiscoveryService>();
         services.AddSingleton<IWopiSessionTracker, WopiSessionTracker>();
 
+        // Settings providers are registered here too: the Files UI components rendered in-process by
+        // Core.Server (FileBrowser) and the httpx client factories above resolve them.
+        services.AddSingleton<ICollaboraSettingsProvider, CollaboraSettingsProvider>();
+        services.AddSingleton<IFileVersioningSettingsProvider, FileVersioningSettingsProvider>();
+
         // HTTP client for Collabora discovery
         services.AddHttpClient("Collabora")
             .ConfigurePrimaryHttpMessageHandler(sp =>
             {
-                var options = sp.GetRequiredService<IOptions<CollaboraOptions>>().Value;
+                var options = sp.GetRequiredService<ICollaboraSettingsProvider>().Current;
                 var handler = new HttpClientHandler();
                 if (options.AllowInsecureTls)
                     handler.ServerCertificateCustomValidationCallback = LoopbackTlsCertificateValidator.Validate;

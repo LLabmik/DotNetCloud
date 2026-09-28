@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-09-27 (**✅ Calendar reminder dispatch — the server half is DEPLOYED AND VERIFIED on `cloud.kimball.home`. The long-lead scan window is proven live (the operator's own `Rush Concert!` event, 6.7 days out, dispatched its 7-day reminder on the first post-deploy scan), and a **newly-found pre-existing defect in the same path was fixed and verified in the same pass**: the Calendar host never sent the `module-id` gRPC header, so Core.Server's `AuthenticationInterceptor` rejected every capability call as `Unauthenticated` and **no calendar reminder had ever reached the bell** — it now writes a `Reminder`/`High` notification. The Android on-device E2E is **COMPLETE** (client agent — `monolith`, 2026-09-27, R5CWC356B2K): a one-week reminder alerts **exactly once** with the real time remaining in the body, an app restart / calendar load / SignalR reconnect / second reboot adds **no** further alert, “1 day before” arms exactly 24 h ahead, and **deleting an event cancels its armed alarm** — see the archived handoff below.** Earlier: **Calendar reminder dispatch — two server-side fixes await deploy on `fix/android-alerts`: the reminder scan window is now derived from the largest configured offset (a long-lead reminder used to fire ~6 days late), and a module-supplied notification `Category` is honoured so calendar reminders are stored as `Reminder`/`High` instead of generic `Info`/`Normal`. (Superseded by the verified deploy recorded in the archived deferred handoff below.)** Earlier: **Android chat alerts — ✅ SERVER HALF DEPLOYED + VERIFIED; the client E2E is COMPLETE (on-device verified); the last open item — the core-proxy header-duplication fix — is now DEPLOYED AND VERIFIED too (leg 1 `200` + `ETag`, leg 2 `304` with an empty body, live through the gateway).** The app's own **conditional poll** of a new `GET /api/v1/chat/alerts` aggregate is the whole transport — no companion app, no third-party push service, no Google, no foreground service. Server + Android code is written, built and unit-tested here (Chat module 1431 pass; Android 478 pass / 1 skip; arm64 Debug 0 warnings); the server half is **DEPLOYED AND VERIFIED** on `cloud.kimball.home` (build 0 warnings, Chat tests 1432 pass, 15/15 deploy targets, `/health/ready` Healthy 14/14, route proven `401` vs control `404`), so this item is now **archived — both sides fully done and verified, including the phone-side `304` re-check** (see `CLIENT_SERVER_MEDIATION_ARCHIVE.md` and `docs/ANDROID_CHAT_BACKGROUND_ALERTS_PLAN.md`). Earlier: **Notes: note folder assignment** — a note can now be filed at creation time, moved/unfiled afterwards, and is tagged with its folder on the sidebar card; server + Blazor deployed and operator-verified, **Android picker wiring implemented and on-device verified** — **complete, archived**. Earlier: **Notes: note folder assignment** — a note can now be filed at creation time, moved/unfiled afterwards, and is tagged with its folder on the sidebar card; server + Blazor done, deployed and operator-verified from branch `fix/notes-folder-assignment`, Android picker wiring handed to monolith — see the deferred handoff below. Earlier same day: **Trash restore now preserves the original directory path** — server-side fix implemented, tested and deployed to `cloud.dotnetcloud.net` (branch `fix/trash-restore-original-path`); earlier, the client-side "ignore a synced folder" deletion bug was fixed + live-verified on SyncTray `0.6.7` (`7632722c`). Earlier: 2026-09-09 Presence indicators → **4-state** Online/Away/Do-Not-Disturb/Offline — full-stack code on `fix/android-improvements` at `c17c7fa3`, deployed and live-verified on `cloud.kimball.home` (archived below). Plan `docs/PRESENCE_DOTS_4STATE_PLAN.md`.)
+Last updated: 2026-09-28 (**Android chat composer enforces the admin-configured message length — ✅ COMPLETE on both sides (2026-09-28).** The server exposes `GET /api/v1/chat/limits` (deployed on mint22 dev; re-probed from `monolith`: the real route answers `401` vs a bogus route's `404`), and the Android composer half was implemented and **on-device verified** on R5CWC356B2K by `monolith` — typing or pasting past `maxMessageLength` is impossible (60 characters typed into a limit of 50 stopped at exactly 50 with the counter reading `50 / 50`), a message at exactly the limit sends, the `used / max` counter renders above the composer bar, and a 404 falls back to the built-in `10000 / 10 / 10` (`GetChatLimitsAsync HTTP 404 … using built-in defaults`). Android tests 466 pass / 1 skip; arm64 Debug build 0 warnings. **No open items** — recorded in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`. Earlier (2026-09-27): **✅ Calendar reminder dispatch** — the server half is deployed and verified on `cloud.kimball.home` (long-lead scan window proven live on a 6.7-day-out event) and a pre-existing defect was fixed in the same pass (the Calendar host never sent the `module-id` gRPC header, so **no calendar reminder had ever reached the bell**); the **Android reminder duplicate-alert fix** passed its on-device E2E on R5CWC356B2K (one alert per reminder at its trigger time, the real time remaining in the body, no repeats after a resync / boot / SignalR reconnect, and deleting an event cancels its armed alarm). Earlier (2026-09-19): **Android chat alerts** — the app's own conditional poll of `GET /api/v1/chat/alerts` is the whole transport (no companion app, no third-party push service, no Google, no foreground service), deployed and verified end-to-end including the phone-side `304` and the core-proxy `If-None-Match` fix; plus the Notes folder picker and SyncTray `0.6.7`. Full records: `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -16,6 +16,7 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
+- **Archived (client agent — `monolith`, 2026-09-28):** `feature/new-admin-settings` — Android chat composer now enforces the admin-configured message length: `ChatLimits` + `GetChatLimitsAsync` (`GET /api/v1/chat/limits`, falling back to the built-in `10000/10/10`), an `InputFilterLengthFilter` on the composer editor, a `used / max` counter (red over the limit), Send gating and an attachment-size pre-check. **On-device verified** (R5CWC356B2K: 60 typed characters stopped at exactly 50 with the counter at `50 / 50`; the 50-character message sent; the 404 fallback logged). Commit pending the operator's approval; full record in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
 - **Archived (server agent — `cloud.kimball.home`):** `fix/android-alerts` — calendar reminder dispatch fixes (long-lead scan window + `Reminder`/`High` notification category): **deployed + verified 2026-09-27** (15/15 targets, `/health/ready` Healthy 14/14, the window proven live on a 6.7-day-out event); a pre-existing defect found while verifying — the Calendar host never sent the `module-id` header, so **no calendar reminder had ever reached the bell** — was fixed and verified in the same pass. **Original ask (superseded):** deploy the **calendar reminder dispatch fixes** from `fix/android-alerts` — long-lead scan window + notification category (`Reminder`/`High`). **Deploy + verify only** — done; see the archived deferred handoff below.
 - **Archived (client agent — `monolith`):** `fix/android-alerts` — Android **calendar reminder alerts** (duplicate-alert fix): **on-device verified 2026-09-27** (R5CWC356B2K) — a long-lead (one-week) reminder alerted exactly once with the **real time remaining** in the body, an app restart / calendar load / SignalR reconnect / second reboot added **0** further alerts, “1 day before” armed exactly 24 h ahead, and deleting an event **cancelled its armed alarm**. Unit tests 479 pass / 1 skip; arm64 Debug build 0 warnings / 0 errors. Commit pending the operator's approval; full record in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
 - **Archived (server agent — `cloud`):** core-proxy `If-None-Match` fix — deployed + `304` re-verified 2026-09-19; nothing outstanding server-side. Full detail: `CLIENT_SERVER_MEDIATION_ARCHIVE.md` → *Server agent (`cloud`) — core-proxy header-duplication fix deployed + `304` leg verified (2026-09-19)*.
@@ -27,6 +28,66 @@ Archived context:
 - **Archived (server agent — `cloud.kimball.home`):** `fix/android-improvements` — Presence 4-state, deployed + live-verified on cloud 2026-09-09 (plan `docs/PRESENCE_DOTS_4STATE_PLAN.md`; archived below)
 - **Still pending (mint22, dev):** `feature/module-widgets` — Module Home Widgets (plan `docs/MODULE_WIDGETS_PLAN.md`); kept below as a deferred handoff
 
+## Archived Handoff — Android: enforce the configured chat message length in the composer (✅ complete on both sides, 2026-09-28)
+
+**Status:** ✅ **COMPLETE.** Server half: `GET /api/v1/chat/limits` written, unit-tested and deployed to **mint22 dev** (route proven live: `401` for the real route vs `404` for a bogus one). Client half: **implemented and on-device verified** by `monolith` (2026-09-28) — see _Client half — result_ below.
+**Branch:** `feature/new-admin-settings`.
+**Target machine:** `monolith` (Windows 11 — Android MAUI client only).
+**Canonical spec:** `docs/CHAT_ADMIN_SETTINGS_PLAN.md`; admin reference `docs/admin/CHAT.md`.
+
+### Why
+
+The Chat module admin now configures a **maximum message length** (`Limits:MaxMessageLength`, default `10000`, hard ceiling `10000`). Until now the server simply rejected an over-long send with `400 VALIDATION_ERROR`, which the client surfaced as a failed send. The requirement is that the **message entry control itself** stops accepting input at the limit — the same change has been made in the Blazor composer, which now blocks input past the limit, shows a `used / max` counter and disables Send.
+
+### New endpoint the client needs
+
+`GET /api/v1/chat/limits` — **authenticated (any user, not admin)**, served by the Chat module host and reachable through the core proxy exactly like the other `/api/v1/chat/*` routes.
+
+```json
+{ "success": true, "data": { "maxMessageLength": 10000, "maxAttachmentsPerMessage": 10, "maxAttachmentSizeMb": 10 } }
+```
+
+- Read it once per session (or cache it briefly) — the values change only when an administrator edits them.
+- A `503` with `CHAT_SETTINGS_UNAVAILABLE` means the host has no settings provider: fall back to the built-in defaults (`10000`, `10`, `10`) and leave the composer unrestricted rather than blocking the user.
+
+### Work requested
+
+1. Apply `maxMessageLength` to the Android chat message entry control so input beyond it is rejected, with a subtle `used / max` counter (red at the limit) mirroring the web composer.
+2. Keep Send consistent with the limit — an over-limit message must not be submittable.
+3. Keep the existing `400 VALIDATION_ERROR` handling as the safety net.
+
+### Verification expected
+
+- At the default `10000`: typing or pasting past the limit is impossible.
+- Set the limit to e.g. `50` on `/admin/chat`, then confirm the entry control stops at 50 and the counter reflects it.
+- A message at exactly the limit still sends.
+
+### Server-side state (done, for reference)
+
+- `GET /api/v1/chat/limits` added to `ChatController.GetChatLimitsAsync` (class-level `[Authorize]`, module proxy route `api/v1/chat`).
+- Blazor enforcement: `MessageComposer.razor(.cs)` + `wysiwyg-editor.js` (`setMaxLength`, length-aware `HandleContentChanged`), limit resolved from `IChatSettingsProvider` in `ChatPageLayout`.
+- Chat module tests **1488 pass / 0 fail**.
+- Route re-probed from `monolith` 2026-09-28: `https://mint22:5443/api/v1/chat/limits` → **401** (auth required) vs `…/chat/zzz-not-a-route` → **404**; `https://cloud.dotnetcloud.net/api/v1/chat/limits` → **404** (the branch is not deployed to production yet).
+
+### Client half — result: implemented + on-device verified (2026-09-28, client agent — `monolith`, R5CWC356B2K)
+
+What landed (`DotNetCloud.Client.Android`):
+
+- `Chat/ChatLimits.cs` — the limits record (with the built-in `10000 / 10 / 10` fallback and a surrogate-safe clamp) and `IChatRestClient.GetChatLimitsAsync` (+ `HttpChatRestClient`), which degrades to those defaults for a 503 `CHAT_SETTINGS_UNAVAILABLE`, a 404, or any transport failure so the composer is never left unable to send.
+- `MessageListViewModel` — reads the limits when the channel opens, exposes `used / max` counter state, clamps text that exceeds the limit (including programmatic emoji/@mention inserts and text already present when a limit arrives), gates `SendCommand` on the limit, and rejects an over-size attachment before uploading it.
+- `MessageListPage` — an Android `InputFilterLengthFilter` on the composer `EditText` (re-applied when the handler is rebuilt), so typing or pasting past the limit is impossible; the counter sits above the composer bar and turns red if the text ever exceeds the limit.
+
+| Check | Evidence |
+| --- | --- |
+| Limits announced by the composer | counter rendered above the composer bar — `0 / 10000` on the real build, `0 / 50` with the temporary probe below |
+| Input stops exactly at the limit | 60 characters typed into a limit of 50 → the editor held exactly **50** and the counter read **`50 / 50`** (screenshot) |
+| A message at exactly the limit sends | the 50-character message posted (own bubble, "just now", composer cleared back to `0 / 50`), no `400 VALIDATION_ERROR` |
+| Fallback path when the server has no limits endpoint | `logcat -s DotNetCloud`: `GetChatLimitsAsync HTTP 404 from https://cloud.dotnetcloud.net/api/v1/chat/limits; using built-in defaults.` |
+| Build / tests | arm64 Debug **0 warnings / 0 errors**; Android tests **466 pass / 1 skip** (new `ChatLimitsTests` + 8 composer-limit tests, incl. that a lowered limit clamps text already typed) |
+
+**Method:** the phone is signed in to `cloud.dotnetcloud.net`, which does **not** have the endpoint yet, so the fallback value was the one exercised on the wire. The `50` in the table comes from a temporary `ChatLimits.Defaults = new(50, 10, 10)` probe (per the repo's fault-injection E2E recipe), reverted before the final build was installed; the endpoint→limits mapping itself is covered by the unit test `InitializeAsync_LoadsAdminConfiguredLimits` (50 / 3 / 2 from the API).
+
+⚠️ **Not exercised:** reading a real administrator-set value over the wire (`/admin/chat` = 50 while the phone is signed in to `mint22`), and the attachment-size pre-check (needs a file larger than the configured cap). Both need the operator: credentials for a `mint22` sign-in and/or an admin change. The client paths are otherwise covered as above.
 ## Archived Handoff — calendar reminder dispatch fixes (server: deployed + verified) + Android reminder alerts (verified on-device) (2026-09-27)
 
 **Status:** ✅ **COMPLETE ON BOTH SIDES (2026-09-27).** Server: deployed + verified on `cloud.kimball.home` (15/15 targets, `/health/ready` Healthy 14/14, the long-lead window proven live on a 6.7-day-out event, `Type = Reminder` / `Priority = High` written once the `module-id` defect was fixed). Client: the **Android on-device E2E passed** on R5CWC356B2K (client agent — `monolith`, 2026-09-27) — see _Client half — E2E result_ below. Both halves' bullets are in Process Rules as **Archived**; the full records live in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.

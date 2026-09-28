@@ -28,6 +28,7 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
     private readonly ILogger<ChunkedUploadService> _logger;
     private readonly long _maxFileSizeBytes;
     private readonly FileSystemOptions _fileSystemOptions;
+    private readonly IFileVersioningSettingsProvider _versioningSettings;
 
     public ChunkedUploadService(
         FilesDbContext db,
@@ -38,7 +39,8 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         ISyncChangeNotifier syncNotifier,
         ILogger<ChunkedUploadService> logger,
         IOptions<FileUploadOptions> uploadOptions,
-        IOptions<FileSystemOptions> fileSystemOptions)
+        IOptions<FileSystemOptions> fileSystemOptions,
+        IFileVersioningSettingsProvider versioningSettings)
     {
         _db = db;
         _storageEngine = storageEngine;
@@ -49,6 +51,7 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         _logger = logger;
         _maxFileSizeBytes = uploadOptions.Value.MaxFileSizeBytes;
         _fileSystemOptions = fileSystemOptions.Value;
+        _versioningSettings = versioningSettings;
     }
 
     /// <inheritdoc />
@@ -466,6 +469,19 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         var finalQuotaAdjustment = quotaDelta - reservedQuota;
         if (finalQuotaAdjustment != 0)
             await _quotaService.AdjustUsedBytesAsync(caller.UserId, finalQuotaAdjustment, cancellationToken);
+
+        // Enforce the version retention policy as the file changes. The version row for the new
+        // content is always written (the chunk mappings hang off it), so "versioning disabled" and a
+        // version cap both mean: keep the new version and release the older ones right away instead of
+        // waiting for the next scheduled sweep.
+        var retentionOptions = await _versioningSettings.GetAsync(cancellationToken);
+        var prunedVersions = await VersionRetentionEnforcer.ApplyAsync(_db, fileNode.Id, retentionOptions, cancellationToken);
+        if (prunedVersions > 0)
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+            _logger.LogInformation("File {FileNodeId} '{FileName}': released {Count} version(s) per the version retention policy.",
+                fileNode.Id, fileNode.Name, prunedVersions);
+        }
 
         await _eventBus.PublishAsync(new FileUploadedEvent
         {

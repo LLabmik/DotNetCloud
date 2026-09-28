@@ -259,9 +259,19 @@ public class DbInitializerTests
         Assert.AreEqual("104857600", maxUploadSize.Value); // 100 MB
 
         var enableVersioning = await _context.SystemSettings
-            .FirstOrDefaultAsync(s => s.Module == "dotnetcloud.files" && s.Key == "EnableVersioning");
-        Assert.IsNotNull(enableVersioning, "EnableVersioning setting should exist");
+            .FirstOrDefaultAsync(s => s.Module == "dotnetcloud.files" && s.Key == "VersionRetention:Enabled");
+        Assert.IsNotNull(enableVersioning, "VersionRetention:Enabled setting should exist");
         Assert.AreEqual("true", enableVersioning.Value);
+
+        var maxVersions = await _context.SystemSettings
+            .FirstOrDefaultAsync(s => s.Module == "dotnetcloud.files" && s.Key == "VersionRetention:MaxNumber");
+        Assert.IsNotNull(maxVersions, "VersionRetention:MaxNumber setting should exist");
+        Assert.AreEqual("50", maxVersions.Value);
+
+        var maxVersionDays = await _context.SystemSettings
+            .FirstOrDefaultAsync(s => s.Module == "dotnetcloud.files" && s.Key == "VersionRetention:MaxDays");
+        Assert.IsNotNull(maxVersionDays, "VersionRetention:MaxDays setting should exist");
+        Assert.AreEqual("0", maxVersionDays.Value);
 
         var defaultQuota = await _context.SystemSettings
             .FirstOrDefaultAsync(s => s.Module == "dotnetcloud.files" && s.Key == "DefaultQuotaGB");

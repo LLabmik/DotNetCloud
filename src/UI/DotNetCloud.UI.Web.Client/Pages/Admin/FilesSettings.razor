@@ -1,0 +1,318 @@
+@page "/admin/files"
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveAutoRenderMode(prerender: false))
+@attribute [Authorize(Policy = "RequireAdmin")]
+
+<PageTitle>File Settings - DotNetCloud</PageTitle>
+
+<div class="admin-settings-page">
+
+    <div class="page-header">
+        <h1>File Settings</h1>
+        <div class="page-header-actions">
+            <a href="/admin/files/shared-folders" class="btn btn-outline btn-sm">Shared Folders</a>
+            <a href="/admin/collabora" class="btn btn-outline btn-sm">Collabora</a>
+            <a href="/admin/settings?module=dotnetcloud.files" class="btn btn-outline btn-sm">All File Settings</a>
+        </div>
+    </div>
+
+    <p class="page-intro">
+        Versioning keeps the previous content of a file every time it is overwritten, so a mistake can
+        be undone and an earlier revision downloaded. Retention limits decide how much of that history
+        the server keeps. The values shown are the <strong>effective</strong> settings: the server
+        configuration with any changes saved here layered on top. Changes apply within about 30
+        seconds &mdash; no restart needed.
+    </p>
+
+    @if (_loading)
+    {
+        <LoadingIndicator Message="Loading file settings..." />
+    }
+    else
+    {
+        @if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <div class="alert alert-danger" role="alert">@_errorMessage</div>
+        }
+
+        @if (!string.IsNullOrEmpty(_successMessage))
+        {
+            <div class="alert alert-success" role="alert">@_successMessage</div>
+        }
+
+        <div class="settings-grid">
+            <!-- Versioning -->
+            <section class="settings-section">
+                <h2>
+                    <span class="section-icon">
+                        <MaterialIcon Icon="history" Size="MaterialIconSize.Sm" />
+                    </span>
+                    File Versioning
+                </h2>
+
+                <div class="form-group">
+                    <label class="toggle-row" for="versioning-enabled">
+                        <span class="toggle-text">
+                            <span class="toggle-title">Keep file versions</span>
+                            <span class="hint">
+                                When this is off, only the current version of each file is kept. The content
+                                users open is never touched &mdash; each upload, or save from the document
+                                editor, releases the older versions. Labelled versions are always kept.
+                            </span>
+                        </span>
+                        <input id="versioning-enabled" type="checkbox" class="toggle-input" @bind="_enabled" />
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label for="versioning-max-number">Maximum versions per file</label>
+                    <input id="versioning-max-number" type="number" class="input" min="0" max="1000" @bind="_maxNumber" />
+                    <span class="hint">
+                        The oldest unlabeled versions are removed first, with the current version always
+                        kept. <strong>0</strong> keeps every version (subject to the age limit below), up to
+                        1000. While versioning is off this is forced to 1.
+                    </span>
+                </div>
+
+                <div class="form-group">
+                    <label for="versioning-max-days">Delete versions older than (days)</label>
+                    <input id="versioning-max-days" type="number" class="input" min="0" max="3650" @bind="_maxDays" />
+                    <span class="hint">
+                        Unlabeled versions older than this are removed, provided the current version always
+                        remains. <strong>0</strong> keeps versions indefinitely (up to 3650 days).
+                    </span>
+                </div>
+
+                <p class="settings-description">
+                    Limits are applied as files change and again by a scheduled maintenance pass
+                    (@CleanupCadence), so a reduced limit frees the storage it covers without waiting for
+                    the next pass.
+                </p>
+            </section>
+
+            <!-- Effective policy -->
+            <section class="settings-section">
+                <h2>
+                    <span class="section-icon">
+                        <MaterialIcon Icon="check_circle" Size="MaterialIconSize.Sm" />
+                    </span>
+                    Currently Enforced
+                </h2>
+
+                @if (_effective is null)
+                {
+                    <p class="text-muted">
+                        The Files module is not reachable, so the effective policy cannot be shown.
+                        Settings are still saved and take effect once the module is running.
+                    </p>
+                }
+                else
+                {
+                    <ul class="coverage-list">
+                        <li>
+                            <MaterialIcon Icon="check" Size="MaterialIconSize.Sm" CssClass="coverage-check" />
+                            <span>
+                                Version history:
+                                <strong>@(_effective.Enabled ? "recorded" : "not recorded")</strong>
+                            </span>
+                        </li>
+                        <li>
+                            <MaterialIcon Icon="check" Size="MaterialIconSize.Sm" CssClass="coverage-check" />
+                            <span>
+                                Versions kept per file:
+                                <strong>@(_effective.EffectiveMaxNumber <= 0 ? "unlimited" :
+                                                                              _effective.EffectiveMaxNumber.ToString())</strong>
+                                    @if (!_effective.Enabled)
+                                    {
+                                        <span> (versioning off)</span>
+                                    }
+                                </span>
+                            </li>
+                            <li>
+                                <MaterialIcon Icon="check" Size="MaterialIconSize.Sm" CssClass="coverage-check" />
+                                <span>
+                                    Maximum version age:
+                                    <strong>@(_effective.MaxDays > 0 ? $"{_effective.MaxDays} days" : "no limit")</strong>
+                                </span>
+                            </li>
+                            <li>
+                                <MaterialIcon Icon="check" Size="MaterialIconSize.Sm" CssClass="coverage-check" />
+                                <span>
+                                    Maintenance pass: <strong>@CleanupCadence</strong>, or on demand below
+                                </span>
+                            </li>
+                        </ul>
+
+                        <div class="form-actions">
+                            <button type="button" class="btn btn-outline" @onclick="RunPruneAsync" disabled="@_pruning">
+                                @(_pruning ? "Running..." : "Run retention now")
+                            </button>
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(_pruneMessage))
+                        {
+                            <p class="hint">@_pruneMessage</p>
+                        }
+                    }
+                </section>
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
+                    @(_saving ? "Saving..." : "Save Settings")
+                </button>
+            </div>
+        }
+    </div>
+
+@code {
+    [Inject] private DotNetCloudApiClient Api { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+
+    private const string Module = "dotnetcloud.files";
+    private const string EnabledKey = "VersionRetention:Enabled";
+    private const string MaxNumberKey = "VersionRetention:MaxNumber";
+    private const string MaxDaysKey = "VersionRetention:MaxDays";
+
+    private bool _loading = true;
+    private bool _saving;
+    private bool _pruning;
+    private string _errorMessage = string.Empty;
+    private string _successMessage = string.Empty;
+    private string _pruneMessage = string.Empty;
+
+    private bool _enabled = true;
+    private int _maxNumber = 50;
+    private int _maxDays;
+
+    private FileVersioningEffectiveSettingsDto? _effective;
+
+    private string CleanupCadence => _effective is null
+        ? "daily"
+        : _effective.CleanupIntervalHours >= 24
+            ? $"{Math.Round(_effective.CleanupIntervalHours / 24, 1)} day(s)"
+            : $"{Math.Round(_effective.CleanupIntervalHours, 1)} hour(s)";
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            // Show what is actually in force: the configured Files:VersionRetention values with any
+            // administrator edits already layered on top.
+            _effective = await Api.GetFileVersioningEffectiveSettingsAsync();
+
+            if (_effective is null)
+            {
+                _errorMessage = "The Files module is not reachable, so the effective versioning policy " +
+                    "could not be read. Values below are defaults and may not match the server.";
+            }
+            else
+            {
+                PopulateFields(_effective);
+            }
+        }
+        catch
+        {
+            _errorMessage = "Failed to load the file versioning settings.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void PopulateFields(FileVersioningEffectiveSettingsDto effective)
+    {
+        _enabled = effective.Enabled;
+        _maxNumber = effective.MaxNumber;
+        _maxDays = effective.MaxDays;
+    }
+
+    private async Task SaveAsync()
+    {
+        _errorMessage = string.Empty;
+        _successMessage = string.Empty;
+
+        if (_maxNumber < 0 || _maxNumber > 1000)
+        {
+            _errorMessage = "Maximum versions per file must be between 0 and 1000.";
+            return;
+        }
+
+        if (_maxDays < 0 || _maxDays > 3650)
+        {
+            _errorMessage = "Version retention must be between 0 and 3650 days.";
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            var results = await Task.WhenAll(
+                Api.UpsertSettingAsync(Module, EnabledKey, Str(_enabled.ToString())),
+                Api.UpsertSettingAsync(Module, MaxNumberKey, Str(_maxNumber.ToString())),
+                Api.UpsertSettingAsync(Module, MaxDaysKey, Str(_maxDays.ToString())));
+
+            if (results.All(r => r))
+            {
+                _successMessage = "File versioning settings saved and applied.";
+                Toast.ShowSuccess("File versioning settings saved and applied.");
+                await ReloadEffectiveAsync();
+            }
+            else
+            {
+                _errorMessage = "Some settings could not be saved.";
+            }
+        }
+        catch
+        {
+            _errorMessage = "Failed to save the file versioning settings.";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task RunPruneAsync()
+    {
+        _pruning = true;
+        _pruneMessage = string.Empty;
+        try
+        {
+            var result = await Api.RunFileVersionPruneAsync();
+            if (result is null)
+            {
+                _pruneMessage = "The retention pass could not be started — the Files module is not reachable.";
+                return;
+            }
+
+            _pruneMessage = result.VersionsDeleted > 0
+                ? $"Retention pass complete: removed {result.VersionsDeleted} version(s) across {result.FilesScanned} file(s)."
+                : $"Retention pass complete: nothing to remove across {result.FilesScanned} file(s).";
+
+            await ReloadEffectiveAsync();
+        }
+        catch
+        {
+            _pruneMessage = "Failed to run the retention pass.";
+        }
+        finally
+        {
+            _pruning = false;
+        }
+    }
+
+    private async Task ReloadEffectiveAsync()
+    {
+        _effective = await Api.GetFileVersioningEffectiveSettingsAsync();
+        if (_effective is not null)
+        {
+            PopulateFields(_effective);
+        }
+    }
+
+    private static UpsertSystemSettingDto Str(string value) => new() { Value = value };
+}

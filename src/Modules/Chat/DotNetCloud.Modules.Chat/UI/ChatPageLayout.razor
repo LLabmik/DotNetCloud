@@ -117,12 +117,12 @@
                         }
 
                         <MessageComposer ChannelName="@_selectedChannel.Name" ChannelType="@_selectedChannel.Type"
-                                         ChannelId="@_selectedChannel.Id" HasPendingAttachments="@(_pendingAttachments.Count > 0)"
-                                         ReplyToMessage="@_replyToMessage" EditingMessage="@_editingMessage"
-                                         MentionSuggestions="@_memberSuggestions" OnSend="@HandleSendMessage" OnEditSend="@HandleEditMessage"
-                                         OnCancelReply="@HandleCancelReply" OnCancelEdit="@HandleCancelEditMessage" OnTyping="@HandleTyping"
-                                         OnAttach="@HandleAttach" OnPasteImage="@HandlePasteImage"
-                                         OnUploadActivityChanged="HandleImageUploadStateChanged" />
+                                         ChannelId="@_selectedChannel.Id" MaxMessageLength="@_maxMessageLength"
+                                         HasPendingAttachments="@(_pendingAttachments.Count > 0)" ReplyToMessage="@_replyToMessage"
+                                         EditingMessage="@_editingMessage" MentionSuggestions="@_memberSuggestions"
+                                         OnSend="@HandleSendMessage" OnEditSend="@HandleEditMessage" OnCancelReply="@HandleCancelReply"
+                                         OnCancelEdit="@HandleCancelEditMessage" OnTyping="@HandleTyping" OnAttach="@HandleAttach"
+                                         OnPasteImage="@HandlePasteImage" OnUploadActivityChanged="HandleImageUploadStateChanged" />
 
                         <input type="file" id="@_fileInputId" accept="image/*" style="display:none" @ref="_fileInputRef" />
                     }
@@ -261,7 +261,7 @@
                                     else
                                     {
                                         <span class="dm-picker-avatar">@(user.DisplayName.Length > 0 ? user.DisplayName.Substring(0,
-                                                                                                                                                                1).ToUpperInvariant() : "?")</span>
+                                                                                                                                                                                                            1).ToUpperInvariant() : "?")</span>
                                         }
                                         <span class="dm-picker-user-info">
                                             <span class="dm-picker-name">@user.DisplayName</span>
@@ -344,7 +344,7 @@
                                         else
                                         {
                                             <span class="dm-picker-avatar">@(user.DisplayName.Length > 0 ? user.DisplayName.Substring(0,
-                                                                                                                                                                            1).ToUpperInvariant() : "?")</span>
+                                                                                                                                                                                                                            1).ToUpperInvariant() : "?")</span>
                                             }
                                             <span class="dm-picker-user-info">
                                                 <span class="dm-picker-name">@user.DisplayName</span>

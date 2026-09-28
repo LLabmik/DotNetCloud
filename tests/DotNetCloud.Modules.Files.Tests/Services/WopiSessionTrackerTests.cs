@@ -15,7 +15,7 @@ public class WopiSessionTrackerTests
             MaxConcurrentSessions = maxSessions,
             TokenLifetimeMinutes = tokenLifetimeMinutes
         });
-        return new WopiSessionTracker(options, NullLogger<WopiSessionTracker>.Instance);
+        return new WopiSessionTracker(TestCollaboraSettings.From(options), NullLogger<WopiSessionTracker>.Instance);
     }
 
     [TestMethod]

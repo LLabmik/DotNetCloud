@@ -25,24 +25,38 @@ internal sealed class WopiTokenService : IWopiTokenService
     private readonly FilesDbContext _db;
     private readonly IPermissionService _permissionService;
     private readonly ICollaboraDiscoveryService _discoveryService;
-    private readonly CollaboraOptions _options;
+    private readonly ICollaboraSettingsProvider _collaboraSettings;
+    private readonly IHostEnvironment? _hostEnvironment;
+
+    /// <summary>Effective options: administrator edits layered over configuration.</summary>
+    private CollaboraOptions _options => _collaboraSettings.Current;
+
+    /// <summary>
+    /// HMAC key derived from the effective token signing key. Recomputed on use so a changed key
+    /// (or the first configured key) applies without restarting the module host.
+    /// </summary>
+    private byte[] SigningKey => DeriveSigningKey(_options.TokenSigningKey, _hostEnvironment);
     private readonly ILogger<WopiTokenService> _logger;
-    private readonly byte[] _signingKey;
 
     public WopiTokenService(
         FilesDbContext db,
         IPermissionService permissionService,
         ICollaboraDiscoveryService discoveryService,
-        IOptions<CollaboraOptions> options,
+        ICollaboraSettingsProvider collaboraSettings,
         ILogger<WopiTokenService> logger,
         IHostEnvironment? hostEnvironment = null)
     {
         _db = db;
         _permissionService = permissionService;
         _discoveryService = discoveryService;
-        _options = options.Value;
+        _collaboraSettings = collaboraSettings;
         _logger = logger;
-        _signingKey = DeriveSigningKey(_options.TokenSigningKey, hostEnvironment);
+        _hostEnvironment = hostEnvironment;
+
+        // Validate the effective key immediately: production must refuse to run with a missing or
+        // too-short key rather than failing later on the first document open. The value is still
+        // re-derived on use so an administrator's change applies without restarting the host.
+        _ = SigningKey;
     }
 
     /// <inheritdoc />
@@ -121,7 +135,7 @@ internal sealed class WopiTokenService : IWopiTokenService
             var signatureBytes = DecodeTokenPart(parts[1]);
 
             // Verify signature
-            using var hmac = new HMACSHA256(_signingKey);
+            using var hmac = new HMACSHA256(SigningKey);
             var expectedSignature = hmac.ComputeHash(payloadBytes);
             if (!CryptographicOperations.FixedTimeEquals(signatureBytes, expectedSignature))
             {
@@ -168,7 +182,7 @@ internal sealed class WopiTokenService : IWopiTokenService
     private string CreateSignedToken(WopiTokenPayload payload)
     {
         var payloadBytes = JsonSerializer.SerializeToUtf8Bytes(payload);
-        using var hmac = new HMACSHA256(_signingKey);
+        using var hmac = new HMACSHA256(SigningKey);
         var signature = hmac.ComputeHash(payloadBytes);
 
         return $"{WebEncoders.Base64UrlEncode(payloadBytes)}.{WebEncoders.Base64UrlEncode(signature)}";

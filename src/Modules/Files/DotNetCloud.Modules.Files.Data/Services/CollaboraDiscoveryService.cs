@@ -14,7 +14,10 @@ namespace DotNetCloud.Modules.Files.Data.Services;
 internal sealed class CollaboraDiscoveryService : ICollaboraDiscoveryService
 {
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly CollaboraOptions _options;
+    private readonly ICollaboraSettingsProvider _collaboraSettings;
+
+    /// <summary>Effective options: administrator edits layered over configuration.</summary>
+    private CollaboraOptions _options => _collaboraSettings.Current;
     private readonly ILogger<CollaboraDiscoveryService> _logger;
     private readonly SemaphoreSlim _lock = new(1, 1);
 
@@ -24,11 +27,11 @@ internal sealed class CollaboraDiscoveryService : ICollaboraDiscoveryService
 
     public CollaboraDiscoveryService(
         IHttpClientFactory httpClientFactory,
-        IOptions<CollaboraOptions> options,
+        ICollaboraSettingsProvider collaboraSettings,
         ILogger<CollaboraDiscoveryService> logger)
     {
         _httpClientFactory = httpClientFactory;
-        _options = options.Value;
+        _collaboraSettings = collaboraSettings;
         _logger = logger;
     }
 

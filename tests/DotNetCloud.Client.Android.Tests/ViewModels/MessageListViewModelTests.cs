@@ -75,6 +75,11 @@ public sealed class MessageListViewModelTests
         _chatApi.Setup(x => x.NotifyTypingAsync(ServerUrl, It.IsAny<string>(), ChannelId, It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
+        // Administrator-configured chat limits: default to the built-in fallbacks, which is what the
+        // API client itself returns when the endpoint is unavailable.
+        _chatApi.Setup(x => x.GetChatLimitsAsync(ServerUrl, It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ChatLimits.Defaults);
+
         // Default auth setup: active server connection with a JWT containing CurrentUserId
         var connection = new ServerConnection(ServerUrl, "Test Server", "test@test.com");
         _serverStore.Setup(x => x.GetActive()).Returns(connection);
@@ -1024,8 +1029,126 @@ public sealed class MessageListViewModelTests
     }
 
     // ══════════════════════════════════════════════════════════════════
+    //  Administrator-configured chat limits (composer enforcement)
+    // ══════════════════════════════════════════════════════════════════
+
+    [TestMethod]
+    public void Constructor_StartsWithBuiltInLimits()
+    {
+        Assert.AreEqual(ChatLimits.Defaults, _vm.Limits);
+        Assert.IsTrue(_vm.ShowComposerCounter);
+        Assert.AreEqual("0 / 10000", _vm.ComposerCounterText);
+    }
+
+    [TestMethod]
+    public async Task InitializeAsync_LoadsAdminConfiguredLimits()
+    {
+        SetupDefaultChannelMembers();
+        SetupDefaultMessages([]);
+        _chatApi.Setup(x => x.GetChatLimitsAsync(ServerUrl, It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ChatLimits(50, 3, 2));
+
+        await _vm.InitializeAsync(ChannelId, "General");
+
+        Assert.AreEqual(50, _vm.Limits.MaxMessageLength);
+        Assert.AreEqual(3, _vm.Limits.MaxAttachmentsPerMessage);
+        Assert.AreEqual(2, _vm.Limits.MaxAttachmentSizeMb);
+        Assert.AreEqual("0 / 50", _vm.ComposerCounterText);
+    }
+
+    [TestMethod]
+    public async Task InitializeAsync_LimitsRequestFails_FallsBackToDefaultsWithoutError()
+    {
+        SetupDefaultChannelMembers();
+        SetupDefaultMessages([]);
+        _chatApi.Setup(x => x.GetChatLimitsAsync(ServerUrl, It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("503 CHAT_SETTINGS_UNAVAILABLE"));
+
+        await _vm.InitializeAsync(ChannelId, "General");
+
+        Assert.AreEqual(ChatLimits.Defaults, _vm.Limits);
+        Assert.IsNull(_vm.ErrorMessage, "A missing limits endpoint must never surface as an error to the user");
+    }
+
+    [TestMethod]
+    public async Task ComposerText_BeyondTheLimit_IsClampedAndCounterReflectsTheLimit()
+    {
+        await InitializeHappyPathAsyncWithLimitsAsync(new ChatLimits(5, 10, 10));
+
+        _vm.ComposerText = "1234567890";
+
+        Assert.AreEqual("12345", _vm.ComposerText);
+        Assert.AreEqual(5, _vm.ComposerLength);
+        Assert.IsFalse(_vm.IsOverMessageLength);
+        Assert.AreEqual("5 / 5", _vm.ComposerCounterText);
+    }
+
+    [TestMethod]
+    public void Limits_LoweredBelowTheComposedText_ClampsTheExistingText()
+    {
+        _vm.ComposerText = "1234567890";
+
+        // An administrator lowers the limit while the composer still holds longer text.
+        _vm.Limits = new ChatLimits(4, 10, 10);
+
+        Assert.AreEqual("1234", _vm.ComposerText);
+        Assert.AreEqual("4 / 4", _vm.ComposerCounterText);
+    }
+
+    [TestMethod]
+    public void InsertEmoji_WhenItWouldExceedTheLimit_NeverSplitsASurrogatePair()
+    {
+        _vm.Limits = new ChatLimits(5, 10, 10);
+        _vm.ComposerText = "abcd";
+
+        // "abcd" + the emoji is 6 UTF-16 units; the clamp must not keep half of the pair.
+        _vm.InsertEmojiCommand.Execute("😀");
+
+        Assert.AreEqual("abcd", _vm.ComposerText);
+    }
+
+    [TestMethod]
+    public void Limits_NoMessageLengthLimit_LeavesTheComposerUnrestricted()
+    {
+        _vm.Limits = new ChatLimits(0, 10, 10);
+
+        _vm.ComposerText = new string('x', 500);
+
+        Assert.AreEqual(500, _vm.ComposerText.Length);
+        Assert.IsFalse(_vm.ShowComposerCounter);
+        Assert.IsFalse(_vm.IsOverMessageLength);
+    }
+
+    [TestMethod]
+    public async Task SendAsync_MessageAtExactlyTheLimit_IsSent()
+    {
+        await InitializeHappyPathAsyncWithLimitsAsync(new ChatLimits(5, 10, 10));
+
+        _vm.ComposerText = "12345";
+        var serverMessage = MakeChatMessage(Guid.NewGuid(), CurrentUserId, "Current User", "12345", DateTimeOffset.UtcNow);
+        _chatApi.Setup(x => x.SendMessageAsync(ServerUrl, It.IsAny<string>(), ChannelId, "12345", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(serverMessage);
+
+        Assert.IsTrue(_vm.SendCommand.CanExecute(null));
+        await _vm.SendCommand.ExecuteAsync(null);
+
+        _chatApi.Verify(
+            x => x.SendMessageAsync(ServerUrl, It.IsAny<string>(), ChannelId, "12345", It.IsAny<CancellationToken>()),
+            Times.Once);
+        Assert.IsEmpty(_vm.ComposerText);
+    }
+
+    // ══════════════════════════════════════════════════════════════════
     //  Helpers
     // ══════════════════════════════════════════════════════════════════
+
+    /// <summary>Initializes the ViewModel with a specific administrator-configured chat limit set.</summary>
+    private async Task InitializeHappyPathAsyncWithLimitsAsync(ChatLimits limits)
+    {
+        _chatApi.Setup(x => x.GetChatLimitsAsync(ServerUrl, It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(limits);
+        await InitializeHappyPathAsync();
+    }
 
     /// <summary>Sets up the ViewModel with a fully initialized state (auth, members, empty messages).</summary>
     private async Task InitializeHappyPathAsync()

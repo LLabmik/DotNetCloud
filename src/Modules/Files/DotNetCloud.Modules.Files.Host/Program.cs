@@ -1,11 +1,13 @@
 using DotNetCloud.Core.Auth.Authorization;
 using DotNetCloud.Core.Auth.Introspection;
+using DotNetCloud.Core.Auth.Services;
 using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Extensions;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Grpc;
 using DotNetCloud.Core.ServiceDefaults.Media;
+using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Files;
 using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Files.Host.Services;
@@ -157,6 +159,10 @@ builder.Services.AddDbContext<CoreDbContext>(options =>
     DbResiliencePolicy.Configure(options, provider, connectionString);
 }, ServiceLifetime.Transient);
 builder.Services.AddCoreDbContextFactory(connectionString, provider);
+
+// Read the admin-editable settings (core SystemSettings) so CollaboraOptions can be overridden by
+// the /admin/collabora page instead of only by config.json/env.
+builder.Services.AddScoped<IAdminSettingsService, AdminSettingsService>();
 
 builder.Services.AddSingleton<ITableNamingStrategy>(string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase)
     ? new PostgreSqlNamingStrategy()

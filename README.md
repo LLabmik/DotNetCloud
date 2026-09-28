@@ -413,7 +413,7 @@ Imports users, files, calendars, contacts, and bookmarks.
 - [Backup & Restore](docs/admin/BACKUP.md)
 - [Collabora Administration](docs/admin/COLLABORA.md) — browser-based document editing setup
 - [Gmail OAuth Setup](docs/admin/GMAIL_OAUTH_SETUP.md) — Gmail integration configuration
-- [Files Module Configuration](docs/admin/CONFIGURATION.md) — storage, quotas, trash retention
+- [Files Module Configuration](docs/admin/CONFIGURATION.md) — storage, quotas, trash retention, versioning controls
 - [PIM Module Administration](docs/admin/PIM_MODULES.md) — Contacts, Calendar, Notes configuration and operations
 - [Video Calling Administration](docs/admin/VIDEO_CALLING.md) — LiveKit setup and configuration
 - [AI Assistant Administration](docs/admin/AI_ASSISTANT.md) — LLM provider setup (Ollama, Claude, OpenAI)

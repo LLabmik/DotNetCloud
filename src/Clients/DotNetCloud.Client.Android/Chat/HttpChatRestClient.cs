@@ -60,6 +60,45 @@ internal sealed class HttpChatRestClient : IChatRestClient
     }
 
     /// <inheritdoc />
+    public async Task<ChatLimits> GetChatLimitsAsync(
+        string serverBaseUrl, string accessToken, CancellationToken ct = default)
+    {
+        SetAuth(accessToken);
+        var url = $"{serverBaseUrl.TrimEnd('/')}/api/v1/chat/limits";
+        try
+        {
+            using var response = await _http.GetAsync(url, HttpCompletionOption.ResponseContentRead, ct).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+            {
+                // 503 CHAT_SETTINGS_UNAVAILABLE (no settings provider in the host) and any other
+                // failure fall back to the built-in defaults: an older or misconfigured host must
+                // never leave the composer unable to send.
+                Log.Info("DotNetCloud", $"GetChatLimitsAsync HTTP {(int)response.StatusCode} from {url}; using built-in defaults.");
+                return ChatLimits.Defaults;
+            }
+
+            var envelope = await response.Content.ReadFromJsonAsync<Envelope<ChatLimitsDto>>(JsonOpts, ct).ConfigureAwait(false);
+            if (envelope?.Data is null)
+            {
+                Log.Info("DotNetCloud", "GetChatLimitsAsync response had no data; using built-in defaults.");
+                return ChatLimits.Defaults;
+            }
+
+            var limits = new ChatLimits(
+                envelope.Data.MaxMessageLength,
+                envelope.Data.MaxAttachmentsPerMessage,
+                envelope.Data.MaxAttachmentSizeMb);
+            Log.Info("DotNetCloud", $"GetChatLimitsAsync SUCCEEDED: maxMessageLength={limits.MaxMessageLength}, maxAttachmentsPerMessage={limits.MaxAttachmentsPerMessage}, maxAttachmentSizeMb={limits.MaxAttachmentSizeMb}");
+            return limits;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Log.Error("DotNetCloud", $"GetChatLimitsAsync FAILED: {ex.GetType().Name}: {ex.Message}; using built-in defaults.");
+            return ChatLimits.Defaults;
+        }
+    }
+
+    /// <inheritdoc />
     public async Task<PagedMessagesResult> GetMessagesAsync(
         string serverBaseUrl, string accessToken,
         Guid channelId, int page = 1, int pageSize = 25,
@@ -487,6 +526,17 @@ internal sealed class HttpChatRestClient : IChatRestClient
     {
         public bool Success { get; init; }
         public T? Data { get; init; }
+    }
+
+    /// <summary>
+    /// Payload of <c>GET /api/v1/chat/limits</c>. Uses a class (not a positional record) so that
+    /// System.Text.Json resolves the camelCase properties via <see cref="JsonOpts"/>.
+    /// </summary>
+    private sealed class ChatLimitsDto
+    {
+        public int MaxMessageLength { get; init; }
+        public int MaxAttachmentsPerMessage { get; init; }
+        public int MaxAttachmentSizeMb { get; init; }
     }
 
     private sealed class ReplyToDmResult

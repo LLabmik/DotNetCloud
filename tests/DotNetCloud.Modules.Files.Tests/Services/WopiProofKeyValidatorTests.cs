@@ -47,7 +47,7 @@ public class WopiProofKeyValidatorTests
             EnableProofKeyValidation = validationEnabled
         });
 
-        return new WopiProofKeyValidator(discovery.Object, options, NullLogger<WopiProofKeyValidator>.Instance);
+        return new WopiProofKeyValidator(discovery.Object, TestCollaboraSettings.From(options), NullLogger<WopiProofKeyValidator>.Instance);
     }
 
     private static (string proof, string timestamp) MakeProof(
@@ -103,7 +103,7 @@ public class WopiProofKeyValidatorTests
 
         var validator = new WopiProofKeyValidator(
             discovery.Object,
-            MsOptions.Options.Create(new CollaboraOptions { EnableProofKeyValidation = true }),
+            TestCollaboraSettings.From(MsOptions.Options.Create(new CollaboraOptions { EnableProofKeyValidation = true })),
             NullLogger<WopiProofKeyValidator>.Instance);
 
         const string token = "test-token";
@@ -245,7 +245,7 @@ public class WopiProofKeyValidatorTests
 
         var validator = new WopiProofKeyValidator(
             discovery.Object,
-            MsOptions.Options.Create(new CollaboraOptions { EnableProofKeyValidation = true }),
+            TestCollaboraSettings.From(MsOptions.Options.Create(new CollaboraOptions { EnableProofKeyValidation = true })),
             NullLogger<WopiProofKeyValidator>.Instance);
 
         var (proof, timestamp) = MakeProof("token", "https://example.com", TestKey);

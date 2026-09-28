@@ -4,82 +4,86 @@
 
 <PageTitle>Edit User - DotNetCloud</PageTitle>
 
-@if (_loading)
-{
-    <LoadingIndicator Message="Loading user..." />
-}
-else if (_model is null)
-{
-    <div class="empty-state">
-        <p>User not found.</p>
-        <a href="/admin/users" class="btn btn-primary">Back to Users</a>
-    </div>
-}
-else
-{
-    <div class="page-header">
-        <h1>Edit User</h1>
-        <a href="/admin/users/@UserId" class="btn btn-outline">Back</a>
-    </div>
+<div class="admin-settings-page">
 
-    <div class="form-container">
-        <EditForm Model="_model" OnValidSubmit="SubmitAsync" FormName="edit-user">
-            <DataAnnotationsValidator />
+    @if (_loading)
+    {
+        <LoadingIndicator Message="Loading user..." />
+    }
+    else if (_model is null)
+    {
+        <div class="empty-state">
+            <p>User not found.</p>
+            <a href="/admin/users" class="btn btn-primary">Back to Users</a>
+        </div>
+    }
+    else
+    {
+        <div class="page-header">
+            <h1>Edit User</h1>
+            <a href="/admin/users/@UserId" class="btn btn-outline">Back</a>
+        </div>
 
-            <div class="form-group">
-                <label for="displayName">Display Name</label>
-                <InputText id="displayName" class="input" @bind-Value="_model.DisplayName" />
-            </div>
+        <div class="form-container">
+            <EditForm Model="_model" OnValidSubmit="SubmitAsync" FormName="edit-user">
+                <DataAnnotationsValidator />
 
-            <div class="form-group">
-                <label for="email">Email (optional)</label>
-                <InputText id="email" class="input" @bind-Value="_model!.Email" placeholder="you@example.com" />
-                <span class="hint">Leave blank to remove the email from this account.</span>
-            </div>
+                <div class="form-group">
+                    <label for="displayName">Display Name</label>
+                    <InputText id="displayName" class="input" @bind-Value="_model.DisplayName" />
+                </div>
 
-            <div class="form-group">
-                <label for="locale">Language / Region</label>
-                <InputSelect id="locale" class="input" @bind-Value="_model!.Locale">
-                    @if (!LocaleOptions.Any(x => x.Code.Equals(_model!.Locale, StringComparison.OrdinalIgnoreCase)))
-                    {
-                        <option value="@_model!.Locale">@_model!.Locale (current)</option>
-                    }
-                    @foreach (var item in LocaleOptions)
-                    {
-                        <option value="@item.Code">@item.Name</option>
-                    }
-                </InputSelect>
-            </div>
+                <div class="form-group">
+                    <label for="email">Email (optional)</label>
+                    <InputText id="email" class="input" @bind-Value="_model!.Email" placeholder="you@example.com" />
+                    <span class="hint">Leave blank to remove the email from this account.</span>
+                </div>
 
-            <div class="form-group">
-                <label for="timezone">Timezone</label>
-                <InputText id="timezone" class="input" @bind-Value="_model!.Timezone" />
-                <span class="hint">e.g., UTC, America/New_York, Europe/London</span>
-                <button type="button" class="btn btn-sm btn-outline" style="margin-top: 6px;" @onclick="DetectTimezoneAsync"
-                        disabled="@_detectingTimezone">
-                    @(_detectingTimezone ? "Detecting..." : "Detect from browser")
-                </button>
-            </div>
+                <div class="form-group">
+                    <label for="locale">Language / Region</label>
+                    <InputSelect id="locale" class="input" @bind-Value="_model!.Locale">
+                        @if (!LocaleOptions.Any(x => x.Code.Equals(_model!.Locale, StringComparison.OrdinalIgnoreCase)))
+                        {
+                            <option value="@_model!.Locale">@_model!.Locale (current)</option>
+                        }
+                        @foreach (var item in LocaleOptions)
+                        {
+                            <option value="@item.Code">@item.Name</option>
+                        }
+                    </InputSelect>
+                </div>
 
-            <div class="form-group">
-                <label for="quotaMb">Storage Quota (MB)</label>
-                <input id="quotaMb" type="number" class="input" step="1" min="0" @bind="_quotaMb" />
-                <span class="hint">0 = unlimited. Sets the maximum storage this user can consume.</span>
-            </div>
+                <div class="form-group">
+                    <label for="timezone">Timezone</label>
+                    <InputText id="timezone" class="input" @bind-Value="_model!.Timezone" />
+                    <span class="hint">e.g., UTC, America/New_York, Europe/London</span>
+                    <button type="button" class="btn btn-sm btn-outline" style="margin-top: 6px;"
+                            @onclick="DetectTimezoneAsync" disabled="@_detectingTimezone">
+                        @(_detectingTimezone ? "Detecting..." : "Detect from browser")
+                    </button>
+                </div>
 
-            @if (!string.IsNullOrWhiteSpace(_errorMessage))
-            {
-                <div class="alert alert-danger">@_errorMessage</div>
-            }
+                <div class="form-group">
+                    <label for="quotaMb">Storage Quota (MB)</label>
+                    <input id="quotaMb" type="number" class="input" step="1" min="0" @bind="_quotaMb" />
+                    <span class="hint">0 = unlimited. Sets the maximum storage this user can consume.</span>
+                </div>
 
-            <div class="form-actions">
-                <button type="submit" class="btn btn-primary" disabled="@_submitting">
-                    @(_submitting ? "Saving..." : "Save Changes")
-                </button>
-            </div>
-        </EditForm>
-    </div>
-}
+                @if (!string.IsNullOrWhiteSpace(_errorMessage))
+                {
+                    <div class="alert alert-danger">@_errorMessage</div>
+                }
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary" disabled="@_submitting">
+                        @(_submitting ? "Saving..." : "Save Changes")
+                    </button>
+                </div>
+            </EditForm>
+        </div>
+    }
+
+</div>
 
 @code {
     [Parameter] public Guid UserId { get; set; }

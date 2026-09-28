@@ -386,6 +386,27 @@
                 HorizontalTextAlignment="Center"
                 Padding="0,4"/>
 
+            <!-- "used / max" counter for the administrator-configured message length (mirrors the
+                 web composer). Turns red if the text ever exceeds the limit. -->
+            <Label
+                IsVisible="{Binding ShowComposerCounter}"
+                Text="{Binding ComposerCounterText}"
+                TextColor="#94A3B8"
+                FontSize="11"
+                HorizontalOptions="End"
+                BackgroundColor="#1E293B"
+                Padding="14,0,14,2">
+                <Label.Triggers>
+                    <DataTrigger
+                        TargetType="Label"
+                        Binding="{Binding IsOverMessageLength}"
+                        Value="True">
+                        <Setter Property="TextColor"
+                                Value="#EF4444"/>
+                    </DataTrigger>
+                </Label.Triggers>
+            </Label>
+
             <Border
                 BackgroundColor="#1E293B"
                 StrokeThickness="0"

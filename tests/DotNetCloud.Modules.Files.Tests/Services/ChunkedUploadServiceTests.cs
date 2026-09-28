@@ -31,7 +31,8 @@ public class ChunkedUploadServiceTests
     private static ChunkedUploadService CreateService(
         FilesDbContext db,
         IFileStorageEngine? storageEngine = null,
-        IQuotaService? quotaService = null)
+        IQuotaService? quotaService = null,
+        VersionRetentionOptions? retention = null)
     {
         var storageMock = storageEngine ?? Mock.Of<IFileStorageEngine>();
         var quotaMock = quotaService ?? CreateMockQuotaService(true);
@@ -39,7 +40,8 @@ public class ChunkedUploadServiceTests
             db, storageMock, quotaMock,
             Mock.Of<IEventBus>(), new DeviceContext(), Mock.Of<ISyncChangeNotifier>(), NullLoggerFactory.Instance.CreateLogger<ChunkedUploadService>(),
             Microsoft.Extensions.Options.Options.Create(new FileUploadOptions()),
-            Microsoft.Extensions.Options.Options.Create(new FileSystemOptions()));
+            Microsoft.Extensions.Options.Options.Create(new FileSystemOptions()),
+            TestFileVersioningSettings.From(retention ?? new VersionRetentionOptions { MaxVersionCount = 0 }));
     }
 
     private static IQuotaService CreateMockQuotaService(bool hasSufficientQuota)
@@ -445,6 +447,76 @@ public class ChunkedUploadServiceTests
 
         var session = await db.UploadSessions.FirstAsync();
         Assert.IsNull(session.ChunkSizesManifest, "Legacy uploads must not have a ChunkSizesManifest.");
+    }
+
+    [TestMethod]
+    public async Task CompleteUploadAsync_VersioningDisabled_ReleasesPreviousVersionsImmediately()
+    {
+        using var db = CreateContext();
+        var userId = Guid.CreateVersion7();
+        var oldChunkHash = "oldchunk0000001";
+        var newChunkHash = "newchunk0000002";
+
+        // Existing file that already has three versions
+        var node = new FileNode
+        {
+            Name = "doc.txt",
+            NodeType = FileNodeType.File,
+            OwnerId = userId,
+            CurrentVersion = 3,
+            ContentHash = "hash_v3",
+            StoragePath = "files/v3"
+        };
+        node.MaterializedPath = $"/{node.Id}";
+        db.FileNodes.Add(node);
+
+        var oldChunk = new FileChunk { ChunkHash = oldChunkHash, StoragePath = "chunks/ol/dc/oldchunk0000001", Size = 100, ReferenceCount = 3 };
+        db.FileChunks.Add(oldChunk);
+        for (var i = 1; i <= 3; i++)
+        {
+            var v = new FileVersion
+            {
+                FileNodeId = node.Id,
+                VersionNumber = i,
+                Size = 100,
+                ContentHash = $"hash_v{i}",
+                StoragePath = $"files/v{i}",
+                CreatedByUserId = userId
+            };
+            db.FileVersions.Add(v);
+            db.FileVersionChunks.Add(new FileVersionChunk { FileVersionId = v.Id, FileChunkId = oldChunk.Id, SequenceIndex = 0 });
+        }
+
+        db.FileChunks.Add(new FileChunk { ChunkHash = newChunkHash, StoragePath = "chunks/ne/wc/newchunk0000002", Size = 120 });
+
+        var session = new ChunkedUploadSession
+        {
+            FileName = "doc.txt",
+            TotalSize = 120,
+            MimeType = "text/plain",
+            TotalChunks = 1,
+            ReceivedChunks = 1,
+            ChunkManifest = JsonSerializer.Serialize(new[] { newChunkHash }),
+            UserId = userId,
+            Status = UploadSessionStatus.InProgress
+        };
+        db.UploadSessions.Add(session);
+        await db.SaveChangesAsync();
+
+        // Versioning switched off, with the count limit left at "unlimited": the policy must still
+        // reduce the file to its current version as soon as the new content lands.
+        var service = CreateService(db, retention: new VersionRetentionOptions { Enabled = false, MaxVersionCount = 0 });
+        await service.CompleteUploadAsync(session.Id, UserCaller(userId));
+
+        var versions = await db.FileVersions.Where(v => v.FileNodeId == node.Id).ToListAsync();
+        Assert.AreEqual(1, versions.Count, "Only the current version should remain when versioning is disabled.");
+
+        var current = await db.FileNodes.FirstAsync(n => n.Id == node.Id);
+        Assert.AreEqual(current.CurrentVersion, versions[0].VersionNumber);
+        Assert.AreEqual(current.ContentHash, versions[0].ContentHash);
+
+        // The released versions no longer hold references to the shared chunk.
+        Assert.AreEqual(0, (await db.FileChunks.FirstAsync(c => c.ChunkHash == oldChunkHash)).ReferenceCount);
     }
 
     [TestMethod]

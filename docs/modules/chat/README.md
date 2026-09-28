@@ -27,6 +27,7 @@ The Chat module provides real-time messaging for DotNetCloud organizations. It s
 | **File Attachments**    | Attach files to messages, integrated with the Files module via `FileNodeId`       |
 | **Push Notifications**  | Firebase Cloud Messaging (FCM) with retry queue                                   |
 | **Unread Counts**       | Per-channel unread message and mention counts                                     |
+| **Admin Limits**        | Admin-configurable message/attachment limits and message retention/archiving      |
 | **Message Search**      | Full-text search within channels                                                  |
 | **Video/Audio Calls**   | WebRTC-based 1:1 and group calls from any channel type                            |
 | **Screen Sharing**      | Browser-native screen sharing during calls                                        |

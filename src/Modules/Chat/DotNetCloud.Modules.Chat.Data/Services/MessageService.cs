@@ -20,6 +20,9 @@ namespace DotNetCloud.Modules.Chat.Data.Services;
 /// </summary>
 internal sealed class MessageService : IMessageService
 {
+    /// <summary>Settings used when no <see cref="IChatSettingsProvider"/> is available (tests, standalone wiring).</summary>
+    private static readonly ChatSettings FallbackSettings = new ChatSettings().Normalized();
+
     private readonly ChatDbContext _db;
     private readonly IEventBus _eventBus;
     private readonly IAuditLogger _auditLogger;
@@ -27,6 +30,8 @@ internal sealed class MessageService : IMessageService
     private readonly IMentionNotificationService? _mentionNotifier;
     private readonly IUserBlockService? _userBlockService;
     private readonly ILinkPreviewService? _linkPreviewService;
+    private readonly IChatSettingsProvider? _settingsProvider;
+    private readonly IChatMessageExpiryService? _expiryService;
     private readonly ILogger<MessageService> _logger;
 
     public MessageService(
@@ -37,7 +42,9 @@ internal sealed class MessageService : IMessageService
         IUserDirectory? userDirectory = null,
         IMentionNotificationService? mentionNotifier = null,
         IUserBlockService? userBlockService = null,
-        ILinkPreviewService? linkPreviewService = null)
+        ILinkPreviewService? linkPreviewService = null,
+        IChatSettingsProvider? settingsProvider = null,
+        IChatMessageExpiryService? expiryService = null)
     {
         _db = db;
         _eventBus = eventBus;
@@ -47,6 +54,8 @@ internal sealed class MessageService : IMessageService
         _mentionNotifier = mentionNotifier;
         _userBlockService = userBlockService;
         _linkPreviewService = linkPreviewService;
+        _settingsProvider = settingsProvider;
+        _expiryService = expiryService;
     }
 
     /// <inheritdoc />
@@ -57,6 +66,28 @@ internal sealed class MessageService : IMessageService
         var hasAttachments = dto.Attachments is { Count: > 0 };
         if (string.IsNullOrWhiteSpace(dto.Content) && !hasAttachments)
             throw new ArgumentException("Message content or at least one attachment is required.", nameof(dto));
+
+        // Administrator-configured limits are enforced before anything is persisted. The
+        // per-channel message cap is NOT enforced here: a channel that reaches it stays
+        // writable and the retention sweep expires its oldest messages instead.
+        var settings = await ResolveSettingsAsync(cancellationToken);
+        ValidateMessageContent(settings, dto.Content);
+
+        if (hasAttachments)
+        {
+            var attachments = dto.Attachments!;
+            ValidateAttachmentCount(settings, attachments.Count);
+
+            long pendingBytes = 0;
+            foreach (var att in attachments)
+            {
+                ValidateAttachmentSize(settings, att.FileSize);
+                pendingBytes += Math.Max(0, att.FileSize);
+            }
+
+            await MakeRoomForAttachmentsAsync(
+                channelId, attachments.Count, pendingBytes, settings, cancellationToken);
+        }
 
         var isMember = await _db.ChannelMembers
             .AnyAsync(m => m.ChannelId == channelId && m.UserId == caller.UserId, cancellationToken);
@@ -189,6 +220,8 @@ internal sealed class MessageService : IMessageService
 
         if (string.IsNullOrWhiteSpace(dto.Content))
             throw new ArgumentException("Message content is required.", nameof(dto));
+
+        ValidateMessageContent(await ResolveSettingsAsync(cancellationToken), dto.Content);
 
         var message = await _db.Messages
             .Include(m => m.Attachments)
@@ -388,6 +421,11 @@ internal sealed class MessageService : IMessageService
         if (message.SenderUserId != caller.UserId)
             throw new UnauthorizedAccessException("Only the message sender can add attachments.");
 
+        var settings = await ResolveSettingsAsync(cancellationToken);
+        ValidateAttachmentCount(settings, message.Attachments.Count + 1);
+        ValidateAttachmentSize(settings, dto.FileSize);
+        await MakeRoomForAttachmentsAsync(channelId, 1, Math.Max(0, dto.FileSize), settings, cancellationToken);
+
         var nextSortOrder = message.Attachments.Count > 0
             ? message.Attachments.Max(a => a.SortOrder) + 1
             : 0;
@@ -431,6 +469,123 @@ internal sealed class MessageService : IMessageService
             ThumbnailUrl = attachment.ThumbnailUrl,
             FileNodeId = attachment.FileNodeId
         };
+    }
+
+    /// <summary>
+    /// Resolves the administrator-configured chat settings, falling back to defaults when no
+    /// settings provider is wired (unit tests / standalone hosts).
+    /// </summary>
+    private async Task<ChatSettings> ResolveSettingsAsync(CancellationToken cancellationToken)
+        => _settingsProvider is null
+            ? FallbackSettings
+            : await _settingsProvider.GetSettingsAsync(cancellationToken);
+
+    /// <summary>Rejects message content longer than the configured maximum.</summary>
+    private static void ValidateMessageContent(ChatSettings settings, string content)
+    {
+        if (content.Length > settings.MaxMessageLength)
+        {
+            throw new ArgumentException(
+                $"Message exceeds the maximum length of {settings.MaxMessageLength} characters.",
+                nameof(content));
+        }
+    }
+
+    /// <summary>Rejects more attachments than the configured maximum for a single message.</summary>
+    private static void ValidateAttachmentCount(ChatSettings settings, int attachmentCount)
+    {
+        if (attachmentCount > settings.MaxAttachmentsPerMessage)
+        {
+            throw new ArgumentException(
+                $"A message can have at most {settings.MaxAttachmentsPerMessage} attachment(s).",
+                nameof(attachmentCount));
+        }
+    }
+
+    /// <summary>Rejects a single attachment larger than the configured maximum.</summary>
+    private static void ValidateAttachmentSize(ChatSettings settings, long fileSize)
+    {
+        if (settings.HasAttachmentSizeLimit && fileSize > settings.MaxAttachmentSizeBytes)
+        {
+            throw new ArgumentException(
+                $"Attachment exceeds the maximum size of {settings.MaxAttachmentSizeMb} MB.",
+                nameof(fileSize));
+        }
+    }
+
+    /// <summary>
+    /// Keeps a channel inside its attachment count/storage budget by expiring the oldest messages
+    /// that carry attachments, instead of rejecting the write.
+    /// </summary>
+    /// <remarks>
+    /// Mirrors how the per-channel <i>message</i> cap behaves: the channel always stays writable and
+    /// its oldest content expires. This needs the retention master switch, because "expire the
+    /// oldest" is the retention policy's job — with retention off the attachment ceilings are inert.
+    /// In Archive mode the expired messages are written to the archive directory before their rows
+    /// are deleted, so a failed export keeps them and the write still succeeds.
+    /// </remarks>
+    private async Task MakeRoomForAttachmentsAsync(
+        Guid channelId, int additionalCount, long additionalBytes, ChatSettings settings, CancellationToken cancellationToken)
+    {
+        if (_expiryService is null || !settings.RetentionEnabled)
+            return;
+
+        if (!settings.HasAttachmentCountLimit && !settings.HasAttachmentStorageLimit)
+            return;
+
+        var liveAttachments = _db.MessageAttachments.Where(a =>
+            a.Message!.ChannelId == channelId
+            && a.Message.ArchivedAt == null
+            && !a.Message.IsDeleted);
+
+        long overCount = 0;
+        if (settings.HasAttachmentCountLimit)
+        {
+            var existingCount = await liveAttachments.CountAsync(cancellationToken);
+            overCount = Math.Max(0, (long)existingCount + additionalCount - settings.MaxAttachmentsPerChannel);
+        }
+
+        long overBytes = 0;
+        if (settings.HasAttachmentStorageLimit)
+        {
+            var existingBytes = await liveAttachments.SumAsync(a => (long?)a.FileSize, cancellationToken) ?? 0;
+            overBytes = Math.Max(0, existingBytes + additionalBytes - settings.MaxAttachmentStoragePerChannelBytes);
+        }
+
+        if (overCount == 0 && overBytes == 0)
+            return;
+
+        var candidates = await _db.Messages
+            .Where(m => m.ChannelId == channelId && m.Attachments.Count > 0)
+            .OrderBy(m => m.SentAt)
+            .Select(m => new
+            {
+                m.Id,
+                Count = m.Attachments.Count,
+                Bytes = m.Attachments.Sum(a => (long)a.FileSize)
+            })
+            .ToListAsync(cancellationToken);
+
+        var toExpire = new List<Guid>();
+        foreach (var candidate in candidates)
+        {
+            if (overCount <= 0 && overBytes <= 0)
+                break;
+
+            toExpire.Add(candidate.Id);
+            overCount -= candidate.Count;
+            overBytes -= candidate.Bytes;
+        }
+
+        if (toExpire.Count == 0)
+            return;
+
+        var outcome = await _expiryService.ExpireAsync(_db, toExpire, settings, cancellationToken);
+
+        _logger.LogInformation(
+            "Channel {ChannelId} attachment budget reached; expired {Expired} of {Candidates} oldest " +
+            "message(s) with attachments ({Mode}) to make room.",
+            channelId, outcome.RemovedMessageIds.Count, toExpire.Count, settings.RetentionMode);
     }
 
     /// <summary>

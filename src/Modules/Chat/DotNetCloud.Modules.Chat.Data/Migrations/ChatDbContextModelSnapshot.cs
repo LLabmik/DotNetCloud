@@ -364,6 +364,9 @@ namespace DotNetCloud.Modules.Chat.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime?>("ArchivedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<Guid>("ChannelId")
                         .HasColumnType("uuid");
 
@@ -412,6 +415,9 @@ namespace DotNetCloud.Modules.Chat.Data.Migrations
 
                     b.HasIndex("ChannelId", "SentAt")
                         .HasDatabaseName("ix_chat_messages_channel_sent");
+
+                    b.HasIndex("ChannelId", "ArchivedAt", "SentAt")
+                        .HasDatabaseName("ix_chat_messages_channel_archived_sent");
 
                     b.ToTable("Messages", "core");
                 });
