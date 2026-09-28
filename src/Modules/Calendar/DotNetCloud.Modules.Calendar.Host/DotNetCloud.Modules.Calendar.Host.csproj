@@ -24,6 +24,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Calendar reminder/broadcast handlers attach the module-id capability header; the tests
+         assert that contract directly against the internal handlers. -->
+    <InternalsVisibleTo Include="DotNetCloud.Modules.Calendar.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Protobuf Include="Protos\calendar_service.proto" GrpcServices="Server" />
 
   </ItemGroup>

@@ -2,6 +2,7 @@ using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Grpc.Capabilities;
 using DotNetCloud.Modules.Calendar.Services;
+using Grpc.Core;
 using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Modules.Calendar.Host.Services;
@@ -17,6 +18,10 @@ internal sealed class CalendarEventBroadcastHandler :
     IEventHandler<CalendarEventUpdatedEvent>,
     IEventHandler<CalendarEventDeletedEvent>
 {
+    /// <summary>Module id sent as the <c>module-id</c> gRPC metadata header (required by Core.Server).</summary>
+    private readonly string _moduleId =
+        Environment.GetEnvironmentVariable("DOTNETCLOUD_MODULE_ID") ?? "dotnetcloud.calendar";
+
     private readonly CoreCapabilities.CoreCapabilitiesClient _coreClient;
     private readonly ICalendarShareService _shareService;
     private readonly ILogger<CalendarEventBroadcastHandler> _logger;
@@ -91,18 +96,23 @@ internal sealed class CalendarEventBroadcastHandler :
         try
         {
             var json = System.Text.Json.JsonSerializer.Serialize(payload);
+
+            // Core.Server's AuthenticationInterceptor rejects capability calls without the
+            // module-id metadata header (Unauthenticated: "Missing module-id metadata header").
+            var metadata = new Metadata { { "module-id", _moduleId } };
+
             await _coreClient.BroadcastRealtimeEventAsync(new BroadcastRealtimeEventRequest
             {
                 Caller = new CallerContextMessage
                 {
                     UserId = userId.ToString(),
                     CallerType = "System",
-                    ModuleId = "dotnetcloud.calendar"
+                    ModuleId = _moduleId
                 },
                 EventName = eventName,
                 PayloadJson = json,
                 TargetUserId = userId.ToString()
-            }, cancellationToken: ct);
+            }, metadata, cancellationToken: ct);
         }
         catch (Exception ex)
         {

@@ -1,3 +1,53 @@
+## Archived: Server agent (`cloud`) — calendar reminder dispatch fixes (long-lead window + notification category) deployed + verified; Calendar host `module-id` gap found + fixed (2026-09-27)
+
+**Status:** completed ✅ — the server half is deployed and verified live on `cloud.kimball.home`; the **Android half is still pending** on `monolith`, so it stays as a deferred handoff in `CLIENT_SERVER_MEDIATION_HANDOFF.md`.
+**Branch:** `fix/android-alerts` — deploy 1 @ `23876408`, deploy 2 @ `c6fca019` (the `module-id` fix commit) · **From:** client agent (`monolith`) · **Target:** `cloud.kimball.home` (`cloud`; SQL Server on `hyperdrive.kimball.home`)
+
+### Why
+
+The operator's phone showed repeated *"Rush Concert … in 168 hours"* alerts. The repeats were client-side (per-process alarm identity, fixed in the Android half), but confirming that the server could not have produced them surfaced two genuine server defects, and verifying the fix then exposed a third that made the notification half inert.
+
+### What changed (implementation)
+
+1. **`ReminderDispatchService` (Calendar module)** — the scan window is derived from the largest configured reminder offset instead of a fixed 24 h (`MinimumLookAheadWindow` 24 h, `MaximumLookAheadWindow` 366 days, `ResolveLookAheadWindowAsync` = one `MAX(MinutesBefore)` query per 30 s scan). A reminder is due when `StartUtc - MinutesBefore <= now`, so candidates must be loaded from at least that far ahead; with the fixed window a long-lead reminder could only fire once the event came within 24 h (a one-week reminder fired ~6 days late).
+2. **`CoreCapabilitiesServiceImpl.SendNotification` (Core.Server)** — the module-supplied `Category` is honoured: `Category = "Reminder"` stores `NotificationType.Reminder` + `NotificationPriority.High` instead of `Info`/`Normal`; absent/unknown categories keep the previous defaults.
+3. **NEW — `Calendar.Host` capability calls were unauthenticated (fixed here).** `CalendarReminderEventHandler` and `CalendarEventBroadcastHandler` invoked a bare `CoreCapabilitiesClient` with no `module-id` metadata header, so Core.Server's `AuthenticationInterceptor` rejected **every** call as `Unauthenticated: "Missing module-id metadata header"`. All three call sites now pass `new Metadata { { "module-id", _moduleId } }` (the pattern already used by the Chat/Tracks hosts, `GrpcTeamDirectory` and `SearchIndexEventBridgeHandler`), with `_moduleId` from the supervisor-provided `DOTNETCLOUD_MODULE_ID`. 3 regression tests in `CalendarReminderEventHandlerTests` (header on notify, header on broadcast, broadcast still attempted when the notify leg is rejected) plus `<InternalsVisibleTo Include="DotNetCloud.Modules.Calendar.Tests" />`.
+
+### Contract
+
+- A reminder is dispatched when `StartUtc - MinutesBefore <= now`; candidates are loaded from `now` to `now + max(24 h, MAX(MinutesBefore), capped at 366 days)`. `ReminderLog` still guarantees once-only delivery per `(ReminderId, OccurrenceStartUtc)`.
+- `SendNotification` maps `Category = "Reminder"` → `Type = Reminder`, `Priority = High` (case-insensitive); everything else stays `Info`/`Normal`.
+- **Every module → core capability call must carry the `module-id` gRPC metadata header**, or the core answers `401 Unauthenticated`.
+- The calendar notification comes from `CalendarReminderEventHandler` via `SendNotification`; the `ReminderTriggeredEvent` publish is inert (module hosts use a process-local `InProcessEventBus`, `PublishEvent` is a documented no-op) — exactly one notification per reminder, and that claim is now documented on the code.
+
+### Verification
+
+| Check | Result |
+| --- | --- |
+| Deploy 1 (`23876408`) | `deploy.sh --force --verify` **15/15 targets**; `.last-deploy-commit` = `238764083a10`; version **0.6.12**; no pending migrations |
+| Hashes / symbols | `Core.Server.dll` `652e2aeb…`, `dotnetcloud.calendar.dll` `9609058f…`, `Calendar.Data.dll` `5f331d88…` — md5-identical to build output; `ResolveLookAheadWindowAsync` / `MinimumLookAheadWindow` / `MaximumLookAheadWindow` and `MapNotificationCategory` present |
+| Health | `/health/ready` **Healthy — 14 module(s), all healthy**; `database` Healthy; `blazor.web.js` **200** |
+| **Window fix, live on real data** | operator's own `Rush Concert!` event `01a05609-…9ed7d` (**6.7 days out**, start `2026-10-04 14:00Z`) dispatched its 10080-min reminder on the **first scan after the restart** (`23:46:53Z`, ~1.8 min after start) → `core.ReminderLogs`, `Success = 1`. Under the old window the event was not even loaded; it would have fired ~5.7 days late |
+| ⚠️ Deploy 1 — notification leg | `Failed to send in-app notification … Unauthenticated: Missing module-id metadata header` (also on `BroadcastRealtimeEvent`); **0** notification rows created; the table had **no `Reminder` row at all** — only 5 `dotnetcloud.files` Share rows |
+| Deploy 2 (`module-id` fix) | **15/15 targets**, Healthy **14/14**, `blazor.web.js` 200, calendar host md5-identical, `module-id` + `DOTNETCLOUD_MODULE_ID` literals in the deployed host |
+| **Notification leg, live** | reminder re-armed (stale `ReminderLogs` row deleted — dispatched but never delivered); next scan: `SendNotification: 'Rush Concert!' to 1 recipients from module dotnetcloud.calendar` + `gRPC call completed …/SendNotification`, `Reminder dispatched … (Notification, 10080min before)`, fresh `ReminderLogs` row `Success = 1`, and bell row `Type = Reminder`, `Priority = High`, `Message = Starts in 9464 minutes`, `ActionUrl = /apps/calendar/events/01a05609-…`; **0** rejections after the fix |
+| Tests | Calendar module **208 pass / 0 fail** (205 + 3 new); `DotNetCloud.CI.slnf` Release build **0 warnings / 0 errors** |
+
+⚠️ The catch-up burst (previously unreachable long-lead reminders) fired exactly once, as predicted.
+
+### Deliberate non-changes
+
+- **Module → core event forwarding** (`PublishEvent` needs an event-type registry) — the inert `ReminderTriggeredEvent` publish stays as-is for the day that lands.
+- `NotificationProducer` / `NotificationEventSubscriber` in Core.Server — they only handle events published **inside** Core.Server, so they needed no change.
+- No duplicate-notification "fix": the earlier claim of two bell notifications per reminder was wrong (recorded on the code and in the handoff).
+
+### Pending (client agent — `monolith`) — NOT yet done
+
+- Android half of `fix/android-alerts` (stable alarm identity, delivery-once, real remaining time in the body, reminder-picker alignment) — complete and unit-tested, lands in a follow-up commit **after** its on-device E2E on `R5CWC356B2K`: one alert per reminder at its trigger time, no repeat after a resync/boot/SignalR reconnect, the body showing the real remaining time, and "1 day before" storing 1440.
+- ☐ **Recorded but not fixed (out of scope):** Files' own `CoreCapabilitiesClient` (`Modules/Files.Data/Services/CoreCapabilitiesClient.cs`) attaches no `module-id` header either, so any Files capability call would be rejected the same way. A shared client interceptor in `Core.Grpc` would prevent the whole class.
+
+---
+
 ## Archived: Client agent (`monolith`) — phone-side `304` confirmation for the chat-alerts poll + `200`/alert regression (2026-09-19)
 
 **Status:** completed ✅ — the chat-alerts poll contract is now verified end-to-end **from the device** in both directions; nothing outstanding on either side.
