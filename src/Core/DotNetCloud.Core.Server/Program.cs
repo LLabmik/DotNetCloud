@@ -352,8 +352,12 @@ public class Program
 
         // Files module UI services (FileBrowser and related Blazor components).
         // Registers FilesDbContext and the scoped services needed for in-process rendering.
+        // NOTE: pass the *SqlServer* migrations assembly. MigrationsAssembly is only applied
+        // when the provider is SqlServer (see DbResiliencePolicy), and on that provider the
+        // PostgreSQL assembly's migrations would otherwise be replayed verbatim — including
+        // Npgsql-only column types such as 'timestamp with time zone' — and fail.
         builder.Services.AddDbContext<FilesDbContext>(options =>
-            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Files.Data"),
+            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Files.Data.SqlServer"),
             ServiceLifetime.Transient);
         builder.Services.AddFilesUiServices(builder.Configuration!);
 
@@ -367,8 +371,9 @@ public class Program
         builder.Services.AddSingleton<DotNetCloud.Core.SharedWithMe.ISharedWithMeModuleRegistry, DotNetCloud.Core.Server.SharedWithMe.SharedWithMeModuleRegistry>();
 
         // Chat module UI services (ChatPageLayout and related Blazor components).
+        // NOTE: pass the *SqlServer* migrations assembly — see the Files registration above.
         builder.Services.AddDbContext<ChatDbContext>(options =>
-            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Chat.Data"),
+            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Chat.Data.SqlServer"),
             ServiceLifetime.Transient,
             ServiceLifetime.Singleton);
         // Custom factory for the DB-backed notification preference store — persists DND/mute
@@ -388,7 +393,7 @@ public class Program
             ? new SqlServerNamingStrategy()
             : new PostgreSqlNamingStrategy());
         builder.Services.AddDbContext<CalendarDbContext>(options =>
-            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Calendar.Data"),
+            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Calendar.Data.SqlServer"),
             ServiceLifetime.Transient);
 
         // AI DbContext for schema creation by DbContextSchemaProvider only.
