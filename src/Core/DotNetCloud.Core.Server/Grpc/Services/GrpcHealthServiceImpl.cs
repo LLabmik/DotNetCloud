@@ -153,6 +153,11 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
             using var scope = _serviceProvider.CreateScope();
             var notificationService = scope.ServiceProvider.GetRequiredService<INotificationService>();
 
+            // The category the caller supplied decides how the notification is stored. It used to be
+            // accepted and then dropped, so every module-sent notification — calendar reminders
+            // included — was persisted as a generic Info/Normal entry.
+            var (type, priority) = MapNotificationCategory(request.Category);
+
             var deliveredCount = 0;
 
             foreach (var rawUserId in request.RecipientUserIds)
@@ -165,10 +170,10 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
                     Id = Guid.CreateVersion7(),
                     UserId = userId,
                     SourceModuleId = moduleId,
-                    Type = NotificationType.Info,
+                    Type = type,
                     Title = request.Title,
                     Message = string.IsNullOrEmpty(request.Body) ? null : request.Body,
-                    Priority = NotificationPriority.Normal,
+                    Priority = priority,
                     ActionUrl = string.IsNullOrEmpty(request.Link) ? null : request.Link,
                     CreatedAtUtc = DateTime.UtcNow,
                 };
@@ -189,6 +194,23 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
             return new SendNotificationResponse { Success = false, DeliveredCount = 0 };
         }
     }
+
+    /// <summary>
+    /// Maps a notification category supplied by a calling module onto the notification type and
+    /// priority to store.
+    /// </summary>
+    /// <remarks>
+    /// A reminder is a time-sensitive, high-priority notification and must not be filed as generic
+    /// information, which is how every module-sent notification was stored while this field was ignored.
+    /// Unknown or absent categories keep the generic defaults.
+    /// </remarks>
+    /// <param name="category">The category supplied by the caller (may be null or empty).</param>
+    /// <returns>The notification type and priority to store.</returns>
+    internal static (NotificationType Type, NotificationPriority Priority) MapNotificationCategory(
+        string? category)
+        => string.Equals(category, "Reminder", StringComparison.OrdinalIgnoreCase)
+            ? (NotificationType.Reminder, NotificationPriority.High)
+            : (NotificationType.Info, NotificationPriority.Normal);
 
     /// <summary>
     /// Publishes an event on the event bus (IEventBus capability).

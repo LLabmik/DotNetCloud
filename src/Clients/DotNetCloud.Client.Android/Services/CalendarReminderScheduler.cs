@@ -1,3 +1,4 @@
+using System.Globalization;
 using Android.App;
 using Android.Content;
 using Android.Util;
@@ -14,10 +15,21 @@ namespace DotNetCloud.Client.Android.Services;
 /// Uses <c>SetExactAndAllowWhileIdle()</c> for precise timing that wakes from Doze mode.
 /// Supports cancellation, boot-time reschedule, and permission-aware fallback.
 /// </summary>
+/// <remarks>
+/// <para>
+/// Alarm identity is derived from <see cref="CalendarAlarmIdentity"/> and is therefore stable across
+/// app processes, so re-scheduling a reminder <em>replaces</em> its pending alarm instead of adding a
+/// second one. The set of armed alarms is persisted, which makes cancellation exact (any offset, not
+/// just a fixed list) and lets a resync cancel alarms that are no longer wanted.
+/// </para>
+/// <para>
+/// Occurrences that have already been delivered are remembered, so a reminder that became due while
+/// the app was not running is delivered exactly once instead of re-firing on every calendar load,
+/// boot and SignalR reconnect.
+/// </para>
+/// </remarks>
 internal sealed class CalendarReminderScheduler : ICalendarReminderScheduler
 {
-    private const string PrefsKey = "CalendarReminderScheduledAlarms";
-
     private readonly ICalendarRestClient _calendarApi;
     private readonly IServerConnectionStore _serverStore;
     private readonly ISecureTokenStore _tokenStore;
@@ -56,9 +68,13 @@ internal sealed class CalendarReminderScheduler : ICalendarReminderScheduler
         }
 
         var now = DateTime.UtcNow;
-        var scheduledCount = 0;
 
         Log.Info("DotNetCloud", $"ScheduleRemindersAsync: processing {events.Count} events at {now:O}");
+
+        // Collect every reminder occurrence we know about, keyed by its stable identity so an alarm
+        // can be mapped back to the event that produced it.
+        var desired = new List<CalendarReminderRecord>();
+        var sources = new Dictionary<string, CalendarEventDto>(StringComparer.Ordinal);
 
         foreach (var evt in events)
         {
@@ -68,50 +84,50 @@ internal sealed class CalendarReminderScheduler : ICalendarReminderScheduler
             // Allow events that started up to 1 hour ago — they may still have
             // pending reminders (e.g. a "5 min before" reminder for an event
             // that started 3 min ago should still fire immediately).
-            var startWindow = now.AddHours(-1);
-            if (startUtc <= startWindow)
+            if (startUtc <= now.AddHours(-1))
             {
                 Log.Info("DotNetCloud", $"  Skip event {evt.Id}: start {startUtc:O} >1hr ago");
                 continue;
             }
 
-            Log.Info("DotNetCloud", $"  Process event {evt.Id}: '{evt.Title}' at {startUtc:O}, {evt.Reminders.Count} reminders");
-
-            // Cancel any existing alarms for this event first
-            CancelReminders(evt.Id);
-
             foreach (var reminder in evt.Reminders)
             {
-                // Skip email reminders — those are handled server-side
-                if (reminder.Method != ReminderMethod.Notification)
-                {
-                    Log.Info("DotNetCloud", $"    Skip email reminder for event {evt.Id}");
+                // Skip email reminders — those are handled server-side.
+                if (reminder.Method != ReminderMethod.Notification || reminder.MinutesBefore < 0)
                     continue;
-                }
 
-                var triggerTime = DateTime.SpecifyKind(
-                    startUtc.AddMinutes(-reminder.MinutesBefore), DateTimeKind.Utc);
-                Log.Info("DotNetCloud", $"    Reminder T-{reminder.MinutesBefore}min: trigger={triggerTime:O}, now={now:O}");
-
-                // If trigger time is past but event hasn't started, fire now
-                if (triggerTime <= now)
-                {
-                    Log.Info("DotNetCloud", $"    -> Trigger time past, scheduling immediately");
-                    ScheduleSingleAlarm(
-                        context, alarmManager, evt, now, reminder.MinutesBefore,
-                        canScheduleExact);
-                    scheduledCount++;
+                var record = new CalendarReminderRecord(evt.Id, startUtc, reminder.MinutesBefore);
+                if (!sources.TryAdd(record.Key, evt))
                     continue;
-                }
 
-                ScheduleSingleAlarm(
-                    context, alarmManager, evt, triggerTime, reminder.MinutesBefore,
-                    canScheduleExact);
-                scheduledCount++;
+                desired.Add(record);
             }
         }
 
-        _logger.LogInformation("Scheduled {Count} calendar reminder alarms.", scheduledCount);
+        var planned = CalendarReminderPlanner.Plan(
+            desired, CalendarReminderAlarmStore.GetDeliveredKeys(), now);
+
+        // Cancel anything armed by an earlier pass that is no longer wanted — the event was deleted or
+        // edited, the reminder was removed, or the occurrence has already been delivered. Without this
+        // the stale alarm stays armed and fires as a duplicate.
+        var stale = CalendarReminderPlanner.ToCancel(CalendarReminderAlarmStore.GetScheduled(), planned);
+        foreach (var record in stale)
+        {
+            CancelAlarm(context, alarmManager, record);
+            _logger.LogDebug("Cancelled stale calendar reminder alarm for event {EventId}.", record.EventId);
+        }
+
+        foreach (var alarm in planned)
+        {
+            ScheduleSingleAlarm(context, alarmManager, sources[alarm.Reminder.Key], alarm, canScheduleExact);
+        }
+
+        CalendarReminderAlarmStore.SetScheduled(planned.Select(alarm => alarm.Reminder));
+
+        Log.Info("DotNetCloud", $"Scheduled {planned.Count} calendar reminder alarm(s), cancelled {stale.Count} stale.");
+        _logger.LogInformation(
+            "Scheduled {Count} calendar reminder alarms ({CatchUp} catch-up).",
+            planned.Count, planned.Count(alarm => alarm.IsCatchUp));
     }
 
     /// <inheritdoc />
@@ -122,17 +138,28 @@ internal sealed class CalendarReminderScheduler : ICalendarReminderScheduler
         if (alarmManager is null)
             return;
 
-        // Cancel each known reminder slot for this event. Each reminder
-        // uses a unique request code (eventId + minutesBefore hash).
-        foreach (var minutesBefore in KnownReminderMinutes)
+        // Cancel every alarm armed for this event, whatever its offset. The previous implementation
+        // could only cancel a fixed list of offsets, so a reminder configured outside that list (for
+        // example one week before the event) stayed armed for its whole lifetime.
+        var remaining = new List<CalendarReminderRecord>();
+        var cancelled = 0;
+
+        foreach (var record in CalendarReminderAlarmStore.GetScheduled())
         {
-            var pendingIntent = CreatePendingIntent(
-                context, eventId.ToString(), minutesBefore, action: PendingIntentActions.Cancel);
-            alarmManager.Cancel(pendingIntent);
-            pendingIntent?.Cancel();
+            if (record.EventId == eventId)
+            {
+                CancelAlarm(context, alarmManager, record);
+                cancelled++;
+            }
+            else
+            {
+                remaining.Add(record);
+            }
         }
 
-        _logger.LogDebug("Cancelled alarms for event {EventId}.", eventId);
+        CalendarReminderAlarmStore.SetScheduled(remaining);
+
+        _logger.LogDebug("Cancelled {Count} alarm(s) for event {EventId}.", cancelled, eventId);
     }
 
     /// <inheritdoc />
@@ -143,8 +170,16 @@ internal sealed class CalendarReminderScheduler : ICalendarReminderScheduler
         if (alarmManager is null)
             return;
 
-        // Clear the preferences tracking store
-        Preferences.Default.Remove(PrefsKey);
+        // Actually cancel every alarm we armed. This used to clear only a preferences key while
+        // leaving the alarms armed, so each "resync" added a second alarm for every reminder it
+        // re-scheduled. Delivered-occurrence records are deliberately kept, so a resync does not
+        // re-alert an occurrence that was already delivered.
+        foreach (var record in CalendarReminderAlarmStore.GetScheduled())
+        {
+            CancelAlarm(context, alarmManager, record);
+        }
+
+        CalendarReminderAlarmStore.SetScheduled([]);
 
         _logger.LogInformation("Cancelled all calendar reminder alarms.");
     }
@@ -231,17 +266,18 @@ internal sealed class CalendarReminderScheduler : ICalendarReminderScheduler
         Context context,
         AlarmManager alarmManager,
         CalendarEventDto evt,
-        DateTime triggerTimeUtc,
-        int minutesBefore,
+        PlannedCalendarAlarm alarm,
         bool hasExactAlarmPermission)
     {
-        var intent = CreateAlarmIntent(context, evt, minutesBefore);
-        var pendingIntent = CreatePendingIntent(context, evt.Id.ToString(), minutesBefore, intent);
+        var triggerTimeUtc = alarm.FireAtUtc;
+        var minutesBefore = alarm.Reminder.MinutesBefore;
+        var pendingIntent = CreateAlarmPendingIntent(context, evt, alarm.Reminder);
 
         var triggerMillis = new DateTimeOffset(
             DateTime.SpecifyKind(triggerTimeUtc, DateTimeKind.Utc)).ToUnixTimeMilliseconds();
 
-        Log.Info("DotNetCloud", $"    triggerMillis={triggerMillis} for local-time {triggerTimeUtc:O} (device local={DateTime.Now:O})");
+        Log.Info("DotNetCloud", $"    triggerMillis={triggerMillis} for local-time {triggerTimeUtc:O} " +
+            $"(device local={DateTime.Now:O}, catchUp={alarm.IsCatchUp})");
 
         if (hasExactAlarmPermission && CanScheduleExactAlarms(context))
         {
@@ -251,8 +287,8 @@ internal sealed class CalendarReminderScheduler : ICalendarReminderScheduler
                 pendingIntent);
 
             _logger.LogDebug(
-                "Scheduled exact alarm for event {EventId} at {TriggerTime} (T-{MinutesBefore}min).",
-                evt.Id, triggerTimeUtc.ToString("O"), minutesBefore);
+                "Scheduled exact alarm for event {EventId} at {TriggerTime} (T-{MinutesBefore}min, catchUp={CatchUp}).",
+                evt.Id, triggerTimeUtc.ToString("O"), minutesBefore, alarm.IsCatchUp);
         }
         else
         {
@@ -262,41 +298,46 @@ internal sealed class CalendarReminderScheduler : ICalendarReminderScheduler
                 pendingIntent);
 
             _logger.LogDebug(
-                "Scheduled inexact alarm for event {EventId} at {TriggerTime} (T-{MinutesBefore}min).",
-                evt.Id, triggerTimeUtc.ToString("O"), minutesBefore);
+                "Scheduled inexact alarm for event {EventId} at {TriggerTime} (T-{MinutesBefore}min, catchUp={CatchUp}).",
+                evt.Id, triggerTimeUtc.ToString("O"), minutesBefore, alarm.IsCatchUp);
         }
     }
 
-    private static Intent CreateAlarmIntent(Context context, CalendarEventDto evt, int minutesBefore)
+    /// <summary>
+    /// Cancels a previously armed reminder alarm.
+    /// </summary>
+    /// <remarks>
+    /// Only the request code and the intent filter (action + component) have to match the original —
+    /// <c>Intent.filterEquals</c> ignores extras — so a bare intent is enough to find the alarm.
+    /// <see cref="PendingIntentFlags.NoCreate"/> avoids creating a pending intent just to cancel it.
+    /// </remarks>
+    private static void CancelAlarm(Context context, AlarmManager alarmManager, CalendarReminderRecord record)
     {
         var intent = new Intent(context, typeof(CalendarAlarmReceiver));
         intent.SetAction(CalendarAlarmReceiver.ActionCalendarReminder);
-        intent.PutExtra(CalendarAlarmReceiver.ExtraEventId, evt.Id.ToString());
-        intent.PutExtra(CalendarAlarmReceiver.ExtraTitle, evt.Title);
-        intent.PutExtra(CalendarAlarmReceiver.ExtraCalendarId, evt.CalendarId.ToString());
-        intent.PutExtra(CalendarAlarmReceiver.ExtraReminderMinutesBefore, minutesBefore);
-        return intent;
+
+        var requestCode = CalendarAlarmIdentity.RequestCode(
+            record.EventId, record.OccurrenceStartUtc, record.MinutesBefore);
+
+        var pendingIntent = PendingIntent.GetBroadcast(
+            context, requestCode, intent, PendingIntentFlags.Immutable | PendingIntentFlags.NoCreate);
+
+        if (pendingIntent is null)
+            return;
+
+        alarmManager.Cancel(pendingIntent);
+        pendingIntent.Cancel();
     }
 
-    /// <summary>Standard reminder minutes-before values used for cancellation.</summary>
-    private static readonly int[] KnownReminderMinutes = [0, 5, 10, 15, 30, 60, 120, 1440];
-
-    private static PendingIntent CreatePendingIntent(
-        Context context, string eventId, int minutesBefore, Intent? intent = null,
-        PendingIntentActions action = PendingIntentActions.Set)
+    private static PendingIntent CreateAlarmPendingIntent(
+        Context context, CalendarEventDto evt, CalendarReminderRecord reminder)
     {
-        // Use a deterministic request code based on eventId + minutesBefore so that
-        // each reminder gets a unique PendingIntent (fixes collision bug where
-        // multiple reminders per event would overwrite each other).
-        var requestCode = HashCode.Combine(eventId.GetHashCode(), minutesBefore);
+        var intent = CreateAlarmIntent(context, evt, reminder);
 
-        if (intent is null)
-        {
-            // Create a dummy intent for cancellation (must match the original)
-            intent = new Intent(context, typeof(CalendarAlarmReceiver));
-            intent.SetAction(CalendarAlarmReceiver.ActionCalendarReminder);
-            intent.PutExtra(CalendarAlarmReceiver.ExtraEventId, eventId);
-        }
+        // The request code is derived from the reminder's stable identity, so re-scheduling the same
+        // reminder in a later process updates the existing alarm rather than adding another one.
+        var requestCode = CalendarAlarmIdentity.RequestCode(
+            reminder.EventId, reminder.OccurrenceStartUtc, reminder.MinutesBefore);
 
         var flags = PendingIntentFlags.Immutable | PendingIntentFlags.UpdateCurrent;
 
@@ -305,5 +346,20 @@ internal sealed class CalendarReminderScheduler : ICalendarReminderScheduler
         return PendingIntent.GetBroadcast(context, requestCode, intent, flags)!;
     }
 
-    private enum PendingIntentActions { Set, Cancel }
+    private static Intent CreateAlarmIntent(Context context, CalendarEventDto evt, CalendarReminderRecord reminder)
+    {
+        var intent = new Intent(context, typeof(CalendarAlarmReceiver));
+        intent.SetAction(CalendarAlarmReceiver.ActionCalendarReminder);
+        intent.PutExtra(CalendarAlarmReceiver.ExtraEventId, evt.Id.ToString());
+        intent.PutExtra(CalendarAlarmReceiver.ExtraTitle, evt.Title);
+        intent.PutExtra(CalendarAlarmReceiver.ExtraCalendarId, evt.CalendarId.ToString());
+        intent.PutExtra(CalendarAlarmReceiver.ExtraReminderMinutesBefore, reminder.MinutesBefore);
+
+        // Carried so the notification can report the real time remaining at the moment it fires.
+        intent.PutExtra(
+            CalendarAlarmReceiver.ExtraEventStartUtc,
+            reminder.OccurrenceStartUtc.ToString("O", CultureInfo.InvariantCulture));
+
+        return intent;
+    }
 }

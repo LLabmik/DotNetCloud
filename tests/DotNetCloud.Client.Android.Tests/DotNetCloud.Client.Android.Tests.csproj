@@ -114,6 +114,9 @@
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Calendar\ICalendarRestClient.cs" Link="AndroidApp\Calendar\ICalendarRestClient.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Calendar\ICalendarSignalRClient.cs" Link="AndroidApp\Calendar\ICalendarSignalRClient.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\ICalendarReminderScheduler.cs" Link="AndroidApp\Services\ICalendarReminderScheduler.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\CalendarAlarmIdentity.cs" Link="AndroidApp\Services\CalendarAlarmIdentity.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\CalendarReminderPlanner.cs" Link="AndroidApp\Services\CalendarReminderPlanner.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\CalendarReminderText.cs" Link="AndroidApp\Services\CalendarReminderText.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Messages\CalendarEventChangedMessage.cs" Link="AndroidApp\Messages\CalendarEventChangedMessage.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\ViewModels\CalendarViewModel.cs" Link="AndroidApp\ViewModels\CalendarViewModel.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Converters\LocalTimeConverter.cs" Link="AndroidApp\Converters\LocalTimeConverter.cs" />
