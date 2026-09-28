@@ -49,7 +49,7 @@
 
 ## Recent Work — Chat retention: archive-to-disk + attachment caps expire instead of rejecting (2026-09-27, `feature/new-admin-settings`)
 
-> Tracked in `docs/CHAT_ADMIN_SETTINGS_PLAN.md`; admin reference `docs/admin/CHAT.md`. The Android half is handed to `monolith`.
+> Tracked in `docs/CHAT_ADMIN_SETTINGS_PLAN.md`; admin reference `docs/admin/CHAT.md`. The Android half was handed to `monolith` and is **implemented + on-device verified** (2026-09-28).
 
 - ✓ **Archive mode exports to disk, then removes the rows** — `ChatArchiveExporter` writes one JSON record per expired message plus a copy of every attachment payload the Chat module owns, laid out as `{root}/{yyyy}/{MM}/{messageId}.json` (payloads under `/{messageId}/{fileName}`), and only then does `ChatMessageExpiryService` delete the message/attachment rows. A message whose export fails is **kept** and retried next sweep; if the archive root cannot be created at all nothing is deleted and the sweep reports `MessagesSkipped` — a test covers this case and caught a would-be data-loss bug.
 - ✓ **New setting `Retention:ArchivePath`** — `ChatSettings.ArchivePath` + `ChatArchivePathResolver` resolve configured path → `{DOTNETCLOUD_DATA_DIR}/storage/chat-archive` → `{cwd}/storage/chat-archive`. It is editable on `/admin/chat` (absolute path validated) and the resolved location is shown in the "Currently Enforced" readout.
@@ -57,7 +57,8 @@
 - ✓ **Message length enforced in the composer** — `MessageComposer` blocks input past `Limits:MaxMessageLength` (new `wysiwyg-editor.js` `setMaxLength`), shows a `used / max` counter and disables Send; the server check remains as a safety net. A new authenticated `GET /api/v1/chat/limits` exposes the limit for non-admin clients.
 - ✓ **Tests** — Chat.Tests **1488 pass / 0 fail** (new `ChatArchiveExporterTests` + `ChatArchivePathResolverTests`; the retention/limit tests are now SQLite-backed so the bulk statements really execute).
 - ✓ **Android handoff** — `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md` (target `monolith`): apply `maxMessageLength` to the Android composer using the new `/api/v1/chat/limits`.
-- ☐ **Operator verification** — set a short message length and a per-channel attachment ceiling on `/admin/chat`; confirm the composer stops at the limit, that the oldest attachments expire instead of the upload being rejected, and that archived messages land under `year/month` in the archive location.
+- ✓ **Android composer enforces the limit (client agent — `monolith`, 2026-09-28)** — new `ChatLimits` record + `IChatRestClient.GetChatLimitsAsync` (`GET /api/v1/chat/limits`, degrading to the built-in `10000/10/10` for a 503/404/failure), an Android `InputFilterLengthFilter` on the composer editor plus a view-model clamp (surrogate-safe), a `used / max` counter that turns red over the limit, Send gated on the limit, and a client-side attachment-size pre-check. Verified on-device (R5CWC356B2K): typing/pasting past the limit is impossible, the counter reads `used / max`, a message at exactly the limit sends (no 400), and the fallback path logs `GetChatLimitsAsync HTTP 404 … using built-in defaults`. Android tests **466 pass / 1 skip**; arm64 Debug build 0 warnings.
+- ☐ **Operator verification** — set a short message length and a per-channel attachment ceiling on `/admin/chat`; confirm the composer stops at the limit (**web and Android** — the Android composer reads the same value from `/api/v1/chat/limits`), that the oldest attachments expire instead of the upload being rejected, and that archived messages land under `year/month` in the archive location.
 
 ## Recent Work — Admin settings page styling (shared shell) (2026-09-27, `feature/new-admin-settings`)
 

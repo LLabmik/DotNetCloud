@@ -1,3 +1,42 @@
+## Archived: Client agent (`monolith`) — Android chat composer enforces the admin-configured message length (2026-09-28)
+
+**Status:** completed ✅ — the client half of the chat-admin-settings handoff is implemented and verified on-device; the server half (the `GET /api/v1/chat/limits` endpoint) was already written, unit-tested and deployed to **mint22 dev**.
+**Branch:** `feature/new-admin-settings` · **Phone:** `R5CWC356B2K` · **Target:** `cloud.dotnetcloud.net` (this branch's server half is not deployed there, so the fallback path was the one exercised on the wire; the endpoint→limits mapping is unit-tested)
+**Spec:** `docs/CHAT_ADMIN_SETTINGS_PLAN.md` · **Admin reference:** `docs/admin/CHAT.md`
+
+### Why
+
+The Chat administrator can set `Limits:MaxMessageLength` (default `10000`, hard ceiling `10000`). The server rejects an over-long send with `400 VALIDATION_ERROR`, which the client surfaced as a failed send — the requirement is that the **entry control itself** stops accepting input at the limit, mirroring the Blazor composer (`used / max` counter, Send disabled).
+
+### What landed (`DotNetCloud.Client.Android`)
+
+- `Chat/ChatLimits.cs` — limits record with the built-in `10000 / 10 / 10` fallback, `IsOverMessageLength`, `MaxAttachmentBytes` and a surrogate-safe `ClampMessageText` (a clamp that would land between the halves of an emoji pair backs off one unit instead).
+- `IChatRestClient.GetChatLimitsAsync` (+ `HttpChatRestClient`) — `GET /api/v1/chat/limits`; a 503 `CHAT_SETTINGS_UNAVAILABLE`, a 404, a missing payload or any transport failure degrades to the built-in defaults, so a composer is never left unable to send.
+- `MessageListViewModel` — reads the limits when the channel opens, exposes `ComposerLength` / `IsOverMessageLength` / `ShowComposerCounter` / `ComposerCounterText`, clamps text that exceeds the limit (including emoji-picker and @mention inserts, and text already present when a limit arrives), gates `SendCommand` on the limit, and rejects an over-size attachment before uploading it.
+- `MessageListPage` — an Android `InputFilterLengthFilter` applied to the composer `EditText` (re-applied when the handler is rebuilt), so typing **and pasting** past the limit are impossible; the counter sits above the composer bar (right-aligned, `#94A3B8`, red `#EF4444` over the limit).
+
+### Result
+
+| Check | Evidence |
+| --- | --- |
+| Counter announced by the composer | rendered above the composer bar — `0 / 10000` on the final build, `0 / 50` with the temporary probe |
+| Input stops exactly at the limit | 60 characters typed into a limit of 50 → the editor held exactly **50** characters and the counter read **`50 / 50`** (screenshot) |
+| A message at exactly the limit sends | the 50-character message posted (own bubble "just now", composer cleared to `0 / 50`) with **no** `400 VALIDATION_ERROR` |
+| Fallback when the server has no limits endpoint | `logcat -s DotNetCloud`: `GetChatLimitsAsync HTTP 404 from https://cloud.dotnetcloud.net/api/v1/chat/limits; using built-in defaults.` |
+| Route availability (server half) | from `monolith`: `mint22:5443/api/v1/chat/limits` → **401** (route exists, auth required) vs `…/chat/zzz-not-a-route` → **404**; `cloud.dotnetcloud.net/api/v1/chat/limits` → **404** (not deployed to production) |
+| Build / tests | arm64 Debug **0 warnings / 0 errors**; Android tests **466 pass / 1 skip**; new tests: `ChatLimitsTests` (defaults, over-limit detection, clamp incl. surrogate boundary, attachment bytes) + 8 composer tests in `MessageListViewModelTests` (loads admin limits, falls back on failure without surfacing an error, clamps typing, clamps on a lowered limit, never splits an emoji, no limit ⇒ unrestricted, a message at exactly the limit sends) |
+
+### Method (reusable)
+
+The phone is signed in to `cloud.dotnetcloud.net`, which does not have the endpoint, so the wire path exercised was the **fallback**. The `50` limit in the table came from a temporary `ChatLimits.Defaults = new(50, 10, 10)` probe (the repo's fault-injection E2E recipe), removed before the final build was installed: build → `adb install -r --no-incremental` → open a DM → tap the composer → `adb shell input text "<60 chars>"` → screenshot. `git status` was checked afterwards to confirm the probe was gone.
+
+### Not exercised (and why)
+
+- A **real administrator-set value over the wire** (`/admin/chat` set to 50 while the phone is signed in to `mint22`): needs a `mint22` sign-in, and credentials never go through the agent. The mapping from the API payload to the limits used by the composer is covered by `InitializeAsync_LoadsAdminConfiguredLimits`.
+- The **attachment-size pre-check**: needs a file larger than the configured cap; it is covered by inspection only (`ChatLimitsTests` covers the byte conversion).
+
+---
+
 ## Archived: Client agent (`monolith`) — phone-side `304` confirmation for the chat-alerts poll + `200`/alert regression (2026-09-19)
 
 **Status:** completed ✅ — the chat-alerts poll contract is now verified end-to-end **from the device** in both directions; nothing outstanding on either side.

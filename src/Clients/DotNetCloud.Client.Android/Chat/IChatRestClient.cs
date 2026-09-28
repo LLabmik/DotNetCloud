@@ -11,6 +11,24 @@ public interface IChatRestClient
     /// <summary>Returns all channels visible to the current user.</summary>
     Task<IReadOnlyList<ChannelSummary>> GetChannelsAsync(string serverBaseUrl, string accessToken, CancellationToken ct = default);
 
+    // ── Limits ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Gets the message and attachment limits the Chat module administrator configured, so the
+    /// composer can stop an over-limit message instead of letting the send fail. Available to every
+    /// authenticated user (not just admins); values change only when an administrator edits them.
+    /// </summary>
+    /// <remarks>
+    /// The server answers <c>503 CHAT_SETTINGS_UNAVAILABLE</c> when the host has no settings provider.
+    /// That, and any other failure, yields <see cref="ChatLimits.Defaults"/> so a caller can carry on
+    /// without having to handle the error itself.
+    /// </remarks>
+    /// <param name="serverBaseUrl">Base URL of the server.</param>
+    /// <param name="accessToken">Bearer access token of the signed-in user.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The effective limits, or <see cref="ChatLimits.Defaults"/> when they cannot be read.</returns>
+    Task<ChatLimits> GetChatLimitsAsync(string serverBaseUrl, string accessToken, CancellationToken ct = default);
+
     // ── Messages ─────────────────────────────────────────────────────
 
     /// <summary>

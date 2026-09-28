@@ -2,8 +2,8 @@
 
 > **Created:** 2026-09-22
 > **Branch:** `feature/new-admin-settings`
-> **Status:** Implemented (build + unit/integration tests green); live verification pending deploy
-> **Scope:** Server (Chat module + core admin settings + Blazor admin UI)
+> **Status:** Implemented (build + unit/integration tests green); server side live-verified on mint22; the Android composer half implemented + on-device verified (2026-09-28)
+> **Scope:** Server (Chat module + core admin settings + Blazor admin UI) + Android client (`monolith`)
 
 ---
 
@@ -106,6 +106,25 @@ chat container for the Blazor UI. The sweep:
 Bulk `ExecuteUpdate`/`ExecuteDelete` are used throughout, so a large sweep does not materialize
 every message in the change tracker. The interval is re-read each pass, so changing it (or
 disabling retention) applies on the next tick without restarting the module.
+
+### Android client (`monolith`, 2026-09-28)
+
+`ChatLimits` + `IChatRestClient.GetChatLimitsAsync` read `GET /api/v1/chat/limits` when a channel opens,
+degrading to the built-in `10000 / 10 / 10` for a 503/404/failure so a composer is never left unable to
+send. Enforcement mirrors the web composer:
+
+- an Android `InputFilterLengthFilter` on the composer's `EditText` (applied by the page, re-applied when
+  the handler is rebuilt) makes typing or pasting past `maxMessageLength` impossible;
+- `MessageListViewModel` clamps programmatic inserts (emoji picker, @mention completion) and any text
+  already present when a limit arrives, without ever leaving half a surrogate pair behind;
+- a `used / max` counter is shown while a limit is configured and turns red if the text exceeds it;
+- Send is gated on the limit (`CanSend`), with the server's `400 VALIDATION_ERROR` still the safety net;
+- the same payload's `maxAttachmentSizeMb` is checked before an attachment upload is attempted.
+
+Verified on-device (R5CWC356B2K, 2026-09-28): typing 60 characters into a composer limited to 50 stopped
+at exactly 50 with the counter reading `50 / 50`, a 50-character message sent successfully, and the
+fallback path logged `GetChatLimitsAsync HTTP 404 … using built-in defaults` (production has no limits
+endpoint yet). Android tests **466 pass / 1 skip**; arm64 Debug build 0 warnings / 0 errors.
 
 ## Data model change
 

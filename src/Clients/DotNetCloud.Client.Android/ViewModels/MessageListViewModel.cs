@@ -127,6 +127,30 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
     [NotifyCanExecuteChangedFor(nameof(SendCommand))]
     private string _composerText = string.Empty;
 
+    /// <summary>
+    /// Message and attachment limits the Chat administrator configured, read from
+    /// <c>GET /api/v1/chat/limits</c> when the channel opens. The composer enforces the message
+    /// length locally so an over-limit send never has to fail server-side.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SendCommand))]
+    private ChatLimits _limits = ChatLimits.Defaults;
+
+    /// <summary>Number of characters currently in the composer.</summary>
+    public int ComposerLength => ComposerText.Length;
+
+    /// <summary>Whether the composer holds more text than the configured message length allows.</summary>
+    public bool IsOverMessageLength => Limits.IsOverMessageLength(ComposerText);
+
+    /// <summary>
+    /// Whether the composer should show its "used / max" character counter, mirroring the web
+    /// composer. Hidden when the server reports no message length limit.
+    /// </summary>
+    public bool ShowComposerCounter => Limits.HasMessageLengthLimit;
+
+    /// <summary>The "used / max" character-counter text shown with the composer.</summary>
+    public string ComposerCounterText => $"{ComposerLength} / {Limits.MaxMessageLength}";
+
     [ObservableProperty]
     private bool _isLoading;
 
@@ -209,6 +233,10 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
             {
                 _logger.LogWarning(ex, "Could not extract current user ID from token; own-message detection disabled.");
             }
+
+            // Administrator-configured message/attachment limits, so the composer can enforce the
+            // message length instead of letting the send fail with 400 VALIDATION_ERROR.
+            await LoadChatLimitsAsync(ct);
 
             // Load members first so we can resolve sender names
             await LoadMemberNamesAsync(ct);
@@ -304,6 +332,25 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
             return AccessTokenUserIdExtractor.ExtractUserId(_accessToken);
 
         throw new InvalidOperationException("No readable token available to resolve the current user ID.");
+    }
+
+    /// <summary>
+    /// Reads the administrator-configured chat limits so the composer can enforce them. The API
+    /// client already degrades to <see cref="ChatLimits.Defaults"/> for a 503/transport failure; the
+    /// catch here keeps an unexpected failure from aborting channel initialisation.
+    /// </summary>
+    /// <param name="ct">Cancellation token.</param>
+    private async Task LoadChatLimitsAsync(CancellationToken ct)
+    {
+        try
+        {
+            Limits = await _chatApi.GetChatLimitsAsync(_serverUrl!, _accessToken!, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogDebug(ex, "Could not read chat limits; using built-in defaults.");
+            Limits = ChatLimits.Defaults;
+        }
     }
 
     private async Task LoadMemberNamesAsync(CancellationToken ct)
@@ -688,6 +735,18 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
                 fileBytes = ms.ToArray();
             }
 
+            // Enforce the administrator-configured attachment size before spending an upload on a
+            // file the server would reject anyway.
+            var maxAttachmentBytes = Limits.MaxAttachmentBytes;
+            if (maxAttachmentBytes > 0 && fileBytes.Length > maxAttachmentBytes)
+            {
+                _logger.LogInformation(
+                    "Attachment rejected client-side: {Bytes} bytes exceeds the configured {MaxMb} MB limit.",
+                    fileBytes.Length, Limits.MaxAttachmentSizeMb);
+                ErrorMessage = $"That file is larger than the {Limits.MaxAttachmentSizeMb} MB attachment limit.";
+                return;
+            }
+
             // Step 2: Upload the image to the server and store as pending
             using var uploadStream = new MemoryStream(fileBytes);
             var uploadResult = await _chatApi.UploadImageAsync(
@@ -712,6 +771,20 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
 
     partial void OnComposerTextChanged(string value)
     {
+        // Enforce the administrator-configured message length. The entry control carries a matching
+        // Android input filter, so typing and pasting are already stopped at the limit; this guard
+        // covers text appended programmatically (emoji picker, @mention completion) and any other path.
+        var clamped = Limits.ClampMessageText(value);
+        if (!string.Equals(clamped, value, StringComparison.Ordinal))
+        {
+            ComposerText = clamped; // re-enters this handler once with the clamped text
+            return;
+        }
+
+        OnPropertyChanged(nameof(ComposerLength));
+        OnPropertyChanged(nameof(IsOverMessageLength));
+        OnPropertyChanged(nameof(ComposerCounterText));
+
         // @mention autocomplete — detect trailing @word
         UpdateMentionSuggestions(value);
 
@@ -726,6 +799,21 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
         {
             StartTypingHeartbeatIfNeeded();
         }
+    }
+
+    /// <summary>
+    /// Applies newly read limits to the composer. A limit that arrives after the user started typing
+    /// (or an administrator lowering it while the channel is open) must not leave text in the box
+    /// that can no longer be sent.
+    /// </summary>
+    partial void OnLimitsChanged(ChatLimits value)
+    {
+        if (value.IsOverMessageLength(ComposerText))
+            ComposerText = value.ClampMessageText(ComposerText);
+
+        OnPropertyChanged(nameof(IsOverMessageLength));
+        OnPropertyChanged(nameof(ShowComposerCounter));
+        OnPropertyChanged(nameof(ComposerCounterText));
     }
 
     /// <summary>Starts the typing-heartbeat loop if it isn't already running.</summary>
@@ -954,7 +1042,8 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
         ShowMentionSuggestions = matches.Count > 0 && partial.Length > 0;
     }
 
-    private bool CanSend() => (!string.IsNullOrWhiteSpace(ComposerText) || HasPendingAttachment) && !IsSending;
+    private bool CanSend() =>
+        (!string.IsNullOrWhiteSpace(ComposerText) || HasPendingAttachment) && !IsSending && !IsOverMessageLength;
 
     /// <summary>Raised when the user wants to view full channel details.</summary>
     public event EventHandler? ViewDetailsRequested;
