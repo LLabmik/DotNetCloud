@@ -18,10 +18,78 @@ namespace DotNetCloud.Modules.Files.Data.SqlServer.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasDefaultSchema("core")
-                .HasAnnotation("ProductVersion", "10.0.3")
+                .HasAnnotation("ProductVersion", "10.0.10")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
+
+            modelBuilder.Entity("DotNetCloud.Modules.Files.Models.AdminSharedFolderCleanupStatus", b =>
+                {
+                    b.Property<Guid>("CleanupJobId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<int>("AffectedUsers")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<int>("MediaEntitiesRemoved")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.Property<string>("Phase")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<int>("SearchDocsRemoved")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.Property<int>("SearchDocsTotal")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.Property<Guid>("SharedFolderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("StartedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<int>("UsersCleaned")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.HasKey("CleanupJobId");
+
+                    b.HasIndex("SharedFolderId")
+                        .HasDatabaseName("ix_admin_shared_folder_cleanup_statuses_shared_folder_id");
+
+                    b.HasIndex("StartedAt")
+                        .HasDatabaseName("ix_admin_shared_folder_cleanup_statuses_started_at");
+
+                    b.ToTable("AdminSharedFolderCleanupStatuses", "core");
+                });
 
             modelBuilder.Entity("DotNetCloud.Modules.Files.Models.AdminSharedFolderDefinition", b =>
                 {
@@ -820,6 +888,49 @@ namespace DotNetCloud.Modules.Files.Data.SqlServer.Migrations
                         .HasDatabaseName("ix_sync_device_cursors_user_id");
 
                     b.ToTable("SyncDeviceCursors", "core");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Files.Models.SyncFolderRegistration", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("RemoteFolderNodeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("RemoteFolderPath")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_sync_folder_registrations_user_id");
+
+                    b.HasIndex("UserId", "RemoteFolderNodeId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_sync_folder_registrations_user_folder");
+
+                    b.ToTable("SyncFolderRegistrations", "core");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Files.Models.UserSyncCounter", b =>
