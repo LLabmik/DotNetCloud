@@ -14,9 +14,15 @@ public interface ICalendarReminderScheduler
     /// given events. Existing alarms for the same event IDs are replaced.
     /// </summary>
     /// <param name="events">The events whose reminders should be scheduled.</param>
+    /// <param name="coverage">
+    /// The occurrences this pass has knowledge of. Only alarms inside it may be cancelled, so a pass
+    /// over one slice of the calendar (the visible month, the resync horizon) can never disarm a
+    /// reminder that belongs to another slice.
+    /// </param>
     /// <param name="ct">Cancellation token.</param>
     Task ScheduleRemindersAsync(
         IReadOnlyList<CalendarEventDto> events,
+        CalendarReminderCoverage coverage,
         CancellationToken ct = default);
 
     /// <summary>

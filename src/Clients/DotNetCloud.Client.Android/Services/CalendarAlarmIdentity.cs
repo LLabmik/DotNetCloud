@@ -61,6 +61,23 @@ public static class CalendarAlarmIdentity
         => StableHash(Key(eventId, occurrenceStartUtc, minutesBefore));
 
     /// <summary>
+    /// Deterministic <c>PendingIntent</c> request code for an auxiliary reminder action (snooze,
+    /// dismiss). Kept distinct from the alarm's own code so an action's pending intent never replaces
+    /// the one the alarm was armed with.
+    /// </summary>
+    /// <param name="eventId">Identifier of the calendar event.</param>
+    /// <param name="occurrenceStartUtc">UTC start of the occurrence the reminder belongs to.</param>
+    /// <param name="minutesBefore">Minutes before the occurrence start that the reminder fires.</param>
+    /// <param name="actionKey">
+    /// The action and its argument. Must be unique per pending intent: <c>PendingIntent</c> identity
+    /// ignores extras, so two actions that differ only there would otherwise share one pending intent.
+    /// </param>
+    /// <returns>A stable, non-negative request code.</returns>
+    public static int ActionRequestCode(
+        Guid eventId, DateTime occurrenceStartUtc, int minutesBefore, string actionKey)
+        => StableHash($"action|{Key(eventId, occurrenceStartUtc, minutesBefore)}|{actionKey}");
+
+    /// <summary>
     /// Deterministic notification id for a reminder occurrence, so redelivering the same reminder
     /// updates the existing notification instead of stacking a second one.
     /// </summary>

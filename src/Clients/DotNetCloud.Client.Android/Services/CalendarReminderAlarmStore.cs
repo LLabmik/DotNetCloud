@@ -36,6 +36,21 @@ internal static class CalendarReminderAlarmStore
             CalendarReminderRecords.Serialize(
                 CalendarReminderRecords.Prune(records, DateTime.UtcNow, RecordRetention)));
 
+    /// <summary>
+    /// Drops one occurrence from the armed-alarm bookkeeping, so a later scheduling pass cannot cancel the
+    /// alarm currently armed for it. Used when a snooze re-arms an already-delivered occurrence: the
+    /// reminder is recorded as delivered, so no pass will plan it again, and the snooze the user asked for
+    /// must survive the next pass.
+    /// </summary>
+    /// <param name="record">The reminder occurrence to forget.</param>
+    internal static void ForgetScheduled(CalendarReminderRecord record)
+    {
+        var remaining = CalendarReminderRecords.Prune(
+            CalendarReminderRecords.Except(GetScheduled(), record), DateTime.UtcNow, RecordRetention);
+
+        Preferences.Default.Set(ScheduledKey, CalendarReminderRecords.Serialize(remaining));
+    }
+
     /// <summary>Returns the reminder occurrences already delivered.</summary>
     /// <returns>The delivered occurrences, empty when nothing is recorded.</returns>
     internal static List<CalendarReminderRecord> GetDelivered()
