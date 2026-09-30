@@ -271,6 +271,87 @@ public class VersionServiceTests
     }
 
     [TestMethod]
+    public async Task DeleteAllVersionsAsync_MultipleVersions_KeepsNewestAndDecrementsRefcount()
+    {
+        using var db = CreateContext();
+        var userId = Guid.CreateVersion7();
+        var (node, v1, chunk1) = SeedFileWithVersion(db, userId);
+
+        var chunk2 = new FileChunk { ChunkHash = "chunk_hash_v2", StoragePath = "chunks/ch/un/chunk_hash_v2", Size = 200, ReferenceCount = 1 };
+        db.FileChunks.Add(chunk2);
+        var v2 = new FileVersion
+        {
+            FileNodeId = node.Id,
+            VersionNumber = 2,
+            Size = 200,
+            ContentHash = "hash_v2",
+            StoragePath = "files/v2",
+            CreatedByUserId = userId
+        };
+        db.FileVersions.Add(v2);
+        db.FileVersionChunks.Add(new FileVersionChunk { FileVersionId = v2.Id, FileChunkId = chunk2.Id, SequenceIndex = 0 });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var deleted = await service.DeleteAllVersionsAsync(node.Id, UserCaller(userId));
+
+        Assert.AreEqual(1, deleted);
+
+        // The current (newest) version survives; only past versions are removed.
+        Assert.IsNull(await db.FileVersions.FindAsync(v1.Id));
+        Assert.IsNotNull(await db.FileVersions.FindAsync(v2.Id));
+        Assert.AreEqual(1, await db.FileVersionChunks.CountAsync());
+
+        // Only the deleted version's chunk refcount drops.
+        Assert.AreEqual(0, (await db.FileChunks.FindAsync(chunk1.Id))!.ReferenceCount);
+        Assert.AreEqual(1, (await db.FileChunks.FindAsync(chunk2.Id))!.ReferenceCount);
+    }
+
+    [TestMethod]
+    public async Task DeleteAllVersionsAsync_OnlyVersion_ReturnsZeroAndKeepsVersion()
+    {
+        using var db = CreateContext();
+        var userId = Guid.CreateVersion7();
+        var (node, version, _) = SeedFileWithVersion(db, userId);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var deleted = await service.DeleteAllVersionsAsync(node.Id, UserCaller(userId));
+
+        Assert.AreEqual(0, deleted);
+        Assert.IsNotNull(await db.FileVersions.FindAsync(version.Id));
+    }
+
+    [TestMethod]
+    public async Task DeleteAllVersionsAsync_Folder_ThrowsInvalidOperationException()
+    {
+        using var db = CreateContext();
+        var userId = Guid.CreateVersion7();
+        var folder = new FileNode { Name = "Folder", NodeType = FileNodeType.Folder, OwnerId = userId };
+        db.FileNodes.Add(folder);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+
+        await Assert.ThrowsExactlyAsync<Core.Errors.InvalidOperationException>(
+            () => service.DeleteAllVersionsAsync(folder.Id, UserCaller(userId)));
+    }
+
+    [TestMethod]
+    public async Task DeleteAllVersionsAsync_NonOwner_ThrowsForbiddenException()
+    {
+        using var db = CreateContext();
+        var ownerId = Guid.CreateVersion7();
+        var (node, _, _) = SeedFileWithVersion(db, ownerId);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+
+        await Assert.ThrowsExactlyAsync<Core.Errors.ForbiddenException>(
+            () => service.DeleteAllVersionsAsync(node.Id, UserCaller(Guid.CreateVersion7())));
+    }
+
+    [TestMethod]
     public async Task GetVersionByNumberAsync_ExistingVersion_ReturnsDto()
     {
         using var db = CreateContext();

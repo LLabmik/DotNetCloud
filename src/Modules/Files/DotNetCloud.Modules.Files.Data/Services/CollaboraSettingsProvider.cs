@@ -120,10 +120,18 @@ public sealed class CollaboraSettingsProvider : ICollaboraSettingsProvider
 {
     private static readonly TimeSpan DefaultCacheTtl = TimeSpan.FromSeconds(30);
 
+    /// <summary>
+    /// Upper bound for the synchronous <see cref="Current"/> read. It must not be unbounded: blocking a
+    /// ThreadPool thread on the async gate starves the pool, the gate holder's continuation never runs,
+    /// and every caller waits forever (this is how the Files page used to hang until a restart).
+    /// </summary>
+    private static readonly TimeSpan DefaultBlockingRefreshTimeout = TimeSpan.FromSeconds(2);
+
     private readonly IOptions<CollaboraOptions> _baseline;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<CollaboraSettingsProvider> _logger;
     private readonly TimeSpan _cacheTtl;
+    private readonly TimeSpan _blockingRefreshTimeout;
     private readonly SemaphoreSlim _gate = new(1, 1);
 
     private CollaboraOptions? _cached;
@@ -150,22 +158,50 @@ public sealed class CollaboraSettingsProvider : ICollaboraSettingsProvider
     /// <param name="scopeFactory">Used to resolve <see cref="IAdminSettingsService"/> from a scope.</param>
     /// <param name="logger">Logger instance.</param>
     /// <param name="cacheTtl">How long resolved values are cached; <see cref="TimeSpan.Zero"/> disables caching.</param>
+    /// <param name="blockingRefreshTimeout">
+    /// Upper bound for the synchronous <see cref="Current"/> read; the last known value is used when it
+    /// elapses. Must stay small — the read runs on a caller that cannot await.
+    /// </param>
     internal CollaboraSettingsProvider(
         IOptions<CollaboraOptions> baseline,
         IServiceScopeFactory scopeFactory,
         ILogger<CollaboraSettingsProvider> logger,
-        TimeSpan cacheTtl)
+        TimeSpan cacheTtl,
+        TimeSpan? blockingRefreshTimeout = null)
     {
         _baseline = baseline;
         _scopeFactory = scopeFactory;
         _logger = logger;
         _cacheTtl = cacheTtl;
+        _blockingRefreshTimeout = blockingRefreshTimeout ?? DefaultBlockingRefreshTimeout;
     }
 
     /// <inheritdoc />
-    public CollaboraOptions Current => IsExpired()
-        ? GetAsync().GetAwaiter().GetResult()
-        : _cached!;
+    public CollaboraOptions Current
+    {
+        get
+        {
+            if (!IsExpired())
+            {
+                return _cached!;
+            }
+
+            // Callers that cannot await (DI handler factories, WOPI plumbing) need a synchronous read,
+            // but it has to be bounded so it can never starve the ThreadPool and wedge the process.
+            using var timeout = new CancellationTokenSource(_blockingRefreshTimeout);
+            try
+            {
+                return GetAsync(timeout.Token).GetAwaiter().GetResult();
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogWarning(
+                    "Refreshing the Collabora settings took longer than {Timeout}; using the last known values.",
+                    _blockingRefreshTimeout);
+                return _cached ?? _baseline.Value;
+            }
+        }
+    }
 
     /// <inheritdoc />
     public async Task<CollaboraOptions> GetAsync(CancellationToken cancellationToken = default)
@@ -184,6 +220,15 @@ public sealed class CollaboraSettingsProvider : ICollaboraSettingsProvider
             }
 
             var resolved = await LoadAsync(cancellationToken).ConfigureAwait(false);
+
+            // LoadAsync degrades to the configuration baseline when it is cancelled (its catch swallows
+            // the cancellation), so a timed-out read must not be cached — that would hide the
+            // administrator's values until the cache window elapses again.
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return _cached ?? resolved;
+            }
+
             _cached = resolved;
             _cachedAtUtc = DateTime.UtcNow;
             return resolved;

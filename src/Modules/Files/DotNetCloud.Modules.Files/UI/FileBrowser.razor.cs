@@ -1264,6 +1264,14 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         StateHasChanged();
     }
 
+    /// <summary>Handles deleting all past versions of the file, keeping only the current version.</summary>
+    protected async Task HandleDeleteAllVersions()
+    {
+        var caller = await GetCallerContextAsync();
+        await VersionService.DeleteAllVersionsAsync(_versionHistoryNodeId, caller);
+        await HandleContextVersionHistory(_versionHistoryNodeId);
+    }
+
     /// <summary>Handles saving a version label.</summary>
     protected async Task HandleVersionLabelSaved((Guid VersionId, string Label) args)
     {
@@ -2761,7 +2769,11 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
 
     private async Task LoadCollaboraCapabilitiesAsync()
     {
-        var options = CollaboraSettings.Current;
+        // Await the async read. Reading ICollaboraSettingsProvider.Current here is a blocking
+        // sync-over-async call on the provider's semaphore that runs on the Blazor circuit dispatcher;
+        // a few concurrent page loads then starve the ThreadPool so the semaphore holder's continuation
+        // never runs, which wedges every Files page load until the process is restarted.
+        var options = await CollaboraSettings.GetAsync();
         _isCollaboraConfigured = options.Enabled &&
                                 (!string.IsNullOrWhiteSpace(options.ServerUrl) || options.UseBuiltInCollabora);
 

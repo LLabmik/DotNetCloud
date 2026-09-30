@@ -31,6 +31,16 @@
     }
     else
     {
+        @if (Versions.Count > 1)
+        {
+            <div class="version-panel-toolbar">
+                <button class="btn btn-sm btn-danger" @onclick="ShowDeleteAllConfirm"
+                        title="Delete all past versions of this file">
+                    <MaterialIcon Icon="delete_sweep" Size="MaterialIconSize.Sm" /> Delete all past versions
+                </button>
+            </div>
+        }
+
         <ol class="version-list" reversed>
             @foreach (var version in Versions)
             {
@@ -105,5 +115,27 @@
                 </li>
             }
         </ol>
+    }
+
+    @if (_showDeleteAllConfirm)
+    {
+        <div class="version-confirm-overlay" @onclick="CancelDeleteAll">
+            <div class="dialog" @onclick:stopPropagation>
+                <div class="dialog-header">
+                    <h3>Delete all past versions?</h3>
+                    <button class="btn-icon" @onclick="CancelDeleteAll" aria-label="Close" title="Close">X</button>
+                </div>
+                <div class="dialog-body">
+                    <p>
+                        This permanently deletes every previous version of
+                        <strong>@FileName</strong> except the current one. You cannot undo this.
+                    </p>
+                </div>
+                <div class="dialog-footer">
+                    <button class="btn btn-danger btn-sm" @onclick="ConfirmDeleteAll">Delete all</button>
+                    <button class="btn btn-sm" @onclick="CancelDeleteAll">Cancel</button>
+                </div>
+            </div>
+        </div>
     }
 </div>

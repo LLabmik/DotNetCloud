@@ -8,6 +8,16 @@
 
 ---
 
+## Recent Work — Files page locked up: sync-over-async deadlock (2026-09-29, `feature/remove-file-versions`)
+
+> Two production-visible bugs fixed on the Files module; both verified live on mint22 in the browser.
+
+- ✓ **CSP blocked the `window.blazorCulture` bootstrap** (silent regression from `037cf298`, 2026-09-27: re-indenting the inline `<script>` in `App.razor` changed its SHA-256 to `Ytp6HH…` while the allow-list still held `hTco…`). `window.blazorCulture` never existed, so the WASM client's `Program` (`blazorCulture.get`) and `MainLayout`'s `CultureSelector` (`@rendermode="InteractiveAuto"`, on every page) failed. Hash corrected in **both** `CspPolicy.ScriptHashes` and the `Security:SecurityHeaders:ContentSecurityPolicy` override in `appsettings.json`; new `CspInlineScriptTests` recomputes every inline razor script's hash and fails the build on drift (missing hash, stale hash, appsettings drift). Verified: the served header carries the new hash and every inline script on the served page is allow-listed.
+- ✓ **Files page hung forever (deadlock, proven with a memory dump)** — `/apps/files` and every folder click stalled with an inert page: anonymous requests stayed fast (`/` 302, `/health/ready` 200 in ~10 ms) but the authenticated page never returned, CPU idle, no active DB queries, nothing in the log. `CollaboraSettingsProvider.Current` blocks a thread (`GetAsync().GetAwaiter().GetResult()` over a `SemaphoreSlim(1,1)`-guarded async cache) and `FileBrowser.OnInitializedAsync` read it on **every** Files page load; a handful of concurrent/retried loads blocked enough ThreadPool threads (8-core host ⇒ pool min 8) that the gate holder's continuation could never run. `dotnet-dump` showed **six** `FileBrowser+<OnInitializedAsync>` state machines stuck in `CollaboraSettingsProvider+<GetAsync>`.
+- ✓ **Fix** — `FileBrowser` now awaits `ICollaboraSettingsProvider.GetAsync()`; both settings providers bound their synchronous `Current` read (`DefaultBlockingRefreshTimeout` = 2 s, optional ctor override) so a stuck refresh degrades to the last known/configured value instead of hanging, and a read cancelled mid-flight is no longer cached. `FileVersioningSettingsProvider` had the identical latent pattern and got the same hardening. New `SettingsProviderBlockingReadTests` (3) hold the gate from an in-flight refresh and assert `Current` still returns; Files.Tests **841 pass / 0 fail**.
+- ✓ **Verified** — `deploy.sh --force --verify` 15/15 targets, hashes verified, `/health/ready` 200; browser: `/apps/files` root 6 items → _Documents_ 2 items → Home 6 → _Music_ 2 items, with the Select toggle still entering selection mode. Before the fix only a service restart cleared it.
+- ☐ **Follow-up (not done)** — `CollaboraProcessManager` / WOPI services still read `Current` synchronously; converting them to `await GetAsync()` would remove the bounded-blocking path entirely.
+
 ## Recent Work — File versioning controls: `Enabled`, `MaxNumber`, `MaxDays` (2026-09-27, `feature/new-admin-settings`)
 
 > New admin page **Admin → File Settings** (`/admin/files`). Requested: "settings for controlling file version with Enabled, MaxNumber, and MaxDays".
@@ -2366,6 +2376,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Auto-cleanup oldest versions when limits exceeded
 - ✓ Never auto-delete labeled versions
 - ✓ Decrement chunk reference counts on version deletion
+- ✓ Manually delete all past versions at once, keeping the current version (`DeleteAllVersionsAsync`)
 
 ---
 
@@ -2607,6 +2618,7 @@ This phase implements the core Files module, which is the primary public-facing 
   - ✓ Restore to specific version
   - ✓ Add/edit version labels
   - ✓ Delete old versions
+  - ✓ Delete all past versions at once (button at top of panel + confirmation modal)
 
 #### Comments Panel
 
