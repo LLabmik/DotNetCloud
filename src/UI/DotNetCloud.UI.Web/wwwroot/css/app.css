@@ -2777,6 +2777,31 @@ textarea.input {
   flex: 1;
 }
 
+.version-panel-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.version-panel-toolbar .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Confirmation dialog stacked above the version panel (z-index 1100). */
+.version-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+}
+
 .version-panel-filename {
   font-size: 0.85rem;
   color: var(--color-text-muted);

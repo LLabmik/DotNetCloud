@@ -213,6 +213,55 @@ internal sealed class VersionService : IVersionService
     }
 
     /// <inheritdoc />
+    public async Task<int> DeleteAllVersionsAsync(Guid fileNodeId, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+
+        var node = await _db.FileNodes.FindAsync([fileNodeId], cancellationToken)
+            ?? throw new NotFoundException("FileNode", fileNodeId);
+
+        await _permissions.RequirePermissionAsync(fileNodeId, caller, SharePermission.Full, cancellationToken);
+
+        if (node.NodeType != FileNodeType.File)
+            throw new Core.Errors.InvalidOperationException("Cannot delete versions on a folder.");
+
+        // Newest first: the newest version is the content the file currently serves, so it is
+        // always kept — its chunk mappings are what the live file points at.
+        var versions = await _db.FileVersions
+            .Where(v => v.FileNodeId == fileNodeId)
+            .OrderByDescending(v => v.VersionNumber)
+            .ToListAsync(cancellationToken);
+
+        if (versions.Count <= 1)
+            return 0;
+
+        var obsolete = versions.Skip(1).ToList();
+
+        foreach (var version in obsolete)
+        {
+            // Decrement refcounts on chunks before removing the version's mappings.
+            var versionChunks = await _db.FileVersionChunks
+                .Where(vc => vc.FileVersionId == version.Id)
+                .ToListAsync(cancellationToken);
+
+            foreach (var versionChunk in versionChunks)
+            {
+                await ChunkReferenceHelper.DecrementAsync(_db, versionChunk.FileChunkId, cancellationToken);
+            }
+
+            _db.FileVersionChunks.RemoveRange(versionChunks);
+            _db.FileVersions.Remove(version);
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Deleted {Count} past version(s) of file {FileNodeId} by {UserId}",
+            obsolete.Count, fileNodeId, caller.UserId);
+
+        return obsolete.Count;
+    }
+
+    /// <inheritdoc />
     public async Task<FileVersionDto?> GetVersionByNumberAsync(Guid fileNodeId, int versionNumber, CallerContext caller, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(caller);

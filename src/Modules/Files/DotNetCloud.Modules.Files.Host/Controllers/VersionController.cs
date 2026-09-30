@@ -75,6 +75,16 @@ public class VersionController : FilesControllerBase
     });
 
     /// <summary>
+    /// Deletes every past version of a file, keeping only the current (newest) version.
+    /// </summary>
+    [HttpDelete]
+    public Task<IActionResult> DeleteAllAsync(Guid nodeId, [FromQuery] Guid userId) => ExecuteAsync(async () =>
+    {
+        var deleted = await _versionService.DeleteAllVersionsAsync(nodeId, ToCaller(userId));
+        return Ok(Envelope(new { deleted }));
+    });
+
+    /// <summary>
     /// Labels a version with a descriptive name.
     /// </summary>
     [HttpPut("{versionNumber:int}/label")]

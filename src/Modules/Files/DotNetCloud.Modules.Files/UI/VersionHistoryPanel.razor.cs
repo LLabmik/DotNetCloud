@@ -23,6 +23,9 @@ public partial class VersionHistoryPanel : ComponentBase
     /// <summary>Raised when the user requests to delete a specific version.</summary>
     [Parameter] public EventCallback<FileVersionViewModel> OnDeleteVersion { get; set; }
 
+    /// <summary>Raised when the user confirms deleting all past versions of the file.</summary>
+    [Parameter] public EventCallback OnDeleteAllVersions { get; set; }
+
     /// <summary>Raised when the user saves a version label (version, new label).</summary>
     [Parameter] public EventCallback<(Guid VersionId, string Label)> OnLabelSaved { get; set; }
 
@@ -31,6 +34,7 @@ public partial class VersionHistoryPanel : ComponentBase
 
     private List<FileVersionViewModel> _versions = [];
     private bool _isLoading;
+    private bool _showDeleteAllConfirm;
     private Guid? _editingLabelId;
     private string _editLabelValue = string.Empty;
 
@@ -114,6 +118,19 @@ public partial class VersionHistoryPanel : ComponentBase
     {
         _versions.Remove(version);
         await OnDeleteVersion.InvokeAsync(version);
+    }
+
+    /// <summary>Opens the confirmation dialog for deleting all past versions.</summary>
+    protected void ShowDeleteAllConfirm() => _showDeleteAllConfirm = true;
+
+    /// <summary>Closes the delete-all confirmation dialog without deleting anything.</summary>
+    protected void CancelDeleteAll() => _showDeleteAllConfirm = false;
+
+    /// <summary>Closes the confirmation dialog and raises the delete-all event.</summary>
+    protected async Task ConfirmDeleteAll()
+    {
+        _showDeleteAllConfirm = false;
+        await OnDeleteAllVersions.InvokeAsync();
     }
 
     /// <summary>Formats a byte count for display (e.g. "3.2 MB").</summary>

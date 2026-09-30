@@ -12,9 +12,18 @@ namespace DotNetCloud.Core.ServiceDefaults.Middleware;
 /// </para>
 /// <list type="bullet">
 /// <item>Blazor culture bootstrap (<c>window.blazorCulture</c>) in <c>App.razor</c></item>
-/// <item>Register page timezone/locale autofill script</item>
-/// <item>Change-password success redirect script</item>
+/// <item>Register page timezone/locale autofill script in <c>Register.razor</c></item>
+/// <item>Change-password success redirect script in <c>ChangePassword.razor</c></item>
 /// </list>
+/// <para>
+/// ⚠️ Each hash covers the <b>exact rendered text</b> between <c>&lt;script&gt;</c> and
+/// <c>&lt;/script&gt;</c>: re-indenting or reflowing one of those blocks changes its hash, and the
+/// browser then <b>blocks</b> the script. That is how the culture bootstrap was silently broken
+/// (the WASM client's <c>Program</c> calls <c>blazorCulture.get</c> at startup, so every page using
+/// <c>InteractiveAuto</c> — including the layout's <c>CultureSelector</c> — stalled until the hash was
+/// corrected). <c>CspInlineScriptTests</c> recomputes the hashes from the razor sources so such a change
+/// fails the build instead of shipping.
+/// </para>
 /// <para>
 /// <c>object-src</c> is locked to <c>'none'</c> and <c>base-uri</c> to <c>'self'</c>. The dynamic
 /// inline event handlers that previously existed (MFA shared-key copy, register timezone detect)
@@ -26,7 +35,7 @@ public static class CspPolicy
 {
     // SHA-256 hashes of the static inline <script> blocks (content between <script> and </script>).
     private const string ScriptHashes =
-        "'sha256-hTcoG55CxSil045VWrxfzU4efHtbQdijt+XlUjHFOa0=' " +
+        "'sha256-Ytp6HHJSMdL/d3ApRhLUpLA1qcBUJs/I50faPdWhUZw=' " +
         "'sha256-RnuCcxxWUg+bO/ctB+WDXamgM0HHQPXLhk5J0IDXT54=' " +
         "'sha256-JqHvlAUKT6P5m4HK/7n20uRVrQkhMsVXaQ888/G9Qwo='";
 
