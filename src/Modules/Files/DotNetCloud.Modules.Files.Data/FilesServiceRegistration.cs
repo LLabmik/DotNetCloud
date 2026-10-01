@@ -136,6 +136,12 @@ public static class FilesServiceRegistration
 
         services.AddSingleton<ICoreCapabilitiesClient, CoreCapabilitiesClient>();
         services.AddSingleton<IGroupDirectory, GrpcGroupDirectory>();
+
+        // User directory capability over gRPC — lets the WOPI CheckFileInfo response report the
+        // editor's display name (Collabora shows UserFriendlyName for co-editors), instead of
+        // falling back to the raw user GUID.
+        services.AddSingleton<IUserDirectory, GrpcUserDirectory>();
+
         services.AddSingleton<AdminSharedFolderMaintenanceService>();
         services.AddSingleton<IAdminSharedFolderMaintenanceScheduler>(sp => sp.GetRequiredService<AdminSharedFolderMaintenanceService>());
         services.AddHostedService(sp => sp.GetRequiredService<AdminSharedFolderMaintenanceService>());

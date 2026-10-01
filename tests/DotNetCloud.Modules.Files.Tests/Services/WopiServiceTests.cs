@@ -6,6 +6,7 @@ using DotNetCloud.Modules.Files.Data.Services;
 using DotNetCloud.Modules.Files.Models;
 using DotNetCloud.Modules.Files.Options;
 using DotNetCloud.Modules.Files.Services;
+using IUserDirectory = DotNetCloud.Core.Capabilities.IUserDirectory;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -29,7 +30,8 @@ public class WopiServiceTests
         IFileStorageEngine? storage = null,
         IDownloadService? download = null,
         IEventBus? eventBus = null,
-        VersionRetentionOptions? retention = null)
+        VersionRetentionOptions? retention = null,
+        IUserDirectory? userDirectory = null)
     {
         return new WopiService(
             db,
@@ -38,7 +40,8 @@ public class WopiServiceTests
             new PermissionService(db),
             eventBus ?? Mock.Of<IEventBus>(),
             NullLogger<WopiService>.Instance,
-            TestFileVersioningSettings.From(retention ?? new VersionRetentionOptions { MaxVersionCount = 0 }));
+            TestFileVersioningSettings.From(retention ?? new VersionRetentionOptions { MaxVersionCount = 0 }),
+            userDirectory);
     }
 
     private static IDownloadService CreateMockDownloadService()
@@ -144,6 +147,107 @@ public class WopiServiceTests
 
         Assert.IsNotNull(result);
         Assert.IsFalse(result.UserCanWrite);
+    }
+
+    [TestMethod]
+    public async Task CheckFileInfoAsync_UserDirectoryAvailable_ReportsDisplayNameAsUserFriendlyName()
+    {
+        using var db = CreateContext();
+        var userId = Guid.CreateVersion7();
+        var node = new FileNode { Name = "report.docx", NodeType = FileNodeType.File, OwnerId = userId };
+        db.FileNodes.Add(node);
+        await db.SaveChangesAsync();
+
+        var userDirectory = new Mock<IUserDirectory>();
+        userDirectory
+            .Setup(d => d.GetDisplayNamesAsync(It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, string> { [userId] = "Ada Lovelace" });
+
+        var service = CreateService(db, userDirectory: userDirectory.Object);
+        var result = await service.CheckFileInfoAsync(node.Id, UserCaller(userId));
+
+        Assert.IsNotNull(result);
+        Assert.AreEqual("Ada Lovelace", result.UserFriendlyName);
+        Assert.AreEqual(userId.ToString(), result.UserId);
+    }
+
+    [TestMethod]
+    public async Task CheckFileInfoAsync_NoUserDirectory_FallsBackToUserId()
+    {
+        using var db = CreateContext();
+        var userId = Guid.CreateVersion7();
+        var node = new FileNode { Name = "report.docx", NodeType = FileNodeType.File, OwnerId = userId };
+        db.FileNodes.Add(node);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var result = await service.CheckFileInfoAsync(node.Id, UserCaller(userId));
+
+        Assert.IsNotNull(result);
+        Assert.AreEqual(userId.ToString(), result.UserFriendlyName);
+    }
+
+    [TestMethod]
+    public async Task CheckFileInfoAsync_UserNotInDirectory_FallsBackToUserId()
+    {
+        using var db = CreateContext();
+        var userId = Guid.CreateVersion7();
+        var node = new FileNode { Name = "report.docx", NodeType = FileNodeType.File, OwnerId = userId };
+        db.FileNodes.Add(node);
+        await db.SaveChangesAsync();
+
+        var userDirectory = new Mock<IUserDirectory>();
+        userDirectory
+            .Setup(d => d.GetDisplayNamesAsync(It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, string>());
+
+        var service = CreateService(db, userDirectory: userDirectory.Object);
+        var result = await service.CheckFileInfoAsync(node.Id, UserCaller(userId));
+
+        Assert.IsNotNull(result);
+        Assert.AreEqual(userId.ToString(), result.UserFriendlyName);
+    }
+
+    [TestMethod]
+    public async Task CheckFileInfoAsync_UserDirectoryThrows_FallsBackToUserId()
+    {
+        using var db = CreateContext();
+        var userId = Guid.CreateVersion7();
+        var node = new FileNode { Name = "report.docx", NodeType = FileNodeType.File, OwnerId = userId };
+        db.FileNodes.Add(node);
+        await db.SaveChangesAsync();
+
+        var userDirectory = new Mock<IUserDirectory>();
+        userDirectory
+            .Setup(d => d.GetDisplayNamesAsync(It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("directory offline"));
+
+        var service = CreateService(db, userDirectory: userDirectory.Object);
+        var result = await service.CheckFileInfoAsync(node.Id, UserCaller(userId));
+
+        Assert.IsNotNull(result);
+        Assert.AreEqual(userId.ToString(), result.UserFriendlyName);
+    }
+
+    [TestMethod]
+    public async Task CheckFileInfoAsync_VeryLongDisplayName_TruncatedToWopiLimit()
+    {
+        using var db = CreateContext();
+        var userId = Guid.CreateVersion7();
+        var node = new FileNode { Name = "report.docx", NodeType = FileNodeType.File, OwnerId = userId };
+        db.FileNodes.Add(node);
+        await db.SaveChangesAsync();
+
+        var userDirectory = new Mock<IUserDirectory>();
+        userDirectory
+            .Setup(d => d.GetDisplayNamesAsync(It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, string> { [userId] = new string('a', 200) });
+
+        var service = CreateService(db, userDirectory: userDirectory.Object);
+        var result = await service.CheckFileInfoAsync(node.Id, UserCaller(userId));
+
+        Assert.IsNotNull(result);
+        Assert.AreEqual(128, result.UserFriendlyName?.Length);
     }
 
     // --- GetFileAsync ---

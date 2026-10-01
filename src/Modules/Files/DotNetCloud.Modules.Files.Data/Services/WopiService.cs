@@ -5,6 +5,7 @@ using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Events;
 using DotNetCloud.Modules.Files.Models;
 using DotNetCloud.Modules.Files.Services;
+using IUserDirectory = DotNetCloud.Core.Capabilities.IUserDirectory;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -23,6 +24,7 @@ internal sealed class WopiService : IWopiService
     private readonly IEventBus _eventBus;
     private readonly ILogger<WopiService> _logger;
     private readonly IFileVersioningSettingsProvider _versioningSettings;
+    private readonly IUserDirectory? _userDirectory;
 
     public WopiService(
         FilesDbContext db,
@@ -31,7 +33,8 @@ internal sealed class WopiService : IWopiService
         IPermissionService permissionService,
         IEventBus eventBus,
         ILogger<WopiService> logger,
-        IFileVersioningSettingsProvider versioningSettings)
+        IFileVersioningSettingsProvider versioningSettings,
+        IUserDirectory? userDirectory = null)
     {
         _db = db;
         _downloadService = downloadService;
@@ -40,6 +43,7 @@ internal sealed class WopiService : IWopiService
         _eventBus = eventBus;
         _logger = logger;
         _versioningSettings = versioningSettings;
+        _userDirectory = userDirectory;
     }
 
     /// <inheritdoc />
@@ -71,10 +75,43 @@ internal sealed class WopiService : IWopiService
             SHA256 = node.ContentHash ?? string.Empty,
             LastModifiedTime = node.UpdatedAt.ToString("O"),
             UserId = caller.UserId.ToString(),
-            UserFriendlyName = caller.UserId.ToString(),
+            UserFriendlyName = await ResolveUserFriendlyNameAsync(caller.UserId, cancellationToken),
             IsAnonymousUser = false
         };
     }
+
+    /// <summary>
+    /// Resolves the display name Collabora shows for the editing user ("UserFriendlyName").
+    /// Falls back to the user's GUID when the user directory capability is unavailable or the
+    /// user cannot be resolved — a directory lookup must never fail opening a document.
+    /// </summary>
+    private async Task<string> ResolveUserFriendlyNameAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        if (_userDirectory is null)
+            return userId.ToString();
+
+        try
+        {
+            var names = await _userDirectory.GetDisplayNamesAsync([userId], cancellationToken);
+            if (names.TryGetValue(userId, out var displayName) && !string.IsNullOrWhiteSpace(displayName))
+                return TruncateForWopi(displayName);
+
+            _logger.LogDebug("No display name resolved for user {UserId}; falling back to the user id", userId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to resolve display name for user {UserId}; falling back to the user id", userId);
+        }
+
+        return userId.ToString();
+    }
+
+    /// <summary>
+    /// WOPI caps <c>UserFriendlyName</c> at 128 characters; longer values are rejected by
+    /// Collabora or truncated when rendered.
+    /// </summary>
+    private static string TruncateForWopi(string value) =>
+        value.Length <= 128 ? value : value[..128];
 
     /// <inheritdoc />
     public async Task<(Stream Content, string MimeType, string FileName)?> GetFileAsync(Guid fileId, CallerContext caller, CancellationToken cancellationToken = default)
