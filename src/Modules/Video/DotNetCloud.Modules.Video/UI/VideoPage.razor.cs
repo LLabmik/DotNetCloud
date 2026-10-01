@@ -4,6 +4,7 @@ using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.DTOs.Media;
 using DotNetCloud.Core.Services;
+using DotNetCloud.Modules.Files;
 using DotNetCloud.Modules.Video.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -186,7 +187,7 @@ public partial class VideoPage : IAsyncDisposable
     // Directory Browser
     private bool _showDirBrowser;
     private Guid? _dirBrowserFolderId;
-    private List<(Guid Id, string Name)> _dirBrowserFolders = [];
+    private List<(Guid Id, string Name, string? Icon)> _dirBrowserFolders = [];
     private List<(Guid Id, string Name)> _dirBrowserBreadcrumbs = [];
     private string? _dirBrowserError;
 
@@ -2136,8 +2137,10 @@ public partial class VideoPage : IAsyncDisposable
 
             _dirBrowserFolders = nodes
                 .Where(n => n.NodeType == "Folder")
-                .OrderBy(n => n.Name, StringComparer.OrdinalIgnoreCase)
-                .Select(n => (n.Id, n.Name))
+                // Surface the virtual "_DotNetCloud" root first so admin shared folders are easy to add.
+                .PinDotNetCloudRootFirst(n => n.Name, n => n.VirtualSourceKind)
+                .ThenBy(n => n.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(n => (n.Id, n.Name, n.IconName))
                 .ToList();
         }
         catch (Exception ex)

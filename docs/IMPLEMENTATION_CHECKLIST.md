@@ -3481,6 +3481,8 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Back admin shared-folder Rescan Now and Reindex actions with a maintenance worker and Files-module reindex dispatch
 - ✓ Default admin source-folder browsing to the platform filesystem root while still honoring configured relative-source bases when present
 - ✓ Surface virtual `_DotNetCloud` root with mounted shared folders
+- ✓ Always pin the virtual `_DotNetCloud` root to the top of the Files browser and the Photos/Music/Video media-source browsers
+- ✓ Give the virtual `_DotNetCloud` root a distinct cloud icon so it reads as virtual rather than an ordinary folder
 - ✓ Enforce read-only behavior for mounted shared-folder paths
 - ✓ Add group-aware mounted-folder search indexing and navigation
 - ✓ Add shared-folder media source selection for Music, Photos, and Video

@@ -1371,7 +1371,7 @@
                                 @foreach (var folder in _dirBrowserFolders)
                                 {
                                     <button class="folder-picker-item" @onclick="() => DirBrowserNavigate(folder.Id, folder.Name)">
-                                        📁 @folder.Name
+                                        <MaterialIcon Icon="@(folder.Icon ?? "folder")" Size="MaterialIconSize.Sm" /> @folder.Name
                                     </button>
                                 }
                             }

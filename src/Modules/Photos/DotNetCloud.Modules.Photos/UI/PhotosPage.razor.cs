@@ -3,6 +3,7 @@ using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.DTOs.Media;
 using DotNetCloud.Core.Services;
+using DotNetCloud.Modules.Files;
 using DotNetCloud.Modules.Photos.Events;
 using DotNetCloud.Modules.Photos.Services;
 using DotNetCloud.UI.Shared.Components.Dialogs;
@@ -149,7 +150,7 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
     // Directory Browser
     private bool _showDirBrowser;
     private Guid? _dirBrowserFolderId;
-    private List<(Guid Id, string Name)> _dirBrowserFolders = [];
+    private List<(Guid Id, string Name, string? Icon)> _dirBrowserFolders = [];
     private List<(Guid Id, string Name)> _dirBrowserBreadcrumbs = [];
     private string? _dirBrowserError;
 
@@ -1728,8 +1729,10 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
 
             _dirBrowserFolders = nodes
                 .Where(n => n.NodeType == "Folder")
-                .OrderBy(n => n.Name, StringComparer.OrdinalIgnoreCase)
-                .Select(n => (n.Id, n.Name))
+                // Surface the virtual "_DotNetCloud" root first so admin shared folders are easy to add.
+                .PinDotNetCloudRootFirst(n => n.Name, n => n.VirtualSourceKind)
+                .ThenBy(n => n.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(n => (n.Id, n.Name, n.IconName))
                 .ToList();
         }
         catch (Exception ex)

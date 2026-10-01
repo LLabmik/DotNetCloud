@@ -185,6 +185,9 @@ Current implementation status: workstreams 4.4 through 4.7 are complete. Files r
 
 - Introduce a virtual-folder service or browse-composition layer capable of mixing virtual nodes with real FileNode listings.
 - Update root listing so every user sees a synthetic `_DotNetCloud` folder.
+- Always pin the virtual `_DotNetCloud` folder to the top of the Files root listing, above every other folder/file, regardless of the active sort column and direction.
+- Always pin `_DotNetCloud` to the top of the media-source folder browser in Music, Photos, and Video so admin shared folders are the first choice when adding a scan source.
+- Render the virtual `_DotNetCloud` root with a distinct cloud icon (Material Icons `cloud`) instead of the ordinary folder icon, in the Files browser and in the Photos/Music/Video media-source browsers.
 - Inside `_DotNetCloud`, render:
   - top-level admin shared folders the caller can access through group membership
   - a synthetic `Shared With Me` folder
@@ -259,7 +262,7 @@ Current implementation status: workstreams 4.4 through 4.7 are complete. Files r
   - `media-library:music-folder-id/path`
   - `media-library:photos-folder-id/path`
   - `media-library:video-folder-id/path`
-  with per-user, per-module multi-source selection.
+    with per-user, per-module multi-source selection.
 - Recommended persistence model:
   dedicated user media-library source records keyed by user, module, source kind, source identifier, display path, enabled flag, and last scan state.
 - Keep source selection per module so users can choose different shared folders for Music, Photos, and Video.
@@ -403,6 +406,8 @@ Focused automated verification now includes Core.Server coverage for shared-moun
 - Group membership resolution works for manual groups and implicit `All Users` membership.
 - Files permission evaluation is correct for direct user shares, team shares, group shares, and inherited folder access.
 - `_DotNetCloud` always appears and renders eligible shared folders only.
+- `_DotNetCloud` is pinned above every other entry in the Files browser, and above every other folder in the Photos, Music, and Video media-source browsers.
+- `_DotNetCloud` is visually distinguishable from ordinary folders by its cloud icon.
 - Nested mounted directories remain nested during browsing.
 - Mounted paths reject uploads, renames, moves, deletes, and re-sharing in v1.
 - Search results for mounted content are filtered by granted groups.
