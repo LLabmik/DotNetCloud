@@ -8,6 +8,16 @@
 
 ---
 
+## Recent Fix — Collabora showed the user GUID instead of a display name (2026-09-30, `fix/collabora-user-name`)
+
+> Reported: "Collabora shared editing is working, but it is showing a Guid for the people editing instead of their display name."
+
+- ✓ **Root cause** — `WopiService.CheckFileInfoAsync` hard-coded `UserFriendlyName = caller.UserId.ToString()`, so Collabora (which renders `UserFriendlyName` for the editor and for co-editor labels/cursors) had nothing but the GUID to show. The process-isolated Files host had no `IUserDirectory` registered at all: the Blazor UI resolves display names in-process, but the module host could not.
+- ✓ **Fix** — new `GrpcUserDirectory : IUserDirectory` (`Modules.Files.Data/Services`) mirrors `GrpcGroupDirectory`: it calls Core.Server's `CoreCapabilities.GetUser` / `SearchUsers` over gRPC and attaches the `module-id` metadata header the `AuthenticationInterceptor` requires. Registered in `AddFilesServices` (module hosts only — `AddFilesUiServices` keeps Core.Server's in-process, database-backed directory, so the Files UI is untouched). `WopiService` now takes an optional `IUserDirectory`, reports the resolved name as `UserFriendlyName` (truncated to the WOPI limit of 128 characters) and falls back to the user id when the directory is unreachable or the user is unknown — a lookup can never fail opening a document. No proto change and no core-side change are needed.
+- ✓ **Tests** — new `GrpcUserDirectoryTests` (9: display-name/avatar mapping, exact-match username lookup, search mapping, the `module-id` header on both RPCs, and graceful empty results on `Unavailable`/`Unauthenticated`), plus 5 new `WopiServiceTests` (display name reported, and missing directory / unknown user / throwing directory all falling back to the user id, plus 128-char truncation). Files.Tests **855 pass / 0 fail**; full solution builds clean.
+- ✓ **Deployed (mint22)** — `sudo ./scripts/deploy.sh --force --verify` from the uncommitted tree: **15/15 targets**, 205 s, all assembly hashes verified, `/health/ready` **200**; `GrpcUserDirectory` + `ResolveUserFriendlyName` present in **both** deployed `DotNetCloud.Modules.Files.Data.dll` copies (server + `modules/dotnetcloud.files/`), and the Files host confirmed running with `DOTNETCLOUD_MODULE_ID=dotnetcloud.files` and `DOTNETCLOUD_CORE_ENDPOINT=http://localhost:50100` (listening on 127.0.0.1, reachable) — so the capability call carries the right `module-id` and has a live core to call.
+- ✓ **Operator-confirmed live (2026-09-30)** — two separate users opened the same document in Collabora and **both saw correct display names** (no GUIDs).
+
 ## Recent Work — Files page locked up: sync-over-async deadlock (2026-09-29, `feature/remove-file-versions`)
 
 > Two production-visible bugs fixed on the Files module; both verified live on mint22 in the browser.
@@ -2473,6 +2483,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Create new file version on each PutFile save
 - ✓ Enforce permission checks via `CallerContext`
 - ✓ Support concurrent editing (Collabora handles OT internally)
+- ✓ Report the editing user's display name in WOPI `CheckFileInfo` (`UserFriendlyName`) via the `IUserDirectory` capability over gRPC (`GrpcUserDirectory`), truncated to 128 chars, falling back to the user id when the directory is unreachable or the user is unknown
 
 #### Collabora CODE Management
 

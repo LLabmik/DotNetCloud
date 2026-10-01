@@ -61,7 +61,7 @@ Returns file metadata that Collabora needs:
 - File name, size, owner
 - User permissions (can edit, can rename)
 - Version tracking information
-- User identity for co-editing attribution
+- User identity for co-editing attribution — `UserId` is the user's GUID and `UserFriendlyName` is their display name, resolved through the `IUserDirectory` capability (gRPC) and truncated to the WOPI limit of 128 characters; when the directory is unreachable or the user is unknown the GUID is reported instead, so a lookup can never fail opening a document
 
 Also begins a session slot for concurrent session tracking.
 
@@ -184,22 +184,22 @@ The `IWopiSessionTracker` limits how many documents can be edited simultaneously
 
 ### Configuration Reference
 
-| Setting | Default | Description |
-|---|---|---|
-| `Enabled` | `false` | Enable Collabora integration |
-| `ServerUrl` | `""` | URL of external Collabora server |
-| `WopiBaseUrl` | `""` | Public URL of this DotNetCloud instance (for WOPI callbacks) |
-| `TokenSigningKey` | `""` | HMAC-SHA256 key for signing tokens (≥32 chars, auto-generated if empty) |
-| `TokenLifetimeMinutes` | `480` | Token validity period (8 hours) |
-| `AutoSaveIntervalSeconds` | `300` | Collabora auto-save interval (5 minutes) |
-| `MaxConcurrentSessions` | `20` | Max simultaneous editing sessions (0 = unlimited) |
-| `EnableProofKeyValidation` | `true` | Validate Collabora proof key signatures |
-| `SupportedMimeTypes` | `[]` | Filter allowed MIME types (empty = all from discovery) |
-| `UseBuiltInCollabora` | `false` | Use DotNetCloud-managed Collabora CODE process |
-| `CollaboraInstallDirectory` | `""` | Path to Collabora CODE installation |
-| `CollaboraExecutablePath` | `""` | Path to `coolwsd` executable |
-| `CollaboraMaxRestartAttempts` | `5` | Max restart attempts before giving up |
-| `CollaboraRestartBackoffSeconds` | `5` | Base delay for exponential restart backoff |
+| Setting                          | Default | Description                                                             |
+| -------------------------------- | ------- | ----------------------------------------------------------------------- |
+| `Enabled`                        | `false` | Enable Collabora integration                                            |
+| `ServerUrl`                      | `""`    | URL of external Collabora server                                        |
+| `WopiBaseUrl`                    | `""`    | Public URL of this DotNetCloud instance (for WOPI callbacks)            |
+| `TokenSigningKey`                | `""`    | HMAC-SHA256 key for signing tokens (≥32 chars, auto-generated if empty) |
+| `TokenLifetimeMinutes`           | `480`   | Token validity period (8 hours)                                         |
+| `AutoSaveIntervalSeconds`        | `300`   | Collabora auto-save interval (5 minutes)                                |
+| `MaxConcurrentSessions`          | `20`    | Max simultaneous editing sessions (0 = unlimited)                       |
+| `EnableProofKeyValidation`       | `true`  | Validate Collabora proof key signatures                                 |
+| `SupportedMimeTypes`             | `[]`    | Filter allowed MIME types (empty = all from discovery)                  |
+| `UseBuiltInCollabora`            | `false` | Use DotNetCloud-managed Collabora CODE process                          |
+| `CollaboraInstallDirectory`      | `""`    | Path to Collabora CODE installation                                     |
+| `CollaboraExecutablePath`        | `""`    | Path to `coolwsd` executable                                            |
+| `CollaboraMaxRestartAttempts`    | `5`     | Max restart attempts before giving up                                   |
+| `CollaboraRestartBackoffSeconds` | `5`     | Base delay for exponential restart backoff                              |
 
 ---
 
