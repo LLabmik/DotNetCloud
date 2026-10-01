@@ -109,6 +109,12 @@
                                         (expires @FormatRelativeDate(item.ExpiresAt.Value))
                                     </span>
                                 }
+                                else
+                                {
+                                    <span class="text-muted" title="This share never expires">
+                                        @ShareExpiryFormatter.NeverExpiresLabel
+                                    </span>
+                                }
                                 @if (item.ShareType == "PublicLink" && item.MaxDownloads.HasValue)
                                 {
                                     <span class="text-muted">

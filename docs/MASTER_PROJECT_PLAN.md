@@ -4300,6 +4300,35 @@ Reference plan: `docs/SHARED_FILE_FOLDER_IMPLEMENTATION_PLAN.md`
 
 **Notes:** The admin share deletion now performs search document cleanup in the Files module directly (gRPC calls to Search module's `RemoveDocument` RPC). An `AdminSharedFolderCleanupStatus` record tracks progress through cleanup phases, and a status endpoint allows the admin UI to poll for updates. Core.Server's `AdminSharedFolderCleanupService` handles media source and entity cleanup when the event bus is wired across process boundaries. The delete API now returns a `DeleteAdminSharedFolderResult` with the `CleanupJobId` for progress tracking. A pre-existing Video module migration corruption prevents full solution build verification — modified projects build individually.
 
+#### Step: fix/share-file-size — Real File Size In Shared Views
+
+**Status:** completed ✅
+**Duration:** ~1 hour
+**Deliverables:**
+
+- ✓ Add `NodeType`, `Size`, and `MimeType` to `FileShareDto` (`src/Modules/Files/DotNetCloud.Modules.Files/DTOs/FileDtos.cs`)
+- ✓ Populate the new fields in `ShareService` for `GetSharesAsync`, `GetSharedWithMeAsync`, `GetSharedByMeAsync`, `CreateShareAsync`, `UpdateShareAsync`, `ResolvePublicLinkAsync` (`ToDto` now takes the `FileNode`)
+- ✓ Map `NodeType`/`Size`/`MimeType` into `SharedItemViewModel` for both sidebar views in `FileBrowser.razor.cs`
+- ✓ Folders now report `NodeType = "Folder"` so the views hide the size instead of rendering `0 B`
+- ✓ 5 new `ShareServiceTests` covering size/type/MIME for shared-with-me, shared-by-me, per-node shares, folder shares, and share creation
+
+**Notes:** The "Shared with me" and "Shared by me" sidebar views render `FormatSize(item.Size)` but the share DTO never carried the node size, so every row showed `0 B` (and folders rendered a bogus `0 B` because `NodeType` defaulted to `"File"`). The size now flows from `FileNode` through the share DTO into the view models, and the folder/file distinction drives whether a size is shown. Build clean (`dotnet build DotNetCloud.CI.slnf`, 0 warnings/0 errors); Files tests 860 pass (5 new), `FilesControllerTests` 31 pass.
+
+#### Step: fix/share-expiry-display — Share Expiry Or "Never Expires"
+
+**Status:** completed ✅
+**Duration:** ~1 hour
+**Deliverables:**
+
+- ✓ New `ShareExpiryFormatter` (`src/UI/DotNetCloud.UI.Shared/Components/Dialogs/ShareExpiryFormatter.cs`) with `NeverExpiresLabel`, `FormatRelative(...)` and whole-label `Format(...)` (adds singular "in 1 week")
+- ✓ "Shared by me" view: renders `Never expires` when the share has no expiry (was silently omitted)
+- ✓ "Shared with me" view: expiry cell is now always rendered — `Expired` badge, `Expires …`, or `Never expires` (both the grouped and ungrouped layouts)
+- ✓ Share dialog "Current shares" list: each non-expired row now shows `Expires …` / `Never expires` (`share-expiry-hint`)
+- ✓ Both Files view code-behinds now delegate `FormatRelativeDate` to the shared formatter (removed duplicated logic)
+- ✓ 16 new `ShareExpiryFormatterTests` in `tests/DotNetCloud.UI.Shared.Tests`
+
+**Notes:** Shares default to never expiring, so the listings now state that explicitly instead of rendering nothing; expiring shares keep the existing relative wording ("Expires today", "in 3 days", "in 2 weeks") and gain "on MMM d, yyyy" for dates more than a month out. Expired shares keep the red `Expired` badge (the dialog shows the badge instead of duplicating the word). Build clean (`dotnet build DotNetCloud.CI.slnf`, 0 warnings/0 errors); `DotNetCloud.UI.Shared.Tests` 190 pass (16 new), Files tests 860 pass.
+
 #### Step: files-multiselect-1 — Multi-Select Context Menu Actions
 
 **Status:** completed ✅

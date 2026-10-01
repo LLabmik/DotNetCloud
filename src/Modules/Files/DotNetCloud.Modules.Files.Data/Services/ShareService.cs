@@ -92,7 +92,7 @@ internal sealed class ShareService : IShareService
         _logger.LogInformation("Share {ShareId} created on node {NodeId} by {UserId}. Type: {ShareType}",
             share.Id, fileNodeId, caller.UserId, shareType);
 
-        return ToDto(share, node.Name);
+        return ToDto(share, node);
     }
 
     /// <inheritdoc />
@@ -130,7 +130,7 @@ internal sealed class ShareService : IShareService
 
         await _db.SaveChangesAsync(cancellationToken);
 
-        return ToDto(share, share.FileNode?.Name);
+        return ToDto(share, share.FileNode);
     }
 
     /// <inheritdoc />
@@ -168,6 +168,9 @@ internal sealed class ShareService : IShareService
                 Id = s.Id,
                 FileNodeId = s.FileNodeId,
                 NodeName = s.FileNode!.Name,
+                NodeType = s.FileNode!.NodeType == FileNodeType.Folder ? "Folder" : "File",
+                Size = s.FileNode!.Size,
+                MimeType = s.FileNode!.MimeType,
                 ShareType = s.ShareType.ToString(),
                 SharedWithUserId = s.SharedWithUserId,
                 SharedWithTeamId = s.SharedWithTeamId,
@@ -200,6 +203,9 @@ internal sealed class ShareService : IShareService
                 Id = s.Id,
                 FileNodeId = s.FileNodeId,
                 NodeName = s.FileNode!.Name,
+                NodeType = s.FileNode!.NodeType == FileNodeType.Folder ? "Folder" : "File",
+                Size = s.FileNode!.Size,
+                MimeType = s.FileNode!.MimeType,
                 ShareType = s.ShareType.ToString(),
                 SharedWithUserId = s.SharedWithUserId,
                 SharedWithTeamId = s.SharedWithTeamId,
@@ -232,6 +238,9 @@ internal sealed class ShareService : IShareService
                 Id = s.Id,
                 FileNodeId = s.FileNodeId,
                 NodeName = s.FileNode!.Name,
+                NodeType = s.FileNode!.NodeType == FileNodeType.Folder ? "Folder" : "File",
+                Size = s.FileNode!.Size,
+                MimeType = s.FileNode!.MimeType,
                 ShareType = s.ShareType.ToString(),
                 SharedWithUserId = s.SharedWithUserId,
                 SharedWithTeamId = s.SharedWithTeamId,
@@ -281,7 +290,7 @@ internal sealed class ShareService : IShareService
                 return null;
         }
 
-        return ToDto(share, share.FileNode?.Name);
+        return ToDto(share, share.FileNode);
     }
 
     /// <inheritdoc />
@@ -351,11 +360,14 @@ internal sealed class ShareService : IShareService
             throw new ForbiddenException("You do not have permission to share this node.");
     }
 
-    private static FileShareDto ToDto(FileShare share, string? nodeName) => new()
+    private static FileShareDto ToDto(FileShare share, FileNode? node) => new()
     {
         Id = share.Id,
         FileNodeId = share.FileNodeId,
-        NodeName = nodeName,
+        NodeName = node?.Name,
+        NodeType = node is not null && node.NodeType == FileNodeType.Folder ? "Folder" : "File",
+        Size = node?.Size ?? 0,
+        MimeType = node?.MimeType,
         ShareType = share.ShareType.ToString(),
         SharedWithUserId = share.SharedWithUserId,
         SharedWithTeamId = share.SharedWithTeamId,

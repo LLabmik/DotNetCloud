@@ -2724,10 +2724,14 @@ This phase implements the core Files module, which is the primary public-facing 
   - ✓ List all files/folders shared with current user
   - ✓ Group by share source (who shared)
   - ✓ Show permission level
+  - ✓ Show actual file size (folders show no size — node type drives size visibility)
+  - ✓ Show share expiry or "Never expires" (expired shares keep the "Expired" badge)
   - ✓ Accept/decline share (optional)
 - ✓ Create "Shared by me" view:
   - ✓ List all files/folders shared by current user
   - ✓ Show share recipients and permissions
+  - ✓ Show actual file size (folders show no size — node type drives size visibility)
+  - ✓ Show share expiry or "Never expires" (expired shares keep the "Expired" badge)
   - ✓ Manage/revoke shares inline
 
 #### Files Module Admin Settings

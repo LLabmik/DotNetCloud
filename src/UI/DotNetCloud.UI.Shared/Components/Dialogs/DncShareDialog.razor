@@ -263,6 +263,13 @@
                                         {
                                             <span class="badge badge-danger">Expired</span>
                                         }
+                                        else
+                                        {
+                                            <span class="text-muted share-expiry-hint"
+                                                  title="@(share.ExpiresAt.HasValue ? $"Expires {share.ExpiresAt.Value.ToLocalTime():g}" : "This share never expires")">
+                                                @ShareExpiryFormatter.Format(share.ExpiresAt, DateTime.UtcNow)
+                                            </span>
+                                        }
                                         @if (share.Note is not null)
                                         {
                                             <span class="share-note-indicator" title="@share.Note">
