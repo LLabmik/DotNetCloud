@@ -115,6 +115,7 @@
 
 - ✓ Unified share dialog (`DncShareDialog` in `DotNetCloud.UI.Shared`) — Files, Notes, Photos, Contacts & Calendar share UIs are now identical; Files keeps bulk share + public link; other modules are revoke-only.
 - ✓ Recipient type-ahead by display name (users platform-wide + the caller's teams) via `IShareRecipientSearchService`.
+- ✓ Recipient search results show the **display name only** — a user's email address is never rendered (users can still _search_ by email; it is just not echoed back). Teams keep their member-count secondary line. Covered by `ShareRecipientSearchServiceTests` in `DotNetCloud.UI.Shared.Tests`.
 - ✓ Team shares on all five modules — user-XOR-team targets, team-membership read access via the cached `ITeamDirectory` gRPC capability, EF migrations for Notes/Photos.
 - ✓ Team-share bell notifications fan out to every team member except the sharer; Photos album shares now produce bell notifications.
 - ☐ Live end-to-end verification per module (share by display name for users/teams, team-member view + notification, revoke; Files single/bulk/public-link regression) — required before commit.

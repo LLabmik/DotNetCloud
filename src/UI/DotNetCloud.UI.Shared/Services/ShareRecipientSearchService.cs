@@ -65,12 +65,14 @@ public sealed class ShareRecipientSearchService : IShareRecipientSearchService
         var results = new List<DncShareRecipient>();
 
         // Users — the directory does a case-insensitive substring match server-side.
+        // The email is never surfaced in the UI (see DncShareDialog); results show the
+        // display name only, so recipients are not disclosed to other users.
         var users = await _userDirectory.SearchUsersAsync(trimmed, maxResults, cancellationToken);
         results.AddRange(users.Select(u => new DncShareRecipient
         {
             Id = u.Id,
             DisplayName = u.DisplayName,
-            SecondaryText = string.IsNullOrWhiteSpace(u.Email) ? null : u.Email,
+            SecondaryText = null,
             RecipientType = "User",
         }));
 
