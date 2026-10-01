@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Components;
+using DotNetCloud.UI.Shared.Components.Dialogs;
 
 namespace DotNetCloud.Modules.Files.UI;
 
@@ -138,21 +139,8 @@ public partial class SharedByMeView : ComponentBase
     }
 
     /// <summary>Formats a future date as a relative time string.</summary>
-    protected static string FormatRelativeDate(DateTime dateUtc)
-    {
-        var diff = dateUtc - DateTime.UtcNow;
-        if (diff.TotalDays < 0)
-            return "expired";
-        if (diff.TotalDays < 1)
-            return "today";
-        if (diff.TotalDays < 2)
-            return "tomorrow";
-        if (diff.TotalDays < 7)
-            return $"in {(int)diff.TotalDays} days";
-        if (diff.TotalDays < 30)
-            return $"in {(int)(diff.TotalDays / 7)} weeks";
-        return dateUtc.ToString("MMM d, yyyy");
-    }
+    protected static string FormatRelativeDate(DateTime dateUtc) =>
+        ShareExpiryFormatter.FormatRelative(dateUtc, DateTime.UtcNow);
 }
 
 /// <summary>

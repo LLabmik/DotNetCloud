@@ -253,7 +253,6 @@
   margin-bottom: 4px;
 }
 
-
 /* ============================================================
    Share Dialog (DncShareDialog + module share panels)
    Moved from app.css on 2026-09-08 to live beside the shared
@@ -398,8 +397,7 @@
   letter-spacing: 0.3px;
 }
 
-.dark-mode .dark-mode .dark-mode 
-.result-name {
+.dark-mode .dark-mode .dark-mode .result-name {
   font-weight: 500;
 }
 
@@ -611,6 +609,13 @@
 
 .share-note-indicator {
   font-size: 12px;
+  cursor: help;
+}
+
+.share-expiry-hint {
+  font-size: 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
   cursor: help;
 }
 

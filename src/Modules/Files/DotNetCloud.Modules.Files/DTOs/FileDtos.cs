@@ -262,6 +262,15 @@ public sealed record FileShareDto
     /// <summary>Node name.</summary>
     public string? NodeName { get; init; }
 
+    /// <summary>Whether the shared node is a "File" or "Folder".</summary>
+    public string NodeType { get; init; } = "File";
+
+    /// <summary>Size of the shared node in bytes (0 for folders).</summary>
+    public long Size { get; init; }
+
+    /// <summary>MIME type of the shared node (null for folders).</summary>
+    public string? MimeType { get; init; }
+
     /// <summary>Share type.</summary>
     public required string ShareType { get; init; }
 

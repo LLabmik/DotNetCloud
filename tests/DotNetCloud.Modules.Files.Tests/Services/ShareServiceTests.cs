@@ -29,10 +29,19 @@ public class ShareServiceTests
 
     private static CallerContext UserCaller(Guid userId) => new(userId, Array.Empty<string>(), CallerType.User);
 
-    private static FileNode CreateFileNode(Guid ownerId) => new()
+    private static FileNode CreateFileNode(Guid ownerId, long size = 0, string? mimeType = null, string name = "shared.txt") => new()
     {
-        Name = "shared.txt",
+        Name = name,
         NodeType = FileNodeType.File,
+        Size = size,
+        MimeType = mimeType,
+        OwnerId = ownerId
+    };
+
+    private static FileNode CreateFolderNode(Guid ownerId, string name = "shared-folder") => new()
+    {
+        Name = name,
+        NodeType = FileNodeType.Folder,
         OwnerId = ownerId
     };
 
@@ -285,6 +294,103 @@ public class ShareServiceTests
 
         Assert.AreEqual(1, shares.Count);
         Assert.IsTrue(shares.All(share => share.ShareType == ShareType.User.ToString()));
+    }
+
+    [TestMethod]
+    public async Task GetSharedWithMeAsync_ReturnsNodeSizeTypeAndMimeType()
+    {
+        using var db = CreateContext();
+        var userId = Guid.CreateVersion7();
+        var targetUserId = Guid.CreateVersion7();
+        var node = CreateFileNode(userId, size: 12_345, mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", name: "BenTest.docx");
+        db.FileNodes.Add(node);
+        db.FileShares.Add(new FileShare { FileNodeId = node.Id, ShareType = ShareType.User, SharedWithUserId = targetUserId, CreatedByUserId = userId });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var share = (await service.GetSharedWithMeAsync(UserCaller(targetUserId))).Single();
+
+        Assert.AreEqual("BenTest.docx", share.NodeName);
+        Assert.AreEqual("File", share.NodeType);
+        Assert.AreEqual(12_345, share.Size);
+        Assert.AreEqual("application/vnd.openxmlformats-officedocument.wordprocessingml.document", share.MimeType);
+    }
+
+    [TestMethod]
+    public async Task GetSharedByMeAsync_ReturnsNodeSizeTypeAndMimeType()
+    {
+        using var db = CreateContext();
+        var userId = Guid.CreateVersion7();
+        var node = CreateFileNode(userId, size: 2_048, mimeType: "application/pdf", name: "report.pdf");
+        db.FileNodes.Add(node);
+        db.FileShares.Add(new FileShare { FileNodeId = node.Id, ShareType = ShareType.User, SharedWithUserId = Guid.CreateVersion7(), CreatedByUserId = userId });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var share = (await service.GetSharedByMeAsync(UserCaller(userId))).Single();
+
+        Assert.AreEqual("report.pdf", share.NodeName);
+        Assert.AreEqual("File", share.NodeType);
+        Assert.AreEqual(2_048, share.Size);
+        Assert.AreEqual("application/pdf", share.MimeType);
+    }
+
+    [TestMethod]
+    public async Task GetSharedByMeAsync_FolderShare_ReportsFolderTypeAndZeroSize()
+    {
+        using var db = CreateContext();
+        var userId = Guid.CreateVersion7();
+        var folder = CreateFolderNode(userId);
+        db.FileNodes.Add(folder);
+        db.FileShares.Add(new FileShare { FileNodeId = folder.Id, ShareType = ShareType.User, SharedWithUserId = Guid.CreateVersion7(), CreatedByUserId = userId });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var share = (await service.GetSharedByMeAsync(UserCaller(userId))).Single();
+
+        Assert.AreEqual("Folder", share.NodeType);
+        Assert.AreEqual(0, share.Size);
+        Assert.IsNull(share.MimeType);
+    }
+
+    [TestMethod]
+    public async Task GetSharesAsync_ReturnsNodeSizeTypeAndMimeType()
+    {
+        using var db = CreateContext();
+        var userId = Guid.CreateVersion7();
+        var node = CreateFileNode(userId, size: 5_120, mimeType: "text/plain", name: "notes.txt");
+        db.FileNodes.Add(node);
+        db.FileShares.Add(new FileShare { FileNodeId = node.Id, ShareType = ShareType.User, SharedWithUserId = Guid.CreateVersion7(), CreatedByUserId = userId });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var share = (await service.GetSharesAsync(node.Id, UserCaller(userId))).Single();
+
+        Assert.AreEqual("File", share.NodeType);
+        Assert.AreEqual(5_120, share.Size);
+        Assert.AreEqual("text/plain", share.MimeType);
+    }
+
+    [TestMethod]
+    public async Task CreateShareAsync_PopulatesNodeTypeSizeAndMimeType()
+    {
+        using var db = CreateContext();
+        var userId = Guid.CreateVersion7();
+        var node = CreateFileNode(userId, size: 777, mimeType: "image/png", name: "pic.png");
+        db.FileNodes.Add(node);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var result = await service.CreateShareAsync(node.Id, new CreateShareDto
+        {
+            ShareType = "User",
+            SharedWithUserId = Guid.CreateVersion7(),
+            Permission = "Read"
+        }, UserCaller(userId));
+
+        Assert.AreEqual("File", result.NodeType);
+        Assert.AreEqual(777, result.Size);
+        Assert.AreEqual("image/png", result.MimeType);
     }
 
     [TestMethod]

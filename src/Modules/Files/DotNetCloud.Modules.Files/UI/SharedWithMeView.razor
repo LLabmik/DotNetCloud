@@ -75,21 +75,24 @@
                                         @GetPermissionLabel(item.Permission)
                                     </span>
                                 </div>
-                                @if (item.ExpiresAt.HasValue)
-                                {
-                                    <div class="shared-item-expiry">
-                                        @if (item.IsExpired)
-                                        {
-                                            <span class="badge badge-danger">Expired</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="text-muted" title="Expires @item.ExpiresAt.Value.ToString("g")">
-                                                Expires @FormatRelativeDate(item.ExpiresAt.Value)
-                                            </span>
-                                        }
-                                    </div>
-                                }
+                                <div class="shared-item-expiry">
+                                    @if (item.IsExpired)
+                                    {
+                                        <span class="badge badge-danger">Expired</span>
+                                    }
+                                    else if (item.ExpiresAt.HasValue)
+                                    {
+                                        <span class="text-muted" title="Expires @item.ExpiresAt.Value.ToString("g")">
+                                            Expires @FormatRelativeDate(item.ExpiresAt.Value)
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted" title="This share never expires">
+                                            @ShareExpiryFormatter.NeverExpiresLabel
+                                        </span>
+                                    }
+                                </div>
                                 <div class="shared-item-actions">
                                     <button class="btn btn-sm btn-primary"
                                             @onclick="() => OpenItem(item)"
@@ -132,19 +135,22 @@
                                 @GetPermissionLabel(item.Permission)
                             </span>
                         </div>
-                        @if (item.ExpiresAt.HasValue)
-                        {
-                            <div class="shared-item-expiry">
-                                @if (item.IsExpired)
-                                {
-                                    <span class="badge badge-danger">Expired</span>
-                                }
-                                else
-                                {
-                                    <span class="text-muted">Expires @FormatRelativeDate(item.ExpiresAt.Value)</span>
-                                }
-                            </div>
-                        }
+                        <div class="shared-item-expiry">
+                            @if (item.IsExpired)
+                            {
+                                <span class="badge badge-danger">Expired</span>
+                            }
+                            else if (item.ExpiresAt.HasValue)
+                            {
+                                <span class="text-muted">Expires @FormatRelativeDate(item.ExpiresAt.Value)</span>
+                            }
+                            else
+                            {
+                                <span class="text-muted" title="This share never expires">
+                                    @ShareExpiryFormatter.NeverExpiresLabel
+                                </span>
+                            }
+                        </div>
                         <div class="shared-item-actions">
                             <button class="btn btn-sm btn-primary"
                                     @onclick="() => OpenItem(item)"
