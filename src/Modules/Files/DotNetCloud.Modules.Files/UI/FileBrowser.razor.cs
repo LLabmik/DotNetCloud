@@ -470,7 +470,10 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
                 ("Type", true) => _nodes.OrderBy(n => n.NodeType != "Folder").ThenBy(n => n.MimeType),
                 _ => _nodes.OrderBy(n => n.NodeType != "Folder").ThenByDescending(n => n.MimeType),
             };
-            return [.. ordered];
+
+            // The virtual "_DotNetCloud" root is always pinned above every other entry, regardless
+            // of the active sort column.
+            return [.. ordered.PinDotNetCloudRootFirst(n => n.Name, n => n.VirtualSourceKind)];
         }
     }
 

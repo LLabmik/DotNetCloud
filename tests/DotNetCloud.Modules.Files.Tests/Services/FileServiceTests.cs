@@ -308,6 +308,7 @@ public class FileServiceTests
         Assert.AreEqual("_DotNetCloud", roots[0].Name);
         Assert.IsTrue(roots[0].IsVirtual);
         Assert.IsTrue(roots[0].IsReadOnly);
+        Assert.AreEqual("cloud", roots[0].IconName);
         Assert.AreEqual("Documents", roots[1].Name);
     }
 
@@ -355,6 +356,9 @@ public class FileServiceTests
             CollectionAssert.AreEquivalent(
                 new[] { "Shared With Me", "Design Assets" },
                 children.Select(node => node.Name).ToArray());
+
+            // The cloud icon identifies the _DotNetCloud root only — its children keep their own icons.
+            Assert.IsTrue(children.All(node => node.IconName is null));
         }
         finally
         {

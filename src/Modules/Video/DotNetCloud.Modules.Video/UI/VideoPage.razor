@@ -1406,7 +1406,7 @@
                                     var capturedFolder = folder;
                                     <button type="button" class="folder-picker-item"
                                             @onclick="() => DirBrowserNavigate(capturedFolder.Id, capturedFolder.Name)">
-                                        📁 @capturedFolder.Name
+                                        <MaterialIcon Icon="@(capturedFolder.Icon ?? "folder")" Size="MaterialIconSize.Sm" /> @capturedFolder.Name
                                     </button>
                                 }
                             }

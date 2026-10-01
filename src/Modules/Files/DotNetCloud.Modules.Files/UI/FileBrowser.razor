@@ -46,7 +46,7 @@
                         </span>
                     </div>
                     <span class="files-header-subtitle">@TaggedNodes.Count @(TaggedNodes.Count == 1 ? "file" :
-                                                                                                             "files")</span>
+                                                                                                                                     "files")</span>
                     </div>
 
                     @if (IsLoading)
@@ -485,7 +485,7 @@ else
                                                             @if (_tagTargetNodeIds.Count == 1)
                                                             {
                                                                 <text>Tag: @(_nodes.FirstOrDefault(n => n.Id == _tagTargetNodeIds[0])?.Name ??
-                                                                                                                                                                                                                                                                                                    "file")</text>
+                                                                                                                                                                                                                                                                                                                                                                        "file")</text>
                                                                 }
                         else
                                                                 {
@@ -592,8 +592,7 @@ else
                                             <VersionHistoryPanel FileName="@_versionHistoryFileName" InitialVersions="_versionHistoryItems"
                                                                  OnClose="HideVersionHistory" OnDownloadVersion="HandleDownloadVersion"
                                                                  OnRestoreVersion="HandleRestoreVersion" OnDeleteVersion="HandleDeleteVersion"
-                                                                 OnDeleteAllVersions="HandleDeleteAllVersions"
-                                                                 OnLabelSaved="HandleVersionLabelSaved" />
+                                                                 OnDeleteAllVersions="HandleDeleteAllVersions" OnLabelSaved="HandleVersionLabelSaved" />
                                         }
 
                                         @if (_showComments && _commentsFileName is not null)
@@ -631,7 +630,7 @@ else
                                                             @foreach (var folder in _pickerFolders)
                                                             {
                                                                 <button class="folder-picker-item" @onclick="() => PickerNavigate(folder.Id)">
-                                                                    📁 @folder.Name
+                                                                    <MaterialIcon Icon="@GetNodeIcon(folder)" Size="MaterialIconSize.Sm" /> @folder.Name
                                                                 </button>
                                                             }
                                                         }

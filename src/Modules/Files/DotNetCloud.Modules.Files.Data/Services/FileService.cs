@@ -1033,13 +1033,14 @@ internal sealed class FileService : IFileService
         var adminFolders = await ListAccessibleAdminSharedFoldersAsync(caller, cancellationToken);
         return CreateVirtualFolderDto(
             DotNetCloudRootId,
-            "_DotNetCloud",
+            VirtualNodeSourceKinds.DotNetCloudRootDisplayName,
             parentId: null,
             caller.UserId,
             1 + adminFolders.Count,
             DateTime.UtcNow,
             isReadOnly: true,
-            sourceKind: "DotNetCloudRoot");
+            sourceKind: VirtualNodeSourceKinds.DotNetCloudRoot,
+            iconName: VirtualNodeSourceKinds.DotNetCloudRootIcon);
     }
 
     private async Task<IReadOnlyList<FileNodeDto>> ListDotNetCloudChildrenAsync(CallerContext caller, CancellationToken cancellationToken)
@@ -1565,7 +1566,8 @@ internal sealed class FileService : IFileService
         bool isReadOnly,
         string sourceKind,
         Guid? sourceId = null,
-        string? relativePath = null)
+        string? relativePath = null,
+        string? iconName = null)
         => new()
         {
             Id = id,
@@ -1582,6 +1584,7 @@ internal sealed class FileService : IFileService
             VirtualSourceKind = sourceKind,
             VirtualSourceId = sourceId,
             VirtualRelativePath = relativePath,
+            IconName = iconName,
         };
 
     private static FileNodeDto CreateVirtualFileDto(
