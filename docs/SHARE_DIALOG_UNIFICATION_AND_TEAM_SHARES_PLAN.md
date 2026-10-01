@@ -139,6 +139,7 @@ Team sharing requires also matching `Shares.Any(s => s.SharedWithTeamId ∈ call
   - teams via `ITeamDirectory.GetTeamsForUserAsync(currentUser)` filtered by typed text,
   - current user from `AuthenticationStateProvider`.
     Expose a registration extension and call it from Core.Server's `Program.cs`. `DncShareDialog` consumes the service (or accepts an `OnSearch` override).
+  - **Privacy:** results render the display name only — a user's email is never surfaced as `SecondaryText` (teams keep their member-count line). Email still matches server-side so users can _find_ someone by address, it is just not echoed back. Locked in by `ShareRecipientSearchServiceTests`.
 - ✓ Move the `/* --- Share Dialog --- */` CSS block from `app.css` into `src/UI/DotNetCloud.UI.Shared/wwwroot/shared-components.css` (dedupe `.badge-user` rules).
 - ✓ Bump the `?v=` cache-buster on the shared-css link in `src/UI/DotNetCloud.UI.Web/Components/App.razor`.
 

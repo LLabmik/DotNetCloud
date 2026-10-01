@@ -12,7 +12,7 @@ public sealed class DncShareRecipient
     /// <summary>Display name shown in the results list.</summary>
     public string DisplayName { get; init; } = string.Empty;
 
-    /// <summary>Optional secondary line (e.g. email for users, member count for teams).</summary>
+    /// <summary>Optional secondary line (e.g. member count for teams). Never contains a user's email.</summary>
     public string? SecondaryText { get; init; }
 
     /// <summary>Recipient type: "User", "Team", or "Group".</summary>
