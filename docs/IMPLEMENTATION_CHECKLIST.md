@@ -4939,6 +4939,9 @@ content-addressed chunks, so reads stream the blob directly with no temp-file re
 - ✓ `scripts/audit-whole-file-blobs.sh` — on-demand audit (first production run: 13 whole-file versions, 12 healthy,
   1 unrecoverable)
 - ✓ `VideoController` returns `content_unavailable` with an actionable message; player error card shows the server reason
+- ✓ `dotnetcloud backup manifest [--output <file>] [--no-chunks] [--storage-root <dir>]` — TSV storage index
+  (per-version `file` rows + ordered `blob` rows per chunk) so backups of the extensionless, content-addressed
+  storage tree stay interpretable without a live database; reports missing/truncated whole-file blobs
 
 **Tests (938 Files tests green):**
 

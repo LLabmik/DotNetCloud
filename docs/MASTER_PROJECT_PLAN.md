@@ -3418,6 +3418,10 @@ blob directly with no temp-file reassembly; documents keep the chunk pipeline.
   blob (truncated blobs replaced, verified after the write and again immediately before the `IsChunked` flip); download
   falls back to chunk reassembly; `WholeFileBlobIntegrityService` + 12-hourly `WholeFileBlobIntegrityAuditService`;
   `scripts/audit-whole-file-blobs.sh`; `VideoController` `content_unavailable` + player error text
+- ✓ **Storage manifest:** `dotnetcloud backup manifest [--output <file>] [--no-chunks] [--storage-root <dir>]` writes a
+  TSV index (one `file` row per version + ordered `blob` rows per chunk) so a backup of the extensionless,
+  content-addressed storage tree can be interpreted and rebuilt without a live database; also reports
+  `missingWholeFileBlobs`/`truncatedWholeFileBlobs`. Documented in `docs/admin/BACKUP.md`.
 
 **Notes:** Files.Tests **926 pass / 0 fail**; Music 387 / Photos 292 / Video 213 / Core.Server 799 pass; CI solution builds
 clean. Deployed to mint22 (15/15 targets, hashes verified, migrations applied, v0.6.13, `/health/ready` Healthy 14/14).

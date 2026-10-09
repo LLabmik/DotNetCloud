@@ -1,8 +1,11 @@
 using System.CommandLine;
 using System.Diagnostics;
 using System.IO.Compression;
+using System.Text;
 using DotNetCloud.CLI.Infrastructure;
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Modules.Files.Data;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DotNetCloud.CLI.Commands;
 
@@ -36,19 +39,28 @@ internal static class BackupCommands
         };
         serverOption.Aliases.Add("-s");
 
+        var noManifestOption = new Option<bool>("--no-manifest")
+        {
+            Description = "Skip the storage manifest that is normally generated and embedded in the backup",
+            DefaultValueFactory = _ => false
+        };
+
         var command = new Command("backup", "Create a backup of DotNetCloud data");
         command.Options.Add(outputOption);
         command.Options.Add(dbDumpOption);
         command.Options.Add(serverOption);
+        command.Options.Add(noManifestOption);
         command.Subcommands.Add(CreateRestore());
         command.Subcommands.Add(CreateSchedule());
+        command.Subcommands.Add(CreateManifest());
 
         command.SetAction(parseResult =>
         {
             var output = parseResult.GetValue(outputOption);
             var dbDump = parseResult.GetValue(dbDumpOption);
             var server = parseResult.GetValue(serverOption);
-            return CreateBackupAsync(output, dbDump, server);
+            var noManifest = parseResult.GetValue(noManifestOption);
+            return CreateBackupAsync(output, dbDump, server, includeManifest: !noManifest);
         });
 
         return command;
@@ -88,7 +100,150 @@ internal static class BackupCommands
         return command;
     }
 
-    private static async Task<int> CreateBackupAsync(string? outputPath, bool includeDbDump, string? serverUrl)
+    private static Command CreateManifest()
+    {
+        var outputOption = new Option<string?>("--output")
+        {
+            Description = "Manifest file to write (default: <backup directory>/dotnetcloud-manifest-<timestamp>.tsv; '-' writes to stdout)"
+        };
+        outputOption.Aliases.Add("-o");
+
+        var noChunksOption = new Option<bool>("--no-chunks")
+        {
+            Description = "List file versions only, omitting chunk rows",
+            DefaultValueFactory = _ => false
+        };
+
+        var storageRootOption = new Option<string?>("--storage-root")
+        {
+            Description = "Storage root to describe (default: Files:Storage:RootPath from config, else <data directory>/storage)"
+        };
+
+        var command = new Command("manifest",
+            "Write a tab-separated index of every stored blob — keep it with your backup");
+        command.Options.Add(outputOption);
+        command.Options.Add(noChunksOption);
+        command.Options.Add(storageRootOption);
+        command.SetAction(parseResult => WriteManifestAsync(
+            parseResult.GetValue(outputOption),
+            parseResult.GetValue(noChunksOption),
+            parseResult.GetValue(storageRootOption)));
+        return command;
+    }
+
+    /// <summary>
+    /// Writes the storage manifest: a mapping from every content-addressed blob back to the file it
+    /// belongs to, plus the ordered chunk list needed to rebuild chunked files.
+    /// </summary>
+    private static async Task<int> WriteManifestAsync(string? outputPath, bool noChunks, string? storageRootOverride)
+    {
+        await using var provider = ServiceProviderFactory.CreateFromConfig();
+        if (provider is null)
+            return 1;
+
+        var config = CliConfiguration.Load();
+        var storageRoot = storageRootOverride ?? StorageManifest.ResolveStorageRoot();
+        var includeChunks = !noChunks;
+        var toStdout = string.Equals(outputPath, "-", StringComparison.Ordinal);
+
+        ConsoleOutput.WriteHeader("DotNetCloud Storage Manifest");
+        ConsoleOutput.WriteInfo($"Storage root: {storageRoot}");
+
+        if (!toStdout && !Directory.Exists(storageRoot))
+        {
+            ConsoleOutput.WriteWarning($"Storage root does not exist: {storageRoot}");
+        }
+
+        string? manifestPath = null;
+        if (!toStdout)
+        {
+            manifestPath = outputPath
+                ?? Path.Combine(config.BackupDirectory, $"dotnetcloud-manifest-{DateTime.UtcNow:yyyyMMdd-HHmmss}.tsv");
+            var manifestDir = Path.GetDirectoryName(Path.GetFullPath(manifestPath));
+            if (!string.IsNullOrEmpty(manifestDir))
+                Directory.CreateDirectory(manifestDir);
+        }
+
+        try
+        {
+            using var scope = provider.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<FilesDbContext>();
+
+            StorageManifest.Result result;
+            if (toStdout)
+            {
+                result = await StorageManifest.WriteAsync(db, storageRoot, includeChunks, Console.Out);
+            }
+            else
+            {
+                result = await WriteManifestToFileAsync(db, storageRoot, includeChunks, manifestPath!);
+            }
+
+            ConsoleOutput.WriteSuccess($"File versions: {result.FileVersions}");
+            if (includeChunks)
+                ConsoleOutput.WriteSuccess($"Chunk rows: {result.ChunkRows}");
+            ConsoleOutput.WriteSuccess($"Content bytes: {FormatSize(result.TotalBytes)}");
+
+            if (result.MissingBlobs > 0)
+                ConsoleOutput.WriteWarning($"Whole-file blobs MISSING from storage: {result.MissingBlobs}");
+            if (result.TruncatedBlobs > 0)
+                ConsoleOutput.WriteWarning($"Whole-file blobs with an unexpected size: {result.TruncatedBlobs}");
+
+            if (manifestPath is not null)
+            {
+                ConsoleOutput.WriteSuccess($"Manifest written: {manifestPath}");
+                ConsoleOutput.WriteInfo("Keep this file with any backup of the storage directory.");
+            }
+
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            ConsoleOutput.WriteError($"Manifest failed: {ex.Message}");
+            return 1;
+        }
+    }
+
+    /// <summary>Writes a manifest to a file, creating the destination directory when needed.</summary>
+    private static async Task<StorageManifest.Result> WriteManifestToFileAsync(
+        FilesDbContext db, string storageRoot, bool includeChunks, string manifestPath)
+    {
+        var manifestDir = Path.GetDirectoryName(Path.GetFullPath(manifestPath));
+        if (!string.IsNullOrEmpty(manifestDir))
+            Directory.CreateDirectory(manifestDir);
+
+        await using var stream = new FileStream(manifestPath, FileMode.Create, FileAccess.Write);
+        await using var writer = new StreamWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+        return await StorageManifest.WriteAsync(db, storageRoot, includeChunks, writer);
+    }
+
+    /// <summary>
+    /// Generates a manifest file for the configured storage root. Returns <see langword="null"/> when
+    /// it could not be produced (the reason is reported as a warning), so a backup run can continue.
+    /// </summary>
+    private static async Task<StorageManifest.Result?> TryGenerateManifestFileAsync(string manifestPath)
+    {
+        try
+        {
+            await using var provider = ServiceProviderFactory.CreateFromConfig();
+            if (provider is null)
+                return null;
+
+            var storageRoot = StorageManifest.ResolveStorageRoot();
+            using var scope = provider.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<FilesDbContext>();
+
+            return await WriteManifestToFileAsync(db, storageRoot, includeChunks: true, manifestPath);
+        }
+        catch (Exception ex)
+        {
+            ConsoleOutput.WriteWarning($"Storage manifest could not be written: {ex.Message}");
+            return null;
+        }
+    }
+
+    private static async Task<int> CreateBackupAsync(
+        string? outputPath, bool includeDbDump, string? serverUrl, bool includeManifest)
     {
         // If --server is specified, call the server API to trigger the backup
         if (!string.IsNullOrWhiteSpace(serverUrl))
@@ -116,7 +271,31 @@ internal static class BackupCommands
 
         try
         {
-            // Step 1: Optional database dump
+            // Step 1: Storage manifest — generated before the archive so every backup carries the index
+            // that maps its content-addressed blobs back to files. Without it the archived storage tree
+            // cannot be interpreted after a restore (blobs have no file extension).
+            string? manifestPath = null;
+            if (includeManifest)
+            {
+                manifestPath = Path.Combine(backupDir, $"dotnetcloud-manifest-{timestamp}.tsv");
+                var manifest = await TryGenerateManifestFileAsync(manifestPath);
+                if (manifest is null)
+                {
+                    manifestPath = null;
+                    ConsoleOutput.WriteWarning("Continuing without a storage manifest.");
+                }
+                else
+                {
+                    ConsoleOutput.WriteSuccess(
+                        $"Storage manifest created ({manifest.FileVersions} file versions, {manifest.ChunkRows} chunk rows).");
+                }
+            }
+            else
+            {
+                ConsoleOutput.WriteInfo("Skipping the storage manifest (--no-manifest).");
+            }
+
+            // Step 2: Optional database dump
             var dbDumpPath = Path.Combine(backupDir, $"dotnetcloud-db-{timestamp}.sql");
             var createdDbDump = false;
 
@@ -138,7 +317,7 @@ internal static class BackupCommands
                 }
             }
 
-            // Step 2: Create zip archive
+            // Step 3: Create zip archive
             var fileCount = 0;
             await using var zipStream = new FileStream(backupPath, FileMode.Create);
             using var archive = new ZipArchive(zipStream, ZipArchiveMode.Create);
@@ -147,6 +326,13 @@ internal static class BackupCommands
             if (createdDbDump && File.Exists(dbDumpPath))
             {
                 archive.CreateEntryFromFile(dbDumpPath, "database.sql");
+                fileCount++;
+            }
+
+            // Add the storage manifest at a fixed path, wherever it was written on disk.
+            if (manifestPath is not null && File.Exists(manifestPath))
+            {
+                archive.CreateEntryFromFile(manifestPath, "manifest/storage-manifest.tsv");
                 fileCount++;
             }
 
@@ -192,6 +378,12 @@ internal static class BackupCommands
             ConsoleOutput.WriteSuccess($"Backup created: {backupPath}");
             ConsoleOutput.WriteSuccess($"  Files archived: {fileCount}");
             ConsoleOutput.WriteSuccess($"  Archive size: {FormatSize(fileInfo.Length)}");
+
+            if (manifestPath is not null)
+            {
+                ConsoleOutput.WriteSuccess("  Storage manifest: manifest/storage-manifest.tsv (inside the archive)");
+                ConsoleOutput.WriteInfo($"  Standalone copy: {manifestPath}");
+            }
 
             if (createdDbDump)
             {

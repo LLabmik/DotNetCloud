@@ -211,13 +211,34 @@ public class CommandStructureTests
     }
 
     [TestMethod]
+    public void BackupCommand_HasNoManifestOption()
+    {
+        var command = BackupCommands.Create();
+        var option = command.Options.FirstOrDefault(o => o.Name == "--no-manifest");
+        Assert.IsNotNull(option, "Expected --no-manifest option");
+        Assert.IsInstanceOfType(option, typeof(Option<bool>));
+    }
+
+    [TestMethod]
     public void BackupCommand_HasRestoreAndScheduleSubcommands()
     {
         var command = BackupCommands.Create();
         var subNames = command.Subcommands.Select(c => c.Name).ToList();
         CollectionAssert.Contains(subNames, "restore");
         CollectionAssert.Contains(subNames, "schedule");
-        Assert.AreEqual(2, command.Subcommands.Count);
+        CollectionAssert.Contains(subNames, "manifest");
+        Assert.AreEqual(3, command.Subcommands.Count);
+    }
+
+    [TestMethod]
+    public void BackupManifestCommand_HasExpectedOptions()
+    {
+        var command = BackupCommands.Create();
+        var manifest = command.Subcommands.First(c => c.Name == "manifest");
+        var optionNames = manifest.Options.Select(o => o.Name).ToList();
+        CollectionAssert.Contains(optionNames, "--output");
+        CollectionAssert.Contains(optionNames, "--no-chunks");
+        CollectionAssert.Contains(optionNames, "--storage-root");
     }
 
     [TestMethod]

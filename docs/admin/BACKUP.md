@@ -1,6 +1,6 @@
 # Files Module — Backup & Restore Procedures
 
-> **Last Updated:** 2026-03-03
+> **Last Updated:** 2026-10-09
 
 ---
 
@@ -17,11 +17,53 @@ Both must be backed up together and restored together for a consistent state.
 
 ## What to Back Up
 
-| Component | Location | Contains |
-|---|---|---|
-| **Database** | PostgreSQL / SQL Server | `files.*` schema (file_nodes, file_versions, file_chunks, file_shares, etc.) |
-| **File storage** | `{StorageRoot}` directory | Binary chunk files, thumbnails |
-| **Configuration** | `appsettings.json` | Module settings (quota, retention, Collabora, storage path) |
+| Component            | Location                                                             | Contains                                                                     |
+| -------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| **Database**         | PostgreSQL / SQL Server                                              | `files.*` schema (file_nodes, file_versions, file_chunks, file_shares, etc.) |
+| **File storage**     | `{StorageRoot}` directory                                            | Binary chunk files, thumbnails                                               |
+| **Configuration**    | `appsettings.json`                                                   | Module settings (quota, retention, Collabora, storage path)                  |
+| **Storage manifest** | Embedded by `dotnetcloud backup`; also `dotnetcloud backup manifest` | Index mapping every stored blob back to its file (see below)                 |
+
+> **⚠️ The storage tree is not self-describing.** Content is content-addressed and stored _without_ a
+> file extension — whole-file media blobs at `files/<xx>/<yy>/<sha256>`, chunked files at
+> `chunks/<xx>/<yy>/<sha256>`. Nothing on disk records which blob belongs to which file, or in what
+> order a chunked file's chunks concatenate, so a copy of the storage tree cannot be interpreted (or
+> rebuilt) without the database. **Always generate a manifest alongside the storage backup.**
+
+### Storage Manifest
+
+Generates a tab-separated index of every content blob, keyed by the database rows that reference it.
+It works with either database provider (it reads the database through the CLI, not through provider tools).
+
+```bash
+# Default: <backup directory>/dotnetcloud-manifest-<timestamp>.tsv
+dotnetcloud backup manifest
+
+# Explicit destination
+dotnetcloud backup manifest --output /backup/dotnetcloud-manifest-2026-10-09.tsv
+
+# File versions only (much smaller; omits chunk rows)
+dotnetcloud backup manifest --no-chunks
+
+# Stream to stdout (for piping into the backup archive)
+dotnetcloud backup manifest --output -
+```
+
+Each data row is one `file` record (per file version) or one `blob` record (per chunk):
+
+| record                    | meaning                                                                                     |
+| ------------------------- | ------------------------------------------------------------------------------------------- |
+| `file`, `isChunked=false` | the file's bytes are the single whole-file blob at `storagePath` — copy it as-is            |
+| `file`, `isChunked=true`  | the bytes are the concatenation of that version's `blob` rows, in ascending `sequenceIndex` |
+
+The trailing `#totals` line also reports `missingWholeFileBlobs` and `truncatedWholeFileBlobs`. Those
+are the dangerous ones: a whole-file media version whose blob is gone still lists normally and only
+fails when it is played or downloaded.
+
+> **`dotnetcloud backup` does this for you.** Every backup run generates the manifest _before_ writing the
+> archive and embeds it as `manifest/storage-manifest.tsv` (a standalone copy is left next to the archive).
+> Use `dotnetcloud backup --no-manifest` to skip it, or run `dotnetcloud backup manifest` on its own for an
+> ad-hoc index — e.g. to check for missing content without taking a backup.
 
 ---
 
@@ -40,6 +82,21 @@ This creates a compressed archive containing:
 - Database dump (pg_dump / SQL Server bacpac)
 - File storage directory
 - Configuration files
+- **Storage manifest** — `manifest/storage-manifest.tsv`
+
+The manifest is generated automatically, before the archive is written, so every backup explains its own
+storage tree:
+
+```bash
+dotnetcloud backup --output /backup/dotnetcloud-2026-10-09.zip
+#   → archive gains manifest/storage-manifest.tsv
+#   → standalone copy at /var/lib/dotnetcloud/backups/dotnetcloud-manifest-<timestamp>.tsv
+
+dotnetcloud backup --no-manifest      # opt out (e.g. when the database is unreachable)
+```
+
+If the manifest cannot be written the backup still completes, with a warning — look for
+`Storage manifest could not be written` and re-run `dotnetcloud backup manifest` afterwards.
 
 ### Method 2: Manual Backup
 
@@ -98,6 +155,11 @@ dotnetcloud restore /backup/dotnetcloud-2026-03-03.tar.gz
 ```
 
 This restores both the database and file storage.
+
+If you kept a storage manifest, compare it against the restored tree before starting the server: every
+`file` row should have its `storagePath` (whole-file) or its ordered `blob` rows (chunked) present under
+the storage root. `dotnetcloud backup manifest` run after the restore will re-flag anything missing,
+and `scripts/audit-whole-file-blobs.sh` reports the whole-file subset directly.
 
 ### Method 2: Manual Restore
 
