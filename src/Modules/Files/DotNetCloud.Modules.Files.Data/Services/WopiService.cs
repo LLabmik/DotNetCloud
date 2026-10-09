@@ -226,10 +226,15 @@ internal sealed class WopiService : IWopiService
 
         // Apply the version policy immediately so a disabled or capped policy takes effect on save.
         var retentionOptions = await _versioningSettings.GetAsync(cancellationToken);
-        if (await VersionRetentionEnforcer.ApplyAsync(_db, fileId, retentionOptions, cancellationToken) > 0)
+        var retention = await VersionRetentionEnforcer.ApplyAsync(_db, fileId, retentionOptions, cancellationToken);
+        if (retention.PrunedCount > 0)
         {
             await _db.SaveChangesAsync(cancellationToken);
         }
+
+        // Reap the blobs of any pruned whole-file versions that nothing else references.
+        foreach (var prunedPath in retention.PrunedWholeFilePaths)
+            await WholeFileBlobCleanup.DeleteIfUnreferencedAsync(_db, _storageEngine, prunedPath, cancellationToken);
 
         _logger.LogInformation("WOPI PutFile: {FileId} ({FileName}) → v{Version}, {Size} bytes, user {UserId}",
             fileId, node.Name, newVersionNumber, totalSize, caller.UserId);

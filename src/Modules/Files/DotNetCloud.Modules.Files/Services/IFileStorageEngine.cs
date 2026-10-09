@@ -49,4 +49,31 @@ public interface IFileStorageEngine
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
     Task<long> GetTotalSizeAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Streams <paramref name="source"/> to <paramref name="storagePath"/> without buffering the whole
+    /// payload in memory. The write is atomic: the data is staged in a scratch file in the same
+    /// directory and renamed into place only after it has been fully written and verified, so a
+    /// crashed or failed write never leaves a truncated blob behind.
+    /// </summary>
+    /// <param name="storagePath">Destination storage path.</param>
+    /// <param name="source">Source stream to copy from.</param>
+    /// <param name="expectedLength">Expected byte length, verified after the write. Optional.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task WriteFromStreamAsync(
+        string storagePath,
+        Stream source,
+        long? expectedLength = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Enumerates the storage paths of every file (relative to the storage root, using forward
+    /// slashes) underneath <paramref name="prefix"/>. Used by the orphan-blob reconciler and to find
+    /// leftover <c>*.tmp-*</c> scratch files.
+    /// </summary>
+    /// <param name="prefix">Directory prefix to enumerate, e.g. <c>files</c>.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    IAsyncEnumerable<string> EnumerateStoragePathsAsync(
+        string prefix,
+        CancellationToken cancellationToken = default);
 }

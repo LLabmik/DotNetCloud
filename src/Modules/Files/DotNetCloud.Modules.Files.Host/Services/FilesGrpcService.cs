@@ -31,6 +31,7 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
     private readonly IAuditLogger _auditLogger;
     private readonly ILogger<FilesGrpcService> _logger;
     private readonly IFileVersioningSettingsProvider _versioningSettings;
+    private readonly IWholeFileStorageService? _wholeFileStorage;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FilesGrpcService"/> class.
@@ -41,7 +42,8 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
         IFileStorageEngine storageEngine,
         IAuditLogger auditLogger,
         ILogger<FilesGrpcService> logger,
-        IFileVersioningSettingsProvider versioningSettings)
+        IFileVersioningSettingsProvider versioningSettings,
+        IWholeFileStorageService? wholeFileStorageService = null)
     {
         _db = db;
         _eventBus = eventBus;
@@ -49,6 +51,7 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
         _auditLogger = auditLogger;
         _logger = logger;
         _versioningSettings = versioningSettings;
+        _wholeFileStorage = wholeFileStorageService;
     }
 
     /// <inheritdoc />
@@ -884,9 +887,21 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
 
         // Apply the version retention policy right after the new version is written.
         var retentionOptions = await _versioningSettings.GetAsync(context.CancellationToken);
-        if (await VersionRetentionEnforcer.ApplyAsync(_db, fileNode.Id, retentionOptions, context.CancellationToken) > 0)
+        var retention = await VersionRetentionEnforcer.ApplyAsync(_db, fileNode.Id, retentionOptions, context.CancellationToken);
+        if (retention.PrunedCount > 0)
         {
             await _db.SaveChangesAsync(context.CancellationToken);
+        }
+
+        // Reap the blobs of any pruned whole-file versions that nothing else references.
+        foreach (var prunedPath in retention.PrunedWholeFilePaths)
+            await WholeFileBlobCleanup.DeleteIfUnreferencedAsync(_db, _storageEngine, prunedPath, context.CancellationToken);
+
+        // Immutable media (photos/music/video) is stored as a single whole-file blob instead of
+        // chunks, so reads can serve the blob directly. Conversion is idempotent and safe.
+        if (_wholeFileStorage is not null)
+        {
+            await _wholeFileStorage.ConvertVersionToWholeFileAsync(version.Id, context.CancellationToken);
         }
 
         _logger.LogInformation(
@@ -1063,9 +1078,31 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
             StoragePath = version.StoragePath,
             MimeType = version.MimeType,
             CreatedByUserId = userId,
-            Label = $"Restored from v{version.VersionNumber}"
+            Label = $"Restored from v{version.VersionNumber}",
+            IsChunked = version.IsChunked
         };
         _db.FileVersions.Add(restoredVersion);
+
+        // Copy chunk mappings for chunked versions; whole-file versions share the blob directly.
+        if (version.IsChunked)
+        {
+            var sourceChunks = await _db.FileVersionChunks
+                .AsNoTracking()
+                .Where(vc => vc.FileVersionId == version.Id)
+                .ToListAsync(context.CancellationToken);
+
+            foreach (var sc in sourceChunks)
+            {
+                _db.FileVersionChunks.Add(new FileVersionChunk
+                {
+                    FileVersionId = restoredVersion.Id,
+                    FileChunkId = sc.FileChunkId,
+                    SequenceIndex = sc.SequenceIndex
+                });
+
+                await ChunkReferenceHelper.IncrementAsync(_db, sc.FileChunkId, context.CancellationToken);
+            }
+        }
 
         // Update node to point to restored content
         node.ContentHash = version.ContentHash;
@@ -1078,10 +1115,15 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
 
         // A restore records a new version, so the retention policy applies here too.
         var restoreRetentionOptions = await _versioningSettings.GetAsync(context.CancellationToken);
-        if (await VersionRetentionEnforcer.ApplyAsync(_db, nodeId, restoreRetentionOptions, context.CancellationToken) > 0)
+        var restoreRetention = await VersionRetentionEnforcer.ApplyAsync(_db, nodeId, restoreRetentionOptions, context.CancellationToken);
+        if (restoreRetention.PrunedCount > 0)
         {
             await _db.SaveChangesAsync(context.CancellationToken);
         }
+
+        // Reap the blobs of any pruned whole-file versions that nothing else references.
+        foreach (var prunedPath in restoreRetention.PrunedWholeFilePaths)
+            await WholeFileBlobCleanup.DeleteIfUnreferencedAsync(_db, _storageEngine, prunedPath, context.CancellationToken);
 
         _logger.LogInformation("File {NodeId} restored to version {Version}", nodeId, request.VersionNumber);
 

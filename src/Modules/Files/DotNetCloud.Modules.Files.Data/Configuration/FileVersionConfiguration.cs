@@ -32,6 +32,11 @@ public sealed class FileVersionConfiguration : IEntityTypeConfiguration<FileVers
             .IsRequired()
             .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
+        // Existing rows are treated as chunked until lazily converted, so the column defaults to true.
+        builder.Property(v => v.IsChunked)
+            .IsRequired()
+            .HasDefaultValue(true);
+
         builder.HasOne(v => v.FileNode)
             .WithMany(n => n.Versions)
             .HasForeignKey(v => v.FileNodeId)
@@ -50,5 +55,9 @@ public sealed class FileVersionConfiguration : IEntityTypeConfiguration<FileVers
 
         builder.HasIndex(v => v.CreatedByUserId)
             .HasDatabaseName("ix_file_versions_created_by");
+
+        // Supports the whole-file blob reconciler (find versions that reference a given blob pool).
+        builder.HasIndex(v => v.IsChunked)
+            .HasDatabaseName("ix_file_versions_is_chunked");
     }
 }

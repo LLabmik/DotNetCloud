@@ -53,4 +53,13 @@ public sealed class FileVersion
     /// Null for versions uploaded from Windows clients.
     /// </summary>
     public int? PosixMode { get; set; }
+
+    /// <summary>
+    /// How this version's content is stored.
+    /// <see langword="true"/> (default) — the content is split into <see cref="FileVersionChunk"/>
+    /// rows pointing at <c>chunks/…</c> blobs (current behaviour for every existing file).
+    /// <see langword="false"/> — the content is a single whole-file blob at
+    /// <see cref="StoragePath"/> (<c>files/…</c>), used for immutable media.
+    /// </summary>
+    public bool IsChunked { get; set; } = true;
 }

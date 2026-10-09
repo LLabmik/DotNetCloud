@@ -714,6 +714,11 @@ namespace DotNetCloud.Modules.Files.Data.SqlServer.Migrations
                     b.Property<Guid>("FileNodeId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<bool>("IsChunked")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
                     b.Property<string>("Label")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
@@ -749,6 +754,9 @@ namespace DotNetCloud.Modules.Files.Data.SqlServer.Migrations
 
                     b.HasIndex("FileNodeId")
                         .HasDatabaseName("ix_file_versions_file_node_id");
+
+                    b.HasIndex("IsChunked")
+                        .HasDatabaseName("ix_file_versions_is_chunked");
 
                     b.HasIndex("FileNodeId", "VersionNumber")
                         .IsUnique()

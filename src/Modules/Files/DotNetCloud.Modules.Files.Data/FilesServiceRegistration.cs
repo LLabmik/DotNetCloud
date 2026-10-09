@@ -60,6 +60,7 @@ public static class FilesServiceRegistration
         services.AddScoped<IFileService, FileService>();
         services.AddScoped<IChunkedUploadService, ChunkedUploadService>();
         services.AddScoped<IDownloadService, DownloadService>();
+        services.AddScoped<IWholeFileStorageService, WholeFileStorageService>();
         services.AddScoped<IFileDirectory, FileDirectoryService>();
         services.AddScoped<IVersionService, VersionService>();
         services.AddScoped<IShareService, ShareService>();
@@ -154,6 +155,7 @@ public static class FilesServiceRegistration
         services.AddHostedService<TempFileCleanupService>();
         services.AddHostedService<ShareExpiryNotificationService>();
         services.AddHostedService<ExpiredShareCleanupService>();
+        services.AddHostedService<WholeFileBlobSweepService>();
 
         return services;
     }
@@ -190,6 +192,7 @@ public static class FilesServiceRegistration
         services.AddScoped<IFileService, FileService>();
         services.AddScoped<IChunkedUploadService, ChunkedUploadService>();
         services.AddScoped<IDownloadService, DownloadService>();
+        services.AddScoped<IWholeFileStorageService, WholeFileStorageService>();
         services.AddScoped<IFileDirectory, FileDirectoryService>();
         services.AddScoped<IVersionService, VersionService>();
         services.AddScoped<IShareService, ShareService>();

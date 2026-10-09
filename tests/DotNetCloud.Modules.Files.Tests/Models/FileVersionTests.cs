@@ -34,6 +34,14 @@ public class FileVersionTests
     }
 
     [TestMethod]
+    public void WhenCreatedThenIsChunkedDefaultsToTrue()
+    {
+        // Existing rows are treated as chunked until lazily converted to a whole-file blob.
+        var version = new FileVersion { ContentHash = "abc", StoragePath = "/path" };
+
+        Assert.IsTrue(version.IsChunked);
+    }
+    [TestMethod]
     public void WhenCreatedThenSizeIsZero()
     {
         var version = new FileVersion { ContentHash = "abc", StoragePath = "/path" };

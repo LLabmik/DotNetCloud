@@ -21,6 +21,7 @@ internal sealed class DownloadService : IDownloadService
     private readonly ILogger<DownloadService> _logger;
     private readonly IPermissionService _permissions;
     private readonly IShareAccessMembershipResolver? _shareAccessMembershipResolver;
+    private readonly IWholeFileStorageService? _wholeFileStorage;
     private readonly string _tmpPath;
     private readonly long _maxZipSizeBytes;
 
@@ -30,13 +31,15 @@ internal sealed class DownloadService : IDownloadService
         ILogger<DownloadService> logger,
         IPermissionService permissions,
         IOptions<FileUploadOptions> uploadOptions,
-        IShareAccessMembershipResolver? shareAccessMembershipResolver = null)
+        IShareAccessMembershipResolver? shareAccessMembershipResolver = null,
+        IWholeFileStorageService? wholeFileStorageService = null)
     {
         _db = db;
         _storageEngine = storageEngine;
         _logger = logger;
         _permissions = permissions;
         _shareAccessMembershipResolver = shareAccessMembershipResolver;
+        _wholeFileStorage = wholeFileStorageService;
         _tmpPath = uploadOptions.Value.TmpPath ?? Path.GetTempPath();
         _maxZipSizeBytes = uploadOptions.Value.MaxZipSizeBytes > 0
             ? uploadOptions.Value.MaxZipSizeBytes
@@ -532,6 +535,30 @@ internal sealed class DownloadService : IDownloadService
         if (latestVersion is null)
             return;
 
+        // Whole-file media: copy the blob straight into the zip entry (no chunk reassembly).
+        if (!latestVersion.IsChunked)
+        {
+            var blobStream = await _storageEngine.OpenReadStreamAsync(latestVersion.StoragePath, cancellationToken);
+            if (blobStream is null)
+            {
+                _logger.LogWarning("Whole-file blob missing for version {VersionId} during ZIP assembly for file '{EntryPath}'.",
+                    latestVersion.Id, entryPath);
+                throw new NotFoundException(
+                    $"File content is unavailable: whole-file blob for version {latestVersion.Id} is missing from storage.");
+            }
+
+            await using (blobStream)
+            await using (var entryStream = entry.Open())
+            {
+                await blobStream.CopyToAsync(entryStream, cancellationToken);
+            }
+
+            if (zipStream.Length > _maxZipSizeBytes)
+                throw new ZipSizeLimitExceededException(_maxZipSizeBytes);
+
+            return;
+        }
+
         await using (var entryStream = entry.Open())
         {
             var versionChunks = await _db.FileVersionChunks
@@ -573,6 +600,35 @@ internal sealed class DownloadService : IDownloadService
     /// </summary>
     private async Task<FileVersion?> TryAutoRepairMissingVersionAsync(FileNode node, CancellationToken cancellationToken)
     {
+        // Whole-file media whose blob already exists on disk (e.g. the version row was lost): create a
+        // whole-file version pointing straight at the blob instead of hunting for chunks.
+        if (_wholeFileStorage is not null
+            && !string.IsNullOrEmpty(node.StoragePath)
+            && _wholeFileStorage.ShouldStoreWholeFile(node.MimeType, node.Name)
+            && await _storageEngine.ExistsAsync(node.StoragePath, cancellationToken))
+        {
+            var wholeFileVersion = new FileVersion
+            {
+                FileNodeId = node.Id,
+                VersionNumber = node.CurrentVersion,
+                Size = node.Size,
+                ContentHash = node.ContentHash ?? string.Empty,
+                StoragePath = node.StoragePath,
+                MimeType = node.MimeType,
+                CreatedByUserId = node.OwnerId,
+                CreatedAt = node.CreatedAt,
+                IsChunked = false
+            };
+            _db.FileVersions.Add(wholeFileVersion);
+            await _db.SaveChangesAsync(cancellationToken);
+
+            _logger.LogInformation(
+                "Auto-repaired whole-file media FileNode {NodeId} '{Name}': created FileVersion {VersionId} backed by blob {StoragePath}.",
+                node.Id, node.Name, wholeFileVersion.Id, node.StoragePath);
+
+            return wholeFileVersion;
+        }
+
         if (string.IsNullOrEmpty(node.ContentHash))
             return null;
 
@@ -631,6 +687,49 @@ internal sealed class DownloadService : IDownloadService
     }
 
     private async Task<Stream> BuildStreamFromVersionAsync(Guid versionId, CancellationToken cancellationToken)
+    {
+        var version = await _db.FileVersions
+            .AsNoTracking()
+            .FirstOrDefaultAsync(v => v.Id == versionId, cancellationToken);
+
+        if (version is null)
+            return Stream.Null;
+
+        // Whole-file media: hand out the blob stream directly — no temp copy, seekable for range requests.
+        if (!version.IsChunked)
+        {
+            var blob = await _storageEngine.OpenReadStreamAsync(version.StoragePath, cancellationToken);
+            if (blob is not null)
+                return blob;
+
+            _logger.LogWarning("Whole-file blob missing for version {VersionId} at {StoragePath}.",
+                versionId, version.StoragePath);
+            throw new NotFoundException(
+                $"File content is unavailable: whole-file blob for version {versionId} is missing from storage.");
+        }
+
+        // Lazy conversion: chunked immutable media is converted on first read, then served from the blob.
+        if (_wholeFileStorage is not null)
+        {
+            var fileName = await _db.FileNodes
+                .AsNoTracking()
+                .Where(n => n.Id == version.FileNodeId)
+                .Select(n => n.Name)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (_wholeFileStorage.ShouldStoreWholeFile(version.MimeType, fileName)
+                && await _wholeFileStorage.ConvertVersionToWholeFileAsync(versionId, cancellationToken))
+            {
+                var blob = await _storageEngine.OpenReadStreamAsync(version.StoragePath, cancellationToken);
+                if (blob is not null)
+                    return blob;
+            }
+        }
+
+        return await ConcatenateChunksAsync(versionId, cancellationToken);
+    }
+
+    private async Task<Stream> ConcatenateChunksAsync(Guid versionId, CancellationToken cancellationToken)
     {
         var versionChunks = await _db.FileVersionChunks
             .AsNoTracking()

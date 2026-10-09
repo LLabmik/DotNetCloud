@@ -119,7 +119,11 @@
     <PackageVersion Include="Serilog.Sinks.Console" Version="6.1.1" />
     <PackageVersion Include="Serilog.Sinks.File" Version="7.0.0" />
     <!-- Image processing -->
-    <PackageVersion Include="SixLabors.ImageSharp" Version="4.0.0" />
+    <!-- 4.1.2 fixes seven advisories (incl. 4 high) that 4.0.0 shipped with:
+         GHSA-4q3p-rj5x-xv7p, GHSA-ffp7-56pq-64mr, GHSA-gwg2-r3hj-4w44,
+         GHSA-j3p4-wp97-rph4, GHSA-j9gm-c75j-xc9q, GHSA-jjfr-hcj7-qf5w, GHSA-wmxv-xphr-5c9g
+         (all ">= 4.0.0, <= 4.1.1", first patched 4.1.2). Bump, not suppress. -->
+    <PackageVersion Include="SixLabors.ImageSharp" Version="4.1.2" />
     <!-- SQLite (mobile) -->
     <PackageVersion Include="sqlite-net-pcl" Version="1.11.285" />
     <!-- Security: override vulnerable transitive dependency

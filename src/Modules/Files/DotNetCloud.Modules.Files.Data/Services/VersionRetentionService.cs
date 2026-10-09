@@ -18,6 +18,7 @@ public sealed class VersionRetentionService : IVersionRetentionService
     private readonly FilesDbContext _db;
     private readonly IFileVersioningSettingsProvider _settings;
     private readonly ILogger<VersionRetentionService> _logger;
+    private readonly IFileStorageEngine? _storageEngine;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="VersionRetentionService"/> class.
@@ -25,14 +26,17 @@ public sealed class VersionRetentionService : IVersionRetentionService
     /// <param name="db">Database context.</param>
     /// <param name="settings">Resolves the effective versioning policy.</param>
     /// <param name="logger">Logger instance.</param>
+    /// <param name="storageEngine">Physical storage engine, used to reap pruned whole-file blobs.</param>
     public VersionRetentionService(
         FilesDbContext db,
         IFileVersioningSettingsProvider settings,
-        ILogger<VersionRetentionService> logger)
+        ILogger<VersionRetentionService> logger,
+        IFileStorageEngine? storageEngine = null)
     {
         _db = db;
         _settings = settings;
         _logger = logger;
+        _storageEngine = storageEngine;
     }
 
     /// <inheritdoc />
@@ -54,10 +58,13 @@ public sealed class VersionRetentionService : IVersionRetentionService
             .ToListAsync(cancellationToken);
 
         var totalDeleted = 0;
+        var prunedWholeFilePaths = new List<string>();
 
         foreach (var nodeId in fileNodeIds)
         {
-            totalDeleted += await VersionRetentionEnforcer.ApplyAsync(_db, nodeId, options, cancellationToken);
+            var result = await VersionRetentionEnforcer.ApplyAsync(_db, nodeId, options, cancellationToken);
+            totalDeleted += result.PrunedCount;
+            prunedWholeFilePaths.AddRange(result.PrunedWholeFilePaths);
         }
 
         if (totalDeleted > 0)
@@ -66,6 +73,13 @@ public sealed class VersionRetentionService : IVersionRetentionService
             _logger.LogInformation(
                 "Version cleanup: pruned {Count} excess/expired versions across {Files} files",
                 totalDeleted, fileNodeIds.Count);
+        }
+
+        // Reap whole-file media blobs once the version rows are gone.
+        if (_storageEngine is not null)
+        {
+            foreach (var prunedPath in prunedWholeFilePaths.Distinct(StringComparer.Ordinal))
+                await WholeFileBlobCleanup.DeleteIfUnreferencedAsync(_db, _storageEngine, prunedPath, cancellationToken);
         }
 
         return new VersionRetentionSweepResult(options.Enabled, fileNodeIds.Count, totalDeleted);
