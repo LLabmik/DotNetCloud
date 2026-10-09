@@ -817,6 +817,18 @@ public class VideoController : VideoControllerBase
                 }
             }
         }
+        catch (NotFoundException ex) when (ex.Message.Contains("is missing from storage", StringComparison.Ordinal))
+        {
+            // The database says the content exists but the bytes are gone — e.g. a whole-file media
+            // blob that was released without ever being written. Surface it as content loss rather
+            // than an anonymous 404 so the client can tell the user what to do about it.
+            _streamProgress.Remove(videoId);
+            _logger.LogError(ex,
+                "Video {VideoId} content is missing from storage (FileNodeId={FileNodeId}); the stored bytes must be restored or the file re-uploaded.",
+                videoId, video.FileNodeId);
+            return NotFound(ErrorEnvelope("content_unavailable",
+                "This video's stored content is missing from the server, so it can't be played. Re-upload or re-sync the original file to restore it."));
+        }
         catch (Exception ex)
         {
             _streamProgress.Remove(videoId);

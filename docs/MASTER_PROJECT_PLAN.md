@@ -3414,6 +3414,10 @@ blob directly with no temp-file reassembly; documents keep the chunk pipeline.
   `UserDeletedEventSubscriber`)
 - ✓ `WholeFileBlobSweepService` periodic reconciler for unreferenced `files/` blobs + `*.tmp-*` scratch files
 - ✓ New tests: classifier, conversion, download/ZIP/auto-repair, upload completion, cleanup, retention, sweep, engine, model
+- ✓ **Integrity hardening:** `IFileStorageEngine.GetLengthAsync`; conversion releases chunks only behind a byte-exact
+  blob (truncated blobs replaced, verified after the write and again immediately before the `IsChunked` flip); download
+  falls back to chunk reassembly; `WholeFileBlobIntegrityService` + 12-hourly `WholeFileBlobIntegrityAuditService`;
+  `scripts/audit-whole-file-blobs.sh`; `VideoController` `content_unavailable` + player error text
 
 **Notes:** Files.Tests **926 pass / 0 fail**; Music 387 / Photos 292 / Video 213 / Core.Server 799 pass; CI solution builds
 clean. Deployed to mint22 (15/15 targets, hashes verified, migrations applied, v0.6.13, `/health/ready` Healthy 14/14).
@@ -3421,6 +3425,10 @@ clean. Deployed to mint22 (15/15 targets, hashes verified, migrations applied, v
 (`24/15/3 chunk(s) released`), blob sizes byte-exact, chunk pool 589 M → 428 M, 0 orphan chunk rows; the orphan sweep
 reclaimed a seeded unreferenced blob + scratch file while keeping a referenced one. **Pending:** a client-side upload
 (new `.mp4` converts at completion; `.docx` stays chunked), delete-removes-blob, and media re-sync content-hash check.
+**Post-deploy integrity audit (2026-10-08):** one pre-existing video (`20261005_225022.mp4`, converted by an earlier
+build) was found flagged whole-file with its chunks released and its blob missing — unrecoverable, flagged for
+re-upload; the conversion path is now gated on a verified blob and this state is caught by the integrity audit instead
+of surfacing as a 404. Audit: 13 whole-file versions, 12 healthy, 1 unrecoverable.
 
 ---
 

@@ -267,4 +267,25 @@ public class DownloadServiceWholeFileTests
         Assert.IsFalse(repairedVersion.IsChunked);
         Assert.AreEqual(storagePath, repairedVersion.StoragePath);
     }
+
+    [TestMethod]
+    public async Task DownloadCurrentAsync_WholeFileBlobMissingButChunksRemain_RebuildsFromChunks()
+    {
+        using var db = CreateContext();
+        var owner = Guid.CreateVersion7();
+        var (node, version) = await SeedChunkedVersionAsync(db, owner, "clip.mp4", "video/mp4",
+            "alpha-"u8.ToArray(), "omega"u8.ToArray());
+
+        // Simulate a bad conversion: the version is flagged whole-file and its blob is gone, but the
+        // chunk mappings survive — so the content is still recoverable and the read must not fail.
+        var versionRow = await db.FileVersions.SingleAsync(v => v.Id == version.Id);
+        versionRow.IsChunked = false;
+        await db.SaveChangesAsync();
+        Assert.IsFalse(await _engine.ExistsAsync(version.StoragePath));
+
+        var service = CreateService(db);
+
+        await using var stream = await service.DownloadCurrentAsync(node.Id, UserCaller(owner));
+        Assert.AreEqual("alpha-omega", await ReadAllAsync(stream));
+    }
 }

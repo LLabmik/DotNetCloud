@@ -91,4 +91,29 @@ public class LocalFileStorageEngineWholeFileTests
 
         Assert.AreEqual(0, paths.Count);
     }
+
+    [TestMethod]
+    public async Task GetLengthAsync_ExistingBlob_ReturnsByteLength()
+    {
+        await _engine.WriteChunkAsync("files/ab/cd/measure", "twelve-bytes"u8.ToArray());
+
+        Assert.AreEqual(12L, await _engine.GetLengthAsync("files/ab/cd/measure"));
+    }
+
+    [TestMethod]
+    public async Task GetLengthAsync_MissingBlob_ReturnsNull()
+    {
+        Assert.IsNull(await _engine.GetLengthAsync("files/ab/cd/absent"));
+    }
+
+    [TestMethod]
+    public async Task GetLengthAsync_TracksTheWrittenLength()
+    {
+        var data = "whole file payload"u8.ToArray();
+        using var source = new MemoryStream(data);
+
+        await _engine.WriteFromStreamAsync("files/ab/cd/sized", source, data.Length);
+
+        Assert.AreEqual((long)data.Length, await _engine.GetLengthAsync("files/ab/cd/sized"));
+    }
 }

@@ -702,10 +702,20 @@ internal sealed class DownloadService : IDownloadService
             if (blob is not null)
                 return blob;
 
-            _logger.LogWarning("Whole-file blob missing for version {VersionId} at {StoragePath}.",
+            // The blob is gone. If the version still has chunk mappings (e.g. a legacy conversion
+            // that flipped the flag without ever leaving a durable blob) the content is still
+            // recoverable — reassemble from chunks instead of failing the download outright.
+            _logger.LogWarning(
+                "Whole-file blob missing for version {VersionId} at {StoragePath}; attempting chunk reassembly.",
                 versionId, version.StoragePath);
+
+            if (await _db.FileVersionChunks.AnyAsync(vc => vc.FileVersionId == versionId, cancellationToken))
+            {
+                return await ConcatenateChunksAsync(versionId, cancellationToken);
+            }
+
             throw new NotFoundException(
-                $"File content is unavailable: whole-file blob for version {versionId} is missing from storage.");
+                $"File content is unavailable: whole-file blob for version {versionId} is missing from storage and no chunks remain to rebuild it.");
         }
 
         // Lazy conversion: chunked immutable media is converted on first read, then served from the blob.

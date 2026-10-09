@@ -4928,10 +4928,22 @@ content-addressed chunks, so reads stream the blob directly with no temp-file re
 - ✓ `TrashCleanupService`, `VersionRetentionEnforcer` (+ all 5 call sites), `UserDeletedEventSubscriber` reap blobs
 - ✓ `WholeFileBlobSweepService` — periodic reconciler for unreferenced `files/` blobs and `*.tmp-*` scratch files
 
-**Tests (926 Files tests green):**
+**Integrity hardening (2026-10-08):**
+
+- ✓ `IFileStorageEngine.GetLengthAsync` — blob length without opening the file
+- ✓ Conversion releases chunks only behind a byte-exact blob: truncated blobs are replaced, the write is verified,
+  and the blob is re-verified immediately before the `IsChunked` flip
+- ✓ `DownloadService` falls back to chunk reassembly when a whole-file blob is missing but chunks survive
+- ✓ `WholeFileBlobIntegrityService` / `WholeFileBlobIntegrityAuditService` — 12-hourly audit of live whole-file
+  versions; recoverable vs unrecoverable defects logged + surfaced in the background-service tracker
+- ✓ `scripts/audit-whole-file-blobs.sh` — on-demand audit (first production run: 13 whole-file versions, 12 healthy,
+  1 unrecoverable)
+- ✓ `VideoController` returns `content_unavailable` with an actionable message; player error card shows the server reason
+
+**Tests (938 Files tests green):**
 
 - ✓ Classifier, conversion service, download/ZIP/auto-repair, upload completion (REST + gRPC), blob cleanup,
-  retention, sweep, storage-engine write/enumerate, model default
+  retention, sweep, integrity audit, storage-engine write/enumerate/length, model default
 
 **Verification:**
 

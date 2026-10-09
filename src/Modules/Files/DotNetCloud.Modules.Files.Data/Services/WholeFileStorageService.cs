@@ -81,12 +81,21 @@ internal sealed class WholeFileStorageService : IWholeFileStorageService
         if (versionChunks.Count == 0)
             return false; // Nothing to reassemble — leave the version as-is.
 
-        // Step 1: write the blob before flipping the flag. While the version is still flagged
-        // chunked, the read path keeps serving chunks, so a crash here is harmless.
-        if (!await _storageEngine.ExistsAsync(storagePath, cancellationToken))
+        // Step 1: guarantee a byte-exact blob exists before anything releases the chunks. While the
+        // version is still flagged chunked the read path keeps serving chunks, so a crash or a
+        // failure here is harmless — the version simply stays chunked and readable.
+        if (!await IsBlobCompleteAsync(storagePath, expectedSize, cancellationToken))
         {
             try
             {
+                // A present-but-wrong-sized blob (e.g. a truncated write from an older build) must
+                // not be trusted: drop it so the atomic writer recreates it and the length check
+                // below can never be satisfied by a corrupt leftover.
+                if (await _storageEngine.ExistsAsync(storagePath, cancellationToken))
+                {
+                    await _storageEngine.DeleteAsync(storagePath, cancellationToken);
+                }
+
                 var chunkSources = versionChunks
                     .Select(vc => (Path: vc.FileChunk!.StoragePath, Size: (long)vc.FileChunk.Size))
                     .ToList();
@@ -101,13 +110,21 @@ internal sealed class WholeFileStorageService : IWholeFileStorageService
                     versionId);
                 return false;
             }
+
+            if (!await IsBlobCompleteAsync(storagePath, expectedSize, cancellationToken))
+            {
+                _logger.LogWarning(
+                    "Whole-file conversion aborted for version {VersionId}: blob {StoragePath} is not stored with the expected {ExpectedSize} byte(s); leaving it chunked.",
+                    versionId, storagePath, expectedSize);
+                return false;
+            }
         }
 
         // Step 2: atomically flip the flag. The DB update is the cross-process gate — only the caller
         // that observes the transition removes the chunk mappings and decrements the refcounts.
         try
         {
-            return await FlipAndCleanupAsync(versionId, versionChunks, cancellationToken);
+            return await FlipAndCleanupAsync(versionId, storagePath, expectedSize, versionChunks, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -118,11 +135,42 @@ internal sealed class WholeFileStorageService : IWholeFileStorageService
         }
     }
 
+    /// <summary>
+    /// Returns <see langword="true"/> when <paramref name="storagePath"/> holds a blob of exactly
+    /// <paramref name="expectedSize"/> bytes. Chunks are only ever released behind a positive result,
+    /// so a missing or truncated blob can never leave a version with no readable copy of its content.
+    /// </summary>
+    private async Task<bool> IsBlobCompleteAsync(string? storagePath, long expectedSize, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(storagePath))
+            return false;
+
+        var length = await _storageEngine.GetLengthAsync(storagePath, cancellationToken);
+        if (length is null)
+            return false;
+
+        // A version with no recorded size (legacy row or empty file) can only be checked for existence.
+        return expectedSize <= 0 || length.Value == expectedSize;
+    }
+
     private async Task<bool> FlipAndCleanupAsync(
         Guid versionId,
+        string? storagePath,
+        long expectedSize,
         IReadOnlyList<FileVersionChunk> versionChunks,
         CancellationToken cancellationToken)
     {
+        // Re-verify immediately before the flip: the flip releases the chunks, so it is the point at
+        // which the blob becomes the only copy of the content. Refuse to proceed if it vanished
+        // between the write above and this call (e.g. a concurrent sweep or an external cleanup).
+        if (!await IsBlobCompleteAsync(storagePath, expectedSize, cancellationToken))
+        {
+            _logger.LogWarning(
+                "Whole-file conversion aborted for version {VersionId}: blob {StoragePath} is not present with {ExpectedSize} byte(s); leaving it chunked.",
+                versionId, storagePath, expectedSize);
+            return false;
+        }
+
         if (ChunkReferenceHelper.IsInMemoryProvider(_db))
         {
             var tracked = await _db.FileVersions.FirstOrDefaultAsync(v => v.Id == versionId, cancellationToken);
