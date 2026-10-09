@@ -55,6 +55,20 @@ public sealed class UserDeletedEventSubscriber : IEventHandler<UserDeletedEvent>
                 .Distinct()
                 .ToListAsync(cancellationToken);
 
+            // Whole-file media blobs are referenced by FileVersion.StoragePath; collect them too so
+            // the sweep in step 7 considers (and preserves or reclaims) them correctly.
+            var versionStoragePaths = await db.FileVersions
+                .Where(v => !v.IsChunked && v.StoragePath != null && v.FileNode!.OwnerId == userId)
+                .Select(v => v.StoragePath)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            foreach (var path in versionStoragePaths)
+            {
+                if (!storagePaths.Contains(path))
+                    storagePaths.Add(path);
+            }
+
             _logger.LogDebug(
                 "Found {Count} distinct storage paths for user {UserId}",
                 storagePaths.Count,

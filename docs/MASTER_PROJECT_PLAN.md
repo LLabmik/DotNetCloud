@@ -12,6 +12,10 @@
 
 ---
 
+> **Recent feature work (2026-10-08, branch `fix/media-files-not-chunked`):** **immutable media is now stored as a single whole-file blob instead of 4 MB content-addressed chunks** (`docs/MEDIA_WHOLE_FILE_STORAGE_PLAN.md`). Photos (`image/*`), music (`audio/*`) and video (`video/*`) gain nothing from content-defined chunking — a re-encode is a new file, not an edit — while every read had to reassemble all chunks into a temp file before serving. A new `FileVersion.IsChunked` column (default `true`, so every existing row keeps behaving as chunked) distinguishes the modes; the whole-file blob is written to the version's existing `StoragePath` (`files/ab/cd/<manifestHash>`) — a path already recorded but never backed by a file — so `ContentHash` (the manifest hash sync clients compare) is unchanged and **no client re-downloads**. New media converts at upload completion; pre-existing chunked media converts lazily on first read; documents and every other mutable file keep the chunk pipeline untouched. New `FileStorageClassifier`; `IWholeFileStorageService`/`WholeFileStorageService` (DB-gated `IsChunked` flip + atomic staged write via `IFileStorageEngine.WriteFromStreamAsync`, keeping the rename cross-process safe); `WholeFileBlobCleanup` and a periodic `WholeFileBlobSweepService` (reclaims unreferenced `files/` blobs and `*.tmp-*` scratch files left by a crash window). `DownloadService` hands out the blob's `FileStream` directly (seekable — range requests work — no temp copy) and converts chunked media on first read; ZIP assembly and whole-file auto-repair handled. GC hooks in `TrashCleanupService`, `VersionRetentionEnforcer` (+ its 5 call sites) and `UserDeletedEventSubscriber`. Migrations `AddFileVersionIsChunked` (PostgreSQL) + `AddFileVersionIsChunked_SqlServer`; `has-pending-model-changes` clean for both. Also fixed a latent defect found en route: the gRPC `RestoreVersion` created the new version row **without** copying chunk links, so a restored chunked version had no content. New/updated tests: classifier, conversion service, download/ZIP/auto-repair, upload completion (REST + gRPC), blob cleanup, retention, sweep, engine write/enumerate, model default. Files.Tests **926 pass / 0 fail**; dependent modules Music 387 / Photos 292 / Video 213 / Core.Server 799 pass; `dotnet build DotNetCloud.CI.slnf` clean with the NuGet audit enabled — the build was briefly blocked by seven new `SixLabors.ImageSharp` 4.0.0 advisories (published 2026-10-07), resolved by bumping the package to **4.1.2** (first patched version for all seven) rather than suppressing them. ☐ Live E2E on mint22 pending deploy (upload an `.mp4` → whole-file blob + chunks reclaimed; `.docx` stays chunked; a pre-existing chunked media file converts on first playback; deleting the file removes the blob).
+
+---
+
 > **Recent fix (2026-09-30, branch `fix/collabora-user-name`):** **Collabora showed the user's GUID instead of their display name.** `WopiService.CheckFileInfoAsync` set `UserFriendlyName = caller.UserId.ToString()`, and the process-isolated Files host had **no `IUserDirectory` registered at all** (the Blazor UI only resolved names in-process), so Collabora had nothing but the GUID to render for the editor and for co-editor labels/cursors. Fixed with a new **`GrpcUserDirectory : IUserDirectory`** in `Modules.Files.Data/Services` (mirroring `GrpcGroupDirectory`: calls Core.Server's `CoreCapabilities.GetUser`/`SearchUsers` with the `module-id` metadata header the `AuthenticationInterceptor` requires), registered in `AddFilesServices` — the module-host path only, so `AddFilesUiServices` keeps Core.Server's in-process database-backed directory and the Files UI is unaffected. `WopiService` now takes an optional `IUserDirectory`, reports the resolved display name as `UserFriendlyName` (truncated to the WOPI 128-character limit) and falls back to the user id when the directory is unreachable or the user is unknown — a lookup can never fail opening a document. No proto change and no core-side change required. New `GrpcUserDirectoryTests` (9) + 5 new `WopiServiceTests`; Files.Tests **855 pass / 0 fail**, full solution builds clean. ✓ **Deployed on mint22** (`sudo ./scripts/deploy.sh --force --verify` from the uncommitted tree: **15/15 targets**, 205 s, all assembly hashes verified, `/health/ready` **200**; `GrpcUserDirectory`/`ResolveUserFriendlyName` present in both deployed `DotNetCloud.Modules.Files.Data.dll` copies; host environment confirmed as `DOTNETCLOUD_MODULE_ID=dotnetcloud.files` + `DOTNETCLOUD_CORE_ENDPOINT=http://localhost:50100`, which is listening and reachable). ✓ **Operator-confirmed live (2026-09-30):** two separate users in the same document saw correct display names for both — no GUIDs. Nothing outstanding.
 
 > **Recent fix (2026-09-29, branch `feature/remove-file-versions`):** **the Files page locked up — a sync-over-async deadlock, proven with a memory dump.** Loading `/apps/files` or clicking any folder hung forever: the page stayed inert, anonymous requests stayed fast (`/` 302, `/health/ready` 200 in ~10 ms) while the authenticated page never returned, CPU was idle, the DB had no active queries and nothing was logged. `CollaboraSettingsProvider.Current` is a synchronous escape hatch (`GetAsync().GetAwaiter().GetResult()` over a `SemaphoreSlim(1,1)`-guarded async cache) and `FileBrowser.OnInitializedAsync` → `LoadCollaboraCapabilitiesAsync` read it on **every** Files page load, so a handful of concurrent/retried loads blocked enough ThreadPool threads (8-core host ⇒ pool min 8) that the gate holder's continuation could never be scheduled — permanently wedging every caller. `dotnet-dump` (`clrthreads` + `dumpasync`) showed **six** `FileBrowser+<OnInitializedAsync>` state machines stuck in `CollaboraSettingsProvider+<GetAsync>`. Fixed by (a) `FileBrowser` awaiting `ICollaboraSettingsProvider.GetAsync()` instead of reading `Current`, and (b) bounding both settings providers' `Current` reads (`DefaultBlockingRefreshTimeout` = 2 s, optional ctor override) so a stuck refresh degrades to the last known/configured value instead of hanging — plus not caching a read that was cancelled mid-flight. `FileVersioningSettingsProvider` had the identical latent pattern and got the same hardening. New `SettingsProviderBlockingReadTests` (3); Files.Tests **841 pass / 0 fail**. ✓ Deployed + verified on mint22 (`deploy.sh --force --verify`: 15/15 targets, 214 s, hashes verified, `/health/ready` 200) and **verified in the browser**: `/apps/files` → root 6 items → _Documents_ 2 items → back to Home 6 → _Music_ 2 items, with the Select toggle still entering selection mode, i.e. repeated navigation no longer wedges the circuit. Restarting the service was only a temporary workaround before the fix. Follow-up (not done): `CollaboraProcessManager`/WOPI services still read `Current` synchronously.
@@ -3379,6 +3383,44 @@ Also fixed Android music play order (2026-09-04, `fix/android-music-play-order`)
 
 - ✓ `dotnet build DotNetCloud.CI.slnf` — zero compilation errors
 - ✓ All existing tests pass after constructor parameter updates
+
+---
+
+### Sub-Phase G: Media Whole-File Storage (Photos + Music + Video)
+
+**Reference:** `docs/MEDIA_WHOLE_FILE_STORAGE_PLAN.md`
+
+**Objective:** Store immutable media as a single whole-file blob instead of content-addressed chunks, so reads stream the
+blob directly with no temp-file reassembly; documents keep the chunk pipeline.
+
+#### Section: Phase 5.29 — Whole-File Storage for Immutable Media
+
+##### Step: phase-5.29 — Whole-File Storage for Immutable Media
+
+**Status:** completed ✅ (deployed + live-verified; client-side upload/sync checks pending)
+**Deliverables:**
+
+- ✓ `FileVersion.IsChunked` (`bool`, default `true`) + `HasDefaultValue(true)` + `ix_file_versions_is_chunked`
+- ✓ Migrations `AddFileVersionIsChunked` (PostgreSQL) + `AddFileVersionIsChunked_SqlServer`; `has-pending-model-changes` clean
+- ✓ `FileStorageClassifier` (`IsImmutableMedia`, `IsWholeFileEligible`) — MIME prefix + extension fallback
+- ✓ `IFileStorageEngine.WriteFromStreamAsync` (atomic staged write + rename, length verification, `chmod 600` on Unix)
+  and `EnumerateStoragePathsAsync`
+- ✓ `FileUploadOptions.WholeFileMediaStorage` (default `true`)
+- ✓ `IWholeFileStorageService` / `WholeFileStorageService` + internal `ChunkSequenceReadStream` (bounded file handles)
+- ✓ `DownloadService` — direct blob stream, lazy first-read conversion, ZIP copy, whole-file auto-repair
+- ✓ `ChunkedUploadService.CompleteUploadAsync` + `FilesGrpcService.CompleteUpload` convert eligible media
+- ✓ `VersionService.RestoreVersionAsync` + gRPC `RestoreVersion` copy `IsChunked` (chunk links only for chunked sources)
+- ✓ `WholeFileBlobCleanup` + GC hooks (`TrashCleanupService`, `VersionRetentionEnforcer` + call sites,
+  `UserDeletedEventSubscriber`)
+- ✓ `WholeFileBlobSweepService` periodic reconciler for unreferenced `files/` blobs + `*.tmp-*` scratch files
+- ✓ New tests: classifier, conversion, download/ZIP/auto-repair, upload completion, cleanup, retention, sweep, engine, model
+
+**Notes:** Files.Tests **926 pass / 0 fail**; Music 387 / Photos 292 / Video 213 / Core.Server 799 pass; CI solution builds
+clean. Deployed to mint22 (15/15 targets, hashes verified, migrations applied, v0.6.13, `/health/ready` Healthy 14/14).
+**Verified live:** the Video module host lazily converted the three pre-existing chunked `.mp4` files on first read
+(`24/15/3 chunk(s) released`), blob sizes byte-exact, chunk pool 589 M → 428 M, 0 orphan chunk rows; the orphan sweep
+reclaimed a seeded unreferenced blob + scratch file while keeping a referenced one. **Pending:** a client-side upload
+(new `.mp4` converts at completion; `.docx` stays chunked), delete-removes-blob, and media re-sync content-hash check.
 
 ---
 

@@ -122,14 +122,19 @@ internal sealed class TrashCleanupService : BackgroundService
 
             if (expiredTrash.Count > 0)
             {
+                var candidateBlobPaths = new List<string>();
                 foreach (var node in expiredTrash)
                 {
-                    await PermanentDeleteNodeAsync(db, node, cancellationToken);
+                    candidateBlobPaths.AddRange(await PermanentDeleteNodeAsync(db, node, cancellationToken));
                 }
 
                 await db.SaveChangesAsync(cancellationToken);
                 _logger.LogInformation("Auto-purged {Count} trash items (global retention: {Days} days, {OrgOverrides} org overrides)",
                     expiredTrash.Count, _options.RetentionDays, _options.OrganizationOverrides.Count);
+
+                // Reap whole-file media blobs once the version/node rows are gone.
+                foreach (var path in candidateBlobPaths.Distinct(StringComparer.Ordinal))
+                    await WholeFileBlobCleanup.DeleteIfUnreferencedAsync(db, storageEngine, path, cancellationToken);
             }
         }
 
@@ -170,8 +175,11 @@ internal sealed class TrashCleanupService : BackgroundService
         }
     }
 
-    private static async Task PermanentDeleteNodeAsync(FilesDbContext db, FileNode node, CancellationToken cancellationToken)
+    private static async Task<List<string>> PermanentDeleteNodeAsync(FilesDbContext db, FileNode node, CancellationToken cancellationToken)
     {
+        // Candidate whole-file blob paths to reap after the rows are deleted.
+        var candidateBlobPaths = new List<string>();
+
         // Delete related data
         var shares = await db.FileShares.Where(s => s.FileNodeId == node.Id).ToListAsync(cancellationToken);
         db.FileShares.RemoveRange(shares);
@@ -191,9 +199,17 @@ internal sealed class TrashCleanupService : BackgroundService
                 await ChunkReferenceHelper.DecrementAsync(db, vc.FileChunkId, cancellationToken);
             }
             db.FileVersionChunks.RemoveRange(versionChunks);
+
+            if (!version.IsChunked && !string.IsNullOrEmpty(version.StoragePath))
+                candidateBlobPaths.Add(version.StoragePath);
         }
         db.FileVersions.RemoveRange(versions);
 
+        if (!string.IsNullOrEmpty(node.StoragePath))
+            candidateBlobPaths.Add(node.StoragePath);
+
         db.FileNodes.Remove(node);
+
+        return candidateBlobPaths;
     }
 }

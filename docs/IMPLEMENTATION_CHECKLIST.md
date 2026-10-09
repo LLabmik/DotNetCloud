@@ -4893,6 +4893,62 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 
 ---
 
+## Sub-Phase G: Media Whole-File Storage (Photos + Music + Video)
+
+**Reference:** `docs/MEDIA_WHOLE_FILE_STORAGE_PLAN.md`
+**Status:** ✅ Implemented + deployed (2026-10-08) — build + unit tests green; read/conversion and GC paths verified live on mint22 (client-side upload + sync checks pending).
+
+**Objective:** Store immutable media (`image/*`, `audio/*`, `video/*`) as a single whole-file blob instead of 4 MB
+content-addressed chunks, so reads stream the blob directly with no temp-file reassembly. Documents keep the chunk pipeline.
+
+**Schema:**
+
+- ✓ `FileVersion.IsChunked` (`bool`, default `true`) + `HasDefaultValue(true)` + index `ix_file_versions_is_chunked`
+- ✓ PostgreSQL migration `AddFileVersionIsChunked`; SQL Server migration `AddFileVersionIsChunked_SqlServer`
+- ✓ `dotnet ef migrations has-pending-model-changes` clean for both providers
+
+**Storage primitives:**
+
+- ✓ `FileStorageClassifier` (`IsImmutableMedia`, `IsWholeFileEligible`) — MIME prefix + extension fallback
+- ✓ `IFileStorageEngine.WriteFromStreamAsync` (atomic staged write + rename, length verification, `chmod 600`)
+- ✓ `IFileStorageEngine.EnumerateStoragePathsAsync` (`IAsyncEnumerable<string>`)
+- ✓ `FileUploadOptions.WholeFileMediaStorage` (default `true`)
+
+**Conversion + serve:**
+
+- ✓ `IWholeFileStorageService` / `WholeFileStorageService` (DB-gated `IsChunked` flip + chunk-mapping release)
+- ✓ `ChunkSequenceReadStream` (bounded file handles during reassembly)
+- ✓ `DownloadService` — direct blob stream, lazy conversion on first read, ZIP copy, whole-file auto-repair
+- ✓ `ChunkedUploadService.CompleteUploadAsync` + `FilesGrpcService.CompleteUpload` convert eligible media
+- ✓ `VersionService.RestoreVersionAsync` + gRPC `RestoreVersion` copy `IsChunked` (chunk links only for chunked sources)
+
+**Deletion / GC:**
+
+- ✓ `WholeFileBlobCleanup.DeleteIfUnreferencedAsync` (version/node reference check, trashed nodes included)
+- ✓ `TrashCleanupService`, `VersionRetentionEnforcer` (+ all 5 call sites), `UserDeletedEventSubscriber` reap blobs
+- ✓ `WholeFileBlobSweepService` — periodic reconciler for unreferenced `files/` blobs and `*.tmp-*` scratch files
+
+**Tests (926 Files tests green):**
+
+- ✓ Classifier, conversion service, download/ZIP/auto-repair, upload completion (REST + gRPC), blob cleanup,
+  retention, sweep, storage-engine write/enumerate, model default
+
+**Verification:**
+
+- ✓ `dotnet build DotNetCloud.CI.slnf` zero errors with the NuGet audit enabled (`SixLabors.ImageSharp` bumped
+  4.0.0 → 4.1.2 to clear the seven advisories published 2026-10-07)
+- ✓ Files 926 / Music 387 / Photos 292 / Video 213 / Core.Server 799 tests pass
+- ✓ Deployed to mint22 (`sudo ./scripts/deploy.sh --force --verify`: 15/15 targets, hashes verified, migrations applied,
+  v0.6.13, `/health/ready` Healthy 14/14)
+- ✓ Live (conversion): the Video module host converted 3 pre-existing chunked `.mp4` files on first read
+  (`Converted version … (24/15/3 chunk(s) released)`); byte-exact blob sizes; chunk pool 589 M → 428 M; 0 orphan rows
+- ✓ Live (orphan sweep): seeded unreferenced + scratch files deleted, referenced blob kept
+  (`blob sweep: scanned 6, deleted 1 unreferenced, removed 1 scratch file(s)`)
+- ☐ Live (upload + sync): new `.mp4` converts at upload completion; `.docx` stays chunked; delete removes the blob;
+  media re-sync shows no content-hash change — needs a client-side check
+
+---
+
 ## Final Release: Blazor-Side Fixes (2026-08-02)
 
 **Objective:** Pre-release polish batch — media scan efficiency, SyncTray sleep resilience, and UI/UX cleanup.

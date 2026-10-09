@@ -21,19 +21,22 @@ internal sealed class VersionService : IVersionService
     private readonly ILogger<VersionService> _logger;
     private readonly IPermissionService _permissions;
     private readonly IFileVersioningSettingsProvider _versioningSettings;
+    private readonly IFileStorageEngine? _storageEngine;
 
     public VersionService(
         FilesDbContext db,
         IEventBus eventBus,
         ILogger<VersionService> logger,
         IPermissionService permissions,
-        IFileVersioningSettingsProvider versioningSettings)
+        IFileVersioningSettingsProvider versioningSettings,
+        IFileStorageEngine? storageEngine = null)
     {
         _db = db;
         _eventBus = eventBus;
         _logger = logger;
         _permissions = permissions;
         _versioningSettings = versioningSettings;
+        _storageEngine = storageEngine;
     }
 
     /// <inheritdoc />
@@ -109,34 +112,47 @@ internal sealed class VersionService : IVersionService
             StoragePath = sourceVersion.StoragePath,
             MimeType = sourceVersion.MimeType,
             CreatedByUserId = caller.UserId,
-            Label = $"Restored from v{sourceVersion.VersionNumber}"
+            Label = $"Restored from v{sourceVersion.VersionNumber}",
+            IsChunked = sourceVersion.IsChunked
         };
         _db.FileVersions.Add(newVersion);
 
-        // Copy chunk mappings and increment refcounts
-        var sourceChunks = await _db.FileVersionChunks
-            .Where(vc => vc.FileVersionId == sourceVersion.Id)
-            .ToListAsync(cancellationToken);
-
-        foreach (var sc in sourceChunks)
+        // Copy chunk mappings and increment refcounts — but only for chunked versions. Whole-file
+        // versions share the blob at StoragePath directly, so no mappings are copied.
+        if (sourceVersion.IsChunked)
         {
-            _db.FileVersionChunks.Add(new FileVersionChunk
-            {
-                FileVersionId = newVersion.Id,
-                FileChunkId = sc.FileChunkId,
-                SequenceIndex = sc.SequenceIndex
-            });
+            var sourceChunks = await _db.FileVersionChunks
+                .Where(vc => vc.FileVersionId == sourceVersion.Id)
+                .ToListAsync(cancellationToken);
 
-            await ChunkReferenceHelper.IncrementAsync(_db, sc.FileChunkId, cancellationToken);
+            foreach (var sc in sourceChunks)
+            {
+                _db.FileVersionChunks.Add(new FileVersionChunk
+                {
+                    FileVersionId = newVersion.Id,
+                    FileChunkId = sc.FileChunkId,
+                    SequenceIndex = sc.SequenceIndex
+                });
+
+                await ChunkReferenceHelper.IncrementAsync(_db, sc.FileChunkId, cancellationToken);
+            }
         }
 
         await _db.SaveChangesAsync(cancellationToken);
 
         // A restore records a new version too, so the policy applies here as well.
         var retentionOptions = await _versioningSettings.GetAsync(cancellationToken);
-        if (await VersionRetentionEnforcer.ApplyAsync(_db, fileNodeId, retentionOptions, cancellationToken) > 0)
+        var retention = await VersionRetentionEnforcer.ApplyAsync(_db, fileNodeId, retentionOptions, cancellationToken);
+        if (retention.PrunedCount > 0)
         {
             await _db.SaveChangesAsync(cancellationToken);
+        }
+
+        // Reap the blobs of any pruned whole-file versions that nothing else references.
+        if (_storageEngine is not null)
+        {
+            foreach (var prunedPath in retention.PrunedWholeFilePaths)
+                await WholeFileBlobCleanup.DeleteIfUnreferencedAsync(_db, _storageEngine, prunedPath, cancellationToken);
         }
 
         _logger.LogInformation("File {FileNodeId} restored to version {SourceVersion} as v{NewVersion} by {UserId}",

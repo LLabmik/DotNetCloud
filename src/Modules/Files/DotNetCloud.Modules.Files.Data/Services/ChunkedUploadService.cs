@@ -29,6 +29,7 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
     private readonly long _maxFileSizeBytes;
     private readonly FileSystemOptions _fileSystemOptions;
     private readonly IFileVersioningSettingsProvider _versioningSettings;
+    private readonly IWholeFileStorageService? _wholeFileStorage;
 
     public ChunkedUploadService(
         FilesDbContext db,
@@ -40,7 +41,8 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         ILogger<ChunkedUploadService> logger,
         IOptions<FileUploadOptions> uploadOptions,
         IOptions<FileSystemOptions> fileSystemOptions,
-        IFileVersioningSettingsProvider versioningSettings)
+        IFileVersioningSettingsProvider versioningSettings,
+        IWholeFileStorageService? wholeFileStorageService = null)
     {
         _db = db;
         _storageEngine = storageEngine;
@@ -52,6 +54,7 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         _maxFileSizeBytes = uploadOptions.Value.MaxFileSizeBytes;
         _fileSystemOptions = fileSystemOptions.Value;
         _versioningSettings = versioningSettings;
+        _wholeFileStorage = wholeFileStorageService;
     }
 
     /// <inheritdoc />
@@ -249,6 +252,7 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         var storagePath = ContentHasher.GetFileStoragePath(contentHash);
 
         FileNode fileNode = null!;
+        FileVersion version = null!;
         long quotaDelta = 0;
 
         // Wrap DB mutations in an execution-strategy-aware transaction to ensure
@@ -364,7 +368,7 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
                 }
 
                 // Create file version
-                var version = new FileVersion
+                version = new FileVersion
                 {
                     FileNodeId = fileNode.Id,
                     VersionNumber = fileNode.CurrentVersion,
@@ -475,12 +479,23 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         // version cap both mean: keep the new version and release the older ones right away instead of
         // waiting for the next scheduled sweep.
         var retentionOptions = await _versioningSettings.GetAsync(cancellationToken);
-        var prunedVersions = await VersionRetentionEnforcer.ApplyAsync(_db, fileNode.Id, retentionOptions, cancellationToken);
-        if (prunedVersions > 0)
+        var retention = await VersionRetentionEnforcer.ApplyAsync(_db, fileNode.Id, retentionOptions, cancellationToken);
+        if (retention.PrunedCount > 0)
         {
             await _db.SaveChangesAsync(cancellationToken);
             _logger.LogInformation("File {FileNodeId} '{FileName}': released {Count} version(s) per the version retention policy.",
-                fileNode.Id, fileNode.Name, prunedVersions);
+                fileNode.Id, fileNode.Name, retention.PrunedCount);
+        }
+
+        // Reap the blobs of any pruned whole-file versions that nothing else references.
+        foreach (var prunedPath in retention.PrunedWholeFilePaths)
+            await WholeFileBlobCleanup.DeleteIfUnreferencedAsync(_db, _storageEngine, prunedPath, cancellationToken);
+
+        // Immutable media (photos/music/video) is stored as a single whole-file blob instead of
+        // chunks, so reads can serve the blob directly. Conversion is idempotent and safe.
+        if (_wholeFileStorage is not null)
+        {
+            await _wholeFileStorage.ConvertVersionToWholeFileAsync(version.Id, cancellationToken);
         }
 
         await _eventBus.PublishAsync(new FileUploadedEvent

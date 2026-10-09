@@ -4,6 +4,18 @@ using Microsoft.EntityFrameworkCore;
 namespace DotNetCloud.Modules.Files.Data.Services;
 
 /// <summary>
+/// Outcome of a version-retention pass: how many versions were pruned and, for whole-file media
+/// versions, the blob paths the caller should delete once the version rows are gone.
+/// </summary>
+/// <param name="PrunedCount">Number of versions scheduled for deletion.</param>
+/// <param name="PrunedWholeFilePaths">Blob paths of pruned whole-file versions.</param>
+internal sealed record VersionRetentionResult(int PrunedCount, IReadOnlyList<string> PrunedWholeFilePaths)
+{
+    /// <summary>No versions were pruned.</summary>
+    public static readonly VersionRetentionResult None = new(0, []);
+}
+
+/// <summary>
 /// Applies the version retention policy to a single file: keeps at most
 /// <see cref="VersionRetentionOptions.MaxVersionCount"/> versions (one when versioning is disabled)
 /// and drops unlabeled versions older than <see cref="VersionRetentionOptions.RetentionDays"/>.
@@ -25,8 +37,8 @@ internal static class VersionRetentionEnforcer
     /// <param name="fileNodeId">File whose version history is evaluated.</param>
     /// <param name="options">Effective policy.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The number of versions scheduled for deletion.</returns>
-    public static async Task<int> ApplyAsync(
+    /// <returns>The number of versions scheduled for deletion and the whole-file blob paths to reap.</returns>
+    public static async Task<VersionRetentionResult> ApplyAsync(
         FilesDbContext db,
         Guid fileNodeId,
         VersionRetentionOptions options,
@@ -39,7 +51,7 @@ internal static class VersionRetentionEnforcer
 
         if (maxVersionCount <= 0 && options.RetentionDays <= 0)
         {
-            return 0; // Unlimited history and no age policy — nothing to do.
+            return VersionRetentionResult.None; // Unlimited history and no age policy — nothing to do.
         }
 
         // Load all versions for this file, oldest first.
@@ -51,7 +63,7 @@ internal static class VersionRetentionEnforcer
         // Always keep at least one version.
         if (versions.Count <= 1)
         {
-            return 0;
+            return VersionRetentionResult.None;
         }
 
         var toDeleteIds = new HashSet<Guid>();
@@ -78,7 +90,7 @@ internal static class VersionRetentionEnforcer
 
         if (toDeleteIds.Count == 0)
         {
-            return 0;
+            return VersionRetentionResult.None;
         }
 
         // Safety: the newest version is the content the file currently serves, so it is never
@@ -88,10 +100,11 @@ internal static class VersionRetentionEnforcer
 
         if (toDeleteIds.Count == 0)
         {
-            return 0;
+            return VersionRetentionResult.None;
         }
 
         var versionsToDelete = versions.Where(v => toDeleteIds.Contains(v.Id)).ToList();
+        var prunedWholeFilePaths = new List<string>();
 
         foreach (var version in versionsToDelete)
         {
@@ -107,8 +120,11 @@ internal static class VersionRetentionEnforcer
 
             db.FileVersionChunks.RemoveRange(versionChunks);
             db.FileVersions.Remove(version);
+
+            if (!version.IsChunked && !string.IsNullOrEmpty(version.StoragePath))
+                prunedWholeFilePaths.Add(version.StoragePath);
         }
 
-        return versionsToDelete.Count;
+        return new VersionRetentionResult(versionsToDelete.Count, prunedWholeFilePaths);
     }
 }

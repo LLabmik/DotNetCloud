@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
+using System.Runtime.CompilerServices;
 
 namespace DotNetCloud.Modules.Files.Services;
-
 /// <summary>
 /// Local filesystem implementation of <see cref="IFileStorageEngine"/>.
 /// Stores chunks using content-addressable paths under a configurable base directory.
@@ -143,6 +143,102 @@ public sealed class LocalFileStorageEngine : IFileStorageEngine
             .Sum(f => f.Length);
 
         return Task.FromResult(totalSize);
+    }
+
+    /// <inheritdoc />
+    public async Task WriteFromStreamAsync(
+        string storagePath,
+        Stream source,
+        long? expectedLength = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(storagePath);
+        ArgumentNullException.ThrowIfNull(source);
+
+        var fullPath = GetFullPath(storagePath);
+        var directory = Path.GetDirectoryName(fullPath);
+
+        if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        // Stage in a scratch file in the same directory so the final rename is atomic on the same
+        // filesystem, and a crash or failure never leaves a truncated destination blob behind.
+        var scratchPath = $"{fullPath}.tmp-{Guid.CreateVersion7():N}";
+
+        try
+        {
+            long written;
+            await using (var fs = new FileStream(scratchPath, FileMode.CreateNew, FileAccess.Write,
+                FileShare.None, bufferSize: 81920, useAsync: true))
+            {
+                await source.CopyToAsync(fs, 81920, cancellationToken);
+                await fs.FlushAsync(cancellationToken);
+                written = fs.Length;
+            }
+
+            if (expectedLength.HasValue && written != expectedLength.Value)
+            {
+                throw new IOException(
+                    $"Whole-file write verification failed for '{storagePath}': expected {expectedLength.Value} bytes, got {written}.");
+            }
+
+            // Whole-file blobs are content data, never executables — restrict to user read/write (600).
+            if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
+            {
+                File.SetUnixFileMode(scratchPath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+            }
+
+            File.Move(scratchPath, fullPath, overwrite: true);
+
+            _logger.LogDebug("Whole-file blob written: {StoragePath} ({Size} bytes)", storagePath, written);
+        }
+        catch
+        {
+            try
+            {
+                if (File.Exists(scratchPath))
+                    File.Delete(scratchPath);
+            }
+            catch
+            {
+                // Best-effort cleanup only; the orphan sweep reclaims leftovers.
+            }
+
+            throw;
+        }
+    }
+
+    /// <inheritdoc />
+    public async IAsyncEnumerable<string> EnumerateStoragePathsAsync(
+        string prefix,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(prefix);
+
+        var normalized = prefix.Replace('\\', '/').Trim('/');
+        if (normalized.Contains(".."))
+        {
+            throw new ArgumentException("Storage path must not contain directory traversal sequences.", nameof(prefix));
+        }
+
+        var root = Path.Combine(_basePath, normalized.Replace('/', Path.DirectorySeparatorChar));
+
+        // Synchronous directory enumeration surfaced through the async contract the callers expect.
+        await Task.CompletedTask;
+
+        if (!Directory.Exists(root))
+        {
+            yield break;
+        }
+
+        foreach (var file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var relative = Path.GetRelativePath(_basePath, file).Replace(Path.DirectorySeparatorChar, '/');
+            yield return relative;
+        }
     }
 
     private string GetFullPath(string storagePath)

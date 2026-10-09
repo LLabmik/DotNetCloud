@@ -26,4 +26,12 @@ public sealed class FileUploadOptions
     /// Falls back to <see cref="Path.GetTempPath"/> when not set.
     /// </summary>
     public string? TmpPath { get; set; }
+
+    /// <summary>
+    /// When enabled (default), immutable media (<c>image/*</c>, <c>audio/*</c>, <c>video/*</c>) is
+    /// stored as a single whole-file blob instead of content-addressed chunks. New media is
+    /// converted at upload completion; pre-existing chunked media is converted lazily on first read.
+    /// Documents and all other mutable files keep the chunk pipeline regardless of this flag.
+    /// </summary>
+    public bool WholeFileMediaStorage { get; set; } = true;
 }
