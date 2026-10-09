@@ -453,3 +453,45 @@ Test coverage added (all in `tests/DotNetCloud.Modules.Files.Tests/`):
 
 **Note (sync):** desktop sync of media now downloads via the direct `/content` endpoint (the empty-manifest fallback),
 per §10.6.
+
+---
+
+## Hardening: unverifiable / lost whole-file blobs (2026-10-08)
+
+A live audit found one video (`20261005_225022.mp4`) whose `FileVersion` was flagged whole-file (`IsChunked = 0`) with
+its chunks already released, but whose blob was **absent from disk** — the read path therefore returned 404
+(`File content is unavailable: whole-file blob for version … is missing from storage`). The file still listed normally,
+so the loss stayed invisible until playback. No delete path logged activity and the file has a single version, so the
+state most likely came from an earlier build of this feature that flipped the flag without a durable blob. The content
+was unrecoverable (no chunk mappings, no dedup sibling) and needs a re-upload or a restore from backup.
+
+Three changes close the hole:
+
+1. **Release chunks only behind a byte-exact blob.** `IFileStorageEngine.GetLengthAsync` was added, and
+   `WholeFileStorageService.ConvertVersionToWholeFileAsync` now (a) treats a present-but-wrong-sized blob as corrupt
+   and replaces it, (b) verifies the blob's length after the write, and (c) re-verifies immediately before the
+   `IsChunked` flip — the point at which the chunks are released. A blob that cannot be verified leaves the version
+   chunked with its reference counts untouched.
+2. **Self-healing reads.** `DownloadService.BuildStreamFromVersionAsync` falls back to chunk reassembly when a
+   whole-file blob is missing but chunk mappings survive, so an already-damaged version becomes readable again instead
+   of 404ing.
+3. **Make the failure mode visible.**
+   - `WholeFileBlobIntegrityService` (`IWholeFileBlobIntegrityService`) audits every live whole-file version and
+     distinguishes _recoverable_ (chunks survive) from _unrecoverable_ losses;
+     `WholeFileBlobIntegrityAuditService` runs it every 12 h, logs an error per defect, and records the outcome in the
+     background-service tracker.
+   - `scripts/audit-whole-file-blobs.sh` runs the same check on demand against a live deployment (exit codes: `0` clean,
+     `1` recoverable loss, `2` unrecoverable loss, `3` audit could not run). First production run:
+     **13 whole-file versions — 12 healthy, 1 unrecoverable**.
+   - `VideoController` returns a distinct `content_unavailable` error with an actionable message instead of a bare
+     `file_not_found`, and the player's error card shows the server's reason rather than generic codec advice.
+
+Test coverage added:
+
+- `Services/WholeFileStorageServiceTests.cs` — conversion aborts (version stays chunked, refcounts intact) when the blob
+  cannot be verified; a truncated pre-existing blob is replaced by a complete one.
+- `Services/DownloadServiceWholeFileTests.cs` — a whole-file version whose blob is gone but whose chunks survive
+  rebuilds from chunks.
+- `Services/WholeFileBlobIntegrityServiceTests.cs` — healthy / unrecoverable / recoverable / truncated / trashed-node /
+  chunked-not-scanned.
+- `LocalFileStorageEngineWholeFileTests.cs` — `GetLengthAsync` present, missing, and after a streamed write.

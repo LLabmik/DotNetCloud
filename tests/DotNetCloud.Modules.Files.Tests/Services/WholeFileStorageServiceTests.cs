@@ -39,8 +39,11 @@ public class WholeFileStorageServiceTests
             .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
             .Options);
 
-    private WholeFileStorageService CreateService(FilesDbContext db, bool wholeFileMediaStorage = true) =>
-        new(db, _engine, Microsoft.Extensions.Options.Options.Create(new FileUploadOptions { WholeFileMediaStorage = wholeFileMediaStorage }),
+    private WholeFileStorageService CreateService(
+        FilesDbContext db,
+        bool wholeFileMediaStorage = true,
+        IFileStorageEngine? storageEngine = null) =>
+        new(db, storageEngine ?? _engine, Microsoft.Extensions.Options.Options.Create(new FileUploadOptions { WholeFileMediaStorage = wholeFileMediaStorage }),
             NullLogger<WholeFileStorageService>.Instance);
 
     private async Task<(FileNode Node, FileVersion Version, List<FileChunk> Chunks)> SeedChunkedVersionAsync(
@@ -222,5 +225,84 @@ public class WholeFileStorageServiceTests
         using var ms = new MemoryStream();
         await stream!.CopyToAsync(ms);
         CollectionAssert.AreEqual("img"u8.ToArray(), ms.ToArray());
+    }
+
+    [TestMethod]
+    public async Task ConvertVersionToWholeFileAsync_UnverifiableBlob_LeavesVersionChunked()
+    {
+        using var db = CreateContext();
+        var (_, version, chunks) = await SeedChunkedVersionAsync(db, "clip.mp4", "video/mp4", writeBlobs: true, "payload"u8.ToArray());
+        var service = CreateService(db, storageEngine: new UnverifiableStorageEngine(_engine));
+
+        Assert.IsFalse(await service.ConvertVersionToWholeFileAsync(version.Id));
+
+        var reloaded = await db.FileVersions.AsNoTracking().SingleAsync(v => v.Id == version.Id);
+        Assert.IsTrue(reloaded.IsChunked, "Chunks must not be released unless the blob is verifiably complete.");
+        Assert.AreEqual(1, await db.FileVersionChunks.CountAsync(vc => vc.FileVersionId == version.Id));
+
+        foreach (var chunk in chunks)
+        {
+            var reloadedChunk = await db.FileChunks.AsNoTracking().SingleAsync(c => c.Id == chunk.Id);
+            Assert.AreEqual(1, reloadedChunk.ReferenceCount,
+                "Chunk reference counts must be untouched when the conversion aborts.");
+        }
+    }
+
+    [TestMethod]
+    public async Task ConvertVersionToWholeFileAsync_TruncatedExistingBlob_IsReplacedWithCompleteBlob()
+    {
+        using var db = CreateContext();
+        var chunk1 = "first-"u8.ToArray();
+        var chunk2 = "second"u8.ToArray();
+        var (_, version, _) = await SeedChunkedVersionAsync(db, "clip.mp4", "video/mp4", writeBlobs: true, chunk1, chunk2);
+
+        // A present-but-truncated blob is exactly the state that loses content: it must be ignored
+        // (replaced by a complete blob), never trusted just because the file exists.
+        await _engine.WriteChunkAsync(version.StoragePath, "trunc"u8.ToArray());
+
+        var service = CreateService(db);
+
+        Assert.IsTrue(await service.ConvertVersionToWholeFileAsync(version.Id));
+
+        var blob = await ReadBlobAsync(version.StoragePath);
+        CollectionAssert.AreEqual(chunk1.Concat(chunk2).ToArray(), blob);
+    }
+
+    /// <summary>
+    /// Wraps a real engine but always reports an unknown blob length, standing in for a storage back
+    /// end that cannot confirm a write. The conversion must refuse to release chunks in that case.
+    /// </summary>
+    private sealed class UnverifiableStorageEngine : IFileStorageEngine
+    {
+        private readonly IFileStorageEngine _inner;
+
+        public UnverifiableStorageEngine(IFileStorageEngine inner) => _inner = inner;
+
+        public Task<long?> GetLengthAsync(string storagePath, CancellationToken cancellationToken = default)
+            => Task.FromResult<long?>(null);
+
+        public Task WriteChunkAsync(string storagePath, ReadOnlyMemory<byte> data, CancellationToken cancellationToken = default)
+            => _inner.WriteChunkAsync(storagePath, data, cancellationToken);
+
+        public Task<byte[]?> ReadChunkAsync(string storagePath, CancellationToken cancellationToken = default)
+            => _inner.ReadChunkAsync(storagePath, cancellationToken);
+
+        public Task<Stream?> OpenReadStreamAsync(string storagePath, CancellationToken cancellationToken = default)
+            => _inner.OpenReadStreamAsync(storagePath, cancellationToken);
+
+        public Task<bool> ExistsAsync(string storagePath, CancellationToken cancellationToken = default)
+            => _inner.ExistsAsync(storagePath, cancellationToken);
+
+        public Task DeleteAsync(string storagePath, CancellationToken cancellationToken = default)
+            => _inner.DeleteAsync(storagePath, cancellationToken);
+
+        public Task<long> GetTotalSizeAsync(CancellationToken cancellationToken = default)
+            => _inner.GetTotalSizeAsync(cancellationToken);
+
+        public Task WriteFromStreamAsync(string storagePath, Stream source, long? expectedLength = null, CancellationToken cancellationToken = default)
+            => _inner.WriteFromStreamAsync(storagePath, source, expectedLength, cancellationToken);
+
+        public IAsyncEnumerable<string> EnumerateStoragePathsAsync(string prefix, CancellationToken cancellationToken = default)
+            => _inner.EnumerateStoragePathsAsync(prefix, cancellationToken);
     }
 }

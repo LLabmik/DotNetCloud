@@ -260,7 +260,11 @@
       selectAudioStream(p, index);
     };
 
-    p._showFatalError = function (code, message) {
+    /**
+     * Shows the fatal-error card. `hint` overrides the generic codec/format advice when the server
+     * gave a more specific reason (for example that the stored content is missing).
+     */
+    p._showFatalError = function (code, message, hint) {
       hidePreparing(p);
       p._error.innerHTML = "";
       p._error.style.display = "flex";
@@ -273,11 +277,14 @@
         "</div>" +
         '<h4 class="dnc-error-title">Video Cannot Be Played</h4>' +
         '<p class="dnc-error-msg"></p>' +
-        '<p class="dnc-error-hint">This can happen if the video uses an unsupported codec or the stream failed to load. ' +
-        "Try refreshing the page, or use Chrome or Firefox for the widest format compatibility.</p>" +
+        '<p class="dnc-error-hint"></p>' +
         '<button type="button" class="dnc-error-close">Dismiss</button>';
       var msgEl = card.querySelector(".dnc-error-msg");
       msgEl.textContent = stringifyError(message) || "Unknown playback error";
+      card.querySelector(".dnc-error-hint").textContent =
+        hint ||
+        "This can happen if the video uses an unsupported codec or the stream failed to load. " +
+          "Try refreshing the page, or use Chrome or Firefox for the widest format compatibility.";
       card
         .querySelector(".dnc-error-close")
         .addEventListener("click", function () {
@@ -1112,7 +1119,45 @@
       // Suppress the native error that fires when the browser tries to play an
       // .m3u8 directly (expected HLS) or while hls.js is managing MSE errors.
       if (p._expectingHls || p._hls) return;
-      p._showFatalError(err.code || 2, err.message || "");
+      var code = err.code || 2;
+      p._showFatalError(code, err.message || "");
+      explainStreamFailure(p, code);
+    }
+
+    /**
+     * A native <video> error only carries a media error code, which cannot tell a codec problem
+     * apart from the server having no content at all. When the element fails, ask the stream
+     * endpoint why: if it answers with an error envelope, show the server's reason on the card
+     * instead of the generic codec advice.
+     */
+    function explainStreamFailure(p, code) {
+      var url = p._streamBaseUrl;
+      if (!url || p._explanationRequested) return;
+      p._explanationRequested = true;
+
+      fetch(url, {
+        method: "GET",
+        headers: { Range: "bytes=0-0" },
+        credentials: "same-origin",
+      })
+        .then(function (r) {
+          if (r.ok || r.status === 206) return null;
+          return r.json().catch(function () {
+            return null;
+          });
+        })
+        .then(function (payload) {
+          if (!payload || !payload.error || !payload.error.message) return;
+          p._showFatalError(
+            code,
+            payload.error.message,
+            payload.error.code === "content_unavailable"
+              ? "The server still lists this file but its stored content is missing, so it cannot be " +
+                  "played. Re-upload or re-sync the original file to restore it."
+              : null,
+          );
+        })
+        .catch(function () {});
     }
   }
 

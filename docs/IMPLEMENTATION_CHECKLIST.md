@@ -4928,11 +4928,33 @@ content-addressed chunks, so reads stream the blob directly with no temp-file re
 - ✓ `TrashCleanupService`, `VersionRetentionEnforcer` (+ all 5 call sites), `UserDeletedEventSubscriber` reap blobs
 - ✓ `WholeFileBlobSweepService` — periodic reconciler for unreferenced `files/` blobs and `*.tmp-*` scratch files
 
-**Tests (926 Files tests green):**
+**Integrity hardening (2026-10-08):**
+
+- ✓ `IFileStorageEngine.GetLengthAsync` — blob length without opening the file
+- ✓ Conversion releases chunks only behind a byte-exact blob: truncated blobs are replaced, the write is verified,
+  and the blob is re-verified immediately before the `IsChunked` flip
+- ✓ `DownloadService` falls back to chunk reassembly when a whole-file blob is missing but chunks survive
+- ✓ `WholeFileBlobIntegrityService` / `WholeFileBlobIntegrityAuditService` — 12-hourly audit of live whole-file
+  versions; recoverable vs unrecoverable defects logged + surfaced in the background-service tracker
+- ✓ `scripts/audit-whole-file-blobs.sh` — on-demand audit (first production run: 13 whole-file versions, 12 healthy,
+  1 unrecoverable)
+- ✓ `VideoController` returns `content_unavailable` with an actionable message; player error card shows the server reason
+- ✓ `dotnetcloud backup manifest [--output <file>] [--no-chunks] [--storage-root <dir>]` — TSV storage index
+  (per-version `file` rows + ordered `blob` rows per chunk) so backups of the extensionless, content-addressed
+  storage tree stay interpretable without a live database; reports missing/truncated whole-file blobs
+- ✓ `dotnetcloud backup` generates the manifest first and embeds it (`manifest/storage-manifest.tsv`, `--no-manifest`
+  opts out) and excludes the backup directory + in-progress archive from the data-directory walk
+- ✓ CLI `sudo` re-exec passes the resolved configuration directory as `--config-dir <dir>` (an elevated run previously
+  lost `DOTNETCLOUD_CONFIG_DIR` and fell back to `/etc/dotnetcloud`); `--config-dir` is accepted in any position, the
+  re-exec repeats the entry assembly for muxer launches (`dotnet dotnetcloud.dll …`), and help/version requests no
+  longer prompt for a password (`dotnetcloud backup --help`)
+
+**Tests (938 Files tests green):**
 
 - ✓ Classifier, conversion service, download/ZIP/auto-repair, upload completion (REST + gRPC), blob cleanup,
-  retention, sweep, storage-engine write/enumerate, model default
-
+  retention, sweep, integrity audit, storage-engine write/enumerate/length, model default
+- ✓ CLI 180 tests green — storage manifest, backup archive exclusions, `--config-dir` argument handling, sudo re-exec
+  argument construction (config directory + muxer entry assembly)
 **Verification:**
 
 - ✓ `dotnet build DotNetCloud.CI.slnf` zero errors with the NuGet audit enabled (`SixLabors.ImageSharp` bumped

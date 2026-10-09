@@ -817,6 +817,18 @@ public class VideoController : VideoControllerBase
                 }
             }
         }
+        catch (NotFoundException ex) when (ex.Message.Contains("is missing from storage", StringComparison.Ordinal))
+        {
+            // The database says the content exists but the bytes are gone — e.g. a whole-file media
+            // blob that was released without ever being written. Surface it as content loss rather
+            // than an anonymous 404 so the client can tell the user what to do about it.
+            _streamProgress.Remove(videoId);
+            _logger.LogError(ex,
+                "Video {VideoId} content is missing from storage (FileNodeId={FileNodeId}); the stored bytes must be restored or the file re-uploaded.",
+                videoId, video.FileNodeId);
+            return NotFound(ErrorEnvelope("content_unavailable",
+                "This video's stored content is missing from the server, so it can't be played. Re-upload or re-sync the original file to restore it."));
+        }
         catch (Exception ex)
         {
             _streamProgress.Remove(videoId);
@@ -1484,6 +1496,12 @@ public class VideoController : VideoControllerBase
 
     // ─── Private Helpers ─────────────────────────────────────────────
 
+    /// <summary>
+    /// Materialises a video for ffprobe/ffmpeg. The returned path is <b>not necessarily</b> a scratch
+    /// file: when the download can hand back a direct file stream the path is the real backing file
+    /// (a whole-file media blob under the storage root, or a file in an admin-shared folder). Callers
+    /// must therefore never delete the path unconditionally — use <see cref="TryDeleteTempFile"/>.
+    /// </summary>
     private async Task<(string? FilePath, Stream? Stream)> SaveVideoToTempFile(VideoDto video, CallerContext caller)
     {
         try
@@ -1499,10 +1517,17 @@ public class VideoController : VideoControllerBase
         }
     }
 
+    /// <summary>
+    /// Deletes a scratch copy that was materialised for a probe/seek request. Only files inside the
+    /// system temp directory are removed: a download can hand back a direct file stream over permanent
+    /// storage (whole-file media blobs, admin-shared folders) and deleting those would destroy the
+    /// user's content — the file would then read back as "content is unavailable".
+    /// </summary>
     private static void TryDeleteTempFile(string? path)
     {
-        if (string.IsNullOrEmpty(path))
+        if (!StreamSourceFiles.IsDeletableScratchFile(path))
             return;
+
         try
         { if (System.IO.File.Exists(path)) System.IO.File.Delete(path); }
         catch { /* best effort */ }

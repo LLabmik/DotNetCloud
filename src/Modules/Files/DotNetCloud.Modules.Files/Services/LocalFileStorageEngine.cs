@@ -115,6 +115,15 @@ public sealed class LocalFileStorageEngine : IFileStorageEngine
     }
 
     /// <inheritdoc />
+    public Task<long?> GetLengthAsync(string storagePath, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(storagePath);
+
+        var info = new FileInfo(GetFullPath(storagePath));
+        return Task.FromResult(info.Exists ? info.Length : (long?)null);
+    }
+
+    /// <inheritdoc />
     public Task DeleteAsync(string storagePath, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(storagePath);

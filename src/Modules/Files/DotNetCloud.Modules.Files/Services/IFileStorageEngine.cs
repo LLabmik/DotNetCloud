@@ -38,6 +38,15 @@ public interface IFileStorageEngine
     Task<bool> ExistsAsync(string storagePath, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Gets the byte length of a stored file without opening it, so a caller can confirm a blob was
+    /// written completely before treating it as durable.
+    /// </summary>
+    /// <param name="storagePath">Content-addressable storage path.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The byte length, or <see langword="null"/> when the path does not exist.</returns>
+    Task<long?> GetLengthAsync(string storagePath, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Deletes a chunk from storage.
     /// </summary>
     /// <param name="storagePath">Content-addressable storage path.</param>

@@ -157,6 +157,11 @@ public static class FilesServiceRegistration
         services.AddHostedService<ExpiredShareCleanupService>();
         services.AddHostedService<WholeFileBlobSweepService>();
 
+        // The sweep above reclaims orphaned blobs; the audit below reports the mirror-image failure —
+        // a whole-file media version whose blob is missing entirely, which is silent data loss.
+        services.AddScoped<IWholeFileBlobIntegrityService, WholeFileBlobIntegrityService>();
+        services.AddHostedService<WholeFileBlobIntegrityAuditService>();
+
         return services;
     }
 

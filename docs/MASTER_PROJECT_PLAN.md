@@ -3414,6 +3414,26 @@ blob directly with no temp-file reassembly; documents keep the chunk pipeline.
   `UserDeletedEventSubscriber`)
 - ✓ `WholeFileBlobSweepService` periodic reconciler for unreferenced `files/` blobs + `*.tmp-*` scratch files
 - ✓ New tests: classifier, conversion, download/ZIP/auto-repair, upload completion, cleanup, retention, sweep, engine, model
+- ✓ **Integrity hardening:** `IFileStorageEngine.GetLengthAsync`; conversion releases chunks only behind a byte-exact
+  blob (truncated blobs replaced, verified after the write and again immediately before the `IsChunked` flip); download
+  falls back to chunk reassembly; `WholeFileBlobIntegrityService` + 12-hourly `WholeFileBlobIntegrityAuditService`;
+  `scripts/audit-whole-file-blobs.sh`; `VideoController` `content_unavailable` + player error text
+- ✓ **Storage manifest:** `dotnetcloud backup manifest [--output <file>] [--no-chunks] [--storage-root <dir>]` writes a
+  TSV index (one `file` row per version + ordered `blob` rows per chunk) so a backup of the extensionless,
+  content-addressed storage tree can be interpreted and rebuilt without a live database; also reports
+  `missingWholeFileBlobs`/`truncatedWholeFileBlobs`. Documented in `docs/admin/BACKUP.md`.
+- ✓ **Self-describing backups:** `dotnetcloud backup` generates the manifest first and embeds it as
+  `manifest/storage-manifest.tsv` (`--no-manifest` opts out; a failure warns and the backup continues), and the
+  data-directory walk now excludes the backup directory and the in-progress archive — so backups no longer nest
+  every previous backup or a partial copy of themselves.
+- ✓ **CLI elevation (`sudo` re-exec):** the resolved configuration directory is passed to the elevated process as
+  `--config-dir <dir>`. `sudo` resets the environment, so the re-run previously lost `DOTNETCLOUD_CONFIG_DIR` and
+  silently fell back to `/etc/dotnetcloud` — a scratch-config `backup` would have targeted the production data
+  directory. `--config-dir` is now a real global option accepted in any position (stripped before parsing, since
+  System.CommandLine does not inherit root options into subcommands), and the re-exec repeats the entry assembly when
+  the CLI is launched through the `dotnet` muxer (`dotnet dotnetcloud.dll …`), which previously produced `dotnet backup`.
+  Help/version requests no longer elevate, so `dotnetcloud backup --help` prints usage instead of prompting for a
+  password. Tests: `CliArgumentsTests` (16) + `SudoHelperTests` (8); CLI suite **180 pass / 0 fail**.
 
 **Notes:** Files.Tests **926 pass / 0 fail**; Music 387 / Photos 292 / Video 213 / Core.Server 799 pass; CI solution builds
 clean. Deployed to mint22 (15/15 targets, hashes verified, migrations applied, v0.6.13, `/health/ready` Healthy 14/14).
@@ -3421,6 +3441,10 @@ clean. Deployed to mint22 (15/15 targets, hashes verified, migrations applied, v
 (`24/15/3 chunk(s) released`), blob sizes byte-exact, chunk pool 589 M → 428 M, 0 orphan chunk rows; the orphan sweep
 reclaimed a seeded unreferenced blob + scratch file while keeping a referenced one. **Pending:** a client-side upload
 (new `.mp4` converts at completion; `.docx` stays chunked), delete-removes-blob, and media re-sync content-hash check.
+**Post-deploy integrity audit (2026-10-08):** one pre-existing video (`20261005_225022.mp4`, converted by an earlier
+build) was found flagged whole-file with its chunks released and its blob missing — unrecoverable, flagged for
+re-upload; the conversion path is now gated on a verified blob and this state is caught by the integrity audit instead
+of surfacing as a 404. Audit: 13 whole-file versions, 12 healthy, 1 unrecoverable.
 
 ---
 
