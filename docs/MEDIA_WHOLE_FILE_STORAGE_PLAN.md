@@ -477,7 +477,7 @@ Three changes close the hole:
    of 404ing.
 3. **Make the failure mode visible.**
    - `WholeFileBlobIntegrityService` (`IWholeFileBlobIntegrityService`) audits every live whole-file version and
-     distinguishes *recoverable* (chunks survive) from *unrecoverable* losses;
+     distinguishes _recoverable_ (chunks survive) from _unrecoverable_ losses;
      `WholeFileBlobIntegrityAuditService` runs it every 12 h, logs an error per defect, and records the outcome in the
      background-service tracker.
    - `scripts/audit-whole-file-blobs.sh` runs the same check on demand against a live deployment (exit codes: `0` clean,

@@ -1496,6 +1496,12 @@ public class VideoController : VideoControllerBase
 
     // ─── Private Helpers ─────────────────────────────────────────────
 
+    /// <summary>
+    /// Materialises a video for ffprobe/ffmpeg. The returned path is <b>not necessarily</b> a scratch
+    /// file: when the download can hand back a direct file stream the path is the real backing file
+    /// (a whole-file media blob under the storage root, or a file in an admin-shared folder). Callers
+    /// must therefore never delete the path unconditionally — use <see cref="TryDeleteTempFile"/>.
+    /// </summary>
     private async Task<(string? FilePath, Stream? Stream)> SaveVideoToTempFile(VideoDto video, CallerContext caller)
     {
         try
@@ -1511,10 +1517,17 @@ public class VideoController : VideoControllerBase
         }
     }
 
+    /// <summary>
+    /// Deletes a scratch copy that was materialised for a probe/seek request. Only files inside the
+    /// system temp directory are removed: a download can hand back a direct file stream over permanent
+    /// storage (whole-file media blobs, admin-shared folders) and deleting those would destroy the
+    /// user's content — the file would then read back as "content is unavailable".
+    /// </summary>
     private static void TryDeleteTempFile(string? path)
     {
-        if (string.IsNullOrEmpty(path))
+        if (!StreamSourceFiles.IsDeletableScratchFile(path))
             return;
+
         try
         { if (System.IO.File.Exists(path)) System.IO.File.Delete(path); }
         catch { /* best effort */ }

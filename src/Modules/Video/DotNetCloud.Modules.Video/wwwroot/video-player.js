@@ -1153,8 +1153,8 @@
             payload.error.message,
             payload.error.code === "content_unavailable"
               ? "The server still lists this file but its stored content is missing, so it cannot be " +
-                "played. Re-upload or re-sync the original file to restore it."
-              : null
+                  "played. Re-upload or re-sync the original file to restore it."
+              : null,
           );
         })
         .catch(function () {});
