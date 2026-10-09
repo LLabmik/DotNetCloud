@@ -4942,12 +4942,19 @@ content-addressed chunks, so reads stream the blob directly with no temp-file re
 - ✓ `dotnetcloud backup manifest [--output <file>] [--no-chunks] [--storage-root <dir>]` — TSV storage index
   (per-version `file` rows + ordered `blob` rows per chunk) so backups of the extensionless, content-addressed
   storage tree stay interpretable without a live database; reports missing/truncated whole-file blobs
+- ✓ `dotnetcloud backup` generates the manifest first and embeds it (`manifest/storage-manifest.tsv`, `--no-manifest`
+  opts out) and excludes the backup directory + in-progress archive from the data-directory walk
+- ✓ CLI `sudo` re-exec passes the resolved configuration directory as `--config-dir <dir>` (an elevated run previously
+  lost `DOTNETCLOUD_CONFIG_DIR` and fell back to `/etc/dotnetcloud`); `--config-dir` is accepted in any position, the
+  re-exec repeats the entry assembly for muxer launches (`dotnet dotnetcloud.dll …`), and help/version requests no
+  longer prompt for a password (`dotnetcloud backup --help`)
 
 **Tests (938 Files tests green):**
 
 - ✓ Classifier, conversion service, download/ZIP/auto-repair, upload completion (REST + gRPC), blob cleanup,
   retention, sweep, integrity audit, storage-engine write/enumerate/length, model default
-
+- ✓ CLI 180 tests green — storage manifest, backup archive exclusions, `--config-dir` argument handling, sudo re-exec
+  argument construction (config directory + muxer entry assembly)
 **Verification:**
 
 - ✓ `dotnet build DotNetCloud.CI.slnf` zero errors with the NuGet audit enabled (`SixLabors.ImageSharp` bumped

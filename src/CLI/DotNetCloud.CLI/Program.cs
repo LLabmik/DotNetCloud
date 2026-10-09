@@ -6,16 +6,29 @@ public static class Program
 {
     public static int Main(string[] args)
     {
+        // Resolve an explicit --config-dir first: the configuration directory is captured from the
+        // environment the first time any configuration type is touched, and the sudo re-exec below
+        // reads it as well. The option is then removed from the arguments, so it is accepted in any
+        // position (including nested subcommands) — System.CommandLine does not inherit root options.
+        if (CliArguments.TryGetConfigDirArgument(args, out var configDir))
+        {
+            Environment.SetEnvironmentVariable("DOTNETCLOUD_CONFIG_DIR", configDir);
+            args = CliArguments.RemoveConfigDirArgument(args);
+        }
+
         // On Linux, re-execute under sudo if not already root - but only for commands
         // that need to write to system directories. Read-only commands (--help, --version,
-        // status, logs) should work without elevation.
+        // status, logs) should work without elevation, and so should a help request for a
+        // command that otherwise needs root (e.g. `backup --help`).
         var readOnlyCommands = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "--help", "-h", "-?", "--version", "status", "logs"
         };
 
-        var firstArg = args.Length > 0 ? args[0] : null;
-        var needsRoot = firstArg is not null && !readOnlyCommands.Contains(firstArg);
+        var commandName = CliArguments.FindCommandName(args);
+        var needsRoot = commandName is not null
+            && !readOnlyCommands.Contains(commandName)
+            && !CliArguments.IsHelpOrVersionRequest(args);
 
         if (needsRoot)
         {
@@ -27,6 +40,14 @@ public static class Program
         }
 
         var rootCommand = new RootCommand("DotNetCloud - self-hosted cloud platform management CLI");
+
+        // Global option: which configuration directory this invocation operates on. The value is applied
+        // to the environment in Main (see above) before any configuration is resolved.
+        var configDirOption = new Option<string?>("--config-dir")
+        {
+            Description = "Configuration directory to operate on (overrides DOTNETCLOUD_CONFIG_DIR and the /etc/dotnetcloud default)"
+        };
+        rootCommand.Options.Add(configDirOption);
 
         // Setup wizard
         rootCommand.Subcommands.Add(SetupCommand.Create());

@@ -98,6 +98,35 @@ dotnetcloud backup --no-manifest      # opt out (e.g. when the database is unrea
 If the manifest cannot be written the backup still completes, with a warning — look for
 `Storage manifest could not be written` and re-run `dotnetcloud backup manifest` afterwards.
 
+The archive deliberately **excludes the backup directory itself** (`/var/lib/dotnetcloud/backups` on a
+system install) and the archive file being written. Without that, every backup would nest all of its
+predecessors — and, since the archive is created before the data directory is walked, a partial copy of
+itself. Nothing is lost by excluding that directory: the database dump and the storage manifest are both
+added explicitly at fixed paths (`database.sql`, `manifest/storage-manifest.tsv`).
+
+#### Operating on a non-default configuration directory
+
+The CLI reads its configuration from `/etc/dotnetcloud` unless told otherwise. These two forms are
+equivalent, and `--config-dir` is accepted anywhere on the command line (including after a subcommand):
+
+```bash
+dotnetcloud --config-dir /etc/dotnetcloud backup --output /backup/dnc.zip
+DOTNETCLOUD_CONFIG_DIR=/etc/dotnetcloud dotnetcloud backup --output /backup/dnc.zip
+```
+
+Commands that need root re-run themselves under `sudo`. Because `sudo` resets the environment, the resolved
+configuration directory is passed to the elevated process on its command line — so a command aimed at a
+custom directory always operates on **that** directory instead of silently falling back to
+`/etc/dotnetcloud`.
+
+⚠️ **Confirm the directory before starting a backup:** a path that does not contain a configuration file is
+reported (`No configuration found. Run 'dotnetcloud setup' first.`) rather than assumed, so check the resolved
+configuration first — a command run without `--config-dir` operates on the system configuration:
+
+```bash
+DOTNETCLOUD_CONFIG_DIR=/tmp/dnc-test dotnetcloud status   # confirm ports/paths match the test config
+```
+
 ### Method 2: Manual Backup
 
 #### Step 1: Database Backup

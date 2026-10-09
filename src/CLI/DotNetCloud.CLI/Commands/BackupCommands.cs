@@ -242,6 +242,52 @@ internal static class BackupCommands
         }
     }
 
+    /// <summary>
+    /// Paths that must never be copied into an archive: the backup directory itself (otherwise every
+    /// backup nests all of its predecessors, along with the storage tree) and the archive file that is
+    /// currently being written (which would otherwise capture a partial copy of itself).
+    /// </summary>
+    /// <param name="backupDirectory">Configured backup directory, or null/blank when unknown.</param>
+    /// <param name="backupPath">Archive file being written.</param>
+    internal static IReadOnlyList<string> GetArchiveExclusions(string? backupDirectory, string backupPath)
+    {
+        var exclusions = new List<string>();
+        if (!string.IsNullOrWhiteSpace(backupDirectory))
+            exclusions.Add(Path.GetFullPath(backupDirectory));
+
+        exclusions.Add(Path.GetFullPath(backupPath));
+        return exclusions;
+    }
+
+    /// <summary>
+    /// Returns <see langword="true"/> when <paramref name="filePath"/> is one of the excluded paths or
+    /// lives beneath one of them. A sibling directory that merely shares a name prefix (for example
+    /// <c>backups-old</c> next to <c>backups</c>) is deliberately <b>not</b> excluded.
+    /// </summary>
+    /// <param name="filePath">Candidate file.</param>
+    /// <param name="exclusions">Excluded directories/files.</param>
+    internal static bool IsExcludedFromArchive(string filePath, IReadOnlyList<string> exclusions)
+    {
+        if (string.IsNullOrWhiteSpace(filePath))
+            return false;
+
+        var comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+
+        var candidate = Path.GetFullPath(filePath);
+        foreach (var exclusion in exclusions)
+        {
+            if (candidate.Equals(exclusion, comparison))
+                return true;
+
+            if (candidate.StartsWith(exclusion + Path.DirectorySeparatorChar, comparison))
+                return true;
+        }
+
+        return false;
+    }
+
     private static async Task<int> CreateBackupAsync(
         string? outputPath, bool includeDbDump, string? serverUrl, bool includeManifest)
     {
@@ -349,14 +395,29 @@ internal static class BackupCommands
             var dataDir = config.DataDirectory;
             if (Directory.Exists(dataDir))
             {
-                var dataFiles = Directory.GetFiles(dataDir, "*", SearchOption.AllDirectories);
+                // Never archive the backup directory itself (each backup would otherwise nest every
+                // previous one) or the archive file currently being written.
+                var exclusions = GetArchiveExclusions(config.BackupDirectory, backupPath);
+                var allDataFiles = Directory.GetFiles(dataDir, "*", SearchOption.AllDirectories);
+                var dataFiles = allDataFiles
+                    .Where(file => !IsExcludedFromArchive(file, exclusions))
+                    .ToArray();
+
                 foreach (var file in dataFiles)
                 {
                     var entryName = "data/" + Path.GetRelativePath(dataDir, file).Replace('\\', '/');
                     archive.CreateEntryFromFile(file, entryName);
                     fileCount++;
                 }
+
                 ConsoleOutput.WriteSuccess($"Data directory backed up ({dataFiles.Length} files).");
+
+                var excludedCount = allDataFiles.Length - dataFiles.Length;
+                if (excludedCount > 0)
+                {
+                    ConsoleOutput.WriteInfo(
+                        $"  Excluded {excludedCount} file(s) under {config.BackupDirectory} (previous backups are not nested into this one).");
+                }
             }
 
             // Backup database info entry
