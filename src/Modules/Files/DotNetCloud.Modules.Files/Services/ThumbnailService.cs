@@ -71,17 +71,18 @@ public sealed class ThumbnailService : IThumbnailService
     }
 
     /// <inheritdoc />
-    public async Task<(Stream? Data, string? ContentType)> GetOrGenerateThumbnailAsync(
+    public async Task<(Stream? Data, string? ContentType, DateTime? CapturedAtUtc)> GetOrGenerateThumbnailAsync(
         Guid fileNodeId,
         ThumbnailSize size,
         string storagePath,
         string mimeType,
         CancellationToken cancellationToken = default)
     {
-        // 1. Check cache first
+        // 1. Check cache first. A cached thumbnail means generation already ran, so there is
+        //    nothing left to capture and no EXIF timestamp is returned on this path.
         var (data, contentType) = await GetThumbnailAsync(fileNodeId, size, cancellationToken).ConfigureAwait(false);
         if (data is not null)
-            return (data, contentType);
+            return (data, contentType, null);
 
         // 2. Cache miss — only raster images support lazy generation (video/PDF need external tools)
         if (!_supportedImageMimeTypes.Contains(mimeType))
@@ -89,16 +90,17 @@ public sealed class ThumbnailService : IThumbnailService
             _logger.LogDebug(
                 "No cached thumbnail for {FileId} and MIME type {MimeType} does not support lazy generation.",
                 fileNodeId, mimeType);
-            return (null, null);
+            return (null, null, null);
         }
 
         // 3. Generate all sizes, then retry
-        await GenerateThumbnailAsync(fileNodeId, storagePath, mimeType, cancellationToken).ConfigureAwait(false);
-        return await GetThumbnailAsync(fileNodeId, size, cancellationToken).ConfigureAwait(false);
+        var capturedAtUtc = await GenerateThumbnailAsync(fileNodeId, storagePath, mimeType, cancellationToken).ConfigureAwait(false);
+        var (generatedData, generatedContentType) = await GetThumbnailAsync(fileNodeId, size, cancellationToken).ConfigureAwait(false);
+        return (generatedData, generatedContentType, capturedAtUtc);
     }
 
     /// <inheritdoc />
-    public async Task GenerateThumbnailAsync(
+    public async Task<DateTime?> GenerateThumbnailAsync(
         Guid fileNodeId,
         string storagePath,
         string mimeType,
@@ -107,29 +109,30 @@ public sealed class ThumbnailService : IThumbnailService
         if (!File.Exists(storagePath))
         {
             _logger.LogWarning("Cannot generate thumbnail — source file not found: {Path}", storagePath);
-            return;
+            return null;
         }
 
         if (_supportedImageMimeTypes.Contains(mimeType))
         {
-            await GenerateFromImageAsync(fileNodeId, storagePath, cancellationToken);
-            return;
+            return await GenerateFromImageAsync(fileNodeId, storagePath, cancellationToken);
         }
 
         if (_supportedVideoMimeTypes.Contains(mimeType))
         {
             await GenerateFromVideoAsync(fileNodeId, storagePath, cancellationToken);
-            return;
+            return null;
         }
 
         if (string.Equals(mimeType, "application/pdf", StringComparison.OrdinalIgnoreCase))
         {
             await GenerateFromPdfAsync(fileNodeId, storagePath, cancellationToken);
         }
+
+        return null;
     }
 
     /// <inheritdoc />
-    public async Task GenerateThumbnailFromStreamAsync(
+    public async Task<DateTime?> GenerateThumbnailFromStreamAsync(
         Guid fileNodeId,
         Stream contentStream,
         string mimeType,
@@ -138,30 +141,32 @@ public sealed class ThumbnailService : IThumbnailService
         if (!_supportedImageMimeTypes.Contains(mimeType))
         {
             _logger.LogDebug("Unsupported MIME type for stream thumbnail: {MimeType}", mimeType);
-            return;
+            return null;
         }
 
         try
         {
             using var image = await Image.LoadAsync(contentStream, cancellationToken);
-            await GenerateResizedThumbnailsAsync(fileNodeId, image, cancellationToken);
+            return await GenerateResizedThumbnailsAsync(fileNodeId, image, cancellationToken);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to generate thumbnail from stream for file {FileId}", fileNodeId);
+            return null;
         }
     }
 
-    private async Task GenerateFromImageAsync(Guid fileNodeId, string storagePath, CancellationToken cancellationToken)
+    private async Task<DateTime?> GenerateFromImageAsync(Guid fileNodeId, string storagePath, CancellationToken cancellationToken)
     {
         try
         {
             using var image = await Image.LoadAsync(storagePath, cancellationToken);
-            await GenerateResizedThumbnailsAsync(fileNodeId, image, cancellationToken);
+            return await GenerateResizedThumbnailsAsync(fileNodeId, image, cancellationToken);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to generate thumbnail for file {FileId}", fileNodeId);
+            return null;
         }
     }
 
@@ -237,8 +242,11 @@ public sealed class ThumbnailService : IThumbnailService
         }
     }
 
-    private async Task GenerateResizedThumbnailsAsync(Guid fileNodeId, Image image, CancellationToken cancellationToken)
+    private async Task<DateTime?> GenerateResizedThumbnailsAsync(Guid fileNodeId, Image image, CancellationToken cancellationToken)
     {
+        // The image is already decoded, so reading the EXIF capture timestamp here is effectively free.
+        var capturedAtUtc = ImageCaptureTimeReader.Read(image);
+
         foreach (ThumbnailSize size in Enum.GetValues<ThumbnailSize>())
         {
             var outputPath = BuildCachePath(fileNodeId, size);
@@ -257,6 +265,8 @@ public sealed class ThumbnailService : IThumbnailService
             await thumb.SaveAsJpegAsync(outputPath, cancellationToken);
             _logger.LogDebug("Generated {Size}px thumbnail for file {FileId}", dim, fileNodeId);
         }
+
+        return capturedAtUtc;
     }
 
     /// <inheritdoc />

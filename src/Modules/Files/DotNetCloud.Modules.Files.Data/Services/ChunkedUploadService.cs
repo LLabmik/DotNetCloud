@@ -30,6 +30,7 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
     private readonly FileSystemOptions _fileSystemOptions;
     private readonly IFileVersioningSettingsProvider _versioningSettings;
     private readonly IWholeFileStorageService? _wholeFileStorage;
+    private readonly IMediaCaptureTimeService? _captureTimeService;
 
     public ChunkedUploadService(
         FilesDbContext db,
@@ -42,7 +43,8 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         IOptions<FileUploadOptions> uploadOptions,
         IOptions<FileSystemOptions> fileSystemOptions,
         IFileVersioningSettingsProvider versioningSettings,
-        IWholeFileStorageService? wholeFileStorageService = null)
+        IWholeFileStorageService? wholeFileStorageService = null,
+        IMediaCaptureTimeService? captureTimeService = null)
     {
         _db = db;
         _storageEngine = storageEngine;
@@ -55,6 +57,7 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         _fileSystemOptions = fileSystemOptions.Value;
         _versioningSettings = versioningSettings;
         _wholeFileStorage = wholeFileStorageService;
+        _captureTimeService = captureTimeService;
     }
 
     /// <inheritdoc />
@@ -498,6 +501,15 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
             await _wholeFileStorage.ConvertVersionToWholeFileAsync(version.Id, cancellationToken);
         }
 
+        // Photo listings show when a picture was taken: read the EXIF capture time straight from the
+        // just-written whole-file blob. (The module host's event bus has no subscribers, so this must
+        // not depend on FileUploadedEvent handlers.)
+        if (_captureTimeService is not null)
+        {
+            await _captureTimeService.TryCaptureFromStorageAsync(
+                fileNode.Id, fileNode.StoragePath, fileNode.MimeType, cancellationToken);
+        }
+
         await _eventBus.PublishAsync(new FileUploadedEvent
         {
             EventId = Guid.CreateVersion7(),
@@ -537,6 +549,7 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
             ContentHash = fileNode.ContentHash,
             CreatedAt = fileNode.CreatedAt,
             UpdatedAt = fileNode.UpdatedAt,
+            CapturedAt = fileNode.CapturedAtUtc,
             PosixMode = fileNode.PosixMode,
             PosixOwnerHint = fileNode.PosixOwnerHint
         };

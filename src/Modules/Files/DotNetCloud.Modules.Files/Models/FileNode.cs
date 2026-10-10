@@ -78,6 +78,14 @@ public sealed class FileNode
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>
+    /// When the media content was originally created/captured, sourced from image EXIF
+    /// (<c>DateTimeOriginal</c>) when available. Null for non-media files, for media whose
+    /// metadata could not be read, and for files uploaded before this column existed.
+    /// Callers fall back to <see cref="CreatedAt"/> when null.
+    /// </summary>
+    public DateTime? CapturedAtUtc { get; set; }
+
+    /// <summary>
     /// Monotonically increasing sequence number assigned on every mutation.
     /// Used for cursor-based delta sync (Task 2.4).
     /// </summary>

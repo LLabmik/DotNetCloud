@@ -393,6 +393,9 @@ namespace DotNetCloud.Modules.Files.Data.SqlServer.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
 
+                    b.Property<DateTime?>("CapturedAtUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("ContentHash")
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");

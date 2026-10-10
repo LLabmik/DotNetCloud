@@ -321,6 +321,31 @@ public class FileDtoTests
         Assert.IsNull(dto.LinkTarget);
     }
 
+    // ---- EXIF capture time (photo listings) ----
+
+    [TestMethod]
+    public void WhenFileNodeDtoCreatedWithCapturedAtThenStoresValue()
+    {
+        var captured = new DateTime(2023, 7, 14, 15, 30, 0, DateTimeKind.Utc);
+        var dto = new FileNodeDto
+        {
+            Id = Guid.CreateVersion7(),
+            Name = "photo.jpg",
+            NodeType = "File",
+            CapturedAt = captured
+        };
+
+        Assert.AreEqual(captured, dto.CapturedAt);
+    }
+
+    [TestMethod]
+    public void WhenFileNodeDtoCreatedWithoutCapturedAtThenIsNull()
+    {
+        var dto = new FileNodeDto { Id = Guid.CreateVersion7(), Name = "document.txt", NodeType = "File" };
+
+        Assert.IsNull(dto.CapturedAt);
+    }
+
     [TestMethod]
     public void WhenSyncChangeDtoCreatedWithLinkTargetThenStoresValue()
     {

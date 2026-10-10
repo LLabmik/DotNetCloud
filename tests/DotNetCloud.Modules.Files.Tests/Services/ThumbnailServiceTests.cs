@@ -2,6 +2,7 @@ using DotNetCloud.Modules.Files.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Metadata.Profiles.Exif;
 using SixLabors.ImageSharp.PixelFormats;
 
 namespace DotNetCloud.Modules.Files.Tests.Services;
@@ -157,6 +158,87 @@ public class ThumbnailServiceTests
             Assert.IsNull(data);
             Assert.IsNull(contentType);
             Assert.AreEqual(1, pdfRenderer.CallCount);
+        }
+        finally
+        {
+            if (Directory.Exists(storageRoot))
+            {
+                Directory.Delete(storageRoot, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
+    public async Task GenerateThumbnailAsync_ImageWithExifDateOriginal_ReturnsCaptureTime()
+    {
+        var storageRoot = Path.Combine(Path.GetTempPath(), "dnc-thumb-tests", Guid.CreateVersion7().ToString("N"));
+        Directory.CreateDirectory(storageRoot);
+
+        try
+        {
+            var config = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Files:Storage:RootPath"] = storageRoot
+                })
+                .Build();
+
+            var service = new ThumbnailService(config, new FakeVideoFrameExtractor(success: true),
+                new FakePdfPageRenderer(success: true), NullLogger<ThumbnailService>.Instance);
+
+            var fileId = Guid.CreateVersion7();
+            var imagePath = Path.Combine(storageRoot, "photo-with-exif.jpg");
+
+            using (var image = new Image<Rgb24>(64, 64))
+            {
+                var exif = new ExifProfile();
+                exif.SetValue(ExifTag.DateTimeOriginal, "2023:07:14 15:30:00");
+                image.Metadata.ExifProfile = exif;
+                await image.SaveAsJpegAsync(imagePath);
+            }
+
+            var captured = await service.GenerateThumbnailAsync(fileId, imagePath, "image/jpeg");
+
+            Assert.AreEqual(new DateTime(2023, 7, 14, 15, 30, 0, DateTimeKind.Utc), captured);
+        }
+        finally
+        {
+            if (Directory.Exists(storageRoot))
+            {
+                Directory.Delete(storageRoot, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
+    public async Task GenerateThumbnailAsync_ImageWithoutExif_ReturnsNullCaptureTime()
+    {
+        var storageRoot = Path.Combine(Path.GetTempPath(), "dnc-thumb-tests", Guid.CreateVersion7().ToString("N"));
+        Directory.CreateDirectory(storageRoot);
+
+        try
+        {
+            var config = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Files:Storage:RootPath"] = storageRoot
+                })
+                .Build();
+
+            var service = new ThumbnailService(config, new FakeVideoFrameExtractor(success: true),
+                new FakePdfPageRenderer(success: true), NullLogger<ThumbnailService>.Instance);
+
+            var fileId = Guid.CreateVersion7();
+            var imagePath = Path.Combine(storageRoot, "photo-no-exif.jpg");
+
+            using (var image = new Image<Rgb24>(64, 64))
+            {
+                await image.SaveAsJpegAsync(imagePath);
+            }
+
+            var captured = await service.GenerateThumbnailAsync(fileId, imagePath, "image/jpeg");
+
+            Assert.IsNull(captured);
         }
         finally
         {

@@ -329,6 +329,8 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
                 Size = n.Size,
                 ParentId = n.ParentId,
                 UpdatedAt = n.UpdatedAt,
+                CreatedAt = n.CreatedAt,
+                CapturedAt = n.CapturedAt,
                 Tags = n.Tags.Select(t => new FileTagViewModel { Id = t.Id, Name = t.Name, Color = t.Color }).ToList()
             }).ToList();
         }
@@ -2498,6 +2500,23 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         return $"{bytes / (1024.0 * 1024.0 * 1024.0):F2} GB";
     }
 
+    /// <summary>
+    /// Formats the "image creation time" shown on gallery tiles: the EXIF capture timestamp when
+    /// known, otherwise the node's created timestamp, as <c>"MMM d, yyyy · h:mm tt"</c>.
+    /// </summary>
+    protected static string FormatPhotoTimestamp(FileNodeViewModel node)
+        => (node.CapturedAt ?? node.CreatedAt).ToString("MMM d, yyyy · h:mm tt");
+
+    /// <summary>
+    /// Formats the date shown in a list/grid row's meta line. Images show when the picture was taken
+    /// (EXIF capture time when known, otherwise the file's created time, as date and time); all other
+    /// files keep showing the last-modified date.
+    /// </summary>
+    protected static string FormatRowDate(FileNodeViewModel node)
+        => FilesImageHelper.IsImage(node)
+            ? FormatPhotoTimestamp(node)
+            : node.UpdatedAt.ToString("MMM d, yyyy");
+
     // ── Shared item event handlers ─────────────────────────────────────────────
 
     /// <summary>Handles opening a shared item — fetches the node and shows preview or editor.</summary>
@@ -2966,6 +2985,8 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
             ParentId = dto.ParentId,
             IsFavorite = dto.IsFavorite,
             UpdatedAt = dto.UpdatedAt,
+            CreatedAt = dto.CreatedAt,
+            CapturedAt = dto.CapturedAt,
             CurrentVersion = dto.CurrentVersion,
             Tags = dto.Tags.Select(t => new FileTagViewModel
             {

@@ -466,6 +466,24 @@
     transform: scale(1.03);
 }
 
+/* Creation-time caption overlaid on grid and timeline thumbnails */
+.photo-card-date {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 12px 8px 5px;
+    font-size: 11px;
+    line-height: 1.2;
+    color: #ffffff;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0));
+    pointer-events: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .favorite-badge {
     position: absolute;
     top: 6px;

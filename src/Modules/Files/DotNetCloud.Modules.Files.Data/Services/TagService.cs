@@ -126,7 +126,8 @@ internal sealed class TagService : ITagService
                 IsFavorite = n.IsFavorite,
                 ContentHash = n.ContentHash,
                 CreatedAt = n.CreatedAt,
-                UpdatedAt = n.UpdatedAt
+                UpdatedAt = n.UpdatedAt,
+                CapturedAt = n.CapturedAtUtc
             })
             .ToListAsync(cancellationToken);
     }

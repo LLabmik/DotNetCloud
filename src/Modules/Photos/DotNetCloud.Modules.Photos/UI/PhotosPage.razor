@@ -233,12 +233,16 @@
                                     {
                                         <span class="edited-badge">✎</span>
                                     }
+                                    @if (_viewMode != ViewMode.List)
+                                    {
+                                        <span class="photo-card-date">@FormatDateTime(photo.TakenAt)</span>
+                                    }
                                 </div>
                                 @if (_viewMode == ViewMode.List)
                                 {
                                     <div class="photo-card-info">
                                         <span class="photo-name">@photo.FileName</span>
-                                        <span class="photo-date">@FormatDate(photo.TakenAt)</span>
+                                        <span class="photo-date">@FormatDateTime(photo.TakenAt)</span>
                                         <span class="photo-size">@FormatSize(photo.SizeBytes)</span>
                                         <span class="photo-dimensions">@(photo.Width)×@(photo.Height)</span>
                                     </div>
@@ -339,6 +343,7 @@
                                         <div class="photo-card" @onclick="() => OpenLightboxAsync(photo)">
                                             <div class="photo-card-img">
                                                 <img src="@GetThumbnailUrl(photo.Id, "grid")" alt="@photo.FileName" loading="lazy" />
+                                                <span class="photo-card-date">@FormatDateTime(photo.TakenAt)</span>
                                             </div>
                                         </div>
                                     }
@@ -681,7 +686,7 @@
                                                     <dt>Dimensions</dt>
                                                     <dd>@(_lightboxPhoto.Width)×@(_lightboxPhoto.Height)</dd>
                                                     <dt>Taken</dt>
-                                                    <dd>@FormatDate(_lightboxPhoto.TakenAt)</dd>
+                                                    <dd>@FormatDateTime(_lightboxPhoto.TakenAt)</dd>
                                                     @if (_lightboxPhoto.Metadata is not null)
                                                     {
                                                         @if (!string.IsNullOrEmpty(_lightboxPhoto.Metadata.CameraMake))

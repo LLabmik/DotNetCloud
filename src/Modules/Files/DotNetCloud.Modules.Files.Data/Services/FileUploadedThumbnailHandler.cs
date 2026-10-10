@@ -45,13 +45,21 @@ internal sealed class FileUploadedThumbnailHandler : IEventHandler<FileUploadedE
         {
             await using var scope = _scopeFactory.CreateAsyncScope();
             var downloadService = scope.ServiceProvider.GetRequiredService<IDownloadService>();
+            var captureTimeService = scope.ServiceProvider.GetRequiredService<IMediaCaptureTimeService>();
 
             var caller = new CallerContext(@event.UploadedByUserId, [], CallerType.System);
             await using var contentStream = await downloadService.DownloadCurrentAsync(
                 @event.FileNodeId, caller, cancellationToken);
 
-            await _thumbnailService.GenerateThumbnailFromStreamAsync(
+            var capturedAtUtc = await _thumbnailService.GenerateThumbnailFromStreamAsync(
                 @event.FileNodeId, contentStream, @event.MimeType, cancellationToken);
+
+            // Thumbnail generation decodes the image, so the EXIF capture time is harvested there
+            // and persisted here so photo listings can show when the picture was taken.
+            if (capturedAtUtc is { } captured)
+            {
+                await captureTimeService.TrySetCaptureTimeAsync(@event.FileNodeId, captured, cancellationToken);
+            }
 
             _logger.LogDebug("Thumbnail generated for uploaded file {FileNodeId} ({FileName})",
                 @event.FileNodeId, @event.FileName);

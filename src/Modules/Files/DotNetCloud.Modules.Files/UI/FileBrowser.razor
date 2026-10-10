@@ -95,7 +95,7 @@
                                                 @FormatSize(node.TotalSize)
                                                 <span class="meta-sep">·</span>
                                             }
-                                            @node.UpdatedAt.ToString("MMM d, yyyy")
+                                            @FormatRowDate(node)
                                             @if (node.CommentCount > 0)
                                             {
                                                 <button class="comment-indicator" title="@node.CommentCount comment(s)"
@@ -318,6 +318,7 @@ else
                                                                     <span class="gallery-tile-overlay">
                                                                         <span class="gallery-tile-name">@image.Name</span>
                                                                         <span class="gallery-tile-meta">@FormatSize(image.Size)</span>
+                                                                        <span class="gallery-tile-meta">@FormatPhotoTimestamp(image)</span>
                                                                     </span>
                                                                 </button>
                                                                 @if (!image.IsReadOnly)
@@ -416,7 +417,7 @@ else
                                                                     @FormatSize(node.TotalSize)
                                                                     <span class="meta-sep">·</span>
                                                                 }
-                                                                @node.UpdatedAt.ToString("MMM d, yyyy")
+                                                                @FormatRowDate(node)
                                                                 @if (node.CommentCount > 0)
                                                                 {
                                                                     <button class="comment-indicator" title="@node.CommentCount comment(s)"

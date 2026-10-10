@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Modules.Files.Data;
+using DotNetCloud.Modules.Files.Data.Services;
 using DotNetCloud.Modules.Files.Host.Controllers;
 using Microsoft.EntityFrameworkCore;
 using DotNetCloud.Modules.Files.Options;
@@ -356,6 +357,7 @@ public class ControllerSecurityAuditTests
             Mock.Of<IVersionService>(),
             Mock.Of<IShareService>(),
             Mock.Of<IThumbnailService>(),
+            Mock.Of<IMediaCaptureTimeService>(),
             Enumerable.Empty<IMediaMetadataExtractor>(),
             NullLogger<FilesController>.Instance,
             Microsoft.Extensions.Options.Options.Create(new FileSystemOptions()),

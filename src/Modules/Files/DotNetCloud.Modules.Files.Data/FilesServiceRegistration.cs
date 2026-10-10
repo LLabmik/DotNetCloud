@@ -77,6 +77,7 @@ public static class FilesServiceRegistration
         services.AddSingleton<IVideoFrameExtractor, FfmpegVideoFrameExtractor>();
         services.AddSingleton<IPdfPageRenderer, PdftoppmPdfPageRenderer>();
         services.AddSingleton<IThumbnailService, ThumbnailService>();
+        services.AddScoped<IMediaCaptureTimeService, MediaCaptureTimeService>();
 
         // Event-driven thumbnail generation for uploaded images
         services.AddSingleton<FileUploadedThumbnailHandler>();
@@ -157,6 +158,10 @@ public static class FilesServiceRegistration
         services.AddHostedService<ExpiredShareCleanupService>();
         services.AddHostedService<WholeFileBlobSweepService>();
 
+        // One-shot backfill of EXIF capture times for image nodes that lack one (photos uploaded
+        // before the capture hook, or through a path that did not capture it).
+        services.AddHostedService<MediaCaptureBackfillService>();
+
         // The sweep above reclaims orphaned blobs; the audit below reports the mirror-image failure —
         // a whole-file media version whose blob is missing entirely, which is silent data loss.
         services.AddScoped<IWholeFileBlobIntegrityService, WholeFileBlobIntegrityService>();
@@ -214,6 +219,7 @@ public static class FilesServiceRegistration
         services.AddSingleton<IVideoFrameExtractor, FfmpegVideoFrameExtractor>();
         services.AddSingleton<IPdfPageRenderer, PdftoppmPdfPageRenderer>();
         services.AddSingleton<IThumbnailService, ThumbnailService>();
+        services.AddScoped<IMediaCaptureTimeService, MediaCaptureTimeService>();
 
         // WOPI / Collabora services
         services.AddScoped<IWopiService, WopiService>();

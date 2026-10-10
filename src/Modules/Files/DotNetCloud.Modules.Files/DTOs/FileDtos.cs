@@ -46,6 +46,12 @@ public sealed record FileNodeDto
     /// <summary>Last modified timestamp (UTC).</summary>
     public DateTime UpdatedAt { get; init; }
 
+    /// <summary>
+    /// When the media content was originally captured, sourced from image EXIF when available
+    /// (null otherwise). Callers should fall back to <see cref="CreatedAt"/> when null.
+    /// </summary>
+    public DateTime? CapturedAt { get; init; }
+
     /// <summary>Number of children (for folders).</summary>
     public int ChildCount { get; init; }
 

@@ -6498,3 +6498,80 @@ formats the highlighted text (surrounds it, prefixes its lines, or inserts after
   marker-only gaps count as a wrapping pair (so `2 * 3` in prose is never mistaken for italic). Marker
   runs are read as "which formats are on" — one `*` is italic, `**` bold, `***` both — which is what
   separates "remove the bold pair" from "add emphasis to bold text".
+
+---
+
+## Photo Listings — Show Image Creation Time (2026-10-10, `fix/photo-listings-creation-time`)
+
+**Status:** implemented ✅ (unit-tested; live re-verification pending after the capture fix)
+**Goal:** Photo listings in **both** the **Files** gallery view and the **Photos** module should show each
+image's creation time — the EXIF capture timestamp when the file carries one, otherwise the file's created
+timestamp — as a date **and** time.
+
+### Deliverables
+
+- ✓ **Files — schema:** `FileNode.CapturedAtUtc` (`DateTime?`, nullable), EF configuration, and migrations
+  for **both** providers (`AddFileNodeCapturedAt` PostgreSQL, `AddFileNodeCapturedAt_SqlServer`).
+  `CapturedAt` is exposed on `FileNodeDto` and mapped through `FileService`, `ChunkedUploadService`,
+  `TagService`, and `FileNodeViewModel`.
+- ✓ **Files — EXIF capture:** `ThumbnailService` already decodes every image to build a thumbnail, so it now
+  reads `ExifProfile.DateTimeOriginal` (falling back to `DateTime`) in the same pass and returns it from
+  `IThumbnailService.GenerateThumbnailAsync` / `…FromStreamAsync` / `…GetOrGenerateThumbnailAsync` (the
+  latter tuple gained a third element). Parsing mirrors `ExifMetadataExtractor`
+  (`"yyyy:MM:dd HH:mm:ss"`, `AssumeUniversal | AdjustToUniversal`) so Files and Photos agree on the value.
+- ✓ **Files — persistence:** new `IMediaCaptureTimeService` / `MediaCaptureTimeService` writes
+  `CapturedAtUtc` with a single set-based `UPDATE … WHERE CapturedAtUtc IS NULL` (ignore query filters;
+  InMemory-provider fallback for tests), so the upload handler and the lazy thumbnail endpoint can race
+  without clobbering. Wired into `FileUploadedThumbnailHandler` (new uploads) and the
+  `GET /api/v1/files/{id}/thumbnail` endpoint (backfills pre-existing media on first browse). Registered in
+  both `AddFilesServices` and `AddFilesUiServices`.
+- ✓ **Files — UI:** the Gallery tile overlay shows `CapturedAt ?? CreatedAt` as `MMM d, yyyy · h:mm tt`
+  (`FormatPhotoTimestamp`), alongside the file size.
+- ✓ **Photos — UI:** every gallery / Favorites / Albums / Shared / search tile now shows
+  `FormatDateTime(photo.TakenAt)` (`PhotoDto.TakenAt` = EXIF date taken, or upload date); the list view and
+  lightbox were upgraded from date-only to date+time; a `.photo-card-date` overlay was added to the grid and
+  timeline thumbnails.
+- ⚠️ **Live test found the capture never ran** — after the deploy, `CapturedAtUtc` was null for **all 103**
+  images and **0** thumbnails had ever been generated. Root cause: **the core supervisor never sends the
+  module lifecycle `Initialize` RPC** (`ProcessSupervisor` only calls `HealthCheck`/`Stop`), so a module
+  host's `FilesModule.InitializeAsync` — which subscribes the `FileUploadedEvent` handlers — never runs. The
+  intended upload-time thumbnail + capture handler is dead code in production, and the module's event bus has
+  no subscribers. Separately, `ThumbnailService` caches into the host's **private** temp dir because
+  `Files:Storage:RootPath` is unset in module hosts, so the lazy capture only runs when a thumbnail is
+  actually requested (never for the list view).
+- ✓ **Fix (1) — capture at upload:** `ChunkedUploadService.CompleteUploadAsync` reads the EXIF date directly
+  from the just-written whole-file blob via `IMediaCaptureTimeService.TryCaptureFromStorageAsync`, with no
+  dependency on the event bus.
+- ✓ **Fix (2) — startup backfill:** new `MediaCaptureBackfillService` (registered in `AddFilesServices`)
+  sweeps image nodes whose capture time is null once per process start — keyset-paginated by `CreatedAt` so it
+  always advances, capped at 25 per batch / 5000 per run — reading content through `IDownloadService` so
+  chunked (not-yet-whole-file) media is covered too. Gated on `DOTNETCLOUD_MODULE_ID == "dotnetcloud.files"`
+  because the Photo/Music/Video hosts also register `AddFilesServices` and would otherwise duplicate the disk
+  work.
+- ✓ **Verified live (mint22):** the Files host logged `Media Capture-Time Backfill: examined 103 image(s)`,
+  recording capture time for **3** files — exactly the EXIF-carrying camera `.jpg`s; the other 100 are
+  PNG/WebP screenshots with no EXIF. `20261005_120242.jpg` → `2026-10-05 12:02:42Z` (EXIF
+  `2026:10:05 12:02:42`), so the listing now shows **Oct 5, 2026 · 12:02 PM** instead of the Oct 10 upload
+  date.
+- ✓ **Fix (3) — list/grid rows:** the Files list/grid meta line now shows the image creation time for image
+  files (`FormatRowDate`), which is the view the reporter was looking at.
+- ✓ **Shared EXIF reader:** `ImageCaptureTimeReader` (Files project) holds the `"yyyy:MM:dd HH:mm:ss"`,
+  assume-UTC parsing used by both `ThumbnailService` and the capture service.
+- ✓ **Tests:** `MediaCaptureTimeServiceTests` (8: fill-once, never overwrite, missing node, trashed node,
+  stream EXIF, non-image MIME, whole-file blob EXIF, missing blob), `ThumbnailServiceTests` EXIF read (2),
+  `FileDtoTests` `CapturedAt` (2). Files.Tests **959 pass / 0 fail**, Core.Server.Tests **799 / 2 skip**;
+  build clean; `dotnet ef migrations has-pending-model-changes` clean for both providers.
+- ☐ **Known gap (not fixed):** media uploaded through the **gRPC** path (desktop/mobile sync) is not captured
+  inline — it is captured on the first Gallery view or by the next host-startup backfill.
+
+### Notes
+
+- Videos fall back to `CreatedAt` — the Files module performs no video capture-date extraction, and the
+  Photos module is image-only.
+- EXIF `DateTimeOriginal` carries no time zone and is stored as-is (assumed UTC), matching the existing
+  Photos `TakenAt` behaviour; listings therefore show the camera's local wall-clock capture time.
+- Pre-existing images are backfilled by the startup sweep, and any image is also captured the first time its
+  thumbnail is generated, so no user action is needed once the host has started.
+- The supervisor never initialising module lifecycles is a **platform-level gap** worth its own fix: it also
+  disables every other module-host event handler (search indexing, notifications, …).
+- No gRPC/proto change — the value is UI-only, consumed by the in-process Blazor components.
